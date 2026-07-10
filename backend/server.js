@@ -6,6 +6,7 @@ require("./config/db");
 
 const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
+const workerRoutes = require("./routes/workerRoutes");
 
 const app = express();
 
@@ -14,9 +15,12 @@ app.use(express.json());
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/workers", workerRoutes);
 
 app.get("/", (req, res) => {
-    res.json({ message: "Backend is running..." });
+    res.json({
+        message: "Backend is running..."
+    });
 });
 
 const PORT = process.env.PORT || 3000;
@@ -24,7 +28,3 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
 });
-
-const workerRoutes = require("./routes/workerRoutes");
-
-app.use("/api/workers", workerRoutes);

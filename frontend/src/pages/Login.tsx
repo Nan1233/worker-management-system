@@ -1,93 +1,77 @@
 import { useState } from "react";
-import api from "../api/axios.ts";
+import { useNavigate } from "react-router-dom";
+import { login } from "../services/authService";
 
-
-function Login() {
+const Login = () => {
+    const navigate = useNavigate();
 
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
+    const [error, setError] = useState("");
 
-
-    const handleLogin = async () => {
+    const handleLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
 
         try {
+            const data = await login(username, password);
 
-            const res = await api.post(
-                "/auth/login",
-                {
-                    username,
-                    password
-                }
+            localStorage.setItem("token", data.token);
+            localStorage.setItem("user", JSON.stringify(data.user));
+
+            if (data.user.role === "admin") {
+                navigate("/admin");
+            } else if (data.user.role === "manager") {
+                navigate("/manager");
+            } else {
+                navigate("/worker");
+            }
+        } catch (err: any) {
+            setError(
+                err.response?.data?.message || "Đăng nhập thất bại"
             );
-
-
-            console.log(res.data);
-
-
-            localStorage.setItem(
-                "token",
-                res.data.token
-            );
-
-
-            alert(
-                "Đăng nhập thành công: "
-                + res.data.user.role
-            );
-
-
-        } catch (error) {
-
-            console.log(error);
-
-            alert("Sai tài khoản hoặc mật khẩu");
-
         }
-
     };
 
-
     return (
-        <div>
+        <div
+            style={{
+                width: 350,
+                margin: "100px auto",
+                border: "1px solid #ddd",
+                padding: 20,
+                borderRadius: 8,
+            }}
+        >
+            <h2>Đăng nhập</h2>
 
-            <h1>
-                Login hệ thống
-            </h1>
+            <form onSubmit={handleLogin}>
+                <input
+                    type="text"
+                    placeholder="Username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    style={{ width: "100%", padding: 10, marginBottom: 10 }}
+                />
 
+                <input
+                    type="password"
+                    placeholder="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    style={{ width: "100%", padding: 10, marginBottom: 10 }}
+                />
 
-            <input
-                type="text"
-                placeholder="Username"
-                value={username}
-                onChange={
-                    (e) => setUsername(e.target.value)
-                }
-            />
+                <button
+                    type="submit"
+                    style={{ width: "100%", padding: 10 }}
+                >
+                    Đăng nhập
+                </button>
+            </form>
 
-
-            <br />
-
-
-            <input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={
-                    (e) => setPassword(e.target.value)
-                }
-            />
-
-
-            <br />
-
-
-            <button onClick={handleLogin}>
-                Đăng nhập
-            </button>
-
+            <p style={{ color: "red" }}>{error}</p>
         </div>
     );
-}
-
+};
 
 export default Login;
