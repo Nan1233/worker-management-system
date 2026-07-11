@@ -1,7 +1,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 
 import Login from "../pages/Login";
-
 import PrivateRoute from "./PrivateRoute";
 
 import WorkerLayout from "../layouts/WorkerLayout";
@@ -15,19 +14,19 @@ import ProcessPage from "../pages/worker/ProcessPage";
 function AppRouter() {
     return (
         <Routes>
-
+            {/* Mặc định */}
             <Route
                 path="/"
                 element={<Navigate to="/login" replace />}
             />
 
+            {/* Login */}
             <Route
                 path="/login"
                 element={<Login />}
             />
 
-            {/* ADMIN */}
-
+            {/* Admin */}
             <Route
                 path="/admin"
                 element={
@@ -37,8 +36,7 @@ function AppRouter() {
                 }
             />
 
-            {/* MANAGER */}
-
+            {/* Manager */}
             <Route
                 path="/manager"
                 element={
@@ -48,31 +46,37 @@ function AppRouter() {
                 }
             />
 
-            {/* WORKER */}
-
+            {/* Worker */}
             <Route
+                path="/worker"
                 element={
                     <PrivateRoute role="worker">
                         <WorkerLayout />
                     </PrivateRoute>
                 }
             >
+                {/* Trang mặc định sau khi đăng nhập */}
                 <Route
-                    path="/worker"
+                    index
                     element={<SelectProcess />}
                 />
 
+                {/* Form nhập báo cáo */}
                 <Route
-                    path="/worker/process/:process"
+                    path="process/:process"
                     element={<ProcessPage />}
                 />
+
+                {/* Sau này thêm */}
+                {/* <Route path="history" element={<ProductionHistory />} /> */}
+                {/* <Route path="profile" element={<ProfilePage />} /> */}
             </Route>
 
+            {/* Không tồn tại */}
             <Route
                 path="*"
                 element={<Navigate to="/login" replace />}
             />
-
         </Routes>
     );
 }

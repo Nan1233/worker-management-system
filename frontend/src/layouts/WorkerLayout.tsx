@@ -1,29 +1,32 @@
 import { Outlet } from "react-router-dom";
-import BottomNavbar from "../components/BottomNavbar";
 
-const WorkerLayout = () => {
+import Sidebar from "../components/common/Sidebar";
+import Header from "../components/common/Header";
+
+import "./WorkerLayout.css";
+
+function WorkerLayout() {
     return (
-        <div
-            style={{
-                minHeight: "100vh",
-                display: "flex",
-                flexDirection: "column",
-                background: "#f5f5f5"
-            }}
-        >
-            <div
-                style={{
-                    flex: 1,
-                    padding: "20px",
-                    paddingBottom: "90px"
-                }}
-            >
-                <Outlet />
+        <div className="layout">
+
+            {/* Sidebar Desktop */}
+            <Sidebar />
+
+            {/* Khu vực chính */}
+            <div className="main-layout">
+
+                {/* Header */}
+                <Header />
+
+                {/* Nội dung */}
+                <main className="page-content">
+                    <Outlet />
+                </main>
+
             </div>
 
-            <BottomNavbar />
         </div>
     );
-};
+}
 
 export default WorkerLayout;

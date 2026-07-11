@@ -1,33 +1,48 @@
 import { useNavigate } from "react-router-dom";
+import "./SelectProcess.css";
 
 const processes = [
     {
         id: "gia-cong",
-        name: "Gia công"
+        name: "Gia công",
+        icon: "⚙️",
+        description: "Nhập báo cáo gia công"
     },
     {
         id: "mai",
-        name: "Mài"
+        name: "Mài",
+        icon: "🛠️",
+        description: "Nhập báo cáo mài"
     },
     {
         id: "kiem-1",
-        name: "Kiểm 1"
+        name: "Kiểm 1",
+        icon: "🔍",
+        description: "Kiểm tra chất lượng lần 1"
     },
     {
         id: "kiem-2",
-        name: "Kiểm 2"
+        name: "Kiểm 2",
+        icon: "✅",
+        description: "Kiểm tra chất lượng lần 2"
     },
     {
         id: "ep",
-        name: "Ép"
+        name: "Ép",
+        icon: "🏭",
+        description: "Nhập báo cáo ép"
     },
     {
         id: "can",
-        name: "Cán"
+        name: "Cán",
+        icon: "📦",
+        description: "Nhập báo cáo cán"
     },
     {
         id: "bavia",
-        name: "Bavia"
+        name: "Bavia",
+        icon: "✂️",
+        description: "Nhập báo cáo bavia"
     }
 ];
 
@@ -36,48 +51,46 @@ function SelectProcess() {
     const navigate = useNavigate();
 
     return (
+        <div className="select-process">
 
-        <div>
+            <div className="page-header">
 
-            <h2
-                style={{
-                    textAlign: "center",
-                    marginBottom: 25
-                }}
-            >
-                Chọn công đoạn
-            </h2>
+                <h2>Chọn công đoạn</h2>
 
-            {
-                processes.map((item) => (
+                <p>
+                    Chọn công đoạn bạn đang làm để bắt đầu nhập báo cáo.
+                </p>
 
-                    <button
+            </div>
+
+            <div className="process-grid">
+
+                {processes.map((item) => (
+
+                    <div
                         key={item.id}
+                        className="process-card"
                         onClick={() =>
                             navigate(`/worker/process/${item.id}`)
                         }
-                        style={{
-                            width: "100%",
-                            padding: "18px",
-                            marginBottom: "15px",
-                            borderRadius: "10px",
-                            border: "1px solid #ddd",
-                            cursor: "pointer",
-                            background: "#1976d2",
-                            color: "white",
-                            fontSize: "18px"
-                        }}
                     >
-                        {item.name}
-                    </button>
 
-                ))
-            }
+                        <div className="process-icon">
+                            {item.icon}
+                        </div>
+
+                        <h3>{item.name}</h3>
+
+                        <p>{item.description}</p>
+
+                    </div>
+
+                ))}
+
+            </div>
 
         </div>
-
     );
-
 }
 
 export default SelectProcess;

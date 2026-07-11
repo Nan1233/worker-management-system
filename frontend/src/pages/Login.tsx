@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { login } from "../services/authService";
+import axios from "axios";
 
 const Login = () => {
     const navigate = useNavigate();
@@ -25,11 +26,21 @@ const Login = () => {
             } else {
                 navigate("/worker");
             }
-        } catch (err: any) {
-            setError(
-                err.response?.data?.message || "Đăng nhập thất bại"
-            );
-        }
+        } catch (err: unknown) {
+
+    if (axios.isAxiosError(err)) {
+
+        setError(
+            err.response?.data?.message || "Đăng nhập thất bại"
+        );
+
+    } else {
+
+        setError("Đăng nhập thất bại");
+
+    }
+
+}
     };
 
     return (
