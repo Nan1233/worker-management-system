@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+
 import "./ProcessPage.css";
 
 import { createReport } from "../../services/productionService";
@@ -12,6 +14,8 @@ import TextAreaField from "../../components/process/TextAreaField";
 
 function ProcessPage() {
 
+    const navigate = useNavigate();
+
 
     const initialForm = {
 
@@ -24,9 +28,7 @@ function ProcessPage() {
 
 
         totalTime: 0,
-
         actualTime: 0,
-
         deductionTime: 0,
 
 
@@ -34,61 +36,49 @@ function ProcessPage() {
 
 
         standardOutput: 0,
-
         actualOutput: 0,
 
 
         ttOk: 0,
-
         ttNg: 0,
 
 
         kqdDapLai: 0,
-
         kqdTuot: 0,
 
 
         voDoLong: 0,
-
         xuocDoLong: 0,
-
         congGay: 0,
-
         xoay: 0,
-
         khongDut: 0,
-
         baviaHut: 0,
-
         ppcm: 0,
-
         loiCaoSu: 0,
-
         ngKichThuoc: 0,
-
         catLem: 0,
 
 
-        note:""
+        note: ""
 
     };
 
 
 
-    const [form,setForm] = useState(initialForm);
+    const [form, setForm] = useState(initialForm);
 
 
 
     const handleChange = (
         e: React.ChangeEvent<
-        HTMLInputElement |
-        HTMLSelectElement |
-        HTMLTextAreaElement
+            HTMLInputElement |
+            HTMLSelectElement |
+            HTMLTextAreaElement
         >
-    )=>{
+    ) => {
 
 
-        const {name,value}=e.target;
+        const { name, value } = e.target;
 
 
         setForm({
@@ -97,11 +87,11 @@ function ProcessPage() {
 
             [name]:
 
-            e.target.type==="number"
-            ?
-            Number(value)
-            :
-            value
+                e.target.type === "number"
+                    ?
+                    Number(value)
+                    :
+                    value
 
         });
 
@@ -112,94 +102,91 @@ function ProcessPage() {
 
 
 
-    const handleSubmit = async()=>{
+    const handleSubmit = async () => {
 
 
-        try{
+        try {
 
 
             await createReport({
 
 
-                // worker W001
-                worker_id:1,
+                worker_id: 1,
 
 
-                // Gia công
-                process_id:1,
+                process_id: 1,
 
 
-
-                work_date:form.workDate,
-
-
-                shift:form.shift,
+                work_date: form.workDate,
 
 
-                machine_no:form.machineNo,
+                shift: form.shift,
+
+
+                machine_no: form.machineNo,
 
 
 
-                total_time:form.totalTime,
+                total_time: form.totalTime,
 
-                actual_time:form.actualTime,
+                actual_time: form.actualTime,
 
-                deduction_time:form.deductionTime,
-
-
-
-                product_name:form.productName,
-
-
-                standard_output:form.standardOutput,
-
-
-                actual_output:form.actualOutput,
+                deduction_time: form.deductionTime,
 
 
 
-                tt_ok:form.ttOk,
-
-                tt_ng:form.ttNg,
+                product_name: form.productName,
 
 
+                standard_output: form.standardOutput,
 
-                kqd_dap_lai:form.kqdDapLai,
 
-                kqd_tuot:form.kqdTuot,
+                actual_output: form.actualOutput,
 
 
 
-                vo_do_long:form.voDoLong,
+                tt_ok: form.ttOk,
 
-                xuoc_do_long:form.xuocDoLong,
-
-
-                cong_gay:form.congGay,
+                tt_ng: form.ttNg,
 
 
-                xoay:form.xoay,
+
+                kqd_dap_lai: form.kqdDapLai,
+
+                kqd_tuot: form.kqdTuot,
 
 
-                khong_dut:form.khongDut,
+
+                vo_do_long: form.voDoLong,
+
+                xuoc_do_long: form.xuocDoLong,
 
 
-                bavia_hut:form.baviaHut,
+                cong_gay: form.congGay,
 
 
-                ppcm:form.ppcm,
+                xoay: form.xoay,
 
 
-                loi_cao_su:form.loiCaoSu,
+                khong_dut: form.khongDut,
 
 
-                ng_kich_thuoc:form.ngKichThuoc,
+                bavia_hut: form.baviaHut,
 
 
-                cat_lem:form.catLem,
+                ppcm: form.ppcm,
 
 
-                note:form.note
+                loi_cao_su: form.loiCaoSu,
+
+
+                ng_kich_thuoc: form.ngKichThuoc,
+
+
+                cat_lem: form.catLem,
+
+
+                note: form.note
 
 
 
@@ -213,9 +200,13 @@ function ProcessPage() {
             handleReset();
 
 
+            navigate("/worker");
+
+
 
         }
-        catch(err){
+
+        catch (err) {
 
 
             console.log(err);
@@ -232,300 +223,296 @@ function ProcessPage() {
 
 
 
-
-    const handleReset=()=>{
+    const handleReset = () => {
 
 
         setForm(initialForm);
 
 
     };
+    return (
 
+        <div className="container">
 
 
+            <h1>
+                BÁO CÁO GIA CÔNG
+            </h1>
 
 
-return (
 
-<div className="container">
 
+            <FormSection title="Thông tin chung">
 
-<h1>
-BÁO CÁO GIA CÔNG
-</h1>
 
 
+                <InputField
 
+                    type="date"
 
-<FormSection title="Thông tin chung">
+                    label="Ngày"
 
+                    name="workDate"
 
+                    value={form.workDate}
 
-<InputField
+                    onChange={handleChange}
 
-type="date"
+                />
 
-label="Ngày"
 
-name="workDate"
 
-value={form.workDate}
+                <SelectField
 
-onChange={handleChange}
+                    label="Ca làm việc"
 
-/>
+                    name="shift"
 
+                    value={form.shift}
 
+                    onChange={handleChange}
 
-<SelectField
+                    options={[
+                        "Ca 1",
+                        "Ca 2",
+                        "Ca 3"
+                    ]}
 
-label="Ca làm việc"
+                />
 
-name="shift"
 
-value={form.shift}
 
-onChange={handleChange}
+                <InputField
 
-options={[
-"Ca 1",
-"Ca 2",
-"Ca 3"
-]}
+                    label="Mã nhân viên"
 
-/>
+                    name="workerCode"
 
+                    value={form.workerCode}
 
+                    onChange={handleChange}
 
-<InputField
+                />
 
-label="Mã nhân viên"
 
-name="workerCode"
 
-value={form.workerCode}
+                <InputField
 
-onChange={handleChange}
+                    label="Số máy"
 
-/>
+                    name="machineNo"
 
+                    value={form.machineNo}
 
+                    onChange={handleChange}
 
-<InputField
+                />
 
-label="Số máy"
 
-name="machineNo"
 
-value={form.machineNo}
+            </FormSection>
 
-onChange={handleChange}
 
-/>
 
 
 
-</FormSection>
 
+            <FormSection title="Thời gian">
 
 
+                <NumberField
 
+                    label="Tổng thời gian"
 
+                    name="totalTime"
 
-<FormSection title="Thời gian">
+                    value={form.totalTime}
 
+                    onChange={handleChange}
 
-<NumberField
+                />
 
-label="Tổng thời gian"
 
-name="totalTime"
 
-value={form.totalTime}
+                <NumberField
 
-onChange={handleChange}
+                    label="Thời gian thực tế"
 
-/>
+                    name="actualTime"
 
+                    value={form.actualTime}
 
+                    onChange={handleChange}
 
-<NumberField
+                />
 
-label="Thời gian thực tế"
 
-name="actualTime"
 
-value={form.actualTime}
+                <NumberField
 
-onChange={handleChange}
+                    label="Thời gian trừ"
 
-/>
+                    name="deductionTime"
 
+                    value={form.deductionTime}
 
+                    onChange={handleChange}
 
-<NumberField
+                />
 
-label="Thời gian trừ"
 
-name="deductionTime"
+            </FormSection>
 
-value={form.deductionTime}
 
-onChange={handleChange}
 
-/>
 
 
-</FormSection>
 
+            <FormSection title="Sản xuất">
 
 
+                <InputField
 
+                    label="Sản phẩm"
 
+                    name="productName"
 
+                    value={form.productName}
 
-<FormSection title="Sản xuất">
+                    onChange={handleChange}
 
+                />
 
-<InputField
 
-label="Sản phẩm"
 
-name="productName"
+                <NumberField
 
-value={form.productName}
+                    label="Định mức"
 
-onChange={handleChange}
+                    name="standardOutput"
 
-/>
+                    value={form.standardOutput}
 
+                    onChange={handleChange}
 
+                />
 
-<NumberField
 
-label="Định mức"
 
-name="standardOutput"
+                <NumberField
 
-value={form.standardOutput}
+                    label="Thực tế"
 
-onChange={handleChange}
+                    name="actualOutput"
 
-/>
+                    value={form.actualOutput}
 
+                    onChange={handleChange}
 
+                />
 
-<NumberField
 
-label="Thực tế"
+            </FormSection>
 
-name="actualOutput"
 
-value={form.actualOutput}
 
-onChange={handleChange}
 
-/>
 
 
-</FormSection>
+            <FormSection title="Báo cáo chất lượng">
 
 
+                <NumberField label="TT OK" name="ttOk" value={form.ttOk} onChange={handleChange}/>
 
+                <NumberField label="TT NG" name="ttNg" value={form.ttNg} onChange={handleChange}/>
 
+                <NumberField label="KQD dập lại" name="kqdDapLai" value={form.kqdDapLai} onChange={handleChange}/>
 
+                <NumberField label="KQD tuốt" name="kqdTuot" value={form.kqdTuot} onChange={handleChange}/>
 
+                <NumberField label="Vỡ do lồng" name="voDoLong" value={form.voDoLong} onChange={handleChange}/>
 
-<FormSection title="Báo cáo chất lượng">
+                <NumberField label="Xước do lồng" name="xuocDoLong" value={form.xuocDoLong} onChange={handleChange}/>
 
+                <NumberField label="Cong gãy" name="congGay" value={form.congGay} onChange={handleChange}/>
 
-<NumberField label="TT OK" name="ttOk" value={form.ttOk} onChange={handleChange}/>
+                <NumberField label="Xoay" name="xoay" value={form.xoay} onChange={handleChange}/>
 
-<NumberField label="TT NG" name="ttNg" value={form.ttNg} onChange={handleChange}/>
+                <NumberField label="Không đứt" name="khongDut" value={form.khongDut} onChange={handleChange}/>
 
-<NumberField label="KQD dập lại" name="kqdDapLai" value={form.kqdDapLai} onChange={handleChange}/>
+                <NumberField label="Bavia hụt" name="baviaHut" value={form.baviaHut} onChange={handleChange}/>
 
-<NumberField label="KQD tuốt" name="kqdTuot" value={form.kqdTuot} onChange={handleChange}/>
+                <NumberField label="PPCM" name="ppcm" value={form.ppcm} onChange={handleChange}/>
 
-<NumberField label="Vỡ do lồng" name="voDoLong" value={form.voDoLong} onChange={handleChange}/>
+                <NumberField label="Lỗi cao su" name="loiCaoSu" value={form.loiCaoSu} onChange={handleChange}/>
 
-<NumberField label="Xước do lồng" name="xuocDoLong" value={form.xuocDoLong} onChange={handleChange}/>
+                <NumberField label="NG kích thước" name="ngKichThuoc" value={form.ngKichThuoc} onChange={handleChange}/>
 
-<NumberField label="Cong gãy" name="congGay" value={form.congGay} onChange={handleChange}/>
+                <NumberField label="Cắt lẹm" name="catLem" value={form.catLem} onChange={handleChange}/>
 
-<NumberField label="Xoay" name="xoay" value={form.xoay} onChange={handleChange}/>
 
-<NumberField label="Không đứt" name="khongDut" value={form.khongDut} onChange={handleChange}/>
 
-<NumberField label="Bavia hụt" name="baviaHut" value={form.baviaHut} onChange={handleChange}/>
+                <TextAreaField
 
-<NumberField label="PPCM" name="ppcm" value={form.ppcm} onChange={handleChange}/>
+                    label="Ghi chú"
 
-<NumberField label="Lỗi cao su" name="loiCaoSu" value={form.loiCaoSu} onChange={handleChange}/>
+                    name="note"
 
-<NumberField label="NG kích thước" name="ngKichThuoc" value={form.ngKichThuoc} onChange={handleChange}/>
+                    value={form.note}
 
-<NumberField label="Cắt lẹm" name="catLem" value={form.catLem} onChange={handleChange}/>
+                    onChange={handleChange}
 
+                />
 
-<TextAreaField
 
-label="Ghi chú"
+            </FormSection>
 
-name="note"
 
-value={form.note}
 
-onChange={handleChange}
 
-/>
 
 
-</FormSection>
 
+            <div className="button-group">
 
 
+                <button
 
+                    className="save-btn"
 
-<div className="button-group">
+                    onClick={handleSubmit}
 
+                >
 
-<button
+                    Lưu báo cáo
 
-className="save-btn"
+                </button>
 
-onClick={handleSubmit}
 
->
 
-Lưu báo cáo
 
-</button>
+                <button
 
+                    className="reset-btn"
 
+                    onClick={handleReset}
 
-<button
+                >
 
-className="reset-btn"
+                    Làm mới
 
-onClick={handleReset}
+                </button>
 
->
 
-Làm mới
+            </div>
 
-</button>
 
 
-</div>
 
+        </div>
 
 
-
-</div>
-
-
-);
+    );
 
 
 }

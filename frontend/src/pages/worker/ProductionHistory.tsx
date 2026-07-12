@@ -1,249 +1,97 @@
-import { useState } from "react";
-import "./ProcessPage.css";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
-import { createReport } from "../../services/productionService";
+import "./ProductionHistory.css";
 
-import FormSection from "../../components/process/FormSection";
-import InputField from "../../components/process/InputField";
-import NumberField from "../../components/process/NumberField";
-import SelectField from "../../components/process/SelectField";
-import TextAreaField from "../../components/process/TextAreaField";
+import { getReports } from "../../services/productionService";
+import type { ProductionReport } from "../../types/production";
 
 
-function ProcessPage() {
+function ProductionHistory() {
 
 
-    const initialForm = {
+    const navigate = useNavigate();
 
-        workDate: "",
 
-        shift: "Ca 1",
+    const [reports, setReports] = useState<ProductionReport[]>([]);
 
+    const [loading, setLoading] = useState(true);
 
-        workerCode: "W001",
 
-        machineNo: "",
 
 
-        totalTime: 0,
 
-        actualTime: 0,
+    useEffect(() => {
 
-        deductionTime: 0,
 
+        const loadReports = async () => {
 
-        productName: "",
 
+            try {
 
-        standardOutput: 0,
 
-        actualOutput: 0,
+                const data = await getReports();
 
 
-        ttOk: 0,
+                setReports(data);
 
-        ttNg: 0,
 
 
-        kqdDapLai: 0,
+            }
 
-        kqdTuot: 0,
+            catch (err) {
 
 
-        voDoLong: 0,
+                console.log(err);
 
-        xuocDoLong: 0,
 
-        congGay: 0,
+            }
 
-        xoay: 0,
+            finally {
 
-        khongDut: 0,
 
-        baviaHut: 0,
+                setLoading(false);
 
-        ppcm: 0,
 
-        loiCaoSu: 0,
+            }
 
-        ngKichThuoc: 0,
 
-        catLem: 0,
+        };
 
 
-        note: ""
 
-    };
+        loadReports();
 
 
 
-    const [form,setForm] = useState(initialForm);
+    }, []);
 
 
 
-    const handleChange = (
-        e: React.ChangeEvent<
-            HTMLInputElement |
-            HTMLSelectElement |
-            HTMLTextAreaElement
-        >
-    )=>{
 
 
-        const {name,value}=e.target;
 
 
-        setForm({
 
-            ...form,
+    if (loading) {
 
-            [name]:
 
-                e.target.type === "number"
-                    ? Number(value)
-                    : value
+        return (
 
-        });
+            <div className="history-container">
 
+                <h2>
+                    Đang tải dữ liệu...
+                </h2>
 
-    };
+            </div>
 
+        );
 
 
+    }
 
 
-    const handleSubmit = async()=>{
-
-
-        try{
-
-
-            await createReport({
-
-
-                // công đoạn Gia công
-                // processes.id = 1
-                process_id:1,
-
-
-
-                work_date:form.workDate,
-
-
-                shift:form.shift,
-
-
-                machine_no:form.machineNo,
-
-
-
-                total_time:form.totalTime,
-
-
-                actual_time:form.actualTime,
-
-
-                deduction_time:form.deductionTime,
-
-
-
-                product_name:form.productName,
-
-
-                standard_output:form.standardOutput,
-
-
-                actual_output:form.actualOutput,
-
-
-
-                tt_ok:form.ttOk,
-
-
-                tt_ng:form.ttNg,
-
-
-
-                kqd_dap_lai:form.kqdDapLai,
-
-
-                kqd_tuot:form.kqdTuot,
-
-
-
-                vo_do_long:form.voDoLong,
-
-
-                xuoc_do_long:form.xuocDoLong,
-
-
-                cong_gay:form.congGay,
-
-
-                xoay:form.xoay,
-
-
-                khong_dut:form.khongDut,
-
-
-                bavia_hut:form.baviaHut,
-
-
-                ppcm:form.ppcm,
-
-
-                loi_cao_su:form.loiCaoSu,
-
-
-                ng_kich_thuoc:form.ngKichThuoc,
-
-
-                cat_lem:form.catLem,
-
-
-
-                note:form.note
-
-
-
-            });
-
-
-
-            alert("Lưu báo cáo thành công");
-
-
-            handleReset();
-
-
-
-        }
-
-        catch(err){
-
-
-            console.log(err);
-
-
-            alert("Lưu thất bại");
-
-
-        }
-
-
-    };
-
-
-
-
-
-    const handleReset=()=>{
-
-
-        setForm(initialForm);
-
-
-    };
 
 
 
@@ -251,279 +99,21 @@ function ProcessPage() {
 
     return (
 
-        <div className="container">
+        <div className="history-container">
 
 
-            <h1>
-                BÁO CÁO GIA CÔNG
-            </h1>
 
+            <div className="page-header">
 
 
+                <h2>
+                    📋 Báo cáo của tôi
+                </h2>
 
-            <FormSection title="Thông tin chung">
 
-
-
-                <InputField
-
-                    type="date"
-
-                    label="Ngày"
-
-                    name="workDate"
-
-                    value={form.workDate}
-
-                    onChange={handleChange}
-
-                />
-
-
-
-                <SelectField
-
-                    label="Ca làm việc"
-
-                    name="shift"
-
-                    value={form.shift}
-
-                    onChange={handleChange}
-
-                    options={[
-                        "Ca 1",
-                        "Ca 2",
-                        "Ca 3"
-                    ]}
-
-                />
-
-
-
-                <InputField
-
-                    label="Mã nhân viên"
-
-                    name="workerCode"
-
-                    value={form.workerCode}
-
-                    onChange={handleChange}
-
-                />
-
-
-
-                <InputField
-
-                    label="Số máy"
-
-                    name="machineNo"
-
-                    value={form.machineNo}
-
-                    onChange={handleChange}
-
-                />
-
-
-            </FormSection>
-
-
-
-
-
-
-
-            <FormSection title="Thời gian">
-
-
-                <NumberField
-
-                    label="Tổng thời gian"
-
-                    name="totalTime"
-
-                    value={form.totalTime}
-
-                    onChange={handleChange}
-
-                />
-
-
-
-                <NumberField
-
-                    label="Thời gian thực tế"
-
-                    name="actualTime"
-
-                    value={form.actualTime}
-
-                    onChange={handleChange}
-
-                />
-
-
-
-                <NumberField
-
-                    label="Thời gian trừ"
-
-                    name="deductionTime"
-
-                    value={form.deductionTime}
-
-                    onChange={handleChange}
-
-                />
-
-
-            </FormSection>
-
-
-
-
-
-
-
-            <FormSection title="Sản xuất">
-
-
-                <InputField
-
-                    label="Sản phẩm"
-
-                    name="productName"
-
-                    value={form.productName}
-
-                    onChange={handleChange}
-
-                />
-
-
-
-                <NumberField
-
-                    label="Định mức"
-
-                    name="standardOutput"
-
-                    value={form.standardOutput}
-
-                    onChange={handleChange}
-
-                />
-
-
-
-                <NumberField
-
-                    label="Thực tế"
-
-                    name="actualOutput"
-
-                    value={form.actualOutput}
-
-                    onChange={handleChange}
-
-                />
-
-
-            </FormSection>
-
-
-
-
-
-
-
-            <FormSection title="Báo cáo chất lượng">
-
-
-
-                <NumberField label="TT OK" name="ttOk" value={form.ttOk} onChange={handleChange}/>
-
-                <NumberField label="TT NG" name="ttNg" value={form.ttNg} onChange={handleChange}/>
-
-                <NumberField label="KQD dập lại" name="kqdDapLai" value={form.kqdDapLai} onChange={handleChange}/>
-
-                <NumberField label="KQD tuốt" name="kqdTuot" value={form.kqdTuot} onChange={handleChange}/>
-
-                <NumberField label="Vỡ do lồng" name="voDoLong" value={form.voDoLong} onChange={handleChange}/>
-
-                <NumberField label="Xước do lồng" name="xuocDoLong" value={form.xuocDoLong} onChange={handleChange}/>
-
-                <NumberField label="Cong gãy" name="congGay" value={form.congGay} onChange={handleChange}/>
-
-                <NumberField label="Xoay" name="xoay" value={form.xoay} onChange={handleChange}/>
-
-                <NumberField label="Không đứt" name="khongDut" value={form.khongDut} onChange={handleChange}/>
-
-                <NumberField label="Bavia hụt" name="baviaHut" value={form.baviaHut} onChange={handleChange}/>
-
-                <NumberField label="PPCM" name="ppcm" value={form.ppcm} onChange={handleChange}/>
-
-                <NumberField label="Lỗi cao su" name="loiCaoSu" value={form.loiCaoSu} onChange={handleChange}/>
-
-                <NumberField label="NG kích thước" name="ngKichThuoc" value={form.ngKichThuoc} onChange={handleChange}/>
-
-                <NumberField label="Cắt lẹm" name="catLem" value={form.catLem} onChange={handleChange}/>
-
-
-
-                <TextAreaField
-
-                    label="Ghi chú"
-
-                    name="note"
-
-                    value={form.note}
-
-                    onChange={handleChange}
-
-                />
-
-
-            </FormSection>
-
-
-
-
-
-
-
-            <div className="button-group">
-
-
-                <button
-
-                    className="save-btn"
-
-                    onClick={handleSubmit}
-
-                >
-
-                    Lưu báo cáo
-
-                </button>
-
-
-
-
-                <button
-
-                    className="reset-btn"
-
-                    onClick={handleReset}
-
-                >
-
-                    Làm mới
-
-                </button>
+                <p>
+                    Danh sách báo cáo sản xuất đã gửi
+                </p>
 
 
             </div>
@@ -531,7 +121,142 @@ function ProcessPage() {
 
 
 
+
+
+
+            {
+                reports.length === 0 ?
+
+
+                (
+
+                    <div className="empty">
+
+
+                        <h3>
+                            Chưa có báo cáo
+                        </h3>
+
+
+                        <p>
+                            Bạn chưa gửi báo cáo sản xuất nào.
+                        </p>
+
+
+                    </div>
+
+
+                )
+
+
+                :
+
+
+                (
+
+
+                    <div className="report-list">
+
+
+                        {
+                            reports.map((item) => (
+
+
+                                <div
+
+                                    key={item.id}
+
+                                    className="report-card"
+
+
+                                    onClick={() => {
+
+
+                                        if(item.id){
+
+                                            navigate(
+                                                `/worker/history/${item.id}`
+                                            );
+
+                                        }
+
+
+                                    }}
+
+
+                                >
+
+
+
+                                    <h3>
+
+                                        {
+                                            item.product_name ||
+                                            "Báo cáo sản xuất"
+                                        }
+
+                                    </h3>
+
+
+
+
+
+                                    <p>
+                                        📅 Ngày: {item.work_date}
+                                    </p>
+
+
+
+
+                                    <p>
+                                        🕒 Ca: {item.shift}
+                                    </p>
+
+
+
+
+                                    <p>
+                                        🏭 Máy: {item.machine_no}
+                                    </p>
+
+
+
+
+                                    <p>
+
+                                        ✅ OK: {item.tt_ok}
+
+                                        &nbsp;&nbsp;
+
+                                        ❌ NG: {item.tt_ng}
+
+                                    </p>
+
+
+
+
+
+                                </div>
+
+
+                            ))
+                        }
+
+
+
+                    </div>
+
+
+                )
+
+
+            }
+
+
+
+
         </div>
+
 
     );
 
@@ -539,4 +264,5 @@ function ProcessPage() {
 }
 
 
-export default ProcessPage;
+
+export default ProductionHistory;
