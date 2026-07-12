@@ -12,7 +12,6 @@ const productionRoutes = require("./routes/productionRoutes");
 const app = express();
 
 
-// CORS CONFIG
 const corsOptions = {
     origin: [
         "http://localhost:5173",
@@ -24,10 +23,6 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-
-// xử lý preflight request
-app.options("*", cors(corsOptions));
-
 
 app.use(express.json());
 
