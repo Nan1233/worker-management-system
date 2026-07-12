@@ -8,7 +8,8 @@ const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
 const workerRoutes = require("./routes/workerRoutes");
 const productionRoutes = require("./routes/productionRoutes");
-
+const productionTempRoutes = require("./routes/productionTempRoutes");
+const managerRoutes = require("./routes/managerRoutes");
 const app = express();
 
 
@@ -46,3 +47,5 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
 });
+app.use("/api/production-temp", productionTempRoutes);
+app.use("/api/manager", managerRoutes);
