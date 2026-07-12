@@ -20,7 +20,6 @@ function ProductionHistory() {
 
 
 
-
     useEffect(() => {
 
 
@@ -32,26 +31,20 @@ function ProductionHistory() {
 
                 const data = await getReports();
 
-
                 setReports(data);
 
 
-
             }
 
-            catch (err) {
-
+            catch(err){
 
                 console.log(err);
 
-
             }
 
-            finally {
-
+            finally{
 
                 setLoading(false);
-
 
             }
 
@@ -59,9 +52,7 @@ function ProductionHistory() {
         };
 
 
-
         loadReports();
-
 
 
     }, []);
@@ -71,14 +62,11 @@ function ProductionHistory() {
 
 
 
-
-
-    if (loading) {
-
+    if(loading){
 
         return (
 
-            <div className="history-container">
+            <div className="history-page">
 
                 <h2>
                     Đang tải dữ liệu...
@@ -88,9 +76,7 @@ function ProductionHistory() {
 
         );
 
-
     }
-
 
 
 
@@ -99,16 +85,15 @@ function ProductionHistory() {
 
     return (
 
-        <div className="history-container">
+        <div className="history-page">
 
 
+            <div className="history-header">
 
-            <div className="page-header">
 
-
-                <h2>
+                <h1>
                     📋 Báo cáo của tôi
-                </h2>
+                </h1>
 
 
                 <p>
@@ -122,136 +107,193 @@ function ProductionHistory() {
 
 
 
+            <div className="report-card">
 
 
-            {
-                reports.length === 0 ?
+                {
+                    reports.length === 0 ?
 
 
-                (
+                    (
 
-                    <div className="empty">
+                        <div className="empty">
 
-
-                        <h3>
                             Chưa có báo cáo
-                        </h3>
 
+                        </div>
 
-                        <p>
-                            Bạn chưa gửi báo cáo sản xuất nào.
-                        </p>
 
+                    )
 
-                    </div>
 
+                    :
 
-                )
 
+                    (
 
-                :
+                        <div className="table-container">
 
 
-                (
+                            <table className="history-table">
 
 
-                    <div className="report-list">
+                                <thead>
 
+                                    <tr>
 
-                        {
-                            reports.map((item) => (
+                                        <th>
+                                            STT
+                                        </th>
 
+                                        <th>
+                                            Ngày
+                                        </th>
 
-                                <div
+                                        <th>
+                                            Ca
+                                        </th>
 
-                                    key={item.id}
+                                        <th>
+                                            Máy
+                                        </th>
 
-                                    className="report-card"
+                                        <th>
+                                            Sản phẩm
+                                        </th>
 
+                                        <th>
+                                            Thực tế
+                                        </th>
 
-                                    onClick={() => {
+                                        <th>
+                                            OK
+                                        </th>
 
+                                        <th>
+                                            NG
+                                        </th>
 
-                                        if(item.id){
+                                        <th>
+                                            Chi tiết
+                                        </th>
 
-                                            navigate(
-                                                `/worker/history/${item.id}`
-                                            );
 
-                                        }
+                                    </tr>
 
 
-                                    }}
+                                </thead>
 
 
-                                >
 
 
 
-                                    <h3>
+                                <tbody>
 
-                                        {
-                                            item.product_name ||
-                                            "Báo cáo sản xuất"
-                                        }
 
-                                    </h3>
+                                    {
+                                        reports.map((item,index)=>(
 
 
+                                            <tr key={item.id}>
 
 
+                                                <td>
+                                                    {index + 1}
+                                                </td>
 
-                                    <p>
-                                        📅 Ngày: {item.work_date}
-                                    </p>
 
+                                                <td>
+                                                    {item.work_date}
+                                                </td>
 
 
+                                                <td>
+                                                    {item.shift}
+                                                </td>
 
-                                    <p>
-                                        🕒 Ca: {item.shift}
-                                    </p>
 
+                                                <td>
+                                                    {item.machine_no}
+                                                </td>
 
 
+                                                <td>
+                                                    {item.product_name}
+                                                </td>
 
-                                    <p>
-                                        🏭 Máy: {item.machine_no}
-                                    </p>
 
+                                                <td>
+                                                    {item.actual_output}
+                                                </td>
 
 
+                                                <td>
+                                                    {item.tt_ok}
+                                                </td>
 
-                                    <p>
 
-                                        ✅ OK: {item.tt_ok}
+                                                <td>
+                                                    {item.tt_ng}
+                                                </td>
 
-                                        &nbsp;&nbsp;
 
-                                        ❌ NG: {item.tt_ng}
+                                                <td>
 
-                                    </p>
 
+                                                    <button
 
+                                                        className="detail-btn"
 
+                                                        onClick={()=>{
 
 
-                                </div>
+                                                            if(item.id){
 
+                                                                navigate(
+                                                                    `/worker/history/${item.id}`
+                                                                );
 
-                            ))
-                        }
+                                                            }
 
 
+                                                        }}
 
-                    </div>
+                                                    >
 
+                                                        Xem
 
-                )
+                                                    </button>
 
 
-            }
+                                                </td>
 
+
+                                            </tr>
+
+
+                                        ))
+                                    }
+
+
+
+                                </tbody>
+
+
+
+                            </table>
+
+
+                        </div>
+
+
+                    )
+
+
+                }
+
+
+
+            </div>
 
 
 
