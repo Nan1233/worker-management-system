@@ -6,12 +6,9 @@ const router = express.Router();
 const verifyToken = require("../middleware/authMiddleware");
 const checkRole = require("../middleware/roleMiddleware");
 
-
 const managerController = require("../controllers/managerController");
 
 
-
-// Manager xem báo cáo tạm
 
 router.get(
     "/reports",

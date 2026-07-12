@@ -1,25 +1,38 @@
-const express = require("express");
-
-const router = express.Router();
+const ProductionTemp = require("../models/productionTempModel");
 
 
-const verifyToken = require("../middleware/authMiddleware");
-const checkRole = require("../middleware/roleMiddleware");
+// =======================
+// MANAGER GET TEMP REPORTS
+// =======================
+
+exports.getTempReports = async (req, res) => {
+
+    try {
+
+        const reports = await ProductionTemp.getAll();
 
 
-const managerController = require("../controllers/managerController");
+        res.json({
+
+            success: true,
+
+            data: reports
+
+        });
 
 
-
-// Manager xem báo cáo tạm
-
-router.get(
-    "/reports",
-    verifyToken,
-    checkRole("manager"),
-    managerController.getTempReports
-);
+    } catch (err) {
 
 
+        res.status(500).json({
 
-module.exports = router;
+            success:false,
+
+            message:err.message
+
+        });
+
+
+    }
+
+};
