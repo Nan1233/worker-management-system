@@ -2,6 +2,7 @@ export interface ProductionReport {
     id?: number;
 
     worker_id: number;
+
     process_type: string;
 
     work_date: string;
@@ -36,4 +37,14 @@ export interface ProductionReport {
     cat_lem: number;
 
     note: string;
+
+
+    // dữ liệu backend trả thêm
+    worker_code?: string;
+
+    full_name?: string;
+
+    created_at?: string;
+
+    updated_at?: string;
 }

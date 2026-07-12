@@ -7,17 +7,20 @@ require("./config/db");
 const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
 const workerRoutes = require("./routes/workerRoutes");
+const productionRoutes = require("./routes/productionRoutes");
 
 const app = express();
-
-const productionRoutes = require("./routes/productionRoutes");
 
 app.use(cors());
 app.use(express.json());
 
+
+// routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/workers", workerRoutes);
+app.use("/api/production", productionRoutes);
+
 
 app.get("/", (req, res) => {
     res.json({
@@ -25,10 +28,9 @@ app.get("/", (req, res) => {
     });
 });
 
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
 });
-
-app.use("/api/production", productionRoutes);

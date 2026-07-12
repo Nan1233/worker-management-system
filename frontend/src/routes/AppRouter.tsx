@@ -11,20 +11,33 @@ import ManagerDashboard from "../pages/manager/Dashboard";
 import SelectProcess from "../pages/worker/SelectProcess";
 import ProcessPage from "../pages/worker/ProcessPage";
 
+import ProductionHistory from "../pages/worker/ProductionHistory";
+import ProductionDetail from "../pages/worker/ProductionDetail";
+
+
 function AppRouter() {
+
     return (
+
         <Routes>
+
             {/* Mặc định */}
             <Route
                 path="/"
-                element={<Navigate to="/login" replace />}
+                element={
+                    <Navigate to="/login" replace />
+                }
             />
+
 
             {/* Login */}
             <Route
                 path="/login"
-                element={<Login />}
+                element={
+                    <Login />
+                }
             />
+
 
             {/* Admin */}
             <Route
@@ -36,6 +49,7 @@ function AppRouter() {
                 }
             />
 
+
             {/* Manager */}
             <Route
                 path="/manager"
@@ -46,6 +60,7 @@ function AppRouter() {
                 }
             />
 
+
             {/* Worker */}
             <Route
                 path="/worker"
@@ -55,30 +70,60 @@ function AppRouter() {
                     </PrivateRoute>
                 }
             >
-                {/* Trang mặc định sau khi đăng nhập */}
+
+                {/* Trang mặc định */}
                 <Route
                     index
-                    element={<SelectProcess />}
+                    element={
+                        <SelectProcess />
+                    }
                 />
 
-                {/* Form nhập báo cáo */}
+
+                {/* Nhập báo cáo gia công */}
                 <Route
                     path="process/:process"
-                    element={<ProcessPage />}
+                    element={
+                        <ProcessPage />
+                    }
                 />
 
-                {/* Sau này thêm */}
-                {/* <Route path="history" element={<ProductionHistory />} /> */}
-                {/* <Route path="profile" element={<ProfilePage />} /> */}
+
+                {/* Danh sách báo cáo */}
+                <Route
+                    path="history"
+                    element={
+                        <ProductionHistory />
+                    }
+                />
+
+
+                {/* Chi tiết báo cáo */}
+                <Route
+                    path="history/:id"
+                    element={
+                        <ProductionDetail />
+                    }
+                />
+
+
             </Route>
+
 
             {/* Không tồn tại */}
             <Route
                 path="*"
-                element={<Navigate to="/login" replace />}
+                element={
+                    <Navigate to="/login" replace />
+                }
             />
+
+
         </Routes>
+
     );
+
 }
+
 
 export default AppRouter;
