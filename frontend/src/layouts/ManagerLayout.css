@@ -1,0 +1,39 @@
+.manager-layout{
+
+    display:flex;
+
+    min-height:100vh;
+
+    width:100%;
+
+    background:#f5f7fb;
+
+}
+
+
+/* phần bên phải */
+
+.manager-main{
+
+    flex:1;
+
+    display:flex;
+
+    flex-direction:column;
+
+    min-width:0;
+
+}
+
+
+/* nội dung */
+
+.manager-content{
+
+    flex:1;
+
+    padding:24px;
+
+    overflow:auto;
+
+}

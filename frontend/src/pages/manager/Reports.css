@@ -1,0 +1,145 @@
+.manager-dashboard {
+
+    padding:24px;
+
+}
+
+
+.manager-header {
+
+    margin-bottom:24px;
+
+}
+
+
+.manager-header h1 {
+
+    font-size:28px;
+
+    color:#1f2937;
+
+    margin-bottom:8px;
+
+}
+
+
+.manager-header p {
+
+    color:#6b7280;
+
+}
+
+
+
+.report-card {
+
+    background:white;
+
+    border-radius:16px;
+
+    padding:24px;
+
+    box-shadow:
+        0 2px 8px rgba(0,0,0,0.08);
+
+}
+
+
+
+.table-container {
+
+    overflow-x:auto;
+
+}
+
+
+
+table {
+
+    width:100%;
+
+    border-collapse:collapse;
+
+}
+
+
+
+th {
+
+    background:#f3f4f6;
+
+    padding:12px;
+
+    text-align:left;
+
+    white-space:nowrap;
+
+}
+
+
+
+td {
+
+    padding:12px;
+
+    border-bottom:1px solid #e5e7eb;
+
+}
+
+
+
+tr:hover {
+
+    background:#f9fafb;
+
+}
+
+
+
+.detail-btn {
+
+    padding:6px 14px;
+
+    border:none;
+
+    border-radius:6px;
+
+    background:#2563eb;
+
+    color:white;
+
+    cursor:pointer;
+
+}
+
+
+
+.detail-btn:hover {
+
+    opacity:0.85;
+
+}
+
+
+
+.empty {
+
+    text-align:center;
+
+    padding:40px;
+
+    color:#6b7280;
+
+}
+
+
+
+@media(max-width:768px){
+
+    .manager-dashboard{
+
+        padding:16px;
+
+    }
+
+}

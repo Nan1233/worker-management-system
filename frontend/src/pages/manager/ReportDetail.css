@@ -1,0 +1,169 @@
+.report-detail-page{
+
+    padding:24px;
+
+}
+
+
+.report-detail-header{
+
+    display:flex;
+
+    justify-content:space-between;
+
+    align-items:center;
+
+    margin-bottom:24px;
+
+}
+
+
+
+.report-detail-header h1{
+
+    font-size:28px;
+
+    color:#1f2937;
+
+}
+
+
+
+.back-btn{
+
+    padding:10px 16px;
+
+    border:none;
+
+    border-radius:8px;
+
+    background:#0f766e;
+
+    color:white;
+
+    cursor:pointer;
+
+}
+
+
+
+.back-btn:hover{
+
+    opacity:.9;
+
+}
+
+
+
+.detail-card{
+
+    background:white;
+
+    padding:24px;
+
+    border-radius:16px;
+
+    box-shadow:0 2px 8px rgba(0,0,0,.08);
+
+    margin-bottom:20px;
+
+}
+
+
+
+.detail-grid{
+
+    display:grid;
+
+    grid-template-columns:repeat(2,1fr);
+
+    gap:16px;
+
+}
+
+
+
+.detail-item{
+
+    padding:12px;
+
+    background:#f8fafc;
+
+    border-radius:8px;
+
+}
+
+
+
+.detail-item b{
+
+    color:#374151;
+
+}
+
+
+
+.quality-title{
+
+    margin-bottom:16px;
+
+    color:#0f766e;
+
+}
+
+
+
+.quality-grid{
+
+    display:grid;
+
+    grid-template-columns:repeat(3,1fr);
+
+    gap:12px;
+
+}
+
+
+
+.quality-item{
+
+    background:#f8fafc;
+
+    padding:12px;
+
+    border-radius:8px;
+
+}
+
+
+
+.note-box{
+
+    margin-top:20px;
+
+    padding:15px;
+
+    background:#fff7ed;
+
+    border-radius:10px;
+
+}
+
+
+
+@media(max-width:768px){
+
+    .detail-grid{
+
+        grid-template-columns:1fr;
+
+    }
+
+
+    .quality-grid{
+
+        grid-template-columns:1fr;
+
+    }
+
+}

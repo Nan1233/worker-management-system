@@ -1,196 +1,91 @@
-const Production = require("../models/productionModel");
+exports.createReport = async(req,res)=>{
 
-exports.createReport = async (req, res) => {
 
-    try {
+try{
 
-        await Production.create(req.body);
 
-        res.status(201).json({
+if(!req.body.process_id){
 
-            success: true,
+return res.status(400).json({
 
-            message: "Lưu báo cáo thành công"
+message:"Thiếu công đoạn"
 
-        });
+});
 
-    }
+}
 
-    catch (err) {
 
-        console.log(err);
 
-        res.status(500).json({
+workerModel.getWorkerByUserId(
 
-            success: false,
+req.user.id,
 
-            message: err.message
+async(err,result)=>{
 
-        });
 
-    }
+if(err){
 
-};
-exports.getAllReports = async (req, res) => {
+return res.status(500).json({
 
-    try {
+message:err.message
 
-        const reports = await Production.getAll();
+});
 
-        res.status(200).json({
+}
 
-            success: true,
 
-            count: reports.length,
 
-            data: reports
+if(result.length===0){
 
-        });
+return res.status(404).json({
 
-    }
+message:"Không tìm thấy công nhân"
 
-    catch (err) {
+});
 
-        res.status(500).json({
+}
 
-            success: false,
 
-            message: err.message
 
-        });
+await Production.create({
 
-    }
+...req.body,
 
-};
+worker_id:result[0].id
 
-exports.getReportById = async (req, res) => {
+});
 
-    try {
 
-        const report = await Production.getById(req.params.id);
 
-        if (!report) {
+res.status(201).json({
 
-            return res.status(404).json({
+success:true,
 
-                success: false,
+message:"Lưu báo cáo thành công"
 
-                message: "Không tìm thấy báo cáo"
+});
 
-            });
 
-        }
+}
 
-        res.json({
 
-            success: true,
+);
 
-            data: report
 
-        });
 
-    }
+}
 
-    catch (err) {
+catch(err){
 
-        res.status(500).json({
 
-            success: false,
+res.status(500).json({
 
-            message: err.message
+message:err.message
 
-        });
+});
 
-    }
 
-};
+}
 
-exports.updateReport = async (req, res) => {
-
-    try {
-
-        const result = await Production.update(
-
-            req.params.id,
-
-            req.body
-
-        );
-
-        if (result.affectedRows === 0) {
-
-            return res.status(404).json({
-
-                success:false,
-
-                message:"Không tìm thấy báo cáo"
-
-            });
-
-        }
-
-        res.json({
-
-            success:true,
-
-            message:"Cập nhật thành công"
-
-        });
-
-    }
-
-    catch(err){
-
-        res.status(500).json({
-
-            success:false,
-
-            message:err.message
-
-        });
-
-    }
-
-};
-
-exports.deleteReport = async (req, res) => {
-
-    try {
-
-        const result = await Production.delete(req.params.id);
-
-        if (result.affectedRows === 0) {
-
-            return res.status(404).json({
-
-                success: false,
-
-                message: "Không tìm thấy báo cáo"
-
-            });
-
-        }
-
-        res.json({
-
-            success: true,
-
-            message: "Xóa báo cáo thành công"
-
-        });
-
-    }
-
-    catch (err) {
-
-        res.status(500).json({
-
-            success: false,
-
-            message: err.message
-
-        });
-
-    }
 
 };

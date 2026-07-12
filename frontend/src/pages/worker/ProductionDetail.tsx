@@ -177,7 +177,7 @@ function ProductionDetail() {
                     <span>Công đoạn</span>
 
                     <strong>
-                        {report.process_type}
+                        {report.process_name}
                     </strong>
 
                 </div>
