@@ -6,8 +6,12 @@ const connection = mysql.createConnection({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME
+    database: process.env.DB_NAME,
+    ssl: {
+        rejectUnauthorized: true
+    }
 });
+
 
 connection.connect((err) => {
     if (err) {
@@ -16,5 +20,6 @@ connection.connect((err) => {
         console.log("✅ MySQL Connected");
     }
 });
+
 
 module.exports = connection;

@@ -4,7 +4,7 @@ import axios from "axios";
 const api = axios.create({
 
     // Render
-    baseURL:"https://worker-management-system-backend.onrender.com/api",
+    baseURL:"https://worker-management-system-2-5jqv.onrender.com",
 
 
     headers:{
