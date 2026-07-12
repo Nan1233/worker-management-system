@@ -3,7 +3,9 @@ import axios from "axios";
 
 const api = axios.create({
 
-    baseURL:"http://localhost:3000/api",
+    // Render
+    baseURL:"https://worker-management-system-backend.onrender.com/api",
+
 
     headers:{
 
@@ -42,6 +44,14 @@ api.interceptors.request.use((config)=>{
 
 export default api;
 
-// const api = axios.create({
-//     baseURL: "https://worker-management-system-backend.onrender.com/api",
-// });
+
+
+
+/*
+==========================
+TEST LOCAL THÌ ĐỔI LẠI:
+
+baseURL:"http://localhost:3000/api"
+
+==========================
+*/
