@@ -1,481 +1,570 @@
 const ExcelJS = require("exceljs");
-const db = require("../config/db");
 
 
+exports.exportGiaCongExcel = async(req,res)=>{
 
-exports.exportProductionExcel = async(req,res)=>{
 
+try{
 
-    try{
 
+const data = req.body.data;
 
-        const month =
-            req.query.month || "04";
+const summary = req.body.summary;
 
 
-        const year =
-            req.query.year || "2026";
 
+const workbook = new ExcelJS.Workbook();
 
 
-        const sql = `
+const sheet =
+workbook.addWorksheet(
+"Gia công"
+);
 
-        SELECT *
 
-        FROM production_reports
 
-        WHERE MONTH(work_date)=?
 
-        AND YEAR(work_date)=?
 
-        ORDER BY work_date ASC
+// ============================
+// 1. DÒNG TIÊU ĐỀ
+// ============================
 
-        `;
 
+sheet.getCell("A1").value =
+"TỔNG THÁNG";
 
 
-        db.query(
-            sql,
-            [
-                month,
-                year
-            ],
 
-            async(err,rows)=>{
 
 
-                if(err){
+// ============================
+// 2. HEADER BẢNG CHÍNH
+// ============================
 
-                    return res.status(500)
-                    .json({
 
-                        success:false,
+const headers=[
 
-                        message:err.message
+"STT",
+"KG/H",
+"Họ tên",
+"",
+"Mã Lô/Mã Máy",
+"Thời gian",
+"SP",
+"",
+"KH",
+"TT",
+"% thực tích",
+"",
+"SL/h",
+"% phế phẩm",
+"Tổng lỗi",
+"Chân không",
+"Rách vỡ",
+"Bề mặt",
+"Bavia"
 
-                    });
+];
 
-                }
 
 
+headers.forEach(
+(header,index)=>{
 
 
-                const workbook =
-                    new ExcelJS.Workbook();
+sheet
+.getCell(
+2,
+index+1
+)
+.value=header;
 
 
+});
 
-                const worksheet =
-                    workbook.addWorksheet(
-                        "EP"
-                    );
 
 
 
 
-                // =========================
-                // CỘT CỐ ĐỊNH A-V
-                // =========================
 
 
-                const headers=[
+// ============================
+// 3. ĐỔ DATA CHÍNH
+// ============================
 
 
-                    "STT",
 
-                    "SHOT/THÁNG",
+data.forEach(
+(item,index)=>{
 
-                    "Số cav/ khuôn",
 
-                    "Thời gian",
+const row =
+index+3;
 
-                    "MÃ SP",
 
-                    "Mã SP",
 
-                    "KH",
+sheet.getRow(row).values=[
 
-                    "TT",
 
-                    "% Thực tích",
+item.stt,
 
-                    "Shotl/H",
+item.kg_h,
 
-                    "SL/H",
+item.ho_ten,
 
-                    "TỔNG PP",
+"",
 
-                    "Chân không",
 
-                    "Rách vỡ",
+item.ma_lo,
 
-                    "Thiếu liệu",
 
-                    "Dính via",
+item.thoi_gian,
 
-                    "Di vật",
 
-                    "Dính khuôn",
+item.sp,
 
-                    "Tạp chất"
 
+"",
 
-                ];
 
+item.kh,
 
 
+item.tt,
 
-                headers.forEach(
-                    (title,index)=>{
 
+item.thuc_tich,
 
-                        const col=index+1;
 
+"",
 
-                        worksheet.mergeCells(
-                            1,
-                            col,
-                            2,
-                            col
-                        );
 
+item.sl_h,
 
-                        worksheet
-                        .getCell(
-                            1,
-                            col
-                        )
-                        .value=title;
 
+item.phe_pham,
 
-                    }
-                );
 
+item.tong_loi,
 
 
+item.chan_khong,
 
 
-                // =========================
-                // NGÀY THÁNG W -> 
-                // =========================
+item.rach_vo,
 
 
-                let start=23;
+item.be_mat,
 
 
+item.bavia
 
-                for(
-                    let day=1;
-                    day<=31;
-                    day++
-                ){
 
+];
 
-                    let col =
-                    start+
-                    (day-1)*3;
 
 
+});
 
-                    worksheet.mergeCells(
-                        1,
-                        col,
-                        1,
-                        col+2
-                    );
 
 
 
-                    worksheet
-                    .getCell(
-                        1,
-                        col
-                    )
-                    .value =
-                    `${day}/${month}/${year}`;
 
 
 
-                    worksheet
-                    .getCell(
-                        2,
-                        col
-                    )
-                    .value="OK";
 
 
+// ============================
+// 4. BẢNG SUMMARY U-V
+// ============================
 
-                    worksheet
-                    .getCell(
-                        2,
-                        col+1
-                    )
-                    .value="NG";
 
 
+sheet.getCell(
+"U1"
+)
+.value="SẢN PHẨM";
 
-                    worksheet
-                    .getCell(
-                        2,
-                        col+2
-                    )
-                    .value="%";
 
+sheet.getCell(
+"V1"
+)
+.value="Thực tích (kg)";
 
-                }
 
 
 
+summary.forEach(
+(item,index)=>{
 
 
-                // =========================
-                // STYLE HEADER
-                // =========================
+const row =
+index+2;
 
 
-                worksheet.eachRow(
-                    row=>{
 
+sheet.getCell(
+row,
+21
+)
+.value=
+item.san_pham;
 
-                        row.eachCell(
-                            cell=>{
 
 
-                                if(
-                                    row.number<=2
-                                ){
+sheet.getCell(
+row,
+22
+)
+.value=
+item.thuc_tich_kg;
 
 
-                                    cell.font={
 
-                                        bold:true
+});
 
-                                    };
 
 
-                                    cell.alignment={
 
-                                        horizontal:"center",
 
-                                        vertical:"middle"
 
-                                    };
 
 
+// ============================
+// 5. FORMAT
+// ============================
 
-                                    cell.fill={
 
-                                        type:"pattern",
 
-                                        pattern:"solid",
+// Header bảng chính
 
-                                        fgColor:{
-                                            argb:"FFD9EAF7"
-                                        }
 
-                                    };
+for(
+let col=1;
+col<=19;
+col++
+){
 
 
+const cell =
+sheet.getCell(
+2,
+col
+);
 
-                                    cell.border={
 
-                                        top:{
-                                            style:"thin"
-                                        },
+cell.font={
+bold:true
+};
 
-                                        bottom:{
-                                            style:"thin"
-                                        },
 
-                                        left:{
-                                            style:"thin"
-                                        },
+cell.alignment={
 
-                                        right:{
-                                            style:"thin"
-                                        }
+horizontal:"center",
 
-                                    };
+vertical:"middle"
 
+};
 
-                                }
 
+cell.fill={
 
-                            }
-                        )
+type:"pattern",
 
+pattern:"solid",
 
-                    }
-                );
+fgColor:{
+argb:"FFD9EAF7"
+}
 
+};
 
 
+}
 
 
-                // Freeze
 
-                worksheet.views=[
 
-                    {
 
-                        state:"frozen",
+// Header phụ
 
-                        xSplit:22,
 
-                        ySplit:2
+["U1","V1"]
+.forEach(
+(x)=>{
 
-                    }
 
-                ];
+const cell =
+sheet.getCell(x);
 
 
+cell.font={
+bold:true
+};
 
 
+cell.fill={
 
+type:"pattern",
 
-                // =========================
-                // DATA
-                // =========================
+pattern:"solid",
 
+fgColor:{
+argb:"FFE2F0D9"
+}
 
-                rows.forEach(
-                    (item,index)=>{
+};
 
 
-                        let row =
-                        worksheet.getRow(
-                            index+3
-                        );
+cell.alignment={
 
+horizontal:"center"
 
+};
 
-                        row.getCell(1)
-                        .value=index+1;
 
 
+});
 
-                        row.getCell(5)
-                        .value=
-                        item.product_name;
 
 
 
-                        row.getCell(12)
-                        .value=
-                        item.actual_output;
 
 
 
 
-                        let day =
-                        new Date(
-                            item.work_date
-                        )
-                        .getDate();
 
+// ============================
+// 6. BORDER
+// ============================
 
 
-                        let col =
-                        23+
-                        (day-1)*3;
 
+const maxMainRow =
+data.length+2;
 
 
-                        row.getCell(col)
-                        .value=
-                        item.tt_ok;
 
+for(
+let r=2;
+r<=maxMainRow;
+r++
+){
 
 
-                        row.getCell(col+1)
-                        .value=
-                        item.tt_ng;
+for(
+let c=1;
+c<=19;
+c++
+){
 
 
+sheet.getCell(r,c)
+.border={
 
-                        row.getCell(col+2)
-                        .value=
-                        item.tt_ok /
-                        (
-                            item.tt_ok+
-                            item.tt_ng
-                        ) || 0;
+top:{
+style:"thin"
+},
 
+bottom:{
+style:"thin"
+},
 
+left:{
+style:"thin"
+},
 
-                    }
-                );
+right:{
+style:"thin"
+}
 
+};
 
 
+sheet.getCell(r,c)
+.alignment={
 
+horizontal:"center",
 
+vertical:"middle"
 
-                worksheet.columns.forEach(
-                    column=>{
+};
 
 
-                        column.width=15;
 
+}
 
-                    }
-                );
+}
 
 
 
 
 
-                res.setHeader(
+const maxSummaryRow =
+summary.length+1;
 
-                    "Content-Type",
 
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
-                );
+for(
+let r=1;
+r<=maxSummaryRow;
+r++
+){
 
 
+for(
+let c=21;
+c<=22;
+c++
+){
 
-                res.setHeader(
 
-                    "Content-Disposition",
+sheet.getCell(r,c)
+.border={
 
-                    `attachment; filename=EP_${month}_${year}.xlsx`
+top:{
+style:"thin"
+},
 
-                );
+bottom:{
+style:"thin"
+},
 
+left:{
+style:"thin"
+},
 
+right:{
+style:"thin"
+}
 
+};
 
 
-                await workbook.xlsx.write(
-                    res
-                );
+sheet.getCell(r,c)
+.alignment={
 
+horizontal:"center"
 
-                res.end();
+};
 
 
-            }
-        );
+}
 
+}
 
 
-    }
 
-    catch(err){
 
 
-        res.status(500)
-        .json({
 
-            success:false,
 
-            message:err.message
+// ============================
+// 7. WIDTH
+// ============================
 
-        });
 
+sheet.columns.forEach(
+column=>{
 
-    }
+column.width=15;
+
+});
+
+
+
+// tên dài
+
+sheet.getColumn(3)
+.width=20;
+
+
+
+sheet.getColumn(5)
+.width=18;
+
+
+
+
+
+
+// ============================
+// 8. FREEZE
+// ============================
+
+
+
+sheet.views=[
+
+{
+
+state:"frozen",
+
+xSplit:3,
+
+ySplit:2
+
+}
+
+];
+
+
+
+
+
+
+
+
+// ============================
+// EXPORT
+// ============================
+
+
+
+res.setHeader(
+
+"Content-Type",
+
+"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+);
+
+
+
+res.setHeader(
+
+"Content-Disposition",
+
+"attachment; filename=GiaCong.xlsx"
+
+);
+
+
+
+await workbook.xlsx.write(res);
+
+
+res.end();
+
+
+
+}
+
+catch(err){
+
+
+console.log(err);
+
+
+res.status(500)
+.json({
+
+message:err.message
+
+});
+
+
+}
 
 
 };
