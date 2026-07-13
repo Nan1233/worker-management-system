@@ -4,273 +4,401 @@ const db = require("../config/db");
 const Production = {
 
 
+// ==========================
+// TẠO BÁO CÁO ĐÃ DUYỆT
+// ==========================
+
 create(data){
 
-return new Promise((resolve,reject)=>{
+    return new Promise((resolve,reject)=>{
 
 
-const sql = `
+        const sql = `
 
-INSERT INTO production_reports
+        INSERT INTO production_reports
 
-(
-worker_id,
-process_id,
-work_date,
-shift,
-machine_no,
+        (
+        worker_id,
+        process_id,
 
-total_time,
-actual_time,
-deduction_time,
+        work_date,
+        shift,
+        machine_no,
 
-product_name,
+        total_time,
+        actual_time,
+        deduction_time,
 
-standard_output,
-actual_output,
+        product_name,
 
-tt_ok,
-tt_ng,
+        standard_output,
+        actual_output,
 
-kqd_dap_lai,
-kqd_tuot,
+        tt_ok,
+        tt_ng,
 
-vo_do_long,
-xuoc_do_long,
+        kqd_dap_lai,
+        kqd_tuot,
 
-cong_gay,
-xoay,
+        vo_do_long,
+        xuoc_do_long,
 
-khong_dut,
-bavia_hut,
+        cong_gay,
+        xoay,
 
-ppcm,
-loi_cao_su,
+        khong_dut,
+        bavia_hut,
 
-ng_kich_thuoc,
-cat_lem,
+        ppcm,
+        loi_cao_su,
 
-note
+        ng_kich_thuoc,
+        cat_lem,
 
-)
+        note
 
-VALUES
-(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        )
 
-`;
+        VALUES
+        (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 
-
-
-db.query(sql,[
-
-data.worker_id,
-data.process_id,
-data.work_date,
-data.shift,
-
-data.machine_no,
-
-data.total_time,
-data.actual_time,
-data.deduction_time,
-
-data.product_name,
-
-data.standard_output,
-data.actual_output,
-
-data.tt_ok,
-data.tt_ng,
-
-data.kqd_dap_lai,
-data.kqd_tuot,
-
-data.vo_do_long,
-data.xuoc_do_long,
-
-data.cong_gay,
-data.xoay,
-
-data.khong_dut,
-data.bavia_hut,
-
-data.ppcm,
-data.loi_cao_su,
-
-data.ng_kich_thuoc,
-data.cat_lem,
-
-data.note
+        `;
 
 
-],(err,result)=>{
+
+        db.query(sql,[
+
+            data.worker_id,
+            data.process_id,
+
+            data.work_date,
+            data.shift,
+            data.machine_no,
+
+            data.total_time,
+            data.actual_time,
+            data.deduction_time,
+
+            data.product_name,
+
+            data.standard_output,
+            data.actual_output,
+
+            data.tt_ok,
+            data.tt_ng,
+
+            data.kqd_dap_lai,
+            data.kqd_tuot,
+
+            data.vo_do_long,
+            data.xuoc_do_long,
+
+            data.cong_gay,
+            data.xoay,
+
+            data.khong_dut,
+            data.bavia_hut,
+
+            data.ppcm,
+            data.loi_cao_su,
+
+            data.ng_kich_thuoc,
+            data.cat_lem,
+
+            data.note
 
 
-if(err)
-return reject(err);
+        ],(err,result)=>{
 
 
-resolve(result);
+            if(err)
+                return reject(err);
 
 
-});
+            resolve(result);
 
 
-});
+        });
 
+
+    });
 
 },
 
 
 
+
+
+// ==========================
+// LẤY TOÀN BỘ BÁO CÁO ĐÃ DUYỆT
+// ==========================
 
 getAll(){
 
 
-return new Promise((resolve,reject)=>{
+    return new Promise((resolve,reject)=>{
 
 
-const sql = `
+        const sql = `
 
 
-SELECT
+        SELECT
 
-pr.id,
+        pr.*,
 
-pr.process_id,
+        p.process_name,
 
-p.process_name,
+        w.worker_code,
 
-pr.work_date,
-
-pr.shift,
-
-w.worker_code,
-
-u.full_name,
-
-pr.machine_no,
-
-pr.product_name,
-
-pr.standard_output,
-
-pr.actual_output,
-
-pr.tt_ok,
-
-pr.tt_ng,
-
-pr.created_at
+        u.full_name
 
 
-FROM production_reports pr
+        FROM production_reports pr
 
 
-INNER JOIN workers w
+        INNER JOIN workers w
+        ON pr.worker_id=w.id
 
-ON pr.worker_id=w.id
+
+        INNER JOIN users u
+        ON w.user_id=u.id
 
 
-INNER JOIN users u
+        LEFT JOIN processes p
+        ON pr.process_id=p.id
 
-ON w.user_id=u.id
+
+        ORDER BY 
+        pr.work_date DESC,
+        pr.created_at DESC
+
+
+        `;
 
 
 
-INNER JOIN processes p
-
-ON pr.process_id=p.id
+        db.query(sql,(err,rows)=>{
 
 
-
-ORDER BY pr.created_at DESC
-
-
-`;
+            if(err)
+                return reject(err);
 
 
-
-db.query(sql,(err,rows)=>{
-
-
-if(err)
-return reject(err);
+            resolve(rows);
 
 
-resolve(rows);
+        });
 
 
-});
 
-
-});
+    });
 
 
 },
 
 
 
+
+
+// ==========================
+// LẤY DANH SÁCH NGÀY
+// ==========================
+
+getDates(){
+
+
+    return new Promise((resolve,reject)=>{
+
+
+        const sql = `
+
+
+        SELECT DISTINCT
+
+        DATE(work_date) AS date
+
+
+        FROM production_reports
+
+
+        ORDER BY date DESC
+
+
+        `;
+
+
+
+        db.query(sql,(err,rows)=>{
+
+
+            if(err)
+                return reject(err);
+
+
+            resolve(rows);
+
+
+        });
+
+
+    });
+
+
+},
+
+
+
+
+
+// ==========================
+// LẤY BÁO CÁO THEO NGÀY
+// ==========================
+
+getByDate(date){
+
+
+    return new Promise((resolve,reject)=>{
+
+
+        const sql = `
+
+
+        SELECT
+
+        pr.*,
+
+        p.process_name,
+
+        w.worker_code,
+
+        u.full_name
+
+
+        FROM production_reports pr
+
+
+        INNER JOIN workers w
+        ON pr.worker_id=w.id
+
+
+        INNER JOIN users u
+        ON w.user_id=u.id
+
+
+        LEFT JOIN processes p
+        ON pr.process_id=p.id
+
+
+        WHERE DATE(pr.work_date)=?
+
+
+        ORDER BY 
+        pr.created_at ASC
+
+
+        `;
+
+
+
+        db.query(
+
+            sql,
+
+            [date],
+
+            (err,rows)=>{
+
+
+                if(err)
+                    return reject(err);
+
+
+                resolve(rows);
+
+
+            }
+
+        );
+
+
+
+    });
+
+
+},
+
+
+
+
+
+// ==========================
+// CHI TIẾT
+// ==========================
 
 getById(id){
 
 
-return new Promise((resolve,reject)=>{
+    return new Promise((resolve,reject)=>{
 
 
-const sql=`
-
-SELECT
-
-pr.*,
-
-p.process_name,
-
-w.worker_code,
-
-u.full_name
+        const sql=`
 
 
-FROM production_reports pr
+        SELECT
+
+        pr.*,
+
+        p.process_name,
+
+        w.worker_code,
+
+        u.full_name
 
 
-INNER JOIN processes p
-
-ON pr.process_id=p.id
+        FROM production_reports pr
 
 
-
-INNER JOIN workers w
-
-ON pr.worker_id=w.id
+        INNER JOIN processes p
+        ON pr.process_id=p.id
 
 
-INNER JOIN users u
-
-ON w.user_id=u.id
-
-
-WHERE pr.id=?
+        INNER JOIN workers w
+        ON pr.worker_id=w.id
 
 
-`;
+        INNER JOIN users u
+        ON w.user_id=u.id
+
+
+        WHERE pr.id=?
+
+
+        `;
 
 
 
-db.query(sql,[id],(err,rows)=>{
+        db.query(
+
+            sql,
+
+            [id],
+
+            (err,rows)=>{
 
 
-if(err)
-return reject(err);
+                if(err)
+                    return reject(err);
 
 
-resolve(rows[0]);
+                resolve(rows[0]);
 
 
-});
+            }
+
+        );
 
 
-});
+    });
 
 
 },
@@ -278,207 +406,168 @@ resolve(rows[0]);
 
 
 
+
+// ==========================
+// UPDATE
+// ==========================
 
 update(id,data){
 
+    return new Promise((resolve,reject)=>{
 
-return new Promise((resolve,reject)=>{
 
+        const sql=`
 
-const sql=`
+        UPDATE production_reports
 
-UPDATE production_reports
+        SET
 
-SET
+        process_id=?,
+        work_date=?,
+        shift=?,
+        machine_no=?,
 
+        total_time=?,
+        actual_time=?,
+        deduction_time=?,
 
-process_id=?,
+        product_name=?,
 
-work_date=?,
+        standard_output=?,
+        actual_output=?,
 
-shift=?,
+        tt_ok=?,
+        tt_ng=?,
 
-machine_no=?,
+        kqd_dap_lai=?,
+        kqd_tuot=?,
 
-total_time=?,
+        vo_do_long=?,
+        xuoc_do_long=?,
 
-actual_time=?,
+        cong_gay=?,
+        xoay=?,
 
-deduction_time=?,
+        khong_dut=?,
+        bavia_hut=?,
 
-product_name=?,
+        ppcm=?,
+        loi_cao_su=?,
 
-standard_output=?,
+        ng_kich_thuoc=?,
+        cat_lem=?,
 
-actual_output=?,
+        note=?
 
-tt_ok=?,
+        WHERE id=?
 
-tt_ng=?,
+        `;
 
-kqd_dap_lai=?,
 
-kqd_tuot=?,
 
-vo_do_long=?,
+        db.query(sql,[
 
-xuoc_do_long=?,
+            data.process_id,
+            data.work_date,
+            data.shift,
+            data.machine_no,
 
-cong_gay=?,
+            data.total_time,
+            data.actual_time,
+            data.deduction_time,
 
-xoay=?,
+            data.product_name,
 
-khong_dut=?,
+            data.standard_output,
+            data.actual_output,
 
-bavia_hut=?,
+            data.tt_ok,
+            data.tt_ng,
 
-ppcm=?,
+            data.kqd_dap_lai,
+            data.kqd_tuot,
 
-loi_cao_su=?,
+            data.vo_do_long,
+            data.xuoc_do_long,
 
-ng_kich_thuoc=?,
+            data.cong_gay,
+            data.xoay,
 
-cat_lem=?,
+            data.khong_dut,
+            data.bavia_hut,
 
-note=?
+            data.ppcm,
+            data.loi_cao_su,
 
+            data.ng_kich_thuoc,
+            data.cat_lem,
 
-WHERE id=?
+            data.note,
 
+            id
 
-`;
 
+        ],(err,result)=>{
 
 
-db.query(sql,[
+            if(err)
+                return reject(err);
 
 
-data.process_id,
+            resolve(result);
 
-data.work_date,
 
-data.shift,
+        });
 
-data.machine_no,
 
-
-data.total_time,
-
-data.actual_time,
-
-data.deduction_time,
-
-
-data.product_name,
-
-
-data.standard_output,
-
-data.actual_output,
-
-
-data.tt_ok,
-
-data.tt_ng,
-
-
-data.kqd_dap_lai,
-
-data.kqd_tuot,
-
-
-data.vo_do_long,
-
-data.xuoc_do_long,
-
-
-data.cong_gay,
-
-data.xoay,
-
-
-data.khong_dut,
-
-data.bavia_hut,
-
-
-data.ppcm,
-
-data.loi_cao_su,
-
-
-data.ng_kich_thuoc,
-
-data.cat_lem,
-
-
-data.note,
-
-
-id
-
-
-],(err,result)=>{
-
-
-if(err)
-return reject(err);
-
-
-resolve(result);
-
-
-});
-
-
-});
+    });
 
 
 },
 
 
 
+
+
+// ==========================
+// DELETE
+// ==========================
 
 delete(id){
 
 
-return new Promise((resolve,reject)=>{
+    return new Promise((resolve,reject)=>{
 
 
-db.query(
+        db.query(
 
-`
-DELETE FROM production_reports
-WHERE id=?
-`,
+        `
+        DELETE FROM production_reports
+        WHERE id=?
+        `,
 
-[id],
+        [id],
 
-
-(err,result)=>{
-
-
-if(err)
-return reject(err);
+        (err,result)=>{
 
 
-resolve(result);
+            if(err)
+                return reject(err);
 
 
-}
+            resolve(result);
 
 
-);
+        });
 
 
-});
+    });
 
 
 }
 
 
 };
-
 
 
 module.exports = Production;

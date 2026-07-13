@@ -48,7 +48,6 @@ import ProductionDetail from "../pages/worker/ProductionDetail";
 
 
 
-
 function AppRouter(){
 
 
@@ -193,6 +192,14 @@ function AppRouter(){
     }
 
 />
+<Route
+    path="/manager"
+    element={
+        <PrivateRoute role="manager">
+            <MainLayout role="manager"/>
+        </PrivateRoute>
+    }
+>
 
 
 

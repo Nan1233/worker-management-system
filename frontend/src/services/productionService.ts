@@ -455,3 +455,162 @@ Promise<ProductionReport[]>=>{
 
 
 };
+
+
+
+
+// ======================================
+// LẤY DANH SÁCH NGÀY BÁO CÁO ĐÃ DUYỆT
+// ======================================
+
+export const getApprovedDates = async()=>{
+
+
+    const res = await api.get(
+
+        "/production/dates"
+
+    );
+
+
+    return res.data.data || [];
+
+
+};
+
+
+
+
+
+
+
+// ======================================
+// LẤY BÁO CÁO ĐÃ DUYỆT THEO NGÀY
+// ======================================
+
+export const getApprovedReportsByDate = async(
+
+    date:string
+
+):Promise<ProductionReport[]>=>{
+
+
+    const res = await api.get(
+
+        `/production/by-date?date=${date}`
+
+    );
+
+
+    return res.data.data || [];
+
+
+};
+
+
+
+
+
+
+
+// ======================================
+// EXPORT EXCEL ĐÃ DUYỆT
+// ======================================
+
+export const exportApprovedExcel = async(
+
+    date:string
+
+)=>{
+
+
+    const res = await api.get(
+
+        `/reports/export-excel?date=${date}&type=approved`,
+
+        {
+
+            responseType:"blob"
+
+        }
+
+    );
+
+
+
+
+
+    const blob = new Blob(
+
+        [
+
+            res.data
+
+        ],
+
+        {
+
+            type:
+
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+        }
+
+    );
+
+
+
+
+
+    const url =
+
+        window.URL.createObjectURL(blob);
+
+
+
+
+
+    const link =
+
+        document.createElement("a");
+
+
+
+
+
+    link.href=url;
+
+
+
+
+    link.download =
+
+        `BaoCaoDaDuyet_${date}.xlsx`;
+
+
+
+
+
+    document.body.appendChild(link);
+
+
+
+
+
+    link.click();
+
+
+
+
+
+    link.remove();
+
+
+
+
+
+    window.URL.revokeObjectURL(url);
+
+
+
+};

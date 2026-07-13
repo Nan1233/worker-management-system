@@ -1,31 +1,64 @@
 import { useState } from "react";
 
+
 import {
-    exportProductionExcel
+    exportProductionExcel,
+    exportApprovedExcel
 } from "../../services/productionService";
 
+
 import "./ReportDownload.css";
+
 
 
 function ReportDownload(){
 
 
+
     const today =
+
         new Date()
+
         .toISOString()
+
         .split("T")[0];
 
 
-    const [date,setDate] =
+
+
+
+    const [pendingDate,setPendingDate] =
+
         useState(today);
 
 
+
+
+
+    const [approvedDate,setApprovedDate] =
+
+        useState(today);
+
+
+
+
+
     const [loading,setLoading] =
+
         useState(false);
 
 
 
-    const handleDownload = async()=>{
+
+
+
+
+
+    // ==========================
+    // EXPORT CHỜ DUYỆT
+    // ==========================
+
+    const handleExportPending = async()=>{
 
 
         try{
@@ -36,27 +69,34 @@ function ReportDownload(){
 
 
             await exportProductionExcel(
-                date
+
+                pendingDate
+
             );
 
 
 
         }
+
         catch(err){
 
 
             console.error(
-                "Lỗi tải Excel:",
+
                 err
+
             );
 
 
             alert(
-                "Xuất Excel thất bại"
+
+                "Xuất báo cáo chờ duyệt thất bại"
+
             );
 
 
         }
+
         finally{
 
 
@@ -72,72 +112,259 @@ function ReportDownload(){
 
 
 
+
+
+
+    // ==========================
+    // EXPORT ĐÃ DUYỆT
+    // ==========================
+
+    const handleExportApproved = async()=>{
+
+
+        try{
+
+
+            setLoading(true);
+
+
+
+            await exportApprovedExcel(
+
+                approvedDate
+
+            );
+
+
+
+        }
+
+        catch(err){
+
+
+            console.error(
+
+                err
+
+            );
+
+
+            alert(
+
+                "Xuất báo cáo đã duyệt thất bại"
+
+            );
+
+
+        }
+
+        finally{
+
+
+            setLoading(false);
+
+
+        }
+
+
+    };
+
+
+
+
+
+
+
+
     return (
 
+
         <div className="download-page">
+
 
 
             <div className="download-card">
 
 
+
                 <h1>
-                    📥 Xuất Excel Gia công
+
+                    📥 Xuất báo cáo Excel
+
                 </h1>
 
 
 
-                <p>
-                    Chọn ngày xuất báo cáo
-                </p>
 
 
 
 
-                <input
+                {/* =====================
+                    CHỜ DUYỆT
+                ===================== */}
 
-                    type="date"
 
-                    value={date}
+                <div className="export-box">
 
-                    onChange={
-                        e=>
-                        setDate(
-                            e.target.value
-                        )
-                    }
 
-                />
+                    <h3>
 
+                        ⏳ Báo cáo chờ duyệt
+
+                    </h3>
 
 
 
+                    <p>
 
-                <button
+                        Xuất dữ liệu đang chờ quản lý kiểm tra
 
-                    onClick={
-                        handleDownload
-                    }
-
-                    disabled={loading}
-
-                >
+                    </p>
 
 
-                    {
-                        loading
-
-                        ?
-
-                        "Đang tạo Excel..."
-
-                        :
-
-                        "📄 Xuất Excel"
-
-                    }
 
 
-                </button>
+                    <input
+
+
+                        type="date"
+
+
+                        value={pendingDate}
+
+
+                        onChange={
+
+                            e=>
+
+                            setPendingDate(
+
+                                e.target.value
+
+                            )
+
+                        }
+
+
+                    />
+
+
+
+
+
+                    <button
+
+
+                        onClick={
+
+                            handleExportPending
+
+                        }
+
+
+                        disabled={loading}
+
+
+                    >
+
+
+                        📄 Xuất Excel chờ duyệt
+
+
+                    </button>
+
+
+
+                </div>
+
+
+
+
+
+
+
+
+
+                {/* =====================
+                    ĐÃ DUYỆT
+                ===================== */}
+
+
+
+                <div className="export-box">
+
+
+                    <h3>
+
+                        ✅ Báo cáo đã duyệt
+
+                    </h3>
+
+
+
+                    <p>
+
+                        Xuất dữ liệu sản xuất chính thức
+
+                    </p>
+
+
+
+
+                    <input
+
+
+                        type="date"
+
+
+                        value={approvedDate}
+
+
+                        onChange={
+
+                            e=>
+
+                            setApprovedDate(
+
+                                e.target.value
+
+                            )
+
+                        }
+
+
+                    />
+
+
+
+
+
+                    <button
+
+
+                        onClick={
+
+                            handleExportApproved
+
+                        }
+
+
+                        disabled={loading}
+
+
+                    >
+
+
+                        📄 Xuất Excel đã duyệt
+
+
+                    </button>
+
+
+
+                </div>
+
+
 
 
 
@@ -151,6 +378,7 @@ function ReportDownload(){
 
 
 }
+
 
 
 export default ReportDownload;

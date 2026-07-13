@@ -3,133 +3,165 @@ const db = require("../config/db");
 
 
 
-exports.exportGiaCongExcel = async (req, res) => {
-
-    try {
+exports.exportGiaCongExcel = async(req,res)=>{
 
 
-        const date = req.query.date;
+    try{
 
 
-        if (!date) {
+        const date =
+            req.query.date;
+
+
+        const type =
+            req.query.type || "temp";
+
+
+
+        if(!date){
+
 
             return res.status(400).json({
 
-                message: "Thiếu ngày xuất báo cáo"
+                message:"Thiếu ngày xuất báo cáo"
 
             });
+
 
         }
 
 
 
-        // =============================
-        // LẤY DỮ LIỆU
-        // =============================
 
-        const [rows] = await db.promise().query(
-
-            `
-            SELECT
-
-            t.*,
-
-            w.worker_code,
-
-            u.full_name,
-
-            p.process_name
+        let table = "";
 
 
-            FROM production_reports_temp t
+
+        if(type==="approved"){
+
+            table = "production_reports";
+
+        }
+        else{
+
+            table = "production_reports_temp";
+
+        }
 
 
-            LEFT JOIN workers w
-
-            ON t.worker_id = w.id
 
 
-            LEFT JOIN users u
-
-            ON w.user_id = u.id
 
 
-            LEFT JOIN processes p
+        const sql = `
 
-            ON t.process_id = p.id
+        SELECT
+
+        t.*,
+
+        w.worker_code,
+
+        u.full_name,
+
+        p.process_name
 
 
-            WHERE DATE(t.work_date)=?
+        FROM ${table} t
 
 
-            ORDER BY t.id ASC
+        LEFT JOIN workers w
 
-            `,
+        ON t.worker_id=w.id
 
-            [date]
 
+        LEFT JOIN users u
+
+        ON w.user_id=u.id
+
+
+        LEFT JOIN processes p
+
+        ON t.process_id=p.id
+
+
+        WHERE DATE(t.work_date)=?
+
+
+        ORDER BY t.id ASC
+
+
+        `;
+
+
+
+
+
+        const [rows] =
+            await db.promise().query(
+
+                sql,
+
+                [date]
+
+            );
+
+
+
+
+
+        const workbook =
+            new ExcelJS.Workbook();
+
+
+
+        const sheet =
+            workbook.addWorksheet(
+                "Gia công"
+            );
+
+
+
+
+
+
+
+        sheet.mergeCells(
+            "A1:AD1"
         );
-
-
-
-        console.log(
-            "EXPORT DATA:",
-            rows.length
-        );
-
-
-
-
-        const workbook = new ExcelJS.Workbook();
-
-
-        const sheet = workbook.addWorksheet(
-            "Gia công"
-        );
-
-
-
-        // =============================
-        // TITLE
-        // =============================
-
-
-        sheet.mergeCells("A1:AD1");
 
 
         sheet.getCell("A1").value =
-            "BÁO CÁO GIA CÔNG";
+            type==="approved"
+            ?
+            "BÁO CÁO GIA CÔNG ĐÃ DUYỆT"
+            :
+            "BÁO CÁO GIA CÔNG CHỜ DUYỆT";
 
 
-        sheet.getCell("A1").font = {
 
-            bold: true,
+        sheet.getCell("A1").font={
 
-            size: 16
+            bold:true,
 
-        };
-
-
-        sheet.getCell("A1").alignment = {
-
-            horizontal: "center",
-
-            vertical: "middle"
+            size:16
 
         };
 
 
 
-        sheet.getRow(1).height = 30;
+        sheet.getCell("A1").alignment={
+
+            horizontal:"center"
+
+        };
 
 
 
-        // =============================
-        // HEADER
-        // =============================
 
 
-        const headers = [
+
+
+        const headers=[
 
 
             "STT",
@@ -144,14 +176,14 @@ exports.exportGiaCongExcel = async (req, res) => {
 
             "Ca",
 
-            "Mã máy",
+            "Máy",
 
 
-            "Tổng thời gian",
+            "Tổng TG",
 
-            "Thời gian thực tế",
+            "TG thực tế",
 
-            "Thời gian trừ",
+            "TG trừ",
 
 
             "Sản phẩm",
@@ -202,51 +234,29 @@ exports.exportGiaCongExcel = async (req, res) => {
 
             "Trạng thái",
 
+
             "Thời gian tạo"
+
 
         ];
 
 
 
-        sheet.getRow(2).values = headers;
 
 
-
-        sheet.getRow(2).font = {
-
-            bold: true
-
-        };
-
-
-        sheet.getRow(2).alignment = {
-
-            horizontal: "center",
-
-            vertical: "middle",
-
-            wrapText: true
-
-        };
-
-
-        sheet.getRow(2).height = 40;
+        sheet.getRow(2).values =
+            headers;
 
 
 
 
-        // =============================
-        // DATA
-        // =============================
+        rows.forEach((item,index)=>{
 
 
-        rows.forEach((item, index) => {
+            sheet.getRow(index+3).values=[
 
 
-            sheet.getRow(index + 3).values = [
-
-
-                index + 1,
+                index+1,
 
 
                 item.worker_code || "",
@@ -341,10 +351,19 @@ exports.exportGiaCongExcel = async (req, res) => {
                 item.note || "",
 
 
-                item.status || "",
+                item.status || 
+                (
+                    type==="approved"
+                    ?
+                    "approved"
+                    :
+                    "pending"
+                ),
+
 
 
                 item.created_at || ""
+
 
             ];
 
@@ -356,120 +375,41 @@ exports.exportGiaCongExcel = async (req, res) => {
 
 
 
-        // =============================
-        // SUMMARY SẢN PHẨM
-        // =============================
+
+        sheet.eachRow(row=>{
 
 
-        const summary = {};
+            row.eachCell(cell=>{
 
 
+                cell.alignment={
 
-        rows.forEach(item => {
+                    horizontal:"center",
 
+                    vertical:"middle",
 
-            const name =
-                item.product_name || "Không tên";
-
-
-            if (!summary[name]) {
-
-                summary[name] = 0;
-
-            }
-
-
-            summary[name] += Number(
-
-                item.actual_output || 0
-
-            );
-
-
-        });
-
-
-
-
-        sheet.mergeCells("AF1:AG1");
-
-
-        sheet.getCell("AF1").value =
-            "TỔNG HỢP SẢN PHẨM";
-
-
-
-        sheet.getCell("AF2").value =
-            "Sản phẩm";
-
-
-        sheet.getCell("AG2").value =
-            "Thực tích";
-
-
-
-        Object.keys(summary).forEach((item, index) => {
-
-
-            sheet.getCell(index + 3, 32).value =
-                item;
-
-
-            sheet.getCell(index + 3, 33).value =
-                summary[item];
-
-
-        });
-
-
-
-
-
-
-        // =============================
-        // FORMAT
-        // =============================
-
-
-        sheet.eachRow(row => {
-
-
-            row.eachCell(cell => {
-
-
-                cell.alignment = {
-
-                    horizontal: "center",
-
-                    vertical: "middle",
-
-                    wrapText: true
+                    wrapText:true
 
                 };
 
 
-                cell.border = {
+                cell.border={
 
-
-                    top: {
-                        style: "thin"
+                    top:{
+                        style:"thin"
                     },
 
-
-                    bottom: {
-                        style: "thin"
+                    bottom:{
+                        style:"thin"
                     },
 
-
-                    left: {
-                        style: "thin"
+                    left:{
+                        style:"thin"
                     },
 
-
-                    right: {
-                        style: "thin"
+                    right:{
+                        style:"thin"
                     }
-
 
                 };
 
@@ -482,38 +422,15 @@ exports.exportGiaCongExcel = async (req, res) => {
 
 
 
-        sheet.columns.forEach(col => {
 
-            col.width = 15;
+        sheet.columns.forEach(col=>{
+
+            col.width=15;
 
         });
 
 
 
-        sheet.getColumn(3).width = 20;
-
-
-
-
-        sheet.views = [
-
-            {
-
-                state: "frozen",
-
-                ySplit: 2
-
-            }
-
-        ];
-
-
-
-
-
-        // =============================
-        // DOWNLOAD
-        // =============================
 
 
         res.setHeader(
@@ -525,13 +442,15 @@ exports.exportGiaCongExcel = async (req, res) => {
         );
 
 
+
         res.setHeader(
 
             "Content-Disposition",
 
-            `attachment; filename=BaoCao_${date}.xlsx`
+            `attachment; filename=BaoCao_${type}_${date}.xlsx`
 
         );
+
 
 
 
@@ -543,22 +462,19 @@ exports.exportGiaCongExcel = async (req, res) => {
 
 
     }
-
-    catch (err) {
+    catch(err){
 
 
         console.error(
-
             "EXPORT ERROR:",
-
             err
-
         );
+
 
 
         res.status(500).json({
 
-            message: err.message
+            message:err.message
 
         });
 
