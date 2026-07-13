@@ -11,7 +11,8 @@ require("../controllers/reportExportController");
 
 
 
-router.post(
+// EXPORT EXCEL
+router.get(
     "/export-excel",
     exportGiaCongExcel
 );
