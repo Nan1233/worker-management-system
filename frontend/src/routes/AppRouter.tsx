@@ -49,7 +49,6 @@ import ProductionDetail from "../pages/worker/ProductionDetail";
 
 
 
-
 function AppRouter(){
 
 
@@ -183,7 +182,17 @@ function AppRouter(){
                     }
 
                 />
+<Route
 
+    path="approved"
+
+    element={
+
+        <ApprovedReports />
+
+    }
+
+/>
 
 
 

@@ -50,9 +50,16 @@ manager:[
 
 
 {
-    label:"Báo cáo sản xuất",
+    label:"Báo cáo chờ duyệt",
     icon:"📋",
     path:"/manager/reports"
+},
+
+
+{
+    label:"Báo cáo đã duyệt",
+    icon:"✅",
+    path:"/manager/approved"
 },
 
 
