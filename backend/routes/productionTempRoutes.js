@@ -3,28 +3,6 @@ const express = require("express");
 const router = express.Router();
 
 
-const {
-
-    createTempReport,
-
-    getTempDates,
-
-    getTempReportsByDate,
-
-    approveTempByDate,
-
-    getTempReportById,
-
-    getMyTempReports
-
-
-} = require("../controllers/productionTempController");
-
-
-const verifyToken =
-    require("../middleware/authMiddleware");
-
-
 
 
 // ======================================
