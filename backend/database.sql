@@ -517,3 +517,128 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- TEST LOGIN
 
 SELECT username,role FROM users;
+
+
+USE worker_management;
+
+
+INSERT INTO production_reports
+(
+    worker_id,
+    process_id,
+    work_date,
+    shift,
+    machine_no,
+
+    total_time,
+    actual_time,
+    deduction_time,
+
+    product_name,
+    standard_output,
+    actual_output,
+
+    tt_ok,
+    tt_ng,
+
+    kqd_dap_lai,
+    kqd_tuot,
+
+    vo_do_long,
+    xuoc_do_long,
+
+    cong_gay,
+    xoay,
+
+    khong_dut,
+    bavia_hut,
+
+    ppcm,
+    loi_cao_su,
+
+    ng_kich_thuoc,
+    cat_lem,
+
+    note
+)
+
+VALUES
+
+(
+    1,
+    1,
+    '2026-07-13',
+    'Ca 1',
+    'MAY-GC-01',
+
+    8,
+    7.5,
+    0.5,
+
+    'SP-A100',
+    1000,
+    950,
+
+    930,
+    20,
+
+    5,
+    3,
+
+    2,
+    1,
+
+    0,
+    1,
+
+    0,
+    2,
+
+    1,
+    0,
+
+    1,
+    0,
+
+    'Dữ liệu test export Excel'
+),
+
+
+(
+    2,
+    1,
+    '2026-07-13',
+    'Ca 2',
+    'MAY-GC-02',
+
+    8,
+    8,
+    0,
+
+    'SP-B200',
+    1200,
+    1150,
+
+    1130,
+    20,
+
+    2,
+    4,
+
+    1,
+    0,
+
+    1,
+    0,
+
+    1,
+    1,
+
+    0,
+    1,
+
+    0,
+    2,
+
+    'Test nhân viên thứ 2'
+);

@@ -13,131 +13,192 @@ try{
 const date = req.query.date;
 
 
+
 if(!date){
 
+
     return res.status(400).json({
+
         message:"Thiếu ngày xuất báo cáo"
+
     });
+
 
 }
 
 
 
 
-
-// ==========================
-// LẤY DỮ LIỆU THEO NGÀY
-// ==========================
+// =============================
+// LẤY DỮ LIỆU ĐÃ DUYỆT
+// =============================
 
 
 const [rows] = await db.promise().query(
 
 `
-SELECT 
-    t.*,
-    w.worker_code,
-    u.full_name,
-    p.process_name
 
-FROM production_reports_temp t
+SELECT
+
+t.*,
+
+w.worker_code,
+
+u.full_name,
+
+p.process_name
+
+
+FROM production_reports t
+
 
 JOIN workers w
+
 ON t.worker_id = w.id
 
+
+
 JOIN users u
+
 ON w.user_id = u.id
 
+
+
 JOIN processes p
+
 ON t.process_id = p.id
+
 
 
 WHERE DATE(t.work_date)=?
 
+
+
 ORDER BY t.id ASC
+
 
 `,
 
 [
-    date
+
+date
+
 ]
+
 
 );
 
 
 
-const data = rows;
+console.log(
+"EXPORT DATA:",
+rows.length
+);
 
 
 
-
-
-// ==========================
-// TẠO EXCEL
-// ==========================
 
 
 const workbook =
+
 new ExcelJS.Workbook();
 
 
 
+
 const sheet =
+
 workbook.addWorksheet(
-    "Gia công"
+
+"Gia công"
+
 );
 
 
 
 
-
-// ==========================
-// HEADER
-// ==========================
+// =============================
+// TITLE
+// =============================
 
 
 sheet.getCell("A1").value =
-"TỔNG THÁNG";
 
+"BÁO CÁO GIA CÔNG";
+
+
+
+
+
+// =============================
+// HEADER
+// =============================
 
 
 const headers=[
 
+
 "STT",
+
 "KG/H",
+
 "Họ tên",
+
+"Công đoạn",
+
+"Mã máy",
+
+"Ngày",
+
+"Sản phẩm",
+
 "",
-"Mã Lô/Mã Máy",
-"Thời gian",
-"SP",
-"",
+
 "KH",
+
 "TT",
-"% thực tích",
+
+"OK",
+
 "",
+
 "SL/h",
-"% phế phẩm",
-"Tổng lỗi",
-"Chân không",
-"Rách vỡ",
-"Bề mặt",
+
+"NG",
+
+"Dập lại",
+
+"Tuột",
+
+"Vỡ dò lòng",
+
+"Xước dò lòng",
+
 "Bavia"
+
 
 ];
 
 
 
+
 headers.forEach(
+
 (header,index)=>{
 
 
 sheet.getCell(
-    2,
-    index+1
-)
-.value=header;
+
+2,
+
+index+1
+
+).value = header;
 
 
-});
+}
+
+);
 
 
 
@@ -145,22 +206,27 @@ sheet.getCell(
 
 
 
-// ==========================
+// =============================
 // DATA
-// ==========================
+// =============================
 
 
-data.forEach(
+rows.forEach(
+
 (item,index)=>{
+
 
 sheet.getRow(index+3).values=[
 
 
 index+1,
 
-item.actual_time || "",
+
+item.actual_time || 0,
+
 
 item.full_name || "",
+
 
 item.process_name || "",
 
@@ -177,42 +243,45 @@ item.product_name || "",
 "",
 
 
-item.standard_output || "",
+item.standard_output || 0,
 
 
-item.actual_output || "",
+item.actual_output || 0,
 
 
-item.tt_ok || "",
+item.tt_ok || 0,
 
 
 "",
 
 
-item.actual_output || "",
+item.actual_output || 0,
 
 
-item.tt_ng || "",
+item.tt_ng || 0,
 
 
-item.kqd_dap_lai || "",
+item.kqd_dap_lai || 0,
 
 
-item.kqd_tuot || "",
+item.kqd_tuot || 0,
 
 
-item.vo_do_long || "",
+item.vo_do_long || 0,
 
 
-item.xuoc_do_long || "",
+item.xuoc_do_long || 0,
 
 
-item.bavia_hut || ""
+item.bavia_hut || 0
 
 
 ];
 
-});
+
+}
+
+);
 
 
 
@@ -221,33 +290,34 @@ item.bavia_hut || ""
 
 
 
-
-// ==========================
-// SUMMARY U V
-// ==========================
-
+// =============================
+// SUMMARY
+// =============================
 
 
-const summaryMap={};
+const summary={};
 
 
 
-data.forEach(item=>{
+rows.forEach(item=>{
 
 
-const sp =
-item.product_name;
+const name =
+item.product_name || "Không tên";
 
 
 
-if(!summaryMap[sp]){
+if(!summary[name]){
 
-summaryMap[sp]=0;
+summary[name]=0;
 
 }
 
 
-summaryMap[sp]+=Number(
+
+summary[name]+=
+
+Number(
 item.actual_output || 0
 );
 
@@ -257,66 +327,65 @@ item.actual_output || 0
 
 
 
-sheet.getCell("U1")
-.value="SẢN PHẨM";
+
+sheet.getCell("U1").value=
+
+"Sản phẩm";
 
 
-sheet.getCell("V1")
-.value="Thực tích (kg)";
+sheet.getCell("V1").value=
+
+"Thực tích";
 
 
 
-Object.keys(summaryMap)
-.forEach(
-(sp,index)=>{
+
+Object.keys(summary).forEach(
+
+(item,index)=>{
 
 
 sheet.getCell(
+
 index+2,
+
 21
-)
-.value=sp;
+
+).value=item;
 
 
 
 sheet.getCell(
+
 index+2,
+
 22
-)
-.value=summaryMap[sp];
+
+).value=summary[item];
+
+
+}
+
+);
 
 
 
-});
 
 
 
-
-
-
-
-
-// ==========================
+// =============================
 // FORMAT
-// ==========================
+// =============================
 
 
-for(
-let r=1;
-r<=sheet.lastRow.number;
-r++
-){
+sheet.eachRow(
 
-for(
-let c=1;
-c<=22;
-c++
-){
+row=>{
 
 
-const cell =
-sheet.getCell(r,c);
+row.eachCell(
 
+cell=>{
 
 
 cell.alignment={
@@ -328,83 +397,50 @@ vertical:"middle"
 };
 
 
-
 cell.border={
 
-top:{style:"thin"},
-bottom:{style:"thin"},
-left:{style:"thin"},
-right:{style:"thin"}
+
+top:{
+style:"thin"
+},
+
+bottom:{
+style:"thin"
+},
+
+left:{
+style:"thin"
+},
+
+right:{
+style:"thin"
+}
+
 
 };
 
 
 }
 
+
+);
+
+
 }
 
+);
 
 
 
 
 
+sheet.getRow(2).font={
 
-// Header màu
-
-
-for(
-let c=1;
-c<=19;
-c++
-){
-
-
-const cell =
-sheet.getCell(2,c);
-
-
-
-cell.font={
 bold:true
-};
-
-
-
-cell.fill={
-
-type:"pattern",
-
-pattern:"solid",
-
-fgColor:{
-argb:"FFD9EAF7"
-}
 
 };
 
 
-}
-
-
-
-
-
-
-sheet.getCell("U1").font={
-bold:true
-};
-
-
-sheet.getCell("V1").font={
-bold:true
-};
-
-
-
-
-
-
-// độ rộng
 
 
 sheet.columns.forEach(col=>{
@@ -421,11 +457,6 @@ sheet.getColumn(3).width=20;
 
 
 
-
-
-
-
-// freeze
 
 
 sheet.views=[
@@ -446,11 +477,9 @@ ySplit:2
 
 
 
-
-// ==========================
+// =============================
 // DOWNLOAD
-// ==========================
-
+// =============================
 
 
 res.setHeader(
@@ -484,12 +513,16 @@ res.end();
 
 }
 
+
 catch(err){
 
 
 console.error(
+
 "EXPORT ERROR:",
+
 err
+
 );
 
 

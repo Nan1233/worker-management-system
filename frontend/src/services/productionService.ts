@@ -322,19 +322,16 @@ export const deleteReport = async(
 // ======================================
 // EXPORT EXCEL GIA CÔNG
 // ======================================
-
 export const exportProductionExcel = async(
 
-    payload:any
+    date:string
 
 )=>{
 
 
-    const res = await api.post(
+    const res = await api.get(
 
-        "/reports/export-excel",
-
-        payload,
+        `/reports/export-excel?date=${date}`,
 
         {
 
@@ -343,6 +340,7 @@ export const exportProductionExcel = async(
         }
 
     );
+
 
 
 
@@ -357,6 +355,7 @@ export const exportProductionExcel = async(
         {
 
             type:
+
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
         }
@@ -365,21 +364,30 @@ export const exportProductionExcel = async(
 
 
 
+
     const url =
+
         window.URL.createObjectURL(blob);
 
 
 
+
     const link =
+
         document.createElement("a");
+
 
 
 
     link.href=url;
 
 
+
+
     link.download =
-        "GiaCong.xlsx";
+
+        `BaoCaoGiaCong_${date}.xlsx`;
+
 
 
 
@@ -387,11 +395,14 @@ export const exportProductionExcel = async(
 
 
 
+
     link.click();
 
 
 
+
     link.remove();
+
 
 
 

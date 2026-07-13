@@ -1,15 +1,10 @@
 import { useState } from "react";
 
-
 import {
-    getReports,
     exportProductionExcel
-}
-from "../../services/productionService";
-
+} from "../../services/productionService";
 
 import "./ReportDownload.css";
-
 
 
 function ReportDownload(){
@@ -21,16 +16,12 @@ function ReportDownload(){
         .split("T")[0];
 
 
-
-    const [date,setDate]=
+    const [date,setDate] =
         useState(today);
 
 
-
-    const [loading,setLoading]=
+    const [loading,setLoading] =
         useState(false);
-
-
 
 
 
@@ -44,94 +35,9 @@ function ReportDownload(){
 
 
 
-            // lấy dữ liệu đã duyệt
-            const reports =
-                await getReports();
-
-
-
-
-            if(
-                reports.length===0
-            ){
-
-                alert(
-                    "Không có dữ liệu"
-                );
-
-                return;
-
-            }
-
-
-
-
-            // tạo summary sản phẩm
-
-            const summaryMap:any={};
-
-
-
-            reports.forEach(
-                item=>{
-
-
-                    const sp =
-                    item.product_name;
-
-
-
-                    if(!summaryMap[sp]){
-
-
-                        summaryMap[sp]=0;
-
-
-                    }
-
-
-
-                    summaryMap[sp]
-                    +=
-                    Number(
-                        item.actual_output || 0
-                    );
-
-
-                }
-
+            await exportProductionExcel(
+                date
             );
-
-
-
-
-
-            const summary =
-            Object.keys(summaryMap)
-            .map(
-                key=>({
-
-                    san_pham:key,
-
-                    thuc_tich_kg:
-                    summaryMap[key]
-
-                })
-            );
-
-
-
-
-
-
-            await exportProductionExcel({
-
-                data:reports,
-
-                summary:summary
-
-            });
-
 
 
 
@@ -139,7 +45,10 @@ function ReportDownload(){
         catch(err){
 
 
-            console.error(err);
+            console.error(
+                "Lỗi tải Excel:",
+                err
+            );
 
 
             alert(
@@ -157,78 +66,88 @@ function ReportDownload(){
         }
 
 
-
     };
 
 
 
 
 
-return (
+    return (
 
-<div className="download-page">
-
-
-<div className="download-card">
+        <div className="download-page">
 
 
-<h1>
-📥 Xuất Excel Gia công
-</h1>
+            <div className="download-card">
 
 
-<p>
-Chọn ngày xuất báo cáo
-</p>
+                <h1>
+                    📥 Xuất Excel Gia công
+                </h1>
 
 
 
-<input
-
-type="date"
-
-value={date}
-
-onChange={
-e=>setDate(
-e.target.value
-)
-}
-
-/>
+                <p>
+                    Chọn ngày xuất báo cáo
+                </p>
 
 
 
-<button
 
-onClick={handleDownload}
+                <input
 
-disabled={loading}
+                    type="date"
 
->
+                    value={date}
 
+                    onChange={
+                        e=>
+                        setDate(
+                            e.target.value
+                        )
+                    }
 
-{
-loading
-?
-"Đang tạo Excel..."
-:
-"📄 Xuất Excel"
-}
-
-
-
-</button>
+                />
 
 
 
-</div>
 
 
-</div>
+                <button
+
+                    onClick={
+                        handleDownload
+                    }
+
+                    disabled={loading}
+
+                >
 
 
-);
+                    {
+                        loading
+
+                        ?
+
+                        "Đang tạo Excel..."
+
+                        :
+
+                        "📄 Xuất Excel"
+
+                    }
+
+
+                </button>
+
+
+
+            </div>
+
+
+        </div>
+
+
+    );
 
 
 }
