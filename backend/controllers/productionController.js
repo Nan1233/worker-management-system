@@ -1,342 +1,120 @@
 const Production = require("../models/productionModel");
 
-const workerModel = require("../models/workerModel");
-
-
-
 // =======================
-// CREATE REPORT
+// GET ALL REPORTS (DỮ LIỆU CHÍNH)
 // =======================
 
-exports.createReport = async (req, res) => {
-
+exports.getAllReports = async (req, res) => {
 
     try {
 
-
-        if (!req.body.process_id) {
-
-
-            return res.status(400).json({
-
-                success:false,
-
-                message:"Thiếu công đoạn"
-
-            });
-
-
-        }
-
-
-
-
-        workerModel.getWorkerByUserId(
-
-            req.user.id,
-
-
-            async (err, result) => {
-
-
-                if (err) {
-
-
-                    return res.status(500).json({
-
-                        success:false,
-
-                        message:err.message
-
-                    });
-
-
-                }
-
-
-
-
-                if (result.length === 0) {
-
-
-                    return res.status(404).json({
-
-                        success:false,
-
-                        message:"Không tìm thấy công nhân"
-
-                    });
-
-
-                }
-
-
-
-
-                const worker_id = result[0].id;
-
-
-
-
-                await Production.create({
-
-                    ...req.body,
-
-                    worker_id
-
-                });
-
-
-
-
-
-                return res.status(201).json({
-
-                    success:true,
-
-                    message:"Lưu báo cáo thành công"
-
-                });
-
-
-            }
-
-        );
-
-
-
-    }
-
-    catch(err){
-
-
-        return res.status(500).json({
-
-            success:false,
-
-            message:err.message
-
-        });
-
-
-    }
-
-
-};
-
-
-
-
-
-// =======================
-// GET ALL REPORTS
-// =======================
-
-exports.getAllReports = async(req,res)=>{
-
-
-    try{
-
-
         const reports = await Production.getAll();
 
-
-
         res.json({
-
-            success:true,
-
-            data:reports
-
+            success: true,
+            data: reports
         });
 
-
-
-    }
-
-    catch(err){
-
+    } catch (err) {
 
         res.status(500).json({
-
-            success:false,
-
-            message:err.message
-
+            success: false,
+            message: err.message
         });
-
 
     }
 
-
 };
-
-
-
-
-
 
 
 // =======================
 // GET DETAIL
 // =======================
 
-exports.getReportById = async(req,res)=>{
+exports.getReportById = async (req, res) => {
 
-
-    try{
-
+    try {
 
         const report = await Production.getById(req.params.id);
 
-
-
-        if(!report){
-
+        if (!report) {
 
             return res.status(404).json({
-
-                success:false,
-
-                message:"Không tìm thấy báo cáo"
-
+                success: false,
+                message: "Không tìm thấy báo cáo"
             });
-
 
         }
 
-
-
-
         res.json({
-
-            success:true,
-
-            data:report
-
+            success: true,
+            data: report
         });
 
-
-
-    }
-
-    catch(err){
-
+    } catch (err) {
 
         res.status(500).json({
-
-            success:false,
-
-            message:err.message
-
+            success: false,
+            message: err.message
         });
-
 
     }
 
-
 };
-
-
-
-
-
 
 
 // =======================
 // UPDATE
 // =======================
 
-exports.updateReport = async(req,res)=>{
+exports.updateReport = async (req, res) => {
 
-
-    try{
-
+    try {
 
         await Production.update(
-
             req.params.id,
-
             req.body
-
         );
 
-
-
         res.json({
-
-            success:true,
-
-            message:"Cập nhật thành công"
-
+            success: true,
+            message: "Cập nhật thành công"
         });
 
-
-
-    }
-
-    catch(err){
-
+    } catch (err) {
 
         res.status(500).json({
-
-            success:false,
-
-            message:err.message
-
+            success: false,
+            message: err.message
         });
-
 
     }
 
-
 };
-
-
-
-
-
 
 
 // =======================
 // DELETE
 // =======================
 
-exports.deleteReport = async(req,res)=>{
+exports.deleteReport = async (req, res) => {
 
-
-    try{
-
+    try {
 
         await Production.delete(req.params.id);
 
-
-
         res.json({
-
-            success:true,
-
-            message:"Xóa thành công"
-
+            success: true,
+            message: "Xóa thành công"
         });
 
-
-
-    }
-
-    catch(err){
-
+    } catch (err) {
 
         res.status(500).json({
-
-            success:false,
-
-            message:err.message
-
+            success: false,
+            message: err.message
         });
 
-
     }
-
 
 };

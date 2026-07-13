@@ -6,15 +6,19 @@ const ProductionTemp = {
 
     create(data) {
 
-        return new Promise((resolve, reject) => {
+
+        return new Promise((resolve,reject)=>{
 
 
             const sql = `
 
-            INSERT INTO production_reports_temp(
+            INSERT INTO production_reports_temp
+
+            (
 
                 worker_id,
-                process_type,
+                process_id,
+
                 work_date,
                 shift,
                 machine_no,
@@ -41,23 +45,25 @@ const ProductionTemp = {
                 xoay,
 
                 khong_dut,
-
                 bavia_hut,
 
                 ppcm,
-
                 loi_cao_su,
 
                 ng_kich_thuoc,
-
                 cat_lem,
 
-                note
+                note,
+
+                status
 
             )
 
 
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES
+
+            (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+
 
             `;
 
@@ -68,7 +74,8 @@ const ProductionTemp = {
 
                 data.worker_id,
 
-                data.process_type,
+                data.process_id,
+
 
                 data.work_date,
 
@@ -114,23 +121,23 @@ const ProductionTemp = {
 
                 data.khong_dut,
 
-
                 data.bavia_hut,
 
 
                 data.ppcm,
-
 
                 data.loi_cao_su,
 
 
                 data.ng_kich_thuoc,
 
-
                 data.cat_lem,
 
 
-                data.note
+                data.note,
+
+
+                "pending"
 
 
             ],(err,result)=>{
@@ -147,6 +154,7 @@ const ProductionTemp = {
 
 
             });
+
 
 
         });
@@ -166,37 +174,58 @@ const ProductionTemp = {
 
             const sql = `
 
+
             SELECT
+
 
                 pr.id,
 
-                pr.process_type,
+
+                pr.process_id,
+
+
+                p.process_name,
+
 
                 pr.work_date,
 
+
                 pr.shift,
+
 
                 pr.machine_no,
 
+
                 pr.product_name,
+
 
                 pr.standard_output,
 
+
                 pr.actual_output,
+
 
                 pr.tt_ok,
 
+
                 pr.tt_ng,
+
+
+                pr.status,
+
 
                 pr.created_at,
 
 
                 w.worker_code,
 
+
                 u.full_name
 
 
+
             FROM production_reports_temp pr
+
 
 
             INNER JOIN workers w
@@ -204,12 +233,21 @@ const ProductionTemp = {
                 ON pr.worker_id = w.id
 
 
+
             INNER JOIN users u
 
                 ON w.user_id = u.id
 
 
+
+            INNER JOIN processes p
+
+                ON pr.process_id = p.id
+
+
+
             ORDER BY pr.created_at DESC
+
 
 
             `;
@@ -236,7 +274,9 @@ const ProductionTemp = {
         });
 
 
+
     },
+
 
 
 
@@ -254,14 +294,22 @@ const ProductionTemp = {
 
             SELECT
 
+
                 pr.*,
 
+
+                p.process_name,
+
+
                 w.worker_code,
+
 
                 u.full_name
 
 
+
             FROM production_reports_temp pr
+
 
 
             INNER JOIN workers w
@@ -269,12 +317,21 @@ const ProductionTemp = {
                 ON pr.worker_id=w.id
 
 
+
             INNER JOIN users u
 
                 ON w.user_id=u.id
 
 
+
+            INNER JOIN processes p
+
+                ON pr.process_id=p.id
+
+
+
             WHERE pr.id=?
+
 
 
             `;
@@ -297,7 +354,9 @@ const ProductionTemp = {
             });
 
 
+
         });
+
 
 
     }
@@ -307,6 +366,7 @@ const ProductionTemp = {
 
 
 };
+
 
 
 module.exports = ProductionTemp;

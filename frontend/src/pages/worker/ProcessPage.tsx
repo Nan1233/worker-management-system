@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 import "./ProcessPage.css";
 
-import { createReport } from "../../services/productionService";
+import { createTempReport } from "../../services/productionService";
 
 import FormSection from "../../components/process/FormSection";
 import InputField from "../../components/process/InputField";
@@ -108,10 +108,8 @@ function ProcessPage() {
         try {
 
 
-            await createReport({
+            await createTempReport({
 
-
-                worker_id: 1,
 
 
                 process_id: 1,

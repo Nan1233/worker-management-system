@@ -1,27 +1,106 @@
 const ProductionTemp = require("../models/productionTempModel");
 
+const workerModel = require("../models/workerModel");
 
 
-exports.createTempReport = async(req,res)=>{
+
+// =======================
+// WORKER TẠO BÁO CÁO TẠM
+// =======================
+
+exports.createTempReport = async (req,res)=>{
 
 
     try{
 
 
-        await ProductionTemp.create(req.body);
+        workerModel.getWorkerByUserId(
+
+
+            req.user.id,
+
+
+            async(err,result)=>{
+
+
+                if(err){
+
+
+                    return res.status(500).json({
+
+                        success:false,
+
+                        message:err.message
+
+                    });
+
+
+                }
 
 
 
-        res.status(201).json({
 
-            success:true,
+                if(result.length===0){
 
-            message:"Lưu báo cáo chờ duyệt thành công"
 
-        });
+                    return res.status(404).json({
+
+                        success:false,
+
+                        message:"Không tìm thấy công nhân"
+
+                    });
+
+
+                }
+
+
+
+
+
+                const worker_id = result[0].id;
+
+
+
+
+
+                await ProductionTemp.create({
+
+                    ...req.body,
+
+
+                    worker_id,
+
+
+                    status:"pending"
+
+                });
+
+
+
+
+
+
+                return res.status(201).json({
+
+                    success:true,
+
+                    message:"Đã lưu báo cáo chờ duyệt"
+
+                });
+
+
+
+            }
+
+
+
+        );
+
 
 
     }
+
 
     catch(err){
 
@@ -29,7 +108,7 @@ exports.createTempReport = async(req,res)=>{
         console.log(err);
 
 
-        res.status(500).json({
+        return res.status(500).json({
 
             success:false,
 
@@ -46,6 +125,12 @@ exports.createTempReport = async(req,res)=>{
 
 
 
+
+
+
+// =======================
+// MANAGER LẤY DANH SÁCH TẠM
+// =======================
 
 
 exports.getTempReports = async(req,res)=>{
@@ -70,6 +155,7 @@ exports.getTempReports = async(req,res)=>{
 
     }
 
+
     catch(err){
 
 
@@ -92,6 +178,13 @@ exports.getTempReports = async(req,res)=>{
 
 
 
+
+
+// =======================
+// CHI TIẾT BÁO CÁO TẠM
+// =======================
+
+
 exports.getTempReportById = async(req,res)=>{
 
 
@@ -99,7 +192,9 @@ exports.getTempReportById = async(req,res)=>{
 
 
         const report = await ProductionTemp.getById(
+
             req.params.id
+
         );
 
 
@@ -120,6 +215,8 @@ exports.getTempReportById = async(req,res)=>{
 
 
 
+
+
         res.json({
 
             success:true,
@@ -131,6 +228,7 @@ exports.getTempReportById = async(req,res)=>{
 
 
     }
+
 
     catch(err){
 

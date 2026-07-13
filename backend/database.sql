@@ -406,6 +406,80 @@ CREATE TABLE production_reports (
 
 );
 
+CREATE TABLE production_reports_temp (
+
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    worker_id INT NOT NULL,
+
+    process_id INT NOT NULL,
+
+    work_date DATE NOT NULL,
+
+    shift ENUM(
+        'Ca 1',
+        'Ca 2',
+        'Ca 3'
+    ) NOT NULL,
+
+    machine_no VARCHAR(50),
+
+    total_time DECIMAL(5,2) DEFAULT 0,
+    actual_time DECIMAL(5,2) DEFAULT 0,
+    deduction_time DECIMAL(5,2) DEFAULT 0,
+
+    product_name VARCHAR(100),
+
+    standard_output INT DEFAULT 0,
+    actual_output INT DEFAULT 0,
+
+    tt_ok INT DEFAULT 0,
+    tt_ng INT DEFAULT 0,
+
+    kqd_dap_lai INT DEFAULT 0,
+    kqd_tuot INT DEFAULT 0,
+
+    vo_do_long INT DEFAULT 0,
+    xuoc_do_long INT DEFAULT 0,
+
+    cong_gay INT DEFAULT 0,
+    xoay INT DEFAULT 0,
+
+    khong_dut INT DEFAULT 0,
+    bavia_hut INT DEFAULT 0,
+
+    ppcm INT DEFAULT 0,
+    loi_cao_su INT DEFAULT 0,
+
+    ng_kich_thuoc INT DEFAULT 0,
+    cat_lem INT DEFAULT 0,
+
+    note TEXT,
+
+    status ENUM(
+        'pending',
+        'reviewing',
+        'need_fix',
+        'approved'
+    ) DEFAULT 'pending',
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_temp_worker
+        FOREIGN KEY(worker_id)
+        REFERENCES workers(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_temp_process
+        FOREIGN KEY(process_id)
+        REFERENCES processes(id)
+        ON DELETE CASCADE
+
+);
+
 
 
 -- =========================
@@ -497,3 +571,15 @@ CURDATE(),
 );
 
 
+
+
+ALTER TABLE production_reports_temp
+ADD COLUMN review_note TEXT NULL AFTER note;
+
+ALTER TABLE production_reports_temp
+ADD COLUMN reviewed_by INT NULL AFTER review_note;
+
+ALTER TABLE production_reports_temp
+ADD CONSTRAINT fk_temp_reviewer
+FOREIGN KEY(reviewed_by)
+REFERENCES users(id);
