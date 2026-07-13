@@ -71,3 +71,30 @@
 }
 
 }
+@media(max-width:768px){
+
+
+.layout{
+
+    display:block;
+
+}
+
+
+
+.main-layout{
+
+    width:100%;
+
+}
+
+
+
+.page-content{
+
+    padding-bottom:90px;
+
+}
+
+
+}

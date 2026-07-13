@@ -174,3 +174,13 @@
     overflow:auto;
 
 }
+@media(max-width:768px){
+
+
+    .manager-sidebar{
+
+        display:none;
+
+    }
+
+}

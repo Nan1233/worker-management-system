@@ -2,13 +2,16 @@ import { Outlet } from "react-router-dom";
 
 import Header from "../components/common/Header";
 import ManagerSidebar from "../components/common/ManagerSidebar";
+import MobileNavbar from "../components/common/MobileNavbar";
 
 import "./ManagerLayout.css";
 
 
 function ManagerLayout(){
 
+
     return (
+
 
         <div className="manager-layout">
 
@@ -16,10 +19,12 @@ function ManagerLayout(){
             <ManagerSidebar />
 
 
+
             <div className="manager-main">
 
 
                 <Header />
+
 
 
                 <main className="manager-content">
@@ -29,13 +34,19 @@ function ManagerLayout(){
                 </main>
 
 
+
             </div>
 
 
+
+            <MobileNavbar />
+
+
         </div>
-        
+
 
     );
+
 
 }
 

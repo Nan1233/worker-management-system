@@ -37,3 +37,32 @@
     overflow:auto;
 
 }
+@media(max-width:768px){
+
+
+.manager-layout{
+
+    display:block;
+
+}
+
+
+
+.manager-main{
+
+    width:100%;
+
+}
+
+
+
+.manager-content{
+
+    padding:16px;
+
+    padding-bottom:90px;
+
+}
+
+
+}
