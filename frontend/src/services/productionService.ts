@@ -410,3 +410,48 @@ export const exportProductionExcel = async(
 
 
 };
+
+// ======================================
+// MANAGER LẤY BÁO CÁO CHƯA DUYỆT
+// ======================================
+
+export const getPendingReports = async():
+
+Promise<ProductionReport[]>=>{
+
+
+    const res = await api.get(
+
+        "/production-temp/pending"
+
+    );
+
+
+    return res.data.data || [];
+
+
+};
+
+
+
+
+// ======================================
+// MANAGER LẤY BÁO CÁO ĐÃ DUYỆT
+// ======================================
+
+export const getApprovedReports = async():
+
+Promise<ProductionReport[]>=>{
+
+
+    const res = await api.get(
+
+        "/production-temp/approved"
+
+    );
+
+
+    return res.data.data || [];
+
+
+};

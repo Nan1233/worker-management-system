@@ -5,16 +5,15 @@ import {
 } from "react-router-dom";
 
 
-
 import Login from "../pages/Login";
 
 import PrivateRoute from "./PrivateRoute";
 
 
-
 // Layout
 
 import MainLayout from "../layouts/MainLayout";
+
 
 
 // Admin
@@ -28,6 +27,8 @@ import AdminDashboard from "../pages/admin/Dashboard";
 import ManagerDashboard from "../pages/manager/Dashboard";
 
 import Reports from "../pages/manager/Reports";
+
+import ApprovedReports from "../pages/manager/ApprovedReports";
 
 import ReportDetail from "../pages/manager/ReportDetail";
 
@@ -54,10 +55,7 @@ function AppRouter(){
 
     return (
 
-
         <Routes>
-
-
 
 
 
@@ -85,8 +83,6 @@ function AppRouter(){
 
 
 
-
-
             {/* LOGIN */}
 
             <Route
@@ -100,8 +96,6 @@ function AppRouter(){
                 }
 
             />
-
-
 
 
 
@@ -136,22 +130,25 @@ function AppRouter(){
 
 
 
+
             {/* ================= MANAGER ================= */}
 
 
             <Route
-path="/manager"
-element={
 
-<PrivateRoute role="manager">
+                path="/manager"
 
-<MainLayout role="manager"/>
+                element={
 
-</PrivateRoute>
+                    <PrivateRoute role="manager">
 
-}
->
+                        <MainLayout role="manager"/>
 
+                    </PrivateRoute>
+
+                }
+
+            >
 
 
 
@@ -173,8 +170,7 @@ element={
 
 
 
-
-                {/* Báo cáo chờ duyệt */}
+                {/* Báo cáo chưa duyệt */}
 
                 <Route
 
@@ -183,6 +179,24 @@ element={
                     element={
 
                         <Reports />
+
+                    }
+
+                />
+
+
+
+
+
+                {/* Báo cáo đã duyệt */}
+
+                <Route
+
+                    path="approved"
+
+                    element={
+
+                        <ApprovedReports />
 
                     }
 
@@ -214,7 +228,7 @@ element={
 
 
 
-                {/* Tải Excel */}
+                {/* Export Excel */}
 
                 <Route
 
@@ -227,8 +241,6 @@ element={
                     }
 
                 />
-
-
 
 
 
@@ -247,18 +259,20 @@ element={
 
 
             <Route
-path="/worker"
-element={
 
-<PrivateRoute role="worker">
+                path="/worker"
 
-<MainLayout role="worker"/>
+                element={
 
-</PrivateRoute>
+                    <PrivateRoute role="worker">
 
-}
->
+                        <MainLayout role="worker"/>
 
+                    </PrivateRoute>
+
+                }
+
+            >
 
 
 
@@ -282,8 +296,6 @@ element={
 
 
 
-
-
                 {/* Chọn công đoạn */}
 
                 <Route
@@ -297,7 +309,6 @@ element={
                     }
 
                 />
-
 
 
 
@@ -326,7 +337,6 @@ element={
 
 
 
-
                 {/* Chi tiết lịch sử */}
 
                 <Route
@@ -343,10 +353,7 @@ element={
 
 
 
-
-
             </Route>
-
 
 
 
@@ -378,9 +385,7 @@ element={
 
 
 
-
         </Routes>
-
 
     );
 
