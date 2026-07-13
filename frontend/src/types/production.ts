@@ -24,6 +24,7 @@ export interface ProductionReport {
 
 
 
+
     total_time: number;
 
 
@@ -36,7 +37,9 @@ export interface ProductionReport {
 
 
 
+
     product_name: string;
+
 
 
 
@@ -45,6 +48,7 @@ export interface ProductionReport {
 
 
     actual_output: number;
+
 
 
 
@@ -59,10 +63,12 @@ export interface ProductionReport {
 
 
 
+
     kqd_dap_lai: number;
 
 
     kqd_tuot: number;
+
 
 
 
@@ -101,7 +107,13 @@ export interface ProductionReport {
 
 
 
+
     note: string;
+
+
+
+    // trạng thái duyệt
+    status?: string;
 
 
 
