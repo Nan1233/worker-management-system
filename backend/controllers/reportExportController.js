@@ -6,10 +6,9 @@ exports.exportGiaCongExcel = async(req,res)=>{
 
 try{
 
+const data = req.body.data || [];
 
-const data = req.body.data;
-
-const summary = req.body.summary;
+const summary = req.body.summary || [];
 
 
 

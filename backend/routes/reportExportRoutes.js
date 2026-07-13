@@ -4,16 +4,16 @@ const router = express.Router();
 
 
 const {
-    exportProductionExcel
+    exportGiaCongExcel
 }
 =
 require("../controllers/reportExportController");
 
 
 
-router.get(
+router.post(
     "/export-excel",
-    exportProductionExcel
+    exportGiaCongExcel
 );
 
 

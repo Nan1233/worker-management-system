@@ -320,19 +320,21 @@ export const deleteReport = async(
 
 
 // ======================================
-// EXPORT EXCEL
+// EXPORT EXCEL GIA CÔNG
 // ======================================
 
 export const exportProductionExcel = async(
 
-    date:string
+    payload:any
 
 )=>{
 
 
-    const res = await api.get(
+    const res = await api.post(
 
-        `/reports/export-excel?date=${date}`,
+        "/reports/export-excel",
+
+        payload,
 
         {
 
@@ -376,10 +378,8 @@ export const exportProductionExcel = async(
     link.href=url;
 
 
-
     link.download =
-
-        `BaoCaoSanXuat_${date}.xlsx`;
+        "GiaCong.xlsx";
 
 
 
@@ -396,7 +396,6 @@ export const exportProductionExcel = async(
 
 
     window.URL.revokeObjectURL(url);
-
 
 
 };
