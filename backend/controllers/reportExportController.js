@@ -34,11 +34,26 @@ const [rows] = await db.promise().query(
 
 `
 SELECT 
-*
-FROM production_reports
-WHERE DATE(work_date)=?
+    t.*,
+    w.worker_code,
+    u.full_name,
+    p.process_name
 
-ORDER BY id ASC
+FROM production_reports_temp t
+
+JOIN workers w
+ON t.worker_id = w.id
+
+JOIN users u
+ON w.user_id = u.id
+
+JOIN processes p
+ON t.process_id = p.id
+
+
+WHERE DATE(t.work_date)=?
+
+ORDER BY t.id ASC
 
 `,
 
@@ -138,17 +153,16 @@ sheet.getCell(
 data.forEach(
 (item,index)=>{
 
-
 sheet.getRow(index+3).values=[
 
 
 index+1,
 
-item.kg_h || "",
+item.actual_time || "",
 
 item.full_name || "",
 
-"",
+item.process_name || "",
 
 
 item.machine_no || "",
@@ -181,24 +195,22 @@ item.actual_output || "",
 item.tt_ng || "",
 
 
-item.total_error || "",
+item.kqd_dap_lai || "",
 
 
-item.chan_khong || "",
+item.kqd_tuot || "",
 
 
-item.rach_vo || "",
+item.vo_do_long || "",
 
 
-item.be_mat || "",
+item.xuoc_do_long || "",
 
 
-item.bavia || ""
+item.bavia_hut || ""
 
 
 ];
-
-
 
 });
 
