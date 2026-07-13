@@ -456,5 +456,79 @@ exports.getMyTempReports = async(req,res)=>{
     }
 
 
+// ======================================
+// MANAGER LẤY BÁO CÁO CHƯA DUYỆT
+// GET /production-temp/pending
+// ======================================
 
+exports.getPendingReports = async (req, res) => {
+
+    try {
+
+        const reports = await ProductionTemp.getPending();
+
+
+        res.json({
+
+            success: true,
+
+            data: reports
+
+        });
+
+
+    } catch (err) {
+
+
+        res.status(500).json({
+
+            success:false,
+
+            message:err.message
+
+        });
+
+    }
+
+};
+
+
+
+
+
+// ======================================
+// MANAGER LẤY BÁO CÁO ĐÃ DUYỆT
+// GET /production-temp/approved
+// ======================================
+
+exports.getApprovedReports = async (req, res) => {
+
+    try {
+
+        const reports = await ProductionTemp.getApproved();
+
+
+        res.json({
+
+            success:true,
+
+            data:reports
+
+        });
+
+
+    } catch(err){
+
+
+        res.status(500).json({
+
+            success:false,
+
+            message:err.message
+
+        });
+
+    }
+
+};
 };

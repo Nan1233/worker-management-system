@@ -149,6 +149,44 @@ router.get(
 
 
 
+const {
+
+    createTempReport,
+
+    getTempDates,
+
+    getTempReportsByDate,
+
+    approveTempByDate,
+
+    getTempReportById,
+
+    getMyTempReports,
+
+    getPendingReports,      // thêm
+    getApprovedReports      // thêm
+
+} = require("../controllers/productionTempController");
+// ======================================
+// MANAGER XEM BÁO CÁO CHƯA DUYỆT
+// ======================================
+
+router.get(
+    "/pending",
+    verifyToken,
+    getPendingReports
+);
 
 
+
+
+// ======================================
+// MANAGER XEM BÁO CÁO ĐÃ DUYỆT
+// ======================================
+
+router.get(
+    "/approved",
+    verifyToken,
+    getApprovedReports
+);
 module.exports = router;

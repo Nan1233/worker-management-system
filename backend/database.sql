@@ -642,3 +642,19 @@ VALUES
 
     'Test nhân viên thứ 2'
 );
+
+ALTER TABLE production_reports
+
+ADD COLUMN temp_id INT NULL,
+
+ADD COLUMN approved_by INT NULL,
+
+ADD COLUMN approved_at TIMESTAMP NULL,
+
+ADD COLUMN deleted_at TIMESTAMP NULL;
+
+ALTER TABLE production_reports_temp
+
+ADD COLUMN approved_at TIMESTAMP NULL,
+
+ADD COLUMN deleted_at TIMESTAMP NULL;

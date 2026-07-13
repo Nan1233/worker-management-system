@@ -809,11 +809,13 @@ const ProductionTemp = {
 
                                 const deleteSql = `
 
-                                DELETE FROM production_reports_temp
-
-                                WHERE DATE(work_date)=?
-
-                                AND status='pending'
+                                UPDATE production_reports_temp
+SET
+status='approved',
+reviewed_by=?,
+approved_at=NOW()
+WHERE DATE(work_date)=?
+AND status='pending'
 
 
                                 `;
@@ -1465,7 +1467,139 @@ approveByDate(date,manager_id){
 },
 
 
+// ======================================
+// LẤY BÁO CÁO CHƯA DUYỆT
+// ======================================
 
+getPending(){
+
+
+    return new Promise((resolve,reject)=>{
+
+
+        const sql = `
+
+        SELECT
+
+            pr.*,
+
+            p.process_name,
+
+            w.worker_code,
+
+            u.full_name
+
+
+        FROM production_reports_temp pr
+
+
+        INNER JOIN workers w
+        ON pr.worker_id=w.id
+
+
+        INNER JOIN users u
+        ON w.user_id=u.id
+
+
+        LEFT JOIN processes p
+        ON pr.process_id=p.id
+
+
+        WHERE pr.status='pending'
+
+
+        ORDER BY pr.created_at DESC
+
+
+        `;
+
+
+        db.query(sql,(err,rows)=>{
+
+
+            if(err)
+                return reject(err);
+
+
+            resolve(rows);
+
+
+        });
+
+
+    });
+
+
+},
+
+
+
+
+
+// ======================================
+// LẤY BÁO CÁO ĐÃ DUYỆT
+// ======================================
+
+getApproved(){
+
+
+    return new Promise((resolve,reject)=>{
+
+
+        const sql = `
+
+        SELECT
+
+            pr.*,
+
+            p.process_name,
+
+            w.worker_code,
+
+            u.full_name
+
+
+        FROM production_reports_temp pr
+
+
+        INNER JOIN workers w
+        ON pr.worker_id=w.id
+
+
+        INNER JOIN users u
+        ON w.user_id=u.id
+
+
+        LEFT JOIN processes p
+        ON pr.process_id=p.id
+
+
+        WHERE pr.status='approved'
+
+
+        ORDER BY pr.approved_at DESC
+
+
+        `;
+
+
+        db.query(sql,(err,rows)=>{
+
+
+            if(err)
+                return reject(err);
+
+
+            resolve(rows);
+
+
+        });
+
+
+    });
+
+
+},
 
 
 };
