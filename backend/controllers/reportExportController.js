@@ -120,88 +120,60 @@ sheet.getCell("A1").value =
 
 
 
-
-
 // =============================
-// HEADER
+// HEADER ĐẦY ĐỦ
 // =============================
-
 
 const headers=[
 
-
 "STT",
-
-"KG/H",
-
+"Mã CN",
 "Họ tên",
-
 "Công đoạn",
-
+"Ngày",
+"Ca",
 "Mã máy",
 
-"Ngày",
+"Tổng thời gian",
+"Thời gian thực tế",
+"Thời gian trừ",
 
 "Sản phẩm",
 
-"",
-
-"KH",
-
-"TT",
+"Kế hoạch",
+"Thực tế",
 
 "OK",
-
-"",
-
-"SL/h",
-
 "NG",
 
 "Dập lại",
-
 "Tuột",
 
 "Vỡ dò lòng",
-
 "Xước dò lòng",
 
-"Bavia"
+"Cọng gãy",
+"Xoay",
 
+"Không đứt",
+"Bavia hút",
+
+"PPCM",
+"Lỗi cao su",
+
+"NG kích thước",
+"Cắt lem",
+
+"Ghi chú",
+
+"Trạng thái",
+"Thời gian tạo"
 
 ];
-
-
-
-
-headers.forEach(
-
-(header,index)=>{
-
-
-sheet.getCell(
-
-2,
-
-index+1
-
-).value = header;
-
-
-}
-
-);
-
-
-
-
-
-
 
 // =============================
 // DATA
 // =============================
-
 
 rows.forEach(
 
@@ -214,7 +186,7 @@ sheet.getRow(index+3).values=[
 index+1,
 
 
-item.actual_time || 0,
+item.worker_code || "",
 
 
 item.full_name || "",
@@ -223,16 +195,28 @@ item.full_name || "",
 item.process_name || "",
 
 
+item.work_date || "",
+
+
+item.shift || "",
+
+
 item.machine_no || "",
 
 
-item.work_date || "",
+
+item.total_time || 0,
+
+
+item.actual_time || 0,
+
+
+item.deduction_time || 0,
+
 
 
 item.product_name || "",
 
-
-"",
 
 
 item.standard_output || 0,
@@ -241,16 +225,12 @@ item.standard_output || 0,
 item.actual_output || 0,
 
 
+
 item.tt_ok || 0,
 
 
-"",
-
-
-item.actual_output || 0,
-
-
 item.tt_ng || 0,
+
 
 
 item.kqd_dap_lai || 0,
@@ -259,14 +239,49 @@ item.kqd_dap_lai || 0,
 item.kqd_tuot || 0,
 
 
+
 item.vo_do_long || 0,
 
 
 item.xuoc_do_long || 0,
 
 
-item.bavia_hut || 0
 
+item.cong_gay || 0,
+
+
+item.xoay || 0,
+
+
+
+item.khong_dut || 0,
+
+
+item.bavia_hut || 0,
+
+
+
+item.ppcm || 0,
+
+
+item.loi_cao_su || 0,
+
+
+
+item.ng_kich_thuoc || 0,
+
+
+item.cat_lem || 0,
+
+
+
+item.note || "",
+
+
+item.status || "",
+
+
+item.created_at || ""
 
 ];
 
@@ -274,9 +289,6 @@ item.bavia_hut || 0
 }
 
 );
-
-
-
 
 
 
