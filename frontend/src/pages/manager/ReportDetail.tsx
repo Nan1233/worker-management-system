@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import {
-    getReportById
+    getTempReportById
 } from "../../services/productionService";
 
 import type {
@@ -43,7 +43,7 @@ function ReportDetail() {
 
 
                 const data =
-                    await getReportById(
+                    await getTempReportById(
                         Number(id)
                     );
 
