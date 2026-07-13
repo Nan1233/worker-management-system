@@ -1,0 +1,63 @@
+.download-page{
+
+    padding:24px;
+
+}
+
+
+.download-card{
+
+    background:white;
+
+    padding:30px;
+
+    border-radius:16px;
+
+    box-shadow:0 2px 8px rgba(0,0,0,.1);
+
+    max-width:500px;
+
+}
+
+
+
+.download-card h1{
+
+    margin-bottom:20px;
+
+}
+
+
+.download-card input{
+
+    padding:10px;
+
+    margin-right:10px;
+
+}
+
+
+
+.download-card button{
+
+    padding:10px 16px;
+
+    background:#0f766e;
+
+    color:white;
+
+    border:none;
+
+    border-radius:8px;
+
+    cursor:pointer;
+
+}
+
+
+
+.download-card button:disabled{
+
+    opacity:.6;
+
+}
