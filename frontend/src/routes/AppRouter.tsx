@@ -14,10 +14,7 @@ import PrivateRoute from "./PrivateRoute";
 
 // Layout
 
-import WorkerLayout from "../layouts/WorkerLayout";
-
-import ManagerLayout from "../layouts/ManagerLayout";
-
+import MainLayout from "../layouts/MainLayout";
 
 
 // Admin
@@ -143,20 +140,17 @@ function AppRouter(){
 
 
             <Route
+path="/manager"
+element={
 
-                path="/manager"
+<PrivateRoute role="manager">
 
-                element={
+<MainLayout role="manager"/>
 
-                    <PrivateRoute role="manager">
+</PrivateRoute>
 
-                        <ManagerLayout />
-
-                    </PrivateRoute>
-
-                }
-
-            >
+}
+>
 
 
 
@@ -253,23 +247,17 @@ function AppRouter(){
 
 
             <Route
+path="/worker"
+element={
 
-                path="/worker"
+<PrivateRoute role="worker">
 
-                element={
+<MainLayout role="worker"/>
 
-                    <PrivateRoute role="worker">
+</PrivateRoute>
 
-
-                        <WorkerLayout />
-
-
-                    </PrivateRoute>
-
-
-                }
-
-            >
+}
+>
 
 
 

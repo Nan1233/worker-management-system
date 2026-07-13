@@ -1,13 +1,18 @@
 import { Outlet } from "react-router-dom";
 
 import Sidebar from "../components/common/Sidebar";
-import Header from "../components/common/Header";
 import MobileNavbar from "../components/common/MobileNavbar";
+import Header from "../components/common/Header";
 
-import "./WorkerLayout.css";
+import "./MainLayout.css";
 
 
-function WorkerLayout(){
+interface Props {
+    role:string;
+}
+
+
+function MainLayout({role}:Props){
 
 
     return (
@@ -15,18 +20,18 @@ function WorkerLayout(){
         <div className="layout">
 
 
-            <Sidebar />
+            <Sidebar role={role}/>
 
 
             <div className="main-layout">
 
 
-                <Header />
+                <Header/>
 
 
                 <main className="page-content">
 
-                    <Outlet />
+                    <Outlet/>
 
                 </main>
 
@@ -34,8 +39,7 @@ function WorkerLayout(){
             </div>
 
 
-
-            <MobileNavbar />
+            <MobileNavbar role={role}/>
 
 
         </div>
@@ -45,4 +49,4 @@ function WorkerLayout(){
 }
 
 
-export default WorkerLayout;
+export default MainLayout;

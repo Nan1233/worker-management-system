@@ -1,82 +1,69 @@
-import { NavLink } from "react-router-dom";
+import {NavLink} from "react-router-dom";
+
+import {menuConfig} from "../../config/menuConfig";
 
 import "./MobileNavbar.css";
 
 
-function MobileNavbar(){
+interface Props{
 
+role:string;
 
-    return (
-
-        <nav className="mobile-navbar">
-
-
-
-            <NavLink to="/worker">
-
-                <span>
-                    🏠
-                </span>
-
-                Dashboard
-
-            </NavLink>
+}
 
 
 
+function MobileNavbar({role}:Props){
 
 
-            <NavLink to="/worker">
-
-                <span>
-                    ⚙️
-                </span>
-
-                Công đoạn
-
-            </NavLink>
+const menus=menuConfig[role] || [];
 
 
 
+return (
+
+<nav className="mobile-navbar">
 
 
+{
 
-            <NavLink to="/worker/history">
-
-
-                <span>
-                    📋
-                </span>
+menus.map(item=>(
 
 
-                Lịch sử
+<NavLink
+
+key={item.path}
+
+to={item.path}
+
+end={item.end}
+
+>
 
 
-            </NavLink>
+<span>
+
+{item.icon}
+
+</span>
 
 
+{item.label}
 
 
-
-            <NavLink to="/worker/account">
-
-
-                <span>
-                    👤
-                </span>
+</NavLink>
 
 
-                Tài khoản
+))
 
 
-            </NavLink>
+}
 
 
+</nav>
 
 
-        </nav>
-
-    );
+)
 
 }
 
