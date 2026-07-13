@@ -113,13 +113,19 @@ workbook.addWorksheet(
 // TITLE
 // =============================
 
+sheet.mergeCells("A1:AE1");
 
-sheet.getCell("A1").value =
+sheet.getCell("A1").value = "BÁO CÁO GIA CÔNG";
 
-"BÁO CÁO GIA CÔNG";
+sheet.getCell("A1").font = {
+    bold:true,
+    size:16
+};
 
-
-
+sheet.getCell("A1").alignment = {
+    horizontal:"center",
+    vertical:"middle"
+};
 // =============================
 // HEADER ĐẦY ĐỦ
 // =============================
@@ -171,6 +177,7 @@ const headers=[
 
 ];
 
+sheet.getRow(2).values = headers;
 // =============================
 // DATA
 // =============================
@@ -331,17 +338,19 @@ item.actual_output || 0
 
 
 
+sheet.getCell("AG1").value="TỔNG HỢP SẢN PHẨM";
+sheet.mergeCells("AG1:AH1");
 
-sheet.getCell("U1").value=
-
-"Sản phẩm";
-
-
-sheet.getCell("V1").value=
-
-"Thực tích";
+sheet.getCell("AG2").value="Sản phẩm";
+sheet.getCell("AH2").value="Thực tích";
 
 
+Object.keys(summary).forEach((item,index)=>{
+
+    sheet.getCell(index+3,33).value=item;
+    sheet.getCell(index+3,34).value=summary[item];
+
+});
 
 
 Object.keys(summary).forEach(
@@ -464,19 +473,11 @@ sheet.getColumn(3).width=20;
 
 
 sheet.views=[
-
 {
-
-state:"frozen",
-
-xSplit:3,
-
-ySplit:2
-
+    state:"frozen",
+    ySplit:2
 }
-
 ];
-
 
 
 
