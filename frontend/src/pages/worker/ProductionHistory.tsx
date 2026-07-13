@@ -3,48 +3,75 @@ import { useNavigate } from "react-router-dom";
 
 import "./ProductionHistory.css";
 
-import { getReports } from "../../services/productionService";
-import type { ProductionReport } from "../../types/production";
+import {
+    getMyTempReports
+} from "../../services/productionService";
+
+import type {
+    ProductionReport
+} from "../../types/production";
 
 
-function ProductionHistory() {
+
+function ProductionHistory(){
 
 
     const navigate = useNavigate();
 
 
-    const [reports, setReports] = useState<ProductionReport[]>([]);
-
-    const [loading, setLoading] = useState(true);
-
+    const [reports,setReports] =
+        useState<ProductionReport[]>([]);
 
 
-
-    useEffect(() => {
-
-
-        const loadReports = async () => {
+    const [loading,setLoading] =
+        useState(true);
 
 
-            try {
 
 
-                const data = await getReports();
+
+
+    useEffect(()=>{
+
+
+        const loadReports = async()=>{
+
+
+            try{
+
+
+                const data =
+                    await getMyTempReports();
+
+
+                console.log(
+                    "MY REPORTS:",
+                    data
+                );
+
 
                 setReports(data);
+
 
 
             }
 
             catch(err){
 
-                console.log(err);
+
+                console.error(
+                    "Lỗi lấy lịch sử:",
+                    err
+                );
+
 
             }
 
             finally{
 
+
                 setLoading(false);
+
 
             }
 
@@ -52,10 +79,13 @@ function ProductionHistory() {
         };
 
 
+
         loadReports();
 
 
-    }, []);
+
+    },[]);
+
 
 
 
@@ -63,6 +93,7 @@ function ProductionHistory() {
 
 
     if(loading){
+
 
         return (
 
@@ -76,7 +107,9 @@ function ProductionHistory() {
 
         );
 
+
     }
+
 
 
 
@@ -85,7 +118,9 @@ function ProductionHistory() {
 
     return (
 
+
         <div className="history-page">
+
 
 
             <div className="history-header">
@@ -107,193 +142,280 @@ function ProductionHistory() {
 
 
 
+
             <div className="report-card">
 
 
-                {
-                    reports.length === 0 ?
+
+            {
+                reports.length === 0
 
 
-                    (
-
-                        <div className="empty">
-
-                            Chưa có báo cáo
-
-                        </div>
+                ?
 
 
-                    )
+                (
 
+                    <div className="empty">
 
-                    :
+                        Chưa có báo cáo
 
+                    </div>
 
-                    (
-
-                        <div className="table-container">
-
-
-                            <table className="history-table">
-
-
-                                <thead>
-
-                                    <tr>
-
-                                        <th>
-                                            STT
-                                        </th>
-
-                                        <th>
-                                            Ngày
-                                        </th>
-
-                                        <th>
-                                            Ca
-                                        </th>
-
-                                        <th>
-                                            Máy
-                                        </th>
-
-                                        <th>
-                                            Sản phẩm
-                                        </th>
-
-                                        <th>
-                                            Thực tế
-                                        </th>
-
-                                        <th>
-                                            OK
-                                        </th>
-
-                                        <th>
-                                            NG
-                                        </th>
-
-                                        <th>
-                                            Chi tiết
-                                        </th>
-
-
-                                    </tr>
-
-
-                                </thead>
+                )
 
 
 
+                :
 
 
-                                <tbody>
 
+                (
+
+                <div className="table-container">
+
+
+                    <table className="history-table">
+
+
+                        <thead>
+
+
+                            <tr>
+
+
+                                <th>
+                                    STT
+                                </th>
+
+
+                                <th>
+                                    Ngày
+                                </th>
+
+
+                                <th>
+                                    Ca
+                                </th>
+
+
+                                <th>
+                                    Máy
+                                </th>
+
+
+                                <th>
+                                    Sản phẩm
+                                </th>
+
+
+                                <th>
+                                    OK
+                                </th>
+
+
+                                <th>
+                                    NG
+                                </th>
+
+
+                                <th>
+                                    Trạng thái
+                                </th>
+
+
+                                <th>
+                                    Chi tiết
+                                </th>
+
+
+                            </tr>
+
+
+                        </thead>
+
+
+
+
+
+                        <tbody>
+
+
+                        {
+
+                            reports.map((item,index)=>(
+
+
+                                <tr key={item.id}>
+
+
+                                    <td>
+
+                                        {index + 1}
+
+                                    </td>
+
+
+
+
+                                    <td>
 
                                     {
-                                        reports.map((item,index)=>(
-
-
-                                            <tr key={item.id}>
-
-
-                                                <td>
-                                                    {index + 1}
-                                                </td>
-
-
-                                                <td>
-                                                    {item.work_date}
-                                                </td>
-
-
-                                                <td>
-                                                    {item.shift}
-                                                </td>
-
-
-                                                <td>
-                                                    {item.machine_no}
-                                                </td>
-
-
-                                                <td>
-                                                    {item.product_name}
-                                                </td>
-
-
-                                                <td>
-                                                    {item.actual_output}
-                                                </td>
-
-
-                                                <td>
-                                                    {item.tt_ok}
-                                                </td>
-
-
-                                                <td>
-                                                    {item.tt_ng}
-                                                </td>
-
-
-                                                <td>
-
-
-                                                    <button
-
-                                                        className="detail-btn"
-
-                                                        onClick={()=>{
-
-
-                                                            if(item.id){
-
-                                                                navigate(
-                                                                    `/worker/history/${item.id}`
-                                                                );
-
-                                                            }
-
-
-                                                        }}
-
-                                                    >
-
-                                                        Xem
-
-                                                    </button>
-
-
-                                                </td>
-
-
-                                            </tr>
-
-
-                                        ))
+                                        new Date(
+                                            item.work_date
+                                        )
+                                        .toLocaleDateString(
+                                            "vi-VN"
+                                        )
                                     }
 
+                                    </td>
 
 
-                                </tbody>
 
 
 
-                            </table>
+                                    <td>
+
+                                        {item.shift}
+
+                                    </td>
 
 
-                        </div>
 
 
-                    )
+
+                                    <td>
+
+                                        {item.machine_no}
+
+                                    </td>
 
 
-                }
+
+
+
+                                    <td>
+
+                                        {item.product_name}
+
+                                    </td>
+
+
+
+
+
+                                    <td>
+
+                                        {item.tt_ok}
+
+                                    </td>
+
+
+
+
+
+                                    <td>
+
+                                        {item.tt_ng}
+
+                                    </td>
+
+
+
+
+
+                                    <td>
+
+
+                                        <span className="status pending">
+
+
+                                            {
+                                                item.status ||
+                                                "pending"
+                                            }
+
+
+                                        </span>
+
+
+                                    </td>
+
+
+
+
+
+
+                                    <td>
+
+
+                                        <button
+
+
+                                            className="detail-btn"
+
+
+                                            onClick={()=>{
+
+
+                                                if(item.id){
+
+
+                                                    navigate(
+
+                                                        `/worker/history/${item.id}`
+
+                                                    );
+
+
+                                                }
+
+
+                                            }}
+
+
+                                        >
+
+                                            Xem
+
+
+                                        </button>
+
+
+                                    </td>
+
+
+
+
+
+                                </tr>
+
+
+                            ))
+
+                        }
+
+
+
+                        </tbody>
+
+
+                    </table>
+
+
+
+                </div>
+
+
+                )
+
+            }
 
 
 
             </div>
+
 
 
 

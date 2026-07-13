@@ -1,71 +1,117 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import {
+    Routes,
+    Route,
+    Navigate
+} from "react-router-dom";
+
 
 import Login from "../pages/Login";
 
 import PrivateRoute from "./PrivateRoute";
 
 
+
 // Layout
+
 import WorkerLayout from "../layouts/WorkerLayout";
+
 import ManagerLayout from "../layouts/ManagerLayout";
 
 
+
 // Admin
+
 import AdminDashboard from "../pages/admin/Dashboard";
 
 
+
 // Manager
+
 import ManagerDashboard from "../pages/manager/Dashboard";
+
 import Reports from "../pages/manager/Reports";
+
 import ReportDetail from "../pages/manager/ReportDetail";
-// import Statistics from "../pages/manager/Statistics";
-// import Workers from "../pages/manager/Workers";
+
 
 
 // Worker
+
 import SelectProcess from "../pages/worker/SelectProcess";
+
 import ProcessPage from "../pages/worker/ProcessPage";
+
 import ProductionHistory from "../pages/worker/ProductionHistory";
+
 import ProductionDetail from "../pages/worker/ProductionDetail";
 
 
 
-function AppRouter() {
+
+
+function AppRouter(){
+
 
 
     return (
 
+
         <Routes>
 
 
-            {/* Default */}
+
+
+            {/* DEFAULT */}
 
             <Route
+
                 path="/"
+
                 element={
-                    <Navigate 
-                        to="/login" 
-                        replace 
+
+                    <Navigate
+
+                        to="/login"
+
+                        replace
+
                     />
+
                 }
+
             />
 
 
 
-            {/* Login */}
+
+
+
+
+            {/* LOGIN */}
 
             <Route
+
                 path="/login"
+
                 element={
+
                     <Login />
+
                 }
+
             />
+
+
+
+
+
 
 
 
 
 
             {/* ================= ADMIN ================= */}
+
 
             <Route
 
@@ -82,6 +128,8 @@ function AppRouter() {
                 }
 
             />
+
+
 
 
 
@@ -109,7 +157,9 @@ function AppRouter() {
             >
 
 
-                {/* Dashboard */}
+
+
+                {/* dashboard */}
 
                 <Route
 
@@ -125,7 +175,9 @@ function AppRouter() {
 
 
 
-                {/* Danh sách báo cáo */}
+
+
+                {/* danh sách báo cáo chờ duyệt */}
 
                 <Route
 
@@ -141,7 +193,9 @@ function AppRouter() {
 
 
 
-                {/* Chi tiết báo cáo */}
+
+
+                {/* chi tiết báo cáo chờ duyệt */}
 
                 <Route
 
@@ -157,7 +211,8 @@ function AppRouter() {
 
 
 
-                {/* Tải báo cáo */}
+
+
 
                 <Route
 
@@ -165,17 +220,22 @@ function AppRouter() {
 
                     element={
 
+
                         <div>
 
+
                             <h1>
-                                📥 Tải báo cáo Excel
+                                📥 Xuất Excel
                             </h1>
 
+
                             <p>
-                                Chức năng xuất file Excel sẽ phát triển ở bước tiếp theo.
+                                Chức năng đang phát triển
                             </p>
 
+
                         </div>
+
 
                     }
 
@@ -183,38 +243,11 @@ function AppRouter() {
 
 
 
-                {/* Thống kê */}
-
-                {/* <Route
-
-                    path="statistics"
-
-                    element={
-
-                        <Statistics />
-
-                    }
-
-                /> */}
-
-
-
-                {/* Nhân viên */}
-
-                {/* <Route
-
-                    path="workers"
-
-                    element={
-
-                        <Workers />
-
-                    }
-
-                /> */}
-
-
             </Route>
+
+
+
+
 
 
 
@@ -236,9 +269,12 @@ function AppRouter() {
 
                     <PrivateRoute role="worker">
 
+
                         <WorkerLayout />
 
+
                     </PrivateRoute>
+
 
                 }
 
@@ -246,7 +282,9 @@ function AppRouter() {
 
 
 
-                {/* Trang mặc định */}
+
+
+                {/* dashboard worker */}
 
                 <Route
 
@@ -263,7 +301,10 @@ function AppRouter() {
 
 
 
-                {/* Nhập báo cáo */}
+
+
+
+                {/* chọn công đoạn */}
 
                 <Route
 
@@ -281,7 +322,10 @@ function AppRouter() {
 
 
 
-                {/* Lịch sử */}
+
+
+
+                {/* lịch sử worker */}
 
                 <Route
 
@@ -299,7 +343,10 @@ function AppRouter() {
 
 
 
-                {/* Chi tiết */}
+
+
+
+                {/* chi tiết lịch sử worker */}
 
                 <Route
 
@@ -315,6 +362,8 @@ function AppRouter() {
 
 
 
+
+
             </Route>
 
 
@@ -323,7 +372,10 @@ function AppRouter() {
 
 
 
-            {/* Không tồn tại */}
+
+
+
+            {/* NOT FOUND */}
 
             <Route
 
@@ -331,9 +383,12 @@ function AppRouter() {
 
                 element={
 
-                    <Navigate 
-                        to="/login" 
-                        replace 
+                    <Navigate
+
+                        to="/login"
+
+                        replace
+
                     />
 
                 }
@@ -342,11 +397,15 @@ function AppRouter() {
 
 
 
+
         </Routes>
+
 
     );
 
+
 }
+
 
 
 export default AppRouter;

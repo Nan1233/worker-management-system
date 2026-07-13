@@ -7,11 +7,10 @@ import MobileNavbar from "../components/common/MobileNavbar";
 import "./WorkerLayout.css";
 
 
-function WorkerLayout() {
+function WorkerLayout(){
 
 
     return (
-
 
         <div className="layout">
 
@@ -19,12 +18,10 @@ function WorkerLayout() {
             <Sidebar />
 
 
-
             <div className="main-layout">
 
 
                 <Header />
-
 
 
                 <main className="page-content">
@@ -43,9 +40,7 @@ function WorkerLayout() {
 
         </div>
 
-
     );
-
 
 }
 

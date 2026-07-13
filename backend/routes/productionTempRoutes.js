@@ -9,7 +9,9 @@ const {
 
     getTempReports,
 
-    getTempReportById
+    getTempReportById,
+
+    getMyTempReports
 
 } = require("../controllers/productionTempController");
 
@@ -18,7 +20,11 @@ const verifyToken = require("../middleware/authMiddleware");
 
 
 
-// Worker tạo báo cáo tạm
+
+
+// =======================
+// WORKER TẠO BÁO CÁO CHỜ DUYỆT
+// =======================
 
 router.post(
     "/",
@@ -28,7 +34,12 @@ router.post(
 
 
 
-// Manager xem danh sách báo cáo chờ duyệt
+
+
+
+// =======================
+// MANAGER XEM TẤT CẢ BÁO CÁO CHỜ DUYỆT
+// =======================
 
 router.get(
     "/",
@@ -38,13 +49,36 @@ router.get(
 
 
 
-// Xem chi tiết báo cáo tạm
+
+
+
+
+// =======================
+// WORKER XEM BÁO CÁO CỦA MÌNH
+// =======================
+
+router.get(
+    "/my",
+    verifyToken,
+    getMyTempReports
+);
+
+
+
+
+
+
+
+// =======================
+// CHI TIẾT BÁO CÁO CHỜ DUYỆT
+// =======================
 
 router.get(
     "/:id",
     verifyToken,
     getTempReportById
 );
+
 
 
 

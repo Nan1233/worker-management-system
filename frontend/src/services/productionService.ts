@@ -1,19 +1,29 @@
 import api from "../api/axios";
-import type { ProductionReport } from "../types/production";
+
+import type {
+    ProductionReport
+} from "../types/production";
+
+
 
 
 // =========================
-// WORKER CREATE TEMP REPORT
+// WORKER TẠO BÁO CÁO CHỜ DUYỆT
 // =========================
 
-export const createTempReport = async (
+export const createTempReport = async(
     data: ProductionReport
-) => {
+)=>{
+
 
     const res = await api.post(
+
         "/production-temp",
+
         data
+
     );
+
 
     return res.data;
 
@@ -21,33 +31,53 @@ export const createTempReport = async (
 
 
 
+
+
+
+
 // =========================
-// MANAGER GET TEMP REPORTS
+// MANAGER LẤY DANH SÁCH CHỜ DUYỆT
 // =========================
 
-export const getTempReports = async (): Promise<ProductionReport[]> => {
+export const getTempReports = async():
+
+Promise<ProductionReport[]>=>{
+
 
     const res = await api.get(
+
         "/production-temp"
+
     );
 
-    return res.data.data;
+
+    return res.data.data || [];
 
 };
 
 
 
+
+
+
+
 // =========================
-// GET TEMP DETAIL
+// MANAGER XEM CHI TIẾT BÁO CÁO CHỜ DUYỆT
 // =========================
 
-export const getTempReportById = async (
+export const getTempReportById = async(
+
     id:number
-):Promise<ProductionReport>=>{
+
+):
+
+Promise<ProductionReport>=>{
 
 
     const res = await api.get(
+
         `/production-temp/${id}`
+
     );
 
 
@@ -58,28 +88,76 @@ export const getTempReportById = async (
 
 
 
+
+
+
+
 // =========================
-// PRODUCTION MAIN DATA
+// WORKER LẤY LỊCH SỬ CỦA MÌNH
 // =========================
 
+export const getMyTempReports = async():
 
-export const getReports = async (): Promise<ProductionReport[]> => {
-
-    const res = await api.get("/production");
-
-    return res.data.data;
-
-};
-
-
-
-export const getReportById = async (
-    id: number
-): Promise<ProductionReport> => {
+Promise<ProductionReport[]>=>{
 
 
     const res = await api.get(
+
+        "/production-temp/my"
+
+    );
+
+
+    return res.data.data || [];
+
+};
+
+
+
+
+
+
+
+
+// =========================
+// DỮ LIỆU ĐÃ DUYỆT
+// =========================
+
+export const getReports = async():
+
+Promise<ProductionReport[]>=>{
+
+
+    const res = await api.get(
+
+        "/production"
+
+    );
+
+
+    return res.data.data || [];
+
+};
+
+
+
+
+
+
+
+export const getReportById = async(
+
+    id:number
+
+):
+
+Promise<ProductionReport>=>{
+
+
+    const res = await api.get(
+
         `/production/${id}`
+
     );
 
 
@@ -89,15 +167,29 @@ export const getReportById = async (
 
 
 
-export const updateReport = async (
+
+
+
+
+// =========================
+// UPDATE
+// =========================
+
+export const updateReport = async(
+
     id:number,
+
     data:ProductionReport
+
 )=>{
 
 
     const res = await api.put(
+
         `/production/${id}`,
+
         data
+
     );
 
 
@@ -107,13 +199,25 @@ export const updateReport = async (
 
 
 
-export const deleteReport = async (
+
+
+
+
+// =========================
+// DELETE
+// =========================
+
+export const deleteReport = async(
+
     id:number
+
 )=>{
 
 
     const res = await api.delete(
+
         `/production/${id}`
+
     );
 
 

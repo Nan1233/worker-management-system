@@ -11,39 +11,67 @@ function MobileNavbar(){
         <nav className="mobile-navbar">
 
 
+
             <NavLink to="/worker">
 
-                <span>🏠</span>
-                <small>Trang chủ</small>
+                <span>
+                    🏠
+                </span>
+
+                Dashboard
 
             </NavLink>
 
 
 
-            <NavLink to="/worker/process">
 
-                <span>📝</span>
-                <small>Báo cáo</small>
+
+            <NavLink to="/worker">
+
+                <span>
+                    ⚙️
+                </span>
+
+                Công đoạn
 
             </NavLink>
+
+
+
 
 
 
             <NavLink to="/worker/history">
 
-                <span>📋</span>
-                <small>Lịch sử</small>
+
+                <span>
+                    📋
+                </span>
+
+
+                Lịch sử
+
 
             </NavLink>
+
+
 
 
 
             <NavLink to="/worker/account">
 
-                <span>👤</span>
-                <small>Tài khoản</small>
+
+                <span>
+                    👤
+                </span>
+
+
+                Tài khoản
+
 
             </NavLink>
+
+
 
 
         </nav>
