@@ -1,545 +1,569 @@
 const ExcelJS = require("exceljs");
-
 const db = require("../config/db");
 
 
 
-exports.exportGiaCongExcel = async(req,res)=>{
+exports.exportGiaCongExcel = async (req, res) => {
 
+    try {
 
-try{
 
+        const date = req.query.date;
 
-const date = req.query.date;
 
+        if (!date) {
 
+            return res.status(400).json({
 
-if(!date){
+                message: "Thiếu ngày xuất báo cáo"
 
+            });
 
-    return res.status(400).json({
+        }
 
-        message:"Thiếu ngày xuất báo cáo"
 
-    });
 
+        // =============================
+        // LẤY DỮ LIỆU
+        // =============================
 
-}
+        const [rows] = await db.promise().query(
 
+            `
+            SELECT
 
+            t.*,
 
+            w.worker_code,
 
-// =============================
-// LẤY DỮ LIỆU ĐÃ DUYỆT
-// =============================
+            u.full_name,
 
-const [rows] = await db.promise().query(
+            p.process_name
 
-`
-SELECT
 
-t.*,
+            FROM production_reports_temp t
 
-w.worker_code,
 
-u.full_name,
+            LEFT JOIN workers w
 
-p.process_name
+            ON t.worker_id = w.id
 
 
-FROM production_reports_temp t
+            LEFT JOIN users u
 
+            ON w.user_id = u.id
 
-LEFT JOIN workers w
 
-ON t.worker_id = w.id
+            LEFT JOIN processes p
 
+            ON t.process_id = p.id
 
 
-LEFT JOIN users u
+            WHERE DATE(t.work_date)=?
 
-ON w.user_id = u.id
 
+            ORDER BY t.id ASC
 
+            `,
 
-LEFT JOIN processes p
+            [date]
 
-ON t.process_id = p.id
+        );
 
 
 
-WHERE DATE(t.work_date)=?
+        console.log(
+            "EXPORT DATA:",
+            rows.length
+        );
 
 
-ORDER BY t.id ASC
 
-`,
 
-[
-    date
-]
+        const workbook = new ExcelJS.Workbook();
 
-);
 
+        const sheet = workbook.addWorksheet(
+            "Gia công"
+        );
 
-console.log(
-"EXPORT DATA:",
-rows.length
-);
 
 
+        // =============================
+        // TITLE
+        // =============================
 
 
+        sheet.mergeCells("A1:AD1");
 
-const workbook =
 
-new ExcelJS.Workbook();
+        sheet.getCell("A1").value =
+            "BÁO CÁO GIA CÔNG";
 
 
+        sheet.getCell("A1").font = {
 
+            bold: true,
 
-const sheet =
+            size: 16
 
-workbook.addWorksheet(
+        };
 
-"Gia công"
 
-);
+        sheet.getCell("A1").alignment = {
 
+            horizontal: "center",
 
+            vertical: "middle"
 
+        };
 
-// =============================
-// TITLE
-// =============================
 
-sheet.mergeCells("A1:AE1");
 
-sheet.getCell("A1").value = "BÁO CÁO GIA CÔNG";
+        sheet.getRow(1).height = 30;
 
-sheet.getCell("A1").font = {
-    bold:true,
-    size:16
-};
 
-sheet.getCell("A1").alignment = {
-    horizontal:"center",
-    vertical:"middle"
-};
-// =============================
-// HEADER ĐẦY ĐỦ
-// =============================
 
-const headers=[
+        // =============================
+        // HEADER
+        // =============================
 
-"STT",
-"Mã CN",
-"Họ tên",
-"Công đoạn",
-"Ngày",
-"Ca",
-"Mã máy",
 
-"Tổng thời gian",
-"Thời gian thực tế",
-"Thời gian trừ",
+        const headers = [
 
-"Sản phẩm",
 
-"Kế hoạch",
-"Thực tế",
+            "STT",
 
-"OK",
-"NG",
+            "Mã CN",
 
-"Dập lại",
-"Tuột",
+            "Họ tên",
 
-"Vỡ dò lòng",
-"Xước dò lòng",
+            "Công đoạn",
 
-"Cọng gãy",
-"Xoay",
+            "Ngày",
 
-"Không đứt",
-"Bavia hút",
+            "Ca",
 
-"PPCM",
-"Lỗi cao su",
+            "Mã máy",
 
-"NG kích thước",
-"Cắt lem",
 
-"Ghi chú",
+            "Tổng thời gian",
 
-"Trạng thái",
-"Thời gian tạo"
+            "Thời gian thực tế",
 
-];
+            "Thời gian trừ",
 
-sheet.getRow(2).values = headers;
-// =============================
-// DATA
-// =============================
 
-rows.forEach(
+            "Sản phẩm",
 
-(item,index)=>{
 
+            "Kế hoạch",
 
-sheet.getRow(index+3).values=[
+            "Thực tế",
 
 
-index+1,
+            "OK",
 
+            "NG",
 
-item.worker_code || "",
 
+            "Dập lại",
 
-item.full_name || "",
+            "Tuột",
 
 
-item.process_name || "",
+            "Vỡ dò lòng",
 
+            "Xước dò lòng",
 
-item.work_date || "",
 
+            "Cọng gãy",
 
-item.shift || "",
+            "Xoay",
 
 
-item.machine_no || "",
+            "Không đứt",
 
+            "Bavia hút",
 
 
-item.total_time || 0,
+            "PPCM",
 
+            "Lỗi cao su",
 
-item.actual_time || 0,
 
+            "NG kích thước",
 
-item.deduction_time || 0,
+            "Cắt lem",
 
 
+            "Ghi chú",
 
-item.product_name || "",
 
+            "Trạng thái",
 
+            "Thời gian tạo"
 
-item.standard_output || 0,
+        ];
 
 
-item.actual_output || 0,
 
+        sheet.getRow(2).values = headers;
 
 
-item.tt_ok || 0,
 
+        sheet.getRow(2).font = {
 
-item.tt_ng || 0,
+            bold: true
 
+        };
 
 
-item.kqd_dap_lai || 0,
+        sheet.getRow(2).alignment = {
 
+            horizontal: "center",
 
-item.kqd_tuot || 0,
+            vertical: "middle",
 
+            wrapText: true
 
+        };
 
-item.vo_do_long || 0,
 
+        sheet.getRow(2).height = 40;
 
-item.xuoc_do_long || 0,
 
 
 
-item.cong_gay || 0,
+        // =============================
+        // DATA
+        // =============================
 
 
-item.xoay || 0,
+        rows.forEach((item, index) => {
 
 
+            sheet.getRow(index + 3).values = [
 
-item.khong_dut || 0,
 
+                index + 1,
 
-item.bavia_hut || 0,
 
+                item.worker_code || "",
 
 
-item.ppcm || 0,
+                item.full_name || "",
 
 
-item.loi_cao_su || 0,
+                item.process_name || "",
 
 
+                item.work_date || "",
 
-item.ng_kich_thuoc || 0,
 
+                item.shift || "",
 
-item.cat_lem || 0,
 
+                item.machine_no || "",
 
 
-item.note || "",
 
+                item.total_time || 0,
 
-item.status || "",
 
+                item.actual_time || 0,
 
-item.created_at || ""
 
-];
+                item.deduction_time || 0,
 
 
-}
 
-);
+                item.product_name || "",
 
 
 
+                item.standard_output || 0,
 
 
-// =============================
-// SUMMARY
-// =============================
+                item.actual_output || 0,
 
 
-const summary={};
 
+                item.tt_ok || 0,
 
 
-rows.forEach(item=>{
+                item.tt_ng || 0,
 
 
-const name =
-item.product_name || "Không tên";
 
+                item.kqd_dap_lai || 0,
 
 
-if(!summary[name]){
+                item.kqd_tuot || 0,
 
-summary[name]=0;
 
-}
 
+                item.vo_do_long || 0,
 
 
-summary[name]+=
+                item.xuoc_do_long || 0,
 
-Number(
-item.actual_output || 0
-);
 
 
+                item.cong_gay || 0,
 
-});
 
+                item.xoay || 0,
 
 
-sheet.getCell("AG1").value="TỔNG HỢP SẢN PHẨM";
-sheet.mergeCells("AG1:AH1");
 
-sheet.getCell("AG2").value="Sản phẩm";
-sheet.getCell("AH2").value="Thực tích";
+                item.khong_dut || 0,
 
 
-Object.keys(summary).forEach((item,index)=>{
+                item.bavia_hut || 0,
 
-    sheet.getCell(index+3,33).value=item;
-    sheet.getCell(index+3,34).value=summary[item];
 
-});
 
+                item.ppcm || 0,
 
-Object.keys(summary).forEach(
 
-(item,index)=>{
+                item.loi_cao_su || 0,
 
 
-sheet.getCell(
 
-index+2,
+                item.ng_kich_thuoc || 0,
 
-21
 
-).value=item;
+                item.cat_lem || 0,
 
 
 
-sheet.getCell(
+                item.note || "",
 
-index+2,
 
-22
+                item.status || "",
 
-).value=summary[item];
 
+                item.created_at || ""
 
-}
+            ];
 
-);
 
+        });
 
 
 
 
 
-// =============================
-// FORMAT
-// =============================
 
+        // =============================
+        // SUMMARY SẢN PHẨM
+        // =============================
 
-sheet.eachRow(
 
-row=>{
+        const summary = {};
 
 
-row.eachCell(
 
-cell=>{
+        rows.forEach(item => {
 
 
-cell.alignment={
+            const name =
+                item.product_name || "Không tên";
 
-horizontal:"center",
 
-vertical:"middle"
+            if (!summary[name]) {
 
-};
+                summary[name] = 0;
 
+            }
 
-cell.border={
 
+            summary[name] += Number(
 
-top:{
-style:"thin"
-},
+                item.actual_output || 0
 
-bottom:{
-style:"thin"
-},
+            );
 
-left:{
-style:"thin"
-},
 
-right:{
-style:"thin"
-}
+        });
 
 
-};
 
 
-}
+        sheet.mergeCells("AF1:AG1");
 
 
-);
+        sheet.getCell("AF1").value =
+            "TỔNG HỢP SẢN PHẨM";
 
 
-}
 
-);
+        sheet.getCell("AF2").value =
+            "Sản phẩm";
 
 
+        sheet.getCell("AG2").value =
+            "Thực tích";
 
 
 
-sheet.getRow(2).font={
+        Object.keys(summary).forEach((item, index) => {
 
-bold:true
 
-};
+            sheet.getCell(index + 3, 32).value =
+                item;
 
 
+            sheet.getCell(index + 3, 33).value =
+                summary[item];
 
 
-sheet.columns.forEach(col=>{
+        });
 
 
-col.width=15;
 
 
-});
 
 
+        // =============================
+        // FORMAT
+        // =============================
 
-sheet.getColumn(3).width=20;
 
+        sheet.eachRow(row => {
 
 
+            row.eachCell(cell => {
 
 
-sheet.views=[
-{
-    state:"frozen",
-    ySplit:2
-}
-];
+                cell.alignment = {
 
+                    horizontal: "center",
 
+                    vertical: "middle",
 
+                    wrapText: true
 
-// =============================
-// DOWNLOAD
-// =============================
+                };
 
 
-res.setHeader(
+                cell.border = {
 
-"Content-Type",
 
-"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    top: {
+                        style: "thin"
+                    },
 
-);
 
+                    bottom: {
+                        style: "thin"
+                    },
 
 
-res.setHeader(
+                    left: {
+                        style: "thin"
+                    },
 
-"Content-Disposition",
 
-`attachment; filename=BaoCao_${date}.xlsx`
+                    right: {
+                        style: "thin"
+                    }
 
-);
 
+                };
 
 
+            });
 
-await workbook.xlsx.write(res);
 
+        });
 
 
-res.end();
 
 
+        sheet.columns.forEach(col => {
 
-}
+            col.width = 15;
 
+        });
 
-catch(err){
 
 
-console.error(
+        sheet.getColumn(3).width = 20;
 
-"EXPORT ERROR:",
 
-err
 
-);
 
+        sheet.views = [
 
+            {
 
-res.status(500).json({
+                state: "frozen",
 
-message:err.message
+                ySplit: 2
 
-});
+            }
 
+        ];
 
-}
+
+
+
+
+        // =============================
+        // DOWNLOAD
+        // =============================
+
+
+        res.setHeader(
+
+            "Content-Type",
+
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+        );
+
+
+        res.setHeader(
+
+            "Content-Disposition",
+
+            `attachment; filename=BaoCao_${date}.xlsx`
+
+        );
+
+
+
+        await workbook.xlsx.write(res);
+
+
+        res.end();
+
+
+
+    }
+
+    catch (err) {
+
+
+        console.error(
+
+            "EXPORT ERROR:",
+
+            err
+
+        );
+
+
+        res.status(500).json({
+
+            message: err.message
+
+        });
+
+
+    }
 
 
 };
