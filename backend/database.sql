@@ -8,6 +8,7 @@ USE worker_management;
 
 SET FOREIGN_KEY_CHECKS = 0;
 
+
 -- =========================
 -- USERS
 -- =========================
@@ -22,11 +23,17 @@ CREATE TABLE users (
 
     full_name VARCHAR(100) NOT NULL,
 
-    role ENUM('admin','manager','worker') NOT NULL,
+    role ENUM(
+        'admin',
+        'manager',
+        'worker'
+    ) NOT NULL,
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 
 );
+
+
 
 -- =========================
 -- WORKERS
@@ -46,16 +53,22 @@ CREATE TABLE workers (
 
     position VARCHAR(100),
 
-    status ENUM('active','inactive') DEFAULT 'active',
+    status ENUM(
+        'active',
+        'inactive'
+    )
+    DEFAULT 'active',
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_worker_user
-        FOREIGN KEY (user_id)
-        REFERENCES users(id)
-        ON DELETE CASCADE
+
+    FOREIGN KEY(user_id)
+    REFERENCES users(id)
+    ON DELETE CASCADE
 
 );
+
+
 
 -- =========================
 -- PROCESSES
@@ -65,21 +78,29 @@ CREATE TABLE processes (
 
     id INT AUTO_INCREMENT PRIMARY KEY,
 
-    process_code VARCHAR(20) NOT NULL UNIQUE,
+    process_code VARCHAR(20)
+    UNIQUE NOT NULL,
 
-    process_name VARCHAR(100) NOT NULL,
+    process_name VARCHAR(100)
+    NOT NULL,
 
     description TEXT,
 
-    status ENUM('active','inactive') DEFAULT 'active',
+    status ENUM(
+        'active',
+        'inactive'
+    )
+    DEFAULT 'active',
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 
 );
 
+
+
 -- =========================
--- USER DATA
--- Password: 123456
+-- USERS DATA
+-- password: 123456
 -- =========================
 
 INSERT INTO users
@@ -119,56 +140,36 @@ VALUES
 '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
 'Le Van B',
 'worker'
-),
-
-(
-'worker3',
-'$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
-'Pham Van C',
-'worker'
-),
-
-(
-'worker4',
-'$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
-'Hoang Van D',
-'worker'
-),
-
-(
-'worker5',
-'$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
-'Tran Van E',
-'worker'
 );
 
+
+
 -- =========================
--- WORKER DATA
+-- WORKERS DATA
 -- =========================
+
 
 INSERT INTO workers
 (
 user_id,
 worker_code,
-phone,
 department,
 position
 )
+
 VALUES
 
-(4,'W001','0911111111','Production','Operator'),
+(4,'W001','Production','Operator'),
 
-(5,'W002','0922222222','Production','Operator'),
+(5,'W002','Production','Operator');
 
-(6,'W003','0933333333','Production','Operator'),
 
-(7,'W004','0944444444','Production','Operator'),
 
-(8,'W005','0955555555','Production','Operator');
 
 -- =========================
 -- PROCESS DATA
 -- =========================
+
 
 INSERT INTO processes
 (
@@ -176,410 +177,343 @@ process_code,
 process_name,
 description
 )
+
 VALUES
 
 ('GC','Gia công','Gia công sản phẩm'),
 
 ('CAT','Cắt','Cắt sản phẩm'),
 
-('DG','Đóng gói','Đóng gói sản phẩm'),
+('DG','Đóng gói','Đóng gói'),
 
 ('KT','Kiểm tra','Kiểm tra chất lượng'),
 
-('LR','Lắp ráp','Lắp ráp sản phẩm');
+('LR','Lắp ráp','Lắp ráp');
 
-SET FOREIGN_KEY_CHECKS = 1;
+
+
+
 
 -- =========================
--- WORKER - PROCESS
+-- WORKER PROCESS
 -- =========================
 
-CREATE TABLE worker_processes (
+CREATE TABLE worker_processes(
 
-    id INT AUTO_INCREMENT PRIMARY KEY,
+id INT AUTO_INCREMENT PRIMARY KEY,
 
-    worker_id INT NOT NULL,
+worker_id INT NOT NULL,
 
-    process_id INT NOT NULL,
+process_id INT NOT NULL,
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_wp_worker
-        FOREIGN KEY(worker_id)
-        REFERENCES workers(id)
-        ON DELETE CASCADE,
+FOREIGN KEY(worker_id)
+REFERENCES workers(id)
+ON DELETE CASCADE,
 
-    CONSTRAINT fk_wp_process
-        FOREIGN KEY(process_id)
-        REFERENCES processes(id)
-        ON DELETE CASCADE,
 
-    UNIQUE(worker_id,process_id)
+FOREIGN KEY(process_id)
+REFERENCES processes(id)
+ON DELETE CASCADE,
+
+
+UNIQUE(worker_id,process_id)
 
 );
 
-INSERT INTO worker_processes
-(
-worker_id,
-process_id
-)
-VALUES
 
-(1,1),
 
-(1,2),
+INSERT INTO worker_processes VALUES
 
-(2,2),
+(NULL,1,1),
+(NULL,1,2),
+(NULL,2,3);
 
-(2,3),
 
-(3,1),
 
-(4,4),
-
-(4,5),
-
-(5,3);
 
 -- =========================
--- MANAGER - PROCESS
+-- MANAGER PROCESS
 -- =========================
 
-CREATE TABLE manager_processes (
+CREATE TABLE manager_processes(
 
-    id INT AUTO_INCREMENT PRIMARY KEY,
+id INT AUTO_INCREMENT PRIMARY KEY,
 
-    manager_id INT NOT NULL,
+manager_id INT NOT NULL,
 
-    process_id INT NOT NULL,
+process_id INT NOT NULL,
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_mp_manager
-        FOREIGN KEY(manager_id)
-        REFERENCES users(id)
-        ON DELETE CASCADE,
+FOREIGN KEY(manager_id)
+REFERENCES users(id)
+ON DELETE CASCADE,
 
-    CONSTRAINT fk_mp_process
-        FOREIGN KEY(process_id)
-        REFERENCES processes(id)
-        ON DELETE CASCADE,
 
-    UNIQUE(manager_id,process_id)
+FOREIGN KEY(process_id)
+REFERENCES processes(id)
+ON DELETE CASCADE,
+
+
+UNIQUE(manager_id,process_id)
 
 );
 
-INSERT INTO manager_processes
-(
-manager_id,
-process_id
-)
-VALUES
 
-(2,1),
 
-(2,2),
+INSERT INTO manager_processes VALUES
 
-(2,3),
+(NULL,2,1),
+(NULL,2,2),
+(NULL,3,3);
 
-(3,4),
 
-(3,5);
 
--- =========================
--- PRODUCTION REPORTS
--- =========================
+
+-- =====================================================
+-- DỮ LIỆU CHÍNH
+-- =====================================================
+
 
 CREATE TABLE production_reports (
 
-    id INT AUTO_INCREMENT PRIMARY KEY,
+id INT AUTO_INCREMENT PRIMARY KEY,
 
 
-    -- công nhân thực hiện
-    worker_id INT NOT NULL,
+worker_id INT NOT NULL,
 
 
-    -- công đoạn
-    process_id INT NOT NULL,
+process_id INT NOT NULL,
 
 
-    -- ngày làm
-    work_date DATE NOT NULL,
+work_date DATE NOT NULL,
 
 
-    -- ca làm việc
-    shift ENUM(
-        'Ca 1',
-        'Ca 2',
-        'Ca 3'
-    ) NOT NULL,
+shift ENUM(
+'Ca 1',
+'Ca 2',
+'Ca 3'
+)
+NOT NULL,
 
 
-    machine_no VARCHAR(50),
+machine_no VARCHAR(50),
 
 
-    -- thời gian
-    total_time DECIMAL(5,2) DEFAULT 0,
 
-    actual_time DECIMAL(5,2) DEFAULT 0,
+total_time DECIMAL(5,2) DEFAULT 0,
 
-    deduction_time DECIMAL(5,2) DEFAULT 0,
+actual_time DECIMAL(5,2) DEFAULT 0,
 
-
-    -- sản xuất
-
-    product_name VARCHAR(100),
-
-    standard_output INT DEFAULT 0,
-
-    actual_output INT DEFAULT 0,
+deduction_time DECIMAL(5,2) DEFAULT 0,
 
 
-    -- chất lượng
 
-    tt_ok INT DEFAULT 0,
-
-    tt_ng INT DEFAULT 0,
+product_name VARCHAR(100),
 
 
-    kqd_dap_lai INT DEFAULT 0,
+standard_output INT DEFAULT 0,
 
-    kqd_tuot INT DEFAULT 0,
-
-
-    vo_do_long INT DEFAULT 0,
-
-    xuoc_do_long INT DEFAULT 0,
-
-    cong_gay INT DEFAULT 0,
-
-    xoay INT DEFAULT 0,
-
-    khong_dut INT DEFAULT 0,
-
-    bavia_hut INT DEFAULT 0,
-
-    ppcm INT DEFAULT 0,
-
-    loi_cao_su INT DEFAULT 0,
-
-    ng_kich_thuoc INT DEFAULT 0,
-
-    cat_lem INT DEFAULT 0,
+actual_output INT DEFAULT 0,
 
 
-    note TEXT,
+
+tt_ok INT DEFAULT 0,
+
+tt_ng INT DEFAULT 0,
 
 
-    -- trạng thái duyệt
+kqd_dap_lai INT DEFAULT 0,
 
-    status ENUM(
-        'pending',
-        'approved',
-        'rejected'
-    )
-    DEFAULT 'pending',
+kqd_tuot INT DEFAULT 0,
 
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+vo_do_long INT DEFAULT 0,
 
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    ON UPDATE CURRENT_TIMESTAMP,
-
-
-    CONSTRAINT fk_report_worker
-
-        FOREIGN KEY(worker_id)
-
-        REFERENCES workers(id)
-
-        ON DELETE CASCADE,
+xuoc_do_long INT DEFAULT 0,
 
 
-    CONSTRAINT fk_report_process
+cong_gay INT DEFAULT 0,
 
-        FOREIGN KEY(process_id)
+xoay INT DEFAULT 0,
 
-        REFERENCES processes(id)
 
-        ON DELETE CASCADE
+khong_dut INT DEFAULT 0,
+
+bavia_hut INT DEFAULT 0,
+
+
+ppcm INT DEFAULT 0,
+
+loi_cao_su INT DEFAULT 0,
+
+
+ng_kich_thuoc INT DEFAULT 0,
+
+cat_lem INT DEFAULT 0,
+
+
+note TEXT,
+
+
+
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+
+updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ON UPDATE CURRENT_TIMESTAMP,
+
+
+
+FOREIGN KEY(worker_id)
+REFERENCES workers(id),
+
+
+FOREIGN KEY(process_id)
+REFERENCES processes(id)
 
 );
+
+
+
+
+
+
+-- =====================================================
+-- DỮ LIỆU TẠM CHỜ DUYỆT
+-- =====================================================
+
 
 CREATE TABLE production_reports_temp (
 
-    id INT AUTO_INCREMENT PRIMARY KEY,
-
-    worker_id INT NOT NULL,
-
-    process_id INT NOT NULL,
-
-    work_date DATE NOT NULL,
-
-    shift ENUM(
-        'Ca 1',
-        'Ca 2',
-        'Ca 3'
-    ) NOT NULL,
-
-    machine_no VARCHAR(50),
-
-    total_time DECIMAL(5,2) DEFAULT 0,
-    actual_time DECIMAL(5,2) DEFAULT 0,
-    deduction_time DECIMAL(5,2) DEFAULT 0,
-
-    product_name VARCHAR(100),
-
-    standard_output INT DEFAULT 0,
-    actual_output INT DEFAULT 0,
-
-    tt_ok INT DEFAULT 0,
-    tt_ng INT DEFAULT 0,
-
-    kqd_dap_lai INT DEFAULT 0,
-    kqd_tuot INT DEFAULT 0,
-
-    vo_do_long INT DEFAULT 0,
-    xuoc_do_long INT DEFAULT 0,
-
-    cong_gay INT DEFAULT 0,
-    xoay INT DEFAULT 0,
-
-    khong_dut INT DEFAULT 0,
-    bavia_hut INT DEFAULT 0,
-
-    ppcm INT DEFAULT 0,
-    loi_cao_su INT DEFAULT 0,
-
-    ng_kich_thuoc INT DEFAULT 0,
-    cat_lem INT DEFAULT 0,
-
-    note TEXT,
-
-    status ENUM(
-        'pending',
-        'reviewing',
-        'need_fix',
-        'approved'
-    ) DEFAULT 'pending',
-
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    ON UPDATE CURRENT_TIMESTAMP,
-
-    CONSTRAINT fk_temp_worker
-        FOREIGN KEY(worker_id)
-        REFERENCES workers(id)
-        ON DELETE CASCADE,
-
-    CONSTRAINT fk_temp_process
-        FOREIGN KEY(process_id)
-        REFERENCES processes(id)
-        ON DELETE CASCADE
-
-);
+id INT AUTO_INCREMENT PRIMARY KEY,
 
 
+worker_id INT NOT NULL,
 
--- =========================
--- DỮ LIỆU TEST
--- =========================
 
-INSERT INTO production_reports
-(
-worker_id,
-process_id,
-work_date,
-shift,
-machine_no,
+process_id INT NOT NULL,
 
-total_time,
-actual_time,
-deduction_time,
 
-product_name,
+work_date DATE NOT NULL,
 
-standard_output,
-actual_output,
 
-tt_ok,
-tt_ng,
-
-kqd_dap_lai,
-kqd_tuot,
-
-vo_do_long,
-xuoc_do_long,
-
-cong_gay,
-xoay,
-
-khong_dut,
-bavia_hut,
-
-ppcm,
-loi_cao_su,
-
-ng_kich_thuoc,
-cat_lem,
-
-note
-
-)
-
-VALUES
-
-(
-1,
-1,
-CURDATE(),
+shift ENUM(
 'Ca 1',
-'M01',
+'Ca 2',
+'Ca 3'
+)
+NOT NULL,
 
-8,
-7.5,
-0.5,
 
-'Sản phẩm A',
+machine_no VARCHAR(50),
 
-1000,
-980,
 
-970,
-10,
 
-1,
-0,
+total_time DECIMAL(5,2) DEFAULT 0,
 
-0,
-2,
+actual_time DECIMAL(5,2) DEFAULT 0,
 
-0,
-0,
+deduction_time DECIMAL(5,2) DEFAULT 0,
 
-0,
-1,
 
-0,
-0,
 
-1,
-0,
+product_name VARCHAR(100),
 
-'Báo cáo test'
+
+standard_output INT DEFAULT 0,
+
+actual_output INT DEFAULT 0,
+
+
+
+tt_ok INT DEFAULT 0,
+
+tt_ng INT DEFAULT 0,
+
+
+kqd_dap_lai INT DEFAULT 0,
+
+kqd_tuot INT DEFAULT 0,
+
+
+vo_do_long INT DEFAULT 0,
+
+xuoc_do_long INT DEFAULT 0,
+
+
+cong_gay INT DEFAULT 0,
+
+xoay INT DEFAULT 0,
+
+
+khong_dut INT DEFAULT 0,
+
+bavia_hut INT DEFAULT 0,
+
+
+ppcm INT DEFAULT 0,
+
+loi_cao_su INT DEFAULT 0,
+
+
+ng_kich_thuoc INT DEFAULT 0,
+
+cat_lem INT DEFAULT 0,
+
+
+note TEXT,
+
+
+
+review_note TEXT,
+
+
+reviewed_by INT NULL,
+
+
+
+status ENUM(
+'pending',
+'need_fix',
+'approved',
+'rejected'
+)
+DEFAULT 'pending',
+
+
+
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+
+updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ON UPDATE CURRENT_TIMESTAMP,
+
+
+
+FOREIGN KEY(worker_id)
+REFERENCES workers(id)
+ON DELETE CASCADE,
+
+
+FOREIGN KEY(process_id)
+REFERENCES processes(id)
+ON DELETE CASCADE,
+
+
+FOREIGN KEY(reviewed_by)
+REFERENCES users(id)
+
 );
 
 
 
 
-ALTER TABLE production_reports_temp
-ADD COLUMN review_note TEXT NULL AFTER note;
 
-ALTER TABLE production_reports_temp
-ADD COLUMN reviewed_by INT NULL AFTER review_note;
+SET FOREIGN_KEY_CHECKS = 1;
 
-ALTER TABLE production_reports_temp
-ADD CONSTRAINT fk_temp_reviewer
-FOREIGN KEY(reviewed_by)
-REFERENCES users(id);
+
+
+-- TEST LOGIN
+
+SELECT username,role FROM users;
