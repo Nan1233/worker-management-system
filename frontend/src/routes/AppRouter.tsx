@@ -127,147 +127,114 @@ function AppRouter(){
 
 
 
+{/* ================= MANAGER ================= */}
 
 
-            {/* ================= MANAGER ================= */}
-
-
-            <Route
-
-                path="/manager"
-
-                element={
-
-                    <PrivateRoute role="manager">
-
-                        <MainLayout role="manager"/>
-
-                    </PrivateRoute>
-
-                }
-
-            >
-
-
-
-                {/* Dashboard */}
-
-                <Route
-
-                    index
-
-                    element={
-
-                        <ManagerDashboard />
-
-                    }
-
-                />
-
-
-
-
-
-                {/* Báo cáo chưa duyệt */}
-
-                <Route
-
-                    path="reports"
-
-                    element={
-
-                        <Reports />
-
-                    }
-
-                />
 <Route
 
-    path="approved"
-
-    element={
-
-        <ApprovedReports />
-
-    }
-
-/>
-<Route
     path="/manager"
+
     element={
+
         <PrivateRoute role="manager">
+
             <MainLayout role="manager"/>
+
         </PrivateRoute>
+
     }
+
 >
 
 
+    {/* Dashboard */}
 
+    <Route
 
-                {/* Báo cáo đã duyệt */}
+        index
 
-                <Route
+        element={
 
-                    path="approved"
+            <ManagerDashboard />
 
-                    element={
+        }
 
-                        <ApprovedReports />
-
-                    }
-
-                />
-
+    />
 
 
 
 
 
+    {/* Báo cáo chưa duyệt */}
 
-                {/* Chi tiết báo cáo */}
+    <Route
 
-                <Route
+        path="reports"
 
-                    path="report/:id"
+        element={
 
-                    element={
+            <Reports />
 
-                        <ReportDetail />
+        }
 
-                    }
-
-                />
-
+    />
 
 
 
 
 
+    {/* Báo cáo đã duyệt */}
 
-                {/* Export Excel */}
+    <Route
 
-                <Route
+        path="approved"
 
-                    path="export"
+        element={
 
-                    element={
+            <ApprovedReports />
 
-                        <ReportDownload />
+        }
 
-                    }
-
-                />
-
-
-
-            </Route>
+    />
 
 
 
 
 
+    {/* Chi tiết báo cáo */}
+
+    <Route
+
+        path="report/:id"
+
+        element={
+
+            <ReportDetail />
+
+        }
+
+    />
 
 
+
+
+
+    {/* Export Excel */}
+
+    <Route
+
+        path="export"
+
+        element={
+
+            <ReportDownload />
+
+        }
+
+    />
+
+
+</Route>
 
 
             {/* ================= WORKER ================= */}
