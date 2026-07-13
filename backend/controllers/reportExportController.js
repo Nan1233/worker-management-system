@@ -33,11 +33,9 @@ if(!date){
 // LẤY DỮ LIỆU ĐÃ DUYỆT
 // =============================
 
-
 const [rows] = await db.promise().query(
 
 `
-
 SELECT
 
 t.*,
@@ -49,22 +47,22 @@ u.full_name,
 p.process_name
 
 
-FROM production_reports t
+FROM production_reports_temp t
 
 
-JOIN workers w
+LEFT JOIN workers w
 
 ON t.worker_id = w.id
 
 
 
-JOIN users u
+LEFT JOIN users u
 
 ON w.user_id = u.id
 
 
 
-JOIN processes p
+LEFT JOIN processes p
 
 ON t.process_id = p.id
 
@@ -73,21 +71,15 @@ ON t.process_id = p.id
 WHERE DATE(t.work_date)=?
 
 
-
 ORDER BY t.id ASC
-
 
 `,
 
 [
-
-date
-
+    date
 ]
 
-
 );
-
 
 
 console.log(
