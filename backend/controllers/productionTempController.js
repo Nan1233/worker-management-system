@@ -531,4 +531,75 @@ exports.getApprovedReports = async (req, res) => {
     }
 
 };
+// ======================================
+// MANAGER XEM BÁO CÁO CHƯA DUYỆT
+// ======================================
+
+exports.getPendingReports = async(req,res)=>{
+
+    try{
+
+        const reports = await ProductionTemp.getPending();
+
+
+        res.json({
+
+            success:true,
+
+            data:reports
+
+        });
+
+
+    }catch(err){
+
+        res.status(500).json({
+
+            success:false,
+
+            message:err.message
+
+        });
+
+    }
+
+};
+
+
+
+
+
+// ======================================
+// MANAGER XEM BÁO CÁO ĐÃ DUYỆT
+// ======================================
+
+exports.getApprovedReports = async(req,res)=>{
+
+    try{
+
+        const reports = await ProductionTemp.getApproved();
+
+
+        res.json({
+
+            success:true,
+
+            data:reports
+
+        });
+
+
+    }catch(err){
+
+        res.status(500).json({
+
+            success:false,
+
+            message:err.message
+
+        });
+
+    }
+
+};
 };

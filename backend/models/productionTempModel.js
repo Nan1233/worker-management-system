@@ -1601,7 +1601,128 @@ getApproved(){
 
 },
 
+// ======================================
+// LẤY BÁO CÁO CHƯA DUYỆT
+// ======================================
 
+getPending(){
+
+    return new Promise((resolve,reject)=>{
+
+
+        const sql = `
+
+        SELECT
+
+            pr.*,
+
+            p.process_name,
+
+            w.worker_code,
+
+            u.full_name
+
+
+        FROM production_reports_temp pr
+
+
+        INNER JOIN workers w
+        ON pr.worker_id=w.id
+
+
+        INNER JOIN users u
+        ON w.user_id=u.id
+
+
+        LEFT JOIN processes p
+        ON pr.process_id=p.id
+
+
+        WHERE pr.status='pending'
+
+
+        ORDER BY pr.work_date DESC,
+                 pr.created_at DESC
+
+        `;
+
+
+        db.query(sql,(err,rows)=>{
+
+            if(err)
+                return reject(err);
+
+
+            resolve(rows);
+
+        });
+
+
+    });
+
+},
+
+
+
+
+
+// ======================================
+// LẤY BÁO CÁO ĐÃ DUYỆT
+// ======================================
+
+getApproved(){
+
+    return new Promise((resolve,reject)=>{
+
+
+        const sql = `
+
+        SELECT
+
+            pr.*,
+
+            p.process_name,
+
+            w.worker_code,
+
+            u.full_name
+
+
+        FROM production_reports pr
+
+
+        INNER JOIN workers w
+        ON pr.worker_id=w.id
+
+
+        INNER JOIN users u
+        ON w.user_id=u.id
+
+
+        LEFT JOIN processes p
+        ON pr.process_id=p.id
+
+
+        ORDER BY pr.work_date DESC,
+                 pr.created_at DESC
+
+        `;
+
+
+        db.query(sql,(err,rows)=>{
+
+            if(err)
+                return reject(err);
+
+
+            resolve(rows);
+
+        });
+
+
+    });
+
+},
 };
 
 
