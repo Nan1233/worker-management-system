@@ -1,102 +1,182 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { getTempReports } from "../../services/productionService";
-import type { ProductionReport } from "../../types/production";
+import {
+    getTempReportsByDate,
+    approveTempByDate
+} from "../../services/productionService";
+
+import type {
+    ProductionReport
+} from "../../types/production";
 
 import "./Reports.css";
 
 
-function Reports() {
+
+function Reports(){
 
 
     const navigate = useNavigate();
 
 
-    const [reports, setReports] = useState<ProductionReport[]>([]);
 
-    const [loading, setLoading] = useState(true);
-
-
-
-    useEffect(() => {
+    const [date,setDate] =
+        useState("");
 
 
-        const loadReports = async () => {
+
+    const [reports,setReports] =
+        useState<ProductionReport[]>([]);
 
 
-            try {
+
+    const [loading,setLoading] =
+        useState(false);
 
 
-                const data = await getTempReports();
 
 
-                console.log(
-                    "TEMP REPORT:",
-                    data
+
+
+    // ==========================
+    // LẤY DỮ LIỆU THEO NGÀY
+    // ==========================
+
+    const handleSearch = async()=>{
+
+
+        if(!date){
+
+            alert(
+                "Vui lòng chọn ngày"
+            );
+
+            return;
+
+        }
+
+
+
+        try{
+
+
+            setLoading(true);
+
+
+
+            const data =
+                await getTempReportsByDate(
+                    date
                 );
 
 
-                setReports(data);
+
+            setReports(data);
 
 
 
-            } 
-            catch(err) {
+        }
+        catch(err){
 
 
-                console.error(
-                    "Lỗi lấy báo cáo chờ duyệt:",
-                    err
-                );
+            console.error(
+                err
+            );
 
 
-            }
-            finally {
+            alert(
+                "Không lấy được dữ liệu"
+            );
 
 
-                setLoading(false);
+        }
+        finally{
 
 
-            }
+            setLoading(false);
 
 
-        };
+        }
 
 
-
-        loadReports();
-
-
-
-    }, []);
-
+    };
 
 
 
 
 
-    if(loading){
 
 
-        return (
 
-            <div className="manager-dashboard">
-
-
-                <h2>
-
-                    Đang tải dữ liệu...
-
-                </h2>
+    // ==========================
+    // DUYỆT TOÀN BỘ NGÀY
+    // ==========================
 
 
-            </div>
-
-        );
+    const handleApprove = async()=>{
 
 
-    }
+        if(
+            reports.length===0
+        ){
+
+            return;
+
+        }
+
+
+
+
+        const confirm =
+            window.confirm(
+                `Duyệt toàn bộ ${date}?`
+            );
+
+
+
+        if(!confirm)
+            return;
+
+
+
+
+        try{
+
+
+            await approveTempByDate(
+                date
+            );
+
+
+
+            alert(
+                "Duyệt thành công"
+            );
+
+
+
+            setReports([]);
+
+
+
+        }
+        catch(err){
+
+
+            console.error(err);
+
+
+            alert(
+                "Duyệt thất bại"
+            );
+
+
+        }
+
+
+    };
+
 
 
 
@@ -115,21 +195,20 @@ function Reports() {
 
                 <h1>
 
-                    📋 Báo cáo chờ duyệt
+                    📋 Duyệt báo cáo sản xuất
 
                 </h1>
 
 
-
                 <p>
 
-                    Kiểm tra báo cáo công nhân gửi lên
+                    Chọn ngày để xem và duyệt dữ liệu
 
                 </p>
 
 
-
             </div>
+
 
 
 
@@ -139,104 +218,159 @@ function Reports() {
 
 
 
-            {
-
-                reports.length === 0
+                <div className="date-filter">
 
 
-                ?
+                    <input
+
+                        type="date"
+
+                        value={date}
+
+                        onChange={
+                            e =>
+                            setDate(
+                                e.target.value
+                            )
+                        }
+
+                    />
 
 
-                (
+
+                    <button
+
+                        onClick={
+                            handleSearch
+                        }
+
+                    >
+
+                        🔍 Xem dữ liệu
+
+                    </button>
+
+
+
+
+
+                    <button
+
+                        onClick={
+                            handleApprove
+                        }
+
+                        disabled={
+                            reports.length===0
+                        }
+
+                    >
+
+                        ✅ Duyệt ngày
+
+
+                    </button>
+
+
+
+                </div>
+
+
+
+
+
+
+
+
+                {
+                    loading
+
+                    ?
+
+                    <h3>
+                        Đang tải...
+                    </h3>
+
+
+                    :
+
+
+
+                    reports.length===0
+
+
+                    ?
+
 
                     <div className="empty">
 
-
-                        Chưa có báo cáo chờ duyệt
-
+                        Chưa có dữ liệu
 
                     </div>
 
 
-                )
+
+                    :
 
 
 
-                :
+                    <div className="table-container">
 
 
-
-                (
-
-                <div className="table-container">
-
-
-                <table>
-
+                    <table>
 
 
                     <thead>
 
-
-                        <tr>
-
-
-                            <th>
-                                Nhân viên
-                            </th>
+                    <tr>
 
 
-                            <th>
-                                Ngày
-                            </th>
+                        <th>
+                            Nhân viên
+                        </th>
 
 
-                            <th>
-                                Công đoạn
-                            </th>
+                        <th>
+                            Ngày
+                        </th>
 
 
-                            <th>
-                                Ca
-                            </th>
+                        <th>
+                            Công đoạn
+                        </th>
 
 
-                            <th>
-                                Máy
-                            </th>
+                        <th>
+                            Ca
+                        </th>
 
 
-                            <th>
-                                Sản phẩm
-                            </th>
+                        <th>
+                            Máy
+                        </th>
 
 
-                            <th>
-                                OK
-                            </th>
+                        <th>
+                            Sản phẩm
+                        </th>
 
 
-                            <th>
-                                NG
-                            </th>
+                        <th>
+                            OK
+                        </th>
 
 
-                            <th>
-                                Trạng thái
-                            </th>
+                        <th>
+                            NG
+                        </th>
 
 
-                            <th>
-                                Thời gian gửi
-                            </th>
+                        <th>
+                            Sửa
+                        </th>
 
 
-                            <th>
-                                Chi tiết
-                            </th>
-
-
-                        </tr>
+                    </tr>
 
 
                     </thead>
@@ -248,31 +382,26 @@ function Reports() {
                     <tbody>
 
 
-
                     {
+                        reports.map(
+                            report=>(
 
-                        reports.map((report)=>(
 
+                            <tr
+                                key={report.id}
+                            >
 
-                            <tr key={report.id}>
 
 
                                 <td>
 
-
-                                    <strong>
-
+                                    <b>
                                         {report.worker_code}
-
-                                    </strong>
-
+                                    </b>
 
                                     <br/>
 
-
                                     {report.full_name}
-
-
 
                                 </td>
 
@@ -301,9 +430,7 @@ function Reports() {
 
                                 <td>
 
-
                                     {report.process_name}
-
 
                                 </td>
 
@@ -312,11 +439,9 @@ function Reports() {
 
 
                                 <td>
-
 
                                     {report.shift}
 
-
                                 </td>
 
 
@@ -324,11 +449,9 @@ function Reports() {
 
 
                                 <td>
-
 
                                     {report.machine_no}
 
-
                                 </td>
 
 
@@ -336,11 +459,9 @@ function Reports() {
 
 
                                 <td>
-
 
                                     {report.product_name}
 
-
                                 </td>
 
 
@@ -348,11 +469,9 @@ function Reports() {
 
 
                                 <td>
-
 
                                     {report.tt_ok}
 
-
                                 </td>
 
 
@@ -360,11 +479,9 @@ function Reports() {
 
 
                                 <td>
-
 
                                     {report.tt_ng}
 
-
                                 </td>
 
 
@@ -372,60 +489,6 @@ function Reports() {
 
 
                                 <td>
-
-
-                                    <span className="status pending">
-
-
-                                        {report.status}
-
-
-                                    </span>
-
-
-                                </td>
-
-
-
-
-
-                                <td>
-
-
-                                {
-
-                                    report.created_at
-
-
-                                    ?
-
-
-                                    new Date(
-                                        report.created_at
-                                    )
-                                    .toLocaleString(
-                                        "vi-VN"
-                                    )
-
-
-                                    :
-
-
-                                    "-"
-
-
-                                }
-
-
-
-                                </td>
-
-
-
-
-
-                                <td>
-
 
 
                                     <button
@@ -434,20 +497,20 @@ function Reports() {
                                         className="detail-btn"
 
 
-                                        onClick={() =>
+                                        onClick={()=>
+
 
                                             navigate(
                                                 `/manager/report/${report.id}`
                                             )
+
 
                                         }
 
 
                                     >
 
-
-                                        Xem
-
+                                        ✏️ Sửa
 
 
                                     </button>
@@ -458,34 +521,25 @@ function Reports() {
 
 
 
-
                             </tr>
 
 
-
-                        ))
-
-
+                            )
+                        )
                     }
-
 
 
 
                     </tbody>
 
 
-
-                </table>
-
+                    </table>
 
 
-                </div>
+                    </div>
 
 
-                )
-
-
-            }
+                }
 
 
 
@@ -497,6 +551,7 @@ function Reports() {
 
 
     );
+
 
 
 }

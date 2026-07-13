@@ -135,3 +135,11 @@ app.listen(PORT,()=>{
 
 
 });
+const reportExportRoutes =
+require("./routes/reportExportRoutes");
+
+
+app.use(
+    "/api/reports",
+    reportExportRoutes
+);

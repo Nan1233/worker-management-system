@@ -7,12 +7,14 @@ import type {
 
 
 
-// =========================
+// ======================================
 // WORKER TẠO BÁO CÁO CHỜ DUYỆT
-// =========================
+// ======================================
 
 export const createTempReport = async(
-    data: ProductionReport
+
+    data:ProductionReport
+
 )=>{
 
 
@@ -27,6 +29,7 @@ export const createTempReport = async(
 
     return res.data;
 
+
 };
 
 
@@ -35,24 +38,25 @@ export const createTempReport = async(
 
 
 
-// =========================
-// MANAGER LẤY DANH SÁCH CHỜ DUYỆT
-// =========================
 
-export const getTempReports = async():
 
-Promise<ProductionReport[]>=>{
+// ======================================
+// MANAGER LẤY DANH SÁCH NGÀY CÓ BÁO CÁO
+// ======================================
+
+export const getTempDates = async()=>{
 
 
     const res = await api.get(
 
-        "/production-temp"
+        "/production-temp/dates"
 
     );
 
 
     return res.data.data || [];
 
+
 };
 
 
@@ -61,17 +65,85 @@ Promise<ProductionReport[]>=>{
 
 
 
-// =========================
-// MANAGER XEM CHI TIẾT BÁO CÁO CHỜ DUYỆT
-// =========================
+
+
+// ======================================
+// MANAGER XEM BÁO CÁO THEO NGÀY
+// ======================================
+
+export const getTempReportsByDate = async(
+
+    date:string
+
+):Promise<ProductionReport[]>=>{
+
+
+    const res = await api.get(
+
+        `/production-temp/by-date?date=${date}`
+
+    );
+
+
+    return res.data.data || [];
+
+
+};
+
+
+
+
+
+
+
+
+
+// ======================================
+// MANAGER DUYỆT TOÀN BỘ NGÀY
+// ======================================
+
+export const approveTempByDate = async(
+
+    date:string
+
+)=>{
+
+
+    const res = await api.post(
+
+        "/production-temp/approve-date",
+
+        {
+
+            date
+
+        }
+
+    );
+
+
+    return res.data;
+
+
+};
+
+
+
+
+
+
+
+
+
+// ======================================
+// MANAGER XEM CHI TIẾT TEMP
+// ======================================
 
 export const getTempReportById = async(
 
     id:number
 
-):
-
-Promise<ProductionReport>=>{
+):Promise<ProductionReport>=>{
 
 
     const res = await api.get(
@@ -83,6 +155,7 @@ Promise<ProductionReport>=>{
 
     return res.data.data;
 
+
 };
 
 
@@ -92,13 +165,12 @@ Promise<ProductionReport>=>{
 
 
 
-// =========================
-// WORKER LẤY LỊCH SỬ CỦA MÌNH
-// =========================
 
-export const getMyTempReports = async():
+// ======================================
+// WORKER XEM BÁO CÁO CỦA MÌNH
+// ======================================
 
-Promise<ProductionReport[]>=>{
+export const getMyTempReports = async()=>{
 
 
     const res = await api.get(
@@ -110,6 +182,7 @@ Promise<ProductionReport[]>=>{
 
     return res.data.data || [];
 
+
 };
 
 
@@ -119,9 +192,10 @@ Promise<ProductionReport[]>=>{
 
 
 
-// =========================
+
+// ======================================
 // DỮ LIỆU ĐÃ DUYỆT
-// =========================
+// ======================================
 
 export const getReports = async():
 
@@ -137,6 +211,7 @@ Promise<ProductionReport[]>=>{
 
     return res.data.data || [];
 
+
 };
 
 
@@ -145,13 +220,17 @@ Promise<ProductionReport[]>=>{
 
 
 
+
+
+// ======================================
+// CHI TIẾT BÁO CÁO ĐÃ DUYỆT
+// ======================================
+
 export const getReportById = async(
 
     id:number
 
-):
-
-Promise<ProductionReport>=>{
+):Promise<ProductionReport>=>{
 
 
     const res = await api.get(
@@ -163,6 +242,7 @@ Promise<ProductionReport>=>{
 
     return res.data.data;
 
+
 };
 
 
@@ -171,9 +251,11 @@ Promise<ProductionReport>=>{
 
 
 
-// =========================
-// UPDATE
-// =========================
+
+
+// ======================================
+// UPDATE BÁO CÁO ĐÃ DUYỆT
+// ======================================
 
 export const updateReport = async(
 
@@ -195,6 +277,7 @@ export const updateReport = async(
 
     return res.data;
 
+
 };
 
 
@@ -203,9 +286,11 @@ export const updateReport = async(
 
 
 
-// =========================
+
+
+// ======================================
 // DELETE
-// =========================
+// ======================================
 
 export const deleteReport = async(
 
@@ -222,5 +307,96 @@ export const deleteReport = async(
 
 
     return res.data;
+
+
+};
+
+
+
+
+
+
+
+
+
+// ======================================
+// EXPORT EXCEL
+// ======================================
+
+export const exportProductionExcel = async(
+
+    date:string
+
+)=>{
+
+
+    const res = await api.get(
+
+        `/reports/export-excel?date=${date}`,
+
+        {
+
+            responseType:"blob"
+
+        }
+
+    );
+
+
+
+    const blob = new Blob(
+
+        [
+
+            res.data
+
+        ],
+
+        {
+
+            type:
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+        }
+
+    );
+
+
+
+    const url =
+        window.URL.createObjectURL(blob);
+
+
+
+    const link =
+        document.createElement("a");
+
+
+
+    link.href=url;
+
+
+
+    link.download =
+
+        `BaoCaoSanXuat_${date}.xlsx`;
+
+
+
+    document.body.appendChild(link);
+
+
+
+    link.click();
+
+
+
+    link.remove();
+
+
+
+    window.URL.revokeObjectURL(url);
+
+
 
 };

@@ -5,6 +5,7 @@ import {
 } from "react-router-dom";
 
 
+
 import Login from "../pages/Login";
 
 import PrivateRoute from "./PrivateRoute";
@@ -33,6 +34,8 @@ import Reports from "../pages/manager/Reports";
 
 import ReportDetail from "../pages/manager/ReportDetail";
 
+import ReportDownload from "../pages/manager/ReportDownload";
+
 
 
 // Worker
@@ -52,11 +55,11 @@ import ProductionDetail from "../pages/worker/ProductionDetail";
 function AppRouter(){
 
 
-
     return (
 
 
         <Routes>
+
 
 
 
@@ -100,7 +103,6 @@ function AppRouter(){
                 }
 
             />
-
 
 
 
@@ -159,7 +161,7 @@ function AppRouter(){
 
 
 
-                {/* dashboard */}
+                {/* Dashboard */}
 
                 <Route
 
@@ -177,7 +179,8 @@ function AppRouter(){
 
 
 
-                {/* danh sách báo cáo chờ duyệt */}
+
+                {/* Báo cáo chờ duyệt */}
 
                 <Route
 
@@ -195,7 +198,9 @@ function AppRouter(){
 
 
 
-                {/* chi tiết báo cáo chờ duyệt */}
+
+
+                {/* Chi tiết báo cáo */}
 
                 <Route
 
@@ -214,28 +219,16 @@ function AppRouter(){
 
 
 
+
+                {/* Tải Excel */}
+
                 <Route
 
                     path="export"
 
                     element={
 
-
-                        <div>
-
-
-                            <h1>
-                                📥 Xuất Excel
-                            </h1>
-
-
-                            <p>
-                                Chức năng đang phát triển
-                            </p>
-
-
-                        </div>
-
+                        <ReportDownload />
 
                     }
 
@@ -243,11 +236,9 @@ function AppRouter(){
 
 
 
+
+
             </Route>
-
-
-
-
 
 
 
@@ -284,7 +275,7 @@ function AppRouter(){
 
 
 
-                {/* dashboard worker */}
+                {/* Dashboard worker */}
 
                 <Route
 
@@ -304,7 +295,8 @@ function AppRouter(){
 
 
 
-                {/* chọn công đoạn */}
+
+                {/* Chọn công đoạn */}
 
                 <Route
 
@@ -325,7 +317,8 @@ function AppRouter(){
 
 
 
-                {/* lịch sử worker */}
+
+                {/* Lịch sử */}
 
                 <Route
 
@@ -346,7 +339,7 @@ function AppRouter(){
 
 
 
-                {/* chi tiết lịch sử worker */}
+                {/* Chi tiết lịch sử */}
 
                 <Route
 
@@ -365,7 +358,6 @@ function AppRouter(){
 
 
             </Route>
-
 
 
 
@@ -398,11 +390,11 @@ function AppRouter(){
 
 
 
+
         </Routes>
 
 
     );
-
 
 }
 

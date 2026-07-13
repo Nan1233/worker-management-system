@@ -7,29 +7,38 @@ const {
 
     createTempReport,
 
-    getTempReports,
+    getTempDates,
+
+    getTempReportsByDate,
+
+    approveTempByDate,
 
     getTempReportById,
 
     getMyTempReports
 
+
 } = require("../controllers/productionTempController");
 
 
-const verifyToken = require("../middleware/authMiddleware");
+const verifyToken =
+    require("../middleware/authMiddleware");
 
 
 
 
-
-// =======================
-// WORKER TẠO BÁO CÁO CHỜ DUYỆT
-// =======================
+// ======================================
+// WORKER GỬI BÁO CÁO
+// ======================================
 
 router.post(
+
     "/",
+
     verifyToken,
+
     createTempReport
+
 );
 
 
@@ -37,14 +46,19 @@ router.post(
 
 
 
-// =======================
-// MANAGER XEM TẤT CẢ BÁO CÁO CHỜ DUYỆT
-// =======================
+
+// ======================================
+// MANAGER LẤY DANH SÁCH NGÀY
+// ======================================
 
 router.get(
-    "/",
+
+    "/dates",
+
     verifyToken,
-    getTempReports
+
+    getTempDates
+
 );
 
 
@@ -53,14 +67,62 @@ router.get(
 
 
 
-// =======================
-// WORKER XEM BÁO CÁO CỦA MÌNH
-// =======================
+
+// ======================================
+// MANAGER XEM DỮ LIỆU THEO NGÀY
+// VD:
+// /production-temp/by-date?date=2026-04-01
+// ======================================
 
 router.get(
+
+    "/by-date",
+
+    verifyToken,
+
+    getTempReportsByDate
+
+);
+
+
+
+
+
+
+
+// ======================================
+// MANAGER DUYỆT TOÀN BỘ NGÀY
+// ======================================
+
+router.post(
+
+    "/approve-date",
+
+    verifyToken,
+
+    approveTempByDate
+
+);
+
+
+
+
+
+
+
+
+// ======================================
+// WORKER XEM LỊCH SỬ
+// ======================================
+
+router.get(
+
     "/my",
+
     verifyToken,
+
     getMyTempReports
+
 );
 
 
@@ -69,15 +131,22 @@ router.get(
 
 
 
-// =======================
-// CHI TIẾT BÁO CÁO CHỜ DUYỆT
-// =======================
+// ======================================
+// XEM CHI TIẾT ĐỂ SỬA
+// ĐẶT CUỐI CÙNG
+// ======================================
 
 router.get(
+
     "/:id",
+
     verifyToken,
+
     getTempReportById
+
 );
+
+
 
 
 

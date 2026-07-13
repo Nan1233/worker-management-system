@@ -1,880 +1,107 @@
-const db = require("../config/db");
+const ProductionTemp = require("../models/productionTempModel");
 
+const workerModel = require("../models/workerModel");
 
-const ProductionTemp = {
 
 
-create(data){
+// ======================================
+// WORKER TẠO BÁO CÁO CHỜ DUYỆT
+// ======================================
 
-    return new Promise((resolve,reject)=>{
+exports.createTempReport = async(req,res)=>{
 
 
-        const sql = `
+    try{
 
-        INSERT INTO production_reports_temp
-        (
-            worker_id,
-            process_id,
 
-            work_date,
-            shift,
-            machine_no,
+        workerModel.getWorkerByUserId(
 
-            total_time,
-            actual_time,
-            deduction_time,
+            req.user.id,
 
-            product_name,
 
-            standard_output,
-            actual_output,
+            async(err,result)=>{
 
-            tt_ok,
-            tt_ng,
 
-            kqd_dap_lai,
-            kqd_tuot,
+                if(err){
 
-            vo_do_long,
-            xuoc_do_long,
+                    return res.status(500).json({
 
-            cong_gay,
-            xoay,
+                        success:false,
 
-            khong_dut,
-            bavia_hut,
+                        message:err.message
 
-            ppcm,
-            loi_cao_su,
+                    });
 
-            ng_kich_thuoc,
-            cat_lem,
+                }
 
-            note,
 
-            status
-        )
 
-        VALUES
-        (
-            ?,
-            ?,
+                if(result.length===0){
 
-            ?,
-            ?,
-            ?,
 
-            ?,
-            ?,
-            ?,
+                    return res.status(404).json({
 
-            ?,
+                        success:false,
 
-            ?,
-            ?,
+                        message:"Không tìm thấy công nhân"
 
-            ?,
-            ?,
-
-            ?,
-            ?,
-
-            ?,
-            ?,
-
-            ?,
-            ?,
-
-            ?,
-            ?,
-
-            ?,
-            ?,
-
-            ?,
-            ?,
-
-            ?,
-
-            ?
-        )
-
-        `;
-
-
-
-        db.query(sql,[
-
-
-            data.worker_id,
-            data.process_id,
-
-            data.work_date,
-            data.shift,
-            data.machine_no,
-
-
-            data.total_time,
-            data.actual_time,
-            data.deduction_time,
-
-
-            data.product_name,
-
-
-            data.standard_output,
-            data.actual_output,
-
-
-            data.tt_ok,
-            data.tt_ng,
-
-
-            data.kqd_dap_lai,
-            data.kqd_tuot,
-
-
-            data.vo_do_long,
-            data.xuoc_do_long,
-
-
-            data.cong_gay,
-            data.xoay,
-
-
-            data.khong_dut,
-            data.bavia_hut,
-
-
-            data.ppcm,
-            data.loi_cao_su,
-
-
-            data.ng_kich_thuoc,
-            data.cat_lem,
-
-
-            data.note,
-
-
-            "pending"
-
-
-        ],(err,result)=>{
-
-
-            if(err)
-                return reject(err);
-
-
-            resolve(result);
-
-
-        });
-
-
-    });
-
-
-},
-
-
-
-// =======================
-// MANAGER LẤY DANH SÁCH CHỜ DUYỆT
-// =======================
-
-
-getAll(){
-
-
-    return new Promise((resolve,reject)=>{
-
-
-        const sql = `
-
-
-        SELECT
-
-            pr.*,
-
-            p.process_name,
-
-            w.worker_code,
-
-            u.full_name
-
-
-        FROM production_reports_temp pr
-
-
-        INNER JOIN workers w
-
-        ON pr.worker_id=w.id
-
-
-        INNER JOIN users u
-
-        ON w.user_id=u.id
-
-
-        LEFT JOIN processes p
-
-        ON pr.process_id=p.id
-
-
-        ORDER BY pr.created_at DESC
-
-
-        `;
-
-
-
-        db.query(sql,(err,rows)=>{
-
-
-            if(err)
-                return reject(err);
-
-
-            resolve(rows);
-
-
-        });
-
-
-
-    });
-
-
-},
-
-
-
-// =======================
-// CHI TIẾT BÁO CÁO CHỜ DUYỆT
-// =======================
-
-
-getById(id){
-
-
-    return new Promise((resolve,reject)=>{
-
-
-        const sql = `
-
-
-        SELECT
-
-            pr.*,
-
-            p.process_name,
-
-            w.worker_code,
-
-            u.full_name
-
-
-        FROM production_reports_temp pr
-
-
-        INNER JOIN workers w
-
-        ON pr.worker_id=w.id
-
-
-        INNER JOIN users u
-
-        ON w.user_id=u.id
-
-
-        LEFT JOIN processes p
-
-        ON pr.process_id=p.id
-
-
-        WHERE pr.id=?
-
-
-        `;
-
-
-
-        db.query(
-            sql,
-            [id],
-            (err,rows)=>{
-
-
-                if(err)
-                    return reject(err);
-
-
-                resolve(rows[0]);
-
-
-            }
-        );
-
-
-    });
-
-
-},// =======================
-// UPDATE BÁO CÁO TẠM
-// =======================
-
-
-update(id,data){
-
-
-    return new Promise((resolve,reject)=>{
-
-
-        const sql = `
-
-        UPDATE production_reports_temp
-
-        SET
-
-
-        process_id=?,
-
-        work_date=?,
-
-        shift=?,
-
-        machine_no=?,
-
-
-        total_time=?,
-
-        actual_time=?,
-
-        deduction_time=?,
-
-
-        product_name=?,
-
-
-        standard_output=?,
-
-        actual_output=?,
-
-
-        tt_ok=?,
-
-        tt_ng=?,
-
-
-        kqd_dap_lai=?,
-
-        kqd_tuot=?,
-
-
-        vo_do_long=?,
-
-        xuoc_do_long=?,
-
-
-        cong_gay=?,
-
-        xoay=?,
-
-
-        khong_dut=?,
-
-        bavia_hut=?,
-
-
-        ppcm=?,
-
-        loi_cao_su=?,
-
-
-        ng_kich_thuoc=?,
-
-        cat_lem=?,
-
-
-        note=?,
-
-
-        status='pending'
-
-
-        WHERE id=?
-
-
-        `;
-
-
-
-        db.query(sql,[
-
-
-            data.process_id,
-
-            data.work_date,
-
-            data.shift,
-
-            data.machine_no,
-
-
-            data.total_time,
-
-            data.actual_time,
-
-            data.deduction_time,
-
-
-            data.product_name,
-
-
-            data.standard_output,
-
-            data.actual_output,
-
-
-            data.tt_ok,
-
-            data.tt_ng,
-
-
-            data.kqd_dap_lai,
-
-            data.kqd_tuot,
-
-
-            data.vo_do_long,
-
-            data.xuoc_do_long,
-
-
-            data.cong_gay,
-
-            data.xoay,
-
-
-            data.khong_dut,
-
-            data.bavia_hut,
-
-
-            data.ppcm,
-
-            data.loi_cao_su,
-
-
-            data.ng_kich_thuoc,
-
-            data.cat_lem,
-
-
-            data.note,
-
-
-            id
-
-
-        ],(err,result)=>{
-
-
-            if(err)
-                return reject(err);
-
-
-            resolve(result);
-
-
-        });
-
-
-    });
-
-
-},
-
-
-
-
-// =======================
-// DUYỆT BÁO CÁO
-// TEMP -> PRODUCTION
-// =======================
-
-
-approve(id,manager_id){
-
-
-    return new Promise((resolve,reject)=>{
-
-
-        db.beginTransaction(err=>{
-
-
-            if(err)
-                return reject(err);
-
-
-
-            db.query(
-
-                `
-                SELECT *
-
-                FROM production_reports_temp
-
-                WHERE id=?
-
-                `,
-
-                [id],
-
-                (err,rows)=>{
-
-
-                    if(err)
-                        return db.rollback(
-                            ()=>reject(err)
-                        );
-
-
-
-                    if(rows.length===0){
-
-                        return db.rollback(
-                            ()=>reject(
-                                new Error(
-                                    "Không tìm thấy báo cáo"
-                                )
-                            )
-                        );
-
-                    }
-
-
-
-                    const data = rows[0];
-
-
-
-                    const insertSql = `
-
-
-                    INSERT INTO production_reports
-
-                    (
-
-                        worker_id,
-                        process_id,
-
-                        work_date,
-                        shift,
-                        machine_no,
-
-                        total_time,
-                        actual_time,
-                        deduction_time,
-
-                        product_name,
-
-                        standard_output,
-                        actual_output,
-
-                        tt_ok,
-                        tt_ng,
-
-                        kqd_dap_lai,
-                        kqd_tuot,
-
-                        vo_do_long,
-                        xuoc_do_long,
-
-                        cong_gay,
-                        xoay,
-
-                        khong_dut,
-                        bavia_hut,
-
-                        ppcm,
-                        loi_cao_su,
-
-                        ng_kich_thuoc,
-                        cat_lem,
-
-                        note
-
-                    )
-
-
-                    VALUES
-
-                    (
-                        ?,
-                        ?,
-
-                        ?,
-                        ?,
-                        ?,
-
-                        ?,
-                        ?,
-                        ?,
-
-                        ?,
-
-                        ?,
-                        ?,
-
-                        ?,
-                        ?,
-
-                        ?,
-                        ?,
-
-                        ?,
-                        ?,
-
-                        ?,
-                        ?,
-
-                        ?,
-                        ?,
-
-                        ?,
-                        ?,
-
-                        ?,
-                        ?,
-
-                        ?
-
-                    )
-
-
-                    `;
-
-
-
-                    db.query(
-                        insertSql,
-                        [
-
-
-                            data.worker_id,
-                            data.process_id,
-
-
-                            data.work_date,
-                            data.shift,
-                            data.machine_no,
-
-
-                            data.total_time,
-                            data.actual_time,
-                            data.deduction_time,
-
-
-                            data.product_name,
-
-
-                            data.standard_output,
-                            data.actual_output,
-
-
-                            data.tt_ok,
-                            data.tt_ng,
-
-
-                            data.kqd_dap_lai,
-                            data.kqd_tuot,
-
-
-                            data.vo_do_long,
-                            data.xuoc_do_long,
-
-
-                            data.cong_gay,
-                            data.xoay,
-
-
-                            data.khong_dut,
-                            data.bavia_hut,
-
-
-                            data.ppcm,
-                            data.loi_cao_su,
-
-
-                            data.ng_kich_thuoc,
-                            data.cat_lem,
-
-
-                            data.note
-
-
-
-                        ],
-
-                        (err)=>{
-
-
-                            if(err)
-
-                                return db.rollback(
-                                    ()=>reject(err)
-                                );
-
-
-
-                            db.query(
-
-                                `
-                                DELETE FROM production_reports_temp
-
-                                WHERE id=?
-
-                                `,
-
-                                [id],
-
-
-                                (err)=>{
-
-
-                                    if(err)
-
-                                        return db.rollback(
-                                            ()=>reject(err)
-                                        );
-
-
-
-                                    db.commit(err=>{
-
-
-                                        if(err)
-
-                                            return db.rollback(
-                                                ()=>reject(err)
-                                            );
-
-
-
-                                        resolve(true);
-
-
-                                    });
-
-
-                                }
-
-
-                            );
-
-
-                        }
-
-                    );
-
+                    });
 
 
                 }
 
 
-            );
 
+
+                const worker_id=result[0].id;
+
+
+
+                await ProductionTemp.create({
+
+                    ...req.body,
+
+                    worker_id,
+
+                    status:"pending"
+
+                });
+
+
+
+
+                res.status(201).json({
+
+                    success:true,
+
+                    message:"Đã gửi báo cáo chờ duyệt"
+
+                });
+
+
+
+            }
+
+
+        );
+
+
+
+    }
+
+    catch(err){
+
+
+        res.status(500).json({
+
+            success:false,
+
+            message:err.message
 
         });
 
 
-    });
-
-
-},
-
-
-
-
-// =======================
-// WORKER LẤY LỊCH SỬ
-// =======================
-
-
-getByWorker(worker_id){
-
-
-    return new Promise((resolve,reject)=>{
-
-
-        const sql = `
-
-
-        SELECT
-
-            pr.*,
-
-            p.process_name,
-
-            w.worker_code,
-
-            u.full_name
-
-
-        FROM production_reports_temp pr
-
-
-        INNER JOIN workers w
-
-        ON pr.worker_id=w.id
-
-
-        INNER JOIN users u
-
-        ON w.user_id=u.id
-
-
-        LEFT JOIN processes p
-
-        ON pr.process_id=p.id
-
-
-        WHERE pr.worker_id=?
-
-
-        ORDER BY pr.created_at DESC
-
-
-        `;
-
-
-
-        db.query(
-            sql,
-            [worker_id],
-            (err,rows)=>{
-
-
-                if(err)
-
-                    return reject(err);
-
-
-
-                resolve(rows);
-
-
-            }
-        );
-
-
-    });
-
-
-}
+    }
 
 
 
@@ -882,4 +109,352 @@ getByWorker(worker_id){
 
 
 
-module.exports = ProductionTemp;
+
+
+
+
+// ======================================
+// MANAGER LẤY DANH SÁCH NGÀY
+// ======================================
+
+exports.getTempDates = async(req,res)=>{
+
+
+    try{
+
+
+        const data =
+            await ProductionTemp.getDates();
+
+
+
+        res.json({
+
+            success:true,
+
+            data
+
+        });
+
+
+
+    }
+
+    catch(err){
+
+
+        res.status(500).json({
+
+            success:false,
+
+            message:err.message
+
+        });
+
+
+    }
+
+
+};
+
+
+
+
+
+
+
+
+// ======================================
+// MANAGER XEM BÁO CÁO THEO NGÀY
+// ======================================
+
+exports.getTempReportsByDate = async(req,res)=>{
+
+
+    try{
+
+
+        const {
+            date
+        }=req.query;
+
+
+
+        if(!date){
+
+
+            return res.status(400).json({
+
+                success:false,
+
+                message:"Thiếu ngày"
+
+            });
+
+
+        }
+
+
+
+        const reports =
+            await ProductionTemp.getByDate(date);
+
+
+
+
+        res.json({
+
+            success:true,
+
+            data:reports
+
+        });
+
+
+
+    }
+
+    catch(err){
+
+
+        res.status(500).json({
+
+            success:false,
+
+            message:err.message
+
+        });
+
+
+    }
+
+
+
+};
+
+
+
+
+
+
+
+
+
+// ======================================
+// DUYỆT TOÀN BỘ NGÀY
+// ======================================
+
+exports.approveTempByDate = async(req,res)=>{
+
+
+    try{
+
+
+        const {
+            date
+        }=req.body;
+
+
+
+
+        await ProductionTemp.approveByDate(
+
+            date,
+
+            req.user.id
+
+        );
+
+
+
+
+        res.json({
+
+            success:true,
+
+            message:"Đã duyệt toàn bộ báo cáo ngày "+date
+
+        });
+
+
+
+    }
+
+    catch(err){
+
+
+        res.status(500).json({
+
+            success:false,
+
+            message:err.message
+
+        });
+
+
+    }
+
+
+};
+
+
+
+
+
+
+
+
+
+// ======================================
+// CHI TIẾT BÁO CÁO ĐỂ SỬA
+// ======================================
+
+exports.getTempReportById = async(req,res)=>{
+
+
+    try{
+
+
+        const report =
+            await ProductionTemp.getById(
+                req.params.id
+            );
+
+
+
+        if(!report){
+
+
+            return res.status(404).json({
+
+                success:false,
+
+                message:"Không tìm thấy báo cáo"
+
+            });
+
+
+        }
+
+
+
+
+        res.json({
+
+            success:true,
+
+            data:report
+
+        });
+
+
+
+    }
+
+    catch(err){
+
+
+        res.status(500).json({
+
+            success:false,
+
+            message:err.message
+
+        });
+
+
+    }
+
+
+
+};
+
+
+
+
+
+
+
+
+
+// ======================================
+// WORKER XEM LỊCH SỬ
+// ======================================
+
+exports.getMyTempReports = async(req,res)=>{
+
+
+    try{
+
+
+        workerModel.getWorkerByUserId(
+
+
+            req.user.id,
+
+
+            async(err,result)=>{
+
+
+                if(err){
+
+                    return res.status(500).json({
+
+                        success:false,
+
+                        message:err.message
+
+                    });
+
+                }
+
+
+
+
+                const worker_id=result[0].id;
+
+
+
+                const reports =
+                    await ProductionTemp.getByWorker(
+                        worker_id
+                    );
+
+
+
+                res.json({
+
+                    success:true,
+
+                    data:reports
+
+                });
+
+
+
+            }
+
+
+        );
+
+
+
+    }
+
+    catch(err){
+
+
+        res.status(500).json({
+
+            success:false,
+
+            message:err.message
+
+        });
+
+
+    }
+
+
+
+};
