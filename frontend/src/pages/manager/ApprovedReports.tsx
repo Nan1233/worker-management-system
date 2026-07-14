@@ -441,7 +441,7 @@ function ApprovedReports(){
 
                                             navigate(
 
-                                                `/manager/report/${report.id}`
+                                                `/manager/report/${report.id}?source=approved`
 
                                             )
 
