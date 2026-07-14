@@ -33,48 +33,30 @@ workerCode:"W001",
 
 machineNo:"",
 
-
 totalTime:0,
-
 actualTime:0,
-
 deductionTime:0,
-
 
 productName:"",
 
 standardOutput:0,
-
 actualOutput:0,
 
-
 ttOk:0,
-
 ttNg:0,
 
 
 kqdDapLai:0,
-
 kqdTuot:0,
-
 voDoLong:0,
-
 xuocDoLong:0,
-
 congGay:0,
-
 xoay:0,
-
 khongDut:0,
-
 baviaHut:0,
-
 ppcm:0,
-
 loiCaoSu:0,
-
 ngKichThuoc:0,
-
 catLem:0,
 
 
@@ -232,40 +214,32 @@ const [stopReason,setStopReason]=useState("");
 
 
 
-const handleChange=(
+const handleChange = (
+    e: React.ChangeEvent<
+        HTMLInputElement |
+        HTMLSelectElement |
+        HTMLTextAreaElement
+    >
+) => {
 
-e:React.ChangeEvent<
-HTMLInputElement |
-HTMLSelectElement |
-HTMLTextAreaElement
->
-
-)=>{
-
-
-const {name,value}=e.target;
+    const { name, value, type } = e.target;
 
 
-setForm(prev=>({
+    setForm(prev => ({
 
-...prev,
+        ...prev,
 
-[name]:
+        [name]:
 
-e.target.type==="number"
+            type === "number"
 
-?
+                ? value === ""
+                    ? ""
+                    : Number(value)
 
-Number(value)
+                : value
 
-:
-
-value
-
-
-}));
-
-
+    }));
 
 };
 
