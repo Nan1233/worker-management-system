@@ -341,35 +341,30 @@ updateTotalDeduction(update);
 
 
 
-const updateDeductionValue=(
+const updateDeductionValue = (
+    key: string,
+    value: number
+) => {
 
-key:string,
+    const newValue = Math.max(0, value);
 
-value:number
+    setDeductions(prev => {
 
-)=>{
+        const data = {
+            ...prev,
+            [key]: newValue
+        };
 
+        updateTotalDeduction(data);
 
-const data={
+        return data;
+    });
 
-...deductions,
-
-[key]:
-
-value<0?0:value
-
-
-};
-
-
-
-setDeductions(data);
-
-
-updateTotalDeduction(data);
-
-
-
+    if (newValue === 0) {
+        setSelectedDeduction(prev =>
+            prev.filter(item => item !== key)
+        );
+    }
 };
 
 
@@ -492,49 +487,34 @@ return data;
 
 
 
-const handleNgValue=(
+const handleNgValue = (
+    key: string,
+    value: number
+) => {
 
-key:string,
+    const newValue = Math.max(0, value);
 
-value:number
+    setForm(prev => {
 
-)=>{
+        const data: any = {
+            ...prev,
+            [key]: newValue
+        };
 
+        data.ttNg = ngOptions.reduce(
+            (sum, item) =>
+                sum + Number(data[item.key] || 0),
+            0
+        );
 
-const newValue = value < 0 ? 0 : value;
+        return data;
+    });
 
-
-setForm(prev=>{
-
-
-const data={
-
-    ...prev,
-
-    [key]:newValue
-
-};
-
-
-
-data.ttNg = ngOptions.reduce(
-
-(sum,item)=>{
-
-return sum + Number(
-    data[item.key as keyof typeof data] || 0
-);
-
-},0);
-
-
-
-return data;
-
-
-});
-
-
+    if (newValue === 0) {
+        setSelectedNg(prev =>
+            prev.filter(item => item !== key)
+        );
+    }
 };
 
 
@@ -954,65 +934,30 @@ value={item.key}
 
 
                 {
-
-                    selectedDeduction.map(key=>{
-
-
-                        const item=
-
-                        deductionOptions.find(
-
-                            x=>x.key===key
-
-                        );
-
-
-                        if(!item)
-
-                            return null;
-
-
-
-                        return (
-
-                            <NumberField
-
-                                key={key}
-
-                                label={item.label}
-
-                                name={key}
-
-                                value={
-
-                                    deductions[
-                                    key as keyof typeof deductions
-                                    ]
-
-                                }
-
-                                onChange={e=>
-
-                                    updateDeductionValue(
-
-                                        key,
-
-                                        Number(
-                                            e.target.value
-                                        )
-
-                                    )
-
-                                }
-
-                            />
-
-                        );
-
-
-                    })
-
+    deductionOptions
+        .filter(
+            item =>
+                Number(
+                    deductions[item.key as keyof typeof deductions]
+                ) > 0
+        )
+        .map(item => (
+            <NumberField
+                key={item.key}
+                label={item.label}
+                name={item.key}
+                value={
+                    deductions[item.key as keyof typeof deductions]
                 }
+                onChange={e =>
+                    updateDeductionValue(
+                        item.key,
+                        Number(e.target.value)
+                    )
+                }
+            />
+        ))
+}
 
 
                 </div>
@@ -1243,76 +1188,30 @@ value={item.key}
 
 
                 {
-
-                    selectedNg.map(key=>{
-
-
-                        const item=
-
-                        ngOptions.find(
-
-                            x=>x.key===key
-
-                        );
-
-
-
-                        if(!item)
-
-                            return null;
-
-
-
-                        return (
-
-
-                            <NumberField
-
-
-                                key={key}
-
-
-                                label={item.label}
-
-
-                                name={key}
-
-
-                                value={
-
-                                    form[
-                                    key as keyof typeof form
-                                    ] as number
-
-                                }
-
-
-                                onChange={e=>
-
-                                    handleNgValue(
-
-                                        key,
-
-                                        Number(
-                                            e.target.value
-                                        )
-
-                                    )
-
-                                }
-
-
-                            />
-
-
-
-                        );
-
-
-
-                    })
-
+    ngOptions
+        .filter(
+            item =>
+                Number(
+                    form[item.key as keyof typeof form]
+                ) > 0
+        )
+        .map(item => (
+            <NumberField
+                key={item.key}
+                label={item.label}
+                name={item.key}
+                value={
+                    form[item.key as keyof typeof form] as number
                 }
+                onChange={e =>
+                    handleNgValue(
+                        item.key,
+                        Number(e.target.value)
+                    )
+                }
+            />
+        ))
+}
 
 
                 </div>
