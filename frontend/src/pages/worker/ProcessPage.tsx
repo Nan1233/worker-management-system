@@ -222,22 +222,14 @@ const handleChange = (
     >
 ) => {
 
-    const { name, value, type } = e.target;
+    const { name, value } = e.target;
 
 
     setForm(prev => ({
 
         ...prev,
 
-        [name]:
-
-            type === "number"
-
-                ? value === ""
-                    ? ""
-                    : Number(value)
-
-                : value
+        [name]: value
 
     }));
 
@@ -463,10 +455,10 @@ return data;
 
 const handleNgValue = (
     key: string,
-    value: number
+    value: string
 ) => {
 
-    const newValue = Math.max(0, value);
+    const newValue = value === "" ? "" : Number(value);
 
     setForm(prev => {
 
@@ -1161,7 +1153,7 @@ value={item.key}
                 <div className="quality-grid">
 
 
-                {
+               {
     ngOptions
         .filter(
             item =>
@@ -1175,14 +1167,14 @@ value={item.key}
                 label={item.label}
                 name={item.key}
                 value={
-                    form[item.key as keyof typeof form] as number
-                }
+    form[item.key as keyof typeof form] ?? ""
+}
                 onChange={e =>
-                    handleNgValue(
-                        item.key,
-                        Number(e.target.value)
-                    )
-                }
+    handleNgValue(
+        item.key,
+        e.target.value
+    )
+}
             />
         ))
 }

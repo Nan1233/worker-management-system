@@ -38,19 +38,15 @@ function NumberField({
 
             <input
 
-                type="number"
+type="number"
 
-                min={0}
+step="0.1"
 
-                step="any"
+value={value ?? ""}
 
-                name={name}
+onChange={onChange}
 
-                value={value}
-
-                onChange={onChange}
-
-            />
+/>
 
 
         </div>
