@@ -1,4 +1,4 @@
-const ProductionTemp = require("../models/ProductionTempModule");
+const ProductionTemp = require("../models/productionTempModule");
 
 
 
