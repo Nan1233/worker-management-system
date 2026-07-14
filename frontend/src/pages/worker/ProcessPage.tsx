@@ -560,7 +560,38 @@ return data;
 
 };
 
+const handleDeductionBlur = (
+    key:string,
+    value:string
+)=>{
 
+
+    if(value==="0"){
+
+
+        setDeductions(prev=>{
+
+            const data={
+
+                ...prev,
+
+                [key]:""
+
+            };
+
+
+            updateTotalDeduction(data);
+
+
+            return data;
+
+        });
+
+
+    }
+
+
+};
 
 
 
@@ -992,23 +1023,23 @@ const handleNumberBlur = (
     e: React.FocusEvent<HTMLInputElement>
 )=>{
 
-const {
-    name,
-    value
-}=e.target;
+    const {
+        name,
+        value
+    } = e.target;
 
 
-if(value==="0"){
+    if(value === "0"){
 
-    setForm(prev=>({
+        setForm(prev=>({
 
-        ...prev,
+            ...prev,
 
-        [name]:""
+            [name]:""
 
-    }));
+        }));
 
-}
+    }
 
 };
 return (
@@ -1214,6 +1245,7 @@ value={form.totalTime}
 allowDecimal={true}
 
 onChange={handleChange}
+onBlur={handleNumberBlur}
 
 />
 
@@ -1234,6 +1266,7 @@ value={form.actualTime}
 allowDecimal={true}
 
 onChange={handleChange}
+onBlur={handleNumberBlur}
 
 />
 
@@ -1255,6 +1288,8 @@ value={form.deductionTime}
 allowDecimal={true}
 
 onChange={handleChange}
+onBlur={handleNumberBlur}
+
 
 />
 
@@ -1401,35 +1436,19 @@ item.key as keyof typeof deductions
 
 <NumberField
 
-
-
 key={item.key}
-
-
 
 label={item.label}
 
-
-
 name={item.key}
 
-
-
-
 value={
-
 deductions[
 item.key as keyof typeof deductions
 ]
-
 }
 
-
-
 allowDecimal={true}
-
-
-
 
 onChange={e=>
 
@@ -1443,9 +1462,23 @@ e.target.value
 
 }
 
+onBlur={()=>
+
+
+handleDeductionBlur(
+
+item.key,
+
+deductions[
+item.key as keyof typeof deductions
+]
+
+)
+
+
+}
 
 />
-
 
 ))
 
@@ -1839,48 +1872,26 @@ form[item.key as keyof typeof form] !== ""
 
 <NumberField
 
-
-
 key={item.key}
-
-
 
 label={item.label}
 
-
-
 name={item.key}
 
-
-
-
-
 value={
-
 form[item.key as keyof typeof form]
-
 }
-
-
 
 allowDecimal={false}
 
-
-
-
 onChange={e=>
-
 handleNgValue(
-
 item.key,
-
 e.target.value
-
 )
-
 }
 
-
+onBlur={handleNumberBlur}
 
 />
 

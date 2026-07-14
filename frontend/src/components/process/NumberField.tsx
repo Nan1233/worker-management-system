@@ -19,104 +19,127 @@ type Props = {
 function NumberField({
 
     label,
-
     name,
-
     value,
-
     allowDecimal = false,
-
     onChange,
-
     onBlur,
 
 }: Props){
 
 
 
-    const handleInput = (
-        e: React.ChangeEvent<HTMLInputElement>
-    ) => {
+const handleInput = (
+    e: React.ChangeEvent<HTMLInputElement>
+)=>{
+
+    const inputValue = e.target.value;
 
 
-        const inputValue = e.target.value;
+    if(!allowDecimal){
 
+        if(
+            inputValue !== "" &&
+            !/^\d*$/.test(inputValue)
+        ){
 
-
-        if(!allowDecimal){
-
-
-            if(
-                inputValue !== "" &&
-                !/^\d*$/.test(inputValue)
-            ){
-
-                return;
-
-            }
-
-
-        }
-        else{
-
-
-            if(
-                inputValue !== "" &&
-                !/^\d*\.?\d*$/.test(inputValue)
-            ){
-
-                return;
-
-            }
-
+            return;
 
         }
 
+    }
+    else{
+
+        if(
+            inputValue !== "" &&
+            !/^\d*\.?\d*$/.test(inputValue)
+        ){
+
+            return;
+
+        }
+
+    }
 
 
-        onChange(e);
+    onChange(e);
 
-    };
-
-
-
-    return (
-
-        <div className="input-group">
-
-
-            <label>
-                {label}
-            </label>
+};
 
 
 
-            <input
-
-                name={name}
-
-                type="text"
-
-                inputMode={
-                    allowDecimal
-                    ?
-                    "decimal"
-                    :
-                    "numeric"
-                }
-
-                value={value ?? ""}
-
-                onChange={handleInput}
-
-                onBlur={onBlur}
-
-            />
 
 
-        </div>
+const handleKeyDown = (
+    e:React.KeyboardEvent<HTMLInputElement>
+)=>{
 
-    );
+    if(
+        e.key==="Enter" ||
+        e.key==="Tab"
+    ){
+
+        if(onBlur){
+
+            const target =
+            e.target as HTMLInputElement;
+
+
+            onBlur(
+                {
+                    target
+                } as React.FocusEvent<HTMLInputElement>
+            );
+
+        }
+
+    }
+
+};
+
+
+
+
+return (
+
+<div className="input-group">
+
+
+<label>
+{label}
+</label>
+
+
+
+<input
+
+name={name}
+
+type="text"
+
+inputMode={
+allowDecimal
+?
+"decimal"
+:
+"numeric"
+}
+
+value={value ?? ""}
+
+onChange={handleInput}
+
+onBlur={onBlur}
+
+onKeyDown={handleKeyDown}
+
+/>
+
+
+</div>
+
+);
+
 
 }
 
