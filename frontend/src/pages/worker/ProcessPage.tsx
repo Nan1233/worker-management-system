@@ -11,7 +11,7 @@ import NumberField from "../../components/process/NumberField";
 import SelectField from "../../components/process/SelectField";
 import TextAreaField from "../../components/process/TextAreaField";
 
-
+import api from "../../api/axios";
 
 function ProcessPage(){
 
@@ -295,29 +295,50 @@ useState("");
 useEffect(()=>{
 
 
-const user = localStorage.getItem("user");
+const getWorkerInfo = async()=>{
 
 
-if(user){
+try{
 
 
-const data = JSON.parse(user);
+const user = JSON.parse(
+    localStorage.getItem("user") || "{}"
+);
+
+
+
+const res = await api.get(
+    `/workers/${user.id}`
+);
 
 
 
 setForm(prev=>({
 
+    ...prev,
 
-...prev,
-
-
-workerCode:data.worker_code || ""
-
+    workerCode:res.data.worker_code
 
 }));
 
 
+
 }
+catch(err){
+
+console.log(
+"Không lấy được thông tin nhân viên",
+err
+);
+
+}
+
+
+};
+
+
+
+getWorkerInfo();
 
 
 },[]);

@@ -9,6 +9,9 @@ const checkRole = require("../middleware/roleMiddleware");
 
 
 
+
+// ADMIN / MANAGER xem tất cả worker
+
 router.get(
     "/",
     verifyToken,
@@ -18,11 +21,25 @@ router.get(
 
 
 
+
+// ADMIN / MANAGER tạo worker
+
 router.post(
     "/",
     verifyToken,
     checkRole("admin","manager"),
     workerController.createWorker
+);
+
+
+
+
+// USER lấy thông tin worker của chính mình
+
+router.get(
+    "/:id",
+    verifyToken,
+    workerController.getWorkerById
 );
 
 
