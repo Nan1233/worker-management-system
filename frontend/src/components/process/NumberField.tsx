@@ -2,7 +2,7 @@ type Props = {
     label: string;
     name: string;
     value: string | number;
-    step?: string;
+
     allowDecimal?: boolean;
 
     onChange: (
@@ -11,84 +11,96 @@ type Props = {
 };
 
 
-
 function NumberField({
 
     label,
+
     name,
+
     value,
-    step,
+
     allowDecimal = false,
+
     onChange,
 
 }: Props) {
 
 
-return (
-
-<div className="input-group">
-
-
-<label>
-{label}
-</label>
+    const handleInput = (
+        e: React.ChangeEvent<HTMLInputElement>
+    ) => {
 
 
-
-<input
-
-type="text"
-
-name={name}
-
-inputMode="decimal"
-
-value={value ?? ""}
+        const value = e.target.value;
 
 
-onChange={(e)=>{
+        // cho phép số nguyên
+        if(!allowDecimal){
+
+            if(
+                value !== "" &&
+                !/^\d*$/.test(value)
+            ){
+                return;
+            }
+
+        }
 
 
-const val=e.target.value;
+        // cho phép số thập phân
+        else{
+
+            if(
+                value !== "" &&
+                !/^\d*\.?\d*$/.test(value)
+            ){
+                return;
+            }
+
+        }
 
 
-// cho phép rỗng khi đang nhập
-if(val===""){
-    onChange(e);
-    return;
-}
-
-
-// thời gian cho phép số thập phân
-if(allowDecimal){
-
-    if(/^\d*\.?\d*$/.test(val)){
         onChange(e);
-    }
 
-}
-
-
-// các số NG chỉ cho số nguyên
-else{
-
-    if(/^\d*$/.test(val)){
-        onChange(e);
-    }
-
-}
+    };
 
 
-}}
+
+    return (
+
+        <div className="input-group">
 
 
-/>
+            <label>
+
+                {label}
+
+            </label>
 
 
-</div>
+
+            <input
+
+                type="text"
+
+                inputMode={
+                    allowDecimal
+                    ?
+                    "decimal"
+                    :
+                    "numeric"
+                }
+
+                value={value ?? ""}
+
+                onChange={handleInput}
+
+            />
 
 
-);
+        </div>
+
+    );
 
 }
 
