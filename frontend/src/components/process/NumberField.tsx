@@ -9,7 +9,6 @@ type Props = {
 };
 
 
-
 function NumberField({
 
     label,
@@ -23,40 +22,38 @@ function NumberField({
 }: Props) {
 
 
-    return (
+return (
 
-        <div className="input-group">
+<div className="input-group">
 
 
-            <label>
-
-                {label}
-
-            </label>
+<label>
+    {label}
+</label>
 
 
 
-            <input
+<input
 
-                type="number"
+    type="number"
 
-                name={name}
+    step="0.1"
 
-                step="0.1"
+    name={name}
 
-                value={value ?? ""}
+    value={value}
 
-                onChange={onChange}
+    onChange={onChange}
 
-            />
+/>
 
 
-        </div>
+</div>
 
-    );
+);
+
 
 }
-
 
 
 export default NumberField;

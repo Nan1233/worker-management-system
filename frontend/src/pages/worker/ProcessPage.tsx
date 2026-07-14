@@ -26,7 +26,6 @@ const [showNg,setShowNg] = useState(false);
 
 const initialForm = {
 
-
 workDate:"",
 
 shift:"Ca 1",
@@ -36,13 +35,11 @@ workerCode:"W001",
 machineNo:"",
 
 
-
 totalTime:"",
 
 actualTime:"",
 
 deductionTime:"",
-
 
 
 productName:"",
@@ -52,11 +49,9 @@ standardOutput:"",
 actualOutput:"",
 
 
-
 ttOk:"",
 
 ttNg:"",
-
 
 
 kqdDapLai:"",
@@ -84,16 +79,14 @@ ngKichThuoc:"",
 catLem:"",
 
 
-
 note:""
-
 
 };
 
 
 
-const initialDeduction={
 
+const initialDeduction={
 
 vsk:0,
 
@@ -107,152 +100,131 @@ suaMay:0,
 
 dungMay:0
 
-
 };
 
 
 
-const deductionOptions=[
 
+const deductionOptions=[
 
 {
 key:"vsk",
 label:"Số giờ VSK"
 },
 
-
 {
 key:"fiveS",
 label:"Số giờ 5S + gia ca"
 },
-
 
 {
 key:"hamKhuon",
 label:"Số giờ hâm khuôn"
 },
 
-
 {
 key:"suaKhuon",
 label:"Số giờ sửa khuôn"
 },
-
 
 {
 key:"suaMay",
 label:"Số giờ sửa máy"
 },
 
-
 {
 key:"dungMay",
 label:"Số giờ dừng máy"
 }
 
-
 ];
 
 
 
-const ngOptions=[
 
+const ngOptions=[
 
 {
 key:"kqdDapLai",
 label:"KQD dập lại"
 },
 
-
 {
 key:"kqdTuot",
 label:"KQD tuột"
 },
-
 
 {
 key:"voDoLong",
 label:"Vỡ do lồng"
 },
 
-
 {
 key:"xuocDoLong",
 label:"Xước do lồng"
 },
-
 
 {
 key:"congGay",
 label:"Cong gãy"
 },
 
-
 {
 key:"xoay",
 label:"Xoay"
 },
-
 
 {
 key:"khongDut",
 label:"Không đứt"
 },
 
-
 {
 key:"baviaHut",
 label:"Bavia hụt"
 },
-
 
 {
 key:"ppcm",
 label:"PPCM"
 },
 
-
 {
 key:"loiCaoSu",
 label:"Lỗi cao su"
 },
-
 
 {
 key:"ngKichThuoc",
 label:"NG kích thước"
 },
 
-
 {
 key:"catLem",
 label:"Cắt lẹm"
 }
-
 
 ];
 
 
 
 
-const [form,setForm]=useState(initialForm);
+
+const [form,setForm] = useState(initialForm);
 
 
-
-const [deductions,setDeductions]=useState(initialDeduction);
-
+const [deductions,setDeductions] = useState(initialDeduction);
 
 
-const [selectedDeduction,setSelectedDeduction]=useState<string[]>([]);
+const [selectedDeduction,setSelectedDeduction] =
+useState<string[]>([]);
 
 
+const [selectedNg,setSelectedNg] =
+useState<string[]>([]);
 
-const [selectedNg,setSelectedNg]=useState<string[]>([]);
 
-
-
-const [stopReason,setStopReason]=useState("");
-
+const [stopReason,setStopReason] = useState("");
 
 
 
@@ -263,26 +235,64 @@ const [stopReason,setStopReason]=useState("");
 
 
 const handleChange = (
-    e: React.ChangeEvent<
-        HTMLInputElement |
-        HTMLSelectElement |
-        HTMLTextAreaElement
-    >
+e:React.ChangeEvent<
+HTMLInputElement |
+HTMLSelectElement |
+HTMLTextAreaElement
+>
 )=>{
 
 
 const {
-    name,
-    value
+name,
+value
 }=e.target;
 
 
 
 setForm(prev=>({
 
-    ...prev,
+...prev,
 
-    [name]:value
+[name]:value
+
+}));
+
+
+};
+
+
+
+
+// ===============================
+// DEDUCTION
+// ===============================
+
+
+const updateTotalDeduction=(data:any)=>{
+
+
+const total = Object.values(data)
+.reduce(
+(sum:number,value:any)=>
+sum + Number(value || 0),
+0
+);
+
+
+
+setForm(prev=>({
+
+...prev,
+
+deductionTime:String(total),
+
+actualTime:String(
+Math.max(
+0,
+Number(prev.totalTime || 0)-total
+)
+)
 
 }));
 
@@ -293,27 +303,14 @@ setForm(prev=>({
 
 
 
-// ===============================
-// DEDUCTION
-// ===============================
-
-
-const handleDeductionSelect=(
-
+const handleDeductionSelect = (
 e:React.ChangeEvent<HTMLSelectElement>
-
 )=>{
 
 
-const values=
-
-Array.from(
-    e.target.selectedOptions
-)
-
-.map(
-    x=>x.value
-);
+const values =
+Array.from(e.target.selectedOptions)
+.map(x=>x.value);
 
 
 
@@ -322,9 +319,7 @@ setSelectedDeduction(values);
 
 
 const update:any={
-
-    ...deductions
-
+...deductions
 };
 
 
@@ -335,16 +330,16 @@ deductionOptions.forEach(item=>{
 if(values.includes(item.key)){
 
 
-    if(update[item.key]===0)
+if(update[item.key]===0)
 
-        update[item.key]=1;
+update[item.key]=1;
 
 
 }
 else{
 
 
-    update[item.key]=0;
+update[item.key]=0;
 
 
 }
@@ -357,7 +352,6 @@ else{
 setDeductions(update);
 
 
-
 updateTotalDeduction(update);
 
 
@@ -367,18 +361,15 @@ updateTotalDeduction(update);
 
 
 
-const updateDeductionValue=(
-
+const updateDeductionValue = (
 key:string,
-
 value:number
-
 )=>{
 
 
 const newValue=Math.max(
-    0,
-    value
+0,
+value
 );
 
 
@@ -388,9 +379,9 @@ setDeductions(prev=>{
 
 const data={
 
-    ...prev,
+...prev,
 
-    [key]:newValue
+[key]:newValue
 
 };
 
@@ -412,9 +403,9 @@ if(newValue===0){
 
 setSelectedDeduction(prev=>
 
-    prev.filter(
-        item=>item!==key
-    )
+prev.filter(
+item=>item!==key
+)
 
 );
 
@@ -428,73 +419,19 @@ setSelectedDeduction(prev=>
 
 
 
-const updateTotalDeduction=(data:any)=>{
-
-
-const total:number =
-
-Object.values(data)
-
-.reduce(
-
-(sum:number,value:any)=>{
-
-return sum + Number(value || 0);
-
-},
-
-0
-
-);
-
-
-
-setForm(prev=>({
-
-
-...prev,
-
-
-deductionTime:String(total),
-
-
-actualTime:String(
-
-Math.max(
-
-0,
-
-Number(prev.totalTime || 0)-total
-
-)
-
-)
-
-
-}));
-
-
-
-};
 // ===============================
-// NG HANDLER
+// NG HANDLER (ĐÃ SỬA)
 // ===============================
 
 
-const handleNgSelect=(
-
+const handleNgSelect = (
 e:React.ChangeEvent<HTMLSelectElement>
-
 )=>{
 
 
-const values = Array.from(
-    e.target.selectedOptions
-)
-
-.map(
-    x=>x.value
-);
+const values =
+Array.from(e.target.selectedOptions)
+.map(x=>x.value);
 
 
 
@@ -506,9 +443,7 @@ setForm(prev=>{
 
 
 const data:any={
-
-    ...prev
-
+...prev
 };
 
 
@@ -519,16 +454,18 @@ ngOptions.forEach(item=>{
 if(values.includes(item.key)){
 
 
-    if(data[item.key]==="")
+if(data[item.key]===""){
 
-        data[item.key]="1";
+data[item.key]="1";
+
+}
 
 
 }
 else{
 
 
-    data[item.key]="0";
+data[item.key]="";
 
 
 }
@@ -538,13 +475,12 @@ else{
 
 
 
-data.ttNg = ngOptions.reduce(
+data.ttNg =
+ngOptions.reduce(
 
-(sum,item)=>{
+(sum,item)=>
 
-return sum + Number(data[item.key] || 0);
-
-},
+sum + Number(data[item.key] || 0),
 
 0
 
@@ -564,25 +500,10 @@ return data;
 
 
 
-
-
-const handleNgValue=(
-
+const handleNgValue = (
 key:string,
-
-value:number
-
+value:string
 )=>{
-
-
-const newValue=Math.max(
-
-0,
-
-value
-
-);
-
 
 
 setForm(prev=>{
@@ -590,31 +511,20 @@ setForm(prev=>{
 
 const data:any={
 
+...prev,
 
-    ...prev,
-
-
-    [key]:String(newValue)
-
+[key]:value
 
 };
 
 
 
+data.ttNg =
+ngOptions.reduce(
 
-data.ttNg = ngOptions.reduce(
+(sum,item)=>
 
-(sum,item)=>{
-
-
-return sum + Number(
-
-    data[item.key] || 0
-
-);
-
-
-},
+sum + Number(data[item.key] || 0),
 
 0
 
@@ -628,27 +538,7 @@ return data;
 });
 
 
-
-if(newValue===0){
-
-
-setSelectedNg(prev=>
-
-    prev.filter(
-        item=>item!==key
-    )
-
-);
-
-
-}
-
-
 };
-
-
-
-
 
 
 
@@ -659,230 +549,108 @@ setSelectedNg(prev=>
 // ===============================
 
 
-const handleSubmit=async()=>{
+const handleSubmit = async()=>{
 
 
 try{
 
 
-
 await createTempReport({
-
-
 
 process_id:1,
 
 
 work_date:form.workDate,
 
-
 shift:form.shift,
-
 
 machine_no:form.machineNo,
 
 
+total_time:Number(form.totalTime || 0),
 
-total_time:Number(
+actual_time:Number(form.actualTime || 0),
 
-    form.totalTime || 0
-
-),
-
-
-
-actual_time:Number(
-
-    form.actualTime || 0
-
-),
-
-
-
-deduction_time:Number(
-
-    form.deductionTime || 0
-
-),
-
-
+deduction_time:Number(form.deductionTime || 0),
 
 
 product_name:form.productName,
 
 
-
 standard_output:Number(
-
-    form.standardOutput || 0
-
+form.standardOutput || 0
 ),
-
 
 
 actual_output:Number(
-
-    form.actualOutput || 0
-
+form.actualOutput || 0
 ),
 
 
+tt_ok:Number(form.ttOk || 0),
+
+tt_ng:Number(form.ttNg || 0),
 
 
+kqd_dap_lai:Number(form.kqdDapLai || 0),
 
-tt_ok:Number(
+kqd_tuot:Number(form.kqdTuot || 0),
 
-    form.ttOk || 0
+vo_do_long:Number(form.voDoLong || 0),
 
-),
+xuoc_do_long:Number(form.xuocDoLong || 0),
 
+cong_gay:Number(form.congGay || 0),
 
+xoay:Number(form.xoay || 0),
 
-tt_ng:Number(
+khong_dut:Number(form.khongDut || 0),
 
-    form.ttNg || 0
+bavia_hut:Number(form.baviaHut || 0),
 
-),
+ppcm:Number(form.ppcm || 0),
 
+loi_cao_su:Number(form.loiCaoSu || 0),
 
+ng_kich_thuoc:Number(form.ngKichThuoc || 0),
 
-
-
-kqd_dap_lai:Number(
-
-    form.kqdDapLai || 0
-
-),
-
-
-kqd_tuot:Number(
-
-    form.kqdTuot || 0
-
-),
-
-
-vo_do_long:Number(
-
-    form.voDoLong || 0
-
-),
-
-
-xuoc_do_long:Number(
-
-    form.xuocDoLong || 0
-
-),
-
-
-cong_gay:Number(
-
-    form.congGay || 0
-
-),
-
-
-xoay:Number(
-
-    form.xoay || 0
-
-),
-
-
-khong_dut:Number(
-
-    form.khongDut || 0
-
-),
-
-
-bavia_hut:Number(
-
-    form.baviaHut || 0
-
-),
-
-
-ppcm:Number(
-
-    form.ppcm || 0
-
-),
-
-
-loi_cao_su:Number(
-
-    form.loiCaoSu || 0
-
-),
-
-
-ng_kich_thuoc:Number(
-
-    form.ngKichThuoc || 0
-
-),
-
-
-cat_lem:Number(
-
-    form.catLem || 0
-
-),
-
-
+cat_lem:Number(form.catLem || 0),
 
 
 note:form.note
-
 
 
 });
 
 
 
-
 alert(
-
 "Lưu báo cáo thành công"
-
 );
-
 
 
 handleReset();
 
 
-
 navigate("/worker");
 
 
-
 }
-
 catch(err){
 
 
 console.log(err);
 
 
-
 alert(
-
 "Lưu thất bại"
-
 );
-
 
 
 }
 
 
-
 };
-
-
 
 
 
@@ -899,30 +667,19 @@ const handleReset=()=>{
 setForm(initialForm);
 
 
-
 setDeductions(initialDeduction);
-
 
 
 setSelectedDeduction([]);
 
 
-
 setSelectedNg([]);
-
 
 
 setStopReason("");
 
 
-
-};
-
-
-
-
-
-return (
+};return (
 
 <div className="container">
 
@@ -958,6 +715,7 @@ onChange={handleChange}
 
 
 
+
 <div className="shift-group">
 
 
@@ -975,13 +733,9 @@ Ca làm việc
 {
 
 [
-
 "Ca 1",
-
 "Ca 2",
-
 "Ca 3"
-
 ]
 
 .map(ca=>(
@@ -994,7 +748,6 @@ key={ca}
 className="radio-item"
 
 >
-
 
 
 <input
@@ -1010,9 +763,7 @@ value={ca}
 
 
 checked={
-
 form.shift===ca
-
 }
 
 
@@ -1027,7 +778,6 @@ onChange={handleChange}
 {ca}
 
 </span>
-
 
 
 </label>
@@ -1050,20 +800,16 @@ onChange={handleChange}
 
 
 
-<InputField
 
+<InputField
 
 label="Mã nhân viên"
 
-
 name="workerCode"
-
 
 value={form.workerCode}
 
-
 onChange={()=>{}}
-
 
 />
 
@@ -1073,18 +819,13 @@ onChange={()=>{}}
 
 <InputField
 
-
 label="Số máy"
-
 
 name="machineNo"
 
-
 value={form.machineNo}
 
-
 onChange={handleChange}
-
 
 />
 
@@ -1098,47 +839,43 @@ onChange={handleChange}
 
 
 
+
+
 {/* THỜI GIAN */}
+
 
 
 <FormSection title="Thời gian">
 
 
 
-<NumberField
 
+
+<NumberField
 
 label="Tổng thời gian"
 
-
 name="totalTime"
-
 
 value={form.totalTime}
 
-
 onChange={handleChange}
-
 
 />
 
 
 
 
-<NumberField
 
+<NumberField
 
 label="Thời gian thực tế"
 
-
 name="actualTime"
-
 
 value={form.actualTime}
 
-
 onChange={handleChange}
-
 
 />
 
@@ -1148,26 +885,24 @@ onChange={handleChange}
 
 <NumberField
 
-
 label="Thời gian trừ"
-
 
 name="deductionTime"
 
-
 value={form.deductionTime}
-
 
 onChange={handleChange}
 
-
 />
+
+
 
 
 
 
 
 <div className="select-box">
+
 
 
 <div
@@ -1198,11 +933,14 @@ showDeduction
 
 }
 
-
 </span>
 
 
 </div>
+
+
+
+
 
 
 
@@ -1220,6 +958,7 @@ value={selectedDeduction}
 onChange={handleDeductionSelect}
 
 >
+
 
 
 {
@@ -1248,6 +987,7 @@ value={item.key}
 }
 
 
+
 </select>
 
 
@@ -1255,22 +995,32 @@ value={item.key}
 
 
 
-</div><div className="quality-grid">
+</div>
+
+
+
+
+
+
+
+<div className="quality-grid">
+
 
 
 {
 
+
 deductionOptions
 
-.filter(
-
-item =>
+.filter(item=>
 
 Number(
 
-deductions[item.key as keyof typeof deductions]
+deductions[
+item.key as keyof typeof deductions
+]
 
-) > 0
+)>0
 
 )
 
@@ -1291,9 +1041,12 @@ name={item.key}
 
 value={
 
-deductions[item.key as keyof typeof deductions]
+deductions[
+item.key as keyof typeof deductions
+]
 
 }
+
 
 
 onChange={e=>
@@ -1302,7 +1055,9 @@ updateDeductionValue(
 
 item.key,
 
-Number(e.target.value || 0)
+Number(
+e.target.value || 0
+)
 
 )
 
@@ -1320,6 +1075,8 @@ Number(e.target.value || 0)
 
 
 </div>
+
+
 
 
 
@@ -1347,9 +1104,7 @@ value={stopReason}
 onChange={e=>
 
 setStopReason(
-
 e.target.value
-
 )
 
 }
@@ -1358,7 +1113,6 @@ e.target.value
 
 options={[
 
-
 "Hỏng máy",
 
 "Thiếu nguyên liệu",
@@ -1366,7 +1120,6 @@ options={[
 "Chờ kỹ thuật",
 
 "Khác"
-
 
 ]}
 
@@ -1379,18 +1132,9 @@ options={[
 
 
 
+
 </FormSection>
-
-
-
-
-
-
-
-
-
 {/* SẢN XUẤT */}
-
 
 
 <FormSection title="Sản xuất">
@@ -1399,18 +1143,13 @@ options={[
 
 <InputField
 
-
 label="Sản phẩm"
-
 
 name="productName"
 
-
 value={form.productName}
 
-
 onChange={handleChange}
-
 
 />
 
@@ -1419,19 +1158,14 @@ onChange={handleChange}
 
 
 <NumberField
-
 
 label="Định mức"
 
-
 name="standardOutput"
-
 
 value={form.standardOutput}
 
-
 onChange={handleChange}
-
 
 />
 
@@ -1441,18 +1175,13 @@ onChange={handleChange}
 
 <NumberField
 
-
 label="Thực tế"
-
 
 name="actualOutput"
 
-
 value={form.actualOutput}
 
-
 onChange={handleChange}
-
 
 />
 
@@ -1476,22 +1205,20 @@ onChange={handleChange}
 
 
 
-<NumberField
 
+
+<NumberField
 
 label="TT OK"
 
-
 name="ttOk"
-
 
 value={form.ttOk}
 
-
 onChange={handleChange}
 
-
 />
+
 
 
 
@@ -1499,20 +1226,17 @@ onChange={handleChange}
 
 <NumberField
 
-
 label="TT NG"
-
 
 name="ttNg"
 
-
 value={form.ttNg}
-
 
 onChange={handleChange}
 
-
 />
+
+
 
 
 
@@ -1523,14 +1247,12 @@ onChange={handleChange}
 <div className="select-box">
 
 
-<div
 
+<div
 
 className="select-title"
 
-
 onClick={()=>setShowNg(!showNg)}
-
 
 >
 
@@ -1540,7 +1262,6 @@ onClick={()=>setShowNg(!showNg)}
 
 
 <span>
-
 
 {
 
@@ -1561,6 +1282,9 @@ showNg
 
 
 </div>
+
+
+
 
 
 
@@ -1590,17 +1314,15 @@ onChange={handleNgSelect}
 
 {
 
+
 ngOptions.map(item=>(
 
 
 <option
 
-
 key={item.key}
 
-
 value={item.key}
-
 
 >
 
@@ -1619,7 +1341,6 @@ value={item.key}
 
 
 </select>
-
 
 
 }
@@ -1645,22 +1366,15 @@ value={item.key}
 
 ngOptions
 
-
-.filter(
-
-item =>
+.filter(item =>
 
 Number(
 
-form[item.key as keyof typeof form]
-
-||0
+form[item.key as keyof typeof form] || 0
 
 )>0
 
-
 )
-
 
 .map(item=>(
 
@@ -1677,11 +1391,15 @@ label={item.label}
 name={item.key}
 
 
+
 value={
 
 form[item.key as keyof typeof form] ?? ""
 
 }
+
+
+
 
 
 onChange={e=>
@@ -1690,11 +1408,7 @@ handleNgValue(
 
 item.key,
 
-Number(
-
-e.target.value || 0
-
-)
+e.target.value
 
 )
 
@@ -1758,21 +1472,22 @@ onChange={handleChange}
 
 
 
-<button
 
+
+<button
 
 className="save-btn"
 
-
 onClick={handleSubmit}
-
 
 >
 
 
 Lưu báo cáo
 
+
 </button>
+
 
 
 
@@ -1782,34 +1497,33 @@ Lưu báo cáo
 
 <button
 
-
 className="reset-btn"
 
-
 onClick={handleReset}
-
 
 >
 
 
 Làm mới
 
+
 </button>
 
 
 
-</div>
-
-
-
-
 
 
 </div>
 
+
+
+
+
+
+
+</div>
 
 );
-
 
 }
 
