@@ -569,3 +569,31 @@ const downloadExcel = (
 
 
 };
+
+// =====================================================
+// GOOGLE SHEET
+// =====================================================
+
+export const exportGoogleSheet = async(
+    date:string
+)=>{
+
+
+    const res = await api.get(
+
+        "/reports/export-google-sheet",
+
+        {
+
+            params:{
+                date
+            }
+
+        }
+
+    );
+
+
+    return res.data;
+
+};

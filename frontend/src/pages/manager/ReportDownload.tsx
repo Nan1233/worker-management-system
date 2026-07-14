@@ -2,10 +2,12 @@ import { useState } from "react";
 
 import {
     exportProductionExcel,
-    exportApprovedExcel
+    exportApprovedExcel,
+    exportGoogleSheet
 } from "../../services/productionService";
 
 import "./ReportDownload.css";
+
 
 
 function ReportDownload(){
@@ -28,6 +30,11 @@ function ReportDownload(){
 
 
 
+    const [sheetDate,setSheetDate] =
+        useState(today);
+
+
+
     const [loadingPending,setLoadingPending] =
         useState(false);
 
@@ -38,10 +45,15 @@ function ReportDownload(){
 
 
 
+    const [loadingSheet,setLoadingSheet] =
+        useState(false);
+
+
+
 
 
     // ==========================
-    // EXPORT CHỜ DUYỆT
+    // EXPORT PENDING
     // ==========================
 
     const handleExportPending = async()=>{
@@ -49,9 +61,7 @@ function ReportDownload(){
 
         try{
 
-
             setLoadingPending(true);
-
 
 
             await exportProductionExcel(
@@ -59,30 +69,23 @@ function ReportDownload(){
             );
 
 
-
         }
 
         catch(err){
 
-
             console.error(err);
-
 
             alert(
                 "Xuất báo cáo chờ duyệt thất bại"
             );
 
-
         }
 
         finally{
 
-
             setLoadingPending(false);
 
-
         }
-
 
     };
 
@@ -91,9 +94,8 @@ function ReportDownload(){
 
 
 
-
     // ==========================
-    // EXPORT ĐÃ DUYỆT
+    // EXPORT APPROVED
     // ==========================
 
     const handleExportApproved = async()=>{
@@ -101,15 +103,75 @@ function ReportDownload(){
 
         try{
 
-
             setLoadingApproved(true);
-
 
 
             await exportApprovedExcel(
                 approvedDate
             );
 
+
+        }
+
+        catch(err){
+
+            console.error(err);
+
+            alert(
+                "Xuất báo cáo đã duyệt thất bại"
+            );
+
+        }
+
+        finally{
+
+            setLoadingApproved(false);
+
+        }
+
+    };
+
+
+
+
+
+
+
+    // ==========================
+    // GOOGLE SHEET
+    // ==========================
+
+    const handleGoogleSheet = async()=>{
+
+
+        try{
+
+
+            setLoadingSheet(true);
+
+
+
+            const result =
+            await exportGoogleSheet(
+                sheetDate
+            );
+
+
+
+            alert(
+
+                "Cập nhật Google Sheet thành công\n\n"
+                +
+                result.url
+
+            );
+
+
+
+            window.open(
+                result.url,
+                "_blank"
+            );
 
 
         }
@@ -121,7 +183,7 @@ function ReportDownload(){
 
 
             alert(
-                "Xuất báo cáo đã duyệt thất bại"
+                "Cập nhật Google Sheet thất bại"
             );
 
 
@@ -130,14 +192,13 @@ function ReportDownload(){
         finally{
 
 
-            setLoadingApproved(false);
+            setLoadingSheet(false);
 
 
         }
 
 
     };
-
 
 
 
@@ -147,24 +208,20 @@ function ReportDownload(){
 
     return (
 
-
         <div className="download-page">
 
 
             <div className="download-card">
 
 
+
                 <h1>
-                    📥 Xuất báo cáo Excel
+                    📥 Xuất báo cáo
                 </h1>
 
 
 
 
-
-                {/* =====================
-                    CHỜ DUYỆT
-                ===================== */}
 
 
                 <div className="export-box">
@@ -175,12 +232,9 @@ function ReportDownload(){
                     </h3>
 
 
-
                     <p>
                         Xuất dữ liệu đang chờ quản lý kiểm tra
                     </p>
-
-
 
 
 
@@ -191,7 +245,7 @@ function ReportDownload(){
                         value={pendingDate}
 
                         onChange={
-                            e =>
+                            e=>
                             setPendingDate(
                                 e.target.value
                             )
@@ -201,31 +255,26 @@ function ReportDownload(){
 
 
 
-
-
                     <button
-
 
                         onClick={
                             handleExportPending
                         }
 
-
                         disabled={loadingPending}
-
 
                     >
 
-
                         {
                             loadingPending
-                            ? "⏳ Đang xuất..."
-                            : "📄 Xuất Excel chờ duyệt"
+                            ?
+                            "⏳ Đang xuất..."
+                            :
+                            "📄 Xuất Excel chờ duyệt"
                         }
 
 
                     </button>
-
 
 
                 </div>
@@ -236,11 +285,6 @@ function ReportDownload(){
 
 
 
-
-
-                {/* =====================
-                    ĐÃ DUYỆT
-                ===================== */}
 
 
                 <div className="export-box">
@@ -258,49 +302,104 @@ function ReportDownload(){
 
 
 
-
-
                     <input
-
 
                         type="date"
 
-
                         value={approvedDate}
 
-
                         onChange={
-                            e =>
+                            e=>
                             setApprovedDate(
                                 e.target.value
                             )
                         }
 
+                    />
+
+
+
+                    <button
+
+                        onClick={
+                            handleExportApproved
+                        }
+
+                        disabled={loadingApproved}
+
+                    >
+
+                        {
+                            loadingApproved
+                            ?
+                            "⏳ Đang xuất..."
+                            :
+                            "📄 Xuất Excel đã duyệt"
+                        }
+
+
+                    </button>
+
+
+                </div>
+
+
+
+
+
+
+
+
+
+                <div className="export-box">
+
+
+                    <h3>
+                        📊 Google Sheet
+                    </h3>
+
+
+                    <p>
+                        Tạo mới hoặc cập nhật báo cáo Google Sheet
+                    </p>
+
+
+
+
+                    <input
+
+                        type="date"
+
+                        value={sheetDate}
+
+                        onChange={
+                            e=>
+                            setSheetDate(
+                                e.target.value
+                            )
+                        }
 
                     />
 
 
 
 
-
                     <button
 
-
                         onClick={
-                            handleExportApproved
+                            handleGoogleSheet
                         }
 
-
-                        disabled={loadingApproved}
-
+                        disabled={loadingSheet}
 
                     >
 
-
                         {
-                            loadingApproved
-                            ? "⏳ Đang xuất..."
-                            : "📄 Xuất Excel đã duyệt"
+                            loadingSheet
+                            ?
+                            "⏳ Đang cập nhật..."
+                            :
+                            "📊 Cập nhật Google Sheet"
                         }
 
 
@@ -319,11 +418,11 @@ function ReportDownload(){
 
         </div>
 
-
     );
 
 
 }
+
 
 
 export default ReportDownload;
