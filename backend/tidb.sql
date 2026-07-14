@@ -2112,3 +2112,23 @@ FROM production_report_deductions;
 
 
 SHOW TABLES;
+
+
+USE worker_management;
+
+SHOW TABLES;
+
+
+SELECT * FROM users;
+
+SELECT * FROM workers;
+
+SELECT * FROM processes;
+
+SELECT username, LENGTH(password)
+FROM users;
+
+UPDATE users
+SET password =
+'$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2'
+WHERE username='manager1';

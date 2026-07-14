@@ -741,220 +741,238 @@ resolve(result[0]);
 
 approveByDate(date, manager_id){
 
-return new Promise((resolve,reject)=>{
+return new Promise(async(resolve,reject)=>{
+
+    let connection;
 
 
-db.beginTransaction(err=>{
-
-    if(err)
-        return reject(err);
+    try{
 
 
+        connection = await new Promise((resolve,reject)=>{
 
-    // 1. Lấy danh sách temp pending
+            db.getConnection((err,conn)=>{
 
-    db.query(
+                if(err)
+                    reject(err);
 
-    `
-    SELECT *
+                else
+                    resolve(conn);
 
-    FROM production_reports_temp
-
-    WHERE DATE(work_date)=?
-
-    AND status='pending'
-    `,
-
-    [date],
-
-
-    (err,rows)=>{
-
-
-        if(err){
-
-            return db.rollback(()=>{
-                reject(err);
             });
 
-        }
+        });
 
 
 
-        if(rows.length===0){
+        connection.beginTransaction(err=>{
 
-            return db.rollback(()=>{
-                resolve({
-                    message:"Không có báo cáo chờ duyệt"
-                });
-            });
 
-        }
+            if(err)
+                throw err;
 
 
 
-
-        let completed = 0;
-
-
-
-        rows.forEach(item=>{
-
-
-            db.query(
+            connection.query(
 
             `
-            INSERT INTO production_reports
+            SELECT *
 
-            (
-                worker_id,
-                process_id,
-                work_date,
-                shift,
-                machine_no,
-                product_name,
+            FROM production_reports_temp
 
-                total_time,
-                actual_time,
-                deduction_time,
+            WHERE DATE(work_date)=?
 
-                standard_output,
-                actual_output,
-
-                tt_ok,
-                tt_ng,
-
-                note,
-
-                status,
-                reviewed_by,
-                approved_at
-
-            )
-
-
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())
-
+            AND status='pending'
             `,
 
-
-            [
-
-                item.worker_id,
-
-                item.process_id,
-
-                item.work_date,
-
-                item.shift,
-
-                item.machine_no,
-
-                item.product_name,
+            [date],
 
 
-                item.total_time,
-
-                item.actual_time,
-
-                item.deduction_time,
+            (err,rows)=>{
 
 
-                item.standard_output,
-
-                item.actual_output,
-
-
-                item.tt_ok,
-
-                item.tt_ng,
-
-
-                item.note,
-
-
-                "approved",
-
-                manager_id
-
-            ],
-
-
-
-            (err,result)=>{
-
-
-                if(err){
-
-                    return db.rollback(()=>{
+                if(err)
+                    return connection.rollback(()=>{
                         reject(err);
+                    });
+
+
+
+                if(rows.length===0){
+
+                    return connection.rollback(()=>{
+
+                        resolve({
+
+                            message:"Không có báo cáo chờ duyệt"
+
+                        });
+
                     });
 
                 }
 
 
 
-                // xóa temp sau khi chuyển
-
-
-                db.query(
-
-                `
-                DELETE FROM production_reports_temp
-
-                WHERE id=?
-
-                `,
-
-                [
-                    item.id
-                ],
-
-
-                err=>{
-
-
-                    if(err){
-
-                        return db.rollback(()=>{
-                            reject(err);
-                        });
-
-                    }
+                let completed = 0;
 
 
 
-                    completed++;
+                rows.forEach(item=>{
+
+
+                    connection.query(
+
+                    `
+                    INSERT INTO production_reports
+
+                    (
+                        worker_id,
+                        process_id,
+                        work_date,
+                        shift,
+                        machine_no,
+                        product_name,
+
+                        total_time,
+                        actual_time,
+                        deduction_time,
+
+                        standard_output,
+                        actual_output,
+
+                        tt_ok,
+                        tt_ng,
+
+                        note,
+
+                        status,
+                        reviewed_by,
+                        approved_at
+                    )
+
+                    VALUES
+                    (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())
+
+                    `,
+
+
+                    [
+
+                        item.worker_id,
+                        item.process_id,
+                        item.work_date,
+                        item.shift,
+                        item.machine_no,
+                        item.product_name,
+
+                        item.total_time,
+                        item.actual_time,
+                        item.deduction_time,
+
+                        item.standard_output,
+                        item.actual_output,
+
+                        item.tt_ok,
+                        item.tt_ng,
+
+                        item.note,
+
+                        "approved",
+
+                        manager_id
+
+                    ],
 
 
 
-                    if(completed===rows.length){
+                    (err)=>{
 
 
-                        db.commit(err=>{
+                        if(err){
+
+                            return connection.rollback(()=>{
+
+                                reject(err);
+
+                            });
+
+                        }
+
+
+
+                        connection.query(
+
+                        `
+                        DELETE FROM production_reports_temp
+
+                        WHERE id=?
+
+                        `,
+
+                        [item.id],
+
+
+                        err=>{
 
 
                             if(err){
 
-                                return db.rollback(()=>{
+                                return connection.rollback(()=>{
+
                                     reject(err);
+
                                 });
 
                             }
 
 
-                            resolve({
-                                message:
-                                "Duyệt thành công",
-                                count:completed
-                            });
+
+                            completed++;
+
+
+
+                            if(completed===rows.length){
+
+
+                                connection.commit(err=>{
+
+
+                                    if(err){
+
+                                        return connection.rollback(()=>{
+
+                                            reject(err);
+
+                                        });
+
+                                    }
+
+
+                                    connection.release();
+
+
+
+                                    resolve({
+
+                                        message:"Duyệt thành công",
+
+                                        count:completed
+
+                                    });
+
+
+                                });
+
+
+                            }
+
 
 
                         });
 
 
-                    }
-
+                    });
 
 
                 });
@@ -964,16 +982,22 @@ db.beginTransaction(err=>{
             });
 
 
-
         });
 
 
 
-    });
+    }
+    catch(err){
 
 
+        if(connection)
+            connection.release();
 
-});
+
+        reject(err);
+
+
+    }
 
 
 });
