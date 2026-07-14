@@ -1152,6 +1152,12 @@ value={item.key}
                     onChange={handleChange}
 
                 />
+                <NumberField
+    label="TT NG"
+    name="ttNg"
+    value={form.ttNg}
+    onChange={()=>{}}
+/>
 
 
 
