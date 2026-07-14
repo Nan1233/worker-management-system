@@ -358,8 +358,7 @@ getByWorker(worker_id){
 // MANAGER XEM CHỜ DUYỆT
 // =====================================================
 
-getPending(){
-
+getPending(manager_id){
 
 return new Promise((resolve,reject)=>{
 
@@ -383,27 +382,39 @@ FROM production_reports_temp pr
 
 
 JOIN workers w
-
 ON pr.worker_id=w.id
 
 
 JOIN users u
-
 ON w.user_id=u.id
 
 
 JOIN processes p
-
 ON pr.process_id=p.id
 
 
-WHERE pr.status='pending'
+JOIN manager_processes mp
+ON mp.process_id=pr.process_id
+
+
+
+WHERE
+
+pr.status='pending'
+
+
+AND mp.manager_id=?
 
 
 ORDER BY pr.created_at ASC
 
 
 `,
+
+
+[
+manager_id
+],
 
 
 (err,rows)=>{
@@ -416,6 +427,7 @@ return reject(err);
 
 
 resolve(rows);
+
 
 
 });
@@ -436,8 +448,7 @@ resolve(rows);
 // MANAGER XEM ĐÃ DUYỆT
 // =====================================================
 
-getApproved(){
-
+getApproved(manager_id){
 
 return new Promise((resolve,reject)=>{
 
@@ -457,31 +468,48 @@ u.full_name,
 p.process_name
 
 
-FROM production_reports_temp pr
+FROM production_reports pr
 
 
 JOIN workers w
-
 ON pr.worker_id=w.id
 
 
 JOIN users u
-
 ON w.user_id=u.id
 
 
 JOIN processes p
-
 ON pr.process_id=p.id
 
 
-WHERE pr.status='approved'
+JOIN manager_processes mp
+ON mp.process_id=pr.process_id
+
+
+
+WHERE
+
+pr.status='approved'
+
+
+AND mp.manager_id=?
+
+
+AND pr.reviewed_by=?
 
 
 ORDER BY pr.approved_at DESC
 
 
 `,
+
+
+[
+manager_id,
+manager_id
+],
+
 
 
 (err,rows)=>{
@@ -494,6 +522,7 @@ return reject(err);
 
 
 resolve(rows);
+
 
 
 });
@@ -776,16 +805,29 @@ return new Promise(async(resolve,reject)=>{
             connection.query(
 
             `
-            SELECT *
+            SELECT temp.*
 
-            FROM production_reports_temp
+FROM production_reports_temp temp
 
-            WHERE DATE(work_date)=?
 
-            AND status='pending'
+JOIN manager_processes mp
+
+ON mp.process_id=temp.process_id
+
+
+WHERE DATE(temp.work_date)=?
+
+
+AND temp.status='pending'
+
+
+AND mp.manager_id=?
             `,
 
-            [date],
+            [
+ date,
+ manager_id
+],
 
 
             (err,rows)=>{

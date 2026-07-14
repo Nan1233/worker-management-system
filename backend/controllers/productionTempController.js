@@ -132,8 +132,9 @@ exports.getPendingReports = async(req,res)=>{
 
 
         const data =
-        await ProductionTemp.getPending();
-
+        await ProductionTemp.getPending(
+            req.user.id
+        );
 
 
         res.json({
@@ -145,8 +146,11 @@ exports.getPendingReports = async(req,res)=>{
         });
 
 
+    }
+    catch(err){
 
-    }catch(err){
+
+        console.log(err);
 
 
         res.status(500).json({
@@ -178,8 +182,9 @@ exports.getApprovedReports = async(req,res)=>{
 
 
         const data =
-        await ProductionTemp.getApproved();
-
+        await ProductionTemp.getApproved(
+            req.user.id
+        );
 
 
         res.json({
@@ -191,8 +196,11 @@ exports.getApprovedReports = async(req,res)=>{
         });
 
 
+    }
+    catch(err){
 
-    }catch(err){
+
+        console.log(err);
 
 
         res.status(500).json({
