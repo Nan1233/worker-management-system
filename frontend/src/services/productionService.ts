@@ -7,9 +7,9 @@ import type {
 
 
 
-// ======================================
-// WORKER TẠO BÁO CÁO CHỜ DUYỆT
-// ======================================
+// =====================================================
+// WORKER TẠO BÁO CÁO TEMP
+// =====================================================
 
 export const createTempReport = async(
 
@@ -38,11 +38,9 @@ export const createTempReport = async(
 
 
 
-
-
-// ======================================
-// MANAGER LẤY DANH SÁCH NGÀY CÓ BÁO CÁO
-// ======================================
+// =====================================================
+// MANAGER LẤY NGÀY CÓ BÁO CÁO CHỜ DUYỆT
+// =====================================================
 
 export const getTempDates = async()=>{
 
@@ -54,7 +52,7 @@ export const getTempDates = async()=>{
     );
 
 
-    return res.data.data || [];
+    return res.data.data || res.data || [];
 
 
 };
@@ -65,11 +63,9 @@ export const getTempDates = async()=>{
 
 
 
-
-
-// ======================================
-// MANAGER XEM BÁO CÁO THEO NGÀY
-// ======================================
+// =====================================================
+// MANAGER XEM TEMP THEO NGÀY
+// =====================================================
 
 export const getTempReportsByDate = async(
 
@@ -85,7 +81,7 @@ export const getTempReportsByDate = async(
     );
 
 
-    return res.data.data || [];
+    return res.data.data || res.data || [];
 
 
 };
@@ -96,11 +92,9 @@ export const getTempReportsByDate = async(
 
 
 
-
-
-// ======================================
-// MANAGER DUYỆT TOÀN BỘ NGÀY
-// ======================================
+// =====================================================
+// DUYỆT THEO NGÀY
+// =====================================================
 
 export const approveTempByDate = async(
 
@@ -133,11 +127,9 @@ export const approveTempByDate = async(
 
 
 
-
-
-// ======================================
-// MANAGER XEM CHI TIẾT TEMP
-// ======================================
+// =====================================================
+// CHI TIẾT TEMP
+// =====================================================
 
 export const getTempReportById = async(
 
@@ -153,7 +145,7 @@ export const getTempReportById = async(
     );
 
 
-    return res.data.data;
+    return res.data.data || res.data;
 
 
 };
@@ -164,11 +156,9 @@ export const getTempReportById = async(
 
 
 
-
-
-// ======================================
-// WORKER XEM BÁO CÁO CỦA MÌNH
-// ======================================
+// =====================================================
+// WORKER XEM LỊCH SỬ TEMP
+// =====================================================
 
 export const getMyTempReports = async()=>{
 
@@ -180,7 +170,7 @@ export const getMyTempReports = async()=>{
     );
 
 
-    return res.data.data || [];
+    return res.data.data || res.data || [];
 
 
 };
@@ -191,11 +181,59 @@ export const getMyTempReports = async()=>{
 
 
 
+// =====================================================
+// MANAGER XEM CHỜ DUYỆT
+// =====================================================
+
+export const getPendingReports = async()=>{
 
 
-// ======================================
-// DỮ LIỆU ĐÃ DUYỆT
-// ======================================
+    const res = await api.get(
+
+        "/production-temp/pending"
+
+    );
+
+
+    return res.data.data || res.data || [];
+
+
+};
+
+
+
+
+
+
+
+// =====================================================
+// MANAGER XEM ĐÃ DUYỆT
+// =====================================================
+
+export const getApprovedReports = async()=>{
+
+
+    const res = await api.get(
+
+        "/production-temp/approved"
+
+    );
+
+
+    return res.data.data || res.data || [];
+
+
+};
+
+
+
+
+
+
+
+// =====================================================
+// LẤY BÁO CÁO ĐÃ DUYỆT
+// =====================================================
 
 export const getReports = async():
 
@@ -209,7 +247,7 @@ Promise<ProductionReport[]>=>{
     );
 
 
-    return res.data.data || [];
+    return res.data.data || res.data || [];
 
 
 };
@@ -220,11 +258,9 @@ Promise<ProductionReport[]>=>{
 
 
 
-
-
-// ======================================
-// CHI TIẾT BÁO CÁO ĐÃ DUYỆT
-// ======================================
+// =====================================================
+// CHI TIẾT BÁO CÁO
+// =====================================================
 
 export const getReportById = async(
 
@@ -240,7 +276,7 @@ export const getReportById = async(
     );
 
 
-    return res.data.data;
+    return res.data.data || res.data;
 
 
 };
@@ -251,11 +287,9 @@ export const getReportById = async(
 
 
 
-
-
-// ======================================
-// UPDATE BÁO CÁO ĐÃ DUYỆT
-// ======================================
+// =====================================================
+// UPDATE
+// =====================================================
 
 export const updateReport = async(
 
@@ -286,11 +320,9 @@ export const updateReport = async(
 
 
 
-
-
-// ======================================
+// =====================================================
 // DELETE
-// ======================================
+// =====================================================
 
 export const deleteReport = async(
 
@@ -317,11 +349,10 @@ export const deleteReport = async(
 
 
 
+// =====================================================
+// EXPORT EXCEL TEMP / GIA CÔNG
+// =====================================================
 
-
-// ======================================
-// EXPORT EXCEL GIA CÔNG
-// ======================================
 export const exportProductionExcel = async(
 
     date:string
@@ -343,91 +374,13 @@ export const exportProductionExcel = async(
 
 
 
+    downloadExcel(
 
-    const blob = new Blob(
+        res.data,
 
-        [
-
-            res.data
-
-        ],
-
-        {
-
-            type:
-
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-
-        }
+        `BaoCaoGiaCong_${date}.xlsx`
 
     );
-
-
-
-
-    const url =
-
-        window.URL.createObjectURL(blob);
-
-
-
-
-    const link =
-
-        document.createElement("a");
-
-
-
-
-    link.href=url;
-
-
-
-
-    link.download =
-
-        `BaoCaoGiaCong_${date}.xlsx`;
-
-
-
-
-    document.body.appendChild(link);
-
-
-
-
-    link.click();
-
-
-
-
-    link.remove();
-
-
-
-
-    window.URL.revokeObjectURL(url);
-
-
-};
-
-// ======================================
-// MANAGER LẤY BÁO CÁO CHƯA DUYỆT
-// ======================================
-
-export const getPendingReports = async():
-
-Promise<ProductionReport[]>=>{
-
-
-    const res = await api.get(
-
-        "/production-temp/pending"
-
-    );
-
-
-    return res.data.data || [];
 
 
 };
@@ -435,33 +388,12 @@ Promise<ProductionReport[]>=>{
 
 
 
-// ======================================
-// MANAGER LẤY BÁO CÁO ĐÃ DUYỆT
-// ======================================
-
-export const getApprovedReports = async():
-
-Promise<ProductionReport[]>=>{
-
-
-    const res = await api.get(
-
-        "/production-temp/approved"
-
-    );
-
-
-    return res.data.data || [];
-
-
-};
 
 
 
-
-// ======================================
-// LẤY DANH SÁCH NGÀY BÁO CÁO ĐÃ DUYỆT
-// ======================================
+// =====================================================
+// LẤY NGÀY ĐÃ DUYỆT
+// =====================================================
 
 export const getApprovedDates = async()=>{
 
@@ -473,7 +405,7 @@ export const getApprovedDates = async()=>{
     );
 
 
-    return res.data.data || [];
+    return res.data.data || res.data || [];
 
 
 };
@@ -484,9 +416,9 @@ export const getApprovedDates = async()=>{
 
 
 
-// ======================================
-// LẤY BÁO CÁO ĐÃ DUYỆT THEO NGÀY
-// ======================================
+// =====================================================
+// BÁO CÁO ĐÃ DUYỆT THEO NGÀY
+// =====================================================
 
 export const getApprovedReportsByDate = async(
 
@@ -502,7 +434,7 @@ export const getApprovedReportsByDate = async(
     );
 
 
-    return res.data.data || [];
+    return res.data.data || res.data || [];
 
 
 };
@@ -513,9 +445,9 @@ export const getApprovedReportsByDate = async(
 
 
 
-// ======================================
-// EXPORT EXCEL ĐÃ DUYỆT
-// ======================================
+// =====================================================
+// EXPORT ĐÃ DUYỆT
+// =====================================================
 
 export const exportApprovedExcel = async(
 
@@ -538,13 +470,41 @@ export const exportApprovedExcel = async(
 
 
 
+    downloadExcel(
+
+        res.data,
+
+        `BaoCaoDaDuyet_${date}.xlsx`
+
+    );
+
+
+};
+
+
+
+
+
+
+
+// =====================================================
+// DOWNLOAD FILE EXCEL
+// =====================================================
+
+const downloadExcel = (
+
+    data:any,
+
+    filename:string
+
+)=>{
 
 
     const blob = new Blob(
 
         [
 
-            res.data
+            data
 
         ],
 
@@ -560,13 +520,9 @@ export const exportApprovedExcel = async(
 
 
 
-
-
     const url =
 
         window.URL.createObjectURL(blob);
-
-
 
 
 
@@ -576,18 +532,10 @@ export const exportApprovedExcel = async(
 
 
 
-
-
     link.href=url;
 
 
-
-
-    link.download =
-
-        `BaoCaoDaDuyet_${date}.xlsx`;
-
-
+    link.download=filename;
 
 
 
@@ -595,11 +543,7 @@ export const exportApprovedExcel = async(
 
 
 
-
-
     link.click();
-
-
 
 
 
@@ -607,10 +551,7 @@ export const exportApprovedExcel = async(
 
 
 
-
-
     window.URL.revokeObjectURL(url);
-
 
 
 };

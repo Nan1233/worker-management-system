@@ -1,84 +1,63 @@
-const ProductionTemp = require("../models/productionTempModel");
-
-const workerModel = require("../models/workerModel");
+const ProductionTemp = require("../models/ProductionTemp");
 
 
 
-// ======================================
-// WORKER TẠO BÁO CÁO CHỜ DUYỆT
-// ======================================
+// =====================================================
+// WORKER TẠO BÁO CÁO TEMP
+// POST /api/production-temp
+// =====================================================
 
 exports.createTempReport = async(req,res)=>{
 
     try{
 
-        workerModel.getWorkerByUserId(
 
-            req.user.id,
+        const data = {
 
-            async(err,result)=>{
+            ...req.body,
 
+            worker_id:req.user.worker_id
 
-                if(err){
-
-                    return res.status(500).json({
-
-                        success:false,
-
-                        message:err.message
-
-                    });
-
-                }
+        };
 
 
 
-                if(result.length===0){
-
-                    return res.status(404).json({
-
-                        success:false,
-
-                        message:"Không tìm thấy công nhân"
-
-                    });
-
-                }
+        const tempId =
+            await ProductionTemp.create(data);
 
 
 
-                const worker_id = result[0].id;
-
-
-
-                await ProductionTemp.create({
-
-                    ...req.body,
-
-                    worker_id,
-
-                    status:"pending"
-
-                });
-
-
-
-                res.status(201).json({
-
-                    success:true,
-
-                    message:"Đã gửi báo cáo chờ duyệt"
-
-                });
-
-
-            }
-
+        await ProductionTemp.createDefects(
+            tempId,
+            req.body.defects
         );
 
 
-    }
-    catch(err){
+
+        await ProductionTemp.createDeductions(
+            tempId,
+            req.body.deductions
+        );
+
+
+
+        res.json({
+
+            success:true,
+
+            message:"Tạo báo cáo thành công",
+
+            id:tempId
+
+        });
+
+
+
+    }catch(err){
+
+
+        console.error(err);
+
 
         res.status(500).json({
 
@@ -88,6 +67,7 @@ exports.createTempReport = async(req,res)=>{
 
         });
 
+
     }
 
 };
@@ -96,16 +76,22 @@ exports.createTempReport = async(req,res)=>{
 
 
 
-// ======================================
-// MANAGER LẤY DANH SÁCH NGÀY
-// ======================================
 
-exports.getTempDates = async(req,res)=>{
+
+// =====================================================
+// WORKER XEM LỊCH SỬ
+// GET /api/production-temp/my
+// =====================================================
+
+exports.getMyTempReports = async(req,res)=>{
 
     try{
 
+
         const data =
-            await ProductionTemp.getDates();
+        await ProductionTemp.getByWorker(
+            req.user.worker_id
+        );
 
 
 
@@ -118,8 +104,12 @@ exports.getTempDates = async(req,res)=>{
         });
 
 
-    }
-    catch(err){
+
+    }catch(err){
+
+
+        console.error(err);
+
 
         res.status(500).json({
 
@@ -129,6 +119,7 @@ exports.getTempDates = async(req,res)=>{
 
         });
 
+
     }
 
 };
@@ -137,35 +128,19 @@ exports.getTempDates = async(req,res)=>{
 
 
 
-// ======================================
-// MANAGER XEM BÁO CÁO THEO NGÀY
-// ======================================
 
-exports.getTempReportsByDate = async(req,res)=>{
+
+// =====================================================
+// MANAGER XEM CHỜ DUYỆT
+// =====================================================
+
+exports.getPendingReports = async(req,res)=>{
 
     try{
 
 
-        const {date} = req.query;
-
-
-
-        if(!date){
-
-            return res.status(400).json({
-
-                success:false,
-
-                message:"Thiếu ngày"
-
-            });
-
-        }
-
-
-
-        const reports =
-            await ProductionTemp.getByDate(date);
+        const data =
+        await ProductionTemp.getPending();
 
 
 
@@ -173,13 +148,14 @@ exports.getTempReportsByDate = async(req,res)=>{
 
             success:true,
 
-            data:reports
+            data
 
         });
 
 
-    }
-    catch(err){
+
+    }catch(err){
+
 
         res.status(500).json({
 
@@ -189,6 +165,7 @@ exports.getTempReportsByDate = async(req,res)=>{
 
         });
 
+
     }
 
 };
@@ -197,26 +174,112 @@ exports.getTempReportsByDate = async(req,res)=>{
 
 
 
-// ======================================
-// DUYỆT TOÀN BỘ NGÀY
-// TEMP -> PRODUCTION
-// ======================================
 
-exports.approveTempByDate = async(req,res)=>{
+
+// =====================================================
+// MANAGER XEM ĐÃ DUYỆT
+// =====================================================
+
+exports.getApprovedReports = async(req,res)=>{
 
     try{
 
 
-        const {date} = req.body;
+        const data =
+        await ProductionTemp.getApproved();
 
 
 
-        await ProductionTemp.approveByDate(
+        res.json({
 
-            date,
+            success:true,
 
-            req.user.id
+            data
 
+        });
+
+
+
+    }catch(err){
+
+
+        res.status(500).json({
+
+            success:false,
+
+            message:err.message
+
+        });
+
+
+    }
+
+};
+
+
+
+
+
+
+
+// =====================================================
+// LẤY DANH SÁCH NGÀY
+// =====================================================
+
+exports.getTempDates = async(req,res)=>{
+
+    try{
+
+
+        const data =
+        await ProductionTemp.getDates();
+
+
+
+        res.json({
+
+            success:true,
+
+            data
+
+        });
+
+
+
+    }catch(err){
+
+
+        res.status(500).json({
+
+            success:false,
+
+            message:err.message
+
+        });
+
+
+    }
+
+};
+
+
+
+
+
+
+
+// =====================================================
+// XEM THEO NGÀY
+// =====================================================
+
+exports.getTempReportsByDate = async(req,res)=>{
+
+    try{
+
+
+        const data =
+        await ProductionTemp.getByDate(
+            req.query.date
         );
 
 
@@ -225,13 +288,14 @@ exports.approveTempByDate = async(req,res)=>{
 
             success:true,
 
-            message:"Đã duyệt toàn bộ báo cáo ngày "+date
+            data
 
         });
 
 
-    }
-    catch(err){
+
+    }catch(err){
+
 
         res.status(500).json({
 
@@ -241,6 +305,7 @@ exports.approveTempByDate = async(req,res)=>{
 
         });
 
+
     }
 
 };
@@ -249,21 +314,25 @@ exports.approveTempByDate = async(req,res)=>{
 
 
 
-// ======================================
-// CHI TIẾT BÁO CÁO
-// ======================================
 
-exports.getTempReportById = async(req,res)=>{
+
+// =====================================================
+// CHI TIẾT
+// =====================================================
+
+exports.getTempReportDetail = async(req,res)=>{
 
     try{
 
 
-        const report =
-            await ProductionTemp.getById(req.params.id);
+        const data =
+        await ProductionTemp.getDetail(
+            req.params.id
+        );
 
 
 
-        if(!report){
+        if(!data){
 
             return res.status(404).json({
 
@@ -281,13 +350,14 @@ exports.getTempReportById = async(req,res)=>{
 
             success:true,
 
-            data:report
+            data
 
         });
 
 
-    }
-    catch(err){
+
+    }catch(err){
+
 
         res.status(500).json({
 
@@ -297,6 +367,7 @@ exports.getTempReportById = async(req,res)=>{
 
         });
 
+
     }
 
 };
@@ -305,119 +376,63 @@ exports.getTempReportById = async(req,res)=>{
 
 
 
-// ======================================
-// WORKER XEM LỊCH SỬ TEMP
-// ======================================
 
-exports.getMyTempReports = async(req,res)=>{
+
+// =====================================================
+// DUYỆT THEO NGÀY
+// =====================================================
+
+exports.approveTempByDate = async(req,res)=>{
 
     try{
 
 
-        workerModel.getWorkerByUserId(
-
-            req.user.id,
-
-
-            async(err,result)=>{
-
-
-                if(err){
-
-                    return res.status(500).json({
-
-                        success:false,
-
-                        message:err.message
-
-                    });
-
-                }
+        const {
+            date
+        } = req.body;
 
 
 
-                if(result.length===0){
+        if(!date){
 
-                    return res.status(404).json({
+            return res.status(400).json({
 
-                        success:false,
+                success:false,
 
-                        message:"Không tìm thấy công nhân"
+                message:"Thiếu ngày duyệt"
 
-                    });
+            });
 
-                }
-
-
-
-                const worker_id = result[0].id;
+        }
 
 
 
-                const reports =
-                    await ProductionTemp.getByWorker(worker_id);
+        await ProductionTemp.approveByDate(
 
+            date,
 
-
-                res.json({
-
-                    success:true,
-
-                    data:reports
-
-                });
-
-
-            }
+            req.user.id
 
         );
 
 
-    }
-    catch(err){
-
-        res.status(500).json({
-
-            success:false,
-
-            message:err.message
-
-        });
-
-    }
-
-};
-
-
-
-
-
-// ======================================
-// MANAGER XEM BÁO CÁO CHƯA DUYỆT
-// GET /production-temp/pending
-// ======================================
-
-exports.getPendingReports = async(req,res)=>{
-
-    try{
-
-
-        const reports =
-            await ProductionTemp.getPending();
-
-
 
         res.json({
 
             success:true,
 
-            data:reports
+            message:"Duyệt báo cáo thành công"
 
         });
 
 
-    }
-    catch(err){
+
+    }catch(err){
+
+
+        console.error(err);
+
+
 
         res.status(500).json({
 
@@ -427,48 +442,6 @@ exports.getPendingReports = async(req,res)=>{
 
         });
 
-    }
-
-};
-
-
-
-
-
-// ======================================
-// MANAGER XEM BÁO CÁO ĐÃ DUYỆT
-// GET /production-temp/approved
-// ======================================
-
-exports.getApprovedReports = async(req,res)=>{
-
-    try{
-
-
-        const reports =
-            await ProductionTemp.getApproved();
-
-
-
-        res.json({
-
-            success:true,
-
-            data:reports
-
-        });
-
-
-    }
-    catch(err){
-
-        res.status(500).json({
-
-            success:false,
-
-            message:err.message
-
-        });
 
     }
 

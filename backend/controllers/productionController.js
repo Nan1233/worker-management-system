@@ -1,94 +1,65 @@
-const Production = require("../models/productionModel");
-
-
-
-// =======================
-// GET ALL REPORTS
-// =======================
-
-exports.getAllReports = async (req,res)=>{
-
-
-    try{
-
-
-        const reports =
-            await Production.getAll();
-
-
-
-        res.json({
-
-            success:true,
-
-            data:reports
-
-        });
-
-
-
-    }
-    catch(err){
-
-
-        res.status(500).json({
-
-            success:false,
-
-            message:err.message
-
-        });
-
-
-    }
-
-
-};
+const db = require("../config/db");
 
 
 
 
+// =====================================================
+// LẤY TẤT CẢ BÁO CÁO
+// GET /api/production
+// =====================================================
+
+exports.getAllReports = (req,res)=>{
 
 
-// =======================
-// GET DANH SÁCH NGÀY
-// =======================
+const sql=`
 
-exports.getReportDates = async(req,res)=>{
+SELECT
 
+pr.*,
 
-    try{
+p.process_name,
 
+w.worker_code,
 
-        const dates =
-            await Production.getDates();
-
+u.full_name
 
 
-        res.json({
-
-            success:true,
-
-            data:dates
-
-        });
+FROM production_reports pr
 
 
-
-    }
-    catch(err){
-
-
-        res.status(500).json({
-
-            success:false,
-
-            message:err.message
-
-        });
+JOIN workers w
+ON pr.worker_id=w.id
 
 
-    }
+JOIN users u
+ON w.user_id=u.id
+
+
+JOIN processes p
+ON pr.process_id=p.id
+
+
+ORDER BY pr.created_at DESC
+
+
+`;
+
+
+
+db.query(sql,(err,result)=>{
+
+
+if(err)
+
+return res.status(500).json(err);
+
+
+
+res.json(result);
+
+
+
+});
 
 
 };
@@ -98,67 +69,41 @@ exports.getReportDates = async(req,res)=>{
 
 
 
-// =======================
-// GET REPORT THEO NGÀY
-// =======================
-
-exports.getReportsByDate = async(req,res)=>{
 
 
-    try{
+// =====================================================
+// LẤY NGÀY
+// =====================================================
+
+exports.getReportDates=(req,res)=>{
 
 
-        const {
-            date
-        } = req.query;
+const sql=`
 
+SELECT DISTINCT work_date
 
+FROM production_reports
 
-        if(!date){
+ORDER BY work_date DESC
 
-
-            return res.status(400).json({
-
-                success:false,
-
-                message:"Thiếu ngày lọc"
-
-            });
-
-
-        }
+`;
 
 
 
-        const reports =
-            await Production.getByDate(date);
+db.query(sql,(err,result)=>{
+
+
+if(err)
+
+return res.status(500).json(err);
 
 
 
-        res.json({
-
-            success:true,
-
-            data:reports
-
-        });
+res.json(result);
 
 
 
-    }
-    catch(err){
-
-
-        res.status(500).json({
-
-            success:false,
-
-            message:err.message
-
-        });
-
-
-    }
+});
 
 
 };
@@ -168,63 +113,72 @@ exports.getReportsByDate = async(req,res)=>{
 
 
 
-// =======================
-// GET DETAIL
-// =======================
 
-exports.getReportById = async(req,res)=>{
+// =====================================================
+// LẤY THEO NGÀY
+// =====================================================
 
-
-    try{
+exports.getReportsByDate=(req,res)=>{
 
 
-        const report =
-            await Production.getById(
-                req.params.id
-            );
+const sql=`
+
+SELECT
+
+pr.*,
+
+p.process_name,
+
+w.worker_code,
+
+u.full_name
+
+
+FROM production_reports pr
+
+
+JOIN workers w
+ON pr.worker_id=w.id
+
+
+JOIN users u
+ON w.user_id=u.id
+
+
+JOIN processes p
+ON pr.process_id=p.id
+
+
+WHERE pr.work_date=?
+
+
+ORDER BY pr.created_at DESC
+
+
+`;
 
 
 
-        if(!report){
+db.query(
+
+sql,
+
+[req.query.date],
 
 
-            return res.status(404).json({
-
-                success:false,
-
-                message:"Không tìm thấy báo cáo"
-
-            });
+(err,result)=>{
 
 
-        }
+if(err)
 
-
-
-        res.json({
-
-            success:true,
-
-            data:report
-
-        });
+return res.status(500).json(err);
 
 
 
-    }
-    catch(err){
+res.json(result);
 
 
-        res.status(500).json({
-
-            success:false,
-
-            message:err.message
-
-        });
-
-
-    }
+});
 
 
 };
@@ -234,50 +188,154 @@ exports.getReportById = async(req,res)=>{
 
 
 
-// =======================
+
+
+// =====================================================
+// CHI TIẾT
+// =====================================================
+
+exports.getReportById=(req,res)=>{
+
+
+const sql=`
+
+SELECT
+
+pr.*,
+
+p.process_name,
+
+w.worker_code,
+
+u.full_name
+
+
+FROM production_reports pr
+
+
+JOIN workers w
+ON pr.worker_id=w.id
+
+
+JOIN users u
+ON w.user_id=u.id
+
+
+JOIN processes p
+ON pr.process_id=p.id
+
+
+WHERE pr.id=?
+
+
+`;
+
+
+
+db.query(
+
+sql,
+
+[req.params.id],
+
+
+(err,result)=>{
+
+
+if(err)
+
+return res.status(500).json(err);
+
+
+
+res.json(result[0]);
+
+
+
+});
+
+
+};
+
+
+
+
+
+
+
+// =====================================================
 // UPDATE
-// =======================
+// =====================================================
 
-exports.updateReport = async(req,res)=>{
-
-
-    try{
+exports.updateReport=(req,res)=>{
 
 
-        await Production.update(
+const {
 
-            req.params.id,
+machine_no,
 
-            req.body
+product_name,
 
-        );
+note
 
-
-
-        res.json({
-
-            success:true,
-
-            message:"Cập nhật thành công"
-
-        });
+}=req.body;
 
 
 
-    }
-    catch(err){
+const sql=`
+
+UPDATE production_reports
+
+SET
+
+machine_no=?,
+
+product_name=?,
+
+note=?
 
 
-        res.status(500).json({
-
-            success:false,
-
-            message:err.message
-
-        });
+WHERE id=?
 
 
-    }
+`;
+
+
+
+db.query(
+
+sql,
+
+[
+
+machine_no,
+
+product_name,
+
+note,
+
+req.params.id
+
+],
+
+
+(err)=>{
+
+
+if(err)
+
+return res.status(500).json(err);
+
+
+
+res.json({
+
+message:"Update thành công"
+
+});
+
+
+});
 
 
 };
@@ -288,46 +346,44 @@ exports.updateReport = async(req,res)=>{
 
 
 
-// =======================
+
+// =====================================================
 // DELETE
-// =======================
+// =====================================================
 
-exports.deleteReport = async(req,res)=>{
-
-
-    try{
+exports.deleteReport=(req,res)=>{
 
 
-        await Production.delete(
-            req.params.id
-        );
+db.query(
+
+`
+
+DELETE FROM production_reports
+
+WHERE id=?
+
+`,
+
+[req.params.id],
+
+
+(err)=>{
+
+
+if(err)
+
+return res.status(500).json(err);
 
 
 
-        res.json({
+res.json({
 
-            success:true,
+message:"Xóa thành công"
 
-            message:"Xóa thành công"
-
-        });
+});
 
 
-
-    }
-    catch(err){
-
-
-        res.status(500).json({
-
-            success:false,
-
-            message:err.message
-
-        });
-
-
-    }
+});
 
 
 };

@@ -3,22 +3,44 @@ const cors = require("cors");
 require("dotenv").config();
 
 
+// ======================
+// DATABASE
+// ======================
+
 require("./config/db");
 
 
 
+// ======================
+// ROUTES
+// ======================
+
 const authRoutes = require("./routes/authRoutes");
+
 const userRoutes = require("./routes/userRoutes");
+
 const workerRoutes = require("./routes/workerRoutes");
+
 const productionRoutes = require("./routes/productionRoutes");
+
 const productionTempRoutes = require("./routes/productionTempRoutes");
+
 const managerRoutes = require("./routes/managerRoutes");
+
 const reportExportRoutes = require("./routes/reportExportRoutes");
 
+const defectRoutes = require("./routes/defectRoutes");
 
+const deductionRoutes = require("./routes/deductionRoutes");
+
+
+
+
+// ======================
+// APP
+// ======================
 
 const app = express();
-
 
 
 
@@ -42,9 +64,13 @@ const corsOptions = {
     methods:[
 
         "GET",
+
         "POST",
+
         "PUT",
+
         "DELETE",
+
         "OPTIONS"
 
     ],
@@ -53,6 +79,7 @@ const corsOptions = {
     allowedHeaders:[
 
         "Content-Type",
+
         "Authorization"
 
     ],
@@ -67,78 +94,154 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
+
 app.use(express.json());
 
 
 
 
 
-
-
 // ======================
-// ROUTES
+// API ROUTES
 // ======================
 
+
+
+// AUTH
 
 app.use(
+
     "/api/auth",
+
     authRoutes
+
 );
 
 
 
+
+// USERS
+
 app.use(
+
     "/api/users",
+
     userRoutes
+
 );
 
 
 
+
+// WORKERS
+
 app.use(
+
     "/api/workers",
+
     workerRoutes
+
 );
 
 
 
+
+// PRODUCTION
+
 app.use(
+
     "/api/production",
+
     productionRoutes
+
 );
 
 
 
+
+// TEMP REPORT
+// worker gửi
+// manager duyệt
+
 app.use(
+
     "/api/production-temp",
+
     productionTempRoutes
+
 );
 
 
+
+
+// MANAGER
 
 app.use(
+
     "/api/manager",
+
     managerRoutes
+
 );
+
 
 
 
 // EXPORT EXCEL
 
 app.use(
+
     "/api/reports",
+
     reportExportRoutes
+
+);
+
+
+
+
+// DEFECT NG
+
+// GET /api/processes/:id/defects
+
+app.use(
+
+    "/api",
+
+    defectRoutes
+
+);
+
+
+
+
+// DEDUCTION
+
+// GET /api/processes/:id/deductions
+
+app.use(
+
+    "/api",
+
+    deductionRoutes
+
 );
 
 
 
 
 
+// ======================
+// TEST SERVER
+// ======================
 
 
 app.get("/",(req,res)=>{
 
 
     res.json({
+
+        success:true,
 
         message:"Backend is running..."
 
@@ -151,10 +254,34 @@ app.get("/",(req,res)=>{
 
 
 
+// ======================
+// ERROR 404
+// ======================
+
+app.use((req,res)=>{
 
 
-const PORT =
-process.env.PORT || 3000;
+    res.status(404).json({
+
+        success:false,
+
+        message:"API không tồn tại"
+
+    });
+
+
+});
+
+
+
+
+
+// ======================
+// START SERVER
+// ======================
+
+
+const PORT = process.env.PORT || 3000;
 
 
 

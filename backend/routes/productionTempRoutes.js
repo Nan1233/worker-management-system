@@ -13,7 +13,7 @@ const {
 
     approveTempByDate,
 
-    getTempReportById,
+    getTempReportDetail,
 
     getMyTempReports,
 
@@ -27,15 +27,13 @@ const {
 
 
 const verifyToken =
-    require("../middleware/authMiddleware");
+require("../middleware/authMiddleware");
 
 
 
 
 
-// ======================================
-// WORKER GỬI BÁO CÁO
-// ======================================
+// worker gửi
 
 router.post(
     "/",
@@ -45,82 +43,7 @@ router.post(
 
 
 
-
-
-// ======================================
-// MANAGER XEM BÁO CÁO CHƯA DUYỆT
-// ======================================
-
-router.get(
-    "/pending",
-    verifyToken,
-    getPendingReports
-);
-
-
-
-
-
-// ======================================
-// MANAGER XEM BÁO CÁO ĐÃ DUYỆT
-// ======================================
-
-router.get(
-    "/approved",
-    verifyToken,
-    getApprovedReports
-);
-
-
-
-
-
-// ======================================
-// MANAGER LẤY DANH SÁCH NGÀY
-// ======================================
-
-router.get(
-    "/dates",
-    verifyToken,
-    getTempDates
-);
-
-
-
-
-
-// ======================================
-// MANAGER XEM DỮ LIỆU THEO NGÀY
-// /production-temp/by-date?date=2026-04-01
-// ======================================
-
-router.get(
-    "/by-date",
-    verifyToken,
-    getTempReportsByDate
-);
-
-
-
-
-
-// ======================================
-// MANAGER DUYỆT TOÀN BỘ NGÀY
-// ======================================
-
-router.post(
-    "/approve-date",
-    verifyToken,
-    approveTempByDate
-);
-
-
-
-
-
-// ======================================
-// WORKER XEM LỊCH SỬ
-// ======================================
+// worker lịch sử
 
 router.get(
     "/my",
@@ -131,16 +54,67 @@ router.get(
 
 
 
+// manager pending
 
-// ======================================
-// XEM CHI TIẾT
-// LUÔN ĐỂ CUỐI CÙNG
-// ======================================
+router.get(
+    "/pending",
+    verifyToken,
+    getPendingReports
+);
+
+
+
+
+// manager approved
+
+router.get(
+    "/approved",
+    verifyToken,
+    getApprovedReports
+);
+
+
+
+
+// danh sách ngày
+
+router.get(
+    "/dates",
+    verifyToken,
+    getTempDates
+);
+
+
+
+
+// xem theo ngày
+
+router.get(
+    "/by-date",
+    verifyToken,
+    getTempReportsByDate
+);
+
+
+
+
+// duyệt theo ngày
+
+router.post(
+    "/approve-date",
+    verifyToken,
+    approveTempByDate
+);
+
+
+
+
+// chi tiết để cuối
 
 router.get(
     "/:id",
     verifyToken,
-    getTempReportById
+    getTempReportDetail
 );
 
 

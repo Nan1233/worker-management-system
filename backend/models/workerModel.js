@@ -2,33 +2,59 @@ const db = require("../config/db");
 
 
 
-const findAll = (callback) => {
+// ======================================
+// LẤY DANH SÁCH WORKER
+// ======================================
+
+const findAll = (callback)=>{
 
 
     const sql = `
 
-        SELECT 
+    SELECT
 
-            workers.id,
-            workers.worker_code,
-            workers.phone,
-            workers.department,
-            workers.status,
+        workers.id,
 
-            users.username,
-            users.full_name,
-            users.role
+        workers.worker_code,
 
-        FROM workers
+        workers.phone,
 
-        INNER JOIN users
+        workers.department,
 
-        ON workers.user_id = users.id
+        workers.status,
+
+
+        users.username,
+
+        users.full_name,
+
+        users.role
+
+
+    FROM workers
+
+
+    INNER JOIN users
+
+
+    ON workers.user_id = users.id
+
+
+    ORDER BY workers.id DESC
+
 
     `;
 
 
-    db.query(sql, callback);
+
+    db.query(
+
+        sql,
+
+        callback
+
+    );
+
 
 };
 
@@ -36,35 +62,59 @@ const findAll = (callback) => {
 
 
 
-const create = (worker, callback)=>{
 
 
-    const sql=`
 
-        INSERT INTO workers
 
-        (
-            user_id,
-            worker_code,
-            phone,
-            department
-        )
+// ======================================
+// TẠO WORKER
+// ======================================
 
-        VALUES (?,?,?,?)
+const create = (worker,callback)=>{
+
+
+    const sql = `
+
+
+    INSERT INTO workers
+
+    (
+
+        user_id,
+
+        worker_code,
+
+        phone,
+
+        department
+
+    )
+
+
+    VALUES (?,?,?,?)
+
 
     `;
+
 
 
     db.query(
 
         sql,
+
 
         [
+
             worker.user_id,
+
             worker.worker_code,
+
             worker.phone,
+
             worker.department
+
         ],
+
 
         callback
 
@@ -77,31 +127,70 @@ const create = (worker, callback)=>{
 
 
 
-// lấy worker theo tài khoản login
-
-const getWorkerByUserId = (user_id, callback)=>{
 
 
-    const sql=`
 
-        SELECT id
+
+// ======================================
+// LẤY WORKER THEO USER LOGIN
+// Dùng Promise cho async/await
+// ======================================
+
+const getWorkerByUserId = (user_id)=>{
+
+
+    return new Promise((resolve,reject)=>{
+
+
+        const sql = `
+
+
+        SELECT
+
+            id
+
 
         FROM workers
 
-        WHERE user_id = ?
 
-    `;
+        WHERE user_id=?
 
 
-    db.query(
+        `;
 
-        sql,
 
-        [user_id],
 
-        callback
+        db.query(
 
-    );
+            sql,
+
+            [
+
+                user_id
+
+            ],
+
+
+            (err,result)=>{
+
+
+                if(err){
+
+                    return reject(err);
+
+                }
+
+
+                resolve(result);
+
+
+            }
+
+
+        );
+
+
+    });
 
 
 };
@@ -110,12 +199,20 @@ const getWorkerByUserId = (user_id, callback)=>{
 
 
 
-module.exports={
+
+
+
+
+module.exports = {
+
 
     findAll,
 
+
     create,
 
+
     getWorkerByUserId
+
 
 };
