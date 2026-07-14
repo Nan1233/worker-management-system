@@ -1,47 +1,49 @@
 const jwt = require("jsonwebtoken");
 
-const verifyToken = (req, res, next) => {
 
-    const authHeader = req.headers.authorization;
+module.exports = (req,res,next)=>{
 
-    if (!authHeader) {
+
+    const token =
+        req.headers.authorization?.split(" ")[1];
+
+
+    if(!token){
+
         return res.status(401).json({
-            message: "Chưa có token"
+            message:"Không có token"
         });
+
     }
 
-    const parts = authHeader.split(" ");
 
-    if (parts.length !== 2 || parts[0] !== "Bearer") {
-        return res.status(401).json({
-            message: "Sai định dạng token"
-        });
-    }
 
-    const token = parts[1];
+    try{
 
-    try {
 
-        const decoded = jwt.verify(
-            token,
-            process.env.JWT_SECRET
-        );
+        const decoded =
+            jwt.verify(
+                token,
+                process.env.JWT_SECRET
+            );
+
 
         req.user = decoded;
 
+
         next();
 
-    } catch (error) {
 
-        console.log("JWT ERROR:", error.message);
-        console.log("JWT_SECRET hiện tại:", process.env.JWT_SECRET);
+    }
+    catch(err){
 
-        return res.status(403).json({
-            message: error.message
+
+        return res.status(401).json({
+            message:"Token không hợp lệ"
         });
+
 
     }
 
-};
 
-module.exports = verifyToken;
+};

@@ -2,15 +2,10 @@ const express = require("express");
 
 const router = express.Router();
 
-
-const {
-    verifyToken
-} = require("../middleware/authMiddleware");
-
+const authMiddleware = require("../middleware/authMiddleware");
 
 
 const {
-
     createTempReport,
 
     getTempDates,
@@ -27,98 +22,129 @@ const {
 
     getApprovedReports
 
-
 } = require("../controllers/productionTempController");
 
 
 
 
-
-
-// worker gửi
+// =====================================
+// WORKER GỬI BÁO CÁO TEMP
+// POST /api/temp-reports
+// =====================================
 
 router.post(
     "/",
-    verifyToken,
+    authMiddleware,
     createTempReport
 );
 
 
 
 
-// worker lịch sử
+
+// =====================================
+// WORKER XEM LỊCH SỬ
+// GET /api/temp-reports/my
+// =====================================
 
 router.get(
     "/my",
-    verifyToken,
+    authMiddleware,
     getMyTempReports
 );
 
 
 
 
-// manager pending
+
+
+// =====================================
+// MANAGER XEM CHỜ DUYỆT
+// =====================================
 
 router.get(
     "/pending",
-    verifyToken,
+    authMiddleware,
     getPendingReports
 );
 
 
 
 
-// manager approved
+
+
+// =====================================
+// MANAGER XEM ĐÃ DUYỆT
+// =====================================
 
 router.get(
     "/approved",
-    verifyToken,
+    authMiddleware,
     getApprovedReports
 );
 
 
 
 
-// danh sách ngày
+
+
+// =====================================
+// LẤY DANH SÁCH NGÀY
+// =====================================
 
 router.get(
     "/dates",
-    verifyToken,
+    authMiddleware,
     getTempDates
 );
 
 
 
 
-// xem theo ngày
+
+
+// =====================================
+// XEM BÁO CÁO THEO NGÀY
+// =====================================
 
 router.get(
     "/by-date",
-    verifyToken,
+    authMiddleware,
     getTempReportsByDate
 );
 
 
 
 
-// duyệt theo ngày
+
+
+// =====================================
+// DUYỆT THEO NGÀY
+// =====================================
 
 router.post(
     "/approve-date",
-    verifyToken,
+    authMiddleware,
     approveTempByDate
 );
 
 
 
 
-// chi tiết
+
+
+// =====================================
+// CHI TIẾT
+// phải để cuối vì có :id
+// =====================================
 
 router.get(
     "/:id",
-    verifyToken,
+    authMiddleware,
     getTempReportDetail
 );
+
+
 
 
 
