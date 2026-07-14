@@ -4,12 +4,10 @@ export interface ProductionReport {
     id?: number;
 
 
-
     worker_id?: number;
 
 
     process_id: number;
-
 
 
     work_date: string;
@@ -18,10 +16,7 @@ export interface ProductionReport {
     shift: string;
 
 
-
     machine_no: string;
-
-
 
 
 
@@ -35,12 +30,7 @@ export interface ProductionReport {
 
 
 
-
-
-
     product_name: string;
-
-
 
 
 
@@ -51,9 +41,6 @@ export interface ProductionReport {
 
 
 
-
-
-
     tt_ok: number;
 
 
@@ -61,16 +48,10 @@ export interface ProductionReport {
 
 
 
-
-
-
     kqd_dap_lai: number;
 
 
     kqd_tuot: number;
-
-
-
 
 
 
@@ -105,9 +86,6 @@ export interface ProductionReport {
 
 
 
-
-
-
     note: string;
 
 
@@ -117,10 +95,7 @@ export interface ProductionReport {
 
 
 
-
-
     // backend trả về
-
 
     worker_code?: string;
 
@@ -137,5 +112,14 @@ export interface ProductionReport {
 
     updated_at?: string;
 
-source?: "pending" | "approved";
+
+
+    // thời gian quản lý duyệt
+    approved_at?: string;
+
+
+
+    // nguồn dữ liệu
+    source?: "pending" | "approved";
+
 }

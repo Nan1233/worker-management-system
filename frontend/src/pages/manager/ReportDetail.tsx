@@ -1,13 +1,25 @@
-import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import {
+    useEffect,
+    useState
+} from "react";
 
 import {
-    getTempReportById
+    useNavigate,
+    useParams,
+    useSearchParams
+} from "react-router-dom";
+
+
+import {
+    getTempReportById,
+    getReportById
 } from "../../services/productionService";
+
 
 import type {
     ProductionReport
 } from "../../types/production";
+
 
 import "./ReportDetail.css";
 
@@ -16,17 +28,42 @@ import "./ReportDetail.css";
 function ReportDetail() {
 
 
-    const { id } = useParams();
+    const {
+        id
+    } = useParams();
+
+
 
     const navigate = useNavigate();
 
 
-    const [report,setReport] =
-        useState<ProductionReport | null>(null);
+
+    const [
+        searchParams
+    ] = useSearchParams();
 
 
-    const [loading,setLoading] =
-        useState(true);
+
+    const source =
+        searchParams.get("source");
+
+
+
+    const [
+        report,
+        setReport
+    ] = useState<ProductionReport | null>(null);
+
+
+
+    const [
+        loading,
+        setLoading
+    ] = useState(true);
+
+
+
+
 
 
 
@@ -39,27 +76,70 @@ function ReportDetail() {
             try{
 
 
-                if(!id) return;
+                if(!id)
+                    return;
 
 
-                const data =
+
+                let data;
+
+
+
+                // ============================
+                // BÁO CÁO ĐÃ DUYỆT
+                // production_reports
+                // ============================
+
+                if(source === "approved"){
+
+
+                    data =
+                    await getReportById(
+                        Number(id)
+                    );
+
+
+                }
+
+
+                // ============================
+                // BÁO CÁO CHƯA DUYỆT
+                // production_reports_temp
+                // ============================
+
+                else{
+
+
+                    data =
                     await getTempReportById(
                         Number(id)
                     );
 
 
+                }
+
+
+
                 setReport(data);
+
 
 
             }
             catch(err){
 
-                console.error(err);
+
+                console.error(
+                    "Load report error:",
+                    err
+                );
+
 
             }
             finally{
 
+
                 setLoading(false);
+
 
             }
 
@@ -67,27 +147,60 @@ function ReportDetail() {
         };
 
 
+
         loadReport();
 
 
-    },[id]);
+
+    },[
+        id,
+        source
+    ]);
+
+
+
+
+
 
 
 
 
     if(loading){
 
-        return <h2>Đang tải...</h2>;
+
+        return (
+
+            <h2>
+                Đang tải...
+            </h2>
+
+        );
+
 
     }
+
+
+
+
 
 
 
     if(!report){
 
-        return <h2>Không tìm thấy báo cáo</h2>;
+
+        return (
+
+            <h2>
+                Không tìm thấy báo cáo
+            </h2>
+
+        );
+
 
     }
+
+
+
 
 
 
@@ -95,6 +208,10 @@ function ReportDetail() {
     return (
 
         <div className="report-detail">
+
+
+
+
 
 
             <div className="detail-header">
@@ -105,16 +222,86 @@ function ReportDetail() {
                 </h1>
 
 
+
                 <button
-                    onClick={()=>
-                        navigate(-1)
-                    }
+
+                    onClick={()=>navigate(-1)}
+
                 >
+
                     Quay lại
+
                 </button>
 
 
             </div>
+
+
+
+
+
+
+
+
+
+            {
+                report.status === "approved" &&
+
+                <div className="detail-card">
+
+
+                    <h2>
+                        Trạng thái duyệt
+                    </h2>
+
+
+                    <p>
+
+                        <b>
+                            Trạng thái:
+                        </b>
+
+                        {" "}
+
+                        ✅ Đã duyệt
+
+                    </p>
+
+
+
+                    {
+                        report.approved_at &&
+
+                        <p>
+
+                            <b>
+                                Thời gian duyệt:
+                            </b>
+
+                            {" "}
+
+                            {
+                                new Date(
+                                    report.approved_at
+                                )
+                                .toLocaleString(
+                                    "vi-VN"
+                                )
+                            }
+
+                        </p>
+
+                    }
+
+
+                </div>
+
+            }
+
+
+
+
+
 
 
 
@@ -127,60 +314,112 @@ function ReportDetail() {
                 </h2>
 
 
+
                 <p>
-                    <b>Nhân viên:</b>
+
+                    <b>
+                        Nhân viên:
+                    </b>
+
                     {" "}
+
                     {report.full_name}
+
                     {" "}
+
                     ({report.worker_code})
+
                 </p>
 
 
+
+
                 <p>
-                    <b>Công đoạn:</b>
+
+                    <b>
+                        Công đoạn:
+                    </b>
+
                     {" "}
+
                     {report.process_name}
+
                 </p>
 
 
+
+
                 <p>
-                    <b>Ngày sản xuất:</b>
+
+                    <b>
+                        Ngày sản xuất:
+                    </b>
+
                     {" "}
+
                     {
-                    new Date(
-                        report.work_date
-                    )
-                    .toLocaleDateString(
-                        "vi-VN"
-                    )
+                        new Date(
+                            report.work_date
+                        )
+                        .toLocaleDateString(
+                            "vi-VN"
+                        )
                     }
+
                 </p>
 
 
+
+
                 <p>
-                    <b>Ca:</b>
+
+                    <b>
+                        Ca:
+                    </b>
+
                     {" "}
+
                     {report.shift}
+
                 </p>
 
 
+
+
                 <p>
-                    <b>Số máy:</b>
+
+                    <b>
+                        Số máy:
+                    </b>
+
                     {" "}
+
                     {report.machine_no}
+
                 </p>
+
+
 
 
                 <p>
-                    <b>Sản phẩm:</b>
+
+                    <b>
+                        Sản phẩm:
+                    </b>
+
                     {" "}
+
                     {report.product_name}
+
                 </p>
+
+
 
 
 
                 {
                     report.created_at &&
+
                     <p>
 
                         <b>
@@ -190,20 +429,25 @@ function ReportDetail() {
                         {" "}
 
                         {
-                        new Date(
-                            report.created_at
-                        )
-                        .toLocaleString(
-                            "vi-VN"
-                        )
+                            new Date(
+                                report.created_at
+                            )
+                            .toLocaleString(
+                                "vi-VN"
+                            )
                         }
 
                     </p>
+
                 }
 
 
 
             </div>
+
+
+
+
 
 
 
@@ -215,6 +459,7 @@ function ReportDetail() {
                 <h2>
                     Sản xuất
                 </h2>
+
 
 
                 <p>
@@ -245,8 +490,11 @@ function ReportDetail() {
                 </p>
 
 
-
             </div>
+
+
+
+
 
 
 
@@ -260,67 +508,97 @@ function ReportDetail() {
                 </h2>
 
 
+
                 <p>
-                    Dập lại: {report.kqd_dap_lai}
+                    Dập lại:
+                    {" "}
+                    {report.kqd_dap_lai}
                 </p>
 
 
                 <p>
-                    Tuột: {report.kqd_tuot}
+                    Tuột:
+                    {" "}
+                    {report.kqd_tuot}
                 </p>
 
 
                 <p>
-                    Vỡ do lồng: {report.vo_do_long}
+                    Vỡ do lồng:
+                    {" "}
+                    {report.vo_do_long}
                 </p>
 
 
                 <p>
-                    Xước do lồng: {report.xuoc_do_long}
+                    Xước do lồng:
+                    {" "}
+                    {report.xuoc_do_long}
                 </p>
 
 
                 <p>
-                    Cong gãy: {report.cong_gay}
+                    Cong gãy:
+                    {" "}
+                    {report.cong_gay}
                 </p>
 
 
                 <p>
-                    Xoay: {report.xoay}
+                    Xoay:
+                    {" "}
+                    {report.xoay}
                 </p>
 
 
                 <p>
-                    Không đứt: {report.khong_dut}
+                    Không đứt:
+                    {" "}
+                    {report.khong_dut}
                 </p>
 
 
                 <p>
-                    Bavia hụt: {report.bavia_hut}
+                    Bavia hụt:
+                    {" "}
+                    {report.bavia_hut}
                 </p>
 
 
                 <p>
-                    PPCM: {report.ppcm}
+                    PPCM:
+                    {" "}
+                    {report.ppcm}
                 </p>
 
 
                 <p>
-                    Lỗi cao su: {report.loi_cao_su}
+                    Lỗi cao su:
+                    {" "}
+                    {report.loi_cao_su}
                 </p>
 
 
                 <p>
-                    NG kích thước: {report.ng_kich_thuoc}
+                    NG kích thước:
+                    {" "}
+                    {report.ng_kich_thuoc}
                 </p>
 
 
                 <p>
-                    Cắt lẹm: {report.cat_lem}
+                    Cắt lẹm:
+                    {" "}
+                    {report.cat_lem}
                 </p>
+
 
 
             </div>
+
+
+
+
 
 
 
@@ -335,7 +613,12 @@ function ReportDetail() {
 
 
                 <p>
-                    {report.note || "Không có"}
+
+                    {
+                        report.note ||
+                        "Không có"
+                    }
+
                 </p>
 
 
@@ -343,11 +626,17 @@ function ReportDetail() {
 
 
 
+
+
+
+
         </div>
 
     );
 
+
 }
+
 
 
 export default ReportDetail;
