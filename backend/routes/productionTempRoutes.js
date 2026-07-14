@@ -46,9 +46,9 @@ router.post(
 // worker lịch sử
 
 router.get(
-    "/my",
-    verifyToken,
-    getMyTempReports
+"/my",
+authMiddleware,
+productionTempController.getMyTempReports
 );
 
 

@@ -137,5 +137,5 @@ export interface ProductionReport {
 
     updated_at?: string;
 
-
+source?: "pending" | "approved";
 }

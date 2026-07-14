@@ -1,4 +1,10 @@
-import { useEffect, useState } from "react";
+import {
+    useEffect,
+    useState
+} from "react";
+import {
+    useSearchParams
+} from "react-router-dom";
 import { useNavigate, useParams } from "react-router-dom";
 
 import "./ProductionDetail.css";
@@ -10,7 +16,11 @@ import type { ProductionReport } from "../../types/production";
 function ProductionDetail() {
 
     const { id } = useParams();
+const [searchParams] = useSearchParams();
 
+
+const source =
+searchParams.get("source");
     const navigate = useNavigate();
 
     const [report, setReport] = useState<ProductionReport | null>(null);
@@ -26,7 +36,11 @@ function ProductionDetail() {
 
                 if (!id) return;
 
-                const data = await getReportById(Number(id));
+                const data =
+await getReportById(
+    Number(id),
+    source
+);
 
                 setReport(data);
 

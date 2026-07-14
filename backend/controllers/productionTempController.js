@@ -87,34 +87,27 @@ exports.getMyTempReports = async(req,res)=>{
     try{
 
 
+        const worker_id = req.user.worker_id;
+
+
         const data =
-        await ProductionTemp.getByWorker(
-            req.user.worker_id
-        );
+        await ProductionTemp.getHistoryByWorker(worker_id);
 
 
 
-        res.json({
-
-            success:true,
-
-            data
-
-        });
+        res.json(data);
 
 
+    }
+    catch(err){
 
-    }catch(err){
 
-
-        console.error(err);
+        console.log(err);
 
 
         res.status(500).json({
 
-            success:false,
-
-            message:err.message
+            message:"Lỗi lấy lịch sử báo cáo"
 
         });
 

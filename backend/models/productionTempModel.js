@@ -792,7 +792,121 @@ resolve(result);
 
 
 },
+// =====================================================
+// WORKER LỊCH SỬ FULL
+// pending + approved
+// =====================================================
 
+getHistoryByWorker(worker_id){
+
+return new Promise((resolve,reject)=>{
+
+
+const sql = `
+
+SELECT
+
+pr.id,
+
+'approved' AS source,
+
+pr.worker_id,
+
+pr.process_id,
+
+pr.work_date,
+
+pr.shift,
+
+pr.machine_no,
+
+pr.product_name,
+
+pr.tt_ok,
+
+pr.tt_ng,
+
+pr.status,
+
+pr.created_at
+
+
+FROM production_reports pr
+
+WHERE pr.worker_id=?
+
+
+    UNION ALL
+
+
+
+    SELECT
+
+temp.id,
+
+'pending' AS source,
+
+temp.worker_id,
+
+temp.process_id,
+
+temp.work_date,
+
+temp.shift,
+
+temp.machine_no,
+
+temp.product_name,
+
+temp.tt_ok,
+
+temp.tt_ng,
+
+temp.status,
+
+temp.created_at
+
+
+FROM production_reports_temp temp
+
+WHERE temp.worker_id=?
+
+AND temp.status='pending'
+
+) x
+
+
+ORDER BY created_at DESC
+
+
+`;
+
+
+db.query(
+
+sql,
+
+[
+worker_id,
+worker_id
+],
+
+(err,rows)=>{
+
+if(err)
+return reject(err);
+
+
+resolve(rows);
+
+
+});
+
+
+});
+
+
+},
 
 
 };

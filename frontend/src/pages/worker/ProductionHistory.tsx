@@ -363,10 +363,8 @@ function ProductionHistory(){
 
 
                                                     navigate(
-
-                                                        `/worker/history/${item.id}`
-
-                                                    );
+ `/worker/history/${item.id}?source=${item.source}`
+);
 
 
                                                 }

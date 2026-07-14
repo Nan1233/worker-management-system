@@ -261,23 +261,26 @@ Promise<ProductionReport[]>=>{
 // =====================================================
 // CHI TIẾT BÁO CÁO
 // =====================================================
-
 export const getReportById = async(
-
-    id:number
-
-):Promise<ProductionReport>=>{
+    id:number,
+    source?:string | null
+)=>{
 
 
     const res = await api.get(
 
-        `/production/${id}`
+        `/reports/${id}`,
+
+        {
+            params:{
+                source
+            }
+        }
 
     );
 
 
-    return res.data.data || res.data;
-
+    return res.data;
 
 };
 
