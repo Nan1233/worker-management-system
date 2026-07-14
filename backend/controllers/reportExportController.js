@@ -63,43 +63,17 @@ exports.exportGiaCongExcel = async (req, res) => {
             pr.actual_output,
 
 
-            pr.tt_ok,
+           pr.tt_ok,
 
-            pr.tt_ng,
+pr.tt_ng,
 
+pr.note,
 
-            pr.kqd_dap_lai,
+pr.status,
 
-            pr.kqd_tuot,
+pr.review_note,
 
-
-            pr.vo_do_long,
-
-            pr.xuoc_do_long,
-
-
-            pr.cong_gay,
-
-            pr.xoay,
-
-
-            pr.khong_dut,
-
-            pr.bavia_hut,
-
-
-            pr.ppcm,
-
-            pr.loi_cao_su,
-
-
-            pr.ng_kich_thuoc,
-
-            pr.cat_lem,
-
-
-            pr.note,
-
+pr.approved_at,
 
             pr.created_at
 
