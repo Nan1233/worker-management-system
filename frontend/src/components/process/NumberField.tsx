@@ -15,8 +15,6 @@ function NumberField({
 
     label,
 
-    name,
-
     value,
 
     allowDecimal = false,
@@ -26,43 +24,57 @@ function NumberField({
 }: Props) {
 
 
+
     const handleInput = (
         e: React.ChangeEvent<HTMLInputElement>
     ) => {
 
 
-        const value = e.target.value;
+        const inputValue = e.target.value;
 
 
-        // cho phép số nguyên
+
+        // số nguyên
         if(!allowDecimal){
 
+
             if(
-                value !== "" &&
-                !/^\d*$/.test(value)
+                inputValue !== "" &&
+                !/^\d*$/.test(inputValue)
             ){
+
                 return;
+
             }
+
 
         }
 
 
-        // cho phép số thập phân
+
+        // số thập phân
         else{
 
+
             if(
-                value !== "" &&
-                !/^\d*\.?\d*$/.test(value)
+                inputValue !== "" &&
+                !/^\d*\.?\d*$/.test(inputValue)
             ){
+
                 return;
+
             }
 
+
         }
+
 
 
         onChange(e);
 
+
     };
+
 
 
 
