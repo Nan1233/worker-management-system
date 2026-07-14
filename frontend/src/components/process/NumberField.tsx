@@ -38,15 +38,17 @@ function NumberField({
 
             <input
 
-type="number"
+                type="number"
 
-step="0.1"
+                name={name}
 
-value={value ?? ""}
+                step="0.1"
 
-onChange={onChange}
+                value={value ?? ""}
 
-/>
+                onChange={onChange}
+
+            />
 
 
         </div>
