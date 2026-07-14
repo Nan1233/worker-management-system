@@ -427,79 +427,62 @@ e:React.ChangeEvent<HTMLSelectElement>
 )=>{
 
 
-const values=
-
-Array.from(
-e.target.selectedOptions
-)
-.map(
-x=>x.value
+const values = Array.from(
+    e.target.selectedOptions
+).map(
+    x=>x.value
 );
-
 
 
 setSelectedNg(values);
 
 
+setForm(prev=>{
 
-const update:any={
 
-...form
-
+const data:any = {
+    ...prev
 };
-
 
 
 ngOptions.forEach(item=>{
 
 
-if(values.includes(item.key)){
+    if(values.includes(item.key)){
 
 
-if(update[item.key]===0)
-
-update[item.key]=1;
-
-
-}
-
-else{
+        if(data[item.key]===0)
+            data[item.key]=1;
 
 
-update[item.key]=0;
+    }
+    else{
 
 
-}
+        data[item.key]=0;
 
+
+    }
 
 
 });
 
 
 
-setForm(prev=>({
+data.ttNg = values.reduce(
+    (total,key)=>{
 
-...prev,
+        return total + Number(data[key] || 0);
 
-...update,
-
-ttNg:
-
-values.reduce(
-
-(total,key)=>{
-
-return total + (update[key] || 0);
-
-},
-
-0
-
-)
+    },0
+);
 
 
-}));
 
+return data;
+
+
+});
 
 
 };
@@ -518,10 +501,7 @@ value:number
 )=>{
 
 
-const newValue =
-
-value<0 ? 0:value;
-
+const newValue = value < 0 ? 0 : value;
 
 
 setForm(prev=>{
@@ -529,30 +509,23 @@ setForm(prev=>{
 
 const data={
 
-...prev,
+    ...prev,
 
-[key]:newValue
+    [key]:newValue
 
 };
 
 
 
-data.ttNg =
-
-selectedNg.reduce(
+data.ttNg = ngOptions.reduce(
 
 (sum,item)=>{
 
-return sum +
-
-Number(data[item as keyof typeof data] || 0);
-
-
-},
-
-0
-
+return sum + Number(
+    data[item.key as keyof typeof data] || 0
 );
+
+},0);
 
 
 
@@ -560,7 +533,6 @@ return data;
 
 
 });
-
 
 
 };
