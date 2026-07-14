@@ -2,7 +2,13 @@ const express = require("express");
 
 const router = express.Router();
 
-const authMiddleware = require("../middleware/authMiddleware");
+
+const {
+    verifyToken
+} = require("../middleware/authMiddleware");
+
+
+
 const {
 
     createTempReport,
@@ -29,9 +35,6 @@ const {
 
 
 
-
-
-
 // worker gửi
 
 router.post(
@@ -42,12 +45,13 @@ router.post(
 
 
 
+
 // worker lịch sử
 
 router.get(
-"/my",
-authMiddleware,
-productionTempController.getMyTempReports
+    "/my",
+    verifyToken,
+    getMyTempReports
 );
 
 
@@ -108,7 +112,7 @@ router.post(
 
 
 
-// chi tiết để cuối
+// chi tiết
 
 router.get(
     "/:id",
