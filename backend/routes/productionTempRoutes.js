@@ -2,7 +2,7 @@ const express = require("express");
 
 const router = express.Router();
 
-
+const authMiddleware = require("../middleware/authMiddleware");
 const {
 
     createTempReport,
@@ -120,3 +120,14 @@ router.get(
 
 
 module.exports = router;
+const express = require("express");
+
+const router = express.Router();
+
+
+const productionTempController =
+require("../controllers/productionTempController");
+
+
+const authMiddleware =
+require("../middleware/authMiddleware");
