@@ -1,54 +1,40 @@
 import { useState } from "react";
 
-
 import {
     exportProductionExcel,
     exportApprovedExcel
 } from "../../services/productionService";
 
-
 import "./ReportDownload.css";
-
 
 
 function ReportDownload(){
 
 
-
     const today =
-
         new Date()
-
         .toISOString()
-
         .split("T")[0];
 
 
 
-
-
     const [pendingDate,setPendingDate] =
-
         useState(today);
-
-
 
 
 
     const [approvedDate,setApprovedDate] =
-
         useState(today);
 
 
 
-
-
-    const [loading,setLoading] =
-
+    const [loadingPending,setLoadingPending] =
         useState(false);
 
 
 
+    const [loadingApproved,setLoadingApproved] =
+        useState(false);
 
 
 
@@ -64,14 +50,12 @@ function ReportDownload(){
         try{
 
 
-            setLoading(true);
+            setLoadingPending(true);
 
 
 
             await exportProductionExcel(
-
                 pendingDate
-
             );
 
 
@@ -81,17 +65,11 @@ function ReportDownload(){
         catch(err){
 
 
-            console.error(
-
-                err
-
-            );
+            console.error(err);
 
 
             alert(
-
                 "Xuất báo cáo chờ duyệt thất bại"
-
             );
 
 
@@ -100,14 +78,13 @@ function ReportDownload(){
         finally{
 
 
-            setLoading(false);
+            setLoadingPending(false);
 
 
         }
 
 
     };
-
 
 
 
@@ -125,14 +102,12 @@ function ReportDownload(){
         try{
 
 
-            setLoading(true);
+            setLoadingApproved(true);
 
 
 
             await exportApprovedExcel(
-
                 approvedDate
-
             );
 
 
@@ -142,17 +117,11 @@ function ReportDownload(){
         catch(err){
 
 
-            console.error(
-
-                err
-
-            );
+            console.error(err);
 
 
             alert(
-
                 "Xuất báo cáo đã duyệt thất bại"
-
             );
 
 
@@ -161,7 +130,7 @@ function ReportDownload(){
         finally{
 
 
-            setLoading(false);
+            setLoadingApproved(false);
 
 
         }
@@ -182,18 +151,12 @@ function ReportDownload(){
         <div className="download-page">
 
 
-
             <div className="download-card">
 
 
-
                 <h1>
-
                     📥 Xuất báo cáo Excel
-
                 </h1>
-
-
 
 
 
@@ -208,43 +171,31 @@ function ReportDownload(){
 
 
                     <h3>
-
                         ⏳ Báo cáo chờ duyệt
-
                     </h3>
 
 
 
                     <p>
-
                         Xuất dữ liệu đang chờ quản lý kiểm tra
-
                     </p>
+
 
 
 
 
                     <input
 
-
                         type="date"
-
 
                         value={pendingDate}
 
-
                         onChange={
-
-                            e=>
-
+                            e =>
                             setPendingDate(
-
                                 e.target.value
-
                             )
-
                         }
-
 
                     />
 
@@ -256,19 +207,21 @@ function ReportDownload(){
 
 
                         onClick={
-
                             handleExportPending
-
                         }
 
 
-                        disabled={loading}
+                        disabled={loadingPending}
 
 
                     >
 
 
-                        📄 Xuất Excel chờ duyệt
+                        {
+                            loadingPending
+                            ? "⏳ Đang xuất..."
+                            : "📄 Xuất Excel chờ duyệt"
+                        }
 
 
                     </button>
@@ -290,23 +243,19 @@ function ReportDownload(){
                 ===================== */}
 
 
-
                 <div className="export-box">
 
 
                     <h3>
-
                         ✅ Báo cáo đã duyệt
-
                     </h3>
 
 
 
                     <p>
-
                         Xuất dữ liệu sản xuất chính thức
-
                     </p>
+
 
 
 
@@ -321,15 +270,10 @@ function ReportDownload(){
 
 
                         onChange={
-
-                            e=>
-
+                            e =>
                             setApprovedDate(
-
                                 e.target.value
-
                             )
-
                         }
 
 
@@ -343,19 +287,21 @@ function ReportDownload(){
 
 
                         onClick={
-
                             handleExportApproved
-
                         }
 
 
-                        disabled={loading}
+                        disabled={loadingApproved}
 
 
                     >
 
 
-                        📄 Xuất Excel đã duyệt
+                        {
+                            loadingApproved
+                            ? "⏳ Đang xuất..."
+                            : "📄 Xuất Excel đã duyệt"
+                        }
 
 
                     </button>
@@ -378,7 +324,6 @@ function ReportDownload(){
 
 
 }
-
 
 
 export default ReportDownload;
