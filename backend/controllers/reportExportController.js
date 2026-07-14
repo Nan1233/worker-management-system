@@ -384,9 +384,10 @@ exports.exportGiaCongExcel = async (req, res) => {
 
 
 };
-
 const GoogleSheetService =
 require("../services/googleSheetService");
+
+
 
 
 
@@ -399,54 +400,75 @@ exports.exportGoogleSheet = async(req,res)=>{
         const date=req.query.date;
 
 
+
         if(!date){
 
+
             return res.status(400).json({
+
 
                 success:false,
 
                 message:"Thiếu ngày"
 
+
             });
+
 
         }
 
 
 
+
+        const result =
         await GoogleSheetService.syncProductionReport(date);
+
+
 
 
 
         res.json({
 
+
             success:true,
 
-            message:"Cập nhật Google Sheet thành công",
+
+            message:
+            "Cập nhật Google Sheet thành công",
+
+
 
             url:
-            `https://docs.google.com/spreadsheets/d/${process.env.GOOGLE_SHEET_ID}`
+            result.url
+
+
 
         });
 
 
 
     }
+
     catch(err){
 
 
         console.error(err);
 
 
+
         res.status(500).json({
+
 
             success:false,
 
             message:err.message
 
+
         });
 
 
     }
+
 
 
 };
