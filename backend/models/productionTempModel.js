@@ -734,55 +734,243 @@ resolve(result[0]);
 // DUYỆT
 // =====================================================
 
-approveByDate(date,manager_id){
+// =====================================================
+// DUYỆT THEO NGÀY
+// TEMP -> PRODUCTION
+// =====================================================
 
+approveByDate(date, manager_id){
 
 return new Promise((resolve,reject)=>{
 
 
-db.query(
+db.beginTransaction(err=>{
 
-`
-
-UPDATE production_reports_temp
-
-
-SET
-
-status='approved',
-
-reviewed_by=?,
-
-approved_at=NOW()
-
-
-WHERE DATE(work_date)=?
-
-AND status='pending'
-
-
-`,
-
-
-[
-
-manager_id,
-
-date
-
-],
-
-
-(err,result)=>{
-
-
-if(err)
-
-return reject(err);
+    if(err)
+        return reject(err);
 
 
 
-resolve(result);
+    // 1. Lấy danh sách temp pending
+
+    db.query(
+
+    `
+    SELECT *
+
+    FROM production_reports_temp
+
+    WHERE DATE(work_date)=?
+
+    AND status='pending'
+    `,
+
+    [date],
+
+
+    (err,rows)=>{
+
+
+        if(err){
+
+            return db.rollback(()=>{
+                reject(err);
+            });
+
+        }
+
+
+
+        if(rows.length===0){
+
+            return db.rollback(()=>{
+                resolve({
+                    message:"Không có báo cáo chờ duyệt"
+                });
+            });
+
+        }
+
+
+
+
+        let completed = 0;
+
+
+
+        rows.forEach(item=>{
+
+
+            db.query(
+
+            `
+            INSERT INTO production_reports
+
+            (
+                worker_id,
+                process_id,
+                work_date,
+                shift,
+                machine_no,
+                product_name,
+
+                total_time,
+                actual_time,
+                deduction_time,
+
+                standard_output,
+                actual_output,
+
+                tt_ok,
+                tt_ng,
+
+                note,
+
+                status,
+                reviewed_by,
+                approved_at
+
+            )
+
+
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())
+
+            `,
+
+
+            [
+
+                item.worker_id,
+
+                item.process_id,
+
+                item.work_date,
+
+                item.shift,
+
+                item.machine_no,
+
+                item.product_name,
+
+
+                item.total_time,
+
+                item.actual_time,
+
+                item.deduction_time,
+
+
+                item.standard_output,
+
+                item.actual_output,
+
+
+                item.tt_ok,
+
+                item.tt_ng,
+
+
+                item.note,
+
+
+                "approved",
+
+                manager_id
+
+            ],
+
+
+
+            (err,result)=>{
+
+
+                if(err){
+
+                    return db.rollback(()=>{
+                        reject(err);
+                    });
+
+                }
+
+
+
+                // xóa temp sau khi chuyển
+
+
+                db.query(
+
+                `
+                DELETE FROM production_reports_temp
+
+                WHERE id=?
+
+                `,
+
+                [
+                    item.id
+                ],
+
+
+                err=>{
+
+
+                    if(err){
+
+                        return db.rollback(()=>{
+                            reject(err);
+                        });
+
+                    }
+
+
+
+                    completed++;
+
+
+
+                    if(completed===rows.length){
+
+
+                        db.commit(err=>{
+
+
+                            if(err){
+
+                                return db.rollback(()=>{
+                                    reject(err);
+                                });
+
+                            }
+
+
+                            resolve({
+                                message:
+                                "Duyệt thành công",
+                                count:completed
+                            });
+
+
+                        });
+
+
+                    }
+
+
+
+                });
+
+
+
+            });
+
+
+
+        });
+
+
+
+    });
+
 
 
 });
@@ -804,74 +992,104 @@ return new Promise((resolve,reject)=>{
 
 const sql = `
 
-SELECT
+SELECT *
 
-pr.id,
+FROM
 
-'approved' AS source,
+(
 
-pr.worker_id,
+    SELECT
 
-pr.process_id,
+    pr.id,
 
-pr.work_date,
+    'approved' AS source,
 
-pr.shift,
+    pr.worker_id,
 
-pr.machine_no,
+    pr.process_id,
 
-pr.product_name,
+    pr.work_date,
 
-pr.tt_ok,
+    pr.shift,
 
-pr.tt_ng,
+    pr.machine_no,
 
-pr.status,
+    pr.product_name,
 
-pr.created_at
+    pr.tt_ok,
+
+    pr.tt_ng,
+
+    pr.status,
+
+    pr.created_at,
 
 
-FROM production_reports pr
+    p.process_name
 
-WHERE pr.worker_id=?
+
+    FROM production_reports pr
+
+
+    LEFT JOIN processes p
+
+    ON pr.process_id=p.id
+
+
+    WHERE pr.worker_id=?
+
+
+
 
 
     UNION ALL
 
 
 
+
+
     SELECT
 
-temp.id,
+    temp.id,
 
-'pending' AS source,
+    'pending' AS source,
 
-temp.worker_id,
+    temp.worker_id,
 
-temp.process_id,
+    temp.process_id,
 
-temp.work_date,
+    temp.work_date,
 
-temp.shift,
+    temp.shift,
 
-temp.machine_no,
+    temp.machine_no,
 
-temp.product_name,
+    temp.product_name,
 
-temp.tt_ok,
+    temp.tt_ok,
 
-temp.tt_ng,
+    temp.tt_ng,
 
-temp.status,
+    temp.status,
 
-temp.created_at
+    temp.created_at,
 
 
-FROM production_reports_temp temp
+    p.process_name
 
-WHERE temp.worker_id=?
 
-AND temp.status='pending'
+    FROM production_reports_temp temp
+
+
+    LEFT JOIN processes p
+
+    ON temp.process_id=p.id
+
+
+    WHERE temp.worker_id=?
+
+    AND temp.status='pending'
+
 
 ) x
 
@@ -879,7 +1097,9 @@ AND temp.status='pending'
 ORDER BY created_at DESC
 
 
+
 `;
+
 
 
 db.query(
@@ -891,10 +1111,14 @@ worker_id,
 worker_id
 ],
 
+
 (err,rows)=>{
 
+
 if(err)
+
 return reject(err);
+
 
 
 resolve(rows);

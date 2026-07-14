@@ -59,7 +59,7 @@ await getReportById(
 
         loadReport();
 
-    }, [id]);
+    }, [id,source]);
 
 
 

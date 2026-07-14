@@ -267,20 +267,31 @@ export const getReportById = async(
 )=>{
 
 
-    const res = await api.get(
-
-        `/reports/${id}`,
-
-        {
-            params:{
-                source
-            }
-        }
-
-    );
+    let url="";
 
 
-    return res.data;
+    if(source==="pending"){
+
+        url=
+        `/production-temp/${id}`;
+
+    }
+    else{
+
+        url=
+        `/production/${id}`;
+
+    }
+
+
+
+    const res =
+    await api.get(url);
+
+
+
+    return res.data.data || res.data;
+
 
 };
 

@@ -399,23 +399,23 @@ exports.approveTempByDate = async(req,res)=>{
 
 
 
-        await ProductionTemp.approveByDate(
-
-            date,
-
-            req.user.id
-
-        );
+        const result =
+await ProductionTemp.approveByDate(
+    date,
+    req.user.id
+);
 
 
 
         res.json({
 
-            success:true,
+    success:true,
 
-            message:"Duyệt báo cáo thành công"
+    message:"Duyệt báo cáo thành công",
 
-        });
+    data:result
+
+});
 
 
 
