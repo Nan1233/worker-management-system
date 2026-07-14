@@ -1,6 +1,9 @@
 const ProductionTemp = require("../models/productionTempModel");
 
+const GoogleSheetService =
+require("../services/googleSheetService");
 
+Tìm:
 // =====================================================
 // WORKER TẠO BÁO CÁO TEMP
 // POST /api/production-temp
@@ -412,6 +415,10 @@ await ProductionTemp.approveByDate(
     date,
     req.user.id
 );
+
+
+
+await GoogleSheetService.syncProductionReport(date);
 
 
 

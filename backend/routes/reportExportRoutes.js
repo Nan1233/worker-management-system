@@ -4,9 +4,9 @@ const router = express.Router();
 
 
 const {
-    exportGiaCongExcel
+    exportGiaCongExcel,
+    exportGoogleSheet
 } = require("../controllers/reportExportController");
-
 
 
 // EXPORT EXCEL
@@ -16,6 +16,9 @@ router.get(
     exportGiaCongExcel
 );
 
-
+router.get(
+    "/export-google-sheet",
+    exportGoogleSheet
+);
 
 module.exports = router;
