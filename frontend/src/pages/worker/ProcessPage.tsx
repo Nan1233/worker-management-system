@@ -11,7 +11,10 @@ import NumberField from "../../components/process/NumberField";
 import SelectField from "../../components/process/SelectField";
 import TextAreaField from "../../components/process/TextAreaField";
 
+const [showDeduction,setShowDeduction] = useState(false);
 
+
+const [showNg,setShowNg] = useState(false);
 function ProcessPage(){
 
 
@@ -757,27 +760,58 @@ return (        <div className="container">
                 />
 
 
-                <SelectField
+                <div className="shift-group">
 
-                    label="Ca làm việc"
+    <label className="shift-label">
+        Ca làm việc
+    </label>
 
-                    name="shift"
 
-                    value={form.shift}
+    <div className="radio-list">
 
-                    onChange={handleChange}
+        {
+            [
+                "Ca 1",
+                "Ca 2",
+                "Ca 3"
+            ].map(ca=>(
 
-                    options={[
+                <label
+                    key={ca}
+                    className="radio-item"
+                >
 
-                        "Ca 1",
+                    <input
 
-                        "Ca 2",
+                        type="radio"
 
-                        "Ca 3"
+                        name="shift"
 
-                    ]}
+                        value={ca}
 
-                />
+                        checked={
+                            form.shift === ca
+                        }
+
+                        onChange={handleChange}
+
+                    />
+
+
+                    <span>
+                        {ca}
+                    </span>
+
+
+                </label>
+
+
+            ))
+        }
+
+    </div>
+
+</div>
 
 
 
@@ -867,50 +901,78 @@ return (        <div className="container">
 
 
 
-                <div className="ng-selector">
+                <div className="select-box">
 
 
-                    <label>
-                        Chọn loại trừ thời gian
-                    </label>
+<div
+
+className="select-title"
+
+onClick={()=>setShowDeduction(!showDeduction)}
+
+>
+
+⏱ Chọn loại trừ thời gian
+
+<span>
+{
+showDeduction ? "▲":"▼"
+}
+</span>
 
 
-                    <select
-
-                        multiple
-
-                        value={selectedDeduction}
-
-                        onChange={handleDeductionSelect}
-
-                    >
+</div>
 
 
-                    {
-
-                        deductionOptions.map(item=>(
-
-                            <option
-
-                                key={item.key}
-
-                                value={item.key}
-
-                            >
-
-                                {item.label}
-
-                            </option>
-
-                        ))
-
-                    }
 
 
-                    </select>
+{
+
+showDeduction &&
 
 
-                </div>
+<select
+
+multiple
+
+value={selectedDeduction}
+
+onChange={handleDeductionSelect}
+
+>
+
+
+{
+
+deductionOptions.map(item=>(
+
+
+<option
+
+key={item.key}
+
+value={item.key}
+
+>
+
+{item.label}
+
+</option>
+
+
+))
+
+}
+
+
+</select>
+
+
+}
+
+
+
+</div>
 
 
 
@@ -1123,53 +1185,75 @@ return (        <div className="container">
 
 
 
-                <div className="ng-selector">
+                <div className="select-box">
 
 
-                    <label>
-                        Chọn lỗi NG
-                    </label>
+<div
+
+className="select-title"
+
+onClick={()=>setShowNg(!showNg)}
+
+>
+
+⚠️ Chọn lỗi NG
+
+<span>
+{
+showNg ? "▲":"▼"
+}
+</span>
 
 
-                    <select
-
-                        multiple
-
-                        value={selectedNg}
-
-                        onChange={handleNgSelect}
-
-                    >
+</div>
 
 
-                    {
 
-                        ngOptions.map(item=>(
+{
 
-
-                            <option
-
-                                key={item.key}
-
-                                value={item.key}
-
-                            >
-
-                                {item.label}
+showNg &&
 
 
-                            </option>
+<select
+
+multiple
+
+value={selectedNg}
+
+onChange={handleNgSelect}
+
+>
 
 
-                        ))
-
-                    }
-
-
-                    </select>
+{
+ngOptions.map(item=>(
 
 
-                </div>
+<option
+
+key={item.key}
+
+value={item.key}
+
+>
+
+{item.label}
+
+</option>
+
+
+))
+
+}
+
+
+</select>
+
+
+}
+
+
+</div>
 
 
 
