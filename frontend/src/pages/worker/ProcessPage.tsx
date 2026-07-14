@@ -12,225 +12,721 @@ import SelectField from "../../components/process/SelectField";
 import TextAreaField from "../../components/process/TextAreaField";
 
 
-function ProcessPage() {
+function ProcessPage(){
 
-    const navigate = useNavigate();
 
+const navigate = useNavigate();
 
-    const initialForm = {
 
-        workDate: "",
-        shift: "Ca 1",
 
-        workerCode: "W001",
+const initialForm = {
 
-        machineNo: "",
 
+workDate:"",
 
-        totalTime: 0,
-        actualTime: 0,
-        deductionTime: 0,
+shift:"Ca 1",
 
+workerCode:"W001",
 
-        productName: "",
+machineNo:"",
 
 
-        standardOutput: 0,
-        actualOutput: 0,
+totalTime:0,
 
+actualTime:0,
 
-        ttOk: 0,
-        ttNg: 0,
+deductionTime:0,
 
 
-        kqdDapLai: 0,
-        kqdTuot: 0,
+productName:"",
 
+standardOutput:0,
 
-        voDoLong: 0,
-        xuocDoLong: 0,
-        congGay: 0,
-        xoay: 0,
-        khongDut: 0,
-        baviaHut: 0,
-        ppcm: 0,
-        loiCaoSu: 0,
-        ngKichThuoc: 0,
-        catLem: 0,
+actualOutput:0,
 
 
-        note: ""
+ttOk:0,
 
-    };
+ttNg:0,
 
 
+kqdDapLai:0,
 
-    const [form, setForm] = useState(initialForm);
+kqdTuot:0,
 
+voDoLong:0,
 
+xuocDoLong:0,
 
-    const handleChange = (
-        e: React.ChangeEvent<
-            HTMLInputElement |
-            HTMLSelectElement |
-            HTMLTextAreaElement
-        >
-    ) => {
+congGay:0,
 
+xoay:0,
 
-        const { name, value } = e.target;
+khongDut:0,
 
+baviaHut:0,
 
-        setForm({
+ppcm:0,
 
-            ...form,
+loiCaoSu:0,
 
-            [name]:
+ngKichThuoc:0,
 
-                e.target.type === "number"
-                    ?
-                    Number(value)
-                    :
-                    value
+catLem:0,
 
-        });
 
+note:""
 
-    };
 
+};
 
 
 
+const initialDeduction={
 
-    const handleSubmit = async () => {
 
+vsk:0,
 
-        try {
+fiveS:0,
 
+hamKhuon:0,
 
-            await createTempReport({
+suaKhuon:0,
 
+suaMay:0,
 
+dungMay:0
 
-                process_id: 1,
 
+};
 
-                work_date: form.workDate,
 
 
-                shift: form.shift,
+const deductionOptions=[
 
 
-                machine_no: form.machineNo,
+{
+key:"vsk",
+label:"Số giờ VSK"
+},
 
 
+{
+key:"fiveS",
+label:"Số giờ 5S + gia ca"
+},
 
-                total_time: form.totalTime,
 
-                actual_time: form.actualTime,
+{
+key:"hamKhuon",
+label:"Số giờ hâm khuôn"
+},
 
-                deduction_time: form.deductionTime,
 
+{
+key:"suaKhuon",
+label:"Số giờ sửa khuôn"
+},
 
 
-                product_name: form.productName,
+{
+key:"suaMay",
+label:"Số giờ sửa máy"
+},
 
 
-                standard_output: form.standardOutput,
+{
+key:"dungMay",
+label:"Số giờ dừng máy"
+}
 
 
-                actual_output: form.actualOutput,
+];
 
 
 
-                tt_ok: form.ttOk,
+const ngOptions = [
 
-                tt_ng: form.ttNg,
 
+{
+key:"kqdDapLai",
+label:"KQD dập lại"
+},
 
+{
+key:"kqdTuot",
+label:"KQD tuột"
+},
 
-                kqd_dap_lai: form.kqdDapLai,
+{
+key:"voDoLong",
+label:"Vỡ do lồng"
+},
 
-                kqd_tuot: form.kqdTuot,
+{
+key:"xuocDoLong",
+label:"Xước do lồng"
+},
 
+{
+key:"congGay",
+label:"Cong gãy"
+},
 
+{
+key:"xoay",
+label:"Xoay"
+},
 
-                vo_do_long: form.voDoLong,
+{
+key:"khongDut",
+label:"Không đứt"
+},
 
-                xuoc_do_long: form.xuocDoLong,
+{
+key:"baviaHut",
+label:"Bavia hụt"
+},
 
+{
+key:"ppcm",
+label:"PPCM"
+},
 
-                cong_gay: form.congGay,
+{
+key:"loiCaoSu",
+label:"Lỗi cao su"
+},
 
+{
+key:"ngKichThuoc",
+label:"NG kích thước"
+},
 
-                xoay: form.xoay,
+{
+key:"catLem",
+label:"Cắt lẹm"
+}
 
 
-                khong_dut: form.khongDut,
+];
 
 
-                bavia_hut: form.baviaHut,
 
+const [form,setForm]=useState(initialForm);
 
-                ppcm: form.ppcm,
 
+const [deductions,setDeductions]=useState(initialDeduction);
 
-                loi_cao_su: form.loiCaoSu,
 
+const [selectedDeduction,setSelectedDeduction]=useState<string[]>([]);
 
-                ng_kich_thuoc: form.ngKichThuoc,
 
+const [selectedNg,setSelectedNg]=useState<string[]>([]);
 
-                cat_lem: form.catLem,
 
+const [stopReason,setStopReason]=useState("");
 
-                note: form.note
 
 
+const handleChange=(
 
-            });
+e:React.ChangeEvent<
+HTMLInputElement |
+HTMLSelectElement |
+HTMLTextAreaElement
+>
 
+)=>{
 
 
-            alert("Lưu báo cáo thành công");
+const {name,value}=e.target;
 
 
-            handleReset();
+setForm(prev=>({
 
+...prev,
 
-            navigate("/worker");
+[name]:
 
+e.target.type==="number"
 
+?
 
-        }
+Number(value)
 
-        catch (err) {
+:
 
+value
 
-            console.log(err);
 
+}));
 
-            alert("Lưu thất bại");
 
 
-        }
+};
 
 
-    };
 
 
+const handleDeductionSelect=(
 
+e:React.ChangeEvent<HTMLSelectElement>
 
-    const handleReset = () => {
+)=>{
 
 
-        setForm(initialForm);
+const values=
 
+Array.from(
+e.target.selectedOptions
+)
+.map(
+x=>x.value
+);
 
-    };
-    return (
 
-        <div className="container">
+
+setSelectedDeduction(values);
+
+
+
+const update:any={
+
+...deductions
+
+};
+
+
+
+deductionOptions.forEach(item=>{
+
+
+if(values.includes(item.key)){
+
+
+if(update[item.key]===0)
+
+update[item.key]=1;
+
+
+}
+
+else{
+
+
+update[item.key]=0;
+
+
+}
+
+
+});
+
+
+
+setDeductions(update);
+
+
+
+updateTotalDeduction(update);
+
+
+
+};
+
+
+
+
+const updateDeductionValue=(
+
+key:string,
+
+value:number
+
+)=>{
+
+
+const data={
+
+...deductions,
+
+[key]:
+
+value<0?0:value
+
+
+};
+
+
+
+setDeductions(data);
+
+
+updateTotalDeduction(data);
+
+
+
+};
+
+
+
+const updateTotalDeduction=(data:any)=>{
+
+
+const total:number =
+
+Object.values(data)
+
+.reduce(
+
+(sum:number,value:any)=>{
+
+return sum + Number(value || 0);
+
+},
+
+0
+
+);
+
+
+
+setForm(prev=>({
+
+
+...prev,
+
+
+deductionTime: total,
+
+
+actualTime:
+
+Math.max(
+
+0,
+
+prev.totalTime - total
+
+)
+
+
+}));
+
+
+
+};
+const handleNgSelect=(
+
+e:React.ChangeEvent<HTMLSelectElement>
+
+)=>{
+
+
+const values=
+
+Array.from(
+e.target.selectedOptions
+)
+.map(
+x=>x.value
+);
+
+
+
+setSelectedNg(values);
+
+
+
+const update:any={
+
+...form
+
+};
+
+
+
+ngOptions.forEach(item=>{
+
+
+if(values.includes(item.key)){
+
+
+if(update[item.key]===0)
+
+update[item.key]=1;
+
+
+}
+
+else{
+
+
+update[item.key]=0;
+
+
+}
+
+
+
+});
+
+
+
+setForm(prev=>({
+
+...prev,
+
+...update,
+
+ttNg:
+
+values.reduce(
+
+(total,key)=>{
+
+return total + (update[key] || 0);
+
+},
+
+0
+
+)
+
+
+}));
+
+
+
+};
+
+
+
+
+
+
+const handleNgValue=(
+
+key:string,
+
+value:number
+
+)=>{
+
+
+const newValue =
+
+value<0 ? 0:value;
+
+
+
+setForm(prev=>{
+
+
+const data={
+
+...prev,
+
+[key]:newValue
+
+};
+
+
+
+data.ttNg =
+
+selectedNg.reduce(
+
+(sum,item)=>{
+
+return sum +
+
+Number(data[item as keyof typeof data] || 0);
+
+
+},
+
+0
+
+);
+
+
+
+return data;
+
+
+});
+
+
+
+};
+
+
+
+
+
+
+
+const handleSubmit=async()=>{
+
+
+try{
+
+
+await createTempReport({
+
+
+process_id:1,
+
+
+work_date:form.workDate,
+
+
+shift:form.shift,
+
+
+machine_no:form.machineNo,
+
+
+
+total_time:form.totalTime,
+
+
+actual_time:form.actualTime,
+
+
+deduction_time:form.deductionTime,
+
+
+
+product_name:form.productName,
+
+
+standard_output:form.standardOutput,
+
+
+actual_output:form.actualOutput,
+
+
+
+tt_ok:form.ttOk,
+
+
+tt_ng:form.ttNg,
+
+
+
+kqd_dap_lai:form.kqdDapLai,
+
+
+kqd_tuot:form.kqdTuot,
+
+
+vo_do_long:form.voDoLong,
+
+
+xuoc_do_long:form.xuocDoLong,
+
+
+cong_gay:form.congGay,
+
+
+xoay:form.xoay,
+
+
+khong_dut:form.khongDut,
+
+
+bavia_hut:form.baviaHut,
+
+
+ppcm:form.ppcm,
+
+
+loi_cao_su:form.loiCaoSu,
+
+
+ng_kich_thuoc:form.ngKichThuoc,
+
+
+cat_lem:form.catLem,
+
+
+
+note:form.note
+
+
+});
+
+
+
+alert(
+"Lưu báo cáo thành công"
+);
+
+
+
+handleReset();
+
+
+
+navigate("/worker");
+
+
+
+}
+
+catch(err){
+
+
+console.log(err);
+
+
+alert(
+"Lưu thất bại"
+);
+
+
+}
+
+
+
+};
+
+
+
+
+
+
+
+
+const handleReset=()=>{
+
+
+setForm(initialForm);
+
+
+setDeductions(initialDeduction);
+
+
+setSelectedDeduction([]);
+
+
+setSelectedNg([]);
+
+
+setStopReason("");
+
+
+
+};
+
+
+
+
+
+return (        <div className="container">
 
 
             <h1>
@@ -240,8 +736,10 @@ function ProcessPage() {
 
 
 
-            <FormSection title="Thông tin chung">
 
+            {/* THÔNG TIN CHUNG */}
+
+            <FormSection title="Thông tin chung">
 
 
                 <InputField
@@ -259,7 +757,6 @@ function ProcessPage() {
                 />
 
 
-
                 <SelectField
 
                     label="Ca làm việc"
@@ -271,9 +768,13 @@ function ProcessPage() {
                     onChange={handleChange}
 
                     options={[
+
                         "Ca 1",
+
                         "Ca 2",
+
                         "Ca 3"
+
                     ]}
 
                 />
@@ -288,7 +789,7 @@ function ProcessPage() {
 
                     value={form.workerCode}
 
-                    onChange={handleChange}
+                    onChange={()=>{}}
 
                 />
 
@@ -307,13 +808,17 @@ function ProcessPage() {
                 />
 
 
-
             </FormSection>
 
 
 
 
 
+
+
+
+
+            {/* THỜI GIAN */}
 
             <FormSection title="Thời gian">
 
@@ -340,7 +845,7 @@ function ProcessPage() {
 
                     value={form.actualTime}
 
-                    onChange={handleChange}
+                    onChange={()=>{}}
 
                 />
 
@@ -354,9 +859,178 @@ function ProcessPage() {
 
                     value={form.deductionTime}
 
-                    onChange={handleChange}
+                    onChange={()=>{}}
 
                 />
+
+
+
+
+
+                <div className="ng-selector">
+
+
+                    <label>
+                        Chọn loại trừ thời gian
+                    </label>
+
+
+                    <select
+
+                        multiple
+
+                        value={selectedDeduction}
+
+                        onChange={handleDeductionSelect}
+
+                    >
+
+
+                    {
+
+                        deductionOptions.map(item=>(
+
+                            <option
+
+                                key={item.key}
+
+                                value={item.key}
+
+                            >
+
+                                {item.label}
+
+                            </option>
+
+                        ))
+
+                    }
+
+
+                    </select>
+
+
+                </div>
+
+
+
+
+
+                <div className="quality-grid">
+
+
+                {
+
+                    selectedDeduction.map(key=>{
+
+
+                        const item=
+
+                        deductionOptions.find(
+
+                            x=>x.key===key
+
+                        );
+
+
+                        if(!item)
+
+                            return null;
+
+
+
+                        return (
+
+                            <NumberField
+
+                                key={key}
+
+                                label={item.label}
+
+                                name={key}
+
+                                value={
+
+                                    deductions[
+                                    key as keyof typeof deductions
+                                    ]
+
+                                }
+
+                                onChange={e=>
+
+                                    updateDeductionValue(
+
+                                        key,
+
+                                        Number(
+                                            e.target.value
+                                        )
+
+                                    )
+
+                                }
+
+                            />
+
+                        );
+
+
+                    })
+
+                }
+
+
+                </div>
+
+
+
+
+
+
+                {
+
+                    deductions.dungMay>0 &&
+
+
+                    <SelectField
+
+                        label="Lý do dừng máy"
+
+                        name="stopReason"
+
+                        value={stopReason}
+
+                        onChange={e=>
+
+                            setStopReason(
+
+                                e.target.value
+
+                            )
+
+                        }
+
+
+                        options={[
+
+                            "Hỏng máy",
+
+                            "Thiếu nguyên liệu",
+
+                            "Chờ kỹ thuật",
+
+                            "Khác"
+
+                        ]}
+
+
+                    />
+
+
+                }
+
+
 
 
             </FormSection>
@@ -364,6 +1038,12 @@ function ProcessPage() {
 
 
 
+
+
+
+
+
+            {/* SẢN XUẤT */}
 
 
             <FormSection title="Sản xuất">
@@ -417,36 +1097,167 @@ function ProcessPage() {
 
 
 
+
+
+
+            {/* CHẤT LƯỢNG */}
+
+
             <FormSection title="Báo cáo chất lượng">
 
 
-                <NumberField label="TT OK" name="ttOk" value={form.ttOk} onChange={handleChange}/>
 
-                <NumberField label="TT NG" name="ttNg" value={form.ttNg} onChange={handleChange}/>
+                <NumberField
 
-                <NumberField label="KQD dập lại" name="kqdDapLai" value={form.kqdDapLai} onChange={handleChange}/>
+                    label="TT OK"
 
-                <NumberField label="KQD tuốt" name="kqdTuot" value={form.kqdTuot} onChange={handleChange}/>
+                    name="ttOk"
 
-                <NumberField label="Vỡ do lồng" name="voDoLong" value={form.voDoLong} onChange={handleChange}/>
+                    value={form.ttOk}
 
-                <NumberField label="Xước do lồng" name="xuocDoLong" value={form.xuocDoLong} onChange={handleChange}/>
+                    onChange={handleChange}
 
-                <NumberField label="Cong gãy" name="congGay" value={form.congGay} onChange={handleChange}/>
+                />
 
-                <NumberField label="Xoay" name="xoay" value={form.xoay} onChange={handleChange}/>
 
-                <NumberField label="Không đứt" name="khongDut" value={form.khongDut} onChange={handleChange}/>
 
-                <NumberField label="Bavia hụt" name="baviaHut" value={form.baviaHut} onChange={handleChange}/>
 
-                <NumberField label="PPCM" name="ppcm" value={form.ppcm} onChange={handleChange}/>
 
-                <NumberField label="Lỗi cao su" name="loiCaoSu" value={form.loiCaoSu} onChange={handleChange}/>
+                <div className="ng-selector">
 
-                <NumberField label="NG kích thước" name="ngKichThuoc" value={form.ngKichThuoc} onChange={handleChange}/>
 
-                <NumberField label="Cắt lẹm" name="catLem" value={form.catLem} onChange={handleChange}/>
+                    <label>
+                        Chọn lỗi NG
+                    </label>
+
+
+                    <select
+
+                        multiple
+
+                        value={selectedNg}
+
+                        onChange={handleNgSelect}
+
+                    >
+
+
+                    {
+
+                        ngOptions.map(item=>(
+
+
+                            <option
+
+                                key={item.key}
+
+                                value={item.key}
+
+                            >
+
+                                {item.label}
+
+
+                            </option>
+
+
+                        ))
+
+                    }
+
+
+                    </select>
+
+
+                </div>
+
+
+
+
+
+
+
+                <div className="quality-grid">
+
+
+                {
+
+                    selectedNg.map(key=>{
+
+
+                        const item=
+
+                        ngOptions.find(
+
+                            x=>x.key===key
+
+                        );
+
+
+
+                        if(!item)
+
+                            return null;
+
+
+
+                        return (
+
+
+                            <NumberField
+
+
+                                key={key}
+
+
+                                label={item.label}
+
+
+                                name={key}
+
+
+                                value={
+
+                                    form[
+                                    key as keyof typeof form
+                                    ] as number
+
+                                }
+
+
+                                onChange={e=>
+
+                                    handleNgValue(
+
+                                        key,
+
+                                        Number(
+                                            e.target.value
+                                        )
+
+                                    )
+
+                                }
+
+
+                            />
+
+
+
+                        );
+
+
+
+                    })
+
+                }
+
+
+                </div>
+
+
+
+
 
 
 
@@ -463,7 +1274,10 @@ function ProcessPage() {
                 />
 
 
+
             </FormSection>
+
+
 
 
 
@@ -506,12 +1320,9 @@ function ProcessPage() {
 
 
 
-
         </div>
 
-
     );
-
 
 }
 
