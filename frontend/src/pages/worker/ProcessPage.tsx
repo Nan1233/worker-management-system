@@ -11,12 +11,12 @@ import NumberField from "../../components/process/NumberField";
 import SelectField from "../../components/process/SelectField";
 import TextAreaField from "../../components/process/TextAreaField";
 
+
+function ProcessPage(){
 const [showDeduction,setShowDeduction] = useState(false);
 
 
 const [showNg,setShowNg] = useState(false);
-function ProcessPage(){
-
 
 const navigate = useNavigate();
 
