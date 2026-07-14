@@ -472,3 +472,173 @@ exports.exportGoogleSheet = async(req,res)=>{
 
 
 };
+
+// =====================================================
+// TẠO GOOGLE SHEET MỚI
+// POST /api/reports/create-sheet
+// =====================================================
+
+exports.createGoogleSheet = async(req,res)=>{
+
+
+    try{
+
+
+        const date = req.body.date;
+
+
+
+        if(!date){
+
+
+            return res.status(400).json({
+
+
+                success:false,
+
+                message:"Thiếu ngày"
+
+
+            });
+
+
+        }
+
+
+
+        const result =
+
+        await GoogleSheetService.createSheet(date);
+
+
+
+
+        res.json({
+
+
+            success:true,
+
+
+            message:"Tạo Google Sheet thành công",
+
+
+            url:result.url
+
+
+
+        });
+
+
+
+    }
+
+    catch(err){
+
+
+        console.error(err);
+
+
+
+        res.status(500).json({
+
+
+            success:false,
+
+            message:err.message
+
+
+        });
+
+
+    }
+
+
+};
+
+
+
+
+
+
+// =====================================================
+// UPDATE GOOGLE SHEET
+// POST /api/reports/update-sheet
+// =====================================================
+
+exports.updateGoogleSheet = async(req,res)=>{
+
+
+    try{
+
+
+        const date = req.body.date;
+
+
+
+        if(!date){
+
+
+            return res.status(400).json({
+
+
+                success:false,
+
+                message:"Thiếu ngày"
+
+
+            });
+
+
+        }
+
+
+
+
+        const result =
+
+        await GoogleSheetService.updateSheet(date);
+
+
+
+
+        res.json({
+
+
+            success:true,
+
+
+            message:"Cập nhật Google Sheet thành công",
+
+
+            url:result.url
+
+
+
+        });
+
+
+
+    }
+
+    catch(err){
+
+
+        console.error(err);
+
+
+
+        res.status(500).json({
+
+
+            success:false,
+
+            message:err.message
+
+
+        });
+
+
+    }
+
+
+};
