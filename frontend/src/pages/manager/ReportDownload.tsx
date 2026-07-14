@@ -1,16 +1,20 @@
 import { useState } from "react";
 
+
 import {
     exportProductionExcel,
     exportApprovedExcel,
-    exportGoogleSheet
+    createGoogleSheet,
+    updateGoogleSheet
 } from "../../services/productionService";
+
 
 import "./ReportDownload.css";
 
 
 
 function ReportDownload(){
+
 
 
     const today =
@@ -35,6 +39,7 @@ function ReportDownload(){
 
 
 
+
     const [loadingPending,setLoadingPending] =
         useState(false);
 
@@ -45,23 +50,34 @@ function ReportDownload(){
 
 
 
-    const [loadingSheet,setLoadingSheet] =
+    const [loadingCreateSheet,setLoadingCreateSheet] =
+        useState(false);
+
+
+
+    const [loadingUpdateSheet,setLoadingUpdateSheet] =
         useState(false);
 
 
 
 
 
+
+
+
     // ==========================
-    // EXPORT PENDING
+    // EXPORT EXCEL PENDING
     // ==========================
+
 
     const handleExportPending = async()=>{
 
 
         try{
 
+
             setLoadingPending(true);
+
 
 
             await exportProductionExcel(
@@ -69,23 +85,28 @@ function ReportDownload(){
             );
 
 
-        }
 
+        }
         catch(err){
+
 
             console.error(err);
 
+
             alert(
-                "Xuất báo cáo chờ duyệt thất bại"
+                "Xuất Excel chờ duyệt thất bại"
             );
 
-        }
 
+        }
         finally{
+
 
             setLoadingPending(false);
 
+
         }
+
 
     };
 
@@ -94,16 +115,23 @@ function ReportDownload(){
 
 
 
+
+
+
+
     // ==========================
-    // EXPORT APPROVED
+    // EXPORT EXCEL APPROVED
     // ==========================
+
 
     const handleExportApproved = async()=>{
 
 
         try{
 
+
             setLoadingApproved(true);
+
 
 
             await exportApprovedExcel(
@@ -111,23 +139,28 @@ function ReportDownload(){
             );
 
 
-        }
 
+        }
         catch(err){
+
 
             console.error(err);
 
+
             alert(
-                "Xuất báo cáo đã duyệt thất bại"
+                "Xuất Excel đã duyệt thất bại"
             );
 
-        }
 
+        }
         finally{
+
 
             setLoadingApproved(false);
 
+
         }
+
 
     };
 
@@ -137,22 +170,98 @@ function ReportDownload(){
 
 
 
+
+
     // ==========================
-    // GOOGLE SHEET
+    // CREATE GOOGLE SHEET
     // ==========================
 
-    const handleGoogleSheet = async()=>{
+
+    const handleCreateSheet = async()=>{
 
 
         try{
 
 
-            setLoadingSheet(true);
+            setLoadingCreateSheet(true);
 
 
 
             const result =
-            await exportGoogleSheet(
+            await createGoogleSheet(
+                sheetDate
+            );
+
+
+
+            alert(
+
+                "Tạo Google Sheet thành công\n\n"
+                +
+                result.url
+
+            );
+
+
+
+            window.open(
+
+                result.url,
+
+                "_blank"
+
+            );
+
+
+        }
+        catch(err){
+
+
+            console.error(err);
+
+
+            alert(
+                "Tạo Google Sheet thất bại"
+            );
+
+
+        }
+        finally{
+
+
+            setLoadingCreateSheet(false);
+
+
+        }
+
+
+    };
+
+
+
+
+
+
+
+
+
+    // ==========================
+    // UPDATE GOOGLE SHEET
+    // ==========================
+
+
+    const handleUpdateSheet = async()=>{
+
+
+        try{
+
+
+            setLoadingUpdateSheet(true);
+
+
+
+            const result =
+            await updateGoogleSheet(
                 sheetDate
             );
 
@@ -169,30 +278,34 @@ function ReportDownload(){
 
 
             window.open(
+
                 result.url,
+
                 "_blank"
+
             );
 
 
         }
-
         catch(err){
 
 
             console.error(err);
 
 
+
             alert(
+
                 "Cập nhật Google Sheet thất bại"
+
             );
 
 
         }
-
         finally{
 
 
-            setLoadingSheet(false);
+            setLoadingUpdateSheet(false);
 
 
         }
@@ -206,7 +319,11 @@ function ReportDownload(){
 
 
 
+
+
     return (
+
+
 
         <div className="download-page">
 
@@ -224,12 +341,22 @@ function ReportDownload(){
 
 
 
+
+
+
+                {/* ======================
+                    EXCEL PENDING
+                ====================== */}
+
+
+
                 <div className="export-box">
 
 
                     <h3>
                         ⏳ Báo cáo chờ duyệt
                     </h3>
+
 
 
                     <p>
@@ -255,6 +382,7 @@ function ReportDownload(){
 
 
 
+
                     <button
 
                         onClick={
@@ -265,13 +393,13 @@ function ReportDownload(){
 
                     >
 
-                        {
-                            loadingPending
-                            ?
-                            "⏳ Đang xuất..."
-                            :
-                            "📄 Xuất Excel chờ duyệt"
-                        }
+                    {
+                        loadingPending
+                        ?
+                        "⏳ Đang xuất..."
+                        :
+                        "📄 Xuất Excel chờ duyệt"
+                    }
 
 
                     </button>
@@ -284,6 +412,15 @@ function ReportDownload(){
 
 
 
+
+
+
+
+
+
+                {/* ======================
+                    EXCEL APPROVED
+                ====================== */}
 
 
 
@@ -319,6 +456,7 @@ function ReportDownload(){
 
 
 
+
                     <button
 
                         onClick={
@@ -329,16 +467,17 @@ function ReportDownload(){
 
                     >
 
-                        {
-                            loadingApproved
-                            ?
-                            "⏳ Đang xuất..."
-                            :
-                            "📄 Xuất Excel đã duyệt"
-                        }
+                    {
+                        loadingApproved
+                        ?
+                        "⏳ Đang xuất..."
+                        :
+                        "📄 Xuất Excel đã duyệt"
+                    }
 
 
                     </button>
+
 
 
                 </div>
@@ -351,6 +490,16 @@ function ReportDownload(){
 
 
 
+
+
+
+
+                {/* ======================
+                    GOOGLE SHEET
+                ====================== */}
+
+
+
                 <div className="export-box">
 
 
@@ -359,10 +508,10 @@ function ReportDownload(){
                     </h3>
 
 
+
                     <p>
                         Tạo mới hoặc cập nhật báo cáo Google Sheet
                     </p>
-
 
 
 
@@ -384,26 +533,59 @@ function ReportDownload(){
 
 
 
+
                     <button
 
                         onClick={
-                            handleGoogleSheet
+                            handleCreateSheet
                         }
 
-                        disabled={loadingSheet}
+                        disabled={
+                            loadingCreateSheet
+                        }
 
                     >
 
-                        {
-                            loadingSheet
-                            ?
-                            "⏳ Đang cập nhật..."
-                            :
-                            "📊 Cập nhật Google Sheet"
-                        }
+
+                    {
+                        loadingCreateSheet
+                        ?
+                        "⏳ Đang tạo..."
+                        :
+                        "📄 Tạo Sheet mới"
+                    }
 
 
                     </button>
+
+
+
+
+
+                    <button
+
+                        onClick={
+                            handleUpdateSheet
+                        }
+
+                        disabled={
+                            loadingUpdateSheet
+                        }
+
+                    >
+
+
+                    {
+                        loadingUpdateSheet
+                        ?
+                        "⏳ Đang cập nhật..."
+                        :
+                        "🔄 Cập nhật Sheet"
+                    }
+
+
+                    </button>
+
 
 
 
@@ -413,10 +595,12 @@ function ReportDownload(){
 
 
 
+
             </div>
 
 
         </div>
+
 
     );
 

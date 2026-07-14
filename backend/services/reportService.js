@@ -103,3 +103,13 @@ exports.getApprovedReportsByDate = (date)=>{
 
 
 };
+router.post(
+    "/create-sheet",
+    createGoogleSheet
+);
+
+
+router.post(
+    "/update-sheet",
+    updateGoogleSheet
+);

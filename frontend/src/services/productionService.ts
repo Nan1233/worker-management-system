@@ -569,31 +569,56 @@ const downloadExcel = (
 
 
 };
-
 // =====================================================
 // GOOGLE SHEET
 // =====================================================
 
-export const exportGoogleSheet = async(
+
+// TẠO GOOGLE SHEET MỚI
+
+export const createGoogleSheet = async(
     date:string
 )=>{
 
 
-    const res = await api.get(
+    const res = await api.post(
 
-        "/reports/export-google-sheet",
+        "/reports/create-sheet",
 
         {
-
-            params:{
-                date
-            }
-
+            date
         }
 
     );
 
 
     return res.data;
+
+
+};
+
+
+
+
+// CẬP NHẬT GOOGLE SHEET CŨ
+
+export const updateGoogleSheet = async(
+    date:string
+)=>{
+
+
+    const res = await api.post(
+
+        "/reports/update-sheet",
+
+        {
+            date
+        }
+
+    );
+
+
+    return res.data;
+
 
 };
