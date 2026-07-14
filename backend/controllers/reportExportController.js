@@ -4,7 +4,7 @@ const db = require("../config/db");
 
 // =====================================================
 // XUẤT EXCEL GIA CÔNG THEO NGÀY
-// GET /api/reports/export-excel?date=2026-07-01
+// GET /api/reports/export-excel?date=2026-07-01&type=approved
 // =====================================================
 
 exports.exportGiaCongExcel = async (req, res) => {
@@ -12,6 +12,7 @@ exports.exportGiaCongExcel = async (req, res) => {
     try {
 
         const date = req.query.date;
+        const type = req.query.type;
 
 
         if (!date) {
@@ -63,17 +64,18 @@ exports.exportGiaCongExcel = async (req, res) => {
             pr.actual_output,
 
 
-           pr.tt_ok,
+            pr.tt_ok,
 
-pr.tt_ng,
+            pr.tt_ng,
 
-pr.note,
 
-pr.status,
+            pr.note,
 
-pr.review_note,
+            pr.status,
 
-pr.approved_at,
+            pr.review_note,
+
+            pr.approved_at,
 
             pr.created_at
 
@@ -102,6 +104,21 @@ pr.approved_at,
 
 
         WHERE DATE(pr.work_date)=?
+
+
+
+        ${
+            type === "approved"
+            ? "AND pr.status='approved'"
+            : ""
+        }
+
+
+        ${
+            type === "pending"
+            ? "AND pr.status='pending'"
+            : ""
+        }
 
 
 
@@ -138,7 +155,6 @@ pr.approved_at,
 
 
 
-
                 const workbook =
                     new ExcelJS.Workbook();
 
@@ -148,7 +164,6 @@ pr.approved_at,
                     workbook.addWorksheet(
                         "Gia Cong"
                     );
-
 
 
 
@@ -240,6 +255,13 @@ pr.approved_at,
 
 
                     {
+                        header:"Trạng thái",
+                        key:"status",
+                        width:15
+                    },
+
+
+                    {
                         header:"Ghi chú",
                         key:"note",
                         width:30
@@ -281,6 +303,8 @@ pr.approved_at,
 
                         tt_ng:item.tt_ng,
 
+                        status:item.status,
+
                         note:item.note
 
 
@@ -288,7 +312,6 @@ pr.approved_at,
 
 
                 });
-
 
 
 
@@ -318,7 +341,7 @@ pr.approved_at,
 
                     "Content-Disposition",
 
-                    `attachment; filename=gia-cong-${date}.xlsx`
+                    `attachment; filename=gia-cong-${type || "all"}-${date}.xlsx`
 
                 );
 
@@ -326,9 +349,7 @@ pr.approved_at,
 
 
 
-
                 await workbook.xlsx.write(res);
-
 
 
                 res.end();
@@ -342,6 +363,7 @@ pr.approved_at,
 
 
     }
+
 
     catch(err){
 
