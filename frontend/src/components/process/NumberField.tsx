@@ -8,12 +8,19 @@ type Props = {
     onChange: (
         e: React.ChangeEvent<HTMLInputElement>
     ) => void;
+
+    onBlur?: (
+        e: React.FocusEvent<HTMLInputElement>
+    ) => void;
 };
+
 
 
 function NumberField({
 
     label,
+
+    name,
 
     value,
 
@@ -21,7 +28,9 @@ function NumberField({
 
     onChange,
 
-}: Props) {
+    onBlur,
+
+}: Props){
 
 
 
@@ -34,7 +43,6 @@ function NumberField({
 
 
 
-        // số nguyên
         if(!allowDecimal){
 
 
@@ -49,10 +57,6 @@ function NumberField({
 
 
         }
-
-
-
-        // số thập phân
         else{
 
 
@@ -72,9 +76,7 @@ function NumberField({
 
         onChange(e);
 
-
     };
-
 
 
 
@@ -84,14 +86,14 @@ function NumberField({
 
 
             <label>
-
                 {label}
-
             </label>
 
 
 
             <input
+
+                name={name}
 
                 type="text"
 
@@ -106,6 +108,8 @@ function NumberField({
                 value={value ?? ""}
 
                 onChange={handleInput}
+
+                onBlur={onBlur}
 
             />
 

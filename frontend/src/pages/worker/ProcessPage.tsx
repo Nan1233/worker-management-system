@@ -988,7 +988,29 @@ setStopReason("");
 
 
 
+const handleNumberBlur = (
+    e: React.FocusEvent<HTMLInputElement>
+)=>{
 
+const {
+    name,
+    value
+}=e.target;
+
+
+if(value==="0"){
+
+    setForm(prev=>({
+
+        ...prev,
+
+        [name]:""
+
+    }));
+
+}
+
+};
 return (
 
 <div className="container">
@@ -1603,21 +1625,17 @@ onChange={handleChange}
 
 <NumberField
 
-
 label="TT OK"
-
 
 name="ttOk"
 
-
 value={form.ttOk}
-
 
 allowDecimal={false}
 
-
 onChange={handleChange}
 
+onBlur={handleNumberBlur}
 
 />
 
