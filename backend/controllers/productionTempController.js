@@ -1,5 +1,4 @@
-const ProductionTemp = require("../models/productionTempModule");
-
+const ProductionTemp = require("../models/productionTempModel");
 
 
 // =====================================================
