@@ -13,15 +13,12 @@ const pool = mysql.createPool({
 
     database: process.env.DB_NAME,
 
-
     port: process.env.DB_PORT || 4000,
 
 
-    ssl: process.env.DB_SSL === "true"
-        ? {
-            rejectUnauthorized: true
-        }
-        : undefined,
+    ssl: {
+        rejectUnauthorized: false
+    },
 
 
     waitForConnections: true,
@@ -34,10 +31,7 @@ const pool = mysql.createPool({
 
 
 
-// test kết nối
-
 pool.getConnection((err, connection)=>{
-
 
     if(err){
 
@@ -45,7 +39,6 @@ pool.getConnection((err, connection)=>{
             "❌ Database connection failed:",
             err.message
         );
-
 
         return;
 
@@ -59,9 +52,7 @@ pool.getConnection((err, connection)=>{
 
     connection.release();
 
-
 });
-
 
 
 module.exports = pool;
