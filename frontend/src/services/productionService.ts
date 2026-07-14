@@ -376,7 +376,7 @@ export const exportProductionExcel = async(
 
     const res = await api.get(
 
-        `/reports/export-excel?date=${date}`,
+        `/reports/export-excel?date=${date}&type=pending`,
 
         {
 
@@ -392,7 +392,7 @@ export const exportProductionExcel = async(
 
         res.data,
 
-        `BaoCaoGiaCong_${date}.xlsx`
+        `BaoCaoChoDuyet_${date}.xlsx`
 
     );
 
