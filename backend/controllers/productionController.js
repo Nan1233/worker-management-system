@@ -38,7 +38,7 @@ ON w.user_id=u.id
 JOIN processes p
 ON pr.process_id=p.id
 
-
+WHERE pr.status='approved'
 ORDER BY pr.created_at DESC
 
 
@@ -149,7 +149,11 @@ JOIN processes p
 ON pr.process_id=p.id
 
 
-WHERE pr.work_date=?
+WHERE 
+
+DATE(pr.work_date)=?
+
+AND pr.status='approved'
 
 
 ORDER BY pr.created_at DESC
