@@ -45,7 +45,7 @@ exports.syncProductionReport = async(date)=>{
     try{
 
 
-        const reports =
+        let reports =
         await ReportService.getReportsByDate(date);
 
 
@@ -59,6 +59,68 @@ exports.syncProductionReport = async(date)=>{
             "REPORT COUNT:",
             reports.length
         );
+
+
+
+        // ============================
+        // FIX DATA
+        // FILL MÃ NV TRỐNG
+        // ============================
+
+        let lastWorker = null;
+
+
+        const cleanReports = [];
+
+
+        reports.forEach(item=>{
+
+
+            if(item.worker_code){
+
+                lastWorker =
+                item.worker_code;
+
+            }
+
+
+            if(lastWorker){
+
+
+                item.worker_code =
+                lastWorker;
+
+
+                cleanReports.push(item);
+
+
+            }
+
+
+        });
+
+
+
+        // ============================
+        // SORT THEO MÃ NV
+        // ============================
+
+        cleanReports.sort((a,b)=>{
+
+
+            return String(a.worker_code)
+            .localeCompare(
+                String(b.worker_code),
+                undefined,
+                {
+                    numeric:true,
+                    sensitivity:"base"
+                }
+            );
+
+
+        });
+
 
 
 
@@ -79,30 +141,39 @@ exports.syncProductionReport = async(date)=>{
 
 
         await writeSheetData(
+
             sheets,
-            reports
+
+            cleanReports
+
         );
 
 
 
         return {
 
+
             spreadsheetId,
+
 
             url:
             `https://docs.google.com/spreadsheets/d/${spreadsheetId}`
+
 
         };
 
 
     }
+
     catch(err){
 
         console.error(
             "SYNC GOOGLE SHEET ERROR"
         );
 
+
         console.error(err);
+
 
         throw err;
 
@@ -119,8 +190,6 @@ exports.createSheet = async(date)=>{
     return await exports.syncProductionReport(date);
 
 };
-
-
 
 
 
@@ -145,18 +214,22 @@ const getSheetData = async(sheets)=>{
     const result =
     await sheets.spreadsheets.values.get({
 
+
         spreadsheetId,
+
 
         range:
         `${SHEET_NAME}!A:AZ`
 
-    });
 
+    });
 
 
     return result.data.values || [];
 
+
 };
+
 
 
 
@@ -179,9 +252,11 @@ const writeSheetData = async(
 
     if(!reports || reports.length===0){
 
+
         throw new Error(
             "Không có dữ liệu"
         );
+
 
     }
 
@@ -189,8 +264,10 @@ const writeSheetData = async(
 
 
 
+
     const oldData =
     await getSheetData(sheets);
+
 
 
 
@@ -204,10 +281,8 @@ const writeSheetData = async(
 
 
 
-    // ============================
-    // MAP DÒNG CŨ
-    // ============================
 
+    // MAP DÒNG CŨ
 
     const rowMap = {};
 
@@ -229,7 +304,7 @@ const writeSheetData = async(
 
 
         const machine =
-        row[2]
+        row[3]
         ?.toString()
         .trim();
 
@@ -239,7 +314,6 @@ const writeSheetData = async(
         row[29]
         ?.toString()
         .trim();
-
 
 
 
@@ -263,20 +337,12 @@ const writeSheetData = async(
 
 
 
-
-
     let lastRow =
     oldData.length;
 
 
 
 
-
-
-
-    // ============================
-    // GHI TỪNG REPORT
-    // ============================
 
 
     for(const item of reports){
@@ -304,9 +370,9 @@ const writeSheetData = async(
 
 
 
+
         const key =
         `${worker}_${machine}_${workDate}`;
-
 
 
 
@@ -319,10 +385,6 @@ const writeSheetData = async(
 
 
 
-
-
-        // chưa có dòng
-
         if(!rowNumber){
 
 
@@ -332,24 +394,7 @@ const writeSheetData = async(
             lastRow;
 
 
-            console.log(
-                "ADD ROW:",
-                rowNumber
-            );
-
-
         }
-        else{
-
-
-            console.log(
-                "UPDATE ROW:",
-                rowNumber
-            );
-
-
-        }
-
 
 
 
@@ -358,161 +403,162 @@ const writeSheetData = async(
 
 
         // ============================
-        // DATA THEO FILE EXCEL
+        // DATA GOOGLE SHEET
+        // THEO FILE MẪU
         // ============================
 
 
         const rowData=[
 
 
-            rowNumber-1,          // A STT
+            rowNumber-1,              // A STT
 
 
-            worker,               // B Tên
+            worker || "",             // B Mã NV
 
 
-            item.machine_no || "",// C Số máy
+            item.full_name || "",     // C Tên
 
 
-            item.shift || "",     // D Ca
+            item.machine_no || "",    // D Số máy
 
 
-            "100%",               // E % học việc
+            item.shift || "",         // E Ca
 
 
-            item.total_time || "",// F TG làm việc
+            "100%",                   // F % học việc
 
 
-            item.actual_time || "",// G TG thực tế
+            item.total_time || "",    // G TG làm việc
 
 
-            "",                   // H Số lần CM
+            item.actual_time || "",   // H TG thực tế
 
 
-            item.deduction_time || "", // I Tổng TG trừ giờ
+            "",                       // I Số lần CM
 
 
-            "",                   // J Thiếu sản lượng
+            item.deduction_time || "",// J Tổng TG trừ giờ
 
 
-            "",                   // K Bật máy
+            "",                       // K Thiếu sản lượng
 
 
-            "",                   // L Chuyển mã
+            "",                       // L Bật máy
 
 
-            "",                   // M Chỉnh máy
+            "",                       // M Chuyển mã
 
 
-            "",                   // N Chờ chỉnh máy
+            "",                       // N Chỉnh máy
 
 
-            "",                   // O Mất điện
+            "",                       // O Chờ chỉnh máy
 
 
-            "",                   // P Mất khí
+            "",                       // P Mất điện
 
 
-            "",                   // Q Chờ hàng
+            "",                       // Q Mất khí
 
 
-            "",                   // R Bảo dưỡng
+            "",                       // R Chờ hàng
 
 
-            "",                   // S Nghỉ giải lao
+            "",                       // S Bảo dưỡng
 
 
-            "",                   // T Giao ca
+            "",                       // T Nghỉ giải lao
 
 
-            "",                   // U Hỗ trợ
+            "",                       // U Giao ca
 
 
-            "",                   // V Giặt cs
+            "",                       // V Hỗ trợ
 
 
-            "",                   // W 5S
+            "",                       // W Giặt cs
 
 
-            "",                   // X Học việc
+            "",                       // X 5S
 
 
-            "",                   // Y Đi muộn
+            "",                       // Y Học việc
 
 
-            "",                   // Z
+            "",                       // Z Đi muộn
 
 
-            item.product_name || "", // AA SP
+            item.product_name || "",  // AA SP
 
 
-            item.standard_output || 0, // AB Định mức
+            item.standard_output || 0,// AB Định mức
 
 
-            item.actual_output || 0, // AC TT
+            item.actual_output || 0,  // AC TT
 
 
-            workDate,             // AD Ngày
+            workDate,                 // AD Ngày
 
 
-            item.tt_ok || 0,       // AE OK
+            item.tt_ok || 0,           // AE OK
 
 
-            item.tt_ng || 0,       // AF NG
+            item.tt_ng || 0,           // AF NG
 
 
-            "",                   // AG
+            "",                       // AG
 
 
-            "",                   // AH KQD
+            "",                       // AH KQD
 
 
-            "",                   // AI Vỡ cao su
+            "",                       // AI Vỡ cao su
 
 
-            "",                   // AJ Xước cong gãy
+            "",                       // AJ Xước cong gãy
 
 
-            "",                   // AK Cao su xoay
+            "",                       // AK Cao su xoay
 
 
-            "",                   // AL Cắt không đứt
+            "",                       // AL Cắt không đứt
 
 
-            "",                   // AM bavia
+            "",                       // AM bavia
 
 
-            "",                   // AN CSH
+            "",                       // AN CSH
 
 
-            "",                   // AO PPCM
+            "",                       // AO PPCM
 
 
-            "",                   // AP KT lớn
+            "",                       // AP KT lớn
 
 
-            "",                   // AQ KT nhỏ
+            "",                       // AQ KT nhỏ
 
 
-            "",                   // AR LCS
+            "",                       // AR LCS
 
 
-            "",                   // AS Cắt lẹm
+            "",                       // AS Cắt lẹm
 
 
-            "",                   // AT Rách NVL
+            "",                       // AT Rách NVL
 
 
-            "",                   // AU Chân ngắn dài
+            "",                       // AU Chân ngắn dài
 
 
-            "",                   // AV Sót via
+            "",                       // AV Sót via
 
 
-            "",                   // AW Fure trục
+            "",                       // AW Fure trục
 
 
-            "approved"            // AX Trạng thái
+            "approved"                // AX Trạng thái
 
 
         ];
@@ -525,8 +571,6 @@ const writeSheetData = async(
 
         const endColumn =
         columnLetter(rowData.length);
-
-
 
 
 
@@ -559,8 +603,8 @@ const writeSheetData = async(
         });
 
 
-
     }
+
 
 
 
@@ -571,8 +615,9 @@ const writeSheetData = async(
     );
 
 
-
 };
+
+
 
 
 
@@ -603,6 +648,7 @@ function columnLetter(num){
         str;
 
 
+
         num =
         Math.floor(
             (num-1)/26
@@ -613,5 +659,6 @@ function columnLetter(num){
 
 
     return str;
+
 
 }
