@@ -25,7 +25,7 @@ const auth = new google.auth.GoogleAuth({
 
 
 // =====================================================
-// GOOGLE SHEET ID
+// GOOGLE SHEET
 // =====================================================
 
 const spreadsheetId =
@@ -48,24 +48,12 @@ exports.syncProductionReport = async(date)=>{
 
 
         const reports =
-        await ReportService.getApprovedReportsByDate(date);
+        await ReportService.getReportsByDate(date);
 
 
 
         console.log(
             "========== GOOGLE SHEET =========="
-        );
-
-
-        console.log(
-            "SERVICE ACCOUNT:",
-            credentials.client_email
-        );
-
-
-        console.log(
-            "SPREADSHEET ID:",
-            spreadsheetId
         );
 
 
@@ -99,15 +87,20 @@ exports.syncProductionReport = async(date)=>{
 
 
         await writeSheetData(
+
             sheets,
+
             reports
+
         );
 
 
 
         return {
 
+
             spreadsheetId,
+
 
             url:
             `https://docs.google.com/spreadsheets/d/${spreadsheetId}`
@@ -147,6 +140,7 @@ exports.createSheet = async(date)=>{
 
 
 
+
 exports.updateSheet = async(date)=>{
 
     return await exports.syncProductionReport(date);
@@ -158,9 +152,12 @@ exports.updateSheet = async(date)=>{
 
 
 
+
+
 // =====================================================
 // READ SHEET
 // =====================================================
+
 
 const getSheetData = async(sheets)=>{
 
@@ -171,14 +168,15 @@ const getSheetData = async(sheets)=>{
 
         spreadsheetId,
 
+
         range:
         `${SHEET_NAME}!A:ZZ`
 
     });
 
 
-
     return result.data.values || [];
+
 
 };
 
@@ -187,9 +185,12 @@ const getSheetData = async(sheets)=>{
 
 
 
+
+
 // =====================================================
-// WRITE DATA
+// WRITE
 // =====================================================
+
 
 const writeSheetData = async(
 
@@ -202,11 +203,13 @@ const writeSheetData = async(
 
     if(!reports || reports.length===0){
 
+
         throw new Error(
-            "Không có dữ liệu approved"
+            "Không có dữ liệu"
         );
 
     }
+
 
 
 
@@ -224,9 +227,9 @@ const writeSheetData = async(
 
 
 
-    // ================================
-    // MAP MÃ NHÂN VIÊN CỘT B
-    // ================================
+    // ==============================
+    // MAP WORKER CODE
+    // ==============================
 
 
     const employeeMap = {};
@@ -248,13 +251,16 @@ const writeSheetData = async(
 
         if(code){
 
+
             employeeMap[code] =
             index + 1;
+
 
         }
 
 
     });
+
 
 
 
@@ -277,6 +283,7 @@ const writeSheetData = async(
 
         }
 
+
     });
 
 
@@ -284,12 +291,18 @@ const writeSheetData = async(
 
 
 
+
+    // ==============================
+    // GHI DỮ LIỆU
+    // ==============================
+
+
     for(const item of reports){
 
 
 
         const workerCode =
-        item.worker_code?.trim();
+        item.worker_code.trim();
 
 
 
@@ -299,51 +312,6 @@ const writeSheetData = async(
 
 
 
-
-        // ================================
-        // TÌM DÒNG TRỐNG CỘT B
-        // ================================
-
-        if(!rowNumber){
-
-
-            for(let i=1;i<oldData.length;i++){
-
-
-                const stt =
-                oldData[i][0];
-
-
-                const code =
-                oldData[i][1];
-
-
-
-                if(
-                    stt &&
-                    (!code || code==="")
-                ){
-
-                    rowNumber =
-                    i+1;
-
-                    break;
-
-                }
-
-
-            }
-
-
-        }
-
-
-
-
-
-        // ================================
-        // THÊM CUỐI
-        // ================================
 
         if(!rowNumber){
 
@@ -360,8 +328,6 @@ const writeSheetData = async(
 
 
 
-
-
         console.log(
             "WRITE",
             workerCode,
@@ -371,25 +337,6 @@ const writeSheetData = async(
 
 
 
-        console.log(
-            "VALUE",
-            [
-                workerCode,
-                item.full_name,
-                item.machine_no,
-                item.shift
-            ]
-        );
-
-
-
-
-
-
-        // ================================
-        // CHỈ GHI Ô DỮ LIỆU
-        // GIỮ CÔNG THỨC
-        // ================================
 
 
         await sheets.spreadsheets.values.update({
@@ -414,12 +361,12 @@ const writeSheetData = async(
 
                     [
 
-                        rowNumber===oldData.length+1
-                        ? maxSTT
-                        : oldData[rowNumber-1]?.[0] || "",
+                        oldData[rowNumber-1]?.[0]
+                        ||
+                        maxSTT,
 
 
-                        workerCode || "",
+                        workerCode,
 
 
                         item.full_name || "",
@@ -442,6 +389,7 @@ const writeSheetData = async(
 
 
     }
+
 
 
 
