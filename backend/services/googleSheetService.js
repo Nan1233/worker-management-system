@@ -664,10 +664,10 @@ const writeSheetData = async(
 
 
             // =============================
-            // AC = AF / H
+            // AC = AG+ AH
             // =============================
 
-            `=IFERROR(AF${rowNumber}/H${rowNumber},"")`,
+            `=IFERROR(AG${rowNumber}+AH${rowNumber},"")`,
 
 
             // AD ngày
@@ -683,10 +683,10 @@ const writeSheetData = async(
 
 
 
-            // AF = AC + AH
+            // AF = AC / H
             // =============================
 
-            `=IFERROR(AC${rowNumber}+AH${rowNumber},"")`,
+            `=IFERROR(AC${rowNumber}/H${rowNumber},"")`,
 
 
 
