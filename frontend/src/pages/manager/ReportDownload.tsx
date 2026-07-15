@@ -16,7 +16,6 @@ import "./ReportDownload.css";
 function ReportDownload(){
 
 
-
     const today =
         new Date()
         .toISOString()
@@ -63,21 +62,15 @@ function ReportDownload(){
 
 
 
-
-
     // ==========================
     // EXPORT EXCEL PENDING
     // ==========================
 
-
     const handleExportPending = async()=>{
-
 
         try{
 
-
             setLoadingPending(true);
-
 
 
             await exportProductionExcel(
@@ -85,10 +78,8 @@ function ReportDownload(){
             );
 
 
-
         }
         catch(err){
-
 
             console.error(err);
 
@@ -97,22 +88,14 @@ function ReportDownload(){
                 "Xuất Excel chờ duyệt thất bại"
             );
 
-
         }
         finally{
 
-
             setLoadingPending(false);
-
 
         }
 
-
     };
-
-
-
-
 
 
 
@@ -122,7 +105,6 @@ function ReportDownload(){
     // ==========================
     // EXPORT EXCEL APPROVED
     // ==========================
-
 
     const handleExportApproved = async()=>{
 
@@ -145,6 +127,7 @@ function ReportDownload(){
 
 
             console.error(err);
+
 
 
             alert(
@@ -171,11 +154,10 @@ function ReportDownload(){
 
 
 
-
     // ==========================
-    // CREATE GOOGLE SHEET
+    // GOOGLE SHEET
+    // GHI VÀO SHEET CỐ ĐỊNH
     // ==========================
-
 
     const handleCreateSheet = async()=>{
 
@@ -196,7 +178,7 @@ function ReportDownload(){
 
             alert(
 
-                "Tạo Google Sheet thành công\n\n"
+                "Xuất Google Sheet thành công\n\n"
                 +
                 result.url
 
@@ -213,6 +195,7 @@ function ReportDownload(){
             );
 
 
+
         }
         catch(err){
 
@@ -220,8 +203,11 @@ function ReportDownload(){
             console.error(err);
 
 
+
             alert(
-                "Tạo Google Sheet thất bại"
+
+                "Xuất Google Sheet thất bại"
+
             );
 
 
@@ -249,7 +235,6 @@ function ReportDownload(){
     // UPDATE GOOGLE SHEET
     // ==========================
 
-
     const handleUpdateSheet = async()=>{
 
 
@@ -269,7 +254,7 @@ function ReportDownload(){
 
             alert(
 
-                "Cập nhật Google Sheet thành công\n\n"
+                "Đồng bộ Google Sheet thành công\n\n"
                 +
                 result.url
 
@@ -286,6 +271,7 @@ function ReportDownload(){
             );
 
 
+
         }
         catch(err){
 
@@ -296,7 +282,7 @@ function ReportDownload(){
 
             alert(
 
-                "Cập nhật Google Sheet thất bại"
+                "Đồng bộ Google Sheet thất bại"
 
             );
 
@@ -320,9 +306,7 @@ function ReportDownload(){
 
 
 
-
     return (
-
 
 
         <div className="download-page">
@@ -341,13 +325,7 @@ function ReportDownload(){
 
 
 
-
-
-
-                {/* ======================
-                    EXCEL PENDING
-                ====================== */}
-
+                {/* EXCEL PENDING */}
 
 
                 <div className="export-box">
@@ -356,7 +334,6 @@ function ReportDownload(){
                     <h3>
                         ⏳ Báo cáo chờ duyệt
                     </h3>
-
 
 
                     <p>
@@ -379,7 +356,6 @@ function ReportDownload(){
                         }
 
                     />
-
 
 
 
@@ -415,13 +391,7 @@ function ReportDownload(){
 
 
 
-
-
-
-                {/* ======================
-                    EXCEL APPROVED
-                ====================== */}
-
+                {/* EXCEL APPROVED */}
 
 
                 <div className="export-box">
@@ -430,7 +400,6 @@ function ReportDownload(){
                     <h3>
                         ✅ Báo cáo đã duyệt
                     </h3>
-
 
 
                     <p>
@@ -456,7 +425,6 @@ function ReportDownload(){
 
 
 
-
                     <button
 
                         onClick={
@@ -466,6 +434,7 @@ function ReportDownload(){
                         disabled={loadingApproved}
 
                     >
+
 
                     {
                         loadingApproved
@@ -490,14 +459,7 @@ function ReportDownload(){
 
 
 
-
-
-
-
-                {/* ======================
-                    GOOGLE SHEET
-                ====================== */}
-
+                {/* GOOGLE SHEET */}
 
 
                 <div className="export-box">
@@ -510,7 +472,7 @@ function ReportDownload(){
 
 
                     <p>
-                        Tạo mới hoặc cập nhật báo cáo Google Sheet
+                        Ghi báo cáo vào Google Sheet chung của hệ thống
                     </p>
 
 
@@ -550,13 +512,14 @@ function ReportDownload(){
                     {
                         loadingCreateSheet
                         ?
-                        "⏳ Đang tạo..."
+                        "⏳ Đang xuất..."
                         :
-                        "📄 Tạo Sheet mới"
+                        "📊 Xuất Google Sheet"
                     }
 
 
                     </button>
+
 
 
 
@@ -578,9 +541,9 @@ function ReportDownload(){
                     {
                         loadingUpdateSheet
                         ?
-                        "⏳ Đang cập nhật..."
+                        "⏳ Đang đồng bộ..."
                         :
-                        "🔄 Cập nhật Sheet"
+                        "🔄 Đồng bộ lại dữ liệu"
                     }
 
 
