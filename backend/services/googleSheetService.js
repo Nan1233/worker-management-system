@@ -62,15 +62,11 @@ exports.syncProductionReport = async(date)=>{
 
 
 
-        // ============================
-        // FIX DATA
-        // FILL MÃ NV TRỐNG
-        // ============================
-
         let lastWorker = null;
 
 
         const cleanReports = [];
+
 
 
         reports.forEach(item=>{
@@ -84,15 +80,14 @@ exports.syncProductionReport = async(date)=>{
             }
 
 
-            if(lastWorker){
 
+            if(lastWorker){
 
                 item.worker_code =
                 lastWorker;
 
 
                 cleanReports.push(item);
-
 
             }
 
@@ -101,9 +96,6 @@ exports.syncProductionReport = async(date)=>{
 
 
 
-        // ============================
-        // SORT THEO MÃ NV
-        // ============================
 
         cleanReports.sort((a,b)=>{
 
@@ -124,6 +116,7 @@ exports.syncProductionReport = async(date)=>{
 
 
 
+
         const client =
         await auth.getClient();
 
@@ -140,18 +133,16 @@ exports.syncProductionReport = async(date)=>{
 
 
 
+
+
         await writeSheetData(
-
             sheets,
-
             cleanReports
-
         );
 
 
 
         return {
-
 
             spreadsheetId,
 
@@ -159,13 +150,12 @@ exports.syncProductionReport = async(date)=>{
             url:
             `https://docs.google.com/spreadsheets/d/${spreadsheetId}`
 
-
         };
 
 
     }
-
     catch(err){
+
 
         console.error(
             "SYNC GOOGLE SHEET ERROR"
@@ -176,6 +166,7 @@ exports.syncProductionReport = async(date)=>{
 
 
         throw err;
+
 
     }
 
@@ -193,11 +184,13 @@ exports.createSheet = async(date)=>{
 
 
 
+
 exports.updateSheet = async(date)=>{
 
     return await exports.syncProductionReport(date);
 
 };
+
 
 
 
@@ -214,13 +207,11 @@ const getSheetData = async(sheets)=>{
     const result =
     await sheets.spreadsheets.values.get({
 
-
         spreadsheetId,
 
 
         range:
-        `${SHEET_NAME}!A:AZ`
-
+        `${SHEET_NAME}!A:AX`
 
     });
 
@@ -229,8 +220,6 @@ const getSheetData = async(sheets)=>{
 
 
 };
-
-
 
 
 
@@ -252,11 +241,9 @@ const writeSheetData = async(
 
     if(!reports || reports.length===0){
 
-
         throw new Error(
             "Không có dữ liệu"
         );
-
 
     }
 
@@ -264,9 +251,9 @@ const writeSheetData = async(
 
 
 
-
     const oldData =
     await getSheetData(sheets);
+
 
 
 
@@ -282,9 +269,8 @@ const writeSheetData = async(
 
 
 
-    // MAP DÒNG CŨ
-
     const rowMap = {};
+
 
 
 
@@ -317,6 +303,7 @@ const writeSheetData = async(
 
 
 
+
         if(worker){
 
 
@@ -337,16 +324,30 @@ const writeSheetData = async(
 
 
 
+    // FIX GRID LIMIT
+
     let lastRow =
-oldData.length;
+    oldData.length || 1;
 
 
 
-if(reports.length > 0){
+    while(
+
+        oldData[lastRow-1] &&
+
+        oldData[lastRow-1].every(
+            v=>v===""
+
+        )
+
+    ){
+
+        lastRow--;
+
+    }
 
 
-    const needRows =
-    lastRow + reports.length;
+
 
 
 
@@ -354,7 +355,6 @@ if(reports.length > 0){
     await sheets.spreadsheets.get({
 
         spreadsheetId
-
 
     });
 
@@ -371,6 +371,14 @@ if(reports.length > 0){
 
     const currentRows =
     sheet.properties.gridProperties.rowCount;
+
+
+
+
+
+    const needRows =
+    lastRow + reports.length;
+
 
 
 
@@ -402,6 +410,7 @@ if(reports.length > 0){
                             length:
                             needRows-currentRows
 
+
                         }
 
                     }
@@ -417,14 +426,9 @@ if(reports.length > 0){
     }
 
 
-}
 
-
-
-
-
-
-    for(const item of reports){
+    // phần 2 mình gửi tiếp ngay sau đây
+        for(const item of reports){
 
 
 
@@ -442,9 +446,13 @@ if(reports.length > 0){
 
 
 
+
+        const d = new Date(item.work_date);
+
+
+
         const workDate =
-        new Date(item.work_date)
-        .toLocaleDateString("vi-VN");
+        `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`;
 
 
 
@@ -480,168 +488,164 @@ if(reports.length > 0){
 
 
 
-
-        // ============================
+        // ================================
         // DATA GOOGLE SHEET
-        // THEO FILE MẪU
-        // ============================
+        // MATCH FILE MẪU
+        // ================================
 
 
         const rowData=[
 
 
-            rowNumber-1,              // A STT
+            // A STT
+            rowNumber-1,
 
 
-            worker || "",             // B Mã NV
+            // B Mã NV
+            safeValue(worker),
 
 
-            item.full_name || "",     // C Tên
 
+            // C Tên
+            safeValue(item.full_name),
 
-            item.machine_no || "",    // D Số máy
 
 
-            item.shift || "",         // E Ca
+            // D Số máy
+            safeValue(item.machine_no),
 
 
-            "100%",                   // F % học việc
 
+            // E Ca
+            safeValue(item.shift),
 
-            item.total_time || "",    // G TG làm việc
 
 
-            item.actual_time || "",   // H TG thực tế
 
+            // F % học việc
+            "100%",
 
-            "",                       // I Số lần CM
 
 
-            item.deduction_time || "",// J Tổng TG trừ giờ
 
+            // G TG làm việc
+            formatNumber(item.total_time),
 
-            "",                       // K Thiếu sản lượng
 
 
-            "",                       // L Bật máy
 
+            // H TG thực tế
+            formatNumber(item.actual_time),
 
-            "",                       // M Chuyển mã
 
 
-            "",                       // N Chỉnh máy
 
+            // I Số lần CM
+            "",
 
-            "",                       // O Chờ chỉnh máy
 
 
-            "",                       // P Mất điện
 
+            // J Tổng TG trừ giờ
+            formatNumber(item.deduction_time),
 
-            "",                       // Q Mất khí
 
 
-            "",                       // R Chờ hàng
 
+            // K - Z
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
 
-            "",                       // S Bảo dưỡng
 
 
-            "",                       // T Nghỉ giải lao
 
 
-            "",                       // U Giao ca
+            // AA Sản phẩm
+            safeValue(item.product_name),
 
 
-            "",                       // V Hỗ trợ
 
 
-            "",                       // W Giặt cs
+            // AB Định mức
+            formatNumber(item.standard_output),
 
 
-            "",                       // X 5S
 
 
-            "",                       // Y Học việc
+            // AC TT
+            formatNumber(item.actual_output),
 
 
-            "",                       // Z Đi muộn
 
 
-            item.product_name || "",  // AA SP
+            // AD Ngày
+            "'" + workDate,
 
 
-            item.standard_output || 0,// AB Định mức
 
 
-            item.actual_output || 0,  // AC TT
+            // AE OK
+            formatNumber(item.tt_ok),
 
 
-            workDate,                 // AD Ngày
 
 
-            item.tt_ok || 0,           // AE OK
+            // AF NG
+            formatNumber(item.tt_ng),
 
 
-            item.tt_ng || 0,           // AF NG
 
 
-            "",                       // AG
+            // AG
+            "",
 
 
-            "",                       // AH KQD
 
+            // AH KQD
+            "",
 
-            "",                       // AI Vỡ cao su
 
 
-            "",                       // AJ Xước cong gãy
 
+            // AI - AW lỗi
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
 
-            "",                       // AK Cao su xoay
 
 
-            "",                       // AL Cắt không đứt
 
-
-            "",                       // AM bavia
-
-
-            "",                       // AN CSH
-
-
-            "",                       // AO PPCM
-
-
-            "",                       // AP KT lớn
-
-
-            "",                       // AQ KT nhỏ
-
-
-            "",                       // AR LCS
-
-
-            "",                       // AS Cắt lẹm
-
-
-            "",                       // AT Rách NVL
-
-
-            "",                       // AU Chân ngắn dài
-
-
-            "",                       // AV Sót via
-
-
-            "",                       // AW Fure trục
-
-
-            "approved"                // AX Trạng thái
+            // AX trạng thái
+            "approved"
 
 
         ];
-
 
 
 
@@ -655,10 +659,12 @@ if(reports.length > 0){
 
 
 
+
         await sheets.spreadsheets.values.update({
 
 
             spreadsheetId,
+
 
 
             range:
@@ -666,7 +672,9 @@ if(reports.length > 0){
 
 
 
+
             valueInputOption:"RAW",
+
 
 
 
@@ -680,6 +688,9 @@ if(reports.length > 0){
 
 
         });
+
+
+
 
 
     }
@@ -705,8 +716,69 @@ if(reports.length > 0){
 
 
 // ================================
+// SAFE VALUE
+// ================================
+
+
+function safeValue(value){
+
+
+    if(
+        value === null ||
+        value === undefined
+    ){
+
+        return "";
+
+    }
+
+
+    return String(value);
+
+
+}
+
+
+
+
+
+
+
+// ================================
+// FORMAT NUMBER
+// ================================
+
+
+function formatNumber(value){
+
+
+    if(
+        value === null ||
+        value === undefined ||
+        value === ""
+    ){
+
+        return 0;
+
+    }
+
+
+
+    return Number(value);
+
+
+}
+
+
+
+
+
+
+
+// ================================
 // COLUMN NUMBER -> LETTER
 // ================================
+
 
 function columnLetter(num){
 
@@ -719,6 +791,7 @@ function columnLetter(num){
 
         let rem =
         (num-1)%26;
+
 
 
         str =
