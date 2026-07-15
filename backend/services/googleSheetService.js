@@ -355,7 +355,72 @@ if(!sheet){
 }
 
 
+// =============================================
+// CHECK GOOGLE SHEET ROW LIMIT
+// =============================================
 
+const currentRows =
+sheet.properties.gridProperties.rowCount;
+
+
+
+const needRows =
+oldData.length + reports.length;
+
+
+
+if(needRows > currentRows){
+
+
+    await sheets.spreadsheets.batchUpdate({
+
+        spreadsheetId,
+
+
+        requestBody:{
+
+
+            requests:[
+
+
+                {
+
+                    appendDimension:{
+
+
+                        sheetId:
+                        sheet.properties.sheetId,
+
+
+                        dimension:"ROWS",
+
+
+                        length:
+                        needRows - currentRows
+
+
+                    }
+
+
+                }
+
+
+            ]
+
+
+        }
+
+
+    });
+
+
+    console.log(
+        "ADD ROW:",
+        needRows - currentRows
+    );
+
+
+}
     console.log(
         "OLD ROW:",
         oldData.length
@@ -467,8 +532,7 @@ if(!sheet){
 
 
         const workDate =
-        new Date(item.work_date)
-        .toLocaleDateString("vi-VN");
+new Date(item.work_date);
 
 
 
