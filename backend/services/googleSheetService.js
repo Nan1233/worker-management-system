@@ -12,33 +12,34 @@ const credentials = JSON.parse(
 );
 
 
+
 const auth = new google.auth.GoogleAuth({
 
     credentials,
 
     scopes:[
+
         "https://www.googleapis.com/auth/spreadsheets"
+
     ]
 
 });
 
 
 
+
 // =====================================================
-// GOOGLE SHEET
+// GOOGLE SHEET ID
 // =====================================================
 
 const spreadsheetId =
 process.env.GOOGLE_SPREADSHEET_ID;
 
 
-const SHEET_NAME = "Cắt lồng";
-
-
 
 
 // =====================================================
-// SYNC
+// SYNC REPORT
 // =====================================================
 
 exports.syncProductionReport = async(date)=>{
@@ -58,9 +59,22 @@ exports.syncProductionReport = async(date)=>{
 
 
         console.log(
+            "SERVICE ACCOUNT:",
+            credentials.client_email
+        );
+
+
+        console.log(
+            "SPREADSHEET ID:",
+            spreadsheetId
+        );
+
+
+        console.log(
             "REPORT COUNT:",
             reports.length
         );
+
 
 
 
@@ -80,10 +94,16 @@ exports.syncProductionReport = async(date)=>{
 
 
 
+
+
         await writeSheetData(
+
             sheets,
+
             reports
+
         );
+
 
 
 
@@ -102,9 +122,11 @@ exports.syncProductionReport = async(date)=>{
 
 
         console.error(
-            "GOOGLE SHEET ERROR",
-            err
+            "SYNC GOOGLE SHEET ERROR"
         );
+
+
+        console.error(err);
 
 
         throw err;
@@ -119,20 +141,37 @@ exports.syncProductionReport = async(date)=>{
 
 
 
+
+// =====================================================
+// CREATE SHEET
+// CONTROLLER GỌI
+// =====================================================
+
 exports.createSheet = async(date)=>{
 
+
     return await exports.syncProductionReport(date);
+
 
 };
 
 
 
+
+
+
+// =====================================================
+// UPDATE SHEET
+// =====================================================
 
 exports.updateSheet = async(date)=>{
 
+
     return await exports.syncProductionReport(date);
 
+
 };
+
 
 
 
@@ -141,7 +180,7 @@ exports.updateSheet = async(date)=>{
 
 
 // =====================================================
-// READ SHEET
+// ĐỌC DATA GOOGLE SHEET
 // =====================================================
 
 const getSheetData = async(sheets)=>{
@@ -155,7 +194,7 @@ const getSheetData = async(sheets)=>{
 
 
         range:
-        `${SHEET_NAME}!A:AZ`
+        "Cắt lồng!A:ZZ"
 
 
     });
@@ -163,6 +202,7 @@ const getSheetData = async(sheets)=>{
 
 
     return result.data.values || [];
+
 
 };
 
@@ -174,9 +214,9 @@ const getSheetData = async(sheets)=>{
 
 
 
+
 // =====================================================
-// WRITE DATA
-// GIỮ NGUYÊN CÔNG THỨC FILE MẪU
+// GHI DATA KHÔNG GHI ĐÈ TOÀN BỘ
 // =====================================================
 
 const writeSheetData = async(
@@ -190,6 +230,7 @@ const writeSheetData = async(
 
     if(!reports || reports.length===0){
 
+
         throw new Error(
             "Không có dữ liệu approved"
         );
@@ -198,22 +239,64 @@ const writeSheetData = async(
 
 
 
+    // lấy dữ liệu hiện tại
+
     const oldData =
     await getSheetData(sheets);
 
 
 
+
     console.log(
-        "CURRENT ROW:",
+        "OLD ROW:",
         oldData.length
     );
 
 
 
 
-    // map mã nhân viên cột B
 
-    const employeeMap={};
+    const header = oldData[0] || [
+
+        "STT",
+        "Mã nhân viên",
+        "Tên",
+        "Số máy",
+        "Ca",
+        "% học việc",
+        "Thời gian làm việc",
+        "Số lần CM",
+        "Tổng TG trừ giờ",
+        "Thiếu sản lượng",
+        "Bật máy, xét máy",
+        "Chuyển mã",
+        "Chỉnh máy",
+        "Chờ chỉnh máy",
+        "Mất điện",
+        "Mất khí",
+        "Chờ hàng",
+        "Bảo dưỡng máy",
+        "Nghỉ giải lao",
+        "Giao ca",
+        "Dừng máy đi hỗ trợ",
+        "SP",
+        "Định mức",
+        "TT",
+        "Ngày/Tháng",
+        "OK",
+        "Tổng NG",
+        "Trạng thái"
+
+    ];
+
+
+
+
+
+
+    // map mã nhân viên -> dòng
+
+    const employeeMap = {};
 
 
 
@@ -231,7 +314,9 @@ const writeSheetData = async(
 
         if(code){
 
+
             employeeMap[code]=index+1;
+
 
         }
 
@@ -243,121 +328,102 @@ const writeSheetData = async(
 
 
 
+    let appendRows=[];
+
+
 
     for(const item of reports){
 
 
 
-        let rowNumber =
-        employeeMap[item.worker_code];
+        const row = [
 
 
 
-        // không có mã thì thêm cuối
+            "",
 
-        if(!rowNumber){
+            item.worker_code || "",
 
+            item.full_name || "",
 
-            rowNumber =
-            oldData.length + 1;
+            item.machine_no || "",
 
-
-
-            console.log(
-                "ADD ROW",
-                item.worker_code,
-                rowNumber
-            );
+            item.shift || "",
 
 
-        }
-        else{
+            "",
 
 
-            console.log(
-                "UPDATE",
-                item.worker_code,
-                rowNumber
-            );
-
-        }
+            "",
 
 
+            "",
+
+
+            "",
+
+
+            "",
+
+
+            "",
+
+
+            "",
+
+
+            "",
+
+
+            "",
+
+
+            "",
+
+
+            "",
+
+
+            "",
+
+
+            "",
+
+
+            "",
+
+
+            "",
+
+
+            "",
 
 
 
-
-        // =================================================
-        // CHỈ GHI CÁC CỘT NHẬP LIỆU
-        // KHÔNG ĐỤNG CÔNG THỨC
-        // =================================================
+            item.product_name || "",
 
 
-        const updateCells=[
+            item.standard_output || "",
 
 
-            // B - Mã nhân viên
-
-            {
-                range:`${SHEET_NAME}!B${rowNumber}`,
-                value:item.worker_code
-            },
+            item.actual_output || "",
 
 
-            // D - số máy
 
-            {
-                range:`${SHEET_NAME}!D${rowNumber}`,
-                value:item.machine_no || ""
-            },
+            item.work_date || "",
 
 
-            // E - ca
 
-            {
-                range:`${SHEET_NAME}!E${rowNumber}`,
-                value:item.shift || ""
-            },
+            item.tt_ok || "",
 
 
-            // AA - sản phẩm
 
-            {
-                range:`${SHEET_NAME}!AA${rowNumber}`,
-                value:item.product_name || ""
-            },
+            item.tt_ng || "",
 
 
-            // AB - định mức
 
-            {
-                range:`${SHEET_NAME}!AB${rowNumber}`,
-                value:item.standard_output || ""
-            },
+            item.status || ""
 
-
-            // AF - OK
-
-            {
-                range:`${SHEET_NAME}!AF${rowNumber}`,
-                value:item.tt_ok || 0
-            },
-
-
-            // AG - tổng NG
-
-            {
-                range:`${SHEET_NAME}!AG${rowNumber}`,
-                value:item.tt_ng || 0
-            },
-
-
-            // AD - ngày
-
-            {
-                range:`${SHEET_NAME}!AD${rowNumber}`,
-                value:item.work_date || ""
-            }
 
 
         ];
@@ -366,9 +432,25 @@ const writeSheetData = async(
 
 
 
+        const existRow =
+        employeeMap[item.worker_code];
 
 
-        for(const cell of updateCells){
+
+
+        if(existRow){
+
+
+
+            console.log(
+
+                "UPDATE ROW",
+
+                item.worker_code,
+
+                existRow
+
+            );
 
 
 
@@ -379,7 +461,7 @@ const writeSheetData = async(
 
 
                 range:
-                cell.range,
+                `Cắt lồng!A${existRow}`,
 
 
                 valueInputOption:"RAW",
@@ -388,13 +470,7 @@ const writeSheetData = async(
                 requestBody:{
 
 
-                    values:[
-
-                        [
-                            cell.value
-                        ]
-
-                    ]
+                    values:[row]
 
                 }
 
@@ -404,48 +480,110 @@ const writeSheetData = async(
 
 
         }
+        else{
 
 
 
+            console.log(
 
-        // STT cột A
-        // chỉ điền nếu dòng mới
+                "APPEND",
 
+                item.worker_code
 
-        if(!employeeMap[item.worker_code]){
-
-
-            await sheets.spreadsheets.values.update({
+            );
 
 
-                spreadsheetId,
 
+            appendRows.push(row);
 
-                range:
-                `${SHEET_NAME}!A${rowNumber}`,
-
-                valueInputOption:"RAW",
-
-
-                requestBody:{
-
-
-                    values:[
-
-                        [
-                            rowNumber-1
-                        ]
-
-                    ]
-
-                }
-
-
-            });
 
 
         }
 
+
+    }
+
+
+
+
+
+
+
+    // thêm nhân viên mới
+
+    if(appendRows.length>0){
+
+
+
+        await sheets.spreadsheets.values.append({
+
+
+
+            spreadsheetId,
+
+
+            range:
+            "Cắt lồng!A1",
+
+
+
+            valueInputOption:"RAW",
+
+
+
+            insertDataOption:"INSERT_ROWS",
+
+
+
+            requestBody:{
+
+
+                values:appendRows
+
+
+            }
+
+
+        });
+
+
+    }
+
+
+
+
+
+
+
+    // nếu sheet chưa có tiêu đề
+
+    if(oldData.length===0){
+
+
+
+        await sheets.spreadsheets.values.update({
+
+
+
+            spreadsheetId,
+
+
+            range:
+            "Cắt lồng!A1",
+
+
+            valueInputOption:"RAW",
+
+
+            requestBody:{
+
+
+                values:[header]
+
+            }
+
+
+        });
 
 
     }
