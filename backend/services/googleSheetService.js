@@ -17,7 +17,9 @@ const auth = new google.auth.GoogleAuth({
     credentials,
 
     scopes:[
+
         "https://www.googleapis.com/auth/spreadsheets"
+
     ]
 
 });
@@ -51,24 +53,40 @@ exports.syncProductionReport = async(date)=>{
 
 
 
-        const client =
-        await auth.getClient();
-
-
-
         console.log(
             "========== GOOGLE SHEET =========="
         );
+
 
         console.log(
             "SERVICE ACCOUNT:",
             credentials.client_email
         );
 
+
         console.log(
             "SPREADSHEET ID:",
             spreadsheetId
         );
+
+
+        console.log(
+            "REPORT DATE:",
+            date
+        );
+
+
+        console.log(
+            "REPORT COUNT:",
+            reports.length
+        );
+
+
+
+
+        const client =
+        await auth.getClient();
+
 
 
 
@@ -84,13 +102,17 @@ exports.syncProductionReport = async(date)=>{
 
 
 
+
         await writeSheetData(
 
             sheets,
 
+            spreadsheetId,
+
             reports
 
         );
+
 
 
 
@@ -106,6 +128,7 @@ exports.syncProductionReport = async(date)=>{
 
 
         };
+
 
 
     }
@@ -136,18 +159,19 @@ exports.syncProductionReport = async(date)=>{
 
 // =====================================================
 // CREATE SHEET
-// GIỮ TƯƠNG THÍCH CONTROLLER
+// GIỮ COMPATIBLE CONTROLLER
 // KHÔNG TẠO FILE MỚI
-// CHỈ GHI VÀO FILE CỐ ĐỊNH
+// GHI VÀO SHEET CỐ ĐỊNH
 // =====================================================
 
 exports.createSheet = async(date)=>{
 
 
-    return exports.syncProductionReport(date);
+    return await exports.syncProductionReport(date);
 
 
 };
+
 
 
 
@@ -162,7 +186,7 @@ exports.createSheet = async(date)=>{
 exports.updateSheet = async(date)=>{
 
 
-    return exports.syncProductionReport(date);
+    return await exports.syncProductionReport(date);
 
 
 };
@@ -182,34 +206,70 @@ const writeSheetData = async(
 
     sheets,
 
+    spreadsheetId,
+
     reports
 
 )=>{
 
 
+
+    if(!reports || reports.length === 0){
+
+
+        throw new Error(
+
+            "Không có dữ liệu approved để ghi Google Sheet"
+
+        );
+
+
+    }
+
+
+
+
     const values = [
+
 
 
         [
 
             "STT",
+
             "Mã CN",
+
             "Tên CN",
+
             "Công đoạn",
+
             "Ngày",
+
             "Ca",
+
             "Máy",
+
             "Sản phẩm",
+
             "SL chuẩn",
+
             "SL thực tế",
+
             "OK",
+
             "NG",
+
             "Trạng thái",
+
             "Ghi chú"
 
         ]
 
+
+
     ];
+
+
 
 
 
@@ -219,6 +279,7 @@ const writeSheetData = async(
 
 
         values.push([
+
 
 
             index + 1,
@@ -262,7 +323,10 @@ const writeSheetData = async(
 
             item.note || ""
 
+
+
         ]);
+
 
 
     });
@@ -272,8 +336,24 @@ const writeSheetData = async(
 
 
 
+    console.log(
 
+        "ROWS WRITE:",
+
+        values.length
+
+    );
+
+
+
+
+
+
+
+    // =====================================================
     // XÓA DỮ LIỆU CŨ
+    // =====================================================
+
 
     await sheets.spreadsheets.values.clear({
 
@@ -292,7 +372,10 @@ const writeSheetData = async(
 
 
 
+    // =====================================================
     // GHI DỮ LIỆU MỚI
+    // =====================================================
+
 
     await sheets.spreadsheets.values.update({
 
@@ -316,6 +399,13 @@ const writeSheetData = async(
 
 
     });
+
+
+
+
+    console.log(
+        "WRITE GOOGLE SHEET SUCCESS"
+    );
 
 
 };
