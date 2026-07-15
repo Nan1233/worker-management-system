@@ -1,12 +1,11 @@
 const { google } = require("googleapis");
 
 const ReportService = require("./reportService");
-const GoogleSheetModel = require("../models/googleSheetModel");
 
 
-// =====================================================
+// =============================
 // GOOGLE AUTH
-// =====================================================
+// =============================
 
 const credentials = JSON.parse(
     process.env.GOOGLE_SERVICE_ACCOUNT
@@ -17,72 +16,27 @@ const auth = new google.auth.GoogleAuth({
 
     credentials,
 
-    scopes: [
-
-        "https://www.googleapis.com/auth/spreadsheets",
-
-        "https://www.googleapis.com/auth/drive"
-
+    scopes:[
+        "https://www.googleapis.com/auth/spreadsheets"
     ]
 
 });
 
 
 
+// =============================
+// SHEET CỐ ĐỊNH
+// =============================
 
-// =====================================================
-// COPY GOOGLE SHEET TEMPLATE
-// =====================================================
-
-const createSpreadsheet = async (title)=>{
-
-
-    const client =
-        await auth.getClient();
-
-
-
-    const drive =
-        google.drive({
-
-            version:"v3",
-
-            auth:client
-
-        });
-
-
-
-    const copy =
-        await drive.files.copy({
-
-            fileId:
-            process.env.GOOGLE_TEMPLATE_SHEET_ID,
-
-
-            requestBody:{
-
-                name:title
-
-            }
-
-
-        });
-
-
-
-    return copy.data.id;
-
-
-};
+const spreadsheetId =
+process.env.GOOGLE_SPREADSHEET_ID;
 
 
 
 
-
-// =====================================================
-// SYNC PRODUCTION REPORT
-// =====================================================
+// =============================
+// SYNC GOOGLE SHEET
+// =============================
 
 exports.syncProductionReport = async(date)=>{
 
@@ -91,78 +45,29 @@ exports.syncProductionReport = async(date)=>{
 
 
         const reports =
-            await ReportService.getApprovedReportsByDate(date);
+        await ReportService.getApprovedReportsByDate(date);
 
 
 
         const client =
-            await auth.getClient();
+        await auth.getClient();
 
 
 
         const sheets =
-            google.sheets({
+        google.sheets({
 
-                version:"v4",
+            version:"v4",
 
-                auth:client
+            auth:client
 
-            });
-
-
-
-        let sheetInfo =
-            await GoogleSheetModel.findByDate(date);
-
-
-
-        let spreadsheetId;
-
-
-
-        if(!sheetInfo){
-
-
-            spreadsheetId =
-                await createSpreadsheet(
-                    `Bao cao cat long ${date}`
-                );
-
-
-
-            const url =
-                `https://docs.google.com/spreadsheets/d/${spreadsheetId}`;
-
-
-
-            await GoogleSheetModel.create({
-
-                report_date:date,
-
-                spreadsheet_id:spreadsheetId,
-
-                spreadsheet_url:url
-
-            });
-
-
-        }
-        else{
-
-
-            spreadsheetId =
-                sheetInfo.spreadsheet_id;
-
-
-        }
+        });
 
 
 
         await writeSheetData(
 
             sheets,
-
-            spreadsheetId,
 
             reports
 
@@ -189,7 +94,7 @@ exports.syncProductionReport = async(date)=>{
 
 
         console.error(
-            "SYNC GOOGLE SHEET ERROR"
+            "GOOGLE SHEET ERROR"
         );
 
 
@@ -197,7 +102,6 @@ exports.syncProductionReport = async(date)=>{
 
 
         throw err;
-
 
     }
 
@@ -208,199 +112,14 @@ exports.syncProductionReport = async(date)=>{
 
 
 
-// =====================================================
-// CREATE GOOGLE SHEET
-// =====================================================
-
-exports.createSheet = async(date)=>{
-
-
-    try{
-
-
-        const reports =
-            await ReportService.getApprovedReportsByDate(date);
-
-
-
-        const spreadsheetId =
-            await createSpreadsheet(
-                `Bao cao cat long ${date}`
-            );
-
-
-
-        const url =
-            `https://docs.google.com/spreadsheets/d/${spreadsheetId}`;
-
-
-
-        await GoogleSheetModel.create({
-
-            report_date:date,
-
-            spreadsheet_id:spreadsheetId,
-
-            spreadsheet_url:url
-
-        });
-
-
-
-        const client =
-            await auth.getClient();
-
-
-
-        const sheets =
-            google.sheets({
-
-                version:"v4",
-
-                auth:client
-
-            });
-
-
-
-        await writeSheetData(
-
-            sheets,
-
-            spreadsheetId,
-
-            reports
-
-        );
-
-
-
-        return {
-
-
-            spreadsheetId,
-
-
-            url
-
-
-        };
-
-
-    }
-    catch(err){
-
-
-        console.error(
-            "CREATE SHEET ERROR"
-        );
-
-
-        console.error(err);
-
-
-        throw err;
-
-
-    }
-
-
-};
-
-
-
-
-
-// =====================================================
-// UPDATE GOOGLE SHEET
-// =====================================================
+// =============================
+// UPDATE SHEET
+// =============================
 
 exports.updateSheet = async(date)=>{
 
 
-    try{
-
-
-        const sheetInfo =
-            await GoogleSheetModel.findByDate(date);
-
-
-
-        if(!sheetInfo){
-
-
-            throw new Error(
-                "Chưa có Google Sheet ngày này"
-            );
-
-
-        }
-
-
-
-        const reports =
-            await ReportService.getApprovedReportsByDate(date);
-
-
-
-        const client =
-            await auth.getClient();
-
-
-
-        const sheets =
-            google.sheets({
-
-                version:"v4",
-
-                auth:client
-
-            });
-
-
-
-        await writeSheetData(
-
-            sheets,
-
-            sheetInfo.spreadsheet_id,
-
-            reports
-
-        );
-
-
-
-        return {
-
-
-            spreadsheetId:
-            sheetInfo.spreadsheet_id,
-
-
-            url:
-            sheetInfo.spreadsheet_url
-
-
-        };
-
-
-    }
-    catch(err){
-
-
-        console.error(
-            "UPDATE SHEET ERROR"
-        );
-
-
-        console.error(err);
-
-
-        throw err;
-
-
-    }
+    return exports.syncProductionReport(date);
 
 
 };
@@ -409,18 +128,21 @@ exports.updateSheet = async(date)=>{
 
 
 
-// =====================================================
+// =============================
 // WRITE DATA
-// =====================================================
+// =============================
 
 const writeSheetData = async(
+
     sheets,
-    spreadsheetId,
+
     reports
+
 )=>{
 
 
-    const values = [
+    const values=[
+
 
         [
 
@@ -442,6 +164,7 @@ const writeSheetData = async(
         ]
 
     ];
+
 
 
 
@@ -479,7 +202,6 @@ const writeSheetData = async(
 
             item.note || ""
 
-
         ]);
 
 
@@ -488,15 +210,13 @@ const writeSheetData = async(
 
 
 
-    await sheets.spreadsheets.values.clear({
+    // XÓA DỮ LIỆU CŨ
 
+    await sheets.spreadsheets.values.clear({
 
         spreadsheetId,
 
-
-        range:
-        "Cắt lồng!A1:Z1000"
-
+        range:"Cắt lồng!A1:Z1000"
 
     });
 
@@ -504,21 +224,22 @@ const writeSheetData = async(
 
 
 
+    // GHI DỮ LIỆU MỚI
+
     await sheets.spreadsheets.values.update({
 
 
         spreadsheetId,
 
 
-        range:
-        "Cắt lồng!A1",
+        range:"Cắt lồng!A1",
 
 
-        valueInputOption:
-        "RAW",
+        valueInputOption:"RAW",
 
 
         requestBody:{
+
 
             values
 
