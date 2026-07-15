@@ -6,12 +6,14 @@ const ReportService = require("./reportService");
 // GOOGLE AUTH
 // ================================
 
-const credentials = JSON.parse(
+const credentials =
+JSON.parse(
     process.env.GOOGLE_SERVICE_ACCOUNT
 );
 
 
-const auth = new google.auth.GoogleAuth({
+const auth =
+new google.auth.GoogleAuth({
 
     credentials,
 
@@ -31,7 +33,9 @@ const spreadsheetId =
 process.env.GOOGLE_SPREADSHEET_ID;
 
 
-const SHEET_NAME = "Cắt lồng";
+const SHEET_NAME =
+"Cắt lồng";
+
 
 
 
@@ -40,13 +44,17 @@ const SHEET_NAME = "Cắt lồng";
 // SYNC
 // ================================
 
-exports.syncProductionReport = async(date)=>{
+exports.syncProductionReport =
+async(date)=>{
+
 
     try{
 
 
         const reports =
-        await ReportService.getReportsByDate(date);
+        await ReportService
+        .getReportsByDate(date);
+
 
 
 
@@ -57,27 +65,32 @@ exports.syncProductionReport = async(date)=>{
 
 
 
-        // chỉ lấy báo cáo có mã NV
 
         const cleanReports =
-        reports.filter(item=>item.worker_code);
+        reports.filter(
+            item =>
+            item.worker_code
+        );
 
 
 
-        cleanReports.sort((a,b)=>{
+
+        cleanReports.sort(
+            (a,b)=>{
 
 
-            return String(a.worker_code)
-            .localeCompare(
-                String(b.worker_code),
-                undefined,
-                {
-                    numeric:true
-                }
-            );
+                return String(a.worker_code)
+                .localeCompare(
+                    String(b.worker_code),
+                    undefined,
+                    {
+                        numeric:true
+                    }
+                );
 
 
-        });
+            }
+        );
 
 
 
@@ -85,6 +98,7 @@ exports.syncProductionReport = async(date)=>{
 
         const client =
         await auth.getClient();
+
 
 
 
@@ -102,11 +116,8 @@ exports.syncProductionReport = async(date)=>{
 
 
         await writeSheetData(
-
             sheets,
-
             cleanReports
-
         );
 
 
@@ -126,12 +137,13 @@ exports.syncProductionReport = async(date)=>{
         };
 
 
+
     }
     catch(err){
 
 
         console.error(
-            "SYNC GOOGLE SHEET ERROR",
+            "SYNC ERROR:",
             err
         );
 
@@ -149,7 +161,8 @@ exports.syncProductionReport = async(date)=>{
 
 
 
-exports.createSheet = async(date)=>{
+exports.createSheet =
+async(date)=>{
 
     return exports.syncProductionReport(date);
 
@@ -157,11 +170,16 @@ exports.createSheet = async(date)=>{
 
 
 
-exports.updateSheet = async(date)=>{
+
+
+exports.updateSheet =
+async(date)=>{
 
     return exports.syncProductionReport(date);
 
 };
+
+
 
 
 
@@ -170,10 +188,11 @@ exports.updateSheet = async(date)=>{
 
 
 // ================================
-// READ SHEET
+// READ DATA
 // ================================
 
-const getSheetData = async(sheets)=>{
+const getSheetData =
+async(sheets)=>{
 
 
     const result =
@@ -193,31 +212,20 @@ const getSheetData = async(sheets)=>{
 
     return result.data.values || [];
 
+
 };
-
-
-
-
-
-
-
-
-
 // ================================
 // WRITE SHEET
 // ================================
 
-
-const writeSheetData = async(
-
+const writeSheetData =
+async(
     sheets,
-
     reports
-
 )=>{
 
 
-    if(!reports.length){
+    if(!reports || reports.length===0){
 
         throw new Error(
             "Không có dữ liệu"
@@ -235,70 +243,65 @@ const writeSheetData = async(
 
 
 
-    console.log(
-        "OLD ROW:",
-        oldData.length
-    );
-
-
-
-
-
-
-    // =====================
-    // MAP DÒNG CŨ
-    // =====================
-
 
     const rowMap = {};
 
 
 
-    oldData.forEach((row,index)=>{
 
 
-        if(index===0)
-            return;
+    // ============================
+    // MAP DÒNG CŨ
+    // ============================
+
+    oldData.forEach(
+        (row,index)=>{
 
 
-
-        const worker =
-        row[1]
-        ?.toString()
-        .trim();
-
-
-
-        const machine =
-        row[3]
-        ?.toString()
-        .trim();
+            if(index===0)
+                return;
 
 
 
-        // AE = ngày
-        const date =
-        row[30]
-        ?.toString()
-        .trim();
+            const worker =
+            row[1]
+            ?.toString()
+            .trim();
+
+
+
+            const machine =
+            row[3]
+            ?.toString()
+            .trim();
+
+
+
+            // AE = cột ngày
+            const date =
+            row[30]
+            ?.toString()
+            .trim();
 
 
 
 
-        if(worker){
+            if(worker){
 
 
-            rowMap[
-                `${worker}_${machine}_${date}`
-            ]
-            =
-            index+1;
+                rowMap[
+                    `${worker}_${machine}_${date}`
+                ]
+                =
+                index+1;
+
+
+            }
 
 
         }
+    );
 
-
-    });
 
 
 
@@ -307,7 +310,6 @@ const writeSheetData = async(
 
     let lastRow =
     oldData.length;
-
 
 
 
@@ -376,45 +378,24 @@ const writeSheetData = async(
 
 
         }
-        
-        // ============================
-        // TÍNH SẢN LƯỢNG
-        // ============================
+
+
+
+
+
+
+        // =====================================
+        // OK / NG
+        // =====================================
 
 
         const ok =
-        Number(item.tt_ok || 0);
+        item.tt_ok ?? "";
 
 
 
         const ng =
-        Number(item.tt_ng || 0);
-
-
-
-        // AC = AG + AH
-
-        const totalOutput =
-        ok + ng;
-
-
-
-
-
-        // AF = AC / H
-
-        const productivity =
-
-        Number(item.actual_time) > 0
-
-        ?
-
-        totalOutput /
-        Number(item.actual_time)
-
-        :
-
-        "";
+        item.tt_ng ?? "";
 
 
 
@@ -423,206 +404,201 @@ const writeSheetData = async(
 
 
 
-
-        // ============================
-        // DATA GOOGLE SHEET
-        // ============================
+        // =====================================
+        // GOOGLE SHEET ROW
+        // =====================================
 
 
         const rowData=[
 
 
 
-            rowNumber-1,                 // A STT
+            rowNumber - 1,              // A STT
 
 
 
-            worker || "",                // B Mã NV
+            worker || "",               // B Mã NV
 
 
 
-            item.full_name ?? "",        // C Tên
+            item.full_name || "",       // C Tên
 
 
 
-            item.machine_no ?? "",       // D Số máy
+            item.machine_no || "",      // D Số máy
 
 
 
-            item.shift ?? "",            // E Ca
+            item.shift || "",           // E Ca
 
 
 
-            item.training_percent ?? 
-            "100%",                      // F % học việc
+            "100%",                     // F % học việc
 
 
 
-            item.total_time ?? "",       // G Thời gian làm việc
+            item.total_time || "",      // G TG làm việc
 
 
 
-            item.actual_time ?? "",      // H Thời gian thực tế
+            item.actual_time || "",     // H TG thực tế
 
 
 
-            item.cm_count ?? "",         // I Số lần CM
+            item.cm_count || "",        // I Số lần CM
 
 
 
-            item.deduction_time ?? "",   // J Tổng TG trừ giờ
+            item.deduction_time || "",  // J Tổng TG trừ giờ
 
 
 
-            item.thieu_san_luong ?? "",  // K Thiếu sản lượng
+            item.thieu_san_luong || "", // K Thiếu sản lượng
 
 
 
-            item.bat_may ?? "",          // L Bật máy
+            item.bat_may || "",         // L Bật máy
 
 
 
-            item.chuyen_ma ?? "",        // M Chuyển mã
+            item.chuyen_ma || "",       // M Chuyển mã
 
 
 
-            item.chinh_may ?? "",        // N Chỉnh máy
+            item.chinh_may || "",       // N Chỉnh máy
 
 
 
-            item.cho_chinh_may ?? "",    // O Chờ chỉnh máy
+            item.cho_chinh_may || "",   // O Chờ chỉnh máy
 
 
 
-            item.mat_dien ?? "",         // P Mất điện
+            item.mat_dien || "",        // P Mất điện
 
 
 
-            item.mat_khi ?? "",          // Q Mất khí
+            item.mat_khi || "",         // Q Mất khí
 
 
 
-            item.cho_hang ?? "",         // R Chờ hàng
+            item.cho_hang || "",        // R Chờ hàng
 
 
 
-            item.bao_duong ?? "",        // S Bảo dưỡng
+            item.bao_duong || "",       // S Bảo dưỡng
 
 
 
-            item.nghi_giai_lao ?? "",    // T Nghỉ giải lao
+            item.nghi_giai_lao || "",   // T Nghỉ giải lao
 
 
 
-            item.giao_ca ?? "",          // U Giao ca
+            item.giao_ca || "",         // U Giao ca
 
 
 
-            item.ho_tro ?? "",           // V Hỗ trợ
+            item.ho_tro || "",          // V Hỗ trợ
 
 
 
-            item.giat_cs ?? "",          // W Giặt cs
+            item.giat_cs || "",         // W Giặt CS
 
 
 
-            item.five_s ?? "",           // X 5S
+            item.five_s || "",          // X 5S
 
 
 
-            item.hoc_viec ?? "",         // Y Học việc
+            item.hoc_viec || "",        // Y Học việc
 
 
 
-            item.di_muon ?? "",          // Z Đi muộn
+            item.di_muon || "",         // Z Đi muộn
 
 
 
 
 
-            item.product_name ?? "",     // AA SP
 
+            item.product_name || "",    // AA SP
 
 
-            item.standard_output ?? "",  // AB Định mức
 
+            item.standard_output || "", // AB Định mức
 
 
-            totalOutput || "",           // AC = AG + AH
 
+            `=AG${rowNumber}+AH${rowNumber}`,
+                                        // AC = AG + AH
 
 
-            "",                          // AD trống
 
+            "",                         // AD
 
 
-            workDate,                    // AE Ngày
 
+            workDate,                   // AE Ngày
 
 
-            productivity || "",          // AF = AC / H
 
+            `=IFERROR(AC${rowNumber}/H${rowNumber},"")`,
+                                        // AF = AC / H
 
 
-            ok || "",                    // AG OK
 
+            ok,                          // AG OK
 
 
-            ng || "",                    // AH NG
 
-
-
-
-
-
-            // =====================
+            ng,                          // AH NG
+                        // =====================
             // CHI TIẾT LỖI
             // =====================
 
 
-            item.vo_do_long ?? "",       // AI Vỡ cao su
+            item.vo_do_long || "",       // AI Vỡ cao su
 
 
-            item.xuoc_do_long ?? "",     // AJ Xước cong gãy
+            item.xuoc_do_long || "",     // AJ Xước cong gãy
 
 
-            item.xoay ?? "",             // AK Cao su xoay
+            item.xoay || "",             // AK Cao su xoay
 
 
-            item.khong_dut ?? "",        // AL Cắt không đứt
+            item.khong_dut || "",        // AL Cắt không đứt
 
 
-            item.bavia_hut ?? "",        // AM Bavia
+            item.bavia_hut || "",        // AM Bavia
 
 
-            item.loi_cao_su ?? "",       // AN CSH
+            item.loi_cao_su || "",       // AN CSH
 
 
-            item.ppcm ?? "",             // AO PPCM
+            item.ppcm || "",             // AO PPCM
 
 
-            item.ng_kich_thuoc ?? "",    // AP KT lớn
+            item.ng_kich_thuoc || "",    // AP KT lớn
 
 
-            item.kt_nho ?? "",           // AQ KT nhỏ
+            item.kt_nho || "",           // AQ KT nhỏ
 
 
-            item.lcs ?? "",              // AR LCS
+            item.lcs || "",              // AR LCS
 
 
-            item.cat_lem ?? "",          // AS Cắt lẹm
+            item.cat_lem || "",          // AS Cắt lẹm
 
 
-            item.rach_nvl ?? "",         // AT Rách NVL
+            item.rach_nvl || "",         // AT Rách NVL
 
 
-            item.chan_ngan_dai ?? "",    // AU Chân ngắn dài
+            item.chan_ngan_dai || "",    // AU Chân ngắn dài
 
 
-            item.sot_via ?? "",          // AV Sót via
+            item.sot_via || "",          // AV Sót via
 
 
-            item.fure_truc ?? "",        // AW Fure trục
+            item.fure_truc || "",        // AW Fure trục
 
 
 
@@ -660,14 +636,17 @@ const writeSheetData = async(
 
 
 
-            valueInputOption:"RAW",
+            valueInputOption:
+            "USER_ENTERED",
 
 
 
             requestBody:{
 
 
-                values:[rowData]
+                values:[
+                    rowData
+                ]
 
 
             }
@@ -684,15 +663,13 @@ const writeSheetData = async(
 
 
 
+
     console.log(
         "GOOGLE SHEET UPDATE SUCCESS"
     );
 
 
-
 };
-
-
 
 
 
@@ -709,15 +686,15 @@ const writeSheetData = async(
 function columnLetter(num){
 
 
-    let str="";
+    let str = "";
 
 
 
-    while(num>0){
+    while(num > 0){
 
 
-        const rem =
-        (num-1)%26;
+        let rem =
+        (num - 1) % 26;
 
 
 
@@ -732,7 +709,7 @@ function columnLetter(num){
 
         num =
         Math.floor(
-            (num-1)/26
+            (num - 1) / 26
         );
 
 
