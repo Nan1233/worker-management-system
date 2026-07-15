@@ -129,45 +129,6 @@ note:""
 
 
 
-const initialDeduction={
-
-
-vsk:"",
-
-
-fiveS:"",
-
-
-hamKhuon:"",
-
-
-suaKhuon:"",
-
-
-suaMay:"",
-
-
-dungMay:""
-
-
-};
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

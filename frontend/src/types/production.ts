@@ -1,130 +1,110 @@
 export interface ProductionReport {
 
-
     id?: number;
-
 
     worker_id?: number;
 
+    process_id:number;
 
-    process_id: number;
+    work_date:string;
 
+    shift:string;
 
-    work_date: string;
+    machine_no:string;
 
 
-    shift: string;
+    total_time:number;
 
+    actual_time:number;
 
-    machine_no: string;
+    deduction_time:number;
 
 
+    stop_reason?:string;
 
-    total_time: number;
 
+    product_name:string;
 
-    actual_time: number;
 
+    standard_output:number;
 
-    deduction_time: number;
+    actual_output:number;
 
 
+    tt_ok:number;
 
-    // lý do dừng máy
-    stop_reason?: string;
+    tt_ng:number;
 
 
 
-    product_name: string;
+    kqd_dap_lai:number;
 
+    kqd_tuot:number;
 
+    vo_do_long:number;
 
-    standard_output: number;
+    xuoc_do_long:number;
 
+    cong_gay:number;
 
-    actual_output: number;
+    xoay:number;
 
+    khong_dut:number;
 
+    bavia_hut:number;
 
-    tt_ok: number;
+    ppcm:number;
 
+    loi_cao_su:number;
 
-    tt_ng: number;
+    ng_kich_thuoc:number;
 
+    cat_lem:number;
 
 
-    kqd_dap_lai: number;
+    note:string;
 
 
-    kqd_tuot: number;
 
+    defects?:{
 
+        defect_name:string;
 
-    vo_do_long: number;
+        quantity:number;
 
+    }[];
 
-    xuoc_do_long: number;
 
 
-    cong_gay: number;
+    deductions?:{
 
+        deduction_name:string;
 
-    xoay: number;
+        hours:number;
 
+    }[];
 
-    khong_dut: number;
 
 
-    bavia_hut: number;
+    status?:string;
 
 
-    ppcm: number;
+    worker_code?:string;
 
+    full_name?:string;
 
-    loi_cao_su: number;
+    process_name?:string;
 
 
-    ng_kich_thuoc: number;
+    created_at?:string;
 
+    updated_at?:string;
 
-    cat_lem: number;
 
+    approved_at?:string;
 
 
-    note: string;
-
-
-
-    // trạng thái duyệt
-    status?: string;
-
-
-
-    // backend trả về
-
-    worker_code?: string;
-
-
-    full_name?: string;
-
-
-    process_name?: string;
-
-
-
-    created_at?: string;
-
-
-    updated_at?: string;
-
-
-
-    // thời gian quản lý duyệt
-    approved_at?: string;
-
-
-
-    // nguồn dữ liệu
-    source?: "pending" | "approved";
+    source?:
+    "pending" | "approved";
 
 }
