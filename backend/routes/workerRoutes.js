@@ -10,7 +10,7 @@ const checkRole = require("../middleware/roleMiddleware");
 
 
 
-// ADMIN / MANAGER xem tất cả worker
+// ADMIN MANAGER
 
 router.get(
     "/",
@@ -22,8 +22,6 @@ router.get(
 
 
 
-// ADMIN / MANAGER tạo worker
-
 router.post(
     "/",
     verifyToken,
@@ -34,7 +32,7 @@ router.post(
 
 
 
-// USER lấy thông tin worker của chính mình
+// WORKER
 
 router.get(
     "/:id",
@@ -51,5 +49,7 @@ router.put(
     checkRole("admin","manager"),
     workerController.updateWorker
 );
+
+
 
 module.exports = router;

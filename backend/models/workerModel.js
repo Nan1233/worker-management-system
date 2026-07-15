@@ -1,214 +1,59 @@
-const db = require("../config/db");
-
-
-
-// ======================================
-// LẤY DANH SÁCH WORKER
-// ======================================
-
-const findAll = (callback)=>{
-
-
-    const sql = `
-
-    SELECT
-
-        workers.id,
-
-        workers.worker_code,
-
-        workers.phone,
-
-        workers.department,
-
-        workers.status,
-
-
-        users.username,
-
-        users.full_name,
-
-        users.role
-
-
-    FROM workers
-
-
-    INNER JOIN users
-
-
-    ON workers.user_id = users.id
-
-
-    ORDER BY workers.id DESC
-
-
-    `;
-
-
-
-    db.query(
-
-        sql,
-
-        callback
-
-    );
-
-
-};
-
-
-
-
-
-
-
-
-
-// ======================================
-// TẠO WORKER
-// ======================================
-
-const create = (worker,callback)=>{
-
-
-    const sql = `
-
-
-    INSERT INTO workers
-
-    (
-
-        user_id,
-
-        worker_code,
-
-        phone,
-
-        department
-
-    )
-
-
-    VALUES (?,?,?,?)
-
-
-    `;
-
-
-
-    db.query(
-
-        sql,
-
-
-        [
-
-            worker.user_id,
-
-            worker.worker_code,
-
-            worker.phone,
-
-            worker.department
-
-        ],
-
-
-        callback
-
-    );
-
-
-};
-
-
-
-
-
-
-
-
-
-// ======================================
-// LẤY WORKER THEO USER LOGIN
-// Dùng Promise cho async/await
-// ======================================
-
 const getWorkerByUserId = (user_id)=>{
 
-return new Promise((resolve,reject)=>{
+
+    return new Promise((resolve,reject)=>{
 
 
-const sql=`
+        const sql=`
 
-SELECT
+        SELECT
 
-workers.id,
+        w.id,
 
-workers.worker_code,
+        w.worker_code,
 
-users.full_name AS worker_name
-
-
-FROM workers
+        u.full_name AS worker_name
 
 
-JOIN users
-
-ON workers.user_id = users.id
+        FROM workers w
 
 
-WHERE workers.user_id=?
+        JOIN users u
 
-`;
-
-
-db.query(
-
-sql,
-
-[user_id],
-
-(err,result)=>{
+        ON w.user_id=u.id
 
 
-if(err)
-return reject(err);
+        WHERE w.user_id=?
 
 
-resolve(result[0]);
-
-
-}
-
-);
-
-
-});
-
-
-};
+        `;
 
 
 
+        db.query(
+
+            sql,
+
+            [user_id],
+
+            (err,result)=>{
 
 
+                if(err){
+
+                    reject(err);
+
+                }
 
 
+                resolve(result[0]);
+
+            }
+
+        );
 
 
-module.exports = {
-
-
-    findAll,
-
-
-    create,
-
-
-    getWorkerByUserId
+    });
 
 
 };

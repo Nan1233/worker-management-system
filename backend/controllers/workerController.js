@@ -2,8 +2,12 @@ const workerModel = require("../models/workerModel");
 const db = require("../config/db");
 
 
-exports.getAllWorkers = (req,res)=>{
 
+// ======================================
+// ADMIN / MANAGER LẤY TẤT CẢ WORKER
+// ======================================
+
+exports.getAllWorkers = (req,res)=>{
 
     workerModel.findAll((err,result)=>{
 
@@ -18,10 +22,15 @@ exports.getAllWorkers = (req,res)=>{
 
     });
 
-
 };
 
 
+
+
+
+// ======================================
+// TẠO WORKER
+// ======================================
 
 exports.createWorker = (req,res)=>{
 
@@ -35,10 +44,7 @@ exports.createWorker = (req,res)=>{
 
 
 
-    if(
-        !user_id ||
-        !worker_code
-    ){
+    if(!user_id || !worker_code){
 
         return res.status(400).json({
             message:"Thiếu dữ liệu"
@@ -55,7 +61,9 @@ exports.createWorker = (req,res)=>{
             phone,
             department
         },
-        (err)=>{
+
+        err=>{
+
 
             if(err){
 
@@ -67,8 +75,11 @@ exports.createWorker = (req,res)=>{
 
 
             res.status(201).json({
+
                 message:"Tạo công nhân thành công"
+
             });
+
 
         }
     );
@@ -76,98 +87,128 @@ exports.createWorker = (req,res)=>{
 
 };
 
+
+
+
+
+
+// ======================================
+// WORKER LẤY THÔNG TIN CỦA MÌNH
+// GET /api/workers/:id
+// ======================================
+
 exports.getWorkerById = (req,res)=>{
 
 
-const userId = req.params.id;
-
-
-const sql = `
-
-SELECT
-
-workers.id,
-
-workers.worker_code,
-
-users.full_name AS worker_name
-
-
-FROM workers
-
-
-JOIN users
-
-ON workers.user_id = users.id
-
-
-WHERE workers.user_id = ?
-
-`;
+    const userId = req.params.id;
 
 
 
-db.query(
+    const sql = `
 
-sql,
+    SELECT
 
-[userId],
+        w.id,
 
-(err,result)=>{
+        w.worker_code,
 
-
-if(err){
-
-console.log(err);
-
-return res.status(500).json({
-
-message:err.message
-
-});
-
-}
+        u.full_name AS worker_name
 
 
+    FROM workers w
 
-if(result.length===0){
 
-return res.status(404).json({
+    INNER JOIN users u
 
-message:"Không tìm thấy nhân viên"
+    ON w.user_id = u.id
 
-});
 
-}
+    WHERE w.user_id = ?
+
+    `;
 
 
 
-res.json(result[0]);
+    db.query(
+
+        sql,
+
+        [userId],
+
+        (err,result)=>{
 
 
-}
+            if(err){
+
+                console.log(err);
+
+                return res.status(500).json({
+
+                    message:err.message
+
+                });
+
+            }
 
 
-);
+
+            if(result.length===0){
+
+                return res.status(404).json({
+
+                    message:"Không tìm thấy nhân viên"
+
+                });
+
+            }
+
+
+
+            res.json({
+
+                success:true,
+
+                data:result[0]
+
+            });
+
+
+        }
+
+    );
 
 
 };
+
+
+
+
+
+
+
+// ======================================
+// UPDATE WORKER
+// ======================================
+
 exports.updateWorker = (req,res)=>{
 
-    const id = req.params.id;
+
+    const id=req.params.id;
 
 
     const {
+
         worker_code,
         phone,
         department,
         position,
         status
-    } = req.body;
+
+    }=req.body;
 
 
 
-    const sql = `
+    const sql=`
 
     UPDATE workers
 
@@ -198,13 +239,16 @@ exports.updateWorker = (req,res)=>{
             id
         ],
 
-        (err)=>{
+
+        err=>{
 
 
             if(err){
 
                 return res.status(500).json({
+
                     message:err.message
+
                 });
 
             }
@@ -213,7 +257,7 @@ exports.updateWorker = (req,res)=>{
 
             res.json({
 
-                message:"Cập nhật công nhân thành công"
+                message:"Cập nhật thành công"
 
             });
 
