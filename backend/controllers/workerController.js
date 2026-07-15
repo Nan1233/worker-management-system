@@ -79,70 +79,70 @@ exports.createWorker = (req,res)=>{
 exports.getWorkerById = (req,res)=>{
 
 
-const userId = req.params.id;
+    const userId = req.params.id;
+
+
+    const sql = `
+
+    SELECT
+
+    w.id,
+
+    w.worker_code,
+
+    u.full_name
+
+    FROM workers w
+
+
+    JOIN users u
+
+    ON w.user_id = u.id
+
+
+    WHERE w.user_id = ?
+
+    `;
 
 
 
-const sql = `
+    db.query(
 
-SELECT
+        sql,
 
-id,
+        [userId],
 
-worker_code,
-
-worker_name
-
-FROM workers
-
-WHERE user_id = ?
-
-`;
+        (err,result)=>{
 
 
+            if(err){
 
-db.query(
+                console.log(err);
 
-sql,
+                return res.status(500).json({
+                    message:"Database error"
+                });
 
-[userId],
-
-(err,result)=>{
-
-
-if(err){
-
-console.log(err);
-
-return res.status(500).json({
-
-message:"Database error"
-
-});
-
-}
+            }
 
 
 
-if(result.length===0){
+            if(result.length===0){
 
-return res.status(404).json({
+                return res.status(404).json({
+                    message:"Không tìm thấy nhân viên"
+                });
 
-message:"Không tìm thấy nhân viên"
-
-});
-
-}
+            }
 
 
 
-res.json(result[0]);
+            res.json(result[0]);
 
 
-}
+        }
 
-
-);
+    );
 
 
 };
