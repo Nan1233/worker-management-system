@@ -30,6 +30,11 @@ export interface ProductionReport {
 
 
 
+    // lý do dừng máy
+    stop_reason?: string;
+
+
+
     product_name: string;
 
 
