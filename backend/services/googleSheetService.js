@@ -3,9 +3,9 @@ const { google } = require("googleapis");
 const ReportService = require("./reportService");
 
 
-// =============================
+// =====================================================
 // GOOGLE AUTH
-// =============================
+// =====================================================
 
 const credentials = JSON.parse(
     process.env.GOOGLE_SERVICE_ACCOUNT
@@ -24,9 +24,10 @@ const auth = new google.auth.GoogleAuth({
 
 
 
-// =============================
-// SHEET CỐ ĐỊNH
-// =============================
+// =====================================================
+// GOOGLE SHEET CỐ ĐỊNH
+// LẤY TỪ RENDER ENV
+// =====================================================
 
 const spreadsheetId =
 process.env.GOOGLE_SPREADSHEET_ID;
@@ -34,9 +35,10 @@ process.env.GOOGLE_SPREADSHEET_ID;
 
 
 
-// =============================
-// SYNC GOOGLE SHEET
-// =============================
+
+// =====================================================
+// SYNC PRODUCTION REPORT
+// =====================================================
 
 exports.syncProductionReport = async(date)=>{
 
@@ -54,6 +56,22 @@ exports.syncProductionReport = async(date)=>{
 
 
 
+        console.log(
+            "========== GOOGLE SHEET =========="
+        );
+
+        console.log(
+            "SERVICE ACCOUNT:",
+            credentials.client_email
+        );
+
+        console.log(
+            "SPREADSHEET ID:",
+            spreadsheetId
+        );
+
+
+
         const sheets =
         google.sheets({
 
@@ -65,6 +83,7 @@ exports.syncProductionReport = async(date)=>{
 
 
 
+
         await writeSheetData(
 
             sheets,
@@ -72,6 +91,7 @@ exports.syncProductionReport = async(date)=>{
             reports
 
         );
+
 
 
 
@@ -88,13 +108,12 @@ exports.syncProductionReport = async(date)=>{
         };
 
 
-
     }
     catch(err){
 
 
         console.error(
-            "GOOGLE SHEET ERROR"
+            "SYNC GOOGLE SHEET ERROR"
         );
 
 
@@ -102,6 +121,7 @@ exports.syncProductionReport = async(date)=>{
 
 
         throw err;
+
 
     }
 
@@ -112,9 +132,32 @@ exports.syncProductionReport = async(date)=>{
 
 
 
-// =============================
+
+
+// =====================================================
+// CREATE SHEET
+// GIỮ TƯƠNG THÍCH CONTROLLER
+// KHÔNG TẠO FILE MỚI
+// CHỈ GHI VÀO FILE CỐ ĐỊNH
+// =====================================================
+
+exports.createSheet = async(date)=>{
+
+
+    return exports.syncProductionReport(date);
+
+
+};
+
+
+
+
+
+
+
+// =====================================================
 // UPDATE SHEET
-// =============================
+// =====================================================
 
 exports.updateSheet = async(date)=>{
 
@@ -128,9 +171,12 @@ exports.updateSheet = async(date)=>{
 
 
 
-// =============================
+
+
+
+// =====================================================
 // WRITE DATA
-// =============================
+// =====================================================
 
 const writeSheetData = async(
 
@@ -141,7 +187,7 @@ const writeSheetData = async(
 )=>{
 
 
-    const values=[
+    const values = [
 
 
         [
@@ -168,37 +214,51 @@ const writeSheetData = async(
 
 
 
+
     reports.forEach((item,index)=>{
 
 
         values.push([
 
 
-            index+1,
+            index + 1,
+
 
             item.worker_code,
 
+
             item.full_name,
+
 
             item.process_name,
 
+
             item.work_date,
+
 
             item.shift,
 
+
             item.machine_no,
+
 
             item.product_name,
 
+
             item.standard_output,
+
 
             item.actual_output,
 
+
             item.tt_ok,
+
 
             item.tt_ng,
 
+
             item.status,
+
 
             item.note || ""
 
@@ -210,15 +270,23 @@ const writeSheetData = async(
 
 
 
+
+
+
     // XÓA DỮ LIỆU CŨ
 
     await sheets.spreadsheets.values.clear({
 
+
         spreadsheetId,
+
 
         range:"Cắt lồng!A1:Z1000"
 
+
     });
+
+
 
 
 
@@ -242,6 +310,7 @@ const writeSheetData = async(
 
 
             values
+
 
         }
 
