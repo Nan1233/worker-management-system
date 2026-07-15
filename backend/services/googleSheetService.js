@@ -36,6 +36,7 @@ const SHEET_NAME = "Cắt lồng";
 
 
 
+
 // =====================================================
 // SYNC
 // =====================================================
@@ -62,6 +63,7 @@ exports.syncProductionReport = async(date)=>{
         );
 
 
+
         console.log(
             "REPORT DATA:",
             reports
@@ -86,15 +88,20 @@ exports.syncProductionReport = async(date)=>{
 
 
         await writeSheetData(
+
             sheets,
+
             reports
+
         );
 
 
 
         return {
 
+
             spreadsheetId,
+
 
             url:
             `https://docs.google.com/spreadsheets/d/${spreadsheetId}`
@@ -116,6 +123,7 @@ exports.syncProductionReport = async(date)=>{
 
         throw err;
 
+
     }
 
 
@@ -125,19 +133,29 @@ exports.syncProductionReport = async(date)=>{
 
 
 
+
+
 exports.createSheet = async(date)=>{
+
 
     return await exports.syncProductionReport(date);
 
+
 };
+
+
 
 
 
 exports.updateSheet = async(date)=>{
 
+
     return await exports.syncProductionReport(date);
 
+
 };
+
+
 
 
 
@@ -146,7 +164,7 @@ exports.updateSheet = async(date)=>{
 
 
 // =====================================================
-// GET SHEET DATA
+// GET DATA
 // =====================================================
 
 const getSheetData = async(sheets)=>{
@@ -156,12 +174,16 @@ const getSheetData = async(sheets)=>{
 
     await sheets.spreadsheets.values.get({
 
+
         spreadsheetId,
+
 
         range:
         `${SHEET_NAME}!A:ZZ`
 
+
     });
+
 
 
     return result.data.values || [];
@@ -176,8 +198,9 @@ const getSheetData = async(sheets)=>{
 
 
 
+
 // =====================================================
-// WRITE DATA
+// WRITE
 // =====================================================
 
 const writeSheetData = async(
@@ -189,7 +212,10 @@ const writeSheetData = async(
 )=>{
 
 
-    if(!reports || reports.length===0){
+    if(
+        !reports ||
+        reports.length===0
+    ){
 
         throw new Error(
             "Không có dữ liệu"
@@ -199,13 +225,13 @@ const writeSheetData = async(
 
 
 
-    /*
-        Lấy bản ghi mới nhất
-        theo worker_code
-    */
+
+    // =================================================
+    // LẤY BẢN GHI MỚI NHẤT THEO MÃ NV
+    // =================================================
 
 
-    const latestMap = {};
+    const latestMap={};
 
 
 
@@ -227,7 +253,9 @@ const writeSheetData = async(
             ||
             new Date(item.created_at)
             >
-            new Date(latestMap[code].created_at)
+            new Date(
+                latestMap[code].created_at
+            )
         ){
 
             latestMap[code]=item;
@@ -239,8 +267,10 @@ const writeSheetData = async(
 
 
 
+
     const finalReports =
     Object.values(latestMap);
+
 
 
 
@@ -248,6 +278,9 @@ const writeSheetData = async(
         "AFTER FILTER:",
         finalReports
     );
+
+
+
 
 
 
@@ -266,9 +299,11 @@ const writeSheetData = async(
 
 
 
-    // ===============================
-    // MAP MÃ NHÂN VIÊN CỘT B
-    // ===============================
+
+    // =================================================
+    // MAP MÃ NHÂN VIÊN
+    // CỘT B
+    // =================================================
 
 
     const employeeMap={};
@@ -284,7 +319,9 @@ const writeSheetData = async(
 
 
         const code =
-        row[1]?.toString().trim();
+        row[1]
+        ?.toString()
+        .trim();
 
 
 
@@ -296,6 +333,10 @@ const writeSheetData = async(
 
 
     });
+
+
+
+
 
 
 
@@ -324,6 +365,9 @@ const writeSheetData = async(
 
 
 
+
+
+
     for(const item of finalReports){
 
 
@@ -340,12 +384,18 @@ const writeSheetData = async(
 
 
 
-        // ==================================
-        // chưa có mã -> tìm dòng trống cột B
-        // ==================================
+        // =================================================
+        // CHƯA CÓ MÃ
+        // => THÊM CUỐI DANH SÁCH
+        // =================================================
 
 
         if(!rowNumber){
+
+
+
+            let lastRow=1;
+
 
 
             for(let i=1;i<oldData.length;i++){
@@ -353,76 +403,65 @@ const writeSheetData = async(
 
 
                 if(
-                    !oldData[i][1]
-                    ||
-                    oldData[i][1]===""
+
+                    oldData[i][1]
+
+                    &&
+
+                    oldData[i][1]
+                    .toString()
+                    .trim()
+                    !==""
+
                 ){
 
-
-                    rowNumber=i+1;
-
-                    break;
+                    lastRow=i+1;
 
                 }
+
 
             }
 
 
-        }
-
-
-
-
-
-
-        // ==================================
-        // hết dòng -> thêm cuối
-        // ==================================
-
-        if(!rowNumber){
-
 
             rowNumber =
-            oldData.length+1;
+            lastRow+1;
+
 
 
             maxSTT++;
 
 
-
-            await addRows(
-                sheets,
-                50
-            );
-
-
         }
 
 
 
 
+
+
         console.log(
+
             "WRITE",
+
             code,
+
             "ROW",
+
             rowNumber
+
         );
 
 
 
 
 
-        /*
-            Không ghi cột C
-            vì đang có công thức
 
-            ghi:
-            A STT
-            B mã
-            D máy
-            E ca
-        */
 
+
+
+        // =================================================
+        // GHI A,B
+        // =================================================
 
 
         await sheets.spreadsheets.values.update({
@@ -434,6 +473,7 @@ const writeSheetData = async(
 
 
             range:
+
             `${SHEET_NAME}!A${rowNumber}:B${rowNumber}`,
 
 
@@ -443,6 +483,7 @@ const writeSheetData = async(
 
 
             requestBody:{
+
 
                 values:[
 
@@ -459,12 +500,24 @@ const writeSheetData = async(
 
                 ]
 
+
             }
 
 
         });
 
 
+
+
+
+
+
+
+
+        // =================================================
+        // GHI D,E
+        // GIỮ NGUYÊN CỘT C
+        // =================================================
 
 
 
@@ -477,6 +530,7 @@ const writeSheetData = async(
 
 
             range:
+
             `${SHEET_NAME}!D${rowNumber}:E${rowNumber}`,
 
 
@@ -486,6 +540,8 @@ const writeSheetData = async(
 
 
             requestBody:{
+
+
 
                 values:[
 
@@ -500,10 +556,12 @@ const writeSheetData = async(
 
                 ]
 
+
             }
 
 
         });
+
 
 
     }
@@ -511,12 +569,19 @@ const writeSheetData = async(
 
 
 
+
+
+
     console.log(
+
         "GOOGLE SHEET UPDATE SUCCESS"
+
     );
 
 
 };
+
+
 
 
 
@@ -569,8 +634,8 @@ const addRows = async(
 
                 }
 
-
             ]
+
 
         }
 
