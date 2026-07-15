@@ -23,8 +23,9 @@ const auth = new google.auth.GoogleAuth({
 });
 
 
+
 // =====================================================
-// GOOGLE SHEET
+// CONFIG
 // =====================================================
 
 const spreadsheetId =
@@ -63,11 +64,11 @@ exports.syncProductionReport = async(date)=>{
         );
 
 
-
         console.log(
             "REPORT DATA:",
             reports
         );
+
 
 
 
@@ -84,6 +85,7 @@ exports.syncProductionReport = async(date)=>{
             auth:client
 
         });
+
 
 
 
@@ -106,7 +108,9 @@ exports.syncProductionReport = async(date)=>{
             url:
             `https://docs.google.com/spreadsheets/d/${spreadsheetId}`
 
+
         };
+
 
 
     }
@@ -128,7 +132,6 @@ exports.syncProductionReport = async(date)=>{
 
 
 };
-
 
 
 
@@ -164,7 +167,7 @@ exports.updateSheet = async(date)=>{
 
 
 // =====================================================
-// GET DATA
+// READ SHEET
 // =====================================================
 
 const getSheetData = async(sheets)=>{
@@ -200,7 +203,7 @@ const getSheetData = async(sheets)=>{
 
 
 // =====================================================
-// WRITE
+// WRITE DATA
 // =====================================================
 
 const writeSheetData = async(
@@ -231,7 +234,7 @@ const writeSheetData = async(
     // =================================================
 
 
-    const latestMap={};
+    const latestMap = {};
 
 
 
@@ -239,7 +242,9 @@ const writeSheetData = async(
 
 
         const code =
-        item.worker_code?.trim();
+        item.worker_code
+        ?.toString()
+        .trim();
 
 
 
@@ -248,17 +253,26 @@ const writeSheetData = async(
 
 
 
+
         if(
+
             !latestMap[code]
+
             ||
+
             new Date(item.created_at)
+
             >
+
             new Date(
                 latestMap[code].created_at
             )
+
         ){
 
+
             latestMap[code]=item;
+
 
         }
 
@@ -285,8 +299,11 @@ const writeSheetData = async(
 
 
 
+
+
     const oldData =
     await getSheetData(sheets);
+
 
 
 
@@ -300,13 +317,16 @@ const writeSheetData = async(
 
 
 
+
+
+
     // =================================================
-    // MAP MÃ NHÂN VIÊN
-    // CỘT B
+    // MAP MÃ NHÂN VIÊN CỘT B
     // =================================================
 
 
-    const employeeMap={};
+    const employeeMap = {};
+
 
 
 
@@ -325,9 +345,12 @@ const writeSheetData = async(
 
 
 
+
         if(code){
 
+
             employeeMap[code]=index+1;
+
 
         }
 
@@ -342,7 +365,8 @@ const writeSheetData = async(
 
 
 
-    let maxSTT=0;
+    let maxSTT = 0;
+
 
 
     oldData.forEach(row=>{
@@ -352,11 +376,15 @@ const writeSheetData = async(
         Number(row[0]);
 
 
-        if(stt>maxSTT){
 
-            maxSTT=stt;
+        if(stt > maxSTT){
+
+
+            maxSTT = stt;
+
 
         }
+
 
     });
 
@@ -368,12 +396,20 @@ const writeSheetData = async(
 
 
 
+    // =================================================
+    // WRITE
+    // =================================================
+
+
     for(const item of finalReports){
 
 
 
         const code =
-        item.worker_code.trim();
+        item.worker_code
+        .toString()
+        .trim();
+
 
 
 
@@ -384,38 +420,47 @@ const writeSheetData = async(
 
 
 
-        // =================================================
+
+
+        // =============================================
         // CHƯA CÓ MÃ
-        // => THÊM CUỐI DANH SÁCH
-        // =================================================
+        // TÌM DÒNG CUỐI CÓ MÃ THẬT
+        // =============================================
 
 
         if(!rowNumber){
 
 
 
-            let lastRow=1;
+            let lastRow = 1;
 
 
 
-            for(let i=1;i<oldData.length;i++){
+
+            for(
+                let i = oldData.length - 1;
+                i >= 1;
+                i--
+            ){
 
 
 
-                if(
+                const oldCode =
+                oldData[i][1]
+                ?.toString()
+                .trim();
 
-                    oldData[i][1]
 
-                    &&
 
-                    oldData[i][1]
-                    .toString()
-                    .trim()
-                    !==""
 
-                ){
+                if(oldCode){
 
-                    lastRow=i+1;
+
+                    lastRow = i + 1;
+
+
+                    break;
+
 
                 }
 
@@ -424,15 +469,21 @@ const writeSheetData = async(
 
 
 
+
+
+
             rowNumber =
-            lastRow+1;
+            lastRow + 1;
+
 
 
 
             maxSTT++;
 
 
+
         }
+
 
 
 
@@ -459,9 +510,9 @@ const writeSheetData = async(
 
 
 
-        // =================================================
-        // GHI A,B
-        // =================================================
+        // =============================================
+        // GHI STT + MÃ NV
+        // =============================================
 
 
         await sheets.spreadsheets.values.update({
@@ -485,6 +536,7 @@ const writeSheetData = async(
             requestBody:{
 
 
+
                 values:[
 
                     [
@@ -501,7 +553,9 @@ const writeSheetData = async(
                 ]
 
 
+
             }
+
 
 
         });
@@ -514,11 +568,11 @@ const writeSheetData = async(
 
 
 
-        // =================================================
-        // GHI D,E
-        // GIỮ NGUYÊN CỘT C
-        // =================================================
 
+        // =============================================
+        // GHI MÁY + CA
+        // D,E
+        // =============================================
 
 
         await sheets.spreadsheets.values.update({
@@ -560,12 +614,12 @@ const writeSheetData = async(
             }
 
 
+
         });
 
 
 
     }
-
 
 
 
@@ -578,69 +632,6 @@ const writeSheetData = async(
 
     );
 
-
-};
-
-
-
-
-
-
-
-
-
-
-
-// =====================================================
-// ADD ROW
-// =====================================================
-
-const addRows = async(
-
-    sheets,
-
-    length
-
-)=>{
-
-
-    await sheets.spreadsheets.batchUpdate({
-
-
-        spreadsheetId,
-
-
-        requestBody:{
-
-
-            requests:[
-
-
-                {
-
-                    appendDimension:{
-
-
-                        sheetId:0,
-
-
-                        dimension:"ROWS",
-
-
-                        length
-
-
-                    }
-
-                }
-
-            ]
-
-
-        }
-
-
-    });
 
 
 };
