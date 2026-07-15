@@ -146,3 +146,75 @@ res.json(result[0]);
 
 
 };
+exports.updateWorker = (req,res)=>{
+
+    const id = req.params.id;
+
+
+    const {
+        worker_code,
+        phone,
+        department,
+        position,
+        status
+    } = req.body;
+
+
+
+    const sql = `
+
+    UPDATE workers
+
+    SET
+
+    worker_code=?,
+    phone=?,
+    department=?,
+    position=?,
+    status=?
+
+    WHERE id=?
+
+    `;
+
+
+
+    db.query(
+
+        sql,
+
+        [
+            worker_code,
+            phone,
+            department,
+            position,
+            status,
+            id
+        ],
+
+        (err)=>{
+
+
+            if(err){
+
+                return res.status(500).json({
+                    message:err.message
+                });
+
+            }
+
+
+
+            res.json({
+
+                message:"Cập nhật công nhân thành công"
+
+            });
+
+
+        }
+
+    );
+
+
+};

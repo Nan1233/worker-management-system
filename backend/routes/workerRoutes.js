@@ -45,3 +45,10 @@ router.get(
 
 
 module.exports = router;
+
+router.put(
+    "/:id",
+    verifyToken,
+    checkRole("admin","manager"),
+    workerController.updateWorker
+);
