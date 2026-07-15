@@ -26,15 +26,13 @@ const auth = new google.auth.GoogleAuth({
 
 
 
+
 // =====================================================
-// GOOGLE SHEET CỐ ĐỊNH
-// LẤY TỪ RENDER ENV
+// GOOGLE SHEET ID
 // =====================================================
 
 const spreadsheetId =
 process.env.GOOGLE_SPREADSHEET_ID;
-
-
 
 
 
@@ -46,6 +44,16 @@ exports.syncProductionReport = async(date)=>{
 
 
     try{
+
+
+        if(!spreadsheetId){
+
+            throw new Error(
+                "Thiếu GOOGLE_SPREADSHEET_ID"
+            );
+
+        }
+
 
 
         const reports =
@@ -89,7 +97,6 @@ exports.syncProductionReport = async(date)=>{
 
 
 
-
         const sheets =
         google.sheets({
 
@@ -98,7 +105,6 @@ exports.syncProductionReport = async(date)=>{
             auth:client
 
         });
-
 
 
 
@@ -112,7 +118,6 @@ exports.syncProductionReport = async(date)=>{
             reports
 
         );
-
 
 
 
@@ -156,12 +161,9 @@ exports.syncProductionReport = async(date)=>{
 
 
 
-
 // =====================================================
 // CREATE SHEET
 // GIỮ COMPATIBLE CONTROLLER
-// KHÔNG TẠO FILE MỚI
-// GHI VÀO SHEET CỐ ĐỊNH
 // =====================================================
 
 exports.createSheet = async(date)=>{
@@ -171,8 +173,6 @@ exports.createSheet = async(date)=>{
 
 
 };
-
-
 
 
 
@@ -196,8 +196,6 @@ exports.updateSheet = async(date)=>{
 
 
 
-
-
 // =====================================================
 // WRITE DATA
 // =====================================================
@@ -211,7 +209,6 @@ const writeSheetData = async(
     reports
 
 )=>{
-
 
 
     if(!reports || reports.length === 0){
@@ -230,7 +227,6 @@ const writeSheetData = async(
 
 
     const values = [
-
 
 
         [
@@ -265,11 +261,7 @@ const writeSheetData = async(
 
         ]
 
-
-
     ];
-
-
 
 
 
@@ -281,44 +273,43 @@ const writeSheetData = async(
         values.push([
 
 
-
             index + 1,
 
 
-            item.worker_code,
+            item.worker_code || "",
 
 
-            item.full_name,
+            item.full_name || "",
 
 
-            item.process_name,
+            item.process_name || "",
 
 
-            item.work_date,
+            item.work_date || "",
 
 
-            item.shift,
+            item.shift || "",
 
 
-            item.machine_no,
+            item.machine_no || "",
 
 
-            item.product_name,
+            item.product_name || "",
 
 
-            item.standard_output,
+            item.standard_output || 0,
 
 
-            item.actual_output,
+            item.actual_output || 0,
 
 
-            item.tt_ok,
+            item.tt_ok || 0,
 
 
-            item.tt_ng,
+            item.tt_ng || 0,
 
 
-            item.status,
+            item.status || "",
 
 
             item.note || ""
@@ -328,9 +319,7 @@ const writeSheetData = async(
         ]);
 
 
-
     });
-
 
 
 
@@ -348,32 +337,39 @@ const writeSheetData = async(
 
 
 
-
-
     // =====================================================
-    // XÓA DỮ LIỆU CŨ
+    // KIỂM TRA TAB GOOGLE SHEET
     // =====================================================
 
 
-    await sheets.spreadsheets.values.clear({
+    const meta =
+    await sheets.spreadsheets.get({
 
-
-        spreadsheetId,
-
-
-        range:"Cắt lồng!A1:Z1000"
-
+        spreadsheetId
 
     });
 
 
 
+    console.log(
+
+        "AVAILABLE SHEETS:",
+
+        meta.data.sheets.map(
+
+            s=>s.properties.title
+
+        )
+
+    );
+
 
 
 
 
     // =====================================================
-    // GHI DỮ LIỆU MỚI
+    // GHI DỮ LIỆU
+    // KHÔNG CLEAR TRƯỚC
     // =====================================================
 
 
@@ -403,8 +399,11 @@ const writeSheetData = async(
 
 
 
+
     console.log(
+
         "WRITE GOOGLE SHEET SUCCESS"
+
     );
 
 
