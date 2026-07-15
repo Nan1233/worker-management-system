@@ -323,7 +323,36 @@ const writeSheetData = async(
 
     await getSheetData(sheets);
 
+// =============================================
+// GET SHEET INFO
+// =============================================
 
+const meta =
+await sheets.spreadsheets.get({
+
+    spreadsheetId
+
+});
+
+
+
+const sheet =
+meta.data.sheets.find(
+
+    s =>
+    s.properties.title === SHEET_NAME
+
+);
+
+
+
+if(!sheet){
+
+    throw new Error(
+        `Không tìm thấy sheet: ${SHEET_NAME}`
+    );
+
+}
 
 
 
