@@ -338,7 +338,86 @@ const writeSheetData = async(
 
 
     let lastRow =
-    oldData.length;
+oldData.length;
+
+
+
+if(reports.length > 0){
+
+
+    const needRows =
+    lastRow + reports.length;
+
+
+
+    const meta =
+    await sheets.spreadsheets.get({
+
+        spreadsheetId
+
+
+    });
+
+
+
+    const sheet =
+    meta.data.sheets.find(
+
+        s=>s.properties.title===SHEET_NAME
+
+    );
+
+
+
+    const currentRows =
+    sheet.properties.gridProperties.rowCount;
+
+
+
+    if(needRows > currentRows){
+
+
+        await sheets.spreadsheets.batchUpdate({
+
+
+            spreadsheetId,
+
+
+            requestBody:{
+
+
+                requests:[
+
+                    {
+
+                        appendDimension:{
+
+                            sheetId:
+                            sheet.properties.sheetId,
+
+
+                            dimension:"ROWS",
+
+
+                            length:
+                            needRows-currentRows
+
+                        }
+
+                    }
+
+                ]
+
+            }
+
+
+        });
+
+
+    }
+
+
+}
 
 
 
