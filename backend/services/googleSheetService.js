@@ -25,7 +25,7 @@ const auth = new google.auth.GoogleAuth({
 
 
 // =====================================================
-// GOOGLE SHEET
+// GOOGLE SHEET ID
 // =====================================================
 
 const spreadsheetId =
@@ -54,6 +54,18 @@ exports.syncProductionReport = async(date)=>{
 
         console.log(
             "========== GOOGLE SHEET =========="
+        );
+
+
+        console.log(
+            "SERVICE ACCOUNT:",
+            credentials.client_email
+        );
+
+
+        console.log(
+            "SPREADSHEET ID:",
+            spreadsheetId
         );
 
 
@@ -87,20 +99,15 @@ exports.syncProductionReport = async(date)=>{
 
 
         await writeSheetData(
-
             sheets,
-
             reports
-
         );
 
 
 
         return {
 
-
             spreadsheetId,
-
 
             url:
             `https://docs.google.com/spreadsheets/d/${spreadsheetId}`
@@ -122,7 +129,6 @@ exports.syncProductionReport = async(date)=>{
 
         throw err;
 
-
     }
 
 
@@ -140,7 +146,6 @@ exports.createSheet = async(date)=>{
 
 
 
-
 exports.updateSheet = async(date)=>{
 
     return await exports.syncProductionReport(date);
@@ -152,12 +157,9 @@ exports.updateSheet = async(date)=>{
 
 
 
-
-
 // =====================================================
-// READ SHEET
+// GET SHEET DATA
 // =====================================================
-
 
 const getSheetData = async(sheets)=>{
 
@@ -168,7 +170,6 @@ const getSheetData = async(sheets)=>{
 
         spreadsheetId,
 
-
         range:
         `${SHEET_NAME}!A:ZZ`
 
@@ -176,6 +177,42 @@ const getSheetData = async(sheets)=>{
 
 
     return result.data.values || [];
+
+};
+
+
+
+
+
+// =====================================================
+// GET SHEET ID
+// =====================================================
+
+const getSheetId = async(sheets)=>{
+
+
+    const result =
+
+    await sheets.spreadsheets.get({
+
+        spreadsheetId
+
+    });
+
+
+
+    const sheet =
+
+    result.data.sheets.find(
+
+        s =>
+        s.properties.title === SHEET_NAME
+
+    );
+
+
+
+    return sheet.properties.sheetId;
 
 
 };
@@ -186,11 +223,66 @@ const getSheetData = async(sheets)=>{
 
 
 
+// =====================================================
+// ADD ROW LIMIT
+// =====================================================
+
+const addRows = async(sheets)=>{
+
+
+    const sheetId =
+    await getSheetId(sheets);
+
+
+
+    await sheets.spreadsheets.batchUpdate({
+
+        spreadsheetId,
+
+
+        requestBody:{
+
+
+            requests:[
+
+                {
+
+                    appendDimension:{
+
+
+                        sheetId,
+
+
+                        dimension:"ROWS",
+
+
+                        length:100
+
+
+                    }
+
+                }
+
+            ]
+
+
+        }
+
+
+    });
+
+
+};
+
+
+
+
+
+
 
 // =====================================================
-// WRITE
+// WRITE DATA
 // =====================================================
-
 
 const writeSheetData = async(
 
@@ -203,13 +295,11 @@ const writeSheetData = async(
 
     if(!reports || reports.length===0){
 
-
         throw new Error(
-            "Không có dữ liệu"
+            "Không có dữ liệu approved"
         );
 
     }
-
 
 
 
@@ -227,10 +317,9 @@ const writeSheetData = async(
 
 
 
-    // ==============================
-    // MAP WORKER CODE
-    // ==============================
-
+    // =====================================
+    // MAP WORKER CODE CỘT B
+    // =====================================
 
     const employeeMap = {};
 
@@ -251,10 +340,8 @@ const writeSheetData = async(
 
         if(code){
 
-
             employeeMap[code] =
             index + 1;
-
 
         }
 
@@ -265,6 +352,10 @@ const writeSheetData = async(
 
 
 
+
+    // =====================================
+    // STT
+    // =====================================
 
     let maxSTT = 0;
 
@@ -283,7 +374,6 @@ const writeSheetData = async(
 
         }
 
-
     });
 
 
@@ -292,17 +382,16 @@ const writeSheetData = async(
 
 
 
-    // ==============================
-    // GHI DỮ LIỆU
-    // ==============================
-
+    // =====================================
+    // LOOP REPORT
+    // =====================================
 
     for(const item of reports){
 
 
 
         const workerCode =
-        item.worker_code.trim();
+        item.worker_code?.trim();
 
 
 
@@ -313,14 +402,37 @@ const writeSheetData = async(
 
 
 
+        // =================================
+        // KHÔNG CÓ NV
+        // TÌM DÒNG CỘT B TRỐNG
+        // =================================
+
         if(!rowNumber){
 
 
-            rowNumber =
-            oldData.length + 1;
+            for(let i=1;i<oldData.length;i++){
 
 
-            maxSTT++;
+
+                const code =
+                oldData[i][1];
+
+
+
+                if(!code || code.trim()===""){
+
+
+                    rowNumber =
+                    i + 1;
+
+
+                    break;
+
+
+                }
+
+
+            }
 
 
         }
@@ -328,12 +440,56 @@ const writeSheetData = async(
 
 
 
+
+
+
+        // =================================
+        // HẾT DÒNG -> THÊM MỚI
+        // =================================
+
+        if(!rowNumber){
+
+
+
+            rowNumber =
+            oldData.length + 1;
+
+
+
+            maxSTT++;
+
+
+
+            if(rowNumber > oldData.length){
+
+
+                await addRows(sheets);
+
+
+            }
+
+
+        }
+
+
+
+
+
+
+
         console.log(
+
             "WRITE",
+
             workerCode,
+
             "ROW",
+
             rowNumber
+
         );
+
+
 
 
 
@@ -342,10 +498,13 @@ const writeSheetData = async(
         await sheets.spreadsheets.values.update({
 
 
+
             spreadsheetId,
 
 
+
             range:
+
             `${SHEET_NAME}!A${rowNumber}:E${rowNumber}`,
 
 
@@ -359,25 +518,32 @@ const writeSheetData = async(
 
                 values:[
 
+
                     [
+
 
                         oldData[rowNumber-1]?.[0]
                         ||
                         maxSTT,
 
 
-                        workerCode,
+
+                        workerCode || "",
+
 
 
                         item.full_name || "",
 
 
+
                         item.machine_no || "",
+
 
 
                         item.shift || ""
 
                     ]
+
 
                 ]
 
@@ -395,7 +561,9 @@ const writeSheetData = async(
 
 
     console.log(
+
         "GOOGLE SHEET UPDATE SUCCESS"
+
     );
 
 
