@@ -51,18 +51,22 @@ const createSpreadsheet = async (title)=>{
 
     const file = await drive.files.create({
 
-        requestBody:{
+    requestBody:{
 
-            name:title,
+        name:title,
 
-            mimeType:
-            "application/vnd.google-apps.spreadsheet"
+        mimeType:
+        "application/vnd.google-apps.spreadsheet",
 
-        },
+        parents:[
+            process.env.GOOGLE_DRIVE_FOLDER_ID
+        ]
 
-        fields:"id"
+    },
 
-    });
+    fields:"id"
+
+});
 
 
     return file.data.id;
