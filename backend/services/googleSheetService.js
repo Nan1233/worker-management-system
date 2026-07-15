@@ -219,17 +219,10 @@ const getSheetData = async(sheets)=>{
 // GHI DATA KHÔNG GHI ĐÈ TOÀN BỘ
 // =====================================================
 
-const writeSheetData = async(
-
-    sheets,
-
-    reports
-
-)=>{
+const writeSheetData = async (sheets, reports)=>{
 
 
     if(!reports || reports.length===0){
-
 
         throw new Error(
             "Không có dữ liệu approved"
@@ -238,66 +231,21 @@ const writeSheetData = async(
     }
 
 
-
-    // lấy dữ liệu hiện tại
-
-    const oldData =
-    await getSheetData(sheets);
-
-
+    const oldData = await getSheetData(sheets);
 
 
     console.log(
-        "OLD ROW:",
+        "CURRENT ROW:",
         oldData.length
     );
 
 
 
-
-
-    const header = oldData[0] || [
-
-        "STT",
-        "Mã nhân viên",
-        "Tên",
-        "Số máy",
-        "Ca",
-        "% học việc",
-        "Thời gian làm việc",
-        "Số lần CM",
-        "Tổng TG trừ giờ",
-        "Thiếu sản lượng",
-        "Bật máy, xét máy",
-        "Chuyển mã",
-        "Chỉnh máy",
-        "Chờ chỉnh máy",
-        "Mất điện",
-        "Mất khí",
-        "Chờ hàng",
-        "Bảo dưỡng máy",
-        "Nghỉ giải lao",
-        "Giao ca",
-        "Dừng máy đi hỗ trợ",
-        "SP",
-        "Định mức",
-        "TT",
-        "Ngày/Tháng",
-        "OK",
-        "Tổng NG",
-        "Trạng thái"
-
-    ];
-
-
-
-
-
-
-    // map mã nhân viên -> dòng
+    // ================================
+    // MAP MÃ NHÂN VIÊN CỘT B
+    // ================================
 
     const employeeMap = {};
-
 
 
     oldData.forEach((row,index)=>{
@@ -307,16 +255,32 @@ const writeSheetData = async(
             return;
 
 
-
-        const code =
-        row[1];
+        const code = row[1];
 
 
         if(code){
 
+            employeeMap[code] = index + 1;
 
-            employeeMap[code]=index+1;
+        }
 
+
+    });
+
+
+
+    let maxSTT = 0;
+
+
+    oldData.forEach(row=>{
+
+
+        const stt = Number(row[0]);
+
+
+        if(stt > maxSTT){
+
+            maxSTT = stt;
 
         }
 
@@ -327,131 +291,61 @@ const writeSheetData = async(
 
 
 
-
-    let appendRows=[];
-
-
-
     for(const item of reports){
 
 
 
-        const row = [
-
-
-
-            "",
-
-            item.worker_code || "",
-
-            item.full_name || "",
-
-            item.machine_no || "",
-
-            item.shift || "",
-
-
-            "",
-
-
-            "",
-
-
-            "",
-
-
-            "",
-
-
-            "",
-
-
-            "",
-
-
-            "",
-
-
-            "",
-
-
-            "",
-
-
-            "",
-
-
-            "",
-
-
-            "",
-
-
-            "",
-
-
-            "",
-
-
-            "",
-
-
-            "",
-
-
-
-            item.product_name || "",
-
-
-            item.standard_output || "",
-
-
-            item.actual_output || "",
-
-
-
-            item.work_date || "",
-
-
-
-            item.tt_ok || "",
-
-
-
-            item.tt_ng || "",
-
-
-
-            item.status || ""
-
-
-
-        ];
-
-
-
-
-
-        const existRow =
+        let rowNumber =
         employeeMap[item.worker_code];
 
 
 
+        // ================================
+        // TÌM DÒNG TRỐNG CỘT B
+        // ================================
 
-        if(existRow){
+        if(!rowNumber){
+
+
+            for(let i=1;i<oldData.length;i++){
+
+
+                const stt = oldData[i][0];
+
+                const code = oldData[i][1];
+
+
+                if(
+                    stt &&
+                    (!code || code==="")
+                ){
+
+                    rowNumber=i+1;
+
+                    break;
+
+                }
+
+
+            }
+
+
+        }
 
 
 
-            console.log(
+        // ================================
+        // KHÔNG CÓ DÒNG -> THÊM CUỐI
+        // ================================
 
-                "UPDATE ROW",
+        if(!rowNumber){
 
-                item.worker_code,
 
-                existRow
+            rowNumber =
+            oldData.length + 1;
 
-            );
 
+            maxSTT++;
 
 
             await sheets.spreadsheets.values.update({
@@ -461,7 +355,7 @@ const writeSheetData = async(
 
 
                 range:
-                `Cắt lồng!A${existRow}`,
+                `Cắt lồng!A${rowNumber}:E${rowNumber}`,
 
 
                 valueInputOption:"RAW",
@@ -470,7 +364,17 @@ const writeSheetData = async(
                 requestBody:{
 
 
-                    values:[row]
+                    values:[
+
+                        [
+                            maxSTT,
+                            item.worker_code || "",
+                            item.full_name || "",
+                            item.machine_no || "",
+                            item.shift || ""
+                        ]
+
+                    ]
 
                 }
 
@@ -483,112 +387,64 @@ const writeSheetData = async(
         else{
 
 
-
-            console.log(
-
-                "APPEND",
-
-                item.worker_code
-
-            );
+            // ================================
+            // UPDATE KHÔNG MẤT CÔNG THỨC
+            // ================================
 
 
+            await sheets.spreadsheets.values.update({
 
-            appendRows.push(row);
+
+                spreadsheetId,
+
+
+                range:
+                `Cắt lồng!B${rowNumber}:E${rowNumber}`,
+
+
+                valueInputOption:"RAW",
+
+
+                requestBody:{
+
+
+                    values:[
+
+                        [
+
+                            item.worker_code || "",
+
+                            item.full_name || "",
+
+                            item.machine_no || "",
+
+                            item.shift || ""
+
+                        ]
+
+                    ]
+
+                }
+
+
+            });
 
 
 
         }
 
 
-    }
 
+        console.log(
+            "WRITE",
+            item.worker_code,
+            "ROW",
+            rowNumber
+        );
 
-
-
-
-
-
-    // thêm nhân viên mới
-
-    if(appendRows.length>0){
-
-
-
-        await sheets.spreadsheets.values.append({
-
-
-
-            spreadsheetId,
-
-
-            range:
-            "Cắt lồng!A1",
-
-
-
-            valueInputOption:"RAW",
-
-
-
-            insertDataOption:"INSERT_ROWS",
-
-
-
-            requestBody:{
-
-
-                values:appendRows
-
-
-            }
-
-
-        });
 
 
     }
-
-
-
-
-
-
-
-    // nếu sheet chưa có tiêu đề
-
-    if(oldData.length===0){
-
-
-
-        await sheets.spreadsheets.values.update({
-
-
-
-            spreadsheetId,
-
-
-            range:
-            "Cắt lồng!A1",
-
-
-            valueInputOption:"RAW",
-
-
-            requestBody:{
-
-
-                values:[header]
-
-            }
-
-
-        });
-
-
-    }
-
-
 
 
 
