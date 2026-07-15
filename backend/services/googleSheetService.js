@@ -490,39 +490,135 @@ const writeSheetData = async(
 
 
 
-            await sheets.spreadsheets.values.append({
+            // ==================================
+// KHÔNG CÓ MÃ -> TÌM DÒNG TRỐNG CỘT B
+// ==================================
+
+let emptyRow = null;
+
+
+oldData.forEach((oldRow,index)=>{
+
+
+    if(index===0)
+        return;
+
+
+    const stt = oldRow[0];
+
+    const workerCode = oldRow[1];
+
+
+    if(
+        stt &&
+        (!workerCode || workerCode==="")
+        &&
+        !emptyRow
+    ){
+
+        emptyRow = index + 1;
+
+    }
+
+
+});
 
 
 
-                spreadsheetId,
+
+
+if(emptyRow){
+
+
+    console.log(
+        "INSERT INTO EMPTY ROW:",
+        emptyRow
+    );
 
 
 
-                range:
-
-                `${SHEET_NAME}!A:AZ`,
+    row[0] = emptyRow - 1;
 
 
 
-                valueInputOption:"RAW",
+    await sheets.spreadsheets.values.update({
+
+
+        spreadsheetId,
+
+
+        range:
+        `${SHEET_NAME}!A${emptyRow}`,
 
 
 
-                insertDataOption:"INSERT_ROWS",
+        valueInputOption:"RAW",
+
+
+        requestBody:{
+
+
+            values:[
+                row
+            ]
+
+
+        }
+
+
+    });
 
 
 
-                requestBody:{
+}
+else{
 
 
-                    values:[row]
+    // không còn dòng trống -> thêm cuối
 
 
-                }
+    const newSTT =
+    oldData.length;
 
 
 
-            });
+    row[0] = newSTT;
+
+
+
+    await sheets.spreadsheets.values.append({
+
+
+        spreadsheetId,
+
+
+        range:
+        `${SHEET_NAME}!A:AZ`,
+
+
+
+        valueInputOption:"RAW",
+
+
+        insertDataOption:"INSERT_ROWS",
+
+
+        requestBody:{
+
+
+            values:[
+                row
+            ]
+
+
+        }
+
+
+    });
+
+
+
+}
 
 
 
