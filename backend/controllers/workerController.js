@@ -86,11 +86,11 @@ exports.getWorkerById = (req,res)=>{
 
     SELECT
 
-    w.id,
+        w.id,
 
-    w.worker_code,
+        w.worker_code,
 
-    u.full_name
+        u.full_name AS worker_name
 
     FROM workers w
 
@@ -127,7 +127,7 @@ exports.getWorkerById = (req,res)=>{
 
 
 
-            if(result.length===0){
+            if(result.length === 0){
 
                 return res.status(404).json({
                     message:"Không tìm thấy nhân viên"

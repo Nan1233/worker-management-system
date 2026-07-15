@@ -49,6 +49,7 @@ shift:"Ca 1",
 
 workerCode:"",
 
+workerName:"",
 
 machineNo:"",
 
@@ -175,15 +176,14 @@ localStorage.getItem("user") || "{}"
 
 
 
-if(!user.worker_id){
+if(!user.id){
 
-    console.log(
-        "Không có worker_id"
-    );
+    console.log("Không có user id");
 
     return;
 
 }
+
 
 
 
@@ -682,7 +682,17 @@ onChange={()=>{}}
 
 />
 
+<InputField
 
+label="Tên nhân viên"
+
+name="workerName"
+
+value={form.workerName}
+
+onChange={()=>{}}
+
+/>
 
 <InputField
 
