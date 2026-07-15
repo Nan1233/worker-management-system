@@ -2,6 +2,7 @@ const { google } = require("googleapis");
 const ReportService = require("./reportService");
 
 
+
 // =====================================================
 // GOOGLE AUTH
 // =====================================================
@@ -9,6 +10,7 @@ const ReportService = require("./reportService");
 const credentials = JSON.parse(
     process.env.GOOGLE_SERVICE_ACCOUNT
 );
+
 
 
 const auth = new google.auth.GoogleAuth({
@@ -23,15 +25,23 @@ const auth = new google.auth.GoogleAuth({
 
 
 
+
+
 // =====================================================
 // CONFIG
 // =====================================================
+
 
 const spreadsheetId =
 process.env.GOOGLE_SPREADSHEET_ID;
 
 
-const SHEET_NAME = "Cắt lồng";
+
+const SHEET_NAME =
+"Cắt lồng";
+
+
+
 
 
 
@@ -39,6 +49,7 @@ const SHEET_NAME = "Cắt lồng";
 // =====================================================
 // SYNC PRODUCTION REPORT
 // =====================================================
+
 
 exports.syncProductionReport = async(date)=>{
 
@@ -63,9 +74,11 @@ exports.syncProductionReport = async(date)=>{
 
 
 
+
         // =============================================
         // FIX WORKER CODE
         // =============================================
+
 
         let lastWorker = null;
 
@@ -79,10 +92,13 @@ exports.syncProductionReport = async(date)=>{
 
             if(item.worker_code){
 
+
                 lastWorker =
                 item.worker_code;
 
+
             }
+
 
 
 
@@ -105,9 +121,12 @@ exports.syncProductionReport = async(date)=>{
 
 
 
+
+
         // =============================================
-        // SORT WORKER CODE
+        // SORT WORKER
         // =============================================
+
 
         cleanReports.sort((a,b)=>{
 
@@ -133,8 +152,11 @@ exports.syncProductionReport = async(date)=>{
 
 
 
+
+
         const client =
         await auth.getClient();
+
 
 
 
@@ -151,6 +173,8 @@ exports.syncProductionReport = async(date)=>{
 
 
 
+
+
         await writeSheetData(
 
             sheets,
@@ -158,6 +182,7 @@ exports.syncProductionReport = async(date)=>{
             cleanReports
 
         );
+
 
 
 
@@ -195,7 +220,10 @@ exports.syncProductionReport = async(date)=>{
     }
 
 
+
 };
+
+
 
 
 
@@ -205,9 +233,12 @@ exports.syncProductionReport = async(date)=>{
 // CREATE / UPDATE
 // =====================================================
 
+
 exports.createSheet = async(date)=>{
 
+
     return await exports.syncProductionReport(date);
+
 
 };
 
@@ -215,33 +246,8 @@ exports.createSheet = async(date)=>{
 
 exports.updateSheet = async(date)=>{
 
+
     return await exports.syncProductionReport(date);
-
-}; 
-
-// =====================================================
-// READ SHEET
-// =====================================================
-
-const getSheetData = async(sheets)=>{
-
-
-    const result =
-    await sheets.spreadsheets.values.get({
-
-
-        spreadsheetId,
-
-
-        range:
-        `${SHEET_NAME}!A:AZ`
-
-
-    });
-
-
-
-    return result.data.values || [];
 
 
 };
@@ -253,8 +259,41 @@ const getSheetData = async(sheets)=>{
 
 
 // =====================================================
-// WRITE SHEET
+// READ OLD DATA
 // =====================================================
+
+
+const getSheetData = async(sheets)=>{
+
+
+    const result =
+
+    await sheets.spreadsheets.values.get({
+
+        spreadsheetId,
+
+
+        range:
+        `${SHEET_NAME}!A:AZ`
+
+    });
+
+
+
+    return result.data.values || [];
+
+};
+
+
+
+
+
+
+
+// =====================================================
+// WRITE DATA
+// =====================================================
+
 
 const writeSheetData = async(
 
@@ -281,13 +320,15 @@ const writeSheetData = async(
 
 
     const oldData =
+
     await getSheetData(sheets);
 
 
 
 
+
     console.log(
-        "CURRENT ROW:",
+        "OLD ROW:",
         oldData.length
     );
 
@@ -296,8 +337,10 @@ const writeSheetData = async(
 
 
 
+
+
     // =============================================
-    // MAP DÒNG CŨ
+    // MAP ROW CŨ
     // =============================================
 
 
@@ -308,14 +351,15 @@ const writeSheetData = async(
     oldData.forEach((row,index)=>{
 
 
-        // bỏ header
         if(index===0)
             return;
 
 
 
 
+
         const worker =
+
         row[1]
         ?.toString()
         .trim();
@@ -323,7 +367,9 @@ const writeSheetData = async(
 
 
 
+
         const machine =
+
         row[3]
         ?.toString()
         .trim();
@@ -331,8 +377,14 @@ const writeSheetData = async(
 
 
 
+
+
+        // AE là ngày
+        // index 30
+
         const date =
-        row[29]
+
+        row[30]
         ?.toString()
         .trim();
 
@@ -344,12 +396,15 @@ const writeSheetData = async(
 
 
             rowMap[
+
                 `${worker}_${machine}_${date}`
+
             ] = index + 1;
 
 
 
         }
+
 
 
     });
@@ -360,147 +415,25 @@ const writeSheetData = async(
 
 
 
-
     let lastRow =
+
     oldData.length;
-
-
-
-
-
-
     // =============================================
-    // CHECK ROW GOOGLE SHEET
+    // LOOP DATA
     // =============================================
 
-
-    if(reports.length > 0){
-
-
-
-        const needRows =
-        lastRow + reports.length;
-
-
-
-
-
-        const meta =
-        await sheets.spreadsheets.get({
-
-
-            spreadsheetId
-
-
-        });
-
-
-
-
-
-        const sheet =
-        meta.data.sheets.find(
-
-
-            s=>
-            s.properties.title===SHEET_NAME
-
-
-        );
-
-
-
-
-
-        const currentRows =
-        sheet.properties.gridProperties.rowCount;
-
-
-
-
-
-        if(needRows > currentRows){
-
-
-            await sheets.spreadsheets.batchUpdate({
-
-
-                spreadsheetId,
-
-
-                requestBody:{
-
-
-                    requests:[
-
-
-                        {
-
-
-                            appendDimension:{
-
-
-                                sheetId:
-                                sheet.properties.sheetId,
-
-
-                                dimension:"ROWS",
-
-
-                                length:
-                                needRows-currentRows
-
-
-                            }
-
-
-                        }
-
-
-                    ]
-
-
-                }
-
-
-            });
-
-
-        }
-
-
-    }
-
-
-
-
-
-
-
-
-    // =============================================
-    // LOOP REPORT
-    // =============================================
-
-
-    for(const item of reports){
-
+    for (const item of reports) {
 
 
         const worker =
-        item.worker_code
-        ?.toString()
+        String(item.worker_code || "")
         .trim();
-
 
 
 
         const machine =
-        item.machine_no
-        ?.toString()
+        String(item.machine_no || "")
         .trim();
-
-
 
 
 
@@ -510,12 +443,8 @@ const writeSheetData = async(
 
 
 
-
-
         const key =
         `${worker}_${machine}_${workDate}`;
-
-
 
 
 
@@ -524,29 +453,20 @@ const writeSheetData = async(
 
 
 
-
-
         if(!rowNumber){
-
 
             lastRow++;
 
-
             rowNumber =
             lastRow;
-
 
         }
 
 
 
 
-
-
-
-
         // =============================================
-        // LẤY OK / NG
+        // NUMBER DATA
         // =============================================
 
 
@@ -560,217 +480,210 @@ const writeSheetData = async(
 
 
 
+        // AB - Định mức lấy từ database
+        const standardOutput =
+        Number(
+            String(item.standard_output || 0)
+            .replace(/,/g,"")
+        );
 
 
 
-        // tiếp PHẦN 3
-        // rowData + công thức AC AF
+        // H - thời gian thực tế
+        const actualTime =
+        Number(
+            item.actual_time || 0
+        );
 
-        // =============================================
-        // DATA GOOGLE SHEET
-        // THEO FILE MẪU
-        // =============================================
+
+
+        console.log(
+            "CALCULATE:",
+            {
+                worker,
+                machine,
+                ok,
+                ng,
+                standardOutput,
+                actualTime
+            }
+        );
+
+
 
 
         const rowData = [
 
-
-            rowNumber - 1,              // A STT
-
-
-            worker || "",               // B Mã NV
+            // A STT
+            rowNumber - 1,
 
 
-            item.full_name || "",       // C Tên NV
+            // B Worker Code
+            worker,
 
 
-            item.machine_no || "",      // D Số máy
+            // C Name
+            item.full_name || "",
 
 
-            item.shift || "",           // E Ca
+            // D Machine
+            machine,
 
 
-            "100%",                     // F % học việc
+            // E Shift
+            item.shift || "",
 
 
-            item.total_time || 0,       // G Thời gian làm việc
+            // F %
+            1,
 
 
-            item.actual_time || 0,      // H Thời gian thực tế
+            // G Total Time
+            Number(item.total_time || 0),
 
 
-
-            "",                         // I Số lần CM
-
-
-            item.deduction_time || 0,   // J Tổng TG trừ giờ
-
-
-
-            "",                         // K Thiếu sản lượng
-
-
-            "",                         // L Bật máy
-
-
-            "",                         // M Chuyển mã
-
-
-            "",                         // N Chỉnh máy
-
-
-            "",                         // O Chờ chỉnh máy
-
-
-            "",                         // P Mất điện
-
-
-            "",                         // Q Mất khí
-
-
-            "",                         // R Chờ hàng
-
-
-            "",                         // S Bảo dưỡng
-
-
-            "",                         // T Nghỉ giải lao
-
-
-            "",                         // U Giao ca
-
-
-            "",                         // V Hỗ trợ
-
-
-            "",                         // W Giặt cs
-
-
-            "",                         // X 5S
-
-
-            "",                         // Y Học việc
-
-
-            "",                         // Z Đi muộn
+            // H Actual Time
+            actualTime,
 
 
 
-            item.product_name || "",    // AA Sản phẩm
+            // I
+            "",
 
 
-            item.standard_output || 0,  // AB Định mức
+            // J
+            Number(item.deduction_time || 0),
+
+
+
+            // K-Z
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+
+
+
+            // AA Product
+            item.product_name || "",
+
 
 
 
             // =============================
-            // AC = AG+ AH
+            // AB = ĐỊNH MỨC
             // =============================
 
-            `=AG${rowNumber}+AH${rowNumber}`,
+            standardOutput,
 
 
-            // AD ngày
+
+
+            // =============================
+            // AC = AG + AH
+            // =============================
+
+            `=IFERROR(AG${rowNumber}+AH${rowNumber},0)`,
+
+
+
+
+            // =============================
+            // AD = HIỆU SUẤT
+            // AC / AB
+            // =============================
+
+            `=IFERROR(AC${rowNumber}/AB${rowNumber},0)`,
+
+
+
+
+            // =============================
+            // AE = NGÀY
+            // =============================
 
             workDate,
 
 
 
-            // AE bỏ trống
 
-            "",
-
-
-
-
-            // AF = AC / H
+            // =============================
+            // AF = SẢN LƯỢNG / GIỜ
+            // AC / H
             // =============================
 
-            `=AC${rowNumber}/H${rowNumber}`,
+            `=IFERROR(AC${rowNumber}/H${rowNumber},0)`,
 
 
 
 
-            // AG OK
+            // =============================
+            // AG = OK
+            // =============================
 
             ok,
 
 
 
 
-            // AH NG
+            // =============================
+            // AH = NG
+            // =============================
 
             ng,
 
 
 
 
-            "",     // AI
-
-
-
-            // AJ KQD
-
+            // AI
             "",
 
 
 
-            "",     // AK Vỡ cao su
-
-
-            "",     // AL Xước cong gãy
-
-
-            "",     // AM Cao su xoay
-
-
-            "",     // AN Cắt không đứt
-
-
-            "",     // AO Bavia
-
-
-            "",     // AP CSH
-
-
-            "",     // AQ PPCM
-
-
-            "",     // AR KT lớn
-
-
-            "",     // AS KT nhỏ
-
-
-            "",     // AT LCS
-
-
-            "",     // AU Cắt lẹm
-
-
-            "",     // AV Rách NVL
-
-
-            "",     // AW Chân ngắn dài
-
-
-            "",     // AX Sót via
-
-
-            "",     // AY Fure trục
-
-
-            "approved" // AZ trạng thái
-
-
-        ];
+            // AJ
+            "",
 
 
 
 
+            // AK-AZ
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
 
 
 
+            // AZ STATUS
+            "approved"
+
+
+        ];        // =============================================
+        // COLUMN END
+        // =============================================
 
         const endColumn =
         columnLetter(rowData.length);
@@ -779,14 +692,15 @@ const writeSheetData = async(
 
 
 
+        // =============================================
+        // WRITE GOOGLE SHEET
+        // =============================================
 
 
         await sheets.spreadsheets.values.update({
 
 
-
             spreadsheetId,
-
 
 
             range:
@@ -794,21 +708,22 @@ const writeSheetData = async(
             `${SHEET_NAME}!A${rowNumber}:${endColumn}${rowNumber}`,
 
 
+            // USER_ENTERED để Google Sheet tính công thức
 
             valueInputOption:"USER_ENTERED",
-
 
 
             requestBody:{
 
 
+                values:[
 
-                values:[rowData]
+                    rowData
 
+                ]
 
 
             }
-
 
 
         });
@@ -816,8 +731,103 @@ const writeSheetData = async(
 
 
 
-    }
 
+        // =============================================
+        // FORMAT NUMBER AB AH + FORMULA COLUMNS
+        // =============================================
+
+
+        await sheets.spreadsheets.batchUpdate({
+
+
+            spreadsheetId,
+
+
+            requestBody:{
+
+
+                requests:[
+
+
+                    {
+
+
+                        repeatCell:{
+
+
+                            range:{
+
+
+                                sheetId:
+                                sheet.properties.sheetId,
+
+
+                                startRowIndex:
+                                rowNumber - 1,
+
+
+                                endRowIndex:
+                                rowNumber,
+
+
+                                startColumnIndex:
+                                27,
+
+
+                                endColumnIndex:
+                                34
+
+
+                            },
+
+
+
+                            cell:{
+
+
+                                userEnteredFormat:{
+
+
+                                    numberFormat:{
+
+
+                                        type:"NUMBER",
+
+
+                                        pattern:"0.00"
+
+
+                                    }
+
+
+                                }
+
+
+                            },
+
+
+
+                            fields:
+                            "userEnteredFormat.numberFormat"
+
+
+                        }
+
+
+                    }
+
+
+                ]
+
+
+            }
+
+
+        });
+
+
+
+    } // END FOR LOOP
 
 
 
@@ -830,7 +840,7 @@ const writeSheetData = async(
 
 
 
-};
+}; // END writeSheetData
 
 
 
@@ -841,6 +851,7 @@ const writeSheetData = async(
 // =====================================================
 // COLUMN NUMBER -> LETTER
 // =====================================================
+
 
 function columnLetter(num){
 
@@ -859,7 +870,9 @@ function columnLetter(num){
 
 
         str =
-        String.fromCharCode(65 + rem)
+        String.fromCharCode(
+            65 + rem
+        )
         +
         str;
 
