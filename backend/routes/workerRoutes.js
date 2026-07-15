@@ -44,7 +44,6 @@ router.get(
 
 
 
-module.exports = router;
 
 router.put(
     "/:id",
@@ -52,3 +51,5 @@ router.put(
     checkRole("admin","manager"),
     workerController.updateWorker
 );
+
+module.exports = router;

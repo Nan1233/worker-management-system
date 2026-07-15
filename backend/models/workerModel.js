@@ -138,59 +138,55 @@ const create = (worker,callback)=>{
 
 const getWorkerByUserId = (user_id)=>{
 
-
-    return new Promise((resolve,reject)=>{
-
-
-        const sql = `
+return new Promise((resolve,reject)=>{
 
 
-        SELECT
+const sql=`
 
-            id
+SELECT
 
+workers.id,
 
-        FROM workers
+workers.worker_code,
 
-
-        WHERE user_id=?
-
-
-        `;
+users.full_name AS worker_name
 
 
-
-        db.query(
-
-            sql,
-
-            [
-
-                user_id
-
-            ],
+FROM workers
 
 
-            (err,result)=>{
+JOIN users
+
+ON workers.user_id = users.id
 
 
-                if(err){
+WHERE workers.user_id=?
 
-                    return reject(err);
-
-                }
+`;
 
 
-                resolve(result);
+db.query(
+
+sql,
+
+[user_id],
+
+(err,result)=>{
 
 
-            }
+if(err)
+return reject(err);
 
 
-        );
+resolve(result[0]);
 
 
-    });
+}
+
+);
+
+
+});
 
 
 };
