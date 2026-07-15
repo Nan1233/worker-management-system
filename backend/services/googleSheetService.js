@@ -12,19 +12,15 @@ const credentials = JSON.parse(
 );
 
 
-
 const auth = new google.auth.GoogleAuth({
 
     credentials,
 
     scopes:[
-
         "https://www.googleapis.com/auth/spreadsheets"
-
     ]
 
 });
-
 
 
 
@@ -58,12 +54,6 @@ exports.syncProductionReport = async(date)=>{
 
         console.log(
             "========== GOOGLE SHEET =========="
-        );
-
-
-        console.log(
-            "SPREADSHEET ID:",
-            spreadsheetId
         );
 
 
@@ -128,32 +118,22 @@ exports.syncProductionReport = async(date)=>{
 
 
 
-// =====================================================
-// CREATE
-// =====================================================
 
 exports.createSheet = async(date)=>{
 
-
     return await exports.syncProductionReport(date);
-
 
 };
 
 
 
-
-// =====================================================
-// UPDATE
-// =====================================================
 
 exports.updateSheet = async(date)=>{
 
-
     return await exports.syncProductionReport(date);
 
-
 };
+
 
 
 
@@ -168,20 +148,21 @@ const getSheetData = async(sheets)=>{
 
 
     const result =
-
     await sheets.spreadsheets.values.get({
+
 
         spreadsheetId,
 
 
         range:
-        `${SHEET_NAME}!A:ZZ`
+        `${SHEET_NAME}!A:AZ`
+
 
     });
 
 
-    return result.data.values || [];
 
+    return result.data.values || [];
 
 };
 
@@ -191,8 +172,11 @@ const getSheetData = async(sheets)=>{
 
 
 
+
+
 // =====================================================
 // WRITE DATA
+// GIỮ NGUYÊN CÔNG THỨC FILE MẪU
 // =====================================================
 
 const writeSheetData = async(
@@ -204,10 +188,7 @@ const writeSheetData = async(
 )=>{
 
 
-    if(
-        !reports ||
-        reports.length===0
-    ){
+    if(!reports || reports.length===0){
 
         throw new Error(
             "Không có dữ liệu approved"
@@ -230,13 +211,9 @@ const writeSheetData = async(
 
 
 
+    // map mã nhân viên cột B
 
-    // =====================================
-    // MAP MÃ NHÂN VIÊN CỘT B
-    // =====================================
-
-
-    const employeeMap = {};
+    const employeeMap={};
 
 
 
@@ -254,9 +231,7 @@ const writeSheetData = async(
 
         if(code){
 
-            employeeMap[code]
-            =
-            index + 1;
+            employeeMap[code]=index+1;
 
         }
 
@@ -269,53 +244,41 @@ const writeSheetData = async(
 
 
 
-    // =====================================
-    // XỬ LÝ TỪNG REPORT
-    // =====================================
-
-
     for(const item of reports){
 
 
 
-        const code =
-        item.worker_code;
+        let rowNumber =
+        employeeMap[item.worker_code];
 
 
 
-        const existRow =
-        employeeMap[code];
+        // không có mã thì thêm cuối
+
+        if(!rowNumber){
+
+
+            rowNumber =
+            oldData.length + 1;
 
 
 
+            console.log(
+                "ADD ROW",
+                item.worker_code,
+                rowNumber
+            );
 
 
-        // =====================================
-        // CÓ MÃ -> UPDATE
-        // =====================================
-
-        if(existRow){
+        }
+        else{
 
 
             console.log(
                 "UPDATE",
-                code,
-                "ROW",
-                existRow
+                item.worker_code,
+                rowNumber
             );
-
-
-
-            await updateRow(
-
-                sheets,
-
-                existRow,
-
-                item
-
-            );
-
 
         }
 
@@ -324,44 +287,114 @@ const writeSheetData = async(
 
 
 
-        // =====================================
-        // KHÔNG CÓ -> TÌM DÒNG TRỐNG CỘT B
-        // =====================================
-
-        else{
-
-
-            let emptyRow = null;
+        // =================================================
+        // CHỈ GHI CÁC CỘT NHẬP LIỆU
+        // KHÔNG ĐỤNG CÔNG THỨC
+        // =================================================
 
 
-
-            oldData.forEach((row,index)=>{
-
-
-                if(index===0)
-                    return;
+        const updateCells=[
 
 
+            // B - Mã nhân viên
 
-                const stt =
-                row[0];
-
-
-                const worker =
-                row[1];
-
+            {
+                range:`${SHEET_NAME}!B${rowNumber}`,
+                value:item.worker_code
+            },
 
 
-                if(
+            // D - số máy
 
-                    stt &&
-                    (!worker || worker==="") &&
-                    !emptyRow
+            {
+                range:`${SHEET_NAME}!D${rowNumber}`,
+                value:item.machine_no || ""
+            },
 
-                ){
 
-                    emptyRow =
-                    index + 1;
+            // E - ca
+
+            {
+                range:`${SHEET_NAME}!E${rowNumber}`,
+                value:item.shift || ""
+            },
+
+
+            // AA - sản phẩm
+
+            {
+                range:`${SHEET_NAME}!AA${rowNumber}`,
+                value:item.product_name || ""
+            },
+
+
+            // AB - định mức
+
+            {
+                range:`${SHEET_NAME}!AB${rowNumber}`,
+                value:item.standard_output || ""
+            },
+
+
+            // AF - OK
+
+            {
+                range:`${SHEET_NAME}!AF${rowNumber}`,
+                value:item.tt_ok || 0
+            },
+
+
+            // AG - tổng NG
+
+            {
+                range:`${SHEET_NAME}!AG${rowNumber}`,
+                value:item.tt_ng || 0
+            },
+
+
+            // AD - ngày
+
+            {
+                range:`${SHEET_NAME}!AD${rowNumber}`,
+                value:item.work_date || ""
+            }
+
+
+        ];
+
+
+
+
+
+
+
+        for(const cell of updateCells){
+
+
+
+            await sheets.spreadsheets.values.update({
+
+
+                spreadsheetId,
+
+
+                range:
+                cell.range,
+
+
+                valueInputOption:"RAW",
+
+
+                requestBody:{
+
+
+                    values:[
+
+                        [
+                            cell.value
+                        ]
+
+                    ]
 
                 }
 
@@ -370,57 +403,45 @@ const writeSheetData = async(
 
 
 
-
-
-            if(emptyRow){
-
-
-
-                console.log(
-                    "INSERT EMPTY ROW",
-                    code,
-                    emptyRow
-                );
+        }
 
 
 
-                await updateRow(
 
-                    sheets,
-
-                    emptyRow,
-
-                    item
-
-                );
+        // STT cột A
+        // chỉ điền nếu dòng mới
 
 
-
-            }
-            else{
+        if(!employeeMap[item.worker_code]){
 
 
-
-                console.log(
-                    "APPEND",
-                    code
-                );
+            await sheets.spreadsheets.values.update({
 
 
-
-                await appendRow(
-
-                    sheets,
-
-                    oldData.length + 1,
-
-                    item
-
-                );
+                spreadsheetId,
 
 
-            }
+                range:
+                `${SHEET_NAME}!A${rowNumber}`,
 
+                valueInputOption:"RAW",
+
+
+                requestBody:{
+
+
+                    values:[
+
+                        [
+                            rowNumber-1
+                        ]
+
+                    ]
+
+                }
+
+
+            });
 
 
         }
@@ -431,212 +452,10 @@ const writeSheetData = async(
 
 
 
+
+
     console.log(
         "GOOGLE SHEET UPDATE SUCCESS"
-    );
-
-
-};
-
-
-
-
-
-
-
-
-
-// =====================================================
-// UPDATE TỪNG Ô
-// KHÔNG PHÁ CÔNG THỨC
-// =====================================================
-
-const updateRow = async(
-
-    sheets,
-
-    row,
-
-    item
-
-)=>{
-
-
-    await sheets.spreadsheets.values.batchUpdate({
-
-
-        spreadsheetId,
-
-
-        requestBody:{
-
-
-            valueInputOption:"RAW",
-
-
-
-            data:[
-
-
-
-                {
-                    range:`${SHEET_NAME}!A${row}`,
-
-                    values:[
-                        [
-                            row-1
-                        ]
-                    ]
-
-                },
-
-
-                {
-                    range:`${SHEET_NAME}!B${row}`,
-
-                    values:[
-                        [
-                            item.worker_code || ""
-                        ]
-                    ]
-
-                },
-
-
-                {
-                    range:`${SHEET_NAME}!D${row}`,
-
-                    values:[
-                        [
-                            item.machine_no || ""
-                        ]
-                    ]
-
-                },
-
-
-                {
-                    range:`${SHEET_NAME}!E${row}`,
-
-                    values:[
-                        [
-                            item.shift || ""
-                        ]
-                    ]
-
-                },
-
-
-                {
-                    range:`${SHEET_NAME}!V${row}`,
-
-                    values:[
-                        [
-                            item.product_name || ""
-                        ]
-                    ]
-
-                },
-
-
-                {
-                    range:`${SHEET_NAME}!W${row}`,
-
-                    values:[
-                        [
-                            item.standard_output || ""
-                        ]
-                    ]
-
-                },
-
-
-                {
-                    range:`${SHEET_NAME}!X${row}`,
-
-                    values:[
-                        [
-                            item.actual_output || ""
-                        ]
-                    ]
-
-                },
-
-
-                {
-                    range:`${SHEET_NAME}!Y${row}`,
-
-                    values:[
-                        [
-                            item.work_date || ""
-                        ]
-                    ]
-
-                },
-
-
-                {
-                    range:`${SHEET_NAME}!Z${row}`,
-
-                    values:[
-                        [
-                            item.tt_ok || ""
-                        ]
-                    ]
-
-                },
-
-
-                {
-                    range:`${SHEET_NAME}!AA${row}`,
-
-                    values:[
-                        [
-                            item.tt_ng || ""
-                        ]
-                    ]
-
-                }
-
-            ]
-
-        }
-
-    });
-
-
-};
-
-
-
-
-
-
-
-
-// =====================================================
-// APPEND
-// =====================================================
-
-const appendRow = async(
-
-    sheets,
-
-    row,
-
-    item
-
-)=>{
-
-
-    await updateRow(
-
-        sheets,
-
-        row,
-
-        item
-
     );
 
 
