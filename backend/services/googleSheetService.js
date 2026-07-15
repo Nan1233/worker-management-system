@@ -624,7 +624,7 @@ if(!sheet){
             // AC = AG + AH
             // =============================
 
-            `=IFERROR(AG${rowNumber}+AH${rowNumber},0)`,
+            `=AG${rowNumber}+AH${rowNumber}`,
 
 
 
@@ -634,7 +634,7 @@ if(!sheet){
             // AC / AB
             // =============================
 
-            `=IFERROR(AC${rowNumber}/AB${rowNumber},0)`,
+            `=AC${rowNumber}/AB${rowNumber}`,
 
 
 
@@ -653,7 +653,7 @@ if(!sheet){
             // AC / H
             // =============================
 
-            `=IFERROR(AC${rowNumber}/H${rowNumber},0)`,
+            `=AC${rowNumber}/H${rowNumber}`,
 
 
 
@@ -766,93 +766,88 @@ if(!sheet){
         // =============================================
 
 
-        await sheets.spreadsheets.batchUpdate({
+        const numberColumns = [
+    27, // AB
+    28, // AC
+    29, // AD
+    31, // AF
+    32, // AG
+    33  // AH
+];
 
 
-            spreadsheetId,
+for(const col of numberColumns){
 
 
-            requestBody:{
+    await sheets.spreadsheets.batchUpdate({
+
+        spreadsheetId,
+
+        requestBody:{
+
+            requests:[
+
+                {
+
+                    repeatCell:{
+
+                        range:{
+
+                            sheetId:
+                            sheet.properties.sheetId,
 
 
-                requests:[
+                            startRowIndex:
+                            rowNumber - 1,
 
 
-                    {
+                            endRowIndex:
+                            rowNumber,
 
 
-                        repeatCell:{
+                            startColumnIndex:
+                            col,
 
 
-                            range:{
+                            endColumnIndex:
+                            col + 1
+
+                        },
 
 
-                                sheetId:
-                                sheet.properties.sheetId,
+                        cell:{
 
+                            userEnteredFormat:{
 
-                                startRowIndex:
-                                rowNumber - 1,
+                                numberFormat:{
 
+                                    type:"NUMBER",
 
-                                endRowIndex:
-                                rowNumber,
-
-
-                                startColumnIndex:
-                                27,
-
-
-                                endColumnIndex:
-                                34
-
-
-                            },
-
-
-
-                            cell:{
-
-
-                                userEnteredFormat:{
-
-
-                                    numberFormat:{
-
-
-                                        type:"NUMBER",
-
-
-                                        pattern:"0.00"
-
-
-                                    }
-
+                                    pattern:"0.00"
 
                                 }
 
+                            }
 
-                            },
-
-
-
-                            fields:
-                            "userEnteredFormat.numberFormat"
+                        },
 
 
-                        }
+                        fields:
+                        "userEnteredFormat.numberFormat"
 
 
                     }
 
+                }
 
-                ]
+            ]
+
+        }
+
+    });
 
 
-            }
-
-
-        });
+}
 
 
 
