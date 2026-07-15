@@ -5,7 +5,7 @@ const GoogleSheetModel = require("../models/googleSheetModel");
 
 
 // =====================================================
-// GOOGLE AUTH FROM RENDER ENV
+// GOOGLE AUTH
 // =====================================================
 
 const credentials = JSON.parse(
@@ -29,94 +29,23 @@ const auth = new google.auth.GoogleAuth({
 
 
 
+
 // =====================================================
-// CREATE GOOGLE DRIVE SPREADSHEET
+// COPY GOOGLE SHEET TEMPLATE
 // =====================================================
 
 const createSpreadsheet = async (title)=>{
 
 
-    const client = await auth.getClient();
-
-
-    const drive = google.drive({
-
-        version:"v3",
-
-        auth:client
-
-    });
-
-
-
-    const file = await drive.files.create({
-
-    requestBody:{
-
-        name:title,
-
-        mimeType:
-        "application/vnd.google-apps.spreadsheet",
-
-        parents:[
-            process.env.GOOGLE_DRIVE_FOLDER_ID
-        ]
-
-    },
-
-    fields:"id"
-
-});
-
-
-    return file.data.id;
-
-};
-
-
-
-
-// =====================================================
-// SYNC GOOGLE SHEET
-// =====================================================
-
-exports.syncProductionReport = async (date)=>{
-
-
-    try{
-
-
-        const reports =
-        await ReportService.getApprovedReportsByDate(date);
-
-
-
-        const client =
+    const client =
         await auth.getClient();
 
 
 
-        console.log(
-            "========== GOOGLE AUTH =========="
-        );
+    const drive =
+        google.drive({
 
-
-        console.log(
-            "EMAIL:",
-            credentials.client_email
-        );
-
-
-        console.log(
-            "PROJECT:",
-            credentials.project_id
-        );
-
-
-
-        const sheets = google.sheets({
-
-            version:"v4",
+            version:"v3",
 
             auth:client
 
@@ -124,8 +53,66 @@ exports.syncProductionReport = async (date)=>{
 
 
 
+    const copy =
+        await drive.files.copy({
+
+            fileId:
+            process.env.GOOGLE_TEMPLATE_SHEET_ID,
+
+
+            requestBody:{
+
+                name:title
+
+            }
+
+
+        });
+
+
+
+    return copy.data.id;
+
+
+};
+
+
+
+
+
+// =====================================================
+// SYNC PRODUCTION REPORT
+// =====================================================
+
+exports.syncProductionReport = async(date)=>{
+
+
+    try{
+
+
+        const reports =
+            await ReportService.getApprovedReportsByDate(date);
+
+
+
+        const client =
+            await auth.getClient();
+
+
+
+        const sheets =
+            google.sheets({
+
+                version:"v4",
+
+                auth:client
+
+            });
+
+
+
         let sheetInfo =
-        await GoogleSheetModel.findByDate(date);
+            await GoogleSheetModel.findByDate(date);
 
 
 
@@ -136,21 +123,15 @@ exports.syncProductionReport = async (date)=>{
         if(!sheetInfo){
 
 
-            console.log(
-                "Creating spreadsheet..."
-            );
-
-
-
             spreadsheetId =
-            await createSpreadsheet(
-                `Bao cao cat long ${date}`
-            );
+                await createSpreadsheet(
+                    `Bao cao cat long ${date}`
+                );
 
 
 
             const url =
-            `https://docs.google.com/spreadsheets/d/${spreadsheetId}`;
+                `https://docs.google.com/spreadsheets/d/${spreadsheetId}`;
 
 
 
@@ -170,7 +151,7 @@ exports.syncProductionReport = async (date)=>{
 
 
             spreadsheetId =
-            sheetInfo.spreadsheet_id;
+                sheetInfo.spreadsheet_id;
 
 
         }
@@ -208,7 +189,7 @@ exports.syncProductionReport = async (date)=>{
 
 
         console.error(
-            "========== GOOGLE ERROR =========="
+            "SYNC GOOGLE SHEET ERROR"
         );
 
 
@@ -221,37 +202,36 @@ exports.syncProductionReport = async (date)=>{
     }
 
 
-};// =====================================================
-// CREATE GOOGLE SHEET MỚI
+};
+
+
+
+
+
+// =====================================================
+// CREATE GOOGLE SHEET
 // =====================================================
 
-exports.createSheet = async (date)=>{
+exports.createSheet = async(date)=>{
 
 
     try{
 
 
         const reports =
-        await ReportService.getApprovedReportsByDate(date);
+            await ReportService.getApprovedReportsByDate(date);
 
 
 
         const spreadsheetId =
-        await createSpreadsheet(
-            `Bao cao cat long ${date}`
-        );
-
-
-
-        console.log(
-            "Spreadsheet created:",
-            spreadsheetId
-        );
+            await createSpreadsheet(
+                `Bao cao cat long ${date}`
+            );
 
 
 
         const url =
-        `https://docs.google.com/spreadsheets/d/${spreadsheetId}`;
+            `https://docs.google.com/spreadsheets/d/${spreadsheetId}`;
 
 
 
@@ -268,18 +248,18 @@ exports.createSheet = async (date)=>{
 
 
         const client =
-        await auth.getClient();
+            await auth.getClient();
 
 
 
         const sheets =
-        google.sheets({
+            google.sheets({
 
-            version:"v4",
+                version:"v4",
 
-            auth:client
+                auth:client
 
-        });
+            });
 
 
 
@@ -307,13 +287,12 @@ exports.createSheet = async (date)=>{
         };
 
 
-
     }
     catch(err){
 
 
         console.error(
-            "========== CREATE SHEET ERROR =========="
+            "CREATE SHEET ERROR"
         );
 
 
@@ -336,14 +315,14 @@ exports.createSheet = async (date)=>{
 // UPDATE GOOGLE SHEET
 // =====================================================
 
-exports.updateSheet = async (date)=>{
+exports.updateSheet = async(date)=>{
 
 
     try{
 
 
         const sheetInfo =
-        await GoogleSheetModel.findByDate(date);
+            await GoogleSheetModel.findByDate(date);
 
 
 
@@ -360,23 +339,23 @@ exports.updateSheet = async (date)=>{
 
 
         const reports =
-        await ReportService.getApprovedReportsByDate(date);
+            await ReportService.getApprovedReportsByDate(date);
 
 
 
         const client =
-        await auth.getClient();
+            await auth.getClient();
 
 
 
         const sheets =
-        google.sheets({
+            google.sheets({
 
-            version:"v4",
+                version:"v4",
 
-            auth:client
+                auth:client
 
-        });
+            });
 
 
 
@@ -406,13 +385,12 @@ exports.updateSheet = async (date)=>{
         };
 
 
-
     }
     catch(err){
 
 
         console.error(
-            "========== UPDATE SHEET ERROR =========="
+            "UPDATE SHEET ERROR"
         );
 
 
@@ -426,11 +404,16 @@ exports.updateSheet = async (date)=>{
 
 
 };
+
+
+
+
+
 // =====================================================
-// GHI DATA CHUNG
+// WRITE DATA
 // =====================================================
 
-const writeSheetData = async (
+const writeSheetData = async(
     sheets,
     spreadsheetId,
     reports
@@ -438,7 +421,6 @@ const writeSheetData = async (
 
 
     const values = [
-
 
         [
 
@@ -469,7 +451,7 @@ const writeSheetData = async (
         values.push([
 
 
-            index + 1,
+            index+1,
 
             item.worker_code,
 
@@ -497,10 +479,12 @@ const writeSheetData = async (
 
             item.note || ""
 
+
         ]);
 
 
     });
+
 
 
 
@@ -515,6 +499,8 @@ const writeSheetData = async (
 
 
     });
+
+
 
 
 
@@ -534,15 +520,12 @@ const writeSheetData = async (
 
         requestBody:{
 
-
             values
-
 
         }
 
 
     });
-
 
 
 };
