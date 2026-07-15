@@ -37,7 +37,6 @@ const SHEET_NAME = "Cắt lồng";
 
 
 
-
 // =====================================================
 // SYNC
 // =====================================================
@@ -137,7 +136,6 @@ exports.syncProductionReport = async(date)=>{
 
 
 
-
 exports.createSheet = async(date)=>{
 
 
@@ -206,11 +204,7 @@ const getSheetData = async(sheets)=>{
 // WRITE DATA
 // =====================================================
 
-// =====================================================
-// WRITE DATA
-// =====================================================
-
-const writeSheetData = async (
+const writeSheetData = async(
 
     sheets,
 
@@ -233,25 +227,72 @@ const writeSheetData = async (
 
 
 
+
+    // =================================================
+    // LẤY BẢN GHI MỚI NHẤT THEO MÃ NV
+    // =================================================
+
+
+    const latestMap = {};
+
+
+
+    reports.forEach((item)=>{
+
+
+        const code =
+        item.worker_code
+        ?.toString()
+        .trim();
+
+
+
+        if(!code)
+            return;
+
+
+
+
+        if(
+
+            !latestMap[code]
+
+            ||
+
+            new Date(item.created_at)
+
+            >
+
+            new Date(
+                latestMap[code].created_at
+            )
+
+        ){
+
+
+            latestMap[code]=item;
+
+
+        }
+
+
+    });
+
+
+
+
+
+    const finalReports =
+    Object.values(latestMap);
+
+
+
+
     console.log(
-        "REPORT BEFORE WRITE:",
-        reports.length
-    );
-
-
-
-    // KHÔNG FILTER THEO WORKER_CODE
-    // MỖI BÁO CÁO = 1 DÒNG
-
-
-    const finalReports = reports;
-
-
-
-    console.log(
-        "FINAL REPORT:",
+        "AFTER FILTER:",
         finalReports
     );
+
 
 
 
@@ -272,9 +313,133 @@ const writeSheetData = async (
 
 
 
+
     // =================================================
-    // MAP KEY ĐỂ KHÔNG GHI ĐÈ
-    // worker + process + date
+    // LẤY SHEET ID
+    // =================================================
+
+
+    const meta =
+    await sheets.spreadsheets.get({
+
+        spreadsheetId
+
+    });
+
+
+
+    const sheet =
+    meta.data.sheets.find(
+
+        s =>
+        s.properties.title === SHEET_NAME
+
+    );
+
+
+
+    const sheetId =
+    sheet.properties.sheetId;
+
+
+
+
+
+
+
+    // =================================================
+    // TĂNG SỐ DÒNG GOOGLE SHEET NẾU HẾT
+    // =================================================
+
+
+    const currentRows =
+    sheet.properties.gridProperties.rowCount;
+
+
+
+    const needRows =
+    oldData.length + finalReports.length + 50;
+
+
+
+    if(needRows > currentRows){
+
+
+        await sheets.spreadsheets.batchUpdate({
+
+
+            spreadsheetId,
+
+
+            requestBody:{
+
+
+                requests:[
+
+
+                    {
+
+
+                        updateSheetProperties:{
+
+
+                            properties:{
+
+
+                                sheetId,
+
+
+                                gridProperties:{
+
+
+                                    rowCount:
+                                    needRows
+
+
+                                }
+
+
+                            },
+
+
+                            fields:
+                            "gridProperties.rowCount"
+
+
+                        }
+
+
+                    }
+
+
+                ]
+
+
+            }
+
+
+        });
+
+
+
+        console.log(
+            "EXPAND ROW:",
+            needRows
+        );
+
+
+    }
+
+
+
+
+
+
+
+
+
+    // =================================================
+    // MAP MÃ NHÂN VIÊN CỘT B
     // =================================================
 
 
@@ -290,41 +455,26 @@ const writeSheetData = async (
 
 
 
-        const worker =
+        const code =
         row[1]
         ?.toString()
         .trim();
 
 
-        const process =
-        row[2]
-        ?.toString()
-        .trim();
 
 
-
-        const date =
-        row[29]
-        ?.toString()
-        .trim();
+        if(code){
 
 
-
-        if(worker){
-
-
-            const key =
-            `${worker}_${process}_${date}`;
-
-
-
-            employeeMap[key]=index+1;
+            employeeMap[code]=index+1;
 
 
         }
 
 
     });
+
+
 
 
 
@@ -346,7 +496,9 @@ const writeSheetData = async (
 
         if(stt > maxSTT){
 
+
             maxSTT = stt;
+
 
         }
 
@@ -369,50 +521,66 @@ const writeSheetData = async (
 
 
 
-        const workerCode =
+        const code =
         item.worker_code
-        ?.toString()
+        .toString()
         .trim();
-
-
-
-        const processName =
-        item.process_name
-        ?.toString()
-        .trim();
-
-
-
-        const workDate =
-        new Date(item.work_date)
-        .toLocaleDateString("vi-VN");
-
-
-
-
-        const key =
-        `${workerCode}_${processName}_${workDate}`;
-
 
 
 
 
         let rowNumber =
-        employeeMap[key];
+        employeeMap[code];
 
 
 
 
 
 
-
-        // CHƯA CÓ -> THÊM DÒNG MỚI
 
         if(!rowNumber){
 
 
+            let lastRow = 1;
+
+
+
+            for(
+                let i = oldData.length - 1;
+                i >= 1;
+                i--
+            ){
+
+
+
+                const oldCode =
+                oldData[i][1]
+                ?.toString()
+                .trim();
+
+
+
+
+                if(oldCode){
+
+
+                    lastRow =
+                    i + 1;
+
+
+                    break;
+
+                }
+
+
+            }
+
+
+
+
+
             rowNumber =
-            oldData.length + 1;
+            lastRow + 1;
 
 
 
@@ -426,14 +594,11 @@ const writeSheetData = async (
 
 
 
-
         console.log(
 
             "WRITE",
 
-            workerCode,
-
-            processName,
+            code,
 
             "ROW",
 
@@ -448,17 +613,13 @@ const writeSheetData = async (
 
 
 
-
-        // =============================================
-        // A B C
-        // STT - Worker - Process
-        // =============================================
-
-
+        // A:C
         await sheets.spreadsheets.values.update({
 
 
+
             spreadsheetId,
+
 
 
             range:
@@ -470,7 +631,9 @@ const writeSheetData = async (
             valueInputOption:"RAW",
 
 
+
             requestBody:{
+
 
 
                 values:[
@@ -482,18 +645,17 @@ const writeSheetData = async (
                         maxSTT,
 
 
-                        workerCode,
+                        code,
 
 
-                        processName
-
+                        item.process_name || ""
 
                     ]
 
                 ]
 
-
             }
+
 
 
         });
@@ -505,17 +667,13 @@ const writeSheetData = async (
 
 
 
-
-        // =============================================
-        // D E
-        // Máy + Ca
-        // =============================================
-
-
+        // D:E
         await sheets.spreadsheets.values.update({
 
 
+
             spreadsheetId,
+
 
 
             range:
@@ -531,6 +689,7 @@ const writeSheetData = async (
             requestBody:{
 
 
+
                 values:[
 
                     [
@@ -539,66 +698,6 @@ const writeSheetData = async (
 
 
                         item.shift || ""
-
-
-                    ]
-
-                ]
-
-
-            }
-
-
-
-        });
-
-
-
-
-
-
-        // =============================================
-        // SP
-        // =============================================
-
-
-        await sheets.spreadsheets.values.update({
-
-
-            spreadsheetId,
-
-
-            range:
-
-            `${SHEET_NAME}!Z${rowNumber}:AD${rowNumber}`,
-
-
-
-            valueInputOption:"RAW",
-
-
-
-            requestBody:{
-
-
-                values:[
-
-                    [
-
-                        item.product_name || "",
-
-
-                        item.standard_output || 0,
-
-
-                        item.actual_output || 0,
-
-
-                        item.work_date,
-
-
-                        item.tt_ok || 0
-
 
                     ]
 
