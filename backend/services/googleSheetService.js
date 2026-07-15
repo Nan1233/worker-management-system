@@ -75,7 +75,8 @@ exports.syncProductionReport = async(date)=>{
 
         if(!sheetInfo){
 
-
+console.log(credentials.client_email);
+console.log(credentials.project_id);
             const create =
             await sheets.spreadsheets.create({
 
@@ -318,19 +319,13 @@ exports.syncProductionReport = async(date)=>{
 
     }
 
-    catch(err){
-
-
-        console.error(
-            "Google Sheet Sync Error:",
-            err
-        );
-
-
-        throw err;
-
-
-    }
+    catch (err) {
+    console.error("===== GOOGLE ERROR =====");
+    console.error(err.response?.data);
+    console.error(err.response?.data?.error);
+    console.error(JSON.stringify(err.response?.data, null, 2));
+    throw err;
+}
 
 
 };
@@ -341,7 +336,8 @@ exports.syncProductionReport = async(date)=>{
 
 exports.createSheet = async(date)=>{
 
-
+console.log("EMAIL:", credentials.client_email);
+        console.log("PROJECT:", credentials.project_id);
     const reports =
     await ReportService.getApprovedReportsByDate(date);
 
@@ -363,7 +359,8 @@ exports.createSheet = async(date)=>{
 
 
 
-
+console.log(credentials.client_email);
+console.log(credentials.project_id);
     const create =
     await sheets.spreadsheets.create({
 
