@@ -206,7 +206,11 @@ const getSheetData = async(sheets)=>{
 // WRITE DATA
 // =====================================================
 
-const writeSheetData = async(
+// =====================================================
+// WRITE DATA
+// =====================================================
+
+const writeSheetData = async (
 
     sheets,
 
@@ -229,67 +233,23 @@ const writeSheetData = async(
 
 
 
-    // =================================================
-    // LẤY BẢN GHI MỚI NHẤT THEO MÃ NV
-    // =================================================
-
-
-    const latestMap = {};
-
-
-
-    reports.forEach(item=>{
-
-
-        const code =
-        item.worker_code
-        ?.toString()
-        .trim();
+    console.log(
+        "REPORT BEFORE WRITE:",
+        reports.length
+    );
 
 
 
-        if(!code)
-            return;
+    // KHÔNG FILTER THEO WORKER_CODE
+    // MỖI BÁO CÁO = 1 DÒNG
 
 
-
-
-        if(
-
-            !latestMap[code]
-
-            ||
-
-            new Date(item.created_at)
-
-            >
-
-            new Date(
-                latestMap[code].created_at
-            )
-
-        ){
-
-
-            latestMap[code]=item;
-
-
-        }
-
-
-    });
-
-
-
-
-    const finalReports =
-    Object.values(latestMap);
-
+    const finalReports = reports;
 
 
 
     console.log(
-        "AFTER FILTER:",
+        "FINAL REPORT:",
         finalReports
     );
 
@@ -298,12 +258,8 @@ const writeSheetData = async(
 
 
 
-
-
-
     const oldData =
     await getSheetData(sheets);
-
 
 
 
@@ -316,17 +272,13 @@ const writeSheetData = async(
 
 
 
-
-
-
-
     // =================================================
-    // MAP MÃ NHÂN VIÊN CỘT B
+    // MAP KEY ĐỂ KHÔNG GHI ĐÈ
+    // worker + process + date
     // =================================================
 
 
     const employeeMap = {};
-
 
 
 
@@ -338,26 +290,41 @@ const writeSheetData = async(
 
 
 
-        const code =
+        const worker =
         row[1]
         ?.toString()
         .trim();
 
 
+        const process =
+        row[2]
+        ?.toString()
+        .trim();
 
 
-        if(code){
+
+        const date =
+        row[29]
+        ?.toString()
+        .trim();
 
 
-            employeeMap[code]=index+1;
+
+        if(worker){
+
+
+            const key =
+            `${worker}_${process}_${date}`;
+
+
+
+            employeeMap[key]=index+1;
 
 
         }
 
 
     });
-
-
 
 
 
@@ -379,15 +346,12 @@ const writeSheetData = async(
 
         if(stt > maxSTT){
 
-
             maxSTT = stt;
-
 
         }
 
 
     });
-
 
 
 
@@ -405,16 +369,36 @@ const writeSheetData = async(
 
 
 
-        const code =
+        const workerCode =
         item.worker_code
-        .toString()
+        ?.toString()
         .trim();
+
+
+
+        const processName =
+        item.process_name
+        ?.toString()
+        .trim();
+
+
+
+        const workDate =
+        new Date(item.work_date)
+        .toLocaleDateString("vi-VN");
+
+
+
+
+        const key =
+        `${workerCode}_${processName}_${workDate}`;
+
 
 
 
 
         let rowNumber =
-        employeeMap[code];
+        employeeMap[key];
 
 
 
@@ -422,64 +406,17 @@ const writeSheetData = async(
 
 
 
-        // =============================================
-        // CHƯA CÓ MÃ
-        // TÌM DÒNG CUỐI CÓ MÃ THẬT
-        // =============================================
-
+        // CHƯA CÓ -> THÊM DÒNG MỚI
 
         if(!rowNumber){
 
 
-
-            let lastRow = 1;
-
-
-
-
-            for(
-                let i = oldData.length - 1;
-                i >= 1;
-                i--
-            ){
-
-
-
-                const oldCode =
-                oldData[i][1]
-                ?.toString()
-                .trim();
-
-
-
-
-                if(oldCode){
-
-
-                    lastRow = i + 1;
-
-
-                    break;
-
-
-                }
-
-
-            }
-
-
-
-
-
-
             rowNumber =
-            lastRow + 1;
-
+            oldData.length + 1;
 
 
 
             maxSTT++;
-
 
 
         }
@@ -494,7 +431,9 @@ const writeSheetData = async(
 
             "WRITE",
 
-            code,
+            workerCode,
+
+            processName,
 
             "ROW",
 
@@ -511,30 +450,27 @@ const writeSheetData = async(
 
 
         // =============================================
-        // GHI STT + MÃ NV
+        // A B C
+        // STT - Worker - Process
         // =============================================
 
 
         await sheets.spreadsheets.values.update({
 
 
-
             spreadsheetId,
-
 
 
             range:
 
-            `${SHEET_NAME}!A${rowNumber}:B${rowNumber}`,
+            `${SHEET_NAME}!A${rowNumber}:C${rowNumber}`,
 
 
 
             valueInputOption:"RAW",
 
 
-
             requestBody:{
-
 
 
                 values:[
@@ -546,16 +482,18 @@ const writeSheetData = async(
                         maxSTT,
 
 
-                        code
+                        workerCode,
+
+
+                        processName
+
 
                     ]
 
                 ]
 
 
-
             }
-
 
 
         });
@@ -568,19 +506,16 @@ const writeSheetData = async(
 
 
 
-
         // =============================================
-        // GHI MÁY + CA
-        // D,E
+        // D E
+        // Máy + Ca
         // =============================================
 
 
         await sheets.spreadsheets.values.update({
 
 
-
             spreadsheetId,
-
 
 
             range:
@@ -596,7 +531,6 @@ const writeSheetData = async(
             requestBody:{
 
 
-
                 values:[
 
                     [
@@ -605,6 +539,66 @@ const writeSheetData = async(
 
 
                         item.shift || ""
+
+
+                    ]
+
+                ]
+
+
+            }
+
+
+
+        });
+
+
+
+
+
+
+        // =============================================
+        // SP
+        // =============================================
+
+
+        await sheets.spreadsheets.values.update({
+
+
+            spreadsheetId,
+
+
+            range:
+
+            `${SHEET_NAME}!Z${rowNumber}:AD${rowNumber}`,
+
+
+
+            valueInputOption:"RAW",
+
+
+
+            requestBody:{
+
+
+                values:[
+
+                    [
+
+                        item.product_name || "",
+
+
+                        item.standard_output || 0,
+
+
+                        item.actual_output || 0,
+
+
+                        item.work_date,
+
+
+                        item.tt_ok || 0
+
 
                     ]
 
@@ -625,13 +619,11 @@ const writeSheetData = async(
 
 
 
-
     console.log(
 
         "GOOGLE SHEET UPDATE SUCCESS"
 
     );
-
 
 
 };
