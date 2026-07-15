@@ -1,4 +1,5 @@
 const workerModel = require("../models/workerModel");
+const db = require("../config/db");
 
 
 exports.getAllWorkers = (req,res)=>{
