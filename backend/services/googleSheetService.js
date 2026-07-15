@@ -48,7 +48,7 @@ exports.syncProductionReport = async(date)=>{
 
 
         const reports =
-        await ReportService.getReportsByDate(date);
+        await ReportService.getApprovedReportsByDate(date);
 
 
 
