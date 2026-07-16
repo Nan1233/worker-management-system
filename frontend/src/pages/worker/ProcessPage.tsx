@@ -146,7 +146,7 @@ const initialForm: FormState = {
         getCurrentLocalDate(),
 
     shift:
-        "Ca A",
+        "Ca 1",
 
     workerCode:
         "",
