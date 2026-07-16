@@ -1,4 +1,37 @@
+// =====================================================
+// TRẠNG THÁI BÁO CÁO
+// =====================================================
+
+export type ProductionReportStatus =
+    | "pending"
+    | "need_fix"
+    | "approved"
+    | "rejected";
+
+
+// =====================================================
+// NGUỒN BÁO CÁO
+// =====================================================
+
+export type ProductionReportSource =
+    | "pending"
+    | "approved";
+
+
+// =====================================================
+// CHI TIẾT LỖI NG
+//
+// Frontend gửi defect_name.
+// Backend tìm defect_type_id trong defect_types.
+// =====================================================
+
 export interface ProductionDefect {
+
+    id?: number;
+
+    defect_type_id?: number;
+
+    defect_code?: string;
 
     defect_name: string;
 
@@ -7,7 +40,20 @@ export interface ProductionDefect {
 }
 
 
+// =====================================================
+// CHI TIẾT TRỪ GIỜ
+//
+// Frontend gửi deduction_name.
+// Backend tìm deduction_type_id trong deduction_types.
+// =====================================================
+
 export interface ProductionDeduction {
+
+    id?: number;
+
+    deduction_type_id?: number;
+
+    deduction_code?: string;
 
     deduction_name: string;
 
@@ -16,14 +62,28 @@ export interface ProductionDeduction {
 }
 
 
+// =====================================================
+// BÁO CÁO SẢN XUẤT
+// =====================================================
+
 export interface ProductionReport {
+
+    // ==========================
+    // ID
+    // ==========================
 
     id?: number;
 
     worker_id?: number;
 
-
     process_id: number;
+
+    source_temp_id?: number | null;
+
+
+    // ==========================
+    // THÔNG TIN CHUNG
+    // ==========================
 
     work_date: string;
 
@@ -31,6 +91,12 @@ export interface ProductionReport {
 
     machine_no: string;
 
+    product_name: string;
+
+
+    // ==========================
+    // THỜI GIAN
+    // ==========================
 
     total_time: number;
 
@@ -38,22 +104,30 @@ export interface ProductionReport {
 
     deduction_time: number;
 
+    stop_reason?: string | null;
 
-    stop_reason?: string;
 
-
-    product_name: string;
-
+    // ==========================
+    // SẢN LƯỢNG
+    // ==========================
 
     standard_output: number;
 
     actual_output: number;
 
 
+    // ==========================
+    // CHẤT LƯỢNG
+    // ==========================
+
     tt_ok: number;
 
     tt_ng: number;
 
+
+    // ==========================
+    // CÁC LỖI CẮT / LỒNG
+    // ==========================
 
     kqd_dap_lai: number;
 
@@ -80,31 +154,106 @@ export interface ProductionReport {
     cat_lem: number;
 
 
+    // ==========================
+    // DANH SÁCH CHI TIẾT
+    // ==========================
+
     defects?: ProductionDefect[];
 
     deductions?: ProductionDeduction[];
 
 
+    // ==========================
+    // GHI CHÚ
+    // ==========================
+
     note: string;
 
 
-    status?: string;
+    // ==========================
+    // DUYỆT
+    // ==========================
+
+    status?: ProductionReportStatus;
+
+    review_note?: string | null;
+
+    reviewed_by?: number | null;
+
+    approved_at?: string | null;
+
+
+    // ==========================
+    // DỮ LIỆU JOIN TỪ BACKEND
+    // ==========================
 
     worker_code?: string;
 
     full_name?: string;
 
+    process_code?: string;
+
     process_name?: string;
+
+
+    // ==========================
+    // THỜI GIAN HỆ THỐNG
+    // ==========================
 
     created_at?: string;
 
     updated_at?: string;
 
-    approved_at?: string;
+
+    // ==========================
+    // PHÂN BIỆT BẢNG TEMP / MAIN
+    // ==========================
+
+    source?: ProductionReportSource;
+
+}
 
 
-    source?:
-        | "pending"
-        | "approved";
+// =====================================================
+// RESPONSE API MỘT BÁO CÁO
+// =====================================================
+
+export interface ProductionReportResponse {
+
+    success: boolean;
+
+    message?: string;
+
+    data: ProductionReport;
+
+}
+
+
+// =====================================================
+// RESPONSE API DANH SÁCH BÁO CÁO
+// =====================================================
+
+export interface ProductionReportListResponse {
+
+    success: boolean;
+
+    message?: string;
+
+    data: ProductionReport[];
+
+}
+
+
+// =====================================================
+// RESPONSE API TẠO BÁO CÁO
+// =====================================================
+
+export interface CreateProductionReportResponse {
+
+    success: boolean;
+
+    message: string;
+
+    id: number;
 
 }
