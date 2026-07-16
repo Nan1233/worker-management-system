@@ -184,7 +184,12 @@ function ProductionHistory() {
         selectedStatus,
         setSelectedStatus
     ] = useState("");
+const ITEMS_PER_PAGE = 10;
 
+const [
+    currentPage,
+    setCurrentPage
+] = useState(1);
 
     useEffect(() => {
 
@@ -327,7 +332,25 @@ function ProductionHistory() {
             selectedShift,
             selectedStatus
         ]);
+const totalPages = Math.max(
+    1,
+    Math.ceil(
+        filteredReports.length /
+        ITEMS_PER_PAGE
+    )
+);
 
+
+const paginatedReports =
+    filteredReports.slice(
+
+        (currentPage - 1) *
+        ITEMS_PER_PAGE,
+
+        currentPage *
+        ITEMS_PER_PAGE
+
+    );
 
     const hasActiveFilter =
         Boolean(
@@ -351,8 +374,24 @@ function ProductionHistory() {
 
         setSelectedStatus("");
 
-    };
+        setCurrentPage(1);
 
+    };
+useEffect(() => {
+
+    setCurrentPage(1);
+
+}, [
+
+    searchKeyword,
+
+    selectedDate,
+
+    selectedShift,
+
+    selectedStatus
+
+]);
 
     const openDetail = (
         item: ProductionReport
@@ -685,7 +724,7 @@ function ProductionHistory() {
 
                                 <tbody>
 
-                                    {filteredReports.map(
+                                    {paginatedReports.map(
                                         (
                                             item,
                                             index
@@ -711,7 +750,15 @@ function ProductionHistory() {
                                                         data-label="STT"
                                                         className="column-index"
                                                     >
-                                                        {index + 1}
+                                                        {
+    (currentPage - 1)
+    *
+    ITEMS_PER_PAGE
+    +
+    index
+    +
+    1
+}
                                                     </td>
 
 
@@ -846,7 +893,105 @@ function ProductionHistory() {
                                 </tbody>
 
                             </table>
+<div className="pagination">
 
+    <button
+
+        disabled={currentPage===1}
+
+        onClick={()=>
+
+            setCurrentPage(
+
+                currentPage-1
+
+            )
+
+        }
+
+    >
+
+        ← Trước
+
+    </button>
+
+
+    {
+
+        Array.from(
+
+            {
+
+                length:totalPages
+
+            }
+
+        ).map((_,i)=>(
+
+            <button
+
+                key={i}
+
+                className={
+
+                    currentPage===i+1
+
+                    ?
+
+                    "active"
+
+                    :
+
+                    ""
+
+                }
+
+                onClick={()=>
+
+                    setCurrentPage(
+
+                        i+1
+
+                    )
+
+                }
+
+            >
+
+                {i+1}
+
+            </button>
+
+        ))
+
+    }
+
+
+    <button
+
+        disabled={
+
+            currentPage===totalPages
+
+        }
+
+        onClick={()=>
+
+            setCurrentPage(
+
+                currentPage+1
+
+            )
+
+        }
+
+    >
+
+        Sau →
+
+    </button>
+
+</div>
                         </div>
 
                     </section>

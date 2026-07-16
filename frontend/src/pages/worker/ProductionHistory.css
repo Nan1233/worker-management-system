@@ -937,4 +937,68 @@ and (
         -1;
 }
 
+}.pagination{
+
+    display:flex;
+
+    justify-content:center;
+
+    align-items:center;
+
+    gap:8px;
+
+    padding:20px;
+
+    flex-wrap:wrap;
+
+}
+
+
+.pagination button{
+
+    min-width:40px;
+
+    height:38px;
+
+    padding:0 14px;
+
+    border:1px solid #d8dee8;
+
+    border-radius:8px;
+
+    background:#fff;
+
+    cursor:pointer;
+
+    transition:.2s;
+
+}
+
+
+.pagination button:hover:not(:disabled){
+
+    background:#eef4ff;
+
+    border-color:#2563eb;
+
+}
+
+
+.pagination button.active{
+
+    background:#2563eb;
+
+    color:#fff;
+
+    border-color:#2563eb;
+
+}
+
+
+.pagination button:disabled{
+
+    opacity:.45;
+
+    cursor:not-allowed;
+
 }
