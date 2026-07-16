@@ -11,6 +11,9 @@ import {
 
 import axios from "axios";
 
+import "./ProcessPage.css";
+
+
 import {
     createTempReport
 } from "../../services/productionService";
@@ -19,6 +22,7 @@ import {
     getWorkerByUserId
 } from "../../services/workerService";
 
+
 import type {
     User
 } from "../../types/auth";
@@ -26,25 +30,18 @@ import type {
 import type {
     WorkerProfile
 } from "../../types/worker";
+import {
+    getMachinesByProcess,
+    getProductStandardsByProcess
+} from "../../services/masterDataService";
 
-import "./ProcessPage.css";
-
-
-type NgKey =
-    | "kqdDapLai"
-    | "kqdTuot"
-    | "voDoLong"
-    | "xuocDoLong"
-    | "congGay"
-    | "xoay"
-    | "khongDut"
-    | "baviaHut"
-    | "ppcm"
-    | "loiCaoSu"
-    | "ngKichThuoc"
-    | "catLem"
-    | "catPham";
-
+import type {
+    MachineOption,
+    ProductStandardOption
+} from "../../services/masterDataService";
+// =====================================================
+// KIỂU DỮ LIỆU FORM
+// =====================================================
 
 type FormState = {
 
@@ -52,7 +49,14 @@ type FormState = {
 
     shift: string;
 
+    workerCode: string;
+
+    workerName: string;
+
+    trainingPercent: string;
+
     machineNo: string;
+
 
     totalTime: string;
 
@@ -60,15 +64,18 @@ type FormState = {
 
     deductionTime: string;
 
+
     productName: string;
 
     standardOutput: string;
 
     actualOutput: string;
 
+
     ttOk: string;
 
     ttNg: string;
+
 
     kqdDapLai: string;
 
@@ -94,228 +101,241 @@ type FormState = {
 
     catLem: string;
 
-    catPham: string;
 
     note: string;
 
 };
 
 
-type ProductStandard = {
+// =====================================================
+// DỮ LIỆU CHI TIẾT TRỪ GIỜ
+// =====================================================
 
-    workType:
-        | "cat"
-        | "long";
+type DeductionState = {
 
-    productCode: string;
+    vsk: string;
 
-    standardOutput: number;
+    fiveS: string;
+
+    hamKhuon: string;
+
+    suaKhuon: string;
+
+    suaMay: string;
+
+    dungMay: string;
 
 };
 
 
-const productStandards: ProductStandard[] = [
+// =====================================================
+// KEY CÁC LỖI NG
+// =====================================================
+
+type NgKey =
+    | "kqdDapLai"
+    | "kqdTuot"
+    | "voDoLong"
+    | "xuocDoLong"
+    | "congGay"
+    | "xoay"
+    | "khongDut"
+    | "baviaHut"
+    | "ppcm"
+    | "loiCaoSu"
+    | "ngKichThuoc"
+    | "catLem";
+
+
+// =====================================================
+// KEY CÁC LOẠI TRỪ GIỜ
+// =====================================================
+
+type DeductionKey =
+    keyof DeductionState;
+
+
+// =====================================================
+// THÔNG TIN CÔNG ĐOẠN
+// ID PHẢI KHỚP BẢNG processes TRONG DATABASE
+// =====================================================
+
+const processMap: Record<
+    string,
+    {
+        id: number;
+        title: string;
+        machineLabel: string;
+    }
+> = {
+
+    "cat-long": {
+
+        id: 1,
+
+        title:
+            "Mẫu Cắt / Lồng",
+
+        machineLabel:
+            "Số máy cắt (lồng)"
+
+    },
+
+    "mai": {
+
+        id: 2,
+
+        title:
+            "Mẫu Mài",
+
+        machineLabel:
+            "Số máy mài"
+
+    },
+
+    "kiem-1": {
+
+        id: 3,
+
+        title:
+            "Mẫu Kiểm 1",
+
+        machineLabel:
+            "Số máy / vị trí kiểm"
+
+    },
+
+    "kiem-2": {
+
+        id: 4,
+
+        title:
+            "Mẫu Kiểm 2",
+
+        machineLabel:
+            "Số máy / vị trí kiểm"
+
+    },
+
+    "ep": {
+
+        id: 5,
+
+        title:
+            "Mẫu Ép",
+
+        machineLabel:
+            "Số máy ép"
+
+    },
+
+    "can": {
+
+        id: 6,
+
+        title:
+            "Mẫu Cán",
+
+        machineLabel:
+            "Số máy cán"
+
+    },
+
+    "bavia": {
+
+        id: 7,
+
+        title:
+            "Mẫu Bavia",
+
+        machineLabel:
+            "Số máy / vị trí Bavia"
+
+    }
+
+};
+
+
+// =====================================================
+// DANH SÁCH LOẠI TRỪ GIỜ
+// TÊN PHẢI KHỚP deduction_types TRONG DATABASE
+// =====================================================
+
+const deductionOptions: Array<{
+
+    key: DeductionKey;
+
+    label: string;
+
+}> = [
 
     {
-        workType: "cat",
-        productCode: "c2556-2",
-        standardOutput: 7200
+
+        key:
+            "vsk",
+
+        label:
+            "Số giờ VSK"
+
     },
 
     {
-        workType: "cat",
-        productCode: "c2556-11",
-        standardOutput: 6600
+
+        key:
+            "fiveS",
+
+        label:
+            "Số giờ 5S + gia ca"
+
     },
 
     {
-        workType: "cat",
-        productCode: "c2556-8",
-        standardOutput: 5600
+
+        key:
+            "hamKhuon",
+
+        label:
+            "Số giờ hâm khuôn"
+
     },
 
     {
-        workType: "cat",
-        productCode: "c2556-9",
-        standardOutput: 5000
+
+        key:
+            "suaKhuon",
+
+        label:
+            "Số giờ sửa khuôn"
+
     },
 
     {
-        workType: "cat",
-        productCode: "C2556-auto",
-        standardOutput: 5000
+
+        key:
+            "suaMay",
+
+        label:
+            "Số giờ sửa máy"
+
     },
 
     {
-        workType: "cat",
-        productCode: "c2821",
-        standardOutput: 2400
-    },
 
-    {
-        workType: "cat",
-        productCode: "c2822",
-        standardOutput: 2400
-    },
+        key:
+            "dungMay",
 
-    {
-        workType: "cat",
-        productCode: "c8484",
-        standardOutput: 2400
-    },
+        label:
+            "Số giờ dừng máy"
 
-    {
-        workType: "cat",
-        productCode: "c8485",
-        standardOutput: 2400
-    },
-
-    {
-        workType: "cat",
-        productCode: "c3880-2",
-        standardOutput: 7200
-    },
-
-    {
-        workType: "cat",
-        productCode: "c0977",
-        standardOutput: 1460
-    },
-
-    {
-        workType: "cat",
-        productCode: "c3880-8",
-        standardOutput: 5600
-    },
-
-    {
-        workType: "cat",
-        productCode: "c3880-9",
-        standardOutput: 5000
-    },
-
-    {
-        workType: "cat",
-        productCode: "c9149",
-        standardOutput: 6000
-    },
-
-    {
-        workType: "cat",
-        productCode: "c0575",
-        standardOutput: 1460
-    },
-
-    {
-        workType: "cat",
-        productCode: "c3438",
-        standardOutput: 2600
-    },
-
-    {
-        workType: "cat",
-        productCode: "c1080",
-        standardOutput: 1800
-    },
-
-    {
-        workType: "long",
-        productCode: "9740",
-        standardOutput: 420
-    },
-
-    {
-        workType: "long",
-        productCode: "2801",
-        standardOutput: 605
-    },
-
-    {
-        workType: "long",
-        productCode: "6262",
-        standardOutput: 420
-    },
-
-    {
-        workType: "long",
-        productCode: "598",
-        standardOutput: 420
-    },
-
-    {
-        workType: "long",
-        productCode: "7133",
-        standardOutput: 605
-    },
-
-    {
-        workType: "long",
-        productCode: "8484",
-        standardOutput: 540
-    },
-
-    {
-        workType: "long",
-        productCode: "8485",
-        standardOutput: 570
-    },
-
-    {
-        workType: "long",
-        productCode: "4563",
-        standardOutput: 605
-    },
-
-    {
-        workType: "long",
-        productCode: "3880",
-        standardOutput: 400
-    },
-
-    {
-        workType: "long",
-        productCode: "7960",
-        standardOutput: 300
-    },
-
-    {
-        workType: "long",
-        productCode: "9149",
-        standardOutput: 360
-    },
-
-    {
-        workType: "long",
-        productCode: "575",
-        standardOutput: 300
-    },
-
-    {
-        workType: "long",
-        productCode: "3438",
-        standardOutput: 420
-    },
-
-    {
-        workType: "long",
-        productCode: "1080",
-        standardOutput: 660
-    },
-
-    {
-        workType: "long",
-        productCode: "1090",
-        standardOutput: 660
-    },
-
-    {
-        workType: "long",
-        productCode: "1657",
-        standardOutput: 90
     }
 
 ];
 
+
+// =====================================================
+// DANH SÁCH LỖI NG
+// TÊN PHẢI KHỚP defect_types TRONG DATABASE
+// =====================================================
 
 const ngOptions: Array<{
 
@@ -326,121 +346,131 @@ const ngOptions: Array<{
 }> = [
 
     {
-        key: "kqdDapLai",
-        label: "KQD dập lại"
+
+        key:
+            "kqdDapLai",
+
+        label:
+            "KQD dập lại"
+
     },
 
     {
-        key: "kqdTuot",
-        label: "KQD tuột"
+
+        key:
+            "kqdTuot",
+
+        label:
+            "KQD tuột"
+
     },
 
     {
-        key: "voDoLong",
-        label: "Vỡ do lồng"
+
+        key:
+            "voDoLong",
+
+        label:
+            "Vỡ do lồng"
+
     },
 
     {
-        key: "xuocDoLong",
-        label: "Xước do lồng"
+
+        key:
+            "xuocDoLong",
+
+        label:
+            "Xước do lồng"
+
     },
 
     {
-        key: "congGay",
-        label: "Cong, gãy..."
+
+        key:
+            "congGay",
+
+        label:
+            "Cong gãy"
+
     },
 
     {
-        key: "xoay",
-        label: "Xoay"
+
+        key:
+            "xoay",
+
+        label:
+            "Xoay"
+
     },
 
     {
-        key: "khongDut",
-        label: "Không đứt"
+
+        key:
+            "khongDut",
+
+        label:
+            "Không đứt"
+
     },
 
     {
-        key: "baviaHut",
-        label: "Bavia đứt hụt"
+
+        key:
+            "baviaHut",
+
+        label:
+            "Bavia hụt"
+
     },
 
     {
-        key: "ppcm",
-        label: "PPCMN"
+
+        key:
+            "ppcm",
+
+        label:
+            "PPCM"
+
     },
 
     {
-        key: "loiCaoSu",
-        label: "Lỗi cao su"
+
+        key:
+            "loiCaoSu",
+
+        label:
+            "Lỗi cao su"
+
     },
 
     {
-        key: "ngKichThuoc",
-        label: "NG kích thước"
+
+        key:
+            "ngKichThuoc",
+
+        label:
+            "NG kích thước"
+
     },
 
     {
-        key: "catLem",
-        label: "Cắt lẹm"
-    },
 
-    {
-        key: "catPham",
-        label: "Cắt phạm"
+        key:
+            "catLem",
+
+        label:
+            "Cắt lẹm"
+
     }
 
 ];
 
 
-const processMap: Record<
-
-    string,
-
-    {
-        id: number;
-        title: string;
-    }
-
-> = {
-
-    "cat-long": {
-        id: 1,
-        title: "Mẫu Cắt / Lồng"
-    },
-
-    "mai": {
-        id: 2,
-        title: "Mẫu Mài"
-    },
-
-    "kiem-1": {
-        id: 3,
-        title: "Mẫu Kiểm 1"
-    },
-
-    "kiem-2": {
-        id: 4,
-        title: "Mẫu Kiểm 2"
-    },
-
-    "ep": {
-        id: 5,
-        title: "Mẫu Ép"
-    },
-
-    "can": {
-        id: 6,
-        title: "Mẫu Cán"
-    },
-
-    "bavia": {
-        id: 7,
-        title: "Mẫu Bavia"
-    }
-
-};
-
+// =====================================================
+// LẤY NGÀY HIỆN TẠI THEO MÚI GIỜ MÁY NGƯỜI DÙNG
+// =====================================================
 
 const getCurrentLocalDate =
     (): string => {
@@ -449,31 +479,40 @@ const getCurrentLocalDate =
             new Date();
 
 
-        return [
-            now.getFullYear(),
+        const year =
+            now.getFullYear();
 
+
+        const month =
             String(
                 now.getMonth() + 1
             ).padStart(
                 2,
                 "0"
-            ),
+            );
 
+
+        const day =
             String(
                 now.getDate()
             ).padStart(
                 2,
                 "0"
-            )
+            );
 
-        ].join("-");
+
+        return `${year}-${month}-${day}`;
 
     };
 
 
+// =====================================================
+// HIỂN THỊ NGÀY DD/MM/YYYY
+// =====================================================
+
 const formatDisplayDate = (
     value: string
-) => {
+): string => {
 
     if (!value) {
 
@@ -494,11 +533,19 @@ const formatDisplayDate = (
 };
 
 
-const minutesToText = (
-    value: string
-) => {
+// =====================================================
+// FORMAT GIỜ THẬP PHÂN ĐỂ HIỂN THỊ
+//
+// Ví dụ:
+// 1.5  -> 1 giờ 30 phút
+// 10.83 -> 10 giờ 50 phút
+// =====================================================
 
-    const minutes =
+const decimalHoursToText = (
+    value: string
+): string => {
+
+    const decimalHours =
         Math.max(
             0,
             Number(
@@ -507,22 +554,39 @@ const minutesToText = (
         );
 
 
-    const hour =
+    const hours =
         Math.floor(
-            minutes / 60
+            decimalHours
         );
 
 
-    const remain =
+    const minutes =
         Math.round(
-            minutes % 60
+            (
+                decimalHours
+                -
+                hours
+            )
+            *
+            60
         );
 
 
-    return `${hour} giờ ${remain} phút`;
+    if (minutes === 60) {
+
+        return `${hours + 1} giờ 0 phút`;
+
+    }
+
+
+    return `${hours} giờ ${minutes} phút`;
 
 };
 
+
+// =====================================================
+// FORM MẶC ĐỊNH
+// =====================================================
 
 const initialForm: FormState = {
 
@@ -530,19 +594,30 @@ const initialForm: FormState = {
         getCurrentLocalDate(),
 
     shift:
-        "Ca A",
+        "A",
+
+    workerCode:
+        "",
+
+    workerName:
+        "",
+
+    trainingPercent:
+        "100",
 
     machineNo:
-        "0",
+        "",
+
 
     totalTime:
-        "480",
+        "",
 
     actualTime:
-        "0",
+        "",
 
     deductionTime:
-        "0",
+        "",
+
 
     productName:
         "",
@@ -551,58 +626,89 @@ const initialForm: FormState = {
         "",
 
     actualOutput:
-        "0",
+        "",
+
 
     ttOk:
-        "0",
+        "",
 
     ttNg:
-        "0",
+        "",
+
 
     kqdDapLai:
-        "0",
+        "",
 
     kqdTuot:
-        "0",
+        "",
 
     voDoLong:
-        "0",
+        "",
 
     xuocDoLong:
-        "0",
+        "",
 
     congGay:
-        "0",
+        "",
 
     xoay:
-        "0",
+        "",
 
     khongDut:
-        "0",
+        "",
 
     baviaHut:
-        "0",
+        "",
 
     ppcm:
-        "0",
+        "",
 
     loiCaoSu:
-        "0",
+        "",
 
     ngKichThuoc:
-        "0",
+        "",
 
     catLem:
-        "0",
+        "",
 
-    catPham:
-        "0",
 
     note:
         ""
 
 };
 
+
+// =====================================================
+// TRỪ GIỜ MẶC ĐỊNH
+// =====================================================
+
+const initialDeduction: DeductionState = {
+
+    vsk:
+        "",
+
+    fiveS:
+        "",
+
+    hamKhuon:
+        "",
+
+    suaKhuon:
+        "",
+
+    suaMay:
+        "",
+
+    dungMay:
+        ""
+
+};
+
+
+// =====================================================
+// COMPONENT
+// =====================================================
 
 function ProcessPage() {
 
@@ -618,12 +724,18 @@ function ProcessPage() {
     const processInfo =
         useMemo(
             () =>
+
                 processMap[process]
                 ??
                 processMap["cat-long"],
+
             [process]
         );
 
+
+    // =================================================
+    // HỒ SƠ CÔNG NHÂN
+    // =================================================
 
     const [
         worker,
@@ -632,18 +744,25 @@ function ProcessPage() {
         null
     );
 
+const [
+    machineOptions,
+    setMachineOptions
+] = useState<MachineOption[]>([]);
 
-    const [
-        workType,
-        setWorkType
-    ] = useState<
-        "cat"
-        |
-        "long"
-    >(
-        "cat"
-    );
 
+const [
+    productOptions,
+    setProductOptions
+] = useState<ProductStandardOption[]>([]);
+
+
+const [
+    loadingMasterData,
+    setLoadingMasterData
+] = useState(true);
+    // =================================================
+    // DỮ LIỆU FORM
+    // =================================================
 
     const [
         form,
@@ -653,11 +772,81 @@ function ProcessPage() {
     );
 
 
+    // =================================================
+    // CHI TIẾT TRỪ GIỜ
+    // =================================================
+
+    const [
+        deductions,
+        setDeductions
+    ] = useState<DeductionState>(
+        initialDeduction
+    );
+
+
+    // =================================================
+    // DANH SÁCH LOẠI TRỪ GIỜ ĐÃ CHỌN
+    // =================================================
+
+    const [
+        selectedDeduction,
+        setSelectedDeduction
+    ] = useState<DeductionKey[]>([]);
+
+
+    // =================================================
+    // DANH SÁCH LỖI NG ĐÃ CHỌN
+    // =================================================
+
+    const [
+        selectedNg,
+        setSelectedNg
+    ] = useState<NgKey[]>([]);
+
+
+    // =================================================
+    // MỞ / ĐÓNG DANH SÁCH TRỪ GIỜ
+    // =================================================
+
+    const [
+        showDeduction,
+        setShowDeduction
+    ] = useState(false);
+
+
+    // =================================================
+    // MỞ / ĐÓNG DANH SÁCH LỖI NG
+    // =================================================
+
+    const [
+        showNg,
+        setShowNg
+    ] = useState(false);
+
+
+    // =================================================
+    // LÝ DO DỪNG MÁY
+    // =================================================
+
+    const [
+        stopReason,
+        setStopReason
+    ] = useState("");
+
+
+    // =================================================
+    // TRẠNG THÁI TẢI WORKER
+    // =================================================
+
     const [
         loadingWorker,
         setLoadingWorker
     ] = useState(true);
 
+
+    // =================================================
+    // TRẠNG THÁI GỬI FORM
+    // =================================================
 
     const [
         submitting,
@@ -665,27 +854,20 @@ function ProcessPage() {
     ] = useState(false);
 
 
-    const availableProducts =
-        useMemo(
-            () =>
-                productStandards.filter(
-                    (item) =>
-                        item.workType
-                        ===
-                        workType
-                ),
-            [workType]
-        );
-
+    // =====================================================
+    // LẤY THÔNG TIN WORKER THEO USER ID
+    // =====================================================
 
     useEffect(() => {
 
-        const loadWorker =
+        const loadWorkerInfo =
             async () => {
 
                 try {
 
-                    setLoadingWorker(true);
+                    setLoadingWorker(
+                        true
+                    );
 
 
                     const savedUser =
@@ -696,12 +878,18 @@ function ProcessPage() {
 
                     if (!savedUser) {
 
+                        localStorage.removeItem(
+                            "token"
+                        );
+
+
                         navigate(
                             "/login",
                             {
                                 replace: true
                             }
                         );
+
 
                         return;
 
@@ -714,11 +902,30 @@ function ProcessPage() {
                         );
 
 
+                    const userId =
+                        Number(
+                            user.id
+                        );
+
+
+                    if (
+                        !Number.isInteger(
+                            userId
+                        )
+                        ||
+                        userId <= 0
+                    ) {
+
+                        throw new Error(
+                            "Không tìm thấy ID tài khoản đăng nhập"
+                        );
+
+                    }
+
+
                     const workerData =
                         await getWorkerByUserId(
-                            Number(
-                                user.id
-                            )
+                            userId
                         );
 
 
@@ -726,42 +933,126 @@ function ProcessPage() {
                         workerData
                     );
 
+
+                    setForm(
+                        (prev) => ({
+
+                            ...prev,
+
+                            workerCode:
+                                workerData.worker_code
+                                ||
+                                "",
+
+                            workerName:
+                                workerData.full_name
+                                ||
+                                "",
+
+                            trainingPercent:
+                                String(
+                                    workerData.training_percent
+                                    ??
+                                    100
+                                )
+
+                        })
+                    );
+
                 }
-                catch (error) {
+                catch (error: unknown) {
 
                     console.error(
+                        "LOAD WORKER ERROR:",
                         error
                     );
 
 
+                    if (
+                        axios.isAxiosError(
+                            error
+                        )
+                        &&
+                        error.response?.status
+                        ===
+                        401
+                    ) {
+
+                        localStorage.removeItem(
+                            "token"
+                        );
+
+                        localStorage.removeItem(
+                            "user"
+                        );
+
+
+                        navigate(
+                            "/login",
+                            {
+                                replace: true
+                            }
+                        );
+
+
+                        return;
+
+                    }
+
+
+                    const message =
+
+                        axios.isAxiosError(
+                            error
+                        )
+
+                            ? error.response
+                                ?.data
+                                ?.message
+
+                                ||
+
+                                "Không lấy được thông tin nhân viên"
+
+                            : error instanceof Error
+
+                                ? error.message
+
+                                : "Không lấy được thông tin nhân viên";
+
+
                     alert(
-                        "Không lấy được thông tin nhân viên"
+                        message
                     );
 
                 }
                 finally {
 
-                    setLoadingWorker(false);
+                    setLoadingWorker(
+                        false
+                    );
 
                 }
 
             };
 
 
-        void loadWorker();
+        void loadWorkerInfo();
 
     }, [navigate]);
+        // =====================================================
+    // INPUT THÔNG THƯỜNG
+    // =====================================================
 
-
-    const handleFieldChange = (
+    const handleChange = (
 
         event:
             React.ChangeEvent<
                 HTMLInputElement
                 |
-                HTMLTextAreaElement
-                |
                 HTMLSelectElement
+                |
+                HTMLTextAreaElement
             >
 
     ) => {
@@ -784,43 +1075,75 @@ function ProcessPage() {
             } as FormState;
 
 
+            /*
+                Khi thay đổi TT OK hoặc TT NG,
+                tự động tính tổng sản phẩm thực tế.
+            */
+
             if (
-                name
-                ===
-                "totalTime"
+                name === "ttOk"
                 ||
-                name
-                ===
-                "deductionTime"
+                name === "ttNg"
+            ) {
+
+                next.actualOutput =
+                    String(
+
+                        Number(
+                            next.ttOk
+                            ||
+                            0
+                        )
+
+                        +
+
+                        Number(
+                            next.ttNg
+                            ||
+                            0
+                        )
+
+                    );
+
+            }
+
+
+            /*
+                Khi thay đổi tổng thời gian,
+                tự tính thời gian thực tế:
+
+                actualTime =
+                totalTime - deductionTime
+            */
+
+            if (
+                name ===
+                "totalTime"
             ) {
 
                 next.actualTime =
                     String(
+
                         Math.max(
+
                             0,
 
                             Number(
-                                name
-                                ===
-                                "totalTime"
-
-                                    ? value
-
-                                    : next.totalTime
+                                value
+                                ||
+                                0
                             )
 
                             -
 
                             Number(
-                                name
-                                ===
-                                "deductionTime"
-
-                                    ? value
-
-                                    : next.deductionTime
+                                next.deductionTime
+                                ||
+                                0
                             )
+
                         )
+
                     );
 
             }
@@ -833,60 +1156,520 @@ function ProcessPage() {
     };
 
 
-    const handleProductChange = (
+    // =====================================================
+    // CHỈ CHO PHÉP NHẬP SỐ THẬP PHÂN
+    // =====================================================
+
+// =====================================================
+// LOAD DANH SÁCH MÁY VÀ SẢN PHẨM THEO CÔNG ĐOẠN
+// =====================================================
+
+useEffect(() => {
+
+    const loadMasterData =
+        async () => {
+
+            try {
+
+                setLoadingMasterData(
+                    true
+                );
+
+
+                const [
+                    machines,
+                    products
+                ] =
+                    await Promise.all([
+
+                        getMachinesByProcess(
+                            processInfo.id
+                        ),
+
+                        getProductStandardsByProcess(
+                            processInfo.id
+                        )
+
+                    ]);
+
+
+                setMachineOptions(
+                    machines
+                );
+
+
+                setProductOptions(
+                    products
+                );
+
+            }
+            catch (error: unknown) {
+
+                console.error(
+                    "LOAD MASTER DATA ERROR:",
+                    error
+                );
+
+
+                const message =
+
+                    axios.isAxiosError(
+                        error
+                    )
+
+                        ? error.response
+                            ?.data
+                            ?.message
+
+                            ||
+
+                            "Không thể tải danh sách máy hoặc sản phẩm"
+
+                        : error instanceof Error
+
+                            ? error.message
+
+                            : "Không thể tải danh sách máy hoặc sản phẩm";
+
+
+                alert(
+                    message
+                );
+
+            }
+            finally {
+
+                setLoadingMasterData(
+                    false
+                );
+
+            }
+
+        };
+
+
+    void loadMasterData();
+
+}, [processInfo.id]);
+
+    // =====================================================
+    // CHỈ CHO PHÉP NHẬP SỐ NGUYÊN
+    // =====================================================
+
+    const isValidIntegerInput = (
+        value: string
+    ): boolean => {
+
+        return (
+
+            value === ""
+
+            ||
+
+            /^\d*$/.test(
+                value
+            )
+
+        );
+
+    };
+
+// =====================================================
+// KIỂM TRA SỐ THẬP PHÂN
+// Cho phép:
+// ""
+// 1
+// 1.5
+// 0.25
+// =====================================================
+
+const isValidDecimalInput = (
+    value: string
+): boolean => {
+
+    return (
+        value === ""
+        ||
+        /^\d*\.?\d*$/.test(value)
+    );
+
+};
+    // =====================================================
+    // INPUT SỐ THỜI GIAN
+    // =====================================================
+
+    const handleTimeInputChange = (
+
         event:
             React.ChangeEvent<
-                HTMLSelectElement
+                HTMLInputElement
             >
+
     ) => {
 
-        const productCode =
-            event.target.value;
+        const {
+            value
+        } = event.target;
 
 
-        const selected =
-            productStandards.find(
-                (item) =>
-                    item.workType
-                    ===
-                    workType
+        if (
+            !isValidDecimalInput(
+                value
+            )
+        ) {
 
-                    &&
+            return;
 
-                    item.productCode
-                    ===
-                    productCode
-            );
+        }
+
+
+        handleChange(
+            event
+        );
+
+    };
+
+
+    // =====================================================
+    // INPUT SẢN LƯỢNG / ĐỊNH MỨC
+    // =====================================================
+
+    const handleIntegerInputChange = (
+
+        event:
+            React.ChangeEvent<
+                HTMLInputElement
+            >
+
+    ) => {
+
+        const {
+            value
+        } = event.target;
+
+
+        if (
+            !isValidIntegerInput(
+                value
+            )
+        ) {
+
+            return;
+
+        }
+
+
+        handleChange(
+            event
+        );
+
+    };
+
+
+    // =====================================================
+    // TÍNH TỔNG THỜI GIAN TRỪ
+    // =====================================================
+
+    const updateTotalDeduction = (
+        data: DeductionState
+    ) => {
+
+        const total =
+            Object.values(
+                data
+            )
+                .reduce(
+
+                    (
+                        sum,
+                        currentValue
+                    ) =>
+
+                        sum
+                        +
+                        Number(
+                            currentValue
+                            ||
+                            0
+                        ),
+
+                    0
+
+                );
 
 
         setForm((prev) => ({
 
             ...prev,
 
-            productName:
-                productCode,
+            deductionTime:
+                String(
+                    total
+                ),
 
-            standardOutput:
-                selected
-                    ? String(
-                        selected.standardOutput
+            actualTime:
+                String(
+
+                    Math.max(
+
+                        0,
+
+                        Number(
+                            prev.totalTime
+                            ||
+                            0
+                        )
+
+                        -
+
+                        total
+
                     )
-                    : ""
+
+                )
 
         }));
 
     };
 
 
-    const handleNgChange = (
-        key: NgKey,
+    // =====================================================
+    // CẬP NHẬT GIÁ TRỊ MỘT LOẠI TRỪ GIỜ
+    // =====================================================
+
+    const updateDeductionValue = (
+
+        key: DeductionKey,
+
         value: string
+
     ) => {
 
         if (
-            value !== ""
-            &&
-            !/^\d*$/.test(
+            !isValidDecimalInput(
+                value
+            )
+        ) {
+
+            return;
+
+        }
+
+
+        setDeductions((prev) => {
+
+            const next = {
+
+                ...prev,
+
+                [key]:
+                    value
+
+            };
+
+
+            updateTotalDeduction(
+                next
+            );
+
+
+            return next;
+
+        });
+
+    };
+
+
+    // =====================================================
+    // CHỌN / BỎ CHỌN LOẠI TRỪ GIỜ
+    // =====================================================
+
+    const handleToggleDeduction = (
+
+        key: DeductionKey,
+
+        checked: boolean
+
+    ) => {
+
+        if (checked) {
+
+            setSelectedDeduction(
+                (prev) => {
+
+                    if (
+                        prev.includes(
+                            key
+                        )
+                    ) {
+
+                        return prev;
+
+                    }
+
+
+                    return [
+                        ...prev,
+                        key
+                    ];
+
+                }
+            );
+
+
+            setDeductions((prev) => {
+
+                const next = {
+
+                    ...prev,
+
+                    [key]:
+                        prev[key]
+                        ||
+                        "1"
+
+                };
+
+
+                updateTotalDeduction(
+                    next
+                );
+
+
+                return next;
+
+            });
+
+
+            return;
+
+        }
+
+
+        setSelectedDeduction(
+            (prev) =>
+                prev.filter(
+                    (item) =>
+                        item !== key
+                )
+        );
+
+
+        setDeductions((prev) => {
+
+            const next = {
+
+                ...prev,
+
+                [key]:
+                    ""
+
+            };
+
+
+            updateTotalDeduction(
+                next
+            );
+
+
+            return next;
+
+        });
+
+
+        if (
+            key ===
+            "dungMay"
+        ) {
+
+            setStopReason(
+                ""
+            );
+
+        }
+
+    };
+
+
+    // =====================================================
+    // NHẬP 0 RỒI RỜI Ô:
+    // BỎ CHỌN LOẠI TRỪ GIỜ
+    // =====================================================
+
+    const removeDeductionIfZero = (
+        key: DeductionKey
+    ) => {
+
+        if (
+            deductions[key] === ""
+            ||
+            Number(
+                deductions[key]
+            ) !== 0
+        ) {
+
+            return;
+
+        }
+
+
+        handleToggleDeduction(
+            key,
+            false
+        );
+
+    };
+
+
+    // =====================================================
+    // ENTER TẠI Ô TRỪ GIỜ
+    // =====================================================
+
+    const handleDeductionKeyDown = (
+
+        event:
+            React.KeyboardEvent<
+                HTMLInputElement
+            >,
+
+        key: DeductionKey
+
+    ) => {
+
+        if (
+            event.key !==
+            "Enter"
+        ) {
+
+            return;
+
+        }
+
+
+        event.preventDefault();
+
+
+        removeDeductionIfZero(
+            key
+        );
+
+    };
+
+
+    // =====================================================
+    // CẬP NHẬT GIÁ TRỊ LỖI NG
+    // =====================================================
+
+    const handleNgValue = (
+
+        key: NgKey,
+
+        value: string
+
+    ) => {
+
+        if (
+            !isValidIntegerInput(
                 value
             )
         ) {
@@ -910,6 +1693,7 @@ function ProcessPage() {
 
             const totalNg =
                 ngOptions.reduce(
+
                     (
                         sum,
                         item
@@ -924,6 +1708,7 @@ function ProcessPage() {
                         ),
 
                     0
+
                 );
 
 
@@ -956,14 +1741,265 @@ function ProcessPage() {
     };
 
 
-    const handleOkChange = (
-        value: string
+    // =====================================================
+    // CHỌN / BỎ CHỌN LỖI NG
+    // =====================================================
+
+    const handleToggleNg = (
+
+        key: NgKey,
+
+        checked: boolean
+
+    ) => {
+
+        if (checked) {
+
+            setSelectedNg(
+                (prev) => {
+
+                    if (
+                        prev.includes(
+                            key
+                        )
+                    ) {
+
+                        return prev;
+
+                    }
+
+
+                    return [
+                        ...prev,
+                        key
+                    ];
+
+                }
+            );
+
+
+            setForm((prev) => {
+
+                const next = {
+
+                    ...prev,
+
+                    [key]:
+                        prev[key]
+                        ||
+                        "1"
+
+                };
+
+
+                const totalNg =
+                    ngOptions.reduce(
+
+                        (
+                            sum,
+                            item
+                        ) =>
+
+                            sum
+                            +
+                            Number(
+                                next[item.key]
+                                ||
+                                0
+                            ),
+
+                        0
+
+                    );
+
+
+                next.ttNg =
+                    String(
+                        totalNg
+                    );
+
+
+                next.actualOutput =
+                    String(
+
+                        Number(
+                            next.ttOk
+                            ||
+                            0
+                        )
+
+                        +
+
+                        totalNg
+
+                    );
+
+
+                return next;
+
+            });
+
+
+            return;
+
+        }
+
+
+        setSelectedNg(
+            (prev) =>
+                prev.filter(
+                    (item) =>
+                        item !== key
+                )
+        );
+
+
+        setForm((prev) => {
+
+            const next = {
+
+                ...prev,
+
+                [key]:
+                    ""
+
+            };
+
+
+            const totalNg =
+                ngOptions.reduce(
+
+                    (
+                        sum,
+                        item
+                    ) =>
+
+                        sum
+                        +
+                        Number(
+                            next[item.key]
+                            ||
+                            0
+                        ),
+
+                    0
+
+                );
+
+
+            next.ttNg =
+                String(
+                    totalNg
+                );
+
+
+            next.actualOutput =
+                String(
+
+                    Number(
+                        next.ttOk
+                        ||
+                        0
+                    )
+
+                    +
+
+                    totalNg
+
+                );
+
+
+            return next;
+
+        });
+
+    };
+
+
+    // =====================================================
+    // NHẬP 0 RỒI RỜI Ô:
+    // BỎ CHỌN LỖI NG
+    // =====================================================
+
+    const removeNgIfZero = (
+        key: NgKey
     ) => {
 
         if (
-            value !== ""
-            &&
-            !/^\d*$/.test(
+            form[key] === ""
+            ||
+            Number(
+                form[key]
+            ) !== 0
+        ) {
+
+            return;
+
+        }
+
+
+        handleToggleNg(
+            key,
+            false
+        );
+
+    };
+
+
+    // =====================================================
+    // ENTER TẠI Ô LỖI NG
+    // =====================================================
+
+    const handleNgKeyDown = (
+
+        event:
+            React.KeyboardEvent<
+                HTMLInputElement
+            >,
+
+        key: NgKey
+
+    ) => {
+
+        if (
+            event.key !==
+            "Enter"
+        ) {
+
+            return;
+
+        }
+
+
+        event.preventDefault();
+
+
+        removeNgIfZero(
+            key
+        );
+
+    };
+
+
+    // =====================================================
+    // CẬP NHẬT TT OK
+    // =====================================================
+
+    const handleTtOkChange = (
+
+        event:
+            React.ChangeEvent<
+                HTMLInputElement
+            >
+
+    ) => {
+
+        const value =
+            event.target.value;
+
+
+        if (
+            !isValidIntegerInput(
                 value
             )
         ) {
@@ -1004,32 +2040,259 @@ function ProcessPage() {
     };
 
 
-    const validateForm = () => {
+    // =====================================================
+    // BLUR Ô SỐ:
+    // NẾU GIÁ TRỊ LÀ 0 THÌ CHUYỂN VỀ RỖNG
+    // =====================================================
 
-        if (loadingWorker) {
+    const handleNumberBlur = (
 
-            return "Đang tải thông tin nhân viên";
+        event:
+            React.FocusEvent<
+                HTMLInputElement
+            >
+
+    ) => {
+
+        const {
+            name,
+            value
+        } = event.target;
+
+
+        if (
+            value !==
+            "0"
+        ) {
+
+            return;
 
         }
 
 
-        if (!worker) {
+        setForm((prev) => ({
+
+            ...prev,
+
+            [name]:
+                ""
+
+        }));
+
+    };
+
+
+    // =====================================================
+    // KIỂM TRA FORM
+    // =====================================================
+
+    const validateForm = (): string => {
+
+        if (
+            loadingWorker
+        ) {
+
+            return "Thông tin nhân viên đang được tải";
+
+        }
+
+
+        if (
+            !worker
+            ||
+            !form.workerCode
+            ||
+            !form.workerName
+        ) {
 
             return "Không tìm thấy thông tin nhân viên";
 
         }
 
 
-        if (!form.machineNo.trim()) {
+        if (
+            !form.workDate
+        ) {
+
+            return "Vui lòng chọn ngày làm việc";
+
+        }
+
+
+        if (
+            !form.shift
+        ) {
+
+            return "Vui lòng chọn ca làm việc";
+
+        }
+
+
+        if (
+            !form.machineNo.trim()
+        ) {
 
             return "Vui lòng nhập số máy";
 
         }
 
 
-        if (!form.productName) {
+        if (
+            Number(
+                form.totalTime
+                ||
+                0
+            ) <= 0
+        ) {
 
-            return "Vui lòng chọn sản phẩm";
+            return "Tổng thời gian phải lớn hơn 0";
+
+        }
+
+
+        if (
+            Number(
+                form.deductionTime
+                ||
+                0
+            )
+            >
+            Number(
+                form.totalTime
+                ||
+                0
+            )
+        ) {
+
+            return "Thời gian trừ không được lớn hơn tổng thời gian";
+
+        }
+
+
+        if (
+            Number(
+                form.actualTime
+                ||
+                0
+            )
+            <
+            0
+        ) {
+
+            return "Thời gian thực tế không hợp lệ";
+
+        }
+
+
+        if (
+            !form.productName.trim()
+        ) {
+
+            return "Vui lòng nhập sản phẩm";
+
+        }
+
+
+        if (
+            Number(
+                form.standardOutput
+                ||
+                0
+            ) <= 0
+        ) {
+
+            return "Định mức phải lớn hơn 0";
+
+        }
+
+
+        if (
+            Number(
+                form.actualOutput
+                ||
+                0
+            )
+            <
+            0
+        ) {
+
+            return "Sản lượng thực tế không hợp lệ";
+
+        }
+
+
+        const totalDefects =
+            ngOptions.reduce(
+
+                (
+                    sum,
+                    item
+                ) =>
+
+                    sum
+                    +
+                    Number(
+                        form[item.key]
+                        ||
+                        0
+                    ),
+
+                0
+
+            );
+
+
+        if (
+            totalDefects
+            !==
+            Number(
+                form.ttNg
+                ||
+                0
+            )
+        ) {
+
+            return "TT NG phải bằng tổng số lượng các lỗi NG";
+
+        }
+
+
+        if (
+            Number(
+                form.actualOutput
+                ||
+                0
+            )
+            !==
+            (
+                Number(
+                    form.ttOk
+                    ||
+                    0
+                )
+                +
+                Number(
+                    form.ttNg
+                    ||
+                    0
+                )
+            )
+        ) {
+
+            return "Thực tế phải bằng TT OK cộng TT NG";
+
+        }
+
+
+        if (
+            selectedDeduction.includes(
+                "dungMay"
+            )
+            &&
+            !stopReason
+        ) {
+
+            return "Vui lòng chọn lý do dừng máy";
 
         }
 
@@ -1037,20 +2300,65 @@ function ProcessPage() {
         return "";
 
     };
+const handleProductChange = (
+    event:
+        React.ChangeEvent<HTMLInputElement>
+) => {
 
+    const value =
+        event.target.value;
+
+
+    const selectedProduct =
+        productOptions.find(
+            (item) =>
+                item.product_code
+                    .trim()
+                    .toLowerCase()
+                ===
+                value
+                    .trim()
+                    .toLowerCase()
+        );
+
+
+    setForm((prev) => ({
+
+        ...prev,
+
+        productName:
+            value,
+
+        standardOutput:
+            selectedProduct
+                ? String(
+                    selectedProduct.standard_output
+                )
+                : ""
+
+    }));
+
+};
+
+    // =====================================================
+    // GỬI BÁO CÁO
+    // =====================================================
 
     const handleSubmit =
         async () => {
 
-            const error =
+            const validationMessage =
                 validateForm();
 
 
-            if (error) {
+            if (
+                validationMessage
+            ) {
 
                 alert(
-                    error
+                    validationMessage
                 );
+
 
                 return;
 
@@ -1059,7 +2367,9 @@ function ProcessPage() {
 
             try {
 
-                setSubmitting(true);
+                setSubmitting(
+                    true
+                );
 
 
                 await createTempReport({
@@ -1075,6 +2385,7 @@ function ProcessPage() {
 
                     machine_no:
                         form.machineNo.trim(),
+
 
                     total_time:
                         Number(
@@ -1097,11 +2408,15 @@ function ProcessPage() {
                             0
                         ),
 
+
                     stop_reason:
+                        stopReason
+                        ||
                         "",
 
+
                     product_name:
-                        form.productName,
+                        form.productName.trim(),
 
                     standard_output:
                         Number(
@@ -1117,6 +2432,7 @@ function ProcessPage() {
                             0
                         ),
 
+
                     tt_ok:
                         Number(
                             form.ttOk
@@ -1130,6 +2446,7 @@ function ProcessPage() {
                             ||
                             0
                         ),
+
 
                     kqd_dap_lai:
                         Number(
@@ -1215,16 +2532,12 @@ function ProcessPage() {
                             0
                         ),
 
+
                     defects:
                         ngOptions
 
                             .filter(
                                 (item) =>
-                                    item.key
-                                    !==
-                                    "catPham"
-
-                                    &&
 
                                     Number(
                                         form[item.key]
@@ -1239,25 +2552,7 @@ function ProcessPage() {
                                 (item) => ({
 
                                     defect_name:
-                                        item.label
-                                        ===
-                                        "PPCMN"
-
-                                            ? "PPCM"
-
-                                            : item.label
-                                                ===
-                                                "Bavia đứt hụt"
-
-                                                ? "Bavia hụt"
-
-                                                : item.label
-                                                    ===
-                                                    "Cong, gãy..."
-
-                                                    ? "Cong gãy"
-
-                                                    : item.label,
+                                        item.label,
 
                                     quantity:
                                         Number(
@@ -1269,8 +2564,38 @@ function ProcessPage() {
                                 })
                             ),
 
+
                     deductions:
-                        [],
+                        deductionOptions
+
+                            .filter(
+                                (item) =>
+
+                                    Number(
+                                        deductions[item.key]
+                                        ||
+                                        0
+                                    )
+                                    >
+                                    0
+                            )
+
+                            .map(
+                                (item) => ({
+
+                                    deduction_name:
+                                        item.label,
+
+                                    hours:
+                                        Number(
+                                            deductions[item.key]
+                                            ||
+                                            0
+                                        )
+
+                                })
+                            ),
+
 
                     note:
                         form.note.trim()
@@ -1286,7 +2611,8 @@ function ProcessPage() {
                 navigate(
                     "/worker",
                     {
-                        replace: true
+                        replace:
+                            true
                     }
                 );
 
@@ -1294,11 +2620,12 @@ function ProcessPage() {
             catch (error: unknown) {
 
                 console.error(
+                    "CREATE TEMP REPORT ERROR:",
                     error
                 );
 
 
-                alert(
+                const message =
 
                     axios.isAxiosError(
                         error
@@ -1312,43 +2639,122 @@ function ProcessPage() {
 
                             "Lưu báo cáo thất bại"
 
-                        : "Lưu báo cáo thất bại"
+                        : error instanceof Error
 
+                            ? error.message
+
+                            : "Lưu báo cáo thất bại";
+
+
+                alert(
+                    message
                 );
 
             }
             finally {
 
-                setSubmitting(false);
+                setSubmitting(
+                    false
+                );
 
             }
 
         };
 
 
-    return (
+    // =====================================================
+    // LÀM MỚI FORM
+    // =====================================================
+
+    const handleReset = () => {
+
+        setForm((prev) => ({
+
+            ...initialForm,
+
+            workDate:
+                getCurrentLocalDate(),
+
+            workerCode:
+                prev.workerCode,
+
+            workerName:
+                prev.workerName,
+
+            trainingPercent:
+                prev.trainingPercent
+
+        }));
+
+
+        setDeductions(
+            initialDeduction
+        );
+
+
+        setSelectedDeduction(
+            []
+        );
+
+
+        setSelectedNg(
+            []
+        );
+
+
+        setStopReason(
+            ""
+        );
+
+
+        setShowDeduction(
+            false
+        );
+
+
+        setShowNg(
+            false
+        );
+
+    };
+        return (
 
         <main className="worker-form-page">
 
             <div className="worker-form-shell">
+
+
+                {/* =================================================
+                    HEADER
+                ================================================= */}
 
                 <header className="worker-form-header">
 
                     <div className="worker-form-title-row">
 
                         <button
+
                             type="button"
+
                             className="worker-form-back"
+
                             onClick={() =>
                                 navigate(-1)
                             }
+
+                            aria-label="Quay lại"
+
                         >
+
                             ←
+
                         </button>
 
 
                         <h1>
+
                             {processInfo.title}
+
                         </h1>
 
                     </div>
@@ -1357,7 +2763,7 @@ function ProcessPage() {
                     <p className="worker-form-identity">
 
                         {
-                            worker?.full_name
+                            form.workerName
                             ||
                             "Đang tải..."
                         }
@@ -1365,7 +2771,7 @@ function ProcessPage() {
                         {" - "}
 
                         {
-                            worker?.worker_code
+                            form.workerCode
                             ||
                             ""
                         }
@@ -1376,26 +2782,37 @@ function ProcessPage() {
                     <label className="worker-date-picker">
 
                         <span>
+
                             {
                                 formatDisplayDate(
                                     form.workDate
                                 )
                             }
+
                         </span>
+
 
                         <span>
+
                             ▼
+
                         </span>
 
+
                         <input
+
                             type="date"
+
                             name="workDate"
+
                             value={
                                 form.workDate
                             }
+
                             onChange={
-                                handleFieldChange
+                                handleChange
                             }
+
                         />
 
                     </label>
@@ -1403,135 +2820,177 @@ function ProcessPage() {
                 </header>
 
 
+                {/* =================================================
+                    THÔNG TIN CƠ BẢN
+                ================================================= */}
+
                 <section className="worker-form-card">
 
                     <h2 className="worker-card-title">
 
-                        <span>ⓘ</span>
+                        <span>
+
+                            ⓘ
+
+                        </span>
 
                         Thông tin cơ bản
 
                     </h2>
 
 
-                    <div className="worker-field-block">
-
-                        <label className="worker-field-label">
-
-                            Ca làm việc
-
-                            <em>*</em>
-
-                        </label>
+                    <div className="worker-basic-grid">
 
 
-                        <div className="worker-shift-list">
+                        {/* CA LÀM VIỆC */}
 
-                            {
-                                [
-                                    "Ca A",
-                                    "Ca B",
-                                    "Ca C",
-                                    "Ca D"
-                                ].map(
-                                    (shift) => (
+                        <div className="worker-field-block worker-field-full">
 
-                                        <label
-                                            key={shift}
-                                            className="worker-shift-item"
-                                        >
+                            <label className="worker-field-label">
 
-                                            <input
-                                                type="radio"
-                                                name="shift"
-                                                value={shift}
-                                                checked={
-                                                    form.shift
-                                                    ===
-                                                    shift
-                                                }
-                                                onChange={
-                                                    handleFieldChange
-                                                }
-                                            />
+                                Ca làm việc
 
-                                            <span>
-                                                {
-                                                    shift.replace(
-                                                        "Ca ",
-                                                        ""
-                                                    )
-                                                }
-                                            </span>
+                                <em>
 
-                                        </label>
+                                    *
 
-                                    )
-                                )
-                            }
+                                </em>
+
+                            </label>
+
+
+                            <div className="worker-shift-list">
+
+                                {
+                                    [
+                                        "A",
+                                        "B",
+                                        "C",
+                                        "D"
+                                    ]
+                                        .map(
+                                            (
+                                                shift
+                                            ) => (
+
+                                                <label
+
+                                                    key={
+                                                        shift
+                                                    }
+
+                                                    className="worker-shift-item"
+
+                                                >
+
+                                                    <input
+
+                                                        type="radio"
+
+                                                        name="shift"
+
+                                                        value={
+                                                            shift
+                                                        }
+
+                                                        checked={
+                                                            form.shift
+                                                            ===
+                                                            shift
+                                                        }
+
+                                                        onChange={
+                                                            handleChange
+                                                        }
+
+                                                    />
+
+
+                                                    <span>
+
+                                                        {
+                                                            shift.replace(
+                                                                "Ca ",
+                                                                ""
+                                                            )
+                                                        }
+
+                                                    </span>
+
+                                                </label>
+
+                                            )
+                                        )
+                                }
+
+                            </div>
 
                         </div>
 
-                    </div>
+
+                    
+                        {/* SỐ MÁY */}
+
+                        <div className="worker-field-block worker-field-full">
+
+    <label
+        className="worker-field-label"
+        htmlFor="machineNo"
+    >
+        Số máy (Tên máy)
+
+        <em>*</em>
+    </label>
 
 
-                    <div className="worker-field-block">
-
-                        <label
-                            className="worker-field-label"
-                            htmlFor="machineNo"
-                        >
-
-                            Số máy cắt (lồng)
-
-                            <em>*</em>
-
-                        </label>
-
-
-                        <input
-                            id="machineNo"
-                            className="worker-text-input"
-                            name="machineNo"
-                            value={
-                                form.machineNo
-                            }
-                            onChange={
-                                handleFieldChange
-                            }
-                            inputMode="numeric"
-                        />
-
-                    </div>
+    <input
+        id="machineNo"
+        className="worker-text-input"
+        name="machineNo"
+        value={form.machineNo}
+        onChange={handleChange}
+        list="machine-options"
+        placeholder="Nhập để tìm và chọn máy"
+        autoComplete="off"
+        disabled={loadingMasterData}
+    />
 
 
-                    <div className="worker-field-block">
+    <datalist id="machine-options">
 
-                        <label className="worker-field-label">
+        {machineOptions.map((machine) => (
 
-                            % học việc
+            <option
+                key={machine.id}
+                value={machine.machine_code}
+            >
+                {machine.machine_name}
+            </option>
 
-                        </label>
+        ))}
 
+    </datalist>
 
-                        <input
-                            className="worker-text-input readonly"
-                            value={
-                                `${worker?.training_percent ?? 100}%`
-                            }
-                            readOnly
-                        />
+</div>
 
                     </div>
 
                 </section>
 
 
+                {/* =================================================
+                    HIỆU SUẤT & THỜI GIAN
+                ================================================= */}
+
                 <section className="worker-form-card">
 
                     <h2 className="worker-card-title">
 
-                        <span>◷</span>
+                        <span>
+
+                            ◷
+
+                        </span>
 
                         Hiệu suất &amp; Thời gian
 
@@ -1540,402 +2999,978 @@ function ProcessPage() {
 
                     <div className="worker-time-grid">
 
+
+                        {/* TỔNG THỜI GIAN */}
+
                         <div className="worker-time-item">
 
-                            <label>
+                            <label
+
+                                htmlFor="totalTime"
+
+                            >
+
                                 Tổng thời gian
-                                <br />
-                                (phút)
+
                             </label>
 
+
                             <input
+
+                                id="totalTime"
+
                                 name="totalTime"
+
                                 value={
                                     form.totalTime
                                 }
+
                                 onChange={
-                                    handleFieldChange
+                                    handleTimeInputChange
                                 }
+
+                                onBlur={
+                                    handleNumberBlur
+                                }
+
                                 inputMode="decimal"
+
+                                placeholder="0"
+
+                                autoComplete="off"
+
                             />
 
+
                             <small>
+
                                 {
-                                    minutesToText(
+                                    decimalHoursToText(
                                         form.totalTime
                                     )
                                 }
+
                             </small>
 
                         </div>
 
 
+                        {/* THỜI GIAN THỰC TẾ */}
+
                         <div className="worker-time-item">
 
-                            <label>
-                                Thực tế làm việc
-                                <br />
-                                (phút)
+                            <label
+
+                                htmlFor="actualTime"
+
+                            >
+
+                                Thời gian thực tế
+
                             </label>
 
+
                             <input
+
+                                id="actualTime"
+
                                 name="actualTime"
+
                                 value={
                                     form.actualTime
                                 }
+
                                 onChange={
-                                    handleFieldChange
+                                    handleTimeInputChange
                                 }
+
+                                onBlur={
+                                    handleNumberBlur
+                                }
+
                                 inputMode="decimal"
+
+                                placeholder="0"
+
+                                autoComplete="off"
+
                             />
 
+
                             <small>
+
                                 {
-                                    minutesToText(
+                                    decimalHoursToText(
                                         form.actualTime
                                     )
                                 }
+
                             </small>
 
                         </div>
 
+
+                        {/* THỜI GIAN TRỪ */}
 
                         <div className="worker-time-item">
 
-                            <label>
-                                Thời gian trừ giờ
-                                <br />
-                                (phút)
+                            <label
+
+                                htmlFor="deductionTime"
+
+                            >
+
+                                Thời gian trừ
+
                             </label>
 
+
                             <input
+
+                                id="deductionTime"
+
                                 name="deductionTime"
+
                                 value={
                                     form.deductionTime
                                 }
-                                onChange={
-                                    handleFieldChange
-                                }
-                                inputMode="decimal"
+
+                                readOnly
+
+                                placeholder="0"
+
                             />
 
+
                             <small>
+
                                 {
-                                    minutesToText(
+                                    decimalHoursToText(
                                         form.deductionTime
                                     )
                                 }
+
                             </small>
 
                         </div>
 
                     </div>
 
-                </section>
 
+                    {/* =================================================
+                        CHỌN LOẠI TRỪ GIỜ
+                    ================================================= */}
 
-                <section className="worker-form-card">
-
-                    <h2 className="worker-card-title">
-
-                        <span>⬡</span>
-
-                        Sản phẩm
-
-                    </h2>
-
-
-                    <div className="worker-type-switch">
+                    <div className="worker-dropdown-box">
 
                         <button
+
                             type="button"
-                            className={
-                                workType
-                                ===
-                                "cat"
 
-                                    ? "active"
+                            className="worker-dropdown-title"
 
-                                    : ""
-                            }
-                            onClick={() => {
-
-                                setWorkType(
-                                    "cat"
-                                );
-
-                                setForm(
-                                    (prev) => ({
-
-                                        ...prev,
-
-                                        productName:
-                                            "",
-
-                                        standardOutput:
-                                            ""
-
-                                    })
-                                );
-
-                            }}
-                        >
-                            Cắt
-                        </button>
-
-
-                        <button
-                            type="button"
-                            className={
-                                workType
-                                ===
-                                "long"
-
-                                    ? "active"
-
-                                    : ""
-                            }
-                            onClick={() => {
-
-                                setWorkType(
-                                    "long"
-                                );
-
-                                setForm(
-                                    (prev) => ({
-
-                                        ...prev,
-
-                                        productName:
-                                            "",
-
-                                        standardOutput:
-                                            ""
-
-                                    })
-                                );
-
-                            }}
-                        >
-                            Lồng
-                        </button>
-
-                    </div>
-
-
-                    <div className="worker-field-block">
-
-                        <label className="worker-field-label">
-
-                            Sản phẩm (công việc)
-
-                            <em>*</em>
-
-                        </label>
-
-
-                        <select
-                            className="worker-select-input"
-                            value={
-                                form.productName
-                            }
-                            onChange={
-                                handleProductChange
-                            }
-                        >
-
-                            <option value="">
-
-                                Chọn sản phẩm...
-
-                            </option>
-
-
-                            {
-                                availableProducts.map(
-                                    (item) => (
-
-                                        <option
-                                            key={
-                                                item.productCode
-                                            }
-                                            value={
-                                                item.productCode
-                                            }
-                                        >
-                                            {
-                                                item.productCode
-                                            }
-                                        </option>
-
-                                    )
+                            onClick={() =>
+                                setShowDeduction(
+                                    (
+                                        prev
+                                    ) => !prev
                                 )
                             }
 
-                        </select>
+                        >
 
-                    </div>
+                            <span>
 
+                                ⏱ Chọn loại trừ thời gian
 
-                    <div className="worker-field-block">
-
-                        <label className="worker-field-label">
-
-                            Định mức (tính toán)
-
-                        </label>
+                            </span>
 
 
-                        <input
-                            className="worker-text-input readonly"
-                            value={
-                                form.standardOutput
+                            <span>
 
-                                    ? `${Number(
-                                        form.standardOutput
-                                    ).toLocaleString(
-                                        "en-US"
-                                    )} sản phẩm`
+                                {
+                                    showDeduction
 
-                                    : ""
-                            }
-                            placeholder="Định mức tự động"
-                            readOnly
-                        />
+                                        ? "▲"
 
-                    </div>
-
-
-                    <div className="worker-field-block">
-
-                        <label className="worker-field-label">
-
-                            Thực tích sản xuất
-
-                            <em>*</em>
-
-                        </label>
-
-
-                        <input
-                            className="worker-text-input"
-                            name="actualOutput"
-                            value={
-                                form.actualOutput
-                            }
-                            onChange={
-                                handleFieldChange
-                            }
-                            inputMode="numeric"
-                        />
-
-                    </div>
-
-                </section>
-
-
-                <section className="worker-form-card">
-
-                    <h2 className="worker-card-title">
-
-                        <span>▣</span>
-
-                        Báo cáo Chất lượng
-
-                    </h2>
-
-
-                    <div className="worker-quality-summary">
-
-                        <div className="worker-quality-card ok">
-
-                            <label>
-                                TT OK
-                            </label>
-
-                            <input
-                                value={
-                                    form.ttOk
+                                        : "▼"
                                 }
-                                onChange={
-                                    (event) =>
-                                        handleOkChange(
-                                            event.target.value
-                                        )
-                                }
-                                inputMode="numeric"
-                            />
 
-                        </div>
+                            </span>
 
+                        </button>
 
-                        <div className="worker-quality-card ng">
-
-                            <label>
-                                TT NG
-                            </label>
-
-                            <input
-                                value={
-                                    form.ttNg
-                                }
-                                readOnly
-                            />
-
-                        </div>
-
-                    </div>
-
-
-                    <div className="worker-defect-grid">
 
                         {
-                            ngOptions.map(
-                                (item) => (
+                            showDeduction
+                            && (
 
-                                    <div
-                                        key={item.key}
-                                        className={
-                                            item.key
-                                            ===
-                                            "catPham"
+                                <div className="worker-dropdown-options">
 
-                                                ? "worker-defect-field full"
+                                    {
+                                        deductionOptions
+                                            .map(
+                                                (
+                                                    item
+                                                ) => {
 
-                                                : "worker-defect-field"
-                                        }
-                                    >
+                                                    const checked =
+                                                        selectedDeduction
+                                                            .includes(
+                                                                item.key
+                                                            );
 
-                                        <label>
-                                            {item.label}
-                                        </label>
 
-                                        <input
-                                            value={
-                                                form[item.key]
-                                            }
-                                            onChange={
-                                                (event) =>
-                                                    handleNgChange(
-                                                        item.key,
-                                                        event.target.value
-                                                    )
-                                            }
-                                            inputMode="numeric"
-                                        />
+                                                    return (
 
-                                    </div>
+                                                        <label
 
-                                )
+                                                            key={
+                                                                item.key
+                                                            }
+
+                                                            className="worker-dropdown-option"
+
+                                                        >
+
+                                                            <input
+
+                                                                type="checkbox"
+
+                                                                checked={
+                                                                    checked
+                                                                }
+
+                                                                onChange={
+                                                                    (
+                                                                        event
+                                                                    ) =>
+
+                                                                        handleToggleDeduction(
+
+                                                                            item.key,
+
+                                                                            event.target.checked
+
+                                                                        )
+                                                                }
+
+                                                            />
+
+
+                                                            <span>
+
+                                                                {
+                                                                    item.label
+                                                                }
+
+                                                            </span>
+
+                                                        </label>
+
+                                                    );
+
+                                                }
+                                            )
+                                    }
+
+                                </div>
+
                             )
                         }
 
                     </div>
 
 
+                    {/* =================================================
+                        CÁC Ô TRỪ GIỜ ĐÃ CHỌN
+                    ================================================= */}
+
+                    {
+                        selectedDeduction.length
+                        >
+                        0
+                        && (
+
+                            <div className="worker-dynamic-grid">
+
+                                {
+                                    deductionOptions
+
+                                        .filter(
+                                            (
+                                                item
+                                            ) =>
+
+                                                selectedDeduction
+                                                    .includes(
+                                                        item.key
+                                                    )
+                                        )
+
+                                        .map(
+                                            (
+                                                item
+                                            ) => (
+
+                                                <div
+
+                                                    key={
+                                                        item.key
+                                                    }
+
+                                                    className="worker-field-block"
+
+                                                >
+
+                                                    <label
+
+                                                        className="worker-field-label"
+
+                                                        htmlFor={
+                                                            item.key
+                                                        }
+
+                                                    >
+
+                                                        {
+                                                            item.label
+                                                        }
+
+                                                    </label>
+
+
+                                                    <input
+
+                                                        id={
+                                                            item.key
+                                                        }
+
+                                                        className="worker-text-input"
+
+                                                        name={
+                                                            item.key
+                                                        }
+
+                                                        value={
+                                                            deductions[
+                                                                item.key
+                                                            ]
+                                                        }
+
+                                                        onChange={
+                                                            (
+                                                                event
+                                                            ) =>
+
+                                                                updateDeductionValue(
+
+                                                                    item.key,
+
+                                                                    event.target.value
+
+                                                                )
+                                                        }
+
+                                                        onBlur={() =>
+                                                            removeDeductionIfZero(
+                                                                item.key
+                                                            )
+                                                        }
+
+                                                        onKeyDown={
+                                                            (
+                                                                event
+                                                            ) =>
+
+                                                                handleDeductionKeyDown(
+
+                                                                    event,
+
+                                                                    item.key
+
+                                                                )
+                                                        }
+
+                                                        inputMode="decimal"
+
+                                                        placeholder="0"
+
+                                                        autoComplete="off"
+
+                                                    />
+
+                                                </div>
+
+                                            )
+                                        )
+                                }
+
+                            </div>
+
+                        )
+                    }
+
+
+                    {/* =================================================
+                        LÝ DO DỪNG MÁY
+                    ================================================= */}
+
+                    {
+                        selectedDeduction
+                            .includes(
+                                "dungMay"
+                            )
+                        && (
+
+                            <div className="worker-field-block worker-stop-reason">
+
+                                <label
+
+                                    className="worker-field-label"
+
+                                    htmlFor="stopReason"
+
+                                >
+
+                                    Lý do dừng máy
+
+                                    <em>
+
+                                        *
+
+                                    </em>
+
+                                </label>
+
+
+                                <select
+
+                                    id="stopReason"
+
+                                    className="worker-select-input"
+
+                                    value={
+                                        stopReason
+                                    }
+
+                                    onChange={
+                                        (
+                                            event
+                                        ) =>
+
+                                            setStopReason(
+                                                event.target.value
+                                            )
+                                    }
+
+                                >
+
+                                    <option value="">
+
+                                        Chọn lý do...
+
+                                    </option>
+
+
+                                    <option value="Hỏng máy">
+
+                                        Hỏng máy
+
+                                    </option>
+
+
+                                    <option value="Thiếu nguyên liệu">
+
+                                        Thiếu nguyên liệu
+
+                                    </option>
+
+
+                                    <option value="Chờ kỹ thuật">
+
+                                        Chờ kỹ thuật
+
+                                    </option>
+
+
+                                    <option value="Thay khuôn">
+
+                                        Thay khuôn
+
+                                    </option>
+
+
+                                    <option value="Khác">
+
+                                        Khác
+
+                                    </option>
+
+                                </select>
+
+                            </div>
+
+                        )
+                    }
+
+                </section>
+                                {/* =================================================
+                    SẢN XUẤT
+                ================================================= */}
+
+                <section className="worker-form-card">
+
+    <h2 className="worker-card-title">
+
+        <span>
+            ⬡
+        </span>
+
+        Sản xuất
+
+    </h2>
+
+
+    <div className="worker-production-grid">
+
+        <div className="worker-field-block worker-field-full">
+
+            <label
+                className="worker-field-label"
+                htmlFor="productName"
+            >
+
+                Sản phẩm
+
+                <em>*</em>
+
+            </label>
+
+
+            <input
+                id="productName"
+                className="worker-text-input"
+                name="productName"
+                value={form.productName}
+                onChange={handleProductChange}
+                list="product-options"
+                placeholder="Nhập để tìm và chọn sản phẩm"
+                autoComplete="off"
+                disabled={loadingMasterData}
+            />
+
+
+            <datalist id="product-options">
+
+                {
+                    productOptions.map(
+                        (product) => (
+
+                            <option
+                                key={product.id}
+                                value={product.product_code}
+                            >
+
+                                {
+                                    product.work_type
+                                    ===
+                                    "cat"
+
+                                        ? "Cắt"
+
+                                        : "Lồng"
+                                }
+
+                            </option>
+
+                        )
+                    )
+                }
+
+            </datalist>
+
+        </div>
+
+    </div>
+
+</section>
+
+
+                {/* =================================================
+                    BÁO CÁO CHẤT LƯỢNG
+                ================================================= */}
+
+                <section className="worker-form-card worker-quality-section">
+
+                    <h2 className="worker-card-title">
+
+                        <span>
+
+                            ▣
+
+                        </span>
+
+                        Báo cáo Chất lượng
+
+                    </h2>
+
+
+                    {/* =================================================
+                        TT OK / TT NG
+                    ================================================= */}
+
+                    <div className="worker-quality-summary">
+
+
+                        {/* TT OK */}
+
+                        <div className="worker-quality-card ok">
+
+                            <label
+
+                                htmlFor="ttOk"
+
+                            >
+
+                                TT OK
+
+                            </label>
+
+
+                            <input
+
+                                id="ttOk"
+
+                                name="ttOk"
+
+                                value={
+                                    form.ttOk
+                                }
+
+                                onChange={
+                                    handleTtOkChange
+                                }
+
+                                onBlur={
+                                    handleNumberBlur
+                                }
+
+                                inputMode="numeric"
+
+                                placeholder="0"
+
+                                autoComplete="off"
+
+                            />
+
+                        </div>
+
+
+                        {/* TT NG */}
+
+                        <div className="worker-quality-card ng">
+
+                            <label
+
+                                htmlFor="ttNg"
+
+                            >
+
+                                TT NG
+
+                            </label>
+
+
+                            <input
+
+                                id="ttNg"
+
+                                name="ttNg"
+
+                                value={
+                                    form.ttNg
+                                }
+
+                                readOnly
+
+                                placeholder="0"
+
+                            />
+
+                        </div>
+
+                    </div>
+
+
+                    {/* =================================================
+                        CHỌN LỖI NG
+                    ================================================= */}
+
+                    <div className="worker-dropdown-box">
+
+                        <button
+
+                            type="button"
+
+                            className="worker-dropdown-title"
+
+                            onClick={() =>
+                                setShowNg(
+                                    (
+                                        prev
+                                    ) => !prev
+                                )
+                            }
+
+                        >
+
+                            <span>
+
+                                ⚠️ Chọn lỗi NG
+
+                            </span>
+
+
+                            <span>
+
+                                {
+                                    showNg
+
+                                        ? "▲"
+
+                                        : "▼"
+                                }
+
+                            </span>
+
+                        </button>
+
+
+                        {
+                            showNg
+                            && (
+
+                                <div className="worker-dropdown-options">
+
+                                    {
+                                        ngOptions
+                                            .map(
+                                                (
+                                                    item
+                                                ) => {
+
+                                                    const checked =
+                                                        selectedNg
+                                                            .includes(
+                                                                item.key
+                                                            );
+
+
+                                                    return (
+
+                                                        <label
+
+                                                            key={
+                                                                item.key
+                                                            }
+
+                                                            className="worker-dropdown-option"
+
+                                                        >
+
+                                                            <input
+
+                                                                type="checkbox"
+
+                                                                checked={
+                                                                    checked
+                                                                }
+
+                                                                onChange={
+                                                                    (
+                                                                        event
+                                                                    ) =>
+
+                                                                        handleToggleNg(
+
+                                                                            item.key,
+
+                                                                            event.target.checked
+
+                                                                        )
+                                                                }
+
+                                                            />
+
+
+                                                            <span>
+
+                                                                {
+                                                                    item.label
+                                                                }
+
+                                                            </span>
+
+                                                        </label>
+
+                                                    );
+
+                                                }
+                                            )
+                                    }
+
+                                </div>
+
+                            )
+                        }
+
+                    </div>
+
+
+                    {/* =================================================
+                        CÁC Ô LỖI NG ĐÃ CHỌN
+                    ================================================= */}
+
+                    {
+                        selectedNg.length
+                        >
+                        0
+                        && (
+
+                            <div className="worker-dynamic-grid worker-ng-grid">
+
+                                {
+                                    ngOptions
+
+                                        .filter(
+                                            (
+                                                item
+                                            ) =>
+
+                                                selectedNg
+                                                    .includes(
+                                                        item.key
+                                                    )
+                                        )
+
+                                        .map(
+                                            (
+                                                item
+                                            ) => (
+
+                                                <div
+
+                                                    key={
+                                                        item.key
+                                                    }
+
+                                                    className="worker-field-block"
+
+                                                >
+
+                                                    <label
+
+                                                        className="worker-field-label"
+
+                                                        htmlFor={
+                                                            item.key
+                                                        }
+
+                                                    >
+
+                                                        {
+                                                            item.label
+                                                        }
+
+                                                    </label>
+
+
+                                                    <input
+
+                                                        id={
+                                                            item.key
+                                                        }
+
+                                                        className="worker-text-input"
+
+                                                        name={
+                                                            item.key
+                                                        }
+
+                                                        value={
+                                                            form[
+                                                                item.key
+                                                            ]
+                                                        }
+
+                                                        onChange={
+                                                            (
+                                                                event
+                                                            ) =>
+
+                                                                handleNgValue(
+
+                                                                    item.key,
+
+                                                                    event.target.value
+
+                                                                )
+                                                        }
+
+                                                        onBlur={() =>
+                                                            removeNgIfZero(
+                                                                item.key
+                                                            )
+                                                        }
+
+                                                        onKeyDown={
+                                                            (
+                                                                event
+                                                            ) =>
+
+                                                                handleNgKeyDown(
+
+                                                                    event,
+
+                                                                    item.key
+
+                                                                )
+                                                        }
+
+                                                        inputMode="numeric"
+
+                                                        placeholder="0"
+
+                                                        autoComplete="off"
+
+                                                    />
+
+                                                </div>
+
+                                            )
+                                        )
+                                }
+
+                            </div>
+
+                        )
+                    }
+
+
+                    {/* =================================================
+                        GHI CHÚ
+                    ================================================= */}
+
                     <div className="worker-field-block worker-note-block">
 
-                        <label className="worker-field-label">
+                        <label
+
+                            className="worker-field-label"
+
+                            htmlFor="note"
+
+                        >
 
                             Ghi chú
 
@@ -1943,13 +3978,23 @@ function ProcessPage() {
 
 
                         <textarea
+
+                            id="note"
+
+                            className="worker-note-input"
+
                             name="note"
+
                             value={
                                 form.note
                             }
+
                             onChange={
-                                handleFieldChange
+                                handleChange
                             }
+
+                            placeholder="Nhập ghi chú nếu có"
+
                         />
 
                     </div>
@@ -1959,26 +4004,62 @@ function ProcessPage() {
             </div>
 
 
-            <button
-                type="button"
-                className="worker-floating-save"
-                disabled={
-                    submitting
-                    ||
-                    loadingWorker
-                }
-                onClick={
-                    handleSubmit
-                }
-            >
+            {/* =================================================
+                NÚT THAO TÁC
+            ================================================= */}
 
-                {
-                    submitting
-                        ? "Đang lưu..."
-                        : "Lưu"
-                }
+            <div className="worker-action-group">
 
-            </button>
+                <button
+
+                    type="button"
+
+                    className="worker-reset-button"
+
+                    onClick={
+                        handleReset
+                    }
+
+                    disabled={
+                        submitting
+                    }
+
+                >
+
+                    Làm mới
+
+                </button>
+
+
+                <button
+
+                    type="button"
+
+                    className="worker-floating-save"
+
+                    onClick={
+                        handleSubmit
+                    }
+
+                    disabled={
+                        loadingWorker
+                        ||
+                        submitting
+                    }
+
+                >
+
+                    {
+                        submitting
+
+                            ? "Đang lưu..."
+
+                            : "Lưu"
+                    }
+
+                </button>
+
+            </div>
 
         </main>
 

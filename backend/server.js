@@ -33,8 +33,10 @@ const defectRoutes = require("./routes/defectRoutes");
 
 const deductionRoutes = require("./routes/deductionRoutes");
 
-
-
+const machineRoutes =
+    require("./routes/machineRoutes");
+const productStandardRoutes =
+    require("./routes/productStandardRoutes");
 
 // ======================
 // APP
@@ -294,3 +296,11 @@ app.listen(PORT,()=>{
 
 
 });
+app.use(
+    "/api/machines",
+    machineRoutes
+);
+app.use(
+    "/api/product-standards",
+    productStandardRoutes
+);
