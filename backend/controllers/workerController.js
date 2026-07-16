@@ -354,6 +354,7 @@ exports.getWorkerById = (
             w.id AS worker_id,
             w.user_id,
             w.worker_code,
+                w.training_percent,
             w.phone,
             w.department,
             w.position,

@@ -325,23 +325,49 @@ function SelectProcess() {
                     </div>
 
 
-                    <p className="select-process-worker">
+                    <div className="select-process-worker">
 
-                        {
-                            worker?.full_name
-                            ||
-                            "Công nhân"
-                        }
+    <strong>
 
-                        {" - "}
+        {
+            worker?.full_name
+            ||
+            "Công nhân"
+        }
 
-                        {
-                            worker?.worker_code
-                            ||
-                            ""
-                        }
+    </strong>
 
-                    </p>
+
+    <span>
+
+        MNV:
+        {" "}
+
+        {
+            worker?.worker_code
+            ||
+            "---"
+        }
+
+    </span>
+
+
+    <span className="select-process-training">
+
+        Học việc:
+        {" "}
+
+        {
+            worker?.training_percent
+            ??
+            100
+        }
+
+        %
+
+    </span>
+
+</div>
 
                 </header>
 
