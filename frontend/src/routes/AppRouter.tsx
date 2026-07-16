@@ -15,11 +15,9 @@ import PrivateRoute from "./PrivateRoute";
 import MainLayout from "../layouts/MainLayout";
 
 
-
 // Admin
 
 import AdminDashboard from "../pages/admin/Dashboard";
-
 
 
 // Manager
@@ -35,7 +33,6 @@ import ReportDetail from "../pages/manager/ReportDetail";
 import ReportDownload from "../pages/manager/ReportDownload";
 
 
-
 // Worker
 
 import SelectProcess from "../pages/worker/SelectProcess";
@@ -47,14 +44,11 @@ import ProductionHistory from "../pages/worker/ProductionHistory";
 import ProductionDetail from "../pages/worker/ProductionDetail";
 
 
-
-function AppRouter(){
-
+function AppRouter() {
 
     return (
 
         <Routes>
-
 
 
             {/* DEFAULT */}
@@ -78,9 +72,6 @@ function AppRouter(){
             />
 
 
-
-
-
             {/* LOGIN */}
 
             <Route
@@ -96,13 +87,7 @@ function AppRouter(){
             />
 
 
-
-
-
-
-
             {/* ================= ADMIN ================= */}
-
 
             <Route
 
@@ -110,7 +95,11 @@ function AppRouter(){
 
                 element={
 
-                    <PrivateRoute allowedRoles={["admin"]}>
+                    <PrivateRoute
+                        allowedRoles={[
+                            "admin"
+                        ]}
+                    >
 
                         <AdminDashboard />
 
@@ -121,135 +110,23 @@ function AppRouter(){
             />
 
 
-
-
-
-
-
-
-{/* ================= MANAGER ================= */}
-
-
-<Route
-
-    path="/manager"
-
-    element={
-
-        <PrivateRoute allowedRoles={["admin", "manager", "lead"]}>
-
-            <MainLayout role={JSON.parse(localStorage.getItem("user") || "{}").role || "manager"}/>
-
-        </PrivateRoute>
-
-    }
-
->
-
-
-    {/* Dashboard */}
-
-    <Route
-
-        index
-
-        element={
-
-            <ManagerDashboard />
-
-        }
-
-    />
-
-
-
-
-
-    {/* Báo cáo chưa duyệt */}
-
-    <Route
-
-        path="reports"
-
-        element={
-
-            <Reports />
-
-        }
-
-    />
-
-
-
-
-
-    {/* Báo cáo đã duyệt */}
-
-    <Route
-
-        path="approved"
-
-        element={
-
-            <ApprovedReports />
-
-        }
-
-    />
-
-
-
-
-
-    {/* Chi tiết báo cáo */}
-
-    <Route
-
-        path="report/:id"
-
-        element={
-
-            <ReportDetail />
-
-        }
-
-    />
-
-
-
-
-
-    {/* Export Excel */}
-
-    <Route
-
-        path="export"
-
-        element={
-
-            <ReportDownload />
-
-        }
-
-    />
-
-
-</Route>
-
-
-            {/* ================= WORKER ================= */}
-
-
+            {/* ================= MANAGER ================= */}
 
             <Route
 
-                path="/worker"
+                path="/manager"
 
                 element={
 
-                    <PrivateRoute allowedRoles={["worker"]}>
+                    <PrivateRoute
+                        allowedRoles={[
+                            "admin",
+                            "manager",
+                            "lead"
+                        ]}
+                    >
 
-                        <MainLayout role="worker"/>
+                        <MainLayout />
 
                     </PrivateRoute>
 
@@ -258,6 +135,105 @@ function AppRouter(){
             >
 
 
+                {/* Dashboard */}
+
+                <Route
+
+                    index
+
+                    element={
+
+                        <ManagerDashboard />
+
+                    }
+
+                />
+
+
+                {/* Báo cáo chưa duyệt */}
+
+                <Route
+
+                    path="reports"
+
+                    element={
+
+                        <Reports />
+
+                    }
+
+                />
+
+
+                {/* Báo cáo đã duyệt */}
+
+                <Route
+
+                    path="approved"
+
+                    element={
+
+                        <ApprovedReports />
+
+                    }
+
+                />
+
+
+                {/* Chi tiết báo cáo */}
+
+                <Route
+
+                    path="report/:id"
+
+                    element={
+
+                        <ReportDetail />
+
+                    }
+
+                />
+
+
+                {/* Export Excel */}
+
+                <Route
+
+                    path="export"
+
+                    element={
+
+                        <ReportDownload />
+
+                    }
+
+                />
+
+
+            </Route>
+
+
+            {/* ================= WORKER ================= */}
+
+            <Route
+
+                path="/worker"
+
+                element={
+
+                    <PrivateRoute
+                        allowedRoles={[
+                            "worker"
+                        ]}
+                    >
+
+                        <MainLayout />
+
+                    </PrivateRoute>
+
+                }
+
+            >
 
 
                 {/* Dashboard worker */}
@@ -275,10 +251,6 @@ function AppRouter(){
                 />
 
 
-
-
-
-
                 {/* Chọn công đoạn */}
 
                 <Route
@@ -292,12 +264,6 @@ function AppRouter(){
                     }
 
                 />
-
-
-
-
-
-
 
 
                 {/* Lịch sử */}
@@ -315,11 +281,6 @@ function AppRouter(){
                 />
 
 
-
-
-
-
-
                 {/* Chi tiết lịch sử */}
 
                 <Route
@@ -335,14 +296,7 @@ function AppRouter(){
                 />
 
 
-
             </Route>
-
-
-
-
-
-
 
 
             {/* NOT FOUND */}
@@ -366,14 +320,11 @@ function AppRouter(){
             />
 
 
-
-
         </Routes>
 
     );
 
 }
-
 
 
 export default AppRouter;
