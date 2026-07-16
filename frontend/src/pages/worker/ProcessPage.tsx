@@ -609,7 +609,7 @@ const initialForm: FormState = {
         "",
 
     trainingPercent:
-        "100",
+        "",
 
     machineNo:
         "",
@@ -1011,11 +1011,15 @@ const productAutocompleteOptions =
                                 "",
 
                             trainingPercent:
-                                String(
-                                    workerData.training_percent
-                                    ??
-                                    100
-                                )
+    workerData.training_percent !== null
+    &&
+    workerData.training_percent !== undefined
+
+        ? String(
+            workerData.training_percent
+        )
+
+        : ""
 
                         })
                     );
@@ -2819,23 +2823,47 @@ const updateDeductionValue = (
                     </div>
 
 
-                    <p className="worker-form-identity">
+                    <div className="worker-form-identity">
 
-                        {
-                            form.workerName
-                            ||
-                            "Đang tải..."
-                        }
+    <strong>
 
-                        {" - "}
+        {
+            form.workerName
+            ||
+            "Đang tải..."
+        }
 
-                        {
-                            form.workerCode
-                            ||
-                            ""
-                        }
+    </strong>
 
-                    </p>
+
+    <span>
+
+        MNV:
+        {" "}
+
+        {
+            form.workerCode
+            ||
+            "---"
+        }
+
+    </span>
+
+
+    <span className="worker-training-percent">
+
+        Học việc:
+        {" "}
+
+        {
+            form.trainingPercent
+                ? `${form.trainingPercent}%`
+                : "Chưa cập nhật"
+        }
+
+    </span>
+
+</div>
 
 
                     <label className="worker-date-picker">
