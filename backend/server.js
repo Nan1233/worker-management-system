@@ -108,7 +108,14 @@ app.use(express.json());
 // ======================
 
 
-
+app.use(
+    "/api/machines",
+    machineRoutes
+);
+app.use(
+    "/api/product-standards",
+    productStandardRoutes
+);
 // AUTH
 
 app.use(
@@ -296,11 +303,3 @@ app.listen(PORT,()=>{
 
 
 });
-app.use(
-    "/api/machines",
-    machineRoutes
-);
-app.use(
-    "/api/product-standards",
-    productStandardRoutes
-);
