@@ -39,6 +39,12 @@ import type {
     MachineOption,
     ProductStandardOption
 } from "../../services/masterDataService";
+
+import AutocompleteInput from "../../components/common/AutocompleteInput";
+
+import type {
+    AutocompleteOption
+} from "../../components/common/AutocompleteInput";
 // =====================================================
 // KIỂU DỮ LIỆU FORM
 // =====================================================
@@ -760,6 +766,61 @@ const [
     loadingMasterData,
     setLoadingMasterData
 ] = useState(true);
+const machineAutocompleteOptions =
+    useMemo<AutocompleteOption[]>(
+        () =>
+
+            machineOptions.map(
+                (
+                    machine: MachineOption
+                ) => ({
+
+                    value:
+                        machine.machine_code,
+
+                    label:
+                        machine.machine_name,
+
+                    description:
+                        `Mã máy: ${machine.machine_code}`
+
+                })
+            ),
+
+        [machineOptions]
+    );
+
+
+const productAutocompleteOptions =
+    useMemo<AutocompleteOption[]>(
+        () =>
+
+            productOptions.map(
+                (
+                    product:
+                        ProductStandardOption
+                ) => ({
+
+                    value:
+                        product.product_code,
+
+                    label:
+                        product.work_type
+                        ===
+                        "cat"
+
+                            ? "Cắt"
+
+                            : "Lồng",
+
+                    description:
+                        `Định mức: ${product.standard_output}`
+
+                })
+            ),
+
+        [productOptions]
+    );
     // =================================================
     // DỮ LIỆU FORM
     // =================================================
@@ -2269,45 +2330,7 @@ const isValidDecimalInput = (
         return "";
 
     };
-const handleProductChange = (
-    event:
-        React.ChangeEvent<HTMLInputElement>
-) => {
 
-    const value =
-        event.target.value;
-
-
-    const selectedProduct =
-        productOptions.find(
-            (item) =>
-                item.product_code
-                    .trim()
-                    .toLowerCase()
-                ===
-                value
-                    .trim()
-                    .toLowerCase()
-        );
-
-
-    setForm((prev) => ({
-
-        ...prev,
-
-        productName:
-            value,
-
-        standardOutput:
-            selectedProduct
-                ? String(
-                    selectedProduct.standard_output
-                )
-                : ""
-
-    }));
-
-};
 
     // =====================================================
     // GỬI BÁO CÁO
@@ -2900,45 +2923,42 @@ const handleProductChange = (
                     
                         {/* SỐ MÁY */}
 
-                        <div className="worker-field-block worker-field-full">
+<div className="worker-field-block worker-field-full">
 
-    <label
-        className="worker-field-label"
-        htmlFor="machineNo"
-    >
-        Số máy (Tên máy)
-
-        <em>*</em>
-    </label>
-
-
-    <input
+    <AutocompleteInput
         id="machineNo"
-        className="worker-text-input"
-        name="machineNo"
+        label="Số máy (Tên máy)"
         value={form.machineNo}
-        onChange={handleChange}
-        list="machine-options"
-        placeholder="Nhập để tìm và chọn máy"
-        autoComplete="off"
+        options={machineAutocompleteOptions}
+        placeholder="Nhập mã hoặc tên máy"
+        required
         disabled={loadingMasterData}
+        emptyMessage="Không tìm thấy máy"
+onChange={(value: string) => {
+            setForm((prev) => ({
+
+                ...prev,
+
+                machineNo:
+                    value
+
+            }));
+
+        }}
+onSelect={(
+    option: AutocompleteOption
+) => {
+            setForm((prev) => ({
+
+                ...prev,
+
+                machineNo:
+                    option.value
+
+            }));
+
+        }}
     />
-
-
-    <datalist id="machine-options">
-
-        {machineOptions.map((machine) => (
-
-            <option
-                key={machine.id}
-                value={machine.machine_code}
-            >
-                {machine.machine_name}
-            </option>
-
-        ))}
-
-    </datalist>
 
 </div>
 
@@ -3449,67 +3469,84 @@ const handleProductChange = (
     </h2>
 
 
-    <div className="worker-production-grid">
+<div className="worker-field-block worker-field-full">
 
-        <div className="worker-field-block worker-field-full">
+    <AutocompleteInput
+        id="productName"
+        label="Sản phẩm"
+        value={form.productName}
+        options={productAutocompleteOptions}
+        placeholder="Nhập mã sản phẩm"
+        required
+        disabled={loadingMasterData}
+        emptyMessage="Không tìm thấy sản phẩm"
+        onChange={(value) => {
 
-            <label
-                className="worker-field-label"
-                htmlFor="productName"
-            >
-
-                Sản phẩm
-
-                <em>*</em>
-
-            </label>
-
-
-            <input
-                id="productName"
-                className="worker-text-input"
-                name="productName"
-                value={form.productName}
-                onChange={handleProductChange}
-                list="product-options"
-                placeholder="Nhập để tìm và chọn sản phẩm"
-                autoComplete="off"
-                disabled={loadingMasterData}
-            />
+            const selectedProduct =
+                productOptions.find(
+                    (item) =>
+                        item.product_code
+                            .trim()
+                            .toLowerCase()
+                        ===
+                        value
+                            .trim()
+                            .toLowerCase()
+                );
 
 
-            <datalist id="product-options">
+            setForm((prev) => ({
 
-                {
-                    productOptions.map(
-                        (product) => (
+                ...prev,
 
-                            <option
-                                key={product.id}
-                                value={product.product_code}
-                            >
+                productName:
+                    value,
 
-                                {
-                                    product.work_type
-                                    ===
-                                    "cat"
-
-                                        ? "Cắt"
-
-                                        : "Lồng"
-                                }
-
-                            </option>
-
+                standardOutput:
+                    selectedProduct
+                        ? String(
+                            selectedProduct.standard_output
                         )
-                    )
-                }
+                        : ""
 
-            </datalist>
+            }));
 
-        </div>
+        }}
+        onSelect={(option) => {
 
-    </div>
+            const selectedProduct =
+                productOptions.find(
+                    (item) =>
+                        item.product_code
+                        .trim()
+                        .toLowerCase()
+                    ===
+                    option.value
+                        .trim()
+                        .toLowerCase()
+                );
+
+
+            setForm((prev) => ({
+
+                ...prev,
+
+                productName:
+                    option.value,
+
+                standardOutput:
+                    selectedProduct
+                        ? String(
+                            selectedProduct.standard_output
+                        )
+                        : ""
+
+            }));
+
+        }}
+    />
+
+</div>
 
 </section>
 
