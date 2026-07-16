@@ -3522,7 +3522,7 @@ onSelect={(
                     SẢN XUẤT
                 ================================================= */}
 
-                <section className="worker-form-card">
+                {/* <section className="worker-form-card">
 
     <h2 className="worker-card-title">
 
@@ -3537,7 +3537,7 @@ onSelect={(
 
 
 
-</section>
+</section> */}
 
 
                 {/* =================================================
