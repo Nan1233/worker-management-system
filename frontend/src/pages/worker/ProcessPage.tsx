@@ -1334,38 +1334,7 @@ const isValidDecimalInput = (
     // INPUT SẢN LƯỢNG / ĐỊNH MỨC
     // =====================================================
 
-    const handleIntegerInputChange = (
-
-        event:
-            React.ChangeEvent<
-                HTMLInputElement
-            >
-
-    ) => {
-
-        const {
-            value
-        } = event.target;
-
-
-        if (
-            !isValidIntegerInput(
-                value
-            )
-        ) {
-
-            return;
-
-        }
-
-
-        handleChange(
-            event
-        );
-
-    };
-
-
+   
     // =====================================================
     // TÍNH TỔNG THỜI GIAN TRỪ
     // =====================================================
