@@ -1,5 +1,6 @@
 import {
     useEffect,
+    useMemo,
     useState
 } from "react";
 
@@ -64,44 +65,31 @@ const formatNumber = (
     value?: number | null
 ): string => {
 
-    const numberValue =
-        Number(value ?? 0);
-
-
     return new Intl.NumberFormat(
         "vi-VN"
     ).format(
-        numberValue
+        Number(value ?? 0)
     );
 
 };
 
 
-const formatHours = (
-    value?: number | null
+const normalizeText = (
+    value?: string
 ): string => {
 
-    const numberValue =
-        Number(value ?? 0);
-
-
-    if (
-        !Number.isFinite(
-            numberValue
+    return String(value ?? "")
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(
+            /[\u0300-\u036f]/g,
+            ""
         )
-    ) {
-
-        return "0";
-
-    }
-
-
-    return numberValue.toLocaleString(
-        "vi-VN",
-        {
-            maximumFractionDigits: 2
-        }
-    );
+        .replace(
+            /đ/g,
+            "d"
+        );
 
 };
 
@@ -115,33 +103,24 @@ const getStatusInfo = (
         case "approved":
 
             return {
-                label:
-                    "Đã duyệt",
-
-                className:
-                    "approved"
+                label: "Đã duyệt",
+                className: "approved"
             };
 
 
         case "need_fix":
 
             return {
-                label:
-                    "Cần sửa",
-
-                className:
-                    "need-fix"
+                label: "Cần sửa",
+                className: "need-fix"
             };
 
 
         case "rejected":
 
             return {
-                label:
-                    "Từ chối",
-
-                className:
-                    "rejected"
+                label: "Từ chối",
+                className: "rejected"
             };
 
 
@@ -150,11 +129,8 @@ const getStatusInfo = (
         default:
 
             return {
-                label:
-                    "Chờ duyệt",
-
-                className:
-                    "pending"
+                label: "Chờ duyệt",
+                className: "pending"
             };
 
     }
@@ -171,9 +147,7 @@ function ProductionHistory() {
     const [
         reports,
         setReports
-    ] = useState<ProductionReport[]>(
-        []
-    );
+    ] = useState<ProductionReport[]>([]);
 
 
     const [
@@ -188,6 +162,30 @@ function ProductionHistory() {
     ] = useState("");
 
 
+    const [
+        searchKeyword,
+        setSearchKeyword
+    ] = useState("");
+
+
+    const [
+        selectedDate,
+        setSelectedDate
+    ] = useState("");
+
+
+    const [
+        selectedShift,
+        setSelectedShift
+    ] = useState("");
+
+
+    const [
+        selectedStatus,
+        setSelectedStatus
+    ] = useState("");
+
+
     useEffect(() => {
 
         const loadReports =
@@ -195,13 +193,9 @@ function ProductionHistory() {
 
                 try {
 
-                    setLoading(
-                        true
-                    );
+                    setLoading(true);
 
-                    setError(
-                        ""
-                    );
+                    setError("");
 
 
                     const data =
@@ -225,9 +219,7 @@ function ProductionHistory() {
 
                     const message =
 
-                        axios.isAxiosError(
-                            err
-                        )
+                        axios.isAxiosError(err)
 
                             ? err.response
                                 ?.data
@@ -247,9 +239,7 @@ function ProductionHistory() {
                 }
                 finally {
 
-                    setLoading(
-                        false
-                    );
+                    setLoading(false);
 
                 }
 
@@ -259,6 +249,109 @@ function ProductionHistory() {
         void loadReports();
 
     }, []);
+
+
+    const filteredReports =
+        useMemo(() => {
+
+            const keyword =
+                normalizeText(
+                    searchKeyword
+                );
+
+
+            return reports.filter(
+                (item) => {
+
+                    const itemDate =
+                        item.work_date
+                            ?.split("T")[0]
+                        ||
+                        "";
+
+
+                    const searchableText =
+                        normalizeText(
+                            [
+                                item.machine_no,
+                                item.product_name,
+                                item.process_name,
+                                item.shift
+                            ].join(" ")
+                        );
+
+
+                    const matchesSearch =
+                        !keyword
+                        ||
+                        searchableText.includes(
+                            keyword
+                        );
+
+
+                    const matchesDate =
+                        !selectedDate
+                        ||
+                        itemDate === selectedDate;
+
+
+                    const matchesShift =
+                        !selectedShift
+                        ||
+                        item.shift === selectedShift;
+
+
+                    const matchesStatus =
+                        !selectedStatus
+                        ||
+                        item.status === selectedStatus;
+
+
+                    return (
+                        matchesSearch
+                        &&
+                        matchesDate
+                        &&
+                        matchesShift
+                        &&
+                        matchesStatus
+                    );
+
+                }
+            );
+
+        }, [
+            reports,
+            searchKeyword,
+            selectedDate,
+            selectedShift,
+            selectedStatus
+        ]);
+
+
+    const hasActiveFilter =
+        Boolean(
+            searchKeyword
+            ||
+            selectedDate
+            ||
+            selectedShift
+            ||
+            selectedStatus
+        );
+
+
+    const clearFilters = () => {
+
+        setSearchKeyword("");
+
+        setSelectedDate("");
+
+        setSelectedShift("");
+
+        setSelectedStatus("");
+
+    };
 
 
     const openDetail = (
@@ -276,11 +369,8 @@ function ProductionHistory() {
             item.source
             ||
             (
-                item.status ===
-                "approved"
-
+                item.status === "approved"
                     ? "approved"
-
                     : "pending"
             );
 
@@ -331,9 +421,7 @@ function ProductionHistory() {
                             type="button"
                             className="history-back-button"
                             onClick={() =>
-                                navigate(
-                                    "/worker"
-                                )
+                                navigate("/worker")
                             }
                             aria-label="Quay lại"
                         >
@@ -348,7 +436,7 @@ function ProductionHistory() {
                             </h1>
 
                             <p>
-                                Theo dõi toàn bộ báo cáo sản xuất đã gửi
+                                Theo dõi các báo cáo sản xuất đã gửi
                             </p>
 
                         </div>
@@ -359,16 +447,154 @@ function ProductionHistory() {
                     <div className="history-count">
 
                         <strong>
-                            {reports.length}
+                            {filteredReports.length}
                         </strong>
 
                         <span>
-                            báo cáo
+                            / {reports.length} báo cáo
                         </span>
 
                     </div>
 
                 </header>
+
+
+                <section className="history-filter-card">
+
+                    <div className="history-search-box">
+
+                        <span>
+                            ⌕
+                        </span>
+
+                        <input
+                            type="search"
+                            value={searchKeyword}
+                            onChange={(event) =>
+                                setSearchKeyword(
+                                    event.target.value
+                                )
+                            }
+                            placeholder="Tìm máy, sản phẩm, công đoạn..."
+                            autoComplete="off"
+                        />
+
+                    </div>
+
+
+                    <div className="history-filter-grid">
+
+                        <label className="history-filter-field">
+
+                            <span>
+                                Ngày
+                            </span>
+
+                            <input
+                                type="date"
+                                value={selectedDate}
+                                onChange={(event) =>
+                                    setSelectedDate(
+                                        event.target.value
+                                    )
+                                }
+                            />
+
+                        </label>
+
+
+                        <label className="history-filter-field">
+
+                            <span>
+                                Ca
+                            </span>
+
+                            <select
+                                value={selectedShift}
+                                onChange={(event) =>
+                                    setSelectedShift(
+                                        event.target.value
+                                    )
+                                }
+                            >
+
+                                <option value="">
+                                    Tất cả
+                                </option>
+
+                                <option value="A">
+                                    A
+                                </option>
+
+                                <option value="B">
+                                    B
+                                </option>
+
+                                <option value="C">
+                                    C
+                                </option>
+
+                                <option value="D">
+                                    D
+                                </option>
+
+                            </select>
+
+                        </label>
+
+
+                        <label className="history-filter-field">
+
+                            <span>
+                                Trạng thái
+                            </span>
+
+                            <select
+                                value={selectedStatus}
+                                onChange={(event) =>
+                                    setSelectedStatus(
+                                        event.target.value
+                                    )
+                                }
+                            >
+
+                                <option value="">
+                                    Tất cả
+                                </option>
+
+                                <option value="pending">
+                                    Chờ duyệt
+                                </option>
+
+                                <option value="approved">
+                                    Đã duyệt
+                                </option>
+
+                                <option value="need_fix">
+                                    Cần sửa
+                                </option>
+
+                                <option value="rejected">
+                                    Từ chối
+                                </option>
+
+                            </select>
+
+                        </label>
+
+
+                        <button
+                            type="button"
+                            className="history-clear-button"
+                            onClick={clearFilters}
+                            disabled={!hasActiveFilter}
+                        >
+                            Xóa lọc
+                        </button>
+
+                    </div>
+
+                </section>
 
 
                 {error && (
@@ -382,7 +608,7 @@ function ProductionHistory() {
                 )}
 
 
-                {reports.length === 0 ? (
+                {filteredReports.length === 0 ? (
 
                     <div className="history-empty">
 
@@ -391,11 +617,11 @@ function ProductionHistory() {
                         </div>
 
                         <strong>
-                            Chưa có báo cáo
+                            Không tìm thấy báo cáo
                         </strong>
 
                         <p>
-                            Báo cáo sau khi gửi sẽ xuất hiện tại đây.
+                            Thử thay đổi từ khóa hoặc bộ lọc.
                         </p>
 
                     </div>
@@ -425,10 +651,6 @@ function ProductionHistory() {
                                         </th>
 
                                         <th>
-                                            Công đoạn
-                                        </th>
-
-                                        <th>
                                             Máy
                                         </th>
 
@@ -437,23 +659,7 @@ function ProductionHistory() {
                                         </th>
 
                                         <th className="numeric-column">
-                                            Tổng giờ
-                                        </th>
-
-                                        <th className="numeric-column">
-                                            Giờ trừ
-                                        </th>
-
-                                        <th className="numeric-column">
-                                            Giờ thực tế
-                                        </th>
-
-                                        <th className="numeric-column">
-                                            Định mức
-                                        </th>
-
-                                        <th className="numeric-column">
-                                            Thực tế
+                                            Sản lượng
                                         </th>
 
                                         <th className="numeric-column ok-column">
@@ -479,7 +685,7 @@ function ProductionHistory() {
 
                                 <tbody>
 
-                                    {reports.map(
+                                    {filteredReports.map(
                                         (
                                             item,
                                             index
@@ -521,9 +727,8 @@ function ProductionHistory() {
                                                     </td>
 
 
-                                                    <td
-                                                        data-label="Ca"
-                                                    >
+                                                    <td data-label="Ca">
+
                                                         <span className="shift-badge">
 
                                                             {
@@ -533,17 +738,7 @@ function ProductionHistory() {
                                                             }
 
                                                         </span>
-                                                    </td>
 
-
-                                                    <td
-                                                        data-label="Công đoạn"
-                                                    >
-                                                        {
-                                                            item.process_name
-                                                            ||
-                                                            "---"
-                                                        }
                                                     </td>
 
 
@@ -572,55 +767,7 @@ function ProductionHistory() {
 
 
                                                     <td
-                                                        data-label="Tổng giờ"
-                                                        className="numeric-column"
-                                                    >
-                                                        {
-                                                            formatHours(
-                                                                item.total_time
-                                                            )
-                                                        }
-                                                    </td>
-
-
-                                                    <td
-                                                        data-label="Giờ trừ"
-                                                        className="numeric-column"
-                                                    >
-                                                        {
-                                                            formatHours(
-                                                                item.deduction_time
-                                                            )
-                                                        }
-                                                    </td>
-
-
-                                                    <td
-                                                        data-label="Giờ thực tế"
-                                                        className="numeric-column"
-                                                    >
-                                                        {
-                                                            formatHours(
-                                                                item.actual_time
-                                                            )
-                                                        }
-                                                    </td>
-
-
-                                                    <td
-                                                        data-label="Định mức"
-                                                        className="numeric-column"
-                                                    >
-                                                        {
-                                                            formatNumber(
-                                                                item.standard_output
-                                                            )
-                                                        }
-                                                    </td>
-
-
-                                                    <td
-                                                        data-label="Thực tế"
+                                                        data-label="Sản lượng"
                                                         className="numeric-column actual-column"
                                                     >
                                                         {
@@ -655,20 +802,16 @@ function ProductionHistory() {
                                                     </td>
 
 
-                                                    <td
-                                                        data-label="Trạng thái"
-                                                    >
+                                                    <td data-label="Trạng thái">
 
                                                         <span
                                                             className={
                                                                 `history-status ${statusInfo.className}`
                                                             }
                                                         >
-
                                                             {
                                                                 statusInfo.label
                                                             }
-
                                                         </span>
 
                                                     </td>
