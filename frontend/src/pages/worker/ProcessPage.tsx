@@ -119,20 +119,37 @@ type FormState = {
 
 type DeductionState = {
 
-    vsk: string;
+    thieuSanLuong: string;
+
+    batMay: string;
+
+    chuyenMa: string;
+
+    chinhMay: string;
+
+    choChinhMay: string;
+
+    matDien: string;
+
+    matKhi: string;
+
+    choHang: string;
+
+    baoDuongMay: string;
+
+    nghiGiaiLao: string;
+
+    giaoCa: string;
+
+    dungMayHoTro: string;
+
+    giatCs: string;
 
     fiveS: string;
 
-    hamKhuon: string;
-
-    suaKhuon: string;
-
-    suaMay: string;
-
-    dungMay: string;
+    hocViec: string;
 
 };
-
 
 // =====================================================
 // KEY CÁC LỖI NG
@@ -268,72 +285,84 @@ const processMap: Record<
 // =====================================================
 
 const deductionOptions: Array<{
-
     key: DeductionKey;
-
     label: string;
-
 }> = [
 
-    {
+{
+    key:"thieuSanLuong",
+    label:"Thiếu sản lượng"
+},
 
-        key:
-            "vsk",
+{
+    key:"batMay",
+    label:"Bật máy, xét máy"
+},
 
-        label:
-            "Số giờ VSK"
+{
+    key:"chuyenMa",
+    label:"Chuyển mã"
+},
 
-    },
+{
+    key:"chinhMay",
+    label:"Chỉnh máy"
+},
 
-    {
+{
+    key:"choChinhMay",
+    label:"Chờ chỉnh máy"
+},
 
-        key:
-            "fiveS",
+{
+    key:"matDien",
+    label:"Mất điện"
+},
 
-        label:
-            "Số giờ 5S + gia ca"
+{
+    key:"matKhi",
+    label:"Mất khí"
+},
 
-    },
+{
+    key:"choHang",
+    label:"Chờ hàng"
+},
 
-    {
+{
+    key:"baoDuongMay",
+    label:"Bảo dưỡng máy"
+},
 
-        key:
-            "hamKhuon",
+{
+    key:"nghiGiaiLao",
+    label:"Nghỉ giải lao"
+},
 
-        label:
-            "Số giờ hâm khuôn"
+{
+    key:"giaoCa",
+    label:"Giao ca"
+},
 
-    },
+{
+    key:"dungMayHoTro",
+    label:"Dừng máy đi hỗ trợ"
+},
 
-    {
+{
+    key:"giatCs",
+    label:"Giặt CS/Cân CS, Tuốt-Tái PP, GL"
+},
 
-        key:
-            "suaKhuon",
+{
+    key:"fiveS",
+    label:"5S"
+},
 
-        label:
-            "Số giờ sửa khuôn"
-
-    },
-
-    {
-
-        key:
-            "suaMay",
-
-        label:
-            "Số giờ sửa máy"
-
-    },
-
-    {
-
-        key:
-            "dungMay",
-
-        label:
-            "Số giờ dừng máy"
-
-    }
+{
+    key:"hocViec",
+    label:"Học việc, đào tạo"
+}
 
 ];
 
@@ -691,23 +720,35 @@ const initialForm: FormState = {
 
 const initialDeduction: DeductionState = {
 
-    vsk:
-        "",
+    thieuSanLuong:"",
 
-    fiveS:
-        "",
+    batMay:"",
 
-    hamKhuon:
-        "",
+    chuyenMa:"",
 
-    suaKhuon:
-        "",
+    chinhMay:"",
 
-    suaMay:
-        "",
+    choChinhMay:"",
 
-    dungMay:
-        ""
+    matDien:"",
+
+    matKhi:"",
+
+    choHang:"",
+
+    baoDuongMay:"",
+
+    nghiGiaiLao:"",
+
+    giaoCa:"",
+
+    dungMayHoTro:"",
+
+    giatCs:"",
+
+    fiveS:"",
+
+    hocViec:""
 
 };
 
@@ -888,12 +929,6 @@ const productAutocompleteOptions =
     // =================================================
     // LÝ DO DỪNG MÁY
     // =================================================
-
-    const [
-        stopReason,
-        setStopReason
-    ] = useState("");
-
 
     // =================================================
     // TRẠNG THÁI TẢI WORKER
@@ -1678,16 +1713,7 @@ const updateDeductionValue = (
         });
 
 
-        if (
-            key ===
-            "dungMay"
-        ) {
-
-            setStopReason(
-                ""
-            );
-
-        }
+        
 
     };
 
@@ -2385,18 +2411,6 @@ const updateDeductionValue = (
         }
 
 
-        if (
-            selectedDeduction.includes(
-                "dungMay"
-            )
-            &&
-            !stopReason
-        ) {
-
-            return "Vui lòng chọn lý do dừng máy";
-
-        }
-
 
         return "";
 
@@ -2472,12 +2486,7 @@ const updateDeductionValue = (
                         ),
 
 
-                    stop_reason:
-                        stopReason
-                        ||
-                        "",
-
-
+                
                     product_name:
                         form.productName.trim(),
 
@@ -2765,9 +2774,6 @@ const updateDeductionValue = (
         );
 
 
-        setStopReason(
-            ""
-        );
 
 
         setShowDeduction(
@@ -3501,103 +3507,7 @@ onSelect={(
                         LÝ DO DỪNG MÁY
                     ================================================= */}
 
-                    {
-                        selectedDeduction
-                            .includes(
-                                "dungMay"
-                            )
-                        && (
 
-                            <div className="worker-field-block worker-stop-reason">
-
-                                <label
-
-                                    className="worker-field-label"
-
-                                    htmlFor="stopReason"
-
-                                >
-
-                                    Lý do dừng máy
-
-                                    <em>
-
-                                        *
-
-                                    </em>
-
-                                </label>
-
-
-                                <select
-
-                                    id="stopReason"
-
-                                    className="worker-select-input"
-
-                                    value={
-                                        stopReason
-                                    }
-
-                                    onChange={
-                                        (
-                                            event
-                                        ) =>
-
-                                            setStopReason(
-                                                event.target.value
-                                            )
-                                    }
-
-                                >
-
-                                    <option value="">
-
-                                        Chọn lý do...
-
-                                    </option>
-
-
-                                    <option value="Hỏng máy">
-
-                                        Hỏng máy
-
-                                    </option>
-
-
-                                    <option value="Thiếu nguyên liệu">
-
-                                        Thiếu nguyên liệu
-
-                                    </option>
-
-
-                                    <option value="Chờ kỹ thuật">
-
-                                        Chờ kỹ thuật
-
-                                    </option>
-
-
-                                    <option value="Thay khuôn">
-
-                                        Thay khuôn
-
-                                    </option>
-
-
-                                    <option value="Khác">
-
-                                        Khác
-
-                                    </option>
-
-                                </select>
-
-                            </div>
-
-                        )
-                    }
 
                 </section>
                                 {/* =================================================
@@ -3605,7 +3515,7 @@ onSelect={(
                 ================================================= */}
 
                 <section className="worker-form-card">
-{/* 
+
     <h2 className="worker-card-title">
 
         <span>
@@ -3614,7 +3524,7 @@ onSelect={(
 
         Sản xuất
 
-    </h2> */}
+    </h2>
 
 
 
