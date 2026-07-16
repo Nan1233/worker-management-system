@@ -8,7 +8,7 @@ const GoogleSheetService = require(
 
 
 // =====================================================
-// CHUYỂN DB QUERY THÀNH PROMISE
+// CHẠY CÂU LỆNH SQL DƯỚI DẠNG PROMISE
 // =====================================================
 
 const queryDatabase = (sql, params = []) => {
@@ -21,10 +21,12 @@ const queryDatabase = (sql, params = []) => {
             (error, rows) => {
 
                 if (error) {
+
                     return reject(error);
+
                 }
 
-                resolve(rows);
+                return resolve(rows);
 
             }
         );
@@ -35,7 +37,7 @@ const queryDatabase = (sql, params = []) => {
 
 
 // =====================================================
-// KIỂM TRA ĐỊNH DẠNG NGÀY YYYY-MM-DD
+// KIỂM TRA NGÀY YYYY-MM-DD
 // =====================================================
 
 const isValidDate = (date) => {
@@ -44,13 +46,9 @@ const isValidDate = (date) => {
         typeof date !== "string"
         || !/^\d{4}-\d{2}-\d{2}$/.test(date)
     ) {
-        return false;
-    }
 
-    const parsedDate = new Date(`${date}T00:00:00`);
-
-    if (Number.isNaN(parsedDate.getTime())) {
         return false;
+
     }
 
     const [
@@ -61,9 +59,15 @@ const isValidDate = (date) => {
         .split("-")
         .map(Number);
 
+    const parsedDate = new Date(
+        year,
+        month - 1,
+        day
+    );
+
     return (
         parsedDate.getFullYear() === year
-        && parsedDate.getMonth() + 1 === month
+        && parsedDate.getMonth() === month - 1
         && parsedDate.getDate() === day
     );
 
@@ -71,22 +75,65 @@ const isValidDate = (date) => {
 
 
 // =====================================================
-// CHUẨN HÓA NGÀY HIỂN THỊ TRONG EXCEL
+// CHUYỂN DỮ LIỆU THÀNH SỐ
 // =====================================================
 
-const formatDateForExcel = (value) => {
+const toNumber = (value) => {
+
+    const numberValue = Number(value);
+
+    if (!Number.isFinite(numberValue)) {
+
+        return 0;
+
+    }
+
+    return numberValue;
+
+};
+
+
+// =====================================================
+// ĐỊNH DẠNG NGÀY DD/MM/YYYY
+// =====================================================
+
+const formatWorkDate = (value) => {
 
     if (!value) {
+
         return "";
+
+    }
+
+    // Khi MySQL trả về chuỗi YYYY-MM-DD
+    if (
+        typeof value === "string"
+        && /^\d{4}-\d{2}-\d{2}/.test(value)
+    ) {
+
+        const datePart = value.slice(0, 10);
+
+        const [
+            year,
+            month,
+            day
+        ] = datePart.split("-");
+
+        return `${day}/${month}/${year}`;
+
     }
 
     const date = new Date(value);
 
     if (Number.isNaN(date.getTime())) {
+
         return String(value);
+
     }
 
-    const day = String(date.getDate()).padStart(2, "0");
+    const day = String(
+        date.getDate()
+    ).padStart(2, "0");
 
     const month = String(
         date.getMonth() + 1
@@ -100,53 +147,43 @@ const formatDateForExcel = (value) => {
 
 
 // =====================================================
-// CHUẨN HÓA GIÁ TRỊ SỐ
+// LẤY CÂU SQL PHÙ HỢP VỚI LOẠI BÁO CÁO
 // =====================================================
 
-const toNumber = (value) => {
+const getReportSql = (type) => {
 
-    const numberValue = Number(value);
+    /*
+        pending:
+        lấy dữ liệu trong production_reports_temp
 
-    if (Number.isNaN(numberValue)) {
-        return 0;
-    }
-
-    return numberValue;
-
-};
-
-
-// =====================================================
-// TẠO SQL THEO TRẠNG THÁI
-//
-// pending:
-// production_reports_temp
-//
-// approved:
-// production_reports
-// =====================================================
-
-const buildReportQuery = (type) => {
+        approved:
+        lấy dữ liệu trong production_reports
+    */
 
     const tableName =
         type === "pending"
             ? "production_reports_temp"
             : "production_reports";
 
-    const statusCondition =
-        type === "pending"
-            ? "AND pr.status = 'pending'"
-            : "AND pr.status = 'approved'";
+
+    /*
+        Chỉ lấy những cột thực sự cần cho file Excel.
+
+        Không lấy:
+        - review_note
+        - approved_at
+        - reviewed_by
+        - stop_reason
+
+        để tránh lỗi khi database trên Render/TiDB
+        chưa có các cột đó.
+    */
 
     return `
 
         SELECT
 
             pr.id,
-
-            pr.worker_id,
-
-            pr.process_id,
 
             pr.work_date,
 
@@ -172,34 +209,24 @@ const buildReportQuery = (type) => {
 
             pr.note,
 
-            pr.status,
-
-            pr.review_note,
-
-            pr.approved_at,
-
-            pr.created_at,
-
             w.worker_code,
 
             u.full_name,
 
             p.process_name
 
-        FROM ${tableName} pr
+        FROM ${tableName} AS pr
 
-        INNER JOIN workers w
-            ON pr.worker_id = w.id
+        INNER JOIN workers AS w
+            ON w.id = pr.worker_id
 
-        INNER JOIN users u
-            ON w.user_id = u.id
+        INNER JOIN users AS u
+            ON u.id = w.user_id
 
-        LEFT JOIN processes p
-            ON pr.process_id = p.id
+        LEFT JOIN processes AS p
+            ON p.id = pr.process_id
 
-        WHERE DATE(pr.work_date) = ?
-
-        ${statusCondition}
+        WHERE pr.work_date = ?
 
         ORDER BY
 
@@ -215,75 +242,31 @@ const buildReportQuery = (type) => {
 
 
 // =====================================================
-// THÊM DỮ LIỆU VÀO FILE EXCEL
+// TẠO WORKSHEET
 // =====================================================
 
-const createReportWorksheet = (
+const createWorksheet = (
     workbook,
     reports,
-    type,
-    date
+    date,
+    type
 ) => {
 
-    const worksheetName =
-        type === "pending"
-            ? "Bao Cao Cho Duyet"
-            : "Bao Cao Da Duyet";
+    const isPending =
+        type === "pending";
+
+    const sheetName =
+        isPending
+            ? "Bao cao cho duyet"
+            : "Bao cao da duyet";
 
     const sheet = workbook.addWorksheet(
-        worksheetName
+        sheetName
     );
 
 
     // =================================================
-    // TIÊU ĐỀ
-    // =================================================
-
-    sheet.mergeCells("A1:P1");
-
-    const titleCell = sheet.getCell("A1");
-
-    titleCell.value =
-        type === "pending"
-            ? "BÁO CÁO SẢN XUẤT CHỜ DUYỆT"
-            : "BÁO CÁO SẢN XUẤT ĐÃ DUYỆT";
-
-    titleCell.font = {
-        bold: true,
-        size: 16
-    };
-
-    titleCell.alignment = {
-        horizontal: "center",
-        vertical: "middle"
-    };
-
-    sheet.getRow(1).height = 28;
-
-
-    // =================================================
-    // NGÀY BÁO CÁO
-    // =================================================
-
-    sheet.mergeCells("A2:P2");
-
-    const dateCell = sheet.getCell("A2");
-
-    dateCell.value = `Ngày báo cáo: ${date}`;
-
-    dateCell.font = {
-        bold: true,
-        size: 11
-    };
-
-    dateCell.alignment = {
-        horizontal: "center",
-        vertical: "middle"
-    };
-
-
-    // =================================================
-    // CỘT EXCEL
+    // THIẾT LẬP ĐỘ RỘNG CỘT
     // =================================================
 
     sheet.columns = [
@@ -310,7 +293,7 @@ const createReportWorksheet = (
 
         {
             key: "work_date",
-            width: 15
+            width: 16
         },
 
         {
@@ -320,37 +303,37 @@ const createReportWorksheet = (
 
         {
             key: "machine_no",
-            width: 15
+            width: 16
         },
 
         {
             key: "product_name",
-            width: 25
+            width: 26
         },
 
         {
             key: "total_time",
-            width: 14
+            width: 16
         },
 
         {
             key: "actual_time",
-            width: 14
+            width: 18
         },
 
         {
             key: "deduction_time",
-            width: 14
+            width: 16
         },
 
         {
             key: "standard_output",
-            width: 16
+            width: 18
         },
 
         {
             key: "actual_output",
-            width: 16
+            width: 18
         },
 
         {
@@ -365,14 +348,79 @@ const createReportWorksheet = (
 
         {
             key: "note",
-            width: 35
+            width: 36
         }
 
     ];
 
 
     // =================================================
-    // HEADER
+    // TIÊU ĐỀ
+    // =================================================
+
+    sheet.mergeCells("A1:P1");
+
+    const titleCell = sheet.getCell("A1");
+
+    titleCell.value =
+        isPending
+            ? "BÁO CÁO SẢN XUẤT CHỜ DUYỆT"
+            : "BÁO CÁO SẢN XUẤT ĐÃ DUYỆT";
+
+    titleCell.font = {
+
+        bold: true,
+
+        size: 16
+
+    };
+
+    titleCell.alignment = {
+
+        horizontal: "center",
+
+        vertical: "middle"
+
+    };
+
+    sheet.getRow(1).height = 30;
+
+
+    // =================================================
+    // NGÀY BÁO CÁO
+    // =================================================
+
+    sheet.mergeCells("A2:P2");
+
+    const dateCell = sheet.getCell("A2");
+
+    const formattedDate =
+        formatWorkDate(date);
+
+    dateCell.value =
+        `Ngày báo cáo: ${formattedDate}`;
+
+    dateCell.font = {
+
+        bold: true,
+
+        size: 11
+
+    };
+
+    dateCell.alignment = {
+
+        horizontal: "center",
+
+        vertical: "middle"
+
+    };
+
+    sheet.getRow(2).height = 22;
+
+
+    // =================================================
+    // DÒNG HEADER
     // =================================================
 
     const headerRow = sheet.getRow(4);
@@ -414,23 +462,29 @@ const createReportWorksheet = (
     ];
 
     headerRow.font = {
+
         bold: true
+
     };
 
     headerRow.alignment = {
+
         horizontal: "center",
+
         vertical: "middle",
+
         wrapText: true
+
     };
 
-    headerRow.height = 32;
+    headerRow.height = 35;
 
 
     // =================================================
-    // DỮ LIỆU
+    // THÊM DỮ LIỆU
     // =================================================
 
-    reports.forEach((item, index) => {
+    reports.forEach((report, index) => {
 
         sheet.addRow({
 
@@ -438,49 +492,65 @@ const createReportWorksheet = (
                 index + 1,
 
             worker_code:
-                item.worker_code || "",
+                report.worker_code || "",
 
             full_name:
-                item.full_name || "",
+                report.full_name || "",
 
             process_name:
-                item.process_name || "",
+                report.process_name || "",
 
             work_date:
-                formatDateForExcel(item.work_date),
+                formatWorkDate(
+                    report.work_date
+                ),
 
             shift:
-                item.shift || "",
+                report.shift || "",
 
             machine_no:
-                item.machine_no || "",
+                report.machine_no || "",
 
             product_name:
-                item.product_name || "",
+                report.product_name || "",
 
             total_time:
-                toNumber(item.total_time),
+                toNumber(
+                    report.total_time
+                ),
 
             actual_time:
-                toNumber(item.actual_time),
+                toNumber(
+                    report.actual_time
+                ),
 
             deduction_time:
-                toNumber(item.deduction_time),
+                toNumber(
+                    report.deduction_time
+                ),
 
             standard_output:
-                toNumber(item.standard_output),
+                toNumber(
+                    report.standard_output
+                ),
 
             actual_output:
-                toNumber(item.actual_output),
+                toNumber(
+                    report.actual_output
+                ),
 
             tt_ok:
-                toNumber(item.tt_ok),
+                toNumber(
+                    report.tt_ok
+                ),
 
             tt_ng:
-                toNumber(item.tt_ng),
+                toNumber(
+                    report.tt_ng
+                ),
 
             note:
-                item.note || ""
+                report.note || ""
 
         });
 
@@ -488,7 +558,7 @@ const createReportWorksheet = (
 
 
     // =================================================
-    // DÒNG KHI KHÔNG CÓ DỮ LIỆU
+    // KHÔNG CÓ DỮ LIỆU
     // =================================================
 
     if (reports.length === 0) {
@@ -498,18 +568,25 @@ const createReportWorksheet = (
         const emptyCell = sheet.getCell("A5");
 
         emptyCell.value =
-            type === "pending"
+            isPending
                 ? "Không có báo cáo chờ duyệt trong ngày này"
                 : "Không có báo cáo đã duyệt trong ngày này";
 
-        emptyCell.alignment = {
-            horizontal: "center",
-            vertical: "middle"
+        emptyCell.font = {
+
+            italic: true
+
         };
 
-        emptyCell.font = {
-            italic: true
+        emptyCell.alignment = {
+
+            horizontal: "center",
+
+            vertical: "middle"
+
         };
+
+        sheet.getRow(5).height = 28;
 
     }
 
@@ -518,14 +595,14 @@ const createReportWorksheet = (
     // BORDER VÀ CĂN CHỈNH
     // =================================================
 
-    const lastRow =
+    const lastRowNumber =
         reports.length > 0
             ? reports.length + 4
             : 5;
 
     for (
         let rowIndex = 4;
-        rowIndex <= lastRow;
+        rowIndex <= lastRowNumber;
         rowIndex += 1
     ) {
 
@@ -571,11 +648,12 @@ const createReportWorksheet = (
     }
 
 
-    // Căn giữa các cột không phải ghi chú
+    // Căn giữa cột 1 đến cột 15.
+    // Cột 16 là ghi chú nên để căn trái.
 
     for (
         let rowIndex = 5;
-        rowIndex <= lastRow;
+        rowIndex <= lastRowNumber;
         rowIndex += 1
     ) {
 
@@ -586,7 +664,10 @@ const createReportWorksheet = (
         ) {
 
             sheet
-                .getCell(rowIndex, columnIndex)
+                .getCell(
+                    rowIndex,
+                    columnIndex
+                )
                 .alignment = {
 
                     horizontal: "center",
@@ -610,6 +691,7 @@ const createReportWorksheet = (
 
         {
             state: "frozen",
+
             ySplit: 4
         }
 
@@ -635,15 +717,17 @@ const createReportWorksheet = (
 
 
 // =====================================================
-// XUẤT EXCEL
+// XUẤT FILE EXCEL
 //
-// GET:
-// /api/reports/export-excel
+// GET /api/reports/export-excel
 // ?date=2026-07-16
 // &type=pending
 // =====================================================
 
-exports.exportGiaCongExcel = async (req, res) => {
+exports.exportGiaCongExcel = async (
+    req,
+    res
+) => {
 
     try {
 
@@ -659,7 +743,7 @@ exports.exportGiaCongExcel = async (req, res) => {
 
 
         // =============================================
-        // KIỂM TRA NGÀY
+        // VALIDATE NGÀY
         // =============================================
 
         if (!date) {
@@ -675,7 +759,6 @@ exports.exportGiaCongExcel = async (req, res) => {
 
         }
 
-
         if (!isValidDate(date)) {
 
             return res.status(400).json({
@@ -683,7 +766,7 @@ exports.exportGiaCongExcel = async (req, res) => {
                 success: false,
 
                 message:
-                    "Ngày không hợp lệ. Định dạng yêu cầu là YYYY-MM-DD"
+                    "Ngày không hợp lệ. Định dạng yêu cầu: YYYY-MM-DD"
 
             });
 
@@ -691,7 +774,7 @@ exports.exportGiaCongExcel = async (req, res) => {
 
 
         // =============================================
-        // KIỂM TRA LOẠI BÁO CÁO
+        // VALIDATE LOẠI BÁO CÁO
         // =============================================
 
         if (
@@ -711,11 +794,24 @@ exports.exportGiaCongExcel = async (req, res) => {
         }
 
 
+        console.log(
+            "EXPORT EXCEL REQUEST:",
+            {
+                date,
+                type,
+                userId:
+                    req.user?.id,
+                role:
+                    req.user?.role
+            }
+        );
+
+
         // =============================================
-        // LẤY DỮ LIỆU
+        // TRUY VẤN DATABASE
         // =============================================
 
-        const sql = buildReportQuery(type);
+        const sql = getReportSql(type);
 
         const reports = await queryDatabase(
             sql,
@@ -723,8 +819,19 @@ exports.exportGiaCongExcel = async (req, res) => {
         );
 
 
+        console.log(
+            "EXPORT EXCEL DATA:",
+            {
+                date,
+                type,
+                total:
+                    reports.length
+            }
+        );
+
+
         // =============================================
-        // TẠO WORKBOOK
+        // TẠO FILE EXCEL
         // =============================================
 
         const workbook =
@@ -733,18 +840,20 @@ exports.exportGiaCongExcel = async (req, res) => {
         workbook.creator =
             "Worker Management System";
 
+        workbook.lastModifiedBy =
+            "Worker Management System";
+
         workbook.created =
             new Date();
 
         workbook.modified =
             new Date();
 
-
-        createReportWorksheet(
+        createWorksheet(
             workbook,
             reports,
-            type,
-            date
+            date,
+            type
         );
 
 
@@ -754,11 +863,11 @@ exports.exportGiaCongExcel = async (req, res) => {
 
         const filePrefix =
             type === "pending"
-                ? "BaoCaoChoDuyet"
-                : "BaoCaoDaDuyet";
+                ? "bao-cao-cho-duyet"
+                : "bao-cao-da-duyet";
 
         const fileName =
-            `${filePrefix}_${date}.xlsx`;
+            `${filePrefix}-${date}.xlsx`;
 
 
         // =============================================
@@ -802,8 +911,32 @@ exports.exportGiaCongExcel = async (req, res) => {
     catch (error) {
 
         console.error(
-            "EXPORT EXCEL ERROR:",
-            error
+            "EXPORT EXCEL ERROR:"
+        );
+
+        console.error(
+            "Message:",
+            error.message
+        );
+
+        console.error(
+            "Code:",
+            error.code
+        );
+
+        console.error(
+            "SQL Message:",
+            error.sqlMessage
+        );
+
+        console.error(
+            "SQL:",
+            error.sql
+        );
+
+        console.error(
+            "Stack:",
+            error.stack
         );
 
 
@@ -822,9 +955,8 @@ exports.exportGiaCongExcel = async (req, res) => {
                 "Không thể xuất file Excel",
 
             error:
-                process.env.NODE_ENV === "development"
-                    ? error.message
-                    : undefined
+                error.sqlMessage
+                || error.message
 
         });
 
@@ -836,10 +968,14 @@ exports.exportGiaCongExcel = async (req, res) => {
 // =====================================================
 // ĐỒNG BỘ GOOGLE SHEET
 //
-// GET /api/reports/google-sheet?date=2026-07-16
+// GET /api/reports/google-sheet
+// ?date=2026-07-16
 // =====================================================
 
-exports.exportGoogleSheet = async (req, res) => {
+exports.exportGoogleSheet = async (
+    req,
+    res
+) => {
 
     try {
 
@@ -847,19 +983,18 @@ exports.exportGoogleSheet = async (req, res) => {
             req.query.date || ""
         ).trim();
 
-
         if (!date) {
 
             return res.status(400).json({
 
                 success: false,
 
-                message: "Thiếu ngày"
+                message:
+                    "Thiếu ngày"
 
             });
 
         }
-
 
         if (!isValidDate(date)) {
 
@@ -868,17 +1003,15 @@ exports.exportGoogleSheet = async (req, res) => {
                 success: false,
 
                 message:
-                    "Ngày không hợp lệ. Định dạng yêu cầu là YYYY-MM-DD"
+                    "Ngày không hợp lệ. Định dạng yêu cầu: YYYY-MM-DD"
 
             });
 
         }
 
-
         const result =
             await GoogleSheetService
                 .syncProductionReport(date);
-
 
         return res.status(200).json({
 
@@ -888,7 +1021,7 @@ exports.exportGoogleSheet = async (req, res) => {
                 "Cập nhật Google Sheet thành công",
 
             url:
-                result.url
+                result?.url || null
 
         });
 
@@ -899,7 +1032,6 @@ exports.exportGoogleSheet = async (req, res) => {
             "EXPORT GOOGLE SHEET ERROR:",
             error
         );
-
 
         return res.status(500).json({
 
@@ -920,13 +1052,12 @@ exports.exportGoogleSheet = async (req, res) => {
 // TẠO GOOGLE SHEET
 //
 // POST /api/reports/create-sheet
-// Body:
-// {
-//     "date": "2026-07-16"
-// }
 // =====================================================
 
-exports.createGoogleSheet = async (req, res) => {
+exports.createGoogleSheet = async (
+    req,
+    res
+) => {
 
     try {
 
@@ -934,19 +1065,18 @@ exports.createGoogleSheet = async (req, res) => {
             req.body?.date || ""
         ).trim();
 
-
         if (!date) {
 
             return res.status(400).json({
 
                 success: false,
 
-                message: "Thiếu ngày"
+                message:
+                    "Thiếu ngày"
 
             });
 
         }
-
 
         if (!isValidDate(date)) {
 
@@ -955,17 +1085,15 @@ exports.createGoogleSheet = async (req, res) => {
                 success: false,
 
                 message:
-                    "Ngày không hợp lệ. Định dạng yêu cầu là YYYY-MM-DD"
+                    "Ngày không hợp lệ. Định dạng yêu cầu: YYYY-MM-DD"
 
             });
 
         }
 
-
         const result =
             await GoogleSheetService
                 .createSheet(date);
-
 
         return res.status(200).json({
 
@@ -975,7 +1103,7 @@ exports.createGoogleSheet = async (req, res) => {
                 "Tạo Google Sheet thành công",
 
             url:
-                result.url
+                result?.url || null
 
         });
 
@@ -986,7 +1114,6 @@ exports.createGoogleSheet = async (req, res) => {
             "CREATE GOOGLE SHEET ERROR:",
             error
         );
-
 
         return res.status(500).json({
 
@@ -1007,13 +1134,12 @@ exports.createGoogleSheet = async (req, res) => {
 // CẬP NHẬT GOOGLE SHEET
 //
 // POST /api/reports/update-sheet
-// Body:
-// {
-//     "date": "2026-07-16"
-// }
 // =====================================================
 
-exports.updateGoogleSheet = async (req, res) => {
+exports.updateGoogleSheet = async (
+    req,
+    res
+) => {
 
     try {
 
@@ -1021,19 +1147,18 @@ exports.updateGoogleSheet = async (req, res) => {
             req.body?.date || ""
         ).trim();
 
-
         if (!date) {
 
             return res.status(400).json({
 
                 success: false,
 
-                message: "Thiếu ngày"
+                message:
+                    "Thiếu ngày"
 
             });
 
         }
-
 
         if (!isValidDate(date)) {
 
@@ -1042,17 +1167,15 @@ exports.updateGoogleSheet = async (req, res) => {
                 success: false,
 
                 message:
-                    "Ngày không hợp lệ. Định dạng yêu cầu là YYYY-MM-DD"
+                    "Ngày không hợp lệ. Định dạng yêu cầu: YYYY-MM-DD"
 
             });
 
         }
 
-
         const result =
             await GoogleSheetService
                 .updateSheet(date);
-
 
         return res.status(200).json({
 
@@ -1062,7 +1185,7 @@ exports.updateGoogleSheet = async (req, res) => {
                 "Cập nhật Google Sheet thành công",
 
             url:
-                result.url
+                result?.url || null
 
         });
 
@@ -1073,7 +1196,6 @@ exports.updateGoogleSheet = async (req, res) => {
             "UPDATE GOOGLE SHEET ERROR:",
             error
         );
-
 
         return res.status(500).json({
 
