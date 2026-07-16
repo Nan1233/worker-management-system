@@ -2256,6 +2256,14 @@ const updateDeductionValue = (
 
 
         if (
+            !form.productName.trim()
+        ) {
+
+            return "Vui lòng nhập sản phẩm";
+
+        }
+
+        if (
             !form.machineNo.trim()
         ) {
 
@@ -2310,14 +2318,6 @@ const updateDeductionValue = (
 
         }
 
-
-        if (
-            !form.productName.trim()
-        ) {
-
-            return "Vui lòng nhập sản phẩm";
-
-        }
 
 
         if (
@@ -2829,23 +2829,31 @@ const updateDeductionValue = (
                     </div>
 
 
-                    <p className="worker-form-identity">
+                    <div className="worker-form-identity">
 
-                        {
-                            form.workerName
-                            ||
-                            "Đang tải..."
-                        }
+    <span>
 
-                        {" - "}
+        <strong>
+            {form.workerName || "Đang tải..."}
+        </strong>
 
-                        {
-                            form.workerCode
-                            ||
-                            ""
-                        }
+        {" - "}
 
-                    </p>
+        {form.workerCode || ""}
+
+    </span>
+
+    <span className="worker-training-percent">
+
+        Học việc:
+
+        {" "}
+
+        {form.trainingPercent || 0}%
+
+    </span>
+
+</div>
 
 
                     <label className="worker-date-picker">
