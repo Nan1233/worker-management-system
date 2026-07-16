@@ -345,10 +345,10 @@ const processMap: Record<
 
 > = {
 
-    "gia-cong": {
-        id: 1,
-        title: "BÁO CÁO GIA CÔNG"
-    },
+    "cat-long": {
+    id: 1,
+    title: "BÁO CÁO CẮT / LỒNG"
+},
 
     "mai": {
         id: 2,
@@ -389,19 +389,19 @@ function ProcessPage() {
         useNavigate();
 
 
-    const {
-        process = "gia-cong"
-    } = useParams();
+ const {
+    process = "cat-long"
+} = useParams();
 
 
-    const processInfo =
-        useMemo(
-            () =>
-                processMap[process]
-                ??
-                processMap["gia-cong"],
-            [process]
-        );
+const processInfo =
+    useMemo(
+        () =>
+            processMap[process]
+            ??
+            processMap["cat-long"],
+        [process]
+    );
 
 
     const [

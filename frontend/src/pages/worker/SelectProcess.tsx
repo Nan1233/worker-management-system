@@ -29,10 +29,10 @@ import "./SelectProcess.css";
 const processes = [
 
     {
-        id: "gia-cong",
-        name: "Gia công",
-        icon: "⚙️",
-        description: "Nhập báo cáo gia công"
+        id: "cat-long",
+        name: "Cắt / Lồng",
+        icon: "✂️",
+        description: "Nhập báo cáo công đoạn Cắt và Lồng"
     },
 
     {
@@ -73,7 +73,7 @@ const processes = [
     {
         id: "bavia",
         name: "Bavia",
-        icon: "✂️",
+        icon: "⚙️",
         description: "Nhập báo cáo bavia"
     }
 
@@ -306,16 +306,24 @@ function SelectProcess() {
             <div className="page-header">
 
                 <h2>
+
                     Xin chào, {
+
                         worker?.full_name
+
                         ||
+
                         "Công nhân"
+
                     }
+
                 </h2>
 
 
                 <p>
+
                     Chọn công đoạn bạn đang làm để bắt đầu nhập báo cáo.
+
                 </p>
 
             </div>
@@ -328,14 +336,23 @@ function SelectProcess() {
                         (item) => (
 
                             <button
+
                                 key={item.id}
+
                                 type="button"
+
                                 className="process-card"
+
                                 onClick={() =>
+
                                     navigate(
+
                                         `/worker/process/${item.id}`
+
                                     )
+
                                 }
+
                             >
 
                                 <div className="process-icon">
@@ -346,12 +363,16 @@ function SelectProcess() {
 
 
                                 <h3>
+
                                     {item.name}
+
                                 </h3>
 
 
                                 <p>
+
                                     {item.description}
+
                                 </p>
 
                             </button>
