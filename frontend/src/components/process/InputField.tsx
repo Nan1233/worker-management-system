@@ -47,7 +47,7 @@ function InputField({
 
     return (
 
-        <div className="form-group">
+        <div className="input-group">
 
             <label htmlFor={name}>
 
