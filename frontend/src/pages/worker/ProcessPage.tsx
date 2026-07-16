@@ -2904,84 +2904,7 @@ const updateDeductionValue = (
 
                     <div className="worker-basic-grid">
 
-<div className="worker-field-block worker-field-full">
 
-    <AutocompleteInput
-        id="productName"
-        label="Sản phẩm"
-        value={form.productName}
-        options={productAutocompleteOptions}
-        placeholder="Nhập mã sản phẩm"
-        required
-        disabled={loadingMasterData}
-        emptyMessage="Không tìm thấy sản phẩm"
-        onChange={(value) => {
-
-            const selectedProduct =
-                productOptions.find(
-                    (item) =>
-                        item.product_code
-                            .trim()
-                            .toLowerCase()
-                        ===
-                        value
-                            .trim()
-                            .toLowerCase()
-                );
-
-
-            setForm((prev) => ({
-
-                ...prev,
-
-                productName:
-                    value,
-
-                standardOutput:
-                    selectedProduct
-                        ? String(
-                            selectedProduct.standard_output
-                        )
-                        : ""
-
-            }));
-
-        }}
-        onSelect={(option) => {
-
-            const selectedProduct =
-                productOptions.find(
-                    (item) =>
-                        item.product_code
-                        .trim()
-                        .toLowerCase()
-                    ===
-                    option.value
-                        .trim()
-                        .toLowerCase()
-                );
-
-
-            setForm((prev) => ({
-
-                ...prev,
-
-                productName:
-                    option.value,
-
-                standardOutput:
-                    selectedProduct
-                        ? String(
-                            selectedProduct.standard_output
-                        )
-                        : ""
-
-            }));
-
-        }}
-    />
-
-</div>
                         {/* CA LÀM VIỆC */}
 
                         <div className="worker-field-block worker-field-full">
@@ -3067,7 +2990,84 @@ const updateDeductionValue = (
 
                         </div>
 
+<div className="worker-field-block worker-field-full">
 
+    <AutocompleteInput
+        id="productName"
+        label="Sản phẩm"
+        value={form.productName}
+        options={productAutocompleteOptions}
+        placeholder="Nhập mã sản phẩm"
+        required
+        disabled={loadingMasterData}
+        emptyMessage="Không tìm thấy sản phẩm"
+        onChange={(value) => {
+
+            const selectedProduct =
+                productOptions.find(
+                    (item) =>
+                        item.product_code
+                            .trim()
+                            .toLowerCase()
+                        ===
+                        value
+                            .trim()
+                            .toLowerCase()
+                );
+
+
+            setForm((prev) => ({
+
+                ...prev,
+
+                productName:
+                    value,
+
+                standardOutput:
+                    selectedProduct
+                        ? String(
+                            selectedProduct.standard_output
+                        )
+                        : ""
+
+            }));
+
+        }}
+        onSelect={(option) => {
+
+            const selectedProduct =
+                productOptions.find(
+                    (item) =>
+                        item.product_code
+                        .trim()
+                        .toLowerCase()
+                    ===
+                    option.value
+                        .trim()
+                        .toLowerCase()
+                );
+
+
+            setForm((prev) => ({
+
+                ...prev,
+
+                productName:
+                    option.value,
+
+                standardOutput:
+                    selectedProduct
+                        ? String(
+                            selectedProduct.standard_output
+                        )
+                        : ""
+
+            }));
+
+        }}
+    />
+
+</div>
                     
                         {/* SỐ MÁY */}
 
