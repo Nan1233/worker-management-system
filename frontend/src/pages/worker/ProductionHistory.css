@@ -163,19 +163,15 @@
     scrollbar-width: thin;
 }
 
-
-
 .history-table {
-    width: 100%;
-    min-width: 920px;
 
-    border-collapse: separate;
-    border-spacing: 0;
+    width:100%;
 
-    table-layout: auto;
+    min-width:760px;
+
+    table-layout:fixed;
+
 }
-
-
 
 .history-table th {
     position: sticky;
@@ -1000,5 +996,32 @@ and (
     opacity:.45;
 
     cursor:not-allowed;
+
+}
+.date-cell{
+    width:110px;
+}
+
+.machine-cell{
+    width:90px;
+}
+
+.product-cell{
+    width:180px;
+}
+
+.ok-column,
+.ng-column{
+    width:70px;
+}
+
+.action-column{
+    width:90px;
+}
+
+.history-table th,
+.history-table td{
+
+    vertical-align:middle;
 
 }

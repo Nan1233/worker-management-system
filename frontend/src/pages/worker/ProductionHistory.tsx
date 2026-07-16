@@ -697,9 +697,7 @@ useEffect(() => {
                                             Sản phẩm
                                         </th>
 
-                                        <th className="numeric-column">
-                                            Sản lượng
-                                        </th>
+=
 
                                         <th className="numeric-column ok-column">
                                             OK
@@ -812,17 +810,6 @@ useEffect(() => {
                                                         }
                                                     </td>
 
-
-                                                    <td
-                                                        data-label="Sản lượng"
-                                                        className="numeric-column actual-column"
-                                                    >
-                                                        {
-                                                            formatNumber(
-                                                                item.actual_output
-                                                            )
-                                                        }
-                                                    </td>
 
 
                                                     <td
