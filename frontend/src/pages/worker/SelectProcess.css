@@ -377,7 +377,29 @@
         font-size: 13px;
     }
 
+}/* =====================================================
+   MOBILE
+===================================================== */
+
+@media (max-width: 767px) {
+
+    .select-process-page {
+        padding: 22px 12px 45px;
+    }
+
+    .select-process-shell {
+        width: 100%;
+    }
+
+    .process-list {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+
 }
+
+
 /* =====================================================
    TABLET
 ===================================================== */
@@ -400,6 +422,10 @@
         gap: 18px;
     }
 
+    .worker-process-card {
+        min-height: 125px;
+    }
+
 }
 
 
@@ -410,7 +436,7 @@
 @media (min-width: 1024px) and (max-width: 1439px) {
 
     .select-process-page {
-        padding: 36px 36px 70px;
+        padding: 36px 40px 70px;
     }
 
     .select-process-shell {
@@ -420,13 +446,13 @@
     .process-list {
         display: grid;
         grid-template-columns:
-            repeat(3, minmax(0, 1fr));
+            repeat(2, minmax(0, 1fr));
 
-        gap: 20px;
+        gap: 22px;
     }
 
     .worker-process-card {
-        min-height: 150px;
+        min-height: 132px;
     }
 
 }
@@ -439,7 +465,7 @@
 @media (min-width: 1440px) {
 
     .select-process-page {
-        padding: 40px 48px 80px;
+        padding: 40px 55px 80px;
     }
 
     .select-process-shell {
@@ -449,13 +475,13 @@
     .process-list {
         display: grid;
         grid-template-columns:
-            repeat(4, minmax(0, 1fr));
+            repeat(3, minmax(0, 1fr));
 
         gap: 24px;
     }
 
     .worker-process-card {
-        min-height: 160px;
+        min-height: 140px;
     }
 
 }

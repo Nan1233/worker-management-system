@@ -127,3 +127,54 @@ and (
     }
 
 }
+/* =====================================================
+   FORCE FULL WIDTH APP
+   PHẢI ĐẶT CUỐI FILE index.css
+===================================================== */
+
+html,
+body,
+#root,
+.main-layout,
+.main-layout-content {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    min-height: 100vh;
+
+    margin: 0 !important;
+    padding: 0;
+
+    box-sizing: border-box;
+}
+
+body {
+    display: block !important;
+}
+
+#root {
+    display: block !important;
+
+    border: none !important;
+    text-align: initial !important;
+}
+
+.main-layout {
+    display: block !important;
+}
+
+.main-layout-content {
+    display: block !important;
+}
+
+.select-process-page,
+.worker-form-page {
+    width: 100% !important;
+    max-width: none !important;
+}
+
+.select-process-shell,
+.worker-form-shell {
+    width: 100% !important;
+    max-width: none !important;
+}
