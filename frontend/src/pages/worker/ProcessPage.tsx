@@ -24,6 +24,8 @@ type FormState = {
 
     workerCode: string;
 
+    workerName: string;
+
     machineNo: string;
 
     totalTime: string;
@@ -106,14 +108,51 @@ type NgKey =
 type DeductionKey =
     keyof DeductionState;
 
+const getCurrentLocalDate = (): string => {
+
+    const now =
+        new Date();
+
+
+    const year =
+        now.getFullYear();
+
+
+    const month =
+        String(
+            now.getMonth() + 1
+        ).padStart(
+            2,
+            "0"
+        );
+
+
+    const day =
+        String(
+            now.getDate()
+        ).padStart(
+            2,
+            "0"
+        );
+
+
+    return `${year}-${month}-${day}`;
+
+};
 
 const initialForm: FormState = {
 
-    workDate: "",
+    workDate:
+        getCurrentLocalDate(),
 
-    shift: "Ca 1",
+    shift:
+        "Ca 1",
 
-    workerCode: "",
+    workerCode:
+        "",
+
+    workerName:
+        "",
 
     machineNo: "",
 
@@ -429,132 +468,146 @@ function ProcessPage() {
 
     useEffect(() => {
 
-        const loadWorkerInfo =
-            async () => {
+    const loadWorkerInfo =
+        async () => {
 
-                try {
+            try {
 
-                    setLoadingWorker(true);
-
-
-                    const savedUser =
-                        localStorage.getItem(
-                            "user"
-                        );
+                setLoadingWorker(true);
 
 
-                    if (!savedUser) {
-
-                        localStorage.removeItem(
-                            "token"
-                        );
-
-                        navigate(
-                            "/login",
-                            {
-                                replace: true
-                            }
-                        );
-
-                        return;
-
-                    }
-
-
-                    const user: User =
-                        JSON.parse(savedUser);
-
-
-                    /*
-                        Dùng user.id.
-
-                        Không dùng user.worker_id.
-                    */
-
-                    if (!user.id) {
-
-                        throw new Error(
-                            "Không tìm thấy ID người đăng nhập"
-                        );
-
-                    }
-
-
-                    const worker =
-                        await getWorkerByUserId(
-                            user.id
-                        );
-
-
-                    setForm((prev) => ({
-
-                        ...prev,
-
-                        workerCode:
-                            worker.worker_code
-
-                    }));
-
-                }
-                catch (error: unknown) {
-
-                    console.error(
-                        "Không lấy được thông tin nhân viên:",
-                        error
+                const savedUser =
+                    localStorage.getItem(
+                        "user"
                     );
 
 
-                    if (
-                        axios.isAxiosError(error)
-                        &&
-                        error.response?.status === 401
-                    ) {
+                if (!savedUser) {
 
-                        localStorage.removeItem(
-                            "token"
-                        );
+                    localStorage.removeItem(
+                        "token"
+                    );
 
-                        localStorage.removeItem(
-                            "user"
-                        );
+                    navigate(
+                        "/login",
+                        {
+                            replace: true
+                        }
+                    );
 
-                        navigate(
-                            "/login",
-                            {
-                                replace: true
-                            }
-                        );
+                    return;
 
-                        return;
-
-                    }
+                }
 
 
-                    alert(
+                const user: User =
+                    JSON.parse(savedUser);
 
-                        axios.isAxiosError(error)
 
-                            ? error.response?.data?.message
-                                ||
-                                "Không lấy được thông tin nhân viên"
+                const userId =
+                    Number(user.id);
 
-                            : "Không lấy được thông tin nhân viên"
 
+                if (
+                    !Number.isInteger(userId)
+                    ||
+                    userId <= 0
+                ) {
+
+                    throw new Error(
+                        "Không tìm thấy ID tài khoản đăng nhập"
                     );
 
                 }
-                finally {
 
-                    setLoadingWorker(false);
+
+                const worker =
+                    await getWorkerByUserId(
+                        userId
+                    );
+
+
+                setForm((prev) => ({
+
+                    ...prev,
+
+                    workerCode:
+                        worker.worker_code
+                        ||
+                        "",
+
+                    workerName:
+                        worker.full_name
+                        ||
+                        ""
+
+                }));
+
+            }
+            catch (error: unknown) {
+
+                console.error(
+                    "Không lấy được thông tin nhân viên:",
+                    error
+                );
+
+
+                if (
+                    axios.isAxiosError(error)
+                    &&
+                    error.response?.status === 401
+                ) {
+
+                    localStorage.removeItem(
+                        "token"
+                    );
+
+                    localStorage.removeItem(
+                        "user"
+                    );
+
+                    navigate(
+                        "/login",
+                        {
+                            replace: true
+                        }
+                    );
+
+                    return;
 
                 }
 
-            };
+
+                const message =
+
+                    axios.isAxiosError(error)
+
+                        ? error.response?.data?.message
+                            ||
+                            "Không lấy được thông tin nhân viên"
+
+                        : error instanceof Error
+
+                            ? error.message
+
+                            : "Không lấy được thông tin nhân viên";
 
 
-        void loadWorkerInfo();
+                alert(message);
 
-    }, [navigate]);
+            }
+            finally {
+
+                setLoadingWorker(false);
+
+            }
+
+        };
+
+
+    void loadWorkerInfo();
+
+}, [navigate]);
 
 
     // =====================================================
@@ -714,73 +767,6 @@ function ProcessPage() {
     };
 
 
-    const handleDeductionSelect = (
-
-        event:
-            React.ChangeEvent<
-                HTMLSelectElement
-            >
-
-    ) => {
-
-        const values =
-            Array.from(
-                event.target.selectedOptions
-            )
-                .map(
-                    (option) =>
-                        option.value
-                );
-
-
-        setSelectedDeduction(
-            values
-        );
-
-
-        const next:
-            DeductionState = {
-
-                ...deductions
-
-            };
-
-
-        deductionOptions.forEach(
-
-            ({
-                key
-            }) => {
-
-                if (
-                    values.includes(key)
-                ) {
-
-                    if (
-                        next[key] === ""
-                    ) {
-
-                        next[key] = "1";
-
-                    }
-
-                }
-                else {
-
-                    next[key] = "";
-
-                }
-
-            }
-
-        );
-
-
-        setDeductions(next);
-
-        updateTotalDeduction(next);
-
-    };
 
 
     const updateDeductionValue = (
@@ -818,115 +804,6 @@ function ProcessPage() {
     // LỖI NG
     // =====================================================
 
-    const handleNgSelect = (
-
-        event:
-            React.ChangeEvent<
-                HTMLSelectElement
-            >
-
-    ) => {
-
-        const values =
-            Array.from(
-                event.target.selectedOptions
-            )
-                .map(
-                    (option) =>
-                        option.value
-                );
-
-
-        setSelectedNg(values);
-
-
-        setForm((prev) => {
-
-            const next = {
-
-                ...prev
-
-            };
-
-
-            ngOptions.forEach(
-
-                ({
-                    key
-                }) => {
-
-                    if (
-                        values.includes(key)
-                    ) {
-
-                        if (
-                            next[key] === ""
-                        ) {
-
-                            next[key] = "1";
-
-                        }
-
-                    }
-                    else {
-
-                        next[key] = "";
-
-                    }
-
-                }
-
-            );
-
-
-            next.ttNg =
-                String(
-
-                    ngOptions.reduce(
-
-                        (
-                            sum,
-                            {
-                                key
-                            }
-                        ) =>
-
-                            sum
-                            +
-                            Number(
-                                next[key]
-                                ||
-                                0
-                            ),
-
-                        0
-
-                    )
-
-                );
-
-
-            next.actualOutput =
-                String(
-
-                    Number(
-                        next.ttOk || 0
-                    )
-
-                    +
-
-                    Number(
-                        next.ttNg || 0
-                    )
-
-                );
-
-
-            return next;
-
-        });
-
-    };
 
 
     const handleNgValue = (
@@ -1013,18 +890,29 @@ function ProcessPage() {
 
     const validateForm = () => {
 
-        if (!form.workerCode) {
+    if (loadingWorker) {
 
-            return "Chưa lấy được mã nhân viên";
+        return "Thông tin nhân viên đang được tải";
 
-        }
+    }
 
 
-        if (!form.workDate) {
+    if (
+        !form.workerName
+        ||
+        !form.workerCode
+    ) {
 
-            return "Vui lòng chọn ngày làm việc";
+        return "Không tìm thấy thông tin nhân viên";
 
-        }
+    }
+
+
+    if (!form.workDate) {
+
+        return "Vui lòng chọn ngày làm việc";
+
+    }
 
 
         if (!form.machineNo.trim()) {
@@ -1379,49 +1267,50 @@ function ProcessPage() {
 
     const handleReset = () => {
 
-        /*
-            Giữ lại mã nhân viên,
-            không cần gọi API lại.
-        */
+    setForm((prev) => ({
 
-        setForm((prev) => ({
+        ...initialForm,
 
-            ...initialForm,
+        workDate:
+            getCurrentLocalDate(),
 
-            workerCode:
-                prev.workerCode
+        workerCode:
+            prev.workerCode,
 
-        }));
+        workerName:
+            prev.workerName
 
-
-        setDeductions(
-            initialDeduction
-        );
+    }));
 
 
-        setSelectedDeduction(
-            []
-        );
+    setDeductions(
+        initialDeduction
+    );
 
 
-        setSelectedNg(
-            []
-        );
+    setSelectedDeduction(
+        []
+    );
 
 
-        setStopReason("");
+    setSelectedNg(
+        []
+    );
 
 
-        setShowDeduction(
-            false
-        );
+    setStopReason("");
 
 
-        setShowNg(
-            false
-        );
+    setShowDeduction(
+        false
+    );
 
-    };
+
+    setShowNg(
+        false
+    );
+
+};
 
 
     const handleNumberBlur = (
@@ -1467,17 +1356,17 @@ function ProcessPage() {
 
                 <InputField
 
-                    type="date"
+    type="date"
 
-                    label="Ngày"
+    label="Ngày làm việc"
 
-                    name="workDate"
+    name="workDate"
 
-                    value={form.workDate}
+    value={form.workDate}
 
-                    onChange={handleChange}
+    onChange={handleChange}
 
-                />
+/>
 
 
                 <div className="shift-group">
@@ -1493,9 +1382,10 @@ function ProcessPage() {
 
                         {
                             [
-                                "Ca 1",
-                                "Ca 2",
-                                "Ca 3"
+                                "Ca A",
+                                "Ca B",
+                                "Ca C",
+                                "Ca D"
                             ]
                                 .map(
                                     (
@@ -1544,26 +1434,36 @@ function ProcessPage() {
 
                 </div>
 
+{/* <InputField
 
+    label="Tên nhân viên"
+
+    name="workerName"
+
+    value={
+        loadingWorker
+            ? "Đang tải..."
+            : form.workerName
+    }
+
+    readOnly
+
+/> */}
                 <InputField
 
-                    label="Mã nhân viên"
+    label="Mã nhân viên"
 
-                    name="workerCode"
+    name="workerCode"
 
-                    value={
+    value={
+        loadingWorker
+            ? "Đang tải..."
+            : form.workerCode
+    }
 
-                        loadingWorker
+    readOnly
 
-                            ? "Đang tải..."
-
-                            : form.workerCode
-
-                    }
-
-                    onChange={() => undefined}
-
-                />
+/>
 
 
                 <InputField
@@ -1636,84 +1536,101 @@ function ProcessPage() {
 
                 <div className="select-box">
 
-                    <div
+    <button
+        type="button"
+        className="select-title"
+        onClick={() =>
+            setShowDeduction(
+                (prev) => !prev
+            )
+        }
+    >
 
-                        className="select-title"
+        <span>
+            ⏱ Chọn loại trừ thời gian
+        </span>
 
-                        onClick={() =>
-                            setShowDeduction(
-                                (prev) => !prev
-                            )
-                        }
+        <span>
+            {showDeduction ? "▲" : "▼"}
+        </span>
 
+    </button>
+
+
+    {showDeduction && (
+
+        <div className="select-options">
+
+            {deductionOptions.map((item) => {
+
+                const checked =
+                    selectedDeduction.includes(
+                        item.key
+                    );
+
+                return (
+
+                    <label
+                        key={item.key}
+                        className="select-option-item"
                     >
 
-                        ⏱ Chọn loại trừ thời gian
+                        <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(event) => {
+
+                                const isChecked =
+                                    event.target.checked;
+
+                                const nextSelected =
+                                    isChecked
+                                        ? [
+                                            ...selectedDeduction,
+                                            item.key
+                                        ]
+                                        : selectedDeduction.filter(
+                                            (key) =>
+                                                key !== item.key
+                                        );
+
+                                setSelectedDeduction(
+                                    nextSelected
+                                );
+
+                                const next = {
+                                    ...deductions
+                                };
+
+                                next[item.key] =
+                                    isChecked
+                                        ? "1"
+                                        : "";
+
+                                setDeductions(next);
+
+                                updateTotalDeduction(
+                                    next
+                                );
+
+                            }}
+                        />
 
                         <span>
-
-                            {
-                                showDeduction
-                                    ? "▲"
-                                    : "▼"
-                            }
-
+                            {item.label}
                         </span>
 
-                    </div>
+                    </label>
 
+                );
 
-                    {
-                        showDeduction && (
+            })}
 
-                            <select
+        </div>
 
-                                multiple
+    )}
 
-                                value={
-                                    selectedDeduction
-                                }
-
-                                onChange={
-                                    handleDeductionSelect
-                                }
-
-                            >
-
-                                {
-                                    deductionOptions.map(
-                                        (
-                                            item
-                                        ) => (
-
-                                            <option
-
-                                                key={
-                                                    item.key
-                                                }
-
-                                                value={
-                                                    item.key
-                                                }
-
-                                            >
-
-                                                {
-                                                    item.label
-                                                }
-
-                                            </option>
-
-                                        )
-                                    )
-                                }
-
-                            </select>
-
-                        )
-                    }
-
-                </div>
+</div>
 
 
                 <div className="quality-grid">
@@ -1903,85 +1820,127 @@ function ProcessPage() {
 
                 <div className="select-box">
 
-                    <div
+    <button
+        type="button"
+        className="select-title"
+        onClick={() =>
+            setShowNg(
+                (prev) => !prev
+            )
+        }
+    >
 
-                        className="select-title"
+        <span>
+            ⚠️ Chọn lỗi NG
+        </span>
 
-                        onClick={() =>
-                            setShowNg(
-                                (prev) =>
-                                    !prev
-                            )
-                        }
+        <span>
+            {showNg ? "▲" : "▼"}
+        </span>
 
+    </button>
+
+
+    {showNg && (
+
+        <div className="select-options">
+
+            {ngOptions.map((item) => {
+
+                const checked =
+                    selectedNg.includes(
+                        item.key
+                    );
+
+                return (
+
+                    <label
+                        key={item.key}
+                        className="select-option-item"
                     >
 
-                        ⚠️ Chọn lỗi NG
+                        <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(event) => {
+
+                                const isChecked =
+                                    event.target.checked;
+
+                                const nextSelected =
+                                    isChecked
+                                        ? [
+                                            ...selectedNg,
+                                            item.key
+                                        ]
+                                        : selectedNg.filter(
+                                            (key) =>
+                                                key !== item.key
+                                        );
+
+                                setSelectedNg(
+                                    nextSelected
+                                );
+
+                                setForm((prev) => {
+
+                                    const next = {
+                                        ...prev,
+                                        [item.key]:
+                                            isChecked
+                                                ? "1"
+                                                : ""
+                                    };
+
+                                    next.ttNg =
+                                        String(
+                                            ngOptions.reduce(
+                                                (
+                                                    sum,
+                                                    ngItem
+                                                ) =>
+                                                    sum +
+                                                    Number(
+                                                        next[
+                                                            ngItem.key
+                                                        ] || 0
+                                                    ),
+                                                0
+                                            )
+                                        );
+
+                                    next.actualOutput =
+                                        String(
+                                            Number(
+                                                next.ttOk || 0
+                                            ) +
+                                            Number(
+                                                next.ttNg || 0
+                                            )
+                                        );
+
+                                    return next;
+
+                                });
+
+                            }}
+                        />
 
                         <span>
-
-                            {
-                                showNg
-                                    ? "▲"
-                                    : "▼"
-                            }
-
+                            {item.label}
                         </span>
 
-                    </div>
+                    </label>
 
+                );
 
-                    {
-                        showNg && (
+            })}
 
-                            <select
+        </div>
 
-                                multiple
+    )}
 
-                                value={
-                                    selectedNg
-                                }
-
-                                onChange={
-                                    handleNgSelect
-                                }
-
-                            >
-
-                                {
-                                    ngOptions.map(
-                                        (
-                                            item
-                                        ) => (
-
-                                            <option
-
-                                                key={
-                                                    item.key
-                                                }
-
-                                                value={
-                                                    item.key
-                                                }
-
-                                            >
-
-                                                {
-                                                    item.label
-                                                }
-
-                                            </option>
-
-                                        )
-                                    )
-                                }
-
-                            </select>
-
-                        )
-                    }
-
-                </div>
+</div>
 
 
                 <div className="quality-grid">

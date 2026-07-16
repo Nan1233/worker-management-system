@@ -1,4 +1,4 @@
-type Props = {
+interface InputFieldProps {
 
     label: string;
 
@@ -8,11 +8,20 @@ type Props = {
 
     type?: string;
 
-    onChange: (
-        e: React.ChangeEvent<HTMLInputElement>
+    placeholder?: string;
+
+    required?: boolean;
+
+    readOnly?: boolean;
+
+    disabled?: boolean;
+
+    onChange?: (
+        event: React.ChangeEvent<HTMLInputElement>
     ) => void;
 
-};
+}
+
 
 function InputField({
 
@@ -22,23 +31,59 @@ function InputField({
 
     value,
 
-    onChange,
-
     type = "text",
 
-}: Props) {
+    placeholder,
+
+    required = false,
+
+    readOnly = false,
+
+    disabled = false,
+
+    onChange
+
+}: InputFieldProps) {
 
     return (
 
-        <div className="input-group">
+        <div className="form-group">
 
-            <label>{label}</label>
+            <label htmlFor={name}>
+
+                {label}
+
+                {
+                    required && (
+                        <span className="required">
+                            *
+                        </span>
+                    )
+                }
+
+            </label>
+
 
             <input
+
+                id={name}
+
                 type={type}
+
                 name={name}
+
                 value={value}
+
+                placeholder={placeholder}
+
+                required={required}
+
+                readOnly={readOnly}
+
+                disabled={disabled}
+
                 onChange={onChange}
+
             />
 
         </div>
@@ -46,5 +91,6 @@ function InputField({
     );
 
 }
+
 
 export default InputField;
