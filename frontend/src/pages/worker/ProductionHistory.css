@@ -1321,10 +1321,3 @@ and (
     }
 
 }
-.history-table tbody tr {
-    display: grid;
-}
-
-.history-table tbody td {
-    position: static;
-}
