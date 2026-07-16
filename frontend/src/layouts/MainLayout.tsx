@@ -3,13 +3,7 @@ import {
 } from "react-router-dom";
 
 
-import "./MainLayout.css";
-
-
-
-
-
-function MainLayout () {
+function MainLayout() {
 
     return (
 
@@ -20,7 +14,6 @@ function MainLayout () {
                 <Outlet />
 
             </main>
-
 
         </div>
 
