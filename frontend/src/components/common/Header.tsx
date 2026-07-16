@@ -19,7 +19,14 @@ function Header() {
     const role = user.role;
 
 
-    const isManager = role === "manager";
+    const roleInfo: Record<string, { title: string; name: string; status: string }> = {
+        admin: { title: "KTC Administration", name: "Quản trị viên", status: "Toàn quyền quản lý hệ thống" },
+        manager: { title: "KTC Management", name: "Quản lý", status: "Đang quản lý sản xuất" },
+        lead: { title: "KTC Lead", name: "Tổ trưởng", status: "Đang theo dõi và duyệt sản xuất" },
+        worker: { title: "KTC Worker", name: "Công nhân", status: "Đang làm việc" },
+    };
+
+    const currentRole = roleInfo[role] || roleInfo.worker;
 
 
     return (
@@ -30,11 +37,7 @@ function Header() {
             <div className="header-left">
 
                 <h2>
-                    {
-                        isManager
-                        ? "KTC Management"
-                        : "KTC Worker"
-                    }
+                    {currentRole.title}
                 </h2>
 
 
@@ -61,11 +64,7 @@ function Header() {
 
                     <strong>
 
-                        {
-                            isManager
-                            ? "Quản lý"
-                            : "Công nhân"
-                        }
+                        {currentRole.name}
 
                     </strong>
 
@@ -73,11 +72,7 @@ function Header() {
 
                     <small>
 
-                        {
-                            isManager
-                            ? "Đang quản lý sản xuất"
-                            : "Đang làm việc"
-                        }
+                        {currentRole.status}
 
                     </small>
 

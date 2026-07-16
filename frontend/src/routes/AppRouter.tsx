@@ -110,7 +110,7 @@ function AppRouter(){
 
                 element={
 
-                    <PrivateRoute role="admin">
+                    <PrivateRoute allowedRoles={["admin"]}>
 
                         <AdminDashboard />
 
@@ -136,9 +136,9 @@ function AppRouter(){
 
     element={
 
-        <PrivateRoute role="manager">
+        <PrivateRoute allowedRoles={["admin", "manager", "lead"]}>
 
-            <MainLayout role="manager"/>
+            <MainLayout role={JSON.parse(localStorage.getItem("user") || "{}").role || "manager"}/>
 
         </PrivateRoute>
 
@@ -247,7 +247,7 @@ function AppRouter(){
 
                 element={
 
-                    <PrivateRoute role="worker">
+                    <PrivateRoute allowedRoles={["worker"]}>
 
                         <MainLayout role="worker"/>
 

@@ -74,3 +74,37 @@
     }
 
 }
+.worker-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 24px;
+}
+
+.worker-summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 16px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+}
+
+.worker-summary-item span {
+    font-size: 13px;
+    color: #6b7280;
+}
+
+.worker-summary-item strong {
+    font-size: 16px;
+    color: #111827;
+}
+
+@media (max-width: 768px) {
+
+    .worker-summary {
+        grid-template-columns: 1fr;
+    }
+
+}

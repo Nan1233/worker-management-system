@@ -11,7 +11,7 @@ const checkRole = require("../middleware/roleMiddleware");
 router.get(
     "/",
     verifyToken,
-    checkRole("admin", "manager"),
+    checkRole("admin", "manager", "lead"),
     userController.getAllUsers
 );
 
@@ -20,7 +20,7 @@ router.get(
 router.get(
     "/:id",
     verifyToken,
-    checkRole("admin", "manager"),
+    checkRole("admin", "manager", "lead"),
     userController.getUserById
 );
 

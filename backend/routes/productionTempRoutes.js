@@ -3,6 +3,7 @@ const express = require("express");
 const router = express.Router();
 
 const authMiddleware = require("../middleware/authMiddleware");
+const checkRole = require("../middleware/roleMiddleware");
 
 
 const {
@@ -35,6 +36,7 @@ const {
 router.post(
     "/",
     authMiddleware,
+    checkRole("worker"),
     createTempReport
 );
 
@@ -50,6 +52,7 @@ router.post(
 router.get(
     "/my",
     authMiddleware,
+    checkRole("worker"),
     getMyTempReports
 );
 
@@ -65,6 +68,7 @@ router.get(
 router.get(
     "/pending",
     authMiddleware,
+    checkRole("admin", "manager", "lead"),
     getPendingReports
 );
 
@@ -80,6 +84,7 @@ router.get(
 router.get(
     "/approved",
     authMiddleware,
+    checkRole("admin", "manager", "lead"),
     getApprovedReports
 );
 
@@ -95,6 +100,7 @@ router.get(
 router.get(
     "/dates",
     authMiddleware,
+    checkRole("admin", "manager", "lead"),
     getTempDates
 );
 
@@ -110,6 +116,7 @@ router.get(
 router.get(
     "/by-date",
     authMiddleware,
+    checkRole("admin", "manager", "lead"),
     getTempReportsByDate
 );
 
@@ -125,6 +132,7 @@ router.get(
 router.post(
     "/approve-date",
     authMiddleware,
+    checkRole("admin", "manager", "lead"),
     approveTempByDate
 );
 

@@ -3,28 +3,45 @@ import axios from "axios";
 
 const api = axios.create({
 
-    // Render
-    baseURL:"https://worker-management-system-2-5jqv.onrender.com/api",
-// baseURL:"http://localhost:3000/api",
-    headers:{
-        "Content-Type":"application/json"
+    baseURL:
+        import.meta.env.VITE_API_URL
+        ||
+        "http://localhost:5000/api",
+
+    headers: {
+        "Content-Type": "application/json"
     }
 
 });
 
 
-api.interceptors.request.use((config)=>{
+api.interceptors.request.use(
 
-    const token = localStorage.getItem("token");
+    (config) => {
 
-    if(token){
-        config.headers.Authorization =
-            `Bearer ${token}`;
+        const token =
+            localStorage.getItem("token");
+
+
+        if (token) {
+
+            config.headers.Authorization =
+                `Bearer ${token}`;
+
+        }
+
+
+        return config;
+
+    },
+
+    (error) => {
+
+        return Promise.reject(error);
+
     }
 
-    return config;
-
-});
+);
 
 
 export default api;
@@ -38,3 +55,15 @@ baseURL:"http://localhost:3000/api"
 
 ==========================
 */
+
+
+// const api = axios.create({
+
+//     // Render
+//     baseURL:"https://worker-management-system-2-5jqv.onrender.com/api",
+// // baseURL:"http://localhost:3000/api",
+//     headers:{
+//         "Content-Type":"application/json"
+//     }
+
+// });

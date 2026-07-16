@@ -77,13 +77,14 @@ const Login = () => {
 
                 case "admin":
 
-                    navigate("/admin");
+                    navigate("/manager");
 
                     break;
 
 
 
                 case "manager":
+                case "lead":
 
                     navigate("/manager");
 

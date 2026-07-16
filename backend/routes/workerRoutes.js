@@ -1,55 +1,60 @@
 const express = require("express");
+
 const router = express.Router();
 
 
-const workerController = require("../controllers/workerController");
+const workerController =
+    require("../controllers/workerController");
 
-const verifyToken = require("../middleware/authMiddleware");
-const checkRole = require("../middleware/roleMiddleware");
+const verifyToken =
+    require("../middleware/authMiddleware");
+
+const checkRole =
+    require("../middleware/roleMiddleware");
 
 
-
-
-// ADMIN MANAGER
+// =====================================================
+// ADMIN / MANAGER / LEAD
+// LẤY DANH SÁCH NHÂN VIÊN
+// =====================================================
 
 router.get(
     "/",
     verifyToken,
-    checkRole("admin","manager"),
+    checkRole(
+        "admin",
+        "manager",
+        "lead"
+    ),
     workerController.getAllWorkers
 );
 
 
-
+// =====================================================
+// ADMIN TẠO NHÂN VIÊN
+// =====================================================
 
 router.post(
     "/",
     verifyToken,
-    checkRole("admin","manager"),
+    checkRole("admin"),
     workerController.createWorker
 );
 
 
-
-
-// WORKER
+// =====================================================
+// LẤY THÔNG TIN WORKER THEO USER ID
+//
+// Worker chỉ xem được chính mình.
+// Admin / manager / lead có thể xem người khác.
+// Việc kiểm tra nằm trong controller.
+// =====================================================
 
 router.get(
     "/:id",
     verifyToken,
     workerController.getWorkerById
 );
-
-
-
-
-router.put(
-    "/:id",
-    verifyToken,
-    checkRole("admin","manager"),
-    workerController.updateWorker
-);
-
 
 
 module.exports = router;

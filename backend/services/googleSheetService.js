@@ -823,7 +823,72 @@ new Date(item.work_date);
 
 
 
+// =============================================
+// FORMAT AE = DATE dd/mm/yyyy
+// =============================================
 
+await sheets.spreadsheets.batchUpdate({
+
+    spreadsheetId,
+
+    requestBody:{
+
+        requests:[
+
+            {
+
+                repeatCell:{
+
+                    range:{
+
+                        sheetId:
+                        sheet.properties.sheetId,
+
+                        startRowIndex:
+                        rowNumber - 1,
+
+                        endRowIndex:
+                        rowNumber,
+
+                        // AE là cột thứ 31 => index 30
+                        startColumnIndex:
+                        30,
+
+                        endColumnIndex:
+                        31
+
+                    },
+
+
+                    cell:{
+
+                        userEnteredFormat:{
+
+                            numberFormat:{
+
+                                type:"DATE",
+
+                                pattern:"dd/mm/yyyy"
+
+                            }
+
+                        }
+
+                    },
+
+
+                    fields:
+                    "userEnteredFormat.numberFormat"
+
+                }
+
+            }
+
+        ]
+
+    }
+
+});
 
         // =============================================
         // FORMAT NUMBER AB AH + FORMULA COLUMNS

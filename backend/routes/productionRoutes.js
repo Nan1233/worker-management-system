@@ -25,6 +25,9 @@ const {
 const verifyToken =
     require("../middleware/authMiddleware");
 
+const checkRole =
+    require("../middleware/roleMiddleware");
+
 
 
 
@@ -38,6 +41,8 @@ router.get(
     "/dates",
 
     verifyToken,
+
+    checkRole("admin", "manager", "lead"),
 
     getReportDates
 
@@ -59,6 +64,8 @@ router.get(
 
     verifyToken,
 
+    checkRole("admin", "manager", "lead"),
+
     getReportsByDate
 
 );
@@ -78,6 +85,8 @@ router.get(
     "/",
 
     verifyToken,
+
+    checkRole("admin", "manager", "lead"),
 
     getAllReports
 
@@ -99,6 +108,8 @@ router.get(
 
     verifyToken,
 
+    checkRole("admin", "manager", "lead"),
+
     getReportById
 
 );
@@ -119,6 +130,8 @@ router.put(
 
     verifyToken,
 
+    checkRole("admin", "manager", "lead"),
+
     updateReport
 
 );
@@ -138,6 +151,8 @@ router.delete(
     "/:id",
 
     verifyToken,
+
+    checkRole("admin", "manager"),
 
     deleteReport
 

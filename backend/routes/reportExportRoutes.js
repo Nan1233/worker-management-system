@@ -2,78 +2,157 @@ const express = require("express");
 
 const router = express.Router();
 
+const authMiddleware = require("../middleware/authMiddleware");
+const checkRole = require("../middleware/roleMiddleware");
+
 
 const {
+    createTempReport,
 
-    exportGiaCongExcel,
+    getTempDates,
 
-    exportGoogleSheet,
+    getTempReportsByDate,
 
-    createGoogleSheet,
+    approveTempByDate,
 
-    updateGoogleSheet
+    getTempReportDetail,
 
-} = require("../controllers/reportExportController");
+    getMyTempReports,
+
+    getPendingReports,
+
+    getApprovedReports
+
+} = require("../controllers/productionTempController");
 
 
 
 
 // =====================================
-// EXPORT EXCEL
-// GET /api/reports/export-excel
+// WORKER GỬI BÁO CÁO TEMP
+// POST /api/temp-reports
+// =====================================
+
+router.post(
+    "/",
+    authMiddleware,
+    checkRole("worker"),
+    createTempReport
+);
+
+
+
+
+
+// =====================================
+// WORKER XEM LỊCH SỬ
+// GET /api/temp-reports/my
 // =====================================
 
 router.get(
-
-    "/export-excel",
-
-    exportGiaCongExcel
-
+    "/my",
+    authMiddleware,
+    checkRole("worker"),
+    getMyTempReports
 );
+
+
 
 
 
 
 // =====================================
-// GOOGLE SHEET
+// MANAGER XEM CHỜ DUYỆT
 // =====================================
-
-
-// tạo sheet mới
-
-router.post(
-
-    "/create-sheet",
-
-    createGoogleSheet
-
-);
-
-
-
-
-// cập nhật sheet
-
-router.post(
-
-    "/update-sheet",
-
-    updateGoogleSheet
-
-);
-
-
-
-
-// cập nhật dạng GET cũ (nếu FE còn dùng)
 
 router.get(
-
-    "/export-google-sheet",
-
-    exportGoogleSheet
-
+    "/pending",
+    authMiddleware,
+    checkRole("admin", "manager", "lead"),
+    getPendingReports
 );
+
+
+
+
+
+
+// =====================================
+// MANAGER XEM ĐÃ DUYỆT
+// =====================================
+
+router.get(
+    "/approved",
+    authMiddleware,
+    checkRole("admin", "manager", "lead"),
+    getApprovedReports
+);
+
+
+
+
+
+
+// =====================================
+// LẤY DANH SÁCH NGÀY
+// =====================================
+
+router.get(
+    "/dates",
+    authMiddleware,
+    checkRole("admin", "manager", "lead"),
+    getTempDates
+);
+
+
+
+
+
+
+// =====================================
+// XEM BÁO CÁO THEO NGÀY
+// =====================================
+
+router.get(
+    "/by-date",
+    authMiddleware,
+    checkRole("admin", "manager", "lead"),
+    getTempReportsByDate
+);
+
+
+
+
+
+
+// =====================================
+// DUYỆT THEO NGÀY
+// =====================================
+
+router.post(
+    "/approve-date",
+    authMiddleware,
+    checkRole("admin", "manager", "lead"),
+    approveTempByDate
+);
+
+
+
+
+
+
+// =====================================
+// CHI TIẾT
+// phải để cuối vì có :id
+// =====================================
+
+router.get(
+    "/:id",
+    authMiddleware,
+    getTempReportDetail
+);
+
+
 
 
 

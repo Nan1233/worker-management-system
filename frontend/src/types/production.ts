@@ -1,110 +1,110 @@
+export interface ProductionDefect {
+
+    defect_name: string;
+
+    quantity: number;
+
+}
+
+
+export interface ProductionDeduction {
+
+    deduction_name: string;
+
+    hours: number;
+
+}
+
+
 export interface ProductionReport {
 
     id?: number;
 
     worker_id?: number;
 
-    process_id:number;
 
-    work_date:string;
+    process_id: number;
 
-    shift:string;
+    work_date: string;
 
-    machine_no:string;
+    shift: string;
 
-
-    total_time:number;
-
-    actual_time:number;
-
-    deduction_time:number;
+    machine_no: string;
 
 
-    stop_reason?:string;
+    total_time: number;
+
+    actual_time: number;
+
+    deduction_time: number;
 
 
-    product_name:string;
+    stop_reason?: string;
 
 
-    standard_output:number;
-
-    actual_output:number;
+    product_name: string;
 
 
-    tt_ok:number;
+    standard_output: number;
 
-    tt_ng:number;
-
-
-
-    kqd_dap_lai:number;
-
-    kqd_tuot:number;
-
-    vo_do_long:number;
-
-    xuoc_do_long:number;
-
-    cong_gay:number;
-
-    xoay:number;
-
-    khong_dut:number;
-
-    bavia_hut:number;
-
-    ppcm:number;
-
-    loi_cao_su:number;
-
-    ng_kich_thuoc:number;
-
-    cat_lem:number;
+    actual_output: number;
 
 
-    note:string;
+    tt_ok: number;
+
+    tt_ng: number;
 
 
+    kqd_dap_lai: number;
 
-    defects?:{
+    kqd_tuot: number;
 
-        defect_name:string;
+    vo_do_long: number;
 
-        quantity:number;
+    xuoc_do_long: number;
 
-    }[];
+    cong_gay: number;
 
+    xoay: number;
 
+    khong_dut: number;
 
-    deductions?:{
+    bavia_hut: number;
 
-        deduction_name:string;
+    ppcm: number;
 
-        hours:number;
+    loi_cao_su: number;
 
-    }[];
+    ng_kich_thuoc: number;
 
-
-
-    status?:string;
-
-
-    worker_code?:string;
-
-    full_name?:string;
-
-    process_name?:string;
+    cat_lem: number;
 
 
-    created_at?:string;
+    defects?: ProductionDefect[];
 
-    updated_at?:string;
+    deductions?: ProductionDeduction[];
 
 
-    approved_at?:string;
+    note: string;
+
+
+    status?: string;
+
+    worker_code?: string;
+
+    full_name?: string;
+
+    process_name?: string;
+
+    created_at?: string;
+
+    updated_at?: string;
+
+    approved_at?: string;
 
 
     source?:
-    "pending" | "approved";
+        | "pending"
+        | "approved";
 
 }

@@ -78,6 +78,15 @@ exports.createUser = async (req, res) => {
         }
 
 
+        const allowedRoles = ["admin", "manager", "lead", "worker"];
+
+        if (!allowedRoles.includes(role)) {
+            return res.status(400).json({
+                message: "Role không hợp lệ"
+            });
+        }
+
+
 
         userModel.findByUsername(
             username,

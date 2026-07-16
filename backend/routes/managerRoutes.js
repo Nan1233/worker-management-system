@@ -13,7 +13,7 @@ const managerController = require("../controllers/managerController");
 router.get(
     "/reports",
     verifyToken,
-    checkRole("manager"),
+    checkRole("admin", "manager", "lead"),
     managerController.getTempReports
 );
 

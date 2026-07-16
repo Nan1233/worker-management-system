@@ -2,38 +2,45 @@ const workerModel = require("../models/workerModel");
 const db = require("../config/db");
 
 
+// =====================================================
+// LẤY TẤT CẢ NHÂN VIÊN
+// ADMIN / MANAGER / LEAD
+// =====================================================
 
-// ======================================
-// ADMIN / MANAGER LẤY TẤT CẢ WORKER
-// ======================================
+exports.getAllWorkers = (req, res) => {
 
-exports.getAllWorkers = (req,res)=>{
+    workerModel.findAll((err, result) => {
 
-    workerModel.findAll((err,result)=>{
+        if (err) {
 
-        if(err){
+            console.error(
+                "GET ALL WORKERS ERROR:",
+                err
+            );
+
             return res.status(500).json({
-                message:err.message
+                success: false,
+                message: "Không thể lấy danh sách nhân viên"
             });
+
         }
 
-
-        res.json(result);
+        return res.status(200).json({
+            success: true,
+            data: result
+        });
 
     });
 
 };
 
 
+// =====================================================
+// TẠO NHÂN VIÊN
+// ADMIN
+// =====================================================
 
-
-
-// ======================================
-// TẠO WORKER
-// ======================================
-
-exports.createWorker = (req,res)=>{
-
+exports.createWorker = (req, res) => {
 
     const {
         user_id,
@@ -43,15 +50,14 @@ exports.createWorker = (req,res)=>{
     } = req.body;
 
 
-
-    if(!user_id || !worker_code){
+    if (!user_id || !worker_code) {
 
         return res.status(400).json({
-            message:"Thiếu dữ liệu"
+            success: false,
+            message: "Thiếu user_id hoặc worker_code"
         });
 
     }
-
 
 
     workerModel.create(
@@ -61,210 +67,173 @@ exports.createWorker = (req,res)=>{
             phone,
             department
         },
+        (err, result) => {
 
-        err=>{
+            if (err) {
+
+                console.error(
+                    "CREATE WORKER ERROR:",
+                    err
+                );
 
 
-            if(err){
+                if (err.code === "ER_DUP_ENTRY") {
+
+                    return res.status(409).json({
+                        success: false,
+                        message: "User hoặc mã nhân viên đã tồn tại"
+                    });
+
+                }
+
 
                 return res.status(500).json({
-                    message:err.message
+                    success: false,
+                    message: "Không thể tạo nhân viên"
                 });
 
             }
 
 
-            res.status(201).json({
-
-                message:"Tạo công nhân thành công"
-
+            return res.status(201).json({
+                success: true,
+                message: "Tạo nhân viên thành công",
+                data: {
+                    id: result.insertId
+                }
             });
-
 
         }
     );
 
-
 };
 
 
-
-
-
-
-// ======================================
-// WORKER LẤY THÔNG TIN CỦA MÌNH
+// =====================================================
+// LẤY THÔNG TIN WORKER THEO USER ID
 // GET /api/workers/:id
-// ======================================
+// =====================================================
 
-exports.getWorkerById = (req,res)=>{
+exports.getWorkerById = (req, res) => {
+
+    const userId = Number(req.params.id);
 
 
-    const userId = req.params.id;
+    if (!Number.isInteger(userId) || userId <= 0) {
 
+        return res.status(400).json({
+            success: false,
+            message: "ID người dùng không hợp lệ"
+        });
+
+    }
+
+
+    /*
+        Worker chỉ được xem thông tin của chính mình.
+
+        Admin, manager và lead được phép xem người khác.
+    */
+
+    const loginUserId = Number(req.user.id);
+    const loginRole = req.user.role;
+
+    const managementRoles = [
+        "admin",
+        "manager",
+        "lead"
+    ];
+
+
+    const isOwnProfile =
+        loginUserId === userId;
+
+    const isManagement =
+        managementRoles.includes(loginRole);
+
+
+    if (!isOwnProfile && !isManagement) {
+
+        return res.status(403).json({
+            success: false,
+            message: "Bạn không có quyền xem nhân viên này"
+        });
+
+    }
 
 
     const sql = `
 
-    SELECT
+        SELECT
 
-        w.id,
+            w.id AS worker_id,
 
-        w.worker_code,
+            w.user_id,
 
-        u.full_name AS worker_name
+            w.worker_code,
 
+            w.phone,
 
-    FROM workers w
+            w.department,
 
+            w.status,
 
-    INNER JOIN users u
+            w.created_at,
 
-    ON w.user_id = u.id
+            u.username,
 
+            u.full_name,
 
-    WHERE w.user_id = ?
+            u.role
+
+        FROM workers AS w
+
+        INNER JOIN users AS u
+            ON w.user_id = u.id
+
+        WHERE w.user_id = ?
+
+        LIMIT 1
 
     `;
 
 
-
     db.query(
-
         sql,
-
         [userId],
+        (err, result) => {
 
-        (err,result)=>{
+            if (err) {
 
-
-            if(err){
-
-                console.log(err);
+                console.error(
+                    "GET WORKER BY USER ID ERROR:",
+                    err
+                );
 
                 return res.status(500).json({
-
-                    message:err.message
-
+                    success: false,
+                    message: "Không thể lấy thông tin nhân viên"
                 });
 
             }
 
 
-
-            if(result.length===0){
+            if (result.length === 0) {
 
                 return res.status(404).json({
-
-                    message:"Không tìm thấy nhân viên"
-
+                    success: false,
+                    message: "Tài khoản chưa có hồ sơ nhân viên"
                 });
 
             }
 
 
-
-            res.json({
-
-                success:true,
-
-                data:result[0]
-
+            return res.status(200).json({
+                success: true,
+                data: result[0]
             });
 
-
         }
-
     );
-
-
-};
-
-
-
-
-
-
-
-// ======================================
-// UPDATE WORKER
-// ======================================
-
-exports.updateWorker = (req,res)=>{
-
-
-    const id=req.params.id;
-
-
-    const {
-
-        worker_code,
-        phone,
-        department,
-        position,
-        status
-
-    }=req.body;
-
-
-
-    const sql=`
-
-    UPDATE workers
-
-    SET
-
-    worker_code=?,
-    phone=?,
-    department=?,
-    position=?,
-    status=?
-
-    WHERE id=?
-
-    `;
-
-
-
-    db.query(
-
-        sql,
-
-        [
-            worker_code,
-            phone,
-            department,
-            position,
-            status,
-            id
-        ],
-
-
-        err=>{
-
-
-            if(err){
-
-                return res.status(500).json({
-
-                    message:err.message
-
-                });
-
-            }
-
-
-
-            res.json({
-
-                message:"Cập nhật thành công"
-
-            });
-
-
-        }
-
-    );
-
 
 };
