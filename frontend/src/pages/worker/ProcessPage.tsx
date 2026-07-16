@@ -3024,59 +3024,7 @@ const handleProductChange = (
                         </div>
 
 
-                        {/* THỜI GIAN THỰC TẾ */}
 
-                        <div className="worker-time-item">
-
-                            <label
-
-                                htmlFor="actualTime"
-
-                            >
-
-                                Thời gian thực tế
-
-                            </label>
-
-
-                            <input
-
-                                id="actualTime"
-
-                                name="actualTime"
-
-                                value={
-                                    form.actualTime
-                                }
-
-                                onChange={
-                                    handleTimeInputChange
-                                }
-
-                                onBlur={
-                                    handleNumberBlur
-                                }
-
-                                inputMode="decimal"
-
-                                placeholder="0"
-
-                                autoComplete="off"
-
-                            />
-
-
-                            <small>
-
-                                {
-                                    decimalHoursToText(
-                                        form.actualTime
-                                    )
-                                }
-
-                            </small>
-
-                        </div>
 
 
                         {/* THỜI GIAN TRỪ */}
