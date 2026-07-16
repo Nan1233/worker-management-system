@@ -1,7 +1,7 @@
 -- =====================================================
 -- WORKER MANAGEMENT SYSTEM
--- TiDB VERSION
--- PART 1
+-- FULL DATABASE
+-- TiDB / MySQL
 -- =====================================================
 
 
@@ -19,9 +19,8 @@ USE worker_management;
 SET FOREIGN_KEY_CHECKS = 0;
 
 
-
 -- =====================================================
--- USERS
+-- 1. USERS
 -- =====================================================
 
 CREATE TABLE users
@@ -34,1034 +33,375 @@ CREATE TABLE users
     password VARCHAR(255)
     NOT NULL,
 
-    full_name VARCHAR(100)
+    full_name VARCHAR(150)
     NOT NULL,
 
     role ENUM(
         'admin',
         'manager',
+        'lead',
         'worker'
     )
     NOT NULL,
 
+    status ENUM(
+        'active',
+        'inactive'
+    )
+    NOT NULL DEFAULT 'active',
+
     created_at TIMESTAMP
+    DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP
     DEFAULT CURRENT_TIMESTAMP
+    ON UPDATE CURRENT_TIMESTAMP
 );
 
 
-
 -- =====================================================
--- WORKERS
+-- 2. WORKERS
 -- =====================================================
 
 CREATE TABLE workers
 (
     id INT AUTO_INCREMENT PRIMARY KEY,
 
-
-    user_id INT NOT NULL UNIQUE,
-
+    user_id INT
+    NOT NULL UNIQUE,
 
     worker_code VARCHAR(30)
     NOT NULL UNIQUE,
 
-
     phone VARCHAR(20),
 
+    department VARCHAR(100)
+    DEFAULT 'Sản xuất',
 
-    department VARCHAR(100),
+    position VARCHAR(100)
+    DEFAULT 'Công nhân',
 
-
-    position VARCHAR(100),
-
+    training_percent DECIMAL(5,2)
+    NOT NULL DEFAULT 100.00,
 
     status ENUM(
         'active',
         'inactive'
     )
-    DEFAULT 'active',
-
+    NOT NULL DEFAULT 'active',
 
     created_at TIMESTAMP
     DEFAULT CURRENT_TIMESTAMP,
 
+    updated_at TIMESTAMP
+    DEFAULT CURRENT_TIMESTAMP
+    ON UPDATE CURRENT_TIMESTAMP,
 
+    CONSTRAINT fk_workers_user
     FOREIGN KEY(user_id)
     REFERENCES users(id)
     ON DELETE CASCADE
 );
 
 
-
-
 -- =====================================================
--- PROCESSES
+-- 3. PROCESSES
 -- =====================================================
 
 CREATE TABLE processes
 (
     id INT AUTO_INCREMENT PRIMARY KEY,
 
-
-    process_code VARCHAR(20)
-    UNIQUE NOT NULL,
-
+    process_code VARCHAR(30)
+    NOT NULL UNIQUE,
 
     process_name VARCHAR(100)
     NOT NULL,
 
-
-    description TEXT,
-
+    description VARCHAR(255),
 
     status ENUM(
         'active',
         'inactive'
     )
-    DEFAULT 'active',
-
+    NOT NULL DEFAULT 'active',
 
     created_at TIMESTAMP
+    DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP
     DEFAULT CURRENT_TIMESTAMP
+    ON UPDATE CURRENT_TIMESTAMP
 );
 
 
-
 -- =====================================================
--- USER DATA
--- password: 123456
--- =====================================================
-
-
-INSERT INTO users
-(
-username,
-password,
-full_name,
-role
-)
-
-VALUES
-
-
-(
-'admin',
-'$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
-'Administrator',
-'admin'
-),
-
-
-(
-'manager1',
-'$2b$10$GIwzxNuusum5.3QLsFFzKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
-'Nguyen Van Quan',
-'manager'
-),
-
-
-(
-'manager2',
-'$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
-'Tran Thi Hoa',
-'manager'
-),
-
-
-(
-'worker1',
-'$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
-'Nguyen Van A',
-'worker'
-),
-
-
-(
-'worker2',
-'$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
-'Le Van B',
-'worker'
-);
-
-
-
--- =====================================================
--- WORKERS DATA
+-- 4. PRODUCT STANDARDS
+-- ĐỊNH MỨC SẢN PHẨM
 -- =====================================================
 
-
-INSERT INTO workers
+CREATE TABLE product_standards
 (
-user_id,
-worker_code,
-department,
-position
-)
-
-VALUES
-
-
-(4,'W001','Production','Operator'),
-
-
-(5,'W002','Production','Operator');
-
-
-
-
-
--- =====================================================
--- PROCESS DATA
--- =====================================================
-
-
-INSERT INTO processes
-(
-process_code,
-process_name,
-description
-)
-
-VALUES
-
-
-(
-'GC',
-'Gia công',
-'Gia công sản phẩm'
-),
-
-
-(
-'MAI',
-'Mài',
-'Mài sản phẩm'
-),
-
-
-(
-'K1',
-'Kiểm 1',
-'Kiểm tra lần 1'
-),
-
-
-(
-'K2',
-'Kiểm 2',
-'Kiểm tra lần 2'
-);
-
-
-
-SET FOREIGN_KEY_CHECKS = 1;
-
--- =====================================================
--- WORKER MANAGEMENT SYSTEM
--- TiDB VERSION
--- PART 2
--- =====================================================
-
-
-USE worker_management;
-
-
-
-SET FOREIGN_KEY_CHECKS = 0;
-
-
-
--- =====================================================
--- WORKER PROCESS
--- Công nhân được phép làm công đoạn nào
--- =====================================================
-
-
-CREATE TABLE worker_processes
-(
-
     id INT AUTO_INCREMENT PRIMARY KEY,
 
+    process_id INT
+    NOT NULL,
 
-    worker_id INT NOT NULL,
+    work_type VARCHAR(30)
+    NOT NULL,
 
+    product_code VARCHAR(50)
+    NOT NULL,
 
-    process_id INT NOT NULL,
+    standard_output DECIMAL(12,2)
+    NOT NULL DEFAULT 0,
 
+    status ENUM(
+        'active',
+        'inactive'
+    )
+    NOT NULL DEFAULT 'active',
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP
+    DEFAULT CURRENT_TIMESTAMP,
 
+    updated_at TIMESTAMP
+    DEFAULT CURRENT_TIMESTAMP
+    ON UPDATE CURRENT_TIMESTAMP,
 
-    FOREIGN KEY(worker_id)
-    REFERENCES workers(id)
-    ON DELETE CASCADE,
-
-
+    CONSTRAINT fk_product_standard_process
     FOREIGN KEY(process_id)
     REFERENCES processes(id)
     ON DELETE CASCADE,
 
-
-    UNIQUE(worker_id,process_id)
-
+    CONSTRAINT uq_product_standard
+    UNIQUE(
+        process_id,
+        work_type,
+        product_code
+    )
 );
 
 
+-- =====================================================
+-- 5. WORKER PROCESSES
+-- CÔNG NHÂN ĐƯỢC LÀM CÔNG ĐOẠN NÀO
+-- =====================================================
 
-
-INSERT INTO worker_processes
+CREATE TABLE worker_processes
 (
-worker_id,
-process_id
-)
+    id INT AUTO_INCREMENT PRIMARY KEY,
 
-VALUES
+    worker_id INT
+    NOT NULL,
 
-(1,1),
-(1,2),
-(1,3),
-(1,4),
+    process_id INT
+    NOT NULL,
 
-(2,1);
+    created_at TIMESTAMP
+    DEFAULT CURRENT_TIMESTAMP,
 
+    CONSTRAINT fk_worker_process_worker
+    FOREIGN KEY(worker_id)
+    REFERENCES workers(id)
+    ON DELETE CASCADE,
 
+    CONSTRAINT fk_worker_process_process
+    FOREIGN KEY(process_id)
+    REFERENCES processes(id)
+    ON DELETE CASCADE,
 
+    CONSTRAINT uq_worker_process
+    UNIQUE(
+        worker_id,
+        process_id
+    )
+);
 
 
 -- =====================================================
--- MANAGER PROCESS
--- Quản lý phụ trách công đoạn
+-- 6. MANAGER PROCESSES
+-- BACKEND HIỆN ĐANG DÙNG TÊN manager_processes
+-- MANAGER / LEAD PHỤ TRÁCH CÔNG ĐOẠN
 -- =====================================================
-
 
 CREATE TABLE manager_processes
 (
-
     id INT AUTO_INCREMENT PRIMARY KEY,
 
+    manager_id INT
+    NOT NULL,
 
-    manager_id INT NOT NULL,
+    process_id INT
+    NOT NULL,
 
+    created_at TIMESTAMP
+    DEFAULT CURRENT_TIMESTAMP,
 
-    process_id INT NOT NULL,
-
-
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-
+    CONSTRAINT fk_manager_process_user
     FOREIGN KEY(manager_id)
     REFERENCES users(id)
     ON DELETE CASCADE,
 
-
+    CONSTRAINT fk_manager_process_process
     FOREIGN KEY(process_id)
     REFERENCES processes(id)
     ON DELETE CASCADE,
 
-
-    UNIQUE(manager_id,process_id)
-
+    CONSTRAINT uq_manager_process
+    UNIQUE(
+        manager_id,
+        process_id
+    )
 );
 
 
-
-INSERT INTO manager_processes
-(
-manager_id,
-process_id
-)
-
-VALUES
-
-(2,1),
-(2,2),
-
-(3,3),
-(3,4);
-
-
-
-
-
-
 -- =====================================================
--- DANH MỤC LỖI NG THEO CÔNG ĐOẠN
+-- 7. DEFECT TYPES
+-- DANH MỤC LỖI NG
 -- =====================================================
-
 
 CREATE TABLE defect_types
 (
-
     id INT AUTO_INCREMENT PRIMARY KEY,
 
-
-    process_id INT NOT NULL,
-
+    process_id INT
+    NOT NULL,
 
     defect_code VARCHAR(50)
     NOT NULL,
 
-
-    defect_name VARCHAR(100)
+    defect_name VARCHAR(150)
     NOT NULL,
 
-
-    sort_order INT DEFAULT 0,
-
+    sort_order INT
+    NOT NULL DEFAULT 0,
 
     status ENUM(
         'active',
         'inactive'
     )
-    DEFAULT 'active',
+    NOT NULL DEFAULT 'active',
 
+    created_at TIMESTAMP
+    DEFAULT CURRENT_TIMESTAMP,
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP
+    DEFAULT CURRENT_TIMESTAMP
+    ON UPDATE CURRENT_TIMESTAMP,
 
-
+    CONSTRAINT fk_defect_process
     FOREIGN KEY(process_id)
     REFERENCES processes(id)
-    ON DELETE CASCADE
+    ON DELETE CASCADE,
 
+    CONSTRAINT uq_defect_process_code
+    UNIQUE(
+        process_id,
+        defect_code
+    )
 );
 
 
-
-
-
 -- =====================================================
--- LỖI GIA CÔNG
--- =====================================================
-
-
-INSERT INTO defect_types
-(
-process_id,
-defect_code,
-defect_name,
-sort_order
-)
-
-VALUES
-
-(1,'KQD_DL','KQD dập lại',1),
-(1,'KQD_TUOT','KQD tuột',2),
-(1,'VO_LONG','Vỡ do lồng',3),
-(1,'XUOC_LONG','Xước do lồng',4),
-(1,'CONG_GAY','Cong gãy',5),
-(1,'XOAY','Xoay',6),
-(1,'KHONG_DUT','Không đứt',7),
-(1,'BAVIA','Bavia hụt',8),
-(1,'PPCM','PPCM',9),
-(1,'CAO_SU','Lỗi cao su',10),
-(1,'KT','NG kích thước',11),
-(1,'CAT_LEM','Cắt lẹm',12);
-
-
-
-
-
-
--- =====================================================
--- LỖI MÀI
--- =====================================================
-
-
-INSERT INTO defect_types
-(
-process_id,
-defect_code,
-defect_name,
-sort_order
-)
-
-VALUES
-
-(2,'ME','Mẻ cạnh',1),
-(2,'XUOC','Xước',2),
-(2,'LOM','Lõm',3),
-(2,'SAI_KT','Sai kích thước',4);
-
-
-
-
-
-
--- =====================================================
--- LỖI KIỂM 1
--- =====================================================
-
-
-INSERT INTO defect_types
-(
-process_id,
-defect_code,
-defect_name,
-sort_order
-)
-
-VALUES
-
-(3,'NGOAI_QUAN','Ngoại quan',1),
-(3,'THIEU_CT','Thiếu chi tiết',2),
-(3,'SAI_MAU','Sai màu',3);
-
-
-
-
-
-
--- =====================================================
--- LỖI KIỂM 2
--- =====================================================
-
-
-INSERT INTO defect_types
-(
-process_id,
-defect_code,
-defect_name,
-sort_order
-)
-
-VALUES
-
-(4,'TEM','Tem sai',1),
-(4,'DONG_GOI','Đóng gói sai',2),
-(4,'THUNG','Thùng lỗi',3);
-
-
-
-
-
-
-
-
--- =====================================================
+-- 8. DEDUCTION TYPES
 -- DANH MỤC TRỪ GIỜ
 -- =====================================================
 
-
 CREATE TABLE deduction_types
 (
-
     id INT AUTO_INCREMENT PRIMARY KEY,
 
-
-    process_id INT NOT NULL,
-
+    process_id INT
+    NOT NULL,
 
     deduction_code VARCHAR(50)
     NOT NULL,
 
-
-    deduction_name VARCHAR(100)
+    deduction_name VARCHAR(150)
     NOT NULL,
 
-
-    sort_order INT DEFAULT 0,
-
+    sort_order INT
+    NOT NULL DEFAULT 0,
 
     status ENUM(
         'active',
         'inactive'
     )
-    DEFAULT 'active',
-
-
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-
-    FOREIGN KEY(process_id)
-    REFERENCES processes(id)
-    ON DELETE CASCADE
-
-);
-
-
-
-
-
-
--- =====================================================
--- TRỪ GIỜ GIA CÔNG
--- =====================================================
-
-
-INSERT INTO deduction_types
-(
-process_id,
-deduction_code,
-deduction_name,
-sort_order
-)
-
-VALUES
-
-(1,'VSK','Số giờ VSK',1),
-(1,'5S','Số giờ 5S + Gia ca',2),
-(1,'HAM_KHUON','Số giờ hâm khuôn',3),
-(1,'SUA_KHUON','Số giờ sửa khuôn',4),
-(1,'SUA_MAY','Số giờ sửa máy',5),
-(1,'DUNG_MAY','Số giờ dừng máy',6);
-
-
-
-
-
-
--- =====================================================
--- TRỪ GIỜ MÀI
--- =====================================================
-
-
-INSERT INTO deduction_types
-(
-process_id,
-deduction_code,
-deduction_name,
-sort_order
-)
-
-VALUES
-
-(2,'THAY_DA','Thay đá',1),
-(2,'SUA_MAY','Sửa máy',2),
-(2,'5S','5S',3);
-
-
-
-
-
-
--- =====================================================
--- TRỪ GIỜ KIỂM 1
--- =====================================================
-
-
-INSERT INTO deduction_types
-(
-process_id,
-deduction_code,
-deduction_name,
-sort_order
-)
-
-VALUES
-
-(3,'HOP','Họp',1),
-(3,'DAO_TAO','Đào tạo',2);
-
-
-
-
-
-
--- =====================================================
--- TRỪ GIỜ KIỂM 2
--- =====================================================
-
-
-INSERT INTO deduction_types
-(
-process_id,
-deduction_code,
-deduction_name,
-sort_order
-)
-
-VALUES
-
-(4,'HOP','Họp',1),
-(4,'DAO_TAO','Đào tạo',2);
-
-
-
-SET FOREIGN_KEY_CHECKS = 1;
-
--- =====================================================
--- WORKER MANAGEMENT SYSTEM
--- TiDB VERSION
--- PART 3
--- Production Reports
--- Report Defects
--- Report Deductions
--- =====================================================
-
-
-USE worker_management;
-
-
-SET FOREIGN_KEY_CHECKS = 0;
-
-
-
--- =====================================================
--- BẢNG BÁO CÁO SẢN XUẤT
--- =====================================================
-
-
-CREATE TABLE production_reports
-(
-
-    id INT AUTO_INCREMENT PRIMARY KEY,
-
-
-    worker_id INT NOT NULL,
-
-
-    process_id INT NOT NULL,
-
-
-    work_date DATE NOT NULL,
-
-
-    shift ENUM(
-        'Ca 1',
-        'Ca 2',
-        'Ca 3'
-    )
-    NOT NULL,
-
-
-    machine_no VARCHAR(50),
-
-
-    product_name VARCHAR(100),
-
-
-
-    -- ==========================
-    -- THỜI GIAN
-    -- ==========================
-
-    total_time DECIMAL(5,2)
-    DEFAULT 0,
-
-
-    actual_time DECIMAL(5,2)
-    DEFAULT 0,
-
-
-    deduction_time DECIMAL(5,2)
-    DEFAULT 0,
-
-
-
-    -- ==========================
-    -- SẢN LƯỢNG
-    -- ==========================
-
-    standard_output INT
-    DEFAULT 0,
-
-
-    actual_output INT
-    DEFAULT 0,
-
-
-
-    -- ==========================
-    -- CHẤT LƯỢNG
-    -- ==========================
-
-    tt_ok INT
-    DEFAULT 0,
-
-
-    tt_ng INT
-    DEFAULT 0,
-
-
-
-    note TEXT,
-
-
-
-    -- ==========================
-    -- DUYỆT
-    -- ==========================
-
-    status ENUM(
-        'pending',
-        'need_fix',
-        'approved',
-        'rejected'
-    )
-    DEFAULT 'pending',
-
-
-
-    review_note TEXT,
-
-
-    reviewed_by INT NULL,
-
-
-    approved_at TIMESTAMP NULL,
-
-
+    NOT NULL DEFAULT 'active',
 
     created_at TIMESTAMP
     DEFAULT CURRENT_TIMESTAMP,
-
 
     updated_at TIMESTAMP
     DEFAULT CURRENT_TIMESTAMP
     ON UPDATE CURRENT_TIMESTAMP,
 
-
-
-    FOREIGN KEY(worker_id)
-    REFERENCES workers(id)
-    ON DELETE CASCADE,
-
-
-
+    CONSTRAINT fk_deduction_process
     FOREIGN KEY(process_id)
     REFERENCES processes(id)
     ON DELETE CASCADE,
 
-
-
-    FOREIGN KEY(reviewed_by)
-    REFERENCES users(id)
-
+    CONSTRAINT uq_deduction_process_code
+    UNIQUE(
+        process_id,
+        deduction_code
+    )
 );
 
 
-
-
-
-
-
 -- =====================================================
--- CHI TIẾT LỖI NG
+-- 9. PRODUCTION REPORTS TEMP
+-- BÁO CÁO CHƯA DUYỆT
 -- =====================================================
-
-
-CREATE TABLE production_report_defects
-(
-
-    id INT AUTO_INCREMENT PRIMARY KEY,
-
-
-    report_id INT NOT NULL,
-
-
-    defect_type_id INT NOT NULL,
-
-
-    quantity INT DEFAULT 0,
-
-
-    created_at TIMESTAMP
-    DEFAULT CURRENT_TIMESTAMP,
-
-
-
-    FOREIGN KEY(report_id)
-    REFERENCES production_reports(id)
-    ON DELETE CASCADE,
-
-
-
-    FOREIGN KEY(defect_type_id)
-    REFERENCES defect_types(id)
-    ON DELETE CASCADE
-
-);
-
-
-
-
-
-
-
-
--- =====================================================
--- CHI TIẾT TRỪ GIỜ
--- =====================================================
-
-
-CREATE TABLE production_report_deductions
-(
-
-    id INT AUTO_INCREMENT PRIMARY KEY,
-
-
-    report_id INT NOT NULL,
-
-
-    deduction_type_id INT NOT NULL,
-
-
-    hours DECIMAL(5,2)
-    DEFAULT 0,
-
-
-    created_at TIMESTAMP
-    DEFAULT CURRENT_TIMESTAMP,
-
-
-
-    FOREIGN KEY(report_id)
-    REFERENCES production_reports(id)
-    ON DELETE CASCADE,
-
-
-
-    FOREIGN KEY(deduction_type_id)
-    REFERENCES deduction_types(id)
-    ON DELETE CASCADE
-
-);
-
-
-
-
-
-
--- =====================================================
--- INDEX CƠ BẢN
--- =====================================================
-
-
-CREATE INDEX idx_report_worker
-
-ON production_reports(worker_id);
-
-
-
-CREATE INDEX idx_report_process
-
-ON production_reports(process_id);
-
-
-
-CREATE INDEX idx_report_date
-
-ON production_reports(work_date);
-
-
-
-CREATE INDEX idx_defect_report
-
-ON production_report_defects(report_id);
-
-
-
-CREATE INDEX idx_deduction_report
-
-ON production_report_deductions(report_id);
-
-
-
-SET FOREIGN_KEY_CHECKS = 1;
-
--- =====================================================
--- WORKER MANAGEMENT SYSTEM
--- TiDB VERSION
--- PART 4
--- Temp Reports
--- Temp Defects
--- Temp Deductions
--- View
--- =====================================================
-
-
-USE worker_management;
-
-
-SET FOREIGN_KEY_CHECKS = 0;
-
-
-
--- =====================================================
--- BẢNG BÁO CÁO TẠM CHỜ DUYỆT
--- =====================================================
-
 
 CREATE TABLE production_reports_temp
 (
-
     id INT AUTO_INCREMENT PRIMARY KEY,
 
-
-    worker_id INT NOT NULL,
-
-
-    process_id INT NOT NULL,
-
-
-    work_date DATE NOT NULL,
-
-
-    shift ENUM(
-        'Ca 1',
-        'Ca 2',
-        'Ca 3'
-    )
+    worker_id INT
     NOT NULL,
 
+    process_id INT
+    NOT NULL,
+
+    work_date DATE
+    NOT NULL,
+
+    shift VARCHAR(20)
+    NOT NULL,
 
     machine_no VARCHAR(50),
 
+    training_percent DECIMAL(5,2)
+    NOT NULL DEFAULT 100.00,
 
     product_name VARCHAR(100),
 
-
-
-    -- ======================
-    -- THỜI GIAN
-    -- ======================
-
-    total_time DECIMAL(5,2)
-    DEFAULT 0,
-
-
-    actual_time DECIMAL(5,2)
-    DEFAULT 0,
-
-
-    deduction_time DECIMAL(5,2)
-    DEFAULT 0,
-
-
-
-    -- ======================
-    -- SẢN LƯỢNG
-    -- ======================
-
-    standard_output INT
-    DEFAULT 0,
-
+    standard_output DECIMAL(12,2)
+    NOT NULL DEFAULT 0,
 
     actual_output INT
-    DEFAULT 0,
+    NOT NULL DEFAULT 0,
 
+    total_time DECIMAL(8,3)
+    NOT NULL DEFAULT 0,
 
+    actual_time DECIMAL(8,3)
+    NOT NULL DEFAULT 0,
 
-    -- ======================
-    -- CHẤT LƯỢNG
-    -- ======================
+    deduction_time DECIMAL(8,3)
+    NOT NULL DEFAULT 0,
 
     tt_ok INT
-    DEFAULT 0,
-
+    NOT NULL DEFAULT 0,
 
     tt_ng INT
-    DEFAULT 0,
+    NOT NULL DEFAULT 0,
 
-
+    stop_reason VARCHAR(255),
 
     note TEXT,
-
-
-
-    -- ======================
-    -- DUYỆT
-    -- ======================
 
     status ENUM(
         'pending',
@@ -1069,1066 +409,1380 @@ CREATE TABLE production_reports_temp
         'approved',
         'rejected'
     )
-    DEFAULT 'pending',
-
-
+    NOT NULL DEFAULT 'pending',
 
     review_note TEXT,
 
-
     reviewed_by INT NULL,
-
 
     approved_at TIMESTAMP NULL,
 
-
-
     created_at TIMESTAMP
     DEFAULT CURRENT_TIMESTAMP,
-
 
     updated_at TIMESTAMP
     DEFAULT CURRENT_TIMESTAMP
     ON UPDATE CURRENT_TIMESTAMP,
 
-
-
+    CONSTRAINT fk_temp_report_worker
     FOREIGN KEY(worker_id)
     REFERENCES workers(id)
     ON DELETE CASCADE,
 
-
-
+    CONSTRAINT fk_temp_report_process
     FOREIGN KEY(process_id)
     REFERENCES processes(id)
     ON DELETE CASCADE,
 
-
-
+    CONSTRAINT fk_temp_report_reviewer
     FOREIGN KEY(reviewed_by)
     REFERENCES users(id)
-
+    ON DELETE SET NULL
 );
 
 
+-- =====================================================
+-- 10. PRODUCTION REPORTS
+-- BÁO CÁO ĐÃ DUYỆT
+-- =====================================================
 
+CREATE TABLE production_reports
+(
+    id INT AUTO_INCREMENT PRIMARY KEY,
 
+    source_temp_id INT NULL,
 
+    worker_id INT
+    NOT NULL,
 
+    process_id INT
+    NOT NULL,
+
+    work_date DATE
+    NOT NULL,
+
+    shift VARCHAR(20)
+    NOT NULL,
+
+    machine_no VARCHAR(50),
+
+    training_percent DECIMAL(5,2)
+    NOT NULL DEFAULT 100.00,
+
+    product_name VARCHAR(100),
+
+    standard_output DECIMAL(12,2)
+    NOT NULL DEFAULT 0,
+
+    actual_output INT
+    NOT NULL DEFAULT 0,
+
+    total_time DECIMAL(8,3)
+    NOT NULL DEFAULT 0,
+
+    actual_time DECIMAL(8,3)
+    NOT NULL DEFAULT 0,
+
+    deduction_time DECIMAL(8,3)
+    NOT NULL DEFAULT 0,
+
+    tt_ok INT
+    NOT NULL DEFAULT 0,
+
+    tt_ng INT
+    NOT NULL DEFAULT 0,
+
+    stop_reason VARCHAR(255),
+
+    note TEXT,
+
+    status ENUM(
+        'pending',
+        'need_fix',
+        'approved',
+        'rejected'
+    )
+    NOT NULL DEFAULT 'approved',
+
+    review_note TEXT,
+
+    reviewed_by INT NULL,
+
+    approved_at TIMESTAMP NULL,
+
+    created_at TIMESTAMP
+    DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP
+    DEFAULT CURRENT_TIMESTAMP
+    ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_report_worker
+    FOREIGN KEY(worker_id)
+    REFERENCES workers(id)
+    ON DELETE CASCADE,
+
+    CONSTRAINT fk_report_process
+    FOREIGN KEY(process_id)
+    REFERENCES processes(id)
+    ON DELETE CASCADE,
+
+    CONSTRAINT fk_report_reviewer
+    FOREIGN KEY(reviewed_by)
+    REFERENCES users(id)
+    ON DELETE SET NULL
+);
 
 
 -- =====================================================
--- LỖI NG TEMP
+-- 11. TEMP DEFECTS
+-- CHI TIẾT LỖI CỦA BÁO CÁO CHƯA DUYỆT
 -- =====================================================
-
 
 CREATE TABLE production_temp_defects
 (
-
     id INT AUTO_INCREMENT PRIMARY KEY,
 
+    temp_report_id INT
+    NOT NULL,
 
-    temp_report_id INT NOT NULL,
+    defect_type_id INT
+    NOT NULL,
 
-
-    defect_type_id INT NOT NULL,
-
-
-    quantity INT DEFAULT 0,
-
+    quantity INT
+    NOT NULL DEFAULT 0,
 
     created_at TIMESTAMP
     DEFAULT CURRENT_TIMESTAMP,
 
-
-
+    CONSTRAINT fk_temp_defect_report
     FOREIGN KEY(temp_report_id)
     REFERENCES production_reports_temp(id)
     ON DELETE CASCADE,
 
-
-
+    CONSTRAINT fk_temp_defect_type
     FOREIGN KEY(defect_type_id)
     REFERENCES defect_types(id)
-    ON DELETE CASCADE
+    ON DELETE CASCADE,
 
+    CONSTRAINT uq_temp_report_defect
+    UNIQUE(
+        temp_report_id,
+        defect_type_id
+    )
 );
 
 
-
-
-
-
-
-
 -- =====================================================
--- TRỪ GIỜ TEMP
+-- 12. TEMP DEDUCTIONS
+-- CHI TIẾT TRỪ GIỜ CỦA BÁO CÁO CHƯA DUYỆT
 -- =====================================================
-
 
 CREATE TABLE production_temp_deductions
 (
-
     id INT AUTO_INCREMENT PRIMARY KEY,
 
+    temp_report_id INT
+    NOT NULL,
 
-    temp_report_id INT NOT NULL,
+    deduction_type_id INT
+    NOT NULL,
 
-
-    deduction_type_id INT NOT NULL,
-
-
-    hours DECIMAL(5,2)
-    DEFAULT 0,
-
+    hours DECIMAL(8,3)
+    NOT NULL DEFAULT 0,
 
     created_at TIMESTAMP
     DEFAULT CURRENT_TIMESTAMP,
 
-
-
+    CONSTRAINT fk_temp_deduction_report
     FOREIGN KEY(temp_report_id)
     REFERENCES production_reports_temp(id)
     ON DELETE CASCADE,
 
-
-
+    CONSTRAINT fk_temp_deduction_type
     FOREIGN KEY(deduction_type_id)
     REFERENCES deduction_types(id)
+    ON DELETE CASCADE,
+
+    CONSTRAINT uq_temp_report_deduction
+    UNIQUE(
+        temp_report_id,
+        deduction_type_id
+    )
+);
+
+
+-- =====================================================
+-- 13. APPROVED REPORT DEFECTS
+-- CHI TIẾT LỖI CỦA BÁO CÁO ĐÃ DUYỆT
+-- =====================================================
+
+CREATE TABLE production_report_defects
+(
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    report_id INT
+    NOT NULL,
+
+    defect_type_id INT
+    NOT NULL,
+
+    quantity INT
+    NOT NULL DEFAULT 0,
+
+    created_at TIMESTAMP
+    DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_report_defect_report
+    FOREIGN KEY(report_id)
+    REFERENCES production_reports(id)
+    ON DELETE CASCADE,
+
+    CONSTRAINT fk_report_defect_type
+    FOREIGN KEY(defect_type_id)
+    REFERENCES defect_types(id)
+    ON DELETE CASCADE,
+
+    CONSTRAINT uq_report_defect
+    UNIQUE(
+        report_id,
+        defect_type_id
+    )
+);
+
+
+-- =====================================================
+-- 14. APPROVED REPORT DEDUCTIONS
+-- CHI TIẾT TRỪ GIỜ CỦA BÁO CÁO ĐÃ DUYỆT
+-- =====================================================
+
+CREATE TABLE production_report_deductions
+(
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    report_id INT
+    NOT NULL,
+
+    deduction_type_id INT
+    NOT NULL,
+
+    hours DECIMAL(8,3)
+    NOT NULL DEFAULT 0,
+
+    created_at TIMESTAMP
+    DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_report_deduction_report
+    FOREIGN KEY(report_id)
+    REFERENCES production_reports(id)
+    ON DELETE CASCADE,
+
+    CONSTRAINT fk_report_deduction_type
+    FOREIGN KEY(deduction_type_id)
+    REFERENCES deduction_types(id)
+    ON DELETE CASCADE,
+
+    CONSTRAINT uq_report_deduction
+    UNIQUE(
+        report_id,
+        deduction_type_id
+    )
+);
+
+
+-- =====================================================
+-- 15. REPORT EDIT LOGS
+-- LƯU LỊCH SỬ SỬA BÁO CÁO
+-- =====================================================
+
+CREATE TABLE report_edit_logs
+(
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    report_type ENUM(
+        'temp',
+        'approved'
+    )
+    NOT NULL,
+
+    report_id INT
+    NOT NULL,
+
+    changed_by INT
+    NOT NULL,
+
+    field_name VARCHAR(100),
+
+    old_value TEXT,
+
+    new_value TEXT,
+
+    reason TEXT,
+
+    created_at TIMESTAMP
+    DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_report_edit_user
+    FOREIGN KEY(changed_by)
+    REFERENCES users(id)
     ON DELETE CASCADE
-
 );
 
 
+-- =====================================================
+-- 16. WORKER TRAINING LOGS
+-- LỊCH SỬ TỔ TRƯỞNG SỬA % HỌC VIỆC
+-- =====================================================
 
+CREATE TABLE worker_training_logs
+(
+    id INT AUTO_INCREMENT PRIMARY KEY,
 
+    worker_id INT
+    NOT NULL,
 
+    old_percent DECIMAL(5,2),
 
+    new_percent DECIMAL(5,2)
+    NOT NULL,
+
+    changed_by INT
+    NOT NULL,
+
+    reason VARCHAR(255),
+
+    created_at TIMESTAMP
+    DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_training_log_worker
+    FOREIGN KEY(worker_id)
+    REFERENCES workers(id)
+    ON DELETE CASCADE,
+
+    CONSTRAINT fk_training_log_user
+    FOREIGN KEY(changed_by)
+    REFERENCES users(id)
+    ON DELETE CASCADE
+);
 
 
 -- =====================================================
--- VIEW LỊCH SỬ BÁO CÁO
+-- 17. PROCESS DATA
+-- ID PHẢI KHỚP FRONTEND processMap
 -- =====================================================
 
+INSERT INTO processes
+(
+    id,
+    process_code,
+    process_name,
+    description
+)
+VALUES
+(
+    1,
+    'CAT_LONG',
+    'Cắt / Lồng',
+    'Công đoạn Cắt và Lồng sản phẩm'
+),
+(
+    2,
+    'MAI',
+    'Mài',
+    'Công đoạn Mài'
+),
+(
+    3,
+    'KIEM_1',
+    'Kiểm 1',
+    'Kiểm tra chất lượng lần 1'
+),
+(
+    4,
+    'KIEM_2',
+    'Kiểm 2',
+    'Kiểm tra chất lượng lần 2'
+),
+(
+    5,
+    'EP',
+    'Ép',
+    'Công đoạn Ép'
+),
+(
+    6,
+    'CAN',
+    'Cán',
+    'Công đoạn Cán'
+),
+(
+    7,
+    'BAVIA',
+    'Bavia',
+    'Công đoạn Bavia'
+);
 
-CREATE VIEW v_production_history AS
+
+-- =====================================================
+-- 18. USERS
+-- MẬT KHẨU MẪU: 123456
+-- =====================================================
+
+INSERT INTO users
+(
+    id,
+    username,
+    password,
+    full_name,
+    role
+)
+VALUES
+(
+    1,
+    'admin',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Quản trị viên',
+    'admin'
+),
+(
+    2,
+    'manager1',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Quản lý sản xuất',
+    'manager'
+),
+(
+    3,
+    'lead1',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Tổ trưởng sản xuất',
+    'lead'
+),
+(
+    4,
+    '599',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'An Thị Thanh Phương',
+    'worker'
+),
+(
+    5,
+    '1246',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Nguyễn Quang Tuấn',
+    'worker'
+),
+(
+    6,
+    '1333',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Hoàng Thị Thư',
+    'worker'
+),
+(
+    7,
+    '1448',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Lê Thị Dung',
+    'worker'
+),
+(
+    8,
+    '1476',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Đào Thị Phương',
+    'worker'
+),
+(
+    9,
+    '1541',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Hoàng Quang Vinh',
+    'worker'
+),
+(
+    10,
+    '1845',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Nguyễn Thị Vân',
+    'worker'
+),
+(
+    11,
+    '1850',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Lê Thị Gấm',
+    'worker'
+),
+(
+    12,
+    '2009',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Cao Thị Thu',
+    'worker'
+),
+(
+    13,
+    '2278',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Sa Thị Ương',
+    'worker'
+),
+(
+    14,
+    '2374',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Nguyễn Thị Cẩm Tiên',
+    'worker'
+),
+(
+    15,
+    '2564',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Đinh Phương Thảo',
+    'worker'
+),
+(
+    16,
+    '2865',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Vì Thị Thiếu',
+    'worker'
+),
+(
+    17,
+    '2959',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Mùi Văn Chường',
+    'worker'
+),
+(
+    18,
+    '3244',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Đinh Văn Biên',
+    'worker'
+),
+(
+    19,
+    '3268',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Điêu Chính Huynh',
+    'worker'
+),
+(
+    20,
+    '3277',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Vì Thị Liệu',
+    'worker'
+),
+(
+    21,
+    '3295',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Đinh Thị Nhi',
+    'worker'
+),
+(
+    22,
+    '3349',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Đinh Văn Bằng',
+    'worker'
+),
+(
+    23,
+    '3351',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Đinh Thị Hà',
+    'worker'
+),
+(
+    24,
+    '3590',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Xồng Bá Lông',
+    'worker'
+),
+(
+    25,
+    '2284',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Lò Thị Mư',
+    'worker'
+),
+(
+    26,
+    '655',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Giàng Thị Đông',
+    'worker'
+),
+(
+    27,
+    '656',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Vừ A Nánh',
+    'worker'
+),
+(
+    28,
+    '3526',
+    '$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2',
+    'Đinh Thị Tân',
+    'worker'
+);
 
 
+-- =====================================================
+-- 19. WORKERS
+-- % HỌC VIỆC MẶC ĐỊNH 100
+-- =====================================================
+
+INSERT INTO workers
+(
+    user_id,
+    worker_code,
+    department,
+    position,
+    training_percent,
+    status
+)
 SELECT
-
-
-    pr.id,
-
-
-    w.worker_code,
-
-
-    u.full_name,
-
-
-    p.process_name,
-
-
-    pr.work_date,
-
-
-    pr.shift,
-
-
-    pr.machine_no,
-
-
-    pr.product_name,
-
-
-    pr.total_time,
-
-
-    pr.actual_time,
-
-
-    pr.deduction_time,
-
-
-    pr.standard_output,
-
-
-    pr.actual_output,
-
-
-    pr.tt_ok,
-
-
-    pr.tt_ng,
-
-
-    pr.status,
-
-
-    pr.created_at
-
-
-
-FROM production_reports pr
-
-
-
-JOIN workers w
-
-ON pr.worker_id = w.id
-
-
-
-JOIN users u
-
-ON w.user_id = u.id
-
-
-
-JOIN processes p
-
-ON pr.process_id = p.id;
-
-
-
-SET FOREIGN_KEY_CHECKS = 1;
-
--- =====================================================
--- WORKER MANAGEMENT SYSTEM
--- TiDB VERSION
--- PART 5
--- TEST DATA
--- =====================================================
-
-
-USE worker_management;
-
+    id,
+    username,
+    'Sản xuất',
+    'Công nhân',
+    100.00,
+    'active'
+FROM users
+WHERE role = 'worker';
 
 
 -- =====================================================
--- TEST BÁO CÁO GIA CÔNG
--- process_id = 1
+-- 20. DỮ LIỆU % HỌC VIỆC TEST
+-- CÓ THỂ XÓA HOẶC THAY ĐỔI
 -- =====================================================
 
+UPDATE workers
+SET training_percent = 80.00
+WHERE worker_code = '656';
 
-INSERT INTO production_reports
+
+UPDATE workers
+SET training_percent = 90.00
+WHERE worker_code = '655';
+
+
+-- =====================================================
+-- 21. PHÂN QUYỀN MANAGER / LEAD
+-- =====================================================
+
+INSERT INTO manager_processes
 (
-worker_id,
-process_id,
-work_date,
-shift,
-machine_no,
-product_name,
-
-total_time,
-actual_time,
-
-standard_output,
-actual_output,
-
-tt_ok,
-
-note
+    manager_id,
+    process_id
 )
+SELECT
+    2,
+    id
+FROM processes;
 
-VALUES
 
+INSERT INTO manager_processes
 (
-1,
-1,
-'2026-07-14',
-'Ca 1',
-
-'GC-01',
-
-'SP-A100',
-
-8,
-7.5,
-
-1000,
-950,
-
-930,
-
-'Báo cáo gia công test'
-);
-
-
-
--- =====================================================
--- LỖI NG GIA CÔNG
--- report_id = 1
--- =====================================================
-
-
-INSERT INTO production_report_defects
-(
-report_id,
-defect_type_id,
-quantity
+    manager_id,
+    process_id
 )
-
-VALUES
-
-(1,1,5),
-
-(1,3,2),
-
-(1,8,3);
-
-
+SELECT
+    3,
+    id
+FROM processes;
 
 
 -- =====================================================
--- TRỪ GIỜ GIA CÔNG
+-- 22. PHÂN CÔNG WORKER
+-- TẠM CHO TẤT CẢ WORKER LÀM CẮT / LỒNG
 -- =====================================================
 
-
-INSERT INTO production_report_deductions
+INSERT INTO worker_processes
 (
-report_id,
-deduction_type_id,
-hours
+    worker_id,
+    process_id
 )
-
-VALUES
-
-(1,5,1),
-
-(1,2,0.5);
-
-
-
-
-
+SELECT
+    id,
+    1
+FROM workers;
 
 
 -- =====================================================
--- TEST BÁO CÁO MÀI
--- process_id = 2
+-- 23. ĐỊNH MỨC CẮT
 -- =====================================================
 
-
-INSERT INTO production_reports
+INSERT INTO product_standards
 (
-worker_id,
-process_id,
-work_date,
-shift,
-machine_no,
-product_name,
-
-total_time,
-actual_time,
-
-standard_output,
-actual_output,
-
-tt_ok,
-
-note
+    process_id,
+    work_type,
+    product_code,
+    standard_output
 )
-
 VALUES
+(1, 'cat', 'c2556-2', 7200),
+(1, 'cat', 'c2556-11', 6600),
+(1, 'cat', 'c2556-8', 5600),
+(1, 'cat', 'c2556-9', 5000),
+(1, 'cat', 'C2556-auto', 5000),
+(1, 'cat', 'c2821', 2400),
+(1, 'cat', 'c2822', 2400),
+(1, 'cat', 'c8484', 2400),
+(1, 'cat', 'c8485', 2400),
+(1, 'cat', 'c3880-2', 7200),
+(1, 'cat', 'c0977', 1460),
+(1, 'cat', 'c3880-8', 5600),
+(1, 'cat', 'c3880-9', 5000),
+(1, 'cat', 'c9149', 6000),
+(1, 'cat', 'c0575', 1460),
+(1, 'cat', 'c3438', 2600),
+(1, 'cat', 'c1080', 1800);
 
+
+-- =====================================================
+-- 24. ĐỊNH MỨC LỒNG
+-- =====================================================
+
+INSERT INTO product_standards
 (
-1,
-2,
-'2026-07-14',
-'Ca 2',
-
-'MAI-01',
-
-'SP-MAI',
-
-8,
-8,
-
-800,
-780,
-
-770,
-
-'Báo cáo mài test'
-);
-
-
-
-
--- LỖI MÀI
-
-INSERT INTO production_report_defects
-(
-report_id,
-defect_type_id,
-quantity
+    process_id,
+    work_type,
+    product_code,
+    standard_output
 )
-
 VALUES
+(1, 'long', '9740', 420),
+(1, 'long', '2801', 605),
+(1, 'long', '6262', 420),
+(1, 'long', '598', 420),
+(1, 'long', '7133', 605),
+(1, 'long', '8484', 540),
+(1, 'long', '8485', 570),
+(1, 'long', '4563', 605),
+(1, 'long', '3880', 400),
+(1, 'long', '7960', 300),
+(1, 'long', '9149', 360),
+(1, 'long', '575', 300),
+(1, 'long', '3438', 420),
+(1, 'long', '1080', 660),
+(1, 'long', '1090', 660),
+(1, 'long', '1657', 90);
 
-(2,13,5),
 
-(2,14,5);
+-- =====================================================
+-- 25. LỖI NG CẮT / LỒNG
+-- TÊN PHẢI KHỚP FRONTEND
+-- =====================================================
 
-
-
-
--- TRỪ GIỜ MÀI
-
-INSERT INTO production_report_deductions
+INSERT INTO defect_types
 (
-report_id,
-deduction_type_id,
-hours
+    process_id,
+    defect_code,
+    defect_name,
+    sort_order
 )
-
 VALUES
-
-(2,7,0.5);
-
-
-
-
-
+(1, 'KQD_DAP_LAI', 'KQD dập lại', 1),
+(1, 'KQD_TUOT', 'KQD tuột', 2),
+(1, 'VO_DO_LONG', 'Vỡ do lồng', 3),
+(1, 'XUOC_DO_LONG', 'Xước do lồng', 4),
+(1, 'CONG_GAY', 'Cong gãy', 5),
+(1, 'XOAY', 'Xoay', 6),
+(1, 'KHONG_DUT', 'Không đứt', 7),
+(1, 'BAVIA_HUT', 'Bavia hụt', 8),
+(1, 'PPCM', 'PPCM', 9),
+(1, 'LOI_CAO_SU', 'Lỗi cao su', 10),
+(1, 'NG_KICH_THUOC', 'NG kích thước', 11),
+(1, 'CAT_LEM', 'Cắt lẹm', 12);
 
 
 -- =====================================================
--- TEST KIỂM 1
--- process_id = 3
+-- 26. TRỪ GIỜ CẮT / LỒNG
+-- TÊN PHẢI KHỚP FRONTEND
 -- =====================================================
 
-
-INSERT INTO production_reports
+INSERT INTO deduction_types
 (
-worker_id,
-process_id,
-work_date,
-shift,
-machine_no,
-product_name,
-
-total_time,
-actual_time,
-
-standard_output,
-actual_output,
-
-tt_ok,
-
-note
+    process_id,
+    deduction_code,
+    deduction_name,
+    sort_order
 )
-
 VALUES
+(1, 'VSK', 'Số giờ VSK', 1),
+(1, 'FIVE_S', 'Số giờ 5S + gia ca', 2),
+(1, 'HAM_KHUON', 'Số giờ hâm khuôn', 3),
+(1, 'SUA_KHUON', 'Số giờ sửa khuôn', 4),
+(1, 'SUA_MAY', 'Số giờ sửa máy', 5),
+(1, 'DUNG_MAY', 'Số giờ dừng máy', 6);
 
+
+-- =====================================================
+-- 27. LỖI CÁC CÔNG ĐOẠN KHÁC
+-- =====================================================
+
+INSERT INTO defect_types
 (
-1,
-3,
-'2026-07-14',
-'Ca 1',
-
-'KT1-01',
-
-'SP-KT1',
-
-8,
-8,
-
-1000,
-995,
-
-990,
-
-'Kiểm tra lần 1'
-);
-
-
-
-
-
-INSERT INTO production_report_defects
-(
-report_id,
-defect_type_id,
-quantity
+    process_id,
+    defect_code,
+    defect_name,
+    sort_order
 )
-
 VALUES
+(2, 'ME_CANH', 'Mẻ cạnh', 1),
+(2, 'XUOC', 'Xước', 2),
+(2, 'LOM', 'Lõm', 3),
+(2, 'SAI_KICH_THUOC', 'Sai kích thước', 4),
 
-(3,17,3),
+(3, 'NGOAI_QUAN', 'Ngoại quan', 1),
+(3, 'THIEU_CHI_TIET', 'Thiếu chi tiết', 2),
+(3, 'SAI_MAU', 'Sai màu', 3),
 
-(3,18,2);
-
-
-
-
-
+(4, 'TEM_SAI', 'Tem sai', 1),
+(4, 'DONG_GOI_SAI', 'Đóng gói sai', 2),
+(4, 'THUNG_LOI', 'Thùng lỗi', 3);
 
 
 -- =====================================================
--- TEST KIỂM 2
--- process_id = 4
+-- 28. TRỪ GIỜ CÁC CÔNG ĐOẠN KHÁC
 -- =====================================================
 
-
-INSERT INTO production_reports
+INSERT INTO deduction_types
 (
-worker_id,
-process_id,
-work_date,
-shift,
-machine_no,
-product_name,
-
-total_time,
-actual_time,
-
-standard_output,
-actual_output,
-
-tt_ok,
-
-note
+    process_id,
+    deduction_code,
+    deduction_name,
+    sort_order
 )
-
 VALUES
+(2, 'THAY_DA', 'Thay đá', 1),
+(2, 'SUA_MAY', 'Sửa máy', 2),
+(2, 'FIVE_S', '5S', 3),
 
-(
-2,
-4,
-'2026-07-14',
-'Ca 3',
+(3, 'HOP', 'Họp', 1),
+(3, 'DAO_TAO', 'Đào tạo', 2),
 
-'KT2-01',
-
-'SP-KT2',
-
-8,
-7.5,
-
-500,
-490,
-
-485,
-
-'Kiểm tra lần 2'
-);
-
-
-
-
-
-INSERT INTO production_report_defects
-(
-report_id,
-defect_type_id,
-quantity
-)
-
-VALUES
-
-(4,20,3);
-
-
-
-
-
+(4, 'HOP', 'Họp', 1),
+(4, 'DAO_TAO', 'Đào tạo', 2);
 
 
 -- =====================================================
--- KIỂM TRA
+-- 29. INDEXES
 -- =====================================================
 
-
-SELECT *
-
-FROM production_reports;
+CREATE INDEX idx_users_role
+ON users(role);
 
 
-
-SELECT *
-
-FROM production_report_defects;
+CREATE INDEX idx_users_status
+ON users(status);
 
 
-
-SELECT *
-
-FROM production_report_deductions;
+CREATE INDEX idx_workers_code
+ON workers(worker_code);
 
 
--- =====================================================
--- WORKER MANAGEMENT SYSTEM
--- TiDB VERSION
--- PART 6
--- INDEX + API QUERY
--- =====================================================
+CREATE INDEX idx_workers_status
+ON workers(status);
 
 
-USE worker_management;
+CREATE INDEX idx_workers_training
+ON workers(training_percent);
 
 
-
--- =====================================================
--- INDEX TỐI ƯU
--- =====================================================
+CREATE INDEX idx_product_standard_process
+ON product_standards(process_id);
 
 
-CREATE INDEX idx_report_status
-ON production_reports(status);
+CREATE INDEX idx_product_standard_code
+ON product_standards(product_code);
 
 
-
-CREATE INDEX idx_temp_worker
-ON production_reports_temp(worker_id);
-
-
-
-CREATE INDEX idx_temp_status
-ON production_reports_temp(status);
-
+CREATE INDEX idx_product_standard_work_type
+ON product_standards(work_type);
 
 
 CREATE INDEX idx_defect_process
 ON defect_types(process_id);
 
 
-
 CREATE INDEX idx_deduction_process
 ON deduction_types(process_id);
 
 
+CREATE INDEX idx_temp_worker
+ON production_reports_temp(worker_id);
 
 
+CREATE INDEX idx_temp_process
+ON production_reports_temp(process_id);
+
+
+CREATE INDEX idx_temp_date
+ON production_reports_temp(work_date);
+
+
+CREATE INDEX idx_temp_status
+ON production_reports_temp(status);
+
+
+CREATE INDEX idx_report_worker
+ON production_reports(worker_id);
+
+
+CREATE INDEX idx_report_process
+ON production_reports(process_id);
+
+
+CREATE INDEX idx_report_date
+ON production_reports(work_date);
+
+
+CREATE INDEX idx_report_status
+ON production_reports(status);
+
+
+CREATE INDEX idx_temp_defect_report
+ON production_temp_defects(temp_report_id);
+
+
+CREATE INDEX idx_temp_deduction_report
+ON production_temp_deductions(temp_report_id);
+
+
+CREATE INDEX idx_report_defect_report
+ON production_report_defects(report_id);
+
+
+CREATE INDEX idx_report_deduction_report
+ON production_report_deductions(report_id);
 
 
 -- =====================================================
--- API 1
--- CÔNG NHÂN XEM LỊCH SỬ CỦA MÌNH
---
--- GET /api/reports/my
+-- 30. VIEW FULL BÁO CÁO CHƯA DUYỆT
 -- =====================================================
 
+CREATE VIEW v_production_temp_full AS
 
 SELECT
+    pr.id,
 
-pr.id,
+    pr.worker_id,
 
-p.process_name,
+    w.worker_code,
 
-pr.work_date,
+    u.full_name,
 
-pr.shift,
+    w.department,
 
-pr.machine_no,
+    w.position,
 
-pr.product_name,
+    pr.process_id,
 
-pr.standard_output,
+    p.process_code,
 
-pr.actual_output,
+    p.process_name,
 
-pr.tt_ok,
+    pr.work_date,
 
-pr.tt_ng,
+    pr.shift,
 
-pr.status,
+    pr.machine_no,
 
-pr.created_at
+    pr.training_percent,
 
+    pr.product_name,
 
-FROM production_reports pr
+    pr.standard_output,
 
+    ROUND(
+        pr.standard_output
+        *
+        pr.training_percent
+        /
+        100,
+        2
+    ) AS target_output,
 
+    pr.total_time,
 
-JOIN processes p
+    pr.actual_time,
 
-ON pr.process_id = p.id
+    pr.deduction_time,
 
+    pr.actual_output,
 
+    pr.tt_ok,
 
-WHERE pr.worker_id = 1
+    pr.tt_ng,
 
+    CASE
+        WHEN
+            pr.standard_output > 0
+            AND
+            pr.training_percent > 0
+        THEN ROUND(
+            pr.actual_output
+            *
+            100.0
+            /
+            (
+                pr.standard_output
+                *
+                pr.training_percent
+                /
+                100
+            ),
+            2
+        )
+        ELSE 0
+    END AS achievement_rate,
 
+    CASE
+        WHEN pr.actual_time > 0
+        THEN ROUND(
+            pr.actual_output
+            /
+            pr.actual_time,
+            2
+        )
+        ELSE 0
+    END AS products_per_hour,
 
-ORDER BY pr.created_at DESC;
+    pr.stop_reason,
 
+    pr.note,
 
+    pr.status,
 
+    pr.review_note,
 
+    pr.reviewed_by,
 
+    pr.approved_at,
 
+    pr.created_at,
 
--- =====================================================
--- API 2
--- QUẢN LÝ XEM BÁO CÁO CHỜ DUYỆT
---
--- GET /api/manager/reports/pending
--- =====================================================
+    pr.updated_at
 
+FROM production_reports_temp pr
 
-SELECT
-
-pr.id,
-
-w.worker_code,
-
-u.full_name,
-
-p.process_name,
-
-pr.work_date,
-
-pr.shift,
-
-pr.machine_no,
-
-pr.product_name,
-
-pr.tt_ok,
-
-pr.tt_ng,
-
-pr.status,
-
-pr.created_at
-
-
-FROM production_reports pr
-
-
-
-JOIN workers w
-
+INNER JOIN workers w
 ON pr.worker_id = w.id
 
-
-
-JOIN users u
-
+INNER JOIN users u
 ON w.user_id = u.id
 
+INNER JOIN processes p
+ON pr.process_id = p.id;
 
 
-JOIN processes p
+-- =====================================================
+-- 31. VIEW FULL BÁO CÁO ĐÃ DUYỆT
+-- =====================================================
 
+CREATE VIEW v_production_report_full AS
+
+SELECT
+    pr.id,
+
+    pr.source_temp_id,
+
+    pr.worker_id,
+
+    w.worker_code,
+
+    u.full_name,
+
+    w.department,
+
+    w.position,
+
+    pr.process_id,
+
+    p.process_code,
+
+    p.process_name,
+
+    pr.work_date,
+
+    pr.shift,
+
+    pr.machine_no,
+
+    pr.training_percent,
+
+    pr.product_name,
+
+    pr.standard_output,
+
+    ROUND(
+        pr.standard_output
+        *
+        pr.training_percent
+        /
+        100,
+        2
+    ) AS target_output,
+
+    pr.total_time,
+
+    pr.actual_time,
+
+    pr.deduction_time,
+
+    pr.actual_output,
+
+    pr.tt_ok,
+
+    pr.tt_ng,
+
+    CASE
+        WHEN
+            pr.standard_output > 0
+            AND
+            pr.training_percent > 0
+        THEN ROUND(
+            pr.actual_output
+            *
+            100.0
+            /
+            (
+                pr.standard_output
+                *
+                pr.training_percent
+                /
+                100
+            ),
+            2
+        )
+        ELSE 0
+    END AS achievement_rate,
+
+    CASE
+        WHEN pr.actual_time > 0
+        THEN ROUND(
+            pr.actual_output
+            /
+            pr.actual_time,
+            2
+        )
+        ELSE 0
+    END AS products_per_hour,
+
+    pr.stop_reason,
+
+    pr.note,
+
+    pr.status,
+
+    pr.review_note,
+
+    pr.reviewed_by,
+
+    pr.approved_at,
+
+    pr.created_at,
+
+    pr.updated_at
+
+FROM production_reports pr
+
+INNER JOIN workers w
+ON pr.worker_id = w.id
+
+INNER JOIN users u
+ON w.user_id = u.id
+
+INNER JOIN processes p
+ON pr.process_id = p.id;
+
+
+-- =====================================================
+-- 32. VIEW LỊCH SỬ WORKER
+-- GỘP CHỜ DUYỆT VÀ ĐÃ DUYỆT
+-- =====================================================
+
+CREATE VIEW v_worker_report_history AS
+
+SELECT
+    pr.id,
+
+    'approved' AS source,
+
+    pr.worker_id,
+
+    pr.process_id,
+
+    p.process_name,
+
+    pr.work_date,
+
+    pr.shift,
+
+    pr.machine_no,
+
+    pr.training_percent,
+
+    pr.product_name,
+
+    pr.standard_output,
+
+    pr.actual_output,
+
+    pr.actual_time,
+
+    pr.tt_ok,
+
+    pr.tt_ng,
+
+    pr.status,
+
+    pr.created_at
+
+FROM production_reports pr
+
+INNER JOIN processes p
 ON pr.process_id = p.id
 
 
-
-WHERE pr.status='pending'
-
-
-ORDER BY pr.created_at ASC;
-
-
-
-
-
-
-
-
--- =====================================================
--- API 3
--- LẤY CHI TIẾT BÁO CÁO
---
--- GET /api/reports/:id
--- =====================================================
+UNION ALL
 
 
 SELECT
+    temp.id,
+
+    'pending' AS source,
+
+    temp.worker_id,
+
+    temp.process_id,
+
+    p.process_name,
+
+    temp.work_date,
+
+    temp.shift,
+
+    temp.machine_no,
+
+    temp.training_percent,
+
+    temp.product_name,
+
+    temp.standard_output,
+
+    temp.actual_output,
+
+    temp.actual_time,
+
+    temp.tt_ok,
+
+    temp.tt_ng,
+
+    temp.status,
+
+    temp.created_at
+
+FROM production_reports_temp temp
+
+INNER JOIN processes p
+ON temp.process_id = p.id;
 
 
-pr.*,
-
-
-w.worker_code,
-
-
-u.full_name,
-
-
-p.process_name
-
-
-
-FROM production_reports pr
-
-
-
-JOIN workers w
-
-ON pr.worker_id=w.id
-
-
-
-JOIN users u
-
-ON w.user_id=u.id
-
-
-
-JOIN processes p
-
-ON pr.process_id=p.id
-
-
-
-WHERE pr.id=1;
-
-
-
-
-
+SET FOREIGN_KEY_CHECKS = 1;
 
 
 -- =====================================================
--- API 4
--- LẤY LỖI THEO CÔNG ĐOẠN
---
--- GET /api/processes/:id/defects
+-- 33. KIỂM TRA SAU KHI IMPORT
 -- =====================================================
+
+SELECT
+    id,
+    username,
+    full_name,
+    role,
+    status
+FROM users
+ORDER BY id;
 
 
 SELECT
+    w.id AS worker_id,
+    w.worker_code,
+    u.full_name,
+    w.department,
+    w.position,
+    w.training_percent,
+    w.status
+FROM workers w
 
-id,
+INNER JOIN users u
+ON w.user_id = u.id
 
-defect_code,
-
-defect_name
+ORDER BY w.id;
 
 
+SELECT
+    id,
+    process_code,
+    process_name,
+    status
+FROM processes
+ORDER BY id;
+
+
+SELECT
+    work_type,
+    product_code,
+    standard_output
+FROM product_standards
+ORDER BY
+    work_type,
+    id;
+
+
+SELECT
+    id,
+    process_id,
+    defect_code,
+    defect_name
 FROM defect_types
-
-
-WHERE process_id = 1
-
-
-AND status='active'
-
-
-ORDER BY sort_order;
-
-
-
-
-
-
-
--- =====================================================
--- API 5
--- LẤY TRỪ GIỜ THEO CÔNG ĐOẠN
---
--- GET /api/processes/:id/deductions
--- =====================================================
+ORDER BY
+    process_id,
+    sort_order;
 
 
 SELECT
-
-id,
-
-deduction_code,
-
-deduction_name
-
-
+    id,
+    process_id,
+    deduction_code,
+    deduction_name
 FROM deduction_types
+ORDER BY
+    process_id,
+    sort_order;
 
 
-WHERE process_id = 1
-
-
-AND status='active'
-
-
-ORDER BY sort_order;
-
-
-
-
-
-
-
--- =====================================================
--- API 6
--- CHI TIẾT LỖI NG CỦA BÁO CÁO
--- =====================================================
-
-
-SELECT
-
-
-d.defect_name,
-
-
-r.quantity
-
-
-
-FROM production_report_defects r
-
-
-
-JOIN defect_types d
-
-ON r.defect_type_id=d.id
-
-
-
-WHERE r.report_id=1;
-
-
-
-
-
-
-
--- =====================================================
--- API 7
--- CHI TIẾT TRỪ GIỜ CỦA BÁO CÁO
--- =====================================================
-
-
-SELECT
-
-
-d.deduction_name,
-
-
-r.hours
-
-
-
-FROM production_report_deductions r
-
-
-
-JOIN deduction_types d
-
-ON r.deduction_type_id=d.id
-
-
-
-WHERE r.report_id=1;
-
-
-
-
-
-
-
--- =====================================================
--- API EXPORT EXCEL
--- =====================================================
-
-
-SELECT
-
-
-w.worker_code AS MaNV,
-
-
-u.full_name AS HoTen,
-
-
-p.process_name AS CongDoan,
-
-
-pr.work_date AS Ngay,
-
-
-pr.shift AS Ca,
-
-
-pr.machine_no AS May,
-
-
-pr.product_name AS SanPham,
-
-
-pr.total_time AS TongTG,
-
-
-pr.actual_time AS TGThucTe,
-
-
-pr.deduction_time AS TGTru,
-
-
-pr.standard_output AS DinhMuc,
-
-
-pr.actual_output AS ThucTe,
-
-
-pr.tt_ok AS OK,
-
-
-pr.tt_ng AS NG,
-
-
-pr.status AS TrangThai
-
-
-
-FROM production_reports pr
-
-
-
-JOIN workers w
-
-ON pr.worker_id=w.id
-
-
-
-JOIN users u
-
-ON w.user_id=u.id
-
-
-
-JOIN processes p
-
-ON pr.process_id=p.id;
-
-
-
--- =====================================================
--- KIỂM TRA CUỐI
--- =====================================================
-
-
-SELECT COUNT(*) AS total_report
-FROM production_reports;
-
-
-SELECT COUNT(*) AS total_defect
-FROM production_report_defects;
-
-
-SELECT COUNT(*) AS total_deduction
-FROM production_report_deductions;
-
-
-SHOW TABLES;
-
-
-USE worker_management;
-
-SHOW TABLES;
-
-
-SELECT * FROM users;
-
-SELECT * FROM workers;
-
-SELECT * FROM processes;
-
-SELECT username, LENGTH(password)
+SELECT COUNT(*) AS total_users
 FROM users;
 
-UPDATE users
-SET password =
-'$2b$10$GIwzxNuusum5.3QLsFFKzOujVcYAPyGtVu/Z/fBsDzNTovBicGJd2'
-WHERE username='manager1';
+
+SELECT COUNT(*) AS total_workers
+FROM workers;
+
+
+SELECT COUNT(*) AS total_product_standards
+FROM product_standards;
+
+
+SHOW TABLES;

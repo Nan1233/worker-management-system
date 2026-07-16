@@ -1,111 +1,380 @@
-.select-process{
-    max-width:1100px;
-    margin:auto;
+* {
+    box-sizing: border-box;
 }
 
-.page-header{
-    margin-bottom:30px;
-}
 
-.page-header h2{
-    color:#1565c0;
-    font-size:28px;
-    margin-bottom:8px;
-}
-
-.page-header p{
-    color:#666;
-}
-
-.process-grid{
-    display:grid;
-    grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
-    gap:20px;
-}
-
-.process-card {
+.select-process-page {
     width: 100%;
-    min-height: 150px;
+    min-height: 100vh;
 
+    padding: 42px 18px 70px;
+
+    background: #f3f6fc;
+
+    color: #152238;
+
+    font-family:
+        "Segoe UI",
+        Arial,
+        sans-serif;
+}
+
+
+.select-process-shell {
+    width: min(680px, 100%);
+    margin: 0 auto;
+}
+
+
+.select-process-header {
+    margin-bottom: 34px;
+}
+
+
+.select-process-title-row {
     display: flex;
-    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+
+
+.select-process-back {
+    width: 42px;
+    height: 42px;
+    padding: 0;
+
+    display: inline-flex;
     align-items: center;
     justify-content: center;
 
-    gap: 8px;
+    border: none;
 
-    border: 1px solid #e2e8f0;
-    border-radius: 14px;
-
-    background: #ffffff;
-
-    text-align: center;
-    font: inherit;
-
-    cursor: pointer;
-
-    transition: 0.2s;
-}
-
-.process-card:hover {
-    border-color: #1976d2;
-    transform: translateY(-3px);
-
-    box-shadow:
-        0 8px 20px rgba(25, 118, 210, 0.12);
-}
-
-.process-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    background: transparent;
+    color: #174f9d;
 
     font-size: 38px;
     line-height: 1;
+
+    cursor: pointer;
 }
 
-.process-card h3 {
+
+.select-process-title-row h1 {
     margin: 0;
+
+    color: #174f9d;
+
+    font-size: 35px;
+    line-height: 1.2;
+    font-weight: 800;
+}
+
+
+.select-process-worker {
+    margin: 11px 0 0 58px;
+
+    color: #3271bd;
+
+    font-size: 21px;
+    line-height: 1.3;
+    font-weight: 700;
+}
+
+
+.history-entry-button {
+    margin: 0 0 30px;
+    padding: 0 0 6px;
+
+    border: none;
+    border-bottom: 2px solid #174f9d;
+
+    background: transparent;
+    color: #173c70;
+
+    font: inherit;
+    font-size: 20px;
+    font-weight: 800;
+
+    cursor: pointer;
+}
+
+
+.process-list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+
+.worker-process-card {
+    width: 100%;
+    min-height: 132px;
+    padding: 24px 28px;
+
+    display: grid;
+    grid-template-columns:
+        78px
+        minmax(0, 1fr)
+        28px;
+
+    align-items: center;
+    gap: 22px;
+
+    border: 1px solid #e8edf5;
+    border-radius: 26px;
+
+    background: #ffffff;
+
+    color: inherit;
+    font: inherit;
+    text-align: left;
+
+    box-shadow:
+        0 6px 18px
+        rgba(32, 69, 123, 0.045);
+
+    cursor: pointer;
+
+    transition:
+        transform 0.2s ease,
+        box-shadow 0.2s ease,
+        border-color 0.2s ease;
+}
+
+
+.worker-process-card:hover {
+    transform: translateY(-2px);
+
+    border-color: #bfd0ef;
+
+    box-shadow:
+        0 11px 27px
+        rgba(32, 69, 123, 0.1);
+}
+
+
+.worker-process-icon {
+    width: 74px;
+    height: 74px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 23px;
+
+    background: #e4eaff;
+    color: #285bc9;
+
+    font-size: 34px;
+    line-height: 1;
+    font-weight: 700;
+}
+
+
+.worker-process-content {
+    min-width: 0;
+
+    display: flex;
+    flex-direction: column;
+}
+
+
+.worker-process-content strong {
+    margin-bottom: 5px;
+
+    color: #172033;
+
+    font-size: 25px;
+    line-height: 1.2;
+    font-weight: 800;
+}
+
+
+.worker-process-content small {
+    color: #97a3b8;
 
     font-size: 17px;
-    font-weight: 700;
-
-    color: #1f2937;
-    text-align: center;
-}
-
-.process-card p {
-    margin: 0;
-
-    font-size: 13px;
     line-height: 1.35;
+    font-weight: 500;
+}
 
-    color: #6b7280;
+
+.worker-process-arrow {
+    color: #a8b4c7;
+
+    font-size: 40px;
+    line-height: 1;
+    font-weight: 300;
+}
+
+
+.process-state-box {
+    width: min(600px, 100%);
+    margin: 80px auto;
+    padding: 30px;
+
+    border-radius: 22px;
+
+    background: #ffffff;
+
+    color: #174f9d;
     text-align: center;
+
+    box-shadow:
+        0 8px 24px
+        rgba(32, 69, 123, 0.08);
 }
 
-@media(max-width:768px){
-
-    .page-header{
-        text-align:center;
-    }
-
-    .process-grid{
-        grid-template-columns:1fr;
-    }
-
-}
 
 @media (max-width: 768px) {
 
-    .worker-summary {
-        grid-template-columns: 1fr;
+    .select-process-page {
+        padding:
+            28px
+            16px
+            55px;
+    }
+
+
+    .select-process-header {
+        margin-bottom: 28px;
+    }
+
+
+    .select-process-title-row {
+        gap: 10px;
+    }
+
+
+    .select-process-back {
+        width: 36px;
+        height: 36px;
+
+        font-size: 32px;
+    }
+
+
+    .select-process-title-row h1 {
+        font-size: 29px;
+    }
+
+
+    .select-process-worker {
+        margin-left: 46px;
+
+        font-size: 18px;
+    }
+
+
+    .history-entry-button {
+        margin-bottom: 24px;
+
+        font-size: 18px;
+    }
+
+
+    .process-list {
+        gap: 15px;
+    }
+
+
+    .worker-process-card {
+        min-height: 112px;
+        padding: 18px 20px;
+
+        grid-template-columns:
+            64px
+            minmax(0, 1fr)
+            20px;
+
+        gap: 15px;
+
+        border-radius: 22px;
+    }
+
+
+    .worker-process-icon {
+        width: 62px;
+        height: 62px;
+
+        border-radius: 19px;
+
+        font-size: 29px;
+    }
+
+
+    .worker-process-content strong {
+        font-size: 21px;
+    }
+
+
+    .worker-process-content small {
+        font-size: 14px;
+    }
+
+
+    .worker-process-arrow {
+        font-size: 32px;
     }
 
 }
-.process-card {
-    width: 100%;
-    border: none;
-    text-align: left;
-    font: inherit;
+
+
+@media (max-width: 430px) {
+
+    .select-process-page {
+        padding:
+            22px
+            12px
+            45px;
+    }
+
+
+    .select-process-title-row h1 {
+        font-size: 26px;
+    }
+
+
+    .select-process-worker {
+        margin-left: 44px;
+
+        font-size: 16px;
+    }
+
+
+    .worker-process-card {
+        min-height: 100px;
+        padding: 15px;
+
+        grid-template-columns:
+            56px
+            minmax(0, 1fr)
+            16px;
+
+        gap: 12px;
+
+        border-radius: 19px;
+    }
+
+
+    .worker-process-icon {
+        width: 54px;
+        height: 54px;
+
+        border-radius: 16px;
+
+        font-size: 25px;
+    }
+
+
+    .worker-process-content strong {
+        font-size: 19px;
+    }
+
+
+    .worker-process-content small {
+        font-size: 13px;
+    }
+
 }

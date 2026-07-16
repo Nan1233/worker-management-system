@@ -9,7 +9,6 @@ import {
 
 import axios from "axios";
 
-
 import {
     getWorkerByUserId
 } from "../../services/workerService";
@@ -22,7 +21,6 @@ import type {
     WorkerProfile
 } from "../../types/worker";
 
-
 import "./SelectProcess.css";
 
 
@@ -31,50 +29,57 @@ const processes = [
     {
         id: "cat-long",
         name: "Cắt / Lồng",
-        icon: "✂️",
-        description: "Nhập báo cáo công đoạn Cắt và Lồng"
+        icon: "🛠",
+        description:
+            "Dành cho quy trình cắt và lồng"
     },
 
     {
         id: "mai",
         name: "Mài",
-        icon: "🛠️",
-        description: "Nhập báo cáo mài"
+        icon: "◉",
+        description:
+            "Quy trình mài bóng và hoàn thiện bề mặt"
     },
 
     {
         id: "kiem-1",
         name: "Kiểm 1",
-        icon: "🔍",
-        description: "Kiểm tra chất lượng lần 1"
+        icon: "☑",
+        description:
+            "Kiểm tra chất lượng công đoạn đầu"
     },
 
     {
         id: "kiem-2",
         name: "Kiểm 2",
-        icon: "✅",
-        description: "Kiểm tra chất lượng lần 2"
+        icon: "☷",
+        description:
+            "Kiểm tra chất lượng công đoạn cuối"
     },
 
     {
         id: "ep",
         name: "Ép",
-        icon: "🏭",
-        description: "Nhập báo cáo ép"
+        icon: "▱",
+        description:
+            "Quy trình ép khuôn và tạo hình"
     },
 
     {
         id: "can",
         name: "Cán",
-        icon: "📦",
-        description: "Nhập báo cáo cán"
+        icon: "▤",
+        description:
+            "Quy trình cán mỏng vật liệu"
     },
 
     {
         id: "bavia",
-        name: "Bavia",
-        icon: "⚙️",
-        description: "Nhập báo cáo bavia"
+        name: "BAVIA",
+        icon: "✎",
+        description:
+            "Xử lý bavia và làm sạch sản phẩm"
     }
 
 ];
@@ -130,7 +135,6 @@ function SelectProcess() {
                             "token"
                         );
 
-
                         navigate(
                             "/login",
                             {
@@ -138,14 +142,15 @@ function SelectProcess() {
                             }
                         );
 
-
                         return;
 
                     }
 
 
                     const user: User =
-                        JSON.parse(savedUser);
+                        JSON.parse(
+                            savedUser
+                        );
 
 
                     if (
@@ -158,7 +163,6 @@ function SelectProcess() {
                             "Thông tin tài khoản không hợp lệ"
                         );
 
-
                         return;
 
                     }
@@ -166,7 +170,9 @@ function SelectProcess() {
 
                     const workerData =
                         await getWorkerByUserId(
-                            Number(user.id)
+                            Number(
+                                user.id
+                            )
                         );
 
 
@@ -184,57 +190,52 @@ function SelectProcess() {
 
 
                     if (
-                        axios.isAxiosError(err)
+                        axios.isAxiosError(
+                            err
+                        )
+                        &&
+                        err.response?.status
+                        ===
+                        401
                     ) {
 
-                        const status =
-                            err.response?.status;
-
-
-                        if (
-                            status === 401
-                        ) {
-
-                            localStorage.removeItem(
-                                "token"
-                            );
-
-                            localStorage.removeItem(
-                                "user"
-                            );
-
-
-                            navigate(
-                                "/login",
-                                {
-                                    replace: true
-                                }
-                            );
-
-
-                            return;
-
-                        }
-
-
-                        setError(
-
-                            err.response?.data?.message
-
-                            ||
-
-                            "Không thể tải thông tin nhân viên"
-
+                        localStorage.removeItem(
+                            "token"
                         );
 
-                    }
-                    else {
-
-                        setError(
-                            "Không thể tải thông tin nhân viên"
+                        localStorage.removeItem(
+                            "user"
                         );
 
+                        navigate(
+                            "/login",
+                            {
+                                replace: true
+                            }
+                        );
+
+                        return;
+
                     }
+
+
+                    setError(
+
+                        axios.isAxiosError(
+                            err
+                        )
+
+                            ? err.response
+                                ?.data
+                                ?.message
+
+                                ||
+
+                                "Không thể tải thông tin nhân viên"
+
+                            : "Không thể tải thông tin nhân viên"
+
+                    );
 
                 }
                 finally {
@@ -255,17 +256,15 @@ function SelectProcess() {
 
         return (
 
-            <div className="select-process">
+            <main className="select-process-page">
 
-                <div className="page-header">
+                <div className="process-state-box">
 
-                    <h2>
-                        Đang tải thông tin...
-                    </h2>
+                    Đang tải thông tin...
 
                 </div>
 
-            </div>
+            </main>
 
         );
 
@@ -276,14 +275,13 @@ function SelectProcess() {
 
         return (
 
-            <div className="select-process">
+            <main className="select-process-page">
 
-                <div className="page-header">
+                <div className="process-state-box">
 
                     <h2>
-                        Không thể mở trang chủ
+                        Không thể mở trang
                     </h2>
-
 
                     <p>
                         {error}
@@ -291,7 +289,7 @@ function SelectProcess() {
 
                 </div>
 
-            </div>
+            </main>
 
         );
 
@@ -300,90 +298,121 @@ function SelectProcess() {
 
     return (
 
-        <div className="select-process">
+        <main className="select-process-page">
+
+            <div className="select-process-shell">
+
+                <header className="select-process-header">
+
+                    <div className="select-process-title-row">
+
+                        <button
+                            type="button"
+                            className="select-process-back"
+                            onClick={() =>
+                                navigate(-1)
+                            }
+                            aria-label="Quay lại"
+                        >
+                            ←
+                        </button>
 
 
-            <div className="page-header">
+                        <h1>
+                            Chọn mẫu nhập liệu
+                        </h1>
 
-                <h2>
+                    </div>
 
-                    Xin chào, {
 
-                        worker?.full_name
+                    <p className="select-process-worker">
 
-                        ||
+                        {
+                            worker?.full_name
+                            ||
+                            "Công nhân"
+                        }
 
-                        "Công nhân"
+                        {" - "}
 
+                        {
+                            worker?.worker_code
+                            ||
+                            ""
+                        }
+
+                    </p>
+
+                </header>
+
+
+                <button
+                    type="button"
+                    className="history-entry-button"
+                    onClick={() =>
+                        navigate(
+                            "/worker/history"
+                        )
+                    }
+                >
+                    Danh sách lịch sử nhập
+                </button>
+
+
+                <section className="process-list">
+
+                    {
+                        processes.map(
+                            (item) => (
+
+                                <button
+                                    key={item.id}
+                                    type="button"
+                                    className="worker-process-card"
+                                    onClick={() =>
+                                        navigate(
+                                            `/worker/process/${item.id}`
+                                        )
+                                    }
+                                >
+
+                                    <span className="worker-process-icon">
+
+                                        {item.icon}
+
+                                    </span>
+
+
+                                    <span className="worker-process-content">
+
+                                        <strong>
+                                            {item.name}
+                                        </strong>
+
+                                        <small>
+                                            {item.description}
+                                        </small>
+
+                                    </span>
+
+
+                                    <span className="worker-process-arrow">
+
+                                        ›
+
+                                    </span>
+
+                                </button>
+
+                            )
+                        )
                     }
 
-                </h2>
-
-
-                <p>
-
-                    Chọn công đoạn bạn đang làm để bắt đầu nhập báo cáo.
-
-                </p>
+                </section>
 
             </div>
 
-
-            <div className="process-grid">
-
-                {
-                    processes.map(
-                        (item) => (
-
-                            <button
-
-                                key={item.id}
-
-                                type="button"
-
-                                className="process-card"
-
-                                onClick={() =>
-
-                                    navigate(
-
-                                        `/worker/process/${item.id}`
-
-                                    )
-
-                                }
-
-                            >
-
-                                <div className="process-icon">
-
-                                    {item.icon}
-
-                                </div>
-
-
-                                <h3>
-
-                                    {item.name}
-
-                                </h3>
-
-
-                                <p>
-
-                                    {item.description}
-
-                                </p>
-
-                            </button>
-
-                        )
-                    )
-                }
-
-            </div>
-
-        </div>
+        </main>
 
     );
 
