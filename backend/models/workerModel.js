@@ -4,29 +4,29 @@ const getWorkerByUserId = (user_id)=>{
     return new Promise((resolve,reject)=>{
 
 
-        const sql=`
+       const sql = `
 
-        SELECT
-
+    SELECT
         w.id,
-
+        w.user_id,
         w.worker_code,
+        w.phone,
+        w.department,
+        w.position,
+        w.training_percent,
+        w.status,
+        u.full_name,
+        u.username,
+        u.role
 
-        u.full_name AS worker_name
+    FROM workers w
 
+    JOIN users u
+    ON w.user_id = u.id
 
-        FROM workers w
+    WHERE w.user_id = ?
 
-
-        JOIN users u
-
-        ON w.user_id=u.id
-
-
-        WHERE w.user_id=?
-
-
-        `;
+`;
 
 
 

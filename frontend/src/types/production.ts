@@ -20,9 +20,6 @@ export type ProductionReportSource =
 
 // =====================================================
 // CHI TIẾT LỖI NG
-//
-// Frontend gửi defect_name.
-// Backend tìm defect_type_id trong defect_types.
 // =====================================================
 
 export interface ProductionDefect {
@@ -42,9 +39,6 @@ export interface ProductionDefect {
 
 // =====================================================
 // CHI TIẾT TRỪ GIỜ
-//
-// Frontend gửi deduction_name.
-// Backend tìm deduction_type_id trong deduction_types.
 // =====================================================
 
 export interface ProductionDeduction {
@@ -91,6 +85,17 @@ export interface ProductionReport {
 
     machine_no: string;
 
+
+    /*
+        % học việc tại thời điểm
+        công nhân tạo báo cáo.
+
+        Frontend worker không gửi trường này.
+        Backend tự lấy từ bảng workers.
+    */
+
+    training_percent?: number;
+
     product_name: string;
 
 
@@ -114,6 +119,17 @@ export interface ProductionReport {
     standard_output: number;
 
     actual_output: number;
+
+
+    /*
+        Định mức áp dụng sau khi nhân
+        với % học việc.
+
+        Có thể backend trả về hoặc
+        frontend tự tính khi hiển thị.
+    */
+
+    target_output?: number;
 
 
     // ==========================
@@ -171,7 +187,11 @@ export interface ProductionReport {
 
 
     // ==========================
-    // DUYỆT
+    // DUYỆT BÁO CÁO
+    //
+    // status ở đây là trạng thái
+    // báo cáo, không phải trạng thái
+    // nhân viên.
     // ==========================
 
     status?: ProductionReportStatus;
@@ -184,7 +204,7 @@ export interface ProductionReport {
 
 
     // ==========================
-    // DỮ LIỆU JOIN TỪ BACKEND
+    // DỮ LIỆU JOIN
     // ==========================
 
     worker_code?: string;
@@ -206,7 +226,7 @@ export interface ProductionReport {
 
 
     // ==========================
-    // PHÂN BIỆT BẢNG TEMP / MAIN
+    // PHÂN BIỆT TEMP / MAIN
     // ==========================
 
     source?: ProductionReportSource;

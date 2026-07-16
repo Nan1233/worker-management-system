@@ -1,5 +1,47 @@
-const workerModel = require("../models/workerModel");
-const db = require("../config/db");
+const workerModel =
+    require("../models/workerModel");
+
+const db =
+    require("../config/db");
+
+
+// =====================================================
+// ROLE ĐƯỢC QUẢN LÝ NHÂN VIÊN
+// =====================================================
+
+const MANAGEMENT_ROLES = [
+    "admin",
+    "manager",
+    "lead"
+];
+
+
+// =====================================================
+// CHUYỂN % HỌC VIỆC THÀNH SỐ HỢP LỆ
+// =====================================================
+
+const parseTrainingPercent = (value) => {
+
+    const trainingPercent =
+        Number(value);
+
+
+    if (
+        !Number.isFinite(trainingPercent)
+        ||
+        trainingPercent < 0
+        ||
+        trainingPercent > 100
+    ) {
+
+        return null;
+
+    }
+
+
+    return trainingPercent;
+
+};
 
 
 // =====================================================
@@ -7,30 +49,48 @@ const db = require("../config/db");
 // ADMIN / MANAGER / LEAD
 // =====================================================
 
-exports.getAllWorkers = (req, res) => {
+exports.getAllWorkers = (
+    req,
+    res
+) => {
 
-    workerModel.findAll((err, result) => {
+    workerModel.findAll(
+        (
+            err,
+            result
+        ) => {
 
-        if (err) {
+            if (err) {
 
-            console.error(
-                "GET ALL WORKERS ERROR:",
-                err
-            );
+                console.error(
+                    "GET ALL WORKERS ERROR:",
+                    err
+                );
 
-            return res.status(500).json({
-                success: false,
-                message: "Không thể lấy danh sách nhân viên"
+
+                return res.status(500).json({
+
+                    success: false,
+
+                    message:
+                        "Không thể lấy danh sách nhân viên"
+
+                });
+
+            }
+
+
+            return res.status(200).json({
+
+                success: true,
+
+                data:
+                    result
+
             });
 
         }
-
-        return res.status(200).json({
-            success: true,
-            data: result
-        });
-
-    });
+    );
 
 };
 
@@ -40,34 +100,115 @@ exports.getAllWorkers = (req, res) => {
 // ADMIN
 // =====================================================
 
-exports.createWorker = (req, res) => {
+exports.createWorker = (
+    req,
+    res
+) => {
 
     const {
         user_id,
         worker_code,
         phone,
-        department
+        department,
+        position,
+        training_percent,
+        status
     } = req.body;
 
 
-    if (!user_id || !worker_code) {
+    const userId =
+        Number(user_id);
+
+
+    if (
+        !Number.isInteger(userId)
+        ||
+        userId <= 0
+        ||
+        !String(worker_code || "").trim()
+    ) {
 
         return res.status(400).json({
+
             success: false,
-            message: "Thiếu user_id hoặc worker_code"
+
+            message:
+                "Thiếu hoặc sai user_id, worker_code"
+
         });
 
     }
 
 
+    const trainingPercent =
+        training_percent === undefined
+            ||
+            training_percent === null
+            ||
+            training_percent === ""
+
+            ? 100
+
+            : parseTrainingPercent(
+                training_percent
+            );
+
+
+    if (trainingPercent === null) {
+
+        return res.status(400).json({
+
+            success: false,
+
+            message:
+                "% học việc phải nằm trong khoảng từ 0 đến 100"
+
+        });
+
+    }
+
+
+    const workerStatus =
+        status === "inactive"
+            ? "inactive"
+            : "active";
+
+
     workerModel.create(
         {
-            user_id,
-            worker_code,
-            phone,
-            department
+            user_id:
+                userId,
+
+            worker_code:
+                String(
+                    worker_code
+                ).trim(),
+
+            phone:
+                phone
+                ? String(phone).trim()
+                : null,
+
+            department:
+                department
+                ? String(department).trim()
+                : "Sản xuất",
+
+            position:
+                position
+                ? String(position).trim()
+                : "Công nhân",
+
+            training_percent:
+                trainingPercent,
+
+            status:
+                workerStatus
         },
-        (err, result) => {
+        (
+            err,
+            result
+        ) => {
 
             if (err) {
 
@@ -77,30 +218,49 @@ exports.createWorker = (req, res) => {
                 );
 
 
-                if (err.code === "ER_DUP_ENTRY") {
+                if (
+                    err.code ===
+                    "ER_DUP_ENTRY"
+                ) {
 
                     return res.status(409).json({
+
                         success: false,
-                        message: "User hoặc mã nhân viên đã tồn tại"
+
+                        message:
+                            "User hoặc mã nhân viên đã tồn tại"
+
                     });
 
                 }
 
 
                 return res.status(500).json({
+
                     success: false,
-                    message: "Không thể tạo nhân viên"
+
+                    message:
+                        "Không thể tạo nhân viên"
+
                 });
 
             }
 
 
             return res.status(201).json({
+
                 success: true,
-                message: "Tạo nhân viên thành công",
+
+                message:
+                    "Tạo nhân viên thành công",
+
                 data: {
-                    id: result.insertId
+
+                    id:
+                        result.insertId
+
                 }
+
             });
 
         }
@@ -114,49 +274,75 @@ exports.createWorker = (req, res) => {
 // GET /api/workers/:id
 // =====================================================
 
-exports.getWorkerById = (req, res) => {
+exports.getWorkerById = (
+    req,
+    res
+) => {
 
-    const userId = Number(req.params.id);
+    const userId =
+        Number(
+            req.params.id
+        );
 
 
-    if (!Number.isInteger(userId) || userId <= 0) {
+    if (
+        !Number.isInteger(userId)
+        ||
+        userId <= 0
+    ) {
 
         return res.status(400).json({
+
             success: false,
-            message: "ID người dùng không hợp lệ"
+
+            message:
+                "ID người dùng không hợp lệ"
+
         });
 
     }
 
 
     /*
-        Worker chỉ được xem thông tin của chính mình.
+        Worker chỉ được xem hồ sơ của chính mình.
 
-        Admin, manager và lead được phép xem người khác.
+        Admin, manager và lead
+        được phép xem hồ sơ người khác.
     */
 
-    const loginUserId = Number(req.user.id);
-    const loginRole = req.user.role;
+    const loginUserId =
+        Number(
+            req.user?.id
+        );
 
-    const managementRoles = [
-        "admin",
-        "manager",
-        "lead"
-    ];
+
+    const loginRole =
+        req.user?.role;
 
 
     const isOwnProfile =
         loginUserId === userId;
 
+
     const isManagement =
-        managementRoles.includes(loginRole);
+        MANAGEMENT_ROLES.includes(
+            loginRole
+        );
 
 
-    if (!isOwnProfile && !isManagement) {
+    if (
+        !isOwnProfile
+        &&
+        !isManagement
+    ) {
 
         return res.status(403).json({
+
             success: false,
-            message: "Bạn không có quyền xem nhân viên này"
+
+            message:
+                "Bạn không có quyền xem nhân viên này"
+
         });
 
     }
@@ -165,25 +351,19 @@ exports.getWorkerById = (req, res) => {
     const sql = `
 
         SELECT
-
             w.id AS worker_id,
-
             w.user_id,
-
             w.worker_code,
-
             w.phone,
-
             w.department,
-
+            w.position,
+            w.training_percent,
             w.status,
-
             w.created_at,
+            w.updated_at,
 
             u.username,
-
             u.full_name,
-
             u.role
 
         FROM workers AS w
@@ -200,8 +380,13 @@ exports.getWorkerById = (req, res) => {
 
     db.query(
         sql,
-        [userId],
-        (err, result) => {
+        [
+            userId
+        ],
+        (
+            err,
+            result
+        ) => {
 
             if (err) {
 
@@ -210,27 +395,268 @@ exports.getWorkerById = (req, res) => {
                     err
                 );
 
+
                 return res.status(500).json({
+
                     success: false,
-                    message: "Không thể lấy thông tin nhân viên"
+
+                    message:
+                        "Không thể lấy thông tin nhân viên"
+
                 });
 
             }
 
 
-            if (result.length === 0) {
+            if (
+                result.length === 0
+            ) {
 
                 return res.status(404).json({
+
                     success: false,
-                    message: "Tài khoản chưa có hồ sơ nhân viên"
+
+                    message:
+                        "Tài khoản chưa có hồ sơ nhân viên"
+
                 });
 
             }
 
 
             return res.status(200).json({
+
                 success: true,
-                data: result[0]
+
+                data:
+                    result[0]
+
+            });
+
+        }
+    );
+
+};
+
+
+// =====================================================
+// CẬP NHẬT NHÂN VIÊN
+// ADMIN / MANAGER / LEAD
+//
+// PATCH /api/workers/:id
+// :id là worker_id
+// =====================================================
+
+exports.updateWorker = (
+    req,
+    res
+) => {
+
+    const workerId =
+        Number(
+            req.params.id
+        );
+
+
+    if (
+        !Number.isInteger(workerId)
+        ||
+        workerId <= 0
+    ) {
+
+        return res.status(400).json({
+
+            success: false,
+
+            message:
+                "ID nhân viên không hợp lệ"
+
+        });
+
+    }
+
+
+    if (
+        !MANAGEMENT_ROLES.includes(
+            req.user?.role
+        )
+    ) {
+
+        return res.status(403).json({
+
+            success: false,
+
+            message:
+                "Bạn không có quyền chỉnh sửa nhân viên"
+
+        });
+
+    }
+
+
+    const {
+        phone,
+        department,
+        position,
+        training_percent,
+        status
+    } = req.body;
+
+
+    const trainingPercent =
+        training_percent === undefined
+            ||
+            training_percent === null
+            ||
+            training_percent === ""
+
+            ? null
+
+            : parseTrainingPercent(
+                training_percent
+            );
+
+
+    if (
+        training_percent !== undefined
+        &&
+        training_percent !== null
+        &&
+        training_percent !== ""
+        &&
+        trainingPercent === null
+    ) {
+
+        return res.status(400).json({
+
+            success: false,
+
+            message:
+                "% học việc phải nằm trong khoảng từ 0 đến 100"
+
+        });
+
+    }
+
+
+    if (
+        status !== undefined
+        &&
+        status !== "active"
+        &&
+        status !== "inactive"
+    ) {
+
+        return res.status(400).json({
+
+            success: false,
+
+            message:
+                "Trạng thái nhân viên không hợp lệ"
+
+        });
+
+    }
+
+
+    const sql = `
+
+        UPDATE workers
+
+        SET
+            phone = COALESCE(?, phone),
+
+            department =
+                COALESCE(?, department),
+
+            position =
+                COALESCE(?, position),
+
+            training_percent =
+                COALESCE(
+                    ?,
+                    training_percent
+                ),
+
+            status =
+                COALESCE(?, status)
+
+        WHERE id = ?
+
+    `;
+
+
+    db.query(
+        sql,
+        [
+            phone !== undefined
+                ? phone
+                : null,
+
+            department !== undefined
+                ? department
+                : null,
+
+            position !== undefined
+                ? position
+                : null,
+
+            trainingPercent,
+
+            status !== undefined
+                ? status
+                : null,
+
+            workerId
+        ],
+        (
+            err,
+            result
+        ) => {
+
+            if (err) {
+
+                console.error(
+                    "UPDATE WORKER ERROR:",
+                    err
+                );
+
+
+                return res.status(500).json({
+
+                    success: false,
+
+                    message:
+                        "Không thể cập nhật nhân viên"
+
+                });
+
+            }
+
+
+            if (
+                result.affectedRows === 0
+            ) {
+
+                return res.status(404).json({
+
+                    success: false,
+
+                    message:
+                        "Không tìm thấy nhân viên"
+
+                });
+
+            }
+
+
+            return res.status(200).json({
+
+                success: true,
+
+                message:
+                    "Cập nhật nhân viên thành công"
+
             });
 
         }
