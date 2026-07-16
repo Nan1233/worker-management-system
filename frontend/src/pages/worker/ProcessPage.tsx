@@ -770,36 +770,103 @@ function ProcessPage() {
 
 
     const updateDeductionValue = (
+    key: DeductionKey,
+    value: string
+) => {
 
-        key: DeductionKey,
+    /*
+        Cho phép:
+        ""
+        "0"
+        "1"
+        "0.5"
+        "1.25"
 
-        value: string
-
-    ) => {
-
-        setDeductions((prev) => {
-
-            const next = {
-
-                ...prev,
-
-                [key]: value
-
-            };
-
-
-            updateTotalDeduction(
-                next
-            );
+        Không cho phép chữ hoặc nhiều dấu chấm.
+    */
+    if (
+        value !== ""
+        &&
+        !/^\d*\.?\d*$/.test(value)
+    ) {
+        return;
+    }
 
 
-            return next;
+    setDeductions((prev) => {
 
-        });
+        const next = {
+            ...prev,
+            [key]: value
+        };
 
+        updateTotalDeduction(next);
+
+        return next;
+
+    });
+
+};
+
+const removeDeductionIfZero = (
+    key: DeductionKey
+) => {
+
+    if (
+        Number(deductions[key]) !== 0
+        ||
+        deductions[key] === ""
+    ) {
+        return;
+    }
+
+
+    const nextSelected =
+        selectedDeduction.filter(
+            (selectedKey) =>
+                selectedKey !== key
+        );
+
+
+    const nextDeductions = {
+        ...deductions,
+        [key]: ""
     };
 
 
+    setSelectedDeduction(
+        nextSelected
+    );
+
+    setDeductions(
+        nextDeductions
+    );
+
+    updateTotalDeduction(
+        nextDeductions
+    );
+
+
+    if (key === "dungMay") {
+        setStopReason("");
+    }
+
+};
+const handleDeductionKeyDown = (
+    event: React.KeyboardEvent<HTMLInputElement>,
+    key: DeductionKey
+) => {
+
+    if (event.key !== "Enter") {
+        return;
+    }
+
+
+    event.preventDefault();
+
+    removeDeductionIfZero(key);
+
+};
     // =====================================================
     // LỖI NG
     // =====================================================
@@ -807,83 +874,134 @@ function ProcessPage() {
 
 
     const handleNgValue = (
+    key: NgKey,
+    value: string
+) => {
 
-        key: NgKey,
-
-        value: string
-
-    ) => {
-
-        if (
-            value !== ""
-            &&
-            !/^\d*$/.test(value)
-        ) {
-
-            return;
-
-        }
-
-
-        setForm((prev) => {
-
-            const next = {
-
-                ...prev,
-
-                [key]: value
-
-            };
+    /*
+        NG chỉ cho phép số nguyên.
+        Cho phép rỗng để người dùng nhập lại.
+    */
+    if (
+        value !== ""
+        &&
+        !/^\d*$/.test(value)
+    ) {
+        return;
+    }
 
 
-            next.ttNg =
-                String(
+    setForm((prev) => {
 
-                    ngOptions.reduce(
-
-                        (
-                            sum,
-                            item
-                        ) =>
-
-                            sum
-                            +
-                            Number(
-                                next[item.key]
-                                ||
-                                0
-                            ),
-
-                        0
-
-                    )
-
-                );
+        const next = {
+            ...prev,
+            [key]: value
+        };
 
 
-            next.actualOutput =
-                String(
-
-                    Number(
-                        next.ttOk || 0
-                    )
-
-                    +
-
-                    Number(
-                        next.ttNg || 0
-                    )
-
-                );
+        next.ttNg =
+            String(
+                ngOptions.reduce(
+                    (sum, item) =>
+                        sum
+                        +
+                        Number(
+                            next[item.key] || 0
+                        ),
+                    0
+                )
+            );
 
 
-            return next;
+        next.actualOutput =
+            String(
+                Number(next.ttOk || 0)
+                +
+                Number(next.ttNg || 0)
+            );
 
-        });
 
-    };
+        return next;
+
+    });
+
+};
+
+const removeNgIfZero = (
+    key: NgKey
+) => {
+
+    if (
+        Number(form[key]) !== 0
+        ||
+        form[key] === ""
+    ) {
+        return;
+    }
 
 
+    const nextSelected =
+        selectedNg.filter(
+            (selectedKey) =>
+                selectedKey !== key
+        );
+
+
+    setSelectedNg(
+        nextSelected
+    );
+
+
+    setForm((prev) => {
+
+        const next = {
+            ...prev,
+            [key]: ""
+        };
+
+
+        next.ttNg =
+            String(
+                ngOptions.reduce(
+                    (sum, item) =>
+                        sum
+                        +
+                        Number(
+                            next[item.key] || 0
+                        ),
+                    0
+                )
+            );
+
+
+        next.actualOutput =
+            String(
+                Number(next.ttOk || 0)
+                +
+                Number(next.ttNg || 0)
+            );
+
+
+        return next;
+
+    });
+
+};
+const handleNgKeyDown = (
+    event: React.KeyboardEvent<HTMLInputElement>,
+    key: NgKey
+) => {
+
+    if (event.key !== "Enter") {
+        return;
+    }
+
+
+    event.preventDefault();
+
+    removeNgIfZero(key);
+
+};
     // =====================================================
     // KIỂM TRA FORM
     // =====================================================
@@ -1637,16 +1755,9 @@ function ProcessPage() {
 
                     {
                         deductionOptions
-
-                            .filter(
-                                ({
-                                    key
-                                }) =>
-
-                                    deductions[key]
-                                    !==
-                                    ""
-                            )
+    .filter(({ key }) =>
+        selectedDeduction.includes(key)
+    )
 
                             .map(
                                 (
@@ -1654,42 +1765,29 @@ function ProcessPage() {
                                 ) => (
 
                                     <NumberField
-
-                                        key={
-                                            item.key
-                                        }
-
-                                        label={
-                                            item.label
-                                        }
-
-                                        name={
-                                            item.key
-                                        }
-
-                                        value={
-                                            deductions[
-                                                item.key
-                                            ]
-                                        }
-
-                                        allowDecimal
-
-                                        onChange={(
-                                            event
-                                        ) =>
-
-                                            updateDeductionValue(
-
-                                                item.key,
-
-                                                event.target.value
-
-                                            )
-
-                                        }
-
-                                    />
+    key={item.key}
+    label={item.label}
+    name={item.key}
+    value={deductions[item.key]}
+    allowDecimal
+    onChange={(event) =>
+        updateDeductionValue(
+            item.key,
+            event.target.value
+        )
+    }
+    onBlur={() =>
+        removeDeductionIfZero(
+            item.key
+        )
+    }
+    onKeyDown={(event) =>
+        handleDeductionKeyDown(
+            event,
+            item.key
+        )
+    }
+/>
 
                                 )
                             )
@@ -1699,10 +1797,8 @@ function ProcessPage() {
 
 
                 {
-                    deductions.dungMay
-                    !==
-                    ""
-                    && (
+    selectedDeduction.includes("dungMay")
+    && (
 
                         <SelectField
 
@@ -1947,16 +2043,9 @@ function ProcessPage() {
 
                     {
                         ngOptions
-
-                            .filter(
-                                ({
-                                    key
-                                }) =>
-
-                                    form[key]
-                                    !==
-                                    ""
-                            )
+    .filter(({ key }) =>
+        selectedNg.includes(key)
+    )
 
                             .map(
                                 (
@@ -1964,40 +2053,28 @@ function ProcessPage() {
                                 ) => (
 
                                     <NumberField
-
-                                        key={
-                                            item.key
-                                        }
-
-                                        label={
-                                            item.label
-                                        }
-
-                                        name={
-                                            item.key
-                                        }
-
-                                        value={
-                                            form[
-                                                item.key
-                                            ]
-                                        }
-
-                                        onChange={(
-                                            event
-                                        ) =>
-
-                                            handleNgValue(
-
-                                                item.key,
-
-                                                event.target.value
-
-                                            )
-
-                                        }
-
-                                    />
+    key={item.key}
+    label={item.label}
+    name={item.key}
+    value={form[item.key]}
+    onChange={(event) =>
+        handleNgValue(
+            item.key,
+            event.target.value
+        )
+    }
+    onBlur={() =>
+        removeNgIfZero(
+            item.key
+        )
+    }
+    onKeyDown={(event) =>
+        handleNgKeyDown(
+            event,
+            item.key
+        )
+    }
+/>
 
                                 )
                             )

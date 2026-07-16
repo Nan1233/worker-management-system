@@ -1,145 +1,192 @@
 type Props = {
+
     label: string;
+
     name: string;
+
     value: string | number;
 
     allowDecimal?: boolean;
 
     onChange: (
-        e: React.ChangeEvent<HTMLInputElement>
+        event: React.ChangeEvent<HTMLInputElement>
     ) => void;
 
     onBlur?: (
-        e: React.FocusEvent<HTMLInputElement>
+        event: React.FocusEvent<HTMLInputElement>
     ) => void;
-};
 
+    onKeyDown?: (
+        event: React.KeyboardEvent<HTMLInputElement>
+    ) => void;
+
+};
 
 
 function NumberField({
 
     label,
+
     name,
+
     value,
+
     allowDecimal = false,
+
     onChange,
+
     onBlur,
 
-}: Props){
+    onKeyDown
+
+}: Props) {
 
 
+    const handleInput = (
+        event: React.ChangeEvent<HTMLInputElement>
+    ) => {
 
-const handleInput = (
-    e: React.ChangeEvent<HTMLInputElement>
-)=>{
-
-    const inputValue = e.target.value;
+        const inputValue =
+            event.target.value;
 
 
-    if(!allowDecimal){
+        if (!allowDecimal) {
 
-        if(
-            inputValue !== "" &&
-            !/^\d*$/.test(inputValue)
-        ){
+            if (
+                inputValue !== ""
+                &&
+                !/^\d*$/.test(inputValue)
+            ) {
+
+                return;
+
+            }
+
+        }
+        else {
+
+            if (
+                inputValue !== ""
+                &&
+                !/^\d*\.?\d*$/.test(inputValue)
+            ) {
+
+                return;
+
+            }
+
+        }
+
+
+        onChange(event);
+
+    };
+
+
+    const handleInternalKeyDown = (
+        event: React.KeyboardEvent<HTMLInputElement>
+    ) => {
+
+        /*
+            Gọi xử lý riêng được truyền từ ProcessPage.
+
+            Ví dụ:
+            - nhập 0
+            - nhấn Enter
+            - bỏ lựa chọn và ẩn ô
+        */
+        if (onKeyDown) {
+
+            onKeyDown(event);
+
+        }
+
+
+        /*
+            Nếu ProcessPage đã gọi preventDefault,
+            không chạy tiếp logic bên dưới.
+        */
+        if (event.defaultPrevented) {
 
             return;
 
         }
 
-    }
-    else{
 
-        if(
-            inputValue !== "" &&
-            !/^\d*\.?\d*$/.test(inputValue)
-        ){
+        if (
+            event.key === "Enter"
+            ||
+            event.key === "Tab"
+        ) {
 
-            return;
+            if (onBlur) {
 
-        }
-
-    }
+                const target =
+                    event.currentTarget;
 
 
-    onChange(e);
+                onBlur(
+                    {
+                        target,
+                        currentTarget: target
+                    } as React.FocusEvent<HTMLInputElement>
+                );
 
-};
-
-
-
-
-
-const handleKeyDown = (
-    e:React.KeyboardEvent<HTMLInputElement>
-)=>{
-
-    if(
-        e.key==="Enter" ||
-        e.key==="Tab"
-    ){
-
-        if(onBlur){
-
-            const target =
-            e.target as HTMLInputElement;
-
-
-            onBlur(
-                {
-                    target
-                } as React.FocusEvent<HTMLInputElement>
-            );
+            }
 
         }
 
-    }
-
-};
+    };
 
 
+    return (
+
+        <div className="input-group">
+
+            <label htmlFor={name}>
+
+                {label}
+
+            </label>
 
 
-return (
+            <input
 
-<div className="input-group">
+                id={name}
 
+                name={name}
 
-<label>
-{label}
-</label>
+                type="text"
 
+                inputMode={
+                    allowDecimal
+                        ? "decimal"
+                        : "numeric"
+                }
 
+                value={
+                    value ?? ""
+                }
 
-<input
+                onChange={
+                    handleInput
+                }
 
-name={name}
+                onBlur={
+                    onBlur
+                }
 
-type="text"
+                onKeyDown={
+                    handleInternalKeyDown
+                }
 
-inputMode={
-allowDecimal
-?
-"decimal"
-:
-"numeric"
-}
+                autoComplete="off"
 
-value={value ?? ""}
+            />
 
-onChange={handleInput}
+        </div>
 
-onBlur={onBlur}
-
-onKeyDown={handleKeyDown}
-
-/>
-
-
-</div>
-
-);
-
+    );
 
 }
 
