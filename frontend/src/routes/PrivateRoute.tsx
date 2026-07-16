@@ -9,19 +9,10 @@ interface PrivateRouteProps {
 }
 
 const homeByRole: Record<Role, string> = {
-
-    admin:
-        "/admin",
-
-    manager:
-        "/manager",
-
-    lead:
-        "/lead",
-
-    worker:
-        "/worker"
-
+    admin: "/admin",
+    manager: "/manager",
+    lead: "/lead",
+    worker: "/worker"
 };
 
 const PrivateRoute = ({ children, allowedRoles }: PrivateRouteProps) => {
@@ -32,16 +23,26 @@ const PrivateRoute = ({ children, allowedRoles }: PrivateRouteProps) => {
         return <Navigate to="/login" replace />;
     }
 
-    try {
-        const user = JSON.parse(userString) as User;
+    let user: User | null = null;
 
-        if (!allowedRoles.includes(user.role)) {
-            return <Navigate to={homeByRole[user.role] || "/login"} replace />;
-        }
+    try {
+        user = JSON.parse(userString) as User;
     } catch {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
+    }
+
+    if (!user) {
         return <Navigate to="/login" replace />;
+    }
+
+    if (!allowedRoles.includes(user.role)) {
+        return (
+            <Navigate
+                to={homeByRole[user.role] || "/login"}
+                replace
+            />
+        );
     }
 
     return <>{children}</>;

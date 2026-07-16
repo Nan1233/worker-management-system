@@ -267,21 +267,10 @@ export const getReportById = async(
 )=>{
 
 
-    let url="";
-
-
-    if(source==="pending"){
-
-        url=
-        `/production-temp/${id}`;
-
-    }
-    else{
-
-        url=
-        `/production/${id}`;
-
-    }
+    const url =
+        source === "pending"
+            ? `/production-temp/${id}`
+            : `/production/${id}`;
 
 
 
@@ -507,7 +496,7 @@ export const exportApprovedExcel = async(
 
 const downloadExcel = (
 
-    data:any,
+    data:BlobPart,
 
     filename:string
 

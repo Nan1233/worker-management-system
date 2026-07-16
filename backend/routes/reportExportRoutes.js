@@ -5,155 +5,79 @@ const router = express.Router();
 const authMiddleware = require("../middleware/authMiddleware");
 const checkRole = require("../middleware/roleMiddleware");
 
-
-const {
-    createTempReport,
-
-    getTempDates,
-
-    getTempReportsByDate,
-
-    approveTempByDate,
-
-    getTempReportDetail,
-
-    getMyTempReports,
-
-    getPendingReports,
-
-    getApprovedReports
-
-} = require("../controllers/productionTempController");
+const reportExportController = require(
+    "../controllers/reportExportController"
+);
 
 
+// =====================================================
+// XUẤT FILE EXCEL
+//
+// GET /api/reports/export-excel
+//     ?date=2026-07-16
+//     &type=pending
+//
+// type:
+// - pending  : lấy bảng production_reports_temp
+// - approved : lấy bảng production_reports
+// =====================================================
+
+router.get(
+    "/export-excel",
+    authMiddleware,
+    checkRole("admin", "manager", "lead"),
+    reportExportController.exportGiaCongExcel
+);
 
 
-// =====================================
-// WORKER GỬI BÁO CÁO TEMP
-// POST /api/temp-reports
-// =====================================
+// =====================================================
+// ĐỒNG BỘ GOOGLE SHEET
+//
+// GET /api/reports/google-sheet?date=2026-07-16
+// =====================================================
+
+router.get(
+    "/google-sheet",
+    authMiddleware,
+    checkRole("admin", "manager", "lead"),
+    reportExportController.exportGoogleSheet
+);
+
+
+// =====================================================
+// TẠO GOOGLE SHEET
+//
+// POST /api/reports/create-sheet
+// Body:
+// {
+//     "date": "2026-07-16"
+// }
+// =====================================================
 
 router.post(
-    "/",
-    authMiddleware,
-    checkRole("worker"),
-    createTempReport
-);
-
-
-
-
-
-// =====================================
-// WORKER XEM LỊCH SỬ
-// GET /api/temp-reports/my
-// =====================================
-
-router.get(
-    "/my",
-    authMiddleware,
-    checkRole("worker"),
-    getMyTempReports
-);
-
-
-
-
-
-
-// =====================================
-// MANAGER XEM CHỜ DUYỆT
-// =====================================
-
-router.get(
-    "/pending",
+    "/create-sheet",
     authMiddleware,
     checkRole("admin", "manager", "lead"),
-    getPendingReports
+    reportExportController.createGoogleSheet
 );
 
 
-
-
-
-
-// =====================================
-// MANAGER XEM ĐÃ DUYỆT
-// =====================================
-
-router.get(
-    "/approved",
-    authMiddleware,
-    checkRole("admin", "manager", "lead"),
-    getApprovedReports
-);
-
-
-
-
-
-
-// =====================================
-// LẤY DANH SÁCH NGÀY
-// =====================================
-
-router.get(
-    "/dates",
-    authMiddleware,
-    checkRole("admin", "manager", "lead"),
-    getTempDates
-);
-
-
-
-
-
-
-// =====================================
-// XEM BÁO CÁO THEO NGÀY
-// =====================================
-
-router.get(
-    "/by-date",
-    authMiddleware,
-    checkRole("admin", "manager", "lead"),
-    getTempReportsByDate
-);
-
-
-
-
-
-
-// =====================================
-// DUYỆT THEO NGÀY
-// =====================================
+// =====================================================
+// CẬP NHẬT GOOGLE SHEET
+//
+// POST /api/reports/update-sheet
+// Body:
+// {
+//     "date": "2026-07-16"
+// }
+// =====================================================
 
 router.post(
-    "/approve-date",
+    "/update-sheet",
     authMiddleware,
     checkRole("admin", "manager", "lead"),
-    approveTempByDate
+    reportExportController.updateGoogleSheet
 );
-
-
-
-
-
-
-// =====================================
-// CHI TIẾT
-// phải để cuối vì có :id
-// =====================================
-
-router.get(
-    "/:id",
-    authMiddleware,
-    getTempReportDetail
-);
-
-
-
 
 
 module.exports = router;

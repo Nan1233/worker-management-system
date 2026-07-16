@@ -7,21 +7,50 @@ const ReportService = require("./reportService");
 // GOOGLE AUTH
 // =====================================================
 
-const credentials = JSON.parse(
-    process.env.GOOGLE_SERVICE_ACCOUNT
-);
+const getGoogleAuth = () => {
+
+    const rawCredentials =
+        process.env.GOOGLE_SERVICE_ACCOUNT;
 
 
+    if (!rawCredentials) {
 
-const auth = new google.auth.GoogleAuth({
+        throw new Error(
+            "Thiếu biến môi trường GOOGLE_SERVICE_ACCOUNT"
+        );
 
-    credentials,
+    }
 
-    scopes:[
-        "https://www.googleapis.com/auth/spreadsheets"
-    ]
 
-});
+    let credentials;
+
+
+    try {
+
+        credentials =
+            JSON.parse(rawCredentials);
+
+    }
+    catch {
+
+        throw new Error(
+            "GOOGLE_SERVICE_ACCOUNT không phải JSON hợp lệ"
+        );
+
+    }
+
+
+    return new google.auth.GoogleAuth({
+
+        credentials,
+
+        scopes: [
+            "https://www.googleapis.com/auth/spreadsheets"
+        ]
+
+    });
+
+};
 
 
 
@@ -152,6 +181,19 @@ exports.syncProductionReport = async(date)=>{
 
 
 
+
+
+        if (!spreadsheetId) {
+
+            throw new Error(
+                "Thiếu biến môi trường GOOGLE_SPREADSHEET_ID"
+            );
+
+        }
+
+
+        const auth =
+        getGoogleAuth();
 
 
         const client =

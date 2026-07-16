@@ -631,6 +631,26 @@ exports.getTempReportDetail = async (
         }
 
 
+        // Worker chỉ được xem báo cáo của chính mình.
+        // Manager, lead và admin vẫn có thể xem báo cáo thuộc phạm vi quản lý.
+        if (
+            req.user?.role === "worker"
+            &&
+            Number(data.worker_id) !== Number(req.user?.worker_id)
+        ) {
+
+            return res.status(403).json({
+
+                success: false,
+
+                message:
+                    "Bạn không có quyền xem báo cáo này"
+
+            });
+
+        }
+
+
         return res.status(200).json({
 
             success: true,
