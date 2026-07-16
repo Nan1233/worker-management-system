@@ -5,9 +5,6 @@ import type {
 
 // =====================================================
 // TRẠNG THÁI NHÂN VIÊN
-//
-// active   = đang làm việc
-// inactive = đã nghỉ hoặc ngừng hoạt động
 // =====================================================
 
 export type WorkerStatus =
@@ -33,20 +30,13 @@ export interface WorkerProfile {
 
     position: string | null;
 
-    /*
-        % học việc hiện tại.
-
-        Mặc định 100.
-        Chỉ admin, manager, lead được chỉnh sửa.
-    */
-
     training_percent: number;
 
     status: WorkerStatus;
 
     created_at: string;
 
-    updated_at?: string;
+    updated_at?: string | null;
 
     username: string;
 
@@ -58,7 +48,7 @@ export interface WorkerProfile {
 
 
 // =====================================================
-// RESPONSE API LẤY HỒ SƠ NHÂN VIÊN
+// RESPONSE MỘT WORKER
 // =====================================================
 
 export interface WorkerProfileResponse {
@@ -73,7 +63,22 @@ export interface WorkerProfileResponse {
 
 
 // =====================================================
-// DỮ LIỆU TẠO NHÂN VIÊN
+// RESPONSE DANH SÁCH WORKER
+// =====================================================
+
+export interface WorkerListResponse {
+
+    success: boolean;
+
+    data: WorkerProfile[];
+
+    message?: string;
+
+}
+
+
+// =====================================================
+// PAYLOAD TẠO WORKER
 // =====================================================
 
 export interface CreateWorkerPayload {
@@ -96,34 +101,32 @@ export interface CreateWorkerPayload {
 
 
 // =====================================================
-// DỮ LIỆU CẬP NHẬT NHÂN VIÊN
+// PAYLOAD CẬP NHẬT % HỌC VIỆC
 // =====================================================
 
-export interface UpdateWorkerPayload {
+export interface UpdateTrainingPercentPayload {
 
-    phone?: string | null;
-
-    department?: string | null;
-
-    position?: string | null;
-
-    training_percent?: number;
-
-    status?: WorkerStatus;
+    training_percent: number;
 
 }
 
 
 // =====================================================
-// RESPONSE DANH SÁCH NHÂN VIÊN
+// RESPONSE CẬP NHẬT % HỌC VIỆC
 // =====================================================
 
-export interface WorkerListResponse {
+export interface UpdateTrainingPercentResponse {
 
     success: boolean;
 
-    data: WorkerProfile[];
+    message: string;
 
-    message?: string;
+    data?: {
+
+        worker_id: number;
+
+        training_percent: number;
+
+    };
 
 }

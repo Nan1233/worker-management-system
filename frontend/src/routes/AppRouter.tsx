@@ -1,7 +1,7 @@
 import {
-    Routes,
+    Navigate,
     Route,
-    Navigate
+    Routes
 } from "react-router-dom";
 
 
@@ -10,30 +10,53 @@ import Login from "../pages/Login";
 import PrivateRoute from "./PrivateRoute";
 
 
-// Layout
+// =====================================================
+// LAYOUT
+// =====================================================
 
 import MainLayout from "../layouts/MainLayout";
 
+import ManagementLayout from "../layouts/ManagementLayout";
 
-// Admin
+
+// =====================================================
+// ADMIN
+// =====================================================
 
 import AdminDashboard from "../pages/admin/Dashboard";
 
 
-// Manager
+// =====================================================
+// LEAD - CÁC TRANG NGHIỆP VỤ DÙNG CHUNG
+//
+// Manager cũng sử dụng lại các trang này.
+// =====================================================
 
-import ManagerDashboard from "../pages/manager/Dashboard";
+import LeadDashboard from "../pages/lead/Dashboard";
 
-import Reports from "../pages/manager/Reports";
+import LeadPendingReports from "../pages/lead/PendingReports";
 
-import ApprovedReports from "../pages/manager/ApprovedReports";
+import LeadApprovedReports from "../pages/lead/ApprovedReports";
 
-import ReportDetail from "../pages/manager/ReportDetail";
+import LeadReportDetail from "../pages/lead/ReportDetail";
 
-import ReportDownload from "../pages/manager/ReportDownload";
+import LeadWorkers from "../pages/lead/Workers";
+
+import LeadReportDownload from "../pages/lead/ReportDownload";
 
 
-// Worker
+// =====================================================
+// MANAGER - CHỨC NĂNG RIÊNG
+// =====================================================
+
+import ManagerEditReport from "../pages/manager/EditReport";
+
+import ManagerStatistics from "../pages/manager/Statistics";
+
+
+// =====================================================
+// WORKER
+// =====================================================
 
 import SelectProcess from "../pages/worker/SelectProcess";
 
@@ -44,6 +67,10 @@ import ProductionHistory from "../pages/worker/ProductionHistory";
 import ProductionDetail from "../pages/worker/ProductionDetail";
 
 
+// =====================================================
+// ROUTER
+// =====================================================
+
 function AppRouter() {
 
     return (
@@ -51,48 +78,43 @@ function AppRouter() {
         <Routes>
 
 
-            {/* DEFAULT */}
+            {/* =================================================
+                DEFAULT
+            ================================================= */}
 
             <Route
-
                 path="/"
-
                 element={
 
                     <Navigate
-
                         to="/login"
-
                         replace
-
                     />
 
                 }
-
             />
 
 
-            {/* LOGIN */}
+            {/* =================================================
+                LOGIN
+            ================================================= */}
 
             <Route
-
                 path="/login"
-
                 element={
 
                     <Login />
 
                 }
-
             />
 
 
-            {/* ================= ADMIN ================= */}
+            {/* =================================================
+                ADMIN
+            ================================================= */}
 
             <Route
-
                 path="/admin"
-
                 element={
 
                     <PrivateRoute
@@ -106,119 +128,231 @@ function AppRouter() {
                     </PrivateRoute>
 
                 }
-
             />
 
 
-            {/* ================= MANAGER ================= */}
+            {/* =================================================
+                LEAD
+                - Xem báo cáo
+                - Duyệt báo cáo
+                - Xem báo cáo đã duyệt
+                - Xem công nhân
+                - Xuất Excel / Sheet
+                - Không sửa báo cáo
+            ================================================= */}
 
             <Route
+                path="/lead"
+                element={
 
+                    <PrivateRoute
+                        allowedRoles={[
+                            "lead"
+                        ]}
+                    >
+
+                        <ManagementLayout
+                            role="lead"
+                        />
+
+                    </PrivateRoute>
+
+                }
+            >
+
+                <Route
+                    index
+                    element={
+
+                        <LeadDashboard />
+
+                    }
+                />
+
+
+                <Route
+                    path="reports"
+                    element={
+
+                        <LeadPendingReports />
+
+                    }
+                />
+
+
+                <Route
+                    path="approved"
+                    element={
+
+                        <LeadApprovedReports />
+
+                    }
+                />
+
+
+                <Route
+                    path="report/:id"
+                    element={
+
+                        <LeadReportDetail />
+
+                    }
+                />
+
+
+                <Route
+                    path="workers"
+                    element={
+
+                        <LeadWorkers />
+
+                    }
+                />
+
+
+                <Route
+                    path="export"
+                    element={
+
+                        <LeadReportDownload />
+
+                    }
+                />
+
+            </Route>
+
+
+            {/* =================================================
+                MANAGER
+                - Dùng lại toàn bộ trang lead
+                - Có thêm sửa báo cáo
+                - Có thêm thống kê
+            ================================================= */}
+
+            <Route
                 path="/manager"
-
                 element={
 
                     <PrivateRoute
                         allowedRoles={[
                             "admin",
-                            "manager",
-                            "lead"
+                            "manager"
                         ]}
                     >
 
-                        <MainLayout />
+                        <ManagementLayout
+                            role="manager"
+                        />
 
                     </PrivateRoute>
 
                 }
-
             >
 
-
-                {/* Dashboard */}
+                {/* Dùng chung Dashboard của lead */}
 
                 <Route
-
                     index
-
                     element={
 
-                        <ManagerDashboard />
+                        <LeadDashboard />
 
                     }
-
                 />
 
 
-                {/* Báo cáo chưa duyệt */}
+                {/* Dùng chung danh sách chờ duyệt */}
 
                 <Route
-
                     path="reports"
-
                     element={
 
-                        <Reports />
+                        <LeadPendingReports />
 
                     }
-
                 />
 
 
-                {/* Báo cáo đã duyệt */}
+                {/* Dùng chung danh sách đã duyệt */}
 
                 <Route
-
                     path="approved"
-
                     element={
 
-                        <ApprovedReports />
+                        <LeadApprovedReports />
 
                     }
-
                 />
 
 
-                {/* Chi tiết báo cáo */}
+                {/* Dùng chung trang chi tiết */}
 
                 <Route
-
                     path="report/:id"
-
                     element={
 
-                        <ReportDetail />
+                        <LeadReportDetail />
 
                     }
-
                 />
 
 
-                {/* Export Excel */}
+                {/* Dùng chung danh sách công nhân */}
 
                 <Route
-
-                    path="export"
-
+                    path="workers"
                     element={
 
-                        <ReportDownload />
+                        <LeadWorkers />
 
                     }
-
                 />
 
+
+                {/* Dùng chung trang xuất báo cáo */}
+
+                <Route
+                    path="export"
+                    element={
+
+                        <LeadReportDownload />
+
+                    }
+                />
+
+
+                {/* Chỉ manager/admin được sửa */}
+
+                <Route
+                    path="report/:id/edit"
+                    element={
+
+                        <ManagerEditReport />
+
+                    }
+                />
+
+
+                {/* Chỉ manager/admin có thống kê */}
+
+                <Route
+                    path="statistics"
+                    element={
+
+                        <ManagerStatistics />
+
+                    }
+                />
 
             </Route>
 
 
-            {/* ================= WORKER ================= */}
+            {/* =================================================
+                WORKER
+            ================================================= */}
 
             <Route
-
                 path="/worker"
-
                 element={
 
                     <PrivateRoute
@@ -232,93 +366,65 @@ function AppRouter() {
                     </PrivateRoute>
 
                 }
-
             >
 
-
-                {/* Dashboard worker */}
-
                 <Route
-
                     index
-
                     element={
 
                         <SelectProcess />
 
                     }
-
                 />
 
 
-                {/* Chọn công đoạn */}
-
                 <Route
-
                     path="process/:process"
-
                     element={
 
                         <ProcessPage />
 
                     }
-
                 />
 
 
-                {/* Lịch sử */}
-
                 <Route
-
                     path="history"
-
                     element={
 
                         <ProductionHistory />
 
                     }
-
                 />
 
 
-                {/* Chi tiết lịch sử */}
-
                 <Route
-
                     path="history/:id"
-
                     element={
 
                         <ProductionDetail />
 
                     }
-
                 />
-
 
             </Route>
 
 
-            {/* NOT FOUND */}
+            {/* =================================================
+                NOT FOUND
+            ================================================= */}
 
             <Route
-
                 path="*"
-
                 element={
 
                     <Navigate
-
                         to="/login"
-
                         replace
-
                     />
 
                 }
-
             />
-
 
         </Routes>
 

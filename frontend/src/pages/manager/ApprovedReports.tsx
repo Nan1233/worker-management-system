@@ -21,7 +21,26 @@ function ApprovedReports(){
 
     const navigate = useNavigate();
 
+const savedUser =
+    localStorage.getItem(
+        "user"
+    );
 
+
+const currentUser =
+    savedUser
+        ? JSON.parse(
+            savedUser
+        )
+        : null;
+
+
+const basePath =
+    currentUser?.role === "lead"
+
+        ? "/lead"
+
+        : "/manager";
 
     const [date,setDate] =
         useState("");
@@ -441,7 +460,7 @@ function ApprovedReports(){
 
                                             navigate(
 
-                                                `/manager/report/${report.id}?source=approved`
+                                                `${basePath}/report/${report.id}?`
 
                                             )
 

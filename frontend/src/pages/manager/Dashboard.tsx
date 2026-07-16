@@ -87,7 +87,20 @@ function Dashboard() {
         );
 
 
+const savedUser =
+    localStorage.getItem(
+        "user"
+    );
 
+const currentUser =
+    savedUser
+        ? JSON.parse(savedUser)
+        : null;
+
+const basePath =
+    currentUser?.role === "lead"
+        ? "/lead"
+        : "/manager";
     return (
 
         <div className="manager-dashboard">
@@ -115,7 +128,9 @@ function Dashboard() {
                 <div
                     className="dashboard-card"
                     onClick={()=>
-                        navigate("/manager/reports")
+                        navigate(
+    `${basePath}/reports`
+)
                     }
                 >
 

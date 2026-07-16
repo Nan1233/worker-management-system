@@ -1,14 +1,11 @@
+import WorkersPage from "../manager/Workers";
+
+
 function Workers() {
 
     return (
 
-        <div>
-
-            <h1>
-                Công nhân trong tổ
-            </h1>
-
-        </div>
+        <WorkersPage />
 
     );
 

@@ -72,39 +72,71 @@ const Login = () => {
             // điều hướng theo quyền
 
 
-            switch(data.user.role){
+switch (data.user.role) {
 
+    case "admin":
 
-                case "admin":
-
-                    navigate("/manager");
-
-                    break;
-
-
-
-                case "manager":
-                case "lead":
-
-                    navigate("/manager");
-
-                    break;
-
-
-
-                case "worker":
-
-                    navigate("/worker");
-
-                    break;
-
-
-
-                default:
-
-                    navigate("/");
-
+        navigate(
+            "/admin",
+            {
+                replace: true
             }
+        );
+
+        break;
+
+
+    case "manager":
+
+        navigate(
+            "/manager",
+            {
+                replace: true
+            }
+        );
+
+        break;
+
+
+    case "lead":
+
+        navigate(
+            "/lead",
+            {
+                replace: true
+            }
+        );
+
+        break;
+
+
+    case "worker":
+
+        navigate(
+            "/worker",
+            {
+                replace: true
+            }
+        );
+
+        break;
+
+
+    default:
+
+        localStorage.removeItem(
+            "token"
+        );
+
+        localStorage.removeItem(
+            "user"
+        );
+
+        setError(
+            "Tài khoản chưa được phân quyền hợp lệ"
+        );
+
+}
 
 
 

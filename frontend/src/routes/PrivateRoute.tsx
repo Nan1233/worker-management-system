@@ -9,10 +9,19 @@ interface PrivateRouteProps {
 }
 
 const homeByRole: Record<Role, string> = {
-    admin: "/manager",
-    manager: "/manager",
-    lead: "/manager",
-    worker: "/worker",
+
+    admin:
+        "/admin",
+
+    manager:
+        "/manager",
+
+    lead:
+        "/lead",
+
+    worker:
+        "/worker"
+
 };
 
 const PrivateRoute = ({ children, allowedRoles }: PrivateRouteProps) => {

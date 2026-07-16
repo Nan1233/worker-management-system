@@ -1,6 +1,8 @@
-const express = require("express");
+const express =
+    require("express");
 
-const router = express.Router();
+const router =
+    express.Router();
 
 
 const workerController =
@@ -14,47 +16,90 @@ const checkRole =
 
 
 // =====================================================
+// LẤY DANH SÁCH CÔNG NHÂN
 // ADMIN / MANAGER / LEAD
-// LẤY DANH SÁCH NHÂN VIÊN
 // =====================================================
 
 router.get(
+
     "/",
+
     verifyToken,
+
     checkRole(
         "admin",
         "manager",
         "lead"
     ),
+
     workerController.getAllWorkers
+
 );
 
 
 // =====================================================
-// ADMIN TẠO NHÂN VIÊN
+// TẠO CÔNG NHÂN
+// CHỈ ADMIN
 // =====================================================
 
 router.post(
+
     "/",
+
     verifyToken,
-    checkRole("admin"),
+
+    checkRole(
+        "admin"
+    ),
+
     workerController.createWorker
+
 );
 
 
 // =====================================================
-// LẤY THÔNG TIN WORKER THEO USER ID
+// CẬP NHẬT % HỌC VIỆC
+// ADMIN / MANAGER / LEAD
 //
-// Worker chỉ xem được chính mình.
-// Admin / manager / lead có thể xem người khác.
-// Việc kiểm tra nằm trong controller.
+// Phải đặt trước route "/:id"
+// để tránh Express hiểu "training-percent" sai endpoint.
+// =====================================================
+
+router.patch(
+
+    "/:id/training-percent",
+
+    verifyToken,
+
+    checkRole(
+        "admin",
+        "manager",
+        "lead"
+    ),
+
+    workerController.updateTrainingPercent
+
+);
+
+
+// =====================================================
+// LẤY WORKER THEO USER ID
+//
+// Worker chỉ xem chính mình.
+// Admin / manager / lead xem người khác.
+// Controller thực hiện kiểm tra quyền.
 // =====================================================
 
 router.get(
+
     "/:id",
+
     verifyToken,
+
     workerController.getWorkerById
+
 );
 
 
-module.exports = router;
+module.exports =
+    router;

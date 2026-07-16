@@ -10,24 +10,47 @@ const db =
 // =====================================================
 
 const MANAGEMENT_ROLES = [
+
     "admin",
+
     "manager",
+
     "lead"
+
 ];
 
 
 // =====================================================
-// CHUYỂN % HỌC VIỆC THÀNH SỐ HỢP LỆ
+// KIỂM TRA % HỌC VIỆC
 // =====================================================
 
-const parseTrainingPercent = (value) => {
+const parseTrainingPercent = (
+    value
+) => {
+
+    if (
+        value === ""
+        ||
+        value === null
+        ||
+        value === undefined
+    ) {
+
+        return null;
+
+    }
+
 
     const trainingPercent =
-        Number(value);
+        Number(
+            value
+        );
 
 
     if (
-        !Number.isFinite(trainingPercent)
+        !Number.isFinite(
+            trainingPercent
+        )
         ||
         trainingPercent < 0
         ||
@@ -46,6 +69,7 @@ const parseTrainingPercent = (value) => {
 
 // =====================================================
 // LẤY TẤT CẢ NHÂN VIÊN
+// GET /api/workers
 // ADMIN / MANAGER / LEAD
 // =====================================================
 
@@ -70,7 +94,8 @@ exports.getAllWorkers = (
 
                 return res.status(500).json({
 
-                    success: false,
+                    success:
+                        false,
 
                     message:
                         "Không thể lấy danh sách nhân viên"
@@ -82,7 +107,8 @@ exports.getAllWorkers = (
 
             return res.status(200).json({
 
-                success: true,
+                success:
+                    true,
 
                 data:
                     result
@@ -97,6 +123,7 @@ exports.getAllWorkers = (
 
 // =====================================================
 // TẠO NHÂN VIÊN
+// POST /api/workers
 // ADMIN
 // =====================================================
 
@@ -106,31 +133,52 @@ exports.createWorker = (
 ) => {
 
     const {
+
         user_id,
+
         worker_code,
+
         phone,
+
         department,
+
         position,
+
         training_percent,
+
         status
+
     } = req.body;
 
 
     const userId =
-        Number(user_id);
+        Number(
+            user_id
+        );
+
+
+    const workerCode =
+        String(
+            worker_code
+            ||
+            ""
+        ).trim();
 
 
     if (
-        !Number.isInteger(userId)
+        !Number.isInteger(
+            userId
+        )
         ||
         userId <= 0
         ||
-        !String(worker_code || "").trim()
+        !workerCode
     ) {
 
         return res.status(400).json({
 
-            success: false,
+            success:
+                false,
 
             message:
                 "Thiếu hoặc sai user_id, worker_code"
@@ -141,11 +189,12 @@ exports.createWorker = (
 
 
     const trainingPercent =
+
         training_percent === undefined
-            ||
-            training_percent === null
-            ||
-            training_percent === ""
+        ||
+        training_percent === null
+        ||
+        training_percent === ""
 
             ? 100
 
@@ -154,11 +203,14 @@ exports.createWorker = (
             );
 
 
-    if (trainingPercent === null) {
+    if (
+        trainingPercent === null
+    ) {
 
         return res.status(400).json({
 
-            success: false,
+            success:
+                false,
 
             message:
                 "% học việc phải nằm trong khoảng từ 0 đến 100"
@@ -170,40 +222,48 @@ exports.createWorker = (
 
     const workerStatus =
         status === "inactive"
+
             ? "inactive"
+
             : "active";
 
 
     workerModel.create(
         {
+
             user_id:
                 userId,
 
             worker_code:
-                String(
-                    worker_code
-                ).trim(),
+                workerCode,
 
             phone:
                 phone
-                ? String(phone).trim()
-                : null,
+                    ? String(
+                        phone
+                    ).trim()
+                    : null,
 
             department:
                 department
-                ? String(department).trim()
-                : "Sản xuất",
+                    ? String(
+                        department
+                    ).trim()
+                    : "Sản xuất",
 
             position:
                 position
-                ? String(position).trim()
-                : "Công nhân",
+                    ? String(
+                        position
+                    ).trim()
+                    : "Công nhân",
 
             training_percent:
                 trainingPercent,
 
             status:
                 workerStatus
+
         },
         (
             err,
@@ -225,7 +285,8 @@ exports.createWorker = (
 
                     return res.status(409).json({
 
-                        success: false,
+                        success:
+                            false,
 
                         message:
                             "User hoặc mã nhân viên đã tồn tại"
@@ -237,7 +298,8 @@ exports.createWorker = (
 
                 return res.status(500).json({
 
-                    success: false,
+                    success:
+                        false,
 
                     message:
                         "Không thể tạo nhân viên"
@@ -249,7 +311,8 @@ exports.createWorker = (
 
             return res.status(201).json({
 
-                success: true,
+                success:
+                    true,
 
                 message:
                     "Tạo nhân viên thành công",
@@ -272,6 +335,8 @@ exports.createWorker = (
 // =====================================================
 // LẤY THÔNG TIN WORKER THEO USER ID
 // GET /api/workers/:id
+//
+// :id ở endpoint này là user_id.
 // =====================================================
 
 exports.getWorkerById = (
@@ -286,14 +351,17 @@ exports.getWorkerById = (
 
 
     if (
-        !Number.isInteger(userId)
+        !Number.isInteger(
+            userId
+        )
         ||
         userId <= 0
     ) {
 
         return res.status(400).json({
 
-            success: false,
+            success:
+                false,
 
             message:
                 "ID người dùng không hợp lệ"
@@ -302,13 +370,6 @@ exports.getWorkerById = (
 
     }
 
-
-    /*
-        Worker chỉ được xem hồ sơ của chính mình.
-
-        Admin, manager và lead
-        được phép xem hồ sơ người khác.
-    */
 
     const loginUserId =
         Number(
@@ -338,7 +399,8 @@ exports.getWorkerById = (
 
         return res.status(403).json({
 
-            success: false,
+            success:
+                false,
 
             message:
                 "Bạn không có quyền xem nhân viên này"
@@ -351,20 +413,31 @@ exports.getWorkerById = (
     const sql = `
 
         SELECT
+
             w.id AS worker_id,
+
             w.user_id,
+
             w.worker_code,
-                w.training_percent,
+
             w.phone,
+
             w.department,
+
             w.position,
+
             w.training_percent,
+
             w.status,
+
             w.created_at,
+
             w.updated_at,
 
             u.username,
+
             u.full_name,
+
             u.role
 
         FROM workers AS w
@@ -399,7 +472,8 @@ exports.getWorkerById = (
 
                 return res.status(500).json({
 
-                    success: false,
+                    success:
+                        false,
 
                     message:
                         "Không thể lấy thông tin nhân viên"
@@ -415,7 +489,8 @@ exports.getWorkerById = (
 
                 return res.status(404).json({
 
-                    success: false,
+                    success:
+                        false,
 
                     message:
                         "Tài khoản chưa có hồ sơ nhân viên"
@@ -427,7 +502,8 @@ exports.getWorkerById = (
 
             return res.status(200).json({
 
-                success: true,
+                success:
+                    true,
 
                 data:
                     result[0]
@@ -441,14 +517,14 @@ exports.getWorkerById = (
 
 
 // =====================================================
-// CẬP NHẬT NHÂN VIÊN
-// ADMIN / MANAGER / LEAD
+// CẬP NHẬT RIÊNG % HỌC VIỆC
+// PATCH /api/workers/:id/training-percent
 //
-// PATCH /api/workers/:id
-// :id là worker_id
+// :id là worker_id.
+// ADMIN / MANAGER / LEAD
 // =====================================================
 
-exports.updateWorker = (
+exports.updateTrainingPercent = (
     req,
     res
 ) => {
@@ -460,14 +536,17 @@ exports.updateWorker = (
 
 
     if (
-        !Number.isInteger(workerId)
+        !Number.isInteger(
+            workerId
+        )
         ||
         workerId <= 0
     ) {
 
         return res.status(400).json({
 
-            success: false,
+            success:
+                false,
 
             message:
                 "ID nhân viên không hợp lệ"
@@ -477,60 +556,20 @@ exports.updateWorker = (
     }
 
 
-    if (
-        !MANAGEMENT_ROLES.includes(
-            req.user?.role
-        )
-    ) {
-
-        return res.status(403).json({
-
-            success: false,
-
-            message:
-                "Bạn không có quyền chỉnh sửa nhân viên"
-
-        });
-
-    }
-
-
-    const {
-        phone,
-        department,
-        position,
-        training_percent,
-        status
-    } = req.body;
-
-
     const trainingPercent =
-        training_percent === undefined
-            ||
-            training_percent === null
-            ||
-            training_percent === ""
-
-            ? null
-
-            : parseTrainingPercent(
-                training_percent
-            );
+        parseTrainingPercent(
+            req.body.training_percent
+        );
 
 
     if (
-        training_percent !== undefined
-        &&
-        training_percent !== null
-        &&
-        training_percent !== ""
-        &&
         trainingPercent === null
     ) {
 
         return res.status(400).json({
 
-            success: false,
+            success:
+                false,
 
             message:
                 "% học việc phải nằm trong khoảng từ 0 đến 100"
@@ -540,76 +579,9 @@ exports.updateWorker = (
     }
 
 
-    if (
-        status !== undefined
-        &&
-        status !== "active"
-        &&
-        status !== "inactive"
-    ) {
-
-        return res.status(400).json({
-
-            success: false,
-
-            message:
-                "Trạng thái nhân viên không hợp lệ"
-
-        });
-
-    }
-
-
-    const sql = `
-
-        UPDATE workers
-
-        SET
-            phone = COALESCE(?, phone),
-
-            department =
-                COALESCE(?, department),
-
-            position =
-                COALESCE(?, position),
-
-            training_percent =
-                COALESCE(
-                    ?,
-                    training_percent
-                ),
-
-            status =
-                COALESCE(?, status)
-
-        WHERE id = ?
-
-    `;
-
-
-    db.query(
-        sql,
-        [
-            phone !== undefined
-                ? phone
-                : null,
-
-            department !== undefined
-                ? department
-                : null,
-
-            position !== undefined
-                ? position
-                : null,
-
-            trainingPercent,
-
-            status !== undefined
-                ? status
-                : null,
-
-            workerId
-        ],
+    workerModel.updateTrainingPercent(
+        workerId,
+        trainingPercent,
         (
             err,
             result
@@ -618,17 +590,18 @@ exports.updateWorker = (
             if (err) {
 
                 console.error(
-                    "UPDATE WORKER ERROR:",
+                    "UPDATE TRAINING PERCENT ERROR:",
                     err
                 );
 
 
                 return res.status(500).json({
 
-                    success: false,
+                    success:
+                        false,
 
                     message:
-                        "Không thể cập nhật nhân viên"
+                        "Không thể cập nhật % học việc"
 
                 });
 
@@ -641,7 +614,8 @@ exports.updateWorker = (
 
                 return res.status(404).json({
 
-                    success: false,
+                    success:
+                        false,
 
                     message:
                         "Không tìm thấy nhân viên"
@@ -653,10 +627,21 @@ exports.updateWorker = (
 
             return res.status(200).json({
 
-                success: true,
+                success:
+                    true,
 
                 message:
-                    "Cập nhật nhân viên thành công"
+                    "Cập nhật % học việc thành công",
+
+                data: {
+
+                    worker_id:
+                        workerId,
+
+                    training_percent:
+                        trainingPercent
+
+                }
 
             });
 

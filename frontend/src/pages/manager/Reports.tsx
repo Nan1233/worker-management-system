@@ -501,7 +501,7 @@ function Reports(){
 
 
                                             navigate(
-                                                `/manager/report/${report.id}`
+                                                `{basePath}/report/${report.id}`
                                             )
 
 
