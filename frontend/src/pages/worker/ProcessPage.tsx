@@ -1795,7 +1795,7 @@ function ProcessPage() {
                                         form.standardOutput
                                     ).toLocaleString(
                                         "en-US"
-                                    )} pcs/hr`
+                                    )} sản phẩm`
 
                                     : ""
                             }

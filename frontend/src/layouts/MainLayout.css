@@ -1,0 +1,28 @@
+.main-layout {
+    width: 100%;
+    min-height: 100vh;
+}
+
+.main-layout-content {
+    width: 100%;
+    min-height: 100vh;
+}
+/* Mobile */
+@media (max-width: 767px) {
+
+}
+
+/* Tablet */
+@media (min-width:768px) and (max-width:1023px) {
+
+}
+
+/* Laptop */
+@media (min-width:1024px) and (max-width:1439px) {
+
+}
+
+/* Desktop lớn */
+@media (min-width:1440px) {
+
+}
