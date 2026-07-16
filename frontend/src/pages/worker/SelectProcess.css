@@ -21,7 +21,7 @@
 
 
 .select-process-shell {
-    width: min(680px, 100%);
+    width: 100%;
     margin: 0 auto;
 }
 
@@ -375,6 +375,87 @@
 
     .worker-process-content small {
         font-size: 13px;
+    }
+
+}
+/* =====================================================
+   TABLET
+===================================================== */
+
+@media (min-width: 768px) and (max-width: 1023px) {
+
+    .select-process-page {
+        padding: 32px 28px 60px;
+    }
+
+    .select-process-shell {
+        width: 100%;
+    }
+
+    .process-list {
+        display: grid;
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+
+        gap: 18px;
+    }
+
+}
+
+
+/* =====================================================
+   LAPTOP
+===================================================== */
+
+@media (min-width: 1024px) and (max-width: 1439px) {
+
+    .select-process-page {
+        padding: 36px 36px 70px;
+    }
+
+    .select-process-shell {
+        width: 100%;
+    }
+
+    .process-list {
+        display: grid;
+        grid-template-columns:
+            repeat(3, minmax(0, 1fr));
+
+        gap: 20px;
+    }
+
+    .worker-process-card {
+        min-height: 150px;
+    }
+
+}
+
+
+/* =====================================================
+   DESKTOP LỚN
+===================================================== */
+
+@media (min-width: 1440px) {
+
+    .select-process-page {
+        padding: 40px 48px 80px;
+    }
+
+    .select-process-shell {
+        width: 100%;
+    }
+
+    .process-list {
+        display: grid;
+        grid-template-columns:
+            repeat(4, minmax(0, 1fr));
+
+        gap: 24px;
+    }
+
+    .worker-process-card {
+        min-height: 160px;
     }
 
 }

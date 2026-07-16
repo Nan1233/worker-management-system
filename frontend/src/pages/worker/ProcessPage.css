@@ -23,7 +23,7 @@
 
 
 .worker-form-shell {
-    width: min(720px, 100%);
+    width: 100%;
     margin: 0 auto;
 }
 
@@ -933,6 +933,142 @@
         height: 54px;
 
         font-size: 17px;
+    }
+
+}
+/* =====================================================
+   TABLET
+===================================================== */
+
+@media (min-width: 768px) and (max-width: 1023px) {
+
+    .worker-form-page {
+        padding: 28px 26px 120px;
+    }
+
+    .worker-form-shell {
+        width: 100%;
+
+        display: grid;
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+
+        gap: 22px;
+        align-items: start;
+    }
+
+    .worker-form-header {
+        grid-column: 1 / -1;
+    }
+
+    .worker-form-card {
+        margin-bottom: 0;
+        height: 100%;
+    }
+
+    .worker-form-card:last-of-type {
+        grid-column: 1 / -1;
+    }
+
+    .worker-defect-grid {
+        grid-template-columns:
+            repeat(3, minmax(0, 1fr));
+    }
+
+    .worker-defect-field.full {
+        grid-column: auto;
+    }
+
+}
+
+
+/* =====================================================
+   LAPTOP
+===================================================== */
+
+@media (min-width: 1024px) and (max-width: 1439px) {
+
+    .worker-form-page {
+        padding: 30px 34px 120px;
+    }
+
+    .worker-form-shell {
+        width: 100%;
+
+        display: grid;
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+
+        gap: 24px;
+        align-items: start;
+    }
+
+    .worker-form-header {
+        grid-column: 1 / -1;
+    }
+
+    .worker-form-card {
+        margin-bottom: 0;
+        height: 100%;
+    }
+
+    .worker-form-card:nth-of-type(4) {
+        grid-column: 1 / -1;
+    }
+
+    .worker-defect-grid {
+        grid-template-columns:
+            repeat(4, minmax(0, 1fr));
+    }
+
+    .worker-defect-field.full {
+        grid-column: auto;
+    }
+
+}
+
+
+/* =====================================================
+   DESKTOP LỚN
+===================================================== */
+
+@media (min-width: 1440px) {
+
+    .worker-form-page {
+        padding: 32px 44px 120px;
+    }
+
+    .worker-form-shell {
+        width: 100%;
+
+        display: grid;
+        grid-template-columns:
+            repeat(3, minmax(0, 1fr));
+
+        gap: 26px;
+        align-items: start;
+    }
+
+    .worker-form-header {
+        grid-column: 1 / -1;
+    }
+
+    .worker-form-card {
+        margin-bottom: 0;
+        height: 100%;
+    }
+
+    .worker-form-card:nth-of-type(4) {
+        grid-column: 1 / -1;
+    }
+
+    .worker-defect-grid {
+        grid-template-columns:
+            repeat(6, minmax(0, 1fr));
+    }
+
+    .worker-defect-field.full {
+        grid-column: auto;
     }
 
 }
