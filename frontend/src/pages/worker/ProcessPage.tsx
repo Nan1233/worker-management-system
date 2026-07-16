@@ -1344,14 +1344,34 @@ useEffect(() => {
 // 0.25
 // =====================================================
 
+const normalizeDecimalInput = (
+    value: string
+): string => {
+
+    return value.replace(
+        ",",
+        "."
+    );
+
+};
+
+
 const isValidDecimalInput = (
     value: string
 ): boolean => {
 
+    const normalizedValue =
+        normalizeDecimalInput(
+            value
+        );
+
+
     return (
-        value === ""
+        normalizedValue === ""
         ||
-        /^\d*\.?\d*$/.test(value)
+        /^\d*\.?\d*$/.test(
+            normalizedValue
+        )
     );
 
 };
@@ -1359,36 +1379,80 @@ const isValidDecimalInput = (
     // INPUT SỐ THỜI GIAN
     // =====================================================
 
-    const handleTimeInputChange = (
+const handleTimeInputChange = (
+    event:
+        React.ChangeEvent<HTMLInputElement>
+) => {
 
-        event:
-            React.ChangeEvent<
-                HTMLInputElement
-            >
+    const {
+        name,
+        value
+    } = event.target;
 
-    ) => {
 
-        const {
+    const normalizedValue =
+        normalizeDecimalInput(
             value
-        } = event.target;
+        );
+
+
+    if (
+        !isValidDecimalInput(
+            normalizedValue
+        )
+    ) {
+
+        return;
+
+    }
+
+
+    setForm((prev) => {
+
+        const next = {
+
+            ...prev,
+
+            [name]:
+                normalizedValue
+
+        } as FormState;
 
 
         if (
-            !isValidDecimalInput(
-                value
-            )
+            name ===
+            "totalTime"
         ) {
 
-            return;
+            next.actualTime =
+                String(
+                    Math.max(
+                        0,
+
+                        Number(
+                            normalizedValue
+                            ||
+                            0
+                        )
+
+                        -
+
+                        Number(
+                            next.deductionTime
+                            ||
+                            0
+                        )
+                    )
+                );
 
         }
 
 
-        handleChange(
-            event
-        );
+        return next;
 
-    };
+    });
+
+};
 
 
     // =====================================================
@@ -1467,47 +1531,50 @@ const isValidDecimalInput = (
     // CẬP NHẬT GIÁ TRỊ MỘT LOẠI TRỪ GIỜ
     // =====================================================
 
-    const updateDeductionValue = (
+const updateDeductionValue = (
+    key: DeductionKey,
+    value: string
+) => {
 
-        key: DeductionKey,
-
-        value: string
-
-    ) => {
-
-        if (
-            !isValidDecimalInput(
-                value
-            )
-        ) {
-
-            return;
-
-        }
+    const normalizedValue =
+        normalizeDecimalInput(
+            value
+        );
 
 
-        setDeductions((prev) => {
+    if (
+        !isValidDecimalInput(
+            normalizedValue
+        )
+    ) {
 
-            const next = {
+        return;
 
-                ...prev,
-
-                [key]:
-                    value
-
-            };
-
-
-            updateTotalDeduction(
-                next
-            );
+    }
 
 
-            return next;
+    setDeductions((prev) => {
 
-        });
+        const next = {
 
-    };
+            ...prev,
+
+            [key]:
+                normalizedValue
+
+        };
+
+
+        updateTotalDeduction(
+            next
+        );
+
+
+        return next;
+
+    });
+
+};
 
 
     // =====================================================
