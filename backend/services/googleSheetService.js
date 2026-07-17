@@ -322,10 +322,6 @@ const getDefectQuantity = (
             0
         );
 };
-
-if (workerCompare !== 0) {
-    return workerCompare;
-}
 const formatDisplayDate = value => {
     const dateKey =
         normalizeDateKey(value);
