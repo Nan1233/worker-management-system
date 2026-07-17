@@ -39,7 +39,12 @@ const normalizeText = (value?: string): string =>
         .replace(/đ/g, "d");
 
 const duplicateKey = (report: ProductionReport): string =>
-    [report.machine_no, report.product_name, report.shift]
+    [
+        report.worker_code,
+        report.shift,
+        report.machine_no,
+        report.product_name
+    ]
         .map(normalizeText)
         .join("|");
 
@@ -91,10 +96,17 @@ function Reports() {
     const duplicateCounts = useMemo(() => {
         const counts = new Map<string, number>();
         reports.forEach(report => {
-            const key = duplicateKey(report);
-            if (!key.includes("||") && report.machine_no && report.product_name && report.shift) {
-                counts.set(key, (counts.get(key) ?? 0) + 1);
+            if (
+                !report.worker_code ||
+                !report.shift ||
+                !report.machine_no ||
+                !report.product_name
+            ) {
+                return;
             }
+
+            const key = duplicateKey(report);
+            counts.set(key, (counts.get(key) ?? 0) + 1);
         });
         return counts;
     }, [reports]);
@@ -255,7 +267,7 @@ function Reports() {
                                         <tr
                                             key={report.id}
                                             className={isDuplicate ? "duplicate-report-row" : ""}
-                                            title={isDuplicate ? "Trùng mã máy, mã sản phẩm và ca" : undefined}
+                                            title={isDuplicate ? "Cùng nhân viên bị trùng ca, mã máy và mã sản phẩm" : undefined}
                                         >
                                             <td>{(currentPage - 1) * ITEMS_PER_PAGE + index + 1}</td>
                                             <td><strong>{report.worker_code || "---"}</strong></td>
@@ -297,7 +309,7 @@ function Reports() {
             )}
 
             <div className="duplicate-note">
-                <span /> Hàng màu đỏ: có từ hai báo cáo trùng đồng thời mã máy, mã sản phẩm và ca trong ngày đang xem.
+                <span /> Hàng màu đỏ: cùng một nhân viên có từ hai báo cáo trùng đồng thời ca, mã máy và mã sản phẩm trong ngày đang xem.
             </div>
         </div>
     );

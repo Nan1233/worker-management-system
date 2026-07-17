@@ -1,822 +1,274 @@
-const ProductionTemp =
-    require("../models/productionTempModel");
-
-const GoogleSheetService =
-    require("../services/googleSheetService");
-
-
-// =====================================================
-// HÀM CHUYỂN SỐ AN TOÀN
-// =====================================================
+const ProductionTemp = require("../models/productionTempModel");
+const GoogleSheetService = require("../services/googleSheetService");
 
 const toPositiveInteger = (value) => {
-
-    const numberValue =
-        Number(value);
-
-
-    if (
-        !Number.isInteger(numberValue)
-        ||
-        numberValue <= 0
-    ) {
-
-        return null;
-
-    }
-
-
-    return numberValue;
-
+    const numberValue = Number(value);
+    return Number.isInteger(numberValue) && numberValue > 0 ? numberValue : null;
 };
 
+const normalizeIds = (ids) => [
+    ...new Set(
+        (Array.isArray(ids) ? ids : [])
+            .map(Number)
+            .filter((id) => Number.isInteger(id) && id > 0)
+    )
+];
 
-// =====================================================
-// WORKER TẠO BÁO CÁO TEMP
-// POST /api/production-temp
-// =====================================================
+const requestMeta = (req) => ({
+    ipAddress: req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip || null,
+    userAgent: req.headers["user-agent"] || null
+});
 
-exports.createTempReport = async (
-    req,
-    res
-) => {
-
+exports.createTempReport = async (req, res) => {
     try {
-
-        const workerId =
-            toPositiveInteger(
-                req.user?.worker_id
-            );
-
-
-        const processId =
-            toPositiveInteger(
-                req.body?.process_id
-            );
-
+        const workerId = toPositiveInteger(req.user?.worker_id);
+        const processId = toPositiveInteger(req.body?.process_id);
 
         if (!workerId) {
-
-            return res.status(400).json({
-
-                success: false,
-
-                message:
-                    "Tài khoản chưa có thông tin nhân viên"
-
-            });
-
+            return res.status(400).json({ success: false, message: "Tài khoản chưa có thông tin nhân viên" });
         }
-
-
         if (!processId) {
-
-            return res.status(400).json({
-
-                success: false,
-
-                message:
-                    "Công đoạn không hợp lệ"
-
-            });
-
+            return res.status(400).json({ success: false, message: "Công đoạn không hợp lệ" });
         }
-
-
         if (!req.body.work_date) {
-
-            return res.status(400).json({
-
-                success: false,
-
-                message:
-                    "Thiếu ngày làm việc"
-
-            });
-
+            return res.status(400).json({ success: false, message: "Thiếu ngày làm việc" });
         }
-
-
         if (!req.body.shift) {
-
-            return res.status(400).json({
-
-                success: false,
-
-                message:
-                    "Thiếu ca làm việc"
-
-            });
-
+            return res.status(400).json({ success: false, message: "Thiếu ca làm việc" });
         }
 
-
-        const defects =
-            Array.isArray(
-                req.body.defects
-            )
-
-                ? req.body.defects
-
-                : [];
-
-
-        const deductions =
-            Array.isArray(
-                req.body.deductions
-            )
-
-                ? req.body.deductions
-
-                : [];
-
-
-        /*
-            Không lấy worker_id từ body.
-
-            worker_id được lấy từ token đăng nhập
-            để tránh công nhân gửi báo cáo thay người khác.
-        */
-
+        const defects = Array.isArray(req.body.defects) ? req.body.defects : [];
+        const deductions = Array.isArray(req.body.deductions) ? req.body.deductions : [];
         const data = {
-
             ...req.body,
-
-            worker_id:
-                workerId,
-
-            process_id:
-                processId,
-
-            defects:
-                undefined,
-
-            deductions:
-                undefined
-
+            worker_id: workerId,
+            process_id: processId,
+            defects: undefined,
+            deductions: undefined
         };
 
-
-        /*
-            Tạo báo cáo tạm trước.
-
-            Hàm create chỉ insert vào
-            production_reports_temp.
-        */
-
-        const tempId =
-            await ProductionTemp.create(
-                data
-            );
-
-
-        /*
-            Frontend gửi:
-
-            {
-                defect_name: "KQD dập lại",
-                quantity: 10
-            }
-
-            Model sẽ dùng processId + defect_name
-            để tìm defect_type_id.
-        */
-
-        await ProductionTemp.createDefects(
-
-            tempId,
-
-            processId,
-
-            defects
-
-        );
-
-
-        /*
-            Frontend gửi:
-
-            {
-                deduction_name: "Số giờ VSK",
-                hours: 0.5
-            }
-
-            Model sẽ dùng processId + deduction_name
-            để tìm deduction_type_id.
-        */
-
-        await ProductionTemp.createDeductions(
-
-            tempId,
-
-            processId,
-
-            deductions
-
-        );
-
-
-        return res.status(201).json({
-
-            success: true,
-
-            message:
-                "Tạo báo cáo thành công",
-
-            id:
-                tempId
-
+        const tempId = await ProductionTemp.create(data);
+        await ProductionTemp.createDefects(tempId, processId, defects);
+        await ProductionTemp.createDeductions(tempId, processId, deductions);
+        await ProductionTemp.logAction({
+            reportType: "temp",
+            reportId: tempId,
+            userId: req.user.id,
+            action: "CREATE",
+            note: "Công nhân tạo báo cáo",
+            ...requestMeta(req)
         });
 
+        return res.status(201).json({ success: true, message: "Tạo báo cáo thành công", id: tempId });
+    } catch (error) {
+        console.error("CREATE TEMP REPORT ERROR:", error);
+        return res.status(500).json({ success: false, message: error.message || "Không thể tạo báo cáo" });
     }
-    catch (err) {
-
-        console.error(
-            "CREATE TEMP REPORT ERROR:",
-            err
-        );
-
-
-        return res.status(500).json({
-
-            success: false,
-
-            message:
-                err.message
-                ||
-                "Không thể tạo báo cáo"
-
-        });
-
-    }
-
 };
 
-
-// =====================================================
-// WORKER XEM LỊCH SỬ
-// GET /api/production-temp/my
-// =====================================================
-
-exports.getMyTempReports = async (
-    req,
-    res
-) => {
-
+exports.getMyTempReports = async (req, res) => {
     try {
-
-        const workerId =
-            toPositiveInteger(
-                req.user?.worker_id
-            );
-
-
+        const workerId = toPositiveInteger(req.user?.worker_id);
         if (!workerId) {
-
-            return res.status(400).json({
-
-                success: false,
-
-                message:
-                    "Tài khoản chưa có thông tin nhân viên"
-
-            });
-
+            return res.status(400).json({ success: false, message: "Tài khoản chưa có thông tin nhân viên" });
         }
-
-
-        const data =
-            await ProductionTemp
-                .getHistoryByWorker(
-                    workerId
-                );
-
-
-        return res.status(200).json({
-
-            success: true,
-
-            data
-
-        });
-
+        const data = await ProductionTemp.getHistoryByWorker(workerId);
+        return res.status(200).json({ success: true, data });
+    } catch (error) {
+        console.error("GET MY TEMP REPORTS ERROR:", error);
+        return res.status(500).json({ success: false, message: error.message || "Lỗi lấy lịch sử báo cáo" });
     }
-    catch (err) {
-
-        console.error(
-            "GET MY TEMP REPORTS ERROR:",
-            err
-        );
-
-
-        return res.status(500).json({
-
-            success: false,
-
-            message:
-                "Lỗi lấy lịch sử báo cáo"
-
-        });
-
-    }
-
 };
 
-
-// =====================================================
-// MANAGER / LEAD / ADMIN XEM CHỜ DUYỆT
-// =====================================================
-
-exports.getPendingReports = async (
-    req,
-    res
-) => {
-
+exports.getPendingReports = async (req, res) => {
     try {
+        const userId = toPositiveInteger(req.user?.id);
+        if (!userId) return res.status(401).json({ success: false, message: "Thông tin đăng nhập không hợp lệ" });
 
-        const userId =
-            toPositiveInteger(
-                req.user?.id
-            );
-
-
-        if (!userId) {
-
-            return res.status(401).json({
-
-                success: false,
-
-                message:
-                    "Thông tin đăng nhập không hợp lệ"
-
-            });
-
-        }
-
-
-        const data =
-            await ProductionTemp.getPending(
-                userId
-            );
-
-
-        return res.status(200).json({
-
-            success: true,
-
-            data
-
-        });
-
+        const data = await ProductionTemp.getPending(userId, {
+            date: req.query.date || null,
+            shift: req.query.shift || null,
+            process_id: toPositiveInteger(req.query.process_id),
+            search: req.query.search?.trim() || null
+        }, req.user?.role === "admin");
+        return res.status(200).json({ success: true, data });
+    } catch (error) {
+        console.error("GET PENDING REPORTS ERROR:", error);
+        return res.status(500).json({ success: false, message: error.message || "Không thể lấy báo cáo chờ duyệt" });
     }
-    catch (err) {
-
-        console.error(
-            "GET PENDING REPORTS ERROR:",
-            err
-        );
-
-
-        return res.status(500).json({
-
-            success: false,
-
-            message:
-                err.message
-                ||
-                "Không thể lấy báo cáo chờ duyệt"
-
-        });
-
-    }
-
 };
 
-
-// =====================================================
-// MANAGER / LEAD / ADMIN XEM ĐÃ DUYỆT
-// =====================================================
-
-exports.getApprovedReports = async (
-    req,
-    res
-) => {
-
+exports.getApprovedReports = async (req, res) => {
     try {
+        const userId = toPositiveInteger(req.user?.id);
+        if (!userId) return res.status(401).json({ success: false, message: "Thông tin đăng nhập không hợp lệ" });
 
-        const userId =
-            toPositiveInteger(
-                req.user?.id
-            );
-
-
-        if (!userId) {
-
-            return res.status(401).json({
-
-                success: false,
-
-                message:
-                    "Thông tin đăng nhập không hợp lệ"
-
-            });
-
-        }
-
-
-        const data =
-            await ProductionTemp.getApproved(
-                userId
-            );
-
-
-        return res.status(200).json({
-
-            success: true,
-
-            data
-
-        });
-
+        const data = await ProductionTemp.getApproved(userId, {
+            date: req.query.date || null,
+            shift: req.query.shift || null,
+            process_id: toPositiveInteger(req.query.process_id),
+            search: req.query.search?.trim() || null
+        }, req.user?.role === "admin");
+        return res.status(200).json({ success: true, data });
+    } catch (error) {
+        console.error("GET APPROVED REPORTS ERROR:", error);
+        return res.status(500).json({ success: false, message: error.message || "Không thể lấy báo cáo đã duyệt" });
     }
-    catch (err) {
-
-        console.error(
-            "GET APPROVED REPORTS ERROR:",
-            err
-        );
-
-
-        return res.status(500).json({
-
-            success: false,
-
-            message:
-                err.message
-                ||
-                "Không thể lấy báo cáo đã duyệt"
-
-        });
-
-    }
-
 };
 
-
-// =====================================================
-// LẤY DANH SÁCH NGÀY CÓ BÁO CÁO
-// =====================================================
-
-exports.getTempDates = async (
-    req,
-    res
-) => {
-
+exports.getTempDates = async (req, res) => {
     try {
-
-        const data =
-            await ProductionTemp.getDates();
-
-
-        return res.status(200).json({
-
-            success: true,
-
-            data
-
-        });
-
+        const userId = toPositiveInteger(req.user?.id);
+        const data = await ProductionTemp.getDates(req.user?.role === "admin" ? null : userId);
+        return res.status(200).json({ success: true, data });
+    } catch (error) {
+        console.error("GET TEMP DATES ERROR:", error);
+        return res.status(500).json({ success: false, message: error.message || "Không thể lấy danh sách ngày" });
     }
-    catch (err) {
-
-        console.error(
-            "GET TEMP DATES ERROR:",
-            err
-        );
-
-
-        return res.status(500).json({
-
-            success: false,
-
-            message:
-                err.message
-                ||
-                "Không thể lấy danh sách ngày"
-
-        });
-
-    }
-
 };
 
-
-// =====================================================
-// XEM BÁO CÁO THEO NGÀY
-// GET /api/production-temp/by-date?date=YYYY-MM-DD
-// =====================================================
-
-exports.getTempReportsByDate = async (
-    req,
-    res
-) => {
-
+exports.getTempReportsByDate = async (req, res) => {
     try {
-
-        const date =
-            req.query.date;
-
-
-        if (!date) {
-
-            return res.status(400).json({
-
-                success: false,
-
-                message:
-                    "Thiếu ngày cần xem"
-
-            });
-
-        }
-
-
-        const data =
-            await ProductionTemp.getByDate(
-                date
-            );
-
-
-        return res.status(200).json({
-
-            success: true,
-
-            data
-
-        });
-
+        if (!req.query.date) return res.status(400).json({ success: false, message: "Thiếu ngày cần xem" });
+        const data = await ProductionTemp.getByDate(req.query.date, req.user?.role === "admin" ? null : toPositiveInteger(req.user?.id));
+        return res.status(200).json({ success: true, data });
+    } catch (error) {
+        console.error("GET TEMP REPORTS BY DATE ERROR:", error);
+        return res.status(500).json({ success: false, message: error.message || "Không thể lấy báo cáo theo ngày" });
     }
-    catch (err) {
-
-        console.error(
-            "GET TEMP REPORTS BY DATE ERROR:",
-            err
-        );
-
-
-        return res.status(500).json({
-
-            success: false,
-
-            message:
-                err.message
-                ||
-                "Không thể lấy báo cáo theo ngày"
-
-        });
-
-    }
-
 };
 
-
-// =====================================================
-// LẤY CHI TIẾT BÁO CÁO TEMP
-// =====================================================
-
-exports.getTempReportDetail = async (
-    req,
-    res
-) => {
-
+exports.getTempReportDetail = async (req, res) => {
     try {
+        const reportId = toPositiveInteger(req.params.id);
+        if (!reportId) return res.status(400).json({ success: false, message: "ID báo cáo không hợp lệ" });
 
-        const reportId =
-            toPositiveInteger(
-                req.params.id
-            );
+        const data = await ProductionTemp.getDetail(reportId);
+        if (!data) return res.status(404).json({ success: false, message: "Không tìm thấy báo cáo" });
 
-
-        if (!reportId) {
-
-            return res.status(400).json({
-
-                success: false,
-
-                message:
-                    "ID báo cáo không hợp lệ"
-
-            });
-
+        if (req.user?.role === "worker" && Number(data.worker_id) !== Number(req.user?.worker_id)) {
+            return res.status(403).json({ success: false, message: "Bạn không có quyền xem báo cáo này" });
         }
 
-
-        const data =
-            await ProductionTemp.getDetail(
-                reportId
-            );
-
-
-        if (!data) {
-
-            return res.status(404).json({
-
-                success: false,
-
-                message:
-                    "Không tìm thấy báo cáo"
-
-            });
-
+        if (req.user?.role !== "worker") {
+            const canManage = await ProductionTemp.canManageReport(reportId, req.user.id, req.user?.role === "admin");
+            if (!canManage && req.user?.role !== "admin") {
+                return res.status(403).json({ success: false, message: "Báo cáo ngoài phạm vi phụ trách" });
+            }
         }
 
-
-        // Worker chỉ được xem báo cáo của chính mình.
-        // Manager, lead và admin vẫn có thể xem báo cáo thuộc phạm vi quản lý.
-        if (
-            req.user?.role === "worker"
-            &&
-            Number(data.worker_id) !== Number(req.user?.worker_id)
-        ) {
-
-            return res.status(403).json({
-
-                success: false,
-
-                message:
-                    "Bạn không có quyền xem báo cáo này"
-
-            });
-
-        }
-
-
-        return res.status(200).json({
-
-            success: true,
-
-            data
-
+        await ProductionTemp.logAction({
+            reportType: "temp",
+            reportId,
+            userId: req.user.id,
+            action: "VIEW",
+            note: "Xem chi tiết báo cáo",
+            ...requestMeta(req)
         });
 
+        return res.status(200).json({ success: true, data });
+    } catch (error) {
+        console.error("GET TEMP REPORT DETAIL ERROR:", error);
+        return res.status(500).json({ success: false, message: error.message || "Không thể lấy chi tiết báo cáo" });
     }
-    catch (err) {
-
-        console.error(
-            "GET TEMP REPORT DETAIL ERROR:",
-            err
-        );
-
-
-        return res.status(500).json({
-
-            success: false,
-
-            message:
-                err.message
-                ||
-                "Không thể lấy chi tiết báo cáo"
-
-        });
-
-    }
-
 };
 
-
-// =====================================================
-// DUYỆT BÁO CÁO THEO NGÀY
-// =====================================================
-
-exports.approveTempByDate = async (
-    req,
-    res
-) => {
-
+exports.approveSelectedReports = async (req, res) => {
     try {
+        const ids = normalizeIds(req.body?.ids);
+        const reviewerId = toPositiveInteger(req.user?.id);
+        if (ids.length === 0) return res.status(400).json({ success: false, message: "Vui lòng chọn ít nhất một báo cáo" });
+        if (!reviewerId) return res.status(401).json({ success: false, message: "Thông tin người duyệt không hợp lệ" });
 
-        const {
-            date
-        } = req.body;
-
-
-        const reviewerId =
-            toPositiveInteger(
-                req.user?.id
-            );
-
-
-        if (!date) {
-
-            return res.status(400).json({
-
-                success: false,
-
-                message:
-                    "Thiếu ngày duyệt"
-
-            });
-
+        const result = await ProductionTemp.approveSelected(ids, reviewerId, req.user?.role === "admin");
+        const failedDates = [];
+        for (const date of result.dates) {
+            try {
+                await GoogleSheetService.syncProductionReport(date);
+            } catch (sheetError) {
+                console.error(`GOOGLE SHEET SYNC ERROR ${date}:`, sheetError);
+                failedDates.push(date);
+            }
         }
-
-
-        if (!reviewerId) {
-
-            return res.status(401).json({
-
-                success: false,
-
-                message:
-                    "Thông tin người duyệt không hợp lệ"
-
-            });
-
-        }
-
-
-        const result =
-            await ProductionTemp.approveByDate(
-
-                date,
-
-                reviewerId
-
-            );
-
-
-        /*
-            Báo cáo trong database đã được duyệt trước.
-
-            Nếu đồng bộ Google Sheet lỗi,
-            hệ thống trả lỗi nhưng dữ liệu database
-            có thể đã được duyệt.
-        */
-
-        try {
-
-            await GoogleSheetService
-                .syncProductionReport(
-                    date
-                );
-
-        }
-        catch (sheetError) {
-
-            console.error(
-                "GOOGLE SHEET SYNC ERROR:",
-                sheetError
-            );
-
-
-            return res.status(200).json({
-
-                success: true,
-
-                warning: true,
-
-                message:
-                    "Duyệt báo cáo thành công nhưng đồng bộ Google Sheet thất bại",
-
-                data:
-                    result
-
-            });
-
-        }
-
 
         return res.status(200).json({
-
             success: true,
-
-            message:
-                "Duyệt báo cáo thành công",
-
-            data:
-                result
-
+            warning: failedDates.length > 0,
+            message: failedDates.length > 0
+                ? "Duyệt thành công nhưng có ngày đồng bộ Google Sheet thất bại"
+                : "Duyệt báo cáo thành công",
+            failed_sync_dates: failedDates,
+            data: result
         });
-
+    } catch (error) {
+        console.error("APPROVE SELECTED REPORTS ERROR:", error);
+        return res.status(400).json({ success: false, message: error.message || "Không thể duyệt báo cáo" });
     }
-    catch (err) {
+};
 
-        console.error(
-            "APPROVE TEMP BY DATE ERROR:",
-            err
+exports.rejectSelectedReports = async (req, res) => {
+    try {
+        const ids = normalizeIds(req.body?.ids);
+        const reviewerId = toPositiveInteger(req.user?.id);
+        const reason = String(req.body?.reason || "").trim();
+
+        if (ids.length === 0) return res.status(400).json({ success: false, message: "Vui lòng chọn ít nhất một báo cáo" });
+        if (!reason) return res.status(400).json({ success: false, message: "Vui lòng nhập lý do từ chối" });
+
+        const result = await ProductionTemp.rejectSelected(ids, reviewerId, reason, req.user?.role === "admin");
+        return res.status(200).json({ success: true, message: "Từ chối báo cáo thành công", data: result });
+    } catch (error) {
+        console.error("REJECT SELECTED REPORTS ERROR:", error);
+        return res.status(400).json({ success: false, message: error.message || "Không thể từ chối báo cáo" });
+    }
+};
+
+exports.updateTempReport = async (req, res) => {
+    try {
+        const reportId = toPositiveInteger(req.params.id);
+        const changedBy = toPositiveInteger(req.user?.id);
+        if (!reportId) return res.status(400).json({ success: false, message: "ID báo cáo không hợp lệ" });
+
+        const result = await ProductionTemp.updateReport(
+            reportId,
+            req.body || {},
+            changedBy,
+            req.body?.reason || null,
+            req.user?.role === "admin"
         );
 
-
-        return res.status(500).json({
-
-            success: false,
-
-            message:
-                err.message
-                ||
-                "Không thể duyệt báo cáo"
-
+        return res.status(200).json({
+            success: true,
+            message: result.changed ? "Cập nhật báo cáo thành công" : "Không có dữ liệu thay đổi",
+            data: result
         });
-
+    } catch (error) {
+        console.error("UPDATE TEMP REPORT ERROR:", error);
+        return res.status(400).json({ success: false, message: error.message || "Không thể cập nhật báo cáo" });
     }
+};
 
+exports.getReportActionLogs = async (req, res) => {
+    try {
+        const reportId = toPositiveInteger(req.params.id);
+        if (!reportId) return res.status(400).json({ success: false, message: "ID báo cáo không hợp lệ" });
+
+        const report = await ProductionTemp.getDetail(reportId);
+        if (!report) return res.status(404).json({ success: false, message: "Không tìm thấy báo cáo" });
+
+        if (req.user?.role === "worker" && Number(report.worker_id) !== Number(req.user?.worker_id)) {
+            return res.status(403).json({ success: false, message: "Bạn không có quyền xem lịch sử báo cáo này" });
+        }
+
+        if (req.user?.role !== "worker" && req.user?.role !== "admin") {
+            const canManage = await ProductionTemp.canManageReport(reportId, req.user.id, req.user?.role === "admin");
+            if (!canManage) return res.status(403).json({ success: false, message: "Báo cáo ngoài phạm vi phụ trách" });
+        }
+
+        const data = await ProductionTemp.getActionLogs(reportId, "temp");
+        return res.status(200).json({ success: true, data });
+    } catch (error) {
+        console.error("GET REPORT ACTION LOGS ERROR:", error);
+        return res.status(500).json({ success: false, message: error.message || "Không thể lấy lịch sử thao tác" });
+    }
 };
