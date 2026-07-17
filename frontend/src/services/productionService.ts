@@ -130,22 +130,24 @@ export const approveTempByDate = async(
 // CHI TIẾT TEMP
 // =====================================================
 
-export const getTempReportById = async(
-
-    id:number
-
-):Promise<ProductionReport>=>{
-
+export const getTempReportById = async (
+    id: number
+): Promise<ProductionReport> => {
 
     const res = await api.get(
-
-        `/production-temp/${id}`
-
+        `/production-temp/${id}`,
+        {
+            params: {
+                _t: Date.now()
+            },
+            headers: {
+                "Cache-Control": "no-cache",
+                Pragma: "no-cache"
+            }
+        }
     );
 
-
     return res.data.data || res.data;
-
 
 };
 
@@ -673,14 +675,20 @@ export const approveSelectedTempReports = async (
 // LẤY CHI TIẾT MỘT BÁO CÁO TEMP
 // =====================================================
 
+// =====================================================
+// LẤY CHI TIẾT MỘT BÁO CÁO TEMP
+// =====================================================
+
+// =====================================================
+// LẤY CHI TIẾT MỘT BÁO CÁO TEMP
+// =====================================================
+
 export const getTempReportDetail = async (
     id: number
-) => {
-    const res = await api.get(
-        `/production-temp/${id}`
-    );
+): Promise<ProductionReport> => {
 
-    return res.data;
+    return getTempReportById(id);
+
 };
 // =====================================================
 // UPDATE BÁO CÁO TEMP

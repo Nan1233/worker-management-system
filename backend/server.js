@@ -45,7 +45,7 @@ const productStandardRoutes =
 const app = express();
 
 
-
+app.disable("etag");
 
 // ======================
 // CORS
@@ -100,7 +100,38 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 
+// ======================
+// KHÔNG CACHE API
+// ======================
 
+app.use(
+    "/api",
+    (req, res, next) => {
+
+        res.setHeader(
+            "Cache-Control",
+            "no-store, no-cache, must-revalidate, proxy-revalidate"
+        );
+
+        res.setHeader(
+            "Pragma",
+            "no-cache"
+        );
+
+        res.setHeader(
+            "Expires",
+            "0"
+        );
+
+        res.setHeader(
+            "Surrogate-Control",
+            "no-store"
+        );
+
+        next();
+
+    }
+);
 
 
 // ======================
