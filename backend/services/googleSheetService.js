@@ -634,7 +634,7 @@ const writeSheetData = async (
             ng,
 
             // AI
-            "",
+            `=IFERROR(AH${rowNumber}/AC${rowNumber};0)`,
 
             // AJ
             "",
