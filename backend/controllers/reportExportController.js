@@ -345,10 +345,7 @@ const copyRowStyle = (
     targetRow.outlineLevel =
         sourceRow.outlineLevel;
 
-    const maxColumns = Math.max(
-        sheet.columnCount,
-        52
-    );
+    const maxColumns = 53;
 
     for (
         let columnNumber = 1;
@@ -369,46 +366,6 @@ const copyRowStyle = (
             targetCell.style =
                 cloneObject(
                     sourceCell.style
-                );
-        }
-
-        if (sourceCell.numFmt) {
-            targetCell.numFmt =
-                sourceCell.numFmt;
-        }
-
-        if (sourceCell.font) {
-            targetCell.font =
-                cloneObject(
-                    sourceCell.font
-                );
-        }
-
-        if (sourceCell.fill) {
-            targetCell.fill =
-                cloneObject(
-                    sourceCell.fill
-                );
-        }
-
-        if (sourceCell.border) {
-            targetCell.border =
-                cloneObject(
-                    sourceCell.border
-                );
-        }
-
-        if (sourceCell.alignment) {
-            targetCell.alignment =
-                cloneObject(
-                    sourceCell.alignment
-                );
-        }
-
-        if (sourceCell.protection) {
-            targetCell.protection =
-                cloneObject(
-                    sourceCell.protection
                 );
         }
     }
@@ -439,7 +396,7 @@ const clearTemplateData = (
 
         for (
             let columnNumber = 1;
-            columnNumber <= 52;
+            columnNumber <= 53;
             columnNumber += 1
         ) {
             row.getCell(
@@ -1000,7 +957,7 @@ const writeDateSeparatorRow = (sheet, rowNumber, value) => {
 
 const EXCEL_TEMPLATE_PATH = path.join(
     __dirname,
-    "../templates/bao-cao-san-xuat-mau.xlsx"
+    "../templates/bao-cao-cat-long-export.xlsx"
 );
 
 const EXCEL_SHEET_NAME = "Cắt lồng";
@@ -1241,23 +1198,19 @@ if (reports.length === 0) {
 
 
         // =============================================
-        // READ TEMPLATE INTO MEMORY
-        // File gốc không bị thay đổi
-        // =============================================
+// READ TEMPLATE
+// File gốc không bị thay đổi
+//
+// Đọc trực tiếp từ file để tránh giữ thêm
+// templateBuffer trong bộ nhớ.
+// =============================================
 
-        const templateBuffer =
-            await fs.readFile(
-                EXCEL_TEMPLATE_PATH
-            );
+const workbook =
+    new ExcelJS.Workbook();
 
-        const workbook =
-            new ExcelJS.Workbook();
-
-        await workbook.xlsx.load(
-            templateBuffer
-        );
-
-
+await workbook.xlsx.readFile(
+    EXCEL_TEMPLATE_PATH
+);
         // =============================================
         // GET "CẮT LỒNG" SHEET
         // =============================================
@@ -1371,36 +1324,34 @@ if (reports.length === 0) {
             `bao-cao-cat-long-${datePart}.xlsx`;
 
 
-        // =============================================
-        // WRITE COPY TO BUFFER
-        // =============================================
+       // =============================================
+// RESPONSE
+//
+// Ghi trực tiếp workbook ra response,
+// không tạo outputBuffer trong RAM.
+// =============================================
 
-        const outputBuffer =
-            await workbook.xlsx.writeBuffer();
+res.status(200);
 
+res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+);
 
-        // =============================================
-        // RESPONSE
-        // =============================================
+res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="${fileName}"`
+);
 
-        res.setHeader(
-            "Content-Type",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        );
+res.setHeader(
+    "Access-Control-Expose-Headers",
+    "Content-Disposition"
+);
 
-        res.setHeader(
-            "Content-Disposition",
-            `attachment; filename="${fileName}"`
-        );
+await workbook.xlsx.write(res);
 
-        res.setHeader(
-            "Access-Control-Expose-Headers",
-            "Content-Disposition"
-        );
+return res.end();
 
-        return res.status(200).send(
-            Buffer.from(outputBuffer)
-        );
     }
     catch (error) {
         console.error(
