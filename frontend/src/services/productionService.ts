@@ -6,7 +6,6 @@ import type {
 
 
 
-
 // =====================================================
 // WORKER TẠO BÁO CÁO TEMP
 // =====================================================
@@ -668,4 +667,18 @@ export const rejectSelectedTempReports = async (
 
     return res.data;
 
+};
+
+// =====================================================
+// LẤY CHI TIẾT MỘT BÁO CÁO TEMP
+// =====================================================
+
+export const getTempReportDetail = async (
+    id: number
+) => {
+    const res = await api.get(
+        `/production-temp/${id}`
+    );
+
+    return res.data;
 };

@@ -53,6 +53,8 @@ import ManagerEditReport from "../pages/manager/EditReport";
 
 import ManagerStatistics from "../pages/manager/Statistics";
 
+import SelectedReportsReview from "../pages/manager/SelectedReportsReview";
+
 
 // =====================================================
 // WORKER
@@ -181,6 +183,16 @@ function AppRouter() {
 
 
                 <Route
+                    path="reports/review"
+                    element={
+
+                        <SelectedReportsReview />
+
+                    }
+                />
+
+
+                <Route
                     path="approved"
                     element={
 
@@ -268,6 +280,18 @@ function AppRouter() {
                     element={
 
                         <LeadPendingReports />
+
+                    }
+                />
+
+
+                {/* Xem chi tiết nhiều báo cáo đã chọn */}
+
+                <Route
+                    path="reports/review"
+                    element={
+
+                        <SelectedReportsReview />
 
                     }
                 />

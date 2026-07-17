@@ -738,7 +738,19 @@ function Reports() {
 
     };
 
+const handleViewSelectedDetails = () => {
+    if (selectedIds.length === 0) {
+        alert("Vui lòng chọn ít nhất một báo cáo");
+        return;
+    }
 
+    sessionStorage.setItem(
+        "selectedPendingReportIds",
+        JSON.stringify(selectedIds)
+    );
+
+    navigate(`${basePath}/reports/review`);
+};
 
     const handleApproveSelected = async () => {
 
@@ -1288,7 +1300,18 @@ function Reports() {
 
                 </button>
 
-
+<button
+    type="button"
+    className="management-view-selected-button"
+    onClick={handleViewSelectedDetails}
+    disabled={
+        selectedIds.length === 0 ||
+        loading ||
+        actionLoading
+    }
+>
+    👁 Xem chi tiết ({selectedIds.length})
+</button>
             </div>
 
 
@@ -1917,33 +1940,6 @@ function Reports() {
                                                 </td>
 
 
-
-                                                <td>
-
-
-                                                    <button
-
-                                                        type="button"
-
-                                                        className="management-detail-button"
-
-                                                        onClick={() =>
-
-                                                            navigate(
-
-                                                                `${basePath}/report/${report.id}?source=pending`
-
-                                                            )
-                                                        }
-
-                                                    >
-
-                                                        Xem
-
-                                                    </button>
-
-
-                                                </td>
 
 
                                             </tr>

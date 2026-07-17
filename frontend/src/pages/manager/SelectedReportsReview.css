@@ -1,0 +1,138 @@
+.selected-review-page {
+    width: 100%;
+    padding: 20px;
+}
+
+.selected-review-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.selected-review-header h1 {
+    margin: 10px 0 4px;
+    font-size: 26px;
+}
+
+.selected-review-header p {
+    margin: 0;
+    color: #64748b;
+}
+
+.selected-review-back {
+    border: none;
+    background: transparent;
+    color: #2563eb;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.selected-review-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.selected-review-approve,
+.selected-review-reject {
+    min-height: 42px;
+    padding: 0 18px;
+    border: none;
+    border-radius: 8px;
+    color: #ffffff;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.selected-review-approve {
+    background: #16a34a;
+}
+
+.selected-review-reject {
+    background: #dc2626;
+}
+
+.selected-review-approve:disabled,
+.selected-review-reject:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.selected-review-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #ffffff;
+}
+
+.selected-review-table {
+    width: 100%;
+    border-collapse: collapse;
+    white-space: nowrap;
+    font-size: 13px;
+}
+
+.selected-review-table th,
+.selected-review-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #e2e8f0;
+    text-align: center;
+}
+
+.selected-review-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #f8fafc;
+    color: #334155;
+    font-weight: 700;
+}
+
+.selected-review-table tbody tr:hover {
+    background: #f8fafc;
+}
+
+.selected-review-note {
+    min-width: 180px;
+    max-width: 300px;
+    white-space: normal;
+    text-align: left !important;
+}
+
+.selected-review-error {
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+.selected-review-empty {
+    padding: 40px;
+    text-align: center;
+    color: #64748b;
+}
+
+@media (max-width: 768px) {
+    .selected-review-page {
+        padding: 12px;
+    }
+
+    .selected-review-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .selected-review-actions {
+        width: 100%;
+    }
+
+    .selected-review-approve,
+    .selected-review-reject {
+        flex: 1;
+    }
+}
