@@ -17,6 +17,8 @@ import {
 } from "../../services/productionService";
 
 import type {
+    ProductionDeduction,
+    ProductionDefect,
     ProductionReport
 } from "../../types/production";
 
@@ -229,6 +231,222 @@ function SelectedReportsReview() {
 
 
     // =====================================================
+    // SỬA CHI TIẾT THỜI GIAN TRỪ
+    // =====================================================
+
+    const updateDeduction = (
+        index: number,
+        field: keyof ProductionDeduction,
+        value: string | number
+    ) => {
+        setEditForm(previousForm => {
+            if (!previousForm) {
+                return previousForm;
+            }
+
+            const deductions = [
+                ...(previousForm.deductions || [])
+            ];
+
+            deductions[index] = {
+                ...deductions[index],
+                [field]: value
+            };
+
+            const deductionTime = deductions.reduce(
+                (sum, item) =>
+                    sum + Math.max(0, Number(item.hours) || 0),
+                0
+            );
+
+            const totalTime =
+                Math.max(
+                    0,
+                    Number(previousForm.total_time) || 0
+                );
+
+            return {
+                ...previousForm,
+                deductions,
+                deduction_time: deductionTime,
+                actual_time: Math.max(
+                    0,
+                    totalTime - deductionTime
+                )
+            };
+        });
+    };
+
+
+    const addDeduction = () => {
+        setEditForm(previousForm => {
+            if (!previousForm) {
+                return previousForm;
+            }
+
+            return {
+                ...previousForm,
+                deductions: [
+                    ...(previousForm.deductions || []),
+                    {
+                        deduction_name: "",
+                        hours: 0
+                    }
+                ]
+            };
+        });
+    };
+
+
+    const removeDeduction = (
+        index: number
+    ) => {
+        setEditForm(previousForm => {
+            if (!previousForm) {
+                return previousForm;
+            }
+
+            const deductions = (
+                previousForm.deductions || []
+            ).filter(
+                (_, itemIndex) =>
+                    itemIndex !== index
+            );
+
+            const deductionTime = deductions.reduce(
+                (sum, item) =>
+                    sum + Math.max(0, Number(item.hours) || 0),
+                0
+            );
+
+            const totalTime =
+                Math.max(
+                    0,
+                    Number(previousForm.total_time) || 0
+                );
+
+            return {
+                ...previousForm,
+                deductions,
+                deduction_time: deductionTime,
+                actual_time: Math.max(
+                    0,
+                    totalTime - deductionTime
+                )
+            };
+        });
+    };
+
+
+    // =====================================================
+    // SỬA CHI TIẾT NG
+    // =====================================================
+
+    const updateDefect = (
+        index: number,
+        field: keyof ProductionDefect,
+        value: string | number
+    ) => {
+        setEditForm(previousForm => {
+            if (!previousForm) {
+                return previousForm;
+            }
+
+            const defects = [
+                ...(previousForm.defects || [])
+            ];
+
+            defects[index] = {
+                ...defects[index],
+                [field]: value
+            };
+
+            const totalNg = defects.reduce(
+                (sum, item) =>
+                    sum + Math.max(0, Number(item.quantity) || 0),
+                0
+            );
+
+            const actualOutput =
+                Math.max(
+                    0,
+                    Number(previousForm.actual_output) || 0
+                );
+
+            return {
+                ...previousForm,
+                defects,
+                tt_ng: totalNg,
+                tt_ok: Math.max(
+                    0,
+                    actualOutput - totalNg
+                )
+            };
+        });
+    };
+
+
+    const addDefect = () => {
+        setEditForm(previousForm => {
+            if (!previousForm) {
+                return previousForm;
+            }
+
+            return {
+                ...previousForm,
+                defects: [
+                    ...(previousForm.defects || []),
+                    {
+                        defect_name: "",
+                        quantity: 0
+                    }
+                ]
+            };
+        });
+    };
+
+
+    const removeDefect = (
+        index: number
+    ) => {
+        setEditForm(previousForm => {
+            if (!previousForm) {
+                return previousForm;
+            }
+
+            const defects = (
+                previousForm.defects || []
+            ).filter(
+                (_, itemIndex) =>
+                    itemIndex !== index
+            );
+
+            const totalNg = defects.reduce(
+                (sum, item) =>
+                    sum + Math.max(0, Number(item.quantity) || 0),
+                0
+            );
+
+            const actualOutput =
+                Math.max(
+                    0,
+                    Number(previousForm.actual_output) || 0
+                );
+
+            return {
+                ...previousForm,
+                defects,
+                tt_ng: totalNg,
+                tt_ok: Math.max(
+                    0,
+                    actualOutput - totalNg
+                )
+            };
+        });
+    };
+
+
+    // =====================================================
     // LƯU BÁO CÁO
     // =====================================================
 
@@ -277,13 +495,102 @@ function SelectedReportsReview() {
         }
 
 
+        const deductions = (
+            editForm.deductions || []
+        )
+            .map(item => ({
+                ...item,
+                deduction_name:
+                    item.deduction_name?.trim() || "",
+                hours: Math.max(
+                    0,
+                    Number(item.hours) || 0
+                )
+            }))
+            .filter(item =>
+                Boolean(item.deduction_type_id) ||
+                Boolean(item.deduction_name)
+            );
+
+
+        const defects = (
+            editForm.defects || []
+        )
+            .map(item => ({
+                ...item,
+                defect_name:
+                    item.defect_name?.trim() || "",
+                quantity: Math.max(
+                    0,
+                    Math.trunc(
+                        Number(item.quantity) || 0
+                    )
+                )
+            }))
+            .filter(item =>
+                Boolean(item.defect_type_id) ||
+                Boolean(item.defect_name)
+            );
+
+
+        const deductionTime =
+            deductions.reduce(
+                (sum, item) =>
+                    sum + item.hours,
+                0
+            );
+
+
+        const totalNg =
+            defects.reduce(
+                (sum, item) =>
+                    sum + item.quantity,
+                0
+            );
+
+
+        const normalizedForm: ProductionReport = {
+            ...editForm,
+            shift: editForm.shift.trim(),
+            machine_no:
+                editForm.machine_no.trim(),
+            product_name:
+                editForm.product_name.trim(),
+            total_time: Math.max(
+                0,
+                Number(editForm.total_time) || 0
+            ),
+            deduction_time: deductionTime,
+            actual_time: Math.max(
+                0,
+                (Number(editForm.total_time) || 0) -
+                    deductionTime
+            ),
+            actual_output: Math.max(
+                0,
+                Math.trunc(
+                    Number(editForm.actual_output) || 0
+                )
+            ),
+            tt_ng: totalNg,
+            tt_ok: Math.max(
+                0,
+                Math.trunc(
+                    Number(editForm.actual_output) || 0
+                ) - totalNg
+            ),
+            deductions,
+            defects
+        };
+
+
         try {
             setSaving(true);
 
 
             await updateTempReport(
                 editingId,
-                editForm
+                normalizedForm
             );
 
 
@@ -292,7 +599,7 @@ function SelectedReportsReview() {
                     Number(report.id) === editingId
                         ? {
                               ...report,
-                              ...editForm
+                              ...normalizedForm
                           }
                         : report
                 )
@@ -861,16 +1168,20 @@ const loadReports = async (
                                                             Chọn ca
                                                         </option>
 
-                                                        <option value="Ca 1">
-                                                            Ca 1
+                                                        <option value="A">
+                                                            Ca A
                                                         </option>
 
-                                                        <option value="Ca 2">
-                                                            Ca 2
+                                                        <option value="B">
+                                                            Ca B
                                                         </option>
 
-                                                        <option value="Ca 3">
-                                                            Ca 3
+                                                        <option value="C">
+                                                            Ca C
+                                                        </option>
+
+                                                        <option value="D">
+                                                            Ca D
                                                         </option>
                                                     </select>
                                                 ) : (
@@ -970,13 +1281,35 @@ const loadReports = async (
                                                                 0
                                                             }
                                                             onChange={event =>
-                                                                handleFieldChange(
-                                                                    "total_time",
-                                                                    Number(
-                                                                        event
-                                                                            .target
-                                                                            .value
-                                                                    )
+                                                                setEditForm(
+                                                                    previousForm => {
+                                                                        if (!previousForm) {
+                                                                            return previousForm;
+                                                                        }
+
+                                                                        const totalTime =
+                                                                            Math.max(
+                                                                                0,
+                                                                                Number(
+                                                                                    event.target.value
+                                                                                ) || 0
+                                                                            );
+
+                                                                        return {
+                                                                            ...previousForm,
+                                                                            total_time: totalTime,
+                                                                            actual_time:
+                                                                                Math.max(
+                                                                                    0,
+                                                                                    totalTime -
+                                                                                        (
+                                                                                            Number(
+                                                                                                previousForm.deduction_time
+                                                                                            ) || 0
+                                                                                        )
+                                                                                )
+                                                                        };
+                                                                    }
                                                                 )
                                                             }
                                                         />
@@ -1006,16 +1339,7 @@ const loadReports = async (
                                                                 currentReport.deduction_time ??
                                                                 0
                                                             }
-                                                            onChange={event =>
-                                                                handleFieldChange(
-                                                                    "deduction_time",
-                                                                    Number(
-                                                                        event
-                                                                            .target
-                                                                            .value
-                                                                    )
-                                                                )
-                                                            }
+                                                            readOnly
                                                         />
                                                     ) : (
                                                         <strong>
@@ -1043,16 +1367,7 @@ const loadReports = async (
                                                                 currentReport.actual_time ??
                                                                 0
                                                             }
-                                                            onChange={event =>
-                                                                handleFieldChange(
-                                                                    "actual_time",
-                                                                    Number(
-                                                                        event
-                                                                            .target
-                                                                            .value
-                                                                    )
-                                                                )
-                                                            }
+                                                            readOnly
                                                         />
                                                     ) : (
                                                         <strong>
@@ -1126,13 +1441,52 @@ const loadReports = async (
                                                                 0
                                                             }
                                                             onChange={event =>
-                                                                handleFieldChange(
-                                                                    "actual_output",
-                                                                    Number(
-                                                                        event
-                                                                            .target
-                                                                            .value
-                                                                    )
+                                                                setEditForm(
+                                                                    previousForm => {
+                                                                        if (!previousForm) {
+                                                                            return previousForm;
+                                                                        }
+
+                                                                        const actualOutput =
+                                                                            Math.max(
+                                                                                0,
+                                                                                Math.trunc(
+                                                                                    Number(
+                                                                                        event.target.value
+                                                                                    ) || 0
+                                                                                )
+                                                                            );
+
+                                                                        const totalNg =
+                                                                            (
+                                                                                previousForm.defects || []
+                                                                            ).reduce(
+                                                                                (
+                                                                                    sum,
+                                                                                    item
+                                                                                ) =>
+                                                                                    sum +
+                                                                                    Math.max(
+                                                                                        0,
+                                                                                        Number(
+                                                                                            item.quantity
+                                                                                        ) || 0
+                                                                                    ),
+                                                                                0
+                                                                            );
+
+                                                                        return {
+                                                                            ...previousForm,
+                                                                            actual_output: actualOutput,
+                                                                            tt_ng: totalNg,
+                                                                            tt_ok:
+                                                                                Math.max(
+                                                                                    0,
+                                                                                    actualOutput -
+                                                                                        totalNg
+                                                                                )
+                                                                        };
+                                                                    }
                                                                 )
                                                             }
                                                         />
@@ -1161,16 +1515,7 @@ const loadReports = async (
                                                                 currentReport.tt_ok ??
                                                                 0
                                                             }
-                                                            onChange={event =>
-                                                                handleFieldChange(
-                                                                    "tt_ok",
-                                                                    Number(
-                                                                        event
-                                                                            .target
-                                                                            .value
-                                                                    )
-                                                                )
-                                                            }
+                                                            readOnly
                                                         />
                                                     ) : (
                                                         <strong>
@@ -1197,16 +1542,7 @@ const loadReports = async (
                                                                 currentReport.tt_ng ??
                                                                 0
                                                             }
-                                                            onChange={event =>
-                                                                handleFieldChange(
-                                                                    "tt_ng",
-                                                                    Number(
-                                                                        event
-                                                                            .target
-                                                                            .value
-                                                                    )
-                                                                )
-                                                            }
+                                                            readOnly
                                                         />
                                                     ) : (
                                                         <strong>
@@ -1228,7 +1564,131 @@ const loadReports = async (
                                             </h3>
 
 
-                                            {currentReport.deductions
+                                            {isEditing ? (
+                                                <>
+                                                    <div className="selected-detail-table-wrapper">
+                                                        <table className="selected-detail-table">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th>
+                                                                        STT
+                                                                    </th>
+
+                                                                    <th>
+                                                                        Nội dung trừ
+                                                                    </th>
+
+                                                                    <th>
+                                                                        Số giờ
+                                                                    </th>
+
+                                                                    <th>
+                                                                        Thao tác
+                                                                    </th>
+                                                                </tr>
+                                                            </thead>
+
+                                                            <tbody>
+                                                                {(currentReport.deductions || []).map(
+                                                                    (
+                                                                        item,
+                                                                        deductionIndex
+                                                                    ) => (
+                                                                        <tr
+                                                                            key={
+                                                                                item.id ??
+                                                                                `new-deduction-${deductionIndex}`
+                                                                            }
+                                                                        >
+                                                                            <td>
+                                                                                {deductionIndex + 1}
+                                                                            </td>
+
+                                                                            <td>
+                                                                                <input
+                                                                                    type="text"
+                                                                                    value={
+                                                                                        item.deduction_name ||
+                                                                                        ""
+                                                                                    }
+                                                                                    placeholder="Tên nội dung trừ"
+                                                                                    onChange={event =>
+                                                                                        updateDeduction(
+                                                                                            deductionIndex,
+                                                                                            "deduction_name",
+                                                                                            event.target.value
+                                                                                        )
+                                                                                    }
+                                                                                />
+                                                                            </td>
+
+                                                                            <td>
+                                                                                <input
+                                                                                    type="number"
+                                                                                    min="0"
+                                                                                    step="0.01"
+                                                                                    value={
+                                                                                        item.hours ?? 0
+                                                                                    }
+                                                                                    onChange={event =>
+                                                                                        updateDeduction(
+                                                                                            deductionIndex,
+                                                                                            "hours",
+                                                                                            Number(
+                                                                                                event.target.value
+                                                                                            )
+                                                                                        )
+                                                                                    }
+                                                                                />
+                                                                            </td>
+
+                                                                            <td>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    className="selected-review-cancel"
+                                                                                    disabled={saving}
+                                                                                    onClick={() =>
+                                                                                        removeDeduction(
+                                                                                            deductionIndex
+                                                                                        )
+                                                                                    }
+                                                                                >
+                                                                                    Xóa
+                                                                                </button>
+                                                                            </td>
+                                                                        </tr>
+                                                                    )
+                                                                )}
+                                                            </tbody>
+
+                                                            <tfoot>
+                                                                <tr>
+                                                                    <td colSpan={2}>
+                                                                        Tổng thời gian trừ
+                                                                    </td>
+
+                                                                    <td>
+                                                                        {formatNumber(
+                                                                            currentReport.deduction_time
+                                                                        )}
+                                                                    </td>
+
+                                                                    <td />
+                                                                </tr>
+                                                            </tfoot>
+                                                        </table>
+                                                    </div>
+
+                                                    <button
+                                                        type="button"
+                                                        className="selected-review-edit"
+                                                        disabled={saving}
+                                                        onClick={addDeduction}
+                                                    >
+                                                        + Thêm thời gian trừ
+                                                    </button>
+                                                </>
+                                            ) : currentReport.deductions
                                                 ?.length ? (
                                                 <div className="selected-detail-table-wrapper">
                                                     <table className="selected-detail-table">
@@ -1247,7 +1707,6 @@ const loadReports = async (
                                                                 </th>
                                                             </tr>
                                                         </thead>
-
 
                                                         <tbody>
                                                             {currentReport.deductions.map(
@@ -1282,7 +1741,6 @@ const loadReports = async (
                                                             )}
                                                         </tbody>
 
-
                                                         <tfoot>
                                                             <tr>
                                                                 <td
@@ -1316,7 +1774,136 @@ const loadReports = async (
                                             </h3>
 
 
-                                            {currentReport.defects
+                                            {isEditing ? (
+                                                <>
+                                                    <div className="selected-detail-table-wrapper">
+                                                        <table className="selected-detail-table">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th>
+                                                                        STT
+                                                                    </th>
+
+                                                                    <th>
+                                                                        Loại NG
+                                                                    </th>
+
+                                                                    <th>
+                                                                        Số lượng
+                                                                    </th>
+
+                                                                    <th>
+                                                                        Thao tác
+                                                                    </th>
+                                                                </tr>
+                                                            </thead>
+
+                                                            <tbody>
+                                                                {(currentReport.defects || []).map(
+                                                                    (
+                                                                        item,
+                                                                        defectIndex
+                                                                    ) => (
+                                                                        <tr
+                                                                            key={
+                                                                                item.id ??
+                                                                                `new-defect-${defectIndex}`
+                                                                            }
+                                                                        >
+                                                                            <td>
+                                                                                {defectIndex + 1}
+                                                                            </td>
+
+                                                                            <td>
+                                                                                <input
+                                                                                    type="text"
+                                                                                    value={
+                                                                                        item.defect_name ||
+                                                                                        ""
+                                                                                    }
+                                                                                    placeholder="Tên loại NG"
+                                                                                    onChange={event =>
+                                                                                        updateDefect(
+                                                                                            defectIndex,
+                                                                                            "defect_name",
+                                                                                            event.target.value
+                                                                                        )
+                                                                                    }
+                                                                                />
+                                                                            </td>
+
+                                                                            <td>
+                                                                                <input
+                                                                                    type="number"
+                                                                                    min="0"
+                                                                                    step="1"
+                                                                                    value={
+                                                                                        item.quantity ?? 0
+                                                                                    }
+                                                                                    onChange={event =>
+                                                                                        updateDefect(
+                                                                                            defectIndex,
+                                                                                            "quantity",
+                                                                                            Math.max(
+                                                                                                0,
+                                                                                                Math.trunc(
+                                                                                                    Number(
+                                                                                                        event.target.value
+                                                                                                    ) || 0
+                                                                                                )
+                                                                                            )
+                                                                                        )
+                                                                                    }
+                                                                                />
+                                                                            </td>
+
+                                                                            <td>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    className="selected-review-cancel"
+                                                                                    disabled={saving}
+                                                                                    onClick={() =>
+                                                                                        removeDefect(
+                                                                                            defectIndex
+                                                                                        )
+                                                                                    }
+                                                                                >
+                                                                                    Xóa
+                                                                                </button>
+                                                                            </td>
+                                                                        </tr>
+                                                                    )
+                                                                )}
+                                                            </tbody>
+
+                                                            <tfoot>
+                                                                <tr>
+                                                                    <td colSpan={2}>
+                                                                        Tổng TT NG
+                                                                    </td>
+
+                                                                    <td>
+                                                                        {formatNumber(
+                                                                            currentReport.tt_ng
+                                                                        )}
+                                                                    </td>
+
+                                                                    <td />
+                                                                </tr>
+                                                            </tfoot>
+                                                        </table>
+                                                    </div>
+
+                                                    <button
+                                                        type="button"
+                                                        className="selected-review-edit"
+                                                        disabled={saving}
+                                                        onClick={addDefect}
+                                                    >
+                                                        + Thêm loại NG
+                                                    </button>
+                                                </>
+                                            ) : currentReport.defects
                                                 ?.length ? (
                                                 <div className="selected-detail-table-wrapper">
                                                     <table className="selected-detail-table">
@@ -1335,7 +1922,6 @@ const loadReports = async (
                                                                 </th>
                                                             </tr>
                                                         </thead>
-
 
                                                         <tbody>
                                                             {currentReport.defects.map(
@@ -1369,7 +1955,6 @@ const loadReports = async (
                                                                 )
                                                             )}
                                                         </tbody>
-
 
                                                         <tfoot>
                                                             <tr>

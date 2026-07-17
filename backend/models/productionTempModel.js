@@ -541,10 +541,18 @@ const ProductionTemp = {
 
     async updateReport(id, data, changedBy, reason = null, isAdmin = false) {
         const connection = await getConnection();
+
         try {
             await beginTransaction(connection);
-            const scopeJoin = isAdmin ? "" : "JOIN manager_processes mp ON mp.process_id = pr.process_id";
-            const scopeWhere = isAdmin ? "" : "AND mp.manager_id = ?";
+
+            const scopeJoin = isAdmin
+                ? ""
+                : "JOIN manager_processes mp ON mp.process_id = pr.process_id";
+
+            const scopeWhere = isAdmin
+                ? ""
+                : "AND mp.manager_id = ?";
+
             const rows = await query(
                 connection,
                 `SELECT pr.*
@@ -552,38 +560,425 @@ const ProductionTemp = {
                  ${scopeJoin}
                  WHERE pr.id = ? ${scopeWhere}
                  FOR UPDATE`,
-                isAdmin ? [id] : [id, changedBy]
+                isAdmin
+                    ? [id]
+                    : [id, changedBy]
             );
 
             const current = rows[0];
-            if (!current) throw new Error("Không tìm thấy báo cáo hoặc ngoài phạm vi phụ trách");
-            if (current.status === "approved") throw new Error("Báo cáo đã duyệt không thể sửa ở bảng tạm");
 
-            const changes = editableFields
-                .filter((field) => Object.prototype.hasOwnProperty.call(data, field))
-                .filter((field) => String(current[field] ?? "") !== String(data[field] ?? ""));
-
-            if (changes.length === 0) {
-                await rollback(connection);
-                return { changed: false, report: current };
+            if (!current) {
+                throw new Error(
+                    "Không tìm thấy báo cáo hoặc ngoài phạm vi phụ trách"
+                );
             }
 
-            const assignments = changes.map((field) => `\`${field}\` = ?`).join(", ");
-            await query(
-                connection,
-                `UPDATE production_reports_temp
-                 SET ${assignments}, updated_by = ?, updated_at = NOW()
-                 WHERE id = ?`,
-                [...changes.map((field) => data[field]), changedBy, id]
+            if (current.status === "approved") {
+                throw new Error(
+                    "Báo cáo đã duyệt không thể sửa ở bảng tạm"
+                );
+            }
+
+            const hasDeductions =
+                Object.prototype.hasOwnProperty.call(
+                    data,
+                    "deductions"
+                );
+
+            const hasDefects =
+                Object.prototype.hasOwnProperty.call(
+                    data,
+                    "defects"
+                );
+
+            const deductions = Array.isArray(data.deductions)
+                ? data.deductions
+                : [];
+
+            const defects = Array.isArray(data.defects)
+                ? data.defects
+                : [];
+
+            const normalizedDeductions = [];
+            for (const item of deductions) {
+                let deductionTypeId =
+                    Number(item.deduction_type_id) || null;
+
+                if (
+                    !deductionTypeId &&
+                    String(item.deduction_name || "").trim()
+                ) {
+                    const typeRows = await query(
+                        connection,
+                        `SELECT id
+                         FROM deduction_types
+                         WHERE process_id = ?
+                           AND deduction_name = ?
+                           AND status = 'active'
+                         LIMIT 1`,
+                        [
+                            current.process_id,
+                            String(
+                                item.deduction_name
+                            ).trim()
+                        ]
+                    );
+
+                    deductionTypeId =
+                        typeRows[0]?.id || null;
+                }
+
+                if (!deductionTypeId) {
+                    throw new Error(
+                        `Nội dung thời gian trừ "${String(
+                            item.deduction_name || ""
+                        ).trim() || "không xác định"}" không tồn tại trong công đoạn`
+                    );
+                }
+
+                normalizedDeductions.push({
+                    deduction_type_id:
+                        deductionTypeId,
+                    hours: Math.max(
+                        0,
+                        Number(item.hours) || 0
+                    )
+                });
+            }
+
+            const normalizedDefects = [];
+            for (const item of defects) {
+                let defectTypeId =
+                    Number(item.defect_type_id) || null;
+
+                if (
+                    !defectTypeId &&
+                    String(item.defect_name || "").trim()
+                ) {
+                    const typeRows = await query(
+                        connection,
+                        `SELECT id
+                         FROM defect_types
+                         WHERE process_id = ?
+                           AND defect_name = ?
+                           AND status = 'active'
+                         LIMIT 1`,
+                        [
+                            current.process_id,
+                            String(
+                                item.defect_name
+                            ).trim()
+                        ]
+                    );
+
+                    defectTypeId =
+                        typeRows[0]?.id || null;
+                }
+
+                if (!defectTypeId) {
+                    throw new Error(
+                        `Loại NG "${String(
+                            item.defect_name || ""
+                        ).trim() || "không xác định"}" không tồn tại trong công đoạn`
+                    );
+                }
+
+                normalizedDefects.push({
+                    defect_type_id:
+                        defectTypeId,
+                    quantity: Math.max(
+                        0,
+                        Math.trunc(
+                            Number(item.quantity) || 0
+                        )
+                    )
+                });
+            }
+
+            const detailValues = {
+                deduction_time:
+                    normalizedDeductions.reduce(
+                        (sum, item) =>
+                            sum + item.hours,
+                        0
+                    ),
+                tt_ng:
+                    normalizedDefects.reduce(
+                        (sum, item) =>
+                            sum + item.quantity,
+                        0
+                    )
+            };
+
+            const totalTime = Math.max(
+                0,
+                Number(
+                    Object.prototype.hasOwnProperty.call(
+                        data,
+                        "total_time"
+                    )
+                        ? data.total_time
+                        : current.total_time
+                ) || 0
             );
 
-            for (const field of changes) {
+            const actualOutput = Math.max(
+                0,
+                Math.trunc(
+                    Number(
+                        Object.prototype.hasOwnProperty.call(
+                            data,
+                            "actual_output"
+                        )
+                            ? data.actual_output
+                            : current.actual_output
+                    ) || 0
+                )
+            );
+
+            if (hasDeductions) {
+                data.deduction_time =
+                    detailValues.deduction_time;
+
+                data.actual_time = Math.max(
+                    0,
+                    totalTime -
+                        detailValues.deduction_time
+                );
+            }
+
+            if (hasDefects) {
+                data.tt_ng =
+                    detailValues.tt_ng;
+
+                data.tt_ok = Math.max(
+                    0,
+                    actualOutput -
+                        detailValues.tt_ng
+                );
+            }
+
+            const changes = editableFields
+                .filter(field =>
+                    Object.prototype.hasOwnProperty.call(
+                        data,
+                        field
+                    )
+                )
+                .filter(
+                    field =>
+                        String(
+                            current[field] ?? ""
+                        ) !==
+                        String(
+                            data[field] ?? ""
+                        )
+                );
+
+            const detailChanged =
+                hasDeductions ||
+                hasDefects;
+
+            if (
+                changes.length === 0 &&
+                !detailChanged
+            ) {
+                await rollback(connection);
+
+                return {
+                    changed: false,
+                    report: current
+                };
+            }
+
+            if (changes.length > 0) {
+                const assignments = changes
+                    .map(
+                        field =>
+                            `\`${field}\` = ?`
+                    )
+                    .join(", ");
+
+                await query(
+                    connection,
+                    `UPDATE production_reports_temp
+                     SET ${assignments},
+                         updated_by = ?,
+                         updated_at = NOW()
+                     WHERE id = ?`,
+                    [
+                        ...changes.map(
+                            field => data[field]
+                        ),
+                        changedBy,
+                        id
+                    ]
+                );
+
+                for (const field of changes) {
+                    await query(
+                        connection,
+                        `INSERT INTO report_edit_logs
+                         (
+                            report_type,
+                            report_id,
+                            changed_by,
+                            field_name,
+                            old_value,
+                            new_value,
+                            reason
+                         )
+                         VALUES (
+                            'temp',
+                            ?,
+                            ?,
+                            ?,
+                            ?,
+                            ?,
+                            ?
+                         )`,
+                        [
+                            id,
+                            changedBy,
+                            field,
+                            current[field] ?? null,
+                            data[field] ?? null,
+                            reason
+                        ]
+                    );
+                }
+            } else {
+                await query(
+                    connection,
+                    `UPDATE production_reports_temp
+                     SET updated_by = ?,
+                         updated_at = NOW()
+                     WHERE id = ?`,
+                    [changedBy, id]
+                );
+            }
+
+            if (hasDeductions) {
+                await query(
+                    connection,
+                    `DELETE FROM production_temp_deductions
+                     WHERE temp_report_id = ?`,
+                    [id]
+                );
+
+                for (
+                    const item of
+                    normalizedDeductions
+                ) {
+                    await query(
+                        connection,
+                        `INSERT INTO production_temp_deductions
+                         (
+                            temp_report_id,
+                            deduction_type_id,
+                            hours
+                         )
+                         VALUES (?, ?, ?)`,
+                        [
+                            id,
+                            item.deduction_type_id,
+                            item.hours
+                        ]
+                    );
+                }
+
                 await query(
                     connection,
                     `INSERT INTO report_edit_logs
-                     (report_type, report_id, changed_by, field_name, old_value, new_value, reason)
-                     VALUES ('temp', ?, ?, ?, ?, ?, ?)`,
-                    [id, changedBy, field, current[field] ?? null, data[field] ?? null, reason]
+                     (
+                        report_type,
+                        report_id,
+                        changed_by,
+                        field_name,
+                        old_value,
+                        new_value,
+                        reason
+                     )
+                     VALUES (
+                        'temp',
+                        ?,
+                        ?,
+                        'deductions',
+                        ?,
+                        ?,
+                        ?
+                     )`,
+                    [
+                        id,
+                        changedBy,
+                        "Chi tiết cũ",
+                        JSON.stringify(
+                            normalizedDeductions
+                        ),
+                        reason
+                    ]
+                );
+            }
+
+            if (hasDefects) {
+                await query(
+                    connection,
+                    `DELETE FROM production_temp_defects
+                     WHERE temp_report_id = ?`,
+                    [id]
+                );
+
+                for (
+                    const item of
+                    normalizedDefects
+                ) {
+                    await query(
+                        connection,
+                        `INSERT INTO production_temp_defects
+                         (
+                            temp_report_id,
+                            defect_type_id,
+                            quantity
+                         )
+                         VALUES (?, ?, ?)`,
+                        [
+                            id,
+                            item.defect_type_id,
+                            item.quantity
+                        ]
+                    );
+                }
+
+                await query(
+                    connection,
+                    `INSERT INTO report_edit_logs
+                     (
+                        report_type,
+                        report_id,
+                        changed_by,
+                        field_name,
+                        old_value,
+                        new_value,
+                        reason
+                     )
+                     VALUES (
+                        'temp',
+                        ?,
+                        ?,
+                        'defects',
+                        ?,
+                        ?,
+                        ?
+                     )`,
+                    [
+                        id,
+                        changedBy,
+                        "Chi tiết cũ",
+                        JSON.stringify(
+                            normalizedDefects
+                        ),
+                        reason
+                    ]
                 );
             }
 
@@ -593,13 +988,29 @@ const ProductionTemp = {
                     reportId: id,
                     userId: changedBy,
                     action: "UPDATE",
-                    note: reason || `Đã sửa ${changes.length} trường`
+                    note:
+                        reason ||
+                        `Đã sửa ${
+                            changes.length
+                        } trường${
+                            detailChanged
+                                ? " và chi tiết"
+                                : ""
+                        }`
                 },
                 connection
             );
 
             await commit(connection);
-            return { changed: true, fields: changes };
+
+            return {
+                changed: true,
+                fields: changes,
+                details: {
+                    deductions: hasDeductions,
+                    defects: hasDefects
+                }
+            };
         } catch (error) {
             await rollback(connection);
             throw error;
