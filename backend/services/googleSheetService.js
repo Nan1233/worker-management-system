@@ -203,7 +203,7 @@ const getSheetData = async(sheets)=>{
 
 
         range:
-        `${SHEET_NAME}!A:AZ`
+        `${SHEET_NAME}!A:BA`
 
     });
 
@@ -344,7 +344,7 @@ const buildReportRow = (
     rowNumber
 ) => {
     const rowData =
-        Array(52).fill("");
+        Array(53).fill("");
 
     const ok =
         toNumber(report.tt_ok);
@@ -679,43 +679,72 @@ const buildReportRow = (
         );
 
     // AU - NG kích thước
-    rowData[46] =
-        getDefectQuantity(
-            report,
-            [
-                "NG_KICH_THUOC",
-                "NG kích thước"
-            ]
-        );
+rowData[46] =
+    getDefectQuantity(
+        report,
+        [
+            "NG_KICH_THUOC",
+            "NG kích thước"
+        ]
+    );
 
-    // AV - Cắt lẹm
-    rowData[47] =
-        getDefectQuantity(
-            report,
-            [
-                "CAT_LEM",
-                "Cắt lẹm"
-            ]
-        );
+// AV - Cắt lẹm
+rowData[47] =
+    getDefectQuantity(
+        report,
+        [
+            "CAT_LEM",
+            "Cắt lẹm"
+        ]
+    );
 
-    // AW - Trống
-    rowData[48] = "";
+// AW - Chặn ngắn dài
+rowData[48] =
+    getDefectQuantity(
+        report,
+        [
+            "CHAN_NGAN_DAI",
+            "CHAN_NGAN",
+            "Chặn ngắn dài",
+            "Chặn ngắn",
+            "Chan ngan dai"
+        ]
+    );
 
-    // AX - Trống
-    rowData[49] = "";
+// AX - Sót via
+rowData[49] =
+    getDefectQuantity(
+        report,
+        [
+            "SOT_VIA",
+            "SOT_BAVIA",
+            "Sót via",
+            "Sót bavia",
+            "Sot via"
+        ]
+    );
 
-    // AY - Trạng thái
-    rowData[50] =
-        "approved";
+// AY - Fure trục
+rowData[50] =
+    getDefectQuantity(
+        report,
+        [
+            "FURE_TRUC",
+            "FURE",
+            "Fure trục",
+            "Fure truc"
+        ]
+    );
 
-    /*
-     * AZ chỉ dùng nội bộ để nhận diện chính xác
-     * báo cáo khi cần kiểm tra.
-     *
-     * Không dùng AZ để sắp xếp.
-     */
-    rowData[51] =
-        Number(report.id);
+// AZ - Trạng thái
+rowData[51] =
+    report.status || "approved";
+
+// BA - Ghi chú
+rowData[52] =
+    report.note || "";
+
+return rowData;
 
     return rowData;
 };
@@ -738,7 +767,8 @@ const buildAllSheetRows = reports => {
             sequenceNumber = 0;
 
             const dateRow =
-                Array(52).fill("");
+                Array(53
+                ).fill("");
 
             // Dòng cách ngày chỉ ghi cột A
             dateRow[0] =
@@ -907,7 +937,7 @@ const writeSheetData = async (
             spreadsheetId,
 
             range:
-                `${SHEET_NAME}!A${DATA_START_ROW}:AZ${requiredLastRow}`
+                `${SHEET_NAME}!A${DATA_START_ROW}:BA${requiredLastRow}`
         });
 
     if (rows.length === 0) {
@@ -923,7 +953,7 @@ const writeSheetData = async (
             spreadsheetId,
 
             range:
-                `${SHEET_NAME}!A${DATA_START_ROW}:AZ${newLastRow}`,
+                `${SHEET_NAME}!A${DATA_START_ROW}:BA${newLastRow}`,
 
             valueInputOption:
                 "USER_ENTERED",
@@ -961,7 +991,7 @@ const writeSheetData = async (
                             endRowIndex:
                                 startRowIndex + 1,
                             startColumnIndex: 0,
-                            endColumnIndex: 52
+                            endColumnIndex: 53
                         },
 
                         cell: {
