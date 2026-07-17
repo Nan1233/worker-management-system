@@ -29,6 +29,168 @@ const queryDatabase = (
     );
 };
 // =====================================================
+// CHUẨN HÓA CHUỖI
+// =====================================================
+
+const normalizeText = value => {
+    return String(value || "")
+        .normalize("NFD")
+        .replace(
+            /[\u0300-\u036f]/g,
+            ""
+        )
+        .replace(/đ/g, "d")
+        .replace(/Đ/g, "D")
+        .toLowerCase()
+        .replace(
+            /[^a-z0-9]+/g,
+            " "
+        )
+        .trim();
+};
+// =====================================================
+// LẤY CHI TIẾT THỜI GIAN TRỪ
+// =====================================================
+
+const getReportDeductions = async (
+    reportIds
+) => {
+    if (!reportIds.length) {
+        return new Map();
+    }
+
+    const placeholders =
+        reportIds
+            .map(() => "?")
+            .join(", ");
+
+    const rows =
+        await queryDatabase(
+            `
+                SELECT
+                    prd.report_id,
+                    dt.id AS deduction_type_id,
+                    dt.deduction_code,
+                    dt.deduction_name,
+                    prd.hours
+
+                FROM production_report_deductions AS prd
+
+                INNER JOIN deduction_types AS dt
+                    ON dt.id = prd.deduction_type_id
+
+                WHERE prd.report_id IN (${placeholders})
+
+                ORDER BY
+                    prd.report_id ASC,
+                    dt.sort_order ASC,
+                    dt.id ASC
+            `,
+            reportIds
+        );
+
+    const result = new Map();
+
+    rows.forEach(item => {
+        const reportId =
+            Number(item.report_id);
+
+        if (!result.has(reportId)) {
+            result.set(
+                reportId,
+                []
+            );
+        }
+
+        result.get(reportId).push({
+            deduction_type_id:
+                Number(
+                    item.deduction_type_id
+                ),
+            deduction_code:
+                item.deduction_code || "",
+            deduction_name:
+                item.deduction_name || "",
+            hours:
+                Number(item.hours) || 0
+        });
+    });
+
+    return result;
+};
+
+
+// =====================================================
+// LẤY CHI TIẾT LỖI NG
+// =====================================================
+
+const getReportDefects = async (
+    reportIds
+) => {
+    if (!reportIds.length) {
+        return new Map();
+    }
+
+    const placeholders =
+        reportIds
+            .map(() => "?")
+            .join(", ");
+
+    const rows =
+        await queryDatabase(
+            `
+                SELECT
+                    prd.report_id,
+                    dt.id AS defect_type_id,
+                    dt.defect_code,
+                    dt.defect_name,
+                    prd.quantity
+
+                FROM production_report_defects AS prd
+
+                INNER JOIN defect_types AS dt
+                    ON dt.id = prd.defect_type_id
+
+                WHERE prd.report_id IN (${placeholders})
+
+                ORDER BY
+                    prd.report_id ASC,
+                    dt.sort_order ASC,
+                    dt.id ASC
+            `,
+            reportIds
+        );
+
+    const result = new Map();
+
+    rows.forEach(item => {
+        const reportId =
+            Number(item.report_id);
+
+        if (!result.has(reportId)) {
+            result.set(
+                reportId,
+                []
+            );
+        }
+
+        result.get(reportId).push({
+            defect_type_id:
+                Number(
+                    item.defect_type_id
+                ),
+            defect_code:
+                item.defect_code || "",
+            defect_name:
+                item.defect_name || "",
+            quantity:
+                Number(item.quantity) || 0
+        });
+    });
+
+    return result;
+};
+// =====================================================
 // NORMALIZE SELECTED IDS
 // =====================================================
 
@@ -286,6 +448,86 @@ const clearTemplateData = (
         }
     }
 };
+
+
+// =====================================================
+// TÌM THỜI GIAN TRỪ
+// =====================================================
+
+const getDeductionHours = (
+    report,
+    aliases
+) => {
+    const normalizedAliases =
+        aliases.map(
+            normalizeText
+        );
+
+    const item =
+        (report.deductions || [])
+            .find(detail => {
+                const code =
+                    normalizeText(
+                        detail.deduction_code
+                    );
+
+                const name =
+                    normalizeText(
+                        detail.deduction_name
+                    );
+
+                return normalizedAliases.some(
+                    alias =>
+                        alias === code ||
+                        alias === name ||
+                        name.includes(alias)
+                );
+            });
+
+    return Number(
+        item?.hours
+    ) || 0;
+};
+
+
+// =====================================================
+// TÌM SỐ LƯỢNG LỖI
+// =====================================================
+
+const getDefectQuantity = (
+    report,
+    aliases
+) => {
+    const normalizedAliases =
+        aliases.map(
+            normalizeText
+        );
+
+    const item =
+        (report.defects || [])
+            .find(detail => {
+                const code =
+                    normalizeText(
+                        detail.defect_code
+                    );
+
+                const name =
+                    normalizeText(
+                        detail.defect_name
+                    );
+
+                return normalizedAliases.some(
+                    alias =>
+                        alias === code ||
+                        alias === name ||
+                        name.includes(alias)
+                );
+            });
+
+    return Number(
+        item?.quantity
+    ) || 0;
+};
 // =====================================================
 // WRITE REPORT TO "CẮT LỒNG"
 // =====================================================
@@ -351,80 +593,155 @@ const writeReportToRow = (
     // K-Y: 15 DEDUCTION TYPES
     // =================================================
 
-    row.getCell("K").value =
-        toNumber(
-            report.thieu_san_luong
-        );
+    // K - Thiếu sản lượng
+row.getCell("K").value =
+    getDeductionHours(
+        report,
+        [
+            "THIEU_SP",
+            "Thiếu sản lượng"
+        ]
+    );
 
-    row.getCell("L").value =
-        toNumber(
-            report.bat_may_xet_may
-        );
+// L - Bật máy, xét máy
+row.getCell("L").value =
+    getDeductionHours(
+        report,
+        [
+            "BAT_MAY",
+            "Bật máy, xét máy"
+        ]
+    );
 
-    row.getCell("M").value =
-        toNumber(
-            report.chuyen_ma
-        );
+// M - Chuyển mã
+row.getCell("M").value =
+    getDeductionHours(
+        report,
+        [
+            "CHUYEN_MA",
+            "Chuyển mã"
+        ]
+    );
 
-    row.getCell("N").value =
-        toNumber(
-            report.chinh_may
-        );
+// N - Chỉnh máy
+row.getCell("N").value =
+    getDeductionHours(
+        report,
+        [
+            "CHINH_MAY",
+            "Chỉnh máy"
+        ]
+    );
 
-    row.getCell("O").value =
-        toNumber(
-            report.cho_chinh_may
-        );
+// O - Chờ chỉnh máy
+row.getCell("O").value =
+    getDeductionHours(
+        report,
+        [
+            "CHO_CHINH_MAY",
+            "Chờ chỉnh máy"
+        ]
+    );
 
-    row.getCell("P").value =
-        toNumber(
-            report.mat_dien
-        );
+// P - Mất điện
+row.getCell("P").value =
+    getDeductionHours(
+        report,
+        [
+            "MAT_DIEN",
+            "Mất điện"
+        ]
+    );
 
-    row.getCell("Q").value =
-        toNumber(
-            report.mat_khi
-        );
+// Q - Mất khí
+row.getCell("Q").value =
+    getDeductionHours(
+        report,
+        [
+            "MAT_KHI",
+            "Mất khí"
+        ]
+    );
 
-    row.getCell("R").value =
-        toNumber(
-            report.cho_hang
-        );
+// R - Chờ hàng
+row.getCell("R").value =
+    getDeductionHours(
+        report,
+        [
+            "CHO_HANG",
+            "Chờ hàng"
+        ]
+    );
 
-    row.getCell("S").value =
-        toNumber(
-            report.bao_duong_may
-        );
+// S - Bảo dưỡng máy
+row.getCell("S").value =
+    getDeductionHours(
+        report,
+        [
+            "BAO_DUONG",
+            "Bảo dưỡng máy"
+        ]
+    );
 
-    row.getCell("T").value =
-        toNumber(
-            report.nghi_giai_lao
-        );
+// T - Nghỉ giải lao
+row.getCell("T").value =
+    getDeductionHours(
+        report,
+        [
+            "NGHI_GIAI_LAO",
+            "Nghỉ giải lao"
+        ]
+    );
 
-    row.getCell("U").value =
-        toNumber(
-            report.giao_ca
-        );
+// U - Giao ca
+row.getCell("U").value =
+    getDeductionHours(
+        report,
+        [
+            "GIAO_CA",
+            "Giao ca"
+        ]
+    );
 
-    row.getCell("V").value =
-        toNumber(
-            report.dung_may_ho_tro
-        );
+// V - Dừng máy đi hỗ trợ
+row.getCell("V").value =
+    getDeductionHours(
+        report,
+        [
+            "HO_TRO",
+            "Dừng máy đi hỗ trợ"
+        ]
+    );
 
-    row.getCell("W").value =
-        toNumber(
-            report.giat_can_tuot_tai_gl
-        );
+// W - Giặt/cân/tuốt/tái/GL
+row.getCell("W").value =
+    getDeductionHours(
+        report,
+        [
+            "GIAT_CAN",
+            "Giặt cs/cân cs, tuốt-tái pp, GL"
+        ]
+    );
 
-    row.getCell("X").value =
-        toNumber(
-            report.five_s
-        );
+// X - 5S
+row.getCell("X").value =
+    getDeductionHours(
+        report,
+        [
+            "5S",
+            "5s"
+        ]
+    );
 
-    row.getCell("Y").value =
-        toNumber(
-            report.hoc_viec_dao_tao
-        );
+// Y - Học việc, đào tạo
+row.getCell("Y").value =
+    getDeductionHours(
+        report,
+        [
+            "HOC_VIEC",
+            "Học việc, đào tạo"
+        ]
+    );
 
     // Z - Empty
     row.getCell("Z").value = "";
@@ -495,64 +812,114 @@ const writeReportToRow = (
     // =================================================
 
     row.getCell("AK").value =
-        toNumber(
-            report.kqd_dap_lai
-        );
+    getDefectQuantity(
+        report,
+        [
+            "KQD_DAP_LAI",
+            "KQĐ dập lại",
+            "Dập lại"
+        ]
+    );
 
-    row.getCell("AL").value =
-        toNumber(
-            report.kqd_tuot
-        );
+row.getCell("AL").value =
+    getDefectQuantity(
+        report,
+        [
+            "KQD_TUOT",
+            "KQĐ tuột",
+            "Tuột"
+        ]
+    );
 
-    row.getCell("AM").value =
-        toNumber(
-            report.vo_do_long
-        );
+row.getCell("AM").value =
+    getDefectQuantity(
+        report,
+        [
+            "VO_DO_LONG",
+            "Vỡ do lồng"
+        ]
+    );
 
-    row.getCell("AN").value =
-        toNumber(
-            report.xuoc_do_long
-        );
+row.getCell("AN").value =
+    getDefectQuantity(
+        report,
+        [
+            "XUOC_DO_LONG",
+            "Xước do lồng"
+        ]
+    );
 
-    row.getCell("AO").value =
-        toNumber(
-            report.cong_gay
-        );
+row.getCell("AO").value =
+    getDefectQuantity(
+        report,
+        [
+            "CONG_GAY",
+            "Cong gãy"
+        ]
+    );
 
-    row.getCell("AP").value =
-        toNumber(
-            report.xoay
-        );
+row.getCell("AP").value =
+    getDefectQuantity(
+        report,
+        [
+            "XOAY",
+            "Xoay"
+        ]
+    );
 
-    row.getCell("AQ").value =
-        toNumber(
-            report.khong_dut
-        );
+row.getCell("AQ").value =
+    getDefectQuantity(
+        report,
+        [
+            "KHONG_DUT",
+            "Không đứt"
+        ]
+    );
 
-    row.getCell("AR").value =
-        toNumber(
-            report.bavia_hut
-        );
+row.getCell("AR").value =
+    getDefectQuantity(
+        report,
+        [
+            "BAVIA_HUT",
+            "Bavia hụt"
+        ]
+    );
 
-    row.getCell("AS").value =
-        toNumber(
-            report.ppcm
-        );
+row.getCell("AS").value =
+    getDefectQuantity(
+        report,
+        [
+            "PPCM",
+            "PPCM"
+        ]
+    );
 
-    row.getCell("AT").value =
-        toNumber(
-            report.loi_cao_su
-        );
+row.getCell("AT").value =
+    getDefectQuantity(
+        report,
+        [
+            "LOI_CAO_SU",
+            "Lỗi cao su"
+        ]
+    );
 
-    row.getCell("AU").value =
-        toNumber(
-            report.ng_kich_thuoc
-        );
+row.getCell("AU").value =
+    getDefectQuantity(
+        report,
+        [
+            "NG_KICH_THUOC",
+            "NG kích thước"
+        ]
+    );
 
-    row.getCell("AV").value =
-        toNumber(
-            report.cat_lem
-        );
+row.getCell("AV").value =
+    getDefectQuantity(
+        report,
+        [
+            "CAT_LEM",
+            "Cắt lẹm"
+        ]
+    );
 
     // AW-AY
     row.getCell("AW").value = "";
@@ -619,17 +986,6 @@ const STYLE_SOURCE_ROW = DATA_START_ROW;
 // =====================================================
 
 
-// =====================================================
-// CHUYỂN DỮ LIỆU THÀNH SỐ
-// =====================================================
-
-const toNumber = (value) => {
-    const numberValue = Number(value);
-
-    return Number.isFinite(numberValue)
-        ? numberValue
-        : 0;
-};
 
 
 // =====================================================
@@ -671,379 +1027,6 @@ const formatWorkDate = (value) => {
 };
 
 
-// =====================================================
-// CHUYỂN NGÀY VỀ YYYY-MM-DD ĐỂ ĐẶT TÊN FILE
-// =====================================================
-
-const normalizeDateForFileName = (
-    value
-) => {
-    if (!value) {
-        return "da-chon";
-    }
-
-    if (
-        typeof value === "string" &&
-        /^\d{4}-\d{2}-\d{2}/.test(value)
-    ) {
-        return value.slice(0, 10);
-    }
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-        return "da-chon";
-    }
-
-    const year = date.getFullYear();
-
-    const month = String(
-        date.getMonth() + 1
-    ).padStart(2, "0");
-
-    const day = String(
-        date.getDate()
-    ).padStart(2, "0");
-
-    return `${year}-${month}-${day}`;
-};
-
-
-// =====================================================
-// LẤY DANH SÁCH ID HỢP LỆ
-// =====================================================
-
-const normalizeIds = (ids) => {
-    if (!Array.isArray(ids)) {
-        return [];
-    }
-
-    return [
-        ...new Set(
-            ids
-                .map(Number)
-                .filter(
-                    id =>
-                        Number.isInteger(id) &&
-                        id > 0
-                )
-        )
-    ];
-};
-
-
-// =====================================================
-// TẠO WORKSHEET EXCEL
-// =====================================================
-
-const createWorksheet = (
-    workbook,
-    reports
-) => {
-    const sheet =
-        workbook.addWorksheet(
-            "Bao cao da duyet"
-        );
-
-    sheet.columns = [
-        {
-            key: "stt",
-            width: 8
-        },
-        {
-            key: "worker_code",
-            width: 16
-        },
-        {
-            key: "full_name",
-            width: 24
-        },
-        {
-            key: "process_name",
-            width: 20
-        },
-        {
-            key: "work_date",
-            width: 16
-        },
-        {
-            key: "shift",
-            width: 12
-        },
-        {
-            key: "machine_no",
-            width: 16
-        },
-        {
-            key: "product_name",
-            width: 26
-        },
-        {
-            key: "total_time",
-            width: 16
-        },
-        {
-            key: "actual_time",
-            width: 18
-        },
-        {
-            key: "deduction_time",
-            width: 16
-        },
-        {
-            key: "standard_output",
-            width: 18
-        },
-        {
-            key: "actual_output",
-            width: 18
-        },
-        {
-            key: "tt_ok",
-            width: 12
-        },
-        {
-            key: "tt_ng",
-            width: 12
-        },
-        {
-            key: "note",
-            width: 36
-        }
-    ];
-
-    sheet.mergeCells("A1:P1");
-
-    const titleCell =
-        sheet.getCell("A1");
-
-    titleCell.value =
-        "BÁO CÁO SẢN XUẤT ĐÃ DUYỆT";
-
-    titleCell.font = {
-        bold: true,
-        size: 16
-    };
-
-    titleCell.alignment = {
-        horizontal: "center",
-        vertical: "middle"
-    };
-
-    sheet.getRow(1).height = 30;
-
-    sheet.mergeCells("A2:P2");
-
-    const dateValues = [
-        ...new Set(
-            reports
-                .map(report =>
-                    formatWorkDate(
-                        report.work_date
-                    )
-                )
-                .filter(Boolean)
-        )
-    ];
-
-    const dateCell =
-        sheet.getCell("A2");
-
-    dateCell.value =
-        dateValues.length === 1
-            ? `Ngày báo cáo: ${dateValues[0]}`
-            : `Các ngày báo cáo: ${dateValues.join(", ")}`;
-
-    dateCell.font = {
-        bold: true,
-        size: 11
-    };
-
-    dateCell.alignment = {
-        horizontal: "center",
-        vertical: "middle"
-    };
-
-    sheet.getRow(2).height = 22;
-
-    const headerRow =
-        sheet.getRow(4);
-
-    headerRow.values = [
-        "STT",
-        "Mã công nhân",
-        "Tên công nhân",
-        "Công đoạn",
-        "Ngày làm việc",
-        "Ca",
-        "Máy",
-        "Sản phẩm",
-        "Tổng thời gian",
-        "Thời gian thực tế",
-        "Thời gian trừ",
-        "Sản lượng chuẩn",
-        "Sản lượng thực tế",
-        "TT OK",
-        "TT NG",
-        "Ghi chú"
-    ];
-
-    headerRow.font = {
-        bold: true
-    };
-
-    headerRow.alignment = {
-        horizontal: "center",
-        vertical: "middle",
-        wrapText: true
-    };
-
-    headerRow.height = 35;
-
-    reports.forEach(
-        (report, index) => {
-            sheet.addRow({
-                stt:
-                    index + 1,
-
-                worker_code:
-                    report.worker_code || "",
-
-                full_name:
-                    report.full_name || "",
-
-                process_name:
-                    report.process_name || "",
-
-                work_date:
-                    formatWorkDate(
-                        report.work_date
-                    ),
-
-                shift:
-                    report.shift || "",
-
-                machine_no:
-                    report.machine_no || "",
-
-                product_name:
-                    report.product_name || "",
-
-                total_time:
-                    toNumber(
-                        report.total_time
-                    ),
-
-                actual_time:
-                    toNumber(
-                        report.actual_time
-                    ),
-
-                deduction_time:
-                    toNumber(
-                        report.deduction_time
-                    ),
-
-                standard_output:
-                    toNumber(
-                        report.standard_output
-                    ),
-
-                actual_output:
-                    toNumber(
-                        report.actual_output
-                    ),
-
-                tt_ok:
-                    toNumber(
-                        report.tt_ok
-                    ),
-
-                tt_ng:
-                    toNumber(
-                        report.tt_ng
-                    ),
-
-                note:
-                    report.note || ""
-            });
-        }
-    );
-
-    const lastRowNumber =
-        reports.length + 4;
-
-    for (
-        let rowIndex = 4;
-        rowIndex <= lastRowNumber;
-        rowIndex += 1
-    ) {
-        const row =
-            sheet.getRow(rowIndex);
-
-        row.eachCell(
-            {
-                includeEmpty: true
-            },
-            cell => {
-                cell.border = {
-                    top: {
-                        style: "thin"
-                    },
-                    left: {
-                        style: "thin"
-                    },
-                    bottom: {
-                        style: "thin"
-                    },
-                    right: {
-                        style: "thin"
-                    }
-                };
-
-                cell.alignment = {
-                    vertical: "middle",
-                    wrapText: true
-                };
-            }
-        );
-    }
-
-    for (
-        let rowIndex = 5;
-        rowIndex <= lastRowNumber;
-        rowIndex += 1
-    ) {
-        for (
-            let columnIndex = 1;
-            columnIndex <= 15;
-            columnIndex += 1
-        ) {
-            sheet.getCell(
-                rowIndex,
-                columnIndex
-            ).alignment = {
-                horizontal: "center",
-                vertical: "middle",
-                wrapText: true
-            };
-        }
-    }
-
-    sheet.views = [
-        {
-            state: "frozen",
-            ySplit: 4
-        }
-    ];
-
-    sheet.autoFilter = {
-        from: "A4",
-        to: "P4"
-    };
-
-    return sheet;
-};
 // =====================================================
 // XUẤT FILE EXCEL
 //
@@ -1156,15 +1139,80 @@ exports.exportGiaCongExcel = async (
                 sql,
                 ids
             );
+const reportIds =
+    reports.map(
+        report =>
+            Number(report.id)
+    );
 
-        if (reports.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message:
-                    "Không tìm thấy báo cáo đã chọn"
-            });
-        }
+const [
+    deductionsMap,
+    defectsMap
+] = await Promise.all([
+    getReportDeductions(
+        reportIds
+    ),
+    getReportDefects(
+        reportIds
+    )
+]);
 
+reports.forEach(report => {
+    const reportId =
+        Number(report.id);
+
+    report.deductions =
+        deductionsMap.get(
+            reportId
+        ) || [];
+
+    report.defects =
+        defectsMap.get(
+            reportId
+        ) || [];
+});
+
+
+if (reports.length === 0) {
+    return res.status(404).json({
+        success: false,
+        message:
+            "Không tìm thấy báo cáo đã chọn"
+    });
+}
+
+const reportIds =
+    reports.map(
+        report =>
+            Number(report.id)
+    );
+
+const [
+    deductionsMap,
+    defectsMap
+] = await Promise.all([
+    getReportDeductions(
+        reportIds
+    ),
+    getReportDefects(
+        reportIds
+    )
+]);
+
+reports.forEach(report => {
+    const reportId =
+        Number(report.id);
+
+    report.deductions =
+        deductionsMap.get(
+            reportId
+        ) || [];
+
+    report.defects =
+        defectsMap.get(
+            reportId
+        ) || [];
+});
 
         // =============================================
         // VERIFY ALL IDS
