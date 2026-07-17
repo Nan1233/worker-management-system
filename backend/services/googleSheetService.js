@@ -322,16 +322,6 @@ const getDefectQuantity = (
             0
         );
 };
-const workerCompare =
-    String(first.worker_code || "")
-        .localeCompare(
-            String(second.worker_code || ""),
-            undefined,
-            {
-                numeric: true,
-                sensitivity: "base"
-            }
-        );
 
 if (workerCompare !== 0) {
     return workerCompare;
