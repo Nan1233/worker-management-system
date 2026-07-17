@@ -664,7 +664,7 @@ const writeReportToRow = (
                 "Mất khí"
             ]
         );
-};    // R - Chờ hàng
+    // R - Chờ hàng
     row.getCell("R").value =
         getDeductionHours(
             report,
@@ -857,9 +857,9 @@ const writeReportToRow = (
             ]
         );
 
-    row.getCell("AP").value =''
-        getDefectQuantity(''
-            report,''
+    row.getCell("AP").value =
+        getDefectQuantity(
+            report,
             [
                 "XOAY",
                 "Xoay"
