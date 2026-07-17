@@ -36,12 +36,12 @@ router.get(
 // GET /api/reports/google-sheet?date=2026-07-16
 // =====================================================
 
-router.get(
-    "/google-sheet",
-    authMiddleware,
-    checkRole("admin", "manager", "lead"),
-    reportExportController.exportGoogleSheet
-);
+// router.get(
+//     "/google-sheet",
+//     authMiddleware,
+//     checkRole("admin", "manager", "lead"),
+//     reportExportController.exportGoogleSheet
+// );
 
 
 // =====================================================
@@ -54,12 +54,12 @@ router.get(
 // }
 // =====================================================
 
-router.post(
-    "/create-sheet",
-    authMiddleware,
-    checkRole("admin", "manager", "lead"),
-    reportExportController.createGoogleSheet
-);
+// router.post(
+//     "/create-sheet",
+//     authMiddleware,
+//     checkRole("admin", "manager", "lead"),
+//     reportExportController.createGoogleSheet
+// );
 
 
 // =====================================================
@@ -72,12 +72,12 @@ router.post(
 // }
 // =====================================================
 
-router.post(
-    "/update-sheet",
-    authMiddleware,
-    checkRole("admin", "manager", "lead"),
-    reportExportController.updateGoogleSheet
-);
+// router.post(
+//     "/update-sheet",
+//     authMiddleware,
+//     checkRole("admin", "manager", "lead"),
+//     reportExportController.updateGoogleSheet
+// );
 
 
 module.exports = router;

@@ -206,22 +206,22 @@ exports.approveSelectedReports = async (req, res) => {
     }
 };
 
-exports.rejectSelectedReports = async (req, res) => {
-    try {
-        const ids = normalizeIds(req.body?.ids);
-        const reviewerId = toPositiveInteger(req.user?.id);
-        const reason = String(req.body?.reason || "").trim();
+// exports.rejectSelectedReports = async (req, res) => {
+//     try {
+//         const ids = normalizeIds(req.body?.ids);
+//         const reviewerId = toPositiveInteger(req.user?.id);
+//         const reason = String(req.body?.reason || "").trim();
 
-        if (ids.length === 0) return res.status(400).json({ success: false, message: "Vui lòng chọn ít nhất một báo cáo" });
-        if (!reason) return res.status(400).json({ success: false, message: "Vui lòng nhập lý do từ chối" });
+//         if (ids.length === 0) return res.status(400).json({ success: false, message: "Vui lòng chọn ít nhất một báo cáo" });
+//         if (!reason) return res.status(400).json({ success: false, message: "Vui lòng nhập lý do từ chối" });
 
-        const result = await ProductionTemp.rejectSelected(ids, reviewerId, reason, req.user?.role === "admin");
-        return res.status(200).json({ success: true, message: "Từ chối báo cáo thành công", data: result });
-    } catch (error) {
-        console.error("REJECT SELECTED REPORTS ERROR:", error);
-        return res.status(400).json({ success: false, message: error.message || "Không thể từ chối báo cáo" });
-    }
-};
+//         const result = await ProductionTemp.rejectSelected(ids, reviewerId, reason, req.user?.role === "admin");
+//         return res.status(200).json({ success: true, message: "Từ chối báo cáo thành công", data: result });
+//     } catch (error) {
+//         console.error("REJECT SELECTED REPORTS ERROR:", error);
+//         return res.status(400).json({ success: false, message: error.message || "Không thể từ chối báo cáo" });
+//     }
+// };
 
 exports.updateTempReport = async (req, res) => {
     try {

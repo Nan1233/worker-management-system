@@ -481,63 +481,63 @@ const ProductionTemp = {
         }
     },
 
-    async rejectSelected(ids, reviewerId, reason, isAdmin = false) {
-        const reportIds = normalizeIds(ids);
-        if (reportIds.length === 0) throw new Error("Danh sách báo cáo không hợp lệ");
-        if (!String(reason || "").trim()) throw new Error("Vui lòng nhập lý do từ chối");
+    // async rejectSelected(ids, reviewerId, reason, isAdmin = false) {
+    //     const reportIds = normalizeIds(ids);
+    //     if (reportIds.length === 0) throw new Error("Danh sách báo cáo không hợp lệ");
+    //     if (!String(reason || "").trim()) throw new Error("Vui lòng nhập lý do từ chối");
 
-        const connection = await getConnection();
-        try {
-            await beginTransaction(connection);
-            const placeholders = reportIds.map(() => "?").join(",");
-            const scopeJoin = isAdmin ? "" : "JOIN manager_processes mp ON mp.process_id = temp.process_id";
-            const scopeWhere = isAdmin ? "" : "AND mp.manager_id = ?";
-            const rows = await query(
-                connection,
-                `SELECT DISTINCT temp.id
-                 FROM production_reports_temp temp
-                 ${scopeJoin}
-                 WHERE temp.id IN (${placeholders})
-                   AND temp.status IN ('pending', 'need_fix')
-                   ${scopeWhere}
-                 FOR UPDATE`,
-                isAdmin ? reportIds : [...reportIds, reviewerId]
-            );
+    //     const connection = await getConnection();
+    //     try {
+    //         await beginTransaction(connection);
+    //         const placeholders = reportIds.map(() => "?").join(",");
+    //         const scopeJoin = isAdmin ? "" : "JOIN manager_processes mp ON mp.process_id = temp.process_id";
+    //         const scopeWhere = isAdmin ? "" : "AND mp.manager_id = ?";
+    //         const rows = await query(
+    //             connection,
+    //             `SELECT DISTINCT temp.id
+    //              FROM production_reports_temp temp
+    //              ${scopeJoin}
+    //              WHERE temp.id IN (${placeholders})
+    //                AND temp.status IN ('pending', 'need_fix')
+    //                ${scopeWhere}
+    //              FOR UPDATE`,
+    //             isAdmin ? reportIds : [...reportIds, reviewerId]
+    //         );
 
-            if (rows.length !== reportIds.length) {
-                throw new Error("Có báo cáo không tồn tại, đã xử lý hoặc ngoài phạm vi phụ trách");
-            }
+    //         if (rows.length !== reportIds.length) {
+    //             throw new Error("Có báo cáo không tồn tại, đã xử lý hoặc ngoài phạm vi phụ trách");
+    //         }
 
-            for (const row of rows) {
-                await query(
-                    connection,
-                    `UPDATE production_reports_temp
-                     SET status = 'rejected', review_note = ?, reviewed_by = ?
-                     WHERE id = ?`,
-                    [String(reason).trim(), reviewerId, row.id]
-                );
+    //         for (const row of rows) {
+    //             await query(
+    //                 connection,
+    //                 `UPDATE production_reports_temp
+    //                  SET status = 'rejected', review_note = ?, reviewed_by = ?
+    //                  WHERE id = ?`,
+    //                 [String(reason).trim(), reviewerId, row.id]
+    //             );
 
-                await this.logAction(
-                    {
-                        reportType: "temp",
-                        reportId: row.id,
-                        userId: reviewerId,
-                        action: "REJECT",
-                        note: String(reason).trim()
-                    },
-                    connection
-                );
-            }
+    //             await this.logAction(
+    //                 {
+    //                     reportType: "temp",
+    //                     reportId: row.id,
+    //                     userId: reviewerId,
+    //                     action: "REJECT",
+    //                     note: String(reason).trim()
+    //                 },
+    //                 connection
+    //             );
+    //         }
 
-            await commit(connection);
-            return { count: rows.length, ids: rows.map((row) => row.id) };
-        } catch (error) {
-            await rollback(connection);
-            throw error;
-        } finally {
-            connection.release();
-        }
-    },
+    //         await commit(connection);
+    //         return { count: rows.length, ids: rows.map((row) => row.id) };
+    //     } catch (error) {
+    //         await rollback(connection);
+    //         throw error;
+    //     } finally {
+    //         connection.release();
+    //     }
+    // },
 
     async updateReport(id, data, changedBy, reason = null, isAdmin = false) {
         const connection = await getConnection();
