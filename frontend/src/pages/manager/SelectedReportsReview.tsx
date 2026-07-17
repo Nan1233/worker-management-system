@@ -979,29 +979,61 @@ const loadReports = async (
         );
 
         const validReports =
-            results.filter(
-                (
-                    report
-                ): report is ProductionReport =>
-                    report !== null
-            );
+    results.filter(
+        (
+            report
+        ): report is ProductionReport =>
+            report !== null
+    );
 
-        setReports(validReports);
+const pendingReports =
+    validReports.filter(
+        report =>
+            report.status === "pending" ||
+            report.status === "need_fix"
+    );
 
+setReports(pendingReports);
+
+sessionStorage.setItem(
+    "selectedPendingReportIds",
+    JSON.stringify(
+        pendingReports
+            .map(report =>
+                Number(report.id)
+            )
+            .filter(id =>
+                Number.isInteger(id) &&
+                id > 0
+            )
+    )
+);
+
+setReports(pendingReports);
+
+sessionStorage.setItem(
+    "selectedPendingReportIds",
+    JSON.stringify(
+        pendingReports.map(
+            report =>
+                Number(report.id)
+        )
+    )
+);
         if (
-            validReports.length === 0
-        ) {
-            setError(
-                "Không tìm thấy báo cáo hợp lệ."
-            );
-        } else if (
-            validReports.length <
-            ids.length
-        ) {
-            setError(
-                "Một số báo cáo không thể tải hoặc không còn tồn tại."
-            );
-        }
+    pendingReports.length === 0
+) {
+    setError(
+        "Các báo cáo đã chọn không còn ở trạng thái chờ duyệt."
+    );
+} else if (
+    pendingReports.length <
+    ids.length
+) {
+    setError(
+        "Một số báo cáo đã được xử lý nên đã bị loại khỏi danh sách."
+    );
+}
     } catch (err) {
         console.error(
             "LOAD SELECTED REPORTS ERROR:",
@@ -1103,24 +1135,25 @@ const loadReports = async (
     // DANH SÁCH ID HIỆN TẠI
     // =====================================================
 
-    const visibleIds =
-        useMemo(
-            () =>
-                reports
-                    .map(
-                        report =>
-                            Number(report.id)
-                    )
-                    .filter(
-                        id =>
-                            Number.isInteger(
-                                id
-                            ) &&
-                            id > 0
-                    ),
-            [reports]
-        );
-
+const visibleIds =
+    useMemo(
+        () =>
+            reports
+                .filter(
+                    report =>
+                        report.status === "pending" ||
+                        report.status === "need_fix"
+                )
+                .map(report =>
+                    Number(report.id)
+                )
+                .filter(
+                    id =>
+                        Number.isInteger(id) &&
+                        id > 0
+                ),
+        [reports]
+    );
 
     // =====================================================
     // DUYỆT TẤT CẢ BÁO CÁO ĐANG XEM
