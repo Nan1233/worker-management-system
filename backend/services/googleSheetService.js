@@ -337,299 +337,208 @@ const getSheetData = async(sheets)=>{
 // =====================================================
 
 
-const writeSheetData = async(
+// =====================================================
+// WRITE DATA - BATCH VERSION
+// Không gọi API trong vòng lặp
+// =====================================================
 
+const writeSheetData = async (
     sheets,
+    reports,
+    type = "pending"
+) => {
 
-    reports
-
-)=>{
-
-
-    if(!reports || reports.length===0){
-
+    if (
+        !Array.isArray(reports)
+        || reports.length === 0
+    ) {
 
         throw new Error(
             "Không có dữ liệu"
         );
 
-
     }
 
 
-
-
-
+    // =============================================
+    // READ OLD DATA
+    // =============================================
 
     const oldData =
-
-    await getSheetData(sheets);
-
-// =============================================
-// GET SHEET INFO
-// =============================================
-
-const meta =
-await sheets.spreadsheets.get({
-
-    spreadsheetId
-
-});
+        await getSheetData(sheets);
 
 
-
-const sheet =
-meta.data.sheets.find(
-
-    s =>
-    s.properties.title === SHEET_NAME
-
-);
-
-
-
-if(!sheet){
-
-    throw new Error(
-        `Không tìm thấy sheet: ${SHEET_NAME}`
-    );
-
-}
-
-
-// =============================================
-// CHECK GOOGLE SHEET ROW LIMIT
-// =============================================
-
-const currentRows =
-sheet.properties.gridProperties.rowCount;
-
-
-
-const needRows =
-oldData.length + reports.length;
-
-
-
-if(needRows > currentRows){
-
-
-    await sheets.spreadsheets.batchUpdate({
-
-        spreadsheetId,
-
-
-        requestBody:{
-
-
-            requests:[
-
-
-                {
-
-                    appendDimension:{
-
-
-                        sheetId:
-                        sheet.properties.sheetId,
-
-
-                        dimension:"ROWS",
-
-
-                        length:
-                        needRows - currentRows
-
-
-                    }
-
-
-                }
-
-
-            ]
-
-
-        }
-
-
-    });
-
-
-    console.log(
-        "ADD ROW:",
-        needRows - currentRows
-    );
-
-
-}
     console.log(
         "OLD ROW:",
         oldData.length
     );
 
 
+    // =============================================
+    // GET SHEET INFO
+    // =============================================
+
+    const meta =
+        await sheets.spreadsheets.get({
+
+            spreadsheetId
+
+        });
 
 
+    const sheet =
+        meta.data.sheets.find(
+
+            item =>
+                item.properties.title
+                === SHEET_NAME
+
+        );
 
 
+    if (!sheet) {
+
+        throw new Error(
+            `Không tìm thấy sheet: ${SHEET_NAME}`
+        );
+
+    }
+
+
+    const sheetId =
+        sheet.properties.sheetId;
 
 
     // =============================================
-    // MAP ROW CŨ
+    // MAP OLD ROW
     // =============================================
-
 
     const rowMap = {};
 
 
+    oldData.forEach((row, index) => {
 
-    oldData.forEach((row,index)=>{
-
-
-        if(index===0)
+        if (index === 0) {
             return;
-
-
-
-
-
-        const worker =
-
-        row[1]
-        ?.toString()
-        .trim();
-
-
-
-
-
-        const machine =
-
-        row[3]
-        ?.toString()
-        .trim();
-
-
-
-
-
-
-        // AE là ngày
-        // index 30
-
-        const date =
-
-        row[30]
-        ?.toString()
-        .trim();
-
-
-
-
-
-        if(worker){
-
-
-            rowMap[
-
-                `${worker}_${machine}_${date}`
-
-            ] = index + 1;
-
-
-
         }
 
 
+        const worker =
+            String(row[1] || "")
+                .trim();
+
+
+        const machine =
+            String(row[3] || "")
+                .trim();
+
+
+        const oldDate =
+            normalizeDateKey(
+                row[30]
+            );
+
+
+        if (worker) {
+
+            rowMap[
+                `${worker}_${machine}_${oldDate}`
+            ] = index + 1;
+
+        }
 
     });
 
 
-
-
-
-
-
     let lastRow =
+        Math.max(
+            oldData.length,
+            1
+        );
 
-    oldData.length;
+
     // =============================================
-    // LOOP DATA
+    // PREPARE BATCH DATA
     // =============================================
+
+    const batchValues = [];
+
+    const rowNumbers = [];
+
 
     for (const item of reports) {
 
-
         const worker =
-        String(item.worker_code || "")
-        .trim();
-
+            String(
+                item.worker_code || ""
+            ).trim();
 
 
         const machine =
-        String(item.machine_no || "")
-        .trim();
-
+            String(
+                item.machine_no || ""
+            ).trim();
 
 
         const workDate =
-new Date(item.work_date);
+            normalizeDateValue(
+                item.work_date
+            );
 
+
+        const workDateKey =
+            normalizeDateKey(
+                workDate
+            );
 
 
         const key =
-        `${worker}_${machine}_${workDate}`;
-
+            `${worker}_${machine}_${workDateKey}`;
 
 
         let rowNumber =
-        rowMap[key];
+            rowMap[key];
 
 
+        if (!rowNumber) {
 
-        if(!rowNumber){
-
-            lastRow++;
+            lastRow += 1;
 
             rowNumber =
-            lastRow;
+                lastRow;
+
+            rowMap[key] =
+                rowNumber;
 
         }
 
 
-
-
-        // =============================================
-        // NUMBER DATA
-        // =============================================
-
-
         const ok =
-        Number(item.tt_ok || 0);
-
+            Number(
+                item.tt_ok || 0
+            );
 
 
         const ng =
-        Number(item.tt_ng || 0);
+            Number(
+                item.tt_ng || 0
+            );
 
 
-
-        // AB - Định mức lấy từ database
         const standardOutput =
-        Number(
-            String(item.standard_output || 0)
-            .replace(/,/g,"")
-        );
+            Number(
+
+                String(
+                    item.standard_output || 0
+                ).replace(/,/g, "")
+
+            );
 
 
-
-        // H - thời gian thực tế
         const actualTime =
-        Number(
-            item.actual_time || 0
-        );
-
+            Number(
+                item.actual_time || 0
+            );
 
 
         console.log(
@@ -640,56 +549,47 @@ new Date(item.work_date);
                 ok,
                 ng,
                 standardOutput,
-                actualTime
+                actualTime,
+                rowNumber
             }
         );
 
 
-
-
         const rowData = [
 
-            // A STT
+            // A - STT
             rowNumber - 1,
 
-
-            // B Worker Code
+            // B - Worker Code
             worker,
 
-
-            // C Name
+            // C - Full Name
             item.full_name || "",
 
-
-            // D Machine
+            // D - Machine
             machine,
 
-
-            // E Shift
+            // E - Shift
             item.shift || "",
 
-
-            // F %
+            // F
             1,
 
+            // G - Total Time
+            Number(
+                item.total_time || 0
+            ),
 
-            // G Total Time
-            Number(item.total_time || 0),
-
-
-            // H Actual Time
+            // H - Actual Time
             actualTime,
-
-
 
             // I
             "",
 
-
-            // J
-            Number(item.deduction_time || 0),
-
-
+            // J - Deduction Time
+            Number(
+                item.deduction_time || 0
+            ),
 
             // K-Z
             "",
@@ -709,91 +609,37 @@ new Date(item.work_date);
             "",
             "",
 
-
-
-            // AA Product
+            // AA - Product
             item.product_name || "",
 
-
-
-
-            // =============================
-            // AB = ĐỊNH MỨC
-            // =============================
-
+            // AB - Standard Output
             standardOutput,
 
-
-
-
-            // =============================
-            // AC = AG + AH
-            // =============================
-
+            // AC - OK + NG
             `=AG${rowNumber}+AH${rowNumber}`,
 
+            // AD - Performance
+            `=IFERROR(AC${rowNumber}/AB${rowNumber},0)`,
 
-
-
-            // =============================
-            // AD = HIỆU SUẤT
-            // AC / AB
-            // =============================
-
-            `=AC${rowNumber}/AB${rowNumber}`,
-
-
-
-
-            // =============================
-            // AE = NGÀY
-            // =============================
-
+            // AE - Work Date
             workDate,
 
+            // AF - Output Per Hour
+            `=IFERROR(AC${rowNumber}/H${rowNumber},0)`,
 
-
-
-            // =============================
-            // AF = SẢN LƯỢNG / GIỜ
-            // AC / H
-            // =============================
-
-            `=AC${rowNumber}/H${rowNumber}`,
-
-
-
-
-            // =============================
-            // AG = OK
-            // =============================
-
+            // AG - OK
             ok,
 
-
-
-
-            // =============================
-            // AH = NG
-            // =============================
-
+            // AH - NG
             ng,
-
-
-
 
             // AI
             "",
 
-
-
             // AJ
             "",
 
-
-
-
-            // AK-AZ
+            // AK-AY
             "",
             "",
             "",
@@ -810,239 +656,452 @@ new Date(item.work_date);
             "",
             "",
 
+            // AZ - Status
+            type
+
+        ];
 
 
-            // AZ STATUS
-            "approved"
-
-
-        ];        // =============================================
-        // COLUMN END
-        // =============================================
-
-        const endColumn =
-        columnLetter(rowData.length);
-
-
-
-
-
-        // =============================================
-        // WRITE GOOGLE SHEET
-        // =============================================
-
-
-        await sheets.spreadsheets.values.update({
-
-
-            spreadsheetId,
-
+        batchValues.push({
 
             range:
+                `${SHEET_NAME}!A${rowNumber}:AZ${rowNumber}`,
 
-            `${SHEET_NAME}!A${rowNumber}:${endColumn}${rowNumber}`,
+            majorDimension:
+                "ROWS",
 
-
-            // USER_ENTERED để Google Sheet tính công thức
-
-            valueInputOption:"USER_ENTERED",
-
-
-            requestBody:{
-
-
-                values:[
-
-                    rowData
-
-                ]
-
-
-            }
-
+            values: [
+                rowData
+            ]
 
         });
 
 
-
-// =============================================
-// FORMAT AE = DATE dd/mm/yyyy
-// =============================================
-
-await sheets.spreadsheets.batchUpdate({
-
-    spreadsheetId,
-
-    requestBody:{
-
-        requests:[
-
-            {
-
-                repeatCell:{
-
-                    range:{
-
-                        sheetId:
-                        sheet.properties.sheetId,
-
-                        startRowIndex:
-                        rowNumber - 1,
-
-                        endRowIndex:
-                        rowNumber,
-
-                        // AE là cột thứ 31 => index 30
-                        startColumnIndex:
-                        30,
-
-                        endColumnIndex:
-                        31
-
-                    },
-
-
-                    cell:{
-
-                        userEnteredFormat:{
-
-                            numberFormat:{
-
-                                type:"DATE",
-
-                                pattern:"dd/mm/yyyy"
-
-                            }
-
-                        }
-
-                    },
-
-
-                    fields:
-                    "userEnteredFormat.numberFormat"
-
-                }
-
-            }
-
-        ]
+        rowNumbers.push(
+            rowNumber
+        );
 
     }
 
-});
 
-        // =============================================
-        // FORMAT NUMBER AB AH + FORMULA COLUMNS
-        // =============================================
+    // =============================================
+    // EXPAND ROW COUNT IF REQUIRED
+    // =============================================
 
-
-        const numberColumns = [
-    27, // AB
-    28, // AC
-    29, // AD
-    31, // AF
-    32, // AG
-    33  // AH
-];
+    const currentRows =
+        Number(
+            sheet.properties
+                .gridProperties
+                .rowCount || 0
+        );
 
 
-for(const col of numberColumns){
+    if (lastRow > currentRows) {
+
+        await sheets.spreadsheets.batchUpdate({
+
+            spreadsheetId,
+
+            requestBody: {
+
+                requests: [
+
+                    {
+                        appendDimension: {
+
+                            sheetId,
+
+                            dimension:
+                                "ROWS",
+
+                            length:
+                                lastRow
+                                - currentRows
+
+                        }
+                    }
+
+                ]
+
+            }
+
+        });
 
 
-    await sheets.spreadsheets.batchUpdate({
+        console.log(
+            "ADD ROW:",
+            lastRow - currentRows
+        );
+
+    }
+
+
+    // =============================================
+    // WRITE ALL ROWS IN ONE REQUEST
+    // =============================================
+
+    await sheets.spreadsheets.values.batchUpdate({
 
         spreadsheetId,
 
-        requestBody:{
+        requestBody: {
 
-            requests:[
+            valueInputOption:
+                "USER_ENTERED",
 
-                {
-
-                    repeatCell:{
-
-                        range:{
-
-                            sheetId:
-                            sheet.properties.sheetId,
-
-
-                            startRowIndex:
-                            rowNumber - 1,
-
-
-                            endRowIndex:
-                            rowNumber,
-
-
-                            startColumnIndex:
-                            col,
-
-
-                            endColumnIndex:
-                            col + 1
-
-                        },
-
-
-                        cell:{
-
-                            userEnteredFormat:{
-
-                                numberFormat:{
-
-                                    type:"NUMBER",
-
-                                    pattern:"0.00"
-
-                                }
-
-                            }
-
-                        },
-
-
-                        fields:
-                        "userEnteredFormat.numberFormat"
-
-
-                    }
-
-                }
-
-            ]
+            data:
+                batchValues
 
         }
 
     });
 
 
-}
+    // =============================================
+    // BUILD FORMAT REQUESTS
+    // =============================================
+
+    const formatRequests = [];
 
 
+    for (const rowNumber of rowNumbers) {
 
-    } // END FOR LOOP
+        const startRowIndex =
+            rowNumber - 1;
 
 
+        // AE - Date
+        formatRequests.push({
+
+            repeatCell: {
+
+                range: {
+
+                    sheetId,
+
+                    startRowIndex,
+
+                    endRowIndex:
+                        rowNumber,
+
+                    startColumnIndex:
+                        30,
+
+                    endColumnIndex:
+                        31
+
+                },
+
+                cell: {
+
+                    userEnteredFormat: {
+
+                        numberFormat: {
+
+                            type:
+                                "DATE",
+
+                            pattern:
+                                "dd/mm/yyyy"
+
+                        }
+
+                    }
+
+                },
+
+                fields:
+                    "userEnteredFormat.numberFormat"
+
+            }
+
+        });
 
 
+        // AB, AC
+        formatRequests.push({
+
+            repeatCell: {
+
+                range: {
+
+                    sheetId,
+
+                    startRowIndex,
+
+                    endRowIndex:
+                        rowNumber,
+
+                    startColumnIndex:
+                        27,
+
+                    endColumnIndex:
+                        29
+
+                },
+
+                cell: {
+
+                    userEnteredFormat: {
+
+                        numberFormat: {
+
+                            type:
+                                "NUMBER",
+
+                            pattern:
+                                "0.00"
+
+                        }
+
+                    }
+
+                },
+
+                fields:
+                    "userEnteredFormat.numberFormat"
+
+            }
+
+        });
+
+
+        // AD - Percentage
+        formatRequests.push({
+
+            repeatCell: {
+
+                range: {
+
+                    sheetId,
+
+                    startRowIndex,
+
+                    endRowIndex:
+                        rowNumber,
+
+                    startColumnIndex:
+                        29,
+
+                    endColumnIndex:
+                        30
+
+                },
+
+                cell: {
+
+                    userEnteredFormat: {
+
+                        numberFormat: {
+
+                            type:
+                                "PERCENT",
+
+                            pattern:
+                                "0.00%"
+
+                        }
+
+                    }
+
+                },
+
+                fields:
+                    "userEnteredFormat.numberFormat"
+
+            }
+
+        });
+
+
+        // AF, AG, AH
+        formatRequests.push({
+
+            repeatCell: {
+
+                range: {
+
+                    sheetId,
+
+                    startRowIndex,
+
+                    endRowIndex:
+                        rowNumber,
+
+                    startColumnIndex:
+                        31,
+
+                    endColumnIndex:
+                        34
+
+                },
+
+                cell: {
+
+                    userEnteredFormat: {
+
+                        numberFormat: {
+
+                            type:
+                                "NUMBER",
+
+                            pattern:
+                                "0.00"
+
+                        }
+
+                    }
+
+                },
+
+                fields:
+                    "userEnteredFormat.numberFormat"
+
+            }
+
+        });
+
+    }
+
+
+    // =============================================
+    // FORMAT ALL ROWS IN ONE REQUEST
+    // =============================================
+
+    if (formatRequests.length > 0) {
+
+        await sheets.spreadsheets.batchUpdate({
+
+            spreadsheetId,
+
+            requestBody: {
+
+                requests:
+                    formatRequests
+
+            }
+
+        });
+
+    }
 
 
     console.log(
-        "GOOGLE SHEET UPDATE SUCCESS"
+        "GOOGLE SHEET UPDATE SUCCESS:",
+        {
+            total:
+                reports.length,
+
+            writeRequests:
+                2,
+
+            rows:
+                rowNumbers
+        }
     );
 
-
-
-}; // END writeSheetData
-
+};
 
 
 
 
+// =====================================================
+// NORMALIZE DATE VALUE
+// =====================================================
+
+function normalizeDateValue(value) {
+
+    if (!value) {
+
+        return "";
+
+    }
 
 
+    const date =
+        new Date(value);
+
+
+    if (
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
+
+        return String(value);
+
+    }
+
+
+    return date;
+
+}
+
+
+// =====================================================
+// NORMALIZE DATE KEY
+// yyyy-mm-dd
+// =====================================================
+
+function normalizeDateKey(value) {
+
+    if (!value) {
+
+        return "";
+
+    }
+
+
+    // Google Sheet trả về dd/mm/yyyy
+    const text =
+        String(value).trim();
+
+
+    const viDate =
+        text.match(
+            /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/
+        );
+
+
+    if (viDate) {
+
+        const day =
+            viDate[1]
+                .padStart(2, "0");
+
+        const month =
+            viDate[2]
+                .padStart(2, "0");
+
+        const year =
+            viDate[3];
+
+
+        return `${year}-${month}-${day}`;
+
+    }
+
+
+    const date =
+        new Date(value);
+
+
+    if (
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
+
+        return text;
+
+    }
+
+
+    return date
+        .toISOString()
+        .slice(0, 10);
+
+}
 // =====================================================
 // COLUMN NUMBER -> LETTER
 // =====================================================
