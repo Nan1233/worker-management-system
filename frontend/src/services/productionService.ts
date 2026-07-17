@@ -126,10 +126,6 @@ export const approveTempByDate = async(
 
 
 
-// =====================================================
-// CHI TIẾT TEMP
-// =====================================================
-
 export const getTempReportById = async (
     id: number
 ): Promise<ProductionReport> => {
@@ -139,10 +135,6 @@ export const getTempReportById = async (
         {
             params: {
                 _t: Date.now()
-            },
-            headers: {
-                "Cache-Control": "no-cache",
-                Pragma: "no-cache"
             }
         }
     );
@@ -150,10 +142,6 @@ export const getTempReportById = async (
     return res.data.data || res.data;
 
 };
-
-
-
-
 
 
 
