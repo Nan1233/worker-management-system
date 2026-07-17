@@ -12,8 +12,7 @@ import axios from "axios";
 
 import {
     approveSelectedTempReports,
-    getTempReportDetail,
-    rejectSelectedTempReports
+    getTempReportDetail
 } from "../../services/productionService";
 
 import type {
@@ -40,12 +39,23 @@ const formatDate = (
 };
 
 
+const formatDateTime = (
+    value?: string
+): string => {
+    if (!value) {
+        return "---";
+    }
+
+    return new Date(value).toLocaleString("vi-VN");
+};
+
+
 const formatNumber = (
     value?: number | string | null
 ): string => {
-    return Number(
-        value ?? 0
-    ).toLocaleString("vi-VN");
+    return Number(value ?? 0).toLocaleString("vi-VN", {
+        maximumFractionDigits: 2
+    });
 };
 
 
@@ -53,36 +63,18 @@ function SelectedReportsReview() {
     const navigate = useNavigate();
 
     const savedUser = localStorage.getItem("user");
-
     const currentUser = savedUser
         ? JSON.parse(savedUser)
         : null;
 
-    const basePath =
-        currentUser?.role === "lead"
-            ? "/lead"
-            : "/manager";
+    const isLead = currentUser?.role === "lead";
+    const canEdit = ["admin", "manager"].includes(currentUser?.role);
+    const basePath = isLead ? "/lead" : "/manager";
 
-
-    const [
-        reports,
-        setReports
-    ] = useState<ProductionReport[]>([]);
-
-    const [
-        loading,
-        setLoading
-    ] = useState(true);
-
-    const [
-        actionLoading,
-        setActionLoading
-    ] = useState(false);
-
-    const [
-        error,
-        setError
-    ] = useState("");
+    const [reports, setReports] = useState<ProductionReport[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [actionLoading, setActionLoading] = useState(false);
+    const [error, setError] = useState("");
 
 
     const loadReports = async (
@@ -94,20 +86,14 @@ function SelectedReportsReview() {
 
             const results = await Promise.all(
                 ids.map(async id => {
-                    const response =
-                        await getTempReportDetail(id);
-
+                    const response = await getTempReportDetail(id);
                     return response?.data ?? response;
                 })
             );
 
-            const validReports =
-                results.filter(
-                    (
-                        report
-                    ): report is ProductionReport =>
-                        Boolean(report)
-                );
+            const validReports = results.filter(
+                (report): report is ProductionReport => Boolean(report)
+            );
 
             setReports(validReports);
         } catch (err: unknown) {
@@ -116,11 +102,10 @@ function SelectedReportsReview() {
                 err
             );
 
-            const message =
-                axios.isAxiosError(err)
-                    ? err.response?.data?.message ||
-                        "Không thể tải chi tiết báo cáo"
-                    : "Không thể tải chi tiết báo cáo";
+            const message = axios.isAxiosError(err)
+                ? err.response?.data?.message ||
+                    "Không thể tải chi tiết báo cáo"
+                : "Không thể tải chi tiết báo cáo";
 
             setError(message);
             setReports([]);
@@ -131,54 +116,34 @@ function SelectedReportsReview() {
 
 
     useEffect(() => {
-        const savedIds =
-            sessionStorage.getItem(
-                "selectedPendingReportIds"
-            );
+        const savedIds = sessionStorage.getItem(
+            "selectedPendingReportIds"
+        );
 
         if (!savedIds) {
-            setError(
-                "Không tìm thấy báo cáo đã chọn"
-            );
-
+            setError("Không tìm thấy báo cáo đã chọn");
             setLoading(false);
-
             return;
         }
 
         try {
-            const parsedIds: unknown =
-                JSON.parse(savedIds);
+            const parsedIds: unknown = JSON.parse(savedIds);
 
-            if (
-                !Array.isArray(parsedIds) ||
-                parsedIds.length === 0
-            ) {
-                setError(
-                    "Không có báo cáo nào được chọn"
-                );
-
+            if (!Array.isArray(parsedIds) || parsedIds.length === 0) {
+                setError("Không có báo cáo nào được chọn");
                 setLoading(false);
-
                 return;
             }
 
-            const normalizedIds =
-                parsedIds
-                    .map(Number)
-                    .filter(
-                        id =>
-                            Number.isInteger(id) &&
-                            id > 0
-                    );
-
-            if (normalizedIds.length === 0) {
-                setError(
-                    "Danh sách báo cáo đã chọn không hợp lệ"
+            const normalizedIds = parsedIds
+                .map(Number)
+                .filter(
+                    id => Number.isInteger(id) && id > 0
                 );
 
+            if (normalizedIds.length === 0) {
+                setError("Danh sách báo cáo đã chọn không hợp lệ");
                 setLoading(false);
-
                 return;
             }
 
@@ -189,41 +154,23 @@ function SelectedReportsReview() {
                 err
             );
 
-            setError(
-                "Danh sách báo cáo đã chọn không hợp lệ"
-            );
-
+            setError("Danh sách báo cáo đã chọn không hợp lệ");
             setLoading(false);
         }
     }, []);
 
 
     const visibleIds = useMemo(
-        () =>
-            reports
-                .map(report => Number(report.id))
-                .filter(
-                    id =>
-                        Number.isInteger(id) &&
-                        id > 0
-                ),
+        () => reports
+            .map(report => Number(report.id))
+            .filter(id => Number.isInteger(id) && id > 0),
         [reports]
     );
 
 
-    const handleBack = () => {
-        navigate(
-            `${basePath}/reports`
-        );
-    };
-
-
     const handleApprove = async () => {
         if (visibleIds.length === 0) {
-            alert(
-                "Không có báo cáo để duyệt"
-            );
-
+            alert("Không có báo cáo để duyệt");
             return;
         }
 
@@ -238,32 +185,22 @@ function SelectedReportsReview() {
         try {
             setActionLoading(true);
 
-            await approveSelectedTempReports(
-                visibleIds
-            );
+            await approveSelectedTempReports(visibleIds);
 
-            alert(
-                `Đã duyệt ${visibleIds.length} báo cáo`
-            );
+            alert(`Đã duyệt ${visibleIds.length} báo cáo`);
 
             sessionStorage.removeItem(
                 "selectedPendingReportIds"
             );
 
-            navigate(
-                `${basePath}/reports`
-            );
+            navigate(`${basePath}/reports`);
         } catch (err: unknown) {
-            console.error(
-                "APPROVE REPORTS ERROR:",
-                err
-            );
+            console.error("APPROVE REPORTS ERROR:", err);
 
-            const message =
-                axios.isAxiosError(err)
-                    ? err.response?.data?.message ||
-                        "Duyệt báo cáo thất bại"
-                    : "Duyệt báo cáo thất bại";
+            const message = axios.isAxiosError(err)
+                ? err.response?.data?.message ||
+                    "Duyệt báo cáo thất bại"
+                : "Duyệt báo cáo thất bại";
 
             alert(message);
         } finally {
@@ -272,125 +209,38 @@ function SelectedReportsReview() {
     };
 
 
-    const handleReject = async () => {
-        if (visibleIds.length === 0) {
-            alert(
-                "Không có báo cáo để từ chối"
-            );
-
+    const handleEdit = (
+        reportId?: number
+    ) => {
+        if (!reportId) {
+            alert("ID báo cáo không hợp lệ");
             return;
         }
 
-        const reason = window.prompt(
-            `Nhập lý do từ chối ${visibleIds.length} báo cáo:`
-        );
-
-        if (reason === null) {
-            return;
-        }
-
-        const trimmedReason =
-            reason.trim();
-
-        if (!trimmedReason) {
-            alert(
-                "Vui lòng nhập lý do từ chối"
-            );
-
-            return;
-        }
-
-        const confirmed = window.confirm(
-            `Từ chối ${visibleIds.length} báo cáo đang xem?`
-        );
-
-        if (!confirmed) {
-            return;
-        }
-
-        try {
-            setActionLoading(true);
-
-            await rejectSelectedTempReports(
-                visibleIds,
-                trimmedReason
-            );
-
-            alert(
-                `Đã từ chối ${visibleIds.length} báo cáo`
-            );
-
-            sessionStorage.removeItem(
-                "selectedPendingReportIds"
-            );
-
-            navigate(
-                `${basePath}/reports`
-            );
-        } catch (err: unknown) {
-            console.error(
-                "REJECT REPORTS ERROR:",
-                err
-            );
-
-            const message =
-                axios.isAxiosError(err)
-                    ? err.response?.data?.message ||
-                        "Từ chối báo cáo thất bại"
-                    : "Từ chối báo cáo thất bại";
-
-            alert(message);
-        } finally {
-            setActionLoading(false);
-        }
+        navigate(`/manager/report/${reportId}/edit`);
     };
 
 
     return (
-        <div className="selected-review-page">
-
-            <div className="selected-review-header">
-
+        <main className="selected-review-page">
+            <header className="selected-review-header">
                 <div>
-
                     <button
                         type="button"
                         className="selected-review-back"
-                        onClick={handleBack}
+                        onClick={() => navigate(`${basePath}/reports`)}
                     >
-                        ← Quay lại
+                        ← Quay lại danh sách
                     </button>
 
-                    <h1>
-                        Chi tiết báo cáo đã chọn
-                    </h1>
+                    <h1>Chi tiết báo cáo đã chọn</h1>
 
                     <p>
-                        Đang xem{" "}
-                        <strong>
-                            {reports.length}
-                        </strong>
-                        {" "}báo cáo
+                        Đang xem <strong>{reports.length}</strong> báo cáo
                     </p>
-
                 </div>
 
-
                 <div className="selected-review-actions">
-
-                    <button
-                        type="button"
-                        className="selected-review-reject"
-                        onClick={handleReject}
-                        disabled={
-                            loading ||
-                            actionLoading ||
-                            reports.length === 0
-                        }
-                    >
-                        ✕ Từ chối ({reports.length})
-                    </button>
-
                     <button
                         type="button"
                         className="selected-review-approve"
@@ -401,212 +251,233 @@ function SelectedReportsReview() {
                             reports.length === 0
                         }
                     >
-                        {
-                            actionLoading
-                                ? "Đang xử lý..."
-                                : `✓ Duyệt (${reports.length})`
+                        {actionLoading
+                            ? "Đang xử lý..."
+                            : `✓ Duyệt (${reports.length})`
                         }
                     </button>
-
                 </div>
-
-            </div>
-
+            </header>
 
             {error && (
-
                 <div className="selected-review-error">
                     {error}
                 </div>
-
             )}
 
-
             {loading ? (
-
                 <div className="selected-review-empty">
                     Đang tải chi tiết...
                 </div>
-
             ) : reports.length === 0 ? (
-
                 <div className="selected-review-empty">
                     Không có báo cáo để hiển thị
                 </div>
-
             ) : (
+                <div className="selected-report-list">
+                    {reports.map((report, index) => (
+                        <article
+                            className="selected-report-card"
+                            key={report.id ?? index}
+                        >
+                            <div className="selected-report-card-header">
+                                <div>
+                                    <span className="selected-report-index">
+                                        Báo cáo {index + 1}
+                                    </span>
 
-                <div className="selected-review-table-wrapper">
+                                    <h2>
+                                        {report.worker_code || "---"}
+                                        {" - "}
+                                        {report.full_name || "---"}
+                                    </h2>
+                                </div>
 
-                    <table className="selected-review-table">
+                                {canEdit && (
+                                    <button
+                                        type="button"
+                                        className="selected-review-edit"
+                                        onClick={() => handleEdit(report.id)}
+                                    >
+                                        ✎ Sửa báo cáo
+                                    </button>
+                                )}
+                            </div>
 
-                        <thead>
+                            <section className="selected-report-section">
+                                <h3>Thông tin chung</h3>
 
-                            <tr>
-                                <th>STT</th>
-                                <th>Mã NV</th>
-                                <th>Họ tên</th>
-                                <th>Ngày</th>
-                                <th>Công đoạn</th>
-                                <th>Ca</th>
-                                <th>Máy</th>
-                                <th>Sản phẩm</th>
-                                <th>Tổng giờ</th>
-                                <th>Giờ trừ</th>
-                                <th>Giờ thực tế</th>
-                                <th>Định mức</th>
-                                <th>Thực tế</th>
-                                <th>TT OK</th>
-                                <th>TT NG</th>
-                                <th>Ghi chú</th>
-                            </tr>
+                                <div className="selected-info-grid">
+                                    <div className="selected-info-item">
+                                        <span>Ngày sản xuất</span>
+                                        <strong>{formatDate(report.work_date)}</strong>
+                                    </div>
 
-                        </thead>
+                                    <div className="selected-info-item">
+                                        <span>Công đoạn</span>
+                                        <strong>{report.process_name || "---"}</strong>
+                                    </div>
 
+                                    <div className="selected-info-item">
+                                        <span>Ca</span>
+                                        <strong>{report.shift || "---"}</strong>
+                                    </div>
 
-                        <tbody>
+                                    <div className="selected-info-item">
+                                        <span>Số máy</span>
+                                        <strong>{report.machine_no || "---"}</strong>
+                                    </div>
 
-                            {reports.map(
-                                (
-                                    report,
-                                    index
-                                ) => (
+                                    <div className="selected-info-item">
+                                        <span>Sản phẩm</span>
+                                        <strong>{report.product_name || "---"}</strong>
+                                    </div>
 
-                                    <tr key={report.id}>
+                                    <div className="selected-info-item">
+                                        <span>Thời gian gửi</span>
+                                        <strong>{formatDateTime(report.created_at)}</strong>
+                                    </div>
+                                </div>
+                            </section>
 
-                                        <td>
-                                            {index + 1}
-                                        </td>
+                            <div className="selected-report-columns">
+                                <section className="selected-report-section">
+                                    <h3>Tổng hợp thời gian</h3>
 
-                                        <td>
-                                            <strong>
-                                                {
-                                                    report.worker_code ||
-                                                    "---"
-                                                }
-                                            </strong>
-                                        </td>
+                                    <div className="selected-summary-grid">
+                                        <div>
+                                            <span>Tổng thời gian</span>
+                                            <strong>{formatNumber(report.total_time)} giờ</strong>
+                                        </div>
 
-                                        <td>
-                                            {
-                                                report.full_name ||
-                                                "---"
-                                            }
-                                        </td>
+                                        <div>
+                                            <span>Thời gian trừ</span>
+                                            <strong>{formatNumber(report.deduction_time)} giờ</strong>
+                                        </div>
 
-                                        <td>
-                                            {
-                                                formatDate(
-                                                    report.work_date
-                                                )
-                                            }
-                                        </td>
+                                        <div>
+                                            <span>Thời gian thực tế</span>
+                                            <strong>{formatNumber(report.actual_time)} giờ</strong>
+                                        </div>
+                                    </div>
+                                </section>
 
-                                        <td>
-                                            {
-                                                report.process_name ||
-                                                "---"
-                                            }
-                                        </td>
+                                <section className="selected-report-section">
+                                    <h3>Sản lượng và chất lượng</h3>
 
-                                        <td>
-                                            {
-                                                report.shift ||
-                                                "---"
-                                            }
-                                        </td>
+                                    <div className="selected-summary-grid selected-summary-grid-four">
+                                        <div>
+                                            <span>Định mức</span>
+                                            <strong>{formatNumber(report.standard_output)}</strong>
+                                        </div>
 
-                                        <td>
-                                            {
-                                                report.machine_no ||
-                                                "---"
-                                            }
-                                        </td>
+                                        <div>
+                                            <span>Thực tế</span>
+                                            <strong>{formatNumber(report.actual_output)}</strong>
+                                        </div>
 
-                                        <td>
-                                            {
-                                                report.product_name ||
-                                                "---"
-                                            }
-                                        </td>
+                                        <div>
+                                            <span>TT OK</span>
+                                            <strong>{formatNumber(report.tt_ok)}</strong>
+                                        </div>
 
-                                        <td>
-                                            {
-                                                formatNumber(
-                                                    report.total_time
-                                                )
-                                            }
-                                        </td>
+                                        <div>
+                                            <span>TT NG</span>
+                                            <strong>{formatNumber(report.tt_ng)}</strong>
+                                        </div>
+                                    </div>
+                                </section>
+                            </div>
 
-                                        <td>
-                                            {
-                                                formatNumber(
-                                                    report.deduction_time
-                                                )
-                                            }
-                                        </td>
+                            <div className="selected-report-columns">
+                                <section className="selected-report-section">
+                                    <h3>Chi tiết thời gian trừ</h3>
 
-                                        <td>
-                                            {
-                                                formatNumber(
-                                                    report.actual_time
-                                                )
-                                            }
-                                        </td>
+                                    {report.deductions?.length ? (
+                                        <div className="selected-detail-table-wrapper">
+                                            <table className="selected-detail-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>STT</th>
+                                                        <th>Nội dung trừ</th>
+                                                        <th>Số giờ</th>
+                                                    </tr>
+                                                </thead>
 
-                                        <td>
-                                            {
-                                                formatNumber(
-                                                    report.standard_output
-                                                )
-                                            }
-                                        </td>
+                                                <tbody>
+                                                    {report.deductions.map((item, deductionIndex) => (
+                                                        <tr key={item.id ?? `${item.deduction_type_id}-${deductionIndex}`}>
+                                                            <td>{deductionIndex + 1}</td>
+                                                            <td>{item.deduction_name || item.deduction_code || "---"}</td>
+                                                            <td>{formatNumber(item.hours)}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
 
-                                        <td>
-                                            {
-                                                formatNumber(
-                                                    report.actual_output
-                                                )
-                                            }
-                                        </td>
+                                                <tfoot>
+                                                    <tr>
+                                                        <td colSpan={2}>Tổng thời gian trừ</td>
+                                                        <td>{formatNumber(report.deduction_time)}</td>
+                                                    </tr>
+                                                </tfoot>
+                                            </table>
+                                        </div>
+                                    ) : (
+                                        <p className="selected-no-detail">
+                                            Không có thời gian trừ
+                                        </p>
+                                    )}
+                                </section>
 
-                                        <td>
-                                            {
-                                                formatNumber(
-                                                    report.tt_ok
-                                                )
-                                            }
-                                        </td>
+                                <section className="selected-report-section">
+                                    <h3>Chi tiết NG</h3>
 
-                                        <td>
-                                            {
-                                                formatNumber(
-                                                    report.tt_ng
-                                                )
-                                            }
-                                        </td>
+                                    {report.defects?.length ? (
+                                        <div className="selected-detail-table-wrapper">
+                                            <table className="selected-detail-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>STT</th>
+                                                        <th>Loại NG</th>
+                                                        <th>Số lượng</th>
+                                                    </tr>
+                                                </thead>
 
-                                        <td className="selected-review-note">
-                                            {
-                                                report.note ||
-                                                "---"
-                                            }
-                                        </td>
+                                                <tbody>
+                                                    {report.defects.map((item, defectIndex) => (
+                                                        <tr key={item.id ?? `${item.defect_type_id}-${defectIndex}`}>
+                                                            <td>{defectIndex + 1}</td>
+                                                            <td>{item.defect_name || item.defect_code || "---"}</td>
+                                                            <td>{formatNumber(item.quantity)}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
 
-                                    </tr>
+                                                <tfoot>
+                                                    <tr>
+                                                        <td colSpan={2}>Tổng TT NG</td>
+                                                        <td>{formatNumber(report.tt_ng)}</td>
+                                                    </tr>
+                                                </tfoot>
+                                            </table>
+                                        </div>
+                                    ) : (
+                                        <p className="selected-no-detail">
+                                            Không có chi tiết NG
+                                        </p>
+                                    )}
+                                </section>
+                            </div>
 
-                                )
-                            )}
-
-                        </tbody>
-
-                    </table>
-
+                            <section className="selected-report-section selected-report-note-section">
+                                <h3>Ghi chú</h3>
+                                <p>{report.note || "Không có"}</p>
+                            </section>
+                        </article>
+                    ))}
                 </div>
-
             )}
-
-        </div>
+        </main>
     );
 }
 
