@@ -1,9 +1,7 @@
 const ExcelJS = require("exceljs");
 const path = require("path");
 const fs = require("fs/promises");
-const ExcelJS = require("exceljs");
 
-const db = require("../config/db");
 const db = require("../config/db");
 
 // =====================================================
