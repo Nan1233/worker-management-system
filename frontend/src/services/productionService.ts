@@ -611,3 +611,61 @@ export const updateGoogleSheet = async(
 
 
 };
+// =====================================================
+// LEAD / MANAGER DUYỆT CÁC BÁO CÁO ĐÃ CHỌN
+// =====================================================
+
+export const approveSelectedTempReports = async (
+
+    ids: number[]
+
+) => {
+
+
+    const res = await api.post(
+
+        "/production-temp/approve-selected",
+
+        {
+            ids
+        }
+
+    );
+
+
+    return res.data;
+
+};
+
+
+
+
+
+// =====================================================
+// LEAD / MANAGER TỪ CHỐI CÁC BÁO CÁO ĐÃ CHỌN
+// =====================================================
+
+export const rejectSelectedTempReports = async (
+
+    ids: number[],
+
+    reason: string
+
+) => {
+
+
+    const res = await api.post(
+
+        "/production-temp/reject-selected",
+
+        {
+            ids,
+            reason
+        }
+
+    );
+
+
+    return res.data;
+
+};
