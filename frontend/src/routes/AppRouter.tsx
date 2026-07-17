@@ -27,9 +27,7 @@ import AdminDashboard from "../pages/admin/Dashboard";
 
 
 // =====================================================
-// LEAD - CÁC TRANG NGHIỆP VỤ DÙNG CHUNG
-//
-// Manager cũng sử dụng lại các trang này.
+// LEAD - MANAGER DÙNG CHUNG
 // =====================================================
 
 import LeadDashboard from "../pages/lead/Dashboard";
@@ -46,7 +44,7 @@ import LeadReportDownload from "../pages/lead/ReportDownload";
 
 
 // =====================================================
-// MANAGER - CHỨC NĂNG RIÊNG
+// MANAGER
 // =====================================================
 
 import ManagerEditReport from "../pages/manager/EditReport";
@@ -134,13 +132,108 @@ function AppRouter() {
 
 
             {/* =================================================
-                LEAD
-                - Xem báo cáo
-                - Duyệt báo cáo
-                - Xem báo cáo đã duyệt
-                - Xem công nhân
-                - Xuất Excel / Sheet
-                - Không sửa báo cáo
+                LEAD - TRANG CHI TIẾT KHÔNG SIDEBAR
+            ================================================= */}
+
+            <Route
+                path="/lead/reports/review"
+                element={
+
+                    <PrivateRoute
+                        allowedRoles={[
+                            "lead"
+                        ]}
+                    >
+
+                        <SelectedReportsReview />
+
+                    </PrivateRoute>
+
+                }
+            />
+
+
+            <Route
+                path="/lead/report/:id"
+                element={
+
+                    <PrivateRoute
+                        allowedRoles={[
+                            "lead"
+                        ]}
+                    >
+
+                        <LeadReportDetail />
+
+                    </PrivateRoute>
+
+                }
+            />
+
+
+            {/* =================================================
+                MANAGER - TRANG CHI TIẾT KHÔNG SIDEBAR
+            ================================================= */}
+
+            <Route
+                path="/manager/reports/review"
+                element={
+
+                    <PrivateRoute
+                        allowedRoles={[
+                            "admin",
+                            "manager"
+                        ]}
+                    >
+
+                        <SelectedReportsReview />
+
+                    </PrivateRoute>
+
+                }
+            />
+
+
+            <Route
+                path="/manager/report/:id"
+                element={
+
+                    <PrivateRoute
+                        allowedRoles={[
+                            "admin",
+                            "manager"
+                        ]}
+                    >
+
+                        <LeadReportDetail />
+
+                    </PrivateRoute>
+
+                }
+            />
+
+
+            <Route
+                path="/manager/report/:id/edit"
+                element={
+
+                    <PrivateRoute
+                        allowedRoles={[
+                            "admin",
+                            "manager"
+                        ]}
+                    >
+
+                        <ManagerEditReport />
+
+                    </PrivateRoute>
+
+                }
+            />
+
+
+            {/* =================================================
+                LEAD - CÓ SIDEBAR
             ================================================= */}
 
             <Route
@@ -183,30 +276,10 @@ function AppRouter() {
 
 
                 <Route
-                    path="reports/review"
-                    element={
-
-                        <SelectedReportsReview />
-
-                    }
-                />
-
-
-                <Route
                     path="approved"
                     element={
 
                         <LeadApprovedReports />
-
-                    }
-                />
-
-
-                <Route
-                    path="report/:id"
-                    element={
-
-                        <LeadReportDetail />
 
                     }
                 />
@@ -235,10 +308,7 @@ function AppRouter() {
 
 
             {/* =================================================
-                MANAGER
-                - Dùng lại toàn bộ trang lead
-                - Có thêm sửa báo cáo
-                - Có thêm thống kê
+                MANAGER - CÓ SIDEBAR
             ================================================= */}
 
             <Route
@@ -261,8 +331,6 @@ function AppRouter() {
                 }
             >
 
-                {/* Dùng chung Dashboard của lead */}
-
                 <Route
                     index
                     element={
@@ -272,8 +340,6 @@ function AppRouter() {
                     }
                 />
 
-
-                {/* Dùng chung danh sách chờ duyệt */}
 
                 <Route
                     path="reports"
@@ -285,20 +351,6 @@ function AppRouter() {
                 />
 
 
-                {/* Xem chi tiết nhiều báo cáo đã chọn */}
-
-                <Route
-                    path="reports/review"
-                    element={
-
-                        <SelectedReportsReview />
-
-                    }
-                />
-
-
-                {/* Dùng chung danh sách đã duyệt */}
-
                 <Route
                     path="approved"
                     element={
@@ -308,20 +360,6 @@ function AppRouter() {
                     }
                 />
 
-
-                {/* Dùng chung trang chi tiết */}
-
-                <Route
-                    path="report/:id"
-                    element={
-
-                        <LeadReportDetail />
-
-                    }
-                />
-
-
-                {/* Dùng chung danh sách công nhân */}
 
                 <Route
                     path="workers"
@@ -333,8 +371,6 @@ function AppRouter() {
                 />
 
 
-                {/* Dùng chung trang xuất báo cáo */}
-
                 <Route
                     path="export"
                     element={
@@ -344,20 +380,6 @@ function AppRouter() {
                     }
                 />
 
-
-                {/* Chỉ manager/admin được sửa */}
-
-                <Route
-                    path="report/:id/edit"
-                    element={
-
-                        <ManagerEditReport />
-
-                    }
-                />
-
-
-                {/* Chỉ manager/admin có thống kê */}
 
                 <Route
                     path="statistics"
