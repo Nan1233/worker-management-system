@@ -255,60 +255,158 @@ const ProductionTemp = {
         );
     },
 
-    async getDates(managerId = null) {
-        if (managerId) {
-            return query(
-                db,
-                `SELECT DISTINCT DATE(pr.work_date) AS date
-                 FROM production_reports_temp pr
-                 JOIN manager_processes mp ON mp.process_id = pr.process_id
-                 WHERE mp.manager_id = ?
-                 ORDER BY date DESC`,
-                [managerId]
-            );
-        }
-
+    async getDates(
+    managerId = null
+) {
+    if (managerId) {
         return query(
             db,
-            `SELECT DISTINCT DATE(work_date) AS date
-             FROM production_reports_temp
-             ORDER BY date DESC`
+            `
+                SELECT DISTINCT
+                    DATE(pr.work_date) AS date
+
+                FROM production_reports_temp pr
+
+                JOIN manager_processes mp
+                    ON mp.process_id =
+                       pr.process_id
+
+                WHERE mp.manager_id = ?
+                  AND pr.status IN (
+                        'pending',
+                        'need_fix'
+                  )
+
+                ORDER BY date DESC
+            `,
+            [
+                managerId
+            ]
         );
-    },
+    }
 
-    async getByDate(date, managerId = null) {
-        const params = [date];
-        let scope = "";
+    return query(
+        db,
+        `
+            SELECT DISTINCT
+                DATE(work_date) AS date
 
-        if (managerId) {
-            scope = " AND mp.manager_id = ?";
-            params.push(managerId);
-        }
+            FROM production_reports_temp
 
-        return query(
-            db,
-            `SELECT pr.*, w.worker_code, u.full_name, p.process_name,
-                    CASE WHEN dup.duplicate_count > 1 THEN 1 ELSE 0 END AS is_duplicate,
-                    COALESCE(dup.duplicate_count, 1) AS duplicate_count
-             FROM production_reports_temp pr
-             JOIN workers w ON pr.worker_id = w.id
-             JOIN users u ON w.user_id = u.id
-             JOIN processes p ON pr.process_id = p.id
-             LEFT JOIN manager_processes mp ON mp.process_id = pr.process_id
-             LEFT JOIN (
-                SELECT work_date, shift, machine_no, product_name, COUNT(*) AS duplicate_count
+            WHERE status IN (
+                'pending',
+                'need_fix'
+            )
+
+            ORDER BY date DESC
+        `
+    );
+},
+
+    async getByDate(
+    date,
+    managerId = null
+) {
+    const params = [
+        date
+    ];
+
+    let scope = "";
+
+    if (managerId) {
+        scope =
+            " AND mp.manager_id = ?";
+
+        params.push(
+            managerId
+        );
+    }
+
+    return query(
+        db,
+        `
+            SELECT
+                pr.*,
+                w.worker_code,
+                u.full_name,
+                p.process_name,
+
+                CASE
+                    WHEN dup.duplicate_count > 1
+                    THEN 1
+                    ELSE 0
+                END AS is_duplicate,
+
+                COALESCE(
+                    dup.duplicate_count,
+                    1
+                ) AS duplicate_count
+
+            FROM production_reports_temp pr
+
+            JOIN workers w
+                ON pr.worker_id = w.id
+
+            JOIN users u
+                ON w.user_id = u.id
+
+            JOIN processes p
+                ON pr.process_id = p.id
+
+            LEFT JOIN manager_processes mp
+                ON mp.process_id = pr.process_id
+
+            LEFT JOIN (
+                SELECT
+                    work_date,
+                    shift,
+                    machine_no,
+                    product_name,
+                    COUNT(*) AS duplicate_count
+
                 FROM production_reports_temp
-                GROUP BY work_date, shift, machine_no, product_name
-             ) dup
+
+                WHERE status IN (
+                    'pending',
+                    'need_fix'
+                )
+
+                GROUP BY
+                    work_date,
+                    shift,
+                    machine_no,
+                    product_name
+            ) dup
                 ON dup.work_date = pr.work_date
-               AND dup.shift = pr.shift
-               AND COALESCE(dup.machine_no, '') = COALESCE(pr.machine_no, '')
-               AND COALESCE(dup.product_name, '') = COALESCE(pr.product_name, '')
-             WHERE DATE(pr.work_date) = ?${scope}
-             ORDER BY pr.created_at ASC`,
-            params
-        );
-    },
+                AND dup.shift = pr.shift
+                AND COALESCE(
+                    dup.machine_no,
+                    ''
+                ) = COALESCE(
+                    pr.machine_no,
+                    ''
+                )
+                AND COALESCE(
+                    dup.product_name,
+                    ''
+                ) = COALESCE(
+                    pr.product_name,
+                    ''
+                )
+
+            WHERE DATE(pr.work_date) = ?
+              AND pr.status IN (
+                    'pending',
+                    'need_fix'
+              )
+              ${scope}
+
+            ORDER BY
+                pr.created_at ASC
+        `,
+        params
+    );
+},
 
     async getDetail(id) {
         const rows = await query(
