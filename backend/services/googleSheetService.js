@@ -619,13 +619,13 @@ const writeSheetData = async (
             `=AG${rowNumber}+AH${rowNumber}`,
 
             // AD - Performance
-            `=IFERROR(AC${rowNumber}/AB${rowNumber},0)`,
+            `=IFERROR(AC${rowNumber}/AB${rowNumber};0)`,
 
             // AE - Work Date
             workDate,
 
             // AF - Output Per Hour
-            `=IFERROR(AC${rowNumber}/H${rowNumber},0)`,
+            `=IFERROR(AC${rowNumber}/H${rowNumber};0)`,
 
             // AG - OK
             ok,
