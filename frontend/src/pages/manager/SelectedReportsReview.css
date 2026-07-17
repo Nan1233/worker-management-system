@@ -1,9 +1,15 @@
 .selected-review-page {
     width: 100%;
     min-height: 100vh;
+    box-sizing: border-box;
     padding: 24px;
     background: #f1f5f9;
 }
+
+
+/* =====================================================
+   HEADER
+===================================================== */
 
 .selected-review-header {
     display: flex;
@@ -16,8 +22,9 @@
 
 .selected-review-header h1 {
     margin: 10px 0 4px;
-    font-size: 28px;
     color: #0f172a;
+    font-size: 28px;
+    line-height: 1.25;
 }
 
 .selected-review-header p {
@@ -30,8 +37,18 @@
     border: none;
     background: transparent;
     color: #2563eb;
+    font-size: 14px;
     font-weight: 700;
     cursor: pointer;
+}
+
+.selected-review-back:hover:not(:disabled) {
+    text-decoration: underline;
+}
+
+.selected-review-back:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
 }
 
 .selected-review-actions {
@@ -40,36 +57,76 @@
     gap: 10px;
 }
 
+
+/* =====================================================
+   BUTTONS
+===================================================== */
+
 .selected-review-approve,
-.selected-review-edit {
+.selected-review-edit,
+.selected-review-save,
+.selected-review-cancel {
     min-height: 42px;
     padding: 0 18px;
     border: none;
     border-radius: 9px;
-    color: #ffffff;
+    font-size: 14px;
     font-weight: 700;
     cursor: pointer;
-    transition: transform 0.15s ease, opacity 0.15s ease;
+    transition:
+        transform 0.15s ease,
+        opacity 0.15s ease,
+        box-shadow 0.15s ease;
 }
 
 .selected-review-approve {
     background: #16a34a;
+    color: #ffffff;
 }
 
 .selected-review-edit {
     background: #f59e0b;
+    color: #ffffff;
+}
+
+.selected-review-save {
+    background: #2563eb;
+    color: #ffffff;
+}
+
+.selected-review-cancel {
+    background: #e2e8f0;
+    color: #334155;
 }
 
 .selected-review-approve:hover:not(:disabled),
-.selected-review-edit:hover:not(:disabled) {
+.selected-review-edit:hover:not(:disabled),
+.selected-review-save:hover:not(:disabled),
+.selected-review-cancel:hover:not(:disabled) {
     transform: translateY(-1px);
+    box-shadow: 0 5px 12px rgba(15, 23, 42, 0.12);
 }
 
 .selected-review-approve:disabled,
-.selected-review-edit:disabled {
-    opacity: 0.5;
+.selected-review-edit:disabled,
+.selected-review-save:disabled,
+.selected-review-cancel:disabled {
     cursor: not-allowed;
+    opacity: 0.55;
 }
+
+.selected-report-edit-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+
+/* =====================================================
+   ERROR / EMPTY
+===================================================== */
 
 .selected-review-error,
 .selected-review-empty,
@@ -92,9 +149,14 @@
     padding: 50px 20px;
     border-radius: 12px;
     background: #ffffff;
-    text-align: center;
     color: #64748b;
+    text-align: center;
 }
+
+
+/* =====================================================
+   REPORT LIST
+===================================================== */
 
 .selected-report-list {
     display: grid;
@@ -116,13 +178,18 @@
     gap: 16px;
     padding: 20px 22px;
     border-bottom: 1px solid #e2e8f0;
-    background: linear-gradient(135deg, #eff6ff, #ffffff);
+    background: linear-gradient(
+        135deg,
+        #eff6ff,
+        #ffffff
+    );
 }
 
 .selected-report-card-header h2 {
     margin: 5px 0 0;
-    font-size: 21px;
     color: #0f172a;
+    font-size: 21px;
+    overflow-wrap: anywhere;
 }
 
 .selected-report-index {
@@ -132,6 +199,11 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
+
+
+/* =====================================================
+   SECTION
+===================================================== */
 
 .selected-report-section {
     margin: 18px 22px;
@@ -149,9 +221,17 @@
     font-size: 17px;
 }
 
+
+/* =====================================================
+   GENERAL INFORMATION
+===================================================== */
+
 .selected-info-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(
+        3,
+        minmax(0, 1fr)
+    );
     gap: 12px;
 }
 
@@ -174,14 +254,22 @@
 
 .selected-info-item strong,
 .selected-summary-grid strong {
-    overflow-wrap: anywhere;
     color: #0f172a;
     font-size: 15px;
+    overflow-wrap: anywhere;
 }
+
+
+/* =====================================================
+   COLUMNS
+===================================================== */
 
 .selected-report-columns {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(
+        2,
+        minmax(0, 1fr)
+    );
     gap: 18px;
     margin: 0 22px;
 }
@@ -190,15 +278,74 @@
     margin: 0;
 }
 
+
+/* =====================================================
+   SUMMARY
+===================================================== */
+
 .selected-summary-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(
+        3,
+        minmax(0, 1fr)
+    );
     gap: 10px;
 }
 
 .selected-summary-grid-four {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(
+        4,
+        minmax(0, 1fr)
+    );
 }
+
+
+/* =====================================================
+   INLINE EDIT INPUTS
+===================================================== */
+
+.selected-info-item input,
+.selected-info-item select,
+.selected-summary-grid input,
+.selected-report-note-section textarea {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    outline: none;
+    background: #ffffff;
+    color: #111827;
+    padding: 10px 12px;
+    font-family: inherit;
+    font-size: 14px;
+    transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+.selected-info-item input:focus,
+.selected-info-item select:focus,
+.selected-summary-grid input:focus,
+.selected-report-note-section textarea:focus {
+    border-color: #2563eb;
+    box-shadow:
+        0 0 0 3px
+        rgba(37, 99, 235, 0.12);
+}
+
+.selected-info-item input:disabled,
+.selected-info-item select:disabled,
+.selected-summary-grid input:disabled,
+.selected-report-note-section textarea:disabled {
+    cursor: not-allowed;
+    background: #f1f5f9;
+    opacity: 0.7;
+}
+
+
+/* =====================================================
+   DETAIL TABLE
+===================================================== */
 
 .selected-detail-table-wrapper {
     width: 100%;
@@ -239,6 +386,10 @@
     font-weight: 800;
 }
 
+.selected-detail-table tbody tr:hover {
+    background: #f8fafc;
+}
+
 .selected-detail-table tbody tr:last-child td {
     border-bottom: none;
 }
@@ -256,9 +407,14 @@
     padding: 18px;
     border-radius: 8px;
     background: #f8fafc;
-    text-align: center;
     color: #64748b;
+    text-align: center;
 }
+
+
+/* =====================================================
+   NOTE
+===================================================== */
 
 .selected-report-note-section {
     margin-bottom: 22px;
@@ -266,36 +422,85 @@
 
 .selected-report-note-section p {
     margin: 0;
-    white-space: pre-wrap;
     color: #334155;
     line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }
+
+.selected-report-note-section textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+
+
+/* =====================================================
+   TABLET
+===================================================== */
 
 @media (max-width: 1024px) {
     .selected-info-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(
+            2,
+            minmax(0, 1fr)
+        );
     }
 
     .selected-report-columns {
         grid-template-columns: 1fr;
     }
+
+    .selected-summary-grid-four {
+        grid-template-columns: repeat(
+            2,
+            minmax(0, 1fr)
+        );
+    }
 }
+
+
+/* =====================================================
+   MOBILE
+===================================================== */
 
 @media (max-width: 768px) {
     .selected-review-page {
         padding: 14px;
     }
 
-    .selected-review-header,
-    .selected-report-card-header {
+    .selected-review-header {
         align-items: stretch;
         flex-direction: column;
     }
 
-    .selected-review-actions,
-    .selected-review-approve,
-    .selected-review-edit {
+    .selected-review-header h1 {
+        font-size: 23px;
+    }
+
+    .selected-review-actions {
         width: 100%;
+    }
+
+    .selected-review-approve {
+        width: 100%;
+    }
+
+    .selected-report-card-header {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 14px;
+        padding: 16px;
+    }
+
+    .selected-report-edit-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .selected-review-edit,
+    .selected-review-save,
+    .selected-review-cancel {
+        flex: 1;
     }
 
     .selected-info-grid,
@@ -304,13 +509,9 @@
         grid-template-columns: 1fr;
     }
 
-    .selected-report-card-header,
-    .selected-report-section {
-        padding: 16px;
-    }
-
     .selected-report-section {
         margin: 14px;
+        padding: 16px;
     }
 
     .selected-report-columns {
@@ -324,5 +525,61 @@
 
     .selected-report-note-section {
         margin-bottom: 14px;
+    }
+
+    .selected-detail-table {
+        min-width: 380px;
+    }
+}
+
+
+/* =====================================================
+   SMALL MOBILE
+===================================================== */
+
+@media (max-width: 480px) {
+    .selected-review-page {
+        padding: 10px;
+    }
+
+    .selected-review-header h1 {
+        font-size: 21px;
+    }
+
+    .selected-report-card {
+        border-radius: 12px;
+    }
+
+    .selected-report-card-header {
+        padding: 14px;
+    }
+
+    .selected-report-card-header h2 {
+        font-size: 18px;
+    }
+
+    .selected-report-section {
+        margin: 10px;
+        padding: 14px;
+    }
+
+    .selected-report-columns {
+        gap: 10px;
+        margin: 0 10px;
+    }
+
+    .selected-report-note-section {
+        margin-bottom: 10px;
+    }
+
+    .selected-report-edit-actions {
+        flex-direction: column;
+    }
+
+    .selected-review-edit,
+    .selected-review-save,
+    .selected-review-cancel {
+        width: 100%;
+        flex: none;
     }
 }
