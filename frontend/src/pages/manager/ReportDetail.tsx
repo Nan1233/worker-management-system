@@ -9,310 +9,491 @@ import {
     useSearchParams
 } from "react-router-dom";
 
-
 import {
     getTempReportById,
     getReportById
 } from "../../services/productionService";
 
-
 import type {
     ProductionReport
 } from "../../types/production";
 
-
 import "./ReportDetail.css";
 
 
-
 function ReportDetail() {
-
 
     const {
         id
     } = useParams();
 
-
-
-    const navigate = useNavigate();
-
-
+    const navigate =
+        useNavigate();
 
     const [
         searchParams
     ] = useSearchParams();
 
-
-
     const source =
         searchParams.get("source");
-
-
 
     const [
         report,
         setReport
-    ] = useState<ProductionReport | null>(null);
-
-
+    ] = useState<ProductionReport | null>(
+        null
+    );
 
     const [
         loading,
         setLoading
     ] = useState(true);
 
+    const [
+        error,
+        setError
+    ] = useState("");
 
 
+    useEffect(() => {
 
+        const loadReport = async () => {
 
+            try {
 
+                setLoading(true);
+                setError("");
+                setReport(null);
 
-    useEffect(()=>{
+                if (!id) {
 
+                    setError(
+                        "Không tìm thấy ID báo cáo"
+                    );
 
-        const loadReport = async()=>{
-
-
-            try{
-
-
-                if(!id)
                     return;
 
+                }
 
+                const reportId =
+                    Number(id);
 
-                let data;
+                if (
+                    !Number.isInteger(reportId) ||
+                    reportId <= 0
+                ) {
 
-
-
-                // ============================
-                // BÁO CÁO ĐÃ DUYỆT
-                // production_reports
-                // ============================
-
-                if(source === "approved"){
-
-
-                    data =
-                    await getReportById(
-                        Number(id)
+                    setError(
+                        "ID báo cáo không hợp lệ"
                     );
 
+                    return;
 
                 }
 
+                let data:
+                    ProductionReport;
 
-                // ============================
+
+                // ======================================
                 // BÁO CÁO CHƯA DUYỆT
                 // production_reports_temp
-                // ============================
+                // URL: ?source=pending
+                // ======================================
 
-                else{
-
+                if (source === "pending") {
 
                     data =
-                    await getTempReportById(
-                        Number(id)
-                    );
-
+                        await getTempReportById(
+                            reportId
+                        );
 
                 }
 
+
+                // ======================================
+                // BÁO CÁO ĐÃ DUYỆT
+                // production_reports
+                //
+                // source=approved hoặc không có source
+                // đều lấy báo cáo đã duyệt
+                // ======================================
+
+                else {
+
+                    data =
+                        await getReportById(
+                            reportId
+                        );
+
+                }
+
+
+                console.log(
+                    "REPORT DETAIL DATA:",
+                    data
+                );
+
+
+                if (!data) {
+
+                    setError(
+                        "API không trả về dữ liệu báo cáo"
+                    );
+
+                    return;
+
+                }
 
 
                 setReport(data);
 
-
-
-            }
-            catch(err){
-
+            } catch (err: unknown) {
 
                 console.error(
-                    "Load report error:",
+                    "LOAD REPORT DETAIL ERROR:",
                     err
                 );
 
+                let message =
+                    "Không thể tải chi tiết báo cáo";
 
-            }
-            finally{
+                if (
+                    typeof err === "object" &&
+                    err !== null &&
+                    "response" in err
+                ) {
 
+                    const axiosError =
+                        err as {
+                            response?: {
+                                status?: number;
+                                data?: {
+                                    message?: string;
+                                };
+                            };
+                        };
+
+                    if (
+                        axiosError.response
+                            ?.data?.message
+                    ) {
+
+                        message =
+                            axiosError.response
+                                .data.message;
+
+                    } else if (
+                        axiosError.response
+                            ?.status === 403
+                    ) {
+
+                        message =
+                            "Bạn không có quyền xem báo cáo này";
+
+                    } else if (
+                        axiosError.response
+                            ?.status === 404
+                    ) {
+
+                        message =
+                            "Không tìm thấy báo cáo";
+
+                    }
+
+                }
+
+                setError(message);
+
+            } finally {
 
                 setLoading(false);
 
-
             }
-
 
         };
 
 
-
         loadReport();
 
-
-
-    },[
+    }, [
         id,
         source
     ]);
 
 
+    const formatDate = (
+        value?: string | null
+    ) => {
+
+        if (!value) {
+
+            return "Không có";
+
+        }
+
+        const date =
+            new Date(value);
+
+        if (
+            Number.isNaN(
+                date.getTime()
+            )
+        ) {
+
+            return value;
+
+        }
+
+        return date.toLocaleDateString(
+            "vi-VN"
+        );
+
+    };
 
 
+    const formatDateTime = (
+        value?: string | null
+    ) => {
+
+        if (!value) {
+
+            return "Không có";
+
+        }
+
+        const date =
+            new Date(value);
+
+        if (
+            Number.isNaN(
+                date.getTime()
+            )
+        ) {
+
+            return value;
+
+        }
+
+        return date.toLocaleString(
+            "vi-VN"
+        );
+
+    };
 
 
+    const showValue = (
+        value:
+            string |
+            number |
+            null |
+            undefined
+    ) => {
+
+        if (
+            value === null ||
+            value === undefined ||
+            value === ""
+        ) {
+
+            return 0;
+
+        }
+
+        return value;
+
+    };
 
 
-
-    if(loading){
-
+    if (loading) {
 
         return (
 
-            <h2>
-                Đang tải...
-            </h2>
+            <div className="report-detail">
+
+                <h2>
+                    Đang tải dữ liệu...
+                </h2>
+
+            </div>
 
         );
-
 
     }
 
 
-
-
-
-
-
-    if(!report){
-
+    if (error) {
 
         return (
 
-            <h2>
-                Không tìm thấy báo cáo
-            </h2>
+            <div className="report-detail">
+
+                <div className="detail-header">
+
+                    <h1>
+                        📋 Chi tiết báo cáo
+                    </h1>
+
+                    <button
+                        type="button"
+                        onClick={() =>
+                            navigate(-1)
+                        }
+                    >
+                        Quay lại
+                    </button>
+
+                </div>
+
+
+                <div className="detail-card">
+
+                    <h2>
+                        Không thể tải dữ liệu
+                    </h2>
+
+                    <p>
+                        {error}
+                    </p>
+
+                    <p>
+                        <b>ID báo cáo:</b>{" "}
+                        {id || "Không có"}
+                    </p>
+
+                    <p>
+                        <b>Nguồn dữ liệu:</b>{" "}
+                        {
+                            source === "pending"
+                                ? "Báo cáo chờ duyệt"
+                                : "Báo cáo đã duyệt"
+                        }
+                    </p>
+
+                </div>
+
+            </div>
 
         );
-
 
     }
 
 
+    if (!report) {
 
+        return (
 
+            <div className="report-detail">
 
+                <div className="detail-header">
 
+                    <h1>
+                        📋 Chi tiết báo cáo
+                    </h1>
 
-    return (
+                    <button
+                        type="button"
+                        onClick={() =>
+                            navigate(-1)
+                        }
+                    >
+                        Quay lại
+                    </button>
+
+                </div>
+
+                <div className="detail-card">
+
+                    <h2>
+                        Không tìm thấy báo cáo
+                    </h2>
+
+                </div>
+
+            </div>
+
+        );
+
+    }    return (
 
         <div className="report-detail">
 
-
-
-
-
-
             <div className="detail-header">
-
 
                 <h1>
                     📋 Chi tiết báo cáo
                 </h1>
 
-
-
                 <button
-
-                    onClick={()=>navigate(-1)}
-
+                    type="button"
+                    onClick={() =>
+                        navigate(-1)
+                    }
                 >
-
                     Quay lại
-
                 </button>
-
 
             </div>
 
 
-
-
-
-
-
-
-
             {
-                report.status === "approved" &&
+                (
+                    source !== "pending" ||
+                    report.status === "approved"
+                ) && (
 
-                <div className="detail-card">
+                    <div className="detail-card">
 
-
-                    <h2>
-                        Trạng thái duyệt
-                    </h2>
-
-
-                    <p>
-
-                        <b>
-                            Trạng thái:
-                        </b>
-
-                        {" "}
-
-                        ✅ Đã duyệt
-
-                    </p>
-
-
-
-                    {
-                        report.approved_at &&
+                        <h2>
+                            Trạng thái duyệt
+                        </h2>
 
                         <p>
 
                             <b>
-                                Thời gian duyệt:
+                                Trạng thái:
                             </b>
 
                             {" "}
 
-                            {
-                                new Date(
-                                    report.approved_at
-                                )
-                                .toLocaleString(
-                                    "vi-VN"
-                                )
-                            }
+                            ✅ Đã duyệt
 
                         </p>
 
-                    }
 
+                        {
+                            report.approved_at && (
 
-                </div>
+                                <p>
 
+                                    <b>
+                                        Thời gian duyệt:
+                                    </b>
+
+                                    {" "}
+
+                                    {
+                                        formatDateTime(
+                                            report.approved_at
+                                        )
+                                    }
+
+                                </p>
+
+                            )
+                        }
+
+                    </div>
+
+                )
             }
-
-
-
-
-
-
-
 
 
             <div className="detail-card">
 
-
                 <h2>
                     Thông tin chung
                 </h2>
-
 
 
                 <p>
@@ -323,15 +504,18 @@ function ReportDetail() {
 
                     {" "}
 
-                    {report.full_name}
+                    {
+                        report.full_name ||
+                        "Không có tên"
+                    }
 
-                    {" "}
-
-                    ({report.worker_code})
+                    {
+                        report.worker_code
+                            ? ` (${report.worker_code})`
+                            : ""
+                    }
 
                 </p>
-
-
 
 
                 <p>
@@ -342,11 +526,12 @@ function ReportDetail() {
 
                     {" "}
 
-                    {report.process_name}
+                    {
+                        report.process_name ||
+                        "Không có"
+                    }
 
                 </p>
-
-
 
 
                 <p>
@@ -358,17 +543,12 @@ function ReportDetail() {
                     {" "}
 
                     {
-                        new Date(
+                        formatDate(
                             report.work_date
-                        )
-                        .toLocaleDateString(
-                            "vi-VN"
                         )
                     }
 
                 </p>
-
-
 
 
                 <p>
@@ -379,11 +559,12 @@ function ReportDetail() {
 
                     {" "}
 
-                    {report.shift}
+                    {
+                        report.shift ||
+                        "Không có"
+                    }
 
                 </p>
-
-
 
 
                 <p>
@@ -394,11 +575,12 @@ function ReportDetail() {
 
                     {" "}
 
-                    {report.machine_no}
+                    {
+                        report.machine_no ||
+                        "Không có"
+                    }
 
                 </p>
-
-
 
 
                 <p>
@@ -409,208 +591,334 @@ function ReportDetail() {
 
                     {" "}
 
-                    {report.product_name}
+                    {
+                        report.product_name ||
+                        "Không có"
+                    }
 
                 </p>
 
 
-
-
-
                 {
-                    report.created_at &&
+                    report.created_at && (
 
-                    <p>
+                        <p>
 
-                        <b>
-                            Thời gian gửi:
-                        </b>
+                            <b>
+                                Thời gian gửi:
+                            </b>
 
-                        {" "}
+                            {" "}
 
-                        {
-                            new Date(
-                                report.created_at
-                            )
-                            .toLocaleString(
-                                "vi-VN"
-                            )
-                        }
+                            {
+                                formatDateTime(
+                                    report.created_at
+                                )
+                            }
 
-                    </p>
+                        </p>
 
+                    )
                 }
-
-
 
             </div>
 
 
-
-
-
-
-
-
-
             <div className="detail-card">
-
 
                 <h2>
                     Sản xuất
                 </h2>
 
 
-
                 <p>
-                    Định mức:
+
+                    <b>
+                        Định mức:
+                    </b>
+
                     {" "}
-                    {report.standard_output}
+
+                    {
+                        showValue(
+                            report.standard_output
+                        )
+                    }
+
                 </p>
 
 
                 <p>
-                    Thực tế:
+
+                    <b>
+                        Thực tế:
+                    </b>
+
                     {" "}
-                    {report.actual_output}
+
+                    {
+                        showValue(
+                            report.actual_output
+                        )
+                    }
+
                 </p>
 
 
                 <p>
-                    OK:
+
+                    <b>
+                        OK:
+                    </b>
+
                     {" "}
-                    {report.tt_ok}
+
+                    {
+                        showValue(
+                            report.tt_ok
+                        )
+                    }
+
                 </p>
 
 
                 <p>
-                    NG:
-                    {" "}
-                    {report.tt_ng}
-                </p>
 
+                    <b>
+                        NG:
+                    </b>
+
+                    {" "}
+
+                    {
+                        showValue(
+                            report.tt_ng
+                        )
+                    }
+
+                </p>
 
             </div>
 
 
-
-
-
-
-
-
-
             <div className="detail-card">
-
 
                 <h2>
                     Lỗi chất lượng
                 </h2>
 
 
-
                 <p>
-                    Dập lại:
+
+                    <b>
+                        Dập lại:
+                    </b>
+
                     {" "}
-                    {report.kqd_dap_lai}
+
+                    {
+                        showValue(
+                            report.kqd_dap_lai
+                        )
+                    }
+
                 </p>
 
 
                 <p>
-                    Tuột:
+
+                    <b>
+                        Tuột:
+                    </b>
+
                     {" "}
-                    {report.kqd_tuot}
+
+                    {
+                        showValue(
+                            report.kqd_tuot
+                        )
+                    }
+
                 </p>
 
 
                 <p>
-                    Vỡ do lồng:
+
+                    <b>
+                        Vỡ do lồng:
+                    </b>
+
                     {" "}
-                    {report.vo_do_long}
+
+                    {
+                        showValue(
+                            report.vo_do_long
+                        )
+                    }
+
                 </p>
 
 
                 <p>
-                    Xước do lồng:
+
+                    <b>
+                        Xước do lồng:
+                    </b>
+
                     {" "}
-                    {report.xuoc_do_long}
+
+                    {
+                        showValue(
+                            report.xuoc_do_long
+                        )
+                    }
+
                 </p>
 
 
                 <p>
-                    Cong gãy:
+
+                    <b>
+                        Cong gãy:
+                    </b>
+
                     {" "}
-                    {report.cong_gay}
+
+                    {
+                        showValue(
+                            report.cong_gay
+                        )
+                    }
+
                 </p>
 
 
                 <p>
-                    Xoay:
+
+                    <b>
+                        Xoay:
+                    </b>
+
                     {" "}
-                    {report.xoay}
+
+                    {
+                        showValue(
+                            report.xoay
+                        )
+                    }
+
                 </p>
 
 
                 <p>
-                    Không đứt:
+
+                    <b>
+                        Không đứt:
+                    </b>
+
                     {" "}
-                    {report.khong_dut}
+
+                    {
+                        showValue(
+                            report.khong_dut
+                        )
+                    }
+
                 </p>
 
 
                 <p>
-                    Bavia hụt:
+
+                    <b>
+                        Bavia hụt:
+                    </b>
+
                     {" "}
-                    {report.bavia_hut}
+
+                    {
+                        showValue(
+                            report.bavia_hut
+                        )
+                    }
+
                 </p>
 
 
                 <p>
-                    PPCM:
+
+                    <b>
+                        PPCM:
+                    </b>
+
                     {" "}
-                    {report.ppcm}
+
+                    {
+                        showValue(
+                            report.ppcm
+                        )
+                    }
+
                 </p>
 
 
                 <p>
-                    Lỗi cao su:
+
+                    <b>
+                        Lỗi cao su:
+                    </b>
+
                     {" "}
-                    {report.loi_cao_su}
+
+                    {
+                        showValue(
+                            report.loi_cao_su
+                        )
+                    }
+
                 </p>
 
 
                 <p>
-                    NG kích thước:
+
+                    <b>
+                        NG kích thước:
+                    </b>
+
                     {" "}
-                    {report.ng_kich_thuoc}
+
+                    {
+                        showValue(
+                            report.ng_kich_thuoc
+                        )
+                    }
+
                 </p>
 
 
                 <p>
-                    Cắt lẹm:
+
+                    <b>
+                        Cắt lẹm:
+                    </b>
+
                     {" "}
-                    {report.cat_lem}
+
+                    {
+                        showValue(
+                            report.cat_lem
+                        )
+                    }
+
                 </p>
-
-
 
             </div>
 
 
-
-
-
-
-
-
-
             <div className="detail-card">
-
 
                 <h2>
                     Ghi chú
                 </h2>
-
 
                 <p>
 
@@ -621,22 +929,13 @@ function ReportDetail() {
 
                 </p>
 
-
             </div>
-
-
-
-
-
-
 
         </div>
 
     );
 
-
 }
-
 
 
 export default ReportDetail;
