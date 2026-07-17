@@ -62,7 +62,7 @@ const getDeductionOptionsByProcess = async (
                 item.deduction_code || "",
             deduction_name:
                 item.deduction_name,
-            hours: 0
+            hours: 1
         })
     );
 };
@@ -532,7 +532,7 @@ try {
                     deduction_name:
                         deduction.deduction_name,
 
-                    hours: 0
+                    hours: 1
                 }
             ]
         };
