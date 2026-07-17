@@ -10,10 +10,22 @@ import {
 
 import axios from "axios";
 
+import api from "../../api/axios";
+
+import AutocompleteInput from "../../components/common/AutocompleteInput";
+
+import {
+    getMachinesByProcess,
+    getProductStandardsByProcess
+} from "../../services/masterDataService";
+
+import type {
+    MachineOption,
+    ProductStandardOption
+} from "../../services/masterDataService";
+
 import {
     approveSelectedTempReports,
-    getDeductionOptionsByProcess,
-    getDefectOptionsByProcess,
     getTempReportDetail,
     updateTempReport
 } from "../../services/productionService";
@@ -25,6 +37,64 @@ import type {
 } from "../../types/production";
 
 import "./SelectedReportsReview.css";
+
+
+const getDeductionOptionsByProcess = async (
+    processId: number
+): Promise<ProductionDeduction[]> => {
+    const response = await api.get(
+        `/processes/${processId}/deductions`
+    );
+
+    const rows =
+        response.data.data ||
+        response.data ||
+        [];
+
+    return rows.map(
+        (item: {
+            id: number;
+            deduction_code?: string;
+            deduction_name: string;
+        }) => ({
+            deduction_type_id: item.id,
+            deduction_code:
+                item.deduction_code || "",
+            deduction_name:
+                item.deduction_name,
+            hours: 0
+        })
+    );
+};
+
+
+const getDefectOptionsByProcess = async (
+    processId: number
+): Promise<ProductionDefect[]> => {
+    const response = await api.get(
+        `/processes/${processId}/defects`
+    );
+
+    const rows =
+        response.data.data ||
+        response.data ||
+        [];
+
+    return rows.map(
+        (item: {
+            id: number;
+            defect_code?: string;
+            defect_name: string;
+        }) => ({
+            defect_type_id: item.id,
+            defect_code:
+                item.defect_code || "",
+            defect_name:
+                item.defect_name,
+            quantity: 0
+        })
+    );
+};
 
 
 const formatDate = (
@@ -186,6 +256,42 @@ const [
     setSelectedDefectId
 ] = useState("");
 
+
+const [
+    showDeductionSelector,
+    setShowDeductionSelector
+] = useState(false);
+
+
+const [
+    showDefectSelector,
+    setShowDefectSelector
+] = useState(false);
+
+
+const [
+    machineOptions,
+    setMachineOptions
+] = useState<MachineOption[]>([]);
+
+
+const [
+    productOptions,
+    setProductOptions
+] = useState<ProductStandardOption[]>([]);
+
+
+const [
+    selectedMachineCode,
+    setSelectedMachineCode
+] = useState("");
+
+
+const [
+    selectedProductCode,
+    setSelectedProductCode
+] = useState("");
+
     // =====================================================
     // BẮT ĐẦU SỬA
     // =====================================================
@@ -221,6 +327,10 @@ setEditForm({
 
 setSelectedDeductionId("");
 setSelectedDefectId("");
+setShowDeductionSelector(false);
+setShowDefectSelector(false);
+setSelectedMachineCode(report.machine_no || "");
+setSelectedProductCode(report.product_name || "");
 
 const processId =
     Number(report.process_id);
@@ -238,12 +348,20 @@ try {
 
     const [
         deductionList,
-        defectList
+        defectList,
+        machineList,
+        productList
     ] = await Promise.all([
         getDeductionOptionsByProcess(
             processId
         ),
         getDefectOptionsByProcess(
+            processId
+        ),
+        getMachinesByProcess(
+            processId
+        ),
+        getProductStandardsByProcess(
             processId
         )
     ]);
@@ -256,6 +374,14 @@ try {
         defectList
     );
 
+    setMachineOptions(
+        machineList
+    );
+
+    setProductOptions(
+        productList
+    );
+
 } catch (err) {
 
     console.error(
@@ -265,6 +391,8 @@ try {
 
     setDeductionOptions([]);
     setDefectOptions([]);
+    setMachineOptions([]);
+    setProductOptions([]);
 
 }
     };
@@ -284,6 +412,13 @@ try {
         setEditingId(null);
 
         setEditForm(null);
+
+        setShowDeductionSelector(false);
+        setShowDefectSelector(false);
+        setSelectedDeductionId("");
+        setSelectedDefectId("");
+        setSelectedMachineCode("");
+        setSelectedProductCode("");
     };
 
 
@@ -624,7 +759,39 @@ try {
 
         if (!editForm.product_name?.trim()) {
             alert(
-                "Vui lòng nhập sản phẩm."
+                "Vui lòng chọn sản phẩm."
+            );
+
+            return;
+        }
+
+
+        const validMachine =
+            machineOptions.some(
+                item =>
+                    item.machine_code ===
+                    editForm.machine_no.trim()
+            );
+
+        if (!validMachine) {
+            alert(
+                "Vui lòng chọn số máy trong danh sách gợi ý."
+            );
+
+            return;
+        }
+
+
+        const selectedProduct =
+            productOptions.find(
+                item =>
+                    item.product_code ===
+                    editForm.product_name.trim()
+            );
+
+        if (!selectedProduct) {
+            alert(
+                "Vui lòng chọn sản phẩm trong danh sách gợi ý."
             );
 
             return;
@@ -692,6 +859,8 @@ try {
                 editForm.machine_no.trim(),
             product_name:
                 editForm.product_name.trim(),
+            standard_output:
+                Number(selectedProduct.standard_output) || 0,
             total_time: Math.max(
                 0,
                 Number(editForm.total_time) || 0
@@ -1336,20 +1505,45 @@ const loadReports = async (
 
 
                                                 {isEditing ? (
-                                                    <input
-                                                        type="text"
+                                                    <AutocompleteInput
+                                                        id={`machine-${reportId}`}
+                                                        label=""
                                                         value={
-                                                            currentReport.machine_no ||
-                                                            ""
+                                                            selectedMachineCode
                                                         }
-                                                        onChange={event =>
-                                                            handleFieldChange(
-                                                                "machine_no",
-                                                                event
-                                                                    .target
-                                                                    .value
+                                                        options={
+                                                            machineOptions.map(
+                                                                item => ({
+                                                                    value:
+                                                                        item.machine_code,
+                                                                    label:
+                                                                        item.machine_name ||
+                                                                        item.machine_code
+                                                                })
                                                             )
                                                         }
+                                                        placeholder="Gõ để tìm số máy"
+                                                        emptyMessage="Không tìm thấy máy"
+                                                        onChange={value => {
+                                                            setSelectedMachineCode(
+                                                                value
+                                                            );
+
+                                                            handleFieldChange(
+                                                                "machine_no",
+                                                                value
+                                                            );
+                                                        }}
+                                                        onSelect={option => {
+                                                            setSelectedMachineCode(
+                                                                option.value
+                                                            );
+
+                                                            handleFieldChange(
+                                                                "machine_no",
+                                                                option.value
+                                                            );
+                                                        }}
                                                     />
                                                 ) : (
                                                     <strong>
@@ -1367,20 +1561,66 @@ const loadReports = async (
 
 
                                                 {isEditing ? (
-                                                    <input
-                                                        type="text"
+                                                    <AutocompleteInput
+                                                        id={`product-${reportId}`}
+                                                        label=""
                                                         value={
-                                                            currentReport.product_name ||
-                                                            ""
+                                                            selectedProductCode
                                                         }
-                                                        onChange={event =>
-                                                            handleFieldChange(
-                                                                "product_name",
-                                                                event
-                                                                    .target
-                                                                    .value
+                                                        options={
+                                                            productOptions.map(
+                                                                item => ({
+                                                                    value:
+                                                                        item.product_code,
+                                                                    description:
+                                                                        `Định mức: ${formatNumber(
+                                                                            item.standard_output
+                                                                        )}`
+                                                                })
                                                             )
                                                         }
+                                                        placeholder="Gõ để tìm sản phẩm"
+                                                        emptyMessage="Không tìm thấy sản phẩm"
+                                                        onChange={value => {
+                                                            setSelectedProductCode(
+                                                                value
+                                                            );
+
+                                                            handleFieldChange(
+                                                                "product_name",
+                                                                value
+                                                            );
+                                                        }}
+                                                        onSelect={option => {
+                                                            const selected =
+                                                                productOptions.find(
+                                                                    item =>
+                                                                        item.product_code ===
+                                                                        option.value
+                                                                );
+
+                                                            setSelectedProductCode(
+                                                                option.value
+                                                            );
+
+                                                            setEditForm(
+                                                                previousForm => {
+                                                                    if (!previousForm) {
+                                                                        return previousForm;
+                                                                    }
+
+                                                                    return {
+                                                                        ...previousForm,
+                                                                        product_name:
+                                                                            option.value,
+                                                                        standard_output:
+                                                                            Number(
+                                                                                selected?.standard_output
+                                                                            ) || 0
+                                                                    };
+                                                                }
+                                                            );
+                                                        }}
                                                     />
                                                 ) : (
                                                     <strong>
@@ -1488,32 +1728,6 @@ const loadReports = async (
                                                 </div>
 
 
-                                                <div>
-                                                    <span>
-                                                        Thời gian thực tế
-                                                    </span>
-
-
-                                                    {isEditing ? (
-                                                        <input
-                                                            type="number"
-                                                            min="0"
-                                                            step="0.01"
-                                                            value={
-                                                                currentReport.actual_time ??
-                                                                0
-                                                            }
-                                                            readOnly
-                                                        />
-                                                    ) : (
-                                                        <strong>
-                                                            {formatNumber(
-                                                                currentReport.actual_time
-                                                            )}{" "}
-                                                            giờ
-                                                        </strong>
-                                                    )}
-                                                </div>
                                             </div>
                                         </section>
 
@@ -1561,133 +1775,6 @@ const loadReports = async (
                                                 </div>
 
 
-                                                <div>
-                                                    <span>
-                                                        Thực tế
-                                                    </span>
-
-
-                                                    {isEditing ? (
-                                                        <input
-                                                            type="number"
-                                                            min="0"
-                                                            step="1"
-                                                            value={
-                                                                currentReport.actual_output ??
-                                                                0
-                                                            }
-                                                            onChange={event =>
-                                                                setEditForm(
-                                                                    previousForm => {
-                                                                        if (!previousForm) {
-                                                                            return previousForm;
-                                                                        }
-
-                                                                        const actualOutput =
-                                                                            Math.max(
-                                                                                0,
-                                                                                Math.trunc(
-                                                                                    Number(
-                                                                                        event.target.value
-                                                                                    ) || 0
-                                                                                )
-                                                                            );
-
-                                                                        const totalNg =
-                                                                            (
-                                                                                previousForm.defects || []
-                                                                            ).reduce(
-                                                                                (
-                                                                                    sum,
-                                                                                    item
-                                                                                ) =>
-                                                                                    sum +
-                                                                                    Math.max(
-                                                                                        0,
-                                                                                        Number(
-                                                                                            item.quantity
-                                                                                        ) || 0
-                                                                                    ),
-                                                                                0
-                                                                            );
-
-                                                                        return {
-                                                                            ...previousForm,
-                                                                            actual_output: actualOutput,
-                                                                            tt_ng: totalNg,
-                                                                            tt_ok:
-                                                                                Math.max(
-                                                                                    0,
-                                                                                    actualOutput -
-                                                                                        totalNg
-                                                                                )
-                                                                        };
-                                                                    }
-                                                                )
-                                                            }
-                                                        />
-                                                    ) : (
-                                                        <strong>
-                                                            {formatNumber(
-                                                                currentReport.actual_output
-                                                            )}
-                                                        </strong>
-                                                    )}
-                                                </div>
-
-
-                                                <div>
-                                                    <span>
-                                                        TT OK
-                                                    </span>
-
-
-                                                    {isEditing ? (
-                                                        <input
-                                                            type="number"
-                                                            min="0"
-                                                            step="1"
-                                                            value={
-                                                                currentReport.tt_ok ??
-                                                                0
-                                                            }
-                                                            readOnly
-                                                        />
-                                                    ) : (
-                                                        <strong>
-                                                            {formatNumber(
-                                                                currentReport.tt_ok
-                                                            )}
-                                                        </strong>
-                                                    )}
-                                                </div>
-
-
-                                                <div>
-                                                    <span>
-                                                        TT NG
-                                                    </span>
-
-
-                                                    {isEditing ? (
-                                                        <input
-                                                            type="number"
-                                                            min="0"
-                                                            step="1"
-                                                            value={
-                                                                currentReport.tt_ng ??
-                                                                0
-                                                            }
-                                                            readOnly
-                                                        />
-                                                    ) : (
-                                                        <strong>
-                                                            {formatNumber(
-                                                                currentReport.tt_ng
-                                                            )}
-                                                        </strong>
-                                                    )}
-                                                </div>
                                             </div>
                                         </section>
                                     </div>
@@ -1808,70 +1895,112 @@ const loadReports = async (
                                                             </tfoot>
                                                         </table>
                                                     </div>
-<select
-    value={selectedDeductionId}
-    onChange={event =>
-        setSelectedDeductionId(
-            event.target.value
-        )
-    }
->
-    <option value="">
-        Chọn thời gian trừ
-    </option>
+{showDeductionSelector ? (
+                                                        <div className="selected-add-row">
+                                                            <select
+                                                                value={selectedDeductionId}
+                                                                onChange={event =>
+                                                                    setSelectedDeductionId(
+                                                                        event.target.value
+                                                                    )
+                                                                }
+                                                            >
+                                                                <option value="">
+                                                                    Chọn loại thời gian trừ
+                                                                </option>
 
-    {deductionOptions
-        .filter(option =>
-            !(currentReport.deductions || [])
-                .some(item =>
-                    Number(
-                        item.deduction_type_id
-                    ) ===
-                    Number(
-                        option.deduction_type_id
-                    )
-                )
-        )
-        .map(option => (
-            <option
-                key={
-                    option.deduction_type_id
-                }
-                value={
-                    option.deduction_type_id
-                }
-            >
-                {option.deduction_name}
-            </option>
-        ))}
-</select>
-                                                    <button
-                                                        type="button"
-                                                        className="selected-review-edit"
-                                                        disabled={saving}
-                                                        onClick={() => {
-    const selected =
-        deductionOptions.find(
-            item =>
-                Number(
-                    item.deduction_type_id
-                ) ===
-                Number(
-                    selectedDeductionId
-                )
-        );
+                                                                {deductionOptions
+                                                                    .filter(option =>
+                                                                        !(currentReport.deductions || [])
+                                                                            .some(item =>
+                                                                                Number(
+                                                                                    item.deduction_type_id
+                                                                                ) ===
+                                                                                Number(
+                                                                                    option.deduction_type_id
+                                                                                )
+                                                                            )
+                                                                    )
+                                                                    .map(option => (
+                                                                        <option
+                                                                            key={option.deduction_type_id}
+                                                                            value={option.deduction_type_id}
+                                                                        >
+                                                                            {option.deduction_name}
+                                                                        </option>
+                                                                    ))}
+                                                            </select>
 
-    if (!selected) {
-        return;
-    }
+                                                            <button
+                                                                type="button"
+                                                                className="selected-review-save"
+                                                                disabled={
+                                                                    saving ||
+                                                                    !selectedDeductionId
+                                                                }
+                                                                onClick={() => {
+                                                                    const selected =
+                                                                        deductionOptions.find(
+                                                                            item =>
+                                                                                Number(
+                                                                                    item.deduction_type_id
+                                                                                ) ===
+                                                                                Number(
+                                                                                    selectedDeductionId
+                                                                                )
+                                                                        );
 
-    addDeduction(selected);
+                                                                    if (!selected) {
+                                                                        return;
+                                                                    }
 
-    setSelectedDeductionId("");
-}}
-                                                    >
-                                                        + Thêm thời gian trừ
-                                                    </button>
+                                                                    addDeduction(
+                                                                        selected
+                                                                    );
+
+                                                                    setSelectedDeductionId(
+                                                                        ""
+                                                                    );
+
+                                                                    setShowDeductionSelector(
+                                                                        false
+                                                                    );
+                                                                }}
+                                                            >
+                                                                Xác nhận thêm
+                                                            </button>
+
+                                                            <button
+                                                                type="button"
+                                                                className="selected-review-cancel"
+                                                                disabled={saving}
+                                                                onClick={() => {
+                                                                    setSelectedDeductionId(
+                                                                        ""
+                                                                    );
+
+                                                                    setShowDeductionSelector(
+                                                                        false
+                                                                    );
+                                                                }}
+                                                            >
+                                                                Hủy
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            className="selected-review-edit"
+                                                            disabled={saving}
+                                                            onClick={() =>
+                                                                setShowDeductionSelector(
+                                                                    true
+                                                                )
+                                                            }
+                                                        >
+                                                            + Thêm thời gian trừ
+                                                        </button>
+                                                    )}
                                                 </>
                                             ) : currentReport.deductions
                                                 ?.length ? (
@@ -2072,70 +2201,112 @@ const loadReports = async (
                                                             </tfoot>
                                                         </table>
                                                     </div>
-<select
-    value={selectedDefectId}
-    onChange={event =>
-        setSelectedDefectId(
-            event.target.value
-        )
-    }
->
-    <option value="">
-        Chọn loại NG
-    </option>
+{showDefectSelector ? (
+                                                        <div className="selected-add-row">
+                                                            <select
+                                                                value={selectedDefectId}
+                                                                onChange={event =>
+                                                                    setSelectedDefectId(
+                                                                        event.target.value
+                                                                    )
+                                                                }
+                                                            >
+                                                                <option value="">
+                                                                    Chọn loại NG
+                                                                </option>
 
-    {defectOptions
-        .filter(option =>
-            !(currentReport.defects || [])
-                .some(item =>
-                    Number(
-                        item.defect_type_id
-                    ) ===
-                    Number(
-                        option.defect_type_id
-                    )
-                )
-        )
-        .map(option => (
-            <option
-                key={
-                    option.defect_type_id
-                }
-                value={
-                    option.defect_type_id
-                }
-            >
-                {option.defect_name}
-            </option>
-        ))}
-</select>
-                                                    <button
-                                                        type="button"
-                                                        className="selected-review-edit"
-                                                        disabled={saving}
-                                                        onClick={() => {
-    const selected =
-        defectOptions.find(
-            item =>
-                Number(
-                    item.defect_type_id
-                ) ===
-                Number(
-                    selectedDefectId
-                )
-        );
+                                                                {defectOptions
+                                                                    .filter(option =>
+                                                                        !(currentReport.defects || [])
+                                                                            .some(item =>
+                                                                                Number(
+                                                                                    item.defect_type_id
+                                                                                ) ===
+                                                                                Number(
+                                                                                    option.defect_type_id
+                                                                                )
+                                                                            )
+                                                                    )
+                                                                    .map(option => (
+                                                                        <option
+                                                                            key={option.defect_type_id}
+                                                                            value={option.defect_type_id}
+                                                                        >
+                                                                            {option.defect_name}
+                                                                        </option>
+                                                                    ))}
+                                                            </select>
 
-    if (!selected) {
-        return;
-    }
+                                                            <button
+                                                                type="button"
+                                                                className="selected-review-save"
+                                                                disabled={
+                                                                    saving ||
+                                                                    !selectedDefectId
+                                                                }
+                                                                onClick={() => {
+                                                                    const selected =
+                                                                        defectOptions.find(
+                                                                            item =>
+                                                                                Number(
+                                                                                    item.defect_type_id
+                                                                                ) ===
+                                                                                Number(
+                                                                                    selectedDefectId
+                                                                                )
+                                                                        );
 
-    addDefect(selected);
+                                                                    if (!selected) {
+                                                                        return;
+                                                                    }
 
-    setSelectedDefectId("");
-}}
-                                                    >
-                                                        + Thêm loại NG
-                                                    </button>
+                                                                    addDefect(
+                                                                        selected
+                                                                    );
+
+                                                                    setSelectedDefectId(
+                                                                        ""
+                                                                    );
+
+                                                                    setShowDefectSelector(
+                                                                        false
+                                                                    );
+                                                                }}
+                                                            >
+                                                                Xác nhận thêm
+                                                            </button>
+
+                                                            <button
+                                                                type="button"
+                                                                className="selected-review-cancel"
+                                                                disabled={saving}
+                                                                onClick={() => {
+                                                                    setSelectedDefectId(
+                                                                        ""
+                                                                    );
+
+                                                                    setShowDefectSelector(
+                                                                        false
+                                                                    );
+                                                                }}
+                                                            >
+                                                                Hủy
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            className="selected-review-edit"
+                                                            disabled={saving}
+                                                            onClick={() =>
+                                                                setShowDefectSelector(
+                                                                    true
+                                                                )
+                                                            }
+                                                        >
+                                                            + Thêm loại NG
+                                                        </button>
+                                                    )}
                                                 </>
                                             ) : currentReport.defects
                                                 ?.length ? (
