@@ -787,7 +787,49 @@ const buildAllSheetRows = reports => {
 
     return rows;
 };
+const compareReportsForSheet = (
+    first,
+    second
+) => {
+    const firstDate =
+        normalizeDateKey(
+            first.work_date
+        );
 
+    const secondDate =
+        normalizeDateKey(
+            second.work_date
+        );
+
+    const dateCompare =
+        firstDate.localeCompare(
+            secondDate
+        );
+
+    if (dateCompare !== 0) {
+        return dateCompare;
+    }
+
+    const workerCompare =
+        String(first.worker_code || "")
+            .localeCompare(
+                String(second.worker_code || ""),
+                undefined,
+                {
+                    numeric: true,
+                    sensitivity: "base"
+                }
+            );
+
+    if (workerCompare !== 0) {
+        return workerCompare;
+    }
+
+    return (
+        Number(first.id) -
+        Number(second.id)
+    );
+};
 const writeSheetData = async (
     sheets,
     reports
