@@ -93,41 +93,6 @@ export const getTempReportsByDate = async(
 
 
 
-// =====================================================
-// DUYỆT THEO NGÀY
-// =====================================================
-
-export const approveTempByDate = async(
-
-    date:string
-
-)=>{
-
-
-    const res = await api.post(
-
-        "/production-temp/approve-date",
-
-        {
-
-            date
-
-        }
-
-    );
-
-
-    return res.data;
-
-
-};
-
-
-
-
-
-
-
 export const getTempReportById = async (
     id: number
 ): Promise<ProductionReport> => {

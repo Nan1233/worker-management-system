@@ -57,6 +57,10 @@ api.interceptors.response.use(
             localStorage.removeItem("token");
             localStorage.removeItem("user");
 
+            if (window.location.pathname !== "/login") {
+                window.location.replace("/login");
+            }
+
         }
 
 

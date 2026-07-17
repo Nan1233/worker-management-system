@@ -235,9 +235,10 @@ function Reports() {
 
 
     useEffect(() => {
-        setSelectedIds([]);
-
-        void loadReports(date);
+        queueMicrotask(() => {
+            setSelectedIds([]);
+            void loadReports(date);
+        });
     }, [date]);
 
 
@@ -347,7 +348,7 @@ function Reports() {
 
 
     useEffect(() => {
-        setCurrentPage(1);
+        queueMicrotask(() => setCurrentPage(1));
     }, [
         searchKeyword,
         selectedShift,
@@ -371,7 +372,7 @@ function Reports() {
 
     useEffect(() => {
         if (currentPage > totalPages) {
-            setCurrentPage(totalPages);
+            queueMicrotask(() => setCurrentPage(totalPages));
         }
     }, [
         currentPage,

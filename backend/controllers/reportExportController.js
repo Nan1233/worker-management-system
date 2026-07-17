@@ -921,14 +921,15 @@ row.getCell("AV").value =
         ]
     );
 
-    // AW-AY
+    // AW-AX - Trống
     row.getCell("AW").value = "";
     row.getCell("AX").value = "";
-    row.getCell("AY").value = "";
 
-    // AZ - Status
-    row.getCell("AZ").value =
-        "approved";
+    // AY - Trạng thái (giống Google Sheet)
+    row.getCell("AY").value = "approved";
+
+    // AZ - ID báo cáo nội bộ (giống Google Sheet)
+    row.getCell("AZ").value = Number(report.id);
 
 
     // =================================================
@@ -965,6 +966,37 @@ row.getCell("AV").value =
 // =====================================================
 // EXCEL TEMPLATE CONFIG
 // =====================================================
+
+const normalizeDateKey = (value) => {
+    if (!value) return "";
+    if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+};
+
+const compareReportsForExcel = (first, second) => {
+    const dateCompare = normalizeDateKey(first.work_date).localeCompare(normalizeDateKey(second.work_date));
+    if (dateCompare !== 0) return dateCompare;
+    const workerCompare = String(first.worker_code || "").localeCompare(
+        String(second.worker_code || ""),
+        undefined,
+        { numeric: true, sensitivity: "base" }
+    );
+    if (workerCompare !== 0) return workerCompare;
+    return Number(first.id) - Number(second.id);
+};
+
+const writeDateSeparatorRow = (sheet, rowNumber, value) => {
+    copyRowStyle(sheet, STYLE_SOURCE_ROW, rowNumber);
+    const row = sheet.getRow(rowNumber);
+    for (let column = 1; column <= 52; column += 1) row.getCell(column).value = null;
+    row.getCell("A").value = formatWorkDate(value);
+    row.getCell("A").font = { ...(row.getCell("A").font || {}), bold: true };
+};
 
 const EXCEL_TEMPLATE_PATH = path.join(
     __dirname,
@@ -1278,26 +1310,27 @@ if (reports.length === 0) {
         // INSERT SELECTED REPORTS
         // =============================================
 
-        reports.forEach(
-            (report, index) => {
-                const rowNumber =
-                    DATA_START_ROW +
-                    index;
+        reports.sort(compareReportsForExcel);
 
-                copyRowStyle(
-                    sheet,
-                    STYLE_SOURCE_ROW,
-                    rowNumber
-                );
+        let outputRow = DATA_START_ROW;
+        let currentDate = "";
+        let sequenceNumber = 0;
 
-                writeReportToRow(
-                    sheet,
-                    report,
-                    rowNumber,
-                    index
-                );
+        reports.forEach((report) => {
+            const dateKey = normalizeDateKey(report.work_date);
+
+            if (dateKey !== currentDate) {
+                currentDate = dateKey;
+                sequenceNumber = 0;
+                writeDateSeparatorRow(sheet, outputRow, report.work_date);
+                outputRow += 1;
             }
-        );
+
+            sequenceNumber += 1;
+            copyRowStyle(sheet, STYLE_SOURCE_ROW, outputRow);
+            writeReportToRow(sheet, report, outputRow, sequenceNumber - 1);
+            outputRow += 1;
+        });
 
 
         // =============================================

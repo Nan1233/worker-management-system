@@ -152,7 +152,7 @@ function ApprovedReports() {
         }
     };
 
-    setSelectedIds([]);
+    queueMicrotask(() => setSelectedIds([]));
 
     void loadReports();
 }, [date]);
@@ -206,7 +206,9 @@ const duplicateCounts = useMemo(() => {
         });
     }, [reports, searchKeyword, selectedShift, selectedProcess]);
 
-    useEffect(() => setCurrentPage(1), [date, searchKeyword, selectedShift, selectedProcess]);
+    useEffect(() => {
+        queueMicrotask(() => setCurrentPage(1));
+    }, [date, searchKeyword, selectedShift, selectedProcess]);
 
     const totalPages = Math.max(1, Math.ceil(filteredReports.length / ITEMS_PER_PAGE));
 const paginatedReports = useMemo(

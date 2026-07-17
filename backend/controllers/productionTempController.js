@@ -1,5 +1,6 @@
 const ProductionTemp = require("../models/productionTempModel");
 const GoogleSheetService = require("../services/googleSheetService");
+const { validateProductionReport } = require("../utils/reportValidation");
 
 const toPositiveInteger = (value) => {
     const numberValue = Number(value);
@@ -37,26 +38,36 @@ exports.createTempReport = async (req, res) => {
             return res.status(400).json({ success: false, message: "Thiếu ca làm việc" });
         }
 
+        const validation = validateProductionReport(req.body);
+        if (!validation.valid) {
+            return res.status(422).json({
+                success: false,
+                message: "Dữ liệu báo cáo không hợp lệ",
+                errors: validation.errors
+            });
+        }
+
         const defects = Array.isArray(req.body.defects) ? req.body.defects : [];
         const deductions = Array.isArray(req.body.deductions) ? req.body.deductions : [];
         const data = {
-            ...req.body,
+            ...validation.normalized,
             worker_id: workerId,
             process_id: processId,
             defects: undefined,
             deductions: undefined
         };
 
-        const tempId = await ProductionTemp.create(data);
-        await ProductionTemp.createDefects(tempId, processId, defects);
-        await ProductionTemp.createDeductions(tempId, processId, deductions);
-        await ProductionTemp.logAction({
-            reportType: "temp",
-            reportId: tempId,
-            userId: req.user.id,
-            action: "CREATE",
-            note: "Công nhân tạo báo cáo",
-            ...requestMeta(req)
+        const tempId = await ProductionTemp.createCompleteReport({
+            data,
+            defects,
+            deductions,
+            log: {
+                reportType: "temp",
+                userId: req.user.id,
+                action: "CREATE",
+                note: "Công nhân tạo báo cáo",
+                ...requestMeta(req)
+            }
         });
 
         return res.status(201).json({ success: true, message: "Tạo báo cáo thành công", id: tempId });

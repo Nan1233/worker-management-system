@@ -1063,11 +1063,10 @@ sessionStorage.setItem(
 
 
         if (!saved) {
-            setLoading(false);
-
-            setError(
-                "Không tìm thấy báo cáo đã chọn."
-            );
+            queueMicrotask(() => {
+                setLoading(false);
+                setError("Không tìm thấy báo cáo đã chọn.");
+            });
 
             return;
         }
@@ -1105,28 +1104,26 @@ sessionStorage.setItem(
             if (
                 ids.length === 0
             ) {
-                setLoading(false);
-
-                setError(
-                    "Không tìm thấy báo cáo hợp lệ."
-                );
+                queueMicrotask(() => {
+                    setLoading(false);
+                    setError("Không tìm thấy báo cáo hợp lệ.");
+                });
 
                 return;
             }
 
 
-            void loadReports(ids);
+            queueMicrotask(() => void loadReports(ids));
         } catch (err) {
             console.error(
                 "PARSE SELECTED REPORT IDS ERROR:",
                 err
             );
 
-            setLoading(false);
-
-            setError(
-                "Danh sách báo cáo đã chọn không hợp lệ."
-            );
+            queueMicrotask(() => {
+                setLoading(false);
+                setError("Danh sách báo cáo đã chọn không hợp lệ.");
+            });
         }
     }, []);
 

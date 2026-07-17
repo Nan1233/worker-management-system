@@ -59,7 +59,7 @@ const editableFields = [
 ];
 
 const ProductionTemp = {
-    async create(data) {
+    async create(data, executor = db) {
         const sql = `
             INSERT INTO production_reports_temp
             (
@@ -70,7 +70,7 @@ const ProductionTemp = {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
         `;
 
-        const result = await query(db, sql, [
+        const result = await query(executor, sql, [
             data.worker_id,
             data.process_id,
             data.work_date,
@@ -90,7 +90,7 @@ const ProductionTemp = {
         return result.insertId;
     },
 
-    async createDefects(tempReportId, processId, defects) {
+    async createDefects(tempReportId, processId, defects, executor = db) {
         if (!Array.isArray(defects) || defects.length === 0) return;
 
         for (const item of defects) {
@@ -98,7 +98,7 @@ const ProductionTemp = {
 
             if (!defectTypeId && item.defect_name) {
                 const rows = await query(
-                    db,
+                    executor,
                     `SELECT id FROM defect_types
                      WHERE process_id = ? AND defect_name = ? AND status = 'active'
                      LIMIT 1`,
@@ -110,7 +110,7 @@ const ProductionTemp = {
             if (!defectTypeId) continue;
 
             await query(
-                db,
+                executor,
                 `INSERT INTO production_temp_defects
                  (temp_report_id, defect_type_id, quantity)
                  VALUES (?, ?, ?)`,
@@ -119,7 +119,7 @@ const ProductionTemp = {
         }
     },
 
-    async createDeductions(tempReportId, processId, deductions) {
+    async createDeductions(tempReportId, processId, deductions, executor = db) {
         if (!Array.isArray(deductions) || deductions.length === 0) return;
 
         for (const item of deductions) {
@@ -127,7 +127,7 @@ const ProductionTemp = {
 
             if (!deductionTypeId && item.deduction_name) {
                 const rows = await query(
-                    db,
+                    executor,
                     `SELECT id FROM deduction_types
                      WHERE process_id = ? AND deduction_name = ? AND status = 'active'
                      LIMIT 1`,
@@ -139,7 +139,7 @@ const ProductionTemp = {
             if (!deductionTypeId) continue;
 
             await query(
-                db,
+                executor,
                 `INSERT INTO production_temp_deductions
                  (temp_report_id, deduction_type_id, hours)
                  VALUES (?, ?, ?)`,
@@ -160,6 +160,24 @@ const ProductionTemp = {
         );
     },
 
+
+    async createCompleteReport({ data, defects = [], deductions = [], log }) {
+        const connection = await getConnection();
+        try {
+            await beginTransaction(connection);
+            const tempId = await this.create(data, connection);
+            await this.createDefects(tempId, data.process_id, defects, connection);
+            await this.createDeductions(tempId, data.process_id, deductions, connection);
+            await this.logAction({ ...log, reportId: tempId }, connection);
+            await commit(connection);
+            return tempId;
+        } catch (error) {
+            await rollback(connection);
+            throw error;
+        } finally {
+            connection.release();
+        }
+    },
     async getPending(managerId, filters = {}, isAdmin = false) {
         const params = [];
         const conditions = ["pr.status IN ('pending', 'need_fix')"];
