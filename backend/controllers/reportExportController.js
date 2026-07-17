@@ -2,9 +2,9 @@ const ExcelJS = require("exceljs");
 
 const db = require("../config/db");
 
-const GoogleSheetService = require(
-    "../services/googleSheetService"
-);
+// const GoogleSheetService = require(
+//     "../services/googleSheetService"
+// );
 
 
 // =====================================================
@@ -972,80 +972,80 @@ exports.exportGiaCongExcel = async (
 // ?date=2026-07-16
 // =====================================================
 
-exports.exportGoogleSheet = async (
-    req,
-    res
-) => {
+// exports.exportGoogleSheet = async (
+//     req,
+//     res
+// ) => {
 
-    try {
+//     try {
 
-        const date = String(
-            req.query.date || ""
-        ).trim();
+//         const date = String(
+//             req.query.date || ""
+//         ).trim();
 
-        if (!date) {
+//         if (!date) {
 
-            return res.status(400).json({
+//             return res.status(400).json({
 
-                success: false,
+//                 success: false,
 
-                message:
-                    "Thiếu ngày"
+//                 message:
+//                     "Thiếu ngày"
 
-            });
+//             });
 
-        }
+//         }
 
-        if (!isValidDate(date)) {
+//         if (!isValidDate(date)) {
 
-            return res.status(400).json({
+//             return res.status(400).json({
 
-                success: false,
+//                 success: false,
 
-                message:
-                    "Ngày không hợp lệ. Định dạng yêu cầu: YYYY-MM-DD"
+//                 message:
+//                     "Ngày không hợp lệ. Định dạng yêu cầu: YYYY-MM-DD"
 
-            });
+//             });
 
-        }
+//         }
 
-        const result =
-            await GoogleSheetService
-                .syncProductionReport(date);
+//         const result =
+//             await GoogleSheetService
+//                 .syncProductionReport(date);
 
-        return res.status(200).json({
+//         return res.status(200).json({
 
-            success: true,
+//             success: true,
 
-            message:
-                "Cập nhật Google Sheet thành công",
+//             message:
+//                 "Cập nhật Google Sheet thành công",
 
-            url:
-                result?.url || null
+//             url:
+//                 result?.url || null
 
-        });
+//         });
 
-    }
-    catch (error) {
+//     }
+//     catch (error) {
 
-        console.error(
-            "EXPORT GOOGLE SHEET ERROR:",
-            error
-        );
+//         console.error(
+//             "EXPORT GOOGLE SHEET ERROR:",
+//             error
+//         );
 
-        return res.status(500).json({
+//         return res.status(500).json({
 
-            success: false,
+//             success: false,
 
-            message:
-                error.message
-                || "Không thể cập nhật Google Sheet"
+//             message:
+//                 error.message
+//                 || "Không thể cập nhật Google Sheet"
 
-        });
+//         });
 
-    }
+//     }
 
-};
+// };
 
 
 // =====================================================
@@ -1054,80 +1054,80 @@ exports.exportGoogleSheet = async (
 // POST /api/reports/create-sheet
 // =====================================================
 
-exports.createGoogleSheet = async (
-    req,
-    res
-) => {
+// exports.createGoogleSheet = async (
+//     req,
+//     res
+// ) => {
 
-    try {
+//     try {
 
-        const date = String(
-            req.body?.date || ""
-        ).trim();
+//         const date = String(
+//             req.body?.date || ""
+//         ).trim();
 
-        if (!date) {
+//         if (!date) {
 
-            return res.status(400).json({
+//             return res.status(400).json({
 
-                success: false,
+//                 success: false,
 
-                message:
-                    "Thiếu ngày"
+//                 message:
+//                     "Thiếu ngày"
 
-            });
+//             });
 
-        }
+//         }
 
-        if (!isValidDate(date)) {
+//         if (!isValidDate(date)) {
 
-            return res.status(400).json({
+//             return res.status(400).json({
 
-                success: false,
+//                 success: false,
 
-                message:
-                    "Ngày không hợp lệ. Định dạng yêu cầu: YYYY-MM-DD"
+//                 message:
+//                     "Ngày không hợp lệ. Định dạng yêu cầu: YYYY-MM-DD"
 
-            });
+//             });
 
-        }
+//         }
 
-        const result =
-            await GoogleSheetService
-                .createSheet(date);
+//         const result =
+//             await GoogleSheetService
+//                 .createSheet(date);
 
-        return res.status(200).json({
+//         return res.status(200).json({
 
-            success: true,
+//             success: true,
 
-            message:
-                "Tạo Google Sheet thành công",
+//             message:
+//                 "Tạo Google Sheet thành công",
 
-            url:
-                result?.url || null
+//             url:
+//                 result?.url || null
 
-        });
+//         });
 
-    }
-    catch (error) {
+//     }
+//     catch (error) {
 
-        console.error(
-            "CREATE GOOGLE SHEET ERROR:",
-            error
-        );
+//         console.error(
+//             "CREATE GOOGLE SHEET ERROR:",
+//             error
+//         );
 
-        return res.status(500).json({
+//         return res.status(500).json({
 
-            success: false,
+//             success: false,
 
-            message:
-                error.message
-                || "Không thể tạo Google Sheet"
+//             message:
+//                 error.message
+//                 || "Không thể tạo Google Sheet"
 
-        });
+//         });
 
-    }
+//     }
 
-};
+// };
 
 
 // =====================================================
@@ -1136,77 +1136,77 @@ exports.createGoogleSheet = async (
 // POST /api/reports/update-sheet
 // =====================================================
 
-exports.updateGoogleSheet = async (
-    req,
-    res
-) => {
+// exports.updateGoogleSheet = async (
+//     req,
+//     res
+// ) => {
 
-    try {
+//     try {
 
-        const date = String(
-            req.body?.date || ""
-        ).trim();
+//         const date = String(
+//             req.body?.date || ""
+//         ).trim();
 
-        if (!date) {
+//         if (!date) {
 
-            return res.status(400).json({
+//             return res.status(400).json({
 
-                success: false,
+//                 success: false,
 
-                message:
-                    "Thiếu ngày"
+//                 message:
+//                     "Thiếu ngày"
 
-            });
+//             });
 
-        }
+//         }
 
-        if (!isValidDate(date)) {
+//         if (!isValidDate(date)) {
 
-            return res.status(400).json({
+//             return res.status(400).json({
 
-                success: false,
+//                 success: false,
 
-                message:
-                    "Ngày không hợp lệ. Định dạng yêu cầu: YYYY-MM-DD"
+//                 message:
+//                     "Ngày không hợp lệ. Định dạng yêu cầu: YYYY-MM-DD"
 
-            });
+//             });
 
-        }
+//         }
 
-        const result =
-            await GoogleSheetService
-                .updateSheet(date);
+//         const result =
+//             await GoogleSheetService
+//                 .updateSheet(date);
 
-        return res.status(200).json({
+//         return res.status(200).json({
 
-            success: true,
+//             success: true,
 
-            message:
-                "Cập nhật Google Sheet thành công",
+//             message:
+//                 "Cập nhật Google Sheet thành công",
 
-            url:
-                result?.url || null
+//             url:
+//                 result?.url || null
 
-        });
+//         });
 
-    }
-    catch (error) {
+//     }
+//     catch (error) {
 
-        console.error(
-            "UPDATE GOOGLE SHEET ERROR:",
-            error
-        );
+//         console.error(
+//             "UPDATE GOOGLE SHEET ERROR:",
+//             error
+//         );
 
-        return res.status(500).json({
+//         return res.status(500).json({
 
-            success: false,
+//             success: false,
 
-            message:
-                error.message
-                || "Không thể cập nhật Google Sheet"
+//             message:
+//                 error.message
+//                 || "Không thể cập nhật Google Sheet"
 
-        });
+//         });
 
-    }
+//     }
 
-};
+// };

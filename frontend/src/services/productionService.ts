@@ -564,52 +564,52 @@ const downloadExcel = (
 
 // TẠO GOOGLE SHEET MỚI
 
-export const createGoogleSheet = async(
-    date:string
-)=>{
+// export const createGoogleSheet = async(
+//     date:string
+// )=>{
 
 
-    const res = await api.post(
+//     const res = await api.post(
 
-        "/reports/create-sheet",
+//         "/reports/create-sheet",
 
-        {
-            date
-        }
+//         {
+//             date
+//         }
 
-    );
-
-
-    return res.data;
+//     );
 
 
-};
+//     return res.data;
+
+
+// };
 
 
 
 
 // CẬP NHẬT GOOGLE SHEET CŨ
 
-export const updateGoogleSheet = async(
-    date:string
-)=>{
+// export const updateGoogleSheet = async(
+//     date:string
+// )=>{
 
 
-    const res = await api.post(
+//     const res = await api.post(
 
-        "/reports/update-sheet",
+//         "/reports/update-sheet",
 
-        {
-            date
-        }
+//         {
+//             date
+//         }
 
-    );
-
-
-    return res.data;
+//     );
 
 
-};
+//     return res.data;
+
+
+// };
 // =====================================================
 // LEAD / MANAGER DUYỆT CÁC BÁO CÁO ĐÃ CHỌN
 // =====================================================
@@ -640,34 +640,34 @@ export const approveSelectedTempReports = async (
 
 
 
-// =====================================================
-// LEAD / MANAGER TỪ CHỐI CÁC BÁO CÁO ĐÃ CHỌN
-// =====================================================
+// // =====================================================
+// // LEAD / MANAGER TỪ CHỐI CÁC BÁO CÁO ĐÃ CHỌN
+// // =====================================================
 
-export const rejectSelectedTempReports = async (
+// export const rejectSelectedTempReports = async (
 
-    ids: number[],
+//     ids: number[],
 
-    reason: string
+//     reason: string
 
-) => {
-
-
-    const res = await api.post(
-
-        "/production-temp/reject-selected",
-
-        {
-            ids,
-            reason
-        }
-
-    );
+// ) => {
 
 
-    return res.data;
+//     const res = await api.post(
 
-};
+//         "/production-temp/reject-selected",
+
+//         {
+//             ids,
+//             reason
+//         }
+
+//     );
+
+
+//     return res.data;
+
+// };
 
 // =====================================================
 // LẤY CHI TIẾT MỘT BÁO CÁO TEMP
@@ -696,4 +696,90 @@ export const updateTempReport = async (
     );
 
     return res.data;
+};
+// =====================================================
+// XUẤT EXCEL CÁC BÁO CÁO ĐÃ DUYỆT ĐƯỢC CHỌN
+// =====================================================
+
+export const exportSelectedApprovedExcel = async (
+    ids: number[],
+    date?: string
+) => {
+    const validIds = [
+        ...new Set(
+            ids
+                .map(Number)
+                .filter(
+                    id =>
+                        Number.isInteger(id) &&
+                        id > 0
+                )
+        )
+    ];
+
+    if (validIds.length === 0) {
+        throw new Error(
+            "Vui lòng chọn ít nhất một báo cáo"
+        );
+    }
+
+    const response = await api.post(
+        "/reports/export-excel",
+        {
+            ids: validIds
+        },
+        {
+            responseType: "blob"
+        }
+    );
+
+    const contentDisposition =
+        response.headers[
+            "content-disposition"
+        ];
+
+    let fileName =
+        `bao-cao-da-duyet-${
+            date || "da-chon"
+        }.xlsx`;
+
+    if (contentDisposition) {
+        const fileNameMatch =
+            contentDisposition.match(
+                /filename="?([^"]+)"?/i
+            );
+
+        if (fileNameMatch?.[1]) {
+            fileName =
+                decodeURIComponent(
+                    fileNameMatch[1]
+                );
+        }
+    }
+
+    const blob = new Blob(
+        [response.data],
+        {
+            type:
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        }
+    );
+
+    const downloadUrl =
+        window.URL.createObjectURL(blob);
+
+    const link =
+        document.createElement("a");
+
+    link.href = downloadUrl;
+    link.download = fileName;
+
+    document.body.appendChild(link);
+
+    link.click();
+    link.remove();
+
+    window.URL.revokeObjectURL(
+        downloadUrl
+    );
 };

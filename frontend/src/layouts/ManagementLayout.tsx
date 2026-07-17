@@ -112,24 +112,6 @@ const menuItems: MenuItem[] = [
         ]
     },
 
-    {
-        id:
-            "export",
-
-        label:
-            "Xuất báo cáo",
-
-        path:
-            "export",
-
-        icon:
-            "⇩",
-
-        roles: [
-            "lead",
-            "manager"
-        ]
-    },
 
     {
         id:

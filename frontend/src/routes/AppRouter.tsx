@@ -40,7 +40,6 @@ import LeadReportDetail from "../pages/lead/ReportDetail";
 
 import LeadWorkers from "../pages/lead/Workers";
 
-import LeadReportDownload from "../pages/lead/ReportDownload";
 
 
 // =====================================================
@@ -295,14 +294,7 @@ function AppRouter() {
                 />
 
 
-                <Route
-                    path="export"
-                    element={
-
-                        <LeadReportDownload />
-
-                    }
-                />
+         
 
             </Route>
 
@@ -371,14 +363,7 @@ function AppRouter() {
                 />
 
 
-                <Route
-                    path="export"
-                    element={
-
-                        <LeadReportDownload />
-
-                    }
-                />
+       
 
 
                 <Route
