@@ -12,6 +12,8 @@ import axios from "axios";
 
 import {
     approveSelectedTempReports,
+    getDeductionOptionsByProcess,
+    getDefectOptionsByProcess,
     getTempReportDetail,
     updateTempReport
 } from "../../services/productionService";
@@ -161,15 +163,36 @@ function SelectedReportsReview() {
     ] = useState<ProductionReport | null>(
         null
     );
+const [
+    deductionOptions,
+    setDeductionOptions
+] = useState<ProductionDeduction[]>([]);
 
+
+const [
+    defectOptions,
+    setDefectOptions
+] = useState<ProductionDefect[]>([]);
+
+
+const [
+    selectedDeductionId,
+    setSelectedDeductionId
+] = useState("");
+
+
+const [
+    selectedDefectId,
+    setSelectedDefectId
+] = useState("");
 
     // =====================================================
     // BẮT ĐẦU SỬA
     // =====================================================
 
-    const handleStartEdit = (
-        report: ProductionReport
-    ) => {
+const handleStartEdit = async (
+    report: ProductionReport
+) => {
         const reportId =
             Number(report.id);
 
@@ -186,9 +209,64 @@ function SelectedReportsReview() {
 
         setEditingId(reportId);
 
-        setEditForm({
-            ...report
-        });
+setEditForm({
+    ...report,
+    deductions: [
+        ...(report.deductions || [])
+    ],
+    defects: [
+        ...(report.defects || [])
+    ]
+});
+
+setSelectedDeductionId("");
+setSelectedDefectId("");
+
+const processId =
+    Number(report.process_id);
+
+if (
+    !Number.isInteger(processId) ||
+    processId <= 0
+) {
+    setDeductionOptions([]);
+    setDefectOptions([]);
+    return;
+}
+
+try {
+
+    const [
+        deductionList,
+        defectList
+    ] = await Promise.all([
+        getDeductionOptionsByProcess(
+            processId
+        ),
+        getDefectOptionsByProcess(
+            processId
+        )
+    ]);
+
+    setDeductionOptions(
+        deductionList
+    );
+
+    setDefectOptions(
+        defectList
+    );
+
+} catch (err) {
+
+    console.error(
+        "LOAD REPORT OPTIONS ERROR:",
+        err
+    );
+
+    setDeductionOptions([]);
+    setDefectOptions([]);
+
+}
     };
 
 
@@ -278,24 +356,53 @@ function SelectedReportsReview() {
     };
 
 
-    const addDeduction = () => {
-        setEditForm(previousForm => {
-            if (!previousForm) {
-                return previousForm;
-            }
+    const addDeduction = (
+    deduction: ProductionDeduction
+) => {
+    setEditForm(previousForm => {
+        if (!previousForm) {
+            return previousForm;
+        }
 
-            return {
-                ...previousForm,
-                deductions: [
-                    ...(previousForm.deductions || []),
-                    {
-                        deduction_name: "",
-                        hours: 0
-                    }
-                ]
-            };
-        });
-    };
+        const existed =
+            (previousForm.deductions || [])
+                .some(item =>
+                    Number(
+                        item.deduction_type_id
+                    ) ===
+                    Number(
+                        deduction.deduction_type_id
+                    )
+                );
+
+        if (existed) {
+            alert(
+                "Thời gian trừ này đã có trong báo cáo."
+            );
+
+            return previousForm;
+        }
+
+        return {
+            ...previousForm,
+            deductions: [
+                ...(previousForm.deductions || []),
+                {
+                    deduction_type_id:
+                        deduction.deduction_type_id,
+
+                    deduction_code:
+                        deduction.deduction_code,
+
+                    deduction_name:
+                        deduction.deduction_name,
+
+                    hours: 0
+                }
+            ]
+        };
+    });
+};
 
 
     const removeDeduction = (
@@ -386,24 +493,53 @@ function SelectedReportsReview() {
     };
 
 
-    const addDefect = () => {
-        setEditForm(previousForm => {
-            if (!previousForm) {
-                return previousForm;
-            }
+    const addDefect = (
+    defect: ProductionDefect
+) => {
+    setEditForm(previousForm => {
+        if (!previousForm) {
+            return previousForm;
+        }
 
-            return {
-                ...previousForm,
-                defects: [
-                    ...(previousForm.defects || []),
-                    {
-                        defect_name: "",
-                        quantity: 0
-                    }
-                ]
-            };
-        });
-    };
+        const existed =
+            (previousForm.defects || [])
+                .some(item =>
+                    Number(
+                        item.defect_type_id
+                    ) ===
+                    Number(
+                        defect.defect_type_id
+                    )
+                );
+
+        if (existed) {
+            alert(
+                "Loại NG này đã có trong báo cáo."
+            );
+
+            return previousForm;
+        }
+
+        return {
+            ...previousForm,
+            defects: [
+                ...(previousForm.defects || []),
+                {
+                    defect_type_id:
+                        defect.defect_type_id,
+
+                    defect_code:
+                        defect.defect_code,
+
+                    defect_name:
+                        defect.defect_name,
+
+                    quantity: 0
+                }
+            ]
+        };
+    });
+};
 
 
     const removeDefect = (
@@ -1606,20 +1742,14 @@ const loadReports = async (
 
                                                                             <td>
                                                                                 <input
-                                                                                    type="text"
-                                                                                    value={
-                                                                                        item.deduction_name ||
-                                                                                        ""
-                                                                                    }
-                                                                                    placeholder="Tên nội dung trừ"
-                                                                                    onChange={event =>
-                                                                                        updateDeduction(
-                                                                                            deductionIndex,
-                                                                                            "deduction_name",
-                                                                                            event.target.value
-                                                                                        )
-                                                                                    }
-                                                                                />
+    type="text"
+    value={
+        item.deduction_name ||
+        item.deduction_code ||
+        ""
+    }
+    readOnly
+/>
                                                                             </td>
 
                                                                             <td>
@@ -1678,12 +1808,67 @@ const loadReports = async (
                                                             </tfoot>
                                                         </table>
                                                     </div>
+<select
+    value={selectedDeductionId}
+    onChange={event =>
+        setSelectedDeductionId(
+            event.target.value
+        )
+    }
+>
+    <option value="">
+        Chọn thời gian trừ
+    </option>
 
+    {deductionOptions
+        .filter(option =>
+            !(currentReport.deductions || [])
+                .some(item =>
+                    Number(
+                        item.deduction_type_id
+                    ) ===
+                    Number(
+                        option.deduction_type_id
+                    )
+                )
+        )
+        .map(option => (
+            <option
+                key={
+                    option.deduction_type_id
+                }
+                value={
+                    option.deduction_type_id
+                }
+            >
+                {option.deduction_name}
+            </option>
+        ))}
+</select>
                                                     <button
                                                         type="button"
                                                         className="selected-review-edit"
                                                         disabled={saving}
-                                                        onClick={addDeduction}
+                                                        onClick={() => {
+    const selected =
+        deductionOptions.find(
+            item =>
+                Number(
+                    item.deduction_type_id
+                ) ===
+                Number(
+                    selectedDeductionId
+                )
+        );
+
+    if (!selected) {
+        return;
+    }
+
+    addDeduction(selected);
+
+    setSelectedDeductionId("");
+}}
                                                     >
                                                         + Thêm thời gian trừ
                                                     </button>
@@ -1816,20 +2001,14 @@ const loadReports = async (
 
                                                                             <td>
                                                                                 <input
-                                                                                    type="text"
-                                                                                    value={
-                                                                                        item.defect_name ||
-                                                                                        ""
-                                                                                    }
-                                                                                    placeholder="Tên loại NG"
-                                                                                    onChange={event =>
-                                                                                        updateDefect(
-                                                                                            defectIndex,
-                                                                                            "defect_name",
-                                                                                            event.target.value
-                                                                                        )
-                                                                                    }
-                                                                                />
+    type="text"
+    value={
+        item.defect_name ||
+        item.defect_code ||
+        ""
+    }
+    readOnly
+/>
                                                                             </td>
 
                                                                             <td>
@@ -1893,12 +2072,67 @@ const loadReports = async (
                                                             </tfoot>
                                                         </table>
                                                     </div>
+<select
+    value={selectedDefectId}
+    onChange={event =>
+        setSelectedDefectId(
+            event.target.value
+        )
+    }
+>
+    <option value="">
+        Chọn loại NG
+    </option>
 
+    {defectOptions
+        .filter(option =>
+            !(currentReport.defects || [])
+                .some(item =>
+                    Number(
+                        item.defect_type_id
+                    ) ===
+                    Number(
+                        option.defect_type_id
+                    )
+                )
+        )
+        .map(option => (
+            <option
+                key={
+                    option.defect_type_id
+                }
+                value={
+                    option.defect_type_id
+                }
+            >
+                {option.defect_name}
+            </option>
+        ))}
+</select>
                                                     <button
                                                         type="button"
                                                         className="selected-review-edit"
                                                         disabled={saving}
-                                                        onClick={addDefect}
+                                                        onClick={() => {
+    const selected =
+        defectOptions.find(
+            item =>
+                Number(
+                    item.defect_type_id
+                ) ===
+                Number(
+                    selectedDefectId
+                )
+        );
+
+    if (!selected) {
+        return;
+    }
+
+    addDefect(selected);
+
+    setSelectedDefectId("");
+}}
                                                     >
                                                         + Thêm loại NG
                                                     </button>

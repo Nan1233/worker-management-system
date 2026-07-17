@@ -1,11 +1,13 @@
 import api from "../api/axios";
 
+
+
+
 import type {
+    ProductionDeduction,
+    ProductionDefect,
     ProductionReport
 } from "../types/production";
-
-
-
 // =====================================================
 // WORKER TẠO BÁO CÁO TEMP
 // =====================================================
@@ -778,4 +780,28 @@ export const exportSelectedApprovedExcel = async (
     window.URL.revokeObjectURL(
         downloadUrl
     );
+};
+export const getDeductionOptionsByProcess = async (
+    processId: number
+): Promise<ProductionDeduction[]> => {
+
+    const res = await api.get(
+        `/processes/${processId}/deductions`
+    );
+
+    return res.data.data || res.data || [];
+
+};
+
+
+export const getDefectOptionsByProcess = async (
+    processId: number
+): Promise<ProductionDefect[]> => {
+
+    const res = await api.get(
+        `/processes/${processId}/defects`
+    );
+
+    return res.data.data || res.data || [];
+
 };
