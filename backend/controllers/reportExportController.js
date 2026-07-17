@@ -617,29 +617,6 @@ const DATA_START_ROW = HEADER_ROW_NUMBER + 1;
 // Thường chính là dòng đầu tiên dưới tiêu đề.
 const STYLE_SOURCE_ROW = DATA_START_ROW;
 // =====================================================
-// CHẠY SQL DƯỚI DẠNG PROMISE
-// =====================================================
-
-const queryDatabase = (
-    sql,
-    params = []
-) => {
-    return new Promise(
-        (resolve, reject) => {
-            db.query(
-                sql,
-                params,
-                (error, rows) => {
-                    if (error) {
-                        return reject(error);
-                    }
-
-                    return resolve(rows);
-                }
-            );
-        }
-    );
-};
 
 
 // =====================================================
