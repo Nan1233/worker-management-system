@@ -1,6 +1,25 @@
 const db = require("../config/db");
 
+const queryDatabase = (
+    sql,
+    params = []
+) => {
+    return new Promise(
+        (resolve, reject) => {
+            db.query(
+                sql,
+                params,
+                (error, rows) => {
+                    if (error) {
+                        return reject(error);
+                    }
 
+                    resolve(rows);
+                }
+            );
+        }
+    );
+};
 // =====================================================
 // LẤY REPORT ĐỂ ĐỒNG BỘ GOOGLE SHEET
 // LẤY CẢ PENDING + APPROVED
@@ -80,7 +99,7 @@ exports.getApprovedReportsByDate = (date)=>{
 
 
 
-        AND pr.status IN ('approved','pending')
+        AND pr.status = approved
 
 
 
@@ -173,47 +192,364 @@ exports.getApprovedReportsByDate = (date)=>{
 
 
 };
-exports.getReportsByDate = (date)=>{
-    return new Promise((resolve,reject)=>{
+const getReportsByDate = async (date) => {
+    const reports = await queryDatabase(
+        `
+            SELECT
+                pr.*,
+                w.worker_code,
+                w.training_percent,
+                u.full_name,
+                p.process_name
 
-        const sql = `
-        SELECT
-            pr.*,
-            w.worker_code,
-            u.full_name,
-            p.process_name
+            FROM production_reports AS pr
 
-        FROM production_reports pr
+            INNER JOIN workers AS w
+                ON w.id = pr.worker_id
 
-        JOIN workers w
-        ON pr.worker_id=w.id
+            INNER JOIN users AS u
+                ON u.id = w.user_id
 
-        JOIN users u
-        ON w.user_id=u.id
+            LEFT JOIN processes AS p
+                ON p.id = pr.process_id
 
-        LEFT JOIN processes p
-        ON pr.process_id=p.id
+            WHERE DATE(pr.work_date) = ?
 
-        WHERE DATE(pr.work_date)=?
+            ORDER BY
+                pr.work_date ASC,
+                pr.worker_id ASC,
+                pr.id ASC
+        `,
+        [date]
+    );
 
-        ORDER BY pr.created_at ASC
-        `;
+    if (reports.length === 0) {
+        return [];
+    }
 
-
-        db.query(
-            sql,
-            [date],
-            (err,rows)=>{
-
-                if(err)
-                    return reject(err);
-
-
-                resolve(rows);
-
-            }
+    const reportIds =
+        reports.map(report =>
+            Number(report.id)
         );
 
+    const placeholders =
+        reportIds
+            .map(() => "?")
+            .join(", ");
 
+    const [
+        deductionRows,
+        defectRows
+    ] = await Promise.all([
+        queryDatabase(
+            `
+                SELECT
+                    detail.report_id,
+                    detail.deduction_type_id,
+                    type.deduction_code,
+                    type.deduction_name,
+                    detail.hours
+
+                FROM production_report_deductions AS detail
+
+                INNER JOIN deduction_types AS type
+                    ON type.id = detail.deduction_type_id
+
+                WHERE detail.report_id IN (${placeholders})
+
+                ORDER BY
+                    detail.report_id ASC,
+                    type.sort_order ASC,
+                    type.id ASC
+            `,
+            reportIds
+        ),
+
+        queryDatabase(
+            `
+                SELECT
+                    detail.report_id,
+                    detail.defect_type_id,
+                    type.defect_code,
+                    type.defect_name,
+                    detail.quantity
+
+                FROM production_report_defects AS detail
+
+                INNER JOIN defect_types AS type
+                    ON type.id = detail.defect_type_id
+
+                WHERE detail.report_id IN (${placeholders})
+
+                ORDER BY
+                    detail.report_id ASC,
+                    type.sort_order ASC,
+                    type.id ASC
+            `,
+            reportIds
+        )
+    ]);
+
+    const deductionsMap =
+        new Map();
+
+    deductionRows.forEach(item => {
+        const reportId =
+            Number(item.report_id);
+
+        if (!deductionsMap.has(reportId)) {
+            deductionsMap.set(reportId, []);
+        }
+
+        deductionsMap
+            .get(reportId)
+            .push({
+                deduction_type_id:
+                    Number(
+                        item.deduction_type_id
+                    ),
+
+                deduction_code:
+                    item.deduction_code || "",
+
+                deduction_name:
+                    item.deduction_name || "",
+
+                hours:
+                    Number(item.hours) || 0
+            });
+    });
+
+    const defectsMap =
+        new Map();
+
+    defectRows.forEach(item => {
+        const reportId =
+            Number(item.report_id);
+
+        if (!defectsMap.has(reportId)) {
+            defectsMap.set(reportId, []);
+        }
+
+        defectsMap
+            .get(reportId)
+            .push({
+                defect_type_id:
+                    Number(
+                        item.defect_type_id
+                    ),
+
+                defect_code:
+                    item.defect_code || "",
+
+                defect_name:
+                    item.defect_name || "",
+
+                quantity:
+                    Number(item.quantity) || 0
+            });
+    });
+
+    return reports.map(report => {
+        const reportId =
+            Number(report.id);
+
+        return {
+            ...report,
+
+            deductions:
+                deductionsMap.get(reportId) ||
+                [],
+
+            defects:
+                defectsMap.get(reportId) ||
+                []
+        };
     });
 };
+
+const getAllApprovedReportsForSheet =
+    async () => {
+        const reports =
+    await queryDatabase(
+        `
+            SELECT
+                pr.*,
+                w.worker_code,
+                w.training_percent,
+                u.full_name,
+                p.process_name
+
+            FROM production_reports AS pr
+
+            INNER JOIN workers AS w
+                ON w.id = pr.worker_id
+
+            INNER JOIN users AS u
+                ON u.id = w.user_id
+
+            LEFT JOIN processes AS p
+                ON p.id = pr.process_id
+
+            WHERE pr.status = 'approved'
+
+            ORDER BY
+                pr.work_date ASC,
+                pr.worker_id ASC,
+                pr.id ASC
+        `
+    );
+        if (reports.length === 0) {
+            return [];
+        }
+
+        const reportIds =
+            reports.map(report =>
+                Number(report.id)
+            );
+
+        const placeholders =
+            reportIds
+                .map(() => "?")
+                .join(", ");
+
+        const [
+            deductionRows,
+            defectRows
+        ] = await Promise.all([
+            queryDatabase(
+                `
+                    SELECT
+                        detail.report_id,
+                        type.deduction_code,
+                        type.deduction_name,
+                        detail.hours
+
+                    FROM production_report_deductions AS detail
+
+                    INNER JOIN deduction_types AS type
+                        ON type.id =
+                           detail.deduction_type_id
+
+                    WHERE detail.report_id
+                        IN (${placeholders})
+
+                    ORDER BY
+                        detail.report_id ASC,
+                        type.sort_order ASC,
+                        type.id ASC
+                `,
+                reportIds
+            ),
+
+            queryDatabase(
+                `
+                    SELECT
+                        detail.report_id,
+                        type.defect_code,
+                        type.defect_name,
+                        detail.quantity
+
+                    FROM production_report_defects AS detail
+
+                    INNER JOIN defect_types AS type
+                        ON type.id =
+                           detail.defect_type_id
+
+                    WHERE detail.report_id
+                        IN (${placeholders})
+
+                    ORDER BY
+                        detail.report_id ASC,
+                        type.sort_order ASC,
+                        type.id ASC
+                `,
+                reportIds
+            )
+        ]);
+
+        const deductionsMap =
+            new Map();
+
+        deductionRows.forEach(item => {
+            const reportId =
+                Number(item.report_id);
+
+            if (
+                !deductionsMap.has(
+                    reportId
+                )
+            ) {
+                deductionsMap.set(
+                    reportId,
+                    []
+                );
+            }
+
+            deductionsMap
+                .get(reportId)
+                .push({
+                    deduction_code:
+                        item.deduction_code || "",
+
+                    deduction_name:
+                        item.deduction_name || "",
+
+                    hours:
+                        Number(item.hours) || 0
+                });
+        });
+
+        const defectsMap =
+            new Map();
+
+        defectRows.forEach(item => {
+            const reportId =
+                Number(item.report_id);
+
+            if (
+                !defectsMap.has(
+                    reportId
+                )
+            ) {
+                defectsMap.set(
+                    reportId,
+                    []
+                );
+            }
+
+            defectsMap
+                .get(reportId)
+                .push({
+                    defect_code:
+                        item.defect_code || "",
+
+                    defect_name:
+                        item.defect_name || "",
+
+                    quantity:
+                        Number(item.quantity) || 0
+                });
+        });
+
+        return reports.map(report => {
+            const reportId =
+                Number(report.id);
+
+            return {
+                ...report,
+
+                deductions:
+                    deductionsMap.get(
+                        reportId
+                    ) || [],
+
+                defects:
+                    defectsMap.get(
+                        reportId
+                    ) || []
+            };
+        });
+    };
+    exports.getAllApprovedReportsForSheet =
+    getAllApprovedReportsForSheet;
