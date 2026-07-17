@@ -1181,39 +1181,6 @@ if (reports.length === 0) {
     });
 }
 
-const reportIds =
-    reports.map(
-        report =>
-            Number(report.id)
-    );
-
-const [
-    deductionsMap,
-    defectsMap
-] = await Promise.all([
-    getReportDeductions(
-        reportIds
-    ),
-    getReportDefects(
-        reportIds
-    )
-]);
-
-reports.forEach(report => {
-    const reportId =
-        Number(report.id);
-
-    report.deductions =
-        deductionsMap.get(
-            reportId
-        ) || [];
-
-    report.defects =
-        defectsMap.get(
-            reportId
-        ) || [];
-});
-
         // =============================================
         // VERIFY ALL IDS
         // =============================================
