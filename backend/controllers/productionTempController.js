@@ -234,7 +234,7 @@ exports.createTempReport = async (req, res) => {
 
             try {
                 const [workerRows] =
-                    await db.query(
+                    await db.promise().query(
                         `
                         SELECT
                             w.worker_code,
@@ -256,7 +256,7 @@ exports.createTempReport = async (req, res) => {
 
 
                 const [processRows] =
-                    await db.query(
+                    await db.promise().query(
                         `
                         SELECT
                             process_name
@@ -361,7 +361,7 @@ exports.createTempReport = async (req, res) => {
 
             try {
                 const [reviewers] =
-                    await db.query(
+                    await db.promise().query(
                         `
                         SELECT DISTINCT
                             u.id,

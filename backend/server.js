@@ -93,7 +93,7 @@ const corsOptions = {
         "POST",
 
         "PUT",
-
+"PATCH",
         "DELETE",
 
         "OPTIONS"
