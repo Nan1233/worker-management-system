@@ -3,6 +3,7 @@ const path = require("path");
 const fs = require("fs/promises");
 
 const db = require("../config/db");
+const { buildConsolidatedWorkbook } = require("../services/consolidatedExcelExportService");
 
 // =====================================================
 // DATABASE QUERY PROMISE
@@ -1104,6 +1105,8 @@ exports.exportGiaCongExcel = async (
 
                 w.worker_code,
                 w.training_percent,
+                w.position,
+                w.department,
 
                 u.full_name,
 
@@ -1204,159 +1207,52 @@ if (reports.length === 0) {
 
 
         // =============================================
-// READ TEMPLATE
-// File gốc không bị thay đổi
-//
-// Đọc trực tiếp từ file để tránh giữ thêm
-// templateBuffer trong bộ nhớ.
-// =============================================
-
-const workbook =
-    new ExcelJS.Workbook();
-
-await workbook.xlsx.readFile(
-    EXCEL_TEMPLATE_PATH
-);
-        // =============================================
-        // GET "CẮT LỒNG" SHEET
+        // BUILD ONE CLEAN WORKBOOK, SAME 53 COLUMNS AS GOOGLE SHEET
+        // AND ARCHIVE IT BY POSITION / YEAR / MONTH ON SERVER
         // =============================================
 
-        const sheet =
-            workbook.getWorksheet(
-                EXCEL_SHEET_NAME
-            );
+        const { workbook, archivePath } =
+            await buildConsolidatedWorkbook(reports);
 
-        if (!sheet) {
-            return res.status(500).json({
-                success: false,
-                message:
-                    `Không tìm thấy sheet "${EXCEL_SHEET_NAME}" trong file mẫu`,
-                availableSheets:
-                    workbook.worksheets.map(
-                        item => item.name
-                    )
-            });
-        }
-
-
-        // =============================================
-        // STORE SOURCE STYLE BEFORE CLEAR
-        // =============================================
-
-        const styleSourceRow =
-            sheet.getRow(
-                STYLE_SOURCE_ROW
-            );
-
-        if (!styleSourceRow) {
-            throw new Error(
-                `Không tìm thấy dòng mẫu ${STYLE_SOURCE_ROW}`
-            );
-        }
-
-
-        // =============================================
-        // CLEAR OLD DATA IN WORKBOOK COPY
-        // =============================================
-
-        clearTemplateData(
-            sheet,
-            DATA_START_ROW
-        );
-
-
-        // =============================================
-        // INSERT SELECTED REPORTS
-        // =============================================
-
-        reports.sort(compareReportsForExcel);
-
-        let outputRow = DATA_START_ROW;
-        let currentDate = "";
-        let sequenceNumber = 0;
-
-        reports.forEach((report) => {
-            const dateKey = normalizeDateKey(report.work_date);
-
-            if (dateKey !== currentDate) {
-                currentDate = dateKey;
-                sequenceNumber = 0;
-                writeDateSeparatorRow(sheet, outputRow, report.work_date);
-                outputRow += 1;
-            }
-
-            sequenceNumber += 1;
-            copyRowStyle(sheet, STYLE_SOURCE_ROW, outputRow);
-            writeReportToRow(sheet, report, outputRow, sequenceNumber - 1);
-            outputRow += 1;
-        });
-
-
-        // =============================================
-        // CALCULATION SETTINGS
-        // =============================================
-
-        workbook.calcProperties.fullCalcOnLoad =
-            true;
-
-        workbook.calcProperties.forceFullCalc =
-            true;
-
-        workbook.calcProperties.calcMode =
-            "auto";
-
-
-        // =============================================
-        // OUTPUT FILE NAME
-        // =============================================
-
-        const reportDates = [
+        const reportMonths = [
             ...new Set(
-                reports.map(
-                    report =>
-                        formatDateForFileName(
-                            report.work_date
-                        )
+                reports.map(report =>
+                    normalizeDateKey(report.work_date).slice(0, 7)
                 )
             )
-        ];
+        ].filter(Boolean);
 
-        const datePart =
-            reportDates.length === 1
-                ? reportDates[0]
-                : "nhieu-ngay";
+        const monthPart =
+            reportMonths.length === 1
+                ? reportMonths[0]
+                : "nhieu-thang";
 
         const fileName =
-            `bao-cao-cat-long-${datePart}.xlsx`;
+            `bao-cao-cat-long-${monthPart}.xlsx`;
 
+        res.status(200);
+        res.setHeader(
+            "Content-Type",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
+        res.setHeader(
+            "Content-Disposition",
+            `attachment; filename="${fileName}"`
+        );
+        res.setHeader(
+            "Access-Control-Expose-Headers",
+            "Content-Disposition, X-Excel-Archive-Path"
+        );
 
-       // =============================================
-// RESPONSE
-//
-// Ghi trực tiếp workbook ra response,
-// không tạo outputBuffer trong RAM.
-// =============================================
+        if (archivePath) {
+            res.setHeader(
+                "X-Excel-Archive-Path",
+                encodeURIComponent(archivePath)
+            );
+        }
 
-res.status(200);
-
-res.setHeader(
-    "Content-Type",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-);
-
-res.setHeader(
-    "Content-Disposition",
-    `attachment; filename="${fileName}"`
-);
-
-res.setHeader(
-    "Access-Control-Expose-Headers",
-    "Content-Disposition"
-);
-
-await workbook.xlsx.write(res);
-
-return res.end();
+        await workbook.xlsx.write(res);
+        return res.end();
 
     }
     catch (error) {
