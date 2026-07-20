@@ -1181,28 +1181,24 @@ pattern: "dd/MM/yyyy"
 function normalizeDateValue(value) {
 
     if (!value) {
-
         return "";
-
     }
 
-
-    const date =
-        new Date(value);
-
+    const date = new Date(value);
 
     if (
         Number.isNaN(
             date.getTime()
         )
     ) {
-
         return String(value);
-
     }
 
-
-    return date;
+    return new Date(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate()
+    );
 
 }
 
