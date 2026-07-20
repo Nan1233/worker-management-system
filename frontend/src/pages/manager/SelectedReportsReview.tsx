@@ -99,14 +99,8 @@ function SelectedReportsReview() {
         try {
             setSubmitting(true);
             setError("");
-            const approveResult = await approveSelectedTempReports(reportIds);
+            await approveSelectedTempReports(reportIds);
             sessionStorage.removeItem("selectedPendingReportIds");
-            if (approveResult?.sync_queued === false || approveResult?.warning) {
-                sessionStorage.setItem(
-                    "reportApprovalWarning",
-                    approveResult?.message || "Đã duyệt nhưng Google Sheet chưa được đưa vào hàng đợi"
-                );
-            }
             navigate(`${basePath}/reports`);
         } catch (err) {
             console.error("APPROVE SELECTED REPORTS ERROR:", err);

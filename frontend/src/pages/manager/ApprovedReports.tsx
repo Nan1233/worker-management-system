@@ -4,6 +4,7 @@ import {
     useState
 } from "react";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 
 import {
     exportSelectedApprovedExcel,
@@ -49,6 +50,7 @@ const duplicateKey = (
 
 function ApprovedReports() {
     const { showToast } = useToast();
+    const navigate = useNavigate();
 
     const [date, setDate] =
         useState(getToday());
@@ -485,6 +487,7 @@ const handleExportExcel = async () => {
     <th>Ca</th>
     <th>Mã máy</th>
     <th>Mã sản phẩm</th>
+    <th>Thao tác</th>
 </tr>
                             </thead>
                             <tbody>
@@ -601,6 +604,34 @@ const handleExportExcel = async () => {
                     <td>
                         {report.product_name ||
                             "---"}
+                    </td>
+
+                    <td>
+                        <button
+                            type="button"
+                            className="management-detail-button"
+                            disabled={!validReportId}
+                            onClick={() => {
+                                const savedUser = localStorage.getItem("user");
+                                let basePath = "/manager";
+
+                                try {
+                                    const savedRole = savedUser
+                                        ? JSON.parse(savedUser)?.role
+                                        : null;
+
+                                    if (savedRole === "lead") {
+                                        basePath = "/lead";
+                                    }
+                                } catch {
+                                    // Giữ đường dẫn manager khi dữ liệu localStorage không hợp lệ.
+                                }
+
+                                navigate(`${basePath}/report/${reportId}?source=approved`);
+                            }}
+                        >
+                            Xem chi tiết
+                        </button>
                     </td>
                 </tr>
             );
