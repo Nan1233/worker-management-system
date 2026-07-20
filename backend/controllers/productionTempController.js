@@ -6,7 +6,7 @@ const AuditService = require("../services/auditService");
 const toPositiveInteger = (value) => {
     const numberValue = Number(value);
     return Number.isInteger(numberValue) && numberValue > 0 ? numberValue : null;
-};
+};const db = require("../config/db");
 
 const normalizeIds = (ids) => [
     ...new Set(
@@ -86,8 +86,112 @@ exports.createTempReport = async (req, res) => {
         note: "Công nhân tạo báo cáo",
         ...requestMeta(req)
     }
+    
+});
+const result = await ProductionTemp.createCompleteReport({
+    data,
+    defects,
+    deductions,
+    log: {
+        reportType: "temp",
+        userId: req.user.id,
+        action: "CREATE",
+        note: "Công nhân tạo báo cáo",
+        ...requestMeta(req)
+    }
 });
 
+if (!result.duplicate) {
+    const [[worker]] = await db.query(
+        `
+        SELECT
+            w.worker_code,
+            u.full_name
+        FROM workers w
+        JOIN users u
+            ON u.id = w.user_id
+        WHERE w.id = ?
+        LIMIT 1
+        `,
+        [workerId]
+    );
+
+    const [[process]] = await db.query(
+        `
+        SELECT process_name
+        FROM processes
+        WHERE id = ?
+        LIMIT 1
+        `,
+        [processId]
+    );
+
+    await AuditService.logActivity({
+        userId: req.user.id,
+        action: "CREATE_REPORT",
+        entityType: "temp_report",
+        entityId: result.id,
+        description:
+            `${worker.worker_code} - ${worker.full_name} ` +
+            `tạo báo cáo công đoạn ${process.process_name}, ` +
+            `ca ${data.shift}, máy ${data.machine_no || "---"}, ` +
+            `sản phẩm ${data.product_name || "---"}`,
+        metadata: {
+            report_id: result.id,
+            worker_id: workerId,
+            worker_code: worker.worker_code,
+            worker_name: worker.full_name,
+            process_id: processId,
+            process_name: process.process_name,
+            work_date: data.work_date,
+            shift: data.shift,
+            machine_no: data.machine_no,
+            product_name: data.product_name,
+            tt_ok: data.tt_ok,
+            tt_ng: data.tt_ng
+        },
+        req
+    });
+
+    const [reviewers] = await db.query(
+        `
+        SELECT DISTINCT u.id
+        FROM users u
+        LEFT JOIN manager_processes mp
+            ON mp.manager_id = u.id
+        WHERE u.status = 'active'
+          AND (
+                u.role = 'admin'
+                OR (
+                    u.role IN ('manager', 'lead')
+                    AND mp.process_id = ?
+                )
+          )
+        `,
+        [processId]
+    );
+
+    const reviewerIds = reviewers.map(
+        reviewer => reviewer.id
+    );
+
+    if (reviewerIds.length > 0) {
+        await AuditService.notifyUsers(
+            reviewerIds,
+            {
+                type: "info",
+                title: "Có báo cáo mới chờ duyệt",
+                message:
+                    `${worker.worker_code} - ${worker.full_name} ` +
+                    `vừa gửi báo cáo công đoạn ${process.process_name}, ` +
+                    `ca ${data.shift}, sản phẩm ${data.product_name || "---"}.`,
+                linkUrl: `/manager/reports?date=${data.work_date}`,
+                entityType: "temp_report",
+                entityId: result.id
+            }
+        );
+    }
+}
 /*
  * report_action_logs:
  * Lưu lịch sử riêng của từng báo cáo.
@@ -131,19 +235,67 @@ if (!result.duplicate) {
     }
 
     try {
-        await AuditService.notifyUsers(
-            [req.user.id],
-            {
-                type: "success",
-                title: "Lưu báo cáo thành công",
-                message:
-                    `Báo cáo ngày ${data.work_date}, ca ${data.shift}, ` +
-                    `sản phẩm ${data.product_name || "---"} đã được gửi chờ duyệt.`,
-                linkUrl: `/worker/history/${result.id}?source=temp`,
-                entityType: "temp_report",
-                entityId: result.id
-            }
-        );
+        const [reviewers] = await db.query(
+    `
+    SELECT DISTINCT u.id
+    FROM users u
+    LEFT JOIN manager_processes mp
+        ON mp.manager_id = u.id
+    WHERE u.status = 'active'
+      AND (
+            u.role = 'admin'
+            OR (
+                u.role IN ('manager', 'lead')
+                AND mp.process_id = ?
+            )
+      )
+    `,
+    [processId]
+);
+
+const reviewerIds = reviewers.map(
+    reviewer => reviewer.id
+);
+
+if (reviewerIds.length > 0) {
+    const [[worker]] = await db.query(
+    `
+    SELECT
+        w.worker_code,
+        u.full_name
+    FROM workers w
+    JOIN users u
+        ON u.id = w.user_id
+    WHERE w.id = ?
+    LIMIT 1
+    `,
+    [workerId]
+);
+
+const [[process]] = await db.query(
+    `
+    SELECT process_name
+    FROM processes
+    WHERE id = ?
+    LIMIT 1
+    `,
+    [processId]
+);
+    await AuditService.notifyUsers(
+        reviewerIds,
+        {
+            type: "info",
+            title: "Có báo cáo mới chờ duyệt",
+            message:
+                `${worker.worker_code} - ${worker.full_name} ` +
+                `vừa gửi báo cáo công đoạn ${process.process_name}, ` +
+                `ca ${data.shift}, sản phẩm ${data.product_name || "---"}.`,
+            linkUrl: `/manager/reports?date=${data.work_date}`,
+            entityType: "temp_report",
+            entityId: result.id
+        }
+    );
+}
     } catch (notificationError) {
         console.error(
             "CREATE REPORT NOTIFICATION ERROR:",
