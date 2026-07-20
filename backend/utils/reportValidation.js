@@ -1,5 +1,5 @@
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const ALLOWED_SHIFTS = new Set(["Ca 1", "Ca 2", "Ca 3", "HC", "Hành chính"]);
+const ALLOWED_SHIFTS = new Set(["A", "B", "C", "D"]);
 const EPSILON = 0.02;
 
 const finiteNumber = (value, field, errors, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) => {
