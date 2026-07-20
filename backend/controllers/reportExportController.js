@@ -1065,29 +1065,18 @@ exports.exportGiaCongExcel = async (req, res) => {
             return res.status(400).json({ success: false, message: "Ngày tải Excel không hợp lệ" });
         }
 
-        // Nút tải chỉ đọc file đã được tạo tự động khi duyệt/sửa/xóa.
-        // Không query toàn bộ tháng và không dựng lại workbook trong request tải.
+        // Luôn dựng lại file tháng từ DB trước khi tải.
+        // Không dùng file cache cũ vì dữ liệu có thể đã được duyệt/sửa/xóa
+        // trong khi tác vụ nền chưa kịp cập nhật Excel. Cách này đảm bảo
+        // Excel dùng cùng dữ liệu thực tế như luồng đồng bộ Google Sheet.
         const yearMonth = selectedDate.slice(0, 7);
-        let target = getMonthlyTarget(yearMonth);
-        let stat;
-
-        try {
-            stat = await fs.stat(target.filePath);
-        } catch (error) {
-            if (error?.code !== "ENOENT") {
-                throw error;
-            }
-
-            // Render sử dụng filesystem tạm thời. File cache có thể mất sau
-            // deploy/restart, vì vậy phải dựng lại từ DB thay vì trả 404.
-            const rebuilt = await buildMonthlyWorkbook(yearMonth);
-            target = {
-                ...target,
-                filePath: rebuilt.path || target.filePath,
-                fileName: rebuilt.fileName || target.fileName
-            };
-            stat = await fs.stat(target.filePath);
-        }
+        const rebuilt = await buildMonthlyWorkbook(yearMonth);
+        const target = {
+            ...getMonthlyTarget(yearMonth),
+            filePath: rebuilt.path || getMonthlyTarget(yearMonth).filePath,
+            fileName: rebuilt.fileName || getMonthlyTarget(yearMonth).fileName
+        };
+        const stat = await fs.stat(target.filePath);
 
         res.status(200);
         res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
