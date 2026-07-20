@@ -1,320 +1,476 @@
 const ProductionTemp = require("../models/productionTempModel");
 const SyncJobService = require("../services/syncJobService");
-const { validateMasterData } = require("../services/reportBusinessValidationService");
-const { validateProductionReport } = require("../utils/reportValidation");
 const AuditService = require("../services/auditService");
+const db = require("../config/db");
+
+const {
+    validateMasterData
+} = require("../services/reportBusinessValidationService");
+
+const {
+    validateProductionReport
+} = require("../utils/reportValidation");
+
+
 const toPositiveInteger = (value) => {
     const numberValue = Number(value);
-    return Number.isInteger(numberValue) && numberValue > 0 ? numberValue : null;
-};const db = require("../config/db");
+
+    return Number.isInteger(numberValue) &&
+        numberValue > 0
+        ? numberValue
+        : null;
+};
+
 
 const normalizeIds = (ids) => [
     ...new Set(
         (Array.isArray(ids) ? ids : [])
             .map(Number)
-            .filter((id) => Number.isInteger(id) && id > 0)
+            .filter(
+                (id) =>
+                    Number.isInteger(id) &&
+                    id > 0
+            )
     )
 ];
 
+
 const requestMeta = (req) => ({
-    ipAddress: req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip || null,
-    userAgent: req.headers["user-agent"] || null
+    ipAddress:
+        req.headers["x-forwarded-for"]
+            ?.split(",")[0]
+            ?.trim() ||
+        req.ip ||
+        null,
+
+    userAgent:
+        req.headers["user-agent"] ||
+        null
 });
+
+
+// =====================================================
+// WORKER TẠO BÁO CÁO CHỜ DUYỆT
+// =====================================================
 
 exports.createTempReport = async (req, res) => {
     try {
-        const workerId = toPositiveInteger(req.user?.worker_id);
-        const processId = toPositiveInteger(req.body?.process_id);
+        const workerId =
+            toPositiveInteger(
+                req.user?.worker_id
+            );
+
+        const processId =
+            toPositiveInteger(
+                req.body?.process_id
+            );
+
 
         if (!workerId) {
-            return res.status(400).json({ success: false, message: "Tài khoản chưa có thông tin nhân viên" });
-        }
-        if (!processId) {
-            return res.status(400).json({ success: false, message: "Công đoạn không hợp lệ" });
-        }
-        if (!req.body.work_date) {
-            return res.status(400).json({ success: false, message: "Thiếu ngày làm việc" });
-        }
-        if (!req.body.shift) {
-            return res.status(400).json({ success: false, message: "Thiếu ca làm việc" });
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Tài khoản chưa có thông tin nhân viên"
+            });
         }
 
-        const validation = validateProductionReport(req.body);
+
+        if (!processId) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Công đoạn không hợp lệ"
+            });
+        }
+
+
+        if (!req.body.work_date) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Thiếu ngày làm việc"
+            });
+        }
+
+
+        if (!req.body.shift) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Thiếu ca làm việc"
+            });
+        }
+
+
+        // =================================================
+        // VALIDATE DỮ LIỆU NGHIỆP VỤ
+        // =================================================
+
+        const validation =
+            validateProductionReport(
+                req.body
+            );
+
+
         if (!validation.valid) {
             return res.status(422).json({
                 success: false,
-                message: "Dữ liệu báo cáo không hợp lệ",
-                errors: validation.errors
+                message:
+                    "Dữ liệu báo cáo không hợp lệ",
+                errors:
+                    validation.errors
             });
         }
 
-        const defects = validation.normalized.defects;
-        const deductions = validation.normalized.deductions;
-        const masterValidation = await validateMasterData({
-            workerId,
-            processId,
-            machineNo: validation.normalized.machine_no,
-            productName: validation.normalized.product_name,
-            defects,
-            deductions
-        });
+
+        const defects =
+            validation.normalized.defects;
+
+        const deductions =
+            validation.normalized.deductions;
+
+
+        // =================================================
+        // KIỂM TRA DANH MỤC MÁY, SẢN PHẨM, NG, TRỪ GIỜ
+        // =================================================
+
+        const masterValidation =
+            await validateMasterData({
+                workerId,
+                processId,
+
+                machineNo:
+                    validation.normalized
+                        .machine_no,
+
+                productName:
+                    validation.normalized
+                        .product_name,
+
+                defects,
+                deductions
+            });
+
+
         if (!masterValidation.valid) {
             return res.status(422).json({
                 success: false,
-                message: "Dữ liệu không khớp danh mục hệ thống",
-                errors: masterValidation.errors
+                message:
+                    "Dữ liệu không khớp danh mục hệ thống",
+                errors:
+                    masterValidation.errors
             });
         }
 
+
         const data = {
             ...validation.normalized,
-            worker_id: workerId,
-            process_id: processId,
-            standard_output: masterValidation.standardOutput ?? validation.normalized.standard_output,
-            defects: undefined,
-            deductions: undefined
+
+            worker_id:
+                workerId,
+
+            process_id:
+                processId,
+
+            standard_output:
+                masterValidation
+                    .standardOutput ??
+                validation.normalized
+                    .standard_output,
+
+            defects:
+                undefined,
+
+            deductions:
+                undefined
         };
 
-        const result = await ProductionTemp.createCompleteReport({
-    data,
-    defects,
-    deductions,
-    log: {
-        reportType: "temp",
-        userId: req.user.id,
-        action: "CREATE",
-        note: "Công nhân tạo báo cáo",
-        ...requestMeta(req)
-    }
-    
-});
-const result = await ProductionTemp.createCompleteReport({
-    data,
-    defects,
-    deductions,
-    log: {
-        reportType: "temp",
-        userId: req.user.id,
-        action: "CREATE",
-        note: "Công nhân tạo báo cáo",
-        ...requestMeta(req)
-    }
-});
 
-if (!result.duplicate) {
-    const [[worker]] = await db.query(
-        `
-        SELECT
-            w.worker_code,
-            u.full_name
-        FROM workers w
-        JOIN users u
-            ON u.id = w.user_id
-        WHERE w.id = ?
-        LIMIT 1
-        `,
-        [workerId]
-    );
+        // =================================================
+        // LƯU BÁO CÁO
+        // Chỉ khai báo result đúng 1 lần
+        // =================================================
 
-    const [[process]] = await db.query(
-        `
-        SELECT process_name
-        FROM processes
-        WHERE id = ?
-        LIMIT 1
-        `,
-        [processId]
-    );
+        const result =
+            await ProductionTemp
+                .createCompleteReport({
+                    data,
+                    defects,
+                    deductions,
 
-    await AuditService.logActivity({
-        userId: req.user.id,
-        action: "CREATE_REPORT",
-        entityType: "temp_report",
-        entityId: result.id,
-        description:
-            `${worker.worker_code} - ${worker.full_name} ` +
-            `tạo báo cáo công đoạn ${process.process_name}, ` +
-            `ca ${data.shift}, máy ${data.machine_no || "---"}, ` +
-            `sản phẩm ${data.product_name || "---"}`,
-        metadata: {
-            report_id: result.id,
-            worker_id: workerId,
-            worker_code: worker.worker_code,
-            worker_name: worker.full_name,
-            process_id: processId,
-            process_name: process.process_name,
-            work_date: data.work_date,
-            shift: data.shift,
-            machine_no: data.machine_no,
-            product_name: data.product_name,
-            tt_ok: data.tt_ok,
-            tt_ng: data.tt_ng
-        },
-        req
-    });
+                    log: {
+                        reportType:
+                            "temp",
 
-    const [reviewers] = await db.query(
-        `
-        SELECT DISTINCT u.id
-        FROM users u
-        LEFT JOIN manager_processes mp
-            ON mp.manager_id = u.id
-        WHERE u.status = 'active'
-          AND (
-                u.role = 'admin'
-                OR (
-                    u.role IN ('manager', 'lead')
-                    AND mp.process_id = ?
-                )
-          )
-        `,
-        [processId]
-    );
+                        userId:
+                            req.user.id,
 
-    const reviewerIds = reviewers.map(
-        reviewer => reviewer.id
-    );
+                        action:
+                            "CREATE",
 
-    if (reviewerIds.length > 0) {
-        await AuditService.notifyUsers(
-            reviewerIds,
-            {
-                type: "info",
-                title: "Có báo cáo mới chờ duyệt",
-                message:
-                    `${worker.worker_code} - ${worker.full_name} ` +
-                    `vừa gửi báo cáo công đoạn ${process.process_name}, ` +
-                    `ca ${data.shift}, sản phẩm ${data.product_name || "---"}.`,
-                linkUrl: `/manager/reports?date=${data.work_date}`,
-                entityType: "temp_report",
-                entityId: result.id
+                        note:
+                            "Công nhân tạo báo cáo",
+
+                        ...requestMeta(req)
+                    }
+                });
+
+
+        // Nếu request bị gửi trùng thì không tạo lại notification
+        if (!result.duplicate) {
+            let worker = {
+                worker_code: "---",
+                full_name: "---"
+            };
+
+            let process = {
+                process_name: "---"
+            };
+
+
+            // =============================================
+            // LẤY THÔNG TIN CÔNG NHÂN VÀ CÔNG ĐOẠN
+            // =============================================
+
+            try {
+                const [workerRows] =
+                    await db.query(
+                        `
+                        SELECT
+                            w.worker_code,
+                            u.full_name
+                        FROM workers w
+                        INNER JOIN users u
+                            ON u.id = w.user_id
+                        WHERE w.id = ?
+                        LIMIT 1
+                        `,
+                        [workerId]
+                    );
+
+
+                if (workerRows.length > 0) {
+                    worker =
+                        workerRows[0];
+                }
+
+
+                const [processRows] =
+                    await db.query(
+                        `
+                        SELECT
+                            process_name
+                        FROM processes
+                        WHERE id = ?
+                        LIMIT 1
+                        `,
+                        [processId]
+                    );
+
+
+                if (processRows.length > 0) {
+                    process =
+                        processRows[0];
+                }
+            } catch (lookupError) {
+                console.error(
+                    "LOAD REPORT DISPLAY INFO ERROR:",
+                    lookupError
+                );
             }
-        );
-    }
-}
-/*
- * report_action_logs:
- * Lưu lịch sử riêng của từng báo cáo.
- *
- * activity_logs:
- * Hiển thị tại Trung tâm hệ thống → Lịch sử hoạt động.
- */
-if (!result.duplicate) {
-    try {
-        await AuditService.logActivity({
-            userId: req.user.id,
-            action: "CREATE_REPORT",
-            entityType: "temp_report",
-            entityId: result.id,
-            description:
-                `Tạo báo cáo sản xuất công đoạn ${processId}, ` +
-                `ca ${data.shift}, máy ${data.machine_no || "---"}, ` +
-                `sản phẩm ${data.product_name || "---"}`,
-            metadata: {
-                report_id: result.id,
-                worker_id: workerId,
-                process_id: processId,
-                work_date: data.work_date,
-                shift: data.shift,
-                machine_no: data.machine_no,
-                product_name: data.product_name,
-                tt_ok: data.tt_ok,
-                tt_ng: data.tt_ng
-            },
-            req
-        });
-    } catch (auditError) {
-        /*
-         * Không để lỗi ghi activity làm báo cáo đã lưu
-         * nhưng API lại trả về thất bại.
-         */
-        console.error(
-            "CREATE REPORT ACTIVITY LOG ERROR:",
-            auditError
-        );
-    }
 
-    try {
-        const [reviewers] = await db.query(
-    `
-    SELECT DISTINCT u.id
-    FROM users u
-    LEFT JOIN manager_processes mp
-        ON mp.manager_id = u.id
-    WHERE u.status = 'active'
-      AND (
-            u.role = 'admin'
-            OR (
-                u.role IN ('manager', 'lead')
-                AND mp.process_id = ?
-            )
-      )
-    `,
-    [processId]
-);
 
-const reviewerIds = reviewers.map(
-    reviewer => reviewer.id
-);
+            // =============================================
+            // GHI LỊCH SỬ HOẠT ĐỘNG CHO MANAGER/LEADER
+            // Không để lỗi activity làm API lưu báo cáo thất bại
+            // =============================================
 
-if (reviewerIds.length > 0) {
-    const [[worker]] = await db.query(
-    `
-    SELECT
-        w.worker_code,
-        u.full_name
-    FROM workers w
-    JOIN users u
-        ON u.id = w.user_id
-    WHERE w.id = ?
-    LIMIT 1
-    `,
-    [workerId]
-);
+            try {
+                await AuditService.logActivity({
+                    userId:
+                        req.user.id,
 
-const [[process]] = await db.query(
-    `
-    SELECT process_name
-    FROM processes
-    WHERE id = ?
-    LIMIT 1
-    `,
-    [processId]
-);
-    await AuditService.notifyUsers(
-        reviewerIds,
-        {
-            type: "info",
-            title: "Có báo cáo mới chờ duyệt",
-            message:
-                `${worker.worker_code} - ${worker.full_name} ` +
-                `vừa gửi báo cáo công đoạn ${process.process_name}, ` +
-                `ca ${data.shift}, sản phẩm ${data.product_name || "---"}.`,
-            linkUrl: `/manager/reports?date=${data.work_date}`,
-            entityType: "temp_report",
-            entityId: result.id
+                    action:
+                        "CREATE_REPORT",
+
+                    entityType:
+                        "temp_report",
+
+                    entityId:
+                        result.id,
+
+                    description:
+                        `${worker.worker_code} - ` +
+                        `${worker.full_name} tạo báo cáo ` +
+                        `công đoạn ${process.process_name}, ` +
+                        `ca ${data.shift}, ` +
+                        `máy ${data.machine_no || "---"}, ` +
+                        `sản phẩm ${data.product_name || "---"}`,
+
+                    metadata: {
+                        report_id:
+                            result.id,
+
+                        worker_id:
+                            workerId,
+
+                        worker_code:
+                            worker.worker_code,
+
+                        worker_name:
+                            worker.full_name,
+
+                        process_id:
+                            processId,
+
+                        process_name:
+                            process.process_name,
+
+                        work_date:
+                            data.work_date,
+
+                        shift:
+                            data.shift,
+
+                        machine_no:
+                            data.machine_no,
+
+                        product_name:
+                            data.product_name,
+
+                        tt_ok:
+                            data.tt_ok,
+
+                        tt_ng:
+                            data.tt_ng
+                    },
+
+                    req
+                });
+            } catch (auditError) {
+                console.error(
+                    "CREATE REPORT ACTIVITY LOG ERROR:",
+                    auditError
+                );
+            }
+
+
+            // =============================================
+            // GỬI THÔNG BÁO CHO MANAGER, LEADER, ADMIN
+            // =============================================
+
+            try {
+                const [reviewers] =
+                    await db.query(
+                        `
+                        SELECT DISTINCT
+                            u.id,
+                            u.role
+                        FROM users u
+                        LEFT JOIN manager_processes mp
+                            ON mp.manager_id = u.id
+                        WHERE u.status = 'active'
+                          AND (
+                                u.role = 'admin'
+                                OR (
+                                    u.role IN (
+                                        'manager',
+                                        'lead'
+                                    )
+                                    AND mp.process_id = ?
+                                )
+                          )
+                        `,
+                        [processId]
+                    );
+
+
+                for (const reviewer of reviewers) {
+                    let linkUrl =
+                        `/manager/reports?date=${data.work_date}`;
+
+
+                    if (reviewer.role === "lead") {
+                        linkUrl =
+                            `/lead/reports?date=${data.work_date}`;
+                    }
+
+
+                    if (reviewer.role === "admin") {
+                        linkUrl =
+                            `/manager/reports?date=${data.work_date}`;
+                    }
+
+
+                    await AuditService.notifyUsers(
+                        [reviewer.id],
+                        {
+                            type:
+                                "info",
+
+                            title:
+                                "Có báo cáo mới chờ duyệt",
+
+                            message:
+                                `${worker.worker_code} - ` +
+                                `${worker.full_name} vừa gửi ` +
+                                `báo cáo công đoạn ` +
+                                `${process.process_name}, ` +
+                                `ca ${data.shift}, ` +
+                                `sản phẩm ` +
+                                `${data.product_name || "---"}.`,
+
+                            linkUrl,
+
+                            entityType:
+                                "temp_report",
+
+                            entityId:
+                                result.id
+                        }
+                    );
+                }
+            } catch (notificationError) {
+                console.error(
+                    "CREATE REPORT NOTIFICATION ERROR:",
+                    notificationError
+                );
+            }
         }
-    );
-}
-    } catch (notificationError) {
-        console.error(
-            "CREATE REPORT NOTIFICATION ERROR:",
-            notificationError
-        );
-    }
-}
 
-return res.status(result.duplicate ? 200 : 201).json({
-    success: true,
-    duplicate: result.duplicate,
-    message: result.duplicate
-        ? "Yêu cầu này đã được ghi nhận trước đó"
-        : "Lưu báo cáo thành công",
-    id: result.id
-});
+
+        return res
+            .status(
+                result.duplicate
+                    ? 200
+                    : 201
+            )
+            .json({
+                success: true,
+
+                duplicate:
+                    result.duplicate,
+
+                message:
+                    result.duplicate
+                        ? "Yêu cầu này đã được ghi nhận trước đó"
+                        : "Lưu báo cáo thành công",
+
+                id:
+                    result.id
+            });
     } catch (error) {
-        console.error("CREATE TEMP REPORT ERROR:", error);
-        return res.status(500).json({ success: false, message: error.message || "Không thể tạo báo cáo" });
+        console.error(
+            "CREATE TEMP REPORT ERROR:",
+            error
+        );
+
+        return res.status(500).json({
+            success: false,
+            message:
+                error.message ||
+                "Không thể tạo báo cáo"
+        });
     }
 };
 
