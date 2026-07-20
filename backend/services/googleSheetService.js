@@ -771,10 +771,7 @@ const buildAllSheetRows = reports => {
                 ).fill("");
 
             // Dòng cách ngày chỉ ghi cột A
-            dateRow[0] =
-                formatDisplayDate(
-                    report.work_date
-                );
+            dateRow[0] = normalizeDateValue(report.work_date);
 
             rows.push(dateRow);
         }
@@ -955,8 +952,7 @@ const writeSheetData = async (
             range:
                 `${SHEET_NAME}!A${DATA_START_ROW}:BA${newLastRow}`,
 
-            valueInputOption:
-                "USER_ENTERED",
+            valueInputOption: "RAW",
 
             requestBody: {
                 majorDimension:
@@ -999,8 +995,8 @@ const writeSheetData = async (
                         cell: {
                             userEnteredFormat: {
                                 numberFormat: {
-                                    type: "TEXT",
-                                    pattern: "@"
+                                    type: "DATE",
+pattern: "dd/mm/yyyy"
                                 },
                                 textFormat: {
                                     bold: true
