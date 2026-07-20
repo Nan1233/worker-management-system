@@ -1,11 +1,15 @@
 const ExcelJS = require("exceljs");
 const path = require("path");
 const fs = require("fs/promises");
-const { createReadStream } = require("fs");
+const fsSync = require("fs");
 const { pipeline } = require("stream/promises");
 
 const db = require("../config/db");
-const { buildMonthlyTemplateWorkbook } = require("../services/consolidatedExcelExportService");
+const {
+    buildMonthlyTemplateWorkbook,
+    getMonthlyTarget,
+    readMonthlyCacheMetadata
+} = require("../services/consolidatedExcelExportService");
 
 // =====================================================
 // DATABASE QUERY PROMISE
@@ -1070,97 +1074,127 @@ exports.exportGiaCongExcel = async (
         }
 
         const yearMonth = selectedDate.slice(0, 7);
+        const [year, month] = yearMonth.split("-").map(Number);
+        const monthStart = `${yearMonth}-01`;
+        const nextMonthDate = new Date(year, month, 1);
+        const nextMonth = [
+            nextMonthDate.getFullYear(),
+            String(nextMonthDate.getMonth() + 1).padStart(2, "0")
+        ].join("-") + "-01";
 
-        // Luôn dựng lại toàn bộ file tháng từ DB, giống cách Google Sheet
-        // được rebuild. Nhờ vậy tải một ngày không tạo thêm file lẻ,
-        // không nhân bản dữ liệu và ngày cũ được chèn đúng thứ tự.
-        const reports = await queryDatabase(
+        // Chỉ query thông tin nhẹ để biết cache tháng có còn mới hay không.
+        const [summary] = await queryDatabase(
             `
                 SELECT
-                    pr.*,
-                    w.worker_code,
-                    w.training_percent,
-                    w.position,
-                    w.department,
-                    u.full_name,
-                    p.process_name
+                    COUNT(*) AS report_count,
+                    MAX(COALESCE(pr.updated_at, pr.approved_at, pr.created_at)) AS latest_updated_at
                 FROM production_reports AS pr
-                INNER JOIN workers AS w
-                    ON w.id = pr.worker_id
-                INNER JOIN users AS u
-                    ON u.id = w.user_id
-                LEFT JOIN processes AS p
-                    ON p.id = pr.process_id
                 WHERE pr.status = 'approved'
                   AND pr.work_date >= ?
-                  AND pr.work_date < DATE_ADD(?, INTERVAL 1 MONTH)
-                ORDER BY
-                    pr.work_date ASC,
-                    w.worker_code ASC,
-                    pr.machine_no ASC,
-                    pr.created_at ASC,
-                    pr.id ASC
+                  AND pr.work_date < ?
             `,
-            [`${yearMonth}-01`, `${yearMonth}-01`]
+            [monthStart, nextMonth]
         );
 
-        const reportIds = reports.map((report) => Number(report.id));
-        const [deductionsMap, defectsMap] = await Promise.all([
-            getReportDeductions(reportIds),
-            getReportDefects(reportIds)
-        ]);
+        const reportCount = Number(summary?.report_count || 0);
+        const latestUpdatedAt = summary?.latest_updated_at
+            ? new Date(summary.latest_updated_at).toISOString()
+            : null;
 
-        reports.forEach((report) => {
-            const reportId = Number(report.id);
-            report.deductions = deductionsMap.get(reportId) || [];
-            report.defects = defectsMap.get(reportId) || [];
-        });
-
-        const {
-            archivePath,
-            fileName
-        } = await buildMonthlyTemplateWorkbook(
-            reports,
-            yearMonth
+        let target = getMonthlyTarget(yearMonth);
+        const cached = await readMonthlyCacheMetadata(yearMonth);
+        const cacheIsFresh = Boolean(
+            cached &&
+            Number(cached.metadata?.reportCount) === reportCount &&
+            (cached.metadata?.latestUpdatedAt || null) === latestUpdatedAt
         );
 
-        const fileStat = await fs.stat(archivePath);
+        if (!cacheIsFresh) {
+            const reports = await queryDatabase(
+                `
+                    SELECT
+                        pr.*,
+                        w.worker_code,
+                        w.training_percent,
+                        w.position,
+                        w.department,
+                        u.full_name,
+                        p.process_name
+                    FROM production_reports AS pr
+                    INNER JOIN workers AS w ON w.id = pr.worker_id
+                    INNER JOIN users AS u ON u.id = w.user_id
+                    LEFT JOIN processes AS p ON p.id = pr.process_id
+                    WHERE pr.status = 'approved'
+                      AND pr.work_date >= ?
+                      AND pr.work_date < ?
+                    ORDER BY
+                        pr.work_date ASC,
+                        w.worker_code ASC,
+                        pr.machine_no ASC,
+                        pr.created_at ASC,
+                        pr.id ASC
+                `,
+                [monthStart, nextMonth]
+            );
 
+            const reportIds = reports.map((report) => Number(report.id));
+            const [deductionsMap, defectsMap] = await Promise.all([
+                getReportDeductions(reportIds),
+                getReportDefects(reportIds)
+            ]);
+
+            reports.forEach((report) => {
+                const reportId = Number(report.id);
+                report.deductions = deductionsMap.get(reportId) || [];
+                report.defects = defectsMap.get(reportId) || [];
+            });
+
+            const result = await buildMonthlyTemplateWorkbook(
+                reports,
+                yearMonth,
+                { latestUpdatedAt }
+            );
+            target = {
+                ...target,
+                filePath: result.archivePath,
+                fileName: result.fileName
+            };
+        }
+
+        const stat = await fs.stat(target.filePath);
+        res.status(200);
         res.setHeader(
             "Content-Type",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         );
         res.setHeader(
             "Content-Disposition",
-            `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`
+            `attachment; filename*=UTF-8''${encodeURIComponent(target.fileName)}`
         );
-        res.setHeader("Content-Length", String(fileStat.size));
-        res.setHeader("Cache-Control", "no-store");
+        res.setHeader("Content-Length", String(stat.size));
+        res.setHeader("Cache-Control", "private, no-cache");
         res.setHeader(
             "Access-Control-Expose-Headers",
-            "Content-Disposition, Content-Length, X-Excel-Archive-Path"
+            "Content-Disposition, X-Excel-Cache"
         );
-        res.setHeader(
-            "X-Excel-Archive-Path",
-            encodeURIComponent(archivePath)
-        );
+        res.setHeader("X-Excel-Cache", cacheIsFresh ? "HIT" : "MISS");
 
-        try {
-            await pipeline(createReadStream(archivePath), res);
-            return undefined;
-        } catch (downloadError) {
-            if (["ECONNABORTED", "ECONNRESET", "ERR_STREAM_PREMATURE_CLOSE"].includes(downloadError?.code)) {
-                console.warn("Monthly Excel download was interrupted by client or deploy");
-                return undefined;
-            }
-            throw downloadError;
-        }
+        await pipeline(
+            fsSync.createReadStream(target.filePath),
+            res
+        );
+        return undefined;
     }
     catch (error) {
-        console.error(
-            "EXPORT MONTHLY EXCEL ERROR:",
-            error
-        );
+        const aborted = ["ECONNABORTED", "ECONNRESET", "ERR_STREAM_PREMATURE_CLOSE"]
+            .includes(error?.code);
+
+        if (aborted) {
+            console.warn("MONTHLY EXCEL DOWNLOAD ABORTED");
+            return undefined;
+        }
+
+        console.error("EXPORT MONTHLY EXCEL ERROR:", error);
 
         if (res.headersSent) {
             return res.end();
@@ -1172,3 +1206,4 @@ exports.exportGiaCongExcel = async (
         });
     }
 };
+

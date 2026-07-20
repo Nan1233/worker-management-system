@@ -159,21 +159,12 @@ pool.getConnection((error, connection) => {
 pool.on("connection", (connection) => {
 
     connection.on("error", (error) => {
-        const reconnectableCodes = new Set([
-            "PROTOCOL_CONNECTION_LOST",
-            "ECONNRESET",
-            "ETIMEDOUT"
-        ]);
-
-        if (reconnectableCodes.has(error.code)) {
-            console.warn("Database connection was recycled by server; pool will reconnect automatically");
-            return;
-        }
 
         console.error(
             "❌ Database connection error:",
             error.message
         );
+
     });
 
 });

@@ -241,10 +241,37 @@ const getMonthlyTarget = (yearMonth) => {
     );
     const folder = path.join(root, year, stageName);
     const fileName = `Bao-cao-san-xuat-${month}-${year}.xlsx`;
-    return { folder, fileName, filePath: path.join(folder, fileName) };
+    const filePath = path.join(folder, fileName);
+    return {
+        folder,
+        fileName,
+        filePath,
+        metadataPath: `${filePath}.meta.json`
+    };
 };
 
-const buildMonthlyTemplateWorkbook = async (reports, yearMonth) => {
+const readMonthlyCacheMetadata = async (yearMonth) => {
+    const target = getMonthlyTarget(yearMonth);
+    try {
+        const [fileStat, metadataText] = await Promise.all([
+            fs.stat(target.filePath),
+            fs.readFile(target.metadataPath, "utf8")
+        ]);
+        const metadata = JSON.parse(metadataText);
+        return { target, fileStat, metadata };
+    } catch (error) {
+        if (error?.code === "ENOENT" || error instanceof SyntaxError) return null;
+        throw error;
+    }
+};
+
+const writeMonthlyCacheMetadata = async (target, metadata) => {
+    const temporaryPath = `${target.metadataPath}.${process.pid}.${Date.now()}.tmp`;
+    await fs.writeFile(temporaryPath, JSON.stringify(metadata), "utf8");
+    await fs.rename(temporaryPath, target.metadataPath);
+};
+
+const buildMonthlyTemplateWorkbook = async (reports, yearMonth, cacheMetadata = {}) => {
     if (!/^\d{4}-\d{2}$/.test(yearMonth)) {
         throw new Error("Tháng xuất Excel không hợp lệ");
     }
@@ -261,11 +288,18 @@ const buildMonthlyTemplateWorkbook = async (reports, yearMonth) => {
 
     const templateRow = captureTemplateRow(sheet);
 
-    // File mẫu đã được làm sạch: chỉ giữ header đến dòng 326 và một dòng style 327.
-    // Không splice vùng dữ liệu cũ để tránh ExcelJS tái tạo shared formula lỗi.
-    const styleRow = sheet.getRow(DATA_START_ROW);
-    for (let columnIndex = 1; columnIndex <= COLUMN_COUNT; columnIndex += 1) {
-        styleRow.getCell(columnIndex).value = null;
+    // Excel mẫu có các shared formula trong vùng dữ liệu cũ. Nếu spliceRows trực tiếp,
+    // ExcelJS có thể giữ clone nhưng xóa master và lỗi khi ghi file. Phải xóa giá trị/
+    // công thức trước, sau đó mới bỏ các dòng cũ.
+    if (sheet.rowCount >= DATA_START_ROW) {
+        const lastRow = sheet.rowCount;
+        for (let rowIndex = DATA_START_ROW; rowIndex <= lastRow; rowIndex += 1) {
+            const row = sheet.getRow(rowIndex);
+            for (let columnIndex = 1; columnIndex <= sheet.columnCount; columnIndex += 1) {
+                row.getCell(columnIndex).value = null;
+            }
+        }
+        sheet.spliceRows(DATA_START_ROW, lastRow - HEADER_ROW);
     }
 
     const sortedReports = [...reports].sort(sortReports);
@@ -296,6 +330,12 @@ const buildMonthlyTemplateWorkbook = async (reports, yearMonth) => {
     const temporaryPath = `${target.filePath}.${process.pid}.${Date.now()}.tmp`;
     await workbook.xlsx.writeFile(temporaryPath);
     await fs.rename(temporaryPath, target.filePath);
+    await writeMonthlyCacheMetadata(target, {
+        yearMonth,
+        reportCount: sortedReports.length,
+        latestUpdatedAt: cacheMetadata.latestUpdatedAt || null,
+        generatedAt: new Date().toISOString()
+    });
 
     return {
         workbook,
@@ -308,6 +348,7 @@ const buildMonthlyTemplateWorkbook = async (reports, yearMonth) => {
 module.exports = {
     buildMonthlyTemplateWorkbook,
     getMonthlyTarget,
+    readMonthlyCacheMetadata,
     TEMPLATE_PATH,
     SHEET_NAME,
     DATA_START_ROW
