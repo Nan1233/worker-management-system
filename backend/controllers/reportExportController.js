@@ -10,6 +10,7 @@ const {
     getMonthlyTarget,
     readMonthlyCacheMetadata
 } = require("../services/consolidatedExcelExportService");
+const { buildMonthlyWorkbook } = require("../services/monthlyExcelService");
 
 // =====================================================
 // DATABASE QUERY PROMISE
@@ -1066,18 +1067,26 @@ exports.exportGiaCongExcel = async (req, res) => {
 
         // Nút tải chỉ đọc file đã được tạo tự động khi duyệt/sửa/xóa.
         // Không query toàn bộ tháng và không dựng lại workbook trong request tải.
-        const target = getMonthlyTarget(selectedDate.slice(0, 7));
+        const yearMonth = selectedDate.slice(0, 7);
+        let target = getMonthlyTarget(yearMonth);
         let stat;
+
         try {
             stat = await fs.stat(target.filePath);
         } catch (error) {
-            if (error?.code === "ENOENT") {
-                return res.status(404).json({
-                    success: false,
-                    message: "File Excel tháng chưa được tạo. Hãy duyệt báo cáo để hệ thống tự cập nhật file."
-                });
+            if (error?.code !== "ENOENT") {
+                throw error;
             }
-            throw error;
+
+            // Render sử dụng filesystem tạm thời. File cache có thể mất sau
+            // deploy/restart, vì vậy phải dựng lại từ DB thay vì trả 404.
+            const rebuilt = await buildMonthlyWorkbook(yearMonth);
+            target = {
+                ...target,
+                filePath: rebuilt.path || target.filePath,
+                fileName: rebuilt.fileName || target.fileName
+            };
+            stat = await fs.stat(target.filePath);
         }
 
         res.status(200);
