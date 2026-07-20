@@ -12,29 +12,45 @@ const upsert = async ({ jobType, jobKey, workDate = null, reportMonth = null, pr
          ON DUPLICATE KEY UPDATE
             work_date = VALUES(work_date), report_month = VALUES(report_month),
             process_id = VALUES(process_id), status = 'pending', attempts = 0,
-            next_retry_at = NOW(), last_error = NULL, completed_at = NULL`,
+            next_retry_at = NOW(), locked_at = NULL, last_error = NULL, completed_at = NULL`,
         [jobType, jobKey, workDate, reportMonth, processId]
     );
 };
 
+const recoverStale = async () => query(
+    `UPDATE integration_sync_jobs
+     SET status='failed', locked_at=NULL,
+         last_error=COALESCE(last_error, 'Job processing bị gián đoạn; hệ thống tự đưa vào retry'),
+         next_retry_at=NOW()
+     WHERE status='processing'
+       AND locked_at IS NOT NULL
+       AND locked_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE)
+       AND attempts < max_attempts`
+);
+
 const claimReady = async (limit = 5) => {
+    await recoverStale();
+    const safeLimit = Math.min(Math.max(Number(limit) || 5, 1), 20);
     const rows = await query(
         `SELECT * FROM integration_sync_jobs
          WHERE status IN ('pending','failed')
            AND attempts < max_attempts
            AND (next_retry_at IS NULL OR next_retry_at <= NOW())
-           AND (locked_at IS NULL OR locked_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE))
-         ORDER BY next_retry_at ASC, id ASC
+           AND locked_at IS NULL
+         ORDER BY COALESCE(next_retry_at, created_at) ASC, id ASC
          LIMIT ?`,
-        [Number(limit) || 5]
+        [safeLimit]
     );
 
     const claimed = [];
     for (const row of rows) {
         const result = await query(
             `UPDATE integration_sync_jobs
-             SET status = 'processing', locked_at = NOW(), attempts = attempts + 1
-             WHERE id = ? AND status IN ('pending','failed')`,
+             SET status='processing', locked_at=NOW(), attempts=attempts+1
+             WHERE id=?
+               AND status IN ('pending','failed')
+               AND locked_at IS NULL
+               AND attempts < max_attempts`,
             [row.id]
         );
         if (result.affectedRows) claimed.push({ ...row, attempts: Number(row.attempts) + 1 });
@@ -59,7 +75,16 @@ const markFailed = (id, attempts, error) => {
 
 const list = (limit = 100) => query(
     `SELECT * FROM integration_sync_jobs ORDER BY updated_at DESC LIMIT ?`,
-    [Number(limit) || 100]
+    [Math.min(Math.max(Number(limit) || 100, 1), 500)]
 );
 
-module.exports = { upsert, claimReady, markSuccess, markFailed, list };
+const getDiagnostics = async () => {
+    const rows = await query(
+        `SELECT status, job_type, COUNT(*) AS total
+         FROM integration_sync_jobs
+         GROUP BY status, job_type`
+    );
+    return rows;
+};
+
+module.exports = { upsert, recoverStale, claimReady, markSuccess, markFailed, list, getDiagnostics };

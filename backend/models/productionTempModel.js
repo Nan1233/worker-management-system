@@ -560,7 +560,10 @@ const ProductionTemp = {
 
                 const approvedReportId = insertResult.insertId;
                 approvedIds.push(approvedReportId);
-                dates.add(new Date(item.work_date).toISOString().slice(0, 10));
+                const workDate = item.work_date instanceof Date
+                    ? `${item.work_date.getFullYear()}-${String(item.work_date.getMonth() + 1).padStart(2, "0")}-${String(item.work_date.getDate()).padStart(2, "0")}`
+                    : String(item.work_date).slice(0, 10);
+                dates.add(workDate);
 
                 await query(
                     connection,

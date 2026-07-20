@@ -593,6 +593,17 @@ exports.approveSelectedReports = async (req, res) => {
         let syncQueued = true;
         try {
             await SyncJobService.enqueueForApprovedDates(result.dates);
+
+            // Chạy một nhịp đồng bộ ngay trên web service để Sheet vẫn cập nhật
+            // khi Background Worker/Cron chưa được cấu hình. Worker riêng vẫn là
+            // cơ chế retry chính cho các lần thất bại tiếp theo.
+            if (String(process.env.INLINE_SYNC_TRIGGER || "true").toLowerCase() !== "false") {
+                setImmediate(() => {
+                    SyncJobService.processReadyJobs(2).catch((inlineError) => {
+                        console.error("INLINE SYNC PROCESS ERROR:", inlineError);
+                    });
+                });
+            }
         } catch (queueError) {
             syncQueued = false;
             console.error("CREATE SYNC JOB ERROR:", queueError);
