@@ -7,6 +7,7 @@ const validate = (schema) => (req, res, next) => {
     const value = source?.[field];
     if (rules.required && (value === undefined || value === null || value === '')) errors[field] = `${field} là bắt buộc`;
     else if (value !== undefined && rules.type === 'positiveInt' && !positiveInt(value)) errors[field] = `${field} không hợp lệ`;
+    else if (value !== undefined && rules.type === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(String(value))) errors[field] = `${field} không hợp lệ`;
     else if (value !== undefined && rules.type === 'array' && !Array.isArray(value)) errors[field] = `${field} phải là danh sách`;
     else if (Array.isArray(value) && rules.minItems && value.length < rules.minItems) errors[field] = `${field} phải có ít nhất ${rules.minItems} phần tử`;
     else if (Array.isArray(value) && rules.maxItems && value.length > rules.maxItems) errors[field] = `${field} chỉ được tối đa ${rules.maxItems} phần tử`;

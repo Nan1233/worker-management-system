@@ -665,86 +665,57 @@ export const updateTempReport = async (
 // =====================================================
 
 export const exportSelectedApprovedExcel = async (
-    ids: number[],
-    date?: string
+    date: string
 ) => {
-    const validIds = [
-        ...new Set(
-            ids
-                .map(Number)
-                .filter(
-                    id =>
-                        Number.isInteger(id) &&
-                        id > 0
-                )
-        )
-    ];
-
-    if (validIds.length === 0) {
-        throw new Error(
-            "Vui lòng chọn ít nhất một báo cáo"
-        );
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        throw new Error("Ngày xuất Excel không hợp lệ");
     }
 
     const response = await api.post(
         "/reports/export-excel",
-        {
-            ids: validIds
-        },
-        {
-            responseType: "blob"
-        }
+        { date },
+        { responseType: "blob" }
     );
 
     const contentDisposition =
-        response.headers[
-            "content-disposition"
-        ];
+        response.headers["content-disposition"] as string | undefined;
 
-    let fileName =
-        `bao-cao-da-duyet-${
-            date || "da-chon"
-        }.xlsx`;
+    const [year, month] = date.split("-");
+    let fileName = `Bao-cao-san-xuat-${month}-${year}.xlsx`;
 
     if (contentDisposition) {
-        const fileNameMatch =
-            contentDisposition.match(
-                /filename="?([^"]+)"?/i
-            );
+        const utf8Match = contentDisposition.match(
+            /filename\*=UTF-8''([^;]+)/i
+        );
+        const normalMatch = contentDisposition.match(
+            /filename="?([^";]+)"?/i
+        );
+        const encodedName = utf8Match?.[1] || normalMatch?.[1];
 
-        if (fileNameMatch?.[1]) {
-            fileName =
-                decodeURIComponent(
-                    fileNameMatch[1]
-                );
+        if (encodedName) {
+            try {
+                fileName = decodeURIComponent(encodedName);
+            } catch {
+                fileName = encodedName;
+            }
         }
     }
 
     const blob = new Blob(
         [response.data],
         {
-            type:
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         }
     );
 
-    const downloadUrl =
-        window.URL.createObjectURL(blob);
-
-    const link =
-        document.createElement("a");
-
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
     link.href = downloadUrl;
     link.download = fileName;
-
     document.body.appendChild(link);
-
     link.click();
     link.remove();
-
-    window.URL.revokeObjectURL(
-        downloadUrl
-    );
+    window.URL.revokeObjectURL(downloadUrl);
 };
 export const getDeductionOptionsByProcess = async (
     processId: number

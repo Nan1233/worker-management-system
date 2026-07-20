@@ -520,11 +520,21 @@ function Reports() {
         try {
             setActionLoading(true);
 
-            await approveSelectedTempReports(
+            const approveResult = await approveSelectedTempReports(
                 selectedIds
             );
 
-            showToast(`Đã duyệt ${selectedIds.length} báo cáo`, "success");
+            if (approveResult?.sync_queued === false || approveResult?.warning) {
+                showToast(
+                    approveResult?.message || "Đã duyệt nhưng chưa tạo được hàng đợi Google Sheet",
+                    "warning"
+                );
+            } else {
+                showToast(
+                    approveResult?.message || `Đã duyệt ${selectedIds.length} báo cáo`,
+                    "success"
+                );
+            }
 
             setSelectedIds([]);
 

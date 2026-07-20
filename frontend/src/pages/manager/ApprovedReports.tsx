@@ -4,7 +4,6 @@ import {
     useState
 } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
 
 import {
     exportSelectedApprovedExcel,
@@ -50,7 +49,6 @@ const duplicateKey = (
 
 function ApprovedReports() {
     const { showToast } = useToast();
-    const navigate = useNavigate();
 
     const [date, setDate] =
         useState(getToday());
@@ -314,49 +312,11 @@ const toggleSelectCurrentPage = () => {
         return Array.from(previousSet);
     });
 };
-const handleViewSelectedDetails = () => {
-    if (selectedIds.length === 0) {
-        showToast("Vui lòng chọn ít nhất một báo cáo");
-        return;
-    }
-
-    sessionStorage.setItem(
-        "selectedApprovedReportIds",
-        JSON.stringify(selectedIds)
-    );
-
-    const savedUser = localStorage.getItem("user");
-    let basePath = "/manager";
-
-    try {
-        const savedRole = savedUser
-            ? JSON.parse(savedUser)?.role
-            : null;
-
-        if (savedRole === "lead") {
-            basePath = "/lead";
-        }
-    } catch {
-        // Giữ đường dẫn manager khi localStorage không hợp lệ.
-    }
-
-    navigate(`${basePath}/reports/review?source=approved`);
-};
-
 const handleExportExcel = async () => {
-    if (selectedIds.length === 0) {
-        showToast(
-            "Vui lòng chọn ít nhất một báo cáo"
-        );
-
-        return;
-    }
-
     try {
         setExporting(true);
 
         await exportSelectedApprovedExcel(
-            selectedIds,
             date
         );
     } catch (err: unknown) {
@@ -436,30 +396,17 @@ const handleExportExcel = async () => {
                     Xóa lọc
                 </button>
                 <button
-                    type="button"
-                    className="management-view-selected-button"
-                    onClick={handleViewSelectedDetails}
-                    disabled={
-                        selectedIds.length === 0 ||
-                        loading ||
-                        exporting
-                    }
-                >
-                    👁 Xem chi tiết ({selectedIds.length})
-                </button>
-                <button
     type="button"
     className="management-export-button"
     onClick={handleExportExcel}
     disabled={
-        selectedIds.length === 0 ||
         loading ||
         exporting
     }
 >
     {exporting
-        ? "Đang tạo Excel..."
-        : `⇩ Tải Excel (${selectedIds.length})`
+        ? "Đang cập nhật file tháng..."
+        : "⇩ Tải Excel theo ngày"
     }
 </button>
             </div>
@@ -645,8 +592,6 @@ const handleExportExcel = async () => {
                         {report.product_name ||
                             "---"}
                     </td>
-
-
                 </tr>
             );
         }

@@ -3,7 +3,7 @@ const path = require("path");
 const fs = require("fs/promises");
 
 const db = require("../config/db");
-const { buildConsolidatedWorkbook } = require("../services/consolidatedExcelExportService");
+const { buildMonthlyTemplateWorkbook } = require("../services/consolidatedExcelExportService");
 
 // =====================================================
 // DATABASE QUERY PROMISE
@@ -1056,208 +1056,105 @@ exports.exportGiaCongExcel = async (
     res
 ) => {
     try {
-        const ids =
-            normalizeIds(
-                req.body?.ids
-            );
+        const selectedDate = String(
+            req.body?.date || req.query?.date || ""
+        ).trim();
 
-        if (ids.length === 0) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
             return res.status(400).json({
                 success: false,
-                message:
-                    "Vui lòng chọn ít nhất một báo cáo"
+                message: "Ngày xuất Excel không hợp lệ"
             });
         }
 
+        const yearMonth = selectedDate.slice(0, 7);
 
-        // =============================================
-        // CHECK TEMPLATE
-        // =============================================
-
-        try {
-            await fs.access(
-                EXCEL_TEMPLATE_PATH
-            );
-        }
-        catch {
-            return res.status(500).json({
-                success: false,
-                message:
-                    "Không tìm thấy file Excel mẫu",
-                templatePath:
-                    EXCEL_TEMPLATE_PATH
-            });
-        }
-
-
-        // =============================================
-        // LOAD REPORTS
-        // =============================================
-
-        const placeholders =
-            ids
-                .map(() => "?")
-                .join(", ");
-
-        const sql = `
-            SELECT
-                pr.*,
-
-                w.worker_code,
-                w.training_percent,
-                w.position,
-                w.department,
-
-                u.full_name,
-
-                p.process_name
-
-            FROM production_reports AS pr
-
-            INNER JOIN workers AS w
-                ON w.id = pr.worker_id
-
-            INNER JOIN users AS u
-                ON u.id = w.user_id
-
-            LEFT JOIN processes AS p
-                ON p.id = pr.process_id
-
-            WHERE pr.id IN (${placeholders})
-
-            ORDER BY
-                pr.work_date ASC,
-                w.worker_code ASC,
-                pr.machine_no ASC,
-                pr.created_at ASC
-        `;
-
-        const reports =
-            await queryDatabase(
-                sql,
-                ids
-            );
-const reportIds =
-    reports.map(
-        report =>
-            Number(report.id)
-    );
-
-const [
-    deductionsMap,
-    defectsMap
-] = await Promise.all([
-    getReportDeductions(
-        reportIds
-    ),
-    getReportDefects(
-        reportIds
-    )
-]);
-
-reports.forEach(report => {
-    const reportId =
-        Number(report.id);
-
-    report.deductions =
-        deductionsMap.get(
-            reportId
-        ) || [];
-
-    report.defects =
-        defectsMap.get(
-            reportId
-        ) || [];
-});
-
-
-if (reports.length === 0) {
-    return res.status(404).json({
-        success: false,
-        message:
-            "Không tìm thấy báo cáo đã chọn"
-    });
-}
-
-        // =============================================
-        // VERIFY ALL IDS
-        // =============================================
-
-        const foundIds = new Set(
-            reports.map(
-                report =>
-                    Number(report.id)
-            )
+        // Luôn dựng lại toàn bộ file tháng từ DB, giống cách Google Sheet
+        // được rebuild. Nhờ vậy tải một ngày không tạo thêm file lẻ,
+        // không nhân bản dữ liệu và ngày cũ được chèn đúng thứ tự.
+        const reports = await queryDatabase(
+            `
+                SELECT
+                    pr.*,
+                    w.worker_code,
+                    w.training_percent,
+                    w.position,
+                    w.department,
+                    u.full_name,
+                    p.process_name
+                FROM production_reports AS pr
+                INNER JOIN workers AS w
+                    ON w.id = pr.worker_id
+                INNER JOIN users AS u
+                    ON u.id = w.user_id
+                LEFT JOIN processes AS p
+                    ON p.id = pr.process_id
+                WHERE pr.status = 'approved'
+                  AND DATE_FORMAT(pr.work_date, '%Y-%m') = ?
+                ORDER BY
+                    pr.work_date ASC,
+                    w.worker_code ASC,
+                    pr.machine_no ASC,
+                    pr.created_at ASC,
+                    pr.id ASC
+            `,
+            [yearMonth]
         );
 
-        const missingIds =
-            ids.filter(
-                id =>
-                    !foundIds.has(id)
-            );
+        const reportIds = reports.map((report) => Number(report.id));
+        const [deductionsMap, defectsMap] = await Promise.all([
+            getReportDeductions(reportIds),
+            getReportDefects(reportIds)
+        ]);
 
-        if (missingIds.length > 0) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Một số báo cáo không tồn tại",
-                missingIds
-            });
-        }
+        reports.forEach((report) => {
+            const reportId = Number(report.id);
+            report.deductions = deductionsMap.get(reportId) || [];
+            report.defects = defectsMap.get(reportId) || [];
+        });
 
+        const {
+            archivePath,
+            fileName
+        } = await buildMonthlyTemplateWorkbook(
+            reports,
+            yearMonth
+        );
 
-        // =============================================
-        // BUILD ONE CLEAN WORKBOOK, SAME 53 COLUMNS AS GOOGLE SHEET
-        // AND ARCHIVE IT BY POSITION / YEAR / MONTH ON SERVER
-        // =============================================
-
-        const { workbook, archivePath } =
-            await buildConsolidatedWorkbook(reports);
-
-        const reportMonths = [
-            ...new Set(
-                reports.map(report =>
-                    normalizeDateKey(report.work_date).slice(0, 7)
-                )
-            )
-        ].filter(Boolean);
-
-        const monthPart =
-            reportMonths.length === 1
-                ? reportMonths[0]
-                : "nhieu-thang";
-
-        const fileName =
-            `bao-cao-cat-long-${monthPart}.xlsx`;
-
-        res.status(200);
         res.setHeader(
             "Content-Type",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         );
         res.setHeader(
             "Content-Disposition",
-            `attachment; filename="${fileName}"`
+            `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`
         );
         res.setHeader(
             "Access-Control-Expose-Headers",
             "Content-Disposition, X-Excel-Archive-Path"
         );
+        res.setHeader(
+            "X-Excel-Archive-Path",
+            encodeURIComponent(archivePath)
+        );
 
-        if (archivePath) {
-            res.setHeader(
-                "X-Excel-Archive-Path",
-                encodeURIComponent(archivePath)
-            );
-        }
-
-        await workbook.xlsx.write(res);
-        return res.end();
-
+        return res.download(
+            archivePath,
+            fileName,
+            (downloadError) => {
+                if (downloadError && !res.headersSent) {
+                    console.error("DOWNLOAD MONTHLY EXCEL ERROR:", downloadError);
+                    res.status(500).json({
+                        success: false,
+                        message: "Không thể tải file Excel"
+                    });
+                }
+            }
+        );
     }
     catch (error) {
         console.error(
-            "EXPORT EXCEL TEMPLATE ERROR:",
+            "EXPORT MONTHLY EXCEL ERROR:",
             error
         );
 

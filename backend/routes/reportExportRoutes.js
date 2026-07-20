@@ -24,7 +24,7 @@ const validate = require("../middleware/validateRequest");
 //
 // Body:
 // {
-//     "ids": [1, 2, 3]
+//     "date": "2026-07-20"
 // }
 // =====================================================
 
@@ -36,7 +36,7 @@ router.post(
         "manager",
         "lead"
     ),
-    validate({ ids:{required:true,type:"array",itemType:"positiveInt",minItems:1,maxItems:100,unique:true} }),
+    validate({ date:{required:true,type:"date"} }),
     reportExportController.exportGiaCongExcel
 );
 
