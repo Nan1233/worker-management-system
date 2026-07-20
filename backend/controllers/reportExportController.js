@@ -1,6 +1,8 @@
 const ExcelJS = require("exceljs");
 const path = require("path");
 const fs = require("fs/promises");
+const { createReadStream } = require("fs");
+const { pipeline } = require("stream/promises");
 
 const db = require("../config/db");
 const { buildMonthlyTemplateWorkbook } = require("../services/consolidatedExcelExportService");
@@ -1090,7 +1092,8 @@ exports.exportGiaCongExcel = async (
                 LEFT JOIN processes AS p
                     ON p.id = pr.process_id
                 WHERE pr.status = 'approved'
-                  AND DATE_FORMAT(pr.work_date, '%Y-%m') = ?
+                  AND pr.work_date >= ?
+                  AND pr.work_date < DATE_ADD(?, INTERVAL 1 MONTH)
                 ORDER BY
                     pr.work_date ASC,
                     w.worker_code ASC,
@@ -1098,7 +1101,7 @@ exports.exportGiaCongExcel = async (
                     pr.created_at ASC,
                     pr.id ASC
             `,
-            [yearMonth]
+            [`${yearMonth}-01`, `${yearMonth}-01`]
         );
 
         const reportIds = reports.map((report) => Number(report.id));
@@ -1121,6 +1124,8 @@ exports.exportGiaCongExcel = async (
             yearMonth
         );
 
+        const fileStat = await fs.stat(archivePath);
+
         res.setHeader(
             "Content-Type",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -1129,28 +1134,27 @@ exports.exportGiaCongExcel = async (
             "Content-Disposition",
             `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`
         );
+        res.setHeader("Content-Length", String(fileStat.size));
+        res.setHeader("Cache-Control", "no-store");
         res.setHeader(
             "Access-Control-Expose-Headers",
-            "Content-Disposition, X-Excel-Archive-Path"
+            "Content-Disposition, Content-Length, X-Excel-Archive-Path"
         );
         res.setHeader(
             "X-Excel-Archive-Path",
             encodeURIComponent(archivePath)
         );
 
-        return res.download(
-            archivePath,
-            fileName,
-            (downloadError) => {
-                if (downloadError && !res.headersSent) {
-                    console.error("DOWNLOAD MONTHLY EXCEL ERROR:", downloadError);
-                    res.status(500).json({
-                        success: false,
-                        message: "Không thể tải file Excel"
-                    });
-                }
+        try {
+            await pipeline(createReadStream(archivePath), res);
+            return undefined;
+        } catch (downloadError) {
+            if (["ECONNABORTED", "ECONNRESET", "ERR_STREAM_PREMATURE_CLOSE"].includes(downloadError?.code)) {
+                console.warn("Monthly Excel download was interrupted by client or deploy");
+                return undefined;
             }
-        );
+            throw downloadError;
+        }
     }
     catch (error) {
         console.error(

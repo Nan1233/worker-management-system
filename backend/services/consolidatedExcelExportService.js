@@ -239,7 +239,7 @@ const getMonthlyTarget = (yearMonth) => {
         process.env.EXCEL_STAGE_FOLDER_NAME || "Cắt lồng",
         "Cắt lồng"
     );
-    const folder = path.join(root, stageName, year);
+    const folder = path.join(root, year, stageName);
     const fileName = `Bao-cao-san-xuat-${month}-${year}.xlsx`;
     return { folder, fileName, filePath: path.join(folder, fileName) };
 };
@@ -261,18 +261,11 @@ const buildMonthlyTemplateWorkbook = async (reports, yearMonth) => {
 
     const templateRow = captureTemplateRow(sheet);
 
-    // Excel mẫu có các shared formula trong vùng dữ liệu cũ. Nếu spliceRows trực tiếp,
-    // ExcelJS có thể giữ clone nhưng xóa master và lỗi khi ghi file. Phải xóa giá trị/
-    // công thức trước, sau đó mới bỏ các dòng cũ.
-    if (sheet.rowCount >= DATA_START_ROW) {
-        const lastRow = sheet.rowCount;
-        for (let rowIndex = DATA_START_ROW; rowIndex <= lastRow; rowIndex += 1) {
-            const row = sheet.getRow(rowIndex);
-            for (let columnIndex = 1; columnIndex <= sheet.columnCount; columnIndex += 1) {
-                row.getCell(columnIndex).value = null;
-            }
-        }
-        sheet.spliceRows(DATA_START_ROW, lastRow - HEADER_ROW);
+    // File mẫu đã được làm sạch: chỉ giữ header đến dòng 326 và một dòng style 327.
+    // Không splice vùng dữ liệu cũ để tránh ExcelJS tái tạo shared formula lỗi.
+    const styleRow = sheet.getRow(DATA_START_ROW);
+    for (let columnIndex = 1; columnIndex <= COLUMN_COUNT; columnIndex += 1) {
+        styleRow.getCell(columnIndex).value = null;
     }
 
     const sortedReports = [...reports].sort(sortReports);
