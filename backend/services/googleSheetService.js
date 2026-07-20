@@ -953,7 +953,7 @@ const writeSheetData = async (
             range:
                 `${SHEET_NAME}!A${DATA_START_ROW}:BA${newLastRow}`,
 
-            valueInputOption: "RAW",
+            valueInputOption: "USER_ENTERED",
 
             requestBody: {
                 majorDimension:
