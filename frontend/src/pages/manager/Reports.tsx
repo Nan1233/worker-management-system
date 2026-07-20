@@ -827,12 +827,6 @@ function Reports() {
                                     <th>Ca</th>
                                     <th>Mã máy</th>
                                     <th>Mã sản phẩm</th>
-                                    <th>Tổng giờ</th>
-                                    <th>Giờ thực tế</th>
-                                    <th>Định mức</th>
-                                    <th>Thực tế</th>
-                                    <th>TT OK</th>
-                                    <th>TT NG</th>
                                 </tr>
                             </thead>
 
@@ -961,56 +955,6 @@ function Reports() {
                                                 <td>
                                                     {report.product_name ||
                                                         "---"}
-                                                </td>
-
-                                                <td>
-                                                    {Number(
-                                                        report.total_time ??
-                                                            0
-                                                    )}
-                                                </td>
-
-                                                <td>
-                                                    {Number(
-                                                        report.actual_time ??
-                                                            0
-                                                    )}
-                                                </td>
-
-                                                <td>
-                                                    {Number(
-                                                        report.standard_output ??
-                                                            0
-                                                    ).toLocaleString(
-                                                        "vi-VN"
-                                                    )}
-                                                </td>
-
-                                                <td>
-                                                    {Number(
-                                                        report.actual_output ??
-                                                            0
-                                                    ).toLocaleString(
-                                                        "vi-VN"
-                                                    )}
-                                                </td>
-
-                                                <td>
-                                                    {Number(
-                                                        report.tt_ok ??
-                                                            0
-                                                    ).toLocaleString(
-                                                        "vi-VN"
-                                                    )}
-                                                </td>
-
-                                                <td>
-                                                    {Number(
-                                                        report.tt_ng ??
-                                                            0
-                                                    ).toLocaleString(
-                                                        "vi-VN"
-                                                    )}
                                                 </td>
                                             </tr>
                                         );

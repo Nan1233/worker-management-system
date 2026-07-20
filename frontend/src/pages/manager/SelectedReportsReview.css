@@ -165,3 +165,42 @@
     .selected-review-approve { width: 100%; }
     .selected-table-scroll { max-height: calc(100vh - 210px); }
 }
+
+/* Cố định 8 cột nhận diện khi cuộn ngang */
+.selected-review-table .sticky-col {
+    position: sticky;
+    z-index: 3;
+    background: #fff;
+}
+
+.selected-review-table thead .sticky-col {
+    z-index: 7;
+    background: #0f766e;
+}
+
+.selected-review-table tbody tr:nth-child(even) .sticky-col {
+    background: #f8fafc;
+}
+
+.selected-review-table tbody tr:hover .sticky-col {
+    background: #eff6ff;
+}
+
+.selected-review-table .sticky-col-1 { left: 0; min-width: 54px; width: 54px; }
+.selected-review-table .sticky-col-2 { left: 54px; min-width: 88px; width: 88px; }
+.selected-review-table .sticky-col-3 { left: 142px; min-width: 170px; width: 170px; text-align: left; }
+.selected-review-table .sticky-col-4 { left: 312px; min-width: 104px; width: 104px; }
+.selected-review-table .sticky-col-5 { left: 416px; min-width: 130px; width: 130px; }
+.selected-review-table .sticky-col-6 { left: 546px; min-width: 72px; width: 72px; }
+.selected-review-table .sticky-col-7 { left: 618px; min-width: 112px; width: 112px; }
+.selected-review-table .sticky-col-8 {
+    left: 730px;
+    min-width: 145px;
+    width: 145px;
+    box-shadow: 4px 0 8px rgba(15, 23, 42, .12);
+}
+
+.selected-worker-name {
+    white-space: normal !important;
+    line-height: 1.35;
+}

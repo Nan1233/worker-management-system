@@ -3,7 +3,6 @@ import {
     useMemo,
     useState
 } from "react";
-import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
 import {
@@ -51,19 +50,6 @@ const duplicateKey = (
         .join("|");
 
 function ApprovedReports() {
-    const navigate = useNavigate();
-
-    const savedUser =
-        localStorage.getItem("user");
-
-    const currentUser = savedUser
-        ? JSON.parse(savedUser)
-        : null;
-
-    const basePath =
-        currentUser?.role === "lead"
-            ? "/lead"
-            : "/manager";
 
     const [date, setDate] =
         useState(getToday());
@@ -501,13 +487,6 @@ const handleExportExcel = async () => {
     <th>Ca</th>
     <th>Mã máy</th>
     <th>Mã sản phẩm</th>
-    <th>Tổng giờ</th>
-    <th>Giờ thực tế</th>
-    <th>Định mức</th>
-    <th>Thực tế</th>
-    <th>TT OK</th>
-    <th>TT NG</th>
-    <th>Chi tiết</th>
 </tr>
                             </thead>
                             <tbody>
@@ -629,70 +608,6 @@ const handleExportExcel = async () => {
                     <td>
                         {report.product_name ||
                             "---"}
-                    </td>
-
-                    <td>
-                        {Number(
-                            report.total_time ??
-                                0
-                        )}
-                    </td>
-
-                    <td>
-                        {Number(
-                            report.actual_time ??
-                                0
-                        )}
-                    </td>
-
-                    <td>
-                        {Number(
-                            report.standard_output ??
-                                0
-                        ).toLocaleString(
-                            "vi-VN"
-                        )}
-                    </td>
-
-                    <td>
-                        {Number(
-                            report.actual_output ??
-                                0
-                        ).toLocaleString(
-                            "vi-VN"
-                        )}
-                    </td>
-
-                    <td>
-                        {Number(
-                            report.tt_ok ??
-                                0
-                        ).toLocaleString(
-                            "vi-VN"
-                        )}
-                    </td>
-
-                    <td>
-                        {Number(
-                            report.tt_ng ??
-                                0
-                        ).toLocaleString(
-                            "vi-VN"
-                        )}
-                    </td>
-
-                    <td>
-                        <button
-                            type="button"
-                            className="management-detail-button"
-                            onClick={() =>
-                                navigate(
-                                    `${basePath}/report/${report.id}?source=approved`
-                                )
-                            }
-                        >
-                            Xem
-                        </button>
                     </td>
                 </tr>
             );

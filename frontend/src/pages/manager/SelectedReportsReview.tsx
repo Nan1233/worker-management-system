@@ -146,13 +146,14 @@ function SelectedReportsReview() {
                         <table className="selected-review-table">
                             <thead>
                                 <tr>
-                                    <th>STT</th>
-                                    <th>Nhân viên</th>
-                                    <th>Ngày</th>
-                                    <th>Công đoạn</th>
-                                    <th>Ca</th>
-                                    <th>Máy</th>
-                                    <th>Sản phẩm</th>
+                                    <th className="sticky-col sticky-col-1">STT</th>
+                                    <th className="sticky-col sticky-col-2">Mã NV</th>
+                                    <th className="sticky-col sticky-col-3">Họ tên</th>
+                                    <th className="sticky-col sticky-col-4">Ngày</th>
+                                    <th className="sticky-col sticky-col-5">Công đoạn</th>
+                                    <th className="sticky-col sticky-col-6">Ca</th>
+                                    <th className="sticky-col sticky-col-7">Mã máy</th>
+                                    <th className="sticky-col sticky-col-8">Mã sản phẩm</th>
                                     <th>% học việc</th>
                                     <th>Định mức</th>
                                     <th>Thực tế</th>
@@ -170,16 +171,14 @@ function SelectedReportsReview() {
                             <tbody>
                                 {reports.map((report, index) => (
                                     <tr key={report.id || index}>
-                                        <td className="selected-sticky-index">{index + 1}</td>
-                                        <td className="selected-worker-cell">
-                                            <strong>{report.worker_code || "---"}</strong>
-                                            <span>{report.full_name || "Không có tên"}</span>
-                                        </td>
-                                        <td>{formatDate(report.work_date)}</td>
-                                        <td>{report.process_name || report.process_code || "---"}</td>
-                                        <td>{report.shift || "---"}</td>
-                                        <td>{report.machine_no || "---"}</td>
-                                        <td>{report.product_name || "---"}</td>
+                                        <td className="sticky-col sticky-col-1">{index + 1}</td>
+                                        <td className="sticky-col sticky-col-2"><strong>{report.worker_code || "---"}</strong></td>
+                                        <td className="sticky-col sticky-col-3 selected-worker-name">{report.full_name || "Không có tên"}</td>
+                                        <td className="sticky-col sticky-col-4">{formatDate(report.work_date)}</td>
+                                        <td className="sticky-col sticky-col-5">{report.process_name || report.process_code || "---"}</td>
+                                        <td className="sticky-col sticky-col-6">{report.shift || "---"}</td>
+                                        <td className="sticky-col sticky-col-7">{report.machine_no || "---"}</td>
+                                        <td className="sticky-col sticky-col-8">{report.product_name || "---"}</td>
                                         <td>{formatNumber(report.training_percent ?? 100)}%</td>
                                         <td>{formatNumber(report.standard_output)}</td>
                                         <td>{formatNumber(report.actual_output)}</td>
