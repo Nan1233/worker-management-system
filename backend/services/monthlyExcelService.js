@@ -1,79 +1,166 @@
-const ExcelJS = require("exceljs");
-const fs = require("fs/promises");
-const path = require("path");
 const db = require("../config/db");
+const {
+    buildMonthlyTemplateWorkbook,
+    getMonthlyTarget
+} = require("./consolidatedExcelExportService");
 
 const query = (sql, params = []) => new Promise((resolve, reject) => {
     db.query(sql, params, (error, rows) => error ? reject(error) : resolve(rows));
 });
 
-const safeSheetName = (name) => String(name || "Công đoạn").replace(/[\\/*?:[\]]/g, "-").slice(0, 31);
+const inFlightBuilds = new Map();
 
-const loadMonthReports = async (yearMonth) => query(
-    `SELECT pr.*, w.worker_code, u.full_name, p.process_name
-     FROM production_reports pr
-     JOIN workers w ON w.id = pr.worker_id
-     JOIN users u ON u.id = w.user_id
-     JOIN processes p ON p.id = pr.process_id
-     WHERE pr.status = 'approved' AND DATE_FORMAT(pr.work_date, '%Y-%m') = ?
-     ORDER BY p.id, pr.work_date, w.worker_code, pr.created_at`,
-    [yearMonth]
-);
-
-const buildMonthlyWorkbook = async (yearMonth) => {
-    if (!/^\d{4}-\d{2}$/.test(yearMonth)) throw new Error("Tháng không hợp lệ");
-    const reports = await loadMonthReports(yearMonth);
-    const root = process.env.EXCEL_EXPORT_ROOT || path.join(process.cwd(), "exports");
-    const year = yearMonth.slice(0, 4);
-    const folder = path.join(root, year);
-    const target = path.join(folder, `Bao-cao-san-xuat-${yearMonth}.xlsx`);
-    const temporary = `${target}.${Date.now()}.tmp`;
-    await fs.mkdir(folder, { recursive: true });
-
-    const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({ filename: temporary, useStyles: true, useSharedStrings: true });
-    const grouped = new Map();
-    for (const report of reports) {
-        const key = `${report.process_id}:${report.process_name}`;
-        if (!grouped.has(key)) grouped.set(key, []);
-        grouped.get(key).push(report);
+const normalizeYearMonth = (value) => {
+    const yearMonth = String(value || "").slice(0, 7);
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(yearMonth)) {
+        throw new Error("Tháng xuất Excel không hợp lệ");
     }
-
-    if (!grouped.size) grouped.set("0:Tổng hợp", []);
-    for (const [key, rows] of grouped) {
-        const processName = key.split(":").slice(1).join(":");
-        const sheet = workbook.addWorksheet(safeSheetName(processName));
-        sheet.columns = [
-            { header: "STT", key: "stt", width: 8 },
-            { header: "Ngày", key: "work_date", width: 13 },
-            { header: "Ca", key: "shift", width: 10 },
-            { header: "Mã NV", key: "worker_code", width: 12 },
-            { header: "Họ tên", key: "full_name", width: 24 },
-            { header: "Máy", key: "machine_no", width: 15 },
-            { header: "Sản phẩm", key: "product_name", width: 20 },
-            { header: "Tổng giờ", key: "total_time", width: 12 },
-            { header: "Giờ trừ", key: "deduction_time", width: 12 },
-            { header: "Giờ thực tế", key: "actual_time", width: 13 },
-            { header: "Định mức", key: "standard_output", width: 12 },
-            { header: "Thực tế", key: "actual_output", width: 12 },
-            { header: "OK", key: "tt_ok", width: 12 },
-            { header: "NG", key: "tt_ng", width: 12 },
-            { header: "Ghi chú", key: "note", width: 30 }
-        ];
-        sheet.getRow(1).font = { bold: true };
-        sheet.views = [{ state: "frozen", ySplit: 1 }];
-        let currentDate = "";
-        let stt = 0;
-        for (const row of rows) {
-            const date = String(row.work_date).slice(0, 10);
-            if (date !== currentDate) { currentDate = date; stt = 0; }
-            stt += 1;
-            sheet.addRow({ ...row, stt, work_date: date }).commit();
-        }
-        sheet.commit();
-    }
-    await workbook.commit();
-    await fs.rename(temporary, target);
-    return { path: target, url: null };
+    return yearMonth;
 };
 
-module.exports = { buildMonthlyWorkbook };
+const monthRange = (yearMonth) => {
+    const [year, month] = yearMonth.split("-").map(Number);
+    const start = `${yearMonth}-01`;
+    const nextDate = new Date(year, month, 1);
+    const next = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, "0")}-01`;
+    return { start, next };
+};
+
+const mapDetails = (rows, reportIds, valueMapper) => {
+    const result = new Map();
+    reportIds.forEach((id) => result.set(Number(id), []));
+    rows.forEach((row) => {
+        const reportId = Number(row.report_id);
+        if (!result.has(reportId)) result.set(reportId, []);
+        result.get(reportId).push(valueMapper(row));
+    });
+    return result;
+};
+
+const loadMonthReports = async (yearMonth) => {
+    const { start, next } = monthRange(yearMonth);
+    const reports = await query(
+        `SELECT
+            pr.*,
+            w.worker_code,
+            w.training_percent,
+            w.position,
+            w.department,
+            u.full_name,
+            p.process_name
+         FROM production_reports AS pr
+         INNER JOIN workers AS w ON w.id = pr.worker_id
+         INNER JOIN users AS u ON u.id = w.user_id
+         LEFT JOIN processes AS p ON p.id = pr.process_id
+         WHERE pr.status = 'approved'
+           AND pr.work_date >= ?
+           AND pr.work_date < ?
+         ORDER BY pr.work_date, w.worker_code, pr.machine_no, pr.created_at, pr.id`,
+        [start, next]
+    );
+
+    const reportIds = reports.map((report) => Number(report.id));
+    if (!reportIds.length) return reports;
+
+    const placeholders = reportIds.map(() => "?").join(",");
+    const [deductionRows, defectRows] = await Promise.all([
+        query(
+            `SELECT prd.report_id, dt.id AS deduction_type_id,
+                    dt.deduction_code, dt.deduction_name, prd.hours
+             FROM production_report_deductions AS prd
+             INNER JOIN deduction_types AS dt ON dt.id = prd.deduction_type_id
+             WHERE prd.report_id IN (${placeholders})
+             ORDER BY prd.report_id, dt.sort_order, dt.id`,
+            reportIds
+        ),
+        query(
+            `SELECT prd.report_id, dt.id AS defect_type_id,
+                    dt.defect_code, dt.defect_name, prd.quantity
+             FROM production_report_defects AS prd
+             INNER JOIN defect_types AS dt ON dt.id = prd.defect_type_id
+             WHERE prd.report_id IN (${placeholders})
+             ORDER BY prd.report_id, dt.sort_order, dt.id`,
+            reportIds
+        )
+    ]);
+
+    const deductions = mapDetails(deductionRows, reportIds, (row) => ({
+        deduction_type_id: Number(row.deduction_type_id),
+        deduction_code: row.deduction_code || "",
+        deduction_name: row.deduction_name || "",
+        hours: Number(row.hours) || 0
+    }));
+    const defects = mapDetails(defectRows, reportIds, (row) => ({
+        defect_type_id: Number(row.defect_type_id),
+        defect_code: row.defect_code || "",
+        defect_name: row.defect_name || "",
+        quantity: Number(row.quantity) || 0
+    }));
+
+    reports.forEach((report) => {
+        const id = Number(report.id);
+        report.deductions = deductions.get(id) || [];
+        report.defects = defects.get(id) || [];
+    });
+    return reports;
+};
+
+const buildMonthlyWorkbookInternal = async (yearMonth) => {
+    const reports = await loadMonthReports(yearMonth);
+    const latestUpdatedAt = reports.reduce((latest, report) => {
+        const value = report.updated_at || report.approved_at || report.created_at;
+        if (!value) return latest;
+        const iso = new Date(value).toISOString();
+        return !latest || iso > latest ? iso : latest;
+    }, null);
+
+    const result = await buildMonthlyTemplateWorkbook(reports, yearMonth, {
+        latestUpdatedAt
+    });
+
+    console.log("MONTHLY EXCEL UPDATED:", result.archivePath);
+    return {
+        path: result.archivePath,
+        fileName: result.fileName,
+        reportCount: result.reportCount,
+        url: null
+    };
+};
+
+const buildMonthlyWorkbook = async (value) => {
+    const yearMonth = normalizeYearMonth(value);
+    if (inFlightBuilds.has(yearMonth)) return inFlightBuilds.get(yearMonth);
+
+    const promise = buildMonthlyWorkbookInternal(yearMonth)
+        .finally(() => inFlightBuilds.delete(yearMonth));
+    inFlightBuilds.set(yearMonth, promise);
+    return promise;
+};
+
+const scheduleMonthlyRebuild = (dates) => {
+    const months = [...new Set((Array.isArray(dates) ? dates : [dates])
+        .filter(Boolean)
+        .map((date) => normalizeYearMonth(date)))];
+
+    setImmediate(() => {
+        Promise.allSettled(months.map(buildMonthlyWorkbook)).then((results) => {
+            results.forEach((result, index) => {
+                if (result.status === "rejected") {
+                    console.error(`MONTHLY EXCEL AUTO UPDATE ERROR (${months[index]}):`, result.reason);
+                }
+            });
+        });
+    });
+};
+
+const getMonthlyFile = (dateOrMonth) => {
+    const yearMonth = normalizeYearMonth(dateOrMonth);
+    return getMonthlyTarget(yearMonth);
+};
+
+module.exports = {
+    buildMonthlyWorkbook,
+    scheduleMonthlyRebuild,
+    getMonthlyFile,
+    loadMonthReports
+};

@@ -1057,153 +1057,45 @@ const formatWorkDate = (value) => {
 // }
 // =====================================================
 
-exports.exportGiaCongExcel = async (
-    req,
-    res
-) => {
+exports.exportGiaCongExcel = async (req, res) => {
     try {
-        const selectedDate = String(
-            req.body?.date || req.query?.date || ""
-        ).trim();
-
+        const selectedDate = String(req.body?.date || req.query?.date || "").trim();
         if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
-            return res.status(400).json({
-                success: false,
-                message: "Ngày xuất Excel không hợp lệ"
-            });
+            return res.status(400).json({ success: false, message: "Ngày tải Excel không hợp lệ" });
         }
 
-        const yearMonth = selectedDate.slice(0, 7);
-        const [year, month] = yearMonth.split("-").map(Number);
-        const monthStart = `${yearMonth}-01`;
-        const nextMonthDate = new Date(year, month, 1);
-        const nextMonth = [
-            nextMonthDate.getFullYear(),
-            String(nextMonthDate.getMonth() + 1).padStart(2, "0")
-        ].join("-") + "-01";
-
-        // Chỉ query thông tin nhẹ để biết cache tháng có còn mới hay không.
-        const [summary] = await queryDatabase(
-            `
-                SELECT
-                    COUNT(*) AS report_count,
-                    MAX(COALESCE(pr.updated_at, pr.approved_at, pr.created_at)) AS latest_updated_at
-                FROM production_reports AS pr
-                WHERE pr.status = 'approved'
-                  AND pr.work_date >= ?
-                  AND pr.work_date < ?
-            `,
-            [monthStart, nextMonth]
-        );
-
-        const reportCount = Number(summary?.report_count || 0);
-        const latestUpdatedAt = summary?.latest_updated_at
-            ? new Date(summary.latest_updated_at).toISOString()
-            : null;
-
-        let target = getMonthlyTarget(yearMonth);
-        const cached = await readMonthlyCacheMetadata(yearMonth);
-        const cacheIsFresh = Boolean(
-            cached &&
-            Number(cached.metadata?.reportCount) === reportCount &&
-            (cached.metadata?.latestUpdatedAt || null) === latestUpdatedAt
-        );
-
-        if (!cacheIsFresh) {
-            const reports = await queryDatabase(
-                `
-                    SELECT
-                        pr.*,
-                        w.worker_code,
-                        w.training_percent,
-                        w.position,
-                        w.department,
-                        u.full_name,
-                        p.process_name
-                    FROM production_reports AS pr
-                    INNER JOIN workers AS w ON w.id = pr.worker_id
-                    INNER JOIN users AS u ON u.id = w.user_id
-                    LEFT JOIN processes AS p ON p.id = pr.process_id
-                    WHERE pr.status = 'approved'
-                      AND pr.work_date >= ?
-                      AND pr.work_date < ?
-                    ORDER BY
-                        pr.work_date ASC,
-                        w.worker_code ASC,
-                        pr.machine_no ASC,
-                        pr.created_at ASC,
-                        pr.id ASC
-                `,
-                [monthStart, nextMonth]
-            );
-
-            const reportIds = reports.map((report) => Number(report.id));
-            const [deductionsMap, defectsMap] = await Promise.all([
-                getReportDeductions(reportIds),
-                getReportDefects(reportIds)
-            ]);
-
-            reports.forEach((report) => {
-                const reportId = Number(report.id);
-                report.deductions = deductionsMap.get(reportId) || [];
-                report.defects = defectsMap.get(reportId) || [];
-            });
-
-            const result = await buildMonthlyTemplateWorkbook(
-                reports,
-                yearMonth,
-                { latestUpdatedAt }
-            );
-            target = {
-                ...target,
-                filePath: result.archivePath,
-                fileName: result.fileName
-            };
+        // Nút tải chỉ đọc file đã được tạo tự động khi duyệt/sửa/xóa.
+        // Không query toàn bộ tháng và không dựng lại workbook trong request tải.
+        const target = getMonthlyTarget(selectedDate.slice(0, 7));
+        let stat;
+        try {
+            stat = await fs.stat(target.filePath);
+        } catch (error) {
+            if (error?.code === "ENOENT") {
+                return res.status(404).json({
+                    success: false,
+                    message: "File Excel tháng chưa được tạo. Hãy duyệt báo cáo để hệ thống tự cập nhật file."
+                });
+            }
+            throw error;
         }
 
-        const stat = await fs.stat(target.filePath);
         res.status(200);
-        res.setHeader(
-            "Content-Type",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        );
-        res.setHeader(
-            "Content-Disposition",
-            `attachment; filename*=UTF-8''${encodeURIComponent(target.fileName)}`
-        );
+        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(target.fileName)}`);
         res.setHeader("Content-Length", String(stat.size));
-        res.setHeader("Cache-Control", "private, no-cache");
-        res.setHeader(
-            "Access-Control-Expose-Headers",
-            "Content-Disposition, X-Excel-Cache"
-        );
-        res.setHeader("X-Excel-Cache", cacheIsFresh ? "HIT" : "MISS");
+        res.setHeader("Cache-Control", "private, no-store");
+        res.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
 
-        await pipeline(
-            fsSync.createReadStream(target.filePath),
-            res
-        );
+        await pipeline(fsSync.createReadStream(target.filePath), res);
         return undefined;
-    }
-    catch (error) {
-        const aborted = ["ECONNABORTED", "ECONNRESET", "ERR_STREAM_PREMATURE_CLOSE"]
-            .includes(error?.code);
-
-        if (aborted) {
+    } catch (error) {
+        if (["ECONNABORTED", "ECONNRESET", "ERR_STREAM_PREMATURE_CLOSE"].includes(error?.code)) {
             console.warn("MONTHLY EXCEL DOWNLOAD ABORTED");
             return undefined;
         }
-
-        console.error("EXPORT MONTHLY EXCEL ERROR:", error);
-
-        if (res.headersSent) {
-            return res.end();
-        }
-
-        return res.status(500).json({
-            success: false,
-            message: "Không thể xuất file Excel"
-        });
+        console.error("DOWNLOAD MONTHLY EXCEL ERROR:", error);
+        if (res.headersSent) return res.end();
+        return res.status(500).json({ success: false, message: "Không thể tải file Excel" });
     }
 };
-

@@ -1,5 +1,6 @@
 const ProductionTemp = require("../models/productionTempModel");
 const SyncJobService = require("../services/syncJobService");
+const MonthlyExcelService = require("../services/monthlyExcelService");
 const AuditService = require("../services/auditService");
 const db = require("../config/db");
 const { publicMessage } = require("../utils/httpError");
@@ -590,6 +591,12 @@ exports.approveSelectedReports = async (req, res) => {
         if (!reviewerId) return res.status(401).json({ success: false, message: "Thông tin người duyệt không hợp lệ" });
 
         const result = await ProductionTemp.approveSelected(ids, reviewerId, req.user?.role === "admin");
+
+        // Tự động tạo/cập nhật file Excel tháng ngay sau khi duyệt.
+        // Service dùng file tạm rồi rename nên file cũ được thay thế nguyên tử,
+        // giữ nguyên cùng tên và không cần bước xác nhận.
+        MonthlyExcelService.scheduleMonthlyRebuild(result.dates);
+
         let syncQueued = true;
         try {
             await SyncJobService.enqueueForApprovedDates(result.dates);

@@ -1,4 +1,5 @@
 const db = require("../config/db");
+const MonthlyExcelService = require("../services/monthlyExcelService");
 
 const safeDbError = (res, error, fallback) => {
     console.error(fallback, error);
@@ -432,6 +433,7 @@ exports.updateReport = async (req,res) => {
         const versionNo=await AuditService.createReportVersion({reportType:'approved',reportId,snapshot:after,reason:req.body.reason||'Sau khi chỉnh sửa',userId:req.user.id},connection);
         await AuditService.logActivity({userId:req.user.id,action:'REPORT_UPDATED',entityType:'approved_report',entityId:reportId,description:`Cập nhật báo cáo phiên bản ${versionNo}`,metadata:{reason:req.body.reason||null},req},connection);
         await connection.commit();
+        MonthlyExcelService.scheduleMonthlyRebuild([before.work_date, after.work_date]);
         return res.json({success:true,message:'Cập nhật thành công',version:versionNo,data:after});
     } catch(e){ await connection.rollback(); console.error('UPDATE APPROVED REPORT ERROR:',e); return res.status(e.status||500).json({success:false,message:publicMessage(e,'Không thể cập nhật báo cáo')}); }
     finally{ connection.release(); }
@@ -449,7 +451,9 @@ exports.deleteReport = async (req,res) => {
       await connection.query(`DELETE FROM production_report_defects WHERE report_id=?`,[reportId]);
       await connection.query(`DELETE FROM production_report_deductions WHERE report_id=?`,[reportId]);
       await connection.query(`DELETE FROM production_reports WHERE id=?`,[reportId]);
-      await connection.commit(); return res.json({success:true,message:'Xóa thành công'});
+      await connection.commit();
+      MonthlyExcelService.scheduleMonthlyRebuild(snapshot.work_date);
+      return res.json({success:true,message:'Xóa thành công'});
     }catch(e){await connection.rollback();console.error('DELETE REPORT ERROR:',e);return res.status(500).json({success:false,message:publicMessage(e,'Không thể xóa báo cáo')});}
     finally{connection.release();}
 };
