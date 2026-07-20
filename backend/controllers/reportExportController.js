@@ -889,8 +889,8 @@ row.getCell("AV").value =
     // AY - Trạng thái (giống Google Sheet)
     row.getCell("AY").value = "approved";
 
-    // AZ - ID báo cáo nội bộ (giống Google Sheet)
-    row.getCell("AZ").value = Number(report.id);
+    // // AZ - ID báo cáo nội bộ (giống Google Sheet)
+    // row.getCell("AZ").value = Number(report.id);
 
 
     // =================================================

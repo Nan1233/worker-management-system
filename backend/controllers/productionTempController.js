@@ -2,7 +2,7 @@ const ProductionTemp = require("../models/productionTempModel");
 const SyncJobService = require("../services/syncJobService");
 const { validateMasterData } = require("../services/reportBusinessValidationService");
 const { validateProductionReport } = require("../utils/reportValidation");
-
+const AuditService = require("../services/auditService");
 const toPositiveInteger = (value) => {
     const numberValue = Number(value);
     return Number.isInteger(numberValue) && numberValue > 0 ? numberValue : null;
@@ -76,24 +76,90 @@ exports.createTempReport = async (req, res) => {
         };
 
         const result = await ProductionTemp.createCompleteReport({
-            data,
-            defects,
-            deductions,
-            log: {
-                reportType: "temp",
-                userId: req.user.id,
-                action: "CREATE",
-                note: "Công nhân tạo báo cáo",
-                ...requestMeta(req)
-            }
-        });
+    data,
+    defects,
+    deductions,
+    log: {
+        reportType: "temp",
+        userId: req.user.id,
+        action: "CREATE",
+        note: "Công nhân tạo báo cáo",
+        ...requestMeta(req)
+    }
+});
 
-        return res.status(result.duplicate ? 200 : 201).json({
-            success: true,
-            duplicate: result.duplicate,
-            message: result.duplicate ? "Yêu cầu này đã được ghi nhận trước đó" : "Tạo báo cáo thành công",
-            id: result.id
+/*
+ * report_action_logs:
+ * Lưu lịch sử riêng của từng báo cáo.
+ *
+ * activity_logs:
+ * Hiển thị tại Trung tâm hệ thống → Lịch sử hoạt động.
+ */
+if (!result.duplicate) {
+    try {
+        await AuditService.logActivity({
+            userId: req.user.id,
+            action: "CREATE_REPORT",
+            entityType: "temp_report",
+            entityId: result.id,
+            description:
+                `Tạo báo cáo sản xuất công đoạn ${processId}, ` +
+                `ca ${data.shift}, máy ${data.machine_no || "---"}, ` +
+                `sản phẩm ${data.product_name || "---"}`,
+            metadata: {
+                report_id: result.id,
+                worker_id: workerId,
+                process_id: processId,
+                work_date: data.work_date,
+                shift: data.shift,
+                machine_no: data.machine_no,
+                product_name: data.product_name,
+                tt_ok: data.tt_ok,
+                tt_ng: data.tt_ng
+            },
+            req
         });
+    } catch (auditError) {
+        /*
+         * Không để lỗi ghi activity làm báo cáo đã lưu
+         * nhưng API lại trả về thất bại.
+         */
+        console.error(
+            "CREATE REPORT ACTIVITY LOG ERROR:",
+            auditError
+        );
+    }
+
+    try {
+        await AuditService.notifyUsers(
+            [req.user.id],
+            {
+                type: "success",
+                title: "Lưu báo cáo thành công",
+                message:
+                    `Báo cáo ngày ${data.work_date}, ca ${data.shift}, ` +
+                    `sản phẩm ${data.product_name || "---"} đã được gửi chờ duyệt.`,
+                linkUrl: `/worker/history/${result.id}?source=temp`,
+                entityType: "temp_report",
+                entityId: result.id
+            }
+        );
+    } catch (notificationError) {
+        console.error(
+            "CREATE REPORT NOTIFICATION ERROR:",
+            notificationError
+        );
+    }
+}
+
+return res.status(result.duplicate ? 200 : 201).json({
+    success: true,
+    duplicate: result.duplicate,
+    message: result.duplicate
+        ? "Yêu cầu này đã được ghi nhận trước đó"
+        : "Lưu báo cáo thành công",
+    id: result.id
+});
     } catch (error) {
         console.error("CREATE TEMP REPORT ERROR:", error);
         return res.status(500).json({ success: false, message: error.message || "Không thể tạo báo cáo" });

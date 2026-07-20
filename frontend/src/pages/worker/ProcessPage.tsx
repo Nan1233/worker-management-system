@@ -2683,21 +2683,28 @@ const updateDeductionValue = (
 
 
                 showToast(
-                    response?.duplicate
-                        ? "Báo cáo này đã được hệ thống ghi nhận trước đó"
-                        : "Lưu báo cáo thành công",
-                    response?.duplicate ? "info" : "success"
-                );
-                clientRequestIdRef.current = null;
+    response?.duplicate
+        ? "Báo cáo này đã được hệ thống ghi nhận trước đó"
+        : "Lưu báo cáo thành công. Báo cáo đã được gửi chờ duyệt.",
+    response?.duplicate
+        ? "info"
+        : "success"
+);
 
+clientRequestIdRef.current = null;
 
-                navigate(
-                    "/worker",
-                    {
-                        replace:
-                            true
-                    }
-                );
+/*
+ * Cho người dùng đủ thời gian nhìn thấy thông báo
+ * trước khi quay về trang chọn công đoạn.
+ */
+window.setTimeout(() => {
+    navigate(
+        "/worker",
+        {
+            replace: true
+        }
+    );
+}, 900);
 
             }
             catch (error: unknown) {
