@@ -431,8 +431,6 @@ exports.updateReport = async (req,res) => {
         const after=await loadApprovedSnapshot(reportId, connection);
         const versionNo=await AuditService.createReportVersion({reportType:'approved',reportId,snapshot:after,reason:req.body.reason||'Sau khi chỉnh sửa',userId:req.user.id},connection);
         await AuditService.logActivity({userId:req.user.id,action:'REPORT_UPDATED',entityType:'approved_report',entityId:reportId,description:`Cập nhật báo cáo phiên bản ${versionNo}`,metadata:{reason:req.body.reason||null},req},connection);
-        const [workerRows]=await connection.query(`SELECT w.user_id FROM production_reports pr JOIN workers w ON w.id=pr.worker_id WHERE pr.id=?`,[reportId]);
-        if(workerRows[0]?.user_id) await AuditService.notifyUsers([workerRows[0].user_id],{type:'warning',title:'Báo cáo đã được chỉnh sửa',message:`Báo cáo #${reportId} đã được quản lý cập nhật`,linkUrl:`/worker/history/${reportId}?source=approved`,entityType:'approved_report',entityId:reportId},connection);
         await connection.commit();
         return res.json({success:true,message:'Cập nhật thành công',version:versionNo,data:after});
     } catch(e){ await connection.rollback(); console.error('UPDATE APPROVED REPORT ERROR:',e); return res.status(e.status||500).json({success:false,message:publicMessage(e,'Không thể cập nhật báo cáo')}); }

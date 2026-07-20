@@ -1,4 +1,5 @@
 const db = require("../config/db");
+const AuditService = require("../services/auditService");
 
 const query = (executor, sql, params = []) =>
     new Promise((resolve, reject) => {
@@ -601,6 +602,25 @@ const ProductionTemp = {
                     connection
                 );
 
+                await AuditService.logActivity(
+                    {
+                        userId: reviewerId,
+                        action: "REPORT_APPROVED",
+                        entityType: "approved_report",
+                        entityId: approvedReportId,
+                        description: `Duyệt báo cáo tạm #${item.id} thành báo cáo chính thức #${approvedReportId}`,
+                        metadata: {
+                            temp_report_id: item.id,
+                            approved_report_id: approvedReportId,
+                            worker_id: item.worker_id,
+                            process_id: item.process_id,
+                            work_date: item.work_date,
+                            shift: item.shift
+                        }
+                    },
+                    connection
+                );
+
                 await query(
                     connection,
                     `UPDATE production_reports_temp
@@ -1141,6 +1161,23 @@ const ProductionTemp = {
                                 ? " và chi tiết"
                                 : ""
                         }`
+                },
+                connection
+            );
+
+            await AuditService.logActivity(
+                {
+                    userId: changedBy,
+                    action: "TEMP_REPORT_UPDATED",
+                    entityType: "temp_report",
+                    entityId: id,
+                    description: `Cập nhật báo cáo chờ duyệt #${id}`,
+                    metadata: {
+                        changed_fields: changes,
+                        deductions_changed: hasDeductions,
+                        defects_changed: hasDefects,
+                        reason: reason || null
+                    }
                 },
                 connection
             );
