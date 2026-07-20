@@ -996,7 +996,7 @@ const writeSheetData = async (
                             userEnteredFormat: {
                                 numberFormat: {
                                     type: "DATE",
-pattern: "dd/mm/yyyy"
+pattern: "dd/MM/yyyy"
                                 },
                                 textFormat: {
                                     bold: true
