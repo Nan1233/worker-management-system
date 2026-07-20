@@ -983,6 +983,8 @@ const writeSheetData = async (
                 !rowData[1];
 
             if (isDateRow) {
+                // Dòng phân cách ngày: cột A phải là text để giữ dd/mm/yyyy.
+                // values.clear() không xóa định dạng cũ nên cần ép lại format.
                 formatRequests.push({
                     repeatCell: {
                         range: {
@@ -991,11 +993,15 @@ const writeSheetData = async (
                             endRowIndex:
                                 startRowIndex + 1,
                             startColumnIndex: 0,
-                            endColumnIndex: 53
+                            endColumnIndex: 1
                         },
 
                         cell: {
                             userEnteredFormat: {
+                                numberFormat: {
+                                    type: "TEXT",
+                                    pattern: "@"
+                                },
                                 textFormat: {
                                     bold: true
                                 }
@@ -1003,12 +1009,43 @@ const writeSheetData = async (
                         },
 
                         fields:
-                            "userEnteredFormat.textFormat.bold"
+                            "userEnteredFormat.numberFormat,userEnteredFormat.textFormat.bold"
                     }
                 });
 
                 return;
             }
+
+            // Dòng báo cáo: cột A luôn là STT dạng số nguyên.
+            // Nếu ô từng được định dạng DATE, các số 1,2,3,4 sẽ bị hiển thị
+            // thành 01/01/1900, 02/01/1900... nên phải reset từng dòng.
+            formatRequests.push({
+                repeatCell: {
+                    range: {
+                        sheetId,
+                        startRowIndex,
+                        endRowIndex:
+                            startRowIndex + 1,
+                        startColumnIndex: 0,
+                        endColumnIndex: 1
+                    },
+
+                    cell: {
+                        userEnteredFormat: {
+                            numberFormat: {
+                                type: "NUMBER",
+                                pattern: "0"
+                            },
+                            textFormat: {
+                                bold: false
+                            }
+                        }
+                    },
+
+                    fields:
+                        "userEnteredFormat.numberFormat,userEnteredFormat.textFormat.bold"
+                }
+            });
 
             formatRequests.push({
                 repeatCell: {
