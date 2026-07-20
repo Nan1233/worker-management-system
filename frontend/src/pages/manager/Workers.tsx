@@ -18,10 +18,13 @@ import type {
     WorkerProfile
 } from "../../types/worker";
 
+import { useToast } from "../../components/feedback/toastContext";
+
 import "./Workers.css";
 
 
 function Workers() {
+    const { showToast } = useToast();
 
     const [
         workers,
@@ -276,7 +279,7 @@ function Workers() {
                 value > 100
             ) {
 
-                alert(
+                showToast(
                     "% học việc phải từ 0 đến 100"
                 );
 
@@ -335,9 +338,7 @@ function Workers() {
                 );
 
 
-                alert(
-                    "Cập nhật % học việc thành công"
-                );
+                showToast("Cập nhật % học việc thành công", "success");
 
             }
             catch (err: unknown) {
@@ -369,7 +370,7 @@ function Workers() {
                             : "Không thể cập nhật % học việc";
 
 
-                alert(
+                showToast(
                     message
                 );
 

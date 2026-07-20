@@ -2,6 +2,7 @@ const ProductionTemp = require("../models/productionTempModel");
 const SyncJobService = require("../services/syncJobService");
 const AuditService = require("../services/auditService");
 const db = require("../config/db");
+const { publicMessage } = require("../utils/httpError");
 
 const {
     validateMasterData
@@ -484,7 +485,7 @@ exports.getMyTempReports = async (req, res) => {
         return res.status(200).json({ success: true, data });
     } catch (error) {
         console.error("GET MY TEMP REPORTS ERROR:", error);
-        return res.status(500).json({ success: false, message: error.message || "Lỗi lấy lịch sử báo cáo" });
+        return res.status(500).json({ success: false, message: publicMessage(error, "Lỗi lấy lịch sử báo cáo") });
     }
 };
 
@@ -502,7 +503,7 @@ exports.getPendingReports = async (req, res) => {
         return res.status(200).json({ success: true, data });
     } catch (error) {
         console.error("GET PENDING REPORTS ERROR:", error);
-        return res.status(500).json({ success: false, message: error.message || "Không thể lấy báo cáo chờ duyệt" });
+        return res.status(500).json({ success: false, message: publicMessage(error, "Không thể lấy báo cáo chờ duyệt") });
     }
 };
 
@@ -520,7 +521,7 @@ exports.getApprovedReports = async (req, res) => {
         return res.status(200).json({ success: true, data });
     } catch (error) {
         console.error("GET APPROVED REPORTS ERROR:", error);
-        return res.status(500).json({ success: false, message: error.message || "Không thể lấy báo cáo đã duyệt" });
+        return res.status(500).json({ success: false, message: publicMessage(error, "Không thể lấy báo cáo đã duyệt") });
     }
 };
 
@@ -531,7 +532,7 @@ exports.getTempDates = async (req, res) => {
         return res.status(200).json({ success: true, data });
     } catch (error) {
         console.error("GET TEMP DATES ERROR:", error);
-        return res.status(500).json({ success: false, message: error.message || "Không thể lấy danh sách ngày" });
+        return res.status(500).json({ success: false, message: publicMessage(error, "Không thể lấy danh sách ngày") });
     }
 };
 
@@ -542,7 +543,7 @@ exports.getTempReportsByDate = async (req, res) => {
         return res.status(200).json({ success: true, data });
     } catch (error) {
         console.error("GET TEMP REPORTS BY DATE ERROR:", error);
-        return res.status(500).json({ success: false, message: error.message || "Không thể lấy báo cáo theo ngày" });
+        return res.status(500).json({ success: false, message: publicMessage(error, "Không thể lấy báo cáo theo ngày") });
     }
 };
 
@@ -577,7 +578,7 @@ exports.getTempReportDetail = async (req, res) => {
         return res.status(200).json({ success: true, data });
     } catch (error) {
         console.error("GET TEMP REPORT DETAIL ERROR:", error);
-        return res.status(500).json({ success: false, message: error.message || "Không thể lấy chi tiết báo cáo" });
+        return res.status(500).json({ success: false, message: publicMessage(error, "Không thể lấy chi tiết báo cáo") });
     }
 };
 
@@ -592,7 +593,6 @@ exports.approveSelectedReports = async (req, res) => {
         let syncQueued = true;
         try {
             await SyncJobService.enqueueForApprovedDates(result.dates);
-            SyncJobService.triggerWorker();
         } catch (queueError) {
             syncQueued = false;
             console.error("CREATE SYNC JOB ERROR:", queueError);
@@ -609,7 +609,7 @@ exports.approveSelectedReports = async (req, res) => {
         });
     } catch (error) {
         console.error("APPROVE SELECTED REPORTS ERROR:", error);
-        return res.status(400).json({ success: false, message: error.message || "Không thể duyệt báo cáo" });
+        return res.status(error.status || 400).json({ success: false, message: publicMessage(error, "Không thể duyệt báo cáo") });
     }
 };
 
@@ -636,9 +636,16 @@ exports.updateTempReport = async (req, res) => {
         const changedBy = toPositiveInteger(req.user?.id);
         if (!reportId) return res.status(400).json({ success: false, message: "ID báo cáo không hợp lệ" });
 
+        const current = await ProductionTemp.getDetail(reportId);
+        if (!current) return res.status(404).json({ success: false, message: "Không tìm thấy báo cáo" });
+        const payload = { ...current, ...(req.body || {}), defects: req.body?.defects ?? current.defects, deductions: req.body?.deductions ?? current.deductions };
+        const validation = validateProductionReport(payload, { enforceBackDate: false });
+        if (!validation.valid) return res.status(422).json({ success: false, message: "Dữ liệu báo cáo không hợp lệ", errors: validation.errors });
+        const master = await validateMasterData({ workerId: current.worker_id, processId: current.process_id, machineNo: validation.normalized.machine_no, productName: validation.normalized.product_name, defects: validation.normalized.defects, deductions: validation.normalized.deductions });
+        if (!master.valid) return res.status(422).json({ success: false, message: "Dữ liệu danh mục không hợp lệ", errors: master.errors });
         const result = await ProductionTemp.updateReport(
             reportId,
-            req.body || {},
+            validation.normalized,
             changedBy,
             req.body?.reason || null,
             req.user?.role === "admin"
@@ -651,7 +658,7 @@ exports.updateTempReport = async (req, res) => {
         });
     } catch (error) {
         console.error("UPDATE TEMP REPORT ERROR:", error);
-        return res.status(400).json({ success: false, message: error.message || "Không thể cập nhật báo cáo" });
+        return res.status(error.status || 400).json({ success: false, message: publicMessage(error, "Không thể cập nhật báo cáo") });
     }
 };
 
@@ -676,6 +683,6 @@ exports.getReportActionLogs = async (req, res) => {
         return res.status(200).json({ success: true, data });
     } catch (error) {
         console.error("GET REPORT ACTION LOGS ERROR:", error);
-        return res.status(500).json({ success: false, message: error.message || "Không thể lấy lịch sử thao tác" });
+        return res.status(500).json({ success: false, message: publicMessage(error, "Không thể lấy lịch sử thao tác") });
     }
 };

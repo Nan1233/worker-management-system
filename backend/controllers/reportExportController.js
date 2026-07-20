@@ -1371,11 +1371,7 @@ return res.end();
 
         return res.status(500).json({
             success: false,
-            message:
-                "Không thể xuất file Excel",
-            error:
-                error.sqlMessage ||
-                error.message
+            message: "Không thể xuất file Excel"
         });
     }
 };

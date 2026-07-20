@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: worker-management-api
+    runtime: node
+    buildCommand: npm ci
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+  - type: worker
+    name: worker-management-sync
+    runtime: node
+    buildCommand: npm ci
+    startCommand: npm run worker
+    envVars:
+      - key: NODE_ENV
+        value: production

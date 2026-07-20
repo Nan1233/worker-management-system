@@ -43,7 +43,7 @@ import type {
 } from "../../services/masterDataService";
 
 import AutocompleteInput from "../../components/common/AutocompleteInput";
-import { useToast } from "../../components/feedback/ToastProvider";
+import { useToast } from "../../components/feedback/toastContext";
 import { getApiError } from "../../utils/apiError";
 
 import type {
@@ -1129,7 +1129,7 @@ const productAutocompleteOptions =
                                 : "Không lấy được thông tin nhân viên";
 
 
-                    alert(
+                    showToast(
                         message
                     );
 
@@ -1147,7 +1147,7 @@ const productAutocompleteOptions =
 
         void loadWorkerInfo();
 
-    }, [navigate]);
+    }, [navigate, showToast]);
         // =====================================================
     // INPUT THÔNG THƯỜNG
     // =====================================================
@@ -1340,7 +1340,7 @@ useEffect(() => {
                             : "Không thể tải danh sách máy hoặc sản phẩm";
 
 
-                alert(
+                showToast(
                     message
                 );
 
@@ -1358,7 +1358,7 @@ useEffect(() => {
 
     void loadMasterData();
 
-}, [processInfo.id]);
+}, [processInfo.id, showToast]);
 
     // =====================================================
     // CHỈ CHO PHÉP NHẬP SỐ NGUYÊN

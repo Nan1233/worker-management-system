@@ -44,12 +44,13 @@ function SelectedReportsReview() {
     const [error, setError] = useState("");
 
     const savedUser = localStorage.getItem("user");
-    let role = "manager";
-    try {
-        role = savedUser ? JSON.parse(savedUser)?.role || "manager" : "manager";
-    } catch {
-        role = "manager";
-    }
+    const role = (() => {
+        try {
+            return savedUser ? JSON.parse(savedUser)?.role || "manager" : "manager";
+        } catch {
+            return "manager";
+        }
+    })();
 
     const basePath = role === "lead" ? "/lead" : "/manager";
     const canEdit = role === "manager" || role === "admin";

@@ -117,7 +117,7 @@ router.post(
         "manager",
         "lead"
     ),
-    validate({ ids:{required:true,type:"array"} }),
+    validate({ ids:{required:true,type:"array",itemType:"positiveInt",minItems:1,maxItems:100,unique:true} }),
     controller.approveSelectedReports
 );
 
@@ -167,6 +167,7 @@ router.put(
         "admin",
         "manager"
     ),
+    validate({ id:{in:"params",required:true,type:"positiveInt"} }),
     controller.updateTempReport
 );
 

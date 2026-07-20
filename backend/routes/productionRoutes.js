@@ -130,7 +130,7 @@ router.put(
 
     verifyToken,
 
-    checkRole("admin", "manager", "lead"),
+    checkRole("admin", "manager"),
 
     updateReport
 

@@ -14,6 +14,7 @@ const checkRole = require(
 const reportExportController = require(
     "../controllers/reportExportController"
 );
+const validate = require("../middleware/validateRequest");
 
 
 // =====================================================
@@ -35,6 +36,7 @@ router.post(
         "manager",
         "lead"
     ),
+    validate({ ids:{required:true,type:"array",itemType:"positiveInt",minItems:1,maxItems:100,unique:true} }),
     reportExportController.exportGiaCongExcel
 );
 

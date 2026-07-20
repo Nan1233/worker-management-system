@@ -19,6 +19,8 @@ import type {
     ProductionReport
 } from "../../types/production";
 
+import { useToast } from "../../components/feedback/toastContext";
+
 import "./Reports.css";
 
 
@@ -87,6 +89,7 @@ const duplicateKey = (
 
 
 function Reports() {
+    const { showToast } = useToast();
     const navigate = useNavigate();
 
     const savedUser =
@@ -476,7 +479,7 @@ function Reports() {
 
     const handleViewSelectedDetails = () => {
         if (selectedIds.length === 0) {
-            alert(
+            showToast(
                 "Vui lòng chọn ít nhất một báo cáo"
             );
             return;
@@ -499,7 +502,7 @@ function Reports() {
 
     const handleApproveSelected = async () => {
         if (selectedIds.length === 0) {
-            alert(
+            showToast(
                 "Vui lòng chọn ít nhất một báo cáo"
             );
             return;
@@ -521,9 +524,7 @@ function Reports() {
                 selectedIds
             );
 
-            alert(
-                `Đã duyệt ${selectedIds.length} báo cáo`
-            );
+            showToast(`Đã duyệt ${selectedIds.length} báo cáo`, "success");
 
             setSelectedIds([]);
 
@@ -544,7 +545,7 @@ function Reports() {
                       "Duyệt báo cáo thất bại"
                     : "Duyệt báo cáo thất bại";
 
-            alert(message);
+            showToast(message);
         } finally {
             setActionLoading(false);
         }

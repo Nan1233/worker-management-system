@@ -1,5 +1,10 @@
 const db = require("../config/db");
 
+const safeDbError = (res, error, fallback) => {
+    console.error(fallback, error);
+    return res.status(500).json({ success: false, message: process.env.NODE_ENV === "production" ? fallback : (error?.message || fallback) });
+};
+
 
 
 
@@ -51,7 +56,7 @@ db.query(sql,(err,result)=>{
 
 if(err)
 
-return res.status(500).json(err);
+return safeDbError(res, err, "Không thể tải dữ liệu báo cáo");
 
 
 
@@ -95,7 +100,7 @@ db.query(sql,(err,result)=>{
 
 if(err)
 
-return res.status(500).json(err);
+return safeDbError(res, err, "Không thể tải dữ liệu báo cáo");
 
 
 
@@ -175,7 +180,7 @@ sql,
 
 if(err)
 
-return res.status(500).json(err);
+return safeDbError(res, err, "Không thể tải dữ liệu báo cáo");
 
 
 
@@ -251,7 +256,7 @@ exports.getReportById = async (req, res) => {
         console.error("GET APPROVED REPORT DETAIL ERROR:", error);
         return res.status(500).json({
             success: false,
-            message: error.message || "Không thể lấy chi tiết báo cáo"
+            message: process.env.NODE_ENV === "production" ? "Không thể lấy chi tiết báo cáo" : (error.message || "Không thể lấy chi tiết báo cáo")
         });
     }
 };
@@ -319,7 +324,7 @@ req.params.id
 
 if(err)
 
-return res.status(500).json(err);
+return safeDbError(res, err, "Không thể tải dữ liệu báo cáo");
 
 
 
@@ -367,7 +372,7 @@ WHERE id=?
 
 if(err)
 
-return res.status(500).json(err);
+return safeDbError(res, err, "Không thể tải dữ liệu báo cáo");
 
 
 
@@ -384,9 +389,11 @@ message:"Xóa thành công"
 };
 // =====================================================
 // ENTERPRISE UPDATE: VERSION + AUDIT + NOTIFICATION
-// Các export dưới đây ghi đè implementation cũ phía trên.
 // =====================================================
 const AuditService = require('../services/auditService');
+const { validateProductionReport } = require('../utils/reportValidation');
+const { validateMasterData } = require('../services/reportBusinessValidationService');
+const { publicMessage } = require('../utils/httpError');
 
 async function loadApprovedSnapshot(reportId, executor = db) {
     const q = (sql, params) => executor.promise ? executor.promise().query(sql, params) : executor.query(sql, params);
@@ -405,22 +412,30 @@ exports.updateReport = async (req,res) => {
     const connection=await db.promise().getConnection();
     try {
         await connection.beginTransaction();
+        const [lockedRows] = await connection.query(`SELECT * FROM production_reports WHERE id=? FOR UPDATE`, [reportId]);
+        if(!lockedRows[0]) { await connection.rollback(); return res.status(404).json({success:false,message:'Không tìm thấy báo cáo'}); }
         const before=await loadApprovedSnapshot(reportId, connection);
-        if(!before){ await connection.rollback(); return res.status(404).json({success:false,message:'Không tìm thấy báo cáo'}); }
+        const payload={...before,...(req.body||{}),defects:req.body?.defects??before.defects,deductions:req.body?.deductions??before.deductions};
+        const validation=validateProductionReport(payload,{enforceBackDate:false});
+        if(!validation.valid){await connection.rollback();return res.status(422).json({success:false,message:'Dữ liệu báo cáo không hợp lệ',errors:validation.errors});}
+        const master=await validateMasterData({workerId:before.worker_id,processId:before.process_id,machineNo:validation.normalized.machine_no,productName:validation.normalized.product_name,defects:validation.normalized.defects,deductions:validation.normalized.deductions});
+        if(!master.valid){await connection.rollback();return res.status(422).json({success:false,message:'Dữ liệu danh mục không hợp lệ',errors:master.errors});}
         const allowed=['machine_no','product_name','note','shift','work_date','total_time','actual_time','deduction_time','standard_output','actual_output','tt_ok','tt_ng'];
-        const entries=allowed.filter(k=>req.body[k]!==undefined).map(k=>[k,req.body[k]]);
-        if(!entries.length){ await connection.rollback(); return res.status(422).json({success:false,message:'Không có dữ liệu cần cập nhật'}); }
         await AuditService.createReportVersion({reportType:'approved',reportId,snapshot:before,reason:req.body.reason||'Trước khi chỉnh sửa',userId:req.user.id},connection);
-        const set=entries.map(([k])=>`${k}=?`).join(',');
-        await connection.query(`UPDATE production_reports SET ${set}, updated_by=?, updated_at=NOW() WHERE id=?`,[...entries.map(([,v])=>v),req.user.id,reportId]);
+        const values=allowed.map(k=>validation.normalized[k]);
+        await connection.query(`UPDATE production_reports SET ${allowed.map(k=>`${k}=?`).join(',')}, updated_by=?, updated_at=NOW() WHERE id=?`,[...values,req.user.id,reportId]);
+        await connection.query(`DELETE FROM production_report_defects WHERE report_id=?`,[reportId]);
+        for(const item of validation.normalized.defects) await connection.query(`INSERT INTO production_report_defects(report_id,defect_type_id,quantity) VALUES(?,?,?)`,[reportId,item.defect_type_id,item.quantity]);
+        await connection.query(`DELETE FROM production_report_deductions WHERE report_id=?`,[reportId]);
+        for(const item of validation.normalized.deductions) await connection.query(`INSERT INTO production_report_deductions(report_id,deduction_type_id,hours) VALUES(?,?,?)`,[reportId,item.deduction_type_id,item.hours]);
         const after=await loadApprovedSnapshot(reportId, connection);
         const versionNo=await AuditService.createReportVersion({reportType:'approved',reportId,snapshot:after,reason:req.body.reason||'Sau khi chỉnh sửa',userId:req.user.id},connection);
-        await AuditService.logActivity({userId:req.user.id,action:'REPORT_UPDATED',entityType:'approved_report',entityId:reportId,description:`Cập nhật báo cáo phiên bản ${versionNo}`,metadata:{changed_fields:entries.map(([k])=>k),reason:req.body.reason||null},req},connection);
-        const [[workerUser]]=await connection.query(`SELECT w.user_id FROM production_reports pr JOIN workers w ON w.id=pr.worker_id WHERE pr.id=?`,[reportId]);
-        if(workerUser[0]) await AuditService.notifyUsers([workerUser[0].user_id],{type:'warning',title:'Báo cáo đã được chỉnh sửa',message:`Báo cáo #${reportId} đã được quản lý cập nhật`,linkUrl:`/worker/history/${reportId}?source=approved`,entityType:'approved_report',entityId:reportId},connection);
+        await AuditService.logActivity({userId:req.user.id,action:'REPORT_UPDATED',entityType:'approved_report',entityId:reportId,description:`Cập nhật báo cáo phiên bản ${versionNo}`,metadata:{reason:req.body.reason||null},req},connection);
+        const [workerRows]=await connection.query(`SELECT w.user_id FROM production_reports pr JOIN workers w ON w.id=pr.worker_id WHERE pr.id=?`,[reportId]);
+        if(workerRows[0]?.user_id) await AuditService.notifyUsers([workerRows[0].user_id],{type:'warning',title:'Báo cáo đã được chỉnh sửa',message:`Báo cáo #${reportId} đã được quản lý cập nhật`,linkUrl:`/worker/history/${reportId}?source=approved`,entityType:'approved_report',entityId:reportId},connection);
         await connection.commit();
-        res.json({success:true,message:'Cập nhật thành công',version:versionNo,data:after});
-    } catch(e){ await connection.rollback(); console.error(e); res.status(500).json({success:false,message:e.message||'Không thể cập nhật báo cáo'}); }
+        return res.json({success:true,message:'Cập nhật thành công',version:versionNo,data:after});
+    } catch(e){ await connection.rollback(); console.error('UPDATE APPROVED REPORT ERROR:',e); return res.status(e.status||500).json({success:false,message:publicMessage(e,'Không thể cập nhật báo cáo')}); }
     finally{ connection.release(); }
 };
 
@@ -436,7 +451,7 @@ exports.deleteReport = async (req,res) => {
       await connection.query(`DELETE FROM production_report_defects WHERE report_id=?`,[reportId]);
       await connection.query(`DELETE FROM production_report_deductions WHERE report_id=?`,[reportId]);
       await connection.query(`DELETE FROM production_reports WHERE id=?`,[reportId]);
-      await connection.commit(); res.json({success:true,message:'Xóa thành công'});
-    }catch(e){await connection.rollback();res.status(500).json({success:false,message:e.message});}
+      await connection.commit(); return res.json({success:true,message:'Xóa thành công'});
+    }catch(e){await connection.rollback();console.error('DELETE REPORT ERROR:',e);return res.status(500).json({success:false,message:publicMessage(e,'Không thể xóa báo cáo')});}
     finally{connection.release();}
 };

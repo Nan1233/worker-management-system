@@ -29,29 +29,4 @@ const processReadyJobs = async (limit = 5) => {
     return result;
 };
 
-let workerRunning = false;
-let workerTimer = null;
-
-const runWorkerOnce = async () => {
-    if (workerRunning) return;
-    workerRunning = true;
-    try {
-        await processReadyJobs(5);
-    } catch (error) {
-        console.error("SYNC JOB WORKER ERROR:", error);
-    } finally {
-        workerRunning = false;
-    }
-};
-
-const startWorker = () => {
-    if (workerTimer) return workerTimer;
-    setImmediate(runWorkerOnce);
-    workerTimer = setInterval(runWorkerOnce, Number(process.env.SYNC_JOB_INTERVAL_MS || 60000));
-    workerTimer.unref();
-    return workerTimer;
-};
-
-const triggerWorker = () => setImmediate(runWorkerOnce);
-
-module.exports = { enqueueForApprovedDates, processReadyJobs, startWorker, triggerWorker };
+module.exports = { enqueueForApprovedDates, processReadyJobs };

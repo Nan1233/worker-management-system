@@ -11,6 +11,8 @@ import {
 } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 
+import { useToast } from "../../components/feedback/toastContext";
+
 import "./Reports.css";
 
 const ITEMS_PER_PAGE = 20;
@@ -46,6 +48,7 @@ const duplicateKey = (
         .join("|");
 
 function ApprovedReports() {
+    const { showToast } = useToast();
 
     const [date, setDate] =
         useState(getToday());
@@ -311,7 +314,7 @@ const toggleSelectCurrentPage = () => {
 };
 const handleExportExcel = async () => {
     if (selectedIds.length === 0) {
-        alert(
+        showToast(
             "Vui lòng chọn ít nhất một báo cáo"
         );
 
@@ -337,7 +340,7 @@ const handleExportExcel = async () => {
                   "Không thể tải file Excel"
                 : "Không thể tải file Excel";
 
-        alert(message);
+        showToast(message);
     } finally {
         setExporting(false);
     }

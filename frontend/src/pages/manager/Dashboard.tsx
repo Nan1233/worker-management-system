@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { getReports } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { getApiError } from "../../utils/apiError";
-import { useToast } from "../../components/feedback/ToastProvider";
+import { useToast } from "../../components/feedback/toastContext";
 
 import "./Dashboard.css";
 

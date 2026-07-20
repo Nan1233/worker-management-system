@@ -41,7 +41,7 @@ const productStandardRoutes =
     require("./routes/productStandardRoutes");
 const syncJobRoutes = require("./routes/syncJobRoutes");
 const systemRoutes = require("./routes/systemRoutes");
-const SyncJobService = require("./services/syncJobService");
+
 
 // ======================
 // APP
@@ -331,7 +331,8 @@ app.get("/",(req,res)=>{
 app.use((error, req, res, next) => {
     console.error("UNHANDLED API ERROR:", error);
     if (res.headersSent) return next(error);
-    res.status(error.status || 500).json({ success:false, message:error.message || "Lỗi máy chủ" });
+    const message = error?.isPublic ? error.message : (process.env.NODE_ENV === "production" ? "Lỗi máy chủ" : (error.message || "Lỗi máy chủ"));
+    res.status(error.status || 500).json({ success:false, message });
 });
 
 // ======================
@@ -372,6 +373,5 @@ app.listen(PORT,()=>{
         `Server running at port ${PORT}`
     );
 
-    SyncJobService.startWorker();
 
 });
