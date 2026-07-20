@@ -46,25 +46,6 @@ const getToday = (): string => {
 // ĐỊNH DẠNG NGÀY
 // =====================================================
 
-const formatDate = (
-    value?: string
-): string => {
-    if (!value) {
-        return "---";
-    }
-
-    const [
-        year,
-        month,
-        day
-    ] = value
-        .split("T")[0]
-        .split("-");
-
-    return year && month && day
-        ? `${day}/${month}/${year}`
-        : value;
-};
 
 
 // =====================================================
@@ -822,7 +803,6 @@ function Reports() {
                                     <th>STT</th>
                                     <th>Mã NV</th>
                                     <th>Họ tên</th>
-                                    <th>Ngày</th>
                                     <th>Công đoạn</th>
                                     <th>Ca</th>
                                     <th>Mã máy</th>
@@ -931,12 +911,7 @@ function Reports() {
                                                         "---"}
                                                 </td>
 
-                                                <td>
-                                                    {formatDate(
-                                                        report.work_date
-                                                    )}
-                                                </td>
-
+                                              
                                                 <td>
                                                     {report.process_name ||
                                                         "---"}
