@@ -771,7 +771,8 @@ const buildAllSheetRows = reports => {
                 ).fill("");
 
             // Dòng cách ngày chỉ ghi cột A
-            dateRow[0] = normalizeDateValue(report.work_date);
+            dateRow[0] =
+    formatDisplayDate(report.work_date);
 
             rows.push(dateRow);
         }
