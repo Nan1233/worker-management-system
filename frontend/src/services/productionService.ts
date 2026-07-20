@@ -741,3 +741,27 @@ export const getDefectOptionsByProcess = async (
     return res.data.data || res.data || [];
 
 };
+// =====================================================
+// TRẠNG THÁI FILE EXCEL THÁNG - DÙNG CHUNG WEB/MOBILE/DESKTOP
+// =====================================================
+export type MonthlyExcelStatus = {
+    selectedDate: string;
+    yearMonth: string;
+    ready: boolean;
+    fileName: string;
+    size: number;
+    reportCount: number;
+    generatedAt: string | null;
+    latestUpdatedAt: string | null;
+};
+
+export const getMonthlyExcelStatus = async (
+    date: string
+): Promise<MonthlyExcelStatus> => {
+    const response = await api.get(
+        "/reports/export-excel/status",
+        { params: { date } }
+    );
+
+    return response.data.data;
+};

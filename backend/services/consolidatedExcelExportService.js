@@ -4,6 +4,19 @@ const path = require("path");
 
 const TEMPLATE_PATH = path.join(__dirname, "../templates/bao-cao-cat-long-export.xlsx");
 const FALLBACK_TEMPLATE_PATH = path.join(__dirname, "../templates/bao-cao-san-xuat-mau.xlsx");
+
+const ensureTemplateExists = async () => {
+    try {
+        await fs.access(TEMPLATE_PATH);
+        return TEMPLATE_PATH;
+    } catch (error) {
+        if (error?.code !== "ENOENT") throw error;
+    }
+
+    await fs.mkdir(path.dirname(TEMPLATE_PATH), { recursive: true });
+    await fs.copyFile(FALLBACK_TEMPLATE_PATH, TEMPLATE_PATH);
+    return TEMPLATE_PATH;
+};
 const SHEET_NAME = "Cắt lồng";
 const HEADER_ROW = 326;
 const DATA_START_ROW = 327;
@@ -277,20 +290,10 @@ const buildMonthlyTemplateWorkbook = async (reports, yearMonth, cacheMetadata = 
         throw new Error("Tháng xuất Excel không hợp lệ");
     }
 
-    // Tự tạo thư mục templates và khôi phục file mẫu chuyên dụng nếu thiếu.
-    // File fallback là workbook mẫu gốc có cùng sheet "Cắt lồng".
-    await fs.mkdir(path.dirname(TEMPLATE_PATH), { recursive: true });
-    try {
-        await fs.access(TEMPLATE_PATH);
-    } catch (error) {
-        if (error?.code !== "ENOENT") throw error;
-        await fs.access(FALLBACK_TEMPLATE_PATH);
-        await fs.copyFile(FALLBACK_TEMPLATE_PATH, TEMPLATE_PATH);
-        console.warn("MONTHLY EXCEL TEMPLATE RESTORED:", TEMPLATE_PATH);
-    }
+    const templatePath = await ensureTemplateExists();
 
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.readFile(TEMPLATE_PATH);
+    await workbook.xlsx.readFile(templatePath);
 
     const sheet = workbook.getWorksheet(SHEET_NAME);
     if (!sheet) {
@@ -361,6 +364,8 @@ module.exports = {
     getMonthlyTarget,
     readMonthlyCacheMetadata,
     TEMPLATE_PATH,
+    FALLBACK_TEMPLATE_PATH,
+    ensureTemplateExists,
     SHEET_NAME,
     DATA_START_ROW
 };

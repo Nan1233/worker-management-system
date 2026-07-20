@@ -11,6 +11,7 @@ const {
     readMonthlyCacheMetadata
 } = require("../services/consolidatedExcelExportService");
 const { buildMonthlyWorkbook } = require("../services/monthlyExcelService");
+const ReportExportService = require("../services/reportExportService");
 
 // =====================================================
 // DATABASE QUERY PROMISE
@@ -1060,40 +1061,45 @@ const formatWorkDate = (value) => {
 
 exports.exportGiaCongExcel = async (req, res) => {
     try {
-        const selectedDate = String(req.body?.date || req.query?.date || "").trim();
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
-            return res.status(400).json({ success: false, message: "Ngày tải Excel không hợp lệ" });
-        }
+        const dateOrMonth =
+            req.body?.date ||
+            req.body?.month ||
+            req.query?.date ||
+            req.query?.month;
 
-        // Luôn dựng lại file tháng từ DB trước khi tải.
-        // Không dùng file cache cũ vì dữ liệu có thể đã được duyệt/sửa/xóa
-        // trong khi tác vụ nền chưa kịp cập nhật Excel. Cách này đảm bảo
-        // Excel dùng cùng dữ liệu thực tế như luồng đồng bộ Google Sheet.
-        const yearMonth = selectedDate.slice(0, 7);
-        const rebuilt = await buildMonthlyWorkbook(yearMonth);
-        const target = {
-            ...getMonthlyTarget(yearMonth),
-            filePath: rebuilt.path || getMonthlyTarget(yearMonth).filePath,
-            fileName: rebuilt.fileName || getMonthlyTarget(yearMonth).fileName
-        };
-        const stat = await fs.stat(target.filePath);
-
-        res.status(200);
-        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(target.fileName)}`);
-        res.setHeader("Content-Length", String(stat.size));
-        res.setHeader("Cache-Control", "private, no-store");
-        res.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
-
-        await pipeline(fsSync.createReadStream(target.filePath), res);
+        // Luôn tạo lại từ DB để Excel và Google Sheet không lệch dữ liệu.
+        const file = await ReportExportService.generateLatestMonthlyExcel(dateOrMonth);
+        await ReportExportService.sendExcelFile(res, file);
         return undefined;
     } catch (error) {
         if (["ECONNABORTED", "ECONNRESET", "ERR_STREAM_PREMATURE_CLOSE"].includes(error?.code)) {
             console.warn("MONTHLY EXCEL DOWNLOAD ABORTED");
             return undefined;
         }
+
         console.error("DOWNLOAD MONTHLY EXCEL ERROR:", error);
         if (res.headersSent) return res.end();
-        return res.status(500).json({ success: false, message: "Không thể tải file Excel" });
+
+        return res.status(error?.statusCode || 500).json({
+            success: false,
+            message: error?.statusCode === 400
+                ? error.message
+                : "Không thể tạo và tải file Excel"
+        });
+    }
+};
+
+exports.getMonthlyExcelStatus = async (req, res) => {
+    try {
+        const dateOrMonth = req.query?.date || req.query?.month;
+        const data = await ReportExportService.getMonthlyExcelStatus(dateOrMonth);
+        return res.status(200).json({ success: true, data });
+    } catch (error) {
+        return res.status(error?.statusCode || 500).json({
+            success: false,
+            message: error?.statusCode === 400
+                ? error.message
+                : "Không thể kiểm tra trạng thái file Excel"
+        });
     }
 };

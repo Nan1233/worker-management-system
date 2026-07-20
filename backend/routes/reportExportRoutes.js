@@ -1,44 +1,35 @@
 const express = require("express");
-
 const router = express.Router();
 
-
-const authMiddleware = require(
-    "../middleware/authMiddleware"
-);
-
-const checkRole = require(
-    "../middleware/roleMiddleware"
-);
-
-const reportExportController = require(
-    "../controllers/reportExportController"
-);
+const authMiddleware = require("../middleware/authMiddleware");
+const checkRole = require("../middleware/roleMiddleware");
+const reportExportController = require("../controllers/reportExportController");
 const validate = require("../middleware/validateRequest");
 
+const allowedRoles = checkRole("admin", "manager", "lead");
 
-// =====================================================
-// XUẤT EXCEL CÁC BÁO CÁO ĐÃ DUYỆT ĐƯỢC CHỌN
-//
-// POST /api/reports/export-excel
-//
-// Body:
-// {
-//     "date": "2026-07-20"
-// }
-// =====================================================
-
+// Tương thích frontend hiện tại.
 router.post(
     "/export-excel",
     authMiddleware,
-    checkRole(
-        "admin",
-        "manager",
-        "lead"
-    ),
-    validate({ date:{required:true,type:"date"} }),
+    allowedRoles,
+    validate({ date: { required: true, type: "date" } }),
     reportExportController.exportGiaCongExcel
 );
 
+// API chuẩn dùng chung cho web/mobile/desktop.
+router.get(
+    "/export-excel",
+    authMiddleware,
+    allowedRoles,
+    reportExportController.exportGiaCongExcel
+);
+
+router.get(
+    "/export-excel/status",
+    authMiddleware,
+    allowedRoles,
+    reportExportController.getMonthlyExcelStatus
+);
 
 module.exports = router;
