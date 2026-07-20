@@ -3,20 +3,6 @@ const fs = require("fs/promises");
 const path = require("path");
 
 const TEMPLATE_PATH = path.join(__dirname, "../templates/bao-cao-cat-long-export.xlsx");
-const FALLBACK_TEMPLATE_PATH = path.join(__dirname, "../templates/bao-cao-san-xuat-mau.xlsx");
-
-const ensureTemplateExists = async () => {
-    try {
-        await fs.access(TEMPLATE_PATH);
-        return TEMPLATE_PATH;
-    } catch (error) {
-        if (error?.code !== "ENOENT") throw error;
-    }
-
-    await fs.mkdir(path.dirname(TEMPLATE_PATH), { recursive: true });
-    await fs.copyFile(FALLBACK_TEMPLATE_PATH, TEMPLATE_PATH);
-    return TEMPLATE_PATH;
-};
 const SHEET_NAME = "Cắt lồng";
 const HEADER_ROW = 326;
 const DATA_START_ROW = 327;
@@ -290,10 +276,10 @@ const buildMonthlyTemplateWorkbook = async (reports, yearMonth, cacheMetadata = 
         throw new Error("Tháng xuất Excel không hợp lệ");
     }
 
-    const templatePath = await ensureTemplateExists();
+    await fs.access(TEMPLATE_PATH);
 
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.readFile(templatePath);
+    await workbook.xlsx.readFile(TEMPLATE_PATH);
 
     const sheet = workbook.getWorksheet(SHEET_NAME);
     if (!sheet) {
@@ -364,8 +350,6 @@ module.exports = {
     getMonthlyTarget,
     readMonthlyCacheMetadata,
     TEMPLATE_PATH,
-    FALLBACK_TEMPLATE_PATH,
-    ensureTemplateExists,
     SHEET_NAME,
     DATA_START_ROW
 };

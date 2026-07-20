@@ -11,7 +11,6 @@ const {
     readMonthlyCacheMetadata
 } = require("../services/consolidatedExcelExportService");
 const { buildMonthlyWorkbook } = require("../services/monthlyExcelService");
-const ReportExportService = require("../services/reportExportService");
 
 // =====================================================
 // DATABASE QUERY PROMISE
@@ -1061,45 +1060,112 @@ const formatWorkDate = (value) => {
 
 exports.exportGiaCongExcel = async (req, res) => {
     try {
-        const dateOrMonth =
-            req.body?.date ||
-            req.body?.month ||
-            req.query?.date ||
-            req.query?.month;
+        const selectedDate = String(req.body?.date || req.query?.date || "").trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
+            return res.status(400).json({ success: false, message: "Ngày tải Excel không hợp lệ" });
+        }
 
-        // Luôn tạo lại từ DB để Excel và Google Sheet không lệch dữ liệu.
-        const file = await ReportExportService.generateLatestMonthlyExcel(dateOrMonth);
-        await ReportExportService.sendExcelFile(res, file);
+        // Nút tải chỉ đọc file đã được tạo tự động khi duyệt/sửa/xóa.
+        // Không query toàn bộ tháng và không dựng lại workbook trong request tải.
+        const yearMonth = selectedDate.slice(0, 7);
+        let target = getMonthlyTarget(yearMonth);
+        let stat;
+
+        try {
+            stat = await fs.stat(target.filePath);
+        } catch (error) {
+            if (error?.code !== "ENOENT") {
+                throw error;
+            }
+
+            // Render sử dụng filesystem tạm thời. File cache có thể mất sau
+            // deploy/restart, vì vậy phải dựng lại từ DB thay vì trả 404.
+            const rebuilt = await buildMonthlyWorkbook(yearMonth);
+            target = {
+                ...target,
+                filePath: rebuilt.path || target.filePath,
+                fileName: rebuilt.fileName || target.fileName
+            };
+            stat = await fs.stat(target.filePath);
+        }
+
+        res.status(200);
+        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(target.fileName)}`);
+        res.setHeader("Content-Length", String(stat.size));
+        res.setHeader("Cache-Control", "private, no-store");
+        res.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
+
+        await pipeline(fsSync.createReadStream(target.filePath), res);
         return undefined;
     } catch (error) {
         if (["ECONNABORTED", "ECONNRESET", "ERR_STREAM_PREMATURE_CLOSE"].includes(error?.code)) {
             console.warn("MONTHLY EXCEL DOWNLOAD ABORTED");
             return undefined;
         }
-
         console.error("DOWNLOAD MONTHLY EXCEL ERROR:", error);
         if (res.headersSent) return res.end();
-
-        return res.status(error?.statusCode || 500).json({
-            success: false,
-            message: error?.statusCode === 400
-                ? error.message
-                : "Không thể tạo và tải file Excel"
-        });
+        return res.status(500).json({ success: false, message: "Không thể tải file Excel" });
     }
 };
 
-exports.getMonthlyExcelStatus = async (req, res) => {
+// =====================================================
+// DESKTOP: DANH SÁCH CÔNG ĐOẠN CÓ FILE EXCEL TRONG THÁNG
+// GET /api/reports/export-excel/processes?date=YYYY-MM-DD
+// =====================================================
+exports.listDesktopExcelProcesses = async (req, res) => {
     try {
-        const dateOrMonth = req.query?.date || req.query?.month;
-        const data = await ReportExportService.getMonthlyExcelStatus(dateOrMonth);
-        return res.status(200).json({ success: true, data });
-    } catch (error) {
-        return res.status(error?.statusCode || 500).json({
-            success: false,
-            message: error?.statusCode === 400
-                ? error.message
-                : "Không thể kiểm tra trạng thái file Excel"
+        const selectedDate = String(req.query?.date || '').trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
+            return res.status(400).json({ success: false, message: 'Ngày đồng bộ Excel không hợp lệ' });
+        }
+        const { listProcessesForMonth } = require('../services/processExcelExportService');
+        const rows = await listProcessesForMonth(selectedDate.slice(0, 7));
+        return res.json({
+            success: true,
+            data: rows.map((row) => ({
+                id: Number(row.id),
+                processCode: row.process_code || '',
+                processName: row.process_name || `Công đoạn ${row.id}`,
+                reportCount: Number(row.report_count) || 0
+            }))
         });
+    } catch (error) {
+        console.error('LIST DESKTOP EXCEL PROCESSES ERROR:', error);
+        return res.status(500).json({ success: false, message: 'Không thể lấy danh sách công đoạn Excel' });
+    }
+};
+
+// =====================================================
+// DESKTOP: TẠO LẠI VÀ TẢI FILE EXCEL RIÊNG THEO CÔNG ĐOẠN
+// POST /api/reports/export-excel/process
+// Body: { date, processId }
+// =====================================================
+exports.exportDesktopProcessExcel = async (req, res) => {
+    try {
+        const selectedDate = String(req.body?.date || '').trim();
+        const processId = Number(req.body?.processId);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate) || !Number.isInteger(processId) || processId <= 0) {
+            return res.status(400).json({ success: false, message: 'Ngày hoặc công đoạn xuất Excel không hợp lệ' });
+        }
+        const { buildProcessWorkbook } = require('../services/processExcelExportService');
+        const result = await buildProcessWorkbook(selectedDate.slice(0, 7), processId);
+        const stat = await fs.stat(result.path);
+        res.status(200);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(result.fileName)}`);
+        res.setHeader('Content-Length', String(stat.size));
+        res.setHeader('Cache-Control', 'private, no-store');
+        res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, X-KTC-Process-Name');
+        res.setHeader('X-KTC-Process-Name', encodeURIComponent(result.processName));
+        await pipeline(fsSync.createReadStream(result.path), res);
+        return undefined;
+    } catch (error) {
+        if (error?.statusCode === 404) {
+            return res.status(404).json({ success: false, message: error.message });
+        }
+        console.error('EXPORT DESKTOP PROCESS EXCEL ERROR:', error);
+        if (res.headersSent) return res.end();
+        return res.status(500).json({ success: false, message: 'Không thể tạo file Excel công đoạn' });
     }
 };
