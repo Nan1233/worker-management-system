@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
     approveSelectedTempReports,
+    getReportById,
     getTempReportDetail
 } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
+import { useToast } from "../../components/feedback/toastContext";
 import "./SelectedReportsReview.css";
 
 const formatDate = (value?: string | null) => {
@@ -38,6 +40,10 @@ const detailText = (
 
 function SelectedReportsReview() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const { showToast } = useToast();
+    const source = searchParams.get("source") === "approved" ? "approved" : "pending";
+
     const [reports, setReports] = useState<ProductionReport[]>([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -54,6 +60,9 @@ function SelectedReportsReview() {
 
     const basePath = role === "lead" ? "/lead" : "/manager";
     const canEdit = role === "manager" || role === "admin";
+    const storageKey = source === "approved"
+        ? "selectedApprovedReportIds"
+        : "selectedPendingReportIds";
 
     useEffect(() => {
         const loadReports = async () => {
@@ -61,9 +70,10 @@ function SelectedReportsReview() {
                 setLoading(true);
                 setError("");
 
-                const stored = sessionStorage.getItem("selectedPendingReportIds");
-                const ids = stored
-                    ? JSON.parse(stored)
+                const stored = sessionStorage.getItem(storageKey);
+                const parsed: unknown = stored ? JSON.parse(stored) : [];
+                const ids = Array.isArray(parsed)
+                    ? parsed
                         .map((value: unknown) => Number(value))
                         .filter((value: number) => Number.isInteger(value) && value > 0)
                     : [];
@@ -73,7 +83,14 @@ function SelectedReportsReview() {
                     return;
                 }
 
-                const data = await Promise.all(ids.map((id: number) => getTempReportDetail(id)));
+                const data = await Promise.all(
+                    ids.map((id: number) =>
+                        source === "approved"
+                            ? getReportById(id, "approved")
+                            : getTempReportDetail(id)
+                    )
+                );
+
                 setReports(data.filter(Boolean));
             } catch (err) {
                 console.error("LOAD SELECTED REPORTS ERROR:", err);
@@ -83,8 +100,8 @@ function SelectedReportsReview() {
             }
         };
 
-        loadReports();
-    }, []);
+        void loadReports();
+    }, [source, storageKey]);
 
     const reportIds = useMemo(
         () => reports
@@ -94,13 +111,14 @@ function SelectedReportsReview() {
     );
 
     const handleApprove = async () => {
-        if (reportIds.length === 0 || submitting) return;
+        if (source !== "pending" || reportIds.length === 0 || submitting) return;
 
         try {
             setSubmitting(true);
             setError("");
             await approveSelectedTempReports(reportIds);
             sessionStorage.removeItem("selectedPendingReportIds");
+            showToast(`Đã duyệt ${reportIds.length} báo cáo`, "success");
             navigate(`${basePath}/reports`);
         } catch (err) {
             console.error("APPROVE SELECTED REPORTS ERROR:", err);
@@ -121,18 +139,24 @@ function SelectedReportsReview() {
                     >
                         ← Quay lại danh sách
                     </button>
-                    <h1>Chi tiết báo cáo đã chọn</h1>
+                    <h1>
+                        {source === "approved"
+                            ? "Chi tiết báo cáo đã duyệt"
+                            : "Chi tiết báo cáo chờ duyệt"}
+                    </h1>
                     <p>{reports.length} báo cáo được hiển thị trong một bảng ngang.</p>
                 </div>
 
-                <button
-                    type="button"
-                    className="selected-review-approve"
-                    disabled={submitting || reportIds.length === 0}
-                    onClick={handleApprove}
-                >
-                    {submitting ? "Đang duyệt..." : `Duyệt ${reportIds.length} báo cáo`}
-                </button>
+                {source === "pending" && (
+                    <button
+                        type="button"
+                        className="selected-review-approve"
+                        disabled={submitting || reportIds.length === 0}
+                        onClick={handleApprove}
+                    >
+                        {submitting ? "Đang duyệt..." : `Duyệt ${reportIds.length} báo cáo`}
+                    </button>
+                )}
             </header>
 
             {error && <div className="selected-review-error">{error}</div>}
@@ -200,7 +224,9 @@ function SelectedReportsReview() {
                                                 <button
                                                     type="button"
                                                     className="selected-edit-link"
-                                                    onClick={() => navigate(`${basePath}/report/${report.id}/edit?source=pending`)}
+                                                    onClick={() => navigate(
+                                                        `${basePath}/report/${report.id}/edit?source=${source}`
+                                                    )}
                                                 >
                                                     ✎ Sửa
                                                 </button>

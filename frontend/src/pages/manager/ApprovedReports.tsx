@@ -314,6 +314,35 @@ const toggleSelectCurrentPage = () => {
         return Array.from(previousSet);
     });
 };
+const handleViewSelectedDetails = () => {
+    if (selectedIds.length === 0) {
+        showToast("Vui lòng chọn ít nhất một báo cáo");
+        return;
+    }
+
+    sessionStorage.setItem(
+        "selectedApprovedReportIds",
+        JSON.stringify(selectedIds)
+    );
+
+    const savedUser = localStorage.getItem("user");
+    let basePath = "/manager";
+
+    try {
+        const savedRole = savedUser
+            ? JSON.parse(savedUser)?.role
+            : null;
+
+        if (savedRole === "lead") {
+            basePath = "/lead";
+        }
+    } catch {
+        // Giữ đường dẫn manager khi localStorage không hợp lệ.
+    }
+
+    navigate(`${basePath}/reports/review?source=approved`);
+};
+
 const handleExportExcel = async () => {
     if (selectedIds.length === 0) {
         showToast(
@@ -407,6 +436,18 @@ const handleExportExcel = async () => {
                     Xóa lọc
                 </button>
                 <button
+                    type="button"
+                    className="management-view-selected-button"
+                    onClick={handleViewSelectedDetails}
+                    disabled={
+                        selectedIds.length === 0 ||
+                        loading ||
+                        exporting
+                    }
+                >
+                    👁 Xem chi tiết ({selectedIds.length})
+                </button>
+                <button
     type="button"
     className="management-export-button"
     onClick={handleExportExcel}
@@ -487,7 +528,6 @@ const handleExportExcel = async () => {
     <th>Ca</th>
     <th>Mã máy</th>
     <th>Mã sản phẩm</th>
-    <th>Thao tác</th>
 </tr>
                             </thead>
                             <tbody>
@@ -606,33 +646,7 @@ const handleExportExcel = async () => {
                             "---"}
                     </td>
 
-                    <td>
-                        <button
-                            type="button"
-                            className="management-detail-button"
-                            disabled={!validReportId}
-                            onClick={() => {
-                                const savedUser = localStorage.getItem("user");
-                                let basePath = "/manager";
 
-                                try {
-                                    const savedRole = savedUser
-                                        ? JSON.parse(savedUser)?.role
-                                        : null;
-
-                                    if (savedRole === "lead") {
-                                        basePath = "/lead";
-                                    }
-                                } catch {
-                                    // Giữ đường dẫn manager khi dữ liệu localStorage không hợp lệ.
-                                }
-
-                                navigate(`${basePath}/report/${reportId}?source=approved`);
-                            }}
-                        >
-                            Xem chi tiết
-                        </button>
-                    </td>
                 </tr>
             );
         }
