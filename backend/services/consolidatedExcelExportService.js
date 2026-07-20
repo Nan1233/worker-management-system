@@ -261,8 +261,18 @@ const buildMonthlyTemplateWorkbook = async (reports, yearMonth) => {
 
     const templateRow = captureTemplateRow(sheet);
 
+    // Excel mẫu có các shared formula trong vùng dữ liệu cũ. Nếu spliceRows trực tiếp,
+    // ExcelJS có thể giữ clone nhưng xóa master và lỗi khi ghi file. Phải xóa giá trị/
+    // công thức trước, sau đó mới bỏ các dòng cũ.
     if (sheet.rowCount >= DATA_START_ROW) {
-        sheet.spliceRows(DATA_START_ROW, sheet.rowCount - HEADER_ROW);
+        const lastRow = sheet.rowCount;
+        for (let rowIndex = DATA_START_ROW; rowIndex <= lastRow; rowIndex += 1) {
+            const row = sheet.getRow(rowIndex);
+            for (let columnIndex = 1; columnIndex <= sheet.columnCount; columnIndex += 1) {
+                row.getCell(columnIndex).value = null;
+            }
+        }
+        sheet.spliceRows(DATA_START_ROW, lastRow - HEADER_ROW);
     }
 
     const sortedReports = [...reports].sort(sortReports);
