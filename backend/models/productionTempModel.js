@@ -65,9 +65,10 @@ const ProductionTemp = {
             (
                 worker_id, process_id, work_date, shift, machine_no,
                 product_name, total_time, actual_time, deduction_time,
-                standard_output, actual_output, tt_ok, tt_ng, note, status
+                standard_output, actual_output, tt_ok, tt_ng, note,
+                client_request_id, status
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
         `;
 
         const result = await query(executor, sql, [
@@ -84,10 +85,23 @@ const ProductionTemp = {
             Number(data.actual_output) || 0,
             Number(data.tt_ok) || 0,
             Number(data.tt_ng) || 0,
-            data.note || ""
+            data.note || "",
+            data.client_request_id || null
         ]);
 
         return result.insertId;
+    },
+
+
+    async findByClientRequest(workerId, clientRequestId, executor = db) {
+        if (!workerId || !clientRequestId) return null;
+        const rows = await query(
+            executor,
+            `SELECT id, status FROM production_reports_temp
+             WHERE worker_id = ? AND client_request_id = ? LIMIT 1`,
+            [workerId, clientRequestId]
+        );
+        return rows[0] || null;
     },
 
     async createDefects(tempReportId, processId, defects, executor = db) {
@@ -165,14 +179,28 @@ const ProductionTemp = {
         const connection = await getConnection();
         try {
             await beginTransaction(connection);
+            const existing = await this.findByClientRequest(
+                data.worker_id,
+                data.client_request_id,
+                connection
+            );
+            if (existing) {
+                await commit(connection);
+                return { id: existing.id, duplicate: true };
+            }
+
             const tempId = await this.create(data, connection);
             await this.createDefects(tempId, data.process_id, defects, connection);
             await this.createDeductions(tempId, data.process_id, deductions, connection);
             await this.logAction({ ...log, reportId: tempId }, connection);
             await commit(connection);
-            return tempId;
+            return { id: tempId, duplicate: false };
         } catch (error) {
             await rollback(connection);
+            if (error.code === "ER_DUP_ENTRY" && data.client_request_id) {
+                const existing = await this.findByClientRequest(data.worker_id, data.client_request_id);
+                if (existing) return { id: existing.id, duplicate: true };
+            }
             throw error;
         } finally {
             connection.release();

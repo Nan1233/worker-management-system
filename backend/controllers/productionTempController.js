@@ -1,5 +1,6 @@
 const ProductionTemp = require("../models/productionTempModel");
-const GoogleSheetService = require("../services/googleSheetService");
+const SyncJobService = require("../services/syncJobService");
+const { validateMasterData } = require("../services/reportBusinessValidationService");
 const { validateProductionReport } = require("../utils/reportValidation");
 
 const toPositiveInteger = (value) => {
@@ -47,17 +48,34 @@ exports.createTempReport = async (req, res) => {
             });
         }
 
-        const defects = Array.isArray(req.body.defects) ? req.body.defects : [];
-        const deductions = Array.isArray(req.body.deductions) ? req.body.deductions : [];
+        const defects = validation.normalized.defects;
+        const deductions = validation.normalized.deductions;
+        const masterValidation = await validateMasterData({
+            workerId,
+            processId,
+            machineNo: validation.normalized.machine_no,
+            productName: validation.normalized.product_name,
+            defects,
+            deductions
+        });
+        if (!masterValidation.valid) {
+            return res.status(422).json({
+                success: false,
+                message: "Dữ liệu không khớp danh mục hệ thống",
+                errors: masterValidation.errors
+            });
+        }
+
         const data = {
             ...validation.normalized,
             worker_id: workerId,
             process_id: processId,
+            standard_output: masterValidation.standardOutput ?? validation.normalized.standard_output,
             defects: undefined,
             deductions: undefined
         };
 
-        const tempId = await ProductionTemp.createCompleteReport({
+        const result = await ProductionTemp.createCompleteReport({
             data,
             defects,
             deductions,
@@ -70,7 +88,12 @@ exports.createTempReport = async (req, res) => {
             }
         });
 
-        return res.status(201).json({ success: true, message: "Tạo báo cáo thành công", id: tempId });
+        return res.status(result.duplicate ? 200 : 201).json({
+            success: true,
+            duplicate: result.duplicate,
+            message: result.duplicate ? "Yêu cầu này đã được ghi nhận trước đó" : "Tạo báo cáo thành công",
+            id: result.id
+        });
     } catch (error) {
         console.error("CREATE TEMP REPORT ERROR:", error);
         return res.status(500).json({ success: false, message: error.message || "Không thể tạo báo cáo" });
@@ -192,23 +215,21 @@ exports.approveSelectedReports = async (req, res) => {
         if (!reviewerId) return res.status(401).json({ success: false, message: "Thông tin người duyệt không hợp lệ" });
 
         const result = await ProductionTemp.approveSelected(ids, reviewerId, req.user?.role === "admin");
-        const failedDates = [];
-        for (const date of result.dates) {
-            try {
-                await GoogleSheetService.syncProductionReport(date);
-            } catch (sheetError) {
-                console.error(`GOOGLE SHEET SYNC ERROR ${date}:`, sheetError);
-                failedDates.push(date);
-            }
+        let syncQueued = true;
+        try {
+            await SyncJobService.enqueueForApprovedDates(result.dates);
+        } catch (queueError) {
+            syncQueued = false;
+            console.error("CREATE SYNC JOB ERROR:", queueError);
         }
 
         return res.status(200).json({
             success: true,
-            warning: failedDates.length > 0,
-            message: failedDates.length > 0
-                ? "Duyệt thành công nhưng có ngày đồng bộ Google Sheet thất bại"
-                : "Duyệt báo cáo thành công",
-            failed_sync_dates: failedDates,
+            warning: !syncQueued,
+            message: syncQueued
+                ? "Duyệt thành công; Google Sheet và Excel đã được đưa vào hàng đợi đồng bộ"
+                : "Duyệt thành công nhưng chưa tạo được hàng đợi đồng bộ",
+            sync_queued: syncQueued,
             data: result
         });
     } catch (error) {

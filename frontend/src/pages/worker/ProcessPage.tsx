@@ -1,15 +1,17 @@
 import {
     useEffect,
     useMemo,
+    useRef,
     useState
 } from "react";
+
+import axios from "axios";
 
 import {
     useNavigate,
     useParams
 } from "react-router-dom";
 
-import axios from "axios";
 
 import "./ProcessPage.css";
 
@@ -41,6 +43,8 @@ import type {
 } from "../../services/masterDataService";
 
 import AutocompleteInput from "../../components/common/AutocompleteInput";
+import { useToast } from "../../components/feedback/ToastProvider";
+import { getApiError } from "../../utils/apiError";
 
 import type {
     AutocompleteOption
@@ -758,6 +762,10 @@ const initialDeduction: DeductionState = {
 // =====================================================
 
 function ProcessPage() {
+
+    const { showToast } = useToast();
+    const submitLockRef = useRef(false);
+    const clientRequestIdRef = useRef<string | null>(null);
 
     const navigate =
         useNavigate();
@@ -2432,9 +2440,7 @@ const updateDeductionValue = (
                 validationMessage
             ) {
 
-                alert(
-                    validationMessage
-                );
+                showToast(validationMessage, "warning");
 
 
                 return;
@@ -2442,14 +2448,15 @@ const updateDeductionValue = (
             }
 
 
+            if (submitLockRef.current) return;
+            submitLockRef.current = true;
+            clientRequestIdRef.current ||= crypto.randomUUID();
+
             try {
+                setSubmitting(true);
 
-                setSubmitting(
-                    true
-                );
-
-
-                await createTempReport({
+                const response = await createTempReport({
+                    client_request_id: clientRequestIdRef.current,
 
                     process_id:
                         processInfo.id,
@@ -2675,9 +2682,13 @@ const updateDeductionValue = (
                 });
 
 
-                alert(
-                    "Lưu báo cáo thành công"
+                showToast(
+                    response?.duplicate
+                        ? "Báo cáo này đã được hệ thống ghi nhận trước đó"
+                        : "Lưu báo cáo thành công",
+                    response?.duplicate ? "info" : "success"
                 );
+                clientRequestIdRef.current = null;
 
 
                 navigate(
@@ -2697,37 +2708,15 @@ const updateDeductionValue = (
                 );
 
 
-                const message =
-
-                    axios.isAxiosError(
-                        error
-                    )
-
-                        ? error.response
-                            ?.data
-                            ?.message
-
-                            ||
-
-                            "Lưu báo cáo thất bại"
-
-                        : error instanceof Error
-
-                            ? error.message
-
-                            : "Lưu báo cáo thất bại";
-
-
-                alert(
-                    message
-                );
+                const { message, errors } = getApiError(error, "Lưu báo cáo thất bại");
+                const firstFieldError = Object.values(errors)[0];
+                showToast(firstFieldError || message, "error");
 
             }
             finally {
 
-                setSubmitting(
-                    false
-                );
+                submitLockRef.current = false;
+                setSubmitting(false);
 
             }
 

@@ -74,6 +74,8 @@ export interface ProductionReport {
 
     source_temp_id?: number | null;
 
+    client_request_id?: string;
+
 
     // ==========================
     // THÔNG TIN CHUNG

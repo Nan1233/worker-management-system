@@ -38,6 +38,7 @@ const machineRoutes =
     require("./routes/machineRoutes");
 const productStandardRoutes =
     require("./routes/productStandardRoutes");
+const syncJobRoutes = require("./routes/syncJobRoutes");
 
 // ======================
 // APP
@@ -84,7 +85,9 @@ const corsOptions = {
 
         "Content-Type",
 
-        "Authorization"
+        "Authorization",
+        "Idempotency-Key",
+        "X-Cron-Secret"
 
     ],
 
@@ -238,6 +241,8 @@ app.use(
     reportExportRoutes
 
 );
+
+app.use("/api/sync-jobs", syncJobRoutes);
 
 
 
