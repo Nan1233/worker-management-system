@@ -64,6 +64,7 @@ import ProcessPage from "../pages/worker/ProcessPage";
 import ProductionHistory from "../pages/worker/ProductionHistory";
 
 import ProductionDetail from "../pages/worker/ProductionDetail";
+import SystemCenter from "../pages/system/SystemCenter";
 
 
 // =====================================================
@@ -284,18 +285,8 @@ function AppRouter() {
                 />
 
 
-                <Route
-                    path="workers"
-                    element={
-
-                        <LeadWorkers />
-
-                    }
-                />
-
-
-         
-
+                <Route path="workers" element={<LeadWorkers />} />
+                <Route path="system" element={<SystemCenter />} />
             </Route>
 
 
@@ -366,14 +357,8 @@ function AppRouter() {
        
 
 
-                <Route
-                    path="statistics"
-                    element={
-
-                        <ManagerStatistics />
-
-                    }
-                />
+                <Route path="statistics" element={<ManagerStatistics />} />
+                <Route path="system" element={<SystemCenter />} />
 
             </Route>
 
@@ -429,14 +414,8 @@ function AppRouter() {
                 />
 
 
-                <Route
-                    path="history/:id"
-                    element={
-
-                        <ProductionDetail />
-
-                    }
-                />
+                <Route path="history/:id" element={<ProductionDetail />} />
+                <Route path="system" element={<SystemCenter />} />
 
             </Route>
 

@@ -13,6 +13,7 @@ const checkRole = require(
 const controller = require(
     "../controllers/productionTempController"
 );
+const validate = require("../middleware/validateRequest");
 
 
 // =====================================================
@@ -23,6 +24,7 @@ router.post(
     "/",
     authMiddleware,
     checkRole("worker"),
+    validate({ process_id:{required:true,type:"positiveInt"}, work_date:{required:true}, shift:{required:true,maxLength:20}, machine_no:{required:true,maxLength:100}, product_name:{required:true,maxLength:150} }),
     controller.createTempReport
 );
 
@@ -115,6 +117,7 @@ router.post(
         "manager",
         "lead"
     ),
+    validate({ ids:{required:true,type:"array"} }),
     controller.approveSelectedReports
 );
 

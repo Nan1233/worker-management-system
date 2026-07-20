@@ -8,6 +8,7 @@ export interface MenuItem {
 const workerMenu: MenuItem[] = [
     { label: "Công đoạn", icon: "🏭", path: "/worker", end: true },
     { label: "Lịch sử", icon: "📋", path: "/worker/history" },
+    { label: "Thông báo", icon: "🔔", path: "/worker/system" },
     { label: "Tài khoản", icon: "👤", path: "/worker/profile" },
 ];
 

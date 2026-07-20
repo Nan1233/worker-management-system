@@ -114,6 +114,14 @@ const menuItems: MenuItem[] = [
 
 
     {
+        id: "system",
+        label: "Thông báo & lịch sử",
+        path: "system",
+        icon: "●",
+        roles: ["lead", "manager"]
+    },
+
+    {
         id:
             "statistics",
 

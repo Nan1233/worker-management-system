@@ -1,0 +1,12 @@
+const router=require('express').Router();
+const auth=require('../middleware/authMiddleware');
+const role=require('../middleware/roleMiddleware');
+const validate=require('../middleware/validateRequest');
+const c=require('../controllers/systemController');
+router.use(auth);
+router.get('/notifications',c.getNotifications);
+router.patch('/notifications/read-all',c.markAllNotificationsRead);
+router.patch('/notifications/:id/read',validate({id:{in:'params',type:'positiveInt',required:true}}),c.markNotificationRead);
+router.get('/activities',c.getActivities);
+router.get('/reports/:id/versions',role('admin','manager','lead','worker'),validate({id:{in:'params',type:'positiveInt',required:true}}),c.getReportVersions);
+module.exports=router;

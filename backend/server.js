@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 require("dotenv").config();
 
 
@@ -39,6 +40,7 @@ const machineRoutes =
 const productStandardRoutes =
     require("./routes/productStandardRoutes");
 const syncJobRoutes = require("./routes/syncJobRoutes");
+const systemRoutes = require("./routes/systemRoutes");
 const SyncJobService = require("./services/syncJobService");
 
 // ======================
@@ -49,7 +51,24 @@ const app = express();
 
 app.set("trust proxy", 1);
 app.disable("etag");
-app.use(helmet());
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    contentSecurityPolicy: false
+}));
+
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: Number(process.env.API_RATE_LIMIT || 600),
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: { success: false, message: "Quá nhiều yêu cầu, vui lòng thử lại sau" }
+});
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: Number(process.env.AUTH_RATE_LIMIT || 20),
+    skipSuccessfulRequests: true,
+    message: { success: false, message: "Đăng nhập quá nhiều lần, vui lòng thử lại sau" }
+});
 
 // ======================
 // CORS
@@ -143,6 +162,9 @@ app.use(
 // ======================
 // API ROUTES
 // ======================
+
+app.use("/api", apiLimiter);
+app.use("/api/auth/login", authLimiter);
 
 
 app.use(
@@ -244,6 +266,7 @@ app.use(
 );
 
 app.use("/api/sync-jobs", syncJobRoutes);
+app.use("/api/system", systemRoutes);
 
 
 
@@ -301,6 +324,15 @@ app.get("/",(req,res)=>{
 
 
 
+
+// ======================
+// ERROR HANDLER
+// ======================
+app.use((error, req, res, next) => {
+    console.error("UNHANDLED API ERROR:", error);
+    if (res.headersSent) return next(error);
+    res.status(error.status || 500).json({ success:false, message:error.message || "Lỗi máy chủ" });
+});
 
 // ======================
 // ERROR 404

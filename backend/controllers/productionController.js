@@ -382,3 +382,61 @@ message:"Xóa thành công"
 
 
 };
+// =====================================================
+// ENTERPRISE UPDATE: VERSION + AUDIT + NOTIFICATION
+// Các export dưới đây ghi đè implementation cũ phía trên.
+// =====================================================
+const AuditService = require('../services/auditService');
+
+async function loadApprovedSnapshot(reportId, executor = db) {
+    const q = (sql, params) => executor.promise ? executor.promise().query(sql, params) : executor.query(sql, params);
+    const [[reports], [defects], [deductions]] = await Promise.all([
+        q(`SELECT * FROM production_reports WHERE id=? LIMIT 1`, [reportId]),
+        q(`SELECT * FROM production_report_defects WHERE report_id=? ORDER BY id`, [reportId]),
+        q(`SELECT * FROM production_report_deductions WHERE report_id=? ORDER BY id`, [reportId])
+    ]);
+    if (!reports[0]) return null;
+    return { ...reports[0], defects, deductions };
+}
+
+exports.updateReport = async (req,res) => {
+    const reportId=Number(req.params.id);
+    if(!Number.isInteger(reportId)||reportId<=0) return res.status(422).json({success:false,message:'ID báo cáo không hợp lệ'});
+    const connection=await db.promise().getConnection();
+    try {
+        await connection.beginTransaction();
+        const before=await loadApprovedSnapshot(reportId, connection);
+        if(!before){ await connection.rollback(); return res.status(404).json({success:false,message:'Không tìm thấy báo cáo'}); }
+        const allowed=['machine_no','product_name','note','shift','work_date','total_time','actual_time','deduction_time','standard_output','actual_output','tt_ok','tt_ng'];
+        const entries=allowed.filter(k=>req.body[k]!==undefined).map(k=>[k,req.body[k]]);
+        if(!entries.length){ await connection.rollback(); return res.status(422).json({success:false,message:'Không có dữ liệu cần cập nhật'}); }
+        await AuditService.createReportVersion({reportType:'approved',reportId,snapshot:before,reason:req.body.reason||'Trước khi chỉnh sửa',userId:req.user.id},connection);
+        const set=entries.map(([k])=>`${k}=?`).join(',');
+        await connection.query(`UPDATE production_reports SET ${set}, updated_by=?, updated_at=NOW() WHERE id=?`,[...entries.map(([,v])=>v),req.user.id,reportId]);
+        const after=await loadApprovedSnapshot(reportId, connection);
+        const versionNo=await AuditService.createReportVersion({reportType:'approved',reportId,snapshot:after,reason:req.body.reason||'Sau khi chỉnh sửa',userId:req.user.id},connection);
+        await AuditService.logActivity({userId:req.user.id,action:'REPORT_UPDATED',entityType:'approved_report',entityId:reportId,description:`Cập nhật báo cáo phiên bản ${versionNo}`,metadata:{changed_fields:entries.map(([k])=>k),reason:req.body.reason||null},req},connection);
+        const [[workerUser]]=await connection.query(`SELECT w.user_id FROM production_reports pr JOIN workers w ON w.id=pr.worker_id WHERE pr.id=?`,[reportId]);
+        if(workerUser[0]) await AuditService.notifyUsers([workerUser[0].user_id],{type:'warning',title:'Báo cáo đã được chỉnh sửa',message:`Báo cáo #${reportId} đã được quản lý cập nhật`,linkUrl:`/worker/history/${reportId}?source=approved`,entityType:'approved_report',entityId:reportId},connection);
+        await connection.commit();
+        res.json({success:true,message:'Cập nhật thành công',version:versionNo,data:after});
+    } catch(e){ await connection.rollback(); console.error(e); res.status(500).json({success:false,message:e.message||'Không thể cập nhật báo cáo'}); }
+    finally{ connection.release(); }
+};
+
+exports.deleteReport = async (req,res) => {
+    const reportId=Number(req.params.id);
+    const connection=await db.promise().getConnection();
+    try{
+      await connection.beginTransaction();
+      const snapshot=await loadApprovedSnapshot(reportId,connection);
+      if(!snapshot){await connection.rollback();return res.status(404).json({success:false,message:'Không tìm thấy báo cáo'});}
+      await AuditService.createReportVersion({reportType:'approved',reportId,snapshot,reason:req.body?.reason||'Trước khi xóa',userId:req.user.id},connection);
+      await AuditService.logActivity({userId:req.user.id,action:'REPORT_DELETED',entityType:'approved_report',entityId:reportId,description:'Xóa báo cáo đã duyệt',metadata:{reason:req.body?.reason||null},req},connection);
+      await connection.query(`DELETE FROM production_report_defects WHERE report_id=?`,[reportId]);
+      await connection.query(`DELETE FROM production_report_deductions WHERE report_id=?`,[reportId]);
+      await connection.query(`DELETE FROM production_reports WHERE id=?`,[reportId]);
+      await connection.commit(); res.json({success:true,message:'Xóa thành công'});
+    }catch(e){await connection.rollback();res.status(500).json({success:false,message:e.message});}
+    finally{connection.release();}
+};
