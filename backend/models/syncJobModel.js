@@ -4,16 +4,16 @@ const query = (sql, params = []) => new Promise((resolve, reject) => {
     db.query(sql, params, (error, result) => error ? reject(error) : resolve(result));
 });
 
-const upsert = async ({ jobType, jobKey, workDate = null, yearMonth = null, processId = null }) => {
+const upsert = async ({ jobType, jobKey, workDate = null, reportMonth = null, processId = null }) => {
     await query(
         `INSERT INTO integration_sync_jobs
-         (job_type, job_key, work_date, year_month, process_id, status, attempts, next_retry_at)
+         (job_type, job_key, work_date, report_month, process_id, status, attempts, next_retry_at)
          VALUES (?, ?, ?, ?, ?, 'pending', 0, NOW())
          ON DUPLICATE KEY UPDATE
-            work_date = VALUES(work_date), year_month = VALUES(year_month),
+            work_date = VALUES(work_date), report_month = VALUES(report_month),
             process_id = VALUES(process_id), status = 'pending', attempts = 0,
             next_retry_at = NOW(), last_error = NULL, completed_at = NULL`,
-        [jobType, jobKey, workDate, yearMonth, processId]
+        [jobType, jobKey, workDate, reportMonth, processId]
     );
 };
 

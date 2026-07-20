@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS integration_sync_jobs (
     job_type ENUM('google_sheet','monthly_excel') NOT NULL,
     job_key VARCHAR(100) NOT NULL,
     work_date DATE NULL,
-    year_month CHAR(7) NULL,
+    report_month CHAR(7) NULL,
     process_id INT NULL,
     status ENUM('pending','processing','success','failed') NOT NULL DEFAULT 'pending',
     attempts INT NOT NULL DEFAULT 0,
@@ -25,5 +25,5 @@ CREATE TABLE IF NOT EXISTS integration_sync_jobs (
     PRIMARY KEY (id),
     UNIQUE KEY uq_sync_job (job_type, job_key),
     KEY idx_sync_ready (status, next_retry_at),
-    KEY idx_sync_month (year_month, process_id)
+    KEY idx_sync_month (report_month, process_id)
 );

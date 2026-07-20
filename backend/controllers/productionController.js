@@ -198,72 +198,63 @@ res.json(result);
 // CHI TIẾT
 // =====================================================
 
-exports.getReportById=(req,res)=>{
+exports.getReportById = async (req, res) => {
+    try {
+        const reportId = Number(req.params.id);
 
+        if (!Number.isInteger(reportId) || reportId <= 0) {
+            return res.status(400).json({ success: false, message: "ID báo cáo không hợp lệ" });
+        }
 
-const sql=`
+        const [reportResult, defectResult, deductionResult] = await Promise.all([
+            db.promise().query(
+                `SELECT pr.*, p.process_name, w.worker_code, u.full_name
+                 FROM production_reports pr
+                 JOIN workers w ON pr.worker_id = w.id
+                 JOIN users u ON w.user_id = u.id
+                 LEFT JOIN processes p ON pr.process_id = p.id
+                 WHERE pr.id = ? LIMIT 1`,
+                [reportId]
+            ),
+            db.promise().query(
+                `SELECT d.id, d.defect_type_id, dt.defect_code, dt.defect_name, d.quantity
+                 FROM production_report_defects d
+                 JOIN defect_types dt ON dt.id = d.defect_type_id
+                 WHERE d.report_id = ?
+                 ORDER BY dt.sort_order, dt.id`,
+                [reportId]
+            ),
+            db.promise().query(
+                `SELECT d.id, d.deduction_type_id, dt.deduction_code, dt.deduction_name, d.hours
+                 FROM production_report_deductions d
+                 JOIN deduction_types dt ON dt.id = d.deduction_type_id
+                 WHERE d.report_id = ?
+                 ORDER BY dt.sort_order, dt.id`,
+                [reportId]
+            )
+        ]);
 
-SELECT
+        const report = reportResult[0][0];
+        if (!report) {
+            return res.status(404).json({ success: false, message: "Không tìm thấy báo cáo" });
+        }
 
-pr.*,
-
-p.process_name,
-
-w.worker_code,
-
-u.full_name
-
-
-FROM production_reports pr
-
-
-JOIN workers w
-ON pr.worker_id=w.id
-
-
-JOIN users u
-ON w.user_id=u.id
-
-
-JOIN processes p
-ON pr.process_id=p.id
-
-
-WHERE pr.id=?
-
-
-`;
-
-
-
-db.query(
-
-sql,
-
-[req.params.id],
-
-
-(err,result)=>{
-
-
-if(err)
-
-return res.status(500).json(err);
-
-
-
-res.json(result[0]);
-
-
-
-});
-
-
+        return res.status(200).json({
+            success: true,
+            data: {
+                ...report,
+                defects: defectResult[0].map(item => ({ ...item, quantity: Number(item.quantity) || 0 })),
+                deductions: deductionResult[0].map(item => ({ ...item, hours: Number(item.hours) || 0 }))
+            }
+        });
+    } catch (error) {
+        console.error("GET APPROVED REPORT DETAIL ERROR:", error);
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Không thể lấy chi tiết báo cáo"
+        });
+    }
 };
-
-
-
-
 
 
 

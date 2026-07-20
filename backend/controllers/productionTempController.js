@@ -218,6 +218,7 @@ exports.approveSelectedReports = async (req, res) => {
         let syncQueued = true;
         try {
             await SyncJobService.enqueueForApprovedDates(result.dates);
+            SyncJobService.triggerWorker();
         } catch (queueError) {
             syncQueued = false;
             console.error("CREATE SYNC JOB ERROR:", queueError);

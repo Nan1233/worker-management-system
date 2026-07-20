@@ -6,7 +6,7 @@ const enqueueForApprovedDates = async (dates) => {
     for (const date of [...new Set(dates)]) {
         const value = String(date).slice(0, 10);
         await SyncJob.upsert({ jobType: "google_sheet", jobKey: value, workDate: value });
-        await SyncJob.upsert({ jobType: "monthly_excel", jobKey: value.slice(0, 7), yearMonth: value.slice(0, 7) });
+        await SyncJob.upsert({ jobType: "monthly_excel", jobKey: value.slice(0, 7), reportMonth: value.slice(0, 7) });
     }
 };
 
@@ -17,7 +17,7 @@ const processReadyJobs = async (limit = 5) => {
         try {
             let output;
             if (job.job_type === "google_sheet") output = await GoogleSheetService.syncProductionReport(job.work_date);
-            else if (job.job_type === "monthly_excel") output = await MonthlyExcelService.buildMonthlyWorkbook(job.year_month);
+            else if (job.job_type === "monthly_excel") output = await MonthlyExcelService.buildMonthlyWorkbook(job.report_month);
             else throw new Error(`Loại job không hỗ trợ: ${job.job_type}`);
             await SyncJob.markSuccess(job.id, output?.url || null);
             result.push({ id: job.id, success: true });
@@ -29,4 +29,29 @@ const processReadyJobs = async (limit = 5) => {
     return result;
 };
 
-module.exports = { enqueueForApprovedDates, processReadyJobs };
+let workerRunning = false;
+let workerTimer = null;
+
+const runWorkerOnce = async () => {
+    if (workerRunning) return;
+    workerRunning = true;
+    try {
+        await processReadyJobs(5);
+    } catch (error) {
+        console.error("SYNC JOB WORKER ERROR:", error);
+    } finally {
+        workerRunning = false;
+    }
+};
+
+const startWorker = () => {
+    if (workerTimer) return workerTimer;
+    setImmediate(runWorkerOnce);
+    workerTimer = setInterval(runWorkerOnce, Number(process.env.SYNC_JOB_INTERVAL_MS || 60000));
+    workerTimer.unref();
+    return workerTimer;
+};
+
+const triggerWorker = () => setImmediate(runWorkerOnce);
+
+module.exports = { enqueueForApprovedDates, processReadyJobs, startWorker, triggerWorker };

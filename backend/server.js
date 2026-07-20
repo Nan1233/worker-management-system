@@ -39,6 +39,7 @@ const machineRoutes =
 const productStandardRoutes =
     require("./routes/productStandardRoutes");
 const syncJobRoutes = require("./routes/syncJobRoutes");
+const SyncJobService = require("./services/syncJobService");
 
 // ======================
 // APP
@@ -339,5 +340,6 @@ app.listen(PORT,()=>{
         `Server running at port ${PORT}`
     );
 
+    SyncJobService.startWorker();
 
 });

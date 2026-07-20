@@ -702,215 +702,38 @@ function ReportDetail() {
 
 
             <div className="detail-card">
-
-                <h2>
-                    Lỗi chất lượng
-                </h2>
-
-
-                <p>
-
-                    <b>
-                        Dập lại:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.kqd_dap_lai
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        Tuột:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.kqd_tuot
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        Vỡ do lồng:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.vo_do_long
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        Xước do lồng:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.xuoc_do_long
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        Cong gãy:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.cong_gay
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        Xoay:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.xoay
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        Không đứt:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.khong_dut
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        Bavia hụt:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.bavia_hut
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        PPCM:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.ppcm
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        Lỗi cao su:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.loi_cao_su
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        NG kích thước:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.ng_kich_thuoc
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        Cắt lẹm:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.cat_lem
-                        )
-                    }
-
-                </p>
-
+                <h2>Chi tiết lỗi NG</h2>
+
+                {report.defects && report.defects.length > 0 ? (
+                    report.defects.map((defect, index) => (
+                        <p key={defect.id ?? `${defect.defect_type_id ?? "defect"}-${index}`}>
+                            <b>{defect.defect_name || defect.defect_code || "Lỗi NG"}:</b>{" "}
+                            {showValue(defect.quantity)}
+                        </p>
+                    ))
+                ) : (
+                    <p>Không có lỗi NG chi tiết</p>
+                )}
+
+                <p><b>Tổng NG:</b> {showValue(report.tt_ng)}</p>
+            </div>
+
+            <div className="detail-card">
+                <h2>Chi tiết thời gian trừ</h2>
+
+                {report.deductions && report.deductions.length > 0 ? (
+                    report.deductions.map((deduction, index) => (
+                        <p key={deduction.id ?? `${deduction.deduction_type_id ?? "deduction"}-${index}`}>
+                            <b>{deduction.deduction_name || deduction.deduction_code || "Thời gian trừ"}:</b>{" "}
+                            {showValue(deduction.hours)} giờ
+                        </p>
+                    ))
+                ) : (
+                    <p>Không có thời gian trừ chi tiết</p>
+                )}
+
+                <p><b>Tổng thời gian trừ:</b> {showValue(report.deduction_time)} giờ</p>
+                <p><b>Thời gian thực tế:</b> {showValue(report.actual_time)} giờ</p>
             </div>
 
 
