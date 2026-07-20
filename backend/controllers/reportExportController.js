@@ -499,8 +499,12 @@ const writeReportToRow = (
         sheet.getRow(rowNumber);
 
     // A - STT
-    row.getCell("A").value =
-        index + 1;
+    // Dòng mẫu có thể đang dùng định dạng ngày ở cột A.
+    // Nếu không ép lại numFmt, Excel sẽ hiển thị 1, 2, 3...
+    // thành 01/01/1900, 02/01/1900, 03/01/1900...
+    const sequenceCell = row.getCell("A");
+    sequenceCell.value = Number(index) + 1;
+    sequenceCell.numFmt = "0";
 
     // B - Worker code
     row.getCell("B").value =
@@ -951,8 +955,10 @@ const writeDateSeparatorRow = (sheet, rowNumber, value) => {
     copyRowStyle(sheet, STYLE_SOURCE_ROW, rowNumber);
     const row = sheet.getRow(rowNumber);
     for (let column = 1; column <= 52; column += 1) row.getCell(column).value = null;
-    row.getCell("A").value = formatWorkDate(value);
-    row.getCell("A").font = { ...(row.getCell("A").font || {}), bold: true };
+    const dateCell = row.getCell("A");
+    dateCell.value = formatWorkDate(value);
+    dateCell.numFmt = "@";
+    dateCell.font = { ...(dateCell.font || {}), bold: true };
 };
 
 const EXCEL_TEMPLATE_PATH = path.join(

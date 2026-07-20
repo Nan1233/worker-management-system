@@ -1,941 +1,155 @@
-import {
-    useEffect,
-    useState
-} from "react";
-
-import {
-    useNavigate,
-    useParams,
-    useSearchParams
-} from "react-router-dom";
-
-import {
-    getTempReportById,
-    getReportById
-} from "../../services/productionService";
-
-import type {
-    ProductionReport
-} from "../../types/production";
-
+import { useEffect, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { getReportById, getTempReportById } from "../../services/productionService";
+import type { ProductionReport } from "../../types/production";
 import "./ReportDetail.css";
 
+const formatDate = (value?: string | null) => {
+    if (!value) return "---";
+    const raw = value.split("T")[0];
+    const [year, month, day] = raw.split("-");
+    return year && month && day ? `${day}/${month}/${year}` : value;
+};
+
+const formatNumber = (value?: number | string | null) =>
+    Number(value ?? 0).toLocaleString("vi-VN", { maximumFractionDigits: 3 });
 
 function ReportDetail() {
+    const { id } = useParams();
+    const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const source = searchParams.get("source") === "pending" ? "pending" : "approved";
 
-    const {
-        id
-    } = useParams();
+    const [report, setReport] = useState<ProductionReport | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
 
-    const navigate =
-        useNavigate();
+    const savedUser = localStorage.getItem("user");
+    let role = "manager";
+    try {
+        role = savedUser ? JSON.parse(savedUser)?.role || "manager" : "manager";
+    } catch {
+        role = "manager";
+    }
 
-    const [
-        searchParams
-    ] = useSearchParams();
-
-    const source =
-        searchParams.get("source");
-
-    const [
-        report,
-        setReport
-    ] = useState<ProductionReport | null>(
-        null
-    );
-
-    const [
-        loading,
-        setLoading
-    ] = useState(true);
-
-    const [
-        error,
-        setError
-    ] = useState("");
-
+    const canEdit = role === "manager" || role === "admin";
+    const basePath = role === "lead" ? "/lead" : "/manager";
 
     useEffect(() => {
-
         const loadReport = async () => {
-
             try {
-
                 setLoading(true);
                 setError("");
-                setReport(null);
 
-                if (!id) {
-
-                    setError(
-                        "Không tìm thấy ID báo cáo"
-                    );
-
+                const reportId = Number(id);
+                if (!Number.isInteger(reportId) || reportId <= 0) {
+                    setError("ID báo cáo không hợp lệ.");
                     return;
-
                 }
 
-                const reportId =
-                    Number(id);
+                const data = source === "pending"
+                    ? await getTempReportById(reportId)
+                    : await getReportById(reportId);
 
-                if (
-                    !Number.isInteger(reportId) ||
-                    reportId <= 0
-                ) {
-
-                    setError(
-                        "ID báo cáo không hợp lệ"
-                    );
-
-                    return;
-
-                }
-
-                let data:
-                    ProductionReport;
-
-
-                // ======================================
-                // BÁO CÁO CHƯA DUYỆT
-                // production_reports_temp
-                // URL: ?source=pending
-                // ======================================
-
-                if (source === "pending") {
-
-                    data =
-                        await getTempReportById(
-                            reportId
-                        );
-
-                }
-
-
-                // ======================================
-                // BÁO CÁO ĐÃ DUYỆT
-                // production_reports
-                //
-                // source=approved hoặc không có source
-                // đều lấy báo cáo đã duyệt
-                // ======================================
-
-                else {
-
-                    data =
-                        await getReportById(
-                            reportId
-                        );
-
-                }
-
-
-                console.log(
-                    "REPORT DETAIL DATA:",
-                    data
-                );
-
-
-                if (!data) {
-
-                    setError(
-                        "API không trả về dữ liệu báo cáo"
-                    );
-
-                    return;
-
-                }
-
-
-                setReport(data);
-
-            } catch (err: unknown) {
-
-                console.error(
-                    "LOAD REPORT DETAIL ERROR:",
-                    err
-                );
-
-                let message =
-                    "Không thể tải chi tiết báo cáo";
-
-                if (
-                    typeof err === "object" &&
-                    err !== null &&
-                    "response" in err
-                ) {
-
-                    const axiosError =
-                        err as {
-                            response?: {
-                                status?: number;
-                                data?: {
-                                    message?: string;
-                                };
-                            };
-                        };
-
-                    if (
-                        axiosError.response
-                            ?.data?.message
-                    ) {
-
-                        message =
-                            axiosError.response
-                                .data.message;
-
-                    } else if (
-                        axiosError.response
-                            ?.status === 403
-                    ) {
-
-                        message =
-                            "Bạn không có quyền xem báo cáo này";
-
-                    } else if (
-                        axiosError.response
-                            ?.status === 404
-                    ) {
-
-                        message =
-                            "Không tìm thấy báo cáo";
-
-                    }
-
-                }
-
-                setError(message);
-
+                setReport(data || null);
+            } catch (err) {
+                console.error("LOAD REPORT DETAIL ERROR:", err);
+                setError("Không thể tải thông tin báo cáo.");
             } finally {
-
                 setLoading(false);
-
             }
-
         };
 
-
         loadReport();
-
-    }, [
-        id,
-        source
-    ]);
-
-
-    const formatDate = (
-        value?: string | null
-    ) => {
-
-        if (!value) {
-
-            return "Không có";
-
-        }
-
-        const date =
-            new Date(value);
-
-        if (
-            Number.isNaN(
-                date.getTime()
-            )
-        ) {
-
-            return value;
-
-        }
-
-        return date.toLocaleDateString(
-            "vi-VN"
-        );
-
-    };
-
-
-    const formatDateTime = (
-        value?: string | null
-    ) => {
-
-        if (!value) {
-
-            return "Không có";
-
-        }
-
-        const date =
-            new Date(value);
-
-        if (
-            Number.isNaN(
-                date.getTime()
-            )
-        ) {
-
-            return value;
-
-        }
-
-        return date.toLocaleString(
-            "vi-VN"
-        );
-
-    };
-
-
-    const showValue = (
-        value:
-            string |
-            number |
-            null |
-            undefined
-    ) => {
-
-        if (
-            value === null ||
-            value === undefined ||
-            value === ""
-        ) {
-
-            return 0;
-
-        }
-
-        return value;
-
-    };
-
+    }, [id, source]);
 
     if (loading) {
-
-        return (
-
-            <div className="report-detail">
-
-                <h2>
-                    Đang tải dữ liệu...
-                </h2>
-
-            </div>
-
-        );
-
+        return <main className="report-detail-page"><div className="detail-state">Đang tải báo cáo...</div></main>;
     }
 
-
-    if (error) {
-
+    if (error || !report) {
         return (
-
-            <div className="report-detail">
-
-                <div className="detail-header">
-
-                    <h1>
-                        📋 Chi tiết báo cáo
-                    </h1>
-
-                    <button
-                        type="button"
-                        onClick={() =>
-                            navigate(-1)
-                        }
-                    >
-                        Quay lại
-                    </button>
-
-                </div>
-
-
-                <div className="detail-card">
-
-                    <h2>
-                        Không thể tải dữ liệu
-                    </h2>
-
-                    <p>
-                        {error}
-                    </p>
-
-                    <p>
-                        <b>ID báo cáo:</b>{" "}
-                        {id || "Không có"}
-                    </p>
-
-                    <p>
-                        <b>Nguồn dữ liệu:</b>{" "}
-                        {
-                            source === "pending"
-                                ? "Báo cáo chờ duyệt"
-                                : "Báo cáo đã duyệt"
-                        }
-                    </p>
-
-                </div>
-
-            </div>
-
+            <main className="report-detail-page">
+                <div className="detail-state detail-state-error">{error || "Không tìm thấy báo cáo."}</div>
+                <button className="detail-back-button" type="button" onClick={() => navigate(-1)}>Quay lại</button>
+            </main>
         );
-
     }
 
-
-    if (!report) {
-
-        return (
-
-            <div className="report-detail">
-
-                <div className="detail-header">
-
-                    <h1>
-                        📋 Chi tiết báo cáo
-                    </h1>
-
-                    <button
-                        type="button"
-                        onClick={() =>
-                            navigate(-1)
-                        }
-                    >
-                        Quay lại
+    return (
+        <main className="report-detail-page">
+            <header className="report-detail-header">
+                <div>
+                    <button className="detail-link-button" type="button" onClick={() => navigate(-1)}>
+                        ← Quay lại
                     </button>
-
+                    <h1>{report.worker_code || "---"} - {report.full_name || "Không có tên"}</h1>
+                    <span className={`detail-status ${report.status === "approved" ? "is-approved" : "is-pending"}`}>
+                        {report.status === "approved" ? "Đã duyệt" : "Chờ duyệt"}
+                    </span>
                 </div>
 
-                <div className="detail-card">
+                {canEdit && source === "pending" && (
+                    <button
+                        className="detail-edit-button"
+                        type="button"
+                        onClick={() => navigate(`${basePath}/report/${report.id}/edit?source=pending`)}
+                    >
+                        ✎ Sửa báo cáo
+                    </button>
+                )}
+            </header>
 
-                    <h2>
-                        Không tìm thấy báo cáo
-                    </h2>
+            <section className="detail-basic-card">
+                <h2>Thông tin chung</h2>
 
-                </div>
-
-            </div>
-
-        );
-
-    }    return (
-
-        <div className="report-detail">
-
-            <div className="detail-header">
-
-                <h1>
-                    📋 Chi tiết báo cáo
-                </h1>
-
-                <button
-                    type="button"
-                    onClick={() =>
-                        navigate(-1)
-                    }
-                >
-                    Quay lại
-                </button>
-
-            </div>
-
-
-            {
-                (
-                    source !== "pending" ||
-                    report.status === "approved"
-                ) && (
-
-                    <div className="detail-card">
-
-                        <h2>
-                            Trạng thái duyệt
-                        </h2>
-
-                        <p>
-
-                            <b>
-                                Trạng thái:
-                            </b>
-
-                            {" "}
-
-                            ✅ Đã duyệt
-
-                        </p>
-
-
-                        {
-                            report.approved_at && (
-
-                                <p>
-
-                                    <b>
-                                        Thời gian duyệt:
-                                    </b>
-
-                                    {" "}
-
-                                    {
-                                        formatDateTime(
-                                            report.approved_at
-                                        )
-                                    }
-
-                                </p>
-
-                            )
-                        }
-
+                <div className="detail-basic-grid">
+                    <div className="detail-basic-item">
+                        <span>Ngày sản xuất</span>
+                        <strong>{formatDate(report.work_date)}</strong>
                     </div>
-
-                )
-            }
-
-
-            <div className="detail-card">
-
-                <h2>
-                    Thông tin chung
-                </h2>
-
-
-                <p>
-
-                    <b>
-                        Nhân viên:
-                    </b>
-
-                    {" "}
-
-                    {
-                        report.full_name ||
-                        "Không có tên"
-                    }
-
-                    {
-                        report.worker_code
-                            ? ` (${report.worker_code})`
-                            : ""
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        Công đoạn:
-                    </b>
-
-                    {" "}
-
-                    {
-                        report.process_name ||
-                        "Không có"
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        Ngày sản xuất:
-                    </b>
-
-                    {" "}
-
-                    {
-                        formatDate(
-                            report.work_date
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        Ca:
-                    </b>
-
-                    {" "}
-
-                    {
-                        report.shift ||
-                        "Không có"
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        Số máy:
-                    </b>
-
-                    {" "}
-
-                    {
-                        report.machine_no ||
-                        "Không có"
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        Sản phẩm:
-                    </b>
-
-                    {" "}
-
-                    {
-                        report.product_name ||
-                        "Không có"
-                    }
-
-                </p>
-
-
-                {
-                    report.created_at && (
-
-                        <p>
-
-                            <b>
-                                Thời gian gửi:
-                            </b>
-
-                            {" "}
-
-                            {
-                                formatDateTime(
-                                    report.created_at
-                                )
-                            }
-
-                        </p>
-
-                    )
-                }
-
-            </div>
-
-
-            <div className="detail-card">
-
-                <h2>
-                    Sản xuất
-                </h2>
-
-
-                <p>
-
-                    <b>
-                        Định mức:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.standard_output
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        Thực tế:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.actual_output
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        OK:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.tt_ok
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        NG:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.tt_ng
-                        )
-                    }
-
-                </p>
-
-            </div>
-
-
-            <div className="detail-card">
-
-                <h2>
-                    Lỗi chất lượng
-                </h2>
-
-
-                <p>
-
-                    <b>
-                        Dập lại:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.kqd_dap_lai
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        Tuột:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.kqd_tuot
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        Vỡ do lồng:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.vo_do_long
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        Xước do lồng:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.xuoc_do_long
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        Cong gãy:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.cong_gay
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        Xoay:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.xoay
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        Không đứt:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.khong_dut
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        Bavia hụt:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.bavia_hut
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        PPCM:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.ppcm
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        Lỗi cao su:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.loi_cao_su
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        NG kích thước:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.ng_kich_thuoc
-                        )
-                    }
-
-                </p>
-
-
-                <p>
-
-                    <b>
-                        Cắt lẹm:
-                    </b>
-
-                    {" "}
-
-                    {
-                        showValue(
-                            report.cat_lem
-                        )
-                    }
-
-                </p>
-
-            </div>
-
-
-            <div className="detail-card">
-
-                <h2>
-                    Ghi chú
-                </h2>
-
-                <p>
-
-                    {
-                        report.note ||
-                        "Không có"
-                    }
-
-                </p>
-
-            </div>
-
-        </div>
-
+                    <div className="detail-basic-item">
+                        <span>Công đoạn</span>
+                        <strong>{report.process_name || report.process_code || "---"}</strong>
+                    </div>
+                    <div className="detail-basic-item">
+                        <span>Ca</span>
+                        <strong>{report.shift || "---"}</strong>
+                    </div>
+                    <div className="detail-basic-item">
+                        <span>Số máy</span>
+                        <strong>{report.machine_no || "---"}</strong>
+                    </div>
+                    <div className="detail-basic-item">
+                        <span>Sản phẩm</span>
+                        <strong>{report.product_name || "---"}</strong>
+                    </div>
+                    <div className="detail-basic-item">
+                        <span>% học việc</span>
+                        <strong>{formatNumber(report.training_percent ?? 100)}%</strong>
+                    </div>
+                </div>
+            </section>
+
+            <section className="detail-basic-card">
+                <h2>Tóm tắt sản xuất</h2>
+                <div className="detail-summary-row">
+                    <div><span>Định mức</span><strong>{formatNumber(report.standard_output)}</strong></div>
+                    <div><span>Thực tế</span><strong>{formatNumber(report.actual_output)}</strong></div>
+                    <div><span>OK</span><strong>{formatNumber(report.tt_ok)}</strong></div>
+                    <div><span>NG</span><strong>{formatNumber(report.tt_ng)}</strong></div>
+                    <div><span>Giờ thực tế</span><strong>{formatNumber(report.actual_time)}</strong></div>
+                </div>
+            </section>
+
+            {report.note && (
+                <section className="detail-note-card">
+                    <span>Ghi chú</span>
+                    <p>{report.note}</p>
+                </section>
+            )}
+        </main>
     );
-
 }
-
 
 export default ReportDetail;

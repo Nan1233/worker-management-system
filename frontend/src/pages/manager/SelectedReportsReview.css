@@ -1,30 +1,22 @@
 .selected-review-page {
-    width: 100%;
     min-height: 100vh;
+    padding: 18px;
     box-sizing: border-box;
-    padding: 24px;
     background: #f1f5f9;
 }
-
-
-/* =====================================================
-   HEADER
-===================================================== */
 
 .selected-review-header {
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
     gap: 20px;
-    max-width: 1500px;
-    margin: 0 auto 20px;
+    margin-bottom: 14px;
 }
 
 .selected-review-header h1 {
-    margin: 10px 0 4px;
+    margin: 8px 0 4px;
     color: #0f172a;
-    font-size: 28px;
-    line-height: 1.25;
+    font-size: 26px;
 }
 
 .selected-review-header p {
@@ -33,690 +25,143 @@
 }
 
 .selected-review-back {
+    border: 0;
     padding: 0;
-    border: none;
     background: transparent;
     color: #2563eb;
-    font-size: 14px;
     font-weight: 700;
     cursor: pointer;
-}
-
-.selected-review-back:hover:not(:disabled) {
-    text-decoration: underline;
-}
-
-.selected-review-back:disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
-}
-
-.selected-review-actions {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-
-/* =====================================================
-   BUTTONS
-===================================================== */
-
-.selected-review-approve,
-.selected-review-edit,
-.selected-review-save,
-.selected-review-cancel {
-    min-height: 42px;
-    padding: 0 18px;
-    border: none;
-    border-radius: 9px;
-    font-size: 14px;
-    font-weight: 700;
-    cursor: pointer;
-    transition:
-        transform 0.15s ease,
-        opacity 0.15s ease,
-        box-shadow 0.15s ease;
 }
 
 .selected-review-approve {
+    min-height: 42px;
+    padding: 0 18px;
+    border: 0;
+    border-radius: 9px;
     background: #16a34a;
-    color: #ffffff;
+    color: #fff;
+    font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
 }
 
-.selected-review-edit {
-    background: #f59e0b;
-    color: #ffffff;
-}
-
-.selected-review-save {
-    background: #2563eb;
-    color: #ffffff;
-}
-
-.selected-review-cancel {
-    background: #e2e8f0;
-    color: #334155;
-}
-
-.selected-review-approve:hover:not(:disabled),
-.selected-review-edit:hover:not(:disabled),
-.selected-review-save:hover:not(:disabled),
-.selected-review-cancel:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 5px 12px rgba(15, 23, 42, 0.12);
-}
-
-.selected-review-approve:disabled,
-.selected-review-edit:disabled,
-.selected-review-save:disabled,
-.selected-review-cancel:disabled {
+.selected-review-approve:disabled {
+    opacity: .55;
     cursor: not-allowed;
-    opacity: 0.55;
 }
-
-.selected-report-edit-actions {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-
-
-/* =====================================================
-   ERROR / EMPTY
-===================================================== */
 
 .selected-review-error,
-.selected-review-empty,
-.selected-report-list {
-    max-width: 1500px;
-    margin-right: auto;
-    margin-left: auto;
+.selected-review-empty {
+    margin-bottom: 14px;
+    padding: 14px 16px;
+    border-radius: 10px;
 }
 
 .selected-review-error {
-    margin-bottom: 16px;
-    padding: 12px 16px;
     border: 1px solid #fecaca;
-    border-radius: 8px;
     background: #fef2f2;
     color: #b91c1c;
 }
 
 .selected-review-empty {
-    padding: 50px 20px;
-    border-radius: 12px;
-    background: #ffffff;
+    background: #fff;
     color: #64748b;
     text-align: center;
 }
 
-
-/* =====================================================
-   REPORT LIST
-===================================================== */
-
-.selected-report-list {
-    display: grid;
-    gap: 22px;
-}
-
-.selected-report-card {
+.selected-table-card {
     overflow: hidden;
     border: 1px solid #dbe3ee;
-    border-radius: 16px;
-    background: #ffffff;
-    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, .07);
 }
 
-.selected-report-card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 20px 22px;
-    border-bottom: 1px solid #e2e8f0;
-    background: linear-gradient(
-        135deg,
-        #eff6ff,
-        #ffffff
-    );
-}
-
-.selected-report-card-header h2 {
-    margin: 5px 0 0;
-    color: #0f172a;
-    font-size: 21px;
-    overflow-wrap: anywhere;
-}
-
-.selected-report-index {
-    color: #2563eb;
-    font-size: 13px;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-
-
-/* =====================================================
-   SECTION
-===================================================== */
-
-.selected-report-section {
-    margin: 18px 22px;
-    padding: 18px;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    background: #ffffff;
-}
-
-.selected-report-section h3 {
-    margin: 0 0 14px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #e2e8f0;
-    color: #1e293b;
-    font-size: 17px;
-}
-
-
-/* =====================================================
-   GENERAL INFORMATION
-===================================================== */
-
-.selected-info-grid {
-    display: grid;
-    grid-template-columns: repeat(
-        3,
-        minmax(0, 1fr)
-    );
-    gap: 12px;
-}
-
-.selected-info-item,
-.selected-summary-grid > div {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    min-width: 0;
-    padding: 12px;
-    border-radius: 9px;
-    background: #f8fafc;
-}
-
-.selected-info-item span,
-.selected-summary-grid span {
-    color: #64748b;
-    font-size: 13px;
-}
-
-.selected-info-item strong,
-.selected-summary-grid strong {
-    color: #0f172a;
-    font-size: 15px;
-    overflow-wrap: anywhere;
-}
-
-
-/* =====================================================
-   COLUMNS
-===================================================== */
-
-.selected-report-columns {
-    display: grid;
-    grid-template-columns: repeat(
-        2,
-        minmax(0, 1fr)
-    );
-    gap: 18px;
-    margin: 0 22px;
-}
-
-.selected-report-columns .selected-report-section {
-    margin: 0;
-}
-
-
-/* =====================================================
-   SUMMARY
-===================================================== */
-
-.selected-summary-grid {
-    display: grid;
-    grid-template-columns: repeat(
-        3,
-        minmax(0, 1fr)
-    );
-    gap: 10px;
-}
-
-.selected-summary-grid-four {
-    grid-template-columns: repeat(
-        4,
-        minmax(0, 1fr)
-    );
-}
-
-
-/* =====================================================
-   INLINE EDIT INPUTS
-===================================================== */
-
-.selected-info-item input,
-.selected-info-item select,
-.selected-summary-grid input,
-.selected-report-note-section textarea {
-    width: 100%;
-    box-sizing: border-box;
-    border: 1px solid #cbd5e1;
-    border-radius: 8px;
-    outline: none;
-    background: #ffffff;
-    color: #111827;
-    padding: 10px 12px;
-    font-family: inherit;
-    font-size: 14px;
-    transition:
-        border-color 0.2s ease,
-        box-shadow 0.2s ease;
-}
-
-.selected-info-item input:focus,
-.selected-info-item select:focus,
-.selected-summary-grid input:focus,
-.selected-report-note-section textarea:focus {
-    border-color: #2563eb;
-    box-shadow:
-        0 0 0 3px
-        rgba(37, 99, 235, 0.12);
-}
-
-.selected-info-item input:disabled,
-.selected-info-item select:disabled,
-.selected-summary-grid input:disabled,
-.selected-report-note-section textarea:disabled {
-    cursor: not-allowed;
-    background: #f1f5f9;
-    opacity: 0.7;
-}
-
-
-/* =====================================================
-   DETAIL TABLE
-===================================================== */
-
-.selected-detail-table-wrapper {
+.selected-table-scroll {
     width: 100%;
     overflow-x: auto;
-    border: 1px solid #e2e8f0;
-    border-radius: 9px;
+    overflow-y: auto;
+    max-height: calc(100vh - 160px);
 }
 
-.selected-detail-table {
-    width: 100%;
-    min-width: 440px;
-    border-collapse: collapse;
-    font-size: 14px;
+.selected-review-table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
 }
 
-.selected-detail-table th,
-.selected-detail-table td {
-    padding: 10px 12px;
+.selected-review-table th,
+.selected-review-table td {
+    padding: 10px 11px;
+    border-right: 1px solid #e2e8f0;
     border-bottom: 1px solid #e2e8f0;
-    text-align: left;
-}
-
-.selected-detail-table th:first-child,
-.selected-detail-table td:first-child {
-    width: 58px;
+    vertical-align: top;
     text-align: center;
+    white-space: nowrap;
 }
 
-.selected-detail-table th:last-child,
-.selected-detail-table td:last-child {
-    width: 110px;
-    text-align: right;
-}
-
-.selected-detail-table thead th {
-    background: #f8fafc;
-    color: #334155;
-    font-weight: 800;
-}
-
-.selected-detail-table tbody tr:hover {
-    background: #f8fafc;
-}
-
-.selected-detail-table tbody tr:last-child td {
-    border-bottom: none;
-}
-
-.selected-detail-table tfoot td {
-    border-top: 2px solid #cbd5e1;
-    border-bottom: none;
-    background: #f8fafc;
-    color: #0f172a;
-    font-weight: 800;
-}
-
-.selected-no-detail {
-    margin: 0;
-    padding: 18px;
-    border-radius: 8px;
-    background: #f8fafc;
-    color: #64748b;
-    text-align: center;
-}
-
-
-/* =====================================================
-   NOTE
-===================================================== */
-
-.selected-report-note-section {
-    margin-bottom: 22px;
-}
-
-.selected-report-note-section p {
-    margin: 0;
-    color: #334155;
-    line-height: 1.6;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-}
-
-.selected-report-note-section textarea {
-    min-height: 100px;
-    resize: vertical;
-}
-
-
-/* =====================================================
-   TABLET
-===================================================== */
-
-@media (max-width: 1024px) {
-    .selected-info-grid {
-        grid-template-columns: repeat(
-            2,
-            minmax(0, 1fr)
-        );
-    }
-
-    .selected-report-columns {
-        grid-template-columns: 1fr;
-    }
-
-    .selected-summary-grid-four {
-        grid-template-columns: repeat(
-            2,
-            minmax(0, 1fr)
-        );
-    }
-}
-
-
-/* =====================================================
-   MOBILE
-===================================================== */
-
-@media (max-width: 768px) {
-    .selected-review-page {
-        padding: 14px;
-    }
-
-    .selected-review-header {
-        align-items: stretch;
-        flex-direction: column;
-    }
-
-    .selected-review-header h1 {
-        font-size: 23px;
-    }
-
-    .selected-review-actions {
-        width: 100%;
-    }
-
-    .selected-review-approve {
-        width: 100%;
-    }
-
-    .selected-report-card-header {
-        align-items: flex-start;
-        flex-direction: column;
-        gap: 14px;
-        padding: 16px;
-    }
-
-    .selected-report-edit-actions {
-        width: 100%;
-        justify-content: flex-start;
-    }
-
-    .selected-review-edit,
-    .selected-review-save,
-    .selected-review-cancel {
-        flex: 1;
-    }
-
-    .selected-info-grid,
-    .selected-summary-grid,
-    .selected-summary-grid-four {
-        grid-template-columns: 1fr;
-    }
-
-    .selected-report-section {
-        margin: 14px;
-        padding: 16px;
-    }
-
-    .selected-report-columns {
-        gap: 14px;
-        margin: 0 14px;
-    }
-
-    .selected-report-columns .selected-report-section {
-        margin: 0;
-    }
-
-    .selected-report-note-section {
-        margin-bottom: 14px;
-    }
-
-    .selected-detail-table {
-        min-width: 380px;
-    }
-}
-
-
-/* =====================================================
-   SMALL MOBILE
-===================================================== */
-
-@media (max-width: 480px) {
-    .selected-review-page {
-        padding: 10px;
-    }
-
-    .selected-review-header h1 {
-        font-size: 21px;
-    }
-
-    .selected-report-card {
-        border-radius: 12px;
-    }
-
-    .selected-report-card-header {
-        padding: 14px;
-    }
-
-    .selected-report-card-header h2 {
-        font-size: 18px;
-    }
-
-    .selected-report-section {
-        margin: 10px;
-        padding: 14px;
-    }
-
-    .selected-report-columns {
-        gap: 10px;
-        margin: 0 10px;
-    }
-
-    .selected-report-note-section {
-        margin-bottom: 10px;
-    }
-
-    .selected-report-edit-actions {
-        flex-direction: column;
-    }
-
-    .selected-review-edit,
-    .selected-review-save,
-    .selected-review-cancel {
-        width: 100%;
-        flex: none;
-    }
-}
-/* ===== P1: review cards ===== */
-.selected-review-page {
-    background:
-        radial-gradient(circle at top right, rgba(61, 126, 255, .08), transparent 28%),
-        #f4f7fb;
-}
-
-.selected-review-header {
+.selected-review-table th {
     position: sticky;
     top: 0;
-    z-index: 30;
-    padding: 18px 22px;
-    border: 1px solid #dfe7f1;
-    border-radius: 18px;
-    background: rgba(255,255,255,.94);
-    box-shadow: 0 10px 30px rgba(17, 44, 84, .08);
-    backdrop-filter: blur(12px);
-}
-
-.selected-report-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr));
-    gap: 20px;
-    align-items: start;
-}
-
-.selected-report-card {
-    overflow: hidden;
-    border: 1px solid #dde6f1;
-    border-radius: 22px;
-    background: #fff;
-    box-shadow: 0 12px 32px rgba(16, 42, 78, .075);
-    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
-}
-
-.selected-report-card:hover {
-    transform: translateY(-2px);
-    border-color: #adc5eb;
-    box-shadow: 0 18px 42px rgba(16, 42, 78, .11);
-}
-
-.selected-report-card-header {
-    padding: 20px 22px;
-    border-bottom: 1px solid #e8edf4;
-    background: linear-gradient(135deg, #f8fbff, #eef5ff);
-}
-
-.selected-report-index {
-    display: inline-flex;
-    margin-bottom: 7px;
-    padding: 5px 10px;
-    border-radius: 999px;
-    background: #dfeaff;
-    color: #2558a8;
-    font-size: 12px;
+    z-index: 4;
+    background: #0f766e;
+    color: #fff;
     font-weight: 800;
-    letter-spacing: .04em;
 }
 
-.selected-report-card-header h2 {
-    margin: 0;
-    color: #17345c;
-    font-size: 21px;
+.selected-review-table tbody tr:nth-child(even) td {
+    background: #f8fafc;
 }
 
-.selected-report-section {
-    margin: 0;
-    padding: 20px 22px;
-    border-bottom: 1px solid #edf1f6;
+.selected-review-table tbody tr:hover td {
+    background: #eff6ff;
 }
 
-.selected-report-section:last-child { border-bottom: 0; }
-
-.selected-report-section h3 {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0 0 15px;
-    color: #1f3d66;
-    font-size: 16px;
+.selected-worker-cell {
+    min-width: 150px;
+    text-align: left !important;
 }
 
-.selected-report-section h3::before {
-    content: "";
-    width: 4px;
-    height: 18px;
-    border-radius: 99px;
-    background: #2f6edb;
-}
-
-.selected-info-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-}
-
-.selected-info-item {
-    min-width: 0;
-    padding: 13px 14px;
-    border: 1px solid #e6ebf2;
-    border-radius: 13px;
-    background: #fbfcfe;
-}
-
-.selected-info-item span {
-    color: #718096;
-    font-size: 12px;
-    font-weight: 700;
-}
-
-.selected-info-item strong {
+.selected-worker-cell strong,
+.selected-worker-cell span {
     display: block;
-    margin-top: 5px;
-    color: #172a46;
-    font-size: 15px;
-    overflow-wrap: anywhere;
 }
 
-.selected-review-edit,
-.selected-review-save,
-.selected-review-cancel,
-.selected-review-approve {
-    min-height: 42px;
-    border-radius: 11px;
-    font-weight: 800;
+.selected-worker-cell span {
+    margin-top: 3px;
+    color: #475569;
 }
 
-.selected-review-save,
-.selected-review-approve {
-    box-shadow: 0 7px 17px rgba(29, 104, 216, .18);
+.selected-long-cell {
+    min-width: 230px;
+    max-width: 320px;
+    white-space: normal !important;
+    text-align: left !important;
+    line-height: 1.45;
 }
 
-@media (max-width: 650px) {
-    .selected-review-header { position: static; padding: 15px; }
-    .selected-report-list { grid-template-columns: 1fr; }
-    .selected-info-grid { grid-template-columns: 1fr; }
-    .selected-report-card-header, .selected-report-section { padding: 17px; }
+.selected-note-cell {
+    min-width: 180px;
+    max-width: 260px;
+    white-space: normal !important;
+    text-align: left !important;
+}
+
+.selected-edit-link {
+    border: 0;
+    border-radius: 7px;
+    padding: 7px 10px;
+    background: #f59e0b;
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+@media (max-width: 768px) {
+    .selected-review-page { padding: 10px; }
+    .selected-review-header { align-items: stretch; flex-direction: column; }
+    .selected-review-approve { width: 100%; }
+    .selected-table-scroll { max-height: calc(100vh - 210px); }
 }
