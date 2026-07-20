@@ -1319,3 +1319,110 @@
     }
 
 }
+/* ===== P1: MES visual system ===== */
+.worker-form-page {
+    background:
+        linear-gradient(rgba(35, 77, 128, .035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(35, 77, 128, .035) 1px, transparent 1px),
+        #eef3f8;
+    background-size: 28px 28px;
+}
+
+.worker-form-header {
+    position: relative;
+    overflow: hidden;
+    padding: 24px 26px;
+    border: 1px solid #d8e3ef;
+    border-radius: 22px;
+    background: linear-gradient(135deg, #ffffff 0%, #edf5ff 100%);
+    box-shadow: 0 10px 30px rgba(22, 63, 108, .08);
+}
+
+.worker-form-header::after {
+    content: "MES";
+    position: absolute;
+    right: 22px;
+    top: 16px;
+    color: rgba(23, 79, 157, .08);
+    font-size: 70px;
+    line-height: 1;
+    font-weight: 950;
+    letter-spacing: -.08em;
+    pointer-events: none;
+}
+
+.worker-form-title-row h1 {
+    font-size: clamp(28px, 3vw, 38px);
+}
+
+.worker-form-identity {
+    width: fit-content;
+    padding: 8px 12px;
+    border: 1px solid #cfe0f5;
+    border-radius: 12px;
+    background: rgba(255,255,255,.82);
+}
+
+.worker-form-card {
+    position: relative;
+    border-color: #dbe5f0;
+    box-shadow: 0 10px 28px rgba(27, 62, 103, .065);
+}
+
+.worker-form-card::before {
+    content: "";
+    position: absolute;
+    left: 28px;
+    right: 28px;
+    top: 0;
+    height: 4px;
+    border-radius: 0 0 99px 99px;
+    background: linear-gradient(90deg, #1d5fb8, #5e9af0);
+}
+
+.worker-text-input,
+.worker-select-input {
+    font-size: 18px;
+    font-weight: 650;
+}
+
+.worker-text-input:focus,
+.worker-select-input:focus,
+.worker-note-input:focus {
+    border-color: #367bd3;
+    box-shadow: 0 0 0 4px rgba(54, 123, 211, .13);
+}
+
+.worker-summary-box,
+.worker-output-summary,
+.worker-time-summary {
+    border-radius: 16px;
+}
+
+.worker-submit-bar,
+.worker-form-actions {
+    position: sticky;
+    bottom: 12px;
+    z-index: 25;
+    border: 1px solid rgba(207, 220, 236, .95);
+    border-radius: 18px;
+    background: rgba(255,255,255,.94);
+    box-shadow: 0 14px 35px rgba(23, 58, 99, .17);
+    backdrop-filter: blur(14px);
+}
+
+.worker-submit-button,
+.worker-form-submit {
+    min-height: 58px;
+    border-radius: 14px;
+    font-size: 18px;
+    font-weight: 850;
+    letter-spacing: .01em;
+}
+
+@media (max-width: 767px) {
+    .worker-form-header { padding: 19px 17px; }
+    .worker-form-header::after { font-size: 48px; right: 12px; }
+    .worker-form-identity, .worker-date-picker { margin-left: 0; }
+    .worker-form-card::before { left: 18px; right: 18px; }
+}

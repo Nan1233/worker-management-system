@@ -170,6 +170,12 @@ function Reports() {
         setCurrentPage
     ] = useState(1);
 
+    const [sortKey, setSortKey] = useState<
+        "created_at" | "worker_code" | "full_name" | "process_name" | "shift" | "machine_no" | "product_name" | "tt_ok" | "tt_ng"
+    >("created_at");
+
+    const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
 
     // =====================================================
     // TẢI BÁO CÁO CHỜ DUYỆT THEO NGÀY
@@ -347,12 +353,35 @@ function Reports() {
     ]);
 
 
+    const sortedReports = useMemo(() => {
+        const rows = [...filteredReports];
+        const direction = sortDirection === "asc" ? 1 : -1;
+
+        rows.sort((left, right) => {
+            const a = left[sortKey] ?? "";
+            const b = right[sortKey] ?? "";
+
+            if (sortKey === "tt_ok" || sortKey === "tt_ng") {
+                return (Number(a) - Number(b)) * direction;
+            }
+
+            return String(a).localeCompare(String(b), "vi", {
+                numeric: true,
+                sensitivity: "base"
+            }) * direction;
+        });
+
+        return rows;
+    }, [filteredReports, sortKey, sortDirection]);
+
     useEffect(() => {
         queueMicrotask(() => setCurrentPage(1));
     }, [
         searchKeyword,
         selectedShift,
         selectedProcess,
+        sortKey,
+        sortDirection,
         date
     ]);
 
@@ -364,7 +393,7 @@ function Reports() {
     const totalPages = Math.max(
         1,
         Math.ceil(
-            filteredReports.length /
+            sortedReports.length /
                 ITEMS_PER_PAGE
         )
     );
@@ -382,14 +411,14 @@ function Reports() {
 
     const paginatedReports = useMemo(
         () =>
-            filteredReports.slice(
+            sortedReports.slice(
                 (
                     currentPage - 1
                 ) * ITEMS_PER_PAGE,
                 currentPage * ITEMS_PER_PAGE
             ),
         [
-            filteredReports,
+            sortedReports,
             currentPage
         ]
     );
@@ -659,17 +688,16 @@ function Reports() {
                             Tất cả ca
                         </option>
 
-                        <option value="Ca 1">
-                            Ca 1
-                        </option>
-
-                        <option value="Ca 2">
-                            Ca 2
-                        </option>
-
-                        <option value="Ca 3">
-                            Ca 3
-                        </option>
+                        {[
+                            "A",
+                            "B",
+                            "C",
+                            "D"
+                        ].map(shift => (
+                            <option key={shift} value={shift}>
+                                Ca {shift}
+                            </option>
+                        ))}
                     </select>
                 </label>
 
@@ -704,6 +732,35 @@ function Reports() {
                     </select>
                 </label>
 
+
+
+
+                <label className="management-filter-field">
+                    <span>Sắp xếp</span>
+                    <select
+                        value={sortKey}
+                        onChange={event => setSortKey(event.target.value as typeof sortKey)}
+                    >
+                        <option value="created_at">Thời gian tạo</option>
+                        <option value="worker_code">Mã nhân viên</option>
+                        <option value="full_name">Họ tên</option>
+                        <option value="process_name">Công đoạn</option>
+                        <option value="shift">Ca</option>
+                        <option value="machine_no">Máy</option>
+                        <option value="product_name">Sản phẩm</option>
+                        <option value="tt_ok">TT OK</option>
+                        <option value="tt_ng">TT NG</option>
+                    </select>
+                </label>
+
+                <button
+                    type="button"
+                    className="management-sort-direction"
+                    onClick={() => setSortDirection(value => value === "asc" ? "desc" : "asc")}
+                    title="Đổi chiều sắp xếp"
+                >
+                    {sortDirection === "asc" ? "↑ Tăng dần" : "↓ Giảm dần"}
+                </button>
 
                 <button
                     type="button"
