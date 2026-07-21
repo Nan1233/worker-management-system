@@ -230,3 +230,36 @@
     .dashboard-chart-row { grid-template-columns: 95px 1fr; }
     .dashboard-chart-value { grid-column: 2; text-align: left; }
 }
+
+.dashboard-period-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.dashboard-period-filter span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.dashboard-period-filter select {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #0f172a;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (max-width: 760px) {
+  .dashboard-period-filter {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
