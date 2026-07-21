@@ -76,17 +76,26 @@ const normalizeText = (
 // TẠO KHÓA KIỂM TRA BÁO CÁO TRÙNG
 // =====================================================
 
+const normalizeDateKey = (
+    value?: string | null
+): string => {
+    if (!value) return "";
+
+    return String(value)
+        .trim()
+        .slice(0, 10);
+};
+
 const duplicateKey = (
     report: ProductionReport
 ): string =>
     [
-        report.worker_code,
-        report.shift,
-        report.machine_no,
-        report.product_name
-    ]
-        .map(normalizeText)
-        .join("|");
+        normalizeDateKey(report.work_date),
+        normalizeText(report.worker_code),
+        normalizeText(report.shift),
+        normalizeText(report.machine_no),
+        normalizeText(report.product_name)
+    ].join("|");
 
 
 function Reports() {
