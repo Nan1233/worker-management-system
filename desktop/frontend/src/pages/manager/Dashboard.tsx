@@ -5,6 +5,7 @@ import { getApprovedReportsByDate, getTempReportsByDate } from "../../services/p
 import type { ProductionReport } from "../../types/production";
 import { getApiError } from "../../utils/apiError";
 import { useToast } from "../../components/feedback/toastContext";
+import api from "../../api/axios";
 
 import AppIcon from "../../components/common/AppIcon";
 import "./Dashboard.css";
@@ -12,10 +13,47 @@ import "./Dashboard.css";
 const formatNumber = (value: number) =>
     value.toLocaleString("vi-VN", { maximumFractionDigits: 1 });
 
-const getToday = (): string => {
+type ProcessOption = { id: number; process_code?: string; process_name: string };
+
+const toLocalDate = (date: Date): string => {
+    const offset = date.getTimezoneOffset();
+    return new Date(date.getTime() - offset * 60_000).toISOString().split("T")[0];
+};
+
+type PeriodKey = "today" | "yesterday" | "last7" | "thisMonth" | "lastMonth";
+
+const getPeriodDates = (period: PeriodKey): string[] => {
     const now = new Date();
-    const offset = now.getTimezoneOffset();
-    return new Date(now.getTime() - offset * 60_000).toISOString().split("T")[0];
+    const start = new Date(now);
+    const end = new Date(now);
+
+    if (period === "yesterday") {
+        start.setDate(start.getDate() - 1);
+        end.setDate(end.getDate() - 1);
+    } else if (period === "last7") {
+        start.setDate(start.getDate() - 6);
+    } else if (period === "thisMonth") {
+        start.setDate(1);
+    } else if (period === "lastMonth") {
+        start.setMonth(start.getMonth() - 1, 1);
+        end.setDate(0);
+    }
+
+    const dates: string[] = [];
+    const cursor = new Date(start);
+    while (cursor <= end) {
+        dates.push(toLocalDate(cursor));
+        cursor.setDate(cursor.getDate() + 1);
+    }
+    return dates;
+};
+
+const PERIOD_LABELS: Record<PeriodKey, string> = {
+    today: "Hôm nay",
+    yesterday: "Hôm qua",
+    last7: "7 ngày gần nhất",
+    thisMonth: "Tháng này",
+    lastMonth: "Tháng trước"
 };
 
 function Dashboard() {
@@ -24,7 +62,9 @@ function Dashboard() {
 
     const [pendingReports, setPendingReports] = useState<ProductionReport[]>([]);
     const [reports, setReports] = useState<ProductionReport[]>([]);
+    const [processes, setProcesses] = useState<ProcessOption[]>([]);
     const [loading, setLoading] = useState(true);
+    const [period, setPeriod] = useState<PeriodKey>("today");
 
     const savedUser = localStorage.getItem("user");
     const currentUser = savedUser ? JSON.parse(savedUser) : null;
@@ -34,13 +74,15 @@ function Dashboard() {
         const loadData = async () => {
             try {
                 setLoading(true);
-                const today = getToday();
-                const [pendingData, approvedData] = await Promise.all([
-                    getTempReportsByDate(today),
-                    getApprovedReportsByDate(today)
+                const dates = getPeriodDates(period);
+                const [pendingResults, approvedResults, processResponse] = await Promise.all([
+                    Promise.all(dates.map(date => getTempReportsByDate(date))),
+                    Promise.all(dates.map(date => getApprovedReportsByDate(date))),
+                    api.get("/users/options/processes")
                 ]);
-                setPendingReports(Array.isArray(pendingData) ? pendingData : []);
-                setReports(Array.isArray(approvedData) ? approvedData : []);
+                setPendingReports(pendingResults.flat().filter(Boolean));
+                setReports(approvedResults.flat().filter(Boolean));
+                setProcesses(Array.isArray(processResponse.data?.data) ? processResponse.data.data : []);
             } catch (error) {
                 toast.showToast(getApiError(error, "Không thể tải dữ liệu dashboard").message, "error");
             } finally {
@@ -49,7 +91,7 @@ function Dashboard() {
         };
 
         void loadData();
-    }, [toast]);
+    }, [period, toast]);
 
     const metrics = useMemo(() => {
         const totalOK = reports.reduce((sum, item) => sum + Number(item.tt_ok || 0), 0);
@@ -62,7 +104,17 @@ function Dashboard() {
     }, [reports, pendingReports]);
 
     const processData = useMemo(() => {
-        const map = new Map<string, { ok: number; ng: number; count: number }>();
+        const map = new Map<string, { id?: number; code?: string; ok: number; ng: number; count: number }>();
+
+        processes.forEach(process => {
+            map.set(process.process_name, {
+                id: process.id,
+                code: process.process_code,
+                ok: 0,
+                ng: 0,
+                count: 0
+            });
+        });
 
         reports.forEach(report => {
             const name = report.process_name || "Chưa xác định";
@@ -75,8 +127,18 @@ function Dashboard() {
 
         return Array.from(map.entries())
             .map(([name, value]) => ({ name, ...value }))
-            .sort((a, b) => b.ok - a.ok);
-    }, [reports]);
+            .sort((a, b) => {
+                const aHasData = a.count > 0 ? 1 : 0;
+                const bHasData = b.count > 0 ? 1 : 0;
+                if (aHasData !== bHasData) return bHasData - aHasData;
+                return a.name.localeCompare(b.name, "vi");
+            });
+    }, [processes, reports]);
+
+    const activeProcessCount = useMemo(
+        () => processData.filter(item => item.count > 0).length,
+        [processData]
+    );
 
     const shiftData = useMemo(() => {
         const shifts = ["A", "B", "C", "D"];
@@ -108,10 +170,18 @@ function Dashboard() {
                 <div>
                     <span className="dashboard-eyebrow">TRUNG TÂM ĐIỀU HÀNH SẢN XUẤT</span>
                     <h1>Tổng quan sản xuất</h1>
-                    <p>Theo dõi nhanh sản lượng, chất lượng và báo cáo đang chờ xử lý.</p>
+                    <p>Theo dõi sản lượng, chất lượng và báo cáo trong {PERIOD_LABELS[period].toLowerCase()}.</p>
                 </div>
 
                 <div className="dashboard-header-actions">
+                    <label className="dashboard-period-filter">
+                        <span>Thời gian</span>
+                        <select value={period} onChange={(event) => setPeriod(event.target.value as PeriodKey)}>
+                            {Object.entries(PERIOD_LABELS).map(([value, label]) => (
+                                <option key={value} value={value}>{label}</option>
+                            ))}
+                        </select>
+                    </label>
                     <button type="button" onClick={() => navigate(`${basePath}/reports`)}>
                         <AppIcon name="pending" size={18} />
                         <span>Xem báo cáo chờ duyệt</span>
@@ -154,9 +224,9 @@ function Dashboard() {
                 <article className="dashboard-kpi-card info">
                     <div className="dashboard-kpi-icon"><AppIcon name="settings" size={24} /></div>
                     <div>
-                        <span>Công đoạn hoạt động</span>
+                        <span>Tổng công đoạn</span>
                         <strong>{processData.length}</strong>
-                        <small>Dữ liệu trong ngày hôm nay</small>
+                        <small>{activeProcessCount} công đoạn có dữ liệu trong {PERIOD_LABELS[period].toLowerCase()}</small>
                     </div>
                 </article>
             </section>
@@ -166,7 +236,7 @@ function Dashboard() {
                     <div className="dashboard-panel-heading">
                         <div>
                             <h2>Sản lượng theo công đoạn</h2>
-                            <p>So sánh TT OK và TT NG của từng công đoạn.</p>
+                            <p>So sánh TT OK và TT NG của từng công đoạn trong {PERIOD_LABELS[period].toLowerCase()}.</p>
                         </div>
                     </div>
 
@@ -177,7 +247,7 @@ function Dashboard() {
                             <div className="dashboard-chart-row" key={item.name}>
                                 <div className="dashboard-chart-label">
                                     <strong>{item.name}</strong>
-                                    <span>{item.count} báo cáo</span>
+                                    <span>{item.count > 0 ? `${item.count} báo cáo` : "Chưa có báo cáo"}</span>
                                 </div>
                                 <div className="dashboard-stacked-track" title={`OK ${item.ok} - NG ${item.ng}`}>
                                     <span
@@ -207,7 +277,7 @@ function Dashboard() {
                     <div className="dashboard-panel-heading">
                         <div>
                             <h2>Báo cáo theo ca</h2>
-                            <p>Số báo cáo đang chờ duyệt.</p>
+                            <p>Số báo cáo đang chờ duyệt trong {PERIOD_LABELS[period].toLowerCase()}.</p>
                         </div>
                     </div>
 

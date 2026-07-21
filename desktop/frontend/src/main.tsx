@@ -1,17 +1,20 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
+import { HashRouter } from "react-router-dom";
 
 import App from "./App";
 import "./index.css";
 import { ToastProvider } from "./components/feedback/ToastProvider";
+import DesktopErrorBoundary from "./components/feedback/DesktopErrorBoundary";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
-        <ToastProvider>
-            <BrowserRouter>
+        <DesktopErrorBoundary>
+            <ToastProvider>
+                <HashRouter>
                 <App />
-            </BrowserRouter>
-        </ToastProvider>
+            </HashRouter>
+            </ToastProvider>
+        </DesktopErrorBoundary>
     </React.StrictMode>
 );

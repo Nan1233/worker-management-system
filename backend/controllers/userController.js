@@ -97,10 +97,26 @@ exports.getProcessOptions = async (req, res) => {
        ORDER BY CASE WHEN p.process_code='GC' OR LOWER(p.process_name) IN ('gia công','cắt lồng','cắt / lồng') THEN 0 ELSE 1 END,
                 p.process_name`, params
     );
-    return res.json({ success: true, data: rows.map((row) => ({
-      ...row,
-      process_name: row.process_code === 'GC' ? 'Gia công (Cắt/Lồng)' : row.process_name
-    })) });
+    const normalized = [];
+    const seen = new Set();
+    for (const row of rows) {
+      const code = String(row.process_code || '').trim().toUpperCase();
+      const plainName = String(row.process_name || '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      const isGiaCong = ['GC', 'CAT_LONG', 'CATLONG', 'GIA_CONG'].includes(code)
+        || plainName.includes('gia cong')
+        || (plainName.includes('cat') && plainName.includes('long'));
+      const canonicalKey = isGiaCong ? 'GC' : code || `ID_${row.id}`;
+      if (seen.has(canonicalKey)) continue;
+      seen.add(canonicalKey);
+      normalized.push({
+        ...row,
+        process_code: isGiaCong ? 'GC' : row.process_code,
+        process_name: isGiaCong ? 'Gia công' : row.process_name
+      });
+    }
+    return res.json({ success: true, data: normalized });
   } catch (error) {
     return publicError(res, error, 'Không thể lấy danh sách công đoạn');
   }
