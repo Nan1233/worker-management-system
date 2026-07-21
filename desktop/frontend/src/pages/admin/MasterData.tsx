@@ -111,9 +111,9 @@ function MasterData(){
       if(resource==='users'){
         const payload:Record<string,unknown>={...form};
         if(!payload.password) delete payload.password;
-        if(selectedRole==='worker') payload.process_ids=selectedProcessIds.map(Number);
-        else {
-          for(const key of ['worker_code','phone','department','position','training_percent','process_ids']) delete payload[key];
+        payload.process_ids=selectedProcessIds.map(Number);
+        if(selectedRole!=='worker') {
+          for(const key of ['worker_code','phone','department','position','training_percent']) delete payload[key];
         }
         if(editing?.id){delete payload.role;await api.put(`/users/${editing.id}`,payload);}
         else await api.post('/users',payload);
@@ -142,11 +142,11 @@ function MasterData(){
     <div className="master-toolbar"><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Tìm theo mã, tên, công đoạn..."/><span>{filtered.length} bản ghi</span></div>
     {error&&<div className="master-error">{error}</div>}
     <div className="master-table-wrap"><table><thead><tr>{tableFields.map(field=><th key={field.key}>{field.label}</th>)}<th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
-      {loading?<tr><td colSpan={tableFields.length+2}>Đang tải...</td></tr>:filtered.map((row,index)=><tr key={String(row.id||index)}>{tableFields.map(field=><td key={field.key}>{field.key==='process_id'?String(row.process_name||''):field.key==='role'?String(roleLabels[String(row.role)]||row.role||''):field.key==='process_names'&&row.role!=='worker'?'—':String(row[field.key]??'')}</td>)}<td><span className={`status ${row.status}`}>{row.status==='inactive'?'Ngừng dùng':'Đang dùng'}</span></td><td><div className="actions"><button onClick={()=>openEdit(row)}>Sửa</button><button onClick={()=>void toggle(row)}>{row.status==='active'?'Khóa':'Mở'}</button></div></td></tr>)}
+      {loading?<tr><td colSpan={tableFields.length+2}>Đang tải...</td></tr>:filtered.map((row,index)=><tr key={String(row.id||index)}>{tableFields.map(field=><td key={field.key}>{field.key==='process_id'?String(row.process_name||''):field.key==='role'?String(roleLabels[String(row.role)]||row.role||''):String(row[field.key]??'')}</td>)}<td><span className={`status ${row.status}`}>{row.status==='inactive'?'Ngừng dùng':'Đang dùng'}</span></td><td><div className="actions"><button onClick={()=>openEdit(row)}>Sửa</button><button onClick={()=>void toggle(row)}>{row.status==='active'?'Khóa':'Mở'}</button></div></td></tr>)}
     </tbody></table></div>
     {editing&&<div className="modal-backdrop" onMouseDown={()=>setEditing(null)}><div className="modal-card" onMouseDown={event=>event.stopPropagation()}><h2>{editing.id?'Cập nhật người dùng/dữ liệu':'Thêm dữ liệu mới'}</h2><div className="form-grid">
       {fields.map(field=><label key={field.key}><span>{field.label}{field.required?' *':''}</span>{field.type==='select'?<select disabled={resource==='users'&&Boolean(editing?.id)&&field.key==='role'} value={form[field.key]||''} onChange={event=>setForm({...form,[field.key]:event.target.value})}><option value="">Chọn...</option>{field.options?.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select>:<input type={field.key==='password'?'password':field.type==='number'?'number':'text'} value={form[field.key]||''} onChange={event=>setForm({...form,[field.key]:event.target.value})}/>}</label>)}
-      {resource==='users'&&selectedRole==='worker'&&<div className="process-assignment"><span>Công đoạn *</span><div className="process-check-list">{processes.map(process=><label key={process.id}><input type="checkbox" checked={selectedProcessIds.includes(String(process.id))} onChange={()=>toggleProcess(String(process.id))}/><span>{process.process_name}</span></label>)}</div></div>}
+      {resource==='users'&&['manager','lead','worker'].includes(selectedRole)&&<div className="process-assignment"><span>Công đoạn *</span><div className="process-check-list">{processes.map(process=><label key={process.id}><input type="checkbox" checked={selectedProcessIds.includes(String(process.id))} onChange={()=>toggleProcess(String(process.id))}/><span>{process.process_name}</span></label>)}</div></div>}
       <label><span>Trạng thái</span><select value={form.status||'active'} onChange={event=>setForm({...form,status:event.target.value})}><option value="active">Đang dùng</option><option value="inactive">Ngừng dùng</option></select></label>
     </div><div className="modal-actions"><button onClick={()=>setEditing(null)}>Hủy</button><button className="primary" onClick={()=>void save()}>Lưu thay đổi</button></div></div></div>}
   </div>;

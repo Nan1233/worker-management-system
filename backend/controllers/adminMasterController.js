@@ -1,4 +1,3 @@
-const bcrypt = require('bcrypt');
 const db = require('../config/db');
 
 const TABLES = {
@@ -61,8 +60,8 @@ function cleanPayload(body, cfg, partial=false) {
 }
 
 exports.list = (req, res, next) => {
+  if (req.params.resource === 'managers') return res.status(410).json({success:false,message:'Chức năng manager đã chuyển sang Quản lý người dùng'});
   if (!requireAdminForManagers(req,res)) return;
-  if (req.params.resource === 'managers') return listManagers(res,next);
   const cfg = config(req,res); if (!cfg) return;
   const select = cfg.table === 'processes' ? 't.*' : 't.*, p.process_code, p.process_name';
   const join = cfg.table === 'processes' ? '' : 'LEFT JOIN processes p ON p.id=t.process_id';
@@ -73,7 +72,8 @@ exports.list = (req, res, next) => {
 exports.create = async (req,res,next) => {
   try {
     if (!requireAdminForManagers(req,res)) return;
-    if (req.params.resource === 'managers') {
+    if (req.params.resource === 'managers') return res.status(410).json({success:false,message:'Chức năng manager đã chuyển sang Quản lý người dùng'});
+    if (false) {
       const username=String(req.body?.username||'').trim();
       const fullName=String(req.body?.full_name||'').trim();
       const password=String(req.body?.password||'');
@@ -98,7 +98,8 @@ exports.create = async (req,res,next) => {
 exports.update = async (req,res,next) => {
   try {
     if (!requireAdminForManagers(req,res)) return;
-    if (req.params.resource === 'managers') {
+    if (req.params.resource === 'managers') return res.status(410).json({success:false,message:'Chức năng manager đã chuyển sang Quản lý người dùng'});
+    if (false) {
       const id=Number(req.params.id); if(!Number.isInteger(id)||id<=0) return res.status(400).json({success:false,message:'ID không hợp lệ'});
       const payload={};
       if(Object.prototype.hasOwnProperty.call(req.body||{},'username')) payload.username=String(req.body.username).trim();
@@ -128,7 +129,8 @@ exports.update = async (req,res,next) => {
 
 exports.remove = (req,res,next) => {
   if (!requireAdminForManagers(req,res)) return;
-  if (req.params.resource === 'managers') {
+  if (req.params.resource === 'managers') return res.status(410).json({success:false,message:'Chức năng manager đã chuyển sang Quản lý người dùng'});
+  if (false) {
     const id=Number(req.params.id); if(!Number.isInteger(id)||id<=0) return res.status(400).json({success:false,message:'ID không hợp lệ'});
     return db.query("UPDATE users SET status='inactive' WHERE id=? AND role='manager'",[id],(error,result)=>{if(error)return next(error);if(!result.affectedRows)return res.status(404).json({success:false,message:'Không tìm thấy manager'});res.json({success:true,message:'Đã khóa manager'});});
   }

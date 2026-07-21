@@ -46,7 +46,7 @@ exports.getDefectsByProcess = async(req,res)=>{
 
             success:false,
 
-            message:err.message
+            message:"Không thể xử lý loại lỗi"
 
         });
 

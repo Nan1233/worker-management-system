@@ -36,7 +36,7 @@ exports.login = (req,res)=>{
 
             return res.status(500).json({
 
-                message:err.message
+                message:"Không thể đăng nhập lúc này"
 
             });
 

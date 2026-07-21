@@ -11,8 +11,13 @@ const upsert = async ({ jobType, jobKey, workDate = null, reportMonth = null, pr
          VALUES (?, ?, ?, ?, ?, 'pending', 0, NOW())
          ON DUPLICATE KEY UPDATE
             work_date = VALUES(work_date), report_month = VALUES(report_month),
-            process_id = VALUES(process_id), status = 'pending', attempts = 0,
-            next_retry_at = NOW(), locked_at = NULL, last_error = NULL, completed_at = NULL`,
+            process_id = VALUES(process_id),
+            status = IF(status='processing','processing','pending'),
+            attempts = IF(status='processing',attempts,0),
+            next_retry_at = IF(status='processing',next_retry_at,NOW()),
+            locked_at = IF(status='processing',locked_at,NULL),
+            last_error = IF(status='processing',last_error,NULL),
+            completed_at = IF(status='processing',completed_at,NULL)`,
         [jobType, jobKey, workDate, reportMonth, processId]
     );
 };
@@ -68,7 +73,7 @@ const markFailed = (id, attempts, error) => {
     const delay = delays[Math.min(Math.max(attempts - 1, 0), delays.length - 1)];
     return query(
         `UPDATE integration_sync_jobs SET status='failed', locked_at=NULL,
-         last_error=?, next_retry_at=DATE_ADD(NOW(), INTERVAL ? MINUTE) WHERE id=?`,
+         last_error=?, next_retry_at=IF(attempts>=max_attempts,NULL,DATE_ADD(NOW(), INTERVAL ? MINUTE)) WHERE id=?`,
         [String(error?.message || error).slice(0, 4000), delay, id]
     );
 };

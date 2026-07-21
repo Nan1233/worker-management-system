@@ -28,7 +28,7 @@ exports.getTempReports = async (req, res) => {
 
             success:false,
 
-            message:err.message
+            message:"Không thể xử lý dữ liệu quản lý"
 
         });
 
