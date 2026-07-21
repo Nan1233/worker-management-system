@@ -568,7 +568,7 @@ function Reports() {
             <div className="management-report-header">
                 <div>
                     <h1>
-                        📋 Báo cáo chờ duyệt
+                        Báo cáo chờ duyệt
                     </h1>
 
                     <p>
@@ -732,7 +732,7 @@ function Reports() {
                 >
                     {actionLoading
                         ? "Đang xử lý..."
-                        : `✓ Duyệt (${selectedIds.length})`
+                        : `Duyệt (${selectedIds.length})`
                     }
                 </button>
             </div>

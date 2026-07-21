@@ -377,7 +377,7 @@ const handleExportExcel = async () => {
         <div className="management-report-page">
             <div className="management-report-header">
                 <div>
-                    <h1>✅ Báo cáo đã duyệt</h1>
+                    <h1>Báo cáo đã duyệt</h1>
                     <p>Xem danh sách báo cáo của toàn bộ công nhân.</p>
                 </div>
                 <div className="management-report-count">

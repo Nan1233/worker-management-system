@@ -1,63 +1,98 @@
-.download-page{
-
-    padding:24px;
-
+.download-page {
+    padding: 24px;
 }
 
-
-.download-card{
-
-    background:white;
-
-    padding:30px;
-
-    border-radius:16px;
-
-    box-shadow:0 2px 8px rgba(0,0,0,.1);
-
-    max-width:500px;
-
+.download-card {
+    max-width: 980px;
+    padding: 26px;
+    border: 1px solid #e2e8f0;
+    border-radius: 24px;
+    background: white;
+    box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06);
 }
 
-
-
-.download-card h1{
-
-    margin-bottom:20px;
-
+.download-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 24px;
 }
 
-
-.download-card input{
-
-    padding:10px;
-
-    margin-right:10px;
-
+.download-header-icon {
+    width: 54px;
+    height: 54px;
+    display: grid;
+    place-items: center;
+    border-radius: 18px;
+    background: #edf4ff;
+    color: #245fc2;
 }
 
-
-
-.download-card button{
-
-    padding:10px 16px;
-
-    background:#0f766e;
-
-    color:white;
-
-    border:none;
-
-    border-radius:8px;
-
-    cursor:pointer;
-
+.download-header h1 {
+    margin: 0;
+    color: #173b67;
+    font-size: 28px;
 }
 
+.download-header p {
+    margin: 8px 0 0;
+    color: #6b7a90;
+    line-height: 1.6;
+}
 
+.download-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+}
 
-.download-card button:disabled{
+.export-box {
+    min-height: 180px;
+    padding: 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    border: 1px solid #e4eaf3;
+    border-radius: 20px;
+    background: linear-gradient(180deg, #fff, #fbfdff);
+}
 
-    opacity:.6;
+.export-box-icon {
+    width: 46px;
+    height: 46px;
+    display: grid;
+    place-items: center;
+    border-radius: 16px;
+    background: #edf4ff;
+    color: #245fc2;
+    flex: 0 0 auto;
+}
 
+.export-box-icon.success {
+    background: #eaf9f0;
+    color: #0c8a52;
+}
+
+.export-box-icon.warning {
+    background: #fff4e8;
+    color: #d97706;
+}
+
+.export-box h3 {
+    margin: 0 0 8px;
+    color: #173b67;
+    font-size: 18px;
+}
+
+.export-box p {
+    margin: 0;
+    color: #5f7088;
+    line-height: 1.65;
+    font-size: 14px;
+}
+
+@media (max-width: 960px) {
+    .download-grid {
+        grid-template-columns: 1fr;
+    }
 }

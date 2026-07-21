@@ -1,61 +1,53 @@
+import AppIcon from "../../components/common/AppIcon";
 import "./ReportDownload.css";
-
 
 function ReportDownload() {
     return (
         <div className="download-page">
             <div className="download-card">
-                <h1>
-                    📥 Xuất báo cáo
-                </h1>
-
-                <div className="export-box">
-                    <h3>
-                        ✅ Xuất báo cáo đã duyệt
-                    </h3>
-
-                    <p>
-                        Để xuất Excel, hãy mở danh sách báo cáo
-                        đã duyệt, chọn các báo cáo bằng ô checkbox
-                        rồi nhấn nút xuất Excel.
-                    </p>
-
-                    <p>
-                        File Excel chỉ chứa những báo cáo đã được
-                        lựa chọn.
-                    </p>
+                <div className="download-header">
+                    <span className="download-header-icon"><AppIcon name="download" size={24} /></span>
+                    <div>
+                        <h1>Trung tâm xuất báo cáo</h1>
+                        <p>Hướng dẫn nhanh cho xuất Excel, Google Sheet và quy trình duyệt dữ liệu.</p>
+                    </div>
                 </div>
 
-                <div className="export-box">
-                    <h3>
-                        📊 Google Sheet
-                    </h3>
+                <div className="download-grid">
+                    <section className="export-box">
+                        <div className="export-box-icon success"><AppIcon name="approved" size={22} /></div>
+                        <div>
+                            <h3>Xuất báo cáo đã duyệt</h3>
+                            <p>
+                                Mở danh sách báo cáo đã duyệt, chọn các báo cáo bằng ô checkbox và nhấn nút xuất Excel.
+                                File chỉ chứa những báo cáo được lựa chọn.
+                            </p>
+                        </div>
+                    </section>
 
-                    <p>
-                        Google Sheet được tự động đồng bộ sau khi
-                        quản lý duyệt báo cáo.
-                    </p>
+                    <section className="export-box">
+                        <div className="export-box-icon"><AppIcon name="sheet" size={22} /></div>
+                        <div>
+                            <h3>Google Sheet</h3>
+                            <p>
+                                Google Sheet được đồng bộ tự động sau khi quản lý duyệt báo cáo. Không cần cập nhật thủ công ở trang này.
+                            </p>
+                        </div>
+                    </section>
 
-                    <p>
-                        Không cần tạo hoặc cập nhật Google Sheet
-                        thủ công tại trang này.
-                    </p>
-                </div>
-
-                <div className="export-box">
-                    <h3>
-                        ⏳ Báo cáo chờ duyệt
-                    </h3>
-
-                    <p>
-                        Báo cáo chờ duyệt cần được kiểm tra và phê
-                        duyệt trước khi xuất thành dữ liệu chính thức.
-                    </p>
+                    <section className="export-box">
+                        <div className="export-box-icon warning"><AppIcon name="pending" size={22} /></div>
+                        <div>
+                            <h3>Báo cáo chờ duyệt</h3>
+                            <p>
+                                Dữ liệu cần được kiểm tra và phê duyệt trước khi trở thành số liệu chính thức để xuất báo cáo.
+                            </p>
+                        </div>
+                    </section>
                 </div>
             </div>
         </div>
     );
 }
-
 
 export default ReportDownload;

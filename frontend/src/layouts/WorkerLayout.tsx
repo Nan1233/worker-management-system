@@ -1,11 +1,12 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import type { User } from "../types/auth";
+import AppIcon, { type IconName } from "../components/common/AppIcon";
 import "./WorkerLayout.css";
 
-const menuItems = [
-    { label: "Trang chủ", path: "/worker", icon: "⌂", exact: true },
-    { label: "Lịch sử báo cáo", path: "/worker/history", icon: "▤" },
-    { label: "Thông báo", path: "/worker/system", icon: "●" }
+const menuItems: { label: string; path: string; icon: IconName; exact?: boolean }[] = [
+    { label: "Trang chủ", path: "/worker", icon: "process", exact: true },
+    { label: "Lịch sử báo cáo", path: "/worker/history", icon: "history" },
+    { label: "Thông báo", path: "/worker/system", icon: "bell" }
 ];
 
 function WorkerLayout() {
@@ -26,8 +27,7 @@ function WorkerLayout() {
         navigate("/login", { replace: true });
     };
 
-    const isActive = (path: string, exact?: boolean) =>
-        exact ? location.pathname === path : location.pathname.startsWith(path);
+    const isActive = (path: string, exact?: boolean) => (exact ? location.pathname === path : location.pathname.startsWith(path));
 
     return (
         <div className="worker-layout">
@@ -41,7 +41,7 @@ function WorkerLayout() {
                     <span className="worker-brand-mark">KTC</span>
                     <span className="worker-brand-text">
                         <strong>Quản lý sản xuất</strong>
-                        <small>Khu vực công nhân</small>
+                        <small>Tối ưu cho điện thoại tại xưởng</small>
                     </span>
                 </button>
 
@@ -53,22 +53,20 @@ function WorkerLayout() {
                             className={isActive(item.path, item.exact) ? "active" : ""}
                             onClick={() => navigate(item.path)}
                         >
-                            <span>{item.icon}</span>
+                            <span className="worker-nav-icon"><AppIcon name={item.icon} size={18} /></span>
                             {item.label}
                         </button>
                     ))}
                 </nav>
 
                 <div className="worker-account">
-                    <div className="worker-avatar">
-                        {(user?.full_name || user?.username || "CN").trim().charAt(0).toUpperCase()}
-                    </div>
+                    <div className="worker-avatar">{(user?.full_name || user?.username || "CN").trim().charAt(0).toUpperCase()}</div>
                     <div className="worker-account-copy">
                         <strong>{user?.full_name || "Công nhân"}</strong>
                         <small>Mã NV: {user?.username || "---"}</small>
                     </div>
                     <button type="button" className="worker-logout" onClick={handleLogout}>
-                        <span>⇥</span>
+                        <span className="worker-nav-icon"><AppIcon name="logout" size={18} /></span>
                         <span className="worker-logout-label">Đăng xuất</span>
                     </button>
                 </div>
@@ -86,12 +84,12 @@ function WorkerLayout() {
                         className={isActive(item.path, item.exact) ? "active" : ""}
                         onClick={() => navigate(item.path)}
                     >
-                        <span>{item.icon}</span>
+                        <span className="worker-mobile-nav-icon"><AppIcon name={item.icon} size={19} /></span>
                         <small>{item.label}</small>
                     </button>
                 ))}
                 <button type="button" className="logout" onClick={handleLogout}>
-                    <span>⇥</span>
+                    <span className="worker-mobile-nav-icon"><AppIcon name="logout" size={19} /></span>
                     <small>Đăng xuất</small>
                 </button>
             </nav>

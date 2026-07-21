@@ -6,6 +6,7 @@ import type { ProductionReport } from "../../types/production";
 import { getApiError } from "../../utils/apiError";
 import { useToast } from "../../components/feedback/toastContext";
 
+import AppIcon from "../../components/common/AppIcon";
 import "./Dashboard.css";
 
 const formatNumber = (value: number) =>
@@ -100,17 +101,19 @@ function Dashboard() {
 
                 <div className="dashboard-header-actions">
                     <button type="button" onClick={() => navigate(`${basePath}/reports`)}>
-                        Xem báo cáo chờ duyệt
+                        <AppIcon name="pending" size={18} />
+                        <span>Xem báo cáo chờ duyệt</span>
                     </button>
                     <button type="button" className="secondary" onClick={() => navigate(`${basePath}/approved`)}>
-                        Báo cáo đã duyệt
+                        <AppIcon name="approved" size={18} />
+                        <span>Báo cáo đã duyệt</span>
                     </button>
                 </div>
             </header>
 
             <section className="dashboard-kpi-grid">
                 <article className="dashboard-kpi-card">
-                    <div className="dashboard-kpi-icon">📋</div>
+                    <div className="dashboard-kpi-icon"><AppIcon name="pending" size={24} /></div>
                     <div>
                         <span>Chờ duyệt</span>
                         <strong>{formatNumber(reports.length)}</strong>
@@ -119,7 +122,7 @@ function Dashboard() {
                 </article>
 
                 <article className="dashboard-kpi-card success">
-                    <div className="dashboard-kpi-icon">✓</div>
+                    <div className="dashboard-kpi-icon"><AppIcon name="ok" size={24} /></div>
                     <div>
                         <span>Sản lượng OK</span>
                         <strong>{formatNumber(metrics.totalOK)}</strong>
@@ -128,7 +131,7 @@ function Dashboard() {
                 </article>
 
                 <article className="dashboard-kpi-card danger">
-                    <div className="dashboard-kpi-icon">!</div>
+                    <div className="dashboard-kpi-icon"><AppIcon name="warning" size={24} /></div>
                     <div>
                         <span>Sản lượng NG</span>
                         <strong>{formatNumber(metrics.totalNG)}</strong>
@@ -137,7 +140,7 @@ function Dashboard() {
                 </article>
 
                 <article className="dashboard-kpi-card info">
-                    <div className="dashboard-kpi-icon">⚙</div>
+                    <div className="dashboard-kpi-icon"><AppIcon name="settings" size={24} /></div>
                     <div>
                         <span>Công đoạn hoạt động</span>
                         <strong>{processData.length}</strong>
@@ -212,15 +215,15 @@ function Dashboard() {
 
             <section className="dashboard-quick-actions">
                 <button type="button" onClick={() => navigate(`${basePath}/reports`)}>
-                    <span>📋</span>
+                    <span className="dashboard-quick-icon"><AppIcon name="pending" size={24} /></span>
                     <div><strong>Duyệt báo cáo</strong><small>Kiểm tra và xử lý báo cáo chờ</small></div>
                 </button>
                 <button type="button" onClick={() => navigate(`${basePath}/workers`)}>
-                    <span>👥</span>
+                    <span className="dashboard-quick-icon"><AppIcon name="workers" size={24} /></span>
                     <div><strong>Danh sách công nhân</strong><small>Theo dõi nhân sự và công đoạn</small></div>
                 </button>
                 <button type="button" onClick={() => navigate(`${basePath}/statistics`)}>
-                    <span>📈</span>
+                    <span className="dashboard-quick-icon"><AppIcon name="statistics" size={24} /></span>
                     <div><strong>Thống kê</strong><small>Xem xu hướng sản lượng và chất lượng</small></div>
                 </button>
             </section>

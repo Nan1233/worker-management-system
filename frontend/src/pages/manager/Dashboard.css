@@ -1,7 +1,7 @@
 .manager-dashboard {
     min-height: 100%;
     padding: 28px;
-    background: #f4f7fb;
+    background: transparent;
     color: #172033;
 }
 
@@ -40,19 +40,24 @@
 }
 
 .dashboard-header-actions button {
-    min-height: 44px;
+    min-height: 46px;
     padding: 0 17px;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
     border: 1px solid #1d4ed8;
-    border-radius: 12px;
-    background: #1d4ed8;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
     color: white;
-    font-weight: 750;
+    font-weight: 780;
     cursor: pointer;
+    box-shadow: 0 12px 24px rgba(37, 99, 235, 0.18);
 }
 
 .dashboard-header-actions button.secondary {
     background: white;
     color: #1d4ed8;
+    box-shadow: none;
 }
 
 .dashboard-kpi-grid {
@@ -69,22 +74,20 @@
     min-width: 0;
     padding: 20px;
     border: 1px solid #e3e9f2;
-    border-radius: 18px;
+    border-radius: 20px;
     background: white;
     box-shadow: 0 8px 25px rgba(15, 23, 42, .05);
 }
 
 .dashboard-kpi-icon {
-    width: 50px;
-    height: 50px;
+    width: 52px;
+    height: 52px;
     display: grid;
     place-items: center;
     flex: 0 0 auto;
-    border-radius: 15px;
+    border-radius: 16px;
     background: #eaf1ff;
     color: #1d4ed8;
-    font-size: 24px;
-    font-weight: 900;
 }
 
 .dashboard-kpi-card.success .dashboard-kpi-icon { background: #e9fbf1; color: #087b49; }
@@ -116,7 +119,7 @@
     min-width: 0;
     padding: 22px;
     border: 1px solid #e3e9f2;
-    border-radius: 20px;
+    border-radius: 22px;
     background: white;
     box-shadow: 0 8px 25px rgba(15, 23, 42, .045);
 }
@@ -190,13 +193,22 @@
     gap: 13px;
     padding: 17px;
     border: 1px solid #e3e9f2;
-    border-radius: 16px;
+    border-radius: 18px;
     background: white;
     text-align: left;
     cursor: pointer;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, .04);
 }
 .dashboard-quick-actions button:hover { border-color: #9bb7f3; transform: translateY(-2px); }
-.dashboard-quick-actions button > span { font-size: 27px; }
+.dashboard-quick-icon {
+    width: 46px;
+    height: 46px;
+    display: grid;
+    place-items: center;
+    border-radius: 15px;
+    background: #eff5ff;
+    color: #2563eb;
+}
 .dashboard-quick-actions strong, .dashboard-quick-actions small { display: block; }
 .dashboard-quick-actions small { margin-top: 3px; color: #64748b; }
 
