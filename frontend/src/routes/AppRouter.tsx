@@ -14,7 +14,7 @@ import PrivateRoute from "./PrivateRoute";
 // LAYOUT
 // =====================================================
 
-import MainLayout from "../layouts/MainLayout";
+import WorkerLayout from "../layouts/WorkerLayout";
 
 import ManagementLayout from "../layouts/ManagementLayout";
 
@@ -377,7 +377,7 @@ function AppRouter() {
                         ]}
                     >
 
-                        <MainLayout />
+                        <WorkerLayout />
 
                     </PrivateRoute>
 
