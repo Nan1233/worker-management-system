@@ -15,3 +15,14 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         </ToastProvider>
     </React.StrictMode>
 );
+
+if ("serviceWorker" in navigator && import.meta.env.PROD) {
+    window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/sw.js").then((registration) => {
+            registration.update().catch(() => undefined);
+            window.setInterval(() => registration.update().catch(() => undefined), 60 * 60 * 1000);
+        }).catch((error) => {
+            console.warn("Không thể đăng ký PWA service worker:", error);
+        });
+    });
+}
