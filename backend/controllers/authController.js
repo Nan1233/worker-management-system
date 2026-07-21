@@ -59,6 +59,17 @@ exports.login = (req,res)=>{
         const user=results[0];
 
 
+        // Khóa ở bảng users áp dụng cho mọi vai trò.
+        // Với công nhân, trạng thái workers cũng phải đang hoạt động.
+        if (user.status !== "active" || (user.role === "worker" && user.worker_status !== "active")) {
+
+            return res.status(403).json({
+
+                message:"Tài khoản đã bị khóa. Vui lòng liên hệ quản lý"
+
+            });
+
+        }
 
 
         const check =

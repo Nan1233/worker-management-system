@@ -141,7 +141,7 @@ exports.remove = (req,res,next) => {
   });
 };
 
-exports.updateWorker = (req,res,next) => {
+exports.updateWorker = async (req,res,next) => {
   const id=Number(req.params.id);
   const allowed=['worker_code','phone','department','position','training_percent','status'];
   const payload={}; for(const key of allowed) if(Object.prototype.hasOwnProperty.call(req.body||{},key)) payload[key]=req.body[key];
@@ -151,12 +151,28 @@ exports.updateWorker = (req,res,next) => {
   }
   if ('status' in payload && !['active','inactive'].includes(payload.status)) return res.status(400).json({success:false,message:'Trạng thái không hợp lệ'});
   if (!Object.keys(payload).length) return res.status(400).json({success:false,message:'Không có dữ liệu cập nhật'});
-  db.query('UPDATE workers SET ? WHERE id=?',[payload,id],(error,result)=>{
+
+  const connection = await db.promise().getConnection();
+  try {
+    await connection.beginTransaction();
+    const [workers] = await connection.query('SELECT user_id FROM workers WHERE id=? LIMIT 1',[id]);
+    if (!workers.length) {
+      await connection.rollback();
+      return res.status(404).json({success:false,message:'Không tìm thấy công nhân'});
+    }
+    await connection.query('UPDATE workers SET ? WHERE id=?',[payload,id]);
+    if ('status' in payload) {
+      await connection.query('UPDATE users SET status=? WHERE id=?',[payload.status,workers[0].user_id]);
+    }
+    await connection.commit();
+    return res.json({success:true,message:'Cập nhật công nhân thành công'});
+  } catch(error) {
+    try { await connection.rollback(); } catch (_) {}
     if(error?.code==='ER_DUP_ENTRY') return res.status(409).json({success:false,message:'Mã công nhân đã tồn tại'});
-    if(error) return next(error);
-    if(!result.affectedRows) return res.status(404).json({success:false,message:'Không tìm thấy công nhân'});
-    res.json({success:true,message:'Cập nhật công nhân thành công'});
-  });
+    return next(error);
+  } finally {
+    connection.release();
+  }
 };
 
 exports.setWorkerProcesses = (req,res,next) => {

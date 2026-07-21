@@ -86,8 +86,11 @@ const findByUsername = (username, callback) => {
 
             u.role,
 
+            u.status,
 
-            w.id AS worker_id
+            w.id AS worker_id,
+
+            w.status AS worker_status
 
 
         FROM users u
