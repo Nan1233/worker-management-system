@@ -1126,6 +1126,31 @@ pattern: "dd/MM/yyyy"
                         startRowIndex,
                         endRowIndex:
                             startRowIndex + 1,
+                        startColumnIndex: 31,
+                        endColumnIndex: 32
+                    },
+
+                    cell: {
+                        userEnteredFormat: {
+                            numberFormat: {
+                                type: "NUMBER",
+                                pattern: "0.00"
+                            }
+                        }
+                    },
+
+                    fields:
+                        "userEnteredFormat.numberFormat"
+                }
+            });
+
+            formatRequests.push({
+                repeatCell: {
+                    range: {
+                        sheetId,
+                        startRowIndex,
+                        endRowIndex:
+                            startRowIndex + 1,
                         startColumnIndex: 34,
                         endColumnIndex: 35
                     },

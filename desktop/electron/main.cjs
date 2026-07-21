@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, session } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
 const path = require('node:path');
@@ -18,8 +18,6 @@ let currentToken = '';
 let syncRunning = false;
 let syncQueued = false;
 let quitting = false;
-let tokenDiscoveryTimer = null;
-let lastApprovedMutationAt = 0;
 
 const appDataRoot = path.join(os.homedir(), 'AppData', 'Local', 'KTC-Worker-Management');
 app.setPath('userData', path.join(appDataRoot, 'UserData'));
@@ -85,14 +83,15 @@ function safeFileName(value, fallback) {
 function getExportRoot() {
   const configured = String(process.env.KTC_EXPORT_ROOT || '').trim();
   if (configured) return path.resolve(configured);
-  return path.join(app.getPath('documents'), 'KTC', 'Bao cao san xuat');
+  if (process.platform === 'win32' && fsSync.existsSync('D:\\')) return 'D:\\BaoCaoSanXuat';
+  return path.join(app.getPath('documents'), 'BaoCaoSanXuat');
 }
 
 async function getProcessExportPath(date, processName, serverFileName) {
   assertDate(date);
   const [year, month] = date.split('-');
   const processFolder = safeFolderName(processName);
-  const folder = path.join(getExportRoot(), year, processFolder);
+  const folder = path.join(getExportRoot(), year, processFolder, month);
   await fs.mkdir(folder, { recursive: true });
   return {
     folder,
@@ -172,7 +171,7 @@ async function downloadConsolidatedExcel(token, date) {
   const [year, month] = date.split('-');
   const fallback = `Bao-cao-san-xuat-${month}-${year}.xlsx`;
   const fileName = parseDownloadFileName(response, fallback);
-  const folder = path.join(getExportRoot(), year, 'Tong hop');
+  const folder = path.join(getExportRoot(), year, 'Tổng hợp', month);
   await fs.mkdir(folder, { recursive: true });
   return { buffer, folder, filePath: path.join(folder, safeFileName(fileName, fallback)), fileName };
 }
@@ -396,142 +395,45 @@ function configureAutomaticSync(token) {
   syncTimer.unref?.();
 }
 
-const APP_URL = String(
-  process.env.KTC_APP_URL || 'https://worker-management-system-3-dzox.onrender.com'
-).replace(/\/+$/, '');
-const APP_ORIGIN = new URL(APP_URL).origin;
-
-function getVersionedAppUrl() {
-  const target = new URL(APP_URL);
-  target.searchParams.set('ktcDesktop', '1');
-  target.searchParams.set('desktopVersion', app.getVersion());
-  target.searchParams.set('cacheBust', String(Date.now()));
-  return target.toString();
-}
-
-function isAllowedNavigation(targetUrl) {
-  try {
-    const url = new URL(targetUrl);
-    return url.origin === APP_ORIGIN || url.protocol === 'about:' || url.protocol === 'data:';
-  } catch {
-    return false;
-  }
-}
-
-
-async function discoverRendererToken() {
-  if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return '';
-  try {
-    const token = await mainWindow.webContents.executeJavaScript(
-      `(() => { try { return localStorage.getItem('token') || ''; } catch { return ''; } })()`,
-      true
-    );
-    const normalized = typeof token === 'string' ? token.trim() : '';
-    if (normalized !== currentToken) {
-      configureAutomaticSync(normalized);
-      await writeLog('INFO', normalized ? 'TOKEN_DISCOVERED_AUTO_SYNC_ENABLED' : 'TOKEN_REMOVED_AUTO_SYNC_DISABLED');
-    }
-    return normalized;
-  } catch (error) {
-    await writeLog('WARN', 'TOKEN_DISCOVERY_FAILED', normalizeError(error));
-    return '';
-  }
-}
-
-function startTokenDiscovery() {
-  if (tokenDiscoveryTimer) clearInterval(tokenDiscoveryTimer);
-  void discoverRendererToken();
-  tokenDiscoveryTimer = setInterval(() => void discoverRendererToken(), 5000);
-  tokenDiscoveryTimer.unref?.();
-}
-
-function scheduleSyncAfterApprovedMutation(url, statusCode) {
-  if (statusCode < 200 || statusCode >= 300) return;
-  const lower = String(url || '').toLowerCase();
-  const changesApprovedData = lower.includes('/production-temp/approve')
-    || lower.includes('/production/approve')
-    || (lower.includes('/production/') && (lower.includes('/update') || lower.includes('/reports')));
-  if (!changesApprovedData) return;
-  const now = Date.now();
-  if (now - lastApprovedMutationAt < 1500) return;
-  lastApprovedMutationAt = now;
-  setTimeout(() => void runAutomaticSync(), 1200);
-}
-
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
-    minWidth: 1024,
-    minHeight: 680,
+    minWidth: 1100,
+    minHeight: 700,
     show: false,
-    backgroundColor: '#f3f6fb',
-    autoHideMenuBar: true,
-    icon: path.join(__dirname, '..', 'assets', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
-      spellcheck: false
+      sandbox: false
     }
   });
 
-  mainWindow.once('ready-to-show', () => {
-    mainWindow.maximize();
-    mainWindow.show();
+  mainWindow.once('ready-to-show', () => mainWindow?.show());
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    void writeLog('ERROR', 'RENDERER_LOAD_FAILED', { errorCode, errorDescription, validatedURL });
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show();
   });
-
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (isAllowedNavigation(url)) {
-      void mainWindow.loadURL(url);
-    } else if (/^https?:\/\//i.test(url)) {
-      void shell.openExternal(url);
-    }
-    return { action: 'deny' };
-  });
-
-  mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (!isAllowedNavigation(url)) {
-      event.preventDefault();
-      if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
-    }
-  });
-
-  mainWindow.webContents.on('did-fail-load', async (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
-    if (!isMainFrame || errorCode === -3) return;
-    await writeLog('ERROR', 'RENDERER_LOAD_FAILED', { errorCode, errorDescription, validatedURL });
-    if (!mainWindow || mainWindow.isDestroyed()) return;
-    const safeDescription = String(errorDescription || 'Không thể kết nối tới hệ thống')
-      .replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[c] || c));
-    const safeUrl = String(validatedURL || APP_URL)
-      .replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[c] || c));
-    const html = `<!doctype html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KTC Production Control</title><style>body{margin:0;font-family:Segoe UI,Arial,sans-serif;background:#f3f6fb;color:#172033;display:grid;place-items:center;min-height:100vh}.card{width:min(560px,calc(100% - 40px));padding:36px;border:1px solid #dce5f1;border-radius:24px;background:#fff;box-shadow:0 20px 55px rgba(30,53,84,.12);text-align:center}.logo{width:68px;height:68px;margin:auto;display:grid;place-items:center;border-radius:18px;background:linear-gradient(145deg,#2464c8,#164a9d);color:#fff;font-weight:900}h1{margin:20px 0 10px;color:#183a6a}p{color:#64748b;line-height:1.6}.meta{font-size:12px;color:#94a3b8;word-break:break-word}button{min-height:46px;padding:0 20px;border:0;border-radius:13px;background:#2563eb;color:#fff;font-weight:800;cursor:pointer}</style></head><body><main class="card"><div class="logo">KTC</div><h1>Không thể kết nối hệ thống</h1><p>Hãy kiểm tra Internet hoặc chờ dịch vụ Render khởi động.</p><p class="meta">${safeDescription}<br>${safeUrl}</p><button onclick="location.href='${APP_URL}'">Thử lại</button></main></body></html>`;
-    await mainWindow.loadURL(`data:text/html;charset=UTF-8,${encodeURIComponent(html)}`);
-    mainWindow.show();
-  });
-
-  mainWindow.webContents.on('did-finish-load', () => {
-    startTokenDiscovery();
-  });
-
-  mainWindow.webContents.session.webRequest.onCompleted({ urls: [`${API_BASE_URL}/*`] }, (details) => {
-    scheduleSyncAfterApprovedMutation(details.url, details.statusCode);
-  });
-
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     void writeLog('ERROR', 'RENDER_PROCESS_GONE', details);
   });
+  mainWindow.on('closed', () => { mainWindow = null; });
   mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
     void writeLog(level >= 3 ? 'ERROR' : 'INFO', 'RENDERER', { message, line, sourceId });
   });
-  mainWindow.on('closed', () => { mainWindow = null; });
-
-  const versionedUrl = getVersionedAppUrl();
-  void mainWindow.loadURL(versionedUrl, { extraHeaders: 'Cache-Control: no-cache, no-store, must-revalidate\nPragma: no-cache\n' }).catch(async (error) => {
-    await writeLog('ERROR', 'LOAD_URL_FAILED', { appUrl: versionedUrl, ...normalizeError(error) });
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show();
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
+    return { action: 'deny' };
   });
+
+  const devUrl = process.env.ELECTRON_START_URL;
+  if (devUrl) {
+    void mainWindow.loadURL(devUrl);
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
+  } else {
+    void mainWindow.loadFile(path.join(__dirname, '..', 'frontend', 'dist', 'index.html'));
+  }
 }
 
 ipcMain.handle('ktc-save-excel', (_event, payload) => syncAllProcessExcel({ ...(payload || {}), source: 'manual' }));
@@ -572,12 +474,6 @@ ipcMain.handle('ktc-open-log-folder', async () => {
 });
 
 app.whenReady().then(async () => {
-  try {
-    await session.defaultSession.clearCache();
-    await session.defaultSession.clearStorageData({ storages: ['serviceworkers', 'cachestorage'] });
-  } catch (error) {
-    await writeLog('WARN', 'CACHE_CLEAR_FAILED', normalizeError(error));
-  }
   await writeLog('INFO', 'APP_READY', {
     version: app.getVersion(),
     exportRoot: getExportRoot(),
@@ -590,8 +486,6 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(
 app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 app.on('before-quit', () => {
   quitting = true;
-  if (tokenDiscoveryTimer) clearInterval(tokenDiscoveryTimer);
-  tokenDiscoveryTimer = null;
   currentToken = '';
   stopAutomaticSync();
 });

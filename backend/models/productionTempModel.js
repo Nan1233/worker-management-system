@@ -304,12 +304,13 @@ const ProductionTemp = {
              JOIN processes p ON pr.process_id = p.id
              JOIN manager_processes mp ON mp.process_id = pr.process_id
              LEFT JOIN (
-                SELECT work_date, shift, machine_no, product_name, COUNT(*) AS duplicate_count
+                SELECT worker_id, work_date, shift, machine_no, product_name, COUNT(*) AS duplicate_count
                 FROM production_reports_temp
                 WHERE status IN ('pending', 'need_fix')
-                GROUP BY work_date, shift, machine_no, product_name
+                GROUP BY worker_id, work_date, shift, machine_no, product_name
              ) dup
-                ON dup.work_date = pr.work_date
+                ON dup.worker_id = pr.worker_id
+               AND dup.work_date = pr.work_date
                AND dup.shift = pr.shift
                AND COALESCE(dup.machine_no, '') = COALESCE(pr.machine_no, '')
                AND COALESCE(dup.product_name, '') = COALESCE(pr.product_name, '')
@@ -464,6 +465,7 @@ const ProductionTemp = {
 
             LEFT JOIN (
                 SELECT
+                    worker_id,
                     work_date,
                     shift,
                     machine_no,
@@ -478,12 +480,14 @@ const ProductionTemp = {
                 )
 
                 GROUP BY
+                    worker_id,
                     work_date,
                     shift,
                     machine_no,
                     product_name
             ) dup
-                ON dup.work_date = pr.work_date
+                ON dup.worker_id = pr.worker_id
+                AND dup.work_date = pr.work_date
                 AND dup.shift = pr.shift
                 AND COALESCE(
                     dup.machine_no,

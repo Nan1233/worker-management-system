@@ -224,6 +224,7 @@ const writeReportRow = (sheet, rowNumber, report, sequenceNumber, templateRow) =
     row.getCell("F").numFmt = "0.00%";
     row.getCell("AD").numFmt = "0.00%";
     row.getCell("AE").numFmt = "dd/mm/yyyy";
+    row.getCell("AF").numFmt = "0.00";
     row.getCell("AI").numFmt = "0.00%";
 };
 

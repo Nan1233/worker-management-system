@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { getPendingReports, getReports } from "../../services/productionService";
+import { getApprovedReportsByDate, getTempReportsByDate } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { getApiError } from "../../utils/apiError";
 import { useToast } from "../../components/feedback/toastContext";
@@ -11,6 +11,12 @@ import "./Dashboard.css";
 
 const formatNumber = (value: number) =>
     value.toLocaleString("vi-VN", { maximumFractionDigits: 1 });
+
+const getToday = (): string => {
+    const now = new Date();
+    const offset = now.getTimezoneOffset();
+    return new Date(now.getTime() - offset * 60_000).toISOString().split("T")[0];
+};
 
 function Dashboard() {
     const navigate = useNavigate();
@@ -28,7 +34,11 @@ function Dashboard() {
         const loadData = async () => {
             try {
                 setLoading(true);
-                const [pendingData, approvedData] = await Promise.all([getPendingReports(), getReports()]);
+                const today = getToday();
+                const [pendingData, approvedData] = await Promise.all([
+                    getTempReportsByDate(today),
+                    getApprovedReportsByDate(today)
+                ]);
                 setPendingReports(Array.isArray(pendingData) ? pendingData : []);
                 setReports(Array.isArray(approvedData) ? approvedData : []);
             } catch (error) {
@@ -146,7 +156,7 @@ function Dashboard() {
                     <div>
                         <span>Công đoạn hoạt động</span>
                         <strong>{processData.length}</strong>
-                        <small>Dữ liệu từ báo cáo hiện tại</small>
+                        <small>Dữ liệu trong ngày hôm nay</small>
                     </div>
                 </article>
             </section>
