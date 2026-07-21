@@ -12,6 +12,7 @@ import axios from "axios";
 
 import {
     approveSelectedTempReports,
+    getPendingReports,
     getTempReportsByDate
 } from "../../services/productionService";
 
@@ -105,9 +106,9 @@ function Reports() {
             : "/manager";
 
 
-    const [date, setDate] = useState(
-        getToday()
-    );
+    const [date, setDate] = useState(getToday());
+
+    const [showAllDates, setShowAllDates] = useState(false);
 
     const [
         reports,
@@ -156,59 +157,34 @@ function Reports() {
 
 
     // =====================================================
-    // TẢI BÁO CÁO CHỜ DUYỆT THEO NGÀY
+    // TẢI BÁO CÁO CHỜ DUYỆT THEO NGÀY HOẶC TOÀN BỘ
     // =====================================================
 
-    const loadReports = async (
-        selectedDate: string
-    ) => {
+    const loadReports = async (selectedDate: string, allDates: boolean) => {
         try {
             setLoading(true);
             setError("");
 
-            const data =
-                await getTempReportsByDate(
-                    selectedDate
-                );
+            const data = allDates
+                ? await getPendingReports()
+                : await getTempReportsByDate(selectedDate);
 
-            const normalizedReports =
-                Array.isArray(data)
-                    ? data
-                    : [];
-
+            const normalizedReports = Array.isArray(data) ? data : [];
             setReports(normalizedReports);
 
-            /*
-             * Sau khi tải lại dữ liệu,
-             * loại các ID không còn tồn tại.
-             */
             setSelectedIds(previousIds => {
                 const availableIds = new Set(
                     normalizedReports
                         .map(item => Number(item.id))
-                        .filter(
-                            id =>
-                                Number.isInteger(id) &&
-                                id > 0
-                        )
+                        .filter(id => Number.isInteger(id) && id > 0)
                 );
-
-                return previousIds.filter(
-                    id => availableIds.has(id)
-                );
+                return previousIds.filter(id => availableIds.has(id));
             });
         } catch (err: unknown) {
-            console.error(
-                "GET PENDING REPORTS ERROR:",
-                err
-            );
-
-            const message =
-                axios.isAxiosError(err)
-                    ? err.response?.data?.message ||
-                      "Không thể tải báo cáo chờ duyệt"
-                    : "Không thể tải báo cáo chờ duyệt";
-
+            console.error("GET PENDING REPORTS ERROR:", err);
+            const message = axios.isAxiosError(err)
+                ? err.response?.data?.message || "Không thể tải báo cáo chờ duyệt"
+                : "Không thể tải báo cáo chờ duyệt";
             setError(message);
             setReports([]);
             setSelectedIds([]);
@@ -217,14 +193,17 @@ function Reports() {
         }
     };
 
-
     useEffect(() => {
         queueMicrotask(() => {
             setSelectedIds([]);
-            void loadReports(date);
+            void loadReports(date, showAllDates);
         });
-    }, [date]);
+    }, [date, showAllDates]);
 
+    const previousDateCount = useMemo(() => {
+        if (!showAllDates) return 0;
+        return reports.filter(report => String(report.work_date || "").slice(0, 10) < getToday()).length;
+    }, [reports, showAllDates]);
 
     // =====================================================
     // DANH SÁCH CÔNG ĐOẠN
@@ -532,7 +511,7 @@ function Reports() {
                 "selectedPendingReportIds"
             );
 
-            await loadReports(date);
+            await loadReports(date, showAllDates);
         } catch (err: unknown) {
             console.error(
                 "APPROVE SELECTED REPORTS ERROR:",
@@ -607,21 +586,27 @@ function Reports() {
                 </div>
 
 
-                <label className="management-filter-field">
-                    <span>
-                        Ngày báo cáo
-                    </span>
-
-                    <input
-                        type="date"
-                        value={date}
-                        onChange={event =>
-                            setDate(
-                                event.target.value
-                            )
-                        }
-                    />
-                </label>
+                <div className="management-date-filter">
+                    <label className="management-filter-field">
+                        <span>Ngày báo cáo</span>
+                        <input
+                            type="date"
+                            value={date}
+                            disabled={showAllDates}
+                            onChange={event => {
+                                setDate(event.target.value);
+                                setShowAllDates(false);
+                            }}
+                        />
+                    </label>
+                    <button
+                        type="button"
+                        className={showAllDates ? "management-all-dates-button active" : "management-all-dates-button"}
+                        onClick={() => setShowAllDates(current => !current)}
+                    >
+                        {showAllDates ? "Đang hiển thị tất cả" : "Hiển thị tất cả ngày"}
+                    </button>
+                </div>
 
 
                 <label className="management-filter-field">
@@ -713,7 +698,7 @@ function Reports() {
                         actionLoading
                     }
                 >
-                    👁 Xem chi tiết (
+                    Xem chi tiết (
                     {selectedIds.length})
                 </button>
 
@@ -737,6 +722,13 @@ function Reports() {
                 </button>
             </div>
 
+
+            {showAllDates && previousDateCount > 0 && (
+                <div className="management-backlog-alert">
+                    <strong>Còn {previousDateCount} báo cáo của ngày trước chưa được xử lý.</strong>
+                    <span>Danh sách hiện đang hiển thị toàn bộ ngày để tránh bỏ sót.</span>
+                </div>
+            )}
 
             {selectedIds.length > 0 && (
                 <div className="management-selected-info">

@@ -345,3 +345,81 @@
         padding: 16px;
     }
 }
+
+/* =====================================================
+   LIGHT BLUE MANAGEMENT THEME
+===================================================== */
+.management-layout {
+    background: linear-gradient(135deg, #eef5ff 0%, #f8fbff 45%, #eef3f9 100%);
+}
+
+.management-sidebar-shell {
+    border-color: #d7e5f7;
+    background: linear-gradient(180deg, #ffffff 0%, #f5f9ff 58%, #edf4ff 100%);
+    box-shadow: 0 22px 52px rgba(43, 79, 126, 0.12);
+}
+
+.management-brand,
+.management-brand-content strong,
+.management-user-copy strong {
+    color: #173b67;
+}
+
+.management-brand-content small,
+.management-user-copy span {
+    color: #6b7e99;
+}
+
+.management-user-card {
+    border-color: #d9e7f8;
+    background: linear-gradient(135deg, #edf5ff, #ffffff);
+}
+
+.management-user-avatar {
+    border-color: #cbdcf5;
+    background: linear-gradient(145deg, #dbeafe, #edf4ff);
+    color: #205dc0;
+}
+
+.management-user-copy small {
+    color: #5e718b;
+}
+
+.management-menu-item {
+    color: #536780;
+}
+
+.management-menu-item:hover {
+    border-color: #d5e3f6;
+    background: #edf5ff;
+}
+
+.management-menu-item.active {
+    border-color: #bcd3f5;
+    background: linear-gradient(135deg, #dbeafe, #edf5ff);
+    box-shadow: inset 3px 0 0 #2563eb, 0 10px 22px rgba(37, 99, 235, 0.08);
+    color: #174f9d;
+}
+
+.management-menu-icon,
+.management-menu-item.active .management-menu-icon {
+    background: #ffffff;
+    color: #2563eb;
+    box-shadow: 0 5px 14px rgba(37, 99, 235, 0.08);
+}
+
+.management-menu-copy small,
+.management-menu-item.active .management-menu-copy small {
+    color: #72839a;
+}
+
+.management-logout {
+    border-color: #f0caca;
+    background: #fff7f7;
+    color: #b23838;
+}
+
+.management-logout:hover {
+    border-color: #e6b2b2;
+    background: #fff0f0;
+}

@@ -8,7 +8,8 @@ import { useNavigate } from "react-router-dom";
 
 import {
     exportSelectedApprovedExcel,
-    getApprovedReportsByDate
+    getApprovedReportsByDate,
+    getReports
 } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 
@@ -52,8 +53,9 @@ function ApprovedReports() {
     const { showToast } = useToast();
     const navigate = useNavigate();
 
-    const [date, setDate] =
-        useState(getToday());
+    const [date, setDate] = useState(getToday());
+
+    const [showAllDates, setShowAllDates] = useState(false);
 
     const [reports, setReports] =
         useState<ProductionReport[]>([]);
@@ -83,66 +85,42 @@ function ApprovedReports() {
         useState(1);
 
     useEffect(() => {
-    const loadReports = async () => {
-        try {
-            setLoading(true);
-            setError("");
+        const loadReports = async () => {
+            try {
+                setLoading(true);
+                setError("");
 
-            const data =
-                await getApprovedReportsByDate(
-                    date
-                );
+                const data = showAllDates
+                    ? await getReports()
+                    : await getApprovedReportsByDate(date);
 
-            const normalizedReports =
-                Array.isArray(data)
-                    ? data
-                    : [];
+                const normalizedReports = Array.isArray(data) ? data : [];
+                setReports(normalizedReports);
 
-            setReports(normalizedReports);
-
-            setSelectedIds(previousIds => {
-                const availableIds =
-                    new Set(
+                setSelectedIds(previousIds => {
+                    const availableIds = new Set(
                         normalizedReports
-                            .map(item =>
-                                Number(item.id)
-                            )
-                            .filter(
-                                id =>
-                                    Number.isInteger(id) &&
-                                    id > 0
-                            )
+                            .map(item => Number(item.id))
+                            .filter(id => Number.isInteger(id) && id > 0)
                     );
-
-                return previousIds.filter(
-                    id =>
-                        availableIds.has(id)
-                );
-            });
-        } catch (err: unknown) {
-            console.error(
-                "GET APPROVED REPORTS ERROR:",
-                err
-            );
-
-            const message =
-                axios.isAxiosError(err)
-                    ? err.response?.data?.message ||
-                      "Không thể tải báo cáo đã duyệt"
+                    return previousIds.filter(id => availableIds.has(id));
+                });
+            } catch (err: unknown) {
+                console.error("GET APPROVED REPORTS ERROR:", err);
+                const message = axios.isAxiosError(err)
+                    ? err.response?.data?.message || "Không thể tải báo cáo đã duyệt"
                     : "Không thể tải báo cáo đã duyệt";
+                setError(message);
+                setReports([]);
+                setSelectedIds([]);
+            } finally {
+                setLoading(false);
+            }
+        };
 
-            setError(message);
-            setReports([]);
-            setSelectedIds([]);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    queueMicrotask(() => setSelectedIds([]));
-
-    void loadReports();
-}, [date]);
+        queueMicrotask(() => setSelectedIds([]));
+        void loadReports();
+    }, [date, showAllDates]);
 
     const processes = useMemo(
         () => Array.from(new Set(reports.map(item => item.process_name).filter(Boolean))).sort(),
@@ -347,9 +325,12 @@ const handleExportExcel = async () => {
     try {
         setExporting(true);
 
-        await exportSelectedApprovedExcel(
-            date
-        );
+        if (showAllDates) {
+            showToast("Hãy chọn một ngày cụ thể trước khi tải Excel.");
+            return;
+        }
+
+        await exportSelectedApprovedExcel(date);
     } catch (err: unknown) {
         console.error(
             "EXPORT SELECTED EXCEL ERROR:",
@@ -396,10 +377,27 @@ const handleExportExcel = async () => {
                     />
                 </div>
 
-                <label className="management-filter-field">
-                    <span>Ngày báo cáo</span>
-                    <input type="date" value={date} onChange={event => setDate(event.target.value)} />
-                </label>
+                <div className="management-date-filter">
+                    <label className="management-filter-field">
+                        <span>Ngày báo cáo</span>
+                        <input
+                            type="date"
+                            value={date}
+                            disabled={showAllDates}
+                            onChange={event => {
+                                setDate(event.target.value);
+                                setShowAllDates(false);
+                            }}
+                        />
+                    </label>
+                    <button
+                        type="button"
+                        className={showAllDates ? "management-all-dates-button active" : "management-all-dates-button"}
+                        onClick={() => setShowAllDates(current => !current)}
+                    >
+                        {showAllDates ? "Đang hiển thị tất cả" : "Hiển thị tất cả ngày"}
+                    </button>
+                </div>
 
                 <label className="management-filter-field">
                     <span>Ca</span>
@@ -436,7 +434,7 @@ const handleExportExcel = async () => {
                         exporting
                     }
                 >
-                    👁 Xem chi tiết ({selectedIds.length})
+                    Xem chi tiết ({selectedIds.length})
                 </button>
                 <button
     type="button"
@@ -444,12 +442,13 @@ const handleExportExcel = async () => {
     onClick={handleExportExcel}
     disabled={
         loading ||
-        exporting
+        exporting ||
+        showAllDates
     }
 >
     {exporting
         ? "Đang cập nhật file tháng..."
-        : "⇩ Tải Excel theo ngày"
+        : "Tải Excel theo ngày"
     }
 </button>
             </div>

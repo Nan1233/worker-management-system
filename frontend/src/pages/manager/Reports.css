@@ -315,3 +315,97 @@ button:disabled { opacity: .48; cursor: not-allowed; box-shadow: none; }
     .approved-filter-card { grid-template-columns: 1fr; }
     .management-search-box { grid-column: auto; }
 }
+
+/* =====================================================
+   PROFESSIONAL FILTER ACTIONS + ALL DATES
+===================================================== */
+.management-date-filter {
+    min-width: 210px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.management-all-dates-button,
+.management-view-selected-button,
+.management-export-button {
+    min-height: 44px;
+    padding: 0 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 800;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background-color .18s ease;
+}
+
+.management-all-dates-button {
+    border: 1px solid #bcd2ef;
+    background: #f2f7ff;
+    color: #245fc2;
+}
+
+.management-all-dates-button:hover,
+.management-all-dates-button.active {
+    transform: translateY(-1px);
+    border-color: #7da7e9;
+    background: #e3efff;
+    box-shadow: 0 8px 18px rgba(37, 99, 235, .1);
+}
+
+.management-view-selected-button {
+    border: 1px solid #b8cae3;
+    background: #ffffff;
+    color: #24496f;
+}
+
+.management-view-selected-button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    border-color: #7da7e9;
+    color: #1d5fc2;
+    box-shadow: 0 8px 18px rgba(37, 99, 235, .09);
+}
+
+.management-export-button {
+    border: 1px solid #1d5fc2;
+    background: linear-gradient(135deg, #2f72d8, #1d5fc2);
+    color: #ffffff;
+    box-shadow: 0 10px 20px rgba(37, 99, 235, .16);
+}
+
+.management-export-button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 13px 24px rgba(37, 99, 235, .22);
+}
+
+.management-backlog-alert {
+    margin: 0 0 14px;
+    padding: 14px 17px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    border: 1px solid #f2cf8f;
+    border-radius: 15px;
+    background: #fff9eb;
+    color: #8a5712;
+}
+
+.management-backlog-alert strong {
+    font-size: 14px;
+}
+
+.management-backlog-alert span {
+    color: #9a6b27;
+    font-size: 13px;
+}
+
+.management-filter-field input:disabled {
+    background: #f1f4f8;
+    color: #95a1b2;
+    cursor: not-allowed;
+}
