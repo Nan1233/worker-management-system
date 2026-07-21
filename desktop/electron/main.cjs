@@ -11,6 +11,7 @@ const SYNC_INTERVAL_MS = Math.max(60_000, Number(process.env.KTC_SYNC_INTERVAL_M
 const REQUEST_TIMEOUT_MS = Math.max(30_000, Number(process.env.KTC_REQUEST_TIMEOUT_MS) || 120_000);
 const RETRY_DELAY_MS = 1200;
 const RETRY_COUNT = 4;
+const DOWNLOAD_RETRY_COUNT = 3;
 
 let mainWindow = null;
 let syncTimer = null;
@@ -83,9 +84,17 @@ function safeFileName(value, fallback) {
 }
 
 function getExportRoot() {
-  const configured = String(process.env.KTC_EXPORT_ROOT || '').trim();
-  if (configured) return path.resolve(configured);
-  return path.join(app.getPath('documents'), 'KTC', 'Bao cao san xuat');
+  const configured = String(process.env.KTC_EXPORT_ROOT || "").trim();
+  if (configured) {
+    return path.resolve(configured);
+  }
+
+  return path.join(
+    os.homedir(),
+    "Documents",
+    "KTC",
+    "Bao cao san xuat"
+  );
 }
 
 async function getProcessExportPath(date, processName, serverFileName) {
@@ -147,7 +156,7 @@ function parseDownloadFileName(response, fallback) {
 }
 
 
-async function downloadConsolidatedExcel(token, date) {
+async function downloadConsolidatedExcelOnce(token, date) {
   const response = await fetchWithTimeout(`${API_BASE_URL}/reports/export-excel`, {
     method: 'POST',
     headers: {
@@ -175,6 +184,25 @@ async function downloadConsolidatedExcel(token, date) {
   const folder = path.join(getExportRoot(), year, 'Tong hop');
   await fs.mkdir(folder, { recursive: true });
   return { buffer, folder, filePath: path.join(folder, safeFileName(fileName, fallback)), fileName };
+}
+
+
+async function downloadConsolidatedExcel(token, date) {
+  let lastError;
+  for (let attempt = 1; attempt <= DOWNLOAD_RETRY_COUNT; attempt += 1) {
+    try {
+      return await downloadConsolidatedExcelOnce(token, date);
+    } catch (error) {
+      lastError = error;
+      await writeLog('WARN', 'CONSOLIDATED_DOWNLOAD_RETRY', {
+        attempt,
+        maxAttempts: DOWNLOAD_RETRY_COUNT,
+        ...normalizeError(error)
+      });
+      if (attempt < DOWNLOAD_RETRY_COUNT) await wait(RETRY_DELAY_MS * attempt);
+    }
+  }
+  throw lastError;
 }
 
 async function downloadProcessExcel(token, date, processInfo) {
@@ -292,8 +320,22 @@ async function performSync({ token, date, source }) {
     await writeLog('ERROR', 'CONSOLIDATED_SYNC_FAILED', normalizeError(error));
   }
 
-  // Sau đó vẫn tạo các file tách theo công đoạn như yêu cầu Desktop.
-  const processes = await fetchProcesses(token, date);
+  // Các API tách công đoạn là phần bổ sung. Backend cũ hoặc Render chưa cập nhật
+  // không được làm hỏng file Tổng hợp đã tải thành công.
+  let processes = [];
+  try {
+    processes = await fetchProcesses(token, date);
+  } catch (error) {
+    await writeLog('WARN', 'PROCESS_LIST_UNAVAILABLE_CONTINUE_WITH_CONSOLIDATED', normalizeError(error));
+    files.push({
+      processId: -1,
+      processName: 'Tách theo công đoạn',
+      success: false,
+      optional: true,
+      error: error.message
+    });
+  }
+
   for (const processInfo of processes) {
     try {
       const downloaded = await downloadProcessExcel(token, date, processInfo);
@@ -317,6 +359,7 @@ async function performSync({ token, date, source }) {
         processId: Number(processInfo.id),
         processName: processInfo.processName || `Công đoạn ${processInfo.id}`,
         success: false,
+        optional: true,
         error: error.message
       });
       await writeLog('ERROR', 'PROCESS_SYNC_FAILED', {
@@ -327,8 +370,17 @@ async function performSync({ token, date, source }) {
     }
   }
 
+  const consolidatedFile = files.find((file) => file.consolidated === true);
+  const requiredSuccess = Boolean(consolidatedFile?.success);
+  const optionalFailures = files.filter((file) => file.optional && file.success === false);
   const result = {
-    success: files.every((file) => file.success !== false),
+    success: requiredSuccess,
+    partialSuccess: requiredSuccess && optionalFailures.length > 0,
+    message: requiredSuccess
+      ? (optionalFailures.length > 0
+          ? 'Đã cập nhật Excel tổng hợp; một số file công đoạn chưa cập nhật được.'
+          : 'Đã cập nhật đầy đủ các file Excel.')
+      : 'Không thể cập nhật file Excel tổng hợp.',
     date,
     files,
     rootFolder: root,

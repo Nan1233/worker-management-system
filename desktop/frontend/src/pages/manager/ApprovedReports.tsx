@@ -43,7 +43,6 @@ const duplicateKey = (
     [
         String(report.work_date || "").slice(0, 10),
         report.worker_code,
-        report.shift,
         report.machine_no,
         report.product_name
     ]
@@ -665,8 +664,8 @@ const handleExportExcel = async () => {
             <div className="duplicate-note">
     <span />
 
-    Hàng màu đỏ: cùng một nhân viên có từ hai báo cáo
-    trùng đồng thời ca, mã máy và mã sản phẩm trong ngày đang xem.
+    Hàng màu đỏ: có từ hai báo cáo trùng đồng thời ngày,
+    mã nhân viên, mã máy và mã sản phẩm.
 </div>
         </div>
     );

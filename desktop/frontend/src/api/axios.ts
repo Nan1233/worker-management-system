@@ -57,11 +57,7 @@ api.interceptors.response.use(
             localStorage.removeItem("token");
             localStorage.removeItem("user");
 
-            if (window.ktcDesktop?.isDesktop) {
-                if (window.location.hash !== "#/login") {
-                    window.location.hash = "#/login";
-                }
-            } else if (window.location.pathname !== "/login") {
+            if (window.location.pathname !== "/login") {
                 window.location.replace("/login");
             }
 

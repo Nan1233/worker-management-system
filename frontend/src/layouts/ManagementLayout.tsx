@@ -3,7 +3,7 @@ import type { User } from "../types/auth";
 import AppIcon, { type IconName } from "../components/common/AppIcon";
 import "./ManagementLayout.css";
 
-type ManagementRole = "lead" | "manager";
+type ManagementRole = "lead" | "manager" | "admin";
 
 interface Props {
     role: ManagementRole;
@@ -19,12 +19,13 @@ interface MenuItem {
 }
 
 const menuItems: MenuItem[] = [
+    { id: "master", label: "Quản trị dữ liệu", path: "master", icon: "settings", roles: ["manager", "admin"], description: "Công nhân, công đoạn, lỗi, máy và định mức" },
     {
         id: "dashboard",
         label: "Tổng quan",
         path: "",
         icon: "dashboard",
-        roles: ["lead", "manager"],
+        roles: ["lead", "manager", "admin"],
         description: "KPI và tình hình sản xuất"
     },
     {
@@ -32,7 +33,7 @@ const menuItems: MenuItem[] = [
         label: "Chờ duyệt",
         path: "reports",
         icon: "pending",
-        roles: ["lead", "manager"],
+        roles: ["lead", "manager", "admin"],
         description: "Kiểm tra báo cáo mới gửi"
     },
     {
@@ -40,7 +41,7 @@ const menuItems: MenuItem[] = [
         label: "Đã duyệt",
         path: "approved",
         icon: "approved",
-        roles: ["lead", "manager"],
+        roles: ["lead", "manager", "admin"],
         description: "Tra cứu báo cáo chính thức"
     },
     {
@@ -48,7 +49,7 @@ const menuItems: MenuItem[] = [
         label: "Công nhân",
         path: "workers",
         icon: "workers",
-        roles: ["lead", "manager"],
+        roles: ["lead", "manager", "admin"],
         description: "Theo dõi nhân sự sản xuất"
     },
     {
@@ -56,7 +57,7 @@ const menuItems: MenuItem[] = [
         label: "Thông báo & lịch sử",
         path: "system",
         icon: "system",
-        roles: ["lead", "manager"],
+        roles: ["lead", "manager", "admin"],
         description: "Nhật ký và cảnh báo hệ thống"
     },
     {
@@ -64,19 +65,17 @@ const menuItems: MenuItem[] = [
         label: "Thống kê",
         path: "statistics",
         icon: "statistics",
-        roles: ["manager"],
+        roles: ["manager", "admin"],
         description: "Phân tích sâu và so sánh dữ liệu"
     }
 ];
 
-const roleLabel: Record<ManagementRole, string> = {
-    lead: "Tổ trưởng",
-    manager: "Quản lý"
-};
+const roleLabel: Record<ManagementRole, string> = { lead: "Tổ trưởng", manager: "Quản lý", admin: "Quản trị viên" };
 
 const roleDescription: Record<ManagementRole, string> = {
     lead: "Kiểm tra, duyệt và theo dõi báo cáo của chuyền hoặc công đoạn.",
-    manager: "Điều hành dữ liệu sản xuất, thống kê và chuẩn hóa báo cáo chính thức."
+    manager: "Điều hành dữ liệu sản xuất, thống kê và chuẩn hóa báo cáo chính thức.",
+    admin: "Quản trị tài khoản, dữ liệu gốc và toàn bộ cấu hình vận hành."
 };
 
 function getInitials(user: User | null): string {
@@ -111,7 +110,7 @@ function ManagementLayout({ role }: Props) {
         }
     })();
 
-    const basePath = role === "lead" ? "/lead" : "/manager";
+    const basePath = role === "lead" ? "/lead" : role === "admin" ? "/admin" : "/manager";
     const visibleMenuItems = menuItems.filter((item) => item.roles.includes(role));
 
     const getFullPath = (path: string): string => (path ? `${basePath}/${path}` : basePath);
@@ -189,7 +188,7 @@ function ManagementLayout({ role }: Props) {
                 <header className="management-header">
                     <div className="management-header-copy">
                         <span className="management-header-kicker">TRUNG TÂM VẬN HÀNH KTC</span>
-                        <strong>{role === "lead" ? "Bảng điều hành tổ trưởng" : "Bảng điều hành quản lý"}</strong>
+                        <strong>{role === "lead" ? "Bảng điều hành tổ trưởng" : role === "admin" ? "Bảng điều hành quản trị" : "Bảng điều hành quản lý"}</strong>
                         <span>{roleDescription[role]}</span>
                     </div>
 

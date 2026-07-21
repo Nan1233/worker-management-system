@@ -41,6 +41,7 @@ const productStandardRoutes =
     require("./routes/productStandardRoutes");
 const syncJobRoutes = require("./routes/syncJobRoutes");
 const systemRoutes = require("./routes/systemRoutes");
+const adminMasterRoutes = require("./routes/adminMasterRoutes");
 
 
 // ======================
@@ -267,6 +268,7 @@ app.use(
 
 app.use("/api/sync-jobs", syncJobRoutes);
 app.use("/api/system", systemRoutes);
+app.use("/api/admin/master", adminMasterRoutes);
 
 
 
