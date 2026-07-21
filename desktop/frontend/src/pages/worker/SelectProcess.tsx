@@ -28,7 +28,8 @@ const processes = [
 
     {
         id: "cat-long",
-        name: "Cắt / Lồng",
+        code: "GC",
+        name: "Gia công (Cắt / Lồng)",
         icon: "🛠",
         description:
             "Dành cho quy trình cắt và lồng"
@@ -36,6 +37,7 @@ const processes = [
 
     {
         id: "mai",
+        code: "MAI",
         name: "Mài",
         icon: "◉",
         description:
@@ -44,6 +46,7 @@ const processes = [
 
     {
         id: "kiem-1",
+        code: "K1",
         name: "Kiểm 1",
         icon: "☑",
         description:
@@ -52,6 +55,7 @@ const processes = [
 
     {
         id: "kiem-2",
+        code: "K2",
         name: "Kiểm 2",
         icon: "☷",
         description:
@@ -60,6 +64,7 @@ const processes = [
 
     {
         id: "ep",
+        code: "EP",
         name: "Ép",
         icon: "▱",
         description:
@@ -68,6 +73,7 @@ const processes = [
 
     {
         id: "can",
+        code: "CAN",
         name: "Cán",
         icon: "▤",
         description:
@@ -76,6 +82,7 @@ const processes = [
 
     {
         id: "bavia",
+        code: "BAVIA",
         name: "BAVIA",
         icon: "✎",
         description:
@@ -388,7 +395,15 @@ function SelectProcess() {
                 <section className="process-list">
 
                     {
-                        processes.map(
+                        processes
+                            .filter((item) => {
+                                const codes = String(worker?.process_codes || "")
+                                    .split(",")
+                                    .map((value) => value.trim().toUpperCase())
+                                    .filter(Boolean);
+                                return codes.includes(item.code);
+                            })
+                            .map(
                             (item) => (
 
                                 <button

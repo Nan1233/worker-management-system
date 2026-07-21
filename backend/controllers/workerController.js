@@ -438,7 +438,27 @@ exports.getWorkerById = (
 
             u.full_name,
 
-            u.role
+            u.role,
+
+            (
+                SELECT GROUP_CONCAT(DISTINCT wp.process_id ORDER BY wp.process_id)
+                FROM worker_processes wp
+                WHERE wp.worker_id = w.id
+            ) AS process_ids,
+
+            (
+                SELECT GROUP_CONCAT(DISTINCT p.process_code ORDER BY p.id)
+                FROM worker_processes wp
+                INNER JOIN processes p ON p.id = wp.process_id
+                WHERE wp.worker_id = w.id AND p.status = 'active'
+            ) AS process_codes,
+
+            (
+                SELECT GROUP_CONCAT(DISTINCT p.process_name ORDER BY p.id SEPARATOR ', ')
+                FROM worker_processes wp
+                INNER JOIN processes p ON p.id = wp.process_id
+                WHERE wp.worker_id = w.id AND p.status = 'active'
+            ) AS process_names
 
         FROM workers AS w
 

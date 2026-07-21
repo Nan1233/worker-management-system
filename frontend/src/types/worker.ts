@@ -44,6 +44,12 @@ export interface WorkerProfile {
 
     role: UserRole;
 
+    process_ids?: string | null;
+
+    process_codes?: string | null;
+
+    process_names?: string | null;
+
 }
 
 

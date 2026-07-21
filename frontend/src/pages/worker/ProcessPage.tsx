@@ -19,7 +19,8 @@ import "./ProcessPage.css";
 import {
     checkSimilarTempReport,
     createTempReport,
-    updateTempReport
+    updateTempReport,
+    getDefectOptionsByProcess
 } from "../../services/productionService";
 
 import {
@@ -379,9 +380,11 @@ const deductionOptions: Array<{
 // TÊN PHẢI KHỚP defect_types TRONG DATABASE
 // =====================================================
 
-const ngOptions: Array<{
+const allNgOptions: Array<{
 
     key: NgKey;
+
+    code: string;
 
     label: string;
 
@@ -391,6 +394,9 @@ const ngOptions: Array<{
 
         key:
             "kqdDapLai",
+
+        code:
+            "KQD_DL",
 
         label:
             "KQD dập lại"
@@ -402,6 +408,9 @@ const ngOptions: Array<{
         key:
             "kqdTuot",
 
+        code:
+            "KQD_TUOT",
+
         label:
             "KQD tuột"
 
@@ -411,6 +420,9 @@ const ngOptions: Array<{
 
         key:
             "voDoLong",
+
+        code:
+            "VO_LONG",
 
         label:
             "Vỡ do lồng"
@@ -422,6 +434,9 @@ const ngOptions: Array<{
         key:
             "xuocDoLong",
 
+        code:
+            "XUOC_LONG",
+
         label:
             "Xước do lồng"
 
@@ -431,6 +446,9 @@ const ngOptions: Array<{
 
         key:
             "congGay",
+
+        code:
+            "CONG_GAY",
 
         label:
             "Cong gãy"
@@ -442,6 +460,9 @@ const ngOptions: Array<{
         key:
             "xoay",
 
+        code:
+            "XOAY",
+
         label:
             "Xoay"
 
@@ -451,6 +472,9 @@ const ngOptions: Array<{
 
         key:
             "khongDut",
+
+        code:
+            "KHONG_DUT",
 
         label:
             "Không đứt"
@@ -462,6 +486,9 @@ const ngOptions: Array<{
         key:
             "baviaHut",
 
+        code:
+            "BAVIA",
+
         label:
             "Bavia hụt"
 
@@ -471,6 +498,9 @@ const ngOptions: Array<{
 
         key:
             "ppcm",
+
+        code:
+            "PPCM",
 
         label:
             "PPCM"
@@ -482,6 +512,9 @@ const ngOptions: Array<{
         key:
             "loiCaoSu",
 
+        code:
+            "CAO_SU",
+
         label:
             "Lỗi cao su"
 
@@ -492,6 +525,9 @@ const ngOptions: Array<{
         key:
             "ngKichThuoc",
 
+        code:
+            "KT",
+
         label:
             "NG kích thước"
 
@@ -501,6 +537,9 @@ const ngOptions: Array<{
 
         key:
             "catLem",
+
+        code:
+            "CAT_LEM",
 
         label:
             "Cắt lẹm"
@@ -816,6 +855,11 @@ const [
     productOptions,
     setProductOptions
 ] = useState<ProductStandardOption[]>([]);
+
+const [
+    activeNgOptions,
+    setActiveNgOptions
+] = useState(allNgOptions);
 
 
 const [
@@ -1293,7 +1337,8 @@ useEffect(() => {
 
                 const [
                     machines,
-                    products
+                    products,
+                    defects
                 ] =
                     await Promise.all([
 
@@ -1302,6 +1347,10 @@ useEffect(() => {
                         ),
 
                         getProductStandardsByProcess(
+                            processInfo.id
+                        ),
+
+                        getDefectOptionsByProcess(
                             processInfo.id
                         )
 
@@ -1315,6 +1364,13 @@ useEffect(() => {
 
                 setProductOptions(
                     products
+                );
+
+                const activeCodes = new Set(
+                    defects.map((item) => String(item.defect_code || "").trim().toUpperCase())
+                );
+                setActiveNgOptions(
+                    allNgOptions.filter((item) => activeCodes.has(item.code))
                 );
 
             }
@@ -1834,7 +1890,7 @@ const updateDeductionValue = (
 
 
             const totalNg =
-                ngOptions.reduce(
+                activeNgOptions.reduce(
 
                     (
                         sum,
@@ -1935,7 +1991,7 @@ const updateDeductionValue = (
 
 
                 const totalNg =
-                    ngOptions.reduce(
+                    activeNgOptions.reduce(
 
                         (
                             sum,
@@ -2009,7 +2065,7 @@ const updateDeductionValue = (
 
 
             const totalNg =
-                ngOptions.reduce(
+                activeNgOptions.reduce(
 
                     (
                         sum,
@@ -2364,7 +2420,7 @@ const updateDeductionValue = (
 
 
         const totalDefects =
-            ngOptions.reduce(
+            activeNgOptions.reduce(
 
                 (
                     sum,
@@ -2620,7 +2676,7 @@ const updateDeductionValue = (
 
 
                     defects:
-                        ngOptions
+                        activeNgOptions
 
                             .filter(
                                 (item) =>
@@ -3762,7 +3818,7 @@ onSelect={(
                                 <div className="worker-dropdown-options">
 
                                     {
-                                        ngOptions
+                                        activeNgOptions
                                             .map(
                                                 (
                                                     item
@@ -3849,7 +3905,7 @@ onSelect={(
                             <div className="worker-dynamic-grid worker-ng-grid">
 
                                 {
-                                    ngOptions
+                                    activeNgOptions
 
                                         .filter(
                                             (
