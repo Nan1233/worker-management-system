@@ -1,7 +1,21 @@
-node_modules/
-.env
-
+# Build
+**/node_modules/
 frontend/dist/
+desktop/release/
+desktop/dist/
+desktop/out/
 
-.vscode/
+# Desktop
+desktop/*.exe
+desktop/*.zip
+
+# Logs
+*.log
+**/node_modules/
+frontend/dist/
+desktop/release/
+desktop/dist/
+desktop/out/
+desktop/*.exe
+desktop/*.zip
 *.log

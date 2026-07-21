@@ -326,11 +326,15 @@ const handleExportExcel = async () => {
         setExporting(true);
 
         if (showAllDates) {
-            showToast("Hãy chọn một ngày cụ thể trước khi tải Excel.");
+            showToast("Hãy chọn một ngày thuộc tháng cần cập nhật Excel.");
             return;
         }
 
-        await exportSelectedApprovedExcel(date);
+        const result = await exportSelectedApprovedExcel(date);
+
+        if (window.ktcDesktop?.isDesktop && result?.success) {
+            showToast(result.message || "Đã cập nhật file Excel tháng trong thư mục Documents.");
+        }
     } catch (err: unknown) {
         console.error(
             "EXPORT SELECTED EXCEL ERROR:",
@@ -340,8 +344,10 @@ const handleExportExcel = async () => {
         const message =
             axios.isAxiosError(err)
                 ? err.response?.data?.message ||
-                  "Không thể tải file Excel"
-                : "Không thể tải file Excel";
+                  "Không thể xử lý file Excel"
+                : err instanceof Error
+                  ? err.message
+                  : "Không thể xử lý file Excel";
 
         showToast(message);
     } finally {
@@ -445,7 +451,11 @@ const handleExportExcel = async () => {
                         onClick={handleExportExcel}
                         disabled={loading || exporting || showAllDates}
                     >
-                        {exporting ? "Đang cập nhật file tháng..." : "Tải Excel theo ngày"}
+                        {exporting
+                            ? "Đang cập nhật file tháng..."
+                            : window.ktcDesktop?.isDesktop
+                              ? "Cập nhật Excel tháng"
+                              : "Tải Excel theo tháng"}
                     </button>
                 </div>
             </div>

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, session } = require('electron');
 const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
 const path = require('node:path');
@@ -401,6 +401,14 @@ const APP_URL = String(
 ).replace(/\/+$/, '');
 const APP_ORIGIN = new URL(APP_URL).origin;
 
+function getVersionedAppUrl() {
+  const target = new URL(APP_URL);
+  target.searchParams.set('ktcDesktop', '1');
+  target.searchParams.set('desktopVersion', app.getVersion());
+  target.searchParams.set('cacheBust', String(Date.now()));
+  return target.toString();
+}
+
 function isAllowedNavigation(targetUrl) {
   try {
     const url = new URL(targetUrl);
@@ -519,8 +527,9 @@ function createWindow() {
   });
   mainWindow.on('closed', () => { mainWindow = null; });
 
-  void mainWindow.loadURL(APP_URL).catch(async (error) => {
-    await writeLog('ERROR', 'LOAD_URL_FAILED', { appUrl: APP_URL, ...normalizeError(error) });
+  const versionedUrl = getVersionedAppUrl();
+  void mainWindow.loadURL(versionedUrl, { extraHeaders: 'Cache-Control: no-cache, no-store, must-revalidate\nPragma: no-cache\n' }).catch(async (error) => {
+    await writeLog('ERROR', 'LOAD_URL_FAILED', { appUrl: versionedUrl, ...normalizeError(error) });
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show();
   });
 }
@@ -563,6 +572,12 @@ ipcMain.handle('ktc-open-log-folder', async () => {
 });
 
 app.whenReady().then(async () => {
+  try {
+    await session.defaultSession.clearCache();
+    await session.defaultSession.clearStorageData({ storages: ['serviceworkers', 'cachestorage'] });
+  } catch (error) {
+    await writeLog('WARN', 'CACHE_CLEAR_FAILED', normalizeError(error));
+  }
   await writeLog('INFO', 'APP_READY', {
     version: app.getVersion(),
     exportRoot: getExportRoot(),
