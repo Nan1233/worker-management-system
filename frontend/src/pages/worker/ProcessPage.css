@@ -1345,3 +1345,61 @@
 .duplicate-dialog-edit { background: #0f766e; color: #fff; }
 .duplicate-dialog-create { background: #2563eb; color: #fff; }
 .duplicate-dialog-actions button:disabled { cursor: not-allowed; opacity: .65; }
+
+/* =====================================================
+   MOBILE SAVE BAR - LUÔN HIỂN THỊ TRÊN THANH ĐIỀU HƯỚNG
+===================================================== */
+@media (max-width: 767px) {
+    .worker-form-page {
+        padding-bottom: calc(190px + env(safe-area-inset-bottom));
+    }
+
+    .worker-action-group {
+        position: fixed;
+        left: 10px;
+        right: 10px;
+        bottom: calc(92px + env(safe-area-inset-bottom));
+        z-index: 120;
+        width: auto;
+        min-height: 64px;
+        padding: 8px;
+        display: grid;
+        grid-template-columns: minmax(92px, .36fr) minmax(0, 1fr);
+        gap: 8px;
+        border: 1px solid #dce5f1;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, .98);
+        box-shadow: 0 14px 34px rgba(30, 53, 84, .18);
+        backdrop-filter: blur(12px);
+    }
+
+    .worker-floating-save,
+    .worker-reset-button {
+        width: 100%;
+        min-width: 0;
+        height: 50px;
+        padding: 0 14px;
+        border-radius: 13px;
+        font-size: 15px;
+    }
+
+    .worker-floating-save {
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        box-shadow: 0 10px 22px rgba(37, 99, 235, .24);
+    }
+}
+
+@media (max-width: 430px) {
+    .worker-action-group {
+        grid-template-columns: 1fr;
+    }
+
+    .worker-reset-button {
+        display: none;
+    }
+
+    .worker-floating-save {
+        min-width: 0;
+        width: 100%;
+    }
+}
