@@ -1,0 +1,57 @@
+{
+  "name": "ktc-production-control-desktop",
+  "version": "1.0.0",
+  "description": "KTC Production Control desktop - giao diện web mới nhất và tự động đồng bộ Excel",
+  "main": "electron/main.cjs",
+  "author": "KTC",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win nsis portable",
+    "dist:portable": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^37.2.3",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "vn.ktc.productioncontrol",
+    "productName": "KTC Production Control",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "KTC-Production-Control-${version}-${arch}.${ext}",
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "KTC Production Control",
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

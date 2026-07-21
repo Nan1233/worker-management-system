@@ -1,4 +1,5 @@
 const db = require("../config/db");
+const { mergeDefects, normalizeDeductions } = require("../utils/reportDetailNormalizer");
 const MonthlyExcelService = require("../services/monthlyExcelService");
 
 const safeDbError = (res, error, fallback) => {
@@ -225,17 +226,17 @@ exports.getReportById = async (req, res) => {
             db.promise().query(
                 `SELECT d.id, d.defect_type_id, dt.defect_code, dt.defect_name, d.quantity
                  FROM production_report_defects d
-                 JOIN defect_types dt ON dt.id = d.defect_type_id
+                 LEFT JOIN defect_types dt ON dt.id = d.defect_type_id
                  WHERE d.report_id = ?
-                 ORDER BY dt.sort_order, dt.id`,
+                 ORDER BY COALESCE(dt.sort_order, 999999), d.id`,
                 [reportId]
             ),
             db.promise().query(
                 `SELECT d.id, d.deduction_type_id, dt.deduction_code, dt.deduction_name, d.hours
                  FROM production_report_deductions d
-                 JOIN deduction_types dt ON dt.id = d.deduction_type_id
+                 LEFT JOIN deduction_types dt ON dt.id = d.deduction_type_id
                  WHERE d.report_id = ?
-                 ORDER BY dt.sort_order, dt.id`,
+                 ORDER BY COALESCE(dt.sort_order, 999999), d.id`,
                 [reportId]
             )
         ]);
@@ -249,8 +250,8 @@ exports.getReportById = async (req, res) => {
             success: true,
             data: {
                 ...report,
-                defects: defectResult[0].map(item => ({ ...item, quantity: Number(item.quantity) || 0 })),
-                deductions: deductionResult[0].map(item => ({ ...item, hours: Number(item.hours) || 0 }))
+                defects: mergeDefects(report, defectResult[0]),
+                deductions: normalizeDeductions(deductionResult[0])
             }
         });
     } catch (error) {

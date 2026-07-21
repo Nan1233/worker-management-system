@@ -1,5 +1,6 @@
 const db = require("../config/db");
 const AuditService = require("../services/auditService");
+const { mergeDefects, normalizeDeductions } = require("../utils/reportDetailNormalizer");
 
 const query = (executor, sql, params = []) =>
     new Promise((resolve, reject) => {
@@ -535,23 +536,23 @@ const ProductionTemp = {
                 db,
                 `SELECT d.id, d.defect_type_id, dt.defect_code, dt.defect_name, d.quantity
                  FROM production_temp_defects d
-                 JOIN defect_types dt ON dt.id = d.defect_type_id
+                 LEFT JOIN defect_types dt ON dt.id = d.defect_type_id
                  WHERE d.temp_report_id = ?
-                 ORDER BY dt.sort_order, dt.id`,
+                 ORDER BY COALESCE(dt.sort_order, 999999), d.id`,
                 [id]
             ),
             query(
                 db,
                 `SELECT d.id, d.deduction_type_id, dt.deduction_code, dt.deduction_name, d.hours
                  FROM production_temp_deductions d
-                 JOIN deduction_types dt ON dt.id = d.deduction_type_id
+                 LEFT JOIN deduction_types dt ON dt.id = d.deduction_type_id
                  WHERE d.temp_report_id = ?
-                 ORDER BY dt.sort_order, dt.id`,
+                 ORDER BY COALESCE(dt.sort_order, 999999), d.id`,
                 [id]
             )
         ]);
 
-        return { ...rows[0], defects, deductions };
+        return { ...rows[0], defects: mergeDefects(rows[0], defects), deductions: normalizeDeductions(deductions) };
     },
 
     async canManageReport(reportId, managerId, isAdmin = false) {

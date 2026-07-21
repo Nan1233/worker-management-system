@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { getReports } from "../../services/productionService";
+import { getPendingReports, getReports } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { getApiError } from "../../utils/apiError";
 import { useToast } from "../../components/feedback/toastContext";
@@ -16,6 +16,7 @@ function Dashboard() {
     const navigate = useNavigate();
     const toast = useToast();
 
+    const [pendingReports, setPendingReports] = useState<ProductionReport[]>([]);
     const [reports, setReports] = useState<ProductionReport[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -27,8 +28,9 @@ function Dashboard() {
         const loadData = async () => {
             try {
                 setLoading(true);
-                const data = await getReports();
-                setReports(Array.isArray(data) ? data : []);
+                const [pendingData, approvedData] = await Promise.all([getPendingReports(), getReports()]);
+                setPendingReports(Array.isArray(pendingData) ? pendingData : []);
+                setReports(Array.isArray(approvedData) ? approvedData : []);
             } catch (error) {
                 toast.showToast(getApiError(error, "Không thể tải dữ liệu dashboard").message, "error");
             } finally {
@@ -44,10 +46,10 @@ function Dashboard() {
         const totalNG = reports.reduce((sum, item) => sum + Number(item.tt_ng || 0), 0);
         const total = totalOK + totalNG;
         const ngRate = total > 0 ? (totalNG / total) * 100 : 0;
-        const workers = new Set(reports.map(item => item.worker_code).filter(Boolean)).size;
+        const workers = new Set(pendingReports.map(item => item.worker_code).filter(Boolean)).size;
 
         return { totalOK, totalNG, total, ngRate, workers };
-    }, [reports]);
+    }, [reports, pendingReports]);
 
     const processData = useMemo(() => {
         const map = new Map<string, { ok: number; ng: number; count: number }>();
@@ -70,9 +72,9 @@ function Dashboard() {
         const shifts = ["A", "B", "C", "D"];
         return shifts.map(shift => ({
             shift,
-            count: reports.filter(report => report.shift === shift).length
+            count: pendingReports.filter(report => report.shift === shift).length
         }));
-    }, [reports]);
+    }, [pendingReports]);
 
     const maxProcessOutput = Math.max(1, ...processData.map(item => item.ok + item.ng));
     const maxShiftCount = Math.max(1, ...shiftData.map(item => item.count));
@@ -116,7 +118,7 @@ function Dashboard() {
                     <div className="dashboard-kpi-icon"><AppIcon name="pending" size={24} /></div>
                     <div>
                         <span>Chờ duyệt</span>
-                        <strong>{formatNumber(reports.length)}</strong>
+                        <strong>{formatNumber(pendingReports.length)}</strong>
                         <small>{metrics.workers} công nhân có báo cáo</small>
                     </div>
                 </article>
