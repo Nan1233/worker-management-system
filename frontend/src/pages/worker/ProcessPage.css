@@ -1403,3 +1403,75 @@
         width: 100%;
     }
 }
+
+/* =====================================================
+   FIX HIỂN THỊ ĐẦY ĐỦ CHI TIẾT LỖI NG
+   - Không giới hạn số dòng
+   - Không cắt nội dung
+   - Mobile tự xuống một lỗi mỗi hàng
+===================================================== */
+.worker-quality-section,
+.worker-ng-grid,
+.worker-ng-grid .worker-field-block {
+    height: auto !important;
+    min-height: 0;
+    max-height: none !important;
+    overflow: visible !important;
+}
+
+.worker-ng-grid {
+    width: 100%;
+    grid-auto-flow: row;
+    grid-auto-rows: auto;
+    align-items: start;
+}
+
+.worker-ng-grid .worker-field-block {
+    width: 100%;
+    min-width: 0;
+    margin-bottom: 16px;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+.worker-ng-grid .worker-field-label {
+    min-height: 0 !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.worker-ng-grid .worker-text-input {
+    display: block !important;
+    width: 100% !important;
+}
+
+.worker-dropdown-options,
+.worker-dropdown-option {
+    max-height: none !important;
+    overflow: visible !important;
+}
+
+.worker-dropdown-option {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+@media (max-width: 767px) {
+    .worker-ng-grid {
+        grid-template-columns: minmax(0, 1fr) !important;
+        gap: 0 !important;
+    }
+
+    .worker-ng-grid .worker-field-block {
+        margin-bottom: 14px;
+    }
+
+    .worker-quality-section {
+        padding-bottom: 8px;
+    }
+}
