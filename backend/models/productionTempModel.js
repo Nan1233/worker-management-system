@@ -105,6 +105,56 @@ const ProductionTemp = {
         return rows[0] || null;
     },
 
+    async findSimilarReport({ workerId, processId, workDate, shift, machineNo, productName }, executor = db) {
+        const rows = await query(
+            executor,
+            `SELECT id, status, work_date, shift, machine_no, product_name, created_at, updated_at
+             FROM production_reports_temp
+             WHERE worker_id = ?
+               AND process_id = ?
+               AND DATE(work_date) = ?
+               AND shift = ?
+               AND machine_no = ?
+               AND product_name = ?
+               AND status IN ('pending', 'need_fix')
+             ORDER BY created_at DESC, id DESC
+             LIMIT 1`,
+            [workerId, processId, workDate, shift, machineNo, productName]
+        );
+        return rows[0] || null;
+    },
+
+
+    async findRecentIdentical(data, executor = db) {
+        const rows = await query(
+            executor,
+            `SELECT id, status
+             FROM production_reports_temp
+             WHERE worker_id = ?
+               AND process_id = ?
+               AND DATE(work_date) = ?
+               AND shift = ?
+               AND machine_no = ?
+               AND product_name = ?
+               AND total_time = ?
+               AND actual_time = ?
+               AND deduction_time = ?
+               AND actual_output = ?
+               AND tt_ok = ?
+               AND tt_ng = ?
+               AND created_at >= DATE_SUB(NOW(), INTERVAL 5 SECOND)
+             ORDER BY id DESC
+             LIMIT 1`,
+            [
+                data.worker_id, data.process_id, data.work_date, data.shift,
+                data.machine_no || null, data.product_name || null,
+                Number(data.total_time) || 0, Number(data.actual_time) || 0,
+                Number(data.deduction_time) || 0, Number(data.actual_output) || 0,
+                Number(data.tt_ok) || 0, Number(data.tt_ng) || 0
+            ]
+        );
+        return rows[0] || null;
+    },
     async createDefects(tempReportId, processId, defects, executor = db) {
         if (!Array.isArray(defects) || defects.length === 0) return;
 
@@ -187,7 +237,15 @@ const ProductionTemp = {
             );
             if (existing) {
                 await commit(connection);
-                return { id: existing.id, duplicate: true };
+                return { id: existing.id, duplicate: true, duplicate_reason: "request_id" };
+            }
+
+            if (!data.force_create) {
+                const recent = await this.findRecentIdentical(data, connection);
+                if (recent) {
+                    await commit(connection);
+                    return { id: recent.id, duplicate: true, duplicate_reason: "rapid_repeat" };
+                }
             }
 
             const tempId = await this.create(data, connection);
@@ -195,7 +253,7 @@ const ProductionTemp = {
             await this.createDeductions(tempId, data.process_id, deductions, connection);
             await this.logAction({ ...log, reportId: tempId }, connection);
             await commit(connection);
-            return { id: tempId, duplicate: false };
+            return { id: tempId, duplicate: false, duplicate_reason: null };
         } catch (error) {
             await rollback(connection);
             if (error.code === "ER_DUP_ENTRY" && data.client_request_id) {
@@ -706,19 +764,24 @@ const ProductionTemp = {
     //     }
     // },
 
-    async updateReport(id, data, changedBy, reason = null, isAdmin = false) {
+    async updateReport(id, data, changedBy, reason = null, options = {}) {
         const connection = await getConnection();
 
         try {
             await beginTransaction(connection);
 
-            const scopeJoin = isAdmin
+            const { isAdmin = false, workerId = null } = options;
+            const isWorkerEdit = Number(workerId) > 0;
+
+            const scopeJoin = isAdmin || isWorkerEdit
                 ? ""
                 : "JOIN manager_processes mp ON mp.process_id = pr.process_id";
 
             const scopeWhere = isAdmin
                 ? ""
-                : "AND mp.manager_id = ?";
+                : isWorkerEdit
+                    ? "AND pr.worker_id = ?"
+                    : "AND mp.manager_id = ?";
 
             const rows = await query(
                 connection,
@@ -729,7 +792,9 @@ const ProductionTemp = {
                  FOR UPDATE`,
                 isAdmin
                     ? [id]
-                    : [id, changedBy]
+                    : isWorkerEdit
+                        ? [id, workerId]
+                        : [id, changedBy]
             );
 
             const current = rows[0];

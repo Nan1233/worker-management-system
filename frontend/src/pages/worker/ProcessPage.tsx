@@ -17,7 +17,9 @@ import "./ProcessPage.css";
 
 
 import {
-    createTempReport
+    checkSimilarTempReport,
+    createTempReport,
+    updateTempReport
 } from "../../services/productionService";
 
 import {
@@ -32,6 +34,7 @@ import type {
 import type {
     WorkerProfile
 } from "../../types/worker";
+import type { ProductionReport } from "../../types/production";
 import {
     getMachinesByProcess,
     getProductStandardsByProcess
@@ -766,6 +769,10 @@ function ProcessPage() {
     const { showToast } = useToast();
     const submitLockRef = useRef(false);
     const clientRequestIdRef = useRef<string | null>(null);
+    const [duplicatePrompt, setDuplicatePrompt] = useState<{
+        reportId: number;
+        payload: ProductionReport;
+    } | null>(null);
 
     const navigate =
         useNavigate();
@@ -2455,7 +2462,7 @@ const updateDeductionValue = (
             try {
                 setSubmitting(true);
 
-                const response = await createTempReport({
+                const payload: ProductionReport = {
                     client_request_id: clientRequestIdRef.current,
 
                     process_id:
@@ -2679,8 +2686,22 @@ const updateDeductionValue = (
                     note:
                         form.note.trim()
 
+                };
+
+                const similar = await checkSimilarTempReport({
+                    process_id: payload.process_id,
+                    work_date: payload.work_date,
+                    shift: payload.shift,
+                    machine_no: payload.machine_no,
+                    product_name: payload.product_name
                 });
 
+                if (similar.duplicate && similar.data?.id) {
+                    setDuplicatePrompt({ reportId: similar.data.id, payload });
+                    return;
+                }
+
+                const response = await createTempReport(payload);
 
                 showToast(
     response?.duplicate
@@ -2729,6 +2750,54 @@ window.setTimeout(() => {
 
         };
 
+
+    const finishSuccessfulSubmit = (message: string) => {
+        showToast(message, "success");
+        clientRequestIdRef.current = null;
+        setDuplicatePrompt(null);
+        window.setTimeout(() => {
+            navigate("/worker", { replace: true });
+        }, 900);
+    };
+
+    const handleCreateDuplicateAnyway = async () => {
+        if (!duplicatePrompt) return;
+        try {
+            setSubmitting(true);
+            const payload = {
+                ...duplicatePrompt.payload,
+                client_request_id: crypto.randomUUID(),
+                force_create: true
+            };
+            const response = await createTempReport(payload);
+            finishSuccessfulSubmit(
+                response?.duplicate
+                    ? "Yêu cầu này đã được hệ thống ghi nhận trước đó"
+                    : "Đã tạo báo cáo mới theo xác nhận của bạn."
+            );
+        } catch (error: unknown) {
+            const { message, errors } = getApiError(error, "Không thể tạo báo cáo mới");
+            showToast(Object.values(errors)[0] || message, "error");
+        } finally {
+            submitLockRef.current = false;
+            setSubmitting(false);
+        }
+    };
+
+    const handleUpdateExistingReport = async () => {
+        if (!duplicatePrompt) return;
+        try {
+            setSubmitting(true);
+            await updateTempReport(duplicatePrompt.reportId, duplicatePrompt.payload);
+            finishSuccessfulSubmit("Đã cập nhật báo cáo cũ thành công.");
+        } catch (error: unknown) {
+            const { message, errors } = getApiError(error, "Không thể cập nhật báo cáo cũ");
+            showToast(Object.values(errors)[0] || message, "error");
+        } finally {
+            submitLockRef.current = false;
+            setSubmitting(false);
+        }
+    };
 
     // =====================================================
     // LÀM MỚI FORM
@@ -3942,6 +4011,23 @@ onSelect={(
 
             </div>
 
+
+            {duplicatePrompt && (
+                <div className="duplicate-dialog-backdrop" role="presentation">
+                    <div className="duplicate-dialog" role="dialog" aria-modal="true" aria-labelledby="duplicate-dialog-title">
+                        <h2 id="duplicate-dialog-title">Phát hiện báo cáo tương tự</h2>
+                        <p>
+                            Đã tồn tại báo cáo cùng nhân viên, ngày, ca, máy và sản phẩm.
+                            Bạn muốn chỉnh sửa báo cáo cũ hay vẫn tạo báo cáo mới?
+                        </p>
+                        <div className="duplicate-dialog-actions">
+                            <button type="button" className="duplicate-dialog-cancel" onClick={() => { setDuplicatePrompt(null); submitLockRef.current = false; }}>Hủy</button>
+                            <button type="button" className="duplicate-dialog-edit" onClick={handleUpdateExistingReport} disabled={submitting}>Chỉnh sửa báo cáo cũ</button>
+                            <button type="button" className="duplicate-dialog-create" onClick={handleCreateDuplicateAnyway} disabled={submitting}>Vẫn tạo báo cáo mới</button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* =================================================
                 NÚT THAO TÁC

@@ -28,6 +28,14 @@ router.post(
     controller.createTempReport
 );
 
+router.post(
+    "/check-similar",
+    authMiddleware,
+    checkRole("worker"),
+    validate({ process_id:{required:true,type:"positiveInt"}, work_date:{required:true}, shift:{required:true,maxLength:20}, machine_no:{required:true,maxLength:100}, product_name:{required:true,maxLength:150} }),
+    controller.checkSimilarReport
+);
+
 
 // =====================================================
 // WORKER XEM BÁO CÁO CỦA MÌNH
@@ -165,7 +173,8 @@ router.put(
     authMiddleware,
     checkRole(
         "admin",
-        "manager"
+        "manager",
+        "worker"
     ),
     validate({ id:{in:"params",required:true,type:"positiveInt"} }),
     controller.updateTempReport

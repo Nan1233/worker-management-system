@@ -76,6 +76,8 @@ export interface ProductionReport {
 
     client_request_id?: string;
 
+    force_create?: boolean;
+
 
     // ==========================
     // THÔNG TIN CHUNG

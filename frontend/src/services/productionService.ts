@@ -33,6 +33,27 @@ export const createTempReport = async(
 
 };
 
+export interface SimilarReportCheckResponse {
+    success: boolean;
+    duplicate: boolean;
+    data: {
+        id: number;
+        status: string;
+        work_date: string;
+        shift: string;
+        machine_no: string;
+        product_name: string;
+    } | null;
+    message: string;
+}
+
+export const checkSimilarTempReport = async (
+    data: Pick<ProductionReport, "process_id" | "work_date" | "shift" | "machine_no" | "product_name">
+): Promise<SimilarReportCheckResponse> => {
+    const res = await api.post("/production-temp/check-similar", data);
+    return res.data;
+};
+
 
 
 

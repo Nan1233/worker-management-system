@@ -11,18 +11,18 @@ const valid = {
 };
 
 test("accepts a consistent report", () => {
-    assert.equal(validateProductionReport(valid).valid, true);
+    assert.equal(validateProductionReport(valid, { enforceBackDate: false }).valid, true);
 });
 
 test("rejects negative and inconsistent time", () => {
-    const result = validateProductionReport({ ...valid, deduction_time: 9, actual_time: -1 });
+    const result = validateProductionReport({ ...valid, deduction_time: 9, actual_time: -1 }, { enforceBackDate: false });
     assert.equal(result.valid, false);
     assert.ok(result.errors.deduction_time);
     assert.ok(result.errors.actual_time);
 });
 
 test("rejects actual output below OK + NG", () => {
-    const result = validateProductionReport({ ...valid, actual_output: 50 });
+    const result = validateProductionReport({ ...valid, actual_output: 50 }, { enforceBackDate: false });
     assert.equal(result.valid, false);
     assert.ok(result.errors.actual_output);
 });

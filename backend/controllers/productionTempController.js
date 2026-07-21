@@ -55,6 +55,37 @@ const requestMeta = (req) => ({
 // WORKER TẠO BÁO CÁO CHỜ DUYỆT
 // =====================================================
 
+exports.checkSimilarReport = async (req, res) => {
+    try {
+        const workerId = toPositiveInteger(req.user?.worker_id);
+        const processId = toPositiveInteger(req.body?.process_id);
+        const workDate = String(req.body?.work_date || "").trim();
+        const shift = String(req.body?.shift || "").trim();
+        const machineNo = String(req.body?.machine_no || "").trim();
+        const productName = String(req.body?.product_name || "").trim();
+
+        if (!workerId || !processId || !workDate || !shift || !machineNo || !productName) {
+            return res.status(400).json({ success: false, message: "Thiếu thông tin kiểm tra báo cáo trùng" });
+        }
+
+        const report = await ProductionTemp.findSimilarReport({
+            workerId, processId, workDate, shift, machineNo, productName
+        });
+
+        return res.status(200).json({
+            success: true,
+            duplicate: Boolean(report),
+            data: report || null,
+            message: report
+                ? "Đã tồn tại báo cáo cùng nhân viên, ngày, ca, máy và sản phẩm"
+                : "Không có báo cáo tương tự"
+        });
+    } catch (error) {
+        console.error("CHECK SIMILAR REPORT ERROR:", error);
+        return res.status(500).json({ success: false, message: publicMessage(error, "Không thể kiểm tra báo cáo trùng") });
+    }
+};
+
 exports.createTempReport = async (req, res) => {
     try {
         const workerId =
@@ -184,7 +215,10 @@ exports.createTempReport = async (req, res) => {
                 undefined,
 
             deductions:
-                undefined
+                undefined,
+
+            force_create:
+                req.body?.force_create === true
         };
 
 
@@ -453,6 +487,9 @@ exports.createTempReport = async (req, res) => {
                 duplicate:
                     result.duplicate,
 
+                duplicate_reason:
+                    result.duplicate_reason || null,
+
                 message:
                     result.duplicate
                         ? "Yêu cầu này đã được ghi nhận trước đó"
@@ -666,7 +703,10 @@ exports.updateTempReport = async (req, res) => {
             validation.normalized,
             changedBy,
             req.body?.reason || null,
-            req.user?.role === "admin"
+            {
+                isAdmin: req.user?.role === "admin",
+                workerId: req.user?.role === "worker" ? req.user?.worker_id : null
+            }
         );
 
         return res.status(200).json({
