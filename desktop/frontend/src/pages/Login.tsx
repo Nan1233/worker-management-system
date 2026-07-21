@@ -108,10 +108,6 @@ function Login() {
             localStorage.setItem("token", data.token);
             localStorage.setItem("user", JSON.stringify(data.user));
 
-            if (window.ktcDesktop?.isDesktop) {
-                await window.ktcDesktop.configureAutoSync(data.token);
-            }
-
             if (rememberAccount) {
                 saveRememberedAccount(data.user);
             } else {

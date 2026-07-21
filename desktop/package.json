@@ -1,38 +1,35 @@
 {
-  "name": "ktc-worker-management-desktop",
-  "version": "1.0.5",
-  "description": "KTC Worker Management System desktop application",
+  "name": "ktc-production-control-desktop",
+  "version": "1.1.0",
+  "description": "KTC Production Control Desktop - FE33 đóng gói nội bộ và tự động đồng bộ Excel theo dữ liệu backend",
   "main": "electron/main.cjs",
   "author": "KTC",
+  "license": "UNLICENSED",
   "private": true,
   "scripts": {
-    "install:all": "npm install && npm --prefix frontend install",
-    "dev": "concurrently \"npm --prefix frontend run dev\" \"wait-on http://localhost:5173 && cross-env ELECTRON_START_URL=http://localhost:5173 electron .\"",
-    "build:web": "npm --prefix frontend run build",
-    "start": "npm run build:web && electron .",
-    "dist:win": "npm run build:web && electron-builder --win nsis",
-    "dist:dir": "npm run build:web && electron-builder --dir",
-    "dist:portable": "npm run build:web && electron-builder --win portable"
+    "frontend:install": "npm --prefix frontend install",
+    "build:frontend": "npm --prefix frontend run build",
+    "start": "npm run build:frontend && electron .",
+    "dist:win": "npm run build:frontend && electron-builder --win nsis portable",
+    "dist:portable": "npm run build:frontend && electron-builder --win portable"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1",
-    "cross-env": "^10.0.0",
-    "electron": "^37.2.6",
-    "electron-builder": "^26.0.12",
-    "wait-on": "^8.0.4"
+    "electron": "^37.2.3",
+    "electron-builder": "^26.0.12"
   },
   "build": {
-    "appId": "vn.ktc.worker.management",
+    "appId": "vn.ktc.productioncontrol",
     "productName": "KTC Production Control",
+    "asar": true,
     "directories": {
       "output": "release"
     },
     "files": [
       "electron/**/*",
       "frontend/dist/**/*",
+      "assets/**/*",
       "package.json"
     ],
-    "asar": true,
     "win": {
       "target": [
         {
@@ -48,14 +45,16 @@
           ]
         }
       ],
-      "artifactName": "KTC-Production-Control-${version}-${arch}.${ext}"
+      "artifactName": "KTC-Production-Control-${version}-${arch}.${ext}",
+      "icon": "assets/icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "KTC Production Control"
+      "shortcutName": "KTC Production Control",
+      "deleteAppDataOnUninstall": false
     }
   }
 }

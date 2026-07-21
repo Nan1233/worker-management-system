@@ -80,6 +80,7 @@ const duplicateKey = (
     report: ProductionReport
 ): string =>
     [
+        String(report.work_date || "").slice(0, 10),
         report.worker_code,
         report.shift,
         report.machine_no,

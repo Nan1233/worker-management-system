@@ -692,13 +692,19 @@ export const exportSelectedApprovedExcel = async (
         throw new Error("Ngày xuất Excel không hợp lệ");
     }
 
+    // Trong Electron, không tạo Blob và không mở hộp Save As.
+    // Electron gọi API rồi ghi đè trực tiếp các file Excel tháng trong Documents.
     if (window.ktcDesktop?.isDesktop) {
-        const token = localStorage.getItem("token");
+        const token = localStorage.getItem("token") || "";
         if (!token) {
-            throw new Error("Phiên đăng nhập đã hết hạn");
+            throw new Error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
         }
 
-        return window.ktcDesktop.saveExcel(token, date);
+        const result = await window.ktcDesktop.syncAllExcel(token, date);
+        if (!result?.success) {
+            throw new Error(result?.message || "Không thể cập nhật file Excel tháng");
+        }
+        return result;
     }
 
     const response = await api.post(
