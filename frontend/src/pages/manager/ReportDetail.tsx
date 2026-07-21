@@ -23,6 +23,49 @@ const formatDateTime = (value?: string | null) => {
 const formatNumber = (value?: number | string | null) =>
     Number(value ?? 0).toLocaleString("vi-VN", { maximumFractionDigits: 3 });
 
+const LEGACY_DEFECT_FIELDS: Array<{ key: keyof ProductionReport; label: string }> = [
+    { key: "kqd_dap_lai", label: "KQĐ dập lại" },
+    { key: "kqd_tuot", label: "KQĐ tuột" },
+    { key: "vo_do_long", label: "Vỡ/đỏ lồng" },
+    { key: "xuoc_do_long", label: "Xước/đỏ lồng" },
+    { key: "cong_gay", label: "Không xước, cong gãy" },
+    { key: "xoay", label: "Cao su xoay" },
+    { key: "khong_dut", label: "Cắt không đứt" },
+    { key: "bavia_hut", label: "Bavia/hụt" },
+    { key: "ppcm", label: "PPCM" },
+    { key: "loi_cao_su", label: "Lỗi cao su" },
+    { key: "ng_kich_thuoc", label: "NG kích thước" },
+    { key: "cat_lem", label: "Cắt lẹm" },
+];
+
+const normalizeText = (value?: string | null) =>
+    String(value || "").trim().toLocaleLowerCase("vi-VN").replace(/\s+/g, " ");
+
+const getAllDefects = (report: ProductionReport) => {
+    const result: Array<{ id?: number; defect_type_id?: number; defect_code?: string; defect_name: string; quantity: number }> = [];
+    const seen = new Set<string>();
+
+    for (const item of Array.isArray(report.defects) ? report.defects : []) {
+        const quantity = Number(item.quantity || 0);
+        if (quantity <= 0) continue;
+        const name = item.defect_name || item.defect_code || "Lỗi NG";
+        const key = item.defect_type_id ? `id:${item.defect_type_id}` : `name:${normalizeText(name)}`;
+        seen.add(key);
+        seen.add(`name:${normalizeText(name)}`);
+        result.push({ ...item, defect_name: name, quantity });
+    }
+
+    for (const legacy of LEGACY_DEFECT_FIELDS) {
+        const quantity = Number(report[legacy.key] || 0);
+        const key = `name:${normalizeText(legacy.label)}`;
+        if (quantity <= 0 || seen.has(key)) continue;
+        result.push({ defect_name: legacy.label, quantity });
+        seen.add(key);
+    }
+
+    return result;
+};
+
 function ReportDetail() {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -89,7 +132,7 @@ function ReportDetail() {
         );
     }
 
-    const defects = Array.isArray(report.defects) ? report.defects.filter(item => Number(item.quantity) > 0) : [];
+    const defects = getAllDefects(report);
     const deductions = Array.isArray(report.deductions) ? report.deductions.filter(item => Number(item.hours) > 0) : [];
 
     return (
@@ -143,14 +186,14 @@ function ReportDetail() {
 
             <div className="detail-two-column">
                 <section className="detail-basic-card detail-list-card">
-                    <h2>Chi tiết NG</h2>
+                    <div className="detail-section-heading"><h2>Chi tiết NG</h2><span>{defects.length} loại lỗi</span></div>
                     {defects.length === 0 ? (
                         <div className="detail-empty-list">Không có lỗi NG.</div>
                     ) : (
                         <div className="detail-list">
                             {defects.map((item, index) => (
                                 <div className="detail-list-row" key={item.id ?? `${item.defect_type_id}-${index}`}>
-                                    <span>{item.defect_name || item.defect_code || `Lỗi ${index + 1}`}</span>
+                                    <span><small>NG {index + 1}</small>{item.defect_name || item.defect_code || `Lỗi ${index + 1}`}</span>
                                     <strong>{formatNumber(item.quantity)}</strong>
                                 </div>
                             ))}
@@ -159,14 +202,14 @@ function ReportDetail() {
                 </section>
 
                 <section className="detail-basic-card detail-list-card">
-                    <h2>Chi tiết giờ trừ</h2>
+                    <div className="detail-section-heading"><h2>Chi tiết giờ trừ</h2><span>{deductions.length} mục</span></div>
                     {deductions.length === 0 ? (
                         <div className="detail-empty-list">Không có thời gian trừ.</div>
                     ) : (
                         <div className="detail-list">
                             {deductions.map((item, index) => (
                                 <div className="detail-list-row" key={item.id ?? `${item.deduction_type_id}-${index}`}>
-                                    <span>{item.deduction_name || item.deduction_code || `Mục ${index + 1}`}</span>
+                                    <span><small>Mục {index + 1}</small>{item.deduction_name || item.deduction_code || `Mục ${index + 1}`}</span>
                                     <strong>{formatNumber(item.hours)} giờ</strong>
                                 </div>
                             ))}
