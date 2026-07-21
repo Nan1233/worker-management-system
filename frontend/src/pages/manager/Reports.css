@@ -46,7 +46,7 @@
 
 .management-filter-card {
     display: grid;
-    grid-template-columns: minmax(260px, 1.7fr) repeat(3, minmax(125px, .75fr)) auto auto;
+    grid-template-columns: minmax(320px, 1.8fr) minmax(190px, .9fr) minmax(200px, 1fr) minmax(150px, .7fr) minmax(190px, .9fr) auto;
     align-items: end;
     gap: 12px;
     margin-bottom: 16px;
@@ -58,7 +58,7 @@
 }
 
 .approved-filter-card {
-    grid-template-columns: minmax(260px, 1.7fr) repeat(3, minmax(125px, .75fr)) auto;
+    grid-template-columns: minmax(320px, 1.8fr) minmax(190px, .9fr) minmax(200px, 1fr) minmax(150px, .7fr) minmax(190px, .9fr) auto;
 }
 
 .management-search-box { position: relative; }
@@ -299,12 +299,26 @@ button:disabled { opacity: .48; cursor: not-allowed; box-shadow: none; }
     text-decoration: underline;
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1450px) {
     .management-filter-card,
     .approved-filter-card {
-        grid-template-columns: repeat(3, minmax(150px, 1fr));
+        grid-template-columns: repeat(3, minmax(180px, 1fr));
     }
-    .management-search-box { grid-column: 1 / -1; }
+
+    .management-search-box {
+        grid-column: span 2;
+    }
+}
+
+@media (max-width: 1050px) {
+    .management-filter-card,
+    .approved-filter-card {
+        grid-template-columns: repeat(2, minmax(180px, 1fr));
+    }
+
+    .management-search-box {
+        grid-column: 1 / -1;
+    }
 }
 
 @media (max-width: 768px) {
@@ -314,16 +328,44 @@ button:disabled { opacity: .48; cursor: not-allowed; box-shadow: none; }
     .management-filter-card,
     .approved-filter-card { grid-template-columns: 1fr; }
     .management-search-box { grid-column: auto; }
+    .management-filter-actions {
+        grid-column: auto;
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .management-filter-actions .management-view-selected-button,
+    .management-filter-actions .management-approve-button,
+    .management-filter-actions .management-export-button {
+        width: 100%;
+        min-width: 0;
+    }
 }
 
 /* =====================================================
    PROFESSIONAL FILTER ACTIONS + ALL DATES
 ===================================================== */
-.management-date-filter {
-    min-width: 210px;
+.management-date-filter,
+.management-scope-filter {
+    min-width: 0;
+}
+
+.management-scope-filter .management-all-dates-button {
+    width: 100%;
+}
+
+.management-filter-actions {
+    grid-column: 1 / -1;
     display: flex;
-    flex-direction: column;
-    gap: 8px;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 12px;
+    padding-top: 2px;
+}
+
+.management-filter-actions .management-view-selected-button,
+.management-filter-actions .management-approve-button,
+.management-filter-actions .management-export-button {
+    min-width: 190px;
 }
 
 .management-all-dates-button,

@@ -377,25 +377,27 @@ const handleExportExcel = async () => {
                     />
                 </div>
 
-                <div className="management-date-filter">
-                    <label className="management-filter-field">
-                        <span>Ngày báo cáo</span>
-                        <input
-                            type="date"
-                            value={date}
-                            disabled={showAllDates}
-                            onChange={event => {
-                                setDate(event.target.value);
-                                setShowAllDates(false);
-                            }}
-                        />
-                    </label>
+                <label className="management-filter-field management-date-filter">
+                    <span>Ngày báo cáo</span>
+                    <input
+                        type="date"
+                        value={date}
+                        disabled={showAllDates}
+                        onChange={event => {
+                            setDate(event.target.value);
+                            setShowAllDates(false);
+                        }}
+                    />
+                </label>
+
+                <div className="management-filter-field management-scope-filter">
+                    <span>Phạm vi dữ liệu</span>
                     <button
                         type="button"
                         className={showAllDates ? "management-all-dates-button active" : "management-all-dates-button"}
                         onClick={() => setShowAllDates(current => !current)}
                     >
-                        {showAllDates ? "Đang hiển thị tất cả" : "Hiển thị tất cả ngày"}
+                        {showAllDates ? "Đang xem tất cả ngày" : "Chỉ xem ngày đã chọn"}
                     </button>
                 </div>
 
@@ -424,33 +426,28 @@ const handleExportExcel = async () => {
                 >
                     Xóa lọc
                 </button>
-                <button
-                    type="button"
-                    className="management-view-selected-button"
-                    onClick={handleViewSelectedDetails}
-                    disabled={
-                        selectedIds.length === 0 ||
-                        loading ||
-                        exporting
-                    }
-                >
-                    Xem chi tiết ({selectedIds.length})
-                </button>
-                <button
-    type="button"
-    className="management-export-button"
-    onClick={handleExportExcel}
-    disabled={
-        loading ||
-        exporting ||
-        showAllDates
-    }
->
-    {exporting
-        ? "Đang cập nhật file tháng..."
-        : "Tải Excel theo ngày"
-    }
-</button>
+                <div className="management-filter-actions">
+                    <button
+                        type="button"
+                        className="management-view-selected-button"
+                        onClick={handleViewSelectedDetails}
+                        disabled={
+                            selectedIds.length === 0 ||
+                            loading ||
+                            exporting
+                        }
+                    >
+                        Xem chi tiết ({selectedIds.length})
+                    </button>
+                    <button
+                        type="button"
+                        className="management-export-button"
+                        onClick={handleExportExcel}
+                        disabled={loading || exporting || showAllDates}
+                    >
+                        {exporting ? "Đang cập nhật file tháng..." : "Tải Excel theo ngày"}
+                    </button>
+                </div>
             </div>
 {selectedIds.length > 0 && (
     <div className="management-selected-info">
