@@ -19,7 +19,7 @@ interface MenuItem {
 }
 
 const menuItems: MenuItem[] = [
-    { id: "master", label: "Quản trị dữ liệu", path: "master", icon: "settings", roles: ["manager", "admin"], description: "Công nhân, công đoạn, lỗi, máy và định mức" },
+    { id: "master", label: "Quản trị dữ liệu", path: "master", icon: "settings", roles: ["lead", "manager", "admin"], description: "Người dùng, công đoạn, lỗi, máy và định mức" },
     {
         id: "dashboard",
         label: "Tổng quan",

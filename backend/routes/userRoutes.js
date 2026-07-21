@@ -1,37 +1,12 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
+const controller = require('../controllers/userController');
+const verifyToken = require('../middleware/authMiddleware');
+const checkRole = require('../middleware/roleMiddleware');
 
-const userController = require("../controllers/userController");
-
-const verifyToken = require("../middleware/authMiddleware");
-const checkRole = require("../middleware/roleMiddleware");
-
-
-// Admin + Manager xem danh sách user
-router.get(
-    "/",
-    verifyToken,
-    checkRole("admin", "manager", "lead"),
-    userController.getAllUsers
-);
-
-
-// Admin + Manager xem chi tiết
-router.get(
-    "/:id",
-    verifyToken,
-    checkRole("admin", "manager", "lead"),
-    userController.getUserById
-);
-
-
-// Chỉ Admin tạo user
-router.post(
-    "/",
-    verifyToken,
-    checkRole("admin"),
-    userController.createUser
-);
-
-
+router.use(verifyToken, checkRole('admin','manager','lead'));
+router.get('/', controller.getAllUsers);
+router.get('/:id', controller.getUserById);
+router.post('/', controller.createUser);
+router.put('/:id', controller.updateUser);
 module.exports = router;

@@ -279,6 +279,7 @@ function AppRouter() {
                 />
 
 
+                <Route path="master" element={<MasterData />} />
                 <Route path="workers" element={<LeadWorkers />} />
                 <Route path="system" element={<SystemCenter />} />
             </Route>
