@@ -44,13 +44,24 @@ const sortReports = (a, b) => {
 
 const clone = (value) => (value == null ? value : JSON.parse(JSON.stringify(value)));
 
-const normalizeType = (item, kind) => ({
-  id: Number(item.id ?? item[`${kind}_type_id`]),
-  code: String(item[`${kind}_code`] || ''),
-  name: String(item[`${kind}_name`] || item[`${kind}_code`] || ''),
-  sort_order: Number(item.sort_order) || 0,
-  process_id: Number(item.process_id) || 0
-});
+const normalizeType = (item, kind) => {
+  const id = Number(item.id ?? item.type_id ?? item[`${kind}_type_id`]);
+  const code = String(
+    item.code ?? item.type_code ?? item[`${kind}_code`] ?? ''
+  ).trim();
+  const rawName = item.name ?? item.type_name ?? item[`${kind}_name`];
+  const fallbackName = kind === 'deduction'
+    ? `Loại trừ giờ #${id || '?'}`
+    : `Lỗi NG #${id || '?'}`;
+
+  return {
+    id,
+    code,
+    name: String(rawName || code || fallbackName).trim(),
+    sort_order: Number(item.sort_order) || 0,
+    process_id: Number(item.process_id) || 0
+  };
+};
 
 const uniqueTypes = (items, kind) => {
   const map = new Map();
@@ -77,22 +88,8 @@ const sumDetailValues = (items, valueKey, allowedTypeIds = null, typeKey = null)
   .filter((item) => !allowedTypeIds || allowedTypeIds.has(Number(item[typeKey])))
   .reduce((sum, item) => sum + toNumber(item[valueKey]), 0);
 
-const normalizeLookupText = (value) => String(value || '').trim().toLowerCase();
-
-const detailValue = (items, type, valueKey, typeKey, codeKey, nameKey) => (items || [])
-  .filter((item) => {
-    const itemTypeId = Number(item[typeKey]);
-    if (itemTypeId && Number(type.id) && itemTypeId === Number(type.id)) return true;
-
-    // Fallback only for legacy rows that lost/omitted the type id.
-    const itemCode = normalizeLookupText(item[codeKey]);
-    const typeCode = normalizeLookupText(type.code);
-    if (itemCode && typeCode && itemCode === typeCode) return true;
-
-    const itemName = normalizeLookupText(item[nameKey]);
-    const typeName = normalizeLookupText(type.name);
-    return Boolean(itemName && typeName && itemName === typeName);
-  })
+const detailValue = (items, typeId, valueKey, typeKey) => (items || [])
+  .filter((item) => Number(item[typeKey]) === Number(typeId))
   .reduce((sum, item) => sum + toNumber(item[valueKey]), 0);
 
 const safeFolderName = (value, fallback) => String(value || fallback)
@@ -181,14 +178,14 @@ const TEMPLATE_SOURCE = Object.freeze({
   trainingPercent: 6,
   totalTime: 7,
   actualTime: 8,
-  totalDeduction: 9,
-  deductionDetail: 10,
+  totalDeduction: 10,
+  deductionDetail: 11,
   product: 27,
   standard: 28,
   totalOutput: 29,
-  achievementRate: 30,
+  outputPerHour: 30,
   workDate: 31,
-  outputPerHour: 32,
+  achievementRate: 32,
   ok: 33,
   totalNg: 34,
   ngRate: 35,
@@ -210,7 +207,7 @@ const buildColumns = (deductionTypes, defectTypes) => [
   { key: 'deduction_time', title: 'Tổng TG trừ giờ', source: TEMPLATE_SOURCE.totalDeduction },
   ...deductionTypes.map((type) => ({
     key: `deduction_${type.id}`,
-    title: type.name,
+    title: type.name || type.code || `Loại trừ giờ #${type.id}`,
     source: TEMPLATE_SOURCE.deductionDetail,
     kind: 'deduction',
     type
@@ -246,10 +243,10 @@ const buildReportValue = (column, report, sequence) => {
   const actualTime = toNumber(report.actual_time);
 
   if (column.kind === 'deduction') {
-    return detailValue(report.deductions, column.type, 'hours', 'deduction_type_id', 'deduction_code', 'deduction_name');
+    return detailValue(report.deductions, column.type.id, 'hours', 'deduction_type_id');
   }
   if (column.kind === 'defect') {
-    return detailValue(report.defects, column.type, 'quantity', 'defect_type_id', 'defect_code', 'defect_name');
+    return detailValue(report.defects, column.type.id, 'quantity', 'defect_type_id');
   }
 
   switch (column.key) {
@@ -261,7 +258,7 @@ const buildReportValue = (column, report, sequence) => {
     case 'training_percent': return toNumber(report.training_percent || 100) / 100;
     case 'total_time': return toNumber(report.total_time);
     case 'actual_time': return actualTime;
-    case 'deduction_time': return sumDetailValues(report.deductions, 'hours');
+    case 'deduction_time': return toNumber(report.deduction_time);
     case 'product_name': return report.product_name || '';
     case 'standard_output': return standard;
     case 'actual_output': return totalOutput;

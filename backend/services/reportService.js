@@ -252,7 +252,7 @@ const getReportsByDate = async (date) => {
 
                 FROM production_report_deductions AS detail
 
-                LEFT JOIN deduction_types AS type
+                INNER JOIN deduction_types AS type
                     ON type.id = detail.deduction_type_id
 
                 WHERE detail.report_id IN (${placeholders})
@@ -431,7 +431,7 @@ const getAllApprovedReportsForSheet =
 
                     FROM production_report_deductions AS detail
 
-                    LEFT JOIN deduction_types AS type
+                    INNER JOIN deduction_types AS type
                         ON type.id =
                            detail.deduction_type_id
 

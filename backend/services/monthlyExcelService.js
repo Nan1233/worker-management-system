@@ -67,18 +67,12 @@ const loadMonthReports = async (yearMonth) => {
     const processPlaceholders = processIds.map(() => '?').join(',');
     const [deductionRows, defectRows, deductionTypes, defectTypes] = await Promise.all([
         query(
-            `SELECT prd.report_id,
-                    prd.deduction_type_id,
-                    COALESCE(dt.process_id, pr.process_id) AS process_id,
-                    COALESCE(dt.deduction_code, CONCAT('DEDUCTION_', prd.deduction_type_id)) AS deduction_code,
-                    COALESCE(dt.deduction_name, CONCAT('Loại trừ giờ #', prd.deduction_type_id)) AS deduction_name,
-                    COALESCE(dt.sort_order, 999999) AS sort_order,
-                    prd.hours
+            `SELECT prd.report_id, dt.id AS deduction_type_id,
+                    dt.deduction_code, dt.deduction_name, prd.hours
              FROM production_report_deductions AS prd
-             INNER JOIN production_reports AS pr ON pr.id = prd.report_id
-             LEFT JOIN deduction_types AS dt ON dt.id = prd.deduction_type_id
+             INNER JOIN deduction_types AS dt ON dt.id = prd.deduction_type_id
              WHERE prd.report_id IN (${placeholders})
-             ORDER BY prd.report_id, sort_order, prd.deduction_type_id`,
+             ORDER BY prd.report_id, dt.sort_order, dt.id`,
             reportIds
         ),
         query(
@@ -92,7 +86,7 @@ const loadMonthReports = async (yearMonth) => {
             reportIds
         ),
         query(
-            `SELECT id, process_id, deduction_code, deduction_name, sort_order
+            `SELECT id, process_id, deduction_code AS code, deduction_name AS name, deduction_code, deduction_name, sort_order
                FROM deduction_types
               WHERE process_id IN (${processPlaceholders})
                 AND status = 'active'
@@ -110,11 +104,12 @@ const loadMonthReports = async (yearMonth) => {
     ]);
 
     const deductions = mapDetails(deductionRows, reportIds, (row) => ({
+        id: Number(row.id ?? row.deduction_type_id),
         deduction_type_id: Number(row.deduction_type_id),
-        deduction_code: row.deduction_code || "",
-        deduction_name: row.deduction_name || "",
-        process_id: Number(row.process_id) || 0,
-        sort_order: Number(row.sort_order) || 0,
+        code: row.code || row.deduction_code || "",
+        name: row.name || row.deduction_name || "",
+        deduction_code: row.code || row.deduction_code || "",
+        deduction_name: row.name || row.deduction_name || "",
         hours: Number(row.hours) || 0
     }));
     const defects = mapDetails(defectRows, reportIds, (row) => ({
