@@ -63,7 +63,9 @@ const loadMonthReports = async (yearMonth) => {
     if (!reportIds.length) return reports;
 
     const placeholders = reportIds.map(() => "?").join(",");
-    const [deductionRows, defectRows] = await Promise.all([
+    const processIds = [...new Set(reports.map((report) => Number(report.process_id)).filter(Boolean))];
+    const processPlaceholders = processIds.map(() => '?').join(',');
+    const [deductionRows, defectRows, deductionTypes, defectTypes] = await Promise.all([
         query(
             `SELECT prd.report_id, dt.id AS deduction_type_id,
                     dt.deduction_code, dt.deduction_name, prd.hours
@@ -81,6 +83,22 @@ const loadMonthReports = async (yearMonth) => {
              WHERE prd.report_id IN (${placeholders})
              ORDER BY prd.report_id, dt.sort_order, dt.id`,
             reportIds
+        ),
+        query(
+            `SELECT id, process_id, deduction_code, deduction_name, sort_order
+               FROM deduction_types
+              WHERE process_id IN (${processPlaceholders})
+                AND status = 'active'
+              ORDER BY process_id, sort_order, id`,
+            processIds
+        ),
+        query(
+            `SELECT id, process_id, defect_code, defect_name, sort_order
+               FROM defect_types
+              WHERE process_id IN (${processPlaceholders})
+                AND status = 'active'
+              ORDER BY process_id, sort_order, id`,
+            processIds
         )
     ]);
 
@@ -102,6 +120,8 @@ const loadMonthReports = async (yearMonth) => {
         report.deductions = deductions.get(id) || [];
         report.defects = defects.get(id) || [];
     });
+    reports.deductionTypes = deductionTypes;
+    reports.defectTypes = defectTypes;
     return reports;
 };
 
@@ -115,7 +135,9 @@ const buildMonthlyWorkbookInternal = async (yearMonth) => {
     }, null);
 
     const result = await buildMonthlyTemplateWorkbook(reports, yearMonth, {
-        latestUpdatedAt
+        latestUpdatedAt,
+        deductionTypes: reports.deductionTypes || [],
+        defectTypes: reports.defectTypes || []
     });
 
     console.log("MONTHLY EXCEL UPDATED:", result.archivePath);

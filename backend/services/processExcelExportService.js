@@ -85,7 +85,7 @@ async function loadProcessMonthReports(value, processId) {
   const reportIds = reports.map((report) => Number(report.id));
   if (!reportIds.length) return reports;
   const placeholders = reportIds.map(() => '?').join(',');
-  const [deductionRows, defectRows] = await Promise.all([
+  const [deductionRows, defectRows, deductionTypes, defectTypes] = await Promise.all([
     query(
       `SELECT prd.report_id, dt.id AS deduction_type_id, dt.deduction_code,
               dt.deduction_name, prd.hours
@@ -103,6 +103,20 @@ async function loadProcessMonthReports(value, processId) {
         WHERE prd.report_id IN (${placeholders})
         ORDER BY prd.report_id, dt.sort_order, dt.id`,
       reportIds
+    ),
+    query(
+      `SELECT id, process_id, deduction_code, deduction_name, sort_order
+         FROM deduction_types
+        WHERE process_id = ? AND status = 'active'
+        ORDER BY sort_order, id`,
+      [Number(processId)]
+    ),
+    query(
+      `SELECT id, process_id, defect_code, defect_name, sort_order
+         FROM defect_types
+        WHERE process_id = ? AND status = 'active'
+        ORDER BY sort_order, id`,
+      [Number(processId)]
     )
   ]);
 
@@ -124,6 +138,8 @@ async function loadProcessMonthReports(value, processId) {
     report.deductions = deductions.get(id) || [];
     report.defects = defects.get(id) || [];
   });
+  reports.deductionTypes = deductionTypes;
+  reports.defectTypes = defectTypes;
   return reports;
 }
 
@@ -156,7 +172,11 @@ async function buildProcessWorkbook(value, processId) {
   process.env.EXCEL_STAGE_FOLDER_NAME = path.join(processFolder, month);
 
   try {
-    const result = await buildMonthlyTemplateWorkbook(reports, yearMonth, { latestUpdatedAt });
+    const result = await buildMonthlyTemplateWorkbook(reports, yearMonth, {
+      latestUpdatedAt,
+      deductionTypes: reports.deductionTypes || [],
+      defectTypes: reports.defectTypes || []
+    });
     const desiredName = `Bao-cao-${slugName(processName)}-${month}-${year}.xlsx`;
     const desiredPath = path.join(folder, desiredName);
     if (result.archivePath !== desiredPath) {
