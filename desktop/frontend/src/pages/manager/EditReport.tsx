@@ -1,11 +1,92 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { getReportById, updateReport } from "../../services/productionService";
-import type { ProductionDeduction, ProductionDefect, ProductionReport } from "../../types/production";
+import {
+    getDeductionOptionsByProcess,
+    getDefectOptionsByProcess,
+    getReportById,
+    updateReport
+} from "../../services/productionService";
+import type {
+    ProductionDeduction,
+    ProductionDefect,
+    ProductionReport
+} from "../../types/production";
 import { useToast } from "../../components/feedback/toastContext";
 import "./EditReport.css";
 
 const numberValue = (value: unknown) => Number(value ?? 0) || 0;
+
+const mergeDefects = (
+    options: ProductionDefect[],
+    saved: ProductionDefect[]
+): ProductionDefect[] => {
+    const savedById = new Map(
+        saved
+            .filter((item) => Number(item.defect_type_id) > 0)
+            .map((item) => [Number(item.defect_type_id), item])
+    );
+    const savedByName = new Map(
+        saved.map((item) => [String(item.defect_name || "").trim().toLowerCase(), item])
+    );
+
+    const merged: ProductionDefect[] = options.map((option) => {
+        const current = savedById.get(Number(option.id || option.defect_type_id))
+            || savedByName.get(String(option.defect_name || "").trim().toLowerCase());
+        return {
+            ...option,
+            defect_type_id: Number(option.defect_type_id || option.id),
+            id: current?.id,
+            quantity: numberValue(current?.quantity)
+        };
+    });
+
+    for (const current of saved) {
+        const exists = merged.some((item) =>
+            Number(item.defect_type_id) === Number(current.defect_type_id)
+            || String(item.defect_name || "").trim().toLowerCase()
+                === String(current.defect_name || "").trim().toLowerCase()
+        );
+        if (!exists) merged.push({ ...current, quantity: numberValue(current.quantity) });
+    }
+
+    return merged;
+};
+
+const mergeDeductions = (
+    options: ProductionDeduction[],
+    saved: ProductionDeduction[]
+): ProductionDeduction[] => {
+    const savedById = new Map(
+        saved
+            .filter((item) => Number(item.deduction_type_id) > 0)
+            .map((item) => [Number(item.deduction_type_id), item])
+    );
+    const savedByName = new Map(
+        saved.map((item) => [String(item.deduction_name || "").trim().toLowerCase(), item])
+    );
+
+    const merged: ProductionDeduction[] = options.map((option) => {
+        const current = savedById.get(Number(option.id || option.deduction_type_id))
+            || savedByName.get(String(option.deduction_name || "").trim().toLowerCase());
+        return {
+            ...option,
+            deduction_type_id: Number(option.deduction_type_id || option.id),
+            id: current?.id,
+            hours: numberValue(current?.hours)
+        };
+    });
+
+    for (const current of saved) {
+        const exists = merged.some((item) =>
+            Number(item.deduction_type_id) === Number(current.deduction_type_id)
+            || String(item.deduction_name || "").trim().toLowerCase()
+                === String(current.deduction_name || "").trim().toLowerCase()
+        );
+        if (!exists) merged.push({ ...current, hours: numberValue(current.hours) });
+    }
+
+    return merged;
+};
 
 function EditReport() {
     const { id } = useParams();
@@ -27,18 +108,26 @@ function EditReport() {
                 setLoading(false);
                 return;
             }
+
             try {
                 setLoading(true);
+                setError("");
                 const data = await getReportById(reportId, source);
+                const processId = Number(data.process_id);
+                const [defectOptions, deductionOptions] = await Promise.all([
+                    processId > 0 ? getDefectOptionsByProcess(processId) : Promise.resolve([]),
+                    processId > 0 ? getDeductionOptionsByProcess(processId) : Promise.resolve([])
+                ]);
+
                 setForm({
                     ...data,
                     work_date: String(data.work_date || "").slice(0, 10),
-                    defects: data.defects || [],
-                    deductions: data.deductions || []
+                    defects: mergeDefects(defectOptions, data.defects || []),
+                    deductions: mergeDeductions(deductionOptions, data.deductions || [])
                 });
             } catch (err) {
                 console.error("LOAD REPORT ERROR:", err);
-                setError("Không thể tải báo cáo để sửa.");
+                setError("Không thể tải báo cáo hoặc danh mục chi tiết để sửa.");
             } finally {
                 setLoading(false);
             }
@@ -46,8 +135,14 @@ function EditReport() {
         void load();
     }, [reportId, source]);
 
-    const defectTotal = useMemo(() => (form?.defects || []).reduce((sum, item) => sum + numberValue(item.quantity), 0), [form?.defects]);
-    const deductionTotal = useMemo(() => (form?.deductions || []).reduce((sum, item) => sum + numberValue(item.hours), 0), [form?.deductions]);
+    const defectTotal = useMemo(
+        () => (form?.defects || []).reduce((sum, item) => sum + numberValue(item.quantity), 0),
+        [form?.defects]
+    );
+    const deductionTotal = useMemo(
+        () => (form?.deductions || []).reduce((sum, item) => sum + numberValue(item.hours), 0),
+        [form?.deductions]
+    );
 
     const setField = (field: keyof ProductionReport, value: string | number) => {
         setForm((current) => current ? { ...current, [field]: value } : current);
@@ -59,7 +154,12 @@ function EditReport() {
             const defects = [...(current.defects || [])];
             defects[index] = { ...defects[index], quantity };
             const ttNg = defects.reduce((sum, item) => sum + numberValue(item.quantity), 0);
-            return { ...current, defects, tt_ng: ttNg, actual_output: numberValue(current.tt_ok) + ttNg };
+            return {
+                ...current,
+                defects,
+                tt_ng: ttNg,
+                actual_output: numberValue(current.tt_ok) + ttNg
+            };
         });
     };
 
@@ -69,41 +169,65 @@ function EditReport() {
             const deductions = [...(current.deductions || [])];
             deductions[index] = { ...deductions[index], hours };
             const deductionTime = deductions.reduce((sum, item) => sum + numberValue(item.hours), 0);
-            return { ...current, deductions, deduction_time: deductionTime, actual_time: Math.max(0, numberValue(current.total_time) - deductionTime) };
+            return {
+                ...current,
+                deductions,
+                deduction_time: deductionTime,
+                actual_time: Math.max(0, numberValue(current.total_time) - deductionTime)
+            };
         });
     };
 
     const handleSave = async (event: React.FormEvent) => {
         event.preventDefault();
         if (!form || saving) return;
+
         try {
             setSaving(true);
             setError("");
-            const payload = {
+
+            const payload: ProductionReport = {
                 ...form,
                 work_date: String(form.work_date).slice(0, 10),
                 actual_time: Math.max(0, numberValue(form.total_time) - deductionTotal),
                 deduction_time: deductionTotal,
                 tt_ng: defectTotal,
                 actual_output: numberValue(form.tt_ok) + defectTotal,
-                defects: (form.defects || []).map((item: ProductionDefect) => ({ ...item, quantity: numberValue(item.quantity) })),
-                deductions: (form.deductions || []).map((item: ProductionDeduction) => ({ ...item, hours: numberValue(item.hours) }))
+                defects: (form.defects || []).map((item) => ({
+                    defect_type_id: Number(item.defect_type_id || item.id),
+                    defect_code: item.defect_code,
+                    defect_name: item.defect_name,
+                    quantity: numberValue(item.quantity)
+                })),
+                deductions: (form.deductions || []).map((item) => ({
+                    deduction_type_id: Number(item.deduction_type_id || item.id),
+                    deduction_code: item.deduction_code,
+                    deduction_name: item.deduction_name,
+                    hours: numberValue(item.hours)
+                }))
             };
+
             await updateReport(reportId, payload, source);
-            showToast("Cập nhật báo cáo thành công", "success");
+            showToast("Cập nhật đầy đủ chi tiết báo cáo thành công", "success");
             navigate(-1);
         } catch (err: any) {
             console.error("UPDATE REPORT ERROR:", err);
             const apiErrors = err?.response?.data?.errors;
-            const detail = apiErrors && typeof apiErrors === "object" ? Object.values(apiErrors).join("; ") : "";
+            const detail = apiErrors && typeof apiErrors === "object"
+                ? Object.values(apiErrors).flat().join("; ")
+                : "";
             setError(detail || err?.response?.data?.message || "Không thể cập nhật báo cáo.");
         } finally {
             setSaving(false);
         }
     };
 
-    if (loading) return <main className="edit-report-page"><div className="edit-report-card">Đang tải báo cáo...</div></main>;
-    if (!form) return <main className="edit-report-page"><div className="edit-report-card edit-error">{error || "Không tìm thấy báo cáo."}</div></main>;
+    if (loading) {
+        return <main className="edit-report-page"><div className="edit-report-card">Đang tải báo cáo...</div></main>;
+    }
+    if (!form) {
+        return <main className="edit-report-page"><div className="edit-report-card edit-error">{error || "Không tìm thấy báo cáo."}</div></main>;
+    }
 
     return (
         <main className="edit-report-page">
@@ -114,7 +238,9 @@ function EditReport() {
                         <h1>Sửa báo cáo {source === "pending" ? "chờ duyệt" : "đã duyệt"}</h1>
                         <p>{form.worker_code} - {form.full_name} · {form.process_name || form.process_code}</p>
                     </div>
-                    <button className="edit-save" type="submit" disabled={saving}>{saving ? "Đang lưu..." : "Lưu thay đổi"}</button>
+                    <button className="edit-save" type="submit" disabled={saving}>
+                        {saving ? "Đang lưu..." : "Lưu thay đổi"}
+                    </button>
                 </header>
 
                 {error && <div className="edit-error">{error}</div>}
@@ -126,6 +252,7 @@ function EditReport() {
                     <label>Mã sản phẩm<input value={form.product_name || ""} onChange={(e) => setField("product_name", e.target.value)} required /></label>
                     <label>Tổng thời gian<input type="number" min="0" max="24" step="0.01" value={numberValue(form.total_time)} onChange={(e) => { const total = numberValue(e.target.value); setForm({ ...form, total_time: total, actual_time: Math.max(0, total - deductionTotal) }); }} /></label>
                     <label>Thời gian thực tế<input type="number" value={Math.max(0, numberValue(form.total_time) - deductionTotal)} readOnly /></label>
+                    <label>Tổng thời gian trừ<input type="number" value={deductionTotal} readOnly /></label>
                     <label>Định mức<input type="number" min="0" step="0.01" value={numberValue(form.standard_output)} onChange={(e) => setField("standard_output", numberValue(e.target.value))} /></label>
                     <label>TT OK<input type="number" min="0" step="1" value={numberValue(form.tt_ok)} onChange={(e) => { const ok = numberValue(e.target.value); setForm({ ...form, tt_ok: ok, actual_output: ok + defectTotal }); }} /></label>
                     <label>TT NG<input type="number" value={defectTotal} readOnly /></label>
@@ -134,16 +261,47 @@ function EditReport() {
 
                 <section className="edit-detail-section">
                     <h2>Chi tiết thời gian trừ <span>{deductionTotal} giờ</span></h2>
-                    <div className="edit-detail-grid">
-                        {(form.deductions || []).map((item, index) => <label key={item.id || item.deduction_type_id || index}>{item.deduction_name || "Khấu trừ"}<input type="number" min="0" max="24" step="0.01" value={numberValue(item.hours)} onChange={(e) => updateDeduction(index, numberValue(e.target.value))} /></label>)}
-                    </div>
+                    {(form.deductions || []).length === 0 ? (
+                        <p className="edit-empty">Công đoạn này chưa có danh mục thời gian trừ.</p>
+                    ) : (
+                        <div className="edit-detail-grid">
+                            {(form.deductions || []).map((item, index) => (
+                                <label key={`${item.deduction_type_id || item.id || index}-${item.deduction_name}`}>
+                                    {item.deduction_name || item.deduction_code || "Khấu trừ"}
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        max="24"
+                                        step="0.01"
+                                        value={numberValue(item.hours)}
+                                        onChange={(e) => updateDeduction(index, numberValue(e.target.value))}
+                                    />
+                                </label>
+                            ))}
+                        </div>
+                    )}
                 </section>
 
                 <section className="edit-detail-section">
                     <h2>Chi tiết lỗi NG <span>{defectTotal}</span></h2>
-                    <div className="edit-detail-grid">
-                        {(form.defects || []).map((item, index) => <label key={item.id || item.defect_type_id || index}>{item.defect_name || "Lỗi NG"}<input type="number" min="0" step="1" value={numberValue(item.quantity)} onChange={(e) => updateDefect(index, numberValue(e.target.value))} /></label>)}
-                    </div>
+                    {(form.defects || []).length === 0 ? (
+                        <p className="edit-empty">Công đoạn này chưa có danh mục lỗi NG.</p>
+                    ) : (
+                        <div className="edit-detail-grid">
+                            {(form.defects || []).map((item, index) => (
+                                <label key={`${item.defect_type_id || item.id || index}-${item.defect_name}`}>
+                                    {item.defect_name || item.defect_code || "Lỗi NG"}
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        value={numberValue(item.quantity)}
+                                        onChange={(e) => updateDefect(index, numberValue(e.target.value))}
+                                    />
+                                </label>
+                            ))}
+                        </div>
+                    )}
                 </section>
 
                 <label className="edit-note">Ghi chú<textarea rows={4} value={form.note || ""} onChange={(e) => setField("note", e.target.value)} /></label>
