@@ -106,9 +106,26 @@ const columnLetter = (number) => {
   return result;
 };
 
+const mergeTypes = (configuredTypes, reports, kind) => {
+  const source = [
+    ...(configuredTypes || []),
+    ...collectTypes(reports, kind)
+  ];
+  const map = new Map();
+  source.map((item) => normalizeType(item, kind)).forEach((item) => {
+    if (item.id && !map.has(item.id)) map.set(item.id, item);
+  });
+  return [...map.values()].sort((a, b) =>
+    a.process_id - b.process_id || a.sort_order - b.sort_order || a.id - b.id
+  );
+};
+
+const sumDetailValues = (items, valueKey) => (items || [])
+  .reduce((sum, item) => sum + toNumber(item[valueKey]), 0);
+
 const buildSheetValues = (reports, options = {}) => {
-  const deductionTypes = (options.deductionTypes || []).length ? options.deductionTypes.map((item) => normalizeType(item, 'deduction')) : collectTypes(reports, 'deduction');
-  const defectTypes = (options.defectTypes || []).length ? options.defectTypes.map((item) => normalizeType(item, 'defect')) : collectTypes(reports, 'defect');
+  const deductionTypes = mergeTypes(options.deductionTypes, reports, 'deduction');
+  const defectTypes = mergeTypes(options.defectTypes, reports, 'defect');
   const headers = [
     'STT', 'Mã nhân viên', 'Tên', 'Số máy', 'Ca', '% học việc',
     'Thời gian làm việc', 'Thời gian làm thực tế', 'Tổng trừ h',
@@ -124,10 +141,12 @@ const buildSheetValues = (reports, options = {}) => {
   const rows = reports.map((report) => {
     const dateKey = normalizeDateKey(report.work_date);
     if (dateKey !== currentDate) { currentDate = dateKey; sequence = 1; } else { sequence += 1; }
-    const tt = toNumber(report.actual_output) || toNumber(report.tt_ok) + toNumber(report.tt_ng);
+    const ok = toNumber(report.tt_ok);
+    // Tổng NG lấy từ toàn bộ production_report_defects của báo cáo, không lấy cột tổng cũ.
+    const ng = sumDetailValues(report.defects, 'quantity');
+    const tt = ok + ng;
     const standard = toNumber(report.standard_output);
     const actualTime = toNumber(report.actual_time);
-    const ng = toNumber(report.tt_ng);
     return [
       sequence,
       report.worker_code || '',
@@ -145,7 +164,7 @@ const buildSheetValues = (reports, options = {}) => {
       standard > 0 ? tt / standard : 0,
       formatDate(report.work_date),
       actualTime > 0 ? tt / actualTime : 0,
-      toNumber(report.tt_ok),
+      ok,
       ng,
       tt > 0 ? ng / tt : 0,
       ...defectTypes.map((type) => detailValue(report.defects, type.id, 'quantity', 'defect_type_id')),
