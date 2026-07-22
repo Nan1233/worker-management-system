@@ -73,7 +73,8 @@ const mergeTypes = (configuredTypes, reports, kind) => uniqueTypes([
   ...collectTypesFromReports(reports, kind)
 ], kind);
 
-const sumDetailValues = (items, valueKey) => (items || [])
+const sumDetailValues = (items, valueKey, allowedTypeIds = null, typeKey = null) => (items || [])
+  .filter((item) => !allowedTypeIds || allowedTypeIds.has(Number(item[typeKey])))
   .reduce((sum, item) => sum + toNumber(item[valueKey]), 0);
 
 const detailValue = (items, typeId, valueKey, typeKey) => (items || [])
@@ -224,7 +225,8 @@ const buildColumns = (deductionTypes, defectTypes) => [
 const buildReportValue = (column, report, sequence) => {
   const ok = toNumber(report.tt_ok);
   // Tổng NG lấy từ toàn bộ chi tiết lỗi đã lưu trong DB của báo cáo.
-  const ng = sumDetailValues(report.defects, 'quantity');
+  const activeDefectIds = new Set((report.__activeDefectTypes || []).map((item) => Number(item.id)));
+  const ng = sumDetailValues(report.defects, 'quantity', activeDefectIds, 'defect_type_id');
   const totalOutput = ok + ng;
   const standard = toNumber(report.standard_output);
   const actualTime = toNumber(report.actual_time);
@@ -285,8 +287,9 @@ const buildMonthlyTemplateWorkbook = async (reports, yearMonth, options = {}) =>
   const requestedDeductions = uniqueTypes(options.deductionTypes, 'deduction');
   const requestedDefects = uniqueTypes(options.defectTypes, 'defect');
   const deductionTypes = mergeTypes(requestedDeductions, sortedReports, 'deduction');
-  const defectTypes = mergeTypes(requestedDefects, sortedReports, 'defect');
+  const defectTypes = requestedDefects;
   const columns = buildColumns(deductionTypes, defectTypes);
+  sortedReports.forEach((report) => { report.__activeDefectTypes = defectTypes; });
 
   // Chụp style trước khi ghi đè để luôn lấy đúng style gốc của file mẫu.
   const sourceColumnNumbers = [...new Set(columns.map((column) => column.source))];

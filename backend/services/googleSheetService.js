@@ -120,12 +120,13 @@ const mergeTypes = (configuredTypes, reports, kind) => {
   );
 };
 
-const sumDetailValues = (items, valueKey) => (items || [])
+const sumDetailValues = (items, valueKey, allowedTypeIds = null, typeKey = null) => (items || [])
+  .filter((item) => !allowedTypeIds || allowedTypeIds.has(Number(item[typeKey])))
   .reduce((sum, item) => sum + toNumber(item[valueKey]), 0);
 
 const buildSheetValues = (reports, options = {}) => {
   const deductionTypes = mergeTypes(options.deductionTypes, reports, 'deduction');
-  const defectTypes = mergeTypes(options.defectTypes, reports, 'defect');
+  const defectTypes = mergeTypes(options.defectTypes, [], 'defect');
   const headers = [
     'STT', 'Mã nhân viên', 'Tên', 'Số máy', 'Ca', '% học việc',
     'Thời gian làm việc', 'Thời gian làm thực tế', 'Tổng trừ h',
@@ -143,7 +144,8 @@ const buildSheetValues = (reports, options = {}) => {
     if (dateKey !== currentDate) { currentDate = dateKey; sequence = 1; } else { sequence += 1; }
     const ok = toNumber(report.tt_ok);
     // Tổng NG lấy từ toàn bộ production_report_defects của báo cáo, không lấy cột tổng cũ.
-    const ng = sumDetailValues(report.defects, 'quantity');
+    const activeDefectIds = new Set(defectTypes.map((item) => Number(item.id)));
+    const ng = sumDetailValues(report.defects, 'quantity', activeDefectIds, 'defect_type_id');
     const tt = ok + ng;
     const standard = toNumber(report.standard_output);
     const actualTime = toNumber(report.actual_time);

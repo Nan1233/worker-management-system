@@ -88,6 +88,7 @@ const getReportDeductions = async (
                     ON dt.id = prd.deduction_type_id
 
                 WHERE prd.report_id IN (${placeholders})
+                  AND dt.status = 'active'
 
                 ORDER BY
                     prd.report_id ASC,
@@ -160,6 +161,7 @@ const getReportDefects = async (
                     ON dt.id = prd.defect_type_id
 
                 WHERE prd.report_id IN (${placeholders})
+                  AND dt.status = 'active'
 
                 ORDER BY
                     prd.report_id ASC,

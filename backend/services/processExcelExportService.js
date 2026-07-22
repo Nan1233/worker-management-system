@@ -101,6 +101,7 @@ async function loadProcessMonthReports(value, processId) {
          FROM production_report_defects prd
          INNER JOIN defect_types dt ON dt.id = prd.defect_type_id
         WHERE prd.report_id IN (${placeholders})
+          AND dt.status = 'active'
         ORDER BY prd.report_id, dt.sort_order, dt.id`,
       reportIds
     ),

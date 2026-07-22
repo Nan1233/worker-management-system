@@ -280,6 +280,7 @@ const getReportsByDate = async (date) => {
                     ON type.id = detail.defect_type_id
 
                 WHERE detail.report_id IN (${placeholders})
+                  AND type.status = 'active'
 
                 ORDER BY
                     detail.report_id ASC,
@@ -446,6 +447,7 @@ const getAllApprovedReportsForSheet =
                 `
                     SELECT
                         detail.report_id,
+                        detail.defect_type_id,
                         type.defect_code,
                         type.defect_name,
                         detail.quantity
@@ -458,6 +460,7 @@ const getAllApprovedReportsForSheet =
 
                     WHERE detail.report_id
                         IN (${placeholders})
+                      AND type.status = 'active'
 
                     ORDER BY
                         detail.report_id ASC,
@@ -521,6 +524,9 @@ const getAllApprovedReportsForSheet =
             defectsMap
                 .get(reportId)
                 .push({
+                    defect_type_id:
+                        Number(item.defect_type_id),
+
                     defect_code:
                         item.defect_code || "",
 

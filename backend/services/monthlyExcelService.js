@@ -81,6 +81,7 @@ const loadMonthReports = async (yearMonth) => {
              FROM production_report_defects AS prd
              INNER JOIN defect_types AS dt ON dt.id = prd.defect_type_id
              WHERE prd.report_id IN (${placeholders})
+               AND dt.status = 'active'
              ORDER BY prd.report_id, dt.sort_order, dt.id`,
             reportIds
         ),
