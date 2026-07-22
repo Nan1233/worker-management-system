@@ -4,7 +4,8 @@ const db = require('../config/db');
 
 const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
 const SHEET_NAME = process.env.GOOGLE_SHEET_NAME || 'Cắt lồng';
-const DATA_START_ROW = Number(process.env.GOOGLE_SHEET_DATA_START_ROW || 1);
+const HEADER_ROW = 1;
+const DATA_START_ROW = 2;
 
 const getGoogleAuth = () => {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT;
@@ -192,20 +193,29 @@ const ensureSheet = async (sheets) => {
 const writeSheetData = async (sheets, reports, options = {}) => {
   const sheetId = await ensureSheet(sheets);
   const { headers, rows } = buildSheetValues(reports, options);
-  const startRow = Math.max(1, DATA_START_ROW);
   const endColumn = columnLetter(headers.length);
 
+  // Xóa vùng bảng động, sau đó luôn ghi tiêu đề ở hàng 1 và dữ liệu từ hàng 2.
   await sheets.spreadsheets.values.clear({
     spreadsheetId,
-    range: `${SHEET_NAME}!A${startRow}:${endColumn}`
+    range: `${SHEET_NAME}!A1:${endColumn}`
   });
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `${SHEET_NAME}!A${startRow}`,
+    range: `${SHEET_NAME}!A${HEADER_ROW}`,
     valueInputOption: 'USER_ENTERED',
-    requestBody: { values: [headers, ...rows] }
+    requestBody: { values: [headers] }
   });
+
+  if (rows.length > 0) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${SHEET_NAME}!A${DATA_START_ROW}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: rows }
+    });
+  }
 
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
@@ -213,13 +223,13 @@ const writeSheetData = async (sheets, reports, options = {}) => {
       requests: [
         {
           updateSheetProperties: {
-            properties: { sheetId, gridProperties: { frozenRowCount: startRow } },
+            properties: { sheetId, gridProperties: { frozenRowCount: 1 } },
             fields: 'gridProperties.frozenRowCount'
           }
         },
         {
           repeatCell: {
-            range: { sheetId, startRowIndex: startRow - 1, endRowIndex: startRow, startColumnIndex: 0, endColumnIndex: headers.length },
+            range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: headers.length },
             cell: {
               userEnteredFormat: {
                 textFormat: { bold: true },

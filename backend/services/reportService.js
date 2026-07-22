@@ -422,8 +422,11 @@ const getAllApprovedReportsForSheet =
                 `
                     SELECT
                         detail.report_id,
+                        detail.deduction_type_id,
+                        type.process_id,
                         type.deduction_code,
                         type.deduction_name,
+                        type.sort_order,
                         detail.hours
 
                     FROM production_report_deductions AS detail
@@ -492,11 +495,20 @@ const getAllApprovedReportsForSheet =
             deductionsMap
                 .get(reportId)
                 .push({
+                    deduction_type_id:
+                        Number(item.deduction_type_id),
+
+                    process_id:
+                        Number(item.process_id),
+
                     deduction_code:
                         item.deduction_code || "",
 
                     deduction_name:
                         item.deduction_name || "",
+
+                    sort_order:
+                        Number(item.sort_order) || 0,
 
                     hours:
                         Number(item.hours) || 0
