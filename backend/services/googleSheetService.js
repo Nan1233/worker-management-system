@@ -1,1339 +1,240 @@
-const { google } = require("googleapis");
-const ReportService = require("./reportService");
+const { google } = require('googleapis');
+const ReportService = require('./reportService');
+const db = require('../config/db');
 
-
-
-// =====================================================
-// GOOGLE AUTH
-// =====================================================
+const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
+const SHEET_NAME = process.env.GOOGLE_SHEET_NAME || 'Cắt lồng';
+const DATA_START_ROW = Number(process.env.GOOGLE_SHEET_DATA_START_ROW || 1);
 
 const getGoogleAuth = () => {
+  const raw = process.env.GOOGLE_SERVICE_ACCOUNT;
+  if (!raw) throw new Error('Thiếu biến môi trường GOOGLE_SERVICE_ACCOUNT');
+  let credentials;
+  try { credentials = JSON.parse(raw); } catch { throw new Error('GOOGLE_SERVICE_ACCOUNT không phải JSON hợp lệ'); }
+  return new google.auth.GoogleAuth({
+    credentials,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets']
+  });
+};
 
-    const rawCredentials =
-        process.env.GOOGLE_SERVICE_ACCOUNT;
 
+const query = (sql, params = []) => new Promise((resolve, reject) => {
+  db.query(sql, params, (error, rows) => error ? reject(error) : resolve(rows));
+});
 
-    if (!rawCredentials) {
+const loadActiveTypes = async (reports) => {
+  const processIds = [...new Set(reports.map((report) => Number(report.process_id)).filter(Boolean))];
+  if (!processIds.length) return { deductionTypes: [], defectTypes: [] };
+  const placeholders = processIds.map(() => '?').join(',');
+  const [deductionTypes, defectTypes] = await Promise.all([
+    query(`SELECT id, process_id, deduction_code, deduction_name, sort_order
+           FROM deduction_types
+           WHERE process_id IN (${placeholders}) AND status = 'active'
+           ORDER BY process_id, sort_order, id`, processIds),
+    query(`SELECT id, process_id, defect_code, defect_name, sort_order
+           FROM defect_types
+           WHERE process_id IN (${placeholders}) AND status = 'active'
+           ORDER BY process_id, sort_order, id`, processIds)
+  ]);
+  return { deductionTypes, defectTypes };
+};
 
-        throw new Error(
-            "Thiếu biến môi trường GOOGLE_SERVICE_ACCOUNT"
-        );
+const toNumber = (value) => {
+  const parsed = Number(String(value ?? 0).replace(/,/g, '').trim());
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
+const normalizeDateKey = (value) => {
+  if (!value) return '';
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const formatDate = (value) => {
+  const key = normalizeDateKey(value);
+  if (!key) return '';
+  const [y, m, d] = key.split('-');
+  return `${d}/${m}/${y}`;
+};
+
+const normalizeType = (item, kind) => ({
+  id: Number(item.id ?? item[`${kind}_type_id`]),
+  name: String(item[`${kind}_name`] || item[`${kind}_code`] || '').trim(),
+  sort_order: Number(item.sort_order) || 0,
+  process_id: Number(item.process_id) || 0
+});
+
+const collectTypes = (reports, kind) => {
+  const map = new Map();
+  const key = kind === 'deduction' ? 'deductions' : 'defects';
+  for (const report of reports) {
+    for (const raw of report[key] || []) {
+      const item = normalizeType(raw, kind);
+      if (item.id && !map.has(item.id)) map.set(item.id, item);
     }
-
-
-    let credentials;
-
-
-    try {
-
-        credentials =
-            JSON.parse(rawCredentials);
-
-    }
-    catch {
-
-        throw new Error(
-            "GOOGLE_SERVICE_ACCOUNT không phải JSON hợp lệ"
-        );
-
-    }
-
-
-    return new google.auth.GoogleAuth({
-
-        credentials,
-
-        scopes: [
-            "https://www.googleapis.com/auth/spreadsheets"
-        ]
-
-    });
-
+  }
+  return [...map.values()].sort((a, b) =>
+    a.process_id - b.process_id || a.sort_order - b.sort_order || a.id - b.id
+  );
 };
 
+const detailValue = (items, typeId, valueKey, typeKey) => (items || [])
+  .filter((item) => Number(item[typeKey]) === Number(typeId))
+  .reduce((sum, item) => sum + toNumber(item[valueKey]), 0);
 
-
-
-
-// =====================================================
-// CONFIG
-// =====================================================
-
-
-const spreadsheetId =
-process.env.GOOGLE_SPREADSHEET_ID;
-
-
-
-const SHEET_NAME =
-"Cắt lồng";
-const DATA_START_ROW = 327;
-
-
-
-
-
-
-// =====================================================
-// SYNC PRODUCTION REPORT
-// =====================================================
-
-exports.syncProductionReport = async (
-    date
-) => {
-    try {
-        if (!spreadsheetId) {
-            throw new Error(
-                "Thiếu biến môi trường GOOGLE_SPREADSHEET_ID"
-            );
-        }
-
-        /*
-         * Không chỉ lấy ngày vừa duyệt.
-         *
-         * Cần lấy toàn bộ báo cáo đã duyệt để có thể:
-         * - chèn ngày cũ vào giữa;
-         * - sắp lại các ngày;
-         * - đánh lại STT;
-         * - sắp lại ID công nhân.
-         */
-        const reports =
-            await ReportService
-                .getAllApprovedReportsForSheet();
-
-        console.log(
-            "========== GOOGLE SHEET =========="
-        );
-
-        console.log(
-            "SYNC DATE:",
-            date
-        );
-
-        console.log(
-            "REPORT COUNT:",
-            reports.length
-        );
-
-        reports.sort(
-            compareReportsForSheet
-        );
-
-        const auth =
-            getGoogleAuth();
-
-        const client =
-            await auth.getClient();
-
-        const sheets =
-            google.sheets({
-                version: "v4",
-                auth: client
-            });
-
-        await writeSheetData(
-            sheets,
-            reports
-        );
-
-        return {
-            spreadsheetId,
-
-            url:
-                `https://docs.google.com/spreadsheets/d/${spreadsheetId}`
-        };
-    }
-    catch (error) {
-        console.error(
-            "SYNC GOOGLE SHEET ERROR:",
-            error
-        );
-
-        throw error;
-    }
+const compareReports = (a, b) => {
+  const dateCompare = normalizeDateKey(a.work_date).localeCompare(normalizeDateKey(b.work_date));
+  if (dateCompare) return dateCompare;
+  const workerCompare = String(a.worker_code || '').localeCompare(String(b.worker_code || ''), undefined, { numeric: true });
+  if (workerCompare) return workerCompare;
+  return Number(a.id) - Number(b.id);
 };
 
-
-
-
-
-// =====================================================
-// CREATE / UPDATE
-// =====================================================
-
-
-exports.createSheet = async(date)=>{
-
-
-    return await exports.syncProductionReport(date);
-
-
+const columnLetter = (number) => {
+  let result = '';
+  let n = number;
+  while (n > 0) {
+    n -= 1;
+    result = String.fromCharCode(65 + (n % 26)) + result;
+    n = Math.floor(n / 26);
+  }
+  return result;
 };
 
+const buildSheetValues = (reports, options = {}) => {
+  const deductionTypes = (options.deductionTypes || []).length ? options.deductionTypes.map((item) => normalizeType(item, 'deduction')) : collectTypes(reports, 'deduction');
+  const defectTypes = (options.defectTypes || []).length ? options.defectTypes.map((item) => normalizeType(item, 'defect')) : collectTypes(reports, 'defect');
+  const headers = [
+    'STT', 'Mã nhân viên', 'Tên', 'Số máy', 'Ca', '% học việc',
+    'Thời gian làm việc', 'Thời gian làm thực tế', 'Tổng trừ h',
+    ...deductionTypes.map((item) => item.name),
+    'Loại SP', 'Định mức', 'TT', 'Tỷ lệ đạt', 'Ngày/Tháng', 'Số SP/H',
+    'OK', 'Tổng NG', 'Tỷ lệ NG',
+    ...defectTypes.map((item) => item.name),
+    'Trạng thái', 'Ghi chú', 'ID báo cáo'
+  ];
 
-
-exports.updateSheet = async(date)=>{
-
-
-    return await exports.syncProductionReport(date);
-
-
+  let currentDate = '';
+  let sequence = 0;
+  const rows = reports.map((report) => {
+    const dateKey = normalizeDateKey(report.work_date);
+    if (dateKey !== currentDate) { currentDate = dateKey; sequence = 1; } else { sequence += 1; }
+    const tt = toNumber(report.actual_output) || toNumber(report.tt_ok) + toNumber(report.tt_ng);
+    const standard = toNumber(report.standard_output);
+    const actualTime = toNumber(report.actual_time);
+    const ng = toNumber(report.tt_ng);
+    return [
+      sequence,
+      report.worker_code || '',
+      report.full_name || report.worker_name || '',
+      report.machine_no || '',
+      report.shift || '',
+      toNumber(report.training_percent || 100) / 100,
+      toNumber(report.total_time),
+      actualTime,
+      toNumber(report.deduction_time),
+      ...deductionTypes.map((type) => detailValue(report.deductions, type.id, 'hours', 'deduction_type_id')),
+      report.product_name || '',
+      standard,
+      tt,
+      standard > 0 ? tt / standard : 0,
+      formatDate(report.work_date),
+      actualTime > 0 ? tt / actualTime : 0,
+      toNumber(report.tt_ok),
+      ng,
+      tt > 0 ? ng / tt : 0,
+      ...defectTypes.map((type) => detailValue(report.defects, type.id, 'quantity', 'defect_type_id')),
+      report.status || 'approved',
+      report.note || '',
+      Number(report.id) || ''
+    ];
+  });
+  return { headers, rows, deductionTypes, defectTypes };
 };
 
-
-
-
-
-
-
-// =====================================================
-// READ OLD DATA
-// =====================================================
-
-
-const getSheetData = async(sheets)=>{
-
-
-    const result =
-
-    await sheets.spreadsheets.values.get({
-
-        spreadsheetId,
-
-
-        range:
-        `${SHEET_NAME}!A:BA`
-
-    });
-
-
-
-    return result.data.values || [];
-
+const ensureSheet = async (sheets) => {
+  const metadata = await sheets.spreadsheets.get({ spreadsheetId });
+  const found = metadata.data.sheets?.find((s) => s.properties?.title === SHEET_NAME);
+  if (found) return found.properties.sheetId;
+  const response = await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: { requests: [{ addSheet: { properties: { title: SHEET_NAME } } }] }
+  });
+  return response.data.replies?.[0]?.addSheet?.properties?.sheetId;
 };
 
-
-
-
-
-
-
-// =====================================================
-// WRITE DATA
-// =====================================================
-
-const normalizeText = value => {
-    return String(value || "")
-        .normalize("NFD")
-        .replace(
-            /[\u0300-\u036f]/g,
-            ""
-        )
-        .replace(/đ/g, "d")
-        .replace(/Đ/g, "D")
-        .toLowerCase()
-        .replace(
-            /[^a-z0-9]+/g,
-            " "
-        )
-        .trim();
-};
-
-const toNumber = value => {
-    const result =
-        Number(
-            String(value ?? 0)
-                .replace(/,/g, "")
-                .trim()
-        );
-
-    return Number.isFinite(result)
-        ? result
-        : 0;
-};
-const getDeductionHours = (
-    report,
-    aliases
-) => {
-    const normalizedAliases =
-        aliases.map(normalizeText);
-
-    return (
-        report.deductions || []
-    )
-        .filter(item => {
-            const code =
-                normalizeText(
-                    item.deduction_code
-                );
-
-            const name =
-                normalizeText(
-                    item.deduction_name
-                );
-
-            return normalizedAliases.some(
-                alias =>
-                    alias === code ||
-                    alias === name ||
-                    name.includes(alias)
-            );
-        })
-        .reduce(
-            (total, item) =>
-                total +
-                toNumber(item.hours),
-            0
-        );
-};
-const getDefectQuantity = (
-    report,
-    aliases
-) => {
-    const normalizedAliases =
-        aliases.map(normalizeText);
-
-    return (
-        report.defects || []
-    )
-        .filter(item => {
-            const code =
-                normalizeText(
-                    item.defect_code
-                );
-
-            const name =
-                normalizeText(
-                    item.defect_name
-                );
-
-            return normalizedAliases.some(
-                alias =>
-                    alias === code ||
-                    alias === name ||
-                    name.includes(alias)
-            );
-        })
-        .reduce(
-            (total, item) =>
-                total +
-                toNumber(item.quantity),
-            0
-        );
-};
-const formatDisplayDate = value => {
-    const dateKey =
-        normalizeDateKey(value);
-
-    if (!dateKey) {
-        return "";
-    }
-
-    const [
-        year,
-        month,
-        day
-    ] = dateKey.split("-");
-
-    return `${day}/${month}/${year}`;
-};
-const buildReportRow = (
-    report,
-    sequenceNumber,
-    rowNumber
-) => {
-    const rowData =
-        Array(53).fill("");
-
-    const ok =
-        toNumber(report.tt_ok);
-
-    const ng =
-        toNumber(report.tt_ng);
-
-    // A - STT
-    rowData[0] =
-        sequenceNumber;
-
-    // B - Mã công nhân
-    rowData[1] =
-        report.worker_code || "";
-
-    // C - Họ tên
-    rowData[2] =
-        report.full_name || "";
-
-    // D - Máy
-    rowData[3] =
-        report.machine_no || "";
-
-    // E - Ca
-    rowData[4] =
-        report.shift || "";
-
-    // F - Phần trăm học việc
-    rowData[5] =
-        toNumber(
-            report.training_percent || 100
-        ) / 100;
-
-    // G - Tổng thời gian
-    rowData[6] =
-        toNumber(report.total_time);
-
-    // H - Thời gian thực tế
-    rowData[7] =
-        toNumber(report.actual_time);
-
-    // I - Trống
-    rowData[8] = "";
-
-    // J - Tổng thời gian trừ
-    rowData[9] =
-        toNumber(report.deduction_time);
-
-    // K - Thiếu sản lượng
-    rowData[10] =
-        getDeductionHours(
-            report,
-            [
-                "THIEU_SP",
-                "Thiếu sản lượng"
-            ]
-        );
-
-    // L - Bật máy, xét máy
-    rowData[11] =
-        getDeductionHours(
-            report,
-            [
-                "BAT_MAY",
-                "Bật máy, xét máy"
-            ]
-        );
-
-    // M - Chuyển mã
-    rowData[12] =
-        getDeductionHours(
-            report,
-            [
-                "CHUYEN_MA",
-                "Chuyển mã"
-            ]
-        );
-
-    // N - Chỉnh máy
-    rowData[13] =
-        getDeductionHours(
-            report,
-            [
-                "CHINH_MAY",
-                "Chỉnh máy"
-            ]
-        );
-
-    // O - Chờ chỉnh máy
-    rowData[14] =
-        getDeductionHours(
-            report,
-            [
-                "CHO_CHINH_MAY",
-                "Chờ chỉnh máy"
-            ]
-        );
-
-    // P - Mất điện
-    rowData[15] =
-        getDeductionHours(
-            report,
-            [
-                "MAT_DIEN",
-                "Mất điện"
-            ]
-        );
-
-    // Q - Mất khí
-    rowData[16] =
-        getDeductionHours(
-            report,
-            [
-                "MAT_KHI",
-                "Mất khí"
-            ]
-        );
-
-    // R - Chờ hàng
-    rowData[17] =
-        getDeductionHours(
-            report,
-            [
-                "CHO_HANG",
-                "Chờ hàng"
-            ]
-        );
-
-    // S - Bảo dưỡng máy
-    rowData[18] =
-        getDeductionHours(
-            report,
-            [
-                "BAO_DUONG",
-                "Bảo dưỡng máy"
-            ]
-        );
-
-    // T - Nghỉ giải lao
-    rowData[19] =
-        getDeductionHours(
-            report,
-            [
-                "NGHI_GIAI_LAO",
-                "Nghỉ giải lao"
-            ]
-        );
-
-    // U - Giao ca
-    rowData[20] =
-        getDeductionHours(
-            report,
-            [
-                "GIAO_CA",
-                "Giao ca"
-            ]
-        );
-
-    // V - Dừng máy hỗ trợ
-    rowData[21] =
-        getDeductionHours(
-            report,
-            [
-                "HO_TRO",
-                "Dừng máy đi hỗ trợ"
-            ]
-        );
-
-    // W - Giặt/cân/tuốt/tái/GL
-    rowData[22] =
-        getDeductionHours(
-            report,
-            [
-                "GIAT_CAN",
-                "Giặt cs/cân cs, tuốt-tái pp, GL"
-            ]
-        );
-
-    // X - 5S
-    rowData[23] =
-        getDeductionHours(
-            report,
-            ["5S"]
-        );
-
-    // Y - Học việc, đào tạo
-    rowData[24] =
-        getDeductionHours(
-            report,
-            [
-                "HOC_VIEC",
-                "Học việc, đào tạo"
-            ]
-        );
-
-    // Z - Trống
-    rowData[25] = "";
-
-    // AA - Sản phẩm
-    rowData[26] =
-        report.product_name || "";
-
-    // AB - Sản lượng chuẩn
-    rowData[27] =
-        toNumber(report.standard_output);
-
-    // AC - Tổng sản lượng
-    rowData[28] =
-        `=AG${rowNumber}+AH${rowNumber}`;
-
-    // AD - Hiệu suất
-    rowData[29] =
-        `=IFERROR(AC${rowNumber}/AB${rowNumber};0)`;
-
-    // AE - Ngày làm việc
-    rowData[30] =
-        normalizeDateValue(
-            report.work_date
-        );
-
-    // AF - Sản lượng/giờ
-    rowData[31] =
-        `=IFERROR(AC${rowNumber}/H${rowNumber};0)`;
-
-    // AG - OK
-    rowData[32] = ok;
-
-    // AH - NG
-    rowData[33] = ng;
-
-    // AI - Tỷ lệ NG
-    rowData[34] =
-        `=IFERROR(AH${rowNumber}/AC${rowNumber};0)`;
-
-    // AJ - Trống
-    rowData[35] = "";
-
-    // AK - KQĐ dập lại
-    rowData[36] =
-        getDefectQuantity(
-            report,
-            [
-                "KQD_DAP_LAI",
-                "KQĐ dập lại",
-                "Dập lại"
-            ]
-        );
-
-    // AL - KQĐ tuột
-    rowData[37] =
-        getDefectQuantity(
-            report,
-            [
-                "KQD_TUOT",
-                "KQĐ tuột",
-                "Tuột"
-            ]
-        );
-
-    // AM - Vỡ do lồng
-    rowData[38] =
-        getDefectQuantity(
-            report,
-            [
-                "VO_DO_LONG",
-                "Vỡ do lồng"
-            ]
-        );
-
-    // AN - Xước do lồng
-    rowData[39] =
-        getDefectQuantity(
-            report,
-            [
-                "XUOC_DO_LONG",
-                "Xước do lồng"
-            ]
-        );
-
-    // AO - Cong gãy
-    rowData[40] =
-        getDefectQuantity(
-            report,
-            [
-                "CONG_GAY",
-                "Cong gãy"
-            ]
-        );
-
-    // AP - Xoay
-    rowData[41] =
-        getDefectQuantity(
-            report,
-            ["XOAY", "Xoay"]
-        );
-
-    // AQ - Không đứt
-    rowData[42] =
-        getDefectQuantity(
-            report,
-            [
-                "KHONG_DUT",
-                "Không đứt"
-            ]
-        );
-
-    // AR - Bavia hụt
-    rowData[43] =
-        getDefectQuantity(
-            report,
-            [
-                "BAVIA_HUT",
-                "Bavia hụt"
-            ]
-        );
-
-    // AS - PPCM
-    rowData[44] =
-        getDefectQuantity(
-            report,
-            ["PPCM"]
-        );
-
-    // AT - Lỗi cao su
-    rowData[45] =
-        getDefectQuantity(
-            report,
-            [
-                "LOI_CAO_SU",
-                "Lỗi cao su"
-            ]
-        );
-
-    // AU - NG kích thước
-rowData[46] =
-    getDefectQuantity(
-        report,
-        [
-            "NG_KICH_THUOC",
-            "NG kích thước"
-        ]
-    );
-
-// AV - Cắt lẹm
-rowData[47] =
-    getDefectQuantity(
-        report,
-        [
-            "CAT_LEM",
-            "Cắt lẹm"
-        ]
-    );
-
-// AW - Chặn ngắn dài
-rowData[48] =
-    getDefectQuantity(
-        report,
-        [
-            "CHAN_NGAN_DAI",
-            "CHAN_NGAN",
-            "Chặn ngắn dài",
-            "Chặn ngắn",
-            "Chan ngan dai"
-        ]
-    );
-
-// AX - Sót via
-rowData[49] =
-    getDefectQuantity(
-        report,
-        [
-            "SOT_VIA",
-            "SOT_BAVIA",
-            "Sót via",
-            "Sót bavia",
-            "Sot via"
-        ]
-    );
-
-// AY - Fure trục
-rowData[50] =
-    getDefectQuantity(
-        report,
-        [
-            "FURE_TRUC",
-            "FURE",
-            "Fure trục",
-            "Fure truc"
-        ]
-    );
-
-// AZ - Trạng thái
-rowData[51] =
-    report.status || "approved";
-
-// BA - Ghi chú
-rowData[52] =
-    report.note || "";
-
-return rowData;
-
-    return rowData;
-};
-const buildAllSheetRows = reports => {
-    const rows = [];
-
-    let currentDate = "";
-    let sequenceNumber = 0;
-
-    reports.forEach(report => {
-        const dateKey =
-            normalizeDateKey(
-                report.work_date
-            );
-
-        if (dateKey !== currentDate) {
-            currentDate =
-                dateKey;
-
-            sequenceNumber = 0;
-
-            const dateRow =
-                Array(53
-                ).fill("");
-
-            // Dòng cách ngày chỉ ghi cột A
-            dateRow[0] =
-    formatDisplayDate(report.work_date);
-
-            rows.push(dateRow);
-        }
-
-        sequenceNumber += 1;
-
-        /*
-         * DATA_START_ROW + rows.length:
-         *
-         * rows.length đã bao gồm dòng ngày,
-         * vì vậy công thức sẽ tham chiếu đúng
-         * dòng thực tế trên Google Sheet.
-         */
-        const rowNumber =
-            DATA_START_ROW +
-            rows.length;
-
-        rows.push(
-            buildReportRow(
-                report,
-                sequenceNumber,
-                rowNumber
-            )
-        );
-    });
-
-    return rows;
-};
-const compareReportsForSheet = (
-    first,
-    second
-) => {
-    const firstDate =
-        normalizeDateKey(
-            first.work_date
-        );
-
-    const secondDate =
-        normalizeDateKey(
-            second.work_date
-        );
-
-    const dateCompare =
-        firstDate.localeCompare(
-            secondDate
-        );
-
-    if (dateCompare !== 0) {
-        return dateCompare;
-    }
-
-    const workerCompare =
-        String(first.worker_code || "")
-            .localeCompare(
-                String(second.worker_code || ""),
-                undefined,
-                {
-                    numeric: true,
-                    sensitivity: "base"
-                }
-            );
-
-    if (workerCompare !== 0) {
-        return workerCompare;
-    }
-
-    return (
-        Number(first.id) -
-        Number(second.id)
-    );
-};
-const writeSheetData = async (
-    sheets,
-    reports
-) => {
-    const meta =
-        await sheets.spreadsheets.get({
-            spreadsheetId
-        });
-
-    const targetSheet =
-        meta.data.sheets.find(
-            item =>
-                item.properties.title ===
-                SHEET_NAME
-        );
-
-    if (!targetSheet) {
-        throw new Error(
-            `Không tìm thấy sheet: ${SHEET_NAME}`
-        );
-    }
-
-    const sheetId =
-        targetSheet.properties.sheetId;
-
-    reports.sort(
-        compareReportsForSheet
-    );
-
-    const rows =
-        buildAllSheetRows(reports);
-
-    const oldData =
-        await getSheetData(sheets);
-
-    const oldLastRow =
-        Math.max(
-            oldData.length,
-            DATA_START_ROW
-        );
-
-    const newLastRow =
-        rows.length > 0
-            ? DATA_START_ROW +
-              rows.length -
-              1
-            : DATA_START_ROW;
-
-    const requiredLastRow =
-        Math.max(
-            oldLastRow,
-            newLastRow
-        );
-
-    const currentGridRows =
-        Number(
-            targetSheet.properties
-                .gridProperties
-                .rowCount || 0
-        );
-
-    if (
-        requiredLastRow >
-        currentGridRows
-    ) {
-        await sheets.spreadsheets
-            .batchUpdate({
-                spreadsheetId,
-
-                requestBody: {
-                    requests: [
-                        {
-                            appendDimension: {
-                                sheetId,
-                                dimension:
-                                    "ROWS",
-                                length:
-                                    requiredLastRow -
-                                    currentGridRows
-                            }
-                        }
-                    ]
-                }
-            });
-    }
-
-    await sheets.spreadsheets
-        .values.clear({
-            spreadsheetId,
-
-            range:
-                `${SHEET_NAME}!A${DATA_START_ROW}:BA${requiredLastRow}`
-        });
-
-    if (rows.length === 0) {
-        console.log(
-            "GOOGLE SHEET CLEARED: NO REPORTS"
-        );
-
-        return;
-    }
-
-    await sheets.spreadsheets
-        .values.update({
-            spreadsheetId,
-
-            range:
-                `${SHEET_NAME}!A${DATA_START_ROW}:BA${newLastRow}`,
-
-            valueInputOption: "USER_ENTERED",
-
-            requestBody: {
-                majorDimension:
-                    "ROWS",
-
-                values:
-                    rows
-            }
-        });
-
-    const formatRequests = [];
-
-    rows.forEach(
-        (rowData, index) => {
-            const rowNumber =
-                DATA_START_ROW +
-                index;
-
-            const startRowIndex =
-                rowNumber - 1;
-
-            const isDateRow =
-                Boolean(rowData[0]) &&
-                !rowData[1];
-
-            if (isDateRow) {
-                // Dòng phân cách ngày: cột A phải là text để giữ dd/mm/yyyy.
-                // values.clear() không xóa định dạng cũ nên cần ép lại format.
-                formatRequests.push({
-                    repeatCell: {
-                        range: {
-                            sheetId,
-                            startRowIndex,
-                            endRowIndex:
-                                startRowIndex + 1,
-                            startColumnIndex: 0,
-                            endColumnIndex: 1
-                        },
-
-                        cell: {
-                            userEnteredFormat: {
-                                numberFormat: {
-                                    type: "DATE",
-pattern: "dd/MM/yyyy"
-                                },
-                                textFormat: {
-                                    bold: true
-                                }
-                            }
-                        },
-
-                        fields:
-                            "userEnteredFormat.numberFormat,userEnteredFormat.textFormat.bold"
-                    }
-                });
-
-                return;
-            }
-
-            // Dòng báo cáo: cột A luôn là STT dạng số nguyên.
-            // Nếu ô từng được định dạng DATE, các số 1,2,3,4 sẽ bị hiển thị
-            // thành 01/01/1900, 02/01/1900... nên phải reset từng dòng.
-            formatRequests.push({
-                repeatCell: {
-                    range: {
-                        sheetId,
-                        startRowIndex,
-                        endRowIndex:
-                            startRowIndex + 1,
-                        startColumnIndex: 0,
-                        endColumnIndex: 1
-                    },
-
-                    cell: {
-                        userEnteredFormat: {
-                            numberFormat: {
-                                type: "NUMBER",
-                                pattern: "0"
-                            },
-                            textFormat: {
-                                bold: false
-                            }
-                        }
-                    },
-
-                    fields:
-                        "userEnteredFormat.numberFormat,userEnteredFormat.textFormat.bold"
-                }
-            });
-
-            formatRequests.push({
-                repeatCell: {
-                    range: {
-                        sheetId,
-                        startRowIndex,
-                        endRowIndex:
-                            startRowIndex + 1,
-                        startColumnIndex: 5,
-                        endColumnIndex: 6
-                    },
-
-                    cell: {
-                        userEnteredFormat: {
-                            numberFormat: {
-                                type: "PERCENT",
-                                pattern: "0.00%"
-                            }
-                        }
-                    },
-
-                    fields:
-                        "userEnteredFormat.numberFormat"
-                }
-            });
-
-            formatRequests.push({
-                repeatCell: {
-                    range: {
-                        sheetId,
-                        startRowIndex,
-                        endRowIndex:
-                            startRowIndex + 1,
-                        startColumnIndex: 29,
-                        endColumnIndex: 30
-                    },
-
-                    cell: {
-                        userEnteredFormat: {
-                            numberFormat: {
-                                type: "PERCENT",
-                                pattern: "0.00%"
-                            }
-                        }
-                    },
-
-                    fields:
-                        "userEnteredFormat.numberFormat"
-                }
-            });
-
-            formatRequests.push({
-                repeatCell: {
-                    range: {
-                        sheetId,
-                        startRowIndex,
-                        endRowIndex:
-                            startRowIndex + 1,
-                        startColumnIndex: 30,
-                        endColumnIndex: 31
-                    },
-
-                    cell: {
-                        userEnteredFormat: {
-                            numberFormat: {
-                                type: "DATE",
-                                pattern: "dd/mm/yyyy"
-                            }
-                        }
-                    },
-
-                    fields:
-                        "userEnteredFormat.numberFormat"
-                }
-            });
-
-            formatRequests.push({
-                repeatCell: {
-                    range: {
-                        sheetId,
-                        startRowIndex,
-                        endRowIndex:
-                            startRowIndex + 1,
-                        startColumnIndex: 31,
-                        endColumnIndex: 32
-                    },
-
-                    cell: {
-                        userEnteredFormat: {
-                            numberFormat: {
-                                type: "NUMBER",
-                                pattern: "0.00"
-                            }
-                        }
-                    },
-
-                    fields:
-                        "userEnteredFormat.numberFormat"
-                }
-            });
-
-            formatRequests.push({
-                repeatCell: {
-                    range: {
-                        sheetId,
-                        startRowIndex,
-                        endRowIndex:
-                            startRowIndex + 1,
-                        startColumnIndex: 34,
-                        endColumnIndex: 35
-                    },
-
-                    cell: {
-                        userEnteredFormat: {
-                            numberFormat: {
-                                type: "PERCENT",
-                                pattern: "0.00%"
-                            }
-                        }
-                    },
-
-                    fields:
-                        "userEnteredFormat.numberFormat"
-                }
-            });
-        }
-    );
-
-    if (formatRequests.length > 0) {
-        await sheets.spreadsheets
-            .batchUpdate({
-                spreadsheetId,
-
-                requestBody: {
-                    requests:
-                        formatRequests
-                }
-            });
-    }
-
-    console.log(
-        "GOOGLE SHEET REBUILD SUCCESS:",
+const writeSheetData = async (sheets, reports, options = {}) => {
+  const sheetId = await ensureSheet(sheets);
+  const { headers, rows } = buildSheetValues(reports, options);
+  const startRow = Math.max(1, DATA_START_ROW);
+  const endColumn = columnLetter(headers.length);
+
+  await sheets.spreadsheets.values.clear({
+    spreadsheetId,
+    range: `${SHEET_NAME}!A${startRow}:${endColumn}`
+  });
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: `${SHEET_NAME}!A${startRow}`,
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values: [headers, ...rows] }
+  });
+
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [
         {
-            reportCount:
-                reports.length,
-
-            totalRows:
-                rows.length,
-
-            firstRow:
-                DATA_START_ROW,
-
-            lastRow:
-                newLastRow
+          updateSheetProperties: {
+            properties: { sheetId, gridProperties: { frozenRowCount: startRow } },
+            fields: 'gridProperties.frozenRowCount'
+          }
+        },
+        {
+          repeatCell: {
+            range: { sheetId, startRowIndex: startRow - 1, endRowIndex: startRow, startColumnIndex: 0, endColumnIndex: headers.length },
+            cell: {
+              userEnteredFormat: {
+                textFormat: { bold: true },
+                horizontalAlignment: 'CENTER',
+                verticalAlignment: 'MIDDLE',
+                wrapStrategy: 'WRAP'
+              }
+            },
+            fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment,wrapStrategy)'
+          }
+        },
+        {
+          autoResizeDimensions: {
+            dimensions: { sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: headers.length }
+          }
         }
-    );
+      ]
+    }
+  });
+
+  return { columnCount: headers.length, rowCount: rows.length };
 };
-// =====================================================
-// NORMALIZE DATE VALUE
-// =====================================================
 
-function normalizeDateValue(value) {
+exports.syncProductionReport = async (date) => {
+  if (!spreadsheetId) throw new Error('Thiếu biến môi trường GOOGLE_SPREADSHEET_ID');
+  const reports = await ReportService.getAllApprovedReportsForSheet();
+  reports.sort(compareReports);
+  const activeTypes = await loadActiveTypes(reports);
+  const auth = getGoogleAuth();
+  const client = await auth.getClient();
+  const sheets = google.sheets({ version: 'v4', auth: client });
+  const result = await writeSheetData(sheets, reports, activeTypes);
+  console.log('GOOGLE SHEET DYNAMIC SYNC:', { date, reports: reports.length, ...result });
+  return { spreadsheetId, url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`, ...result };
+};
 
-    if (!value) {
-        return "";
-    }
-
-    const date = new Date(value);
-
-    if (
-        Number.isNaN(
-            date.getTime()
-        )
-    ) {
-        return String(value);
-    }
-
-    return new Date(
-        date.getFullYear(),
-        date.getMonth(),
-        date.getDate()
-    );
-
-}
-
-
-// =====================================================
-// NORMALIZE DATE KEY
-// yyyy-mm-dd
-// =====================================================
-
-function normalizeDateKey(value) {
-
-    if (!value) {
-
-        return "";
-
-    }
-
-
-    // Google Sheet trả về dd/mm/yyyy
-    const text =
-        String(value).trim();
-
-
-    const viDate =
-        text.match(
-            /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/
-        );
-
-
-    if (viDate) {
-
-        const day =
-            viDate[1]
-                .padStart(2, "0");
-
-        const month =
-            viDate[2]
-                .padStart(2, "0");
-
-        const year =
-            viDate[3];
-
-
-        return `${year}-${month}-${day}`;
-
-    }
-
-
-    const date =
-        new Date(value);
-
-
-    if (
-        Number.isNaN(
-            date.getTime()
-        )
-    ) {
-
-        return text;
-
-    }
-
-
-    return date
-        .toISOString()
-        .slice(0, 10);
-
-}
-// =====================================================
-// COLUMN NUMBER -> LETTER
-// =====================================================
-
-
-function columnLetter(num){
-
-
-    let str = "";
-
-
-
-    while(num > 0){
-
-
-
-        let rem =
-        (num - 1) % 26;
-
-
-
-        str =
-        String.fromCharCode(
-            65 + rem
-        )
-        +
-        str;
-
-
-
-        num =
-        Math.floor(
-            (num - 1) / 26
-        );
-
-
-    }
-
-
-
-    return str;
-
-
-}
+exports.createSheet = exports.syncProductionReport;
+exports.updateSheet = exports.syncProductionReport;
+exports.buildSheetValues = buildSheetValues;

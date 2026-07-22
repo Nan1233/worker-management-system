@@ -59,6 +59,8 @@ import type {
 
 type FormState = {
 
+    [key: string]: string;
+
     workDate: string;
 
     shift: string;
@@ -163,19 +165,7 @@ type DeductionState = {
 // KEY CÁC LỖI NG
 // =====================================================
 
-type NgKey =
-    | "kqdDapLai"
-    | "kqdTuot"
-    | "voDoLong"
-    | "xuocDoLong"
-    | "congGay"
-    | "xoay"
-    | "khongDut"
-    | "baviaHut"
-    | "ppcm"
-    | "loiCaoSu"
-    | "ngKichThuoc"
-    | "catLem";
+type NgKey = string;
 
 
 // =====================================================
@@ -383,6 +373,8 @@ const deductionOptions: Array<{
 const allNgOptions: Array<{
 
     key: NgKey;
+
+    id?: number;
 
     code: string;
 
@@ -1366,11 +1358,13 @@ useEffect(() => {
                     products
                 );
 
-                const activeCodes = new Set(
-                    defects.map((item) => String(item.defect_code || "").trim().toUpperCase())
-                );
                 setActiveNgOptions(
-                    allNgOptions.filter((item) => activeCodes.has(item.code))
+                    defects.map((item) => ({
+                        id: Number(item.id || item.defect_type_id),
+                        key: `defect_${Number(item.id || item.defect_type_id)}`,
+                        code: String(item.defect_code || "").trim(),
+                        label: String(item.defect_name || item.defect_code || "Lỗi NG").trim()
+                    }))
                 );
 
             }
@@ -2692,6 +2686,12 @@ const updateDeductionValue = (
 
                             .map(
                                 (item) => ({
+
+                                    defect_type_id:
+                                        item.id,
+
+                                    defect_code:
+                                        item.code,
 
                                     defect_name:
                                         item.label,

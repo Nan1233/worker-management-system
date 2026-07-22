@@ -15,6 +15,48 @@ const formatNumber = (value: number) =>
 
 type ProcessOption = { id: number; process_code?: string; process_name: string };
 
+const DEFAULT_PROCESS_CATALOG: ProcessOption[] = [
+    { id: -1, process_code: "GC", process_name: "Gia công" },
+    { id: -2, process_code: "MAI", process_name: "Mài" },
+    { id: -3, process_code: "K1", process_name: "Kiểm 1" },
+    { id: -4, process_code: "K2", process_name: "Kiểm 2" }
+];
+
+const normalizeText = (value?: string) =>
+    String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+
+const getCanonicalProcess = (process?: Partial<ProcessOption> & { process_id?: number }) => {
+    const code = normalizeText(process?.process_code).replace(/\s+/g, "_");
+    const name = normalizeText(process?.process_name);
+
+    const isGiaCong =
+        ["gc", "cat_long", "catlong", "gia_cong", "giacong"].includes(code) ||
+        name === "gia cong" ||
+        name.includes("gia cong") ||
+        (name.includes("cat") && name.includes("long"));
+
+    if (isGiaCong) {
+        return { key: "GC", name: "Gia công", order: 0 };
+    }
+    if (["mai"].includes(code) || name === "mai") {
+        return { key: "MAI", name: "Mài", order: 1 };
+    }
+    if (["k1", "kiem_1", "kiem1"].includes(code) || ["kiem 1", "kiem lan 1"].includes(name)) {
+        return { key: "K1", name: "Kiểm 1", order: 2 };
+    }
+    if (["k2", "kiem_2", "kiem2"].includes(code) || ["kiem 2", "kiem lan 2"].includes(name)) {
+        return { key: "K2", name: "Kiểm 2", order: 3 };
+    }
+
+    const fallback = code || name || `PROCESS_${process?.process_id || process?.id || "UNKNOWN"}`;
+    return { key: fallback.toUpperCase(), name: process?.process_name || "Chưa xác định", order: 100 };
+};
+
 const toLocalDate = (date: Date): string => {
     const offset = date.getTimezoneOffset();
     return new Date(date.getTime() - offset * 60_000).toISOString().split("T")[0];
@@ -104,35 +146,59 @@ function Dashboard() {
     }, [reports, pendingReports]);
 
     const processData = useMemo(() => {
-        const map = new Map<string, { id?: number; code?: string; ok: number; ng: number; count: number }>();
+        const map = new Map<string, {
+            id?: number;
+            code?: string;
+            name: string;
+            order: number;
+            ok: number;
+            ng: number;
+            count: number;
+        }>();
 
-        processes.forEach(process => {
-            map.set(process.process_name, {
-                id: process.id,
-                code: process.process_code,
-                ok: 0,
-                ng: 0,
-                count: 0
+        // Luôn giữ đủ 4 công đoạn demo, sau đó ghép với danh mục thật từ DB.
+        [...DEFAULT_PROCESS_CATALOG, ...processes].forEach(process => {
+            const canonical = getCanonicalProcess(process);
+            // Dashboard demo chỉ có 4 công đoạn chuẩn. Bỏ các bản ghi cũ/không xác định
+            // để không tạo thêm dòng trùng hoặc công đoạn ngoài phạm vi demo.
+            if (canonical.order > 3) return;
+            const current = map.get(canonical.key);
+            map.set(canonical.key, {
+                id: current?.id && current.id > 0 ? current.id : process.id,
+                code: canonical.key,
+                name: canonical.name,
+                order: canonical.order,
+                ok: current?.ok || 0,
+                ng: current?.ng || 0,
+                count: current?.count || 0
             });
         });
 
         reports.forEach(report => {
-            const name = report.process_name || "Chưa xác định";
-            const current = map.get(name) || { ok: 0, ng: 0, count: 0 };
+            const canonical = getCanonicalProcess({
+                process_id: Number(report.process_id || 0),
+                process_code: report.process_code,
+                process_name: report.process_name
+            });
+            if (canonical.order > 3) return;
+            const current = map.get(canonical.key) || {
+                code: canonical.key,
+                name: canonical.name,
+                order: canonical.order,
+                ok: 0,
+                ng: 0,
+                count: 0
+            };
             current.ok += Number(report.tt_ok || 0);
             current.ng += Number(report.tt_ng || 0);
             current.count += 1;
-            map.set(name, current);
+            map.set(canonical.key, current);
         });
 
-        return Array.from(map.entries())
-            .map(([name, value]) => ({ name, ...value }))
-            .sort((a, b) => {
-                const aHasData = a.count > 0 ? 1 : 0;
-                const bHasData = b.count > 0 ? 1 : 0;
-                if (aHasData !== bHasData) return bHasData - aHasData;
-                return a.name.localeCompare(b.name, "vi");
-            });
+        return Array.from(map.values()).sort((a, b) => {
+            if (a.order !== b.order) return a.order - b.order;
+            return a.name.localeCompare(b.name, "vi");
+        });
     }, [processes, reports]);
 
     const activeProcessCount = useMemo(
@@ -244,7 +310,7 @@ function Dashboard() {
                         {processData.length === 0 ? (
                             <div className="dashboard-empty">Chưa có dữ liệu công đoạn</div>
                         ) : processData.map(item => (
-                            <div className="dashboard-chart-row" key={item.name}>
+                            <div className="dashboard-chart-row" key={item.code || item.name}>
                                 <div className="dashboard-chart-label">
                                     <strong>{item.name}</strong>
                                     <span>{item.count > 0 ? `${item.count} báo cáo` : "Chưa có báo cáo"}</span>
