@@ -325,8 +325,41 @@ const buildMonthlyTemplateWorkbook = async (reports, yearMonth, options = {}) =>
 
   sortedReports.forEach((report) => {
     const dateKey = normalizeDateKey(report.work_date);
-    sequence = dateKey === currentDate ? sequence + 1 : 1;
-    currentDate = dateKey;
+
+    // Mỗi ngày có một dòng phân cách riêng. Chỉ cột A ghi ngày, các cột còn lại để trống.
+    if (dateKey !== currentDate) {
+      const dateRow = sheet.getRow(rowNumber);
+      dateRow.height = dataHeight;
+
+      columns.forEach((column, index) => {
+        const destinationColumn = index + 1;
+        applyCellStyle(sheet, rowNumber, destinationColumn, dataStyles.get(column.source));
+        dateRow.getCell(destinationColumn).value = null;
+      });
+
+      const dateCell = dateRow.getCell(1);
+      dateCell.value = toExcelDate(report.work_date);
+      dateCell.numFmt = 'dd/mm/yyyy';
+      dateCell.alignment = {
+        ...(dateCell.alignment || {}),
+        horizontal: 'center',
+        vertical: 'middle'
+      };
+
+      for (
+        let columnNumber = columns.length + 1;
+        columnNumber <= TEMPLATE_TABLE_LAST_COLUMN;
+        columnNumber += 1
+      ) {
+        dateRow.getCell(columnNumber).value = null;
+      }
+
+      rowNumber += 1;
+      currentDate = dateKey;
+      sequence = 0;
+    }
+
+    sequence += 1;
 
     const row = sheet.getRow(rowNumber);
     row.height = dataHeight;
