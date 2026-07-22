@@ -84,7 +84,7 @@ const getReportDeductions = async (
 
                 FROM production_report_deductions AS prd
 
-                INNER JOIN deduction_types AS dt
+                LEFT JOIN deduction_types AS dt
                     ON dt.id = prd.deduction_type_id
 
                 WHERE prd.report_id IN (${placeholders})

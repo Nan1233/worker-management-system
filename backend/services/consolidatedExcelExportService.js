@@ -77,8 +77,22 @@ const sumDetailValues = (items, valueKey, allowedTypeIds = null, typeKey = null)
   .filter((item) => !allowedTypeIds || allowedTypeIds.has(Number(item[typeKey])))
   .reduce((sum, item) => sum + toNumber(item[valueKey]), 0);
 
-const detailValue = (items, typeId, valueKey, typeKey) => (items || [])
-  .filter((item) => Number(item[typeKey]) === Number(typeId))
+const normalizeLookupText = (value) => String(value || '').trim().toLowerCase();
+
+const detailValue = (items, type, valueKey, typeKey, codeKey, nameKey) => (items || [])
+  .filter((item) => {
+    const itemTypeId = Number(item[typeKey]);
+    if (itemTypeId && Number(type.id) && itemTypeId === Number(type.id)) return true;
+
+    // Fallback only for legacy rows that lost/omitted the type id.
+    const itemCode = normalizeLookupText(item[codeKey]);
+    const typeCode = normalizeLookupText(type.code);
+    if (itemCode && typeCode && itemCode === typeCode) return true;
+
+    const itemName = normalizeLookupText(item[nameKey]);
+    const typeName = normalizeLookupText(type.name);
+    return Boolean(itemName && typeName && itemName === typeName);
+  })
   .reduce((sum, item) => sum + toNumber(item[valueKey]), 0);
 
 const safeFolderName = (value, fallback) => String(value || fallback)
@@ -167,14 +181,14 @@ const TEMPLATE_SOURCE = Object.freeze({
   trainingPercent: 6,
   totalTime: 7,
   actualTime: 8,
-  totalDeduction: 10,
-  deductionDetail: 11,
+  totalDeduction: 9,
+  deductionDetail: 10,
   product: 27,
   standard: 28,
   totalOutput: 29,
-  outputPerHour: 30,
+  achievementRate: 30,
   workDate: 31,
-  achievementRate: 32,
+  outputPerHour: 32,
   ok: 33,
   totalNg: 34,
   ngRate: 35,
@@ -232,10 +246,10 @@ const buildReportValue = (column, report, sequence) => {
   const actualTime = toNumber(report.actual_time);
 
   if (column.kind === 'deduction') {
-    return detailValue(report.deductions, column.type.id, 'hours', 'deduction_type_id');
+    return detailValue(report.deductions, column.type, 'hours', 'deduction_type_id', 'deduction_code', 'deduction_name');
   }
   if (column.kind === 'defect') {
-    return detailValue(report.defects, column.type.id, 'quantity', 'defect_type_id');
+    return detailValue(report.defects, column.type, 'quantity', 'defect_type_id', 'defect_code', 'defect_name');
   }
 
   switch (column.key) {
@@ -247,7 +261,7 @@ const buildReportValue = (column, report, sequence) => {
     case 'training_percent': return toNumber(report.training_percent || 100) / 100;
     case 'total_time': return toNumber(report.total_time);
     case 'actual_time': return actualTime;
-    case 'deduction_time': return toNumber(report.deduction_time);
+    case 'deduction_time': return sumDetailValues(report.deductions, 'hours');
     case 'product_name': return report.product_name || '';
     case 'standard_output': return standard;
     case 'actual_output': return totalOutput;

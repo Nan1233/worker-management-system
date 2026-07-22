@@ -87,12 +87,18 @@ async function loadProcessMonthReports(value, processId) {
   const placeholders = reportIds.map(() => '?').join(',');
   const [deductionRows, defectRows, deductionTypes, defectTypes] = await Promise.all([
     query(
-      `SELECT prd.report_id, dt.id AS deduction_type_id, dt.deduction_code,
-              dt.deduction_name, prd.hours
+      `SELECT prd.report_id,
+              prd.deduction_type_id,
+              COALESCE(dt.process_id, pr.process_id) AS process_id,
+              COALESCE(dt.deduction_code, CONCAT('DEDUCTION_', prd.deduction_type_id)) AS deduction_code,
+              COALESCE(dt.deduction_name, CONCAT('Loại trừ giờ #', prd.deduction_type_id)) AS deduction_name,
+              COALESCE(dt.sort_order, 999999) AS sort_order,
+              prd.hours
          FROM production_report_deductions prd
-         INNER JOIN deduction_types dt ON dt.id = prd.deduction_type_id
+         INNER JOIN production_reports pr ON pr.id = prd.report_id
+         LEFT JOIN deduction_types dt ON dt.id = prd.deduction_type_id
         WHERE prd.report_id IN (${placeholders})
-        ORDER BY prd.report_id, dt.sort_order, dt.id`,
+        ORDER BY prd.report_id, sort_order, prd.deduction_type_id`,
       reportIds
     ),
     query(
@@ -125,6 +131,8 @@ async function loadProcessMonthReports(value, processId) {
     deduction_type_id: Number(row.deduction_type_id),
     deduction_code: row.deduction_code || '',
     deduction_name: row.deduction_name || '',
+    process_id: Number(row.process_id) || 0,
+    sort_order: Number(row.sort_order) || 0,
     hours: Number(row.hours) || 0
   }));
   const defects = mapDetails(defectRows, reportIds, (row) => ({
