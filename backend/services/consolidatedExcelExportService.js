@@ -6,7 +6,7 @@ const TEMPLATE_PATH = path.join(__dirname, '../templates/bao-cao-cat-long-export
 const SHEET_NAME = 'Cắt lồng';
 const HEADER_ROW = 326;
 const DATA_START_ROW = 327;
-const TEMPLATE_COLUMN_COUNT = 53;
+const TEMPLATE_TABLE_LAST_COLUMN = 53; // BA
 
 const toNumber = (value) => {
   const parsed = Number(String(value ?? 0).replace(/,/g, '').trim());
@@ -34,11 +34,15 @@ const toExcelDate = (value) => {
 const sortReports = (a, b) => {
   const byDate = normalizeDateKey(a.work_date).localeCompare(normalizeDateKey(b.work_date));
   if (byDate) return byDate;
-  const byWorker = String(a.worker_code || '').localeCompare(String(b.worker_code || ''), undefined, { numeric: true, sensitivity: 'base' });
+  const byWorker = String(a.worker_code || '').localeCompare(
+    String(b.worker_code || ''),
+    undefined,
+    { numeric: true, sensitivity: 'base' }
+  );
   return byWorker || Number(a.id) - Number(b.id);
 };
 
-const clone = (value) => value == null ? value : JSON.parse(JSON.stringify(value));
+const clone = (value) => (value == null ? value : JSON.parse(JSON.stringify(value)));
 
 const normalizeType = (item, kind) => ({
   id: Number(item.id ?? item[`${kind}_type_id`]),
@@ -54,11 +58,14 @@ const uniqueTypes = (items, kind) => {
     const item = normalizeType(raw, kind);
     if (item.id && !map.has(item.id)) map.set(item.id, item);
   });
-  return [...map.values()].sort((a, b) => a.process_id - b.process_id || a.sort_order - b.sort_order || a.id - b.id);
+  return [...map.values()].sort(
+    (a, b) => a.process_id - b.process_id || a.sort_order - b.sort_order || a.id - b.id
+  );
 };
 
 const collectTypesFromReports = (reports, kind) => uniqueTypes(
-  reports.flatMap((report) => report[kind === 'deduction' ? 'deductions' : 'defects'] || []), kind
+  reports.flatMap((report) => report[kind === 'deduction' ? 'deductions' : 'defects'] || []),
+  kind
 );
 
 const detailValue = (items, typeId, valueKey, typeKey) => (items || [])
@@ -83,7 +90,10 @@ const getMonthlyTarget = (yearMonth) => {
 const readMonthlyCacheMetadata = async (yearMonth) => {
   const target = getMonthlyTarget(yearMonth);
   try {
-    const [fileStat, metadataText] = await Promise.all([fs.stat(target.filePath), fs.readFile(target.metadataPath, 'utf8')]);
+    const [fileStat, metadataText] = await Promise.all([
+      fs.stat(target.filePath),
+      fs.readFile(target.metadataPath, 'utf8')
+    ]);
     return { target, fileStat, metadata: JSON.parse(metadataText) };
   } catch (error) {
     if (error?.code === 'ENOENT' || error instanceof SyntaxError) return null;
@@ -97,16 +107,24 @@ const writeMonthlyCacheMetadata = async (target, metadata) => {
   await fs.rename(temporaryPath, target.metadataPath);
 };
 
-const captureCell = (sheet, rowNumber, columnNumber) => {
+const captureCellStyle = (sheet, rowNumber, columnNumber) => {
   const cell = sheet.getRow(rowNumber).getCell(columnNumber);
+  const column = sheet.getColumn(columnNumber);
   return {
-    style: clone(cell.style), font: clone(cell.font), fill: clone(cell.fill),
-    border: clone(cell.border), alignment: clone(cell.alignment), protection: clone(cell.protection),
-    numFmt: cell.numFmt, width: sheet.getColumn(columnNumber).width
+    style: clone(cell.style),
+    font: clone(cell.font),
+    fill: clone(cell.fill),
+    border: clone(cell.border),
+    alignment: clone(cell.alignment),
+    protection: clone(cell.protection),
+    numFmt: cell.numFmt,
+    width: column.width,
+    hidden: column.hidden,
+    outlineLevel: column.outlineLevel
   };
 };
 
-const applyCell = (sheet, rowNumber, columnNumber, source) => {
+const applyCellStyle = (sheet, rowNumber, columnNumber, source) => {
   const cell = sheet.getRow(rowNumber).getCell(columnNumber);
   if (source.style) cell.style = clone(source.style);
   if (source.font) cell.font = clone(source.font);
@@ -115,37 +133,134 @@ const applyCell = (sheet, rowNumber, columnNumber, source) => {
   if (source.alignment) cell.alignment = clone(source.alignment);
   if (source.protection) cell.protection = clone(source.protection);
   if (source.numFmt) cell.numFmt = source.numFmt;
-  if (source.width) sheet.getColumn(columnNumber).width = source.width;
+
+  const column = sheet.getColumn(columnNumber);
+  if (source.width != null) column.width = source.width;
+  column.hidden = false;
+  if (source.outlineLevel != null) column.outlineLevel = source.outlineLevel;
 };
 
-// Mapping tới cột trong file mẫu cũ để giữ nguyên màu sắc/kiểu trình bày theo từng nhóm.
-const SOURCE = {
-  stt: 1, workerCode: 2, name: 3, machine: 4, shift: 5, training: 6,
-  totalTime: 7, actualTime: 8, totalDeduction: 10, deduction: 11,
-  product: 27, standard: 28, total: 29, rate: 30, date: 31, perHour: 32,
-  ok: 33, ng: 34, ngRate: 35, defect: 37, status: 52, note: 53, reportId: 53
-};
+/*
+ * Vị trí style trong file mẫu cố định (hàng 326/327).
+ * Không tự tạo màu. Mỗi cột động chỉ sao chép style từ đúng nhóm tương ứng trong template.
+ *
+ * A STT, B mã NV, C tên, D máy, E ca, F % học việc,
+ * G TG làm việc, H TG thực tế, J tổng trừ, K:Y chi tiết trừ,
+ * AA SP, AB định mức, AC TT, AD SP/H, AE ngày, AF tỷ lệ đạt,
+ * AG OK, AH tổng NG, AI tỷ lệ NG, AJ:AY chi tiết NG, AZ trạng thái, BA ghi chú.
+ */
+const TEMPLATE_SOURCE = Object.freeze({
+  stt: 1,
+  workerCode: 2,
+  workerName: 3,
+  machine: 4,
+  shift: 5,
+  trainingPercent: 6,
+  totalTime: 7,
+  actualTime: 8,
+  totalDeduction: 10,
+  deductionDetail: 11,
+  product: 27,
+  standard: 28,
+  totalOutput: 29,
+  outputPerHour: 30,
+  workDate: 31,
+  achievementRate: 32,
+  ok: 33,
+  totalNg: 34,
+  ngRate: 35,
+  defectDetail: 36,
+  status: 52,
+  note: 53,
+  reportId: 53
+});
 
 const buildColumns = (deductionTypes, defectTypes) => [
-  ['STT', SOURCE.stt], ['Mã nhân viên', SOURCE.workerCode], ['Tên', SOURCE.name],
-  ['Số máy', SOURCE.machine], ['Ca', SOURCE.shift], ['%\nhọc việc', SOURCE.training],
-  ['Thời gian\nLàm việc', SOURCE.totalTime], ['Thời gian làm thực tế', SOURCE.actualTime],
-  ['Tổng trừ h', SOURCE.totalDeduction],
-  ...deductionTypes.map((type) => [type.name, SOURCE.deduction, { kind: 'deduction', type }]),
-  ['Loại SP', SOURCE.product], ['Định mức', SOURCE.standard], ['TT', SOURCE.total],
-  ['Tỷ lệ đạt', SOURCE.rate], ['Ngày/Tháng', SOURCE.date], ['Số SP/H', SOURCE.perHour],
-  ['OK', SOURCE.ok], ['Tổng NG', SOURCE.ng], ['Tỷ lệ NG', SOURCE.ngRate],
-  ...defectTypes.map((type) => [type.name, SOURCE.defect, { kind: 'defect', type }]),
-  ['Trạng thái', SOURCE.status], ['Ghi chú', SOURCE.note], ['ID báo cáo', SOURCE.reportId]
+  { key: 'sequence', title: 'STT', source: TEMPLATE_SOURCE.stt },
+  { key: 'worker_code', title: 'Mã nhân viên', source: TEMPLATE_SOURCE.workerCode },
+  { key: 'full_name', title: 'Tên', source: TEMPLATE_SOURCE.workerName },
+  { key: 'machine_no', title: 'Số máy', source: TEMPLATE_SOURCE.machine },
+  { key: 'shift', title: 'ca', source: TEMPLATE_SOURCE.shift },
+  { key: 'training_percent', title: '%\nhọc việc', source: TEMPLATE_SOURCE.trainingPercent },
+  { key: 'total_time', title: 'Thời gian\nLàm việc', source: TEMPLATE_SOURCE.totalTime },
+  { key: 'actual_time', title: 'Thời gian làm thực tế', source: TEMPLATE_SOURCE.actualTime },
+  { key: 'deduction_time', title: 'Tổng TG trừ giờ', source: TEMPLATE_SOURCE.totalDeduction },
+  ...deductionTypes.map((type) => ({
+    key: `deduction_${type.id}`,
+    title: type.name,
+    source: TEMPLATE_SOURCE.deductionDetail,
+    kind: 'deduction',
+    type
+  })),
+  { key: 'product_name', title: 'SP', source: TEMPLATE_SOURCE.product },
+  { key: 'standard_output', title: 'Định mức', source: TEMPLATE_SOURCE.standard },
+  { key: 'actual_output', title: 'TT', source: TEMPLATE_SOURCE.totalOutput },
+  { key: 'achievement_rate', title: 'Tỷ lệ đạt', source: TEMPLATE_SOURCE.achievementRate },
+  { key: 'work_date', title: 'Ngày/ Tháng', source: TEMPLATE_SOURCE.workDate },
+  { key: 'output_per_hour', title: 'Số SP/H', source: TEMPLATE_SOURCE.outputPerHour },
+  { key: 'tt_ok', title: 'OK', source: TEMPLATE_SOURCE.ok },
+  { key: 'tt_ng', title: 'tổng NG', source: TEMPLATE_SOURCE.totalNg },
+  { key: 'ng_rate', title: 'Tỷ lệ NG', source: TEMPLATE_SOURCE.ngRate },
+  ...defectTypes.map((type) => ({
+    key: `defect_${type.id}`,
+    title: type.name,
+    source: TEMPLATE_SOURCE.defectDetail,
+    kind: 'defect',
+    type
+  })),
+  { key: 'status', title: 'Trạng thái', source: TEMPLATE_SOURCE.status },
+  { key: 'note', title: 'Ghi chú', source: TEMPLATE_SOURCE.note },
+  { key: 'report_id', title: 'ID báo cáo', source: TEMPLATE_SOURCE.reportId }
 ];
 
-const clearOldData = (sheet) => {
-  if (sheet.rowCount < DATA_START_ROW) return;
-  for (let r = DATA_START_ROW; r <= sheet.rowCount; r += 1) {
-    const row = sheet.getRow(r);
-    for (let c = 1; c <= Math.max(sheet.columnCount, TEMPLATE_COLUMN_COUNT); c += 1) row.getCell(c).value = null;
+const buildReportValue = (column, report, sequence) => {
+  const ok = toNumber(report.tt_ok);
+  const ng = toNumber(report.tt_ng);
+  const totalOutput = toNumber(report.actual_output) || ok + ng;
+  const standard = toNumber(report.standard_output);
+  const actualTime = toNumber(report.actual_time);
+
+  if (column.kind === 'deduction') {
+    return detailValue(report.deductions, column.type.id, 'hours', 'deduction_type_id');
   }
-  sheet.spliceRows(DATA_START_ROW, sheet.rowCount - HEADER_ROW);
+  if (column.kind === 'defect') {
+    return detailValue(report.defects, column.type.id, 'quantity', 'defect_type_id');
+  }
+
+  switch (column.key) {
+    case 'sequence': return sequence;
+    case 'worker_code': return report.worker_code || '';
+    case 'full_name': return report.full_name || '';
+    case 'machine_no': return report.machine_no || '';
+    case 'shift': return report.shift || '';
+    case 'training_percent': return toNumber(report.training_percent || 100) / 100;
+    case 'total_time': return toNumber(report.total_time);
+    case 'actual_time': return actualTime;
+    case 'deduction_time': return toNumber(report.deduction_time);
+    case 'product_name': return report.product_name || '';
+    case 'standard_output': return standard;
+    case 'actual_output': return totalOutput;
+    case 'achievement_rate': return standard > 0 ? totalOutput / standard : 0;
+    case 'work_date': return toExcelDate(report.work_date);
+    case 'output_per_hour': return actualTime > 0 ? totalOutput / actualTime : 0;
+    case 'tt_ok': return ok;
+    case 'tt_ng': return ng;
+    case 'ng_rate': return totalOutput > 0 ? ng / totalOutput : 0;
+    case 'status': return report.status || 'approved';
+    case 'note': return report.note || '';
+    case 'report_id': return Number(report.id) || '';
+    default: return '';
+  }
+};
+
+const clearTemplateDataRows = (sheet) => {
+  if (sheet.rowCount < DATA_START_ROW) return;
+  for (let rowNumber = DATA_START_ROW; rowNumber <= sheet.rowCount; rowNumber += 1) {
+    const row = sheet.getRow(rowNumber);
+    for (let columnNumber = 1; columnNumber <= TEMPLATE_TABLE_LAST_COLUMN; columnNumber += 1) {
+      row.getCell(columnNumber).value = null;
+    }
+  }
 };
 
 const buildMonthlyTemplateWorkbook = async (reports, yearMonth, options = {}) => {
@@ -160,85 +275,96 @@ const buildMonthlyTemplateWorkbook = async (reports, yearMonth, options = {}) =>
   const sortedReports = [...reports].sort(sortReports);
   const requestedDeductions = uniqueTypes(options.deductionTypes, 'deduction');
   const requestedDefects = uniqueTypes(options.defectTypes, 'defect');
-  const deductionTypes = requestedDeductions.length ? requestedDeductions : collectTypesFromReports(sortedReports, 'deduction');
-  const defectTypes = requestedDefects.length ? requestedDefects : collectTypesFromReports(sortedReports, 'defect');
+  const deductionTypes = requestedDeductions.length
+    ? requestedDeductions
+    : collectTypesFromReports(sortedReports, 'deduction');
+  const defectTypes = requestedDefects.length
+    ? requestedDefects
+    : collectTypesFromReports(sortedReports, 'defect');
   const columns = buildColumns(deductionTypes, defectTypes);
 
-  const headerSources = Object.fromEntries([...new Set(columns.map(([, source]) => source))].map((source) => [source, captureCell(sheet, HEADER_ROW, source)]));
-  const dataSources = Object.fromEntries([...new Set(columns.map(([, source]) => source))].map((source) => [source, captureCell(sheet, DATA_START_ROW, source)]));
-  const templateDataRow = sheet.getRow(DATA_START_ROW);
-  const dataRowHeight = templateDataRow.height;
-
-  clearOldData(sheet);
-
-  // Dựng lại tiêu đề theo cột động nhưng kế thừa nguyên style từng nhóm từ mẫu.
-  const headerRow = sheet.getRow(HEADER_ROW);
-  headerRow.height = headerRow.height || 45;
-  for (let c = 1; c <= Math.max(columns.length, TEMPLATE_COLUMN_COUNT); c += 1) {
-    const cell = headerRow.getCell(c);
-    cell.value = null;
-    sheet.getColumn(c).hidden = c > columns.length;
-  }
-  columns.forEach(([title, source], index) => {
-    const col = index + 1;
-    applyCell(sheet, HEADER_ROW, col, headerSources[source]);
-    headerRow.getCell(col).value = title;
-    headerRow.getCell(col).alignment = { ...(headerRow.getCell(col).alignment || {}), horizontal: 'center', vertical: 'middle', wrapText: true };
-    sheet.getColumn(col).hidden = false;
+  // Chụp style trước khi ghi đè để luôn lấy đúng style gốc của file mẫu.
+  const sourceColumnNumbers = [...new Set(columns.map((column) => column.source))];
+  const headerStyles = new Map();
+  const dataStyles = new Map();
+  sourceColumnNumbers.forEach((sourceColumn) => {
+    headerStyles.set(sourceColumn, captureCellStyle(sheet, HEADER_ROW, sourceColumn));
+    dataStyles.set(sourceColumn, captureCellStyle(sheet, DATA_START_ROW, sourceColumn));
   });
+
+  const headerRow = sheet.getRow(HEADER_ROW);
+  const headerHeight = headerRow.height;
+  const dataHeight = sheet.getRow(DATA_START_ROW).height;
+
+  clearTemplateDataRows(sheet);
+
+  // Chỉ dựng lại bảng dữ liệu từ hàng 326. Toàn bộ phần biểu mẫu, logo, màu và bố cục phía trên giữ nguyên.
+  for (let columnNumber = 1; columnNumber <= Math.max(columns.length, TEMPLATE_TABLE_LAST_COLUMN); columnNumber += 1) {
+    if (columnNumber <= TEMPLATE_TABLE_LAST_COLUMN) headerRow.getCell(columnNumber).value = null;
+    sheet.getColumn(columnNumber).hidden = columnNumber > columns.length && columnNumber <= TEMPLATE_TABLE_LAST_COLUMN;
+  }
+
+  columns.forEach((column, index) => {
+    const destinationColumn = index + 1;
+    applyCellStyle(sheet, HEADER_ROW, destinationColumn, headerStyles.get(column.source));
+    const cell = headerRow.getCell(destinationColumn);
+    cell.value = column.title;
+    // Chỉ giữ wrap/căn giữa vốn có của mẫu, không gán fill/font/màu mới.
+    cell.alignment = {
+      ...(cell.alignment || {}),
+      horizontal: 'center',
+      vertical: 'middle',
+      wrapText: true
+    };
+  });
+  headerRow.height = headerHeight;
 
   let currentDate = '';
   let sequence = 0;
   let rowNumber = DATA_START_ROW;
 
-  for (const report of sortedReports) {
+  sortedReports.forEach((report) => {
     const dateKey = normalizeDateKey(report.work_date);
     sequence = dateKey === currentDate ? sequence + 1 : 1;
     currentDate = dateKey;
 
-    const ok = toNumber(report.tt_ok);
-    const ng = toNumber(report.tt_ng);
-    const total = toNumber(report.actual_output) || ok + ng;
-    const standard = toNumber(report.standard_output);
-    const actualTime = toNumber(report.actual_time);
-
-    const values = [
-      sequence, report.worker_code || '', report.full_name || '', report.machine_no || '', report.shift || '',
-      toNumber(report.training_percent || 100) / 100, toNumber(report.total_time), actualTime,
-      toNumber(report.deduction_time),
-      ...deductionTypes.map((type) => detailValue(report.deductions, type.id, 'hours', 'deduction_type_id')),
-      report.product_name || '', standard, total, standard > 0 ? total / standard : 0,
-      toExcelDate(report.work_date), actualTime > 0 ? total / actualTime : 0,
-      ok, ng, total > 0 ? ng / total : 0,
-      ...defectTypes.map((type) => detailValue(report.defects, type.id, 'quantity', 'defect_type_id')),
-      report.status || 'approved', report.note || '', Number(report.id) || ''
-    ];
-
     const row = sheet.getRow(rowNumber);
-    row.height = dataRowHeight;
-    columns.forEach(([, source], index) => {
-      const col = index + 1;
-      applyCell(sheet, rowNumber, col, dataSources[source]);
-      row.getCell(col).value = values[index];
+    row.height = dataHeight;
+
+    columns.forEach((column, index) => {
+      const destinationColumn = index + 1;
+      applyCellStyle(sheet, rowNumber, destinationColumn, dataStyles.get(column.source));
+      row.getCell(destinationColumn).value = buildReportValue(column, report, sequence);
     });
-    for (let c = columns.length + 1; c <= Math.max(sheet.columnCount, TEMPLATE_COLUMN_COUNT); c += 1) row.getCell(c).value = null;
+
+    for (
+      let columnNumber = columns.length + 1;
+      columnNumber <= TEMPLATE_TABLE_LAST_COLUMN;
+      columnNumber += 1
+    ) {
+      row.getCell(columnNumber).value = null;
+    }
     rowNumber += 1;
-  }
+  });
 
-  const productColumn = 10 + deductionTypes.length;
-  const rateColumn = productColumn + 3;
-  const dateColumn = productColumn + 4;
-  const perHourColumn = productColumn + 5;
-  const ngRateColumn = productColumn + 8;
-  sheet.getColumn(6).numFmt = '0.00%';
-  sheet.getColumn(rateColumn).numFmt = '0.00%';
-  sheet.getColumn(dateColumn).numFmt = 'dd/mm/yyyy';
-  sheet.getColumn(perHourColumn).numFmt = '0.00';
-  sheet.getColumn(ngRateColumn).numFmt = '0.00%';
+  // Ép đúng định dạng dữ liệu, nhưng không thay màu/font/viền của template.
+  columns.forEach((column, index) => {
+    const excelColumn = sheet.getColumn(index + 1);
+    if (column.key === 'training_percent' || column.key === 'achievement_rate' || column.key === 'ng_rate') {
+      excelColumn.numFmt = '0.00%';
+    } else if (column.key === 'work_date') {
+      excelColumn.numFmt = 'dd/mm/yyyy';
+    } else if (column.key === 'output_per_hour') {
+      excelColumn.numFmt = '0.00';
+    }
+  });
 
-  sheet.views = [{ state: 'frozen', ySplit: HEADER_ROW, activeCell: `A${DATA_START_ROW}` }];
-  sheet.autoFilter = { from: { row: HEADER_ROW, column: 1 }, to: { row: HEADER_ROW, column: columns.length } };
-  sheet.pageSetup = { ...(sheet.pageSetup || {}), orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, printArea: `A1:${sheet.getColumn(columns.length).letter}${Math.max(HEADER_ROW, rowNumber - 1)}` };
+  // Giữ cấu hình in, màu, freeze pane và bố cục từ template; chỉ cập nhật vùng in theo bảng động.
+  const lastColumnLetter = sheet.getColumn(columns.length).letter;
+  sheet.pageSetup = {
+    ...(sheet.pageSetup || {}),
+    printArea: `A1:${lastColumnLetter}${Math.max(HEADER_ROW, rowNumber - 1)}`
+  };
 
   const target = getMonthlyTarget(yearMonth);
   await fs.mkdir(target.folder, { recursive: true });
@@ -246,12 +372,22 @@ const buildMonthlyTemplateWorkbook = async (reports, yearMonth, options = {}) =>
   await workbook.xlsx.writeFile(temporaryPath);
   await fs.rename(temporaryPath, target.filePath);
   await writeMonthlyCacheMetadata(target, {
-    yearMonth, reportCount: sortedReports.length, deductionColumnCount: deductionTypes.length,
-    defectColumnCount: defectTypes.length, latestUpdatedAt: options.latestUpdatedAt || null,
-    generatedAt: new Date().toISOString(), templateStyle: true
+    yearMonth,
+    reportCount: sortedReports.length,
+    deductionColumnCount: deductionTypes.length,
+    defectColumnCount: defectTypes.length,
+    latestUpdatedAt: options.latestUpdatedAt || null,
+    generatedAt: new Date().toISOString(),
+    templateStyle: true,
+    templateLayoutVersion: 2
   });
 
-  return { workbook, archivePath: target.filePath, fileName: target.fileName, reportCount: sortedReports.length };
+  return {
+    workbook,
+    archivePath: target.filePath,
+    fileName: target.fileName,
+    reportCount: sortedReports.length
+  };
 };
 
 module.exports = {
