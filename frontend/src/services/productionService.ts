@@ -271,27 +271,17 @@ export const getReportById = async(
 // UPDATE
 // =====================================================
 
-export const updateReport = async(
+export const updateReport = async (
+    id: number,
+    data: ProductionReport,
+    source: "pending" | "approved" = "approved"
+) => {
+    const endpoint = source === "pending"
+        ? `/production-temp/${id}`
+        : `/production/${id}`;
 
-    id:number,
-
-    data:ProductionReport
-
-)=>{
-
-
-    const res = await api.put(
-
-        `/production/${id}`,
-
-        data
-
-    );
-
-
+    const res = await api.put(endpoint, data);
     return res.data;
-
-
 };
 
 
