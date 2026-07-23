@@ -1,15 +1,5 @@
-function Dashboard() {
+import DashboardPage from "../manager/Dashboard";
 
-    return (
-
-        <div>
-
-            <h1>Admin Dashboard</h1>
-
-        </div>
-
-    );
-
+export default function Dashboard() {
+    return <DashboardPage />;
 }
-
-export default Dashboard;

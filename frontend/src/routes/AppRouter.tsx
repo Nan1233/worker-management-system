@@ -39,7 +39,6 @@ import LeadApprovedReports from "../pages/lead/ApprovedReports";
 
 import LeadReportDetail from "../pages/lead/ReportDetail";
 
-import LeadWorkers from "../pages/lead/Workers";
 
 
 
@@ -120,7 +119,6 @@ function AppRouter() {
                 <Route path="master/:resource" element={<MasterData />} />
                 <Route path="reports" element={<LeadPendingReports />} />
                 <Route path="approved" element={<LeadApprovedReports />} />
-                <Route path="workers" element={<LeadWorkers />} />
                 <Route path="statistics" element={<ManagerStatistics />} />
                 <Route path="system" element={<SystemCenter />} />
             </Route>
@@ -282,7 +280,6 @@ function AppRouter() {
 
                 <Route path="master" element={<Navigate to="users" replace />} />
                 <Route path="master/:resource" element={<MasterData />} />
-                <Route path="workers" element={<LeadWorkers />} />
                 <Route path="system" element={<SystemCenter />} />
             </Route>
 
@@ -338,16 +335,6 @@ function AppRouter() {
                     element={
 
                         <LeadApprovedReports />
-
-                    }
-                />
-
-
-                <Route
-                    path="workers"
-                    element={
-
-                        <LeadWorkers />
 
                     }
                 />

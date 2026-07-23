@@ -152,8 +152,8 @@ function MasterData(){
     : fields.filter(field=>field.key!=='password');
 
   return <div className="master-page">
-    <div className="master-heading"><div><span>QUẢN TRỊ DỮ LIỆU GỐC</span><h1>Trung tâm quản lý nhà máy</h1><p>Quản lý tập trung người dùng, công đoạn, máy, sản phẩm, định mức, lỗi NG và lý do trừ giờ.</p></div><button className="primary" onClick={openCreate}>+ Thêm mới</button></div>
-    <div className="master-tabs">{tabs.map(tab=><button key={tab.key} className={resource===tab.key?'active':''} onClick={()=>navigate(`/${currentUser?.role||'manager'}/master/${tab.key}`)}><strong>{tab.label}</strong><small>{tab.description}</small></button>)}</div>
+    <div className="master-heading"><div><h1>Trung tâm quản lý</h1></div><button className="primary" onClick={openCreate}>+ Thêm mới</button></div>
+    <div className="master-tabs">{tabs.map(tab=><button key={tab.key} className={resource===tab.key?'active':''} onClick={()=>navigate(`/${currentUser?.role||'manager'}/master/${tab.key}`)}><strong>{tab.label}</strong></button>)}</div>
     <div className="master-toolbar"><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Tìm theo mã, tên, công đoạn..."/><span>{filtered.length} bản ghi</span></div>
     {error&&<div className="master-error">{error}</div>}
     <div className="master-table-wrap"><table><thead><tr>{tableFields.map(field=><th key={field.key}>{field.label}</th>)}<th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>

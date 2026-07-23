@@ -234,9 +234,7 @@ function Dashboard() {
         <main className="manager-dashboard">
             <header className="manager-dashboard-header">
                 <div>
-                    <span className="dashboard-eyebrow">TRUNG TÂM ĐIỀU HÀNH SẢN XUẤT</span>
                     <h1>Tổng quan sản xuất</h1>
-                    <p>Theo dõi sản lượng, chất lượng và báo cáo trong {PERIOD_LABELS[period].toLowerCase()}.</p>
                 </div>
 
                 <div className="dashboard-header-actions">
@@ -265,7 +263,6 @@ function Dashboard() {
                     <div>
                         <span>Chờ duyệt</span>
                         <strong>{formatNumber(pendingReports.length)}</strong>
-                        <small>{metrics.workers} công nhân có báo cáo</small>
                     </div>
                 </article>
 
@@ -274,7 +271,6 @@ function Dashboard() {
                     <div>
                         <span>Sản lượng OK</span>
                         <strong>{formatNumber(metrics.totalOK)}</strong>
-                        <small>{formatNumber(metrics.total)} tổng sản lượng</small>
                     </div>
                 </article>
 
@@ -283,16 +279,14 @@ function Dashboard() {
                     <div>
                         <span>Sản lượng NG</span>
                         <strong>{formatNumber(metrics.totalNG)}</strong>
-                        <small>Tỷ lệ NG {metrics.ngRate.toFixed(2)}%</small>
                     </div>
                 </article>
 
                 <article className="dashboard-kpi-card info">
                     <div className="dashboard-kpi-icon"><AppIcon name="settings" size={24} /></div>
                     <div>
-                        <span>Tổng công đoạn</span>
-                        <strong>{processData.length}</strong>
-                        <small>{activeProcessCount} công đoạn có dữ liệu trong {PERIOD_LABELS[period].toLowerCase()}</small>
+                        <span>Công đoạn hoạt động</span>
+                        <strong>{activeProcessCount}/{processData.length}</strong>
                     </div>
                 </article>
             </section>
@@ -302,7 +296,6 @@ function Dashboard() {
                     <div className="dashboard-panel-heading">
                         <div>
                             <h2>Sản lượng theo công đoạn</h2>
-                            <p>So sánh TT OK và TT NG của từng công đoạn trong {PERIOD_LABELS[period].toLowerCase()}.</p>
                         </div>
                     </div>
 
@@ -313,7 +306,7 @@ function Dashboard() {
                             <div className="dashboard-chart-row" key={item.code || item.name}>
                                 <div className="dashboard-chart-label">
                                     <strong>{item.name}</strong>
-                                    <span>{item.count > 0 ? `${item.count} báo cáo` : "Chưa có báo cáo"}</span>
+                                    <span>{item.count} báo cáo</span>
                                 </div>
                                 <div className="dashboard-stacked-track" title={`OK ${item.ok} - NG ${item.ng}`}>
                                     <span
@@ -343,7 +336,6 @@ function Dashboard() {
                     <div className="dashboard-panel-heading">
                         <div>
                             <h2>Báo cáo theo ca</h2>
-                            <p>Số báo cáo đang chờ duyệt trong {PERIOD_LABELS[period].toLowerCase()}.</p>
                         </div>
                     </div>
 
@@ -364,15 +356,15 @@ function Dashboard() {
             <section className="dashboard-quick-actions">
                 <button type="button" onClick={() => navigate(`${basePath}/reports`)}>
                     <span className="dashboard-quick-icon"><AppIcon name="pending" size={24} /></span>
-                    <div><strong>Duyệt báo cáo</strong><small>Kiểm tra và xử lý báo cáo chờ</small></div>
+                    <strong>Duyệt báo cáo</strong>
                 </button>
-                <button type="button" onClick={() => navigate(`${basePath}/workers`)}>
-                    <span className="dashboard-quick-icon"><AppIcon name="workers" size={24} /></span>
-                    <div><strong>Danh sách công nhân</strong><small>Theo dõi nhân sự và công đoạn</small></div>
+                <button type="button" onClick={() => navigate(`${basePath}/approved`)}>
+                    <span className="dashboard-quick-icon"><AppIcon name="approved" size={24} /></span>
+                    <strong>Báo cáo đã duyệt</strong>
                 </button>
-                <button type="button" onClick={() => navigate(`${basePath}/statistics`)}>
-                    <span className="dashboard-quick-icon"><AppIcon name="statistics" size={24} /></span>
-                    <div><strong>Thống kê</strong><small>Xem xu hướng sản lượng và chất lượng</small></div>
+                <button type="button" onClick={() => navigate(`${basePath}/master`)}>
+                    <span className="dashboard-quick-icon"><AppIcon name="settings" size={24} /></span>
+                    <strong>Trung tâm quản lý</strong>
                 </button>
             </section>
         </main>
