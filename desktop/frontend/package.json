@@ -1,60 +1,36 @@
 {
-  "name": "ktc-production-control-desktop",
-  "version": "1.1.1",
-  "description": "KTC Production Control Desktop - FE33 đóng gói nội bộ và tự động đồng bộ Excel theo dữ liệu backend",
-  "main": "electron/main.cjs",
-  "author": "KTC",
-  "license": "UNLICENSED",
+  "name": "frontend",
   "private": true,
+  "version": "0.0.0",
+  "type": "module",
   "scripts": {
-    "frontend:install": "npm --prefix frontend install",
-    "build:frontend": "npm --prefix frontend run build",
-    "start": "npm run build:frontend && electron .",
-    "dist:win": "npm run build:frontend && electron-builder --win nsis portable",
-    "dist:portable": "npm run build:frontend && electron-builder --win portable"
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^9.2.0",
+    "@mui/material": "^9.2.0",
+    "axios": "^1.18.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-router-dom": "^6.30.3"
   },
   "devDependencies": {
-    "electron": "^37.2.3",
-    "electron-builder": "^26.0.12"
-  },
-  "build": {
-    "appId": "vn.ktc.productioncontrol",
-    "productName": "KTC Production Control",
-    "asar": true,
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "electron/**/*",
-      "frontend/dist/**/*",
-      "assets/**/*",
-      "package.json"
-    ],
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "artifactName": "KTC-Production-Control-${version}-${arch}.${ext}",
-      "icon": "assets/icon.ico"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "KTC Production Control",
-      "deleteAppDataOnUninstall": false
-    }
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.13.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "eslint": "^10.6.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.3",
+    "globals": "^17.7.0",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.62.0",
+    "vite": "^8.1.1"
   }
 }

@@ -8,7 +8,7 @@ import { getApiError } from "../../utils/apiError";
 import "./Dashboard.css";
 
 const formatNumber = (value: number) =>
-    Number(value || 0).toLocaleString("vi-VN", { maximumFractionDigits: 1 });
+    Number(value || 0).toLocaleString("vi-VN", { maximumFractionDigits: 0 });
 
 const formatPercent = (value: number) =>
     Number(value || 0).toLocaleString("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -20,27 +20,10 @@ const toLocalDate = (date: Date): string => {
 
 type PeriodKey = "today" | "yesterday" | "last7" | "thisMonth" | "lastMonth";
 
-type ProcessOption = {
-    id: number;
-    process_code?: string;
-    process_name: string;
-};
-
-type ProcessSummary = {
-    process_id: number;
-    process_code?: string;
-    process_name: string;
-    report_count: number;
-    ok: number;
-    ng: number;
-};
-
-type ShiftSummary = {
-    shift: string;
-    report_count: number;
-    ok: number;
-    ng: number;
-};
+type ProcessOption = { id: number; process_code?: string; process_name: string };
+type ProcessSummary = { process_id: number; process_code?: string; process_name: string; report_count: number; ok: number; ng: number };
+type ShiftSummary = { shift: string; report_count: number; ok: number; ng: number };
+type DailySummary = { work_date: string; report_count: number; ok: number; ng: number };
 
 type DashboardSummary = {
     pending_count: number;
@@ -51,6 +34,7 @@ type DashboardSummary = {
     processes: ProcessOption[];
     process_summary: ProcessSummary[];
     shift_summary: ShiftSummary[];
+    daily_summary: DailySummary[];
 };
 
 const PERIOD_LABELS: Record<PeriodKey, string> = {
@@ -89,21 +73,81 @@ const EMPTY_SUMMARY: DashboardSummary = {
     ng_rate: 0,
     processes: [],
     process_summary: [],
-    shift_summary: []
+    shift_summary: [],
+    daily_summary: []
 };
 
-const getQualityClass = (rate: number) => {
-    if (rate >= 1) return "critical";
-    if (rate >= 0.3) return "warning";
-    return "good";
-};
+function ProductionTrend({ data }: { data: DailySummary[] }) {
+    const points = useMemo(() => {
+        if (!data.length) return [];
+        const width = 920;
+        const height = 220;
+        const paddingX = 36;
+        const paddingTop = 24;
+        const paddingBottom = 36;
+        const max = Math.max(1, ...data.map(item => Number(item.ok || 0) + Number(item.ng || 0)));
+        return data.map((item, index) => {
+            const total = Number(item.ok || 0) + Number(item.ng || 0);
+            const x = data.length === 1
+                ? width / 2
+                : paddingX + (index / (data.length - 1)) * (width - paddingX * 2);
+            const y = paddingTop + (1 - total / max) * (height - paddingTop - paddingBottom);
+            return { ...item, total, x, y };
+        });
+    }, [data]);
+
+    if (!points.length) return <div className="executive-empty">Chưa có dữ liệu xu hướng trong khoảng thời gian này.</div>;
+
+    const linePath = points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+    const areaPath = `${linePath} L ${points[points.length - 1].x} 184 L ${points[0].x} 184 Z`;
+    const maxValue = Math.max(1, ...points.map(point => point.total));
+
+    return (
+        <div className="executive-trend-chart">
+            <div className="executive-chart-scale">
+                <span>{formatNumber(maxValue)}</span>
+                <span>{formatNumber(maxValue / 2)}</span>
+                <span>0</span>
+            </div>
+            <svg viewBox="0 0 920 220" role="img" aria-label="Xu hướng tổng sản lượng theo ngày">
+                <defs>
+                    <linearGradient id="productionArea" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stopColor="#2f6ea5" stopOpacity="0.22" />
+                        <stop offset="100%" stopColor="#2f6ea5" stopOpacity="0.02" />
+                    </linearGradient>
+                </defs>
+                <line x1="36" y1="24" x2="884" y2="24" className="chart-grid-line" />
+                <line x1="36" y1="104" x2="884" y2="104" className="chart-grid-line" />
+                <line x1="36" y1="184" x2="884" y2="184" className="chart-grid-line" />
+                <path d={areaPath} fill="url(#productionArea)" />
+                <path d={linePath} className="executive-trend-line" />
+                {points.map(point => (
+                    <g key={point.work_date} className="executive-trend-point">
+                        <circle cx={point.x} cy={point.y} r="4.5" />
+                        <title>{`${new Date(`${point.work_date}T00:00:00`).toLocaleDateString("vi-VN")}: ${formatNumber(point.total)} sản phẩm`}</title>
+                    </g>
+                ))}
+                {points.map((point, index) => {
+                    const show = points.length <= 8 || index === 0 || index === points.length - 1 || index % Math.ceil(points.length / 6) === 0;
+                    return show ? (
+                        <text key={`label-${point.work_date}`} x={point.x} y="210" textAnchor="middle" className="executive-chart-label">
+                            {new Date(`${point.work_date}T00:00:00`).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" })}
+                        </text>
+                    ) : null;
+                })}
+            </svg>
+        </div>
+    );
+}
 
 function Dashboard() {
     const navigate = useNavigate();
     const toast = useToast();
     const [summary, setSummary] = useState<DashboardSummary>(EMPTY_SUMMARY);
     const [loading, setLoading] = useState(true);
-    const [period, setPeriod] = useState<PeriodKey>("today");
+    const [refreshing, setRefreshing] = useState(false);
+    const [period, setPeriod] = useState<PeriodKey>("thisMonth");
+    const [refreshKey, setRefreshKey] = useState(0);
 
     const currentUser = useMemo(() => {
         try {
@@ -113,33 +157,29 @@ function Dashboard() {
         }
     }, []);
 
-    const basePath = currentUser?.role === "admin"
-        ? "/admin"
-        : currentUser?.role === "lead"
-            ? "/lead"
-            : "/manager";
+    const basePath = currentUser?.role === "admin" ? "/admin" : currentUser?.role === "lead" ? "/lead" : "/manager";
 
     useEffect(() => {
         const controller = new AbortController();
         const load = async () => {
-            setLoading(true);
+            refreshKey === 0 ? setLoading(true) : setRefreshing(true);
             try {
                 const range = getPeriodRange(period);
-                const response = await api.get("/dashboard/summary", {
-                    params: range,
-                    signal: controller.signal
-                });
+                const response = await api.get("/dashboard/summary", { params: range, signal: controller.signal });
                 setSummary({ ...EMPTY_SUMMARY, ...(response.data?.data || {}) });
             } catch (error) {
                 if (controller.signal.aborted) return;
                 toast.showToast(getApiError(error, "Không thể tải dữ liệu tổng quan").message, "error");
             } finally {
-                if (!controller.signal.aborted) setLoading(false);
+                if (!controller.signal.aborted) {
+                    setLoading(false);
+                    setRefreshing(false);
+                }
             }
         };
         void load();
         return () => controller.abort();
-    }, [period, toast]);
+    }, [period, refreshKey, toast]);
 
     const processData = useMemo(() => {
         const byId = new Map(summary.process_summary.map(item => [Number(item.process_id), item]));
@@ -151,7 +191,6 @@ function Dashboard() {
             return {
                 id: Number(process.id),
                 name: process.process_name,
-                code: process.process_code,
                 ok,
                 ng,
                 total,
@@ -165,193 +204,184 @@ function Dashboard() {
     const processWithoutData = processData.filter(item => item.count === 0 && item.total === 0);
     const maxProcessOutput = Math.max(1, ...processWithData.map(item => item.total));
 
-    const shiftChartData = useMemo(() => summary.shift_summary.map(item => {
+    const shiftData = useMemo(() => summary.shift_summary.map(item => {
         const ok = Number(item.ok || 0);
         const ng = Number(item.ng || 0);
         const total = ok + ng;
-        return {
-            ...item,
-            ok,
-            ng,
-            total,
-            ngRate: total > 0 ? (ng / total) * 100 : 0
-        };
-    }), [summary.shift_summary]);
+        return { ...item, ok, ng, total, ngRate: total > 0 ? (ng / total) * 100 : 0 };
+    }).sort((a, b) => b.total - a.total), [summary.shift_summary]);
+    const maxShiftOutput = Math.max(1, ...shiftData.map(item => item.total));
 
-    const maxShiftOutput = Math.max(1, ...shiftChartData.map(item => item.total));
+    const totalOutput = summary.total_ok + summary.total_ng;
+    const topProcess = processWithData[0];
+    const topShift = shiftData[0];
+    const highestNgShift = [...shiftData].sort((a, b) => b.ngRate - a.ngRate)[0];
 
     if (loading) {
         return (
-            <main className="manager-dashboard">
-                <div className="dashboard-skeleton dashboard-skeleton-title" />
-                <div className="dashboard-kpi-grid">
-                    {[1, 2, 3, 4].map(item => <div key={item} className="dashboard-skeleton dashboard-skeleton-card" />)}
-                </div>
+            <main className="executive-dashboard">
+                <div className="executive-skeleton executive-skeleton-heading" />
+                <div className="executive-skeleton executive-skeleton-kpis" />
+                <div className="executive-skeleton executive-skeleton-chart" />
             </main>
         );
     }
 
     return (
-        <main className="manager-dashboard">
-            <header className="manager-dashboard-header">
-                <h1>Tổng quan sản xuất</h1>
-                <label className="dashboard-period-filter" aria-label="Khoảng thời gian">
-                    <select value={period} onChange={event => setPeriod(event.target.value as PeriodKey)}>
-                        {Object.entries(PERIOD_LABELS).map(([value, label]) => (
-                            <option key={value} value={value}>{label}</option>
-                        ))}
-                    </select>
-                </label>
+        <main className="executive-dashboard">
+            <header className="executive-page-header">
+                <div>
+                    <span className="executive-eyebrow">KTC PRODUCTION INTELLIGENCE</span>
+                    <h1>Tổng quan sản xuất</h1>
+                    <p>Dữ liệu điều hành tập trung theo công đoạn và ca sản xuất.</p>
+                </div>
+                <div className="executive-header-actions">
+                    <label className="executive-period-select">
+                        <AppIcon name="clock" size={17} />
+                        <select value={period} onChange={event => setPeriod(event.target.value as PeriodKey)}>
+                            {Object.entries(PERIOD_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                        </select>
+                    </label>
+                    <button type="button" className="executive-refresh" onClick={() => setRefreshKey(value => value + 1)} disabled={refreshing}>
+                        <AppIcon name="history" size={17} />
+                        {refreshing ? "Đang cập nhật" : "Làm mới"}
+                    </button>
+                </div>
             </header>
 
-            <section className="dashboard-kpi-grid">
-                <article className="dashboard-kpi-card">
-                    <div className="dashboard-kpi-icon"><AppIcon name="pending" size={24} /></div>
-                    <div><span>Chờ duyệt</span><strong>{formatNumber(summary.pending_count)}</strong><small>Cần xử lý</small></div>
+            <section className="executive-kpi-strip">
+                <article>
+                    <span>Chờ duyệt</span>
+                    <strong>{formatNumber(summary.pending_count)}</strong>
+                    <small>{summary.pending_count > 0 ? "Cần xử lý" : "Đã xử lý hết"}</small>
                 </article>
-                <article className="dashboard-kpi-card success">
-                    <div className="dashboard-kpi-icon"><AppIcon name="ok" size={24} /></div>
-                    <div><span>Sản lượng OK</span><strong>{formatNumber(summary.total_ok)}</strong><small>{PERIOD_LABELS[period].toLowerCase()}</small></div>
+                <article>
+                    <span>Sản lượng OK</span>
+                    <strong>{formatNumber(summary.total_ok)}</strong>
+                    <small>{PERIOD_LABELS[period]}</small>
                 </article>
-                <article className="dashboard-kpi-card danger">
-                    <div className="dashboard-kpi-icon"><AppIcon name="warning" size={24} /></div>
-                    <div>
-                        <span>Tỷ lệ NG</span>
-                        <strong>{formatPercent(summary.ng_rate)}%</strong>
-                        <small>{formatNumber(summary.total_ng)} sản phẩm NG</small>
-                    </div>
+                <article>
+                    <span>Tỷ lệ NG</span>
+                    <strong>{formatPercent(summary.ng_rate)}%</strong>
+                    <small>{formatNumber(summary.total_ng)} sản phẩm NG</small>
                 </article>
-                <article className="dashboard-kpi-card info">
-                    <div className="dashboard-kpi-icon"><AppIcon name="approved" size={24} /></div>
-                    <div>
-                        <span>Báo cáo đã duyệt</span>
-                        <strong>{formatNumber(summary.approved_count)}</strong>
-                        <small>{processWithData.length}/{processData.length} công đoạn có dữ liệu</small>
-                    </div>
+                <article>
+                    <span>Báo cáo đã duyệt</span>
+                    <strong>{formatNumber(summary.approved_count)}</strong>
+                    <small>{processWithData.length}/{processData.length} công đoạn có dữ liệu</small>
                 </article>
             </section>
 
-            <section className="dashboard-content-grid">
-                <article className="dashboard-panel dashboard-process-panel">
-                    <div className="dashboard-panel-heading">
+            <section className="executive-panel executive-trend-panel">
+                <div className="executive-panel-heading">
+                    <div>
+                        <span className="executive-section-kicker">XU HƯỚNG VẬN HÀNH</span>
+                        <h2>Sản lượng theo ngày</h2>
+                    </div>
+                    <div className="executive-total-output">
+                        <span>Tổng sản lượng</span>
+                        <strong>{formatNumber(totalOutput)}</strong>
+                    </div>
+                </div>
+                <ProductionTrend data={summary.daily_summary || []} />
+            </section>
+
+            <section className="executive-analysis-grid">
+                <article className="executive-panel">
+                    <div className="executive-panel-heading compact">
                         <div>
-                            <h2>Hiệu suất theo công đoạn</h2>
-                            <span>Xếp hạng theo tổng sản lượng</span>
+                            <span className="executive-section-kicker">CÔNG ĐOẠN</span>
+                            <h2>Hiệu suất sản xuất</h2>
                         </div>
+                        <span className="executive-panel-count">{processWithData.length} đang có dữ liệu</span>
                     </div>
 
-                    {processWithData.length === 0 ? (
-                        <div className="dashboard-empty">Chưa có dữ liệu trong khoảng thời gian này</div>
-                    ) : (
-                        <div className="dashboard-process-table" role="table" aria-label="Hiệu suất theo công đoạn">
-                            <div className="dashboard-process-head" role="row">
-                                <span>Công đoạn</span>
-                                <span>Sản lượng</span>
-                                <span>Tỷ lệ NG</span>
-                                <span>Trạng thái</span>
+                    {processWithData.length === 0 ? <div className="executive-empty">Chưa có dữ liệu công đoạn.</div> : (
+                        <div className="executive-process-list">
+                            <div className="executive-list-header process">
+                                <span>Công đoạn</span><span>Báo cáo</span><span>Sản lượng</span><span>NG</span>
                             </div>
-                            {processWithData.map((item, index) => {
-                                const qualityClass = getQualityClass(item.ngRate);
-                                const outputWidth = item.total > 0 ? Math.max(2, (item.total / maxProcessOutput) * 100) : 0;
-                                const statusText = qualityClass === "critical" ? "Vượt ngưỡng" : qualityClass === "warning" ? "Cảnh báo" : "Đạt";
-                                return (
-                                    <div className="dashboard-process-row" role="row" key={item.id}>
-                                        <div className="dashboard-process-name-cell">
-                                            <span className="dashboard-rank-number">{index + 1}</span>
-                                            <div>
-                                                <strong>{item.name}</strong>
-                                                <small>{item.count} báo cáo</small>
-                                            </div>
-                                        </div>
-                                        <div className="dashboard-process-output-cell">
-                                            <div className="dashboard-output-number">
-                                                <strong>{formatNumber(item.total)}</strong>
-                                                <small>OK {formatNumber(item.ok)} · NG {formatNumber(item.ng)}</small>
-                                            </div>
-                                            <div className="dashboard-ranking-track" aria-hidden="true">
-                                                <span className="dashboard-ranking-bar" style={{ width: `${outputWidth}%` }} />
-                                            </div>
-                                        </div>
-                                        <div className="dashboard-process-rate-cell">
-                                            <strong>{formatPercent(item.ngRate)}%</strong>
-                                            <small>{formatNumber(item.ng)} NG</small>
-                                        </div>
-                                        <div className="dashboard-process-status-cell">
-                                            <span className={`dashboard-status-badge ${qualityClass}`}>{statusText}</span>
-                                        </div>
+                            {processWithData.map((item, index) => (
+                                <div className="executive-process-row" key={item.id}>
+                                    <div className="executive-process-name">
+                                        <span>{String(index + 1).padStart(2, "0")}</span>
+                                        <strong>{item.name}</strong>
                                     </div>
-                                );
-                            })}
+                                    <span>{formatNumber(item.count)}</span>
+                                    <div className="executive-mini-metric">
+                                        <strong>{formatNumber(item.total)}</strong>
+                                        <div><i style={{ width: `${Math.max(3, (item.total / maxProcessOutput) * 100)}%` }} /></div>
+                                    </div>
+                                    <strong className="executive-ng-value">{formatPercent(item.ngRate)}%</strong>
+                                </div>
+                            ))}
                         </div>
                     )}
 
                     {processWithoutData.length > 0 && (
-                        <div className="dashboard-zero-processes">
-                            <span>Chưa phát sinh:</span>
-                            {processWithoutData.map(item => <i key={item.id}>{item.name}</i>)}
-                        </div>
+                        <div className="executive-muted-note">Chưa phát sinh: {processWithoutData.map(item => item.name).join(", ")}</div>
                     )}
                 </article>
 
-                <article className="dashboard-panel dashboard-shift-panel">
-                    <div className="dashboard-panel-heading">
+                <article className="executive-panel">
+                    <div className="executive-panel-heading compact">
                         <div>
-                            <h2>Hiệu suất theo ca</h2>
-                            <span>So sánh sản lượng và chất lượng</span>
+                            <span className="executive-section-kicker">CA SẢN XUẤT</span>
+                            <h2>So sánh hiệu suất</h2>
                         </div>
+                        <span className="executive-panel-count">{shiftData.length} ca</span>
                     </div>
 
-                    {shiftChartData.length === 0 ? (
-                        <div className="dashboard-empty">Chưa có dữ liệu theo ca</div>
-                    ) : (
-                        <>
-                            <div className="dashboard-shift-column-chart" aria-label="Sản lượng theo ca">
-                                <div className="dashboard-shift-grid line-25" />
-                                <div className="dashboard-shift-grid line-50" />
-                                <div className="dashboard-shift-grid line-75" />
-                                <div className="dashboard-shift-columns">
-                                    {shiftChartData.map(item => {
-                                        const height = item.total > 0 ? Math.max(10, (item.total / maxShiftOutput) * 100) : 0;
-                                        return (
-                                            <div className="dashboard-shift-column" key={item.shift}>
-                                                <strong>{formatNumber(item.total)}</strong>
-                                                <div className="dashboard-shift-column-area">
-                                                    <span style={{ height: `${height}%` }} />
-                                                </div>
-                                                <b>Ca {item.shift}</b>
-                                                <small>{item.report_count} báo cáo</small>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                    {shiftData.length === 0 ? <div className="executive-empty">Chưa có dữ liệu theo ca.</div> : (
+                        <div className="executive-shift-list">
+                            <div className="executive-list-header shift">
+                                <span>Ca</span><span>Sản lượng</span><span>Báo cáo</span><span>NG</span>
                             </div>
-
-                            <div className="dashboard-shift-summary" role="table" aria-label="Chi tiết theo ca">
-                                <div className="dashboard-shift-summary-head" role="row">
-                                    <span>Ca</span><span>Sản lượng</span><span>OK</span><span>NG</span><span>Tỷ lệ NG</span>
+                            {shiftData.map(item => (
+                                <div className="executive-shift-row" key={item.shift}>
+                                    <strong className="executive-shift-name">{item.shift}</strong>
+                                    <div className="executive-mini-metric">
+                                        <strong>{formatNumber(item.total)}</strong>
+                                        <div><i style={{ width: `${Math.max(3, (item.total / maxShiftOutput) * 100)}%` }} /></div>
+                                    </div>
+                                    <span>{formatNumber(item.report_count)}</span>
+                                    <strong className="executive-ng-value">{formatPercent(item.ngRate)}%</strong>
                                 </div>
-                                {shiftChartData.map(item => {
-                                    const qualityClass = getQualityClass(item.ngRate);
-                                    return (
-                                        <div className="dashboard-shift-summary-row" role="row" key={item.shift}>
-                                            <strong>Ca {item.shift}</strong>
-                                            <span>{formatNumber(item.total)}</span>
-                                            <span>{formatNumber(item.ok)}</span>
-                                            <span>{formatNumber(item.ng)}</span>
-                                            <span className={`dashboard-quality-text ${qualityClass}`}>{formatPercent(item.ngRate)}%</span>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </>
+                            ))}
+                        </div>
                     )}
                 </article>
             </section>
 
-            <section className="dashboard-quick-actions">
-                <button type="button" onClick={() => navigate(`${basePath}/reports`)}><span className="dashboard-quick-icon"><AppIcon name="pending" size={24} /></span><strong>Duyệt báo cáo</strong></button>
-                <button type="button" onClick={() => navigate(`${basePath}/approved`)}><span className="dashboard-quick-icon"><AppIcon name="approved" size={24} /></span><strong>Báo cáo đã duyệt</strong></button>
-                <button type="button" onClick={() => navigate(`${basePath}/master`)}><span className="dashboard-quick-icon"><AppIcon name="settings" size={24} /></span><strong>Trung tâm quản lý</strong></button>
+            <section className="executive-bottom-grid">
+                <article className="executive-panel executive-insights">
+                    <div className="executive-panel-heading compact">
+                        <div>
+                            <span className="executive-section-kicker">ĐIỂM NỔI BẬT</span>
+                            <h2>Thông tin điều hành</h2>
+                        </div>
+                    </div>
+                    <div className="executive-insight-list">
+                        <div><span>01</span><p><strong>{formatNumber(summary.pending_count)}</strong> báo cáo đang chờ phê duyệt.</p></div>
+                        <div><span>02</span><p>{topProcess ? <><strong>{topProcess.name}</strong> dẫn đầu với {formatNumber(topProcess.total)} sản phẩm.</> : "Chưa có công đoạn phát sinh sản lượng."}</p></div>
+                        <div><span>03</span><p>{topShift ? <><strong>Ca {topShift.shift}</strong> có sản lượng cao nhất: {formatNumber(topShift.total)}.</> : "Chưa có dữ liệu theo ca."}</p></div>
+                        <div><span>04</span><p>{highestNgShift ? <>Tỷ lệ NG cao nhất thuộc <strong>ca {highestNgShift.shift}</strong>: {formatPercent(highestNgShift.ngRate)}%.</> : "Chưa có dữ liệu chất lượng theo ca."}</p></div>
+                    </div>
+                </article>
+
+                <article className="executive-panel executive-actions-panel">
+                    <div className="executive-panel-heading compact">
+                        <div>
+                            <span className="executive-section-kicker">TÁC VỤ</span>
+                            <h2>Điều hành nhanh</h2>
+                        </div>
+                    </div>
+                    <div className="executive-action-list">
+                        <button type="button" onClick={() => navigate(`${basePath}/reports`)}><AppIcon name="pending" size={19} /><span><strong>Duyệt báo cáo</strong><small>Xử lý dữ liệu đang chờ</small></span><b>→</b></button>
+                        <button type="button" onClick={() => navigate(`${basePath}/approved`)}><AppIcon name="approved" size={19} /><span><strong>Báo cáo đã duyệt</strong><small>Tra cứu dữ liệu chính thức</small></span><b>→</b></button>
+                        <button type="button" onClick={() => navigate(`${basePath}/master`)}><AppIcon name="settings" size={19} /><span><strong>Trung tâm quản lý</strong><small>Quản trị dữ liệu sản xuất</small></span><b>→</b></button>
+                    </div>
+                </article>
             </section>
         </main>
     );

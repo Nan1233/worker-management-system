@@ -62,6 +62,20 @@ exports.getSummary = async (req, res, next) => {
       [from, to, ...scope.params]
     );
 
+
+    const [dailyRows] = await connection.query(
+      `SELECT DATE_FORMAT(r.work_date, '%Y-%m-%d') AS work_date,
+              COUNT(*) AS report_count,
+              COALESCE(SUM(r.tt_ok),0) AS ok,
+              COALESCE(SUM(r.tt_ng),0) AS ng
+       FROM production_reports r
+       WHERE r.work_date BETWEEN ? AND ?
+         ${scope.clause}
+       GROUP BY r.work_date
+       ORDER BY r.work_date`,
+      [from, to, ...scope.params]
+    );
+
     const [shiftRows] = await connection.query(
       `SELECT COALESCE(NULLIF(TRIM(r.shift),''),'Chưa xác định') AS shift,
               COUNT(*) AS report_count,
@@ -101,6 +115,12 @@ exports.getSummary = async (req, res, next) => {
         })),
         shift_summary: shiftRows.map((row) => ({
           shift: row.shift,
+          report_count: Number(row.report_count || 0),
+          ok: Number(row.ok || 0),
+          ng: Number(row.ng || 0)
+        })),
+        daily_summary: dailyRows.map((row) => ({
+          work_date: row.work_date,
           report_count: Number(row.report_count || 0),
           ok: Number(row.ok || 0),
           ng: Number(row.ng || 0)
