@@ -42,6 +42,7 @@ const productStandardRoutes =
 const syncJobRoutes = require("./routes/syncJobRoutes");
 const systemRoutes = require("./routes/systemRoutes");
 const adminMasterRoutes = require("./routes/adminMasterRoutes");
+const dashboardRoutes = require("./routes/dashboardRoutes");
 
 
 // ======================
@@ -165,6 +166,7 @@ app.use(
 // ======================
 
 app.use("/api", apiLimiter);
+app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/auth/login", authLimiter);
 
 
