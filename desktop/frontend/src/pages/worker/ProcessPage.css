@@ -1974,10 +1974,63 @@
     }
 }
 
+/* Điện thoại và màn hình nhỏ: luôn giữ Trừ giờ/NG thành 2 cột để form không quá dài. */
+@media (max-width: 767px) {
+    .worker-dynamic-grid,
+    .worker-ng-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+        align-items: start;
+    }
+
+    .worker-dynamic-grid .worker-field-block,
+    .worker-ng-grid .worker-field-block {
+        min-width: 0;
+        margin: 0;
+        padding: 8px;
+        box-sizing: border-box;
+    }
+
+    .worker-dynamic-grid .worker-field-label,
+    .worker-ng-grid .worker-field-label {
+        min-height: 34px;
+        margin-bottom: 5px;
+        font-size: 12px;
+        line-height: 1.25;
+        overflow-wrap: anywhere;
+    }
+
+    .worker-dynamic-grid .worker-text-input,
+    .worker-ng-grid .worker-text-input {
+        width: 100%;
+        min-width: 0;
+        height: 44px;
+        padding: 8px;
+        box-sizing: border-box;
+        font-size: 16px;
+    }
+}
+
 @media (max-width: 350px) {
     .worker-dynamic-grid,
-    .worker-ng-grid,
+    .worker-ng-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 6px !important;
+    }
+
+    .worker-dynamic-grid .worker-field-block,
+    .worker-ng-grid .worker-field-block {
+        padding: 6px;
+    }
+
+    .worker-dynamic-grid .worker-field-label,
+    .worker-ng-grid .worker-field-label {
+        min-height: 32px;
+        font-size: 11px;
+    }
+
     .worker-dropdown-options {
-        grid-template-columns: 1fr !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     }
 }
