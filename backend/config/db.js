@@ -79,15 +79,17 @@ const pool = mysql.createPool({
         process.env.DB_CONNECTION_LIMIT || 10
     ),
 
-    maxIdle: Number(
-        process.env.DB_MAX_IDLE || 10
-    ),
+  maxIdle: Number(
+    process.env.DB_MAX_IDLE || 3
+),
 
-    idleTimeout: Number(
-        process.env.DB_IDLE_TIMEOUT || 60000
-    ),
+idleTimeout: Number(
+    process.env.DB_IDLE_TIMEOUT || 30000
+),
 
-    queueLimit: 0,
+keepAliveInitialDelay: Number(
+    process.env.DB_KEEP_ALIVE_DELAY || 10000
+),
 
     enableKeepAlive: true,
 
@@ -151,23 +153,43 @@ pool.getConnection((error, connection) => {
 
 });
 
-
 // =====================================================
-// THEO DÕI LỖI CONNECTION POOL
+// THEO DÕI CONNECTION MỚI TRONG POOL
+// Không ghi lỗi khi TiDB chủ động đóng connection nhàn rỗi.
+// mysql2 pool sẽ tự tạo connection mới khi có query tiếp theo.
 // =====================================================
 
 pool.on("connection", (connection) => {
 
     connection.on("error", (error) => {
 
+        const expectedDisconnectCodes = [
+            "PROTOCOL_CONNECTION_LOST",
+            "ECONNRESET",
+            "EPIPE"
+        ];
+
+        if (
+            expectedDisconnectCodes.includes(
+                String(error.code || "")
+            )
+        ) {
+
+            console.warn(
+                `⚠️ Database connection closed: ${error.code || error.message}`
+            );
+
+            return;
+
+        }
+
         console.error(
-            "❌ Database connection error:",
+            "❌ Unexpected database connection error:",
+            error.code,
             error.message
         );
 
     });
 
 });
-
-
 module.exports = pool;
