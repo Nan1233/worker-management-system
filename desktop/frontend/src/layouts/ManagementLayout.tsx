@@ -29,12 +29,6 @@ const menuItems: MenuItem[] = [
 
 const roleLabel: Record<ManagementRole, string> = { lead: "Tổ trưởng", manager: "Quản lý", admin: "Quản trị viên" };
 
-const roleDescription: Record<ManagementRole, string> = {
-    lead: "Kiểm tra, duyệt và theo dõi báo cáo của chuyền hoặc công đoạn.",
-    manager: "Điều hành dữ liệu sản xuất, thống kê và chuẩn hóa báo cáo chính thức.",
-    admin: "Quản trị tài khoản, dữ liệu gốc và toàn bộ cấu hình vận hành."
-};
-
 function getInitials(user: User | null): string {
     const text = (user?.full_name || user?.username || "KTC").trim();
     const parts = text.split(/\s+/).filter(Boolean);
