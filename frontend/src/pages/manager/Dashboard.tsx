@@ -326,20 +326,19 @@ function Dashboard() {
                                 </div>
                             </div>
 
-                            <div className="dashboard-shift-cards">
+                            <div className="dashboard-shift-summary" role="table" aria-label="Chi tiết theo ca">
+                                <div className="dashboard-shift-summary-head" role="row">
+                                    <span>Ca</span><span>Sản lượng</span><span>OK</span><span>NG</span><span>Tỷ lệ NG</span>
+                                </div>
                                 {shiftChartData.map(item => {
                                     const qualityClass = getQualityClass(item.ngRate);
                                     return (
-                                        <div className="dashboard-shift-card" key={item.shift}>
-                                            <div className="dashboard-shift-card-top">
-                                                <strong>Ca {item.shift}</strong>
-                                                <span className={`dashboard-status-dot ${qualityClass}`} />
-                                            </div>
-                                            <dl>
-                                                <div><dt>OK</dt><dd>{formatNumber(item.ok)}</dd></div>
-                                                <div><dt>NG</dt><dd>{formatNumber(item.ng)}</dd></div>
-                                                <div><dt>Tỷ lệ NG</dt><dd className={qualityClass}>{formatPercent(item.ngRate)}%</dd></div>
-                                            </dl>
+                                        <div className="dashboard-shift-summary-row" role="row" key={item.shift}>
+                                            <strong>Ca {item.shift}</strong>
+                                            <span>{formatNumber(item.total)}</span>
+                                            <span>{formatNumber(item.ok)}</span>
+                                            <span>{formatNumber(item.ng)}</span>
+                                            <span className={`dashboard-quality-text ${qualityClass}`}>{formatPercent(item.ngRate)}%</span>
                                         </div>
                                     );
                                 })}
