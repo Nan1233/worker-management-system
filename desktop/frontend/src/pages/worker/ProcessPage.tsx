@@ -1806,40 +1806,6 @@ const updateDeductionValue = (
     };
 
 
-    // =====================================================
-    // ENTER TẠI Ô TRỪ GIỜ
-    // =====================================================
-
-    const handleDeductionKeyDown = (
-
-        event:
-            React.KeyboardEvent<
-                HTMLInputElement
-            >,
-
-        key: DeductionKey
-
-    ) => {
-
-        if (
-            event.key !==
-            "Enter"
-        ) {
-
-            return;
-
-        }
-
-
-        event.preventDefault();
-
-
-        removeDeductionIfZero(
-            key
-        );
-
-    };
-
 
     // =====================================================
     // CẬP NHẬT GIÁ TRỊ LỖI NG
@@ -2131,39 +2097,6 @@ const updateDeductionValue = (
     };
 
 
-    // =====================================================
-    // ENTER TẠI Ô LỖI NG
-    // =====================================================
-
-    const handleNgKeyDown = (
-
-        event:
-            React.KeyboardEvent<
-                HTMLInputElement
-            >,
-
-        key: NgKey
-
-    ) => {
-
-        if (
-            event.key !==
-            "Enter"
-        ) {
-
-            return;
-
-        }
-
-
-        event.preventDefault();
-
-
-        removeNgIfZero(
-            key
-        );
-
-    };
 
 
     // =====================================================
