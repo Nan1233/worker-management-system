@@ -177,10 +177,16 @@
 }
 .dashboard-shift-item { height: 100%; flex: 1; display: flex; flex-direction: column; align-items: center; }
 .dashboard-shift-value { height: 24px; font-weight: 800; }
-.dashboard-shift-track { width: min(46px, 75%); flex: 1; display: flex; align-items: flex-end; border-radius: 12px 12px 4px 4px; background: #eef3f9; overflow: hidden; }
-.dashboard-shift-track span { width: 100%; border-radius: 12px 12px 4px 4px; background: linear-gradient(180deg, #4f8cff, #1d4ed8); }
+.dashboard-shift-track { width: min(52px, 78%); flex: 1; display: flex; align-items: flex-end; border-radius: 12px 12px 4px 4px; background: #eef3f9; overflow: hidden; }
+.dashboard-shift-stack { width: 100%; min-height: 8px; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; border-radius: 12px 12px 4px 4px; }
+.dashboard-shift-stack span { width: 100%; min-height: 2px; }
+.dashboard-shift-ok { background: #198754; }
+.dashboard-shift-ng { background: #e14b53; }
 .dashboard-shift-item strong { margin-top: 10px; color: #475569; }
-.dashboard-shift-item small { margin-top: 3px; color: #64748b; font-size: 11px; }
+.dashboard-shift-item small { margin-top: 4px; display: inline-flex; align-items: center; gap: 5px; color: #64748b; font-size: 11px; }
+.shift-dot { width: 7px; height: 7px; border-radius: 50%; }
+.shift-dot.ok { background: #198754; }
+.shift-dot.ng { background: #e14b53; }
 
 .dashboard-quick-actions {
     display: grid;
@@ -240,13 +246,6 @@
   border: 1px solid rgba(148, 163, 184, 0.35);
   border-radius: 10px;
   background: #fff;
-}
-
-.dashboard-period-filter span {
-  font-size: 12px;
-  font-weight: 700;
-  color: #475569;
-  white-space: nowrap;
 }
 
 .dashboard-period-filter select {

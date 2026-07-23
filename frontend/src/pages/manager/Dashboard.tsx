@@ -231,8 +231,7 @@ function Dashboard() {
                 </div>
 
                 <div className="dashboard-header-actions">
-                    <label className="dashboard-period-filter">
-                        <span>Thời gian</span>
+                    <label className="dashboard-period-filter" aria-label="Khoảng thời gian">
                         <select value={period} onChange={(event) => setPeriod(event.target.value as PeriodKey)}>
                             {Object.entries(PERIOD_LABELS).map(([value, label]) => (
                                 <option key={value} value={value}>{label}</option>
@@ -334,12 +333,24 @@ function Dashboard() {
                             return (
                                 <div className="dashboard-shift-item" key={item.shift}>
                                     <div className="dashboard-shift-value">{formatNumber(total)}</div>
-                                    <div className="dashboard-shift-track" title={`OK ${item.ok} - NG ${item.ng}`}>
-                                        <span style={{ height: `${Math.max(8, (total / maxShiftOutput) * 100)}%` }} />
+                                    <div className="dashboard-shift-track" title={`Tổng ${total} - OK ${item.ok} - NG ${item.ng}`}>
+                                        <div
+                                            className="dashboard-shift-stack"
+                                            style={{ height: `${Math.max(8, (total / maxShiftOutput) * 100)}%` }}
+                                        >
+                                            <span
+                                                className="dashboard-shift-ok"
+                                                style={{ height: `${total > 0 ? (item.ok / total) * 100 : 0}%` }}
+                                            />
+                                            <span
+                                                className="dashboard-shift-ng"
+                                                style={{ height: `${total > 0 ? (item.ng / total) * 100 : 0}%` }}
+                                            />
+                                        </div>
                                     </div>
                                     <strong>Ca {item.shift}</strong>
-                                    <small>OK {formatNumber(item.ok)}</small>
-                                    <small>NG {formatNumber(item.ng)}</small>
+                                    <small><i className="shift-dot ok" />OK {formatNumber(item.ok)}</small>
+                                    <small><i className="shift-dot ng" />NG {formatNumber(item.ng)}</small>
                                 </div>
                             );
                         })}
