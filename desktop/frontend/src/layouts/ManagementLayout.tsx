@@ -19,7 +19,6 @@ interface MenuItem {
 }
 
 const menuItems: MenuItem[] = [
-    { id: "master", label: "Quản trị dữ liệu", path: "master", icon: "settings", roles: ["lead", "manager", "admin"], description: "Người dùng, công đoạn, lỗi, máy và định mức" },
     {
         id: "dashboard",
         label: "Tổng quan",
@@ -45,8 +44,48 @@ const menuItems: MenuItem[] = [
         description: "Tra cứu báo cáo chính thức"
     },
     {
+        id: "users",
+        label: "Người dùng",
+        path: "master/users",
+        icon: "workers",
+        roles: ["lead", "manager", "admin"],
+        description: "Tài khoản, nhân sự và phân công"
+    },
+    {
+        id: "processes",
+        label: "Công đoạn",
+        path: "master/processes",
+        icon: "settings",
+        roles: ["manager", "admin"],
+        description: "Mã và tên công đoạn sản xuất"
+    },
+    {
+        id: "machines",
+        label: "Máy sản xuất",
+        path: "master/machines",
+        icon: "settings",
+        roles: ["manager", "admin"],
+        description: "Danh sách máy theo công đoạn"
+    },
+    {
+        id: "standards",
+        label: "Sản phẩm & định mức",
+        path: "master/standards",
+        icon: "statistics",
+        roles: ["manager", "admin"],
+        description: "Mã sản phẩm và sản lượng chuẩn"
+    },
+    {
+        id: "quality",
+        label: "Lỗi & trừ giờ",
+        path: "master/defects",
+        icon: "system",
+        roles: ["manager", "admin"],
+        description: "Danh mục NG và lý do trừ thời gian"
+    },
+    {
         id: "workers",
-        label: "Công nhân",
+        label: "Theo dõi công nhân",
         path: "workers",
         icon: "workers",
         roles: ["lead", "manager", "admin"],
@@ -128,6 +167,11 @@ function ManagementLayout({ role }: Props) {
 
         if (item.id === "approved") {
             return location.pathname === `${basePath}/approved`;
+        }
+
+        if (item.id === "quality") {
+            return location.pathname === `${basePath}/master/defects`
+                || location.pathname === `${basePath}/master/deductions`;
         }
 
         return location.pathname.startsWith(fullPath);

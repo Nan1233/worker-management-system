@@ -116,7 +116,8 @@ function AppRouter() {
 
             <Route path="/admin" element={<PrivateRoute allowedRoles={["admin"]}><ManagementLayout role="admin" /></PrivateRoute>}>
                 <Route index element={<AdminDashboard />} />
-                <Route path="master" element={<MasterData />} />
+                <Route path="master" element={<Navigate to="users" replace />} />
+                <Route path="master/:resource" element={<MasterData />} />
                 <Route path="reports" element={<LeadPendingReports />} />
                 <Route path="approved" element={<LeadApprovedReports />} />
                 <Route path="workers" element={<LeadWorkers />} />
@@ -279,7 +280,8 @@ function AppRouter() {
                 />
 
 
-                <Route path="master" element={<MasterData />} />
+                <Route path="master" element={<Navigate to="users" replace />} />
+                <Route path="master/:resource" element={<MasterData />} />
                 <Route path="workers" element={<LeadWorkers />} />
                 <Route path="system" element={<SystemCenter />} />
             </Route>
@@ -317,7 +319,8 @@ function AppRouter() {
 
                     }
                 />
-                <Route path="master" element={<MasterData />} />
+                <Route path="master" element={<Navigate to="users" replace />} />
+                <Route path="master/:resource" element={<MasterData />} />
 
 
                 <Route

@@ -2034,3 +2034,101 @@
         grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     }
 }
+/* =====================================================
+   MOBILE/TABLET: TRỪ THỜI GIAN VÀ NG LUÔN 2 CỘT
+   Đặt cuối file để ghi đè toàn bộ CSS cũ
+===================================================== */
+
+@media screen and (max-width: 1100px) {
+    /* Danh sách checkbox chọn Trừ thời gian và NG */
+    .worker-dropdown-box .worker-dropdown-options {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    .worker-dropdown-box .worker-dropdown-option {
+        width: auto !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        box-sizing: border-box !important;
+    }
+
+    .worker-dropdown-box .worker-dropdown-option > span {
+        min-width: 0 !important;
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+    }
+
+    /* Các ô nhập chi tiết Trừ thời gian và NG sau khi tích */
+    .worker-form-card .worker-dynamic-grid,
+    .worker-form-card .worker-dynamic-grid.worker-ng-grid,
+    .worker-quality-section .worker-ng-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    .worker-form-card .worker-dynamic-grid > .worker-field-block,
+    .worker-form-card .worker-ng-grid > .worker-field-block {
+        grid-column: auto !important;
+        width: auto !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        margin: 0 !important;
+        padding: 8px !important;
+        box-sizing: border-box !important;
+    }
+
+    .worker-form-card .worker-dynamic-grid .worker-field-label,
+    .worker-form-card .worker-ng-grid .worker-field-label {
+        min-height: 34px !important;
+        margin-bottom: 5px !important;
+        font-size: 12px !important;
+        line-height: 1.25 !important;
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+    }
+
+    .worker-form-card .worker-dynamic-grid .worker-text-input,
+    .worker-form-card .worker-ng-grid .worker-text-input {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        height: 44px !important;
+        box-sizing: border-box !important;
+        font-size: 16px !important;
+    }
+}
+
+@media screen and (max-width: 380px) {
+    .worker-dropdown-box .worker-dropdown-options,
+    .worker-form-card .worker-dynamic-grid,
+    .worker-form-card .worker-dynamic-grid.worker-ng-grid,
+    .worker-quality-section .worker-ng-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 6px !important;
+    }
+
+    .worker-dropdown-box .worker-dropdown-option {
+        min-height: 42px !important;
+        padding: 6px !important;
+        gap: 5px !important;
+        font-size: 11px !important;
+    }
+
+    .worker-form-card .worker-dynamic-grid > .worker-field-block,
+    .worker-form-card .worker-ng-grid > .worker-field-block {
+        padding: 6px !important;
+    }
+
+    .worker-form-card .worker-dynamic-grid .worker-field-label,
+    .worker-form-card .worker-ng-grid .worker-field-label {
+        min-height: 30px !important;
+        font-size: 11px !important;
+    }
+}

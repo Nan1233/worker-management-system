@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../api/axios';
 import { getApiError } from '../../utils/apiError';
 import './MasterData.css';
@@ -12,7 +13,7 @@ const allTabs:{key:Resource;label:string;description:string;roles:string[]}[]=[
   {key:'users',label:'Người dùng',description:'Tài khoản, hồ sơ công nhân và phân công công đoạn',roles:['lead','manager','admin']},
   {key:'processes',label:'Công đoạn',description:'Gia công (Cắt/Lồng) và các công đoạn sản xuất',roles:['manager','admin']},
   {key:'machines',label:'Máy',description:'Máy theo từng công đoạn',roles:['manager','admin']},
-  {key:'standards',label:'Định mức',description:'Mã hàng và sản lượng chuẩn',roles:['manager','admin']},
+  {key:'standards',label:'Sản phẩm & định mức',description:'Mã sản phẩm, loại công việc và sản lượng chuẩn',roles:['manager','admin']},
   {key:'defects',label:'Loại lỗi',description:'Danh mục NG lấy trực tiếp theo công đoạn',roles:['manager','admin']},
   {key:'deductions',label:'Trừ giờ',description:'Lý do và thứ tự hiển thị',roles:['manager','admin']},
 ];
@@ -20,7 +21,7 @@ const allTabs:{key:Resource;label:string;description:string;roles:string[]}[]=[
 const baseFields:Record<Exclude<Resource,'users'>,Field[]>={
   processes:[{key:'process_code',label:'Mã công đoạn',required:true},{key:'process_name',label:'Tên công đoạn',required:true},{key:'description',label:'Mô tả'}],
   machines:[{key:'process_id',label:'Công đoạn',type:'select',required:true},{key:'machine_code',label:'Mã máy',required:true},{key:'machine_name',label:'Tên máy',required:true}],
-  standards:[{key:'process_id',label:'Công đoạn',type:'select',required:true},{key:'work_type',label:'Loại công việc',required:true},{key:'product_code',label:'Mã sản phẩm',required:true},{key:'standard_output',label:'Định mức',type:'number',required:true}],
+  standards:[{key:'process_id',label:'Công đoạn',type:'select',required:true},{key:'work_type',label:'Loại công việc',type:'select',required:true,options:[{value:'cat',label:'Cắt'},{value:'long',label:'Lồng'}]},{key:'product_code',label:'Mã sản phẩm',required:true},{key:'standard_output',label:'Định mức',type:'number',required:true}],
   defects:[{key:'process_id',label:'Công đoạn',type:'select',required:true},{key:'defect_code',label:'Mã lỗi',required:true},{key:'defect_name',label:'Tên lỗi',required:true},{key:'sort_order',label:'Thứ tự',type:'number'}],
   deductions:[{key:'process_id',label:'Công đoạn',type:'select',required:true},{key:'deduction_code',label:'Mã trừ giờ',required:true},{key:'deduction_name',label:'Tên trừ giờ',required:true},{key:'sort_order',label:'Thứ tự',type:'number'}],
 };
@@ -33,9 +34,13 @@ function parseProcessIds(value:unknown):string[]{
 }
 
 function MasterData(){
+  const navigate=useNavigate();
+  const params=useParams<{resource?:string}>();
   const currentUser=useMemo(()=>{try{return JSON.parse(localStorage.getItem('user')||'null') as {role?:string}|null;}catch{return null;}},[]);
   const tabs=useMemo(()=>allTabs.filter(tab=>tab.roles.includes(currentUser?.role||'')),[currentUser]);
-  const [resource,setResource]=useState<Resource>('users');
+  const requestedResource=String(params.resource||'users') as Resource;
+  const initialResource=allTabs.some(tab=>tab.key===requestedResource&&tab.roles.includes(currentUser?.role||''))?requestedResource:'users';
+  const [resource,setResource]=useState<Resource>(initialResource);
   const [rows,setRows]=useState<Row[]>([]);
   const [processes,setProcesses]=useState<ProcessOption[]>([]);
   const [loading,setLoading]=useState(false);
@@ -59,6 +64,16 @@ function MasterData(){
     }catch(err){setError(getApiError(err,'Không thể tải dữ liệu').message);}
     finally{setLoading(false);}
   },[resource]);
+
+  useEffect(()=>{
+    const allowed=tabs.some(tab=>tab.key===requestedResource);
+    const nextResource=allowed?requestedResource:'users';
+    setResource(nextResource);
+    setEditing(null);
+    setForm({});
+    setSelectedProcessIds([]);
+    if(!allowed&&params.resource!=='users') navigate(`/${currentUser?.role||'manager'}/master/users`,{replace:true});
+  },[requestedResource,tabs,navigate,params.resource,currentUser?.role]);
 
   useEffect(()=>{const timer=window.setTimeout(()=>{void loadProcesses().catch(err=>setError(getApiError(err,'Không thể tải công đoạn').message));},0);return()=>window.clearTimeout(timer);},[loadProcesses]);
   useEffect(()=>{const timer=window.setTimeout(()=>{void load();},0);return()=>window.clearTimeout(timer);},[load]);
@@ -137,12 +152,12 @@ function MasterData(){
     : fields.filter(field=>field.key!=='password');
 
   return <div className="master-page">
-    <div className="master-heading"><div><span>QUẢN TRỊ DỮ LIỆU GỐC</span><h1>Trung tâm quản lý nhà máy</h1><p>Quản lý người dùng, hồ sơ công nhân và công đoạn trong cùng một nơi. Gia công chính là Cắt/Lồng.</p></div><button className="primary" onClick={openCreate}>+ Thêm mới</button></div>
-    <div className="master-tabs">{tabs.map(tab=><button key={tab.key} className={resource===tab.key?'active':''} onClick={()=>{setResource(tab.key);setEditing(null);setForm({});setSelectedProcessIds([]);}}><strong>{tab.label}</strong><small>{tab.description}</small></button>)}</div>
+    <div className="master-heading"><div><span>QUẢN TRỊ DỮ LIỆU GỐC</span><h1>Trung tâm quản lý nhà máy</h1><p>Quản lý tập trung người dùng, công đoạn, máy, sản phẩm, định mức, lỗi NG và lý do trừ giờ.</p></div><button className="primary" onClick={openCreate}>+ Thêm mới</button></div>
+    <div className="master-tabs">{tabs.map(tab=><button key={tab.key} className={resource===tab.key?'active':''} onClick={()=>navigate(`/${currentUser?.role||'manager'}/master/${tab.key}`)}><strong>{tab.label}</strong><small>{tab.description}</small></button>)}</div>
     <div className="master-toolbar"><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Tìm theo mã, tên, công đoạn..."/><span>{filtered.length} bản ghi</span></div>
     {error&&<div className="master-error">{error}</div>}
     <div className="master-table-wrap"><table><thead><tr>{tableFields.map(field=><th key={field.key}>{field.label}</th>)}<th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
-      {loading?<tr><td colSpan={tableFields.length+2}>Đang tải...</td></tr>:filtered.map((row,index)=><tr key={String(row.id||index)}>{tableFields.map(field=><td key={field.key}>{field.key==='process_id'?String(row.process_name||''):field.key==='role'?String(roleLabels[String(row.role)]||row.role||''):String(row[field.key]??'')}</td>)}<td><span className={`status ${row.status}`}>{row.status==='inactive'?'Ngừng dùng':'Đang dùng'}</span></td><td><div className="actions"><button onClick={()=>openEdit(row)}>Sửa</button><button onClick={()=>void toggle(row)}>{row.status==='active'?'Khóa':'Mở'}</button></div></td></tr>)}
+      {loading?<tr><td colSpan={tableFields.length+2}>Đang tải...</td></tr>:filtered.length===0?<tr><td colSpan={tableFields.length+2}>Chưa có dữ liệu phù hợp.</td></tr>:filtered.map((row,index)=><tr key={String(row.id||index)}>{tableFields.map(field=><td key={field.key}>{field.key==='process_id'?String(row.process_name||''):field.key==='role'?String(roleLabels[String(row.role)]||row.role||''):String(row[field.key]??'')}</td>)}<td><span className={`status ${row.status}`}>{row.status==='inactive'?'Ngừng dùng':'Đang dùng'}</span></td><td><div className="actions"><button onClick={()=>openEdit(row)}>Sửa</button><button onClick={()=>void toggle(row)}>{row.status==='active'?'Khóa':'Mở'}</button></div></td></tr>)}
     </tbody></table></div>
     {editing&&<div className="modal-backdrop" onMouseDown={()=>setEditing(null)}><div className="modal-card" onMouseDown={event=>event.stopPropagation()}><h2>{editing.id?'Cập nhật người dùng/dữ liệu':'Thêm dữ liệu mới'}</h2><div className="form-grid">
       {fields.map(field=><label key={field.key}><span>{field.label}{field.required?' *':''}</span>{field.type==='select'?<select disabled={resource==='users'&&Boolean(editing?.id)&&field.key==='role'} value={form[field.key]||''} onChange={event=>setForm({...form,[field.key]:event.target.value})}><option value="">Chọn...</option>{field.options?.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select>:<input type={field.key==='password'?'password':field.type==='number'?'number':'text'} value={form[field.key]||''} onChange={event=>setForm({...form,[field.key]:event.target.value})}/>}</label>)}
