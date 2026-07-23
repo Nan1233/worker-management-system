@@ -15,13 +15,6 @@ const formatNumber = (value: number) =>
 
 type ProcessOption = { id: number; process_code?: string; process_name: string };
 
-const DEFAULT_PROCESS_CATALOG: ProcessOption[] = [
-    { id: -1, process_code: "GC", process_name: "Gia công" },
-    { id: -2, process_code: "MAI", process_name: "Mài" },
-    { id: -3, process_code: "K1", process_name: "Kiểm 1" },
-    { id: -4, process_code: "K2", process_name: "Kiểm 2" }
-];
-
 const normalizeText = (value?: string) =>
     String(value || "")
         .normalize("NFD")
@@ -29,33 +22,6 @@ const normalizeText = (value?: string) =>
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, " ")
         .trim();
-
-const getCanonicalProcess = (process?: Partial<ProcessOption> & { process_id?: number }) => {
-    const code = normalizeText(process?.process_code).replace(/\s+/g, "_");
-    const name = normalizeText(process?.process_name);
-
-    const isGiaCong =
-        ["gc", "cat_long", "catlong", "gia_cong", "giacong"].includes(code) ||
-        name === "gia cong" ||
-        name.includes("gia cong") ||
-        (name.includes("cat") && name.includes("long"));
-
-    if (isGiaCong) {
-        return { key: "GC", name: "Gia công", order: 0 };
-    }
-    if (["mai"].includes(code) || name === "mai") {
-        return { key: "MAI", name: "Mài", order: 1 };
-    }
-    if (["k1", "kiem_1", "kiem1"].includes(code) || ["kiem 1", "kiem lan 1"].includes(name)) {
-        return { key: "K1", name: "Kiểm 1", order: 2 };
-    }
-    if (["k2", "kiem_2", "kiem2"].includes(code) || ["kiem 2", "kiem lan 2"].includes(name)) {
-        return { key: "K2", name: "Kiểm 2", order: 3 };
-    }
-
-    const fallback = code || name || `PROCESS_${process?.process_id || process?.id || "UNKNOWN"}`;
-    return { key: fallback.toUpperCase(), name: process?.process_name || "Chưa xác định", order: 100 };
-};
 
 const toLocalDate = (date: Date): string => {
     const offset = date.getTimezoneOffset();
@@ -110,7 +76,12 @@ function Dashboard() {
 
     const savedUser = localStorage.getItem("user");
     const currentUser = savedUser ? JSON.parse(savedUser) : null;
-    const basePath = currentUser?.role === "lead" ? "/lead" : "/manager";
+    const basePath =
+        currentUser?.role === "admin"
+            ? "/admin"
+            : currentUser?.role === "lead"
+                ? "/lead"
+                : "/manager";
 
     useEffect(() => {
         const loadData = async () => {
@@ -135,87 +106,109 @@ function Dashboard() {
         void loadData();
     }, [period, toast]);
 
+    const isReportInScope = (report: ProductionReport) => {
+        const reportId = Number(report.process_id || 0);
+        const reportCode = normalizeText(report.process_code);
+        const reportName = normalizeText(report.process_name);
+        return processes.some(process =>
+            Number(process.id) === reportId ||
+            (reportCode && normalizeText(process.process_code) === reportCode) ||
+            (reportName && normalizeText(process.process_name) === reportName)
+        );
+    };
+
+    const scopedPendingReports = useMemo(
+        () => pendingReports.filter(isReportInScope),
+        [pendingReports, processes]
+    );
+
+    const scopedReports = useMemo(
+        () => reports.filter(isReportInScope),
+        [reports, processes]
+    );
+
     const metrics = useMemo(() => {
-        const totalOK = reports.reduce((sum, item) => sum + Number(item.tt_ok || 0), 0);
-        const totalNG = reports.reduce((sum, item) => sum + Number(item.tt_ng || 0), 0);
+        const totalOK = scopedReports.reduce((sum, item) => sum + Number(item.tt_ok || 0), 0);
+        const totalNG = scopedReports.reduce((sum, item) => sum + Number(item.tt_ng || 0), 0);
         const total = totalOK + totalNG;
         const ngRate = total > 0 ? (totalNG / total) * 100 : 0;
-        const workers = new Set(pendingReports.map(item => item.worker_code).filter(Boolean)).size;
-
-        return { totalOK, totalNG, total, ngRate, workers };
-    }, [reports, pendingReports]);
+        return { totalOK, totalNG, total, ngRate };
+    }, [scopedReports]);
 
     const processData = useMemo(() => {
-        const map = new Map<string, {
-            id?: number;
+        const allowedById = new Map<number, ProcessOption>();
+        const allowedByCode = new Map<string, ProcessOption>();
+        const allowedByName = new Map<string, ProcessOption>();
+
+        processes.forEach(process => {
+            allowedById.set(Number(process.id), process);
+            const code = normalizeText(process.process_code);
+            const name = normalizeText(process.process_name);
+            if (code) allowedByCode.set(code, process);
+            if (name) allowedByName.set(name, process);
+        });
+
+        const data = new Map<number, {
+            id: number;
             code?: string;
             name: string;
-            order: number;
             ok: number;
             ng: number;
             count: number;
         }>();
 
-        // Luôn giữ đủ 4 công đoạn demo, sau đó ghép với danh mục thật từ DB.
-        [...DEFAULT_PROCESS_CATALOG, ...processes].forEach(process => {
-            const canonical = getCanonicalProcess(process);
-            // Dashboard demo chỉ có 4 công đoạn chuẩn. Bỏ các bản ghi cũ/không xác định
-            // để không tạo thêm dòng trùng hoặc công đoạn ngoài phạm vi demo.
-            if (canonical.order > 3) return;
-            const current = map.get(canonical.key);
-            map.set(canonical.key, {
-                id: current?.id && current.id > 0 ? current.id : process.id,
-                code: canonical.key,
-                name: canonical.name,
-                order: canonical.order,
-                ok: current?.ok || 0,
-                ng: current?.ng || 0,
-                count: current?.count || 0
-            });
-        });
-
-        reports.forEach(report => {
-            const canonical = getCanonicalProcess({
-                process_id: Number(report.process_id || 0),
-                process_code: report.process_code,
-                process_name: report.process_name
-            });
-            if (canonical.order > 3) return;
-            const current = map.get(canonical.key) || {
-                code: canonical.key,
-                name: canonical.name,
-                order: canonical.order,
+        processes.forEach(process => {
+            data.set(Number(process.id), {
+                id: Number(process.id),
+                code: process.process_code,
+                name: process.process_name,
                 ok: 0,
                 ng: 0,
                 count: 0
-            };
+            });
+        });
+
+        scopedReports.forEach(report => {
+            const reportId = Number(report.process_id || 0);
+            const reportCode = normalizeText(report.process_code);
+            const reportName = normalizeText(report.process_name);
+            const allowedProcess =
+                allowedById.get(reportId) ||
+                allowedByCode.get(reportCode) ||
+                allowedByName.get(reportName);
+
+            // Chỉ tổng hợp các công đoạn mà API đã trả về theo quyền của tài khoản.
+            if (!allowedProcess) return;
+
+            const current = data.get(Number(allowedProcess.id));
+            if (!current) return;
             current.ok += Number(report.tt_ok || 0);
             current.ng += Number(report.tt_ng || 0);
             current.count += 1;
-            map.set(canonical.key, current);
         });
 
-        return Array.from(map.values()).sort((a, b) => {
-            if (a.order !== b.order) return a.order - b.order;
-            return a.name.localeCompare(b.name, "vi");
-        });
-    }, [processes, reports]);
-
-    const activeProcessCount = useMemo(
-        () => processData.filter(item => item.count > 0).length,
-        [processData]
-    );
+        return Array.from(data.values()).sort((a, b) =>
+            a.name.localeCompare(b.name, "vi", { numeric: true })
+        );
+    }, [processes, scopedReports]);
 
     const shiftData = useMemo(() => {
-        const shifts = ["A", "B", "C", "D"];
-        return shifts.map(shift => ({
-            shift,
-            count: pendingReports.filter(report => report.shift === shift).length
-        }));
-    }, [pendingReports]);
+        const shiftMap = new Map<string, { shift: string; ok: number; ng: number; count: number }>();
+        scopedReports.forEach(report => {
+            const shift = String(report.shift || "Chưa xác định").trim() || "Chưa xác định";
+            const current = shiftMap.get(shift) || { shift, ok: 0, ng: 0, count: 0 };
+            current.ok += Number(report.tt_ok || 0);
+            current.ng += Number(report.tt_ng || 0);
+            current.count += 1;
+            shiftMap.set(shift, current);
+        });
+        return Array.from(shiftMap.values()).sort((a, b) =>
+            a.shift.localeCompare(b.shift, "vi", { numeric: true })
+        );
+    }, [scopedReports]);
 
     const maxProcessOutput = Math.max(1, ...processData.map(item => item.ok + item.ng));
-    const maxShiftCount = Math.max(1, ...shiftData.map(item => item.count));
+    const maxShiftOutput = Math.max(1, ...shiftData.map(item => item.ok + item.ng));
 
     if (loading) {
         return (
@@ -246,14 +239,6 @@ function Dashboard() {
                             ))}
                         </select>
                     </label>
-                    <button type="button" onClick={() => navigate(`${basePath}/reports`)}>
-                        <AppIcon name="pending" size={18} />
-                        <span>Xem báo cáo chờ duyệt</span>
-                    </button>
-                    <button type="button" className="secondary" onClick={() => navigate(`${basePath}/approved`)}>
-                        <AppIcon name="approved" size={18} />
-                        <span>Báo cáo đã duyệt</span>
-                    </button>
                 </div>
             </header>
 
@@ -262,7 +247,7 @@ function Dashboard() {
                     <div className="dashboard-kpi-icon"><AppIcon name="pending" size={24} /></div>
                     <div>
                         <span>Chờ duyệt</span>
-                        <strong>{formatNumber(pendingReports.length)}</strong>
+                        <strong>{formatNumber(scopedPendingReports.length)}</strong>
                     </div>
                 </article>
 
@@ -277,16 +262,18 @@ function Dashboard() {
                 <article className="dashboard-kpi-card danger">
                     <div className="dashboard-kpi-icon"><AppIcon name="warning" size={24} /></div>
                     <div>
-                        <span>Sản lượng NG</span>
-                        <strong>{formatNumber(metrics.totalNG)}</strong>
+                        <span>Tỷ lệ NG</span>
+                        <strong>{metrics.ngRate.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}%</strong>
+                        <small>{formatNumber(metrics.totalNG)} sản phẩm NG</small>
                     </div>
                 </article>
 
                 <article className="dashboard-kpi-card info">
-                    <div className="dashboard-kpi-icon"><AppIcon name="settings" size={24} /></div>
+                    <div className="dashboard-kpi-icon"><AppIcon name="approved" size={24} /></div>
                     <div>
-                        <span>Công đoạn hoạt động</span>
-                        <strong>{activeProcessCount}/{processData.length}</strong>
+                        <span>Báo cáo đã duyệt</span>
+                        <strong>{formatNumber(scopedReports.length)}</strong>
+                        <small>{processData.filter(item => item.count > 0).length}/{processData.length} công đoạn có dữ liệu</small>
                     </div>
                 </article>
             </section>
@@ -303,7 +290,7 @@ function Dashboard() {
                         {processData.length === 0 ? (
                             <div className="dashboard-empty">Chưa có dữ liệu công đoạn</div>
                         ) : processData.map(item => (
-                            <div className="dashboard-chart-row" key={item.code || item.name}>
+                            <div className="dashboard-chart-row" key={item.id}>
                                 <div className="dashboard-chart-label">
                                     <strong>{item.name}</strong>
                                     <span>{item.count} báo cáo</span>
@@ -335,20 +322,27 @@ function Dashboard() {
                 <article className="dashboard-panel">
                     <div className="dashboard-panel-heading">
                         <div>
-                            <h2>Báo cáo theo ca</h2>
+                            <h2>Sản lượng theo ca</h2>
                         </div>
                     </div>
 
                     <div className="dashboard-shift-chart">
-                        {shiftData.map(item => (
-                            <div className="dashboard-shift-item" key={item.shift}>
-                                <div className="dashboard-shift-value">{item.count}</div>
-                                <div className="dashboard-shift-track">
-                                    <span style={{ height: `${Math.max(8, (item.count / maxShiftCount) * 100)}%` }} />
+                        {shiftData.length === 0 ? (
+                            <div className="dashboard-empty">Chưa có dữ liệu theo ca</div>
+                        ) : shiftData.map(item => {
+                            const total = item.ok + item.ng;
+                            return (
+                                <div className="dashboard-shift-item" key={item.shift}>
+                                    <div className="dashboard-shift-value">{formatNumber(total)}</div>
+                                    <div className="dashboard-shift-track" title={`OK ${item.ok} - NG ${item.ng}`}>
+                                        <span style={{ height: `${Math.max(8, (total / maxShiftOutput) * 100)}%` }} />
+                                    </div>
+                                    <strong>Ca {item.shift}</strong>
+                                    <small>OK {formatNumber(item.ok)}</small>
+                                    <small>NG {formatNumber(item.ng)}</small>
                                 </div>
-                                <strong>Ca {item.shift}</strong>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </article>
             </section>

@@ -168,7 +168,7 @@
 .legend-ng { background: #e14b53; }
 
 .dashboard-shift-chart {
-    height: 230px;
+    min-height: 250px;
     display: flex;
     justify-content: space-around;
     align-items: flex-end;
@@ -180,6 +180,7 @@
 .dashboard-shift-track { width: min(46px, 75%); flex: 1; display: flex; align-items: flex-end; border-radius: 12px 12px 4px 4px; background: #eef3f9; overflow: hidden; }
 .dashboard-shift-track span { width: 100%; border-radius: 12px 12px 4px 4px; background: linear-gradient(180deg, #4f8cff, #1d4ed8); }
 .dashboard-shift-item strong { margin-top: 10px; color: #475569; }
+.dashboard-shift-item small { margin-top: 3px; color: #64748b; font-size: 11px; }
 
 .dashboard-quick-actions {
     display: grid;
