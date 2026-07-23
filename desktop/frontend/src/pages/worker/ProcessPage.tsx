@@ -2797,22 +2797,20 @@ window.setTimeout(() => {
                             Học việc: {form.trainingPercent || 0}%
                         </span>
 
-                        <label className="worker-sticky-date">
+                        <label className="worker-sticky-date" htmlFor="workerWorkDate">
 
-                            <span>
+                            <span className="worker-sticky-date-text">
                                 {formatDisplayDate(form.workDate)}
                             </span>
 
-                            <span aria-hidden="true">
-                                ▼
-                            </span>
-
                             <input
+                                id="workerWorkDate"
+                                className="worker-sticky-date-input"
                                 type="date"
                                 name="workDate"
                                 value={form.workDate}
                                 onChange={handleChange}
-                                aria-label="Chọn ngày làm việc"
+                                aria-label="Chọn ngày báo cáo"
                             />
 
                         </label>

@@ -1753,14 +1753,14 @@
 }
 
 .worker-sticky-date {
-    position: relative;
-
-    padding: 8px 10px;
+    padding: 6px 8px 6px 10px;
 
     display: inline-flex;
     align-items: center;
-    gap: 7px;
+    gap: 6px;
+    min-height: 40px;
 
+    border: 1px solid #cbdcf5;
     border-radius: 10px;
 
     background: #eaf1ff;
@@ -1774,14 +1774,38 @@
     cursor: pointer;
 }
 
-.worker-sticky-date input {
-    position: absolute;
-    inset: 0;
+.worker-sticky-date-text {
+    pointer-events: none;
+}
 
-    width: 100%;
-    height: 100%;
+.worker-sticky-date-input {
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    padding: 0;
 
-    opacity: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: transparent;
+    cursor: pointer;
+}
+
+.worker-sticky-date-input::-webkit-datetime-edit,
+.worker-sticky-date-input::-webkit-datetime-edit-fields-wrapper,
+.worker-sticky-date-input::-webkit-datetime-edit-text,
+.worker-sticky-date-input::-webkit-datetime-edit-month-field,
+.worker-sticky-date-input::-webkit-datetime-edit-day-field,
+.worker-sticky-date-input::-webkit-datetime-edit-year-field {
+    display: none;
+}
+
+.worker-sticky-date-input::-webkit-calendar-picker-indicator {
+    width: 24px;
+    height: 24px;
+    margin: 0;
+    padding: 0;
+    opacity: 1;
     cursor: pointer;
 }
 
