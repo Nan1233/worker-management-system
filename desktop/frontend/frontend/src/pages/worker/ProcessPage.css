@@ -1544,3 +1544,416 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
+
+/* =====================================================
+   FIX MOBILE ACTION BAR
+   - Luôn cố định phía trên thanh điều hướng dưới
+   - Luôn hiển thị cả Làm mới và Lưu
+   - Không di chuyển theo nội dung cuộn
+===================================================== */
+@media (max-width: 767px) {
+    .worker-form-page {
+        padding-bottom: calc(182px + env(safe-area-inset-bottom)) !important;
+    }
+
+    .worker-action-group {
+        position: fixed !important;
+        left: 10px !important;
+        right: 10px !important;
+        bottom: calc(92px + env(safe-area-inset-bottom)) !important;
+        top: auto !important;
+        z-index: 130 !important;
+        width: auto !important;
+        min-height: 64px;
+        margin: 0 !important;
+        padding: 8px;
+        display: grid !important;
+        grid-template-columns: minmax(96px, 0.38fr) minmax(0, 1fr) !important;
+        align-items: stretch;
+        gap: 8px;
+        border: 1px solid #dce5f1;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.98);
+        box-shadow: 0 14px 34px rgba(30, 53, 84, 0.18);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        transform: none !important;
+    }
+
+    .worker-action-group .worker-reset-button,
+    .worker-action-group .worker-floating-save {
+        display: inline-flex !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        height: 50px !important;
+        margin: 0 !important;
+        padding: 0 12px !important;
+        align-items: center;
+        justify-content: center;
+        border-radius: 13px;
+        font-size: 15px;
+        white-space: nowrap;
+    }
+}
+
+@media (max-width: 430px) {
+    .worker-action-group {
+        grid-template-columns: minmax(88px, 0.42fr) minmax(0, 1fr) !important;
+    }
+
+    .worker-action-group .worker-reset-button {
+        display: inline-flex !important;
+    }
+}
+
+/* ===== Điều chỉnh giao diện công nhân 23/07/2026 ===== */
+.worker-action-group {
+    position: static !important;
+    width: min(100%, 1180px);
+    margin: 22px auto 0;
+    padding: 0 2px 30px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.worker-dynamic-grid,
+.worker-ng-grid {
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 14px 16px;
+}
+
+@media (max-width: 767px) {
+    .worker-form-page {
+        padding-bottom: calc(110px + env(safe-area-inset-bottom)) !important;
+    }
+
+    .worker-action-group {
+        position: static !important;
+        left: auto !important;
+        right: auto !important;
+        bottom: auto !important;
+        width: 100% !important;
+        min-height: 0;
+        margin: 18px 0 0 !important;
+        padding: 0 14px 24px;
+        display: grid !important;
+        grid-template-columns: minmax(96px, .42fr) minmax(0, 1fr) !important;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        backdrop-filter: none;
+    }
+
+    .worker-dynamic-grid,
+    .worker-ng-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 12px !important;
+    }
+
+    .worker-dynamic-grid .worker-field-block,
+    .worker-ng-grid .worker-field-block {
+        margin: 0 !important;
+    }
+
+    .worker-dynamic-grid .worker-field-label,
+    .worker-ng-grid .worker-field-label {
+        min-height: 38px !important;
+        display: flex !important;
+        align-items: flex-end;
+        font-size: 12px !important;
+        line-height: 1.25;
+    }
+
+    .worker-dynamic-grid .worker-text-input,
+    .worker-ng-grid .worker-text-input {
+        height: 50px;
+        padding: 0 10px;
+        font-size: 16px;
+    }
+}
+
+/* =====================================================
+   THANH THÔNG TIN CÔNG NHÂN CỐ ĐỊNH KHI CUỘN
+   - Giữ lại thông tin quan trọng: tên, mã NV, ngày
+   - Thu gọn trên điện thoại để không chiếm diện tích thao tác
+===================================================== */
+.worker-sticky-info {
+    position: sticky;
+    top: var(--worker-navigation-height, 72px);
+    z-index: 90;
+
+    width: 100%;
+    margin: 0 0 18px;
+    padding: 11px 14px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+
+    border: 1px solid #dce6f4;
+    border-radius: 16px;
+
+    background: rgba(255, 255, 255, 0.97);
+    box-shadow: 0 8px 24px rgba(30, 66, 120, 0.10);
+
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+}
+
+.worker-sticky-person {
+    min-width: 0;
+
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.worker-sticky-person strong {
+    max-width: 100%;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    color: #174f9d;
+    font-size: 18px;
+    line-height: 1.25;
+    font-weight: 800;
+}
+
+.worker-sticky-person span {
+    color: #73829a;
+    font-size: 13px;
+    line-height: 1.25;
+    font-weight: 700;
+}
+
+.worker-sticky-meta {
+    flex: 0 0 auto;
+
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.worker-sticky-training {
+    padding: 7px 10px;
+
+    border-radius: 999px;
+
+    background: #e8f0ff;
+    color: #285bc9;
+
+    font-size: 13px;
+    line-height: 1.2;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.worker-sticky-date {
+    position: relative;
+
+    padding: 8px 10px;
+
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+
+    border-radius: 10px;
+
+    background: #eaf1ff;
+    color: #174788;
+
+    font-size: 14px;
+    line-height: 1.2;
+    font-weight: 800;
+    white-space: nowrap;
+
+    cursor: pointer;
+}
+
+.worker-sticky-date input {
+    position: absolute;
+    inset: 0;
+
+    width: 100%;
+    height: 100%;
+
+    opacity: 0;
+    cursor: pointer;
+}
+
+@media (max-width: 767px) {
+    .worker-form-header {
+        margin-bottom: 10px;
+    }
+
+    .worker-form-title-row h1 {
+        font-size: 25px;
+    }
+
+    .worker-sticky-info {
+        top: var(--worker-mobile-navigation-height, 56px);
+
+        margin-right: -8px;
+        margin-left: -8px;
+        width: calc(100% + 16px);
+        padding: 8px 10px;
+        gap: 8px;
+
+        border-right: 0;
+        border-left: 0;
+        border-radius: 0 0 14px 14px;
+    }
+
+    .worker-sticky-person {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .worker-sticky-person strong {
+        font-size: 15px;
+    }
+
+    .worker-sticky-person span {
+        font-size: 11px;
+    }
+
+    .worker-sticky-meta {
+        gap: 5px;
+    }
+
+    .worker-sticky-training {
+        display: none;
+    }
+
+    .worker-sticky-date {
+        padding: 7px 8px;
+        gap: 5px;
+        font-size: 12px;
+    }
+}
+
+@media (max-width: 380px) {
+    .worker-sticky-person strong {
+        max-width: 145px;
+    }
+
+    .worker-sticky-date {
+        font-size: 11px;
+    }
+}
+
+/* =====================================================
+   BỐ CỤC ỔN ĐỊNH CHO FORM WORKER — DESKTOP/TABLET/MOBILE
+   Ghi đè các khai báo cũ bị chồng chéo ở phía trên.
+===================================================== */
+.worker-form-page {
+    padding: 24px 18px 96px;
+}
+
+.worker-form-shell {
+    width: min(100%, 980px);
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.worker-form-header,
+.worker-sticky-info,
+.worker-form-card {
+    width: 100%;
+}
+
+.worker-form-header {
+    margin-bottom: 0;
+}
+
+.worker-form-card {
+    margin: 0;
+}
+
+.worker-time-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.worker-time-item input::placeholder,
+.worker-text-input::placeholder {
+    color: #9aa8ba;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.worker-action-group {
+    position: static !important;
+    width: min(100%, 980px);
+    margin: 20px auto 0;
+    padding: 0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+@media (min-width: 1101px) {
+    .worker-form-page {
+        padding: 28px 28px 96px;
+    }
+
+    .worker-dynamic-grid,
+    .worker-ng-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 768px) and (max-width: 1100px) {
+    .worker-form-shell,
+    .worker-action-group {
+        width: min(100%, 860px);
+    }
+
+    .worker-dynamic-grid,
+    .worker-ng-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 767px) {
+    .worker-form-page {
+        padding: 12px 10px 72px;
+    }
+
+    .worker-form-shell {
+        gap: 12px;
+    }
+
+    .worker-time-grid,
+    .worker-quality-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .worker-time-item input {
+        height: 52px;
+        padding: 0 10px;
+        font-size: 16px;
+    }
+
+    .worker-action-group {
+        width: 100%;
+        margin-top: 14px;
+        padding: 0 2px;
+        display: grid;
+        grid-template-columns: minmax(96px, .42fr) minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 350px) {
+    .worker-dynamic-grid,
+    .worker-ng-grid,
+    .worker-dropdown-options {
+        grid-template-columns: 1fr !important;
+    }
+}

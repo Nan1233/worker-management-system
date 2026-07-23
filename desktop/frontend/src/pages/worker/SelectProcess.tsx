@@ -10,7 +10,7 @@ import {
 import axios from "axios";
 
 import {
-    getWorkerByUserId
+    getWorkerById
 } from "../../services/workerService";
 
 import type {
@@ -160,10 +160,12 @@ function SelectProcess() {
                         );
 
 
+                    const workerId = Number(user.worker_id);
+
                     if (
-                        !user.id
-                        ||
-                        user.role !== "worker"
+                        !Number.isInteger(workerId)
+                        || workerId <= 0
+                        || user.role !== "worker"
                     ) {
 
                         setError(
@@ -176,10 +178,8 @@ function SelectProcess() {
 
 
                     const workerData =
-                        await getWorkerByUserId(
-                            Number(
-                                user.id
-                            )
+                        await getWorkerById(
+                            workerId
                         );
 
 

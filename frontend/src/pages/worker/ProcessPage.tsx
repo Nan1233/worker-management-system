@@ -24,7 +24,7 @@ import {
 } from "../../services/productionService";
 
 import {
-    getWorkerByUserId
+    getWorkerById
 } from "../../services/workerService";
 
 
@@ -1040,30 +1040,30 @@ const productAutocompleteOptions =
                         );
 
 
-                    const userId =
+                    const workerId =
                         Number(
-                            user.id
+                            user.worker_id
                         );
 
 
                     if (
                         !Number.isInteger(
-                            userId
+                            workerId
                         )
                         ||
-                        userId <= 0
+                        workerId <= 0
                     ) {
 
                         throw new Error(
-                            "Không tìm thấy ID tài khoản đăng nhập"
+                            "Tài khoản chưa được liên kết với hồ sơ công nhân"
                         );
 
                     }
 
 
                     const workerData =
-                        await getWorkerByUserId(
-                            userId
+                        await getWorkerById(
+                            workerId
                         );
 
 
