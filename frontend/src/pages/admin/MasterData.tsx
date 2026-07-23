@@ -33,18 +33,6 @@ function parseProcessIds(value:unknown):string[]{
   return String(value||'').split(',').map(item=>item.trim()).filter(Boolean);
 }
 
-function formatInteger(value: unknown): string {
-  const number = Number(value);
-  return Number.isFinite(number) ? Math.trunc(number).toLocaleString('vi-VN') : '';
-}
-
-function integerInputProps(resource: Resource, field: Field) {
-  if (resource === 'standards' && field.key === 'standard_output') {
-    return { min: 1, step: 1, inputMode: 'numeric' as const };
-  }
-  return {};
-}
-
 function MasterData(){
   const navigate=useNavigate();
   const params=useParams<{resource?:string}>();
@@ -145,10 +133,7 @@ function MasterData(){
     const missing=fields.filter(field=>field.required&&!String(form[field.key]||'').trim());
     if(resource==='users'&&['manager','lead','worker'].includes(selectedRole)&&selectedProcessIds.length===0){setError('Vui lòng chọn ít nhất một công đoạn');return;}
     if(missing.length){setError(`Vui lòng nhập: ${missing.map(field=>field.label).join(', ')}`);return;}
-    if(resource==='standards'){
-      const standardOutput=Number(form.standard_output);
-      if(!Number.isInteger(standardOutput)||standardOutput<=0){setError('Định mức phải là số nguyên dương');return;}
-    }
+    if(resource==='standards'&&Number(form.standard_output)<=0){setError('Định mức phải lớn hơn 0');return;}
     setSaving(true);setError('');
     try{
       if(resource==='users'){
@@ -162,10 +147,7 @@ function MasterData(){
         else await api.post('/users',payload);
       }else{
         const payload={...form};
-        if(resource==='standards'){
-          payload.standard_output=String(Math.trunc(Number(payload.standard_output)));
-          if(!payload.work_type)payload.work_type='standard';
-        }
+        if(resource==='standards'&&!payload.work_type)payload.work_type='standard';
         if(editing?.id) await api.put(`/admin/master/${resource}/${editing.id}`,payload);
         else await api.post(`/admin/master/${resource}`,payload);
       }
@@ -195,11 +177,11 @@ function MasterData(){
     <div className="master-toolbar"><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Tìm theo mã, tên, công đoạn..."/><span>{filtered.length} bản ghi</span></div>
     {error&&<div className="master-error">{error}</div>}
     <div className="master-table-wrap"><table><thead><tr>{tableFields.map(field=><th key={field.key}>{field.label}</th>)}<th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
-      {loading?<tr><td colSpan={tableFields.length+2}>Đang tải...</td></tr>:filtered.length===0?<tr><td colSpan={tableFields.length+2}>Chưa có dữ liệu phù hợp.</td></tr>:visibleRows.map((row,index)=><tr key={String(row.id||index)}>{tableFields.map(field=><td key={field.key}>{field.key==='process_id'?String(row.process_name||''):field.key==='role'?String(roleLabels[String(row.role)]||row.role||''):field.key==='standard_output'?formatInteger(row[field.key]):String(row[field.key]??'')}</td>)}<td><span className={`status ${row.status}`}>{row.status==='inactive'?'Ngừng dùng':'Đang dùng'}</span></td><td><div className="actions"><button onClick={()=>openEdit(row)}>Sửa</button><button onClick={()=>void toggle(row)}>{row.status==='active'?'Khóa':'Mở'}</button></div></td></tr>)}
+      {loading?<tr><td colSpan={tableFields.length+2}>Đang tải...</td></tr>:filtered.length===0?<tr><td colSpan={tableFields.length+2}>Chưa có dữ liệu phù hợp.</td></tr>:visibleRows.map((row,index)=><tr key={String(row.id||index)}>{tableFields.map(field=><td key={field.key}>{field.key==='process_id'?String(row.process_name||''):field.key==='role'?String(roleLabels[String(row.role)]||row.role||''):String(row[field.key]??'')}</td>)}<td><span className={`status ${row.status}`}>{row.status==='inactive'?'Ngừng dùng':'Đang dùng'}</span></td><td><div className="actions"><button onClick={()=>openEdit(row)}>Sửa</button><button onClick={()=>void toggle(row)}>{row.status==='active'?'Khóa':'Mở'}</button></div></td></tr>)}
     </tbody></table></div>
     {filtered.length>pageSize&&<div className="master-pagination"><button disabled={page<=1} onClick={()=>setPage(value=>value-1)}>Trước</button><span>Trang {page}/{pageCount}</span><button disabled={page>=pageCount} onClick={()=>setPage(value=>value+1)}>Sau</button></div>}
     {editing&&<div className="modal-backdrop" onMouseDown={()=>setEditing(null)}><div className="modal-card" onMouseDown={event=>event.stopPropagation()}><h2>{editing.id?'Cập nhật người dùng/dữ liệu':'Thêm dữ liệu mới'}</h2><div className="form-grid">
-      {fields.map(field=><label key={field.key}><span>{field.label}{field.required?' *':''}</span>{field.type==='select'?<select disabled={resource==='users'&&Boolean(editing?.id)&&field.key==='role'} value={form[field.key]||''} onChange={event=>setForm({...form,[field.key]:event.target.value})}><option value="">Chọn...</option>{field.options?.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select>:<input {...integerInputProps(resource,field)} type={field.key==='password'?'password':field.type==='number'?'number':'text'} value={form[field.key]||''} onChange={event=>{const value=resource==='standards'&&field.key==='standard_output'?event.target.value.replace(/[^0-9]/g,''):event.target.value;setForm({...form,[field.key]:value});}}/>}</label>)}
+      {fields.map(field=><label key={field.key}><span>{field.label}{field.required?' *':''}</span>{field.type==='select'?<select disabled={resource==='users'&&Boolean(editing?.id)&&field.key==='role'} value={form[field.key]||''} onChange={event=>setForm({...form,[field.key]:event.target.value})}><option value="">Chọn...</option>{field.options?.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select>:<input type={field.key==='password'?'password':field.type==='number'?'number':'text'} value={form[field.key]||''} onChange={event=>setForm({...form,[field.key]:event.target.value})}/>}</label>)}
       {resource==='users'&&['manager','lead','worker'].includes(selectedRole)&&<div className="process-assignment"><span>Công đoạn *</span><div className="process-check-list">{processes.map(process=><label key={process.id}><input type="checkbox" checked={selectedProcessIds.includes(String(process.id))} onChange={()=>toggleProcess(String(process.id))}/><span>{process.process_name}</span></label>)}</div></div>}
       <label><span>Trạng thái</span><select value={form.status||'active'} onChange={event=>setForm({...form,status:event.target.value})}><option value="active">Đang dùng</option><option value="inactive">Ngừng dùng</option></select></label>
     </div><div className="modal-actions"><button onClick={()=>setEditing(null)}>Hủy</button><button className="primary" disabled={saving} onClick={()=>void save()}>{saving?'Đang lưu...':'Lưu thay đổi'}</button></div></div></div>}

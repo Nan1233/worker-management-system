@@ -150,10 +150,6 @@ function Dashboard() {
     const processWithData = processData.filter(item => item.count > 0 || item.ok + item.ng > 0);
     const processWithoutData = processData.filter(item => item.count === 0 && item.ok + item.ng === 0);
     const maxProcessOutput = Math.max(1, ...processWithData.map(item => item.ok + item.ng));
-    const maxProcessNgRate = Math.max(0.3, ...processWithData.map(item => {
-        const total = item.ok + item.ng;
-        return total > 0 ? (item.ng / total) * 100 : 0;
-    }));
     const shiftChartData = summary.shift_summary.map(item => {
         const ok = Number(item.ok || 0);
         const ng = Number(item.ng || 0);
@@ -240,20 +236,8 @@ function Dashboard() {
                                             <span>{item.count} báo cáo</span>
                                         </div>
                                         <div className="dashboard-process-main">
-                                            <div className="dashboard-process-metric">
-                                                <span className="dashboard-process-metric-name">Sản lượng</span>
-                                                <div className="dashboard-ranking-track" title={`Tổng ${total} · OK ${item.ok} · NG ${item.ng}`}>
-                                                    <span className="dashboard-ranking-bar" style={{ width: `${normalizedWidth}%` }} />
-                                                </div>
-                                            </div>
-                                            <div className="dashboard-process-metric quality">
-                                                <span className="dashboard-process-metric-name">Tỷ lệ NG</span>
-                                                <div className="dashboard-quality-track" title={`Tỷ lệ NG ${ngRate.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}%`}>
-                                                    <span
-                                                        className={`dashboard-quality-bar ${qualityClass}`}
-                                                        style={{ width: `${ngRate > 0 ? Math.max(5, (ngRate / maxProcessNgRate) * 100) : 0}%` }}
-                                                    />
-                                                </div>
+                                            <div className="dashboard-ranking-track" title={`Tổng ${total} · OK ${item.ok} · NG ${item.ng}`}>
+                                                <span className="dashboard-ranking-bar" style={{ width: `${normalizedWidth}%` }} />
                                             </div>
                                             <div className="dashboard-process-meta">
                                                 <span>OK {formatNumber(item.ok)}</span>
@@ -262,7 +246,7 @@ function Dashboard() {
                                         </div>
                                         <div className="dashboard-chart-value">
                                             <strong>{formatNumber(total)}</strong>
-                                            <span className={`dashboard-ng-badge ${qualityClass}`}>{ngRate.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}% NG</span>
+                                            <span className={`dashboard-ng-badge ${qualityClass}`}>NG {ngRate.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}%</span>
                                         </div>
                                     </div>
                                 );
@@ -276,8 +260,8 @@ function Dashboard() {
                         </div>
                     )}
                     <div className="dashboard-legend dashboard-quality-legend">
-                        <span><i className="legend-ok" />Sản lượng (thang căn bậc hai)</span>
-                        <span><i className="legend-ng" />Tỷ lệ NG (thang riêng)</span>
+                        <span><i className="legend-ok" />Sản lượng</span>
+                        <span><i className="legend-ng" />Tỷ lệ NG</span>
                     </div>
                 </article>
 
