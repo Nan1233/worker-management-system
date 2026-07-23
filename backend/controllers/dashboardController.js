@@ -33,7 +33,7 @@ exports.getSummary = async (req, res, next) => {
     const [pendingRows] = await connection.query(
       `SELECT COUNT(*) AS pending_count
        FROM production_reports_temp r
-       WHERE r.report_date BETWEEN ? AND ?
+       WHERE r.work_date BETWEEN ? AND ?
          AND r.status IN ('pending','need_fix')
          ${scope.clause}`,
       [from, to, ...scope.params]
@@ -44,7 +44,7 @@ exports.getSummary = async (req, res, next) => {
               COALESCE(SUM(r.tt_ok),0) AS total_ok,
               COALESCE(SUM(r.tt_ng),0) AS total_ng
        FROM production_reports r
-       WHERE r.report_date BETWEEN ? AND ?
+       WHERE r.work_date BETWEEN ? AND ?
          ${scope.clause}`,
       [from, to, ...scope.params]
     );
@@ -56,7 +56,7 @@ exports.getSummary = async (req, res, next) => {
               COALESCE(SUM(r.tt_ng),0) AS ng
        FROM production_reports r
        JOIN processes p ON p.id=r.process_id
-       WHERE r.report_date BETWEEN ? AND ?
+       WHERE r.work_date BETWEEN ? AND ?
          ${scope.clause}
        GROUP BY r.process_id, p.process_code, p.process_name`,
       [from, to, ...scope.params]
@@ -68,7 +68,7 @@ exports.getSummary = async (req, res, next) => {
               COALESCE(SUM(r.tt_ok),0) AS ok,
               COALESCE(SUM(r.tt_ng),0) AS ng
        FROM production_reports r
-       WHERE r.report_date BETWEEN ? AND ?
+       WHERE r.work_date BETWEEN ? AND ?
          ${scope.clause}
        GROUP BY COALESCE(NULLIF(TRIM(r.shift),''),'Chưa xác định')
        ORDER BY shift`,
