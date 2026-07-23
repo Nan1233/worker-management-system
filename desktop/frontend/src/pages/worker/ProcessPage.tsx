@@ -1776,36 +1776,6 @@ const updateDeductionValue = (
     };
 
 
-    // =====================================================
-    // NHẬP 0 RỒI RỜI Ô:
-    // BỎ CHỌN LOẠI TRỪ GIỜ
-    // =====================================================
-
-    const removeDeductionIfZero = (
-        key: DeductionKey
-    ) => {
-
-        if (
-            deductions[key] === ""
-            ||
-            Number(
-                deductions[key]
-            ) !== 0
-        ) {
-
-            return;
-
-        }
-
-
-        handleToggleDeduction(
-            key,
-            false
-        );
-
-    };
-
-
 
     // =====================================================
     // CẬP NHẬT GIÁ TRỊ LỖI NG
@@ -2065,38 +2035,6 @@ const updateDeductionValue = (
         });
 
     };
-
-
-    // =====================================================
-    // NHẬP 0 RỒI RỜI Ô:
-    // BỎ CHỌN LỖI NG
-    // =====================================================
-
-    const removeNgIfZero = (
-        key: NgKey
-    ) => {
-
-        if (
-            form[key] === ""
-            ||
-            Number(
-                form[key]
-            ) !== 0
-        ) {
-
-            return;
-
-        }
-
-
-        handleToggleNg(
-            key,
-            false
-        );
-
-    };
-
-
 
 
     // =====================================================
