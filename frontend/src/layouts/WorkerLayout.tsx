@@ -1,4 +1,5 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import type { User } from "../types/auth";
 import AppIcon, { type IconName } from "../components/common/AppIcon";
 import "./WorkerLayout.css";
 
@@ -8,20 +9,17 @@ const menuItems: { label: string; path: string; icon: IconName; exact?: boolean 
     { label: "Thông báo", path: "/worker/system", icon: "bell" }
 ];
 
-const formatToday = (): string => {
-    const value = new Intl.DateTimeFormat("vi-VN", {
-        weekday: "long",
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric"
-    }).format(new Date());
-
-    return value.charAt(0).toUpperCase() + value.slice(1);
-};
-
 function WorkerLayout() {
     const navigate = useNavigate();
     const location = useLocation();
+
+    const user = (() => {
+        try {
+            return JSON.parse(localStorage.getItem("user") || "null") as User | null;
+        } catch {
+            return null;
+        }
+    })();
 
     const handleLogout = () => {
         localStorage.removeItem("token");
@@ -29,8 +27,7 @@ function WorkerLayout() {
         navigate("/login", { replace: true });
     };
 
-    const isActive = (path: string, exact?: boolean) =>
-        exact ? location.pathname === path : location.pathname.startsWith(path);
+    const isActive = (path: string, exact?: boolean) => (exact ? location.pathname === path : location.pathname.startsWith(path));
 
     return (
         <div className="worker-layout">
@@ -41,10 +38,10 @@ function WorkerLayout() {
                     onClick={() => navigate("/worker")}
                     aria-label="Về trang chủ công nhân"
                 >
-                    <span className="worker-brand-mark">KTC</span>
+                    <span className="worker-brand-mark">{(user?.full_name || user?.username || "CN").trim().charAt(0).toUpperCase()}</span>
                     <span className="worker-brand-text">
-                        <strong>Quản lý sản xuất</strong>
-                        <small>{formatToday()}</small>
+                        <strong>{user?.full_name || "Công nhân"}</strong>
+                        <small>{new Intl.DateTimeFormat("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date())}</small>
                     </span>
                 </button>
 
@@ -63,6 +60,11 @@ function WorkerLayout() {
                 </nav>
 
                 <div className="worker-account">
+                    <div className="worker-avatar">{(user?.full_name || user?.username || "CN").trim().charAt(0).toUpperCase()}</div>
+                    <div className="worker-account-copy">
+                        <strong>{user?.full_name || "Công nhân"}</strong>
+                        <small>Mã NV: {user?.username || "---"}</small>
+                    </div>
                     <button type="button" className="worker-logout" onClick={handleLogout}>
                         <span className="worker-nav-icon"><AppIcon name="logout" size={18} /></span>
                         <span className="worker-logout-label">Đăng xuất</span>

@@ -20,7 +20,7 @@
 }
 
 .worker-brand {
-    min-width: 250px;
+    min-width: 225px;
     padding: 0;
     display: inline-flex;
     align-items: center;
@@ -33,17 +33,16 @@
 }
 
 .worker-brand-mark {
-    width: 52px;
-    height: 52px;
+    width: 45px;
+    height: 45px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    border-radius: 15px;
+    border-radius: 13px;
     background: linear-gradient(145deg, #2464c8, #164a9d);
     color: #fff;
-    font-size: 13px;
-    letter-spacing: 0.04em;
+    font-size: 14px;
     font-weight: 900;
     box-shadow: 0 8px 18px rgba(36, 95, 194, 0.23);
 }
@@ -57,7 +56,7 @@
 
 .worker-brand-text strong {
     color: #183a6a;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 850;
 }
 
@@ -276,28 +275,5 @@
 
     .worker-mobile-nav button.logout {
         color: #b23838;
-    }
-}
-
-/* Worker header: KTC brand only; worker identity is shown inside each form. */
-.worker-account-copy,
-.worker-avatar {
-    display: none !important;
-}
-
-@media (max-width: 700px) {
-    .worker-brand-mark {
-        width: 42px;
-        height: 42px;
-        flex-basis: 42px;
-        font-size: 11px;
-    }
-
-    .worker-brand-text strong {
-        font-size: 14px;
-    }
-
-    .worker-brand-text small {
-        font-size: 11px;
     }
 }

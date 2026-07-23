@@ -29,10 +29,6 @@ import {
 
 
 import type {
-    User
-} from "../../types/auth";
-
-import type {
     WorkerProfile
 } from "../../types/worker";
 import type { ProductionReport } from "../../types/production";
@@ -1032,12 +1028,6 @@ const productAutocompleteOptions =
                         return;
 
                     }
-
-
-                    const user: User =
-                        JSON.parse(
-                            savedUser
-                        );
 
 
                     const workerData =

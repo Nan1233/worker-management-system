@@ -521,16 +521,28 @@ function AutocompleteInput({
                                         >
 
                                             <span className="autocomplete-option-main">
-    {option.value}
-</span>
 
-{option.label &&
-    option.label.trim().toLowerCase() !==
-        option.value.trim().toLowerCase() && (
-        <span className="autocomplete-option-label">
-            {option.label}
-        </span>
-    )}
+                                                {
+                                                    option.value
+                                                }
+
+                                            </span>
+
+
+                                            {
+                                                option.label
+                                                && (
+
+                                                    <span className="autocomplete-option-label">
+
+                                                        {
+                                                            option.label
+                                                        }
+
+                                                    </span>
+
+                                                )
+                                            }
 
 
                                             {
