@@ -55,7 +55,14 @@ function cleanPayload(body, cfg, partial=false) {
   ['process_id','sort_order'].forEach((field) => {
     if (field in payload) payload[field] = Number(payload[field]);
   });
-  if ('standard_output' in payload) payload.standard_output = Number(payload.standard_output);
+  if ('standard_output' in payload) {
+    payload.standard_output = Number(payload.standard_output);
+    if (!Number.isInteger(payload.standard_output) || payload.standard_output <= 0) {
+      const error = new Error('Định mức phải là số nguyên dương');
+      error.status = 400;
+      throw error;
+    }
+  }
   return payload;
 }
 

@@ -150,7 +150,24 @@ function Dashboard() {
     const processWithData = processData.filter(item => item.count > 0 || item.ok + item.ng > 0);
     const processWithoutData = processData.filter(item => item.count === 0 && item.ok + item.ng === 0);
     const maxProcessOutput = Math.max(1, ...processWithData.map(item => item.ok + item.ng));
-    const maxShiftOutput = Math.max(1, ...summary.shift_summary.map(item => Number(item.ok) + Number(item.ng)));
+    const maxProcessNgRate = Math.max(0.3, ...processWithData.map(item => {
+        const total = item.ok + item.ng;
+        return total > 0 ? (item.ng / total) * 100 : 0;
+    }));
+    const shiftChartData = summary.shift_summary.map(item => {
+        const ok = Number(item.ok || 0);
+        const ng = Number(item.ng || 0);
+        const total = ok + ng;
+        return {
+            ...item,
+            ok,
+            ng,
+            total,
+            ngRate: total > 0 ? (ng / total) * 100 : 0
+        };
+    });
+    const maxShiftOutput = Math.max(1, ...shiftChartData.map(item => item.total));
+    const maxShiftNgRate = Math.max(0.1, ...shiftChartData.map(item => item.ngRate));
 
     if (loading) {
         return (
@@ -210,21 +227,42 @@ function Dashboard() {
                         <div className="dashboard-empty">Chưa có dữ liệu trong khoảng thời gian này</div>
                     ) : (
                         <div className="dashboard-process-chart">
-                            {processWithData.map(item => {
+                            {processWithData.map((item, index) => {
                                 const total = item.ok + item.ng;
+                                const ngRate = total > 0 ? (item.ng / total) * 100 : 0;
+                                const normalizedWidth = Math.max(8, Math.sqrt(total / maxProcessOutput) * 100);
+                                const qualityClass = ngRate >= 1 ? "critical" : ngRate >= 0.3 ? "warning" : "good";
                                 return (
-                                    <div className="dashboard-chart-row" key={item.id}>
+                                    <div className="dashboard-process-rank" key={item.id}>
+                                        <span className="dashboard-rank-number">{index + 1}</span>
                                         <div className="dashboard-chart-label">
                                             <strong>{item.name}</strong>
                                             <span>{item.count} báo cáo</span>
                                         </div>
-                                        <div className="dashboard-stacked-track" title={`Tổng ${total} · OK ${item.ok} · NG ${item.ng}`}>
-                                            <span className="dashboard-bar-ok" style={{ width: `${(item.ok / maxProcessOutput) * 100}%` }} />
-                                            <span className="dashboard-bar-ng" style={{ width: `${(item.ng / maxProcessOutput) * 100}%` }} />
+                                        <div className="dashboard-process-main">
+                                            <div className="dashboard-process-metric">
+                                                <span className="dashboard-process-metric-name">Sản lượng</span>
+                                                <div className="dashboard-ranking-track" title={`Tổng ${total} · OK ${item.ok} · NG ${item.ng}`}>
+                                                    <span className="dashboard-ranking-bar" style={{ width: `${normalizedWidth}%` }} />
+                                                </div>
+                                            </div>
+                                            <div className="dashboard-process-metric quality">
+                                                <span className="dashboard-process-metric-name">Tỷ lệ NG</span>
+                                                <div className="dashboard-quality-track" title={`Tỷ lệ NG ${ngRate.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}%`}>
+                                                    <span
+                                                        className={`dashboard-quality-bar ${qualityClass}`}
+                                                        style={{ width: `${ngRate > 0 ? Math.max(5, (ngRate / maxProcessNgRate) * 100) : 0}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="dashboard-process-meta">
+                                                <span>OK {formatNumber(item.ok)}</span>
+                                                <span>NG {formatNumber(item.ng)}</span>
+                                            </div>
                                         </div>
                                         <div className="dashboard-chart-value">
                                             <strong>{formatNumber(total)}</strong>
-                                            <span>OK {formatNumber(item.ok)} · NG {formatNumber(item.ng)}</span>
+                                            <span className={`dashboard-ng-badge ${qualityClass}`}>{ngRate.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}% NG</span>
                                         </div>
                                     </div>
                                 );
@@ -237,36 +275,61 @@ function Dashboard() {
                             {processWithoutData.map(item => <i key={item.id}>{item.name}</i>)}
                         </div>
                     )}
-                    <div className="dashboard-legend">
-                        <span><i className="legend-ok" />TT OK</span>
-                        <span><i className="legend-ng" />TT NG</span>
+                    <div className="dashboard-legend dashboard-quality-legend">
+                        <span><i className="legend-ok" />Sản lượng (thang căn bậc hai)</span>
+                        <span><i className="legend-ng" />Tỷ lệ NG (thang riêng)</span>
                     </div>
                 </article>
 
                 <article className="dashboard-panel dashboard-shift-panel">
                     <div className="dashboard-panel-heading"><h2>Sản lượng theo ca</h2></div>
-                    {summary.shift_summary.length === 0 ? (
+                    {shiftChartData.length === 0 ? (
                         <div className="dashboard-empty">Chưa có dữ liệu theo ca</div>
                     ) : (
-                        <div className="dashboard-shift-list">
-                            {summary.shift_summary.map(item => {
-                                const ok = Number(item.ok || 0);
-                                const ng = Number(item.ng || 0);
-                                const total = ok + ng;
-                                return (
-                                    <div className="dashboard-shift-row" key={item.shift}>
-                                        <div className="dashboard-shift-label"><strong>Ca {item.shift}</strong><span>{item.report_count} báo cáo</span></div>
-                                        <div className="dashboard-shift-main">
-                                            <div className="dashboard-shift-horizontal-track" title={`Tổng ${total} · OK ${ok} · NG ${ng}`}>
-                                                <span className="dashboard-shift-ok" style={{ width: `${(ok / maxShiftOutput) * 100}%` }} />
-                                                <span className="dashboard-shift-ng" style={{ width: `${(ng / maxShiftOutput) * 100}%` }} />
-                                            </div>
-                                            <div className="dashboard-shift-detail"><span>OK {formatNumber(ok)}</span><span>NG {formatNumber(ng)}</span></div>
+                        <div className="dashboard-combo-chart">
+                            <div className="dashboard-combo-plot">
+                                <div className="dashboard-grid-line line-25" />
+                                <div className="dashboard-grid-line line-50" />
+                                <div className="dashboard-grid-line line-75" />
+                                <svg className="dashboard-ng-line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                                    <polyline
+                                        points={shiftChartData.map((item, index) => {
+                                            const x = shiftChartData.length === 1 ? 50 : 10 + (index * 80) / (shiftChartData.length - 1);
+                                            const y = 86 - (item.ngRate / maxShiftNgRate) * 66;
+                                            return `${x},${y}`;
+                                        }).join(" ")}
+                                    />
+                                    {shiftChartData.map((item, index) => {
+                                        const x = shiftChartData.length === 1 ? 50 : 10 + (index * 80) / (shiftChartData.length - 1);
+                                        const y = 86 - (item.ngRate / maxShiftNgRate) * 66;
+                                        return <circle key={item.shift} cx={x} cy={y} r="2.2" />;
+                                    })}
+                                </svg>
+                                <div className="dashboard-shift-columns">
+                                    {shiftChartData.map(item => (
+                                        <div className="dashboard-shift-column" key={item.shift}>
+                                            <span className="dashboard-shift-column-total">{formatNumber(item.total)}</span>
+                                            <div className="dashboard-shift-column-bar" style={{ height: `${Math.max(8, (item.total / maxShiftOutput) * 72)}%` }} title={`Ca ${item.shift}: Tổng ${item.total}, OK ${item.ok}, NG ${item.ng}`} />
+                                            <strong>Ca {item.shift}</strong>
+                                            <span>{item.report_count} báo cáo</span>
                                         </div>
-                                        <strong className="dashboard-shift-total">{formatNumber(total)}</strong>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="dashboard-shift-quality-list">
+                                {shiftChartData.map(item => (
+                                    <div key={item.shift}>
+                                        <strong>Ca {item.shift}</strong>
+                                        <span>OK {formatNumber(item.ok)}</span>
+                                        <span>NG {formatNumber(item.ng)}</span>
+                                        <b>{item.ngRate.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}% NG</b>
                                     </div>
-                                );
-                            })}
+                                ))}
+                            </div>
+                            <div className="dashboard-legend dashboard-combo-legend">
+                                <span><i className="legend-ok" />Tổng sản lượng</span>
+                                <span><i className="legend-ng" />Tỷ lệ NG</span>
+                            </div>
                         </div>
                     )}
                 </article>
