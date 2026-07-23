@@ -2822,72 +2822,51 @@ window.setTimeout(() => {
                     </div>
 
 
-                    <div className="worker-form-identity">
-
-    <span>
-
-        <strong>
-            {form.workerName || "Đang tải..."}
-        </strong>
-
-        {" - "}
-
-        {form.workerCode || ""}
-
-    </span>
-
-    <span className="worker-training-percent">
-
-        Học việc:
-
-        {" "}
-
-        {form.trainingPercent || 0}%
-
-    </span>
-
-</div>
-
-
-                    <label className="worker-date-picker">
-
-                        <span>
-
-                            {
-                                formatDisplayDate(
-                                    form.workDate
-                                )
-                            }
-
-                        </span>
-
-
-                        <span>
-
-                            ▼
-
-                        </span>
-
-
-                        <input
-
-                            type="date"
-
-                            name="workDate"
-
-                            value={
-                                form.workDate
-                            }
-
-                            onChange={
-                                handleChange
-                            }
-
-                        />
-
-                    </label>
-
                 </header>
+
+                <div className="worker-sticky-info">
+
+                    <div className="worker-sticky-person">
+
+                        <strong>
+                            {form.workerName || "Đang tải..."}
+                        </strong>
+
+                        <span>
+                            Mã NV: {form.workerCode || "---"}
+                        </span>
+
+                    </div>
+
+                    <div className="worker-sticky-meta">
+
+                        <span className="worker-sticky-training">
+                            Học việc: {form.trainingPercent || 0}%
+                        </span>
+
+                        <label className="worker-sticky-date">
+
+                            <span>
+                                {formatDisplayDate(form.workDate)}
+                            </span>
+
+                            <span aria-hidden="true">
+                                ▼
+                            </span>
+
+                            <input
+                                type="date"
+                                name="workDate"
+                                value={form.workDate}
+                                onChange={handleChange}
+                                aria-label="Chọn ngày làm việc"
+                            />
+
+                        </label>
+
+                    </div>
+
+                </div>
 
 
                 {/* =================================================
