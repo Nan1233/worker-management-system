@@ -1845,3 +1845,115 @@
         font-size: 11px;
     }
 }
+
+/* =====================================================
+   BỐ CỤC ỔN ĐỊNH CHO FORM WORKER — DESKTOP/TABLET/MOBILE
+   Ghi đè các khai báo cũ bị chồng chéo ở phía trên.
+===================================================== */
+.worker-form-page {
+    padding: 24px 18px 96px;
+}
+
+.worker-form-shell {
+    width: min(100%, 980px);
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.worker-form-header,
+.worker-sticky-info,
+.worker-form-card {
+    width: 100%;
+}
+
+.worker-form-header {
+    margin-bottom: 0;
+}
+
+.worker-form-card {
+    margin: 0;
+}
+
+.worker-time-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.worker-time-item input::placeholder,
+.worker-text-input::placeholder {
+    color: #9aa8ba;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.worker-action-group {
+    position: static !important;
+    width: min(100%, 980px);
+    margin: 20px auto 0;
+    padding: 0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+@media (min-width: 1101px) {
+    .worker-form-page {
+        padding: 28px 28px 96px;
+    }
+
+    .worker-dynamic-grid,
+    .worker-ng-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 768px) and (max-width: 1100px) {
+    .worker-form-shell,
+    .worker-action-group {
+        width: min(100%, 860px);
+    }
+
+    .worker-dynamic-grid,
+    .worker-ng-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 767px) {
+    .worker-form-page {
+        padding: 12px 10px 72px;
+    }
+
+    .worker-form-shell {
+        gap: 12px;
+    }
+
+    .worker-time-grid,
+    .worker-quality-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .worker-time-item input {
+        height: 52px;
+        padding: 0 10px;
+        font-size: 16px;
+    }
+
+    .worker-action-group {
+        width: 100%;
+        margin-top: 14px;
+        padding: 0 2px;
+        display: grid;
+        grid-template-columns: minmax(96px, .42fr) minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 350px) {
+    .worker-dynamic-grid,
+    .worker-ng-grid,
+    .worker-dropdown-options {
+        grid-template-columns: 1fr !important;
+    }
+}

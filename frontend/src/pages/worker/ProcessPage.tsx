@@ -618,13 +618,16 @@ const decimalHoursToText = (
     value: string
 ): string => {
 
-    const decimalHours =
-        Math.max(
-            0,
-            Number(
-                value || 0
-            )
-        );
+    const normalized = value.trim().toLowerCase().replace(",", ".");
+    const hourMinuteMatch = normalized.match(/^(\d{1,2})\s*(?:h|:|g)\s*(\d{1,2})$/);
+    const parsedHours = hourMinuteMatch
+        ? Number(hourMinuteMatch[1]) + Math.min(59, Number(hourMinuteMatch[2])) / 60
+        : Number(normalized || 0);
+
+    const decimalHours = Math.max(
+        0,
+        Number.isFinite(parsedHours) ? parsedHours : 0
+    );
 
 
     const hours =
@@ -1438,18 +1441,42 @@ useEffect(() => {
 
 const parseFlexibleTime = (value: string): number => {
     const normalized = value.trim().toLowerCase().replace(",", ".");
-    const match = normalized.match(/^(\d{1,2})\s*(?:h|:|g)\s*(\d{1,2})$/);
-    if (match) {
-        const hours = Number(match[1]);
-        const minutes = Math.min(59, Number(match[2]));
+
+    if (!normalized) return 0;
+
+    const hourMinuteMatch = normalized.match(/^(\d{1,3})\s*(?:h|:|g)\s*(\d{1,2})$/);
+    if (hourMinuteMatch) {
+        const hours = Number(hourMinuteMatch[1]);
+        const minutes = Number(hourMinuteMatch[2]);
+
+        if (minutes > 59) return Number.NaN;
+
         return hours + minutes / 60;
     }
-    return Number(normalized || 0);
+
+    const hourOnlyMatch = normalized.match(/^(\d{1,3})\s*(?:h|g)$/);
+    if (hourOnlyMatch) return Number(hourOnlyMatch[1]);
+
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : Number.NaN;
 };
 
 const normalizeFlexibleTime = (value: string): string => {
-    if (!value.trim()) return "";
-    const parsed = parseFlexibleTime(value);
+    const trimmed = value.trim().toLowerCase().replace(",", ".");
+    if (!trimmed) return "";
+
+    const hourMinuteMatch = trimmed.match(/^(\d{1,3})\s*(?:h|:|g)\s*(\d{1,2})$/);
+    if (hourMinuteMatch) {
+        const hours = Number(hourMinuteMatch[1]);
+        const minutes = Number(hourMinuteMatch[2]);
+        if (minutes > 59) return value;
+        return `${hours}:${String(minutes).padStart(2, "0")}`;
+    }
+
+    const hourOnlyMatch = trimmed.match(/^(\d{1,3})\s*(?:h|g)$/);
+    if (hourOnlyMatch) return String(Number(hourOnlyMatch[1]));
+
+    const parsed = Number(trimmed);
     if (!Number.isFinite(parsed)) return value;
     return String(Math.round(parsed * 10000) / 10000);
 };
@@ -1472,7 +1499,8 @@ const isValidDecimalInput = (
     return (
         normalizedValue === ""
         || /^\d*\.?\d*$/.test(normalizedValue)
-        || /^\d{0,2}\s*(?:h|:|g)\s*\d{0,2}$/i.test(normalizedValue)
+        || /^\d{0,3}\s*(?:h|:|g)\s*\d{0,2}$/i.test(normalizedValue)
+        || /^\d{0,3}\s*(?:h|g)$/i.test(normalizedValue)
     );
 
 };
@@ -1530,11 +1558,7 @@ const handleTimeInputChange = (
                     Math.max(
                         0,
 
-                        Number(
-                            normalizedValue
-                            ||
-                            0
-                        )
+                        parseFlexibleTime(normalizedValue)
 
                         -
 
@@ -2210,11 +2234,7 @@ const updateDeductionValue = (
 
 
         if (
-            Number(
-                form.totalTime
-                ||
-                0
-            ) <= 0
+            parseFlexibleTime(form.totalTime) <= 0
         ) {
 
             return "Tổng thời gian phải lớn hơn 0";
@@ -2223,17 +2243,9 @@ const updateDeductionValue = (
 
 
         if (
-            Number(
-                form.deductionTime
-                ||
-                0
-            )
+            parseFlexibleTime(form.deductionTime)
             >
-            Number(
-                form.totalTime
-                ||
-                0
-            )
+            parseFlexibleTime(form.totalTime)
         ) {
 
             return "Thời gian trừ không được lớn hơn tổng thời gian";
@@ -2242,13 +2254,7 @@ const updateDeductionValue = (
 
 
         if (
-            Number(
-                form.actualTime
-                ||
-                0
-            )
-            <
-            0
+            parseFlexibleTime(form.actualTime) < 0
         ) {
 
             return "Thời gian thực tế không hợp lệ";
@@ -2401,25 +2407,13 @@ const updateDeductionValue = (
 
 
                     total_time:
-                        Number(
-                            form.totalTime
-                            ||
-                            0
-                        ),
+                        parseFlexibleTime(form.totalTime),
 
                     actual_time:
-                        Number(
-                            form.actualTime
-                            ||
-                            0
-                        ),
+                        parseFlexibleTime(form.actualTime),
 
                     deduction_time:
-                        Number(
-                            form.deductionTime
-                            ||
-                            0
-                        ),
+                        parseFlexibleTime(form.deductionTime),
 
 
                 
@@ -2585,11 +2579,7 @@ const updateDeductionValue = (
                             .filter(
                                 (item) =>
 
-                                    Number(
-                                        deductions[item.key]
-                                        ||
-                                        0
-                                    )
+                                    parseFlexibleTime(deductions[item.key])
                                     >
                                     0
                             )
@@ -2601,11 +2591,7 @@ const updateDeductionValue = (
                                         item.label,
 
                                     hours:
-                                        Number(
-                                            deductions[item.key]
-                                            ||
-                                            0
-                                        )
+                                        parseFlexibleTime(deductions[item.key])
 
                                 })
                             ),
@@ -3165,7 +3151,7 @@ onSelect={(
 
                                 inputMode="decimal"
 
-                                placeholder=""
+                                placeholder="VD: 8:30 hoặc 8.5"
 
                                 autoComplete="off"
 
@@ -3454,7 +3440,7 @@ onSelect={(
 
                                                         inputMode="decimal"
 
-                                                        placeholder=""
+                                                        placeholder="VD: 0:30"
 
                                                         autoComplete="off"
 
