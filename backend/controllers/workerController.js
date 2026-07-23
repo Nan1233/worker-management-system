@@ -339,6 +339,52 @@ exports.createWorker = (
 // :id ở endpoint này là user_id.
 // =====================================================
 
+exports.getCurrentWorker = (
+    req,
+    res
+) => {
+
+    const loginUserId =
+        Number(
+            req.user?.id
+        );
+
+
+    if (
+        !Number.isInteger(
+            loginUserId
+        )
+        ||
+        loginUserId <= 0
+    ) {
+
+        return res.status(401).json({
+
+            success:
+                false,
+
+            message:
+                "Thông tin đăng nhập không hợp lệ"
+
+        });
+
+    }
+
+
+    req.params.id =
+        String(
+            loginUserId
+        );
+
+
+    return exports.getWorkerById(
+        req,
+        res
+    );
+
+};
+
+
 exports.getWorkerById = (
     req,
     res

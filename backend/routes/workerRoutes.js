@@ -92,6 +92,17 @@ router.patch(
 
 router.get(
 
+    "/me",
+
+    verifyToken,
+
+    workerController.getCurrentWorker
+
+);
+
+
+router.get(
+
     "/:id",
 
     verifyToken,

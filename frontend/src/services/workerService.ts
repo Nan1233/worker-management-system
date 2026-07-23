@@ -35,6 +35,24 @@ export const getAllWorkers =
 
 
 // =====================================================
+// LẤY HỒ SƠ CÔNG NHÂN ĐANG ĐĂNG NHẬP
+// =====================================================
+
+export const getCurrentWorker =
+    async (): Promise<WorkerProfile> => {
+
+        const response =
+            await api.get<WorkerProfileResponse>(
+                "/workers/me"
+            );
+
+
+        return response.data.data;
+
+    };
+
+
+// =====================================================
 // LẤY THÔNG TIN WORKER THEO WORKER ID
 // =====================================================
 

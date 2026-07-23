@@ -10,7 +10,7 @@ import {
 import axios from "axios";
 
 import {
-    getWorkerById
+    getCurrentWorker
 } from "../../services/workerService";
 
 import type {
@@ -160,13 +160,7 @@ function SelectProcess() {
                         );
 
 
-                    const workerId = Number(user.worker_id);
-
-                    if (
-                        !Number.isInteger(workerId)
-                        || workerId <= 0
-                        || user.role !== "worker"
-                    ) {
+                    if (user.role !== "worker") {
 
                         setError(
                             "Thông tin tài khoản không hợp lệ"
@@ -178,9 +172,7 @@ function SelectProcess() {
 
 
                     const workerData =
-                        await getWorkerById(
-                            workerId
-                        );
+                        await getCurrentWorker();
 
 
                     setWorker(
