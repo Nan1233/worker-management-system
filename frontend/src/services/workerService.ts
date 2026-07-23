@@ -35,24 +35,42 @@ export const getAllWorkers =
 
 
 // =====================================================
-// LẤY THÔNG TIN WORKER THEO USER ID
+// LẤY HỒ SƠ CÔNG NHÂN ĐANG ĐĂNG NHẬP
 // =====================================================
 
-export const getWorkerByUserId =
+export const getCurrentWorker =
+    async (): Promise<WorkerProfile> => {
+
+        const response =
+            await api.get<WorkerProfileResponse>(
+                "/workers/me"
+            );
+
+
+        return response.data.data;
+
+    };
+
+
+// =====================================================
+// LẤY THÔNG TIN WORKER THEO WORKER ID
+// =====================================================
+
+export const getWorkerById =
     async (
-        userId: number
+        workerId: number
     ): Promise<WorkerProfile> => {
 
         if (
             !Number.isInteger(
-                userId
+                workerId
             )
             ||
-            userId <= 0
+            workerId <= 0
         ) {
 
             throw new Error(
-                "ID người dùng không hợp lệ"
+                "ID nhân viên không hợp lệ"
             );
 
         }
@@ -60,7 +78,7 @@ export const getWorkerByUserId =
 
         const response =
             await api.get<WorkerProfileResponse>(
-                `/workers/${userId}`
+                `/workers/${workerId}`
             );
 
 

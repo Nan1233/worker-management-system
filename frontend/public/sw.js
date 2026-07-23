@@ -1,4 +1,4 @@
-const VERSION = 'ktc-pwa-v1.0.0';
+const VERSION = 'ktc-pwa-v1.0.1';
 const APP_CACHE = `${VERSION}-app`;
 const STATIC_CACHE = `${VERSION}-static`;
 const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/offline.html', '/pwa/icon-192.png', '/pwa/icon-512.png', '/pwa/apple-touch-icon.png'];
@@ -44,7 +44,12 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       caches.match(request).then((cached) => {
         const network = fetch(request).then((response) => {
-          if (response.ok) caches.open(STATIC_CACHE).then((cache) => cache.put(request, response.clone()));
+          if (response.ok) {
+            const copy = response.clone();
+            event.waitUntil(
+              caches.open(STATIC_CACHE).then((cache) => cache.put(request, copy))
+            );
+          }
           return response;
         });
         return cached || network;
