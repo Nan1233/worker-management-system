@@ -871,10 +871,7 @@ const machineAutocompleteOptions =
                         machine.machine_code,
 
                     label:
-                        machine.machine_name,
-
-                    description:
-                        `Mã máy: ${machine.machine_code}`
+                        machine.machine_code
 
                 })
             ),
@@ -897,16 +894,7 @@ const productAutocompleteOptions =
                         product.product_code,
 
                     label:
-                        product.work_type
-                        ===
-                        "cat"
-
-                            ? "Cắt"
-
-                            : "Lồng",
-
-                    description:
-                        `Định mức: ${product.standard_output}`
+                        product.product_code
 
                 })
             ),
@@ -1448,16 +1436,27 @@ useEffect(() => {
 // 0.25
 // =====================================================
 
+const parseFlexibleTime = (value: string): number => {
+    const normalized = value.trim().toLowerCase().replace(",", ".");
+    const match = normalized.match(/^(\d{1,2})\s*(?:h|:|g)\s*(\d{1,2})$/);
+    if (match) {
+        const hours = Number(match[1]);
+        const minutes = Math.min(59, Number(match[2]));
+        return hours + minutes / 60;
+    }
+    return Number(normalized || 0);
+};
+
+const normalizeFlexibleTime = (value: string): string => {
+    if (!value.trim()) return "";
+    const parsed = parseFlexibleTime(value);
+    if (!Number.isFinite(parsed)) return value;
+    return String(Math.round(parsed * 10000) / 10000);
+};
+
 const normalizeDecimalInput = (
     value: string
-): string => {
-
-    return value.replace(
-        ",",
-        "."
-    );
-
-};
+): string => value.replace(",", ".");
 
 
 const isValidDecimalInput = (
@@ -1472,10 +1471,8 @@ const isValidDecimalInput = (
 
     return (
         normalizedValue === ""
-        ||
-        /^\d*\.?\d*$/.test(
-            normalizedValue
-        )
+        || /^\d*\.?\d*$/.test(normalizedValue)
+        || /^\d{0,2}\s*(?:h|:|g)\s*\d{0,2}$/i.test(normalizedValue)
     );
 
 };
@@ -1541,11 +1538,7 @@ const handleTimeInputChange = (
 
                         -
 
-                        Number(
-                            next.deductionTime
-                            ||
-                            0
-                        )
+                        parseFlexibleTime(next.deductionTime)
                     )
                 );
 
@@ -1585,11 +1578,7 @@ const handleTimeInputChange = (
 
                         sum
                         +
-                        Number(
-                            currentValue
-                            ||
-                            0
-                        ),
+                        parseFlexibleTime(currentValue),
 
                     0
 
@@ -1612,11 +1601,7 @@ const handleTimeInputChange = (
 
                         0,
 
-                        Number(
-                            prev.totalTime
-                            ||
-                            0
-                        )
+                        parseFlexibleTime(prev.totalTime)
 
                         -
 
@@ -1634,6 +1619,14 @@ const handleTimeInputChange = (
     // =====================================================
     // CẬP NHẬT GIÁ TRỊ MỘT LOẠI TRỪ GIỜ
     // =====================================================
+
+const normalizeDeductionValue = (key: DeductionKey) => {
+    setDeductions((prev) => {
+        const next = { ...prev, [key]: normalizeFlexibleTime(prev[key]) };
+        updateTotalDeduction(next);
+        return next;
+    });
+};
 
 const updateDeductionValue = (
     key: DeductionKey,
@@ -1727,7 +1720,7 @@ const updateDeductionValue = (
                     [key]:
                         prev[key]
                         ||
-                        "1"
+                        ""
 
                 };
 
@@ -1979,7 +1972,7 @@ const updateDeductionValue = (
                     [key]:
                         prev[key]
                         ||
-                        "1"
+                        ""
 
                 };
 
@@ -2177,6 +2170,15 @@ const updateDeductionValue = (
     // CẬP NHẬT TT OK
     // =====================================================
 
+    const formatIntegerDisplay = (value: string): string => {
+        const digits = value.replace(/\D/g, "");
+        return digits ? Number(digits).toLocaleString("vi-VN") : "";
+    };
+
+    const parseIntegerDisplay = (value: string): string =>
+        value.replace(/\D/g, "");
+
+
     const handleTtOkChange = (
 
         event:
@@ -2187,7 +2189,7 @@ const updateDeductionValue = (
     ) => {
 
         const value =
-            event.target.value;
+            parseIntegerDisplay(event.target.value);
 
 
         if (
@@ -3210,10 +3212,10 @@ window.setTimeout(() => {
 
     <AutocompleteInput
         id="machineNo"
-        label="Số máy (Tên máy)"
+        label="Số máy"
         value={form.machineNo}
         options={machineAutocompleteOptions}
-        placeholder="Nhập mã hoặc tên máy"
+        placeholder="Nhập mã máy"
         required
         disabled={loadingMasterData}
         emptyMessage="Không tìm thấy máy"
@@ -3301,13 +3303,20 @@ onSelect={(
                                     handleTimeInputChange
                                 }
 
-                                onBlur={
-                                    handleNumberBlur
-                                }
+                                onBlur={() => {
+                                    setForm((prev) => {
+                                        const totalTime = normalizeFlexibleTime(prev.totalTime);
+                                        return {
+                                            ...prev,
+                                            totalTime,
+                                            actualTime: String(Math.max(0, parseFlexibleTime(totalTime) - parseFlexibleTime(prev.deductionTime)))
+                                        };
+                                    });
+                                }}
 
                                 inputMode="decimal"
 
-                                placeholder="0"
+                                placeholder=""
 
                                 autoComplete="off"
 
@@ -3357,7 +3366,7 @@ onSelect={(
 
                                 readOnly
 
-                                placeholder="0"
+                                placeholder=""
 
                             />
 
@@ -3592,29 +3601,11 @@ onSelect={(
                                                                 )
                                                         }
 
-                                                        onBlur={() =>
-                                                            removeDeductionIfZero(
-                                                                item.key
-                                                            )
-                                                        }
-
-                                                        onKeyDown={
-                                                            (
-                                                                event
-                                                            ) =>
-
-                                                                handleDeductionKeyDown(
-
-                                                                    event,
-
-                                                                    item.key
-
-                                                                )
-                                                        }
+                                                        onBlur={() => normalizeDeductionValue(item.key)}
 
                                                         inputMode="decimal"
 
-                                                        placeholder="0"
+                                                        placeholder=""
 
                                                         autoComplete="off"
 
@@ -3709,7 +3700,7 @@ onSelect={(
                                 name="ttOk"
 
                                 value={
-                                    form.ttOk
+                                    formatIntegerDisplay(form.ttOk)
                                 }
 
                                 onChange={
@@ -3722,7 +3713,7 @@ onSelect={(
 
                                 inputMode="numeric"
 
-                                placeholder="0"
+                                placeholder=""
 
                                 autoComplete="off"
 
@@ -3753,12 +3744,12 @@ onSelect={(
                                 name="ttNg"
 
                                 value={
-                                    form.ttNg
+                                    formatIntegerDisplay(form.ttNg)
                                 }
 
                                 readOnly
 
-                                placeholder="0"
+                                placeholder=""
 
                             />
 
@@ -3982,29 +3973,9 @@ onSelect={(
                                                                 )
                                                         }
 
-                                                        onBlur={() =>
-                                                            removeNgIfZero(
-                                                                item.key
-                                                            )
-                                                        }
-
-                                                        onKeyDown={
-                                                            (
-                                                                event
-                                                            ) =>
-
-                                                                handleNgKeyDown(
-
-                                                                    event,
-
-                                                                    item.key
-
-                                                                )
-                                                        }
-
                                                         inputMode="numeric"
 
-                                                        placeholder="0"
+                                                        placeholder=""
 
                                                         autoComplete="off"
 

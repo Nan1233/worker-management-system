@@ -38,10 +38,10 @@ function WorkerLayout() {
                     onClick={() => navigate("/worker")}
                     aria-label="Về trang chủ công nhân"
                 >
-                    <span className="worker-brand-mark">KTC</span>
+                    <span className="worker-brand-mark">{(user?.full_name || user?.username || "CN").trim().charAt(0).toUpperCase()}</span>
                     <span className="worker-brand-text">
-                        <strong>Quản lý sản xuất</strong>
-                        <small>Tối ưu cho điện thoại tại xưởng</small>
+                        <strong>{user?.full_name || "Công nhân"}</strong>
+                        <small>{new Intl.DateTimeFormat("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date())}</small>
                     </span>
                 </button>
 
