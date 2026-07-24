@@ -423,3 +423,111 @@
     border-color: #e6b2b2;
     background: #fff0f0;
 }
+
+
+/* =====================================================
+   RESPONSIVE MANAGEMENT LAYOUT FIX - 24/07/2026
+===================================================== */
+.management-layout {
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: 264px minmax(0, 1fr);
+    overflow-x: clip;
+}
+
+.management-sidebar,
+.management-sidebar-shell,
+.management-main,
+.management-header,
+.management-content {
+    min-width: 0;
+}
+
+.management-sidebar {
+    padding: 14px 12px 14px 14px;
+}
+
+.management-main {
+    width: 100%;
+    max-width: 100%;
+    padding: 14px 14px 18px 0;
+    overflow: hidden;
+}
+
+.management-header {
+    width: 100%;
+    max-width: 100%;
+    padding: 18px 22px;
+}
+
+.management-content {
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+@media (max-width: 1280px) {
+    .management-layout {
+        grid-template-columns: 236px minmax(0, 1fr);
+    }
+
+    .management-sidebar {
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+
+    .management-sidebar-shell {
+        padding: 14px;
+        border-radius: 22px;
+    }
+
+    .management-brand-content small,
+    .management-user-copy span {
+        display: none;
+    }
+
+    .management-header {
+        padding: 16px 18px;
+    }
+}
+
+@media (max-width: 1024px) {
+    .management-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .management-sidebar {
+        position: relative;
+        height: auto;
+        padding: 12px 12px 0;
+    }
+
+    .management-sidebar-shell {
+        height: auto;
+    }
+
+    .management-menu {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .management-main {
+        padding: 12px;
+    }
+}
+
+@media (max-width: 720px) {
+    .management-menu {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .management-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .management-header-meta {
+        width: 100%;
+        justify-content: flex-start;
+    }
+}

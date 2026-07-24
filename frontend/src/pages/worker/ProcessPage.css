@@ -2307,3 +2307,81 @@
         font-size: 10px;
     }
 }
+
+/* ===== KTC form consistency patch ===== */
+.worker-form-page {
+    --worker-border: #d7e0ec;
+    --worker-border-strong: #c4d2e3;
+    --worker-surface: #ffffff;
+    --worker-surface-muted: #f7f9fc;
+    --worker-text: #17324d;
+    --worker-muted: #6b7f93;
+    --worker-accent: #2f6fed;
+}
+
+.worker-form-card,
+.worker-field-block,
+.worker-sticky-info {
+    box-sizing: border-box;
+}
+
+.worker-sticky-info {
+    grid-template-columns: minmax(0, 1fr) minmax(170px, auto);
+    border-color: var(--worker-border);
+    background: var(--worker-surface);
+}
+
+.worker-sticky-training,
+.worker-sticky-date {
+    box-sizing: border-box;
+    border: 1px solid var(--worker-border);
+    background: var(--worker-surface-muted);
+    color: var(--worker-text);
+}
+
+.worker-sticky-date {
+    background: #f4f8ff;
+    border-color: #c9d9f3;
+}
+
+.worker-form-card input,
+.worker-form-card select,
+.worker-form-card textarea,
+.worker-autocomplete-input {
+    box-sizing: border-box;
+    border-color: var(--worker-border-strong);
+    background: var(--worker-surface);
+    color: var(--worker-text);
+}
+
+.worker-form-card input:focus,
+.worker-form-card select:focus,
+.worker-form-card textarea:focus,
+.worker-autocomplete-input:focus {
+    border-color: var(--worker-accent);
+    box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.12);
+    outline: none;
+}
+
+.worker-field-label {
+    color: var(--worker-text);
+}
+
+@media (max-width: 700px) {
+    .worker-sticky-info {
+        grid-template-columns: minmax(0, 1fr) 118px;
+        align-items: stretch;
+    }
+
+    .worker-sticky-person,
+    .worker-sticky-meta,
+    .worker-sticky-date {
+        min-height: 48px;
+    }
+
+    .worker-sticky-date {
+        width: 118px;
+        min-width: 118px;
+        padding-inline: 8px;
+    }
+}

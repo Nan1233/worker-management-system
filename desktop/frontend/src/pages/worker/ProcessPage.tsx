@@ -790,6 +790,11 @@ const initialDeduction: DeductionState = {
 };
 
 
+
+
+const DEFAULT_KQD_EXCLUDED_MACHINES = [];
+const KQD_CODES = new Set(["KQD_DL", "KQD_DAP_LAI", "KQD_TUOT"]);
+
 // =====================================================
 // COMPONENT
 // =====================================================
@@ -851,6 +856,28 @@ const [
     activeNgOptions,
     setActiveNgOptions
 ] = useState(allNgOptions);
+
+
+const kqdExcludedMachines = useMemo(() => {
+    const configured = String(import.meta.env.VITE_KQD_EXCLUDED_FROM_TOTAL_MACHINES || "")
+        .split(",")
+        .map((item) => item.trim().toUpperCase())
+        .filter(Boolean);
+    return new Set(configured.length ? configured : DEFAULT_KQD_EXCLUDED_MACHINES);
+}, []);
+
+const machineExcludesKqd = (machineNo: string): boolean =>
+    kqdExcludedMachines.has(String(machineNo || "").trim().toUpperCase());
+
+const calculateCountedNg = (values: FormState): number =>
+    activeNgOptions.reduce((sum, item) => {
+        const code = String(item.code || "").trim().toUpperCase();
+        if (machineExcludesKqd(values.machineNo) && KQD_CODES.has(code)) return sum;
+        return sum + Number(values[item.key] || 0);
+    }, 0);
+
+const calculateActualOutput = (values: FormState): number =>
+    Number(values.ttOk || 0) + calculateCountedNg(values);
 
 
 const [
@@ -1195,24 +1222,7 @@ const productAutocompleteOptions =
                 name === "ttNg"
             ) {
 
-                next.actualOutput =
-                    String(
-
-                        Number(
-                            next.ttOk
-                            ||
-                            0
-                        )
-
-                        +
-
-                        Number(
-                            next.ttNg
-                            ||
-                            0
-                        )
-
-                    );
+                next.actualOutput = String(calculateActualOutput(next));
 
             }
 
@@ -1830,20 +1840,7 @@ const updateDeductionValue = (
                 );
 
 
-            next.actualOutput =
-                String(
-
-                    Number(
-                        next.ttOk
-                        ||
-                        0
-                    )
-
-                    +
-
-                    totalNg
-
-                );
+            next.actualOutput = String(calculateActualOutput(next));
 
 
             return next;
@@ -1931,20 +1928,7 @@ const updateDeductionValue = (
                     );
 
 
-                next.actualOutput =
-                    String(
-
-                        Number(
-                            next.ttOk
-                            ||
-                            0
-                        )
-
-                        +
-
-                        totalNg
-
-                    );
+                next.actualOutput = String(calculateActualOutput(next));
 
 
                 return next;
@@ -2005,20 +1989,7 @@ const updateDeductionValue = (
                 );
 
 
-            next.actualOutput =
-                String(
-
-                    Number(
-                        next.ttOk
-                        ||
-                        0
-                    )
-
-                    +
-
-                    totalNg
-
-                );
+            next.actualOutput = String(calculateActualOutput(next));
 
 
             return next;
@@ -2071,24 +2042,7 @@ const updateDeductionValue = (
             ttOk:
                 value,
 
-            actualOutput:
-                String(
-
-                    Number(
-                        value
-                        ||
-                        0
-                    )
-
-                    +
-
-                    Number(
-                        prev.ttNg
-                        ||
-                        0
-                    )
-
-                )
+            actualOutput: String(calculateActualOutput({ ...prev, ttOk: value }))
 
         }));
 
@@ -2294,30 +2248,10 @@ const updateDeductionValue = (
         }
 
 
-        if (
-            Number(
-                form.actualOutput
-                ||
-                0
-            )
-            !==
-            (
-                Number(
-                    form.ttOk
-                    ||
-                    0
-                )
-                +
-                Number(
-                    form.ttNg
-                    ||
-                    0
-                )
-            )
-        ) {
-
-            return "Thực tế phải bằng TT OK cộng TT NG";
-
+        if (Number(form.actualOutput || 0) !== calculateActualOutput(form)) {
+            return machineExcludesKqd(form.machineNo)
+                ? "Thực tế phải bằng TT OK cộng NG được tính (không gồm KQD của mã máy này)"
+                : "Thực tế phải bằng TT OK cộng TT NG";
         }
 
 
@@ -2564,8 +2498,7 @@ const updateDeductionValue = (
                             ),
 
 
-                    note:
-                        form.note.trim()
+                    note: ""
 
                 };
 
@@ -3792,47 +3725,6 @@ onSelect={(
                         )
                     }
 
-
-                    {/* =================================================
-                        GHI CHÚ
-                    ================================================= */}
-
-                    <div className="worker-field-block worker-note-block">
-
-                        <label
-
-                            className="worker-field-label"
-
-                            htmlFor="note"
-
-                        >
-
-                            Ghi chú
-
-                        </label>
-
-
-                        <textarea
-
-                            id="note"
-
-                            className="worker-note-input"
-
-                            name="note"
-
-                            value={
-                                form.note
-                            }
-
-                            onChange={
-                                handleChange
-                            }
-
-                            placeholder="Nhập ghi chú nếu có"
-
-                        />
-
-                    </div>
 
                 </section>
 

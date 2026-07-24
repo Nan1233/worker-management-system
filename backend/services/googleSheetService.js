@@ -1,3 +1,4 @@
+const { calculateCountedNg } = require('../utils/outputCalculation');
 const { google } = require('googleapis');
 const ReportService = require('./reportService');
 const db = require('../config/db');
@@ -134,8 +135,7 @@ const buildSheetValues = (reports, options = {}) => {
     ...deductionTypes.map((item) => item.name),
     'Loại SP', 'Định mức', 'TT', 'Tỷ lệ đạt', 'Ngày/Tháng', 'Số SP/H',
     'OK', 'Tổng NG', 'Tỷ lệ NG',
-    ...defectTypes.map((item) => item.name),
-    'Trạng thái', 'Ghi chú', 'ID báo cáo'
+    ...defectTypes.map((item) => item.name)
   ];
 
   let currentDate = '';
@@ -147,7 +147,7 @@ const buildSheetValues = (reports, options = {}) => {
     // Tổng NG lấy từ toàn bộ production_report_defects của báo cáo, không lấy cột tổng cũ.
     const activeDefectIds = new Set(defectTypes.map((item) => Number(item.id)));
     const ng = sumDetailValues(report.defects, 'quantity', activeDefectIds, 'defect_type_id');
-    const tt = ok + ng;
+    const tt = Number(report.actual_output ?? (ok + calculateCountedNg(report.defects, Boolean(Number(report.exclude_kqd_from_tt || 0)))));
     const standard = toNumber(report.standard_output);
     const actualTime = toNumber(report.actual_time);
     return [
@@ -170,10 +170,7 @@ const buildSheetValues = (reports, options = {}) => {
       ok,
       ng,
       tt > 0 ? ng / tt : 0,
-      ...defectTypes.map((type) => detailValue(report.defects, type.id, 'quantity', 'defect_type_id')),
-      report.status || 'approved',
-      report.note || '',
-      Number(report.id) || ''
+      ...defectTypes.map((type) => detailValue(report.defects, type.id, 'quantity', 'defect_type_id'))
     ];
   });
   return { headers, rows, deductionTypes, defectTypes };

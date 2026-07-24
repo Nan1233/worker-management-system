@@ -1,3 +1,4 @@
+const { calculateCountedNg } = require('../utils/outputCalculation');
 const ExcelJS = require('exceljs');
 const fs = require('node:fs/promises');
 const path = require('node:path');
@@ -228,9 +229,6 @@ const buildColumns = (deductionTypes, defectTypes) => [
     kind: 'defect',
     type
   })),
-  { key: 'status', title: 'Trạng thái', source: TEMPLATE_SOURCE.status },
-  { key: 'note', title: 'Ghi chú', source: TEMPLATE_SOURCE.note },
-  { key: 'report_id', title: 'ID báo cáo', source: TEMPLATE_SOURCE.reportId }
 ];
 
 const buildReportValue = (column, report, sequence) => {
@@ -238,7 +236,7 @@ const buildReportValue = (column, report, sequence) => {
   // Tổng NG lấy từ toàn bộ chi tiết lỗi đã lưu trong DB của báo cáo.
   const activeDefectIds = new Set((report.__activeDefectTypes || []).map((item) => Number(item.id)));
   const ng = sumDetailValues(report.defects, 'quantity', activeDefectIds, 'defect_type_id');
-  const totalOutput = ok + ng;
+  const totalOutput = Number(report.actual_output ?? (ok + calculateCountedNg(report.defects, Boolean(Number(report.exclude_kqd_from_tt || 0)))));
   const standard = toNumber(report.standard_output);
   const actualTime = toNumber(report.actual_time);
 
@@ -268,9 +266,6 @@ const buildReportValue = (column, report, sequence) => {
     case 'tt_ok': return ok;
     case 'tt_ng': return ng;
     case 'ng_rate': return totalOutput > 0 ? ng / totalOutput : 0;
-    case 'status': return report.status || 'approved';
-    case 'note': return report.note || '';
-    case 'report_id': return Number(report.id) || '';
     default: return '';
   }
 };

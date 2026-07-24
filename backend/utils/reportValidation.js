@@ -1,3 +1,4 @@
+const { calculateActualOutput } = require('./outputCalculation');
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const ALLOWED_SHIFTS = new Set(["A", "B", "C", "D", "Ca 1", "Ca 2", "Ca 3"]);
 const EPSILON = 0.02;
@@ -63,9 +64,9 @@ const validateProductionReport = (payload = {}, options = {}) => {
     if (!shift) errors.shift = "Thiếu ca làm việc";
     else if (!ALLOWED_SHIFTS.has(shift)) errors.shift = "Ca làm việc không hợp lệ";
 
-    const totalTime = finiteNumber(payload.total_time, "total_time", errors, { max: 24 });
-    const deductionTime = finiteNumber(payload.deduction_time, "deduction_time", errors, { max: 24 });
-    const actualTime = finiteNumber(payload.actual_time, "actual_time", errors, { max: 24 });
+    const totalTime = finiteNumber(payload.total_time, "total_time", errors);
+    const deductionTime = finiteNumber(payload.deduction_time, "deduction_time", errors);
+    const actualTime = finiteNumber(payload.actual_time, "actual_time", errors);
     const standardOutput = finiteNumber(payload.standard_output, "standard_output", errors, { max: 100000000 });
     const actualOutput = finiteNumber(payload.actual_output, "actual_output", errors, { max: 100000000 });
     const ttOk = finiteNumber(payload.tt_ok, "tt_ok", errors, { max: 100000000 });
@@ -75,11 +76,16 @@ const validateProductionReport = (payload = {}, options = {}) => {
     if (Math.abs(actualTime - Math.max(0, totalTime - deductionTime)) > EPSILON) {
         errors.actual_time = "Thời gian thực tế phải bằng tổng thời gian trừ thời gian khấu trừ";
     }
-    if (Math.abs(actualOutput - (ttOk + ttNg)) > EPSILON) {
-        errors.actual_output = "Sản lượng thực tế phải bằng TT OK cộng TT NG";
+    const defects = normalizeDetails(payload.defects || [], "defect_type_id", "quantity", "defects", errors);
+    const expectedActualOutput = calculateActualOutput({
+        ttOk,
+        defects,
+        excludeKqdFromTt: Boolean(Number(payload.exclude_kqd_from_tt || 0))
+    });
+    if (Math.abs(actualOutput - expectedActualOutput) > EPSILON) {
+        errors.actual_output = "Sản lượng thực tế không đúng theo quy tắc tính của mã máy";
     }
 
-    const defects = normalizeDetails(payload.defects || [], "defect_type_id", "quantity", "defects", errors);
     const deductions = normalizeDetails(payload.deductions || [], "deduction_type_id", "hours", "deductions", errors);
 
     const defectTotal = defects.reduce((sum, item) => sum + item.quantity, 0);

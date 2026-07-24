@@ -4,10 +4,19 @@ const TABLES = {
   processes: { table:'processes', fields:['process_code','process_name','description','status'], required:['process_code','process_name'], order:'process_name' },
   defects: { table:'defect_types', fields:['process_id','defect_code','defect_name','sort_order','status'], required:['process_id','defect_code','defect_name'], order:'process_id, sort_order, defect_name' },
   deductions: { table:'deduction_types', fields:['process_id','deduction_code','deduction_name','sort_order','status'], required:['process_id','deduction_code','deduction_name'], order:'process_id, sort_order, deduction_name' },
-  machines: { table:'machines', fields:['process_id','machine_code','machine_name','status'], required:['process_id','machine_code','machine_name'], order:'process_id, machine_code' },
+  machines: { table:'machines', fields:['process_id','machine_code','machine_name','exclude_kqd_from_tt','status'], required:['process_id','machine_code','machine_name'], order:'process_id, machine_code' },
   standards: { table:'product_standards', fields:['process_id','work_type','product_code','standard_output','status'], required:['process_id','product_code','standard_output'], order:'process_id, product_code' }
 };
 
+
+
+function requireMasterPermission(req, res) {
+  if (req.user?.role === 'lead' && req.params.resource !== 'machines') {
+    res.status(403).json({ success:false, message:'Tổ trưởng chỉ được cấu hình quy tắc KQD của máy' });
+    return false;
+  }
+  return true;
+}
 
 function requireAdminForManagers(req, res) {
   if (req.params.resource === 'managers' && req.user?.role !== 'admin') {
@@ -52,6 +61,7 @@ function cleanPayload(body, cfg, partial=false) {
   if ('status' in payload && !['active','inactive'].includes(payload.status)) {
     const error = new Error('Trạng thái không hợp lệ'); error.status = 400; throw error;
   }
+  if ('exclude_kqd_from_tt' in payload) payload.exclude_kqd_from_tt = Number(payload.exclude_kqd_from_tt) === 1 ? 1 : 0;
   ['process_id','sort_order'].forEach((field) => {
     if (field in payload) payload[field] = Number(payload[field]);
   });
@@ -68,7 +78,7 @@ function cleanPayload(body, cfg, partial=false) {
 
 exports.list = (req, res, next) => {
   if (req.params.resource === 'managers') return res.status(410).json({success:false,message:'Chức năng manager đã chuyển sang Quản lý người dùng'});
-  if (!requireAdminForManagers(req,res)) return;
+  if (!requireMasterPermission(req,res) || !requireAdminForManagers(req,res)) return;
   const cfg = config(req,res); if (!cfg) return;
   const select = cfg.table === 'processes' ? 't.*' : 't.*, p.process_code, p.process_name';
   const join = cfg.table === 'processes' ? '' : 'LEFT JOIN processes p ON p.id=t.process_id';
@@ -78,7 +88,7 @@ exports.list = (req, res, next) => {
 
 exports.create = async (req,res,next) => {
   try {
-    if (!requireAdminForManagers(req,res)) return;
+    if (!requireMasterPermission(req,res) || !requireAdminForManagers(req,res)) return;
     if (req.params.resource === 'managers') return res.status(410).json({success:false,message:'Chức năng manager đã chuyển sang Quản lý người dùng'});
     if (false) {
       const username=String(req.body?.username||'').trim();
@@ -105,7 +115,7 @@ exports.create = async (req,res,next) => {
 
 exports.update = async (req,res,next) => {
   try {
-    if (!requireAdminForManagers(req,res)) return;
+    if (!requireMasterPermission(req,res) || !requireAdminForManagers(req,res)) return;
     if (req.params.resource === 'managers') return res.status(410).json({success:false,message:'Chức năng manager đã chuyển sang Quản lý người dùng'});
     if (false) {
       const id=Number(req.params.id); if(!Number.isInteger(id)||id<=0) return res.status(400).json({success:false,message:'ID không hợp lệ'});
@@ -136,7 +146,7 @@ exports.update = async (req,res,next) => {
 };
 
 exports.remove = (req,res,next) => {
-  if (!requireAdminForManagers(req,res)) return;
+  if (!requireMasterPermission(req,res) || !requireAdminForManagers(req,res)) return;
   if (req.params.resource === 'managers') return res.status(410).json({success:false,message:'Chức năng manager đã chuyển sang Quản lý người dùng'});
   if (false) {
     const id=Number(req.params.id); if(!Number.isInteger(id)||id<=0) return res.status(400).json({success:false,message:'ID không hợp lệ'});

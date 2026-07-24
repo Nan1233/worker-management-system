@@ -896,8 +896,9 @@ row.getCell("AV").value =
     row.getCell("AW").value = "";
     row.getCell("AX").value = "";
 
-    // AY - Trạng thái (giống Google Sheet)
-    row.getCell("AY").value = "approved";
+    // AY-AZ không còn xuất trạng thái, ghi chú hoặc ID báo cáo.
+    row.getCell("AY").value = "";
+    row.getCell("AZ").value = "";
 
     // // AZ - ID báo cáo nội bộ (giống Google Sheet)
     // row.getCell("AZ").value = Number(report.id);

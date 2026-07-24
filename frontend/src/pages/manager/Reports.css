@@ -45,16 +45,8 @@
 .management-report-count span { color: #7a8799; font-size: 13px; }
 
 .management-filter-card {
-    width: 100%;
-    min-width: 0;
     display: grid;
-    grid-template-columns:
-        minmax(240px, 1.6fr)
-        minmax(150px, .8fr)
-        minmax(180px, .95fr)
-        minmax(125px, .65fr)
-        minmax(165px, .85fr)
-        minmax(110px, max-content);
+    grid-template-columns: minmax(320px, 1.8fr) minmax(190px, .9fr) minmax(200px, 1fr) minmax(150px, .7fr) minmax(190px, .9fr) auto;
     align-items: end;
     gap: 12px;
     margin-bottom: 16px;
@@ -63,27 +55,13 @@
     border-radius: 20px;
     background: #fff;
     box-shadow: 0 8px 24px rgba(34, 60, 99, .06);
-    overflow: hidden;
-}
-
-.management-filter-card > * {
-    min-width: 0;
 }
 
 .approved-filter-card {
-    grid-template-columns:
-        minmax(240px, 1.6fr)
-        minmax(150px, .8fr)
-        minmax(180px, .95fr)
-        minmax(125px, .65fr)
-        minmax(165px, .85fr)
-        minmax(110px, max-content);
+    grid-template-columns: minmax(320px, 1.8fr) minmax(190px, .9fr) minmax(200px, 1fr) minmax(150px, .7fr) minmax(190px, .9fr) auto;
 }
 
-.management-search-box {
-    position: relative;
-    min-width: 0;
-}
+.management-search-box { position: relative; }
 .management-search-box span {
     position: absolute;
     left: 14px;
@@ -97,8 +75,6 @@
 .management-filter-field input,
 .management-filter-field select {
     width: 100%;
-    max-width: 100%;
-    min-width: 0;
     min-height: 46px;
     border: 1px solid #d9e1ec;
     border-radius: 12px;
@@ -121,7 +97,6 @@
 .management-filter-field select { padding: 0 12px; }
 
 .management-filter-field {
-    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -324,25 +299,21 @@ button:disabled { opacity: .48; cursor: not-allowed; box-shadow: none; }
     text-decoration: underline;
 }
 
-@media (max-width: 1540px) {
+@media (max-width: 1450px) {
     .management-filter-card,
     .approved-filter-card {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(180px, 1fr));
     }
 
     .management-search-box {
         grid-column: span 2;
     }
-
-    .management-filter-actions {
-        grid-column: 1 / -1;
-    }
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1050px) {
     .management-filter-card,
     .approved-filter-card {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(180px, 1fr));
     }
 
     .management-search-box {
@@ -351,39 +322,20 @@ button:disabled { opacity: .48; cursor: not-allowed; box-shadow: none; }
 }
 
 @media (max-width: 768px) {
-    .management-report-page {
-        padding: 16px;
-    }
-
-    .management-report-header {
-        align-items: flex-start;
-        flex-direction: column;
-    }
-
-    .management-report-header h1 {
-        font-size: 24px;
-    }
-
+    .management-report-page { padding: 16px; }
+    .management-report-header { align-items: flex-start; flex-direction: column; }
+    .management-report-header h1 { font-size: 24px; }
     .management-filter-card,
-    .approved-filter-card {
-        grid-template-columns: 1fr;
-        padding: 14px;
-    }
-
-    .management-search-box {
-        grid-column: auto;
-    }
-
+    .approved-filter-card { grid-template-columns: 1fr; }
+    .management-search-box { grid-column: auto; }
     .management-filter-actions {
         grid-column: auto;
         flex-direction: column;
         align-items: stretch;
     }
-
     .management-filter-actions .management-view-selected-button,
     .management-filter-actions .management-approve-button,
-    .management-filter-actions .management-export-button,
-    .management-clear-button {
+    .management-filter-actions .management-export-button {
         width: 100%;
         min-width: 0;
     }
@@ -403,20 +355,17 @@ button:disabled { opacity: .48; cursor: not-allowed; box-shadow: none; }
 
 .management-filter-actions {
     grid-column: 1 / -1;
-    min-width: 0;
     display: flex;
     justify-content: flex-end;
     align-items: center;
     gap: 12px;
     padding-top: 2px;
-    flex-wrap: wrap;
 }
 
 .management-filter-actions .management-view-selected-button,
 .management-filter-actions .management-approve-button,
 .management-filter-actions .management-export-button {
     min-width: 190px;
-    max-width: 100%;
 }
 
 .management-all-dates-button,
@@ -501,4 +450,140 @@ button:disabled { opacity: .48; cursor: not-allowed; box-shadow: none; }
     background: #f1f4f8;
     color: #95a1b2;
     cursor: not-allowed;
+}
+
+
+/* =====================================================
+   REPORT PAGE OVERFLOW FIX - 24/07/2026
+===================================================== */
+.management-report-page {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding: 6px 0 20px;
+    overflow: hidden;
+}
+
+.management-report-header,
+.management-filter-card,
+.management-report-card,
+.management-table-container {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.management-filter-card,
+.approved-filter-card {
+    grid-template-columns: minmax(220px, 2fr) repeat(4, minmax(140px, 1fr));
+    align-items: end;
+    overflow: hidden;
+}
+
+.management-filter-card > *,
+.approved-filter-card > *,
+.management-search-box,
+.management-filter-field,
+.management-date-filter,
+.management-scope-filter {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.management-search-box input,
+.management-filter-field input,
+.management-filter-field select,
+.management-all-dates-button {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.management-filter-actions {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.management-filter-actions > button,
+.management-filter-actions .management-view-selected-button,
+.management-filter-actions .management-approve-button,
+.management-filter-actions .management-export-button {
+    min-width: 0;
+    width: auto;
+    max-width: 100%;
+    flex: 0 1 auto;
+}
+
+.management-table-container {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 1500px) {
+    .management-filter-card,
+    .approved-filter-card {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .management-search-box {
+        grid-column: span 2;
+    }
+}
+
+@media (max-width: 1180px) {
+    .management-filter-card,
+    .approved-filter-card {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .management-search-box {
+        grid-column: 1 / -1;
+    }
+
+    .management-filter-actions {
+        justify-content: stretch;
+    }
+
+    .management-filter-actions > button,
+    .management-filter-actions .management-view-selected-button,
+    .management-filter-actions .management-approve-button,
+    .management-filter-actions .management-export-button {
+        flex: 1 1 220px;
+    }
+}
+
+@media (max-width: 760px) {
+    .management-report-page {
+        padding: 0 0 16px;
+    }
+
+    .management-filter-card,
+    .approved-filter-card {
+        grid-template-columns: 1fr;
+        padding: 14px;
+    }
+
+    .management-search-box,
+    .management-filter-actions {
+        grid-column: auto;
+    }
+
+    .management-filter-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .management-filter-actions > button,
+    .management-filter-actions .management-view-selected-button,
+    .management-filter-actions .management-approve-button,
+    .management-filter-actions .management-export-button {
+        width: 100%;
+        flex: none;
+    }
 }

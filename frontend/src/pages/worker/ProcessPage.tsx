@@ -790,6 +790,10 @@ const initialDeduction: DeductionState = {
 };
 
 
+
+
+const KQD_CODES = new Set(["KQD_DL", "KQD_DAP_LAI", "KQD_TUOT"]);
+
 // =====================================================
 // COMPONENT
 // =====================================================
@@ -910,6 +914,27 @@ const productAutocompleteOptions =
     ] = useState<FormState>(
         initialForm
     );
+
+const selectedMachine = useMemo(
+    () => machineOptions.find((machine) => machine.machine_code === form.machineNo),
+    [machineOptions, form.machineNo]
+);
+
+const machineExcludesKqd = (): boolean =>
+    Number(selectedMachine?.exclude_kqd_from_tt || 0) === 1;
+
+const calculateCountedNg = (values: FormState): number =>
+    activeNgOptions.reduce((sum, item) => {
+        const code = String(item.code || "").trim().toUpperCase();
+        if (machineExcludesKqd() && (KQD_CODES.has(code) || code.startsWith("KQD"))) return sum;
+        return sum + Number(values[item.key] || 0);
+    }, 0);
+
+const calculateActualOutput = (values: FormState): number =>
+    Number(values.ttOk || 0) + calculateCountedNg(values);
+
+
+
 
 
     // =================================================
@@ -1195,24 +1220,7 @@ const productAutocompleteOptions =
                 name === "ttNg"
             ) {
 
-                next.actualOutput =
-                    String(
-
-                        Number(
-                            next.ttOk
-                            ||
-                            0
-                        )
-
-                        +
-
-                        Number(
-                            next.ttNg
-                            ||
-                            0
-                        )
-
-                    );
+                next.actualOutput = String(calculateActualOutput(next));
 
             }
 
@@ -1830,20 +1838,7 @@ const updateDeductionValue = (
                 );
 
 
-            next.actualOutput =
-                String(
-
-                    Number(
-                        next.ttOk
-                        ||
-                        0
-                    )
-
-                    +
-
-                    totalNg
-
-                );
+            next.actualOutput = String(calculateActualOutput(next));
 
 
             return next;
@@ -1931,20 +1926,7 @@ const updateDeductionValue = (
                     );
 
 
-                next.actualOutput =
-                    String(
-
-                        Number(
-                            next.ttOk
-                            ||
-                            0
-                        )
-
-                        +
-
-                        totalNg
-
-                    );
+                next.actualOutput = String(calculateActualOutput(next));
 
 
                 return next;
@@ -2005,20 +1987,7 @@ const updateDeductionValue = (
                 );
 
 
-            next.actualOutput =
-                String(
-
-                    Number(
-                        next.ttOk
-                        ||
-                        0
-                    )
-
-                    +
-
-                    totalNg
-
-                );
+            next.actualOutput = String(calculateActualOutput(next));
 
 
             return next;
@@ -2071,24 +2040,7 @@ const updateDeductionValue = (
             ttOk:
                 value,
 
-            actualOutput:
-                String(
-
-                    Number(
-                        value
-                        ||
-                        0
-                    )
-
-                    +
-
-                    Number(
-                        prev.ttNg
-                        ||
-                        0
-                    )
-
-                )
+            actualOutput: String(calculateActualOutput({ ...prev, ttOk: value }))
 
         }));
 
@@ -2294,30 +2246,10 @@ const updateDeductionValue = (
         }
 
 
-        if (
-            Number(
-                form.actualOutput
-                ||
-                0
-            )
-            !==
-            (
-                Number(
-                    form.ttOk
-                    ||
-                    0
-                )
-                +
-                Number(
-                    form.ttNg
-                    ||
-                    0
-                )
-            )
-        ) {
-
-            return "Thực tế phải bằng TT OK cộng TT NG";
-
+        if (Number(form.actualOutput || 0) !== calculateActualOutput(form)) {
+            return machineExcludesKqd()
+                ? "Thực tế phải bằng TT OK cộng NG được tính (không gồm KQD của mã máy này)"
+                : "Thực tế phải bằng TT OK cộng TT NG";
         }
 
 
@@ -2371,6 +2303,9 @@ const updateDeductionValue = (
 
                     machine_no:
                         form.machineNo.trim(),
+
+                    exclude_kqd_from_tt:
+                        Number(selectedMachine?.exclude_kqd_from_tt || 0),
 
 
                     total_time:
@@ -2564,8 +2499,7 @@ const updateDeductionValue = (
                             ),
 
 
-                    note:
-                        form.note.trim()
+                    note: ""
 
                 };
 
@@ -3792,47 +3726,6 @@ onSelect={(
                         )
                     }
 
-
-                    {/* =================================================
-                        GHI CHÚ
-                    ================================================= */}
-
-                    <div className="worker-field-block worker-note-block">
-
-                        <label
-
-                            className="worker-field-label"
-
-                            htmlFor="note"
-
-                        >
-
-                            Ghi chú
-
-                        </label>
-
-
-                        <textarea
-
-                            id="note"
-
-                            className="worker-note-input"
-
-                            name="note"
-
-                            value={
-                                form.note
-                            }
-
-                            onChange={
-                                handleChange
-                            }
-
-                            placeholder="Nhập ghi chú nếu có"
-
-                        />
-
-                    </div>
 
                 </section>
 
