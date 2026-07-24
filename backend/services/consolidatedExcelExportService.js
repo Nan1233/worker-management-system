@@ -43,6 +43,23 @@ const mediumLeftBorder = {
   left: { style: 'medium', color: { argb: EXCEL_THEME.navyDark } }
 };
 
+
+const removeTemplateConditionalFormatting = (sheet) => {
+  // Template cũ có rule tô đỏ/vàng theo giá trị. Các rule này vẫn được Excel
+  // áp dụng sau khi ghi file và ghi đè màu nền do code đặt, tạo cảm giác ô bị
+  // dính màu ngẫu nhiên (đặc biệt ở Số SP/H, OK và các cột lỗi như Vỡ cao su).
+  // Xóa toàn bộ conditional formatting cũ; màu theo mức độ chỉ được xử lý
+  // tập trung trong applyValueHighlight cho Tỷ lệ đạt và Tỷ lệ NG.
+  if (Array.isArray(sheet.conditionalFormattings)) {
+    sheet.conditionalFormattings.splice(0, sheet.conditionalFormattings.length);
+  }
+
+  // Tương thích với các bản ExcelJS lưu conditional formatting trong model.
+  if (sheet.model && Array.isArray(sheet.model.conditionalFormattings)) {
+    sheet.model.conditionalFormattings = [];
+  }
+};
+
 const isGroupStart = (column) => [
   'training_percent',
   'product_name',
@@ -428,6 +445,7 @@ const buildMonthlyTemplateWorkbook = async (reports, yearMonth, options = {}) =>
   const headerHeight = headerRow.height;
   const dataHeight = sheet.getRow(DATA_START_ROW).height;
 
+  removeTemplateConditionalFormatting(sheet);
   clearTemplateDataRows(sheet);
 
   // Chỉ dựng lại bảng dữ liệu từ hàng 326. Toàn bộ phần biểu mẫu, logo, màu và bố cục phía trên giữ nguyên.
