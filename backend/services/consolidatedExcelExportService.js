@@ -9,6 +9,100 @@ const HEADER_ROW = 326;
 const DATA_START_ROW = 327;
 const TEMPLATE_TABLE_LAST_COLUMN = 53; // BA
 
+
+const EXCEL_THEME = Object.freeze({
+  navy: '17365D',
+  blue: '1F4E78',
+  teal: '0F6B78',
+  amber: 'BF8F00',
+  purple: '7030A0',
+  red: 'C00000',
+  lightBlue: 'D9EAF7',
+  lightTeal: 'DDEBF7',
+  lightAmber: 'FFF2CC',
+  lightPurple: 'E4DFEC',
+  lightRed: 'FCE4D6',
+  lightGreen: 'E2F0D9',
+  lightYellow: 'FFF2CC',
+  lightGray: 'F3F6F9',
+  white: 'FFFFFF',
+  text: '1F2937',
+  border: 'AAB7C4'
+});
+
+const solidFill = (argb) => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
+const thinBorder = {
+  top: { style: 'thin', color: { argb: EXCEL_THEME.border } },
+  left: { style: 'thin', color: { argb: EXCEL_THEME.border } },
+  bottom: { style: 'thin', color: { argb: EXCEL_THEME.border } },
+  right: { style: 'thin', color: { argb: EXCEL_THEME.border } }
+};
+
+const getColumnGroup = (column) => {
+  if (['sequence', 'worker_code', 'full_name', 'machine_no', 'shift'].includes(column.key)) return 'identity';
+  if (['training_percent', 'total_time', 'actual_time', 'deduction_time'].includes(column.key) || column.kind === 'deduction') return 'time';
+  if (['product_name', 'standard_output', 'actual_output', 'achievement_rate', 'work_date', 'output_per_hour', 'tt_ok'].includes(column.key)) return 'production';
+  if (['tt_ng', 'ng_rate'].includes(column.key) || column.kind === 'defect') return 'quality';
+  return 'identity';
+};
+
+const styleHeaderCell = (cell, column) => {
+  const group = getColumnGroup(column);
+  const fillByGroup = {
+    identity: EXCEL_THEME.navy,
+    time: EXCEL_THEME.teal,
+    production: EXCEL_THEME.blue,
+    quality: EXCEL_THEME.red
+  };
+  cell.fill = solidFill(fillByGroup[group]);
+  cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: EXCEL_THEME.white } };
+  cell.border = thinBorder;
+  cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+};
+
+const styleDataCell = (cell, column, rowIndex) => {
+  const group = getColumnGroup(column);
+  const alternate = rowIndex % 2 === 0;
+  const baseFill = alternate ? EXCEL_THEME.lightGray : EXCEL_THEME.white;
+  const groupFill = {
+    identity: baseFill,
+    time: alternate ? 'EAF6F8' : 'F5FBFC',
+    production: alternate ? 'EAF2F8' : 'F7FAFD',
+    quality: alternate ? 'FCECE8' : 'FFF8F6'
+  };
+  cell.fill = solidFill(groupFill[group]);
+  cell.font = { name: 'Arial', size: 10, color: { argb: EXCEL_THEME.text } };
+  cell.border = thinBorder;
+  cell.alignment = {
+    horizontal: ['full_name', 'product_name'].includes(column.key) ? 'left' : 'center',
+    vertical: 'middle',
+    wrapText: true
+  };
+};
+
+const applyValueHighlight = (cell, column, value) => {
+  const numericValue = toNumber(value);
+  if (column.key === 'achievement_rate') {
+    if (numericValue >= 1) cell.fill = solidFill(EXCEL_THEME.lightGreen);
+    else if (numericValue >= 0.9) cell.fill = solidFill(EXCEL_THEME.lightYellow);
+    else cell.fill = solidFill(EXCEL_THEME.lightRed);
+    cell.font = { ...(cell.font || {}), bold: true };
+  }
+  if (column.key === 'ng_rate') {
+    if (numericValue <= 0.01) cell.fill = solidFill(EXCEL_THEME.lightGreen);
+    else if (numericValue <= 0.03) cell.fill = solidFill(EXCEL_THEME.lightYellow);
+    else cell.fill = solidFill(EXCEL_THEME.lightRed);
+    cell.font = { ...(cell.font || {}), bold: true };
+  }
+  if ((column.kind === 'defect' || column.kind === 'deduction') && numericValue > 0) {
+    cell.fill = solidFill(column.kind === 'defect' ? EXCEL_THEME.lightRed : EXCEL_THEME.lightAmber);
+    cell.font = { ...(cell.font || {}), bold: true, color: { argb: column.kind === 'defect' ? EXCEL_THEME.red : '7F6000' } };
+  }
+  if (['actual_output', 'tt_ok', 'tt_ng', 'standard_output'].includes(column.key)) {
+    cell.font = { ...(cell.font || {}), bold: true };
+  }
+};
+
 const toNumber = (value) => {
   const parsed = Number(String(value ?? 0).replace(/,/g, '').trim());
   return Number.isFinite(parsed) ? parsed : 0;
@@ -323,13 +417,7 @@ const buildMonthlyTemplateWorkbook = async (reports, yearMonth, options = {}) =>
     applyCellStyle(sheet, HEADER_ROW, destinationColumn, headerStyles.get(column.source));
     const cell = headerRow.getCell(destinationColumn);
     cell.value = column.title;
-    // Chỉ giữ wrap/căn giữa vốn có của mẫu, không gán fill/font/màu mới.
-    cell.alignment = {
-      ...(cell.alignment || {}),
-      horizontal: 'center',
-      vertical: 'middle',
-      wrapText: true
-    };
+    styleHeaderCell(cell, column);
   });
   headerRow.height = headerHeight;
 
@@ -351,14 +439,18 @@ const buildMonthlyTemplateWorkbook = async (reports, yearMonth, options = {}) =>
         dateRow.getCell(destinationColumn).value = null;
       });
 
+      columns.forEach((column, index) => {
+        const cell = dateRow.getCell(index + 1);
+        cell.fill = solidFill(EXCEL_THEME.navy);
+        cell.border = thinBorder;
+        cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: EXCEL_THEME.white } };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      });
+
       const dateCell = dateRow.getCell(1);
       dateCell.value = toExcelDate(report.work_date);
       dateCell.numFmt = 'dd/mm/yyyy';
-      dateCell.alignment = {
-        ...(dateCell.alignment || {}),
-        horizontal: 'center',
-        vertical: 'middle'
-      };
+      dateRow.height = Math.max(Number(dataHeight) || 18, 22);
 
       for (
         let columnNumber = columns.length + 1;
@@ -381,7 +473,11 @@ const buildMonthlyTemplateWorkbook = async (reports, yearMonth, options = {}) =>
     columns.forEach((column, index) => {
       const destinationColumn = index + 1;
       applyCellStyle(sheet, rowNumber, destinationColumn, dataStyles.get(column.source));
-      row.getCell(destinationColumn).value = buildReportValue(column, report, sequence);
+      const cell = row.getCell(destinationColumn);
+      const value = buildReportValue(column, report, sequence);
+      cell.value = value;
+      styleDataCell(cell, column, rowNumber);
+      applyValueHighlight(cell, column, value);
     });
 
     for (
@@ -394,17 +490,32 @@ const buildMonthlyTemplateWorkbook = async (reports, yearMonth, options = {}) =>
     rowNumber += 1;
   });
 
-  // Ép đúng định dạng dữ liệu, nhưng không thay màu/font/viền của template.
+  // Chuẩn hóa định dạng số, độ rộng và khả năng đọc của bảng.
   columns.forEach((column, index) => {
     const excelColumn = sheet.getColumn(index + 1);
     if (column.key === 'training_percent' || column.key === 'achievement_rate' || column.key === 'ng_rate') {
-      excelColumn.numFmt = '0.00%';
+      excelColumn.numFmt = '0.0%';
     } else if (column.key === 'work_date') {
       excelColumn.numFmt = 'dd/mm/yyyy';
-    } else if (column.key === 'output_per_hour') {
+    } else if (['total_time', 'actual_time', 'deduction_time'].includes(column.key) || column.kind === 'deduction') {
       excelColumn.numFmt = '0.00';
+    } else if (column.key === 'output_per_hour') {
+      excelColumn.numFmt = '#,##0.00';
+    } else if (['standard_output', 'actual_output', 'tt_ok', 'tt_ng'].includes(column.key) || column.kind === 'defect') {
+      excelColumn.numFmt = '#,##0';
     }
+
+    if (column.key === 'full_name') excelColumn.width = Math.max(excelColumn.width || 0, 22);
+    else if (column.key === 'product_name') excelColumn.width = Math.max(excelColumn.width || 0, 16);
+    else if (column.kind === 'deduction' || column.kind === 'defect') excelColumn.width = Math.max(excelColumn.width || 0, 11);
+    else excelColumn.width = Math.max(excelColumn.width || 0, 10);
   });
+
+  headerRow.height = Math.max(Number(headerRow.height) || 24, 36);
+  sheet.autoFilter = {
+    from: { row: HEADER_ROW, column: 1 },
+    to: { row: HEADER_ROW, column: columns.length }
+  };
 
   // Giữ cấu hình in, màu, freeze pane và bố cục từ template; chỉ cập nhật vùng in theo bảng động.
   const lastColumnLetter = sheet.getColumn(columns.length).letter;
