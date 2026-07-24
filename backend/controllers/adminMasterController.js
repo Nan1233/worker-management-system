@@ -4,15 +4,15 @@ const TABLES = {
   processes: { table:'processes', fields:['process_code','process_name','description','status'], required:['process_code','process_name'], order:'process_name' },
   defects: { table:'defect_types', fields:['process_id','defect_code','defect_name','sort_order','status'], required:['process_id','defect_code','defect_name'], order:'process_id, sort_order, defect_name' },
   deductions: { table:'deduction_types', fields:['process_id','deduction_code','deduction_name','sort_order','status'], required:['process_id','deduction_code','deduction_name'], order:'process_id, sort_order, deduction_name' },
-  machines: { table:'machines', fields:['process_id','machine_code','machine_name','exclude_kqd_from_tt','status'], required:['process_id','machine_code','machine_name'], order:'process_id, machine_code' },
-  standards: { table:'product_standards', fields:['process_id','work_type','product_code','standard_output','status'], required:['process_id','product_code','standard_output'], order:'process_id, product_code' }
+  machines: { table:'machines', fields:['process_id','machine_code','machine_name','status'], required:['process_id','machine_code','machine_name'], order:'process_id, machine_code' },
+  standards: { table:'product_standards', fields:['process_id','work_type','product_code','standard_output','exclude_kqd_from_tt','status'], required:['process_id','product_code','standard_output'], order:'process_id, product_code' }
 };
 
 
 
 function requireMasterPermission(req, res) {
   if (req.user?.role === 'lead' && req.params.resource !== 'machines') {
-    res.status(403).json({ success:false, message:'Tổ trưởng chỉ được cấu hình quy tắc KQD của máy' });
+    res.status(403).json({ success:false, message:'Tổ trưởng chỉ được cấu hình công thức tại màn hình Công thức' });
     return false;
   }
   return true;

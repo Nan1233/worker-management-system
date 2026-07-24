@@ -69,7 +69,7 @@ const validateProductionReport = (payload = {}, options = {}) => {
     const actualTime = finiteNumber(payload.actual_time, "actual_time", errors);
     const standardOutputRaw = finiteNumber(payload.standard_output, "standard_output", errors, { max: 100000000 });
     const standardOutput = Math.round(standardOutputRaw);
-    if (standardOutputRaw !== standardOutput) errors.push("standard_output phải là số nguyên");
+    if (standardOutputRaw !== standardOutput) errors.standard_output = "standard_output phải là số nguyên";
     const actualOutput = finiteNumber(payload.actual_output, "actual_output", errors, { max: 100000000 });
     const ttOk = finiteNumber(payload.tt_ok, "tt_ok", errors, { max: 100000000 });
     const ttNg = finiteNumber(payload.tt_ng, "tt_ng", errors, { max: 100000000 });
@@ -85,7 +85,7 @@ const validateProductionReport = (payload = {}, options = {}) => {
         excludeKqdFromTt: Boolean(Number(payload.exclude_kqd_from_tt || 0))
     });
     if (Math.abs(actualOutput - expectedActualOutput) > EPSILON) {
-        errors.actual_output = "Sản lượng thực tế không đúng theo quy tắc tính của mã máy";
+        errors.actual_output = "Sản lượng thực tế không đúng theo quy tắc tính của mã sản phẩm";
     }
 
     const deductions = normalizeDetails(payload.deductions || [], "deduction_type_id", "hours", "deductions", errors);

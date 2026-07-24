@@ -1,6 +1,7 @@
 import axios from "axios";
 
-import api from "../api/axios";
+import api from "./api";
+import { API_BASE_URL, REQUEST_TIMEOUT_MS } from "../config/env";
 
 import type {
     LoginResponse
@@ -15,10 +16,6 @@ import {
 import type {
     AuthUser
 } from "../utils/authStorage";
-
-const API_BASE_URL =
-    import.meta.env.VITE_API_URL ||
-    "https://worker-management-system-2-5jqv.onrender.com/api";
 
 interface RefreshResponse {
     success: boolean;
@@ -90,7 +87,7 @@ export const refreshSession =
                     refreshToken
                 },
                 {
-                    timeout: 30000,
+                    timeout: REQUEST_TIMEOUT_MS,
                     headers: {
                         "Content-Type":
                             "application/json"

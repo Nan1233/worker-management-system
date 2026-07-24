@@ -95,7 +95,7 @@ exports.getApprovedReportsByDate = (date)=>{
 
 
 
-        WHERE DATE(pr.work_date)=?
+        WHERE pr.work_date = ?
 
 
 
@@ -213,7 +213,7 @@ const getReportsByDate = async (date) => {
             LEFT JOIN processes AS p
                 ON p.id = pr.process_id
 
-            WHERE DATE(pr.work_date) = ?
+            WHERE pr.work_date = ?
 
             ORDER BY
                 pr.work_date ASC,

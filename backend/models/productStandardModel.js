@@ -19,7 +19,8 @@ exports.findByProcess = (
                     process_id,
                     work_type,
                     product_code,
-                    CAST(ROUND(standard_output) AS SIGNED) AS standard_output
+                    CAST(ROUND(standard_output) AS SIGNED) AS standard_output,
+                    COALESCE(exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt
 
                 FROM product_standards
 

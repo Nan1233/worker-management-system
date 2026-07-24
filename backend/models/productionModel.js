@@ -296,7 +296,7 @@ getByDate(date){
         ON pr.process_id=p.id
 
 
-        WHERE DATE(pr.work_date)=?
+        WHERE pr.work_date = ?
 
 
         ORDER BY pr.created_at ASC

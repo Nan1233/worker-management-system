@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import api from '../../api/axios';
+import api from '../../services/api';
 import { getApiError } from '../../utils/apiError';
 import './MasterData.css';
 
@@ -20,8 +20,8 @@ const allTabs:{key:Resource;label:string;description:string;roles:string[]}[]=[
 
 const baseFields:Record<Exclude<Resource,'users'>,Field[]>={
   processes:[{key:'process_code',label:'Mã công đoạn',required:true},{key:'process_name',label:'Tên công đoạn',required:true},{key:'description',label:'Mô tả'}],
-  machines:[{key:'process_id',label:'Công đoạn',type:'select',required:true},{key:'machine_code',label:'Mã máy',required:true},{key:'machine_name',label:'Tên máy',required:true},{key:'exclude_kqd_from_tt',label:'Quy tắc KQD',type:'select',options:[{value:'0',label:'Có tính KQD vào TT'},{value:'1',label:'Không tính KQD vào TT'}]}],
-  standards:[{key:'process_id',label:'Công đoạn',type:'select',required:true},{key:'product_code',label:'Mã sản phẩm',required:true},{key:'standard_output',label:'Định mức (số nguyên)',type:'number',required:true,min:1,step:1}],
+  machines:[{key:'process_id',label:'Công đoạn',type:'select',required:true},{key:'machine_code',label:'Mã máy',required:true},{key:'machine_name',label:'Tên máy',required:true}],
+  standards:[{key:'process_id',label:'Công đoạn',type:'select',required:true},{key:'product_code',label:'Mã sản phẩm',required:true},{key:'standard_output',label:'Định mức (số nguyên)',type:'number',required:true,min:1,step:1},{key:'exclude_kqd_from_tt',label:'Quy tắc KQD',type:'select',options:[{value:'0',label:'Có tính KQD vào TT'},{value:'1',label:'Không tính KQD vào TT'}]}],
   defects:[{key:'process_id',label:'Công đoạn',type:'select',required:true},{key:'defect_code',label:'Mã lỗi',required:true},{key:'defect_name',label:'Tên lỗi',required:true},{key:'sort_order',label:'Thứ tự',type:'number'}],
   deductions:[{key:'process_id',label:'Công đoạn',type:'select',required:true},{key:'deduction_code',label:'Mã trừ giờ',required:true},{key:'deduction_name',label:'Tên trừ giờ',required:true},{key:'sort_order',label:'Thứ tự',type:'number'}],
 };

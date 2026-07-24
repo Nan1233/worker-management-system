@@ -181,7 +181,9 @@ exports.createTempReport = async (req, res) => {
                         .product_name,
 
                 defects,
-                deductions
+                deductions,
+                ttOk: validation.normalized.tt_ok,
+                actualOutput: validation.normalized.actual_output
             });
 
 
@@ -696,7 +698,7 @@ exports.updateTempReport = async (req, res) => {
         const payload = { ...current, ...(req.body || {}), defects: req.body?.defects ?? current.defects, deductions: req.body?.deductions ?? current.deductions };
         const validation = validateProductionReport(payload, { enforceBackDate: false });
         if (!validation.valid) return res.status(422).json({ success: false, message: "Dữ liệu báo cáo không hợp lệ", errors: validation.errors });
-        const master = await validateMasterData({ workerId: current.worker_id, processId: current.process_id, machineNo: validation.normalized.machine_no, productName: validation.normalized.product_name, defects: validation.normalized.defects, deductions: validation.normalized.deductions });
+        const master = await validateMasterData({ workerId: current.worker_id, processId: current.process_id, machineNo: validation.normalized.machine_no, productName: validation.normalized.product_name, defects: validation.normalized.defects, deductions: validation.normalized.deductions, ttOk: validation.normalized.tt_ok, actualOutput: validation.normalized.actual_output });
         if (!master.valid) return res.status(422).json({ success: false, message: "Dữ liệu danh mục không hợp lệ", errors: master.errors });
         const result = await ProductionTemp.updateReport(
             reportId,

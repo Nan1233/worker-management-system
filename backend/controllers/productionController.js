@@ -158,7 +158,7 @@ ON pr.process_id=p.id
 
 WHERE 
 
-DATE(pr.work_date)=?
+pr.work_date = ?
 
 AND pr.status='approved'
 

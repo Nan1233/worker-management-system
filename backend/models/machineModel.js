@@ -18,8 +18,7 @@ exports.findByProcess = (
                     id,
                     process_id,
                     machine_code,
-                    machine_name,
-                    COALESCE(exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt
+                    machine_name
 
                 FROM machines
 

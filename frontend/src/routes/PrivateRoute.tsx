@@ -1,5 +1,6 @@
 import { Navigate } from "react-router-dom";
 import type { User } from "../types/auth";
+import { getAccessToken, getStoredUser } from "../utils/authStorage";
 
 type Role = User["role"];
 
@@ -16,25 +17,14 @@ const homeByRole: Record<Role, string> = {
 };
 
 const PrivateRoute = ({ children, allowedRoles }: PrivateRouteProps) => {
-    const token = localStorage.getItem("token");
-    const userString = localStorage.getItem("user");
+    const token = getAccessToken();
+    const storedUser = getStoredUser();
 
-    if (!token || !userString) {
+    if (!token || !storedUser) {
         return <Navigate to="/login" replace />;
     }
 
-    let user: User | null = null;
-
-    try {
-        user = JSON.parse(userString) as User;
-    } catch {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-    }
-
-    if (!user) {
-        return <Navigate to="/login" replace />;
-    }
+    const user = storedUser as User;
 
     if (!allowedRoles.includes(user.role)) {
         return (

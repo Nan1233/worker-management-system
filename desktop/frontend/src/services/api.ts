@@ -7,6 +7,8 @@ import type {
     InternalAxiosRequestConfig
 } from "axios";
 
+import { API_BASE_URL, REQUEST_TIMEOUT_MS } from "../config/env";
+
 import {
     clearAuthSession,
     getAccessToken,
@@ -18,13 +20,9 @@ import type {
     AuthUser
 } from "../utils/authStorage";
 
-const API_BASE_URL =
-    import.meta.env.VITE_API_URL ||
-    "https://worker-management-system-2-5jqv.onrender.com/api";
-
 const api = axios.create({
     baseURL: API_BASE_URL,
-    timeout: 30000,
+    timeout: REQUEST_TIMEOUT_MS,
     headers: {
         "Content-Type": "application/json"
     }
@@ -182,7 +180,7 @@ api.interceptors.response.use(
                         refreshToken
                     },
                     {
-                        timeout: 30000,
+                        timeout: REQUEST_TIMEOUT_MS,
                         headers: {
                             "Content-Type":
                                 "application/json"

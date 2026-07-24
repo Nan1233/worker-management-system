@@ -47,11 +47,15 @@ const loadMonthReports = async (yearMonth) => {
             w.position,
             w.department,
             u.full_name,
-            p.process_name
+            p.process_name,
+            COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt
          FROM production_reports AS pr
          INNER JOIN workers AS w ON w.id = pr.worker_id
          INNER JOIN users AS u ON u.id = w.user_id
          LEFT JOIN processes AS p ON p.id = pr.process_id
+         LEFT JOIN product_standards AS ps ON ps.process_id = pr.process_id
+          AND ps.product_code = pr.product_name
+          AND ps.status = 'active'
          WHERE pr.status = 'approved'
            AND pr.work_date >= ?
            AND pr.work_date < ?

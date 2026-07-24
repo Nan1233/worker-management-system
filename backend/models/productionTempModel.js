@@ -113,7 +113,7 @@ const ProductionTemp = {
              FROM production_reports_temp
              WHERE worker_id = ?
                AND process_id = ?
-               AND DATE(work_date) = ?
+               AND work_date = ?
                AND shift = ?
                AND machine_no = ?
                AND product_name = ?
@@ -133,7 +133,7 @@ const ProductionTemp = {
              FROM production_reports_temp
              WHERE worker_id = ?
                AND process_id = ?
-               AND DATE(work_date) = ?
+               AND work_date = ?
                AND shift = ?
                AND machine_no = ?
                AND product_name = ?
@@ -275,7 +275,7 @@ const ProductionTemp = {
         }
 
         if (filters.date) {
-            conditions.push("DATE(pr.work_date) = ?");
+            conditions.push("pr.work_date = ?");
             params.push(filters.date);
         }
         if (filters.shift) {
@@ -329,7 +329,7 @@ const ProductionTemp = {
         }
 
         if (filters.date) {
-            conditions.push("DATE(pr.work_date) = ?");
+            conditions.push("pr.work_date = ?");
             params.push(filters.date);
         }
         if (filters.shift) {
@@ -504,7 +504,7 @@ const ProductionTemp = {
                     ''
                 )
 
-            WHERE DATE(pr.work_date) = ?
+            WHERE pr.work_date = ?
               AND pr.status IN (
                     'pending',
                     'need_fix'

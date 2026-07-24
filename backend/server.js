@@ -1,377 +1,209 @@
+const crypto = require("crypto");
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 require("dotenv").config();
 
-
-// ======================
-// DATABASE
-// ======================
-
-require("./config/db");
-
-
-
-// ======================
-// ROUTES
-// ======================
+const db = require("./config/db");
 
 const authRoutes = require("./routes/authRoutes");
-
 const userRoutes = require("./routes/userRoutes");
-
 const workerRoutes = require("./routes/workerRoutes");
-
 const productionRoutes = require("./routes/productionRoutes");
-
 const productionTempRoutes = require("./routes/productionTempRoutes");
-
 const managerRoutes = require("./routes/managerRoutes");
-
 const reportExportRoutes = require("./routes/reportExportRoutes");
-
 const defectRoutes = require("./routes/defectRoutes");
-
 const deductionRoutes = require("./routes/deductionRoutes");
-
-const machineRoutes =
-    require("./routes/machineRoutes");
-const productStandardRoutes =
-    require("./routes/productStandardRoutes");
+const machineRoutes = require("./routes/machineRoutes");
+const productStandardRoutes = require("./routes/productStandardRoutes");
 const syncJobRoutes = require("./routes/syncJobRoutes");
 const systemRoutes = require("./routes/systemRoutes");
 const adminMasterRoutes = require("./routes/adminMasterRoutes");
-const formulaSettingsRoutes = require('./routes/formulaSettingsRoutes');
+const formulaSettingsRoutes = require("./routes/formulaSettingsRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 
-
-// ======================
-// APP
-// ======================
-
 const app = express();
+const PORT = Number(process.env.PORT || 3000);
+const isProduction = process.env.NODE_ENV === "production";
+
+function parseCorsOrigins() {
+  const configured = String(process.env.CORS_ORIGINS || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  return new Set([
+    "http://localhost:5173",
+    "https://worker-management-system-3-dzox.onrender.com",
+    ...configured,
+  ]);
+}
+
+const allowedOrigins = parseCorsOrigins();
 
 app.set("trust proxy", 1);
-app.disable("etag");
-app.use(helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" },
-    contentSecurityPolicy: false
-}));
+app.disable("x-powered-by");
+app.set("etag", "weak");
 
-const apiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: Number(process.env.API_RATE_LIMIT || 600),
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    message: { success: false, message: "Quá nhiều yêu cầu, vui lòng thử lại sau" }
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    contentSecurityPolicy: isProduction ? undefined : false,
+  }),
+);
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      // Native Electron, curl and server-to-server calls may not send Origin.
+      if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+      return callback(new Error("Nguồn truy cập không được phép bởi CORS"));
+    },
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "Idempotency-Key",
+      "X-Cron-Secret",
+      "X-Request-Id",
+    ],
+    credentials: true,
+    maxAge: 86_400,
+  }),
+);
+
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || "768kb" }));
+
+app.use((req, res, next) => {
+  const requestId = String(req.get("X-Request-Id") || crypto.randomUUID());
+  const startedAt = process.hrtime.bigint();
+  req.requestId = requestId;
+  res.setHeader("X-Request-Id", requestId);
+
+  res.on("finish", () => {
+    const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+    if (!isProduction || res.statusCode >= 400 || durationMs >= 1_000) {
+      console.log(
+        JSON.stringify({
+          type: "http",
+          requestId,
+          method: req.method,
+          path: req.originalUrl,
+          status: res.statusCode,
+          durationMs: Math.round(durationMs),
+        }),
+      );
+    }
+  });
+  next();
 });
 
-
-// ======================
-// CORS
-// ======================
-
-const corsOptions = {
-
-
-    origin:[
-
-        "http://localhost:5173",
-
-        "https://worker-management-system-3-dzox.onrender.com"
-
-    ],
-
-
-    methods:[
-
-        "GET",
-
-        "POST",
-
-        "PUT",
-"PATCH",
-        "DELETE",
-
-        "OPTIONS"
-
-    ],
-
-
-    allowedHeaders:[
-
-        "Content-Type",
-
-        "Authorization",
-        "Idempotency-Key",
-        "X-Cron-Secret"
-
-    ],
-
-
-    credentials:true
-
-
-};
-
-
-
-app.use(cors(corsOptions));
-
-
-app.use(express.json({ limit: "1mb" }));
-
-
-// ======================
-// KHÔNG CACHE API
-// ======================
-
-app.use(
-    "/api",
-    (req, res, next) => {
-
-        res.setHeader(
-            "Cache-Control",
-            "no-store, no-cache, must-revalidate, proxy-revalidate"
-        );
-
-        res.setHeader(
-            "Pragma",
-            "no-cache"
-        );
-
-        res.setHeader(
-            "Expires",
-            "0"
-        );
-
-        res.setHeader(
-            "Surrogate-Control",
-            "no-store"
-        );
-
-        next();
-
-    }
-);
-
-
-// ======================
-// API ROUTES
-// ======================
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: Number(process.env.API_RATE_LIMIT || 600),
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  skip: (req) => req.path === "/health",
+  message: { success: false, message: "Quá nhiều yêu cầu, vui lòng thử lại sau" },
+});
 
 app.use("/api", apiLimiter);
+app.use("/api", (req, res, next) => {
+  // Authenticated production data must not be cached by shared proxies.
+  res.setHeader("Cache-Control", "private, no-store");
+  next();
+});
+
+app.get("/api/health", async (req, res) => {
+  try {
+    await db.promise().query({ sql: "SELECT 1 AS ok", timeout: 3_000 });
+    return res.json({ success: true, service: "ktc-api", database: "ok" });
+  } catch (error) {
+    return res.status(503).json({ success: false, service: "ktc-api", database: "unavailable" });
+  }
+});
+
 app.use("/api/dashboard", dashboardRoutes);
-
-
-app.use(
-    "/api/machines",
-    machineRoutes
-);
-app.use(
-    "/api/product-standards",
-    productStandardRoutes
-);
-// AUTH
-
-app.use(
-
-    "/api/auth",
-
-    authRoutes
-
-);
-
-
-
-
-// USERS
-
-app.use(
-
-    "/api/users",
-
-    userRoutes
-
-);
-
-
-
-
-// WORKERS
-
-app.use(
-
-    "/api/workers",
-
-    workerRoutes
-
-);
-
-
-
-
-// PRODUCTION
-
-app.use(
-
-    "/api/production",
-
-    productionRoutes
-
-);
-
-
-
-
-// TEMP REPORT
-// worker gửi
-// manager duyệt
-
-app.use(
-
-    "/api/production-temp",
-
-    productionTempRoutes
-
-);
-
-
-
-
-// MANAGER
-
-app.use(
-
-    "/api/manager",
-
-    managerRoutes
-
-);
-
-
-
-
-// EXPORT EXCEL
-
-app.use(
-
-    "/api/reports",
-
-    reportExportRoutes
-
-);
-
+app.use("/api/machines", machineRoutes);
+app.use("/api/product-standards", productStandardRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/workers", workerRoutes);
+app.use("/api/production", productionRoutes);
+app.use("/api/production-temp", productionTempRoutes);
+app.use("/api/manager", managerRoutes);
+app.use("/api/reports", reportExportRoutes);
 app.use("/api/sync-jobs", syncJobRoutes);
 app.use("/api/system", systemRoutes);
 app.use("/api/admin/master", adminMasterRoutes);
 app.use("/api/formula-settings", formulaSettingsRoutes);
+app.use("/api", defectRoutes);
+app.use("/api", deductionRoutes);
 
-
-
-
-// DEFECT NG
-
-// GET /api/processes/:id/defects
-
-app.use(
-
-    "/api",
-
-    defectRoutes
-
-);
-
-
-
-
-// DEDUCTION
-
-// GET /api/processes/:id/deductions
-
-app.use(
-
-    "/api",
-
-    deductionRoutes
-
-);
-
-
-
-
-
-// ======================
-// TEST SERVER
-// ======================
-
-
-app.get("/",(req,res)=>{
-
-
-    res.json({
-
-        success:true,
-
-        message:"Backend is running..."
-
-    });
-
-
+app.get("/", (req, res) => {
+  res.json({ success: true, message: "Backend is running" });
 });
 
+app.use((req, res) => {
+  res.status(404).json({ success: false, message: "API không tồn tại" });
+});
 
-
-
-
-// ======================
-// ERROR HANDLER
-// ======================
 app.use((error, req, res, next) => {
-    console.error("UNHANDLED API ERROR:", error);
-    if (res.headersSent) return next(error);
-    const message = error?.isPublic ? error.message : (process.env.NODE_ENV === "production" ? "Lỗi máy chủ" : (error.message || "Lỗi máy chủ"));
-    res.status(error.status || 500).json({ success:false, message });
+  if (res.headersSent) return next(error);
+  console.error(
+    JSON.stringify({
+      type: "api_error",
+      requestId: req.requestId,
+      method: req.method,
+      path: req.originalUrl,
+      code: error.code,
+      message: error.message,
+      stack: isProduction ? undefined : error.stack,
+    }),
+  );
+
+  const message = error?.isPublic
+    ? error.message
+    : isProduction
+      ? "Lỗi máy chủ"
+      : error.message || "Lỗi máy chủ";
+
+  return res.status(error.status || 500).json({ success: false, message, request_id: req.requestId });
 });
 
-// ======================
-// ERROR 404
-// ======================
+let server;
 
-app.use((req,res)=>{
+async function start() {
+  try {
+    const database = await db.testConnection();
+    console.log(`Database connected: ${database.host}:${database.port}; SSL=${database.ssl}`);
+  } catch (error) {
+    console.error(`Database startup check failed: ${error.message}`);
+    // Render should restart a service that cannot reach its primary database.
+    if (isProduction) process.exit(1);
+  }
 
+  server = app.listen(PORT, () => {
+    console.log(`Server running at port ${PORT}`);
+  });
+}
 
-    res.status(404).json({
+async function shutdown(signal) {
+  console.log(`${signal} received; shutting down`);
+  if (server) {
+    await new Promise((resolve) => server.close(resolve));
+  }
+  await db.closePool().catch((error) => console.error("Pool close failed:", error.message));
+  process.exit(0);
+}
 
-        success:false,
+process.once("SIGTERM", () => shutdown("SIGTERM"));
+process.once("SIGINT", () => shutdown("SIGINT"));
 
-        message:"API không tồn tại"
+if (require.main === module) {
+  start();
+}
 
-    });
-
-
-});
-
-
-
-
-
-// ======================
-// START SERVER
-// ======================
-
-
-const PORT = process.env.PORT || 3000;
-
-
-
-app.listen(PORT,()=>{
-
-
-    console.log(
-        `Server running at port ${PORT}`
-    );
-
-
-});
+module.exports = { app, start };

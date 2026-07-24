@@ -1,4 +1,4 @@
-import api from "../api/axios";
+import api from "./api";
 
 
 export interface MachineOption {
@@ -10,8 +10,6 @@ export interface MachineOption {
     machine_code: string;
 
     machine_name: string;
-
-    exclude_kqd_from_tt?: number;
 
 }
 
@@ -29,6 +27,7 @@ export interface ProductStandardOption {
     product_code: string;
 
     standard_output: number;
+    exclude_kqd_from_tt?: number;
 
 }
 

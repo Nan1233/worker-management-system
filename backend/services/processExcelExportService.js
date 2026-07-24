@@ -69,11 +69,15 @@ async function loadProcessMonthReports(value, processId) {
   const { start, next } = monthRange(yearMonth);
   const reports = await query(
     `SELECT pr.*, w.worker_code, w.training_percent, w.position, w.department,
-            u.full_name, p.process_name, p.process_code
+            u.full_name, p.process_name, p.process_code,
+            COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt
        FROM production_reports pr
        INNER JOIN workers w ON w.id = pr.worker_id
        INNER JOIN users u ON u.id = w.user_id
        INNER JOIN processes p ON p.id = pr.process_id
+       LEFT JOIN product_standards ps ON ps.process_id = pr.process_id
+        AND ps.product_code = pr.product_name
+        AND ps.status = 'active'
       WHERE pr.status = 'approved'
         AND pr.work_date >= ?
         AND pr.work_date < ?

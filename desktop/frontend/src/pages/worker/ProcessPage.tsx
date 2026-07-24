@@ -915,18 +915,18 @@ const productAutocompleteOptions =
         initialForm
     );
 
-const selectedMachine = useMemo(
-    () => machineOptions.find((machine) => machine.machine_code === form.machineNo),
-    [machineOptions, form.machineNo]
+const selectedProduct = useMemo(
+    () => productOptions.find((product) => product.product_code === form.productName),
+    [productOptions, form.productName]
 );
 
-const machineExcludesKqd = (): boolean =>
-    Number(selectedMachine?.exclude_kqd_from_tt || 0) === 1;
+const productExcludesKqd = (): boolean =>
+    Number(selectedProduct?.exclude_kqd_from_tt || 0) === 1;
 
 const calculateCountedNg = (values: FormState): number =>
     activeNgOptions.reduce((sum, item) => {
         const code = String(item.code || "").trim().toUpperCase();
-        if (machineExcludesKqd() && (KQD_CODES.has(code) || code.startsWith("KQD"))) return sum;
+        if (productExcludesKqd() && (KQD_CODES.has(code) || code.startsWith("KQD"))) return sum;
         return sum + Number(values[item.key] || 0);
     }, 0);
 
@@ -2247,8 +2247,8 @@ const updateDeductionValue = (
 
 
         if (Number(form.actualOutput || 0) !== calculateActualOutput(form)) {
-            return machineExcludesKqd()
-                ? "Thực tế phải bằng TT OK cộng NG được tính (không gồm KQD của mã máy này)"
+            return productExcludesKqd()
+                ? "Thực tế phải bằng TT OK cộng NG được tính (không gồm KQD của mã sản phẩm này)"
                 : "Thực tế phải bằng TT OK cộng TT NG";
         }
 
@@ -2305,7 +2305,7 @@ const updateDeductionValue = (
                         form.machineNo.trim(),
 
                     exclude_kqd_from_tt:
-                        Number(selectedMachine?.exclude_kqd_from_tt || 0),
+                        Number(selectedProduct?.exclude_kqd_from_tt || 0),
 
 
                     total_time:
