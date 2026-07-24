@@ -1448,29 +1448,8 @@ const parseFlexibleTime = (value: string): number => {
 
 
 
-const normalizeDecimalInput = (
-    value: string
-): string => value.replace(",", ".");
 
 
-const isValidDecimalInput = (
-    value: string
-): boolean => {
-
-    const normalizedValue =
-        normalizeDecimalInput(
-            value
-        );
-
-
-    return (
-        normalizedValue === ""
-        || /^\d*\.?\d*$/.test(normalizedValue)
-        || /^\d{0,3}\s*(?:h|:|g)\s*\d{0,2}$/i.test(normalizedValue)
-        || /^\d{0,3}\s*(?:h|g)$/i.test(normalizedValue)
-    );
-
-};
     // =====================================================
     // INPUT SỐ THỜI GIAN
     // =====================================================
