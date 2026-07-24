@@ -11,23 +11,21 @@ const TEMPLATE_TABLE_LAST_COLUMN = 53; // BA
 
 
 const EXCEL_THEME = Object.freeze({
-  navy: '17365D',
-  blue: '1F4E78',
-  teal: '0F6B78',
-  amber: 'BF8F00',
-  purple: '7030A0',
+  navy: '1F4E78',
+  navyDark: '17365D',
+  blue: '5B9BD5',
+  green: '70AD47',
   red: 'C00000',
-  lightBlue: 'D9EAF7',
-  lightTeal: 'DDEBF7',
-  lightAmber: 'FFF2CC',
-  lightPurple: 'E4DFEC',
-  lightRed: 'FCE4D6',
-  lightGreen: 'E2F0D9',
-  lightYellow: 'FFF2CC',
-  lightGray: 'F3F6F9',
+  amber: 'C55A11',
   white: 'FFFFFF',
   text: '1F2937',
-  border: 'AAB7C4'
+  mutedText: '5B6573',
+  border: 'C9D2DC',
+  softBlue: 'EAF3F8',
+  softGreen: 'E2F0D9',
+  softRed: 'FCE4D6',
+  softGray: 'F5F7FA',
+  softAmber: 'FFF2CC'
 });
 
 const solidFill = (argb) => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
@@ -36,6 +34,10 @@ const thinBorder = {
   left: { style: 'thin', color: { argb: EXCEL_THEME.border } },
   bottom: { style: 'thin', color: { argb: EXCEL_THEME.border } },
   right: { style: 'thin', color: { argb: EXCEL_THEME.border } }
+};
+const mediumLeftBorder = {
+  ...thinBorder,
+  left: { style: 'medium', color: { argb: EXCEL_THEME.navyDark } }
 };
 
 const getColumnGroup = (column) => {
@@ -46,33 +48,38 @@ const getColumnGroup = (column) => {
   return 'identity';
 };
 
+const isGroupStart = (column) => [
+  'training_percent',
+  'product_name',
+  'tt_ng'
+].includes(column.key);
+
 const styleHeaderCell = (cell, column) => {
-  const group = getColumnGroup(column);
-  const fillByGroup = {
-    identity: EXCEL_THEME.navy,
-    time: EXCEL_THEME.teal,
-    production: EXCEL_THEME.blue,
-    quality: EXCEL_THEME.red
-  };
-  cell.fill = solidFill(fillByGroup[group]);
+  let fill = EXCEL_THEME.navy;
+  if (column.kind === 'deduction') fill = '7F8C98';
+  if (column.kind === 'defect') fill = 'A61B1B';
+  if (column.key === 'actual_output') fill = EXCEL_THEME.blue;
+  if (column.key === 'tt_ok') fill = EXCEL_THEME.green;
+  if (column.key === 'tt_ng' || column.key === 'ng_rate') fill = EXCEL_THEME.red;
+
+  cell.fill = solidFill(fill);
   cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: EXCEL_THEME.white } };
-  cell.border = thinBorder;
+  cell.border = isGroupStart(column) ? mediumLeftBorder : thinBorder;
   cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
 };
 
-const styleDataCell = (cell, column, rowIndex) => {
-  const group = getColumnGroup(column);
-  const alternate = rowIndex % 2 === 0;
-  const baseFill = alternate ? EXCEL_THEME.lightGray : EXCEL_THEME.white;
-  const groupFill = {
-    identity: baseFill,
-    time: alternate ? 'EAF6F8' : 'F5FBFC',
-    production: alternate ? 'EAF2F8' : 'F7FAFD',
-    quality: alternate ? 'FCECE8' : 'FFF8F6'
-  };
-  cell.fill = solidFill(groupFill[group]);
+const styleDataCell = (cell, column) => {
+  let fill = EXCEL_THEME.white;
+  if (column.kind === 'deduction') fill = EXCEL_THEME.softGray;
+  if (column.kind === 'defect') fill = 'FFF9F7';
+  if (column.key === 'actual_output') fill = EXCEL_THEME.softBlue;
+  if (column.key === 'achievement_rate') fill = 'F2F7FB';
+  if (column.key === 'tt_ok') fill = EXCEL_THEME.softGreen;
+  if (column.key === 'tt_ng' || column.key === 'ng_rate') fill = EXCEL_THEME.softRed;
+
+  cell.fill = solidFill(fill);
   cell.font = { name: 'Arial', size: 10, color: { argb: EXCEL_THEME.text } };
-  cell.border = thinBorder;
+  cell.border = isGroupStart(column) ? mediumLeftBorder : thinBorder;
   cell.alignment = {
     horizontal: ['full_name', 'product_name'].includes(column.key) ? 'left' : 'center',
     vertical: 'middle',
@@ -82,23 +89,35 @@ const styleDataCell = (cell, column, rowIndex) => {
 
 const applyValueHighlight = (cell, column, value) => {
   const numericValue = toNumber(value);
+
+  // Chỉ nhấn mạnh các chỉ số tổng hợp quan trọng, không tô từng ô rời rạc như bàn cờ.
   if (column.key === 'achievement_rate') {
-    if (numericValue >= 1) cell.fill = solidFill(EXCEL_THEME.lightGreen);
-    else if (numericValue >= 0.9) cell.fill = solidFill(EXCEL_THEME.lightYellow);
-    else cell.fill = solidFill(EXCEL_THEME.lightRed);
+    cell.fill = solidFill(
+      numericValue >= 1 ? EXCEL_THEME.softGreen
+        : numericValue >= 0.9 ? EXCEL_THEME.softAmber
+          : EXCEL_THEME.softRed
+    );
     cell.font = { ...(cell.font || {}), bold: true };
   }
+
   if (column.key === 'ng_rate') {
-    if (numericValue <= 0.01) cell.fill = solidFill(EXCEL_THEME.lightGreen);
-    else if (numericValue <= 0.03) cell.fill = solidFill(EXCEL_THEME.lightYellow);
-    else cell.fill = solidFill(EXCEL_THEME.lightRed);
+    cell.fill = solidFill(
+      numericValue <= 0.01 ? EXCEL_THEME.softGreen
+        : numericValue <= 0.03 ? EXCEL_THEME.softAmber
+          : EXCEL_THEME.softRed
+    );
     cell.font = { ...(cell.font || {}), bold: true };
   }
-  if ((column.kind === 'defect' || column.kind === 'deduction') && numericValue > 0) {
-    cell.fill = solidFill(column.kind === 'defect' ? EXCEL_THEME.lightRed : EXCEL_THEME.lightAmber);
-    cell.font = { ...(cell.font || {}), bold: true, color: { argb: column.kind === 'defect' ? EXCEL_THEME.red : '7F6000' } };
+
+  // Chi tiết chỉ đổi màu chữ khi có phát sinh để giữ nền bảng đồng nhất.
+  if (column.kind === 'deduction' && numericValue > 0) {
+    cell.font = { ...(cell.font || {}), bold: true, color: { argb: EXCEL_THEME.amber } };
   }
-  if (['actual_output', 'tt_ok', 'tt_ng', 'standard_output'].includes(column.key)) {
+  if (column.kind === 'defect' && numericValue > 0) {
+    cell.font = { ...(cell.font || {}), bold: true, color: { argb: EXCEL_THEME.red } };
+  }
+
+  if (['actual_output', 'tt_ok', 'tt_ng', 'standard_output', 'output_per_hour'].includes(column.key)) {
     cell.font = { ...(cell.font || {}), bold: true };
   }
 };
