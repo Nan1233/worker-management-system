@@ -153,7 +153,7 @@ CREATE TABLE product_standards
     product_code VARCHAR(50)
     NOT NULL,
 
-    standard_output DECIMAL(12,2)
+    standard_output INT UNSIGNED
     NOT NULL DEFAULT 0,
 
     status ENUM(
@@ -378,7 +378,7 @@ CREATE TABLE production_reports_temp
 
     product_name VARCHAR(100),
 
-    standard_output DECIMAL(12,2)
+    standard_output INT UNSIGNED
     NOT NULL DEFAULT 0,
 
     actual_output INT
@@ -471,7 +471,7 @@ CREATE TABLE production_reports
 
     product_name VARCHAR(100),
 
-    standard_output DECIMAL(12,2)
+    standard_output INT UNSIGNED
     NOT NULL DEFAULT 0,
 
     actual_output INT

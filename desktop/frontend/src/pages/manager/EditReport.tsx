@@ -253,7 +253,7 @@ function EditReport() {
                     <label>Tổng thời gian<input type="number" min="0" max="24" step="0.01" value={numberValue(form.total_time)} onChange={(e) => { const total = numberValue(e.target.value); setForm({ ...form, total_time: total, actual_time: Math.max(0, total - deductionTotal) }); }} /></label>
                     <label>Thời gian thực tế<input type="number" value={Math.max(0, numberValue(form.total_time) - deductionTotal)} readOnly /></label>
                     <label>Tổng thời gian trừ<input type="number" value={deductionTotal} readOnly /></label>
-                    <label>Định mức<input type="number" min="0" step="0.01" value={numberValue(form.standard_output)} onChange={(e) => setField("standard_output", numberValue(e.target.value))} /></label>
+                    <label>Định mức<input type="number" min="1" step="1" inputMode="numeric" value={Math.round(numberValue(form.standard_output))} onChange={(e) => setField("standard_output", Math.round(numberValue(e.target.value)))} /></label>
                     <label>TT OK<input type="number" min="0" step="1" value={numberValue(form.tt_ok)} onChange={(e) => { const ok = numberValue(e.target.value); setForm({ ...form, tt_ok: ok, actual_output: ok + defectTotal }); }} /></label>
                     <label>TT NG<input type="number" value={defectTotal} readOnly /></label>
                     <label>Thực tế<input type="number" value={numberValue(form.tt_ok) + defectTotal} readOnly /></label>

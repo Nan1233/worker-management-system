@@ -205,7 +205,7 @@ function SelectedReportsReview() {
                                         <td className="sticky-col sticky-col-7">{report.machine_no || "---"}</td>
                                         <td className="sticky-col sticky-col-8">{report.product_name || "---"}</td>
                                         <td>{formatNumber(report.training_percent ?? 100)}%</td>
-                                        <td>{formatNumber(report.standard_output)}</td>
+                                        <td>{formatNumber(Math.round(Number(report.standard_output) || 0))}</td>
                                         <td>{formatNumber(report.actual_output)}</td>
                                         <td>{formatNumber(report.tt_ok)}</td>
                                         <td>{formatNumber(report.tt_ng)}</td>

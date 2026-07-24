@@ -19,7 +19,7 @@ exports.findByProcess = (
                     process_id,
                     work_type,
                     product_code,
-                    standard_output
+                    CAST(ROUND(standard_output) AS SIGNED) AS standard_output
 
                 FROM product_standards
 

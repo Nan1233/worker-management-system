@@ -241,7 +241,7 @@ await getReportById(
                     <span>Định mức</span>
 
                     <strong>
-                        {report.standard_output}
+                        {Math.round(Number(report.standard_output) || 0).toLocaleString("vi-VN")}
                     </strong>
 
                 </div>

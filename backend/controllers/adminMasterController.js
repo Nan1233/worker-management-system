@@ -83,7 +83,13 @@ exports.list = (req, res, next) => {
   const select = cfg.table === 'processes' ? 't.*' : 't.*, p.process_code, p.process_name';
   const join = cfg.table === 'processes' ? '' : 'LEFT JOIN processes p ON p.id=t.process_id';
   const sql = `SELECT ${select} FROM ${cfg.table} t ${join} ORDER BY ${cfg.order}`;
-  db.query(sql, (error, rows) => error ? next(error) : res.json({ success:true, data:rows }));
+  db.query(sql, (error, rows) => {
+    if (error) return next(error);
+    const data = req.params.resource === 'standards'
+      ? rows.map((row) => ({ ...row, standard_output: Math.round(Number(row.standard_output) || 0) }))
+      : rows;
+    return res.json({ success:true, data });
+  });
 };
 
 exports.create = async (req,res,next) => {

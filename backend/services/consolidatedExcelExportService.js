@@ -13,19 +13,22 @@ const TEMPLATE_TABLE_LAST_COLUMN = 53; // BA
 const EXCEL_THEME = Object.freeze({
   navy: '1F4E78',
   navyDark: '17365D',
-  blue: '5B9BD5',
-  green: '70AD47',
-  red: 'C00000',
-  amber: 'C55A11',
   white: 'FFFFFF',
   text: '1F2937',
-  mutedText: '5B6573',
-  border: 'C9D2DC',
-  softBlue: 'EAF3F8',
-  softGreen: 'E2F0D9',
-  softRed: 'FCE4D6',
-  softGray: 'F5F7FA',
-  softAmber: 'FFF2CC'
+  border: 'D7DEE7',
+
+  // Màu nền cố định theo từng chỉ số chính. Các cột ngang cấp luôn dùng cùng một màu.
+  totalTime: 'DDEBF7',       // Xanh lam nhạt
+  deductionTime: 'FFF2CC',   // Vàng kem
+  actualTime: 'E2F0D9',      // Xanh lá nhạt
+  actualOutput: 'E4DFEC',    // Tím nhạt
+  outputPerHour: 'DDEBF7',   // Xanh lam nhạt
+  ok: 'E2F0D9',              // Xanh lá nhạt
+  ng: 'FCE4D6',              // Đỏ cam nhạt
+
+  rateGood: 'C6E0B4',        // Xanh: đạt tốt
+  rateWarning: 'FFE699',     // Vàng: cần chú ý
+  rateBad: 'F4B084'          // Cam đỏ: không đạt
 });
 
 const solidFill = (argb) => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
@@ -40,14 +43,6 @@ const mediumLeftBorder = {
   left: { style: 'medium', color: { argb: EXCEL_THEME.navyDark } }
 };
 
-const getColumnGroup = (column) => {
-  if (['sequence', 'worker_code', 'full_name', 'machine_no', 'shift'].includes(column.key)) return 'identity';
-  if (['training_percent', 'total_time', 'actual_time', 'deduction_time'].includes(column.key) || column.kind === 'deduction') return 'time';
-  if (['product_name', 'standard_output', 'actual_output', 'achievement_rate', 'work_date', 'output_per_hour', 'tt_ok'].includes(column.key)) return 'production';
-  if (['tt_ng', 'ng_rate'].includes(column.key) || column.kind === 'defect') return 'quality';
-  return 'identity';
-};
-
 const isGroupStart = (column) => [
   'training_percent',
   'product_name',
@@ -55,29 +50,29 @@ const isGroupStart = (column) => [
 ].includes(column.key);
 
 const styleHeaderCell = (cell, column) => {
-  let fill = EXCEL_THEME.navy;
-  if (column.kind === 'deduction') fill = '7F8C98';
-  if (column.kind === 'defect') fill = 'A61B1B';
-  if (column.key === 'actual_output') fill = EXCEL_THEME.blue;
-  if (column.key === 'tt_ok') fill = EXCEL_THEME.green;
-  if (column.key === 'tt_ng' || column.key === 'ng_rate') fill = EXCEL_THEME.red;
-
-  cell.fill = solidFill(fill);
+  // Toàn bộ tiêu đề dùng một hệ màu duy nhất để tránh cảm giác bàn cờ.
+  cell.fill = solidFill(EXCEL_THEME.navy);
   cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: EXCEL_THEME.white } };
   cell.border = isGroupStart(column) ? mediumLeftBorder : thinBorder;
   cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
 };
 
-const styleDataCell = (cell, column) => {
-  let fill = EXCEL_THEME.white;
-  if (column.kind === 'deduction') fill = EXCEL_THEME.softGray;
-  if (column.kind === 'defect') fill = 'FFF9F7';
-  if (column.key === 'actual_output') fill = EXCEL_THEME.softBlue;
-  if (column.key === 'achievement_rate') fill = 'F2F7FB';
-  if (column.key === 'tt_ok') fill = EXCEL_THEME.softGreen;
-  if (column.key === 'tt_ng' || column.key === 'ng_rate') fill = EXCEL_THEME.softRed;
+const getFixedColumnFill = (column) => {
+  switch (column.key) {
+    case 'total_time': return EXCEL_THEME.totalTime;
+    case 'deduction_time': return EXCEL_THEME.deductionTime;
+    case 'actual_time': return EXCEL_THEME.actualTime;
+    case 'actual_output': return EXCEL_THEME.actualOutput;
+    case 'output_per_hour': return EXCEL_THEME.outputPerHour;
+    case 'tt_ok': return EXCEL_THEME.ok;
+    case 'tt_ng': return EXCEL_THEME.ng;
+    default: return EXCEL_THEME.white;
+  }
+};
 
-  cell.fill = solidFill(fill);
+const styleDataCell = (cell, column) => {
+  // Mặc định toàn bộ bảng là nền trắng. Chỉ các cột tổng hợp quan trọng mới có màu cố định.
+  cell.fill = solidFill(getFixedColumnFill(column));
   cell.font = { name: 'Arial', size: 10, color: { argb: EXCEL_THEME.text } };
   cell.border = isGroupStart(column) ? mediumLeftBorder : thinBorder;
   cell.alignment = {
@@ -90,34 +85,44 @@ const styleDataCell = (cell, column) => {
 const applyValueHighlight = (cell, column, value) => {
   const numericValue = toNumber(value);
 
-  // Chỉ nhấn mạnh các chỉ số tổng hợp quan trọng, không tô từng ô rời rạc như bàn cờ.
+  // Tỷ lệ đạt dùng duy nhất ba mức màu, áp dụng đồng nhất cho toàn cột:
+  // >= 100%: xanh; từ 90% đến dưới 100%: vàng; dưới 90%: cam đỏ.
   if (column.key === 'achievement_rate') {
     cell.fill = solidFill(
-      numericValue >= 1 ? EXCEL_THEME.softGreen
-        : numericValue >= 0.9 ? EXCEL_THEME.softAmber
-          : EXCEL_THEME.softRed
+      numericValue >= 1
+        ? EXCEL_THEME.rateGood
+        : numericValue >= 0.9
+          ? EXCEL_THEME.rateWarning
+          : EXCEL_THEME.rateBad
     );
     cell.font = { ...(cell.font || {}), bold: true };
   }
 
+  // Tỷ lệ NG dùng duy nhất ba mức màu, áp dụng đồng nhất cho toàn cột:
+  // <= 1%: xanh; trên 1% đến 3%: vàng; trên 3%: cam đỏ.
   if (column.key === 'ng_rate') {
     cell.fill = solidFill(
-      numericValue <= 0.01 ? EXCEL_THEME.softGreen
-        : numericValue <= 0.03 ? EXCEL_THEME.softAmber
-          : EXCEL_THEME.softRed
+      numericValue <= 0.01
+        ? EXCEL_THEME.rateGood
+        : numericValue <= 0.03
+          ? EXCEL_THEME.rateWarning
+          : EXCEL_THEME.rateBad
     );
     cell.font = { ...(cell.font || {}), bold: true };
   }
 
-  // Chi tiết chỉ đổi màu chữ khi có phát sinh để giữ nền bảng đồng nhất.
-  if (column.kind === 'deduction' && numericValue > 0) {
-    cell.font = { ...(cell.font || {}), bold: true, color: { argb: EXCEL_THEME.amber } };
-  }
-  if (column.kind === 'defect' && numericValue > 0) {
-    cell.font = { ...(cell.font || {}), bold: true, color: { argb: EXCEL_THEME.red } };
-  }
-
-  if (['actual_output', 'tt_ok', 'tt_ng', 'standard_output', 'output_per_hour'].includes(column.key)) {
+  // Các chỉ số tổng hợp được in đậm; chi tiết trừ giờ và NG giữ nền trắng, không đổi màu rời rạc.
+  if ([
+    'total_time',
+    'deduction_time',
+    'actual_time',
+    'actual_output',
+    'achievement_rate',
+    'output_per_hour',
+    'tt_ok',
+    'tt_ng',
+    'ng_rate'
+  ].includes(column.key)) {
     cell.font = { ...(cell.font || {}), bold: true };
   }
 };

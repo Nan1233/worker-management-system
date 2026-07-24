@@ -67,7 +67,9 @@ const validateProductionReport = (payload = {}, options = {}) => {
     const totalTime = finiteNumber(payload.total_time, "total_time", errors);
     const deductionTime = finiteNumber(payload.deduction_time, "deduction_time", errors);
     const actualTime = finiteNumber(payload.actual_time, "actual_time", errors);
-    const standardOutput = finiteNumber(payload.standard_output, "standard_output", errors, { max: 100000000 });
+    const standardOutputRaw = finiteNumber(payload.standard_output, "standard_output", errors, { max: 100000000 });
+    const standardOutput = Math.round(standardOutputRaw);
+    if (standardOutputRaw !== standardOutput) errors.push("standard_output phải là số nguyên");
     const actualOutput = finiteNumber(payload.actual_output, "actual_output", errors, { max: 100000000 });
     const ttOk = finiteNumber(payload.tt_ok, "tt_ok", errors, { max: 100000000 });
     const ttNg = finiteNumber(payload.tt_ng, "tt_ng", errors, { max: 100000000 });

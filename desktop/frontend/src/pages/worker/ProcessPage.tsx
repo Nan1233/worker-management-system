@@ -2897,7 +2897,7 @@ window.setTimeout(() => {
                 standardOutput:
                     selectedProduct
                         ? String(
-                            selectedProduct.standard_output
+                            Math.round(Number(selectedProduct.standard_output) || 0)
                         )
                         : ""
 
@@ -2929,7 +2929,7 @@ window.setTimeout(() => {
                 standardOutput:
                     selectedProduct
                         ? String(
-                            selectedProduct.standard_output
+                            Math.round(Number(selectedProduct.standard_output) || 0)
                         )
                         : ""
 

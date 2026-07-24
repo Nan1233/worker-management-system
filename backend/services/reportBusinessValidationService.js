@@ -38,7 +38,7 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
             );
         });
         if (!products.length) errors.product_name = "Sản phẩm không thuộc công đoạn đã chọn";
-        else standardOutput = Number(products[0].standard_output) || 0;
+        else standardOutput = Math.round(Number(products[0].standard_output) || 0);
     }
 
     const defectIds = defects.map((item) => item.defect_type_id).filter((id) => id > 0);
