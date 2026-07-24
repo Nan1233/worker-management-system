@@ -559,7 +559,20 @@ const buildMonthlyTemplateWorkbook = async (reports, yearMonth, options = {}) =>
     to: { row: HEADER_ROW, column: columns.length }
   };
 
-  // Giữ cấu hình in, màu, freeze pane và bố cục từ template; chỉ cập nhật vùng in theo bảng động.
+  // Cố định hàng tiêu đề của bảng khi cuộn dọc.
+  // Template đặt tiêu đề tại hàng 326; các hàng phía trên đang được giữ nguyên/ẩn theo mẫu.
+  // topLeftCell giúp vùng cuộn bắt đầu ngay tại hàng dữ liệu đầu tiên.
+  sheet.views = [
+    {
+      state: 'frozen',
+      xSplit: 0,
+      ySplit: HEADER_ROW,
+      topLeftCell: `A${DATA_START_ROW}`,
+      activeCell: `A${DATA_START_ROW}`
+    }
+  ];
+
+  // Giữ cấu hình in, màu và bố cục từ template; chỉ cập nhật vùng in theo bảng động.
   const lastColumnLetter = sheet.getColumn(columns.length).letter;
   sheet.pageSetup = {
     ...(sheet.pageSetup || {}),
