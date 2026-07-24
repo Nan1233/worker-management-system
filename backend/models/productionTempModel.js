@@ -977,11 +977,16 @@ const ProductionTemp = {
                 data.deduction_time =
                     detailValues.deduction_time;
 
-                data.actual_time = Math.max(
+                const actualTime = Math.max(
                     0,
-                    totalTime -
-                        detailValues.deduction_time
+                    Number(
+                        Object.prototype.hasOwnProperty.call(data, "actual_time")
+                            ? data.actual_time
+                            : current.actual_time
+                    ) || 0
                 );
+                data.actual_time = actualTime;
+                data.total_time = actualTime + detailValues.deduction_time;
             }
 
             if (hasDefects) {

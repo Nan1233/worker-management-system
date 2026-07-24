@@ -74,9 +74,10 @@ const validateProductionReport = (payload = {}, options = {}) => {
     const ttOk = finiteNumber(payload.tt_ok, "tt_ok", errors, { max: 100000000 });
     const ttNg = finiteNumber(payload.tt_ng, "tt_ng", errors, { max: 100000000 });
 
-    if (deductionTime > totalTime) errors.deduction_time = "Thời gian trừ không được lớn hơn tổng thời gian";
-    if (Math.abs(actualTime - Math.max(0, totalTime - deductionTime)) > EPSILON) {
-        errors.actual_time = "Thời gian thực tế phải bằng tổng thời gian trừ thời gian khấu trừ";
+    if (actualTime <= 0) errors.actual_time = "Thời gian làm thực tế phải lớn hơn 0";
+    if (totalTime > 24) errors.total_time = "Tổng thời gian không được vượt quá 24 giờ";
+    if (Math.abs(totalTime - (actualTime + deductionTime)) > EPSILON) {
+        errors.total_time = "Tổng thời gian phải bằng thời gian làm thực tế cộng thời gian trừ";
     }
     const defects = normalizeDetails(payload.defects || [], "defect_type_id", "quantity", "defects", errors);
     const expectedActualOutput = calculateActualOutput({

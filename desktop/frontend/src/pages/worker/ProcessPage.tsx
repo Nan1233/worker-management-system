@@ -74,6 +74,10 @@ type FormState = {
 
     actualTime: string;
 
+    actualHours: string;
+
+    actualMinutes: string;
+
     deductionTime: string;
 
 
@@ -687,6 +691,12 @@ const initialForm: FormState = {
     actualTime:
         "",
 
+    actualHours:
+        "",
+
+    actualMinutes:
+        "",
+
     deductionTime:
         "",
 
@@ -789,10 +799,6 @@ const initialDeduction: DeductionState = {
 
 };
 
-
-
-
-const KQD_CODES = new Set(["KQD_DL", "KQD_DAP_LAI", "KQD_TUOT"]);
 
 // =====================================================
 // COMPONENT
@@ -914,27 +920,6 @@ const productAutocompleteOptions =
     ] = useState<FormState>(
         initialForm
     );
-
-const selectedProduct = useMemo(
-    () => productOptions.find((product) => product.product_code === form.productName),
-    [productOptions, form.productName]
-);
-
-const productExcludesKqd = (): boolean =>
-    Number(selectedProduct?.exclude_kqd_from_tt || 0) === 1;
-
-const calculateCountedNg = (values: FormState): number =>
-    activeNgOptions.reduce((sum, item) => {
-        const code = String(item.code || "").trim().toUpperCase();
-        if (productExcludesKqd() && (KQD_CODES.has(code) || code.startsWith("KQD"))) return sum;
-        return sum + Number(values[item.key] || 0);
-    }, 0);
-
-const calculateActualOutput = (values: FormState): number =>
-    Number(values.ttOk || 0) + calculateCountedNg(values);
-
-
-
 
 
     // =================================================
@@ -1220,7 +1205,24 @@ const calculateActualOutput = (values: FormState): number =>
                 name === "ttNg"
             ) {
 
-                next.actualOutput = String(calculateActualOutput(next));
+                next.actualOutput =
+                    String(
+
+                        Number(
+                            next.ttOk
+                            ||
+                            0
+                        )
+
+                        +
+
+                        Number(
+                            next.ttNg
+                            ||
+                            0
+                        )
+
+                    );
 
             }
 
@@ -1563,55 +1565,24 @@ const handleTimeInputChange = (
     const updateTotalDeduction = (
         data: DeductionState
     ) => {
+        // Các ô chi tiết nhập bằng PHÚT. Ví dụ 70 = 1 giờ 10 phút.
+        const totalMinutes = Object.values(data).reduce(
+            (sum, currentValue) => sum + (Number(currentValue) || 0),
+            0
+        );
+        const deductionHours = totalMinutes / 60;
 
-        const total =
-            Object.values(
-                data
-            )
-                .reduce(
-
-                    (
-                        sum,
-                        currentValue
-                    ) =>
-
-                        sum
-                        +
-                        parseFlexibleTime(currentValue),
-
-                    0
-
-                );
-
-
-        setForm((prev) => ({
-
-            ...prev,
-
-            deductionTime:
-                String(
-                    total
-                ),
-
-            actualTime:
-                String(
-
-                    Math.max(
-
-                        0,
-
-                        parseFlexibleTime(prev.totalTime)
-
-                        -
-
-                        total
-
-                    )
-
-                )
-
-        }));
-
+        setForm((prev) => {
+            const actualHours = Math.max(0, Number(prev.actualHours) || 0);
+            const actualMinutes = Math.min(59, Math.max(0, Number(prev.actualMinutes) || 0));
+            const actualTime = actualHours + actualMinutes / 60;
+            return {
+                ...prev,
+                actualTime: String(actualTime),
+                deductionTime: String(deductionHours),
+                totalTime: String(actualTime + deductionHours)
+            };
+        });
     };
 
 
@@ -1621,7 +1592,8 @@ const handleTimeInputChange = (
 
 const normalizeDeductionValue = (key: DeductionKey) => {
     setDeductions((prev) => {
-        const next = { ...prev, [key]: normalizeFlexibleTime(prev[key]) };
+        const raw = String(prev[key] || "").replace(/\D/g, "");
+        const next = { ...prev, [key]: raw ? String(Number(raw)) : "" };
         updateTotalDeduction(next);
         return next;
     });
@@ -1632,20 +1604,10 @@ const updateDeductionValue = (
     value: string
 ) => {
 
-    const normalizedValue =
-        normalizeDecimalInput(
-            value
-        );
+    const normalizedValue = value.replace(/\D/g, "");
 
-
-    if (
-        !isValidDecimalInput(
-            normalizedValue
-        )
-    ) {
-
+    if (normalizedValue !== "" && Number(normalizedValue) > 1440) {
         return;
-
     }
 
 
@@ -1838,7 +1800,20 @@ const updateDeductionValue = (
                 );
 
 
-            next.actualOutput = String(calculateActualOutput(next));
+            next.actualOutput =
+                String(
+
+                    Number(
+                        next.ttOk
+                        ||
+                        0
+                    )
+
+                    +
+
+                    totalNg
+
+                );
 
 
             return next;
@@ -1926,7 +1901,20 @@ const updateDeductionValue = (
                     );
 
 
-                next.actualOutput = String(calculateActualOutput(next));
+                next.actualOutput =
+                    String(
+
+                        Number(
+                            next.ttOk
+                            ||
+                            0
+                        )
+
+                        +
+
+                        totalNg
+
+                    );
 
 
                 return next;
@@ -1987,7 +1975,20 @@ const updateDeductionValue = (
                 );
 
 
-            next.actualOutput = String(calculateActualOutput(next));
+            next.actualOutput =
+                String(
+
+                    Number(
+                        next.ttOk
+                        ||
+                        0
+                    )
+
+                    +
+
+                    totalNg
+
+                );
 
 
             return next;
@@ -2040,7 +2041,24 @@ const updateDeductionValue = (
             ttOk:
                 value,
 
-            actualOutput: String(calculateActualOutput({ ...prev, ttOk: value }))
+            actualOutput:
+                String(
+
+                    Number(
+                        value
+                        ||
+                        0
+                    )
+
+                    +
+
+                    Number(
+                        prev.ttNg
+                        ||
+                        0
+                    )
+
+                )
 
         }));
 
@@ -2152,32 +2170,17 @@ const updateDeductionValue = (
         }
 
 
-        if (
-            parseFlexibleTime(form.totalTime) <= 0
-        ) {
-
-            return "Tổng thời gian phải lớn hơn 0";
-
+        if (parseFlexibleTime(form.actualTime) <= 0) {
+            return "Thời gian làm thực tế phải lớn hơn 0";
         }
 
 
-        if (
-            parseFlexibleTime(form.deductionTime)
-            >
-            parseFlexibleTime(form.totalTime)
-        ) {
-
-            return "Thời gian trừ không được lớn hơn tổng thời gian";
-
+        if (Number(form.actualMinutes || 0) > 59) {
+            return "Số phút làm thực tế phải từ 0 đến 59";
         }
 
-
-        if (
-            parseFlexibleTime(form.actualTime) < 0
-        ) {
-
-            return "Thời gian thực tế không hợp lệ";
-
+        if (parseFlexibleTime(form.totalTime) > 24) {
+            return "Tổng thời gian không được vượt quá 24 giờ";
         }
 
 
@@ -2246,10 +2249,30 @@ const updateDeductionValue = (
         }
 
 
-        if (Number(form.actualOutput || 0) !== calculateActualOutput(form)) {
-            return productExcludesKqd()
-                ? "Thực tế phải bằng TT OK cộng NG được tính (không gồm KQD của mã sản phẩm này)"
-                : "Thực tế phải bằng TT OK cộng TT NG";
+        if (
+            Number(
+                form.actualOutput
+                ||
+                0
+            )
+            !==
+            (
+                Number(
+                    form.ttOk
+                    ||
+                    0
+                )
+                +
+                Number(
+                    form.ttNg
+                    ||
+                    0
+                )
+            )
+        ) {
+
+            return "Thực tế phải bằng TT OK cộng TT NG";
+
         }
 
 
@@ -2303,9 +2326,6 @@ const updateDeductionValue = (
 
                     machine_no:
                         form.machineNo.trim(),
-
-                    exclude_kqd_from_tt:
-                        Number(selectedProduct?.exclude_kqd_from_tt || 0),
 
 
                     total_time:
@@ -2481,7 +2501,7 @@ const updateDeductionValue = (
                             .filter(
                                 (item) =>
 
-                                    parseFlexibleTime(deductions[item.key])
+                                    Number(deductions[item.key] || 0)
                                     >
                                     0
                             )
@@ -2493,13 +2513,14 @@ const updateDeductionValue = (
                                         item.label,
 
                                     hours:
-                                        parseFlexibleTime(deductions[item.key])
+                                        Number(deductions[item.key] || 0) / 60
 
                                 })
                             ),
 
 
-                    note: ""
+                    note:
+                        form.note.trim()
 
                 };
 
@@ -2897,7 +2918,7 @@ window.setTimeout(() => {
                 standardOutput:
                     selectedProduct
                         ? String(
-                            Math.round(Number(selectedProduct.standard_output) || 0)
+                            selectedProduct.standard_output
                         )
                         : ""
 
@@ -2929,7 +2950,7 @@ window.setTimeout(() => {
                 standardOutput:
                     selectedProduct
                         ? String(
-                            Math.round(Number(selectedProduct.standard_output) || 0)
+                            selectedProduct.standard_output
                         )
                         : ""
 
@@ -3006,119 +3027,67 @@ onSelect={(
 
 
                     <div className="worker-time-grid">
-
-
-                        {/* TỔNG THỜI GIAN */}
-
                         <div className="worker-time-item">
-
-                            <label
-
-                                htmlFor="totalTime"
-
-                            >
-
-                                Tổng thời gian
-
-                            </label>
-
-
-                            <input
-
-                                id="totalTime"
-
-                                name="totalTime"
-
-                                value={
-                                    form.totalTime
-                                }
-
-                                onChange={
-                                    handleTimeInputChange
-                                }
-
-                                onBlur={() => {
-                                    setForm((prev) => {
-                                        const totalTime = normalizeFlexibleTime(prev.totalTime);
-                                        return {
-                                            ...prev,
-                                            totalTime,
-                                            actualTime: String(Math.max(0, parseFlexibleTime(totalTime) - parseFlexibleTime(prev.deductionTime)))
-                                        };
-                                    });
-                                }}
-
-                                inputMode="decimal"
-
-                                placeholder="VD: 8:30 hoặc 8.5"
-
-                                autoComplete="off"
-
-                            />
-
-
-                            <small>
-
-                                {
-                                    decimalHoursToText(
-                                        form.totalTime
-                                    )
-                                }
-
-                            </small>
-
+                            <label>Thời gian làm thực tế</label>
+                            <div className="worker-time-split">
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="24"
+                                    step="1"
+                                    inputMode="numeric"
+                                    value={form.actualHours}
+                                    onChange={(event) => {
+                                        const value = event.target.value.replace(/\D/g, "");
+                                        if (value !== "" && Number(value) > 24) return;
+                                        setForm((prev) => {
+                                            const hours = Number(value) || 0;
+                                            const minutes = Math.min(59, Number(prev.actualMinutes) || 0);
+                                            const actualTime = hours + minutes / 60;
+                                            const deductionTime = parseFlexibleTime(prev.deductionTime);
+                                            return { ...prev, actualHours: value, actualTime: String(actualTime), totalTime: String(actualTime + deductionTime) };
+                                        });
+                                    }}
+                                    placeholder="Giờ"
+                                />
+                                <span>giờ</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="59"
+                                    step="1"
+                                    inputMode="numeric"
+                                    value={form.actualMinutes}
+                                    onChange={(event) => {
+                                        const value = event.target.value.replace(/\D/g, "");
+                                        if (value !== "" && Number(value) > 59) return;
+                                        setForm((prev) => {
+                                            const hours = Number(prev.actualHours) || 0;
+                                            const minutes = Number(value) || 0;
+                                            const actualTime = hours + minutes / 60;
+                                            const deductionTime = parseFlexibleTime(prev.deductionTime);
+                                            return { ...prev, actualMinutes: value, actualTime: String(actualTime), totalTime: String(actualTime + deductionTime) };
+                                        });
+                                    }}
+                                    placeholder="Phút"
+                                />
+                                <span>phút</span>
+                            </div>
+                            <small>Lưu DB/Excel: {parseFlexibleTime(form.actualTime).toFixed(3)} giờ</small>
                         </div>
 
-
-
-
-
-                        {/* THỜI GIAN TRỪ */}
-
                         <div className="worker-time-item">
-
-                            <label
-
-                                htmlFor="deductionTime"
-
-                            >
-
-                                Thời gian trừ
-
-                            </label>
-
-
-                            <input
-
-                                id="deductionTime"
-
-                                name="deductionTime"
-
-                                value={
-                                    form.deductionTime
-                                }
-
-                                readOnly
-
-                                placeholder=""
-
-                            />
-
-
-                            <small>
-
-                                {
-                                    decimalHoursToText(
-                                        form.deductionTime
-                                    )
-                                }
-
-                            </small>
-
+                            <label>Tổng thời gian</label>
+                            <input value={form.totalTime} readOnly />
+                            <small>{decimalHoursToText(form.totalTime)}</small>
                         </div>
 
+                        <div className="worker-time-item">
+                            <label>Thời gian trừ</label>
+                            <input value={form.deductionTime} readOnly />
+                            <small>{decimalHoursToText(form.deductionTime)}</small>
+                        </div>
                     </div>
-
 
                     {/* =================================================
                         CHỌN LOẠI TRỪ GIỜ
@@ -3337,9 +3306,9 @@ onSelect={(
 
                                                         onBlur={() => normalizeDeductionValue(item.key)}
 
-                                                        inputMode="decimal"
+                                                        inputMode="numeric"
 
-                                                        placeholder="VD: 0:30"
+                                                        placeholder="Số phút, VD: 70"
 
                                                         autoComplete="off"
 
@@ -3726,6 +3695,47 @@ onSelect={(
                         )
                     }
 
+
+                    {/* =================================================
+                        GHI CHÚ
+                    ================================================= */}
+
+                    <div className="worker-field-block worker-note-block">
+
+                        <label
+
+                            className="worker-field-label"
+
+                            htmlFor="note"
+
+                        >
+
+                            Ghi chú
+
+                        </label>
+
+
+                        <textarea
+
+                            id="note"
+
+                            className="worker-note-input"
+
+                            name="note"
+
+                            value={
+                                form.note
+                            }
+
+                            onChange={
+                                handleChange
+                            }
+
+                            placeholder="Nhập ghi chú nếu có"
+
+                        />
+
+                    </div>
 
                 </section>
 

@@ -1,7 +1,6 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import AppIcon, { type IconName } from "../components/common/AppIcon";
 import "./WorkerLayout.css";
-import { clearAuthSession } from "../utils/authStorage";
 
 const menuItems: { label: string; path: string; icon: IconName; exact?: boolean }[] = [
     { label: "Trang chủ", path: "/worker", icon: "process", exact: true },
@@ -25,7 +24,8 @@ function WorkerLayout() {
     const location = useLocation();
 
     const handleLogout = () => {
-        clearAuthSession();
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
         navigate("/login", { replace: true });
     };
 

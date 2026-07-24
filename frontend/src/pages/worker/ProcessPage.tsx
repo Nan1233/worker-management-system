@@ -74,6 +74,10 @@ type FormState = {
 
     actualTime: string;
 
+    actualHours: string;
+
+    actualMinutes: string;
+
     deductionTime: string;
 
 
@@ -685,6 +689,12 @@ const initialForm: FormState = {
         "",
 
     actualTime:
+        "",
+
+    actualHours:
+        "",
+
+    actualMinutes:
         "",
 
     deductionTime:
@@ -1563,55 +1573,24 @@ const handleTimeInputChange = (
     const updateTotalDeduction = (
         data: DeductionState
     ) => {
+        // Các ô chi tiết nhập bằng PHÚT. Ví dụ 70 = 1 giờ 10 phút.
+        const totalMinutes = Object.values(data).reduce(
+            (sum, currentValue) => sum + (Number(currentValue) || 0),
+            0
+        );
+        const deductionHours = totalMinutes / 60;
 
-        const total =
-            Object.values(
-                data
-            )
-                .reduce(
-
-                    (
-                        sum,
-                        currentValue
-                    ) =>
-
-                        sum
-                        +
-                        parseFlexibleTime(currentValue),
-
-                    0
-
-                );
-
-
-        setForm((prev) => ({
-
-            ...prev,
-
-            deductionTime:
-                String(
-                    total
-                ),
-
-            actualTime:
-                String(
-
-                    Math.max(
-
-                        0,
-
-                        parseFlexibleTime(prev.totalTime)
-
-                        -
-
-                        total
-
-                    )
-
-                )
-
-        }));
-
+        setForm((prev) => {
+            const actualHours = Math.max(0, Number(prev.actualHours) || 0);
+            const actualMinutes = Math.min(59, Math.max(0, Number(prev.actualMinutes) || 0));
+            const actualTime = actualHours + actualMinutes / 60;
+            return {
+                ...prev,
+                actualTime: String(actualTime),
+                deductionTime: String(deductionHours),
+                totalTime: String(actualTime + deductionHours)
+            };
+        });
     };
 
 
@@ -1621,7 +1600,8 @@ const handleTimeInputChange = (
 
 const normalizeDeductionValue = (key: DeductionKey) => {
     setDeductions((prev) => {
-        const next = { ...prev, [key]: normalizeFlexibleTime(prev[key]) };
+        const raw = String(prev[key] || "").replace(/\D/g, "");
+        const next = { ...prev, [key]: raw ? String(Number(raw)) : "" };
         updateTotalDeduction(next);
         return next;
     });
@@ -1632,20 +1612,10 @@ const updateDeductionValue = (
     value: string
 ) => {
 
-    const normalizedValue =
-        normalizeDecimalInput(
-            value
-        );
+    const normalizedValue = value.replace(/\D/g, "");
 
-
-    if (
-        !isValidDecimalInput(
-            normalizedValue
-        )
-    ) {
-
+    if (normalizedValue !== "" && Number(normalizedValue) > 1440) {
         return;
-
     }
 
 
@@ -2152,32 +2122,17 @@ const updateDeductionValue = (
         }
 
 
-        if (
-            parseFlexibleTime(form.totalTime) <= 0
-        ) {
-
-            return "Tổng thời gian phải lớn hơn 0";
-
+        if (parseFlexibleTime(form.actualTime) <= 0) {
+            return "Thời gian làm thực tế phải lớn hơn 0";
         }
 
 
-        if (
-            parseFlexibleTime(form.deductionTime)
-            >
-            parseFlexibleTime(form.totalTime)
-        ) {
-
-            return "Thời gian trừ không được lớn hơn tổng thời gian";
-
+        if (Number(form.actualMinutes || 0) > 59) {
+            return "Số phút làm thực tế phải từ 0 đến 59";
         }
 
-
-        if (
-            parseFlexibleTime(form.actualTime) < 0
-        ) {
-
-            return "Thời gian thực tế không hợp lệ";
-
+        if (parseFlexibleTime(form.totalTime) > 24) {
+            return "Tổng thời gian không được vượt quá 24 giờ";
         }
 
 
@@ -2481,7 +2436,7 @@ const updateDeductionValue = (
                             .filter(
                                 (item) =>
 
-                                    parseFlexibleTime(deductions[item.key])
+                                    Number(deductions[item.key] || 0)
                                     >
                                     0
                             )
@@ -2493,7 +2448,7 @@ const updateDeductionValue = (
                                         item.label,
 
                                     hours:
-                                        parseFlexibleTime(deductions[item.key])
+                                        Number(deductions[item.key] || 0) / 60
 
                                 })
                             ),
@@ -3006,119 +2961,67 @@ onSelect={(
 
 
                     <div className="worker-time-grid">
-
-
-                        {/* TỔNG THỜI GIAN */}
-
                         <div className="worker-time-item">
-
-                            <label
-
-                                htmlFor="totalTime"
-
-                            >
-
-                                Tổng thời gian
-
-                            </label>
-
-
-                            <input
-
-                                id="totalTime"
-
-                                name="totalTime"
-
-                                value={
-                                    form.totalTime
-                                }
-
-                                onChange={
-                                    handleTimeInputChange
-                                }
-
-                                onBlur={() => {
-                                    setForm((prev) => {
-                                        const totalTime = normalizeFlexibleTime(prev.totalTime);
-                                        return {
-                                            ...prev,
-                                            totalTime,
-                                            actualTime: String(Math.max(0, parseFlexibleTime(totalTime) - parseFlexibleTime(prev.deductionTime)))
-                                        };
-                                    });
-                                }}
-
-                                inputMode="decimal"
-
-                                placeholder="VD: 8:30 hoặc 8.5"
-
-                                autoComplete="off"
-
-                            />
-
-
-                            <small>
-
-                                {
-                                    decimalHoursToText(
-                                        form.totalTime
-                                    )
-                                }
-
-                            </small>
-
+                            <label>Thời gian làm thực tế</label>
+                            <div className="worker-time-split">
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="24"
+                                    step="1"
+                                    inputMode="numeric"
+                                    value={form.actualHours}
+                                    onChange={(event) => {
+                                        const value = event.target.value.replace(/\D/g, "");
+                                        if (value !== "" && Number(value) > 24) return;
+                                        setForm((prev) => {
+                                            const hours = Number(value) || 0;
+                                            const minutes = Math.min(59, Number(prev.actualMinutes) || 0);
+                                            const actualTime = hours + minutes / 60;
+                                            const deductionTime = parseFlexibleTime(prev.deductionTime);
+                                            return { ...prev, actualHours: value, actualTime: String(actualTime), totalTime: String(actualTime + deductionTime) };
+                                        });
+                                    }}
+                                    placeholder="Giờ"
+                                />
+                                <span>giờ</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="59"
+                                    step="1"
+                                    inputMode="numeric"
+                                    value={form.actualMinutes}
+                                    onChange={(event) => {
+                                        const value = event.target.value.replace(/\D/g, "");
+                                        if (value !== "" && Number(value) > 59) return;
+                                        setForm((prev) => {
+                                            const hours = Number(prev.actualHours) || 0;
+                                            const minutes = Number(value) || 0;
+                                            const actualTime = hours + minutes / 60;
+                                            const deductionTime = parseFlexibleTime(prev.deductionTime);
+                                            return { ...prev, actualMinutes: value, actualTime: String(actualTime), totalTime: String(actualTime + deductionTime) };
+                                        });
+                                    }}
+                                    placeholder="Phút"
+                                />
+                                <span>phút</span>
+                            </div>
+                            <small>Lưu DB/Excel: {parseFlexibleTime(form.actualTime).toFixed(3)} giờ</small>
                         </div>
 
-
-
-
-
-                        {/* THỜI GIAN TRỪ */}
-
                         <div className="worker-time-item">
-
-                            <label
-
-                                htmlFor="deductionTime"
-
-                            >
-
-                                Thời gian trừ
-
-                            </label>
-
-
-                            <input
-
-                                id="deductionTime"
-
-                                name="deductionTime"
-
-                                value={
-                                    form.deductionTime
-                                }
-
-                                readOnly
-
-                                placeholder=""
-
-                            />
-
-
-                            <small>
-
-                                {
-                                    decimalHoursToText(
-                                        form.deductionTime
-                                    )
-                                }
-
-                            </small>
-
+                            <label>Tổng thời gian</label>
+                            <input value={form.totalTime} readOnly />
+                            <small>{decimalHoursToText(form.totalTime)}</small>
                         </div>
 
+                        <div className="worker-time-item">
+                            <label>Thời gian trừ</label>
+                            <input value={form.deductionTime} readOnly />
+                            <small>{decimalHoursToText(form.deductionTime)}</small>
+                        </div>
                     </div>
-
 
                     {/* =================================================
                         CHỌN LOẠI TRỪ GIỜ
@@ -3337,9 +3240,9 @@ onSelect={(
 
                                                         onBlur={() => normalizeDeductionValue(item.key)}
 
-                                                        inputMode="decimal"
+                                                        inputMode="numeric"
 
-                                                        placeholder="VD: 0:30"
+                                                        placeholder="Số phút, VD: 70"
 
                                                         autoComplete="off"
 

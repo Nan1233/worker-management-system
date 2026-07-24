@@ -1,0 +1,180 @@
+/* =====================================================
+   GLOBAL RESET
+===================================================== */
+
+:root {
+    font-family:
+        "Segoe UI",
+        Arial,
+        sans-serif;
+
+    color: #172033;
+    background: #f3f6fc;
+
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+
+html {
+    width: 100%;
+    min-width: 320px;
+    min-height: 100%;
+}
+
+
+body {
+    width: 100%;
+    min-width: 320px;
+    min-height: 100vh;
+
+    margin: 0;
+    padding: 0;
+
+    background: #f3f6fc;
+}
+
+
+#root {
+    width: 100%;
+    max-width: none;
+    min-height: 100vh;
+
+    margin: 0;
+    padding: 0;
+
+    display: block;
+
+    border: none;
+
+    text-align: initial;
+}
+
+
+button,
+input,
+select,
+textarea {
+    font: inherit;
+}
+
+
+button {
+    appearance: none;
+}
+
+
+img,
+svg {
+    max-width: 100%;
+}
+
+
+a {
+    color: inherit;
+}
+
+
+/* =====================================================
+   MOBILE
+===================================================== */
+
+@media (max-width: 767px) {
+
+    :root {
+        font-size: 16px;
+    }
+
+}
+
+
+/* =====================================================
+   TABLET
+===================================================== */
+
+@media (
+    min-width: 768px
+)
+and (
+    max-width: 1023px
+) {
+
+    :root {
+        font-size: 16px;
+    }
+
+}
+
+
+/* =====================================================
+   LAPTOP / DESKTOP
+===================================================== */
+
+@media (min-width: 1024px) {
+
+    :root {
+        font-size: 16px;
+    }
+
+}
+/* =====================================================
+   FORCE FULL WIDTH APP
+   PHẢI ĐẶT CUỐI FILE index.css
+===================================================== */
+
+html,
+body,
+#root,
+.main-layout,
+.main-layout-content {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    min-height: 100vh;
+
+    margin: 0 !important;
+    padding: 0;
+
+    box-sizing: border-box;
+}
+
+body {
+    display: block !important;
+}
+
+#root {
+    display: block !important;
+
+    border: none !important;
+    text-align: initial !important;
+}
+
+.main-layout {
+    display: block !important;
+}
+
+.main-layout-content {
+    display: block !important;
+}
+
+.select-process-page,
+.worker-form-page {
+    width: 100% !important;
+    max-width: none !important;
+}
+
+.select-process-shell,
+.worker-form-shell {
+    width: 100% !important;
+    max-width: none !important;
+}
