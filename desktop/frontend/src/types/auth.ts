@@ -19,12 +19,19 @@ export interface User {
 
 }
 
-
 export interface LoginResponse {
+
+    success: boolean;
 
     message: string;
 
-    token: string;
+    token?: string;
+
+    accessToken: string;
+
+    refreshToken: string;
+
+    expiresIn?: string;
 
     user: User;
 

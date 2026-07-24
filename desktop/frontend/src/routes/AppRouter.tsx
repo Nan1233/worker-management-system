@@ -1,71 +1,26 @@
-import {
-    Navigate,
-    Route,
-    Routes
-} from "react-router-dom";
-
-
-import Login from "../pages/Login";
+import { lazy, Suspense } from "react";
+import { Navigate, Route, Routes } from "react-router-dom";
 
 import PrivateRoute from "./PrivateRoute";
-
-
-// =====================================================
-// LAYOUT
-// =====================================================
-
 import WorkerLayout from "../layouts/WorkerLayout";
-
 import ManagementLayout from "../layouts/ManagementLayout";
 
-
-// =====================================================
-// ADMIN
-// =====================================================
-
-import AdminDashboard from "../pages/admin/Dashboard";
-import MasterData from "../pages/admin/MasterData";
-
-
-// =====================================================
-// LEAD - MANAGER DÙNG CHUNG
-// =====================================================
-
-import LeadDashboard from "../pages/lead/Dashboard";
-
-import LeadPendingReports from "../pages/lead/PendingReports";
-
-import LeadApprovedReports from "../pages/lead/ApprovedReports";
-
-import LeadReportDetail from "../pages/lead/ReportDetail";
-
-
-
-
-// =====================================================
-// MANAGER
-// =====================================================
-
-import ManagerEditReport from "../pages/manager/EditReport";
-
-import ManagerStatistics from "../pages/manager/Statistics";
-
-import SelectedReportsReview from "../pages/manager/SelectedReportsReview";
-
-
-// =====================================================
-// WORKER
-// =====================================================
-
-import SelectProcess from "../pages/worker/SelectProcess";
-
-import ProcessPage from "../pages/worker/ProcessPage";
-
-import ProductionHistory from "../pages/worker/ProductionHistory";
-
-import ProductionDetail from "../pages/worker/ProductionDetail";
-import SystemCenter from "../pages/system/SystemCenter";
-
+const Login = lazy(() => import("../pages/Login"));
+const AdminDashboard = lazy(() => import("../pages/admin/Dashboard"));
+const MasterData = lazy(() => import("../pages/admin/MasterData"));
+const FormulaSettings = lazy(() => import("../pages/admin/FormulaSettings"));
+const LeadDashboard = lazy(() => import("../pages/lead/Dashboard"));
+const LeadPendingReports = lazy(() => import("../pages/lead/PendingReports"));
+const LeadApprovedReports = lazy(() => import("../pages/lead/ApprovedReports"));
+const LeadReportDetail = lazy(() => import("../pages/lead/ReportDetail"));
+const ManagerEditReport = lazy(() => import("../pages/manager/EditReport"));
+const ManagerStatistics = lazy(() => import("../pages/manager/Statistics"));
+const SelectedReportsReview = lazy(() => import("../pages/manager/SelectedReportsReview"));
+const SelectProcess = lazy(() => import("../pages/worker/SelectProcess"));
+const ProcessPage = lazy(() => import("../pages/worker/ProcessPage"));
+const ProductionHistory = lazy(() => import("../pages/worker/ProductionHistory"));
+const ProductionDetail = lazy(() => import("../pages/worker/ProductionDetail"));
+const SystemCenter = lazy(() => import("../pages/system/SystemCenter"));
 
 // =====================================================
 // ROUTER
@@ -74,7 +29,7 @@ import SystemCenter from "../pages/system/SystemCenter";
 function AppRouter() {
 
     return (
-
+        <Suspense fallback={<div className="route-loading">Đang tải...</div>}>
         <Routes>
 
 
@@ -117,6 +72,7 @@ function AppRouter() {
                 <Route index element={<AdminDashboard />} />
                 <Route path="master" element={<Navigate to="users" replace />} />
                 <Route path="master/:resource" element={<MasterData />} />
+                <Route path="formulas" element={<FormulaSettings />} />
                 <Route path="reports" element={<LeadPendingReports />} />
                 <Route path="approved" element={<LeadApprovedReports />} />
                 <Route path="statistics" element={<ManagerStatistics />} />
@@ -280,6 +236,7 @@ function AppRouter() {
 
                 <Route path="master" element={<Navigate to="users" replace />} />
                 <Route path="master/:resource" element={<MasterData />} />
+                <Route path="formulas" element={<FormulaSettings />} />
                 <Route path="system" element={<SystemCenter />} />
             </Route>
 
@@ -318,6 +275,7 @@ function AppRouter() {
                 />
                 <Route path="master" element={<Navigate to="users" replace />} />
                 <Route path="master/:resource" element={<MasterData />} />
+                <Route path="formulas" element={<FormulaSettings />} />
 
 
                 <Route
@@ -423,7 +381,7 @@ function AppRouter() {
             />
 
         </Routes>
-
+        </Suspense>
     );
 
 }

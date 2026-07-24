@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import api from "../../api/axios";
+import api from "../../services/api";
 import AppIcon from "../../components/common/AppIcon";
 import { useToast } from "../../components/feedback/toastContext";
 import { getApiError } from "../../utils/apiError";

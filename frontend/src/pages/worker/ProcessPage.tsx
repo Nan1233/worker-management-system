@@ -1303,45 +1303,56 @@ useEffect(() => {
                 );
 
 
+                // Tải độc lập để một API lỗi không làm mất toàn bộ danh sách.
                 const [
-                    machines,
-                    products,
-                    defects
-                ] =
-                    await Promise.all([
+                    machinesResult,
+                    productsResult,
+                    defectsResult
+                ] = await Promise.allSettled([
+                    getMachinesByProcess(processInfo.id),
+                    getProductStandardsByProcess(processInfo.id),
+                    getDefectOptionsByProcess(processInfo.id)
+                ]);
 
-                        getMachinesByProcess(
-                            processInfo.id
-                        ),
+                const machines = machinesResult.status === "fulfilled"
+                    ? machinesResult.value
+                    : [];
+                const products = productsResult.status === "fulfilled"
+                    ? productsResult.value
+                    : [];
 
-                        getProductStandardsByProcess(
-                            processInfo.id
-                        ),
+                setMachineOptions(machines);
+                setProductOptions(products);
 
-                        getDefectOptionsByProcess(
-                            processInfo.id
-                        )
+                if (defectsResult.status === "fulfilled") {
+                    setActiveNgOptions(
+                        defectsResult.value.map((item) => ({
+                            id: Number(item.id || item.defect_type_id),
+                            key: `defect_${Number(item.id || item.defect_type_id)}`,
+                            code: String(item.defect_code || "").trim(),
+                            label: String(item.defect_name || item.defect_code || "Lỗi NG").trim()
+                        }))
+                    );
+                } else {
+                    console.error("LOAD DEFECT OPTIONS ERROR:", defectsResult.reason);
+                }
 
-                    ]);
+                if (machinesResult.status === "rejected") {
+                    console.error("LOAD MACHINES ERROR:", machinesResult.reason);
+                }
+                if (productsResult.status === "rejected") {
+                    console.error("LOAD PRODUCT STANDARDS ERROR:", productsResult.reason);
+                }
 
-
-                setMachineOptions(
-                    machines
-                );
-
-
-                setProductOptions(
-                    products
-                );
-
-                setActiveNgOptions(
-                    defects.map((item) => ({
-                        id: Number(item.id || item.defect_type_id),
-                        key: `defect_${Number(item.id || item.defect_type_id)}`,
-                        code: String(item.defect_code || "").trim(),
-                        label: String(item.defect_name || item.defect_code || "Lỗi NG").trim()
-                    }))
-                );
+                if (machines.length === 0 || products.length === 0) {
+                    showToast(
+                        machines.length === 0 && products.length === 0
+                            ? "Không tìm thấy máy và sản phẩm cho công đoạn này"
+                            : machines.length === 0
+                                ? "Không tìm thấy máy cho công đoạn này"
+                                : "Không tìm thấy sản phẩm cho công đoạn này"
+                    );
+                }
 
             }
             catch (error: unknown) {

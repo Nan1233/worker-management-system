@@ -800,6 +800,10 @@ const initialDeduction: DeductionState = {
 };
 
 
+
+
+const KQD_CODES = new Set(["KQD_DL", "KQD_DAP_LAI", "KQD_TUOT"]);
+
 // =====================================================
 // COMPONENT
 // =====================================================
@@ -920,6 +924,27 @@ const productAutocompleteOptions =
     ] = useState<FormState>(
         initialForm
     );
+
+const selectedProduct = useMemo(
+    () => productOptions.find((product) => product.product_code === form.productName),
+    [productOptions, form.productName]
+);
+
+const productExcludesKqd = (): boolean =>
+    Number(selectedProduct?.exclude_kqd_from_tt || 0) === 1;
+
+const calculateCountedNg = (values: FormState): number =>
+    activeNgOptions.reduce((sum, item) => {
+        const code = String(item.code || "").trim().toUpperCase();
+        if (productExcludesKqd() && (KQD_CODES.has(code) || code.startsWith("KQD"))) return sum;
+        return sum + Number(values[item.key] || 0);
+    }, 0);
+
+const calculateActualOutput = (values: FormState): number =>
+    Number(values.ttOk || 0) + calculateCountedNg(values);
+
+
+
 
 
     // =================================================
@@ -1205,24 +1230,7 @@ const productAutocompleteOptions =
                 name === "ttNg"
             ) {
 
-                next.actualOutput =
-                    String(
-
-                        Number(
-                            next.ttOk
-                            ||
-                            0
-                        )
-
-                        +
-
-                        Number(
-                            next.ttNg
-                            ||
-                            0
-                        )
-
-                    );
+                next.actualOutput = String(calculateActualOutput(next));
 
             }
 
@@ -1295,45 +1303,56 @@ useEffect(() => {
                 );
 
 
+                // Tải độc lập để một API lỗi không làm mất toàn bộ danh sách.
                 const [
-                    machines,
-                    products,
-                    defects
-                ] =
-                    await Promise.all([
+                    machinesResult,
+                    productsResult,
+                    defectsResult
+                ] = await Promise.allSettled([
+                    getMachinesByProcess(processInfo.id),
+                    getProductStandardsByProcess(processInfo.id),
+                    getDefectOptionsByProcess(processInfo.id)
+                ]);
 
-                        getMachinesByProcess(
-                            processInfo.id
-                        ),
+                const machines = machinesResult.status === "fulfilled"
+                    ? machinesResult.value
+                    : [];
+                const products = productsResult.status === "fulfilled"
+                    ? productsResult.value
+                    : [];
 
-                        getProductStandardsByProcess(
-                            processInfo.id
-                        ),
+                setMachineOptions(machines);
+                setProductOptions(products);
 
-                        getDefectOptionsByProcess(
-                            processInfo.id
-                        )
+                if (defectsResult.status === "fulfilled") {
+                    setActiveNgOptions(
+                        defectsResult.value.map((item) => ({
+                            id: Number(item.id || item.defect_type_id),
+                            key: `defect_${Number(item.id || item.defect_type_id)}`,
+                            code: String(item.defect_code || "").trim(),
+                            label: String(item.defect_name || item.defect_code || "Lỗi NG").trim()
+                        }))
+                    );
+                } else {
+                    console.error("LOAD DEFECT OPTIONS ERROR:", defectsResult.reason);
+                }
 
-                    ]);
+                if (machinesResult.status === "rejected") {
+                    console.error("LOAD MACHINES ERROR:", machinesResult.reason);
+                }
+                if (productsResult.status === "rejected") {
+                    console.error("LOAD PRODUCT STANDARDS ERROR:", productsResult.reason);
+                }
 
-
-                setMachineOptions(
-                    machines
-                );
-
-
-                setProductOptions(
-                    products
-                );
-
-                setActiveNgOptions(
-                    defects.map((item) => ({
-                        id: Number(item.id || item.defect_type_id),
-                        key: `defect_${Number(item.id || item.defect_type_id)}`,
-                        code: String(item.defect_code || "").trim(),
-                        label: String(item.defect_name || item.defect_code || "Lỗi NG").trim()
-                    }))
-                );
+                if (machines.length === 0 || products.length === 0) {
+                    showToast(
+                        machines.length === 0 && products.length === 0
+                            ? "Không tìm thấy máy và sản phẩm cho công đoạn này"
+                            : machines.length === 0
+                                ? "Không tìm thấy máy cho công đoạn này"
+                                : "Không tìm thấy sản phẩm cho công đoạn này"
+                    );
+                }
 
             }
             catch (error: unknown) {
@@ -1440,29 +1459,8 @@ const parseFlexibleTime = (value: string): number => {
 
 
 
-const normalizeDecimalInput = (
-    value: string
-): string => value.replace(",", ".");
 
 
-const isValidDecimalInput = (
-    value: string
-): boolean => {
-
-    const normalizedValue =
-        normalizeDecimalInput(
-            value
-        );
-
-
-    return (
-        normalizedValue === ""
-        || /^\d*\.?\d*$/.test(normalizedValue)
-        || /^\d{0,3}\s*(?:h|:|g)\s*\d{0,2}$/i.test(normalizedValue)
-        || /^\d{0,3}\s*(?:h|g)$/i.test(normalizedValue)
-    );
-
-};
     // =====================================================
     // INPUT SỐ THỜI GIAN
     // =====================================================
@@ -1717,20 +1715,7 @@ const updateDeductionValue = (
                 );
 
 
-            next.actualOutput =
-                String(
-
-                    Number(
-                        next.ttOk
-                        ||
-                        0
-                    )
-
-                    +
-
-                    totalNg
-
-                );
+            next.actualOutput = String(calculateActualOutput(next));
 
 
             return next;
@@ -1818,20 +1803,7 @@ const updateDeductionValue = (
                     );
 
 
-                next.actualOutput =
-                    String(
-
-                        Number(
-                            next.ttOk
-                            ||
-                            0
-                        )
-
-                        +
-
-                        totalNg
-
-                    );
+                next.actualOutput = String(calculateActualOutput(next));
 
 
                 return next;
@@ -1892,20 +1864,7 @@ const updateDeductionValue = (
                 );
 
 
-            next.actualOutput =
-                String(
-
-                    Number(
-                        next.ttOk
-                        ||
-                        0
-                    )
-
-                    +
-
-                    totalNg
-
-                );
+            next.actualOutput = String(calculateActualOutput(next));
 
 
             return next;
@@ -1958,24 +1917,7 @@ const updateDeductionValue = (
             ttOk:
                 value,
 
-            actualOutput:
-                String(
-
-                    Number(
-                        value
-                        ||
-                        0
-                    )
-
-                    +
-
-                    Number(
-                        prev.ttNg
-                        ||
-                        0
-                    )
-
-                )
+            actualOutput: String(calculateActualOutput({ ...prev, ttOk: value }))
 
         }));
 
@@ -2166,30 +2108,10 @@ const updateDeductionValue = (
         }
 
 
-        if (
-            Number(
-                form.actualOutput
-                ||
-                0
-            )
-            !==
-            (
-                Number(
-                    form.ttOk
-                    ||
-                    0
-                )
-                +
-                Number(
-                    form.ttNg
-                    ||
-                    0
-                )
-            )
-        ) {
-
-            return "Thực tế phải bằng TT OK cộng TT NG";
-
+        if (Number(form.actualOutput || 0) !== calculateActualOutput(form)) {
+            return productExcludesKqd()
+                ? "Thực tế phải bằng TT OK cộng NG được tính (không gồm KQD của mã sản phẩm này)"
+                : "Thực tế phải bằng TT OK cộng TT NG";
         }
 
 
@@ -2243,6 +2165,9 @@ const updateDeductionValue = (
 
                     machine_no:
                         form.machineNo.trim(),
+
+                    exclude_kqd_from_tt:
+                        Number(selectedProduct?.exclude_kqd_from_tt || 0),
 
 
                     total_time:
@@ -2436,8 +2361,7 @@ const updateDeductionValue = (
                             ),
 
 
-                    note:
-                        form.note.trim()
+                    note: ""
 
                 };
 
@@ -2835,7 +2759,7 @@ window.setTimeout(() => {
                 standardOutput:
                     selectedProduct
                         ? String(
-                            selectedProduct.standard_output
+                            Math.round(Number(selectedProduct.standard_output) || 0)
                         )
                         : ""
 
@@ -2867,7 +2791,7 @@ window.setTimeout(() => {
                 standardOutput:
                     selectedProduct
                         ? String(
-                            selectedProduct.standard_output
+                            Math.round(Number(selectedProduct.standard_output) || 0)
                         )
                         : ""
 
@@ -3612,47 +3536,6 @@ onSelect={(
                         )
                     }
 
-
-                    {/* =================================================
-                        GHI CHÚ
-                    ================================================= */}
-
-                    <div className="worker-field-block worker-note-block">
-
-                        <label
-
-                            className="worker-field-label"
-
-                            htmlFor="note"
-
-                        >
-
-                            Ghi chú
-
-                        </label>
-
-
-                        <textarea
-
-                            id="note"
-
-                            className="worker-note-input"
-
-                            name="note"
-
-                            value={
-                                form.note
-                            }
-
-                            onChange={
-                                handleChange
-                            }
-
-                            placeholder="Nhập ghi chú nếu có"
-
-                        />
-
-                    </div>
 
                 </section>
 

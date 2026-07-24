@@ -133,7 +133,7 @@ function ReportDetail() {
             <section className="detail-basic-card">
                 <h2>Sản lượng và thời gian</h2>
                 <div className="detail-summary-row">
-                    <div><span>Định mức</span><strong>{formatNumber(report.standard_output)}</strong></div>
+                    <div><span>Định mức</span><strong>{formatNumber(Math.round(Number(report.standard_output) || 0))}</strong></div>
                     <div><span>Sản lượng thực tế</span><strong>{formatNumber(report.actual_output)}</strong></div>
                     <div><span>TT OK</span><strong>{formatNumber(report.tt_ok)}</strong></div>
                     <div><span>TT NG</span><strong>{formatNumber(report.tt_ng)}</strong></div>

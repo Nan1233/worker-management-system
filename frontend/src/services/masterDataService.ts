@@ -49,9 +49,11 @@ export const getMachinesByProcess =
             );
 
 
-        return response.data.data
-            ||
-            [];
+        const payload = response.data?.data ?? response.data;
+
+        return Array.isArray(payload)
+            ? payload
+            : [];
 
     };
 
@@ -73,8 +75,10 @@ export const getProductStandardsByProcess =
             );
 
 
-        return response.data.data
-            ||
-            [];
+        const payload = response.data?.data ?? response.data;
+
+        return Array.isArray(payload)
+            ? payload
+            : [];
 
     };

@@ -2,6 +2,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import type { User } from "../types/auth";
 import AppIcon, { type IconName } from "../components/common/AppIcon";
 import "./ManagementLayout.css";
+import { clearAuthSession, getStoredUser } from "../utils/authStorage";
 
 type ManagementRole = "lead" | "manager" | "admin";
 
@@ -23,6 +24,7 @@ const menuItems: MenuItem[] = [
     { id: "reports", label: "Chờ duyệt", path: "reports", icon: "pending", roles: ["lead", "manager", "admin"], description: "" },
     { id: "approved", label: "Đã duyệt", path: "approved", icon: "approved", roles: ["lead", "manager", "admin"], description: "" },
     { id: "master", label: "Trung tâm quản lý", path: "master", icon: "settings", roles: ["lead", "manager", "admin"], description: "" },
+    { id: "formulas", label: "Công thức đầu ra", path: "formulas", icon: "settings", roles: ["lead", "manager", "admin"], description: "" },
     { id: "statistics", label: "Thống kê", path: "statistics", icon: "statistics", roles: ["manager", "admin"], description: "" },
     { id: "system", label: "Thông báo & lịch sử", path: "system", icon: "system", roles: ["lead", "manager", "admin"], description: "" }
 ];
@@ -53,13 +55,7 @@ function ManagementLayout({ role }: Props) {
     const navigate = useNavigate();
     const location = useLocation();
 
-    const user = (() => {
-        try {
-            return JSON.parse(localStorage.getItem("user") || "null") as User | null;
-        } catch {
-            return null;
-        }
-    })();
+    const user = getStoredUser() as User | null;
 
     const basePath = role === "lead" ? "/lead" : role === "admin" ? "/admin" : "/manager";
     const visibleMenuItems = menuItems.filter((item) => item.roles.includes(role));
@@ -85,8 +81,7 @@ function ManagementLayout({ role }: Props) {
     };
 
     const handleLogout = () => {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
+        clearAuthSession();
         navigate("/login", { replace: true });
     };
 

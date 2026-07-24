@@ -1,4 +1,5 @@
-import api from "../api/axios";
+import { getAccessToken } from "../utils/authStorage";
+import api from "./api";
 
 
 
@@ -244,10 +245,12 @@ export const getReportById = async(
 )=>{
 
 
-    const url =
-        source === "pending"
-            ? `/production-temp/${id}`
-            : `/production/${id}`;
+    const normalizedSource = String(source || "").toLowerCase();
+    const isTempReport = normalizedSource === "pending" || normalizedSource === "temp";
+
+    const url = isTempReport
+        ? `/production-temp/${id}`
+        : `/production/${id}`;
 
 
 
@@ -685,7 +688,7 @@ export const exportSelectedApprovedExcel = async (
     // Trong Electron, không tạo Blob và không mở hộp Save As.
     // Electron gọi API rồi ghi đè trực tiếp các file Excel tháng trong Documents.
     if (window.ktcDesktop?.isDesktop) {
-        const token = localStorage.getItem("token") || "";
+        const token = getAccessToken() || "";
         if (!token) {
             throw new Error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
         }

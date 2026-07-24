@@ -12,6 +12,12 @@ import "./ProductionDetail.css";
 import { getReportById } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 
+const formatQuantity = (value?: number | string | null): string =>
+    new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(
+        Math.round(Number(value) || 0)
+    );
+
+
 
 function ProductionDetail() {
 
@@ -26,6 +32,7 @@ searchParams.get("source");
     const [report, setReport] = useState<ProductionReport | null>(null);
 
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
 
 
     useEffect(() => {
@@ -44,9 +51,10 @@ await getReportById(
 
                 setReport(data);
 
-            } catch (err) {
+            } catch (err: any) {
 
                 console.error("Lỗi lấy chi tiết báo cáo:", err);
+                setError(err?.response?.data?.message || "Không thể tải chi tiết báo cáo.");
 
             } finally {
 
@@ -79,7 +87,7 @@ await getReportById(
 
         return (
             <div className="detail-container">
-                <h2>Không tìm thấy báo cáo.</h2>
+                <h2>{error || "Không tìm thấy báo cáo."}</h2>
             </div>
         );
 
@@ -239,7 +247,7 @@ await getReportById(
                     <span>Định mức</span>
 
                     <strong>
-                        {report.standard_output}
+                        {formatQuantity(report.standard_output)}
                     </strong>
 
                 </div>
@@ -251,7 +259,7 @@ await getReportById(
                     <span>Sản lượng thực tế</span>
 
                     <strong>
-                        {report.actual_output}
+                        {formatQuantity(report.actual_output)}
                     </strong>
 
                 </div>
@@ -263,7 +271,7 @@ await getReportById(
                     <span>OK</span>
 
                     <strong>
-                        {report.tt_ok}
+                        {formatQuantity(report.tt_ok)}
                     </strong>
 
                 </div>
@@ -275,7 +283,7 @@ await getReportById(
                     <span>NG</span>
 
                     <strong>
-                        {report.tt_ng}
+                        {formatQuantity(report.tt_ng)}
                     </strong>
 
                 </div>
@@ -287,7 +295,7 @@ await getReportById(
                     <span>Dập lại</span>
 
                     <strong>
-                        {report.kqd_dap_lai}
+                        {formatQuantity(report.kqd_dap_lai)}
                     </strong>
 
                 </div>
@@ -299,7 +307,7 @@ await getReportById(
                     <span>Tuột</span>
 
                     <strong>
-                        {report.kqd_tuot}
+                        {formatQuantity(report.kqd_tuot)}
                     </strong>
 
                 </div>
@@ -311,7 +319,7 @@ await getReportById(
                     <span>Vỡ đỗ lòng</span>
 
                     <strong>
-                        {report.vo_do_long}
+                        {formatQuantity(report.vo_do_long)}
                     </strong>
 
                 </div>
@@ -323,7 +331,7 @@ await getReportById(
                     <span>Xước đỗ lòng</span>
 
                     <strong>
-                        {report.xuoc_do_long}
+                        {formatQuantity(report.xuoc_do_long)}
                     </strong>
 
                 </div>
@@ -335,7 +343,7 @@ await getReportById(
                     <span>Cong gãy</span>
 
                     <strong>
-                        {report.cong_gay}
+                        {formatQuantity(report.cong_gay)}
                     </strong>
 
                 </div>
@@ -347,7 +355,7 @@ await getReportById(
                     <span>Xoay</span>
 
                     <strong>
-                        {report.xoay}
+                        {formatQuantity(report.xoay)}
                     </strong>
 
                 </div>
@@ -359,7 +367,7 @@ await getReportById(
                     <span>Không đứt</span>
 
                     <strong>
-                        {report.khong_dut}
+                        {formatQuantity(report.khong_dut)}
                     </strong>
 
                 </div>
@@ -371,7 +379,7 @@ await getReportById(
                     <span>Bavia hút</span>
 
                     <strong>
-                        {report.bavia_hut}
+                        {formatQuantity(report.bavia_hut)}
                     </strong>
 
                 </div>
@@ -383,7 +391,7 @@ await getReportById(
                     <span>PPCM</span>
 
                     <strong>
-                        {report.ppcm}
+                        {formatQuantity(report.ppcm)}
                     </strong>
 
                 </div>
@@ -395,7 +403,7 @@ await getReportById(
                     <span>Lỗi cao su</span>
 
                     <strong>
-                        {report.loi_cao_su}
+                        {formatQuantity(report.loi_cao_su)}
                     </strong>
 
                 </div>
@@ -407,7 +415,7 @@ await getReportById(
                     <span>NG kích thước</span>
 
                     <strong>
-                        {report.ng_kich_thuoc}
+                        {formatQuantity(report.ng_kich_thuoc)}
                     </strong>
 
                 </div>
@@ -419,7 +427,7 @@ await getReportById(
                     <span>Cắt lẹm</span>
 
                     <strong>
-                        {report.cat_lem}
+                        {formatQuantity(report.cat_lem)}
                     </strong>
 
                 </div>

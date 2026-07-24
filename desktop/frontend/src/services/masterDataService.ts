@@ -1,4 +1,4 @@
-import api from "../api/axios";
+import api from "./api";
 
 
 export interface MachineOption {
@@ -27,6 +27,7 @@ export interface ProductStandardOption {
     product_code: string;
 
     standard_output: number;
+    exclude_kqd_from_tt?: number;
 
 }
 
@@ -48,9 +49,11 @@ export const getMachinesByProcess =
             );
 
 
-        return response.data.data
-            ||
-            [];
+        const payload = response.data?.data ?? response.data;
+
+        return Array.isArray(payload)
+            ? payload
+            : [];
 
     };
 
@@ -72,8 +75,10 @@ export const getProductStandardsByProcess =
             );
 
 
-        return response.data.data
-            ||
-            [];
+        const payload = response.data?.data ?? response.data;
+
+        return Array.isArray(payload)
+            ? payload
+            : [];
 
     };

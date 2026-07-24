@@ -89,6 +89,8 @@ export interface ProductionReport {
 
     machine_no: string;
 
+    exclude_kqd_from_tt?: number;
+
 
     /*
         % học việc tại thời điểm

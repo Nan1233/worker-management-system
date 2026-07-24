@@ -1,4 +1,4 @@
-import api from '../api/axios';
+import api from './api';
 export interface NotificationItem { id:number; type:string; title:string; message:string; link_url?:string|null; is_read:number; created_at:string; }
 export interface ActivityItem { id:number; action:string; description?:string|null; entity_type?:string|null; entity_id?:number|null; full_name?:string|null; username?:string|null; created_at:string; }
 export interface ReportVersion { id:number; version_no:number; change_reason?:string|null; created_at:string; created_by_name?:string|null; snapshot_json:unknown; }
