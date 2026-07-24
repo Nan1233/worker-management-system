@@ -368,40 +368,141 @@ const buildColumns = (deductionTypes, defectTypes) => [
 
 const buildReportValue = (column, report, sequence) => {
   const ok = toNumber(report.tt_ok);
-  // Tổng NG lấy từ toàn bộ chi tiết lỗi đã lưu trong DB của báo cáo.
-  const activeDefectIds = new Set((report.__activeDefectTypes || []).map((item) => Number(item.id)));
-  const ng = sumDetailValues(report.defects, 'quantity', activeDefectIds, 'defect_type_id');
-  const totalOutput = Number(report.actual_output ?? (ok + calculateCountedNg(report.defects, Boolean(Number(report.exclude_kqd_from_tt || 0)))));
-  const standard = Math.round(toNumber(report.standard_output));
-  const actualTime = toNumber(report.actual_time);
+
+  const activeDefectIds = new Set(
+    (report.__activeDefectTypes || [])
+      .map((item) => Number(item.id))
+  );
+
+  const ng = sumDetailValues(
+    report.defects,
+    'quantity',
+    activeDefectIds,
+    'defect_type_id'
+  );
+
+  const totalOutput = Number(
+    report.actual_output ??
+    (
+      ok +
+      calculateCountedNg(
+        report.defects,
+        Boolean(
+          Number(
+            report.exclude_kqd_from_tt || 0
+          )
+        )
+      )
+    )
+  );
+
+  const standard =
+    Math.round(
+      toNumber(
+        report.standard_output
+      )
+    );
+
+  const actualTime =
+    toNumber(
+      report.actual_time
+    );
+
+  const outputPerHour =
+    actualTime > 0
+      ? totalOutput / actualTime
+      : 0;
+
+  const achievementRate =
+    standard > 0
+      ? outputPerHour / standard
+      : 0;
 
   if (column.kind === 'deduction') {
-    return detailValue(report.deductions, column.type.id, 'hours', 'deduction_type_id');
+    return detailValue(
+      report.deductions,
+      column.type.id,
+      'hours',
+      'deduction_type_id'
+    );
   }
+
   if (column.kind === 'defect') {
-    return detailValue(report.defects, column.type.id, 'quantity', 'defect_type_id');
+    return detailValue(
+      report.defects,
+      column.type.id,
+      'quantity',
+      'defect_type_id'
+    );
   }
 
   switch (column.key) {
-    case 'sequence': return sequence;
-    case 'worker_code': return report.worker_code || '';
-    case 'full_name': return report.full_name || '';
-    case 'machine_no': return report.machine_no || '';
-    case 'shift': return report.shift || '';
-    case 'training_percent': return toNumber(report.training_percent || 100) / 100;
-    case 'total_time': return toNumber(report.total_time);
-    case 'actual_time': return actualTime;
-    case 'deduction_time': return toNumber(report.deduction_time);
-    case 'product_name': return report.product_name || '';
-    case 'standard_output': return standard;
-    case 'actual_output': return totalOutput;
-    case 'achievement_rate': return standard > 0 ? totalOutput / standard : 0;
-    case 'work_date': return toExcelDate(report.work_date);
-    case 'output_per_hour': return actualTime > 0 ? totalOutput / actualTime : 0;
-    case 'tt_ok': return ok;
-    case 'tt_ng': return ng;
-    case 'ng_rate': return totalOutput > 0 ? ng / totalOutput : 0;
-    default: return '';
+    case 'sequence':
+      return sequence;
+
+    case 'worker_code':
+      return report.worker_code || '';
+
+    case 'full_name':
+      return report.full_name || '';
+
+    case 'machine_no':
+      return report.machine_no || '';
+
+    case 'shift':
+      return report.shift || '';
+
+    case 'training_percent':
+      return toNumber(
+        report.training_percent || 100
+      ) / 100;
+
+    case 'total_time':
+      return toNumber(
+        report.total_time
+      );
+
+    case 'actual_time':
+      return actualTime;
+
+    case 'deduction_time':
+      return toNumber(
+        report.deduction_time
+      );
+
+    case 'product_name':
+      return report.product_name || '';
+
+    case 'standard_output':
+      return standard;
+
+    case 'actual_output':
+      return totalOutput;
+
+    case 'achievement_rate':
+      return achievementRate;
+
+    case 'work_date':
+      return toExcelDate(
+        report.work_date
+      );
+
+    case 'output_per_hour':
+      return outputPerHour;
+
+    case 'tt_ok':
+      return ok;
+
+    case 'tt_ng':
+      return ng;
+
+    case 'ng_rate':
+      return totalOutput > 0
+        ? ng / totalOutput
+        : 0;
+
+    default:
+      return '';
   }
 };
 

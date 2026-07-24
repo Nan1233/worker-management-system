@@ -752,9 +752,9 @@ row.getCell("Y").value =
 
     // AD - Performance
     row.getCell("AD").value = {
-        formula:
-            `IFERROR(AC${rowNumber}/AB${rowNumber},0)`
-    };
+    formula:
+        `IFERROR(AF${rowNumber}/AB${rowNumber},0)`
+};
 
     // AE - Work date
     row.getCell("AE").value =
