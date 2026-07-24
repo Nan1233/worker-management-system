@@ -3,14 +3,14 @@ const db = require('../config/db');
 exports.list = async (_req, res, next) => {
   try {
     const [rows] = await db.promise().query(`
-      SELECT ps.id, ps.process_id, ps.work_type, ps.product_code,
+      SELECT ps.id, ps.process_id, ps.product_code,
              CAST(ROUND(ps.standard_output) AS SIGNED) AS standard_output,
              COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
              p.process_code, p.process_name
       FROM product_standards ps
       LEFT JOIN processes p ON p.id = ps.process_id
       WHERE ps.status = 'active'
-      ORDER BY p.process_name, ps.product_code, ps.work_type
+      ORDER BY p.process_name, ps.product_code
     `);
     res.json({ success: true, data: rows });
   } catch (error) { next(error); }

@@ -110,7 +110,7 @@ exports.create = async (req,res,next) => {
     }
     const cfg=config(req,res); if(!cfg) return;
     const payload=cleanPayload(req.body,cfg);
-    if (req.params.resource === 'standards' && !payload.work_type) payload.work_type = 'standard';
+    if (req.params.resource === 'standards' && !payload.work_type);
     db.query(`INSERT INTO ${cfg.table} SET ?`, payload, (error,result) => {
       if (error?.code === 'ER_DUP_ENTRY') return res.status(409).json({success:false,message:'Mã hoặc dữ liệu đã tồn tại'});
       if (error) return next(error);

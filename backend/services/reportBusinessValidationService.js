@@ -26,14 +26,14 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
     if (productName) {
         const products = await query(
             `SELECT standard_output, COALESCE(exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt FROM product_standards
-             WHERE process_id = ? AND (product_code = ? OR product_name = ? OR work_type = ?)
+             WHERE process_id = ? AND (product_code = ? OR product_name = ? )
              LIMIT 1`,
             [processId, productName, productName, productName]
         ).catch(async (error) => {
             if (error.code !== "ER_BAD_FIELD_ERROR") throw error;
             return query(
                 `SELECT standard_output, COALESCE(exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt FROM product_standards
-                 WHERE process_id = ? AND (product_code = ? OR work_type = ?)
+                 WHERE process_id = ? AND (product_code = ?)
                  LIMIT 1`,
                 [processId, productName, productName]
             );
