@@ -1,156 +1,411 @@
 const bcrypt = require("bcrypt");
+const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
+
 const userModel = require("../models/userModel");
+const sessionModel = require("../models/sessionModel");
+const auditService = require("../services/auditService");
 
+const ACCESS_TOKEN_EXPIRES_IN =
+    process.env.ACCESS_TOKEN_EXPIRES_IN || "15m";
 
+const REFRESH_TOKEN_DAYS = Number(
+    process.env.REFRESH_TOKEN_DAYS || 30
+);
 
-exports.login = (req,res)=>{
+function findUserByUsername(username) {
+    return new Promise((resolve, reject) => {
+        userModel.findByUsername(username, (error, results) => {
+            if (error) {
+                reject(error);
+                return;
+            }
 
-
-    const {
-        username,
-        password
-    } = req.body;
-
-
-
-    if(!username || !password){
-
-        return res.status(400).json({
-
-            message:"Thiếu username hoặc password"
-
+            resolve(results || []);
         });
+    });
+}
 
+function createSession(sessionData) {
+    return new Promise((resolve, reject) => {
+        sessionModel.createSession(sessionData, (error, result) => {
+            if (error) {
+                reject(error);
+                return;
+            }
+
+            resolve(result);
+        });
+    });
+}
+
+function findSessionByRefreshToken(refreshToken) {
+    return new Promise((resolve, reject) => {
+        sessionModel.findByRefreshToken(
+            refreshToken,
+            (error, results) => {
+                if (error) {
+                    reject(error);
+                    return;
+                }
+
+                resolve(results || []);
+            }
+        );
+    });
+}
+
+function updateSessionLastUsed(refreshToken) {
+    return new Promise((resolve, reject) => {
+        sessionModel.updateLastUsed(
+            refreshToken,
+            (error, result) => {
+                if (error) {
+                    reject(error);
+                    return;
+                }
+
+                resolve(result);
+            }
+        );
+    });
+}
+
+function revokeSession(refreshToken) {
+    return new Promise((resolve, reject) => {
+        sessionModel.revokeSession(
+            refreshToken,
+            (error, result) => {
+                if (error) {
+                    reject(error);
+                    return;
+                }
+
+                resolve(result);
+            }
+        );
+    });
+}
+
+function getClientIp(req) {
+    const forwardedFor = req.headers["x-forwarded-for"];
+
+    if (
+        typeof forwardedFor === "string" &&
+        forwardedFor.trim()
+    ) {
+        return forwardedFor.split(",")[0].trim();
     }
 
+    return req.ip || req.socket?.remoteAddress || null;
+}
 
+function getDeviceName(req) {
+    const requestedDeviceName = req.body?.device_name;
 
+    if (
+        typeof requestedDeviceName === "string" &&
+        requestedDeviceName.trim()
+    ) {
+        return requestedDeviceName.trim().slice(0, 100);
+    }
 
-    userModel.findByUsername(
-    username,
-    async(err,results)=>{
+    const userAgent = req.headers["user-agent"];
 
+    if (
+        typeof userAgent === "string" &&
+        userAgent.trim()
+    ) {
+        return userAgent.trim().slice(0, 100);
+    }
 
-        if(err){
+    return "Unknown device";
+}
+
+function generateAccessToken(user) {
+    return jwt.sign(
+        {
+            id: user.id || user.user_id,
+            worker_id: user.worker_id || null,
+            username: user.username,
+            role: user.role
+        },
+        process.env.JWT_SECRET,
+        {
+            expiresIn: ACCESS_TOKEN_EXPIRES_IN
+        }
+    );
+}
+
+exports.login = async (req, res) => {
+    try {
+        const username =
+            typeof req.body?.username === "string"
+                ? req.body.username.trim()
+                : "";
+
+        const password =
+            typeof req.body?.password === "string"
+                ? req.body.password
+                : "";
+
+        if (!username || !password) {
+            return res.status(400).json({
+                success: false,
+                message: "Thiếu username hoặc password"
+            });
+        }
+
+        if (!process.env.JWT_SECRET) {
+            console.error("Thiếu biến môi trường JWT_SECRET");
 
             return res.status(500).json({
-
-                message:"Không thể đăng nhập lúc này"
-
+                success: false,
+                message: "Cấu hình xác thực chưa hợp lệ"
             });
-
         }
 
+        const results = await findUserByUsername(username);
 
-
-        if(results.length===0){
-
+        if (results.length === 0) {
             return res.status(401).json({
-
-                message:"Sai tài khoản hoặc mật khẩu"
-
+                success: false,
+                message: "Sai tài khoản hoặc mật khẩu"
             });
-
         }
 
+        const user = results[0];
 
+        const userIsInactive = user.status !== "active";
 
-        const user=results[0];
+        const workerIsInactive =
+            user.role === "worker" &&
+            user.worker_status !== "active";
 
-
-        // Khóa ở bảng users áp dụng cho mọi vai trò.
-        // Với công nhân, trạng thái workers cũng phải đang hoạt động.
-        if (user.status !== "active" || (user.role === "worker" && user.worker_status !== "active")) {
-
+        if (userIsInactive || workerIsInactive) {
             return res.status(403).json({
-
-                message:"Tài khoản đã bị khóa. Vui lòng liên hệ quản lý"
-
+                success: false,
+                message:
+                    "Tài khoản đã bị khóa. Vui lòng liên hệ quản lý"
             });
-
         }
 
-
-        const check =
-        await bcrypt.compare(
+        const passwordIsValid = await bcrypt.compare(
             password,
             user.password
         );
 
-
-
-        if(!check){
-
+        if (!passwordIsValid) {
             return res.status(401).json({
-
-                message:"Sai tài khoản hoặc mật khẩu"
-
+                success: false,
+                message: "Sai tài khoản hoặc mật khẩu"
             });
-
         }
 
+        const accessToken = generateAccessToken(user);
 
+        const refreshToken = crypto
+            .randomBytes(32)
+            .toString("hex");
 
+        const expiresAt = new Date();
 
+        expiresAt.setDate(
+            expiresAt.getDate() + REFRESH_TOKEN_DAYS
+        );
 
+        const userAgent =
+            typeof req.headers["user-agent"] === "string"
+                ? req.headers["user-agent"]
+                : null;
 
-        const token =
-        jwt.sign(
-
-        {
-
-            id:user.id,
-
-            worker_id:user.worker_id,
-
-            username:user.username,
-
-            role:user.role
-
-        },
-
-
-        process.env.JWT_SECRET,
-
-
-        {
-
-            expiresIn:"1d"
-
+        await createSession({
+            user_id: user.id,
+            refresh_token: refreshToken,
+            device_id: crypto.randomUUID(),
+            device_name: getDeviceName(req),
+            user_agent: userAgent,
+            ip_address: getClientIp(req),
+            expires_at: expiresAt
         });
 
+        try {
+            await auditService.logActivity({
+                userId: user.id,
+                action: "LOGIN",
+                entityType: "user_session",
+                entityId: null,
+                description: "Đăng nhập thành công",
+                metadata: {
+                    role: user.role,
+                    device_name: getDeviceName(req)
+                },
+                req
+            });
+        } catch (auditError) {
+            console.error(
+                "Không thể ghi nhật ký đăng nhập:",
+                auditError
+            );
+        }
 
+        return res.status(200).json({
+            success: true,
+            message: "Đăng nhập thành công",
 
-        res.json({
+            // Giữ tương thích frontend cũ.
+            token: accessToken,
 
-            message:"Đăng nhập thành công",
+            accessToken,
+            refreshToken,
+            expiresIn: ACCESS_TOKEN_EXPIRES_IN,
 
-
-            token,
-
-
-            user:{
-
-                id:user.id,
-
-                worker_id:user.worker_id,
-
-                username:user.username,
-
-                full_name:user.full_name,
-
-                role:user.role
-
+            user: {
+                id: user.id,
+                worker_id: user.worker_id || null,
+                username: user.username,
+                full_name: user.full_name,
+                role: user.role
             }
-
-
         });
+    } catch (error) {
+        console.error("Lỗi đăng nhập:", error);
 
+        return res.status(500).json({
+            success: false,
+            message: "Không thể đăng nhập lúc này"
+        });
+    }
+};
 
+exports.refresh = async (req, res) => {
+    try {
+        const refreshToken =
+            typeof req.body?.refreshToken === "string"
+                ? req.body.refreshToken.trim()
+                : "";
 
-    });
+        if (!refreshToken) {
+            return res.status(400).json({
+                success: false,
+                message: "Thiếu refresh token"
+            });
+        }
 
+        if (!process.env.JWT_SECRET) {
+            return res.status(500).json({
+                success: false,
+                message: "Cấu hình xác thực chưa hợp lệ"
+            });
+        }
 
+        const sessions =
+            await findSessionByRefreshToken(refreshToken);
 
+        if (sessions.length === 0) {
+            return res.status(401).json({
+                success: false,
+                message:
+                    "Phiên đăng nhập đã hết hạn hoặc không hợp lệ"
+            });
+        }
+
+        const session = sessions[0];
+
+        const userIsInactive =
+            session.status !== "active";
+
+        const workerIsInactive =
+            session.role === "worker" &&
+            session.worker_status !== "active";
+
+        if (userIsInactive || workerIsInactive) {
+            await revokeSession(refreshToken);
+
+            return res.status(403).json({
+                success: false,
+                message:
+                    "Tài khoản đã bị khóa. Vui lòng liên hệ quản lý"
+            });
+        }
+
+        const accessToken =
+            generateAccessToken(session);
+
+        await updateSessionLastUsed(refreshToken);
+
+        return res.status(200).json({
+            success: true,
+            message: "Làm mới phiên đăng nhập thành công",
+
+            // Giữ tương thích trong giai đoạn chuyển đổi.
+            token: accessToken,
+
+            accessToken,
+            expiresIn: ACCESS_TOKEN_EXPIRES_IN,
+
+            user: {
+                id: session.user_id,
+                worker_id: session.worker_id || null,
+                username: session.username,
+                full_name: session.full_name,
+                role: session.role
+            }
+        });
+    } catch (error) {
+        console.error("Lỗi làm mới token:", error);
+
+        return res.status(500).json({
+            success: false,
+            message:
+                "Không thể làm mới phiên đăng nhập lúc này"
+        });
+    }
+};
+
+exports.logout = async (req, res) => {
+    try {
+        const refreshToken =
+            typeof req.body?.refreshToken === "string"
+                ? req.body.refreshToken.trim()
+                : "";
+
+        if (!refreshToken) {
+            return res.status(400).json({
+                success: false,
+                message: "Thiếu refresh token"
+            });
+        }
+
+        await revokeSession(refreshToken);
+
+        try {
+            await auditService.logActivity({
+                userId: req.user?.id || null,
+                action: "LOGOUT",
+                entityType: "user_session",
+                entityId: null,
+                description: "Đăng xuất",
+                metadata: null,
+                req
+            });
+        } catch (auditError) {
+            console.error(
+                "Không thể ghi nhật ký đăng xuất:",
+                auditError
+            );
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Đăng xuất thành công"
+        });
+    } catch (error) {
+        console.error("Lỗi đăng xuất:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Không thể đăng xuất lúc này"
+        });
+    }
 };

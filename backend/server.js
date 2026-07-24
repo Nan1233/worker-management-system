@@ -65,12 +65,7 @@ const apiLimiter = rateLimit({
     legacyHeaders: false,
     message: { success: false, message: "Quá nhiều yêu cầu, vui lòng thử lại sau" }
 });
-const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: Number(process.env.AUTH_RATE_LIMIT || 20),
-    skipSuccessfulRequests: true,
-    message: { success: false, message: "Đăng nhập quá nhiều lần, vui lòng thử lại sau" }
-});
+
 
 // ======================
 // CORS
@@ -167,7 +162,6 @@ app.use(
 
 app.use("/api", apiLimiter);
 app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/auth/login", authLimiter);
 
 
 app.use(
