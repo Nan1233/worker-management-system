@@ -2,66 +2,34 @@ const db =
     require("../config/db");
 
 
-exports.findByProcess = (
-    processId
-) => {
+const db = require("../config/db");
 
-    return new Promise(
-        (
-            resolve,
-            reject
-        ) => {
+const query = (sql, params = []) =>
+    new Promise((resolve, reject) => {
+        db.query(sql, params, (error, rows) => {
+            if (error) {
+                reject(error);
+                return;
+            }
 
-            const sql = `
+            resolve(rows);
+        });
+    });
 
-                SELECT
-                    id,
-                    process_id,
-                    work_type,
-                    product_code,
-                    CAST(ROUND(standard_output) AS SIGNED) AS standard_output,
-                    COALESCE(exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt
+exports.findByProcess = async (processId) => {
+    const sql = `
+        SELECT
+            id,
+            process_id,
+            '' AS work_type,
+            product_code,
+            CAST(ROUND(standard_output) AS SIGNED) AS standard_output,
+            COALESCE(exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt
+        FROM product_standards
+        WHERE process_id = ?
+          AND status = 'active'
+        ORDER BY product_code ASC
+    `;
 
-                FROM product_standards
-
-                WHERE process_id = ?
-
-                AND status = 'active'
-
-                ORDER BY
-                    work_type ASC,
-                    product_code ASC
-
-            `;
-
-
-            db.query(
-                sql,
-                [
-                    processId
-                ],
-                (
-                    error,
-                    rows
-                ) => {
-
-                    if (error) {
-
-                        return reject(
-                            error
-                        );
-
-                    }
-
-
-                    resolve(
-                        rows
-                    );
-
-                }
-            );
-
-        }
-    );
-
+    return query(sql, [processId]);
 };
