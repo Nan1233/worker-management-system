@@ -2,7 +2,7 @@ const db =
     require("../config/db");
 
 
-const db = require("../config/db");
+
 
 const query = (sql, params = []) =>
     new Promise((resolve, reject) => {
