@@ -1446,25 +1446,7 @@ const parseFlexibleTime = (value: string): number => {
     return Number.isFinite(parsed) ? parsed : Number.NaN;
 };
 
-const normalizeFlexibleTime = (value: string): string => {
-    const trimmed = value.trim().toLowerCase().replace(",", ".");
-    if (!trimmed) return "";
 
-    const hourMinuteMatch = trimmed.match(/^(\d{1,3})\s*(?:h|:|g)\s*(\d{1,2})$/);
-    if (hourMinuteMatch) {
-        const hours = Number(hourMinuteMatch[1]);
-        const minutes = Number(hourMinuteMatch[2]);
-        if (minutes > 59) return value;
-        return `${hours}:${String(minutes).padStart(2, "0")}`;
-    }
-
-    const hourOnlyMatch = trimmed.match(/^(\d{1,3})\s*(?:h|g)$/);
-    if (hourOnlyMatch) return String(Number(hourOnlyMatch[1]));
-
-    const parsed = Number(trimmed);
-    if (!Number.isFinite(parsed)) return value;
-    return String(Math.round(parsed * 10000) / 10000);
-};
 
 const normalizeDecimalInput = (
     value: string
@@ -1493,72 +1475,7 @@ const isValidDecimalInput = (
     // INPUT SỐ THỜI GIAN
     // =====================================================
 
-const handleTimeInputChange = (
-    event:
-        React.ChangeEvent<HTMLInputElement>
-) => {
 
-    const {
-        name,
-        value
-    } = event.target;
-
-
-    const normalizedValue =
-        normalizeDecimalInput(
-            value
-        );
-
-
-    if (
-        !isValidDecimalInput(
-            normalizedValue
-        )
-    ) {
-
-        return;
-
-    }
-
-
-    setForm((prev) => {
-
-        const next = {
-
-            ...prev,
-
-            [name]:
-                normalizedValue
-
-        } as FormState;
-
-
-        if (
-            name ===
-            "totalTime"
-        ) {
-
-            next.actualTime =
-                String(
-                    Math.max(
-                        0,
-
-                        parseFlexibleTime(normalizedValue)
-
-                        -
-
-                        parseFlexibleTime(next.deductionTime)
-                    )
-                );
-
-        }
-
-
-        return next;
-
-    });
-
-};
 
 
     // =====================================================
