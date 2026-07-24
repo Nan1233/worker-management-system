@@ -11,6 +11,8 @@ export interface MachineOption {
 
     machine_name: string;
 
+    exclude_kqd_from_tt?: number;
+
 }
 
 

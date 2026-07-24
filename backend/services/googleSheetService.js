@@ -148,7 +148,7 @@ const buildSheetValues = (reports, options = {}) => {
     const activeDefectIds = new Set(defectTypes.map((item) => Number(item.id)));
     const ng = sumDetailValues(report.defects, 'quantity', activeDefectIds, 'defect_type_id');
     const tt = Number(report.actual_output ?? (ok + calculateCountedNg(report.defects, Boolean(Number(report.exclude_kqd_from_tt || 0)))));
-    const standard = toNumber(report.standard_output);
+    const standard = Math.round(toNumber(report.standard_output));
     const actualTime = toNumber(report.actual_time);
     return [
       sequence,

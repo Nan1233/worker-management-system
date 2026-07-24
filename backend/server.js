@@ -42,6 +42,7 @@ const productStandardRoutes =
 const syncJobRoutes = require("./routes/syncJobRoutes");
 const systemRoutes = require("./routes/systemRoutes");
 const adminMasterRoutes = require("./routes/adminMasterRoutes");
+const formulaSettingsRoutes = require('./routes/formulaSettingsRoutes');
 const dashboardRoutes = require("./routes/dashboardRoutes");
 
 
@@ -265,6 +266,7 @@ app.use(
 app.use("/api/sync-jobs", syncJobRoutes);
 app.use("/api/system", systemRoutes);
 app.use("/api/admin/master", adminMasterRoutes);
+app.use("/api/formula-settings", formulaSettingsRoutes);
 
 
 

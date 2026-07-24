@@ -792,7 +792,6 @@ const initialDeduction: DeductionState = {
 
 
 
-const DEFAULT_KQD_EXCLUDED_MACHINES = [];
 const KQD_CODES = new Set(["KQD_DL", "KQD_DAP_LAI", "KQD_TUOT"]);
 
 // =====================================================
@@ -858,28 +857,6 @@ const [
 ] = useState(allNgOptions);
 
 
-const kqdExcludedMachines = useMemo(() => {
-    const configured = String(import.meta.env.VITE_KQD_EXCLUDED_FROM_TOTAL_MACHINES || "")
-        .split(",")
-        .map((item) => item.trim().toUpperCase())
-        .filter(Boolean);
-    return new Set(configured.length ? configured : DEFAULT_KQD_EXCLUDED_MACHINES);
-}, []);
-
-const machineExcludesKqd = (machineNo: string): boolean =>
-    kqdExcludedMachines.has(String(machineNo || "").trim().toUpperCase());
-
-const calculateCountedNg = (values: FormState): number =>
-    activeNgOptions.reduce((sum, item) => {
-        const code = String(item.code || "").trim().toUpperCase();
-        if (machineExcludesKqd(values.machineNo) && KQD_CODES.has(code)) return sum;
-        return sum + Number(values[item.key] || 0);
-    }, 0);
-
-const calculateActualOutput = (values: FormState): number =>
-    Number(values.ttOk || 0) + calculateCountedNg(values);
-
-
 const [
     loadingMasterData,
     setLoadingMasterData
@@ -937,6 +914,27 @@ const productAutocompleteOptions =
     ] = useState<FormState>(
         initialForm
     );
+
+const selectedMachine = useMemo(
+    () => machineOptions.find((machine) => machine.machine_code === form.machineNo),
+    [machineOptions, form.machineNo]
+);
+
+const machineExcludesKqd = (): boolean =>
+    Number(selectedMachine?.exclude_kqd_from_tt || 0) === 1;
+
+const calculateCountedNg = (values: FormState): number =>
+    activeNgOptions.reduce((sum, item) => {
+        const code = String(item.code || "").trim().toUpperCase();
+        if (machineExcludesKqd() && (KQD_CODES.has(code) || code.startsWith("KQD"))) return sum;
+        return sum + Number(values[item.key] || 0);
+    }, 0);
+
+const calculateActualOutput = (values: FormState): number =>
+    Number(values.ttOk || 0) + calculateCountedNg(values);
+
+
+
 
 
     // =================================================
@@ -2249,7 +2247,7 @@ const updateDeductionValue = (
 
 
         if (Number(form.actualOutput || 0) !== calculateActualOutput(form)) {
-            return machineExcludesKqd(form.machineNo)
+            return machineExcludesKqd()
                 ? "Thực tế phải bằng TT OK cộng NG được tính (không gồm KQD của mã máy này)"
                 : "Thực tế phải bằng TT OK cộng TT NG";
         }
@@ -2305,6 +2303,9 @@ const updateDeductionValue = (
 
                     machine_no:
                         form.machineNo.trim(),
+
+                    exclude_kqd_from_tt:
+                        Number(selectedMachine?.exclude_kqd_from_tt || 0),
 
 
                     total_time:

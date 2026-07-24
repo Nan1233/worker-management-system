@@ -23,6 +23,7 @@ const menuItems: MenuItem[] = [
     { id: "reports", label: "Chờ duyệt", path: "reports", icon: "pending", roles: ["lead", "manager", "admin"], description: "" },
     { id: "approved", label: "Đã duyệt", path: "approved", icon: "approved", roles: ["lead", "manager", "admin"], description: "" },
     { id: "master", label: "Trung tâm quản lý", path: "master", icon: "settings", roles: ["lead", "manager", "admin"], description: "" },
+    { id: "formulas", label: "Công thức đầu ra", path: "formulas", icon: "settings", roles: ["lead", "manager", "admin"], description: "" },
     { id: "statistics", label: "Thống kê", path: "statistics", icon: "statistics", roles: ["manager", "admin"], description: "" },
     { id: "system", label: "Thông báo & lịch sử", path: "system", icon: "system", roles: ["lead", "manager", "admin"], description: "" }
 ];

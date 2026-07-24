@@ -25,6 +25,7 @@ import ManagementLayout from "../layouts/ManagementLayout";
 
 import AdminDashboard from "../pages/admin/Dashboard";
 import MasterData from "../pages/admin/MasterData";
+import FormulaSettings from "../pages/admin/FormulaSettings";
 
 
 // =====================================================
@@ -117,6 +118,7 @@ function AppRouter() {
                 <Route index element={<AdminDashboard />} />
                 <Route path="master" element={<Navigate to="users" replace />} />
                 <Route path="master/:resource" element={<MasterData />} />
+                <Route path="formulas" element={<FormulaSettings />} />
                 <Route path="reports" element={<LeadPendingReports />} />
                 <Route path="approved" element={<LeadApprovedReports />} />
                 <Route path="statistics" element={<ManagerStatistics />} />
@@ -280,6 +282,7 @@ function AppRouter() {
 
                 <Route path="master" element={<Navigate to="users" replace />} />
                 <Route path="master/:resource" element={<MasterData />} />
+                <Route path="formulas" element={<FormulaSettings />} />
                 <Route path="system" element={<SystemCenter />} />
             </Route>
 
@@ -318,6 +321,7 @@ function AppRouter() {
                 />
                 <Route path="master" element={<Navigate to="users" replace />} />
                 <Route path="master/:resource" element={<MasterData />} />
+                <Route path="formulas" element={<FormulaSettings />} />
 
 
                 <Route

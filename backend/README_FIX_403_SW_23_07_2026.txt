@@ -1,0 +1,5 @@
+Đã sửa 2 lỗi:
+1. Worker không còn gọi /api/workers/{worker_id} gây 403. Frontend gọi GET /api/workers/me; backend tự lấy users.id từ JWT và chỉ trả hồ sơ của tài khoản đang đăng nhập.
+2. Service worker không clone Response sau khi body đã bị sử dụng. Response được clone ngay khi nhận từ fetch, cache bằng event.waitUntil, đồng thời tăng cache version lên ktc-pwa-v1.0.1.
+
+Sau deploy, nên xóa service worker/cache cũ hoặc hard reload một lần.
