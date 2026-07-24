@@ -246,6 +246,11 @@ exports.getReportById = async (req, res) => {
             return res.status(404).json({ success: false, message: "Không tìm thấy báo cáo" });
         }
 
+        // Công nhân chỉ được xem báo cáo đã duyệt của chính mình.
+        if (req.user?.role === "worker" && Number(report.worker_id) !== Number(req.user?.worker_id)) {
+            return res.status(403).json({ success: false, message: "Bạn không có quyền xem báo cáo này" });
+        }
+
         return res.status(200).json({
             success: true,
             data: {

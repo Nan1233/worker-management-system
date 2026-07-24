@@ -108,7 +108,7 @@ router.get(
 
     verifyToken,
 
-    checkRole("admin", "manager", "lead"),
+    checkRole("admin", "manager", "lead", "worker"),
 
     getReportById
 

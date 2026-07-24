@@ -244,10 +244,12 @@ export const getReportById = async(
 )=>{
 
 
-    const url =
-        source === "pending"
-            ? `/production-temp/${id}`
-            : `/production/${id}`;
+    const normalizedSource = String(source || "").toLowerCase();
+    const isTempReport = normalizedSource === "pending" || normalizedSource === "temp";
+
+    const url = isTempReport
+        ? `/production-temp/${id}`
+        : `/production/${id}`;
 
 
 

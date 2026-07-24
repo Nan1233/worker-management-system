@@ -26,6 +26,7 @@ searchParams.get("source");
     const [report, setReport] = useState<ProductionReport | null>(null);
 
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
 
 
     useEffect(() => {
@@ -44,9 +45,10 @@ await getReportById(
 
                 setReport(data);
 
-            } catch (err) {
+            } catch (err: any) {
 
                 console.error("Lỗi lấy chi tiết báo cáo:", err);
+                setError(err?.response?.data?.message || "Không thể tải chi tiết báo cáo.");
 
             } finally {
 
@@ -79,7 +81,7 @@ await getReportById(
 
         return (
             <div className="detail-container">
-                <h2>Không tìm thấy báo cáo.</h2>
+                <h2>{error || "Không tìm thấy báo cáo."}</h2>
             </div>
         );
 
