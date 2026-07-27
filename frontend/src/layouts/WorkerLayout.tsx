@@ -41,7 +41,7 @@ function WorkerLayout() {
                     onClick={() => navigate("/worker")}
                     aria-label="Về trang chủ công nhân"
                 >
-                    <span className="worker-brand-mark">KTC</span>
+                    <span className="worker-brand-mark" aria-hidden="true">K</span>
                     <span className="worker-brand-text">
                         <strong>KTC (HANOI) CO., LTD</strong>
                         <small>{formatToday()}</small>

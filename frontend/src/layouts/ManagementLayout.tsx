@@ -90,7 +90,7 @@ function ManagementLayout({ role }: Props) {
             <aside className="management-sidebar">
                 <div className="management-sidebar-shell">
                     <button type="button" className="management-brand" onClick={() => navigate(basePath)}>
-                        <span className="management-brand-icon">KTC</span>
+                        <span className="management-brand-mark" aria-hidden="true">K</span>
                         <span className="management-brand-content">
                             <strong>KTC (HANOI) CO., LTD</strong>
                             <small>{roleLabel[role]} · Production Control</small>
