@@ -137,6 +137,75 @@ function generateAccessToken(user) {
     );
 }
 
+async function issueLoginSession(req, res, user) {
+    const accessToken = generateAccessToken(user);
+
+    const refreshToken = crypto
+        .randomBytes(32)
+        .toString("hex");
+
+    const expiresAt = new Date();
+
+    expiresAt.setDate(
+        expiresAt.getDate() + REFRESH_TOKEN_DAYS
+    );
+
+    const userAgent =
+        typeof req.headers["user-agent"] === "string"
+            ? req.headers["user-agent"]
+            : null;
+
+    await createSession({
+        user_id: user.id,
+        refresh_token: refreshToken,
+        device_id: crypto.randomUUID(),
+        device_name: getDeviceName(req),
+        user_agent: userAgent,
+        ip_address: getClientIp(req),
+        expires_at: expiresAt
+    });
+
+    try {
+        await auditService.logActivity({
+            userId: user.id,
+            action: "LOGIN",
+            entityType: "user_session",
+            entityId: null,
+            description: "Đăng nhập thành công",
+            metadata: {
+                role: user.role,
+                login_mode:
+                    user.role === "worker"
+                        ? "employee_code"
+                        : "employee_code_password",
+                device_name: getDeviceName(req)
+            },
+            req
+        });
+    } catch (auditError) {
+        console.error(
+            "Không thể ghi nhật ký đăng nhập:",
+            auditError
+        );
+    }
+
+    return res.status(200).json({
+        success: true,
+        message: "Đăng nhập thành công",
+        token: accessToken,
+        accessToken,
+        refreshToken,
+        expiresIn: ACCESS_TOKEN_EXPIRES_IN,
+        user: {
+            id: user.id,
+            worker_id: user.worker_id || null,
+            username: user.username,
+            full_name: user.full_name,
+            role: user.role
+        }
+    });
+}
+
 exports.login = async (req, res) => {
     try {
         const username =
@@ -149,10 +218,16 @@ exports.login = async (req, res) => {
                 ? req.body.password
                 : "";
 
-        if (!username || !password) {
+        const accessType =
+            req.body?.access_type === "worker" ||
+            req.body?.access_type === "management"
+                ? req.body.access_type
+                : null;
+
+        if (!username) {
             return res.status(400).json({
                 success: false,
-                message: "Thiếu username hoặc password"
+                message: "Vui lòng nhập mã nhân viên"
             });
         }
 
@@ -170,14 +245,12 @@ exports.login = async (req, res) => {
         if (results.length === 0) {
             return res.status(401).json({
                 success: false,
-                message: "Sai tài khoản hoặc mật khẩu"
+                message: "Mã nhân viên không tồn tại"
             });
         }
 
         const user = results[0];
-
         const userIsInactive = user.status !== "active";
-
         const workerIsInactive =
             user.role === "worker" &&
             user.worker_status !== "active";
@@ -190,6 +263,52 @@ exports.login = async (req, res) => {
             });
         }
 
+        /*
+         * Luồng mới:
+         * - Công nhân: chỉ cần mã nhân viên.
+         * - Quản lý/tổ trưởng/admin: bắt buộc thêm mật khẩu.
+         *
+         * Nếu client cũ chưa gửi access_type, vẫn giữ cách đăng nhập
+         * bằng username + password để không làm hỏng desktop cũ.
+         */
+        if (accessType === "worker") {
+            if (user.role !== "worker") {
+                return res.status(403).json({
+                    success: false,
+                    message:
+                        "Mã nhân viên này không thuộc tài khoản công nhân"
+                });
+            }
+
+            return issueLoginSession(req, res, user);
+        }
+
+        if (accessType === "management") {
+            if (
+                !["admin", "manager", "lead"].includes(
+                    user.role
+                )
+            ) {
+                return res.status(403).json({
+                    success: false,
+                    message:
+                        "Mã nhân viên này không có quyền quản lý"
+                });
+            }
+
+            if (!password) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Vui lòng nhập mật khẩu quản lý"
+                });
+            }
+        } else if (!password) {
+            return res.status(400).json({
+                success: false,
+                message: "Thiếu mật khẩu"
+            });
+        }
+
         const passwordIsValid = await bcrypt.compare(
             password,
             user.password
@@ -198,76 +317,11 @@ exports.login = async (req, res) => {
         if (!passwordIsValid) {
             return res.status(401).json({
                 success: false,
-                message: "Sai tài khoản hoặc mật khẩu"
+                message: "Mật khẩu không đúng"
             });
         }
 
-        const accessToken = generateAccessToken(user);
-
-        const refreshToken = crypto
-            .randomBytes(32)
-            .toString("hex");
-
-        const expiresAt = new Date();
-
-        expiresAt.setDate(
-            expiresAt.getDate() + REFRESH_TOKEN_DAYS
-        );
-
-        const userAgent =
-            typeof req.headers["user-agent"] === "string"
-                ? req.headers["user-agent"]
-                : null;
-
-        await createSession({
-            user_id: user.id,
-            refresh_token: refreshToken,
-            device_id: crypto.randomUUID(),
-            device_name: getDeviceName(req),
-            user_agent: userAgent,
-            ip_address: getClientIp(req),
-            expires_at: expiresAt
-        });
-
-        try {
-            await auditService.logActivity({
-                userId: user.id,
-                action: "LOGIN",
-                entityType: "user_session",
-                entityId: null,
-                description: "Đăng nhập thành công",
-                metadata: {
-                    role: user.role,
-                    device_name: getDeviceName(req)
-                },
-                req
-            });
-        } catch (auditError) {
-            console.error(
-                "Không thể ghi nhật ký đăng nhập:",
-                auditError
-            );
-        }
-
-        return res.status(200).json({
-            success: true,
-            message: "Đăng nhập thành công",
-
-            // Giữ tương thích frontend cũ.
-            token: accessToken,
-
-            accessToken,
-            refreshToken,
-            expiresIn: ACCESS_TOKEN_EXPIRES_IN,
-
-            user: {
-                id: user.id,
-                worker_id: user.worker_id || null,
-                username: user.username,
-                full_name: user.full_name,
-                role: user.role
-            }
-        });
+        return issueLoginSession(req, res, user);
     } catch (error) {
         console.error("Lỗi đăng nhập:", error);
 
