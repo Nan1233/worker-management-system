@@ -26,15 +26,21 @@ interface RefreshResponse {
     user?: AuthUser;
 }
 
+export type LoginAccessType =
+    | "worker"
+    | "management";
+
 export const login = async (
     username: string,
-    password: string
+    accessType: LoginAccessType,
+    password = ""
 ): Promise<LoginResponse> => {
     const response =
         await api.post<LoginResponse>(
             "/auth/login",
             {
                 username,
+                access_type: accessType,
                 password
             }
         );

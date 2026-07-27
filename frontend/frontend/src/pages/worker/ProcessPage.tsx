@@ -2326,20 +2326,26 @@ const updateDeductionValue = (
         }
 
 
-        if (
-            !form.productName.trim()
-        ) {
-
-            return "Vui lòng nhập sản phẩm";
-
+        if (!form.productName.trim()) {
+            return "Vui lòng chọn sản phẩm";
         }
 
-        if (
-            !form.machineNo.trim()
-        ) {
+        const matchedProduct = productOptions.find(
+            (item) => item.product_code.trim().toLowerCase() === form.productName.trim().toLowerCase()
+        );
+        if (!matchedProduct) {
+            return "Sản phẩm không có trong danh mục. Vui lòng chọn lại từ danh sách gợi ý";
+        }
 
-            return "Vui lòng nhập số máy";
+        if (!form.machineNo.trim()) {
+            return "Vui lòng chọn số máy";
+        }
 
+        const matchedMachine = machineOptions.find(
+            (item) => item.machine_code.trim().toLowerCase() === form.machineNo.trim().toLowerCase()
+        );
+        if (!matchedMachine) {
+            return "Máy không có trong danh mục. Vui lòng chọn lại từ danh sách gợi ý";
         }
 
 
@@ -2531,7 +2537,9 @@ const updateDeductionValue = (
                         form.shift,
 
                     machine_no:
-                        form.machineNo.trim(),
+                        machineOptions.find(
+                            (item) => item.machine_code.trim().toLowerCase() === form.machineNo.trim().toLowerCase()
+                        )?.machine_code || form.machineNo.trim(),
 
 
                     total_time:
@@ -2558,7 +2566,9 @@ const updateDeductionValue = (
 
                 
                     product_name:
-                        form.productName.trim(),
+                        productOptions.find(
+                            (item) => item.product_code.trim().toLowerCase() === form.productName.trim().toLowerCase()
+                        )?.product_code || form.productName.trim(),
 
                     standard_output:
                         Number(

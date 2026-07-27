@@ -127,8 +127,30 @@ exports.checkSimilarReport = async (req, res) => {
             return res.status(422).json({ success: false, message: workDateError });
         }
 
+        const masterValidation = await validateMasterData({
+            workerId,
+            processId,
+            machineNo,
+            productName,
+            defects: [],
+            deductions: []
+        });
+
+        if (!masterValidation.valid) {
+            return res.status(422).json({
+                success: false,
+                message: "Máy hoặc sản phẩm không khớp danh mục hệ thống",
+                errors: masterValidation.errors
+            });
+        }
+
         const report = await ProductionTemp.findSimilarReport({
-            workerId, processId, workDate, shift, machineNo, productName
+            workerId,
+            processId,
+            workDate,
+            shift,
+            machineNo: masterValidation.machineCode,
+            productName: masterValidation.productCode
         });
 
         return res.status(200).json({
@@ -275,11 +297,17 @@ exports.createTempReport = async (req, res) => {
             process_id:
                 processId,
 
+            machine_no:
+                masterValidation.machineCode,
+
+            product_name:
+                masterValidation.productCode,
+
             standard_output:
-                masterValidation
-                    .standardOutput ??
-                validation.normalized
-                    .standard_output,
+                masterValidation.standardOutput,
+
+            exclude_kqd_from_tt:
+                masterValidation.excludeKqdFromTt,
 
             defects:
                 undefined,
@@ -778,9 +806,17 @@ exports.updateTempReport = async (req, res) => {
         if (!validation.valid) return res.status(422).json({ success: false, message: "Dữ liệu báo cáo không hợp lệ", errors: validation.errors });
         const master = await validateMasterData({ workerId: current.worker_id, processId: current.process_id, machineNo: validation.normalized.machine_no, productName: validation.normalized.product_name, defects: validation.normalized.defects, deductions: validation.normalized.deductions, ttOk: validation.normalized.tt_ok, actualOutput: validation.normalized.actual_output });
         if (!master.valid) return res.status(422).json({ success: false, message: "Dữ liệu danh mục không hợp lệ", errors: master.errors });
+        const normalizedUpdate = {
+            ...validation.normalized,
+            machine_no: master.machineCode,
+            product_name: master.productCode,
+            standard_output: master.standardOutput,
+            exclude_kqd_from_tt: master.excludeKqdFromTt
+        };
+
         const result = await ProductionTemp.updateReport(
             reportId,
-            validation.normalized,
+            normalizedUpdate,
             changedBy,
             req.body?.reason || null,
             {

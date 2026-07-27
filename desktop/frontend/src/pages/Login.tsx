@@ -34,6 +34,11 @@ interface RememberedAccount {
     lastUsedAt: string;
 }
 
+type LoginStep =
+    | "employee-code"
+    | "role-choice"
+    | "management-password";
+
 const REMEMBERED_ACCOUNTS_KEY =
     "ktc_remembered_accounts";
 
@@ -106,132 +111,74 @@ function Login() {
         []
     );
 
-    const [
-        username,
-        setUsername
-    ] = useState(
-        () =>
-            initialAccounts[0]?.username ||
-            ""
+    const [username, setUsername] = useState(
+        () => initialAccounts[0]?.username || ""
     );
-
-    const [
-        password,
-        setPassword
-    ] = useState("");
-
-    const [
-        rememberAccount,
-        setRememberAccount
-    ] = useState(true);
-
-    const [
-        showPassword,
-        setShowPassword
-    ] = useState(false);
-
-    const [
-        error,
-        setError
-    ] = useState("");
-
-    const [
-        loading,
-        setLoading
-    ] = useState(false);
-
-    const [
-        rememberedAccounts,
-        setRememberedAccounts
-    ] = useState<RememberedAccount[]>(
-        initialAccounts
+    const [password, setPassword] = useState("");
+    const [step, setStep] = useState<LoginStep>(
+        "employee-code"
     );
+    const [rememberAccount, setRememberAccount] =
+        useState(true);
+    const [showPassword, setShowPassword] =
+        useState(false);
+    const [error, setError] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [rememberedAccounts, setRememberedAccounts] =
+        useState<RememberedAccount[]>(initialAccounts);
 
     useEffect(() => {
-        const accessToken =
-            getAccessToken();
+        const accessToken = getAccessToken();
+        const savedUser = getStoredUser();
 
-        const savedUser =
-            getStoredUser();
-
-        if (
-            accessToken &&
-            savedUser
-        ) {
-            const targetPath =
-                homeByRole[
-                    savedUser.role
-                ];
+        if (accessToken && savedUser) {
+            const targetPath = homeByRole[savedUser.role];
 
             if (targetPath) {
-                navigate(
-                    targetPath,
-                    {
-                        replace: true
-                    }
-                );
-
+                navigate(targetPath, { replace: true });
                 return;
             }
         }
 
-        /*
-         * Nếu token/user cũ bị thiếu hoặc sai,
-         * xóa phiên để tránh vòng lặp đăng nhập.
-         */
-        if (
-            accessToken &&
-            !savedUser
-        ) {
+        if (accessToken && !savedUser) {
             clearAuthSession();
         }
     }, [navigate]);
 
-    const matchingAccounts =
-        useMemo(() => {
-            const keyword =
-                username
-                    .trim()
-                    .toLowerCase();
+    const matchingAccounts = useMemo(() => {
+        const keyword = username.trim().toLowerCase();
 
-            if (!keyword) {
-                return rememberedAccounts;
-            }
+        if (!keyword) {
+            return rememberedAccounts;
+        }
 
-            return rememberedAccounts.filter(
-                (item) =>
-                    item.username
-                        .toLowerCase()
-                        .includes(keyword) ||
-                    item.fullName
-                        .toLowerCase()
-                        .includes(keyword)
-            );
-        }, [
-            rememberedAccounts,
-            username
-        ]);
+        return rememberedAccounts.filter(
+            (item) =>
+                item.username
+                    .toLowerCase()
+                    .includes(keyword) ||
+                item.fullName
+                    .toLowerCase()
+                    .includes(keyword)
+        );
+    }, [rememberedAccounts, username]);
 
-    const handleLogin = async (
-        event: React.FormEvent<HTMLFormElement>
+    const completeLogin = async (
+        accessType: "worker" | "management"
     ) => {
-        event.preventDefault();
+        const normalizedUsername = username.trim();
 
-        if (loading) {
+        if (!normalizedUsername) {
+            setError("Vui lòng nhập mã nhân viên.");
+            setStep("employee-code");
             return;
         }
 
-        const normalizedUsername =
-            username.trim();
-
         if (
-            !normalizedUsername ||
+            accessType === "management" &&
             !password
         ) {
-            setError(
-                "Vui lòng nhập đầy đủ mã nhân viên và mật khẩu."
-            );
-
+            setError("Vui lòng nhập mật khẩu quản lý.");
             return;
         }
 
@@ -239,46 +186,27 @@ function Login() {
         setLoading(true);
 
         try {
-            /*
-             * authService.login đã thực hiện:
-             * - gọi /api/auth/login
-             * - lưu accessToken
-             * - lưu refreshToken
-             * - lưu user
-             *
-             * Vì vậy Login.tsx không cần tự gọi
-             * localStorage.setItem("token", ...) nữa.
-             */
             const data = await login(
                 normalizedUsername,
+                accessType,
                 password
             );
 
             if (rememberAccount) {
-                const next =
-                    saveRememberedAccount(
-                        data.user
-                    );
-
                 setRememberedAccounts(
-                    next
+                    saveRememberedAccount(data.user)
                 );
             } else {
-                const next =
-                    readRememberedAccounts().filter(
-                        (item) =>
-                            item.username !==
-                            data.user.username
-                    );
+                const next = readRememberedAccounts().filter(
+                    (item) =>
+                        item.username !== data.user.username
+                );
 
                 localStorage.setItem(
                     REMEMBERED_ACCOUNTS_KEY,
                     JSON.stringify(next)
                 );
-
-                setRememberedAccounts(
-                    next
-                );
+                setRememberedAccounts(next);
             }
 
             const redirectAfterLogin =
@@ -292,101 +220,93 @@ function Login() {
 
             if (
                 redirectAfterLogin &&
-                redirectAfterLogin !==
-                    "/login"
+                redirectAfterLogin !== "/login"
             ) {
-                navigate(
-                    redirectAfterLogin,
-                    {
-                        replace: true
-                    }
-                );
-
+                navigate(redirectAfterLogin, {
+                    replace: true
+                });
                 return;
             }
 
-            const targetPath =
-                homeByRole[
-                    data.user.role
-                ];
-
             navigate(
-                targetPath || "/",
-                {
-                    replace: true
-                }
+                homeByRole[data.user.role] || "/",
+                { replace: true }
             );
         } catch (err: unknown) {
-            if (
-                axios.isAxiosError(err)
-            ) {
-                const responseData =
-                    err.response?.data as
-                        | {
-                              message?: string;
-                          }
-                        | undefined;
+            if (axios.isAxiosError(err)) {
+                const responseData = err.response?.data as
+                    | { message?: string }
+                    | undefined;
 
                 setError(
                     responseData?.message ||
-                    "Mã nhân viên hoặc mật khẩu không đúng."
+                    "Không thể đăng nhập. Vui lòng kiểm tra lại."
                 );
-
-                return;
-            }
-
-            if (
-                err instanceof Error
-            ) {
-                setError(
-                    err.message ||
-                    "Không thể đăng nhập. Vui lòng thử lại."
-                );
-
                 return;
             }
 
             setError(
-                "Không thể đăng nhập. Vui lòng thử lại."
+                err instanceof Error
+                    ? err.message
+                    : "Không thể đăng nhập. Vui lòng thử lại."
             );
         } finally {
             setLoading(false);
         }
     };
 
+    const continueToRoleChoice = (
+        event: React.FormEvent<HTMLFormElement>
+    ) => {
+        event.preventDefault();
+
+        if (!username.trim()) {
+            setError("Vui lòng nhập mã nhân viên.");
+            return;
+        }
+
+        setError("");
+        setStep("role-choice");
+    };
+
+    const submitManagementPassword = (
+        event: React.FormEvent<HTMLFormElement>
+    ) => {
+        event.preventDefault();
+        void completeLogin("management");
+    };
+
+    const resetToEmployeeCode = () => {
+        setPassword("");
+        setError("");
+        setStep("employee-code");
+    };
+
     const selectAccount = (
         account: RememberedAccount
     ) => {
-        setUsername(
-            account.username
-        );
-
+        setUsername(account.username);
         setPassword("");
         setError("");
+        setStep("employee-code");
     };
 
     const removeAccount = (
         accountUsername: string
     ) => {
-        const next =
-            rememberedAccounts.filter(
-                (item) =>
-                    item.username !==
-                    accountUsername
-            );
+        const next = rememberedAccounts.filter(
+            (item) => item.username !== accountUsername
+        );
 
         localStorage.setItem(
             REMEMBERED_ACCOUNTS_KEY,
             JSON.stringify(next)
         );
-
         setRememberedAccounts(next);
 
-        if (
-            username ===
-            accountUsername
-        ) {
+        if (username === accountUsername) {
             setUsername("");
+            resetToEmployeeCode();
         }
     };
 
@@ -398,62 +318,15 @@ function Login() {
                         <span className="login-brand-mark" aria-hidden="true">K</span>
                         <p className="login-company-name">KTC (HANOI) CO., LTD</p>
                     </div>
-
-                    <p className="login-eyebrow">
-                        PRODUCTION MANAGEMENT SYSTEM
-                    </p>
-
-                    <h1>
-                        Dữ liệu sản xuất
-                        <br />
-                        đúng ngay từ nguồn.
-                    </h1>
-
+                    <p className="login-eyebrow">PRODUCTION MANAGEMENT SYSTEM</p>
+                    <h1>Dữ liệu sản xuất<br />đúng ngay từ nguồn.</h1>
                     <p className="login-description">
-                        Ghi nhận sản lượng,
-                        kiểm soát chất lượng
-                        và theo dõi trạng thái
-                        báo cáo trên một hệ
-                        thống thống nhất dành
-                        cho nhà máy.
+                        Ghi nhận sản lượng, kiểm soát chất lượng và theo dõi trạng thái báo cáo trên một hệ thống thống nhất dành cho nhà máy.
                     </p>
-
                     <div className="login-benefits">
-                        <div>
-                            <strong>
-                                01
-                            </strong>
-
-                            <span>
-                                Nhập báo cáo
-                                nhanh tại công
-                                đoạn
-                            </span>
-                        </div>
-
-                        <div>
-                            <strong>
-                                02
-                            </strong>
-
-                            <span>
-                                Kiểm duyệt và
-                                lưu vết minh
-                                bạch
-                            </span>
-                        </div>
-
-                        <div>
-                            <strong>
-                                03
-                            </strong>
-
-                            <span>
-                                Tự động tổng
-                                hợp Excel và
-                                Google Sheet
-                            </span>
-                        </div>
+                        <div><strong>01</strong><span>Nhập báo cáo nhanh tại công đoạn</span></div>
+                        <div><strong>02</strong><span>Kiểm duyệt và lưu vết minh bạch</span></div>
+                        <div><strong>03</strong><span>Tự động tổng hợp Excel và Google Sheet</span></div>
                     </div>
                 </div>
             </section>
@@ -470,266 +343,153 @@ function Login() {
 
                     <div className="login-heading">
                         <span className="login-status-dot" />
-
-                        <p>
-                            HỆ THỐNG ĐANG HOẠT ĐỘNG
-                        </p>
-
+                        <p>HỆ THỐNG ĐANG HOẠT ĐỘNG</p>
                         <h2>
-                            Chào mừng bạn trở lại
+                            {step === "employee-code" && "Nhập mã nhân viên"}
+                            {step === "role-choice" && "Bạn muốn đăng nhập với vai trò nào?"}
+                            {step === "management-password" && "Xác thực tài khoản quản lý"}
                         </h2>
-
                         <span>
-                            Đăng nhập bằng mã nhân
-                            viên được cấp.
+                            {step === "employee-code" && "Chỉ cần nhập mã nhân viên để tiếp tục."}
+                            {step === "role-choice" && `Mã nhân viên: ${username.trim()}`}
+                            {step === "management-password" && `Nhập mật khẩu cho mã ${username.trim()}.`}
                         </span>
                     </div>
 
-                    {rememberedAccounts.length >
-                        0 && (
+                    {step === "employee-code" && rememberedAccounts.length > 0 && (
                         <div className="remembered-section">
                             <div className="remembered-title">
-                                <span>
-                                    Tài khoản gần đây
-                                </span>
-
-                                <small>
-                                    Chọn để điền nhanh
-                                    mã đăng nhập
-                                </small>
+                                <span>Tài khoản gần đây</span>
+                                <small>Chọn để điền nhanh mã đăng nhập</small>
                             </div>
-
                             <div className="remembered-list">
-                                {matchingAccounts
-                                    .slice(0, 3)
-                                    .map(
-                                        (
-                                            account
-                                        ) => (
-                                            <div
-                                                className="remembered-account"
-                                                key={
-                                                    account.username
-                                                }
-                                            >
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        selectAccount(
-                                                            account
-                                                        )
-                                                    }
-                                                >
-                                                    <span className="remembered-avatar">
-                                                        {(
-                                                            account.fullName ||
-                                                            account.username
-                                                        )
-                                                            .charAt(
-                                                                0
-                                                            )
-                                                            .toUpperCase()}
-                                                    </span>
-
-                                                    <span className="remembered-copy">
-                                                        <strong>
-                                                            {account.fullName ||
-                                                                account.username}
-                                                        </strong>
-
-                                                        <small>
-                                                            {
-                                                                account.username
-                                                            }{" "}
-                                                            ·{" "}
-                                                            {
-                                                                roleLabel[
-                                                                    account
-                                                                        .role
-                                                                ]
-                                                            }
-                                                        </small>
-                                                    </span>
-                                                </button>
-
-                                                <button
-                                                    type="button"
-                                                    className="remove-remembered"
-                                                    onClick={() =>
-                                                        removeAccount(
-                                                            account.username
-                                                        )
-                                                    }
-                                                    aria-label={`Xóa gợi ý tài khoản ${account.username}`}
-                                                >
-                                                    ×
-                                                </button>
-                                            </div>
-                                        )
-                                    )}
+                                {matchingAccounts.slice(0, 3).map((account) => (
+                                    <div className="remembered-account" key={account.username}>
+                                        <button type="button" onClick={() => selectAccount(account)}>
+                                            <span className="remembered-avatar">
+                                                {(account.fullName || account.username).charAt(0).toUpperCase()}
+                                            </span>
+                                            <span className="remembered-copy">
+                                                <strong>{account.fullName || account.username}</strong>
+                                                <small>{account.username} · {roleLabel[account.role]}</small>
+                                            </span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="remove-remembered"
+                                            onClick={() => removeAccount(account.username)}
+                                            aria-label={`Xóa gợi ý tài khoản ${account.username}`}
+                                        >×</button>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     )}
 
-                    <form
-                        onSubmit={handleLogin}
-                        className="login-form"
-                    >
-                        <label>
-                            <span>
-                                Mã nhân viên /
-                                Tên đăng nhập
-                            </span>
+                    {step === "employee-code" && (
+                        <form onSubmit={continueToRoleChoice} className="login-form">
+                            <label>
+                                <span>Mã nhân viên</span>
+                                <div className="login-input-wrap">
+                                    <span className="login-input-icon">♙</span>
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        autoComplete="username"
+                                        placeholder="Ví dụ: 0599"
+                                        value={username}
+                                        onChange={(event) => setUsername(event.target.value)}
+                                        disabled={loading}
+                                        autoFocus
+                                    />
+                                </div>
+                            </label>
+                            {error && <div className="login-error" role="alert">{error}</div>}
+                            <button type="submit" className="login-submit" disabled={loading}>
+                                Tiếp tục <span>→</span>
+                            </button>
+                        </form>
+                    )}
 
-                            <div className="login-input-wrap">
-                                <span className="login-input-icon">
-                                    ♙
-                                </span>
-
-                                <input
-                                    type="text"
-                                    autoComplete="username"
-                                    placeholder="Ví dụ: 0599"
-                                    value={
-                                        username
-                                    }
-                                    onChange={(
-                                        event
-                                    ) =>
-                                        setUsername(
-                                            event
-                                                .target
-                                                .value
-                                        )
-                                    }
-                                    disabled={
-                                        loading
-                                    }
-                                    autoFocus
-                                />
-                            </div>
-                        </label>
-
-                        <label>
-                            <span>
-                                Mật khẩu
-                            </span>
-
-                            <div className="login-input-wrap">
-                                <span className="login-input-icon">
-                                    ●
-                                </span>
-
-                                <input
-                                    type={
-                                        showPassword
-                                            ? "text"
-                                            : "password"
-                                    }
-                                    autoComplete="current-password"
-                                    placeholder="Nhập mật khẩu"
-                                    value={
-                                        password
-                                    }
-                                    onChange={(
-                                        event
-                                    ) =>
-                                        setPassword(
-                                            event
-                                                .target
-                                                .value
-                                        )
-                                    }
-                                    disabled={
-                                        loading
-                                    }
-                                />
-
-                                <button
-                                    type="button"
-                                    className="password-toggle"
-                                    onClick={() =>
-                                        setShowPassword(
-                                            (
-                                                current
-                                            ) =>
-                                                !current
-                                        )
-                                    }
-                                    disabled={
-                                        loading
-                                    }
-                                >
-                                    {showPassword
-                                        ? "Ẩn"
-                                        : "Hiện"}
-                                </button>
-                            </div>
-                        </label>
-
-                        <label className="remember-checkbox">
-                            <input
-                                type="checkbox"
-                                checked={
-                                    rememberAccount
-                                }
-                                onChange={(
-                                    event
-                                ) =>
-                                    setRememberAccount(
-                                        event
-                                            .target
-                                            .checked
-                                    )
-                                }
-                                disabled={
-                                    loading
-                                }
-                            />
-
-                            <span>
-                                Ghi nhớ và gợi ý tài
-                                khoản này trên thiết
-                                bị
-                            </span>
-                        </label>
-
-                        {error && (
-                            <div
-                                className="login-error"
-                                role="alert"
+                    {step === "role-choice" && (
+                        <div className="login-role-choice">
+                            <button
+                                type="button"
+                                className="login-role-card login-role-worker"
+                                disabled={loading}
+                                onClick={() => void completeLogin("worker")}
                             >
-                                {error}
-                            </div>
-                        )}
+                                <span className="login-role-icon">♙</span>
+                                <span>
+                                    <strong>Công nhân</strong>
+                                    <small>Vào ngay, không cần mật khẩu</small>
+                                </span>
+                                <b>→</b>
+                            </button>
+                            <button
+                                type="button"
+                                className="login-role-card"
+                                disabled={loading}
+                                onClick={() => {
+                                    setError("");
+                                    setStep("management-password");
+                                }}
+                            >
+                                <span className="login-role-icon">◆</span>
+                                <span>
+                                    <strong>Quản lý</strong>
+                                    <small>Quản lý, tổ trưởng hoặc quản trị viên</small>
+                                </span>
+                                <b>→</b>
+                            </button>
+                            {error && <div className="login-error" role="alert">{error}</div>}
+                            {loading && <div className="login-loading-line"><span className="login-spinner" /> Đang đăng nhập...</div>}
+                            <button type="button" className="login-back" onClick={resetToEmployeeCode} disabled={loading}>← Đổi mã nhân viên</button>
+                        </div>
+                    )}
 
-                        <button
-                            type="submit"
-                            className="login-submit"
-                            disabled={
-                                loading
-                            }
-                        >
-                            {loading ? (
-                                <>
-                                    <span className="login-spinner" />
-                                    Đang đăng nhập...
-                                </>
-                            ) : (
-                                <>
-                                    Đăng nhập
-                                    <span>
-                                        →
-                                    </span>
-                                </>
-                            )}
-                        </button>
-                    </form>
+                    {step === "management-password" && (
+                        <form onSubmit={submitManagementPassword} className="login-form">
+                            <label>
+                                <span>Mật khẩu quản lý</span>
+                                <div className="login-input-wrap">
+                                    <span className="login-input-icon">●</span>
+                                    <input
+                                        type={showPassword ? "text" : "password"}
+                                        autoComplete="current-password"
+                                        placeholder="Nhập mật khẩu"
+                                        value={password}
+                                        onChange={(event) => setPassword(event.target.value)}
+                                        disabled={loading}
+                                        autoFocus
+                                    />
+                                    <button
+                                        type="button"
+                                        className="password-toggle"
+                                        onClick={() => setShowPassword((current) => !current)}
+                                        disabled={loading}
+                                    >{showPassword ? "Ẩn" : "Hiện"}</button>
+                                </div>
+                            </label>
+                            <label className="remember-checkbox">
+                                <input
+                                    type="checkbox"
+                                    checked={rememberAccount}
+                                    onChange={(event) => setRememberAccount(event.target.checked)}
+                                    disabled={loading}
+                                />
+                                <span>Ghi nhớ mã nhân viên trên thiết bị</span>
+                            </label>
+                            {error && <div className="login-error" role="alert">{error}</div>}
+                            <button type="submit" className="login-submit" disabled={loading}>
+                                {loading ? <><span className="login-spinner" />Đang đăng nhập...</> : <>Đăng nhập quản lý <span>→</span></>}
+                            </button>
+                            <button type="button" className="login-back" onClick={() => { setPassword(""); setError(""); setStep("role-choice"); }} disabled={loading}>← Quay lại chọn vai trò</button>
+                        </form>
+                    )}
 
                     <p className="login-security-note">
-                        Không lưu mật khẩu. Chỉ
-                        lưu mã nhân viên và tên
-                        hiển thị để gợi ý lần sau.
+                        Công nhân đăng nhập bằng mã nhân viên. Tài khoản quản lý vẫn được bảo vệ bằng mật khẩu.
                     </p>
                 </div>
             </section>
