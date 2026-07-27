@@ -24,7 +24,7 @@ import {
 } from "../../services/productionService";
 
 import {
-    getWorkerByUserId
+    getCurrentWorker
 } from "../../services/workerService";
 
 
@@ -1079,9 +1079,7 @@ const productAutocompleteOptions =
 
 
                     const workerData =
-                        await getWorkerByUserId(
-                            userId
-                        );
+                        await getCurrentWorker();
 
 
                     setWorker(
