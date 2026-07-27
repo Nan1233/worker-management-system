@@ -639,6 +639,9 @@ function Reports() {
                         <option value="C">
                             Ca C
                         </option>
+                        <option value="D">
+                            Ca D
+                        </option>
                     </select>
                 </label>
 
