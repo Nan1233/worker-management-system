@@ -606,6 +606,28 @@ const shiftLocalDate = (dateValue: string, dayOffset: number): string => {
 
 
 // =====================================================
+// GIỚI HẠN NGÀY NHẬP BÁO CÁO CỦA CÔNG NHÂN
+// Cho phép hôm nay và 14 ngày trước đó (tổng cộng tối đa 15 ngày).
+// Không cho phép chọn ngày tương lai.
+// =====================================================
+
+const getWorkerMaxWorkDate = (): string => getCurrentLocalDate();
+
+const getWorkerMinWorkDate = (): string =>
+    shiftLocalDate(getCurrentLocalDate(), -14);
+
+const clampWorkerWorkDate = (dateValue: string): string => {
+    const minDate = getWorkerMinWorkDate();
+    const maxDate = getWorkerMaxWorkDate();
+
+    if (!dateValue) return maxDate;
+    if (dateValue < minDate) return minDate;
+    if (dateValue > maxDate) return maxDate;
+    return dateValue;
+};
+
+
+// =====================================================
 // HIỂN THỊ NGÀY DD/MM/YYYY
 // =====================================================
 
@@ -1285,9 +1307,13 @@ const calculateActualOutput = (values: FormState): number =>
             if (name === "shift") {
 
                 if (value === "C" && prev.shift !== "C") {
-                    next.workDate = shiftLocalDate(prev.workDate, -1);
+                    next.workDate = clampWorkerWorkDate(
+                        shiftLocalDate(prev.workDate, -1)
+                    );
                 } else if (prev.shift === "C" && value !== "C") {
-                    next.workDate = shiftLocalDate(prev.workDate, 1);
+                    next.workDate = clampWorkerWorkDate(
+                        shiftLocalDate(prev.workDate, 1)
+                    );
                 }
 
             }
@@ -2077,6 +2103,16 @@ const updateDeductionValue = (
         }
 
 
+        if (form.workDate > getWorkerMaxWorkDate()) {
+            return "Không được chọn ngày làm việc trong tương lai";
+        }
+
+
+        if (form.workDate < getWorkerMinWorkDate()) {
+            return "Chỉ được nhập báo cáo trong vòng 14 ngày gần nhất";
+        }
+
+
         if (
             !form.shift
         ) {
@@ -2722,8 +2758,10 @@ window.setTimeout(() => {
                                 type="date"
                                 name="workDate"
                                 value={form.workDate}
+                                min={getWorkerMinWorkDate()}
+                                max={getWorkerMaxWorkDate()}
                                 onChange={handleChange}
-                                aria-label="Chọn ngày báo cáo"
+                                aria-label="Chọn ngày báo cáo trong 14 ngày gần nhất"
                             />
 
                         </label>

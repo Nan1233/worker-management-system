@@ -24,6 +24,60 @@ const toPositiveInteger = (value) => {
 };
 
 
+
+
+const getVietnamDateKey = () => {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Ho_Chi_Minh",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+    }).formatToParts(new Date());
+
+    const values = Object.fromEntries(
+        parts.filter((part) => part.type !== "literal")
+            .map((part) => [part.type, part.value])
+    );
+
+    return `${values.year}-${values.month}-${values.day}`;
+};
+
+const dateKeyToUtcDay = (dateKey) => {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateKey || "").trim());
+    if (!match) return null;
+
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const value = Date.UTC(year, month - 1, day);
+    const date = new Date(value);
+
+    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+        return null;
+    }
+
+    return Math.floor(value / 86400000);
+};
+
+const validateWorkerWorkDate = (workDate) => {
+    const selectedDay = dateKeyToUtcDay(workDate);
+    const todayDay = dateKeyToUtcDay(getVietnamDateKey());
+
+    if (selectedDay === null || todayDay === null) {
+        return "Ngày làm việc không hợp lệ";
+    }
+
+    if (selectedDay > todayDay) {
+        return "Không được gửi báo cáo cho ngày trong tương lai";
+    }
+
+    if (selectedDay < todayDay - 14) {
+        return "Chỉ được gửi báo cáo trong vòng 14 ngày gần nhất";
+    }
+
+    return null;
+};
+
 const normalizeIds = (ids) => [
     ...new Set(
         (Array.isArray(ids) ? ids : [])
@@ -66,6 +120,11 @@ exports.checkSimilarReport = async (req, res) => {
 
         if (!workerId || !processId || !workDate || !shift || !machineNo || !productName) {
             return res.status(400).json({ success: false, message: "Thiếu thông tin kiểm tra báo cáo trùng" });
+        }
+
+        const workDateError = validateWorkerWorkDate(workDate);
+        if (workDateError) {
+            return res.status(422).json({ success: false, message: workDateError });
         }
 
         const report = await ProductionTemp.findSimilarReport({
@@ -122,6 +181,15 @@ exports.createTempReport = async (req, res) => {
                 success: false,
                 message:
                     "Thiếu ngày làm việc"
+            });
+        }
+
+
+        const workDateError = validateWorkerWorkDate(req.body.work_date);
+        if (workDateError) {
+            return res.status(422).json({
+                success: false,
+                message: workDateError
             });
         }
 
@@ -698,6 +766,14 @@ exports.updateTempReport = async (req, res) => {
         const current = await ProductionTemp.getDetail(reportId);
         if (!current) return res.status(404).json({ success: false, message: "Không tìm thấy báo cáo" });
         const payload = { ...current, ...(req.body || {}), defects: req.body?.defects ?? current.defects, deductions: req.body?.deductions ?? current.deductions };
+
+        if (req.user?.role === "worker") {
+            const workDateError = validateWorkerWorkDate(payload.work_date);
+            if (workDateError) {
+                return res.status(422).json({ success: false, message: workDateError });
+            }
+        }
+
         const validation = validateProductionReport(payload, { enforceBackDate: false });
         if (!validation.valid) return res.status(422).json({ success: false, message: "Dữ liệu báo cáo không hợp lệ", errors: validation.errors });
         const master = await validateMasterData({ workerId: current.worker_id, processId: current.process_id, machineNo: validation.normalized.machine_no, productName: validation.normalized.product_name, defects: validation.normalized.defects, deductions: validation.normalized.deductions, ttOk: validation.normalized.tt_ok, actualOutput: validation.normalized.actual_output });
