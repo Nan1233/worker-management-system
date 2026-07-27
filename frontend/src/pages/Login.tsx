@@ -395,11 +395,11 @@ function Login() {
             <section className="login-showcase">
                 <div className="login-showcase-inner">
                     <div className="login-logo">
-                        <span>KTC</span>
+                        <span>KTC (Hanoi)</span>
                     </div>
 
                     <p className="login-eyebrow">
-                        KTC PRODUCTION MANAGEMENT
+                        KTC (Hanoi) PRODUCTION MANAGEMENT
                     </p>
 
                     <h1>
