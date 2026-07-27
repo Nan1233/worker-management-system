@@ -21,8 +21,6 @@ services:
         value: "30000"
       - key: INLINE_SYNC_TRIGGER
         value: "false"
-      - key: COMPANY_NETWORK_ENFORCED
-        value: "true"
       - key: COMPANY_ALLOWED_IPS
         value: "113.160.133.126"
 

@@ -1053,20 +1053,23 @@ const calculateActualOutput = (values: FormState): number =>
     const [networkMessage, setNetworkMessage] = useState("Đang kiểm tra mạng công ty...");
     const [clientIp, setClientIp] = useState("");
 
-    const checkCompanyNetwork = async () => {
+    const checkCompanyNetwork = async (): Promise<boolean> => {
         try {
             setNetworkChecking(true);
             const access = await getCompanyNetworkAccess();
-            setNetworkAllowed(Boolean(access.allowed));
-            setNetworkMessage(access.message || (access.allowed
+            const allowed = Boolean(access.allowed);
+            setNetworkAllowed(allowed);
+            setNetworkMessage(access.message || (allowed
                 ? "Thiết bị đang kết nối qua mạng công ty."
-                : "Vui lòng kết nối với mạng KTC để nhập báo cáo."));
+                : "Vui lòng tắt 4G/5G và kết nối Wi-Fi KTC để nhập báo cáo."));
             setClientIp(access.client_ip || "");
+            return allowed;
         } catch (error: unknown) {
             const { message } = getApiError(error, "Không thể kiểm tra mạng công ty");
             setNetworkAllowed(false);
             setNetworkMessage(message);
             setClientIp("");
+            return false;
         } finally {
             setNetworkChecking(false);
         }
@@ -2199,8 +2202,11 @@ const updateDeductionValue = (
     const handleSubmit =
         async () => {
 
-            if (!networkAllowed) {
-                showToast("Vui lòng kết nối mạng KTC trước khi nhập báo cáo.", "error");
+            // Kiểm tra lại ngay trước lúc gửi để chặn trường hợp người dùng
+            // mở form bằng Wi-Fi công ty rồi chuyển sang 4G/5G.
+            const isOnCompanyNetwork = await checkCompanyNetwork();
+            if (!isOnCompanyNetwork) {
+                showToast("Không thể gửi dữ liệu. Hãy tắt 4G/5G và kết nối Wi-Fi KTC.", "error");
                 return;
             }
 
