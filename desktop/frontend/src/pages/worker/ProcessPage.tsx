@@ -655,33 +655,6 @@ const getWorkerAllowedWorkDates = (): Array<{ value: string; label: string }> =>
 
 
 // =====================================================
-// HIỂN THỊ NGÀY DD/MM/YYYY
-// =====================================================
-
-const formatDisplayDate = (
-    value: string
-): string => {
-
-    if (!value) {
-
-        return "";
-
-    }
-
-
-    const [
-        year,
-        month,
-        day
-    ] = value.split("-");
-
-
-    return `${day}/${month}/${year}`;
-
-};
-
-
-// =====================================================
 // FORMAT GIỜ THẬP PHÂN ĐỂ HIỂN THỊ
 //
 // Ví dụ:
