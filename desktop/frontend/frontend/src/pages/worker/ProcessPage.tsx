@@ -3776,6 +3776,16 @@ onSelect={(
 
                     </div>
 
+                    <div className="worker-grand-total" aria-live="polite">
+                        <label htmlFor="totalOutput">Tổng sản lượng (OK + NG)</label>
+                        <input
+                            id="totalOutput"
+                            value={(Number(form.ttOk || 0) + Number(form.ttNg || 0)).toLocaleString("vi-VN")}
+                            readOnly
+                            tabIndex={-1}
+                        />
+                    </div>
+
 
                     {/* =================================================
                         CHỌN LỖI NG
