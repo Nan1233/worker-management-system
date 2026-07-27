@@ -2,6 +2,7 @@ const { calculateActualOutput } = require('./outputCalculation');
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const ALLOWED_SHIFTS = new Set(["A", "B", "C", "D", "Ca 1", "Ca 2", "Ca 3"]);
 const EPSILON = 0.02;
+const MAX_TOTAL_TIME_HOURS = 12;
 
 const finiteNumber = (value, field, errors, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) => {
     const numberValue = Number(value ?? 0);
@@ -64,9 +65,9 @@ const validateProductionReport = (payload = {}, options = {}) => {
     if (!shift) errors.shift = "Thiếu ca làm việc";
     else if (!ALLOWED_SHIFTS.has(shift)) errors.shift = "Ca làm việc không hợp lệ";
 
-    const totalTime = finiteNumber(payload.total_time, "total_time", errors);
-    const deductionTime = finiteNumber(payload.deduction_time, "deduction_time", errors);
-    const actualTime = finiteNumber(payload.actual_time, "actual_time", errors);
+    const totalTime = finiteNumber(payload.total_time, "total_time", errors, { max: MAX_TOTAL_TIME_HOURS });
+    const deductionTime = finiteNumber(payload.deduction_time, "deduction_time", errors, { max: MAX_TOTAL_TIME_HOURS });
+    const actualTime = finiteNumber(payload.actual_time, "actual_time", errors, { max: MAX_TOTAL_TIME_HOURS });
     const standardOutputRaw = finiteNumber(payload.standard_output, "standard_output", errors, { max: 100000000 });
     const standardOutput = Math.round(standardOutputRaw);
     if (standardOutputRaw !== standardOutput) errors.standard_output = "standard_output phải là số nguyên";
@@ -75,7 +76,7 @@ const validateProductionReport = (payload = {}, options = {}) => {
     const ttNg = finiteNumber(payload.tt_ng, "tt_ng", errors, { max: 100000000 });
 
     if (actualTime <= 0) errors.actual_time = "Thời gian làm thực tế phải lớn hơn 0";
-    if (totalTime > 24) errors.total_time = "Tổng thời gian không được vượt quá 24 giờ";
+    if (totalTime > MAX_TOTAL_TIME_HOURS) errors.total_time = "Tổng thời gian không được vượt quá 12 giờ";
     if (Math.abs(totalTime - (actualTime + deductionTime)) > EPSILON) {
         errors.total_time = "Tổng thời gian phải bằng thời gian làm thực tế cộng thời gian trừ";
     }
@@ -125,4 +126,4 @@ const validateProductionReport = (payload = {}, options = {}) => {
     };
 };
 
-module.exports = { validateProductionReport, EPSILON };
+module.exports = { validateProductionReport, EPSILON, MAX_TOTAL_TIME_HOURS };

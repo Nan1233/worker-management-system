@@ -1535,6 +1535,14 @@ useEffect(() => {
 // 0.25
 // =====================================================
 
+const MAX_TOTAL_WORK_MINUTES = 12 * 60;
+
+const getDeductionMinutes = (data: DeductionState): number =>
+    Object.values(data).reduce(
+        (sum, currentValue) => sum + (Number(currentValue) || 0),
+        0
+    );
+
 const parseFlexibleTime = (value: string): number => {
     const normalized = value.trim().toLowerCase().replace(",", ".");
 
@@ -1581,10 +1589,7 @@ const parseFlexibleTime = (value: string): number => {
         data: DeductionState
     ) => {
         // Các ô chi tiết nhập bằng PHÚT. Ví dụ 70 = 1 giờ 10 phút.
-        const totalMinutes = Object.values(data).reduce(
-            (sum, currentValue) => sum + (Number(currentValue) || 0),
-            0
-        );
+        const totalMinutes = getDeductionMinutes(data);
         const deductionHours = totalMinutes / 60;
 
         setForm((prev) => {
@@ -1621,30 +1626,33 @@ const updateDeductionValue = (
 
     const normalizedValue = value.replace(/\D/g, "");
 
-    if (normalizedValue !== "" && Number(normalizedValue) > 1440) {
+    if (normalizedValue !== "" && Number(normalizedValue) > MAX_TOTAL_WORK_MINUTES) {
+        showToast("Tổng thời gian tối đa là 12 giờ", "warning");
         return;
     }
 
-
     setDeductions((prev) => {
-
         const next = {
-
             ...prev,
-
-            [key]:
-                normalizedValue
-
+            [key]: normalizedValue
         };
 
+        const actualMinutes =
+            (Number(form.actualHours) || 0) * 60
+            + (Number(form.actualMinutes) || 0);
+        const prospectiveTotalMinutes =
+            actualMinutes + getDeductionMinutes(next);
 
-        updateTotalDeduction(
-            next
-        );
+        if (prospectiveTotalMinutes > MAX_TOTAL_WORK_MINUTES) {
+            showToast(
+                "Không thể tăng thời gian trừ vì tổng thời gian sẽ vượt quá 12 giờ",
+                "warning"
+            );
+            return prev;
+        }
 
-
+        updateTotalDeduction(next);
         return next;
-
     });
 
 };
@@ -2154,8 +2162,8 @@ const updateDeductionValue = (
             return "Số phút làm thực tế phải từ 0 đến 59";
         }
 
-        if (parseFlexibleTime(form.totalTime) > 24) {
-            return "Tổng thời gian không được vượt quá 24 giờ";
+        if (parseFlexibleTime(form.totalTime) > 12) {
+            return "Tổng thời gian không được vượt quá 12 giờ";
         }
 
 
@@ -3038,19 +3046,47 @@ onSelect={(
                                 <input
                                     type="number"
                                     min="0"
-                                    max="24"
+                                    max="12"
                                     step="1"
                                     inputMode="numeric"
                                     value={form.actualHours}
                                     onChange={(event) => {
                                         const value = event.target.value.replace(/\D/g, "");
-                                        if (value !== "" && Number(value) > 24) return;
+                                        if (value !== "" && Number(value) > 12) {
+                                            showToast("Thời gian tối đa là 12 giờ", "warning");
+                                            return;
+                                        }
+
+                                        const hours = Number(value) || 0;
+                                        const deductionMinutes = getDeductionMinutes(deductions);
+                                        const currentMinutes =
+                                            hours === 12
+                                                ? 0
+                                                : Math.min(59, Number(form.actualMinutes) || 0);
+                                        const prospectiveTotalMinutes =
+                                            hours * 60 + currentMinutes + deductionMinutes;
+
+                                        if (prospectiveTotalMinutes > MAX_TOTAL_WORK_MINUTES) {
+                                            showToast(
+                                                "Không thể chọn số giờ này vì tổng thời gian sẽ vượt quá 12 giờ",
+                                                "warning"
+                                            );
+                                            return;
+                                        }
+
                                         setForm((prev) => {
-                                            const hours = Number(value) || 0;
-                                            const minutes = Math.min(59, Number(prev.actualMinutes) || 0);
+                                            const minutes = hours === 12
+                                                ? 0
+                                                : Math.min(59, Number(prev.actualMinutes) || 0);
                                             const actualTime = hours + minutes / 60;
                                             const deductionTime = parseFlexibleTime(prev.deductionTime);
-                                            return { ...prev, actualHours: value, actualTime: String(actualTime), totalTime: String(actualTime + deductionTime) };
+                                            return {
+                                                ...prev,
+                                                actualHours: value,
+                                                actualMinutes: hours === 12 ? "0" : prev.actualMinutes,
+                                                actualTime: String(actualTime),
+                                                totalTime: String(actualTime + deductionTime)
+                                            };
                                         });
                                     }}
                                     placeholder="Giờ"
@@ -3063,15 +3099,45 @@ onSelect={(
                                     step="1"
                                     inputMode="numeric"
                                     value={form.actualMinutes}
+                                    disabled={
+                                        Number(form.actualHours) >= 12
+                                        || (Number(form.actualHours) || 0) * 60
+                                            + getDeductionMinutes(deductions)
+                                            >= MAX_TOTAL_WORK_MINUTES
+                                    }
                                     onChange={(event) => {
                                         const value = event.target.value.replace(/\D/g, "");
                                         if (value !== "" && Number(value) > 59) return;
+
+                                        const hours = Number(form.actualHours) || 0;
+                                        const minutes = Number(value) || 0;
+                                        const deductionMinutes = getDeductionMinutes(deductions);
+
+                                        if (hours === 12 && minutes > 0) {
+                                            showToast(
+                                                "Đã đủ 12 giờ nên số phút phải bằng 0",
+                                                "warning"
+                                            );
+                                            return;
+                                        }
+
+                                        if (hours * 60 + minutes + deductionMinutes > MAX_TOTAL_WORK_MINUTES) {
+                                            showToast(
+                                                "Không thể tăng số phút vì tổng thời gian sẽ vượt quá 12 giờ",
+                                                "warning"
+                                            );
+                                            return;
+                                        }
+
                                         setForm((prev) => {
-                                            const hours = Number(prev.actualHours) || 0;
-                                            const minutes = Number(value) || 0;
                                             const actualTime = hours + minutes / 60;
                                             const deductionTime = parseFlexibleTime(prev.deductionTime);
-                                            return { ...prev, actualMinutes: value, actualTime: String(actualTime), totalTime: String(actualTime + deductionTime) };
+                                            return {
+                                                ...prev,
+                                                actualMinutes: value,
+                                                actualTime: String(actualTime),
+                                                totalTime: String(actualTime + deductionTime)
+                                            };
                                         });
                                     }}
                                     placeholder="Phút"
