@@ -92,8 +92,8 @@ function ManagementLayout({ role }: Props) {
                     <button type="button" className="management-brand" onClick={() => navigate(basePath)}>
                         <span className="management-brand-icon">KTC</span>
                         <span className="management-brand-content">
-                            <strong>Production Control</strong>
-                            <small>{roleLabel[role]} · Nhà máy số hóa</small>
+                            <strong>KTC (HANOI) CO., LTD</strong>
+                            <small>{roleLabel[role]} · Production Control</small>
                         </span>
                     </button>
 
@@ -132,7 +132,7 @@ function ManagementLayout({ role }: Props) {
             <div className="management-main">
                 <header className="management-header">
                     <div className="management-header-copy">
-                        <span className="management-header-kicker">TRUNG TÂM VẬN HÀNH KTC</span>
+                        <span className="management-header-kicker">KTC (HANOI) CO., LTD</span>
                         <strong>{role === "lead" ? "Bảng điều hành tổ trưởng" : role === "admin" ? "Bảng điều hành quản trị" : "Bảng điều hành quản lý"}</strong>
 
                     </div>

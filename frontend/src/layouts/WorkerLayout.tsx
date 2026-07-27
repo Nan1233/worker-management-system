@@ -43,7 +43,7 @@ function WorkerLayout() {
                 >
                     <span className="worker-brand-mark">KTC</span>
                     <span className="worker-brand-text">
-                        <strong>Quản lý sản xuất</strong>
+                        <strong>KTC (HANOI) CO., LTD</strong>
                         <small>{formatToday()}</small>
                     </span>
                 </button>

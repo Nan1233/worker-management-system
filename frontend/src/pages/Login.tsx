@@ -395,11 +395,11 @@ function Login() {
             <section className="login-showcase">
                 <div className="login-showcase-inner">
                     <div className="login-logo">
-                        <span>KTC (Hanoi)</span>
+                        <span>KTC (HANOI) CO., LTD</span>
                     </div>
 
                     <p className="login-eyebrow">
-                        KTC (Hanoi) PRODUCTION MANAGEMENT
+                        KTC (HANOI) CO., LTD · PRODUCTION MANAGEMENT
                     </p>
 
                     <h1>
@@ -464,7 +464,7 @@ function Login() {
 
                         <div>
                             <strong>
-                                Quản lý sản xuất
+                                KTC (HANOI) CO., LTD
                             </strong>
 
                             <small>
