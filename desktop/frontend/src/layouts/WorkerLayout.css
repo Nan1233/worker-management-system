@@ -33,19 +33,18 @@
 }
 
 .worker-brand-mark {
-    width: 52px;
-    height: 52px;
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
-    border-radius: 15px;
-    background: linear-gradient(145deg, #2464c8, #164a9d);
+    border-radius: 13px;
+    background: linear-gradient(145deg, #173d78, #2365bc);
     color: #fff;
-    font-size: 13px;
-    letter-spacing: 0.04em;
-    font-weight: 900;
-    box-shadow: 0 8px 18px rgba(36, 95, 194, 0.23);
+    font-size: 22px;
+    font-weight: 950;
+    box-shadow: 0 8px 18px rgba(24, 69, 130, 0.2);
 }
 
 .worker-brand-text,

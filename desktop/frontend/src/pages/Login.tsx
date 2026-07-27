@@ -394,12 +394,13 @@ function Login() {
         <main className="login-page">
             <section className="login-showcase">
                 <div className="login-showcase-inner">
-                    <div className="login-logo">
-                        <span>KTC</span>
+                    <div className="login-company-brand">
+                        <span className="login-brand-mark" aria-hidden="true">K</span>
+                        <p className="login-company-name">KTC (HANOI) CO., LTD</p>
                     </div>
 
                     <p className="login-eyebrow">
-                        KTC PRODUCTION MANAGEMENT
+                        PRODUCTION MANAGEMENT SYSTEM
                     </p>
 
                     <h1>
@@ -460,16 +461,10 @@ function Login() {
             <section className="login-panel">
                 <div className="login-card">
                     <div className="login-mobile-brand">
-                        <span>KTC</span>
-
+                        <span className="login-brand-mark" aria-hidden="true">K</span>
                         <div>
-                            <strong>
-                                Quản lý sản xuất
-                            </strong>
-
-                            <small>
-                                Đăng nhập hệ thống
-                            </small>
+                            <strong>KTC (HANOI) CO., LTD</strong>
+                            <small>Đăng nhập hệ thống</small>
                         </div>
                     </div>
 

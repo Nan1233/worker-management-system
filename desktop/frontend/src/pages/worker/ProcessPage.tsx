@@ -19,6 +19,7 @@ import "./ProcessPage.css";
 import {
     checkSimilarTempReport,
     createTempReport,
+    getCompanyNetworkAccess,
     updateTempReport,
     getDefectOptionsByProcess
 } from "../../services/productionService";
@@ -580,6 +581,31 @@ const getCurrentLocalDate =
 
 
 // =====================================================
+// CỘNG/TRỪ NGÀY THEO GIỜ ĐỊA PHƯƠNG
+// Ca C làm qua đêm nên được tính cho ngày sản xuất hôm trước.
+// =====================================================
+
+const shiftLocalDate = (dateValue: string, dayOffset: number): string => {
+
+    const [year, month, day] = dateValue.split("-").map(Number);
+
+    if (!year || !month || !day) {
+        return dateValue;
+    }
+
+    const date = new Date(year, month - 1, day);
+    date.setDate(date.getDate() + dayOffset);
+
+    const nextYear = date.getFullYear();
+    const nextMonth = String(date.getMonth() + 1).padStart(2, "0");
+    const nextDay = String(date.getDate()).padStart(2, "0");
+
+    return `${nextYear}-${nextMonth}-${nextDay}`;
+
+};
+
+
+// =====================================================
 // HIỂN THỊ NGÀY DD/MM/YYYY
 // =====================================================
 
@@ -1022,6 +1048,37 @@ const calculateActualOutput = (values: FormState): number =>
         setSubmitting
     ] = useState(false);
 
+    const [networkChecking, setNetworkChecking] = useState(true);
+    const [networkAllowed, setNetworkAllowed] = useState(false);
+    const [networkMessage, setNetworkMessage] = useState("Đang kiểm tra mạng công ty...");
+    const [clientIp, setClientIp] = useState("");
+
+    const checkCompanyNetwork = async (): Promise<boolean> => {
+        try {
+            setNetworkChecking(true);
+            const access = await getCompanyNetworkAccess();
+            const allowed = Boolean(access.allowed);
+            setNetworkAllowed(allowed);
+            setNetworkMessage(access.message || (allowed
+                ? "Thiết bị đang kết nối qua mạng công ty."
+                : "Vui lòng tắt 4G/5G và kết nối Wi-Fi KTC để nhập báo cáo."));
+            setClientIp(access.client_ip || "");
+            return allowed;
+        } catch (error: unknown) {
+            const { message } = getApiError(error, "Không thể kiểm tra mạng công ty");
+            setNetworkAllowed(false);
+            setNetworkMessage(message);
+            setClientIp("");
+            return false;
+        } finally {
+            setNetworkChecking(false);
+        }
+    };
+
+    useEffect(() => {
+        void checkCompanyNetwork();
+    }, []);
+
 
     // =====================================================
     // LẤY THÔNG TIN WORKER THEO USER ID
@@ -1217,6 +1274,23 @@ const calculateActualOutput = (values: FormState): number =>
                     value
 
             } as FormState;
+
+
+            /*
+                Ca C làm qua đêm và thuộc ngày sản xuất hôm trước.
+                Khi chuyển sang ca C: lùi ngày 1 ngày.
+                Khi rời ca C: trả ngày về 1 ngày để tránh bị lệch khi chọn lại ca.
+            */
+
+            if (name === "shift") {
+
+                if (value === "C" && prev.shift !== "C") {
+                    next.workDate = shiftLocalDate(prev.workDate, -1);
+                } else if (prev.shift === "C" && value !== "C") {
+                    next.workDate = shiftLocalDate(prev.workDate, 1);
+                }
+
+            }
 
 
             /*
@@ -2128,6 +2202,14 @@ const updateDeductionValue = (
     const handleSubmit =
         async () => {
 
+            // Kiểm tra lại ngay trước lúc gửi để chặn trường hợp người dùng
+            // mở form bằng Wi-Fi công ty rồi chuyển sang 4G/5G.
+            const isOnCompanyNetwork = await checkCompanyNetwork();
+            if (!isOnCompanyNetwork) {
+                showToast("Không thể gửi dữ liệu. Hãy tắt 4G/5G và kết nối Wi-Fi KTC.", "error");
+                return;
+            }
+
             const validationMessage =
                 validateForm();
 
@@ -2528,6 +2610,41 @@ window.setTimeout(() => {
         );
 
     };
+        if (networkChecking) {
+            return (
+                <main className="worker-form-page worker-network-page">
+                    <section className="worker-network-card" aria-live="polite">
+                        <div className="worker-network-symbol">↻</div>
+                        <h1>Đang kiểm tra mạng công ty</h1>
+                        <p>Vui lòng chờ trong giây lát.</p>
+                    </section>
+                </main>
+            );
+        }
+
+        if (!networkAllowed) {
+            return (
+                <main className="worker-form-page worker-network-page">
+                    <section className="worker-network-card worker-network-denied" role="alert">
+                        <div className="worker-network-symbol">!</div>
+                        <h1>Không thể nhập báo cáo</h1>
+                        <p>{networkMessage}</p>
+                        {clientIp && (
+                            <small>IP hiện tại: {clientIp}</small>
+                        )}
+                        <div className="worker-network-actions">
+                            <button type="button" onClick={() => void checkCompanyNetwork()}>
+                                Kiểm tra lại
+                            </button>
+                            <button type="button" className="secondary" onClick={() => navigate("/worker")}>
+                                Quay lại
+                            </button>
+                        </div>
+                    </section>
+                </main>
+            );
+        }
+
         return (
 
         <main className="worker-form-page">

@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "KTC - Quản lý sản xuất",
-  "short_name": "KTC",
-  "description": "Hệ thống quản lý báo cáo sản xuất KTC",
+  "name": "KTC (HANOI) CO., LTD - Quản lý sản xuất",
+  "short_name": "KTC HANOI",
+  "description": "Hệ thống quản lý báo cáo sản xuất của KTC (HANOI) CO., LTD",
   "lang": "vi-VN",
   "start_url": "/",
   "scope": "/",
