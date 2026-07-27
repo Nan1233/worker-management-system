@@ -24,9 +24,13 @@ import {
 } from "../../services/productionService";
 
 import {
-    getCurrentWorker
+    getWorkerByUserId
 } from "../../services/workerService";
 
+
+import type {
+    User
+} from "../../types/auth";
 
 import type {
     WorkerProfile
@@ -55,8 +59,6 @@ import type {
 
 type FormState = {
 
-    [key: string]: string;
-
     workDate: string;
 
     shift: string;
@@ -73,10 +75,6 @@ type FormState = {
     totalTime: string;
 
     actualTime: string;
-
-    actualHours: string;
-
-    actualMinutes: string;
 
     deductionTime: string;
 
@@ -165,7 +163,19 @@ type DeductionState = {
 // KEY CÁC LỖI NG
 // =====================================================
 
-type NgKey = string;
+type NgKey =
+    | "kqdDapLai"
+    | "kqdTuot"
+    | "voDoLong"
+    | "xuocDoLong"
+    | "congGay"
+    | "xoay"
+    | "khongDut"
+    | "baviaHut"
+    | "ppcm"
+    | "loiCaoSu"
+    | "ngKichThuoc"
+    | "catLem";
 
 
 // =====================================================
@@ -374,8 +384,6 @@ const allNgOptions: Array<{
 
     key: NgKey;
 
-    id?: number;
-
     code: string;
 
     label: string;
@@ -580,31 +588,6 @@ const getCurrentLocalDate =
 
 
 // =====================================================
-// CỘNG/TRỪ NGÀY THEO GIỜ ĐỊA PHƯƠNG
-// Ca C làm qua đêm nên được tính cho ngày sản xuất hôm trước.
-// =====================================================
-
-const shiftLocalDate = (dateValue: string, dayOffset: number): string => {
-
-    const [year, month, day] = dateValue.split("-").map(Number);
-
-    if (!year || !month || !day) {
-        return dateValue;
-    }
-
-    const date = new Date(year, month - 1, day);
-    date.setDate(date.getDate() + dayOffset);
-
-    const nextYear = date.getFullYear();
-    const nextMonth = String(date.getMonth() + 1).padStart(2, "0");
-    const nextDay = String(date.getDate()).padStart(2, "0");
-
-    return `${nextYear}-${nextMonth}-${nextDay}`;
-
-};
-
-
-// =====================================================
 // HIỂN THỊ NGÀY DD/MM/YYYY
 // =====================================================
 
@@ -643,16 +626,13 @@ const decimalHoursToText = (
     value: string
 ): string => {
 
-    const normalized = value.trim().toLowerCase().replace(",", ".");
-    const hourMinuteMatch = normalized.match(/^(\d{1,2})\s*(?:h|:|g)\s*(\d{1,2})$/);
-    const parsedHours = hourMinuteMatch
-        ? Number(hourMinuteMatch[1]) + Math.min(59, Number(hourMinuteMatch[2])) / 60
-        : Number(normalized || 0);
-
-    const decimalHours = Math.max(
-        0,
-        Number.isFinite(parsedHours) ? parsedHours : 0
-    );
+    const decimalHours =
+        Math.max(
+            0,
+            Number(
+                value || 0
+            )
+        );
 
 
     const hours =
@@ -714,12 +694,6 @@ const initialForm: FormState = {
         "",
 
     actualTime:
-        "",
-
-    actualHours:
-        "",
-
-    actualMinutes:
         "",
 
     deductionTime:
@@ -825,10 +799,6 @@ const initialDeduction: DeductionState = {
 };
 
 
-
-
-const KQD_CODES = new Set(["KQD_DL", "KQD_DAP_LAI", "KQD_TUOT"]);
-
 // =====================================================
 // COMPONENT
 // =====================================================
@@ -909,7 +879,10 @@ const machineAutocompleteOptions =
                         machine.machine_code,
 
                     label:
-                        machine.machine_code
+                        machine.machine_name,
+
+                    description:
+                        `Mã máy: ${machine.machine_code}`
 
                 })
             ),
@@ -932,7 +905,16 @@ const productAutocompleteOptions =
                         product.product_code,
 
                     label:
-                        product.product_code
+                        product.work_type
+                        ===
+                        "cat"
+
+                            ? "Cắt"
+
+                            : "Lồng",
+
+                    description:
+                        `Định mức: ${product.standard_output}`
 
                 })
             ),
@@ -949,27 +931,6 @@ const productAutocompleteOptions =
     ] = useState<FormState>(
         initialForm
     );
-
-const selectedProduct = useMemo(
-    () => productOptions.find((product) => product.product_code === form.productName),
-    [productOptions, form.productName]
-);
-
-const productExcludesKqd = (): boolean =>
-    Number(selectedProduct?.exclude_kqd_from_tt || 0) === 1;
-
-const calculateCountedNg = (values: FormState): number =>
-    activeNgOptions.reduce((sum, item) => {
-        const code = String(item.code || "").trim().toUpperCase();
-        if (productExcludesKqd() && (KQD_CODES.has(code) || code.startsWith("KQD"))) return sum;
-        return sum + Number(values[item.key] || 0);
-    }, 0);
-
-const calculateActualOutput = (values: FormState): number =>
-    Number(values.ttOk || 0) + calculateCountedNg(values);
-
-
-
 
 
     // =================================================
@@ -1090,8 +1051,37 @@ const calculateActualOutput = (values: FormState): number =>
                     }
 
 
+                    const user: User =
+                        JSON.parse(
+                            savedUser
+                        );
+
+
+                    const userId =
+                        Number(
+                            user.id
+                        );
+
+
+                    if (
+                        !Number.isInteger(
+                            userId
+                        )
+                        ||
+                        userId <= 0
+                    ) {
+
+                        throw new Error(
+                            "Không tìm thấy ID tài khoản đăng nhập"
+                        );
+
+                    }
+
+
                     const workerData =
-                        await getCurrentWorker();
+                        await getWorkerByUserId(
+                            userId
+                        );
 
 
                     setWorker(
@@ -1245,23 +1235,6 @@ const calculateActualOutput = (values: FormState): number =>
 
 
             /*
-                Ca C làm qua đêm và thuộc ngày sản xuất hôm trước.
-                Khi chuyển sang ca C: lùi ngày 1 ngày.
-                Khi rời ca C: trả ngày về 1 ngày để tránh bị lệch khi chọn lại ca.
-            */
-
-            if (name === "shift") {
-
-                if (value === "C" && prev.shift !== "C") {
-                    next.workDate = shiftLocalDate(prev.workDate, -1);
-                } else if (prev.shift === "C" && value !== "C") {
-                    next.workDate = shiftLocalDate(prev.workDate, 1);
-                }
-
-            }
-
-
-            /*
                 Khi thay đổi TT OK hoặc TT NG,
                 tự động tính tổng sản phẩm thực tế.
             */
@@ -1272,7 +1245,24 @@ const calculateActualOutput = (values: FormState): number =>
                 name === "ttNg"
             ) {
 
-                next.actualOutput = String(calculateActualOutput(next));
+                next.actualOutput =
+                    String(
+
+                        Number(
+                            next.ttOk
+                            ||
+                            0
+                        )
+
+                        +
+
+                        Number(
+                            next.ttNg
+                            ||
+                            0
+                        )
+
+                    );
 
             }
 
@@ -1345,56 +1335,43 @@ useEffect(() => {
                 );
 
 
-                // Tải độc lập để một API lỗi không làm mất toàn bộ danh sách.
                 const [
-                    machinesResult,
-                    productsResult,
-                    defectsResult
-                ] = await Promise.allSettled([
-                    getMachinesByProcess(processInfo.id),
-                    getProductStandardsByProcess(processInfo.id),
-                    getDefectOptionsByProcess(processInfo.id)
-                ]);
+                    machines,
+                    products,
+                    defects
+                ] =
+                    await Promise.all([
 
-                const machines = machinesResult.status === "fulfilled"
-                    ? machinesResult.value
-                    : [];
-                const products = productsResult.status === "fulfilled"
-                    ? productsResult.value
-                    : [];
+                        getMachinesByProcess(
+                            processInfo.id
+                        ),
 
-                setMachineOptions(machines);
-                setProductOptions(products);
+                        getProductStandardsByProcess(
+                            processInfo.id
+                        ),
 
-                if (defectsResult.status === "fulfilled") {
-                    setActiveNgOptions(
-                        defectsResult.value.map((item) => ({
-                            id: Number(item.id || item.defect_type_id),
-                            key: `defect_${Number(item.id || item.defect_type_id)}`,
-                            code: String(item.defect_code || "").trim(),
-                            label: String(item.defect_name || item.defect_code || "Lỗi NG").trim()
-                        }))
-                    );
-                } else {
-                    console.error("LOAD DEFECT OPTIONS ERROR:", defectsResult.reason);
-                }
+                        getDefectOptionsByProcess(
+                            processInfo.id
+                        )
 
-                if (machinesResult.status === "rejected") {
-                    console.error("LOAD MACHINES ERROR:", machinesResult.reason);
-                }
-                if (productsResult.status === "rejected") {
-                    console.error("LOAD PRODUCT STANDARDS ERROR:", productsResult.reason);
-                }
+                    ]);
 
-                if (machines.length === 0 || products.length === 0) {
-                    showToast(
-                        machines.length === 0 && products.length === 0
-                            ? "Không tìm thấy máy và sản phẩm cho công đoạn này"
-                            : machines.length === 0
-                                ? "Không tìm thấy máy cho công đoạn này"
-                                : "Không tìm thấy sản phẩm cho công đoạn này"
-                    );
-                }
+
+                setMachineOptions(
+                    machines
+                );
+
+
+                setProductOptions(
+                    products
+                );
+
+                const activeCodes = new Set(
+                    defects.map((item) => String(item.defect_code || "").trim().toUpperCase())
+                );
+                setActiveNgOptions(
+                    allNgOptions.filter((item) => activeCodes.has(item.code))
+                );
 
             }
             catch (error: unknown) {
@@ -1477,37 +1454,115 @@ useEffect(() => {
 // 0.25
 // =====================================================
 
-const parseFlexibleTime = (value: string): number => {
-    const normalized = value.trim().toLowerCase().replace(",", ".");
+const normalizeDecimalInput = (
+    value: string
+): string => {
 
-    if (!normalized) return 0;
+    return value.replace(
+        ",",
+        "."
+    );
 
-    const hourMinuteMatch = normalized.match(/^(\d{1,3})\s*(?:h|:|g)\s*(\d{1,2})$/);
-    if (hourMinuteMatch) {
-        const hours = Number(hourMinuteMatch[1]);
-        const minutes = Number(hourMinuteMatch[2]);
-
-        if (minutes > 59) return Number.NaN;
-
-        return hours + minutes / 60;
-    }
-
-    const hourOnlyMatch = normalized.match(/^(\d{1,3})\s*(?:h|g)$/);
-    if (hourOnlyMatch) return Number(hourOnlyMatch[1]);
-
-    const parsed = Number(normalized);
-    return Number.isFinite(parsed) ? parsed : Number.NaN;
 };
 
 
+const isValidDecimalInput = (
+    value: string
+): boolean => {
+
+    const normalizedValue =
+        normalizeDecimalInput(
+            value
+        );
 
 
+    return (
+        normalizedValue === ""
+        ||
+        /^\d*\.?\d*$/.test(
+            normalizedValue
+        )
+    );
 
+};
     // =====================================================
     // INPUT SỐ THỜI GIAN
     // =====================================================
 
+const handleTimeInputChange = (
+    event:
+        React.ChangeEvent<HTMLInputElement>
+) => {
 
+    const {
+        name,
+        value
+    } = event.target;
+
+
+    const normalizedValue =
+        normalizeDecimalInput(
+            value
+        );
+
+
+    if (
+        !isValidDecimalInput(
+            normalizedValue
+        )
+    ) {
+
+        return;
+
+    }
+
+
+    setForm((prev) => {
+
+        const next = {
+
+            ...prev,
+
+            [name]:
+                normalizedValue
+
+        } as FormState;
+
+
+        if (
+            name ===
+            "totalTime"
+        ) {
+
+            next.actualTime =
+                String(
+                    Math.max(
+                        0,
+
+                        Number(
+                            normalizedValue
+                            ||
+                            0
+                        )
+
+                        -
+
+                        Number(
+                            next.deductionTime
+                            ||
+                            0
+                        )
+                    )
+                );
+
+        }
+
+
+        return next;
+
+    });
+
+};
 
 
     // =====================================================
@@ -1522,24 +1577,63 @@ const parseFlexibleTime = (value: string): number => {
     const updateTotalDeduction = (
         data: DeductionState
     ) => {
-        // Các ô chi tiết nhập bằng PHÚT. Ví dụ 70 = 1 giờ 10 phút.
-        const totalMinutes = Object.values(data).reduce(
-            (sum, currentValue) => sum + (Number(currentValue) || 0),
-            0
-        );
-        const deductionHours = totalMinutes / 60;
 
-        setForm((prev) => {
-            const actualHours = Math.max(0, Number(prev.actualHours) || 0);
-            const actualMinutes = Math.min(59, Math.max(0, Number(prev.actualMinutes) || 0));
-            const actualTime = actualHours + actualMinutes / 60;
-            return {
-                ...prev,
-                actualTime: String(actualTime),
-                deductionTime: String(deductionHours),
-                totalTime: String(actualTime + deductionHours)
-            };
-        });
+        const total =
+            Object.values(
+                data
+            )
+                .reduce(
+
+                    (
+                        sum,
+                        currentValue
+                    ) =>
+
+                        sum
+                        +
+                        Number(
+                            currentValue
+                            ||
+                            0
+                        ),
+
+                    0
+
+                );
+
+
+        setForm((prev) => ({
+
+            ...prev,
+
+            deductionTime:
+                String(
+                    total
+                ),
+
+            actualTime:
+                String(
+
+                    Math.max(
+
+                        0,
+
+                        Number(
+                            prev.totalTime
+                            ||
+                            0
+                        )
+
+                        -
+
+                        total
+
+                    )
+
+                )
+
+        }));
+
     };
 
 
@@ -1547,24 +1641,25 @@ const parseFlexibleTime = (value: string): number => {
     // CẬP NHẬT GIÁ TRỊ MỘT LOẠI TRỪ GIỜ
     // =====================================================
 
-const normalizeDeductionValue = (key: DeductionKey) => {
-    setDeductions((prev) => {
-        const raw = String(prev[key] || "").replace(/\D/g, "");
-        const next = { ...prev, [key]: raw ? String(Number(raw)) : "" };
-        updateTotalDeduction(next);
-        return next;
-    });
-};
-
 const updateDeductionValue = (
     key: DeductionKey,
     value: string
 ) => {
 
-    const normalizedValue = value.replace(/\D/g, "");
+    const normalizedValue =
+        normalizeDecimalInput(
+            value
+        );
 
-    if (normalizedValue !== "" && Number(normalizedValue) > 1440) {
+
+    if (
+        !isValidDecimalInput(
+            normalizedValue
+        )
+    ) {
+
         return;
+
     }
 
 
@@ -1638,7 +1733,7 @@ const updateDeductionValue = (
                     [key]:
                         prev[key]
                         ||
-                        ""
+                        "1"
 
                 };
 
@@ -1693,6 +1788,70 @@ const updateDeductionValue = (
 
     };
 
+
+    // =====================================================
+    // NHẬP 0 RỒI RỜI Ô:
+    // BỎ CHỌN LOẠI TRỪ GIỜ
+    // =====================================================
+
+    const removeDeductionIfZero = (
+        key: DeductionKey
+    ) => {
+
+        if (
+            deductions[key] === ""
+            ||
+            Number(
+                deductions[key]
+            ) !== 0
+        ) {
+
+            return;
+
+        }
+
+
+        handleToggleDeduction(
+            key,
+            false
+        );
+
+    };
+
+
+    // =====================================================
+    // ENTER TẠI Ô TRỪ GIỜ
+    // =====================================================
+
+    const handleDeductionKeyDown = (
+
+        event:
+            React.KeyboardEvent<
+                HTMLInputElement
+            >,
+
+        key: DeductionKey
+
+    ) => {
+
+        if (
+            event.key !==
+            "Enter"
+        ) {
+
+            return;
+
+        }
+
+
+        event.preventDefault();
+
+
+        removeDeductionIfZero(
+            key
+        );
+
+    };
 
 
     // =====================================================
@@ -1757,7 +1916,20 @@ const updateDeductionValue = (
                 );
 
 
-            next.actualOutput = String(calculateActualOutput(next));
+            next.actualOutput =
+                String(
+
+                    Number(
+                        next.ttOk
+                        ||
+                        0
+                    )
+
+                    +
+
+                    totalNg
+
+                );
 
 
             return next;
@@ -1813,7 +1985,7 @@ const updateDeductionValue = (
                     [key]:
                         prev[key]
                         ||
-                        ""
+                        "1"
 
                 };
 
@@ -1845,7 +2017,20 @@ const updateDeductionValue = (
                     );
 
 
-                next.actualOutput = String(calculateActualOutput(next));
+                next.actualOutput =
+                    String(
+
+                        Number(
+                            next.ttOk
+                            ||
+                            0
+                        )
+
+                        +
+
+                        totalNg
+
+                    );
 
 
                 return next;
@@ -1906,7 +2091,20 @@ const updateDeductionValue = (
                 );
 
 
-            next.actualOutput = String(calculateActualOutput(next));
+            next.actualOutput =
+                String(
+
+                    Number(
+                        next.ttOk
+                        ||
+                        0
+                    )
+
+                    +
+
+                    totalNg
+
+                );
 
 
             return next;
@@ -1915,18 +2113,75 @@ const updateDeductionValue = (
 
     };
 
+
+    // =====================================================
+    // NHẬP 0 RỒI RỜI Ô:
+    // BỎ CHỌN LỖI NG
+    // =====================================================
+
+    const removeNgIfZero = (
+        key: NgKey
+    ) => {
+
+        if (
+            form[key] === ""
+            ||
+            Number(
+                form[key]
+            ) !== 0
+        ) {
+
+            return;
+
+        }
+
+
+        handleToggleNg(
+            key,
+            false
+        );
+
+    };
+
+
+    // =====================================================
+    // ENTER TẠI Ô LỖI NG
+    // =====================================================
+
+    const handleNgKeyDown = (
+
+        event:
+            React.KeyboardEvent<
+                HTMLInputElement
+            >,
+
+        key: NgKey
+
+    ) => {
+
+        if (
+            event.key !==
+            "Enter"
+        ) {
+
+            return;
+
+        }
+
+
+        event.preventDefault();
+
+
+        removeNgIfZero(
+            key
+        );
+
+    };
+
+
     // =====================================================
     // CẬP NHẬT TT OK
     // =====================================================
-
-    const formatIntegerDisplay = (value: string): string => {
-        const digits = value.replace(/\D/g, "");
-        return digits ? Number(digits).toLocaleString("vi-VN") : "";
-    };
-
-    const parseIntegerDisplay = (value: string): string =>
-        value.replace(/\D/g, "");
-
 
     const handleTtOkChange = (
 
@@ -1938,7 +2193,7 @@ const updateDeductionValue = (
     ) => {
 
         const value =
-            parseIntegerDisplay(event.target.value);
+            event.target.value;
 
 
         if (
@@ -1959,7 +2214,24 @@ const updateDeductionValue = (
             ttOk:
                 value,
 
-            actualOutput: String(calculateActualOutput({ ...prev, ttOk: value }))
+            actualOutput:
+                String(
+
+                    Number(
+                        value
+                        ||
+                        0
+                    )
+
+                    +
+
+                    Number(
+                        prev.ttNg
+                        ||
+                        0
+                    )
+
+                )
 
         }));
 
@@ -2071,17 +2343,50 @@ const updateDeductionValue = (
         }
 
 
-        if (parseFlexibleTime(form.actualTime) <= 0) {
-            return "Thời gian làm thực tế phải lớn hơn 0";
+        if (
+            Number(
+                form.totalTime
+                ||
+                0
+            ) <= 0
+        ) {
+
+            return "Tổng thời gian phải lớn hơn 0";
+
         }
 
 
-        if (Number(form.actualMinutes || 0) > 59) {
-            return "Số phút làm thực tế phải từ 0 đến 59";
+        if (
+            Number(
+                form.deductionTime
+                ||
+                0
+            )
+            >
+            Number(
+                form.totalTime
+                ||
+                0
+            )
+        ) {
+
+            return "Thời gian trừ không được lớn hơn tổng thời gian";
+
         }
 
-        if (parseFlexibleTime(form.totalTime) > 24) {
-            return "Tổng thời gian không được vượt quá 24 giờ";
+
+        if (
+            Number(
+                form.actualTime
+                ||
+                0
+            )
+            <
+            0
+        ) {
+
+            return "Thời gian thực tế không hợp lệ";
+
         }
 
 
@@ -2150,10 +2455,30 @@ const updateDeductionValue = (
         }
 
 
-        if (Number(form.actualOutput || 0) !== calculateActualOutput(form)) {
-            return productExcludesKqd()
-                ? "Thực tế phải bằng TT OK cộng NG được tính (không gồm KQD của mã sản phẩm này)"
-                : "Thực tế phải bằng TT OK cộng TT NG";
+        if (
+            Number(
+                form.actualOutput
+                ||
+                0
+            )
+            !==
+            (
+                Number(
+                    form.ttOk
+                    ||
+                    0
+                )
+                +
+                Number(
+                    form.ttNg
+                    ||
+                    0
+                )
+            )
+        ) {
+
+            return "Thực tế phải bằng TT OK cộng TT NG";
+
         }
 
 
@@ -2208,18 +2533,27 @@ const updateDeductionValue = (
                     machine_no:
                         form.machineNo.trim(),
 
-                    exclude_kqd_from_tt:
-                        Number(selectedProduct?.exclude_kqd_from_tt || 0),
-
 
                     total_time:
-                        parseFlexibleTime(form.totalTime),
+                        Number(
+                            form.totalTime
+                            ||
+                            0
+                        ),
 
                     actual_time:
-                        parseFlexibleTime(form.actualTime),
+                        Number(
+                            form.actualTime
+                            ||
+                            0
+                        ),
 
                     deduction_time:
-                        parseFlexibleTime(form.deductionTime),
+                        Number(
+                            form.deductionTime
+                            ||
+                            0
+                        ),
 
 
                 
@@ -2359,12 +2693,6 @@ const updateDeductionValue = (
                             .map(
                                 (item) => ({
 
-                                    defect_type_id:
-                                        item.id,
-
-                                    defect_code:
-                                        item.code,
-
                                     defect_name:
                                         item.label,
 
@@ -2385,7 +2713,11 @@ const updateDeductionValue = (
                             .filter(
                                 (item) =>
 
-                                    Number(deductions[item.key] || 0)
+                                    Number(
+                                        deductions[item.key]
+                                        ||
+                                        0
+                                    )
                                     >
                                     0
                             )
@@ -2397,13 +2729,18 @@ const updateDeductionValue = (
                                         item.label,
 
                                     hours:
-                                        Number(deductions[item.key] || 0) / 60
+                                        Number(
+                                            deductions[item.key]
+                                            ||
+                                            0
+                                        )
 
                                 })
                             ),
 
 
-                    note: ""
+                    note:
+                        form.note.trim()
 
                 };
 
@@ -2613,49 +2950,72 @@ window.setTimeout(() => {
                     </div>
 
 
-                </header>
+                    <div className="worker-form-identity">
 
-                <div className="worker-sticky-info">
+    <span>
 
-                    <div className="worker-sticky-person">
+        <strong>
+            {form.workerName || "Đang tải..."}
+        </strong>
 
-                        <strong>
-                            {form.workerName || "Đang tải..."}
-                        </strong>
+        {" - "}
+
+        {form.workerCode || ""}
+
+    </span>
+
+    <span className="worker-training-percent">
+
+        Học việc:
+
+        {" "}
+
+        {form.trainingPercent || 0}%
+
+    </span>
+
+</div>
+
+
+                    <label className="worker-date-picker">
 
                         <span>
-                            Mã NV: {form.workerCode || "---"}
+
+                            {
+                                formatDisplayDate(
+                                    form.workDate
+                                )
+                            }
+
                         </span>
 
-                    </div>
 
-                    <div className="worker-sticky-meta">
+                        <span>
 
-                        <span className="worker-sticky-training">
-                            Học việc: {form.trainingPercent || 0}%
+                            ▼
+
                         </span>
 
-                        <label className="worker-sticky-date" htmlFor="workerWorkDate">
 
-                            <span className="worker-sticky-date-text">
-                                {formatDisplayDate(form.workDate)}
-                            </span>
+                        <input
 
-                            <input
-                                id="workerWorkDate"
-                                className="worker-sticky-date-input"
-                                type="date"
-                                name="workDate"
-                                value={form.workDate}
-                                onChange={handleChange}
-                                aria-label="Chọn ngày báo cáo"
-                            />
+                            type="date"
 
-                        </label>
+                            name="workDate"
 
-                    </div>
+                            value={
+                                form.workDate
+                            }
 
-                </div>
+                            onChange={
+                                handleChange
+                            }
+
+                        />
+
+                    </label>
+
+                </header>
 
 
                 {/* =================================================
@@ -2801,7 +3161,7 @@ window.setTimeout(() => {
                 standardOutput:
                     selectedProduct
                         ? String(
-                            Math.round(Number(selectedProduct.standard_output) || 0)
+                            selectedProduct.standard_output
                         )
                         : ""
 
@@ -2833,7 +3193,7 @@ window.setTimeout(() => {
                 standardOutput:
                     selectedProduct
                         ? String(
-                            Math.round(Number(selectedProduct.standard_output) || 0)
+                            selectedProduct.standard_output
                         )
                         : ""
 
@@ -2850,10 +3210,10 @@ window.setTimeout(() => {
 
     <AutocompleteInput
         id="machineNo"
-        label="Số máy"
+        label="Số máy (Tên máy)"
         value={form.machineNo}
         options={machineAutocompleteOptions}
-        placeholder="Nhập mã máy"
+        placeholder="Nhập mã hoặc tên máy"
         required
         disabled={loadingMasterData}
         emptyMessage="Không tìm thấy máy"
@@ -2910,67 +3270,112 @@ onSelect={(
 
 
                     <div className="worker-time-grid">
-                        <div className="worker-time-item">
-                            <label>Thời gian làm thực tế</label>
-                            <div className="worker-time-split">
-                                <input
-                                    type="number"
-                                    min="0"
-                                    max="24"
-                                    step="1"
-                                    inputMode="numeric"
-                                    value={form.actualHours}
-                                    onChange={(event) => {
-                                        const value = event.target.value.replace(/\D/g, "");
-                                        if (value !== "" && Number(value) > 24) return;
-                                        setForm((prev) => {
-                                            const hours = Number(value) || 0;
-                                            const minutes = Math.min(59, Number(prev.actualMinutes) || 0);
-                                            const actualTime = hours + minutes / 60;
-                                            const deductionTime = parseFlexibleTime(prev.deductionTime);
-                                            return { ...prev, actualHours: value, actualTime: String(actualTime), totalTime: String(actualTime + deductionTime) };
-                                        });
-                                    }}
-                                    placeholder="Giờ"
-                                />
-                                <span>giờ</span>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    max="59"
-                                    step="1"
-                                    inputMode="numeric"
-                                    value={form.actualMinutes}
-                                    onChange={(event) => {
-                                        const value = event.target.value.replace(/\D/g, "");
-                                        if (value !== "" && Number(value) > 59) return;
-                                        setForm((prev) => {
-                                            const hours = Number(prev.actualHours) || 0;
-                                            const minutes = Number(value) || 0;
-                                            const actualTime = hours + minutes / 60;
-                                            const deductionTime = parseFlexibleTime(prev.deductionTime);
-                                            return { ...prev, actualMinutes: value, actualTime: String(actualTime), totalTime: String(actualTime + deductionTime) };
-                                        });
-                                    }}
-                                    placeholder="Phút"
-                                />
-                                <span>phút</span>
-                            </div>
-                            <small>Lưu DB/Excel: {parseFlexibleTime(form.actualTime).toFixed(3)} giờ</small>
-                        </div>
+
+
+                        {/* TỔNG THỜI GIAN */}
 
                         <div className="worker-time-item">
-                            <label>Tổng thời gian</label>
-                            <input value={form.totalTime} readOnly />
-                            <small>{decimalHoursToText(form.totalTime)}</small>
+
+                            <label
+
+                                htmlFor="totalTime"
+
+                            >
+
+                                Tổng thời gian
+
+                            </label>
+
+
+                            <input
+
+                                id="totalTime"
+
+                                name="totalTime"
+
+                                value={
+                                    form.totalTime
+                                }
+
+                                onChange={
+                                    handleTimeInputChange
+                                }
+
+                                onBlur={
+                                    handleNumberBlur
+                                }
+
+                                inputMode="decimal"
+
+                                placeholder="0"
+
+                                autoComplete="off"
+
+                            />
+
+
+                            <small>
+
+                                {
+                                    decimalHoursToText(
+                                        form.totalTime
+                                    )
+                                }
+
+                            </small>
+
                         </div>
 
+
+
+
+
+                        {/* THỜI GIAN TRỪ */}
+
                         <div className="worker-time-item">
-                            <label>Thời gian trừ</label>
-                            <input value={form.deductionTime} readOnly />
-                            <small>{decimalHoursToText(form.deductionTime)}</small>
+
+                            <label
+
+                                htmlFor="deductionTime"
+
+                            >
+
+                                Thời gian trừ
+
+                            </label>
+
+
+                            <input
+
+                                id="deductionTime"
+
+                                name="deductionTime"
+
+                                value={
+                                    form.deductionTime
+                                }
+
+                                readOnly
+
+                                placeholder="0"
+
+                            />
+
+
+                            <small>
+
+                                {
+                                    decimalHoursToText(
+                                        form.deductionTime
+                                    )
+                                }
+
+                            </small>
+
                         </div>
+
                     </div>
+
 
                     {/* =================================================
                         CHỌN LOẠI TRỪ GIỜ
@@ -3187,11 +3592,29 @@ onSelect={(
                                                                 )
                                                         }
 
-                                                        onBlur={() => normalizeDeductionValue(item.key)}
+                                                        onBlur={() =>
+                                                            removeDeductionIfZero(
+                                                                item.key
+                                                            )
+                                                        }
 
-                                                        inputMode="numeric"
+                                                        onKeyDown={
+                                                            (
+                                                                event
+                                                            ) =>
 
-                                                        placeholder="Số phút, VD: 70"
+                                                                handleDeductionKeyDown(
+
+                                                                    event,
+
+                                                                    item.key
+
+                                                                )
+                                                        }
+
+                                                        inputMode="decimal"
+
+                                                        placeholder="0"
 
                                                         autoComplete="off"
 
@@ -3286,7 +3709,7 @@ onSelect={(
                                 name="ttOk"
 
                                 value={
-                                    formatIntegerDisplay(form.ttOk)
+                                    form.ttOk
                                 }
 
                                 onChange={
@@ -3299,7 +3722,7 @@ onSelect={(
 
                                 inputMode="numeric"
 
-                                placeholder=""
+                                placeholder="0"
 
                                 autoComplete="off"
 
@@ -3330,12 +3753,12 @@ onSelect={(
                                 name="ttNg"
 
                                 value={
-                                    formatIntegerDisplay(form.ttNg)
+                                    form.ttNg
                                 }
 
                                 readOnly
 
-                                placeholder=""
+                                placeholder="0"
 
                             />
 
@@ -3559,9 +3982,29 @@ onSelect={(
                                                                 )
                                                         }
 
+                                                        onBlur={() =>
+                                                            removeNgIfZero(
+                                                                item.key
+                                                            )
+                                                        }
+
+                                                        onKeyDown={
+                                                            (
+                                                                event
+                                                            ) =>
+
+                                                                handleNgKeyDown(
+
+                                                                    event,
+
+                                                                    item.key
+
+                                                                )
+                                                        }
+
                                                         inputMode="numeric"
 
-                                                        placeholder=""
+                                                        placeholder="0"
 
                                                         autoComplete="off"
 
@@ -3578,6 +4021,47 @@ onSelect={(
                         )
                     }
 
+
+                    {/* =================================================
+                        GHI CHÚ
+                    ================================================= */}
+
+                    <div className="worker-field-block worker-note-block">
+
+                        <label
+
+                            className="worker-field-label"
+
+                            htmlFor="note"
+
+                        >
+
+                            Ghi chú
+
+                        </label>
+
+
+                        <textarea
+
+                            id="note"
+
+                            className="worker-note-input"
+
+                            name="note"
+
+                            value={
+                                form.note
+                            }
+
+                            onChange={
+                                handleChange
+                            }
+
+                            placeholder="Nhập ghi chú nếu có"
+
+                        />
+
+                    </div>
 
                 </section>
 
