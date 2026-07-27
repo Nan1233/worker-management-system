@@ -163,19 +163,31 @@ export const getMyTempReports = async()=>{
 // MANAGER XEM CHỜ DUYỆT
 // =====================================================
 
-export const getPendingReports = async()=>{
+export interface PendingReportFilters {
+    dateFrom?: string;
+    dateTo?: string;
+    shift?: string;
+    processId?: number | string;
+    search?: string;
+}
 
-
+export const getPendingReports = async (
+    filters: PendingReportFilters = {}
+) => {
     const res = await api.get(
-
-        "/production-temp/pending"
-
+        "/production-temp/pending",
+        {
+            params: {
+                date_from: filters.dateFrom || undefined,
+                date_to: filters.dateTo || undefined,
+                shift: filters.shift || undefined,
+                process_id: filters.processId || undefined,
+                search: filters.search?.trim() || undefined
+            }
+        }
     );
 
-
     return res.data.data || res.data || [];
-
-
 };
 
 

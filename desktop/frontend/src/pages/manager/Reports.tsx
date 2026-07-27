@@ -12,8 +12,7 @@ import axios from "axios";
 
 import {
     approveSelectedTempReports,
-    getPendingReports,
-    getTempReportsByDate
+    getPendingReports
 } from "../../services/productionService";
 
 import type {
@@ -26,6 +25,67 @@ import "./Reports.css";
 
 
 const ITEMS_PER_PAGE = 20;
+
+type DateFilterMode =
+    | "today"
+    | "yesterday"
+    | "week"
+    | "currentMonth"
+    | "month"
+    | "range"
+    | "all";
+
+const toLocalDateString = (value: Date): string => {
+    const offset = value.getTimezoneOffset();
+    return new Date(value.getTime() - offset * 60_000)
+        .toISOString()
+        .split("T")[0];
+};
+
+const getDateRangeForMode = (
+    mode: DateFilterMode,
+    selectedMonth: string,
+    dateFrom: string,
+    dateTo: string
+): { dateFrom?: string; dateTo?: string } => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    if (mode === "all") return {};
+    if (mode === "range") return { dateFrom: dateFrom || undefined, dateTo: dateTo || undefined };
+
+    if (mode === "month" && selectedMonth) {
+        const [year, month] = selectedMonth.split("-").map(Number);
+        const lastDay = new Date(year, month, 0).getDate();
+        return {
+            dateFrom: `${selectedMonth}-01`,
+            dateTo: `${selectedMonth}-${String(lastDay).padStart(2, "0")}`
+        };
+    }
+
+    if (mode === "yesterday") {
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const value = toLocalDateString(yesterday);
+        return { dateFrom: value, dateTo: value };
+    }
+
+    if (mode === "week") {
+        const start = new Date(today);
+        const day = start.getDay() || 7;
+        start.setDate(start.getDate() - day + 1);
+        return { dateFrom: toLocalDateString(start), dateTo: toLocalDateString(today) };
+    }
+
+    if (mode === "currentMonth") {
+        const start = new Date(today.getFullYear(), today.getMonth(), 1);
+        const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        return { dateFrom: toLocalDateString(start), dateTo: toLocalDateString(end) };
+    }
+
+    const value = toLocalDateString(today);
+    return { dateFrom: value, dateTo: value };
+};
 
 
 // =====================================================
@@ -106,9 +166,10 @@ function Reports() {
             : "/manager";
 
 
-    const [date, setDate] = useState(getToday());
-
-    const [showAllDates, setShowAllDates] = useState(false);
+    const [dateMode, setDateMode] = useState<DateFilterMode>("today");
+    const [selectedMonth, setSelectedMonth] = useState("");
+    const [dateFrom, setDateFrom] = useState(getToday());
+    const [dateTo, setDateTo] = useState(getToday());
 
     const [
         reports,
@@ -160,14 +221,20 @@ function Reports() {
     // TẢI BÁO CÁO CHỜ DUYỆT THEO NGÀY HOẶC TOÀN BỘ
     // =====================================================
 
-    const loadReports = async (selectedDate: string, allDates: boolean) => {
+    const activeDateRange = useMemo(
+        () => getDateRangeForMode(dateMode, selectedMonth, dateFrom, dateTo),
+        [dateMode, selectedMonth, dateFrom, dateTo]
+    );
+
+    const loadReports = async () => {
         try {
             setLoading(true);
             setError("");
 
-            const data = allDates
-                ? await getPendingReports()
-                : await getTempReportsByDate(selectedDate);
+            const data = await getPendingReports({
+                dateFrom: activeDateRange.dateFrom,
+                dateTo: activeDateRange.dateTo
+            });
 
             const normalizedReports = Array.isArray(data) ? data : [];
             setReports(normalizedReports);
@@ -196,14 +263,14 @@ function Reports() {
     useEffect(() => {
         queueMicrotask(() => {
             setSelectedIds([]);
-            void loadReports(date, showAllDates);
+            void loadReports();
         });
-    }, [date, showAllDates]);
+    }, [activeDateRange.dateFrom, activeDateRange.dateTo]);
 
     const previousDateCount = useMemo(() => {
-        if (!showAllDates) return 0;
+        if (dateMode !== "all") return 0;
         return reports.filter(report => String(report.work_date || "").slice(0, 10) < getToday()).length;
-    }, [reports, showAllDates]);
+    }, [reports, dateMode]);
 
     // =====================================================
     // DANH SÁCH CÔNG ĐOẠN
@@ -316,7 +383,10 @@ function Reports() {
         searchKeyword,
         selectedShift,
         selectedProcess,
-        date
+        dateMode,
+        selectedMonth,
+        dateFrom,
+        dateTo
     ]);
 
 
@@ -511,7 +581,7 @@ function Reports() {
                 "selectedPendingReportIds"
             );
 
-            await loadReports(date, showAllDates);
+            await loadReports();
         } catch (err: unknown) {
             console.error(
                 "APPROVE SELECTED REPORTS ERROR:",
@@ -539,6 +609,19 @@ function Reports() {
         setSearchKeyword("");
         setSelectedShift("");
         setSelectedProcess("");
+        setDateMode("today");
+        setSelectedMonth("");
+        setDateFrom(getToday());
+        setDateTo(getToday());
+    };
+
+    const selectQuickDate = (mode: DateFilterMode) => {
+        setDateMode(mode);
+        setSelectedMonth("");
+        if (mode !== "range") {
+            setDateFrom("");
+            setDateTo("");
+        }
     };
 
 
@@ -586,29 +669,59 @@ function Reports() {
                 </div>
 
 
-                <label className="management-filter-field management-date-filter">
-                    <span>Ngày báo cáo</span>
+                <div className="management-date-presets">
+                    {[ ["today", "Hôm nay"], ["yesterday", "Hôm qua"], ["week", "Tuần này"], ["currentMonth", "Tháng này"], ["all", "Tất cả ngày"] ].map(([mode, label]) => (
+                        <button
+                            key={mode}
+                            type="button"
+                            className={dateMode === mode ? "active" : ""}
+                            onClick={() => selectQuickDate(mode as DateFilterMode)}
+                        >
+                            {label}
+                        </button>
+                    ))}
+                </div>
+
+                <label className="management-filter-field">
+                    <span>Chọn tháng</span>
                     <input
-                        type="date"
-                        value={date}
-                        disabled={showAllDates}
+                        type="month"
+                        value={selectedMonth}
                         onChange={event => {
-                            setDate(event.target.value);
-                            setShowAllDates(false);
+                            setSelectedMonth(event.target.value);
+                            setDateMode("month");
+                            setDateFrom("");
+                            setDateTo("");
                         }}
                     />
                 </label>
 
-                <div className="management-filter-field management-scope-filter">
-                    <span>Phạm vi dữ liệu</span>
-                    <button
-                        type="button"
-                        className={showAllDates ? "management-all-dates-button active" : "management-all-dates-button"}
-                        onClick={() => setShowAllDates(current => !current)}
-                    >
-                        {showAllDates ? "Đang xem tất cả ngày" : "Chỉ xem ngày đã chọn"}
-                    </button>
-                </div>
+                <label className="management-filter-field">
+                    <span>Từ ngày</span>
+                    <input
+                        type="date"
+                        value={dateFrom}
+                        onChange={event => {
+                            setDateFrom(event.target.value);
+                            setSelectedMonth("");
+                            setDateMode("range");
+                        }}
+                    />
+                </label>
+
+                <label className="management-filter-field">
+                    <span>Đến ngày</span>
+                    <input
+                        type="date"
+                        value={dateTo}
+                        min={dateFrom || undefined}
+                        onChange={event => {
+                            setDateTo(event.target.value);
+                            setSelectedMonth("");
+                            setDateMode("range");
+                        }}
+                    />
+                </label>
 
 
                 <label className="management-filter-field">
@@ -639,7 +752,6 @@ function Reports() {
                         <option value="C">
                             Ca C
                         </option>
-
                         <option value="D">
                             Ca D
                         </option>
@@ -685,7 +797,8 @@ function Reports() {
                     disabled={
                         !searchKeyword &&
                         !selectedShift &&
-                        !selectedProcess
+                        !selectedProcess &&
+                        dateMode === "today"
                     }
                 >
                     Xóa lọc
@@ -722,7 +835,7 @@ function Reports() {
             </div>
 
 
-            {showAllDates && previousDateCount > 0 && (
+            {dateMode === "all" && previousDateCount > 0 && (
                 <div className="management-backlog-alert">
                     <strong>Còn {previousDateCount} báo cáo của ngày trước chưa được xử lý.</strong>
                     <span>Danh sách hiện đang hiển thị toàn bộ ngày để tránh bỏ sót.</span>

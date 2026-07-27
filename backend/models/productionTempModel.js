@@ -278,6 +278,14 @@ const ProductionTemp = {
             conditions.push("pr.work_date = ?");
             params.push(filters.date);
         }
+        if (filters.date_from) {
+            conditions.push("pr.work_date >= ?");
+            params.push(filters.date_from);
+        }
+        if (filters.date_to) {
+            conditions.push("pr.work_date <= ?");
+            params.push(filters.date_to);
+        }
         if (filters.shift) {
             conditions.push("pr.shift = ?");
             params.push(filters.shift);

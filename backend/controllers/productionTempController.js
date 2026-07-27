@@ -536,6 +536,8 @@ exports.getPendingReports = async (req, res) => {
 
         const data = await ProductionTemp.getPending(userId, {
             date: req.query.date || null,
+            date_from: req.query.date_from || null,
+            date_to: req.query.date_to || null,
             shift: req.query.shift || null,
             process_id: toPositiveInteger(req.query.process_id),
             search: req.query.search?.trim() || null

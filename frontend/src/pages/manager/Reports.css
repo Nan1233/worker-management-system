@@ -587,3 +587,30 @@ button:disabled { opacity: .48; cursor: not-allowed; box-shadow: none; }
         flex: none;
     }
 }
+
+
+/* Date range filters */
+.management-date-presets {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.management-date-presets button {
+    min-height: 38px;
+    padding: 0 14px;
+    border: 1px solid #d5dfec;
+    border-radius: 10px;
+    background: #f8fbff;
+    color: #526177;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 750;
+    cursor: pointer;
+}
+.management-date-presets button.active {
+    border-color: #7da7e9;
+    background: #e3efff;
+    color: #1d5fc2;
+    box-shadow: 0 8px 18px rgba(37, 99, 235, .1);
+}
