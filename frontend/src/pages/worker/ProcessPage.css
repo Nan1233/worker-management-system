@@ -2485,3 +2485,69 @@
     background: #ffffff;
     color: #314a62;
 }
+
+/* 27/07/2026: tên và mã công nhân cùng cỡ; lịch chỉ hiện 15 ngày hợp lệ */
+.worker-sticky-person span {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    margin-top: 3px;
+    overflow: hidden;
+    color: #334e73;
+    font-size: inherit;
+    line-height: 1.2;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.worker-sticky-date {
+    padding: 0;
+    overflow: hidden;
+}
+
+.worker-sticky-date-select {
+    width: 100%;
+    min-width: 190px;
+    height: 44px;
+    padding: 0 34px 0 12px;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: #174788;
+    font: inherit;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+@media (max-width: 700px) {
+    .worker-sticky-person strong,
+    .worker-sticky-person span {
+        font-size: 14px;
+        line-height: 1.2;
+    }
+
+    .worker-sticky-date {
+        min-width: 150px;
+    }
+
+    .worker-sticky-date-select {
+        min-width: 150px;
+        height: 46px;
+        padding-right: 26px;
+        padding-left: 8px;
+        font-size: 11px;
+    }
+}
+
+@media (max-width: 380px) {
+    .worker-sticky-person strong,
+    .worker-sticky-person span {
+        font-size: 13px;
+    }
+
+    .worker-sticky-date,
+    .worker-sticky-date-select {
+        min-width: 140px;
+    }
+}

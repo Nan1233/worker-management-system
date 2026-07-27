@@ -626,6 +626,33 @@ const clampWorkerWorkDate = (dateValue: string): string => {
     return dateValue;
 };
 
+const getWorkerAllowedWorkDates = (): Array<{ value: string; label: string }> => {
+    const today = getCurrentLocalDate();
+
+    return Array.from({ length: 15 }, (_, index) => {
+        const value = shiftLocalDate(today, -index);
+        const [year, month, day] = value.split("-").map(Number);
+        const date = new Date(year, month - 1, day);
+        const formatted = date.toLocaleDateString("vi-VN", {
+            weekday: "short",
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+        });
+
+        const prefix = index === 0
+            ? "Hôm nay"
+            : index === 1
+                ? "Hôm qua"
+                : "";
+
+        return {
+            value,
+            label: prefix ? `${prefix} - ${formatted}` : formatted,
+        };
+    });
+};
+
 
 // =====================================================
 // HIỂN THỊ NGÀY DD/MM/YYYY
@@ -2735,7 +2762,7 @@ window.setTimeout(() => {
                         </strong>
 
                         <span>
-                            Mã NV: {form.workerCode || "---"}
+                            {form.workerCode || "---"}
                         </span>
 
                     </div>
@@ -2748,21 +2775,20 @@ window.setTimeout(() => {
 
                         <label className="worker-sticky-date" htmlFor="workerWorkDate">
 
-                            <span className="worker-sticky-date-text">
-                                {formatDisplayDate(form.workDate)}
-                            </span>
-
-                            <input
+                            <select
                                 id="workerWorkDate"
-                                className="worker-sticky-date-input"
-                                type="date"
+                                className="worker-sticky-date-select"
                                 name="workDate"
-                                value={form.workDate}
-                                min={getWorkerMinWorkDate()}
-                                max={getWorkerMaxWorkDate()}
+                                value={clampWorkerWorkDate(form.workDate)}
                                 onChange={handleChange}
-                                aria-label="Chọn ngày báo cáo trong 14 ngày gần nhất"
-                            />
+                                aria-label="Chọn ngày báo cáo trong 15 ngày gần nhất"
+                            >
+                                {getWorkerAllowedWorkDates().map((dateOption) => (
+                                    <option key={dateOption.value} value={dateOption.value}>
+                                        {dateOption.label}
+                                    </option>
+                                ))}
+                            </select>
 
                         </label>
 
