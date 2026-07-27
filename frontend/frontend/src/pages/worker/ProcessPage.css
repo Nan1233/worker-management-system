@@ -690,37 +690,6 @@
 }
 
 
-
-.worker-grand-total {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(130px, 180px);
-    align-items: center;
-    gap: 12px;
-    margin-top: 12px;
-    padding: 14px 16px;
-    border: 1px solid #bfdbfe;
-    border-radius: 14px;
-    background: #eff6ff;
-}
-
-.worker-grand-total label {
-    color: #1e3a5f;
-    font-size: 15px;
-    font-weight: 800;
-}
-
-.worker-grand-total input {
-    width: 100%;
-    min-width: 0;
-    border: 0;
-    background: transparent;
-    color: #0f3f78;
-    font-size: 24px;
-    font-weight: 900;
-    text-align: right;
-    outline: none;
-}
-
 .worker-quality-card input:focus {
     outline: none;
 
@@ -1573,21 +1542,5 @@
 @media (min-width: 768px) {
     .worker-ng-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-
-@media (max-width: 640px) {
-    .worker-grand-total {
-        grid-template-columns: 1fr auto;
-        padding: 12px 14px;
-    }
-
-    .worker-grand-total label {
-        font-size: 14px;
-    }
-
-    .worker-grand-total input {
-        font-size: 22px;
-        max-width: 130px;
     }
 }

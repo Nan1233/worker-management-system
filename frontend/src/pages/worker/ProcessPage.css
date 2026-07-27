@@ -1576,6 +1576,1014 @@
     }
 }
 
+/* =====================================================
+   FIX MOBILE ACTION BAR
+   - Luôn cố định phía trên thanh điều hướng dưới
+   - Luôn hiển thị cả Làm mới và Lưu
+   - Không di chuyển theo nội dung cuộn
+===================================================== */
+@media (max-width: 767px) {
+    .worker-form-page {
+        padding-bottom: calc(182px + env(safe-area-inset-bottom)) !important;
+    }
+
+    .worker-action-group {
+        position: fixed !important;
+        left: 10px !important;
+        right: 10px !important;
+        bottom: calc(92px + env(safe-area-inset-bottom)) !important;
+        top: auto !important;
+        z-index: 130 !important;
+        width: auto !important;
+        min-height: 64px;
+        margin: 0 !important;
+        padding: 8px;
+        display: grid !important;
+        grid-template-columns: minmax(96px, 0.38fr) minmax(0, 1fr) !important;
+        align-items: stretch;
+        gap: 8px;
+        border: 1px solid #dce5f1;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.98);
+        box-shadow: 0 14px 34px rgba(30, 53, 84, 0.18);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        transform: none !important;
+    }
+
+    .worker-action-group .worker-reset-button,
+    .worker-action-group .worker-floating-save {
+        display: inline-flex !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        height: 50px !important;
+        margin: 0 !important;
+        padding: 0 12px !important;
+        align-items: center;
+        justify-content: center;
+        border-radius: 13px;
+        font-size: 15px;
+        white-space: nowrap;
+    }
+}
+
+@media (max-width: 430px) {
+    .worker-action-group {
+        grid-template-columns: minmax(88px, 0.42fr) minmax(0, 1fr) !important;
+    }
+
+    .worker-action-group .worker-reset-button {
+        display: inline-flex !important;
+    }
+}
+
+/* ===== Điều chỉnh giao diện công nhân 23/07/2026 ===== */
+.worker-action-group {
+    position: static !important;
+    width: min(100%, 1180px);
+    margin: 22px auto 0;
+    padding: 0 2px 30px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.worker-dynamic-grid,
+.worker-ng-grid {
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 14px 16px;
+}
+
+@media (max-width: 767px) {
+    .worker-form-page {
+        padding-bottom: calc(110px + env(safe-area-inset-bottom)) !important;
+    }
+
+    .worker-action-group {
+        position: static !important;
+        left: auto !important;
+        right: auto !important;
+        bottom: auto !important;
+        width: 100% !important;
+        min-height: 0;
+        margin: 18px 0 0 !important;
+        padding: 0 14px 24px;
+        display: grid !important;
+        grid-template-columns: minmax(96px, .42fr) minmax(0, 1fr) !important;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        backdrop-filter: none;
+    }
+
+    .worker-dynamic-grid,
+    .worker-ng-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 12px !important;
+    }
+
+    .worker-dynamic-grid .worker-field-block,
+    .worker-ng-grid .worker-field-block {
+        margin: 0 !important;
+    }
+
+    .worker-dynamic-grid .worker-field-label,
+    .worker-ng-grid .worker-field-label {
+        min-height: 38px !important;
+        display: flex !important;
+        align-items: flex-end;
+        font-size: 12px !important;
+        line-height: 1.25;
+    }
+
+    .worker-dynamic-grid .worker-text-input,
+    .worker-ng-grid .worker-text-input {
+        height: 50px;
+        padding: 0 10px;
+        font-size: 16px;
+    }
+}
+
+/* =====================================================
+   THANH THÔNG TIN CÔNG NHÂN CỐ ĐỊNH KHI CUỘN
+   - Giữ lại thông tin quan trọng: tên, mã NV, ngày
+   - Thu gọn trên điện thoại để không chiếm diện tích thao tác
+===================================================== */
+.worker-sticky-info {
+    position: sticky;
+    top: var(--worker-navigation-height, 72px);
+    z-index: 90;
+
+    width: 100%;
+    margin: 0 0 18px;
+    padding: 11px 14px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+
+    border: 1px solid #dce6f4;
+    border-radius: 16px;
+
+    background: rgba(255, 255, 255, 0.97);
+    box-shadow: 0 8px 24px rgba(30, 66, 120, 0.10);
+
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+}
+
+.worker-sticky-person {
+    min-width: 0;
+
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.worker-sticky-person strong {
+    max-width: 100%;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    color: #174f9d;
+    font-size: 18px;
+    line-height: 1.25;
+    font-weight: 800;
+}
+
+.worker-sticky-person span {
+    color: #73829a;
+    font-size: 13px;
+    line-height: 1.25;
+    font-weight: 700;
+}
+
+.worker-sticky-meta {
+    flex: 0 0 auto;
+
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.worker-sticky-training {
+    padding: 7px 10px;
+
+    border-radius: 999px;
+
+    background: #e8f0ff;
+    color: #285bc9;
+
+    font-size: 13px;
+    line-height: 1.2;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.worker-sticky-date {
+    padding: 6px 8px 6px 10px;
+
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+
+    border: 1px solid #cbdcf5;
+    border-radius: 10px;
+
+    background: #eaf1ff;
+    color: #174788;
+
+    font-size: 14px;
+    line-height: 1.2;
+    font-weight: 800;
+    white-space: nowrap;
+
+    cursor: pointer;
+}
+
+.worker-sticky-date-text {
+    pointer-events: none;
+}
+
+.worker-sticky-date-input {
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    padding: 0;
+
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: transparent;
+    cursor: pointer;
+}
+
+.worker-sticky-date-input::-webkit-datetime-edit,
+.worker-sticky-date-input::-webkit-datetime-edit-fields-wrapper,
+.worker-sticky-date-input::-webkit-datetime-edit-text,
+.worker-sticky-date-input::-webkit-datetime-edit-month-field,
+.worker-sticky-date-input::-webkit-datetime-edit-day-field,
+.worker-sticky-date-input::-webkit-datetime-edit-year-field {
+    display: none;
+}
+
+.worker-sticky-date-input::-webkit-calendar-picker-indicator {
+    width: 24px;
+    height: 24px;
+    margin: 0;
+    padding: 0;
+    opacity: 1;
+    cursor: pointer;
+}
+
+@media (max-width: 767px) {
+    .worker-form-header {
+        margin-bottom: 10px;
+    }
+
+    .worker-form-title-row h1 {
+        font-size: 25px;
+    }
+
+    .worker-sticky-info {
+        top: var(--worker-mobile-navigation-height, 56px);
+
+        margin-right: -8px;
+        margin-left: -8px;
+        width: calc(100% + 16px);
+        padding: 8px 10px;
+        gap: 8px;
+
+        border-right: 0;
+        border-left: 0;
+        border-radius: 0 0 14px 14px;
+    }
+
+    .worker-sticky-person {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .worker-sticky-person strong {
+        font-size: 15px;
+    }
+
+    .worker-sticky-person span {
+        font-size: 11px;
+    }
+
+    .worker-sticky-meta {
+        gap: 5px;
+    }
+
+    .worker-sticky-training {
+        display: none;
+    }
+
+    .worker-sticky-date {
+        padding: 7px 8px;
+        gap: 5px;
+        font-size: 12px;
+    }
+}
+
+@media (max-width: 380px) {
+    .worker-sticky-person strong {
+        max-width: 145px;
+    }
+
+    .worker-sticky-date {
+        font-size: 11px;
+    }
+}
+
+/* =====================================================
+   BỐ CỤC ỔN ĐỊNH CHO FORM WORKER — DESKTOP/TABLET/MOBILE
+   Ghi đè các khai báo cũ bị chồng chéo ở phía trên.
+===================================================== */
+.worker-form-page {
+    padding: 24px 18px 96px;
+}
+
+.worker-form-shell {
+    width: min(100%, 980px);
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.worker-form-header,
+.worker-sticky-info,
+.worker-form-card {
+    width: 100%;
+}
+
+.worker-form-header {
+    margin-bottom: 0;
+}
+
+.worker-form-card {
+    margin: 0;
+}
+
+.worker-time-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.worker-time-item input::placeholder,
+.worker-text-input::placeholder {
+    color: #9aa8ba;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.worker-action-group {
+    position: static !important;
+    width: min(100%, 980px);
+    margin: 20px auto 0;
+    padding: 0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+@media (min-width: 1101px) {
+    .worker-form-page {
+        padding: 28px 28px 96px;
+    }
+
+    .worker-dynamic-grid,
+    .worker-ng-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 768px) and (max-width: 1100px) {
+    .worker-form-shell,
+    .worker-action-group {
+        width: min(100%, 860px);
+    }
+
+    .worker-dynamic-grid,
+    .worker-ng-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 767px) {
+    .worker-form-page {
+        padding: 12px 10px 72px;
+    }
+
+    .worker-form-shell {
+        gap: 12px;
+    }
+
+    .worker-time-grid,
+    .worker-quality-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .worker-time-item input {
+        height: 52px;
+        padding: 0 10px;
+        font-size: 16px;
+    }
+
+    .worker-action-group {
+        width: 100%;
+        margin-top: 14px;
+        padding: 0 2px;
+        display: grid;
+        grid-template-columns: minmax(96px, .42fr) minmax(0, 1fr);
+    }
+}
+
+/* Điện thoại và màn hình nhỏ: luôn giữ Trừ giờ/NG thành 2 cột để form không quá dài. */
+@media (max-width: 767px) {
+    .worker-dynamic-grid,
+    .worker-ng-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+        align-items: start;
+    }
+
+    .worker-dynamic-grid .worker-field-block,
+    .worker-ng-grid .worker-field-block {
+        min-width: 0;
+        margin: 0;
+        padding: 8px;
+        box-sizing: border-box;
+    }
+
+    .worker-dynamic-grid .worker-field-label,
+    .worker-ng-grid .worker-field-label {
+        min-height: 34px;
+        margin-bottom: 5px;
+        font-size: 12px;
+        line-height: 1.25;
+        overflow-wrap: anywhere;
+    }
+
+    .worker-dynamic-grid .worker-text-input,
+    .worker-ng-grid .worker-text-input {
+        width: 100%;
+        min-width: 0;
+        height: 44px;
+        padding: 8px;
+        box-sizing: border-box;
+        font-size: 16px;
+    }
+}
+
+@media (max-width: 350px) {
+    .worker-dynamic-grid,
+    .worker-ng-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 6px !important;
+    }
+
+    .worker-dynamic-grid .worker-field-block,
+    .worker-ng-grid .worker-field-block {
+        padding: 6px;
+    }
+
+    .worker-dynamic-grid .worker-field-label,
+    .worker-ng-grid .worker-field-label {
+        min-height: 32px;
+        font-size: 11px;
+    }
+
+    .worker-dropdown-options {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+}
+/* =====================================================
+   MOBILE/TABLET: TRỪ THỜI GIAN VÀ NG LUÔN 2 CỘT
+   Đặt cuối file để ghi đè toàn bộ CSS cũ
+===================================================== */
+
+@media screen and (max-width: 1100px) {
+    /* Danh sách checkbox chọn Trừ thời gian và NG */
+    .worker-dropdown-box .worker-dropdown-options {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    .worker-dropdown-box .worker-dropdown-option {
+        width: auto !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        box-sizing: border-box !important;
+    }
+
+    .worker-dropdown-box .worker-dropdown-option > span {
+        min-width: 0 !important;
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+    }
+
+    /* Các ô nhập chi tiết Trừ thời gian và NG sau khi tích */
+    .worker-form-card .worker-dynamic-grid,
+    .worker-form-card .worker-dynamic-grid.worker-ng-grid,
+    .worker-quality-section .worker-ng-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    .worker-form-card .worker-dynamic-grid > .worker-field-block,
+    .worker-form-card .worker-ng-grid > .worker-field-block {
+        grid-column: auto !important;
+        width: auto !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        margin: 0 !important;
+        padding: 8px !important;
+        box-sizing: border-box !important;
+    }
+
+    .worker-form-card .worker-dynamic-grid .worker-field-label,
+    .worker-form-card .worker-ng-grid .worker-field-label {
+        min-height: 34px !important;
+        margin-bottom: 5px !important;
+        font-size: 12px !important;
+        line-height: 1.25 !important;
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+    }
+
+    .worker-form-card .worker-dynamic-grid .worker-text-input,
+    .worker-form-card .worker-ng-grid .worker-text-input {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        height: 44px !important;
+        box-sizing: border-box !important;
+        font-size: 16px !important;
+    }
+}
+
+@media screen and (max-width: 380px) {
+    .worker-dropdown-box .worker-dropdown-options,
+    .worker-form-card .worker-dynamic-grid,
+    .worker-form-card .worker-dynamic-grid.worker-ng-grid,
+    .worker-quality-section .worker-ng-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 6px !important;
+    }
+
+    .worker-dropdown-box .worker-dropdown-option {
+        min-height: 42px !important;
+        padding: 6px !important;
+        gap: 5px !important;
+        font-size: 11px !important;
+    }
+
+    .worker-form-card .worker-dynamic-grid > .worker-field-block,
+    .worker-form-card .worker-ng-grid > .worker-field-block {
+        padding: 6px !important;
+    }
+
+    .worker-form-card .worker-dynamic-grid .worker-field-label,
+    .worker-form-card .worker-ng-grid .worker-field-label {
+        min-height: 30px !important;
+        font-size: 11px !important;
+    }
+}
+/* =====================================================
+   FIX 24-07-2026: THANH THÔNG TIN BÁO CÁO ỔN ĐỊNH
+   - Cố định ngay dưới thanh điều hướng khi cuộn
+   - Không dùng margin âm nên không lệch/thừa trên mobile
+   - Tên, mã NV, học việc và ngày luôn thẳng hàng
+===================================================== */
+.worker-form-page,
+.worker-form-shell,
+.worker-form-header,
+.worker-sticky-info,
+.worker-form-card {
+    min-width: 0;
+}
+
+.worker-form-shell {
+    width: 100%;
+    max-width: none;
+}
+
+.worker-sticky-info {
+    position: sticky;
+    top: 72px;
+    z-index: 95;
+
+    width: 100%;
+    min-height: 82px;
+    margin: 0 0 18px;
+    padding: 12px 16px;
+
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 16px;
+
+    overflow: hidden;
+    border: 1px solid #d8e3f2;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 10px 28px rgba(30, 66, 120, 0.10);
+}
+
+.worker-sticky-person {
+    width: 100%;
+    min-width: 0;
+    justify-self: stretch;
+}
+
+.worker-sticky-person strong {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.worker-sticky-meta {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: auto auto;
+    align-items: center;
+    justify-content: end;
+    gap: 10px;
+}
+
+.worker-sticky-training,
+.worker-sticky-date {
+    height: 46px;
+    min-height: 46px;
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.worker-sticky-training {
+    padding: 0 14px;
+}
+
+.worker-sticky-date {
+    min-width: 170px;
+    padding: 0 10px 0 13px;
+}
+
+.worker-sticky-date-input {
+    flex: 0 0 30px;
+}
+
+@media (max-width: 700px) {
+    .worker-form-page {
+        padding-right: 8px;
+        padding-left: 8px;
+    }
+
+    .worker-form-shell {
+        width: 100%;
+        gap: 12px;
+    }
+
+    .worker-sticky-info {
+        top: 62px;
+        width: 100%;
+        min-height: 66px;
+        margin: 0 0 12px;
+        padding: 8px 9px;
+        grid-template-columns: minmax(0, 1fr) auto;
+        column-gap: 8px;
+        border-right: 1px solid #d8e3f2;
+        border-left: 1px solid #d8e3f2;
+        border-radius: 14px;
+    }
+
+    .worker-sticky-person strong {
+        font-size: 14px;
+        line-height: 1.2;
+    }
+
+    .worker-sticky-person span {
+        margin-top: 2px;
+        font-size: 10px;
+        line-height: 1.2;
+    }
+
+    .worker-sticky-meta {
+        grid-template-columns: auto;
+        gap: 0;
+    }
+
+    .worker-sticky-training {
+        display: none;
+    }
+
+    .worker-sticky-date {
+        width: auto;
+        min-width: 116px;
+        height: 46px;
+        min-height: 46px;
+        padding: 0 7px 0 9px;
+        gap: 4px;
+        font-size: 11px;
+        border-radius: 10px;
+    }
+
+    .worker-sticky-date-input {
+        width: 27px;
+        min-width: 27px;
+        height: 27px;
+        flex-basis: 27px;
+    }
+
+    .worker-sticky-date-input::-webkit-calendar-picker-indicator {
+        width: 22px;
+        height: 22px;
+    }
+}
+
+@media (max-width: 380px) {
+    .worker-sticky-info {
+        padding-right: 7px;
+        padding-left: 7px;
+        column-gap: 6px;
+    }
+
+    .worker-sticky-person strong {
+        max-width: none;
+        font-size: 13px;
+    }
+
+    .worker-sticky-date {
+        min-width: 108px;
+        padding-right: 5px;
+        padding-left: 7px;
+        font-size: 10px;
+    }
+}
+
+/* ===== KTC form consistency patch ===== */
+.worker-form-page {
+    --worker-border: #d7e0ec;
+    --worker-border-strong: #c4d2e3;
+    --worker-surface: #ffffff;
+    --worker-surface-muted: #f7f9fc;
+    --worker-text: #17324d;
+    --worker-muted: #6b7f93;
+    --worker-accent: #2f6fed;
+}
+
+.worker-form-card,
+.worker-field-block,
+.worker-sticky-info {
+    box-sizing: border-box;
+}
+
+.worker-sticky-info {
+    grid-template-columns: minmax(0, 1fr) minmax(170px, auto);
+    border-color: var(--worker-border);
+    background: var(--worker-surface);
+}
+
+.worker-sticky-training,
+.worker-sticky-date {
+    box-sizing: border-box;
+    border: 1px solid var(--worker-border);
+    background: var(--worker-surface-muted);
+    color: var(--worker-text);
+}
+
+.worker-sticky-date {
+    background: #f4f8ff;
+    border-color: #c9d9f3;
+}
+
+.worker-form-card input,
+.worker-form-card select,
+.worker-form-card textarea,
+.worker-autocomplete-input {
+    box-sizing: border-box;
+    border-color: var(--worker-border-strong);
+    background: var(--worker-surface);
+    color: var(--worker-text);
+}
+
+.worker-form-card input:focus,
+.worker-form-card select:focus,
+.worker-form-card textarea:focus,
+.worker-autocomplete-input:focus {
+    border-color: var(--worker-accent);
+    box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.12);
+    outline: none;
+}
+
+.worker-field-label {
+    color: var(--worker-text);
+}
+
+@media (max-width: 700px) {
+    .worker-sticky-info {
+        grid-template-columns: minmax(0, 1fr) 118px;
+        align-items: stretch;
+    }
+
+    .worker-sticky-person,
+    .worker-sticky-meta,
+    .worker-sticky-date {
+        min-height: 48px;
+    }
+
+    .worker-sticky-date {
+        width: 118px;
+        min-width: 118px;
+        padding-inline: 8px;
+    }
+}
+
+.worker-time-split {
+    display: grid;
+    grid-template-columns: minmax(72px, 1fr) auto minmax(72px, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+}
+
+.worker-time-split span {
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+    .worker-time-split {
+        grid-template-columns: minmax(60px, 1fr) auto minmax(60px, 1fr) auto;
+        gap: 6px;
+    }
+}
+
+
+/* ===== Company network access gate ===== */
+.worker-network-page {
+    min-height: calc(100vh - 80px);
+    display: grid;
+    place-items: center;
+    padding: 24px;
+}
+
+.worker-network-card {
+    width: min(520px, 100%);
+    box-sizing: border-box;
+    padding: 32px 26px;
+    border: 1px solid #d7e0ec;
+    border-radius: 18px;
+    background: #ffffff;
+    text-align: center;
+    box-shadow: 0 14px 38px rgba(23, 50, 77, 0.12);
+}
+
+.worker-network-symbol {
+    width: 58px;
+    height: 58px;
+    margin: 0 auto 16px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: #edf4ff;
+    color: #2f6fed;
+    font-size: 30px;
+    font-weight: 800;
+}
+
+.worker-network-denied .worker-network-symbol {
+    background: #fff1f0;
+    color: #c7372f;
+}
+
+.worker-network-card h1 {
+    margin: 0 0 10px;
+    color: #17324d;
+    font-size: 1.45rem;
+}
+
+.worker-network-card p {
+    margin: 0;
+    color: #60758a;
+    line-height: 1.55;
+}
+
+.worker-network-card small {
+    display: block;
+    margin-top: 12px;
+    color: #7b8da0;
+    word-break: break-all;
+}
+
+.worker-network-actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 22px;
+}
+
+.worker-network-actions button {
+    min-height: 44px;
+    padding: 0 18px;
+    border: 0;
+    border-radius: 10px;
+    background: #2f6fed;
+    color: #ffffff;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.worker-network-actions button.secondary {
+    border: 1px solid #cbd7e5;
+    background: #ffffff;
+    color: #314a62;
+}
+
+/* 27/07/2026: tên và mã công nhân cùng cỡ; lịch chỉ hiện 15 ngày hợp lệ */
+.worker-sticky-person span {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    margin-top: 3px;
+    overflow: hidden;
+    color: #334e73;
+    font-size: inherit;
+    line-height: 1.2;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.worker-sticky-date {
+    padding: 0;
+    overflow: hidden;
+}
+
+.worker-sticky-date-select {
+    width: 100%;
+    min-width: 190px;
+    height: 44px;
+    padding: 0 34px 0 12px;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: #174788;
+    font: inherit;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+@media (max-width: 700px) {
+    .worker-sticky-person strong,
+    .worker-sticky-person span {
+        font-size: 14px;
+        line-height: 1.2;
+    }
+
+    .worker-sticky-date {
+        min-width: 150px;
+    }
+
+    .worker-sticky-date-select {
+        min-width: 150px;
+        height: 46px;
+        padding-right: 26px;
+        padding-left: 8px;
+        font-size: 11px;
+    }
+}
+
+@media (max-width: 380px) {
+    .worker-sticky-person strong,
+    .worker-sticky-person span {
+        font-size: 13px;
+    }
+
+    .worker-sticky-date,
+    .worker-sticky-date-select {
+        min-width: 140px;
+    }
+}
+
+
 @media (max-width: 640px) {
     .worker-grand-total {
         grid-template-columns: 1fr auto;
@@ -1587,7 +2595,7 @@
     }
 
     .worker-grand-total input {
-        font-size: 22px;
         max-width: 130px;
+        font-size: 22px;
     }
 }
