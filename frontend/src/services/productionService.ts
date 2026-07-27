@@ -9,6 +9,23 @@ import type {
     ProductionDefect,
     ProductionReport
 } from "../types/production";
+export interface CompanyNetworkAccess {
+    allowed: boolean;
+    restricted: boolean;
+    enforced: boolean;
+    configured: boolean;
+    client_ip: string;
+    message: string;
+}
+
+export const getCompanyNetworkAccess = async (): Promise<CompanyNetworkAccess> => {
+    const res = await api.get("/network/access", {
+        params: { _t: Date.now() }
+    });
+
+    return res.data?.data || res.data;
+};
+
 // =====================================================
 // WORKER TẠO BÁO CÁO TEMP
 // =====================================================

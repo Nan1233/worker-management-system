@@ -23,6 +23,7 @@ const systemRoutes = require("./routes/systemRoutes");
 const adminMasterRoutes = require("./routes/adminMasterRoutes");
 const formulaSettingsRoutes = require("./routes/formulaSettingsRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
+const networkAccessRoutes = require("./routes/networkAccessRoutes");
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -125,6 +126,7 @@ app.get("/api/health", async (req, res) => {
   }
 });
 
+app.use("/api/network", networkAccessRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/machines", machineRoutes);
 app.use("/api/product-standards", productStandardRoutes);

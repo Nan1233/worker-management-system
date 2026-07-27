@@ -19,6 +19,7 @@ import "./ProcessPage.css";
 import {
     checkSimilarTempReport,
     createTempReport,
+    getCompanyNetworkAccess,
     updateTempReport,
     getDefectOptionsByProcess
 } from "../../services/productionService";
@@ -1046,6 +1047,34 @@ const calculateActualOutput = (values: FormState): number =>
         submitting,
         setSubmitting
     ] = useState(false);
+
+    const [networkChecking, setNetworkChecking] = useState(true);
+    const [networkAllowed, setNetworkAllowed] = useState(false);
+    const [networkMessage, setNetworkMessage] = useState("Đang kiểm tra mạng công ty...");
+    const [clientIp, setClientIp] = useState("");
+
+    const checkCompanyNetwork = async () => {
+        try {
+            setNetworkChecking(true);
+            const access = await getCompanyNetworkAccess();
+            setNetworkAllowed(Boolean(access.allowed));
+            setNetworkMessage(access.message || (access.allowed
+                ? "Thiết bị đang kết nối qua mạng công ty."
+                : "Vui lòng kết nối với mạng KTC để nhập báo cáo."));
+            setClientIp(access.client_ip || "");
+        } catch (error: unknown) {
+            const { message } = getApiError(error, "Không thể kiểm tra mạng công ty");
+            setNetworkAllowed(false);
+            setNetworkMessage(message);
+            setClientIp("");
+        } finally {
+            setNetworkChecking(false);
+        }
+    };
+
+    useEffect(() => {
+        void checkCompanyNetwork();
+    }, []);
 
 
     // =====================================================
@@ -2170,6 +2199,11 @@ const updateDeductionValue = (
     const handleSubmit =
         async () => {
 
+            if (!networkAllowed) {
+                showToast("Vui lòng kết nối mạng KTC trước khi nhập báo cáo.", "error");
+                return;
+            }
+
             const validationMessage =
                 validateForm();
 
@@ -2570,6 +2604,41 @@ window.setTimeout(() => {
         );
 
     };
+        if (networkChecking) {
+            return (
+                <main className="worker-form-page worker-network-page">
+                    <section className="worker-network-card" aria-live="polite">
+                        <div className="worker-network-symbol">↻</div>
+                        <h1>Đang kiểm tra mạng công ty</h1>
+                        <p>Vui lòng chờ trong giây lát.</p>
+                    </section>
+                </main>
+            );
+        }
+
+        if (!networkAllowed) {
+            return (
+                <main className="worker-form-page worker-network-page">
+                    <section className="worker-network-card worker-network-denied" role="alert">
+                        <div className="worker-network-symbol">!</div>
+                        <h1>Không thể nhập báo cáo</h1>
+                        <p>{networkMessage}</p>
+                        {clientIp && (
+                            <small>IP hiện tại: {clientIp}</small>
+                        )}
+                        <div className="worker-network-actions">
+                            <button type="button" onClick={() => void checkCompanyNetwork()}>
+                                Kiểm tra lại
+                            </button>
+                            <button type="button" className="secondary" onClick={() => navigate("/worker")}>
+                                Quay lại
+                            </button>
+                        </div>
+                    </section>
+                </main>
+            );
+        }
+
         return (
 
         <main className="worker-form-page">
