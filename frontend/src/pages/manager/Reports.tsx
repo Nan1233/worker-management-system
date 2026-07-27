@@ -628,16 +628,16 @@ function Reports() {
                             Tất cả ca
                         </option>
 
-                        <option value="Ca 1">
-                            Ca 1
+                        <option value="A">
+                            Ca A
                         </option>
 
-                        <option value="Ca 2">
-                            Ca 2
+                        <option value="B">
+                            Ca B
                         </option>
 
-                        <option value="Ca 3">
-                            Ca 3
+                        <option value="C">
+                            Ca C
                         </option>
                     </select>
                 </label>
