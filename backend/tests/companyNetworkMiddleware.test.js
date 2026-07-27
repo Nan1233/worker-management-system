@@ -48,3 +48,27 @@ test("manager is not restricted", () => {
     requireCompanyNetworkForWorker(req, {}, () => { nextCalled = true; });
     assert.equal(nextCalled, true);
 });
+
+test("Render proxy chain returns the first public client IP", () => {
+    const req = request("10.28.112.130");
+    req.headers["x-forwarded-for"] = "113.160.133.126, 10.28.112.130";
+    req.ips = ["113.160.133.126", "10.28.112.130"];
+    const result = evaluateCompanyNetwork(req);
+    assert.equal(result.clientIp, "113.160.133.126");
+    assert.equal(result.allowed, true);
+});
+
+test("Render internal proxy IP alone is never treated as company Wi-Fi", () => {
+    const req = request("10.28.112.130");
+    req.headers["x-forwarded-for"] = "10.28.112.130";
+    const result = evaluateCompanyNetwork(req);
+    assert.equal(result.allowed, false);
+});
+
+test("4G public IP in forwarded chain is denied", () => {
+    const req = request("10.28.112.130");
+    req.headers["x-forwarded-for"] = "42.112.100.10, 10.28.112.130";
+    const result = evaluateCompanyNetwork(req);
+    assert.equal(result.clientIp, "42.112.100.10");
+    assert.equal(result.allowed, false);
+});
