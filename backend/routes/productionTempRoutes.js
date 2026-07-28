@@ -139,6 +139,22 @@ router.post(
 // =====================================================
 
 router.post(
+    "/reject-selected",
+    authMiddleware,
+    checkRole(
+        "admin",
+        "manager",
+        "lead"
+    ),
+    validate({
+        ids:{required:true,type:"array",itemType:"positiveInt",minItems:1,maxItems:100,unique:true},
+        reason:{required:true,type:"string",minLength:2,maxLength:500}
+    }),
+    controller.rejectSelectedReports
+);
+
+
+router.post(
     "/approve",
     authMiddleware,
     checkRole(

@@ -234,9 +234,107 @@ async function downloadProcessExcel(token, date, processInfo) {
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function atomicOverwrite(filePath, buffer) {
+function compareYearMonth(yearA, monthA, yearB, monthB) {
+  return Number(`${yearA}${monthA}`) - Number(`${yearB}${monthB}`);
+}
+
+async function keepOnlyLastBackupInMonth(monthFolder) {
+  let entries;
+  try {
+    entries = await fs.readdir(monthFolder, { withFileTypes: true });
+  } catch (error) {
+    if (error?.code === 'ENOENT') return;
+    throw error;
+  }
+
+  const files = entries
+    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.xlsx'))
+    .map((entry) => entry.name)
+    .sort((a, b) => a.localeCompare(b));
+
+  if (files.length <= 1) return;
+  const keep = files[files.length - 1];
+  for (const fileName of files.slice(0, -1)) {
+    await fs.rm(path.join(monthFolder, fileName), { force: true });
+  }
+  await writeLog('INFO', 'EXCEL_BACKUP_MONTH_COMPACTED', {
+    monthFolder,
+    keptFile: keep,
+    removedCount: files.length - 1
+  });
+}
+
+async function compactCompletedBackupMonths(processBackupRoot, currentYear, currentMonth) {
+  let yearEntries;
+  try {
+    yearEntries = await fs.readdir(processBackupRoot, { withFileTypes: true });
+  } catch (error) {
+    if (error?.code === 'ENOENT') return;
+    throw error;
+  }
+
+  for (const yearEntry of yearEntries) {
+    if (!yearEntry.isDirectory() || !/^\d{4}$/.test(yearEntry.name)) continue;
+    const yearFolder = path.join(processBackupRoot, yearEntry.name);
+    const monthEntries = await fs.readdir(yearFolder, { withFileTypes: true }).catch(() => []);
+    for (const monthEntry of monthEntries) {
+      if (!monthEntry.isDirectory() || !/^\d{2}$/.test(monthEntry.name)) continue;
+      if (compareYearMonth(yearEntry.name, monthEntry.name, currentYear, currentMonth) < 0) {
+        await keepOnlyLastBackupInMonth(path.join(yearFolder, monthEntry.name));
+      }
+    }
+  }
+}
+
+async function backupExistingExcel(filePath, syncDate) {
+  try {
+    const stat = await fs.stat(filePath);
+    if (!stat.isFile()) return null;
+
+    assertDate(syncDate);
+    const [year, month] = syncDate.split('-');
+    const relative = path.relative(getExportRoot(), filePath);
+    const relativeParts = relative.split(path.sep);
+    const processName = safeFolderName(relativeParts.length >= 2 ? relativeParts[1] : 'Tong hop');
+    const processBackupRoot = path.join(
+      os.homedir(),
+      'Documents',
+      'KTC',
+      'Backup',
+      'Excel',
+      processName
+    );
+    const monthFolder = path.join(processBackupRoot, year, month);
+    const backupPath = path.join(
+      monthFolder,
+      `${path.basename(filePath, '.xlsx')}_${syncDate}.xlsx`
+    );
+
+    await compactCompletedBackupMonths(processBackupRoot, year, month);
+    await fs.mkdir(monthFolder, { recursive: true });
+
+    try {
+      await fs.copyFile(filePath, backupPath, fsSync.constants.COPYFILE_EXCL);
+      await writeLog('INFO', 'EXCEL_DAILY_BACKUP_CREATED', { filePath, backupPath, syncDate });
+      return backupPath;
+    } catch (error) {
+      if (error?.code === 'EEXIST') {
+        await writeLog('INFO', 'EXCEL_DAILY_BACKUP_ALREADY_EXISTS', { filePath, backupPath, syncDate });
+        return backupPath;
+      }
+      throw error;
+    }
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    await writeLog('ERROR', 'EXCEL_BACKUP_FAILED', { filePath, syncDate, ...normalizeError(error) });
+    throw new Error(`Không thể sao lưu file Excel trước khi cập nhật: ${error.message}`);
+  }
+}
+
+async function atomicOverwrite(filePath, buffer, syncDate) {
   const temporaryPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
   await fs.mkdir(path.dirname(filePath), { recursive: true });
+  const backupPath = await backupExistingExcel(filePath, syncDate);
   await fs.writeFile(temporaryPath, buffer, { flag: 'wx' });
 
   let lastError;
@@ -244,7 +342,7 @@ async function atomicOverwrite(filePath, buffer) {
     try {
       await fs.rm(filePath, { force: true });
       await fs.rename(temporaryPath, filePath);
-      return { saved: true, pendingPath: null };
+      return { saved: true, pendingPath: null, backupPath };
     } catch (error) {
       lastError = error;
       if (!['EPERM', 'EACCES', 'EBUSY'].includes(error.code) || attempt === RETRY_COUNT) break;
@@ -261,7 +359,7 @@ async function atomicOverwrite(filePath, buffer) {
     throw error;
   }
   await writeLog('WARN', 'FILE_LOCKED_PENDING_CREATED', { filePath, pendingPath, code: lastError?.code });
-  return { saved: false, pendingPath };
+  return { saved: false, pendingPath, backupPath };
 }
 
 async function applyPendingFiles(rootFolder) {
@@ -299,7 +397,7 @@ async function performSync({ token, date, source }) {
   // Đây là bản nguồn đầy đủ của toàn bộ báo cáo đã duyệt trong tháng.
   try {
     const consolidated = await downloadConsolidatedExcel(token, date);
-    const writeResult = await atomicOverwrite(consolidated.filePath, consolidated.buffer);
+    const writeResult = await atomicOverwrite(consolidated.filePath, consolidated.buffer, date);
     files.push({
       processId: 0,
       processCode: 'ALL',
@@ -339,7 +437,7 @@ async function performSync({ token, date, source }) {
   for (const processInfo of processes) {
     try {
       const downloaded = await downloadProcessExcel(token, date, processInfo);
-      const writeResult = await atomicOverwrite(downloaded.filePath, downloaded.buffer);
+      const writeResult = await atomicOverwrite(downloaded.filePath, downloaded.buffer, date);
       files.push({
         processId: Number(processInfo.id),
         processCode: processInfo.processCode || '',

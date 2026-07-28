@@ -200,3 +200,47 @@
 }
 
 .detail-list-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.detail-list-heading h2{margin:0}.detail-list-heading>span{font-size:13px;font-weight:700;color:#64748b;background:#f1f5f9;padding:6px 10px;border-radius:999px}.detail-list-row{align-items:flex-start!important}.detail-list-row span{min-width:0;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;word-break:break-word;line-height:1.45}.detail-list-row span b{color:#64748b;margin-right:4px}.detail-list-row strong{flex:0 0 auto;min-width:72px;text-align:right}
+
+.detail-inline-error,
+.detail-warning {
+    max-width: 1080px;
+    margin: 0 auto 16px;
+    padding: 13px 16px;
+    border-radius: 10px;
+    font-weight: 700;
+}
+.detail-inline-error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+.detail-warning { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
+.detail-summary-row > .is-warning { background: #fff1f2; outline: 2px solid #fda4af; }
+.detail-two-column { max-width: 1080px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.detail-two-column .detail-basic-card { margin: 0 0 16px; }
+.detail-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.detail-list-heading span { color: #64748b; font-size: 13px; }
+.detail-list-row { display: flex; justify-content: space-between; gap: 16px; padding: 11px 0; border-bottom: 1px solid #e2e8f0; }
+.detail-list-row:last-child { border-bottom: 0; }
+.detail-empty-list { padding: 16px; color: #64748b; background: #f8fafc; border-radius: 9px; }
+.detail-timeline { display: grid; gap: 0; }
+.detail-timeline-item { position: relative; display: grid; grid-template-columns: 20px 1fr; gap: 10px; padding-bottom: 18px; }
+.detail-timeline-item:not(:last-child)::before { content: ""; position: absolute; left: 7px; top: 14px; bottom: 0; width: 2px; background: #dbeafe; }
+.detail-timeline-dot { width: 16px; height: 16px; margin-top: 2px; border-radius: 50%; background: #2563eb; box-shadow: 0 0 0 4px #dbeafe; }
+.detail-timeline-item p { margin: 4px 0; color: #475569; }
+.detail-timeline-item time { color: #94a3b8; font-size: 12px; }
+.detail-sticky-actions { position: sticky; bottom: 12px; z-index: 20; max-width: 1080px; margin: 16px auto 0; padding: 12px; display: flex; justify-content: flex-end; gap: 12px; border: 1px solid #cbd5e1; border-radius: 14px; background: rgba(255,255,255,.96); box-shadow: 0 10px 30px rgba(15,23,42,.16); backdrop-filter: blur(8px); }
+.detail-approve-button, .detail-reject-button { min-height: 44px; padding: 0 20px; border: 0; border-radius: 10px; color: #fff; font-weight: 800; cursor: pointer; }
+.detail-approve-button { background: #16a34a; }
+.detail-reject-button { background: #dc2626; }
+.detail-approve-button:disabled, .detail-reject-button:disabled { opacity: .55; cursor: not-allowed; }
+.detail-modal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 18px; background: rgba(15,23,42,.55); }
+.detail-modal { width: min(480px, 100%); padding: 22px; border-radius: 16px; background: #fff; box-shadow: 0 24px 70px rgba(15,23,42,.28); }
+.detail-modal h2 { margin: 0 0 8px; }
+.detail-modal p { margin: 0 0 18px; color: #64748b; }
+.detail-modal label { display: grid; gap: 7px; margin-top: 14px; font-weight: 700; color: #334155; }
+.detail-modal select, .detail-modal textarea { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 9px; font: inherit; }
+.detail-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.detail-modal-actions > button:not(.detail-reject-button) { min-height: 44px; padding: 0 18px; border: 1px solid #cbd5e1; border-radius: 10px; background: #fff; font-weight: 700; }
+@media (max-width: 768px) {
+    .detail-two-column { grid-template-columns: 1fr; }
+    .detail-summary-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .detail-sticky-actions { bottom: 6px; }
+    .detail-sticky-actions button { flex: 1; }
+}

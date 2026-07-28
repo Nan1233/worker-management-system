@@ -636,8 +636,30 @@ export const approveSelectedTempReports = async (
 
 };
 
+export const rejectSelectedTempReports = async (ids: number[], reason: string) => {
+    const res = await api.post(
+        "/production-temp/reject-selected",
+        { ids, reason }
+    );
+    return res.data;
+};
 
+export interface ReportActionLog {
+    id: number;
+    report_type: "temp" | "approved";
+    report_id: number;
+    action: string;
+    note?: string | null;
+    full_name?: string | null;
+    username?: string | null;
+    role?: string | null;
+    created_at: string;
+}
 
+export const getTempReportActionLogs = async (id: number): Promise<ReportActionLog[]> => {
+    const res = await api.get(`/production-temp/${id}/logs`);
+    return res.data?.data || [];
+};
 
 
 // // =====================================================
