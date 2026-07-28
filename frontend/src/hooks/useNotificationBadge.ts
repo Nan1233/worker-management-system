@@ -19,9 +19,15 @@ export function useNotificationBadge() {
     const [unreadCount, setUnreadCount] = useState(readCachedCount);
     const loadingRef = useRef(false);
     const mountedRef = useRef(true);
+    const pausedUntilRef = useRef(0);
 
     const refresh = useCallback(async () => {
-        if (loadingRef.current || !navigator.onLine || !localStorage.getItem("token")) {
+        if (
+            loadingRef.current ||
+            Date.now() < pausedUntilRef.current ||
+            !navigator.onLine ||
+            !(localStorage.getItem("accessToken") || localStorage.getItem("token"))
+        ) {
             return;
         }
 
@@ -29,8 +35,12 @@ export function useNotificationBadge() {
         try {
             const count = await getUnreadNotificationCount();
             if (mountedRef.current) publishNotificationCount(count);
-        } catch {
-            // Giữ số cũ. Interceptor sẽ tự refresh token; không tạo request lặp.
+        } catch (error: any) {
+            // 401 có thể xuất hiện trong khoảnh khắc backend vừa deploy. Tạm dừng
+            // badge để không tạo bão request; interceptor giữ và refresh phiên.
+            if (Number(error?.response?.status) === 401) {
+                pausedUntilRef.current = Date.now() + 15_000;
+            }
         } finally {
             loadingRef.current = false;
         }

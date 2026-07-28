@@ -354,6 +354,7 @@ exports.getCurrentWorker = async (req, res) => {
     }
 
     try {
+        const tokenWorkerId = Number(req.user?.worker_id || 0);
         const profile = await getOrLoadWorkerProfile(loginUserId, async () => {
             const [rows] = await db.promise().query(`
                 SELECT
@@ -378,12 +379,14 @@ exports.getCurrentWorker = async (req, res) => {
                 LEFT JOIN worker_processes wp ON wp.worker_id = w.id
                 LEFT JOIN processes p ON p.id = wp.process_id
                 WHERE w.user_id = ?
+                   OR (? > 0 AND w.id = ?)
                 GROUP BY
                     w.id, w.user_id, w.worker_code, w.phone, w.department,
                     w.position, w.training_percent, w.status, w.created_at,
                     w.updated_at, u.username, u.full_name, u.role
+                ORDER BY (w.user_id = ?) DESC
                 LIMIT 1
-            `, [loginUserId]);
+            `, [loginUserId, tokenWorkerId, tokenWorkerId, loginUserId]);
             return rows[0] || null;
         });
 

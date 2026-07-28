@@ -122,7 +122,7 @@ exports.getNotifications = async (req,res) => {
 
 exports.getUnreadNotificationCount = async (req,res) => {
  try {
-  await backfillWorkerReportNotifications(req.user);
+  // Badge chỉ đếm dữ liệu đã có. Không quét/bù lịch sử ở mỗi chu kỳ polling.
   const [[count]] = await db.promise().query(
    `SELECT COUNT(*) unread FROM notifications WHERE user_id=? AND is_read=0`,
    [Number(req.user.id)]
