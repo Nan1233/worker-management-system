@@ -3343,47 +3343,50 @@ onSelect={(
                                                     </label>
 
 
-                                                    <input
+                                                    <div className="worker-deduction-input-row">
+                                                        <input
 
-                                                        id={
-                                                            item.key
-                                                        }
-
-                                                        className="worker-text-input"
-
-                                                        name={
-                                                            item.key
-                                                        }
-
-                                                        value={
-                                                            deductions[
+                                                            id={
                                                                 item.key
-                                                            ]
-                                                        }
+                                                            }
 
-                                                        onChange={
-                                                            (
-                                                                event
-                                                            ) =>
+                                                            className="worker-text-input worker-deduction-input"
 
-                                                                updateDeductionValue(
+                                                            name={
+                                                                item.key
+                                                            }
 
-                                                                    item.key,
+                                                            value={
+                                                                deductions[
+                                                                    item.key
+                                                                ]
+                                                            }
 
-                                                                    event.target.value
+                                                            onChange={
+                                                                (
+                                                                    event
+                                                                ) =>
 
-                                                                )
-                                                        }
+                                                                    updateDeductionValue(
 
-                                                        onBlur={() => normalizeDeductionValue(item.key)}
+                                                                        item.key,
 
-                                                        inputMode="numeric"
+                                                                        event.target.value
 
-                                                        placeholder="Số phút, VD: 70"
+                                                                    )
+                                                            }
 
-                                                        autoComplete="off"
+                                                            onBlur={() => normalizeDeductionValue(item.key)}
 
-                                                    />
+                                                            inputMode="numeric"
+
+                                                            placeholder="Phút"
+
+                                                            autoComplete="off"
+
+                                                        />
+                                                        <span className="worker-time-unit" aria-hidden="true">phút</span>
+                                                    </div>
 
                                                 </div>
 

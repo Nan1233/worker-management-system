@@ -2574,3 +2574,38 @@
         min-width: 140px;
     }
 }
+
+
+/* ===== KTC v1.2.4: đơn vị phút cho từng thời gian trừ ===== */
+.worker-deduction-input-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+}
+
+.worker-deduction-input-row .worker-deduction-input {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+}
+
+.worker-time-unit {
+    flex: 0 0 auto;
+    color: #172033;
+    font-size: 16px;
+    line-height: 1;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+    .worker-deduction-input-row {
+        gap: 8px;
+    }
+
+    .worker-time-unit {
+        font-size: 15px;
+    }
+}
