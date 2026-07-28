@@ -15,7 +15,6 @@ import {
 } from "../services/authService";
 
 import {
-    clearAuthSession,
     getAccessToken,
     getStoredUser,
     recoverUserFromAccessToken
