@@ -127,7 +127,7 @@ exports.getUnreadNotificationCount = async (req,res) => {
    `SELECT COUNT(*) unread FROM notifications WHERE user_id=? AND is_read=0`,
    [Number(req.user.id)]
   );
-  res.json({success:true,unread:Number(count?.unread||0)});
+  res.json({success:true,data:{unreadCount:Number(count?.unread||0)}});
  } catch(e){ console.error('GET UNREAD NOTIFICATION COUNT ERROR:', e); res.status(500).json({success:false,message:publicMessage(e,'Không thể tải số thông báo chưa đọc')}); }
 };
 

@@ -30,6 +30,7 @@ const formulaSettingsRoutes = require("./routes/formulaSettingsRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const networkAccessRoutes = require("./routes/networkAccessRoutes");
 
+const versionInfo = require("./config/version");
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const isProduction = process.env.NODE_ENV === "production";
@@ -76,6 +77,7 @@ app.use(
       "Idempotency-Key",
       "X-Cron-Secret",
       "X-Request-Id",
+      "X-Frontend-Version",
     ],
     credentials: true,
     maxAge: 86_400,
@@ -110,6 +112,8 @@ app.use((req, res, next) => {
           path: req.originalUrl,
           status: res.statusCode,
           durationMs: Math.round(durationMs),
+          totalMs: Math.round(durationMs), userId:req.user?.id||null, workerId:req.user?.worker_id||null, role:req.user?.role||null,
+          frontendVersion:req.get("X-Frontend-Version")||null, backendVersion:versionInfo.backendVersion,
         }),
       );
     }
@@ -132,6 +136,8 @@ app.use("/api", (req, res, next) => {
   res.setHeader("Cache-Control", "private, no-store");
   next();
 });
+
+app.get("/api/version", (req,res)=>res.json({success:true,data:versionInfo}));
 
 app.get("/api/health", async (req, res) => {
   try {

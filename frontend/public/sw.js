@@ -1,4 +1,4 @@
-const VERSION = "ktc-pwa-v1.0.5-auth-storm-fix";
+const VERSION = "ktc-pwa-v1.4.0-stability";
 const APP_CACHE = `${VERSION}-app`;
 const STATIC_CACHE = `${VERSION}-static`;
 

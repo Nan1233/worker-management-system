@@ -8,6 +8,7 @@ import type {
 } from "axios";
 
 import { API_BASE_URL, REQUEST_TIMEOUT_MS } from "../config/env";
+import { BUILD_VERSION } from "../config/version";
 
 import {
     clearAuthSession,
@@ -32,6 +33,7 @@ interface RetryableRequestConfig
     extends InternalAxiosRequestConfig {
     _retry?: boolean;
     _skipProactiveRefresh?: boolean;
+    _skipAuthRefresh?: boolean;
 }
 
 interface RefreshResponse {
@@ -49,6 +51,11 @@ const TRANSIENT_REFRESH_COOLDOWN_MS = 10_000;
 let refreshPromise: Promise<string> | null = null;
 let transientRefreshBlockedUntil = 0;
 let redirectingToLogin = false;
+
+export function isAuthRefreshInProgress(): boolean { return refreshPromise !== null; }
+function publishRefreshState(active: boolean): void {
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("ktc:auth-refresh-state", { detail: active }));
+}
 
 function decodeJwtExpiration(token: string): number | null {
     try {
@@ -153,16 +160,16 @@ async function refreshAccessToken(
         throw new Error("Không có refresh token");
     }
 
-    refreshPromise = axios
+    publishRefreshState(true);
+    refreshPromise = api
         .post<RefreshResponse>(
-            `${API_BASE_URL}/auth/refresh`,
+            "/auth/refresh",
             { refreshToken },
             {
                 timeout: REFRESH_REQUEST_TIMEOUT_MS,
-                headers: {
-                    "Content-Type": "application/json"
-                }
-            }
+                _skipAuthRefresh: true,
+                _skipProactiveRefresh: true
+            } as RetryableRequestConfig
         )
         .then((response) => {
             const newAccessToken =
@@ -200,6 +207,7 @@ async function refreshAccessToken(
         })
         .finally(() => {
             refreshPromise = null;
+            publishRefreshState(false);
         });
 
     return refreshPromise;
@@ -211,6 +219,9 @@ api.interceptors.request.use(
     ): Promise<InternalAxiosRequestConfig> => {
         const retryableConfig =
             config as RetryableRequestConfig;
+        if (!config.headers) config.headers = new AxiosHeaders();
+        config.headers.set("X-Frontend-Version", BUILD_VERSION);
+        if (retryableConfig._skipAuthRefresh) return config;
         let accessToken = getAccessToken();
         const refreshToken = getRefreshToken();
 
@@ -272,6 +283,7 @@ api.interceptors.response.use(
         if (
             status !== 401 ||
             originalRequest._retry ||
+            originalRequest._skipAuthRefresh ||
             isAuthRequest
         ) {
             return Promise.reject(error);
@@ -341,3 +353,19 @@ if (typeof window !== "undefined") {
 }
 
 export default api;
+
+export async function initializeAuthSession(): Promise<void> {
+    const accessToken = getAccessToken();
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return;
+    if (!accessToken || shouldRefreshAccessToken(accessToken)) {
+        try { await refreshAccessToken(true); } catch (error) {
+            if (isConfirmedInvalidRefresh(error)) throw error;
+            // Temporary network/backend failure: keep local session and let UI mount.
+        }
+    }
+}
+
+export async function waitForSharedRefresh(): Promise<void> {
+    if (refreshPromise) await refreshPromise;
+}

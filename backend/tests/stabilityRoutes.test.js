@@ -1,0 +1,5 @@
+const test=require("node:test");const assert=require("node:assert/strict");const fs=require("node:fs");const path=require("node:path");
+const read=(p)=>fs.readFileSync(path.join(__dirname,"..",p),"utf8");
+test("workers /me is mounted before /:id",()=>{const s=read("routes/workerRoutes.js");assert.ok(s.indexOf('"/me"')<s.lastIndexOf('"/:id"'));});
+test("unread badge is count-only and normalized",()=>{const s=read("controllers/systemController.js");const start=s.indexOf("exports.getUnreadNotificationCount");const end=s.indexOf("exports.markNotificationRead",start);const block=s.slice(start,end);assert.match(block,/COUNT\(\*\)/);assert.doesNotMatch(block,/backfill|JOIN production|INSERT INTO notifications/i);assert.match(block,/unreadCount/);});
+test("service worker excludes API and claims clients",()=>{const s=fs.readFileSync(path.join(__dirname,"..","..","frontend","public","sw.js"),"utf8");assert.ok(s.includes('url.pathname.startsWith("/api/")'));assert.match(s,/skipWaiting/);assert.match(s,/clients\.claim/);});
