@@ -1,5 +1,6 @@
 import { getAccessToken } from "../utils/authStorage";
 import api from "./api";
+import { getSessionCached } from "./sessionCache";
 
 
 
@@ -18,12 +19,21 @@ export interface CompanyNetworkAccess {
     message: string;
 }
 
-export const getCompanyNetworkAccess = async (): Promise<CompanyNetworkAccess> => {
-    const res = await api.get("/network/access", {
-        params: { _t: Date.now() }
-    });
+export const getCompanyNetworkAccess = async (
+    forceRefresh = false
+): Promise<CompanyNetworkAccess> => {
+    const loader = async () => {
+        const res = await api.get("/network/access");
+        return res.data?.data || res.data;
+    };
 
-    return res.data?.data || res.data;
+    if (forceRefresh) return loader();
+
+    return getSessionCached(
+        "network-access",
+        5 * 60 * 1000,
+        loader
+    );
 };
 
 // =====================================================

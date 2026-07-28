@@ -5,6 +5,7 @@ const jwt = require("jsonwebtoken");
 const userModel = require("../models/userModel");
 const sessionModel = require("../models/sessionModel");
 const auditService = require("../services/auditService");
+const { setCachedAuthUser } = require("../utils/authUserCache");
 
 const ACCESS_TOKEN_EXPIRES_IN =
     process.env.ACCESS_TOKEN_EXPIRES_IN || "15m";
@@ -165,31 +166,18 @@ async function issueLoginSession(req, res, user) {
         expires_at: expiresAt
     });
 
-    try {
-        await auditService.logActivity({
-            userId: user.id,
-            action: "LOGIN",
-            entityType: "user_session",
-            entityId: null,
-            description: "Đăng nhập thành công",
-            metadata: {
-                role: user.role,
-                login_mode:
-                    user.role === "worker"
-                        ? "employee_code"
-                        : "employee_code_password",
-                device_name: getDeviceName(req)
-            },
-            req
-        });
-    } catch (auditError) {
-        console.error(
-            "Không thể ghi nhật ký đăng nhập:",
-            auditError
-        );
-    }
+    // Làm nóng cache xác thực để các API ngay sau đăng nhập không phải
+    // truy vấn lại users/workers qua TiDB cho từng request.
+    setCachedAuthUser({
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        status: user.status || "active",
+        worker_id: user.worker_id || null,
+        worker_status: user.worker_status || (user.role === "worker" ? "active" : null)
+    });
 
-    return res.status(200).json({
+    const responseBody = {
         success: true,
         message: "Đăng nhập thành công",
         token: accessToken,
@@ -203,7 +191,34 @@ async function issueLoginSession(req, res, user) {
             full_name: user.full_name,
             role: user.role
         }
+    };
+
+    res.status(200).json(responseBody);
+
+    // Nhật ký không được làm chậm phản hồi đăng nhập. Việc ghi log chạy nền
+    // sau khi token và thông tin người dùng đã được trả về client.
+    void auditService.logActivity({
+        userId: user.id,
+        action: "LOGIN",
+        entityType: "user_session",
+        entityId: null,
+        description: "Đăng nhập thành công",
+        metadata: {
+            role: user.role,
+            login_mode:
+                user.role === "worker"
+                    ? "employee_code"
+                    : "employee_code_password",
+            device_name: getDeviceName(req)
+        },
+        req
+    }).catch((auditError) => {
+        console.error("Không thể ghi nhật ký đăng nhập:", auditError);
     });
+
+    return;
+
+
 }
 
 exports.login = async (req, res) => {

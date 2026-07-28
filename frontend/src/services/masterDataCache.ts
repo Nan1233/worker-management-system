@@ -3,8 +3,9 @@ import { getMachinesByProcess, getProductStandardsByProcess } from "./masterData
 import { getDefectOptionsByProcess } from "./productionService";
 
 interface CacheEntry<T> {
-  value: T;
+  value?: T;
   expiresAt: number;
+  pending?: Promise<T>;
 }
 
 const TTL_MS = 10 * 60 * 1000;
@@ -18,11 +19,28 @@ async function getCached<T>(
   loader: () => Promise<T>,
 ): Promise<T> {
   const current = cache.get(processId);
-  if (current && current.expiresAt > Date.now()) return current.value;
+  const now = Date.now();
 
-  const value = await loader();
-  cache.set(processId, { value, expiresAt: Date.now() + TTL_MS });
-  return value;
+  if (current?.value !== undefined && current.expiresAt > now) {
+    return current.value;
+  }
+
+  // Nếu nhiều component cùng mở một công đoạn, dùng chung request đang chạy
+  // thay vì gửi lặp machines/products/defects tới Render và TiDB.
+  if (current?.pending) return current.pending;
+
+  const pending = loader()
+    .then((value) => {
+      cache.set(processId, { value, expiresAt: Date.now() + TTL_MS });
+      return value;
+    })
+    .catch((error) => {
+      cache.delete(processId);
+      throw error;
+    });
+
+  cache.set(processId, { expiresAt: 0, pending });
+  return pending;
 }
 
 export const getCachedMachines = (processId: number) =>
@@ -33,6 +51,14 @@ export const getCachedProductStandards = (processId: number) =>
 
 export const getCachedDefects = (processId: number) =>
   getCached(defectsCache, processId, () => getDefectOptionsByProcess(processId));
+
+export function prefetchProcessMasterData(processId: number): void {
+  void Promise.allSettled([
+    getCachedMachines(processId),
+    getCachedProductStandards(processId),
+    getCachedDefects(processId),
+  ]);
+}
 
 export function clearMasterDataCache(processId?: number): void {
   if (processId !== undefined) {

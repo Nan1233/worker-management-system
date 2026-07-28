@@ -13,6 +13,8 @@ import {
     getCurrentWorker
 } from "../../services/workerService";
 
+import { prefetchProcessMasterData } from "../../services/masterDataCache";
+
 import type {
     User
 } from "../../types/auth";
@@ -28,6 +30,7 @@ const processes = [
 
     {
         id: "cat-long",
+        dbId: 1,
         code: "GC",
         name: "Gia công (Cắt / Lồng)",
         icon: "🛠",
@@ -37,6 +40,7 @@ const processes = [
 
     {
         id: "mai",
+        dbId: 2,
         code: "MAI",
         name: "Mài",
         icon: "◉",
@@ -46,6 +50,7 @@ const processes = [
 
     {
         id: "kiem-1",
+        dbId: 3,
         code: "K1",
         name: "Kiểm 1",
         icon: "☑",
@@ -55,6 +60,7 @@ const processes = [
 
     {
         id: "kiem-2",
+        dbId: 4,
         code: "K2",
         name: "Kiểm 2",
         icon: "☷",
@@ -64,6 +70,7 @@ const processes = [
 
     {
         id: "ep",
+        dbId: 60003,
         code: "EP",
         name: "Ép",
         icon: "▱",
@@ -73,6 +80,7 @@ const processes = [
 
     {
         id: "can",
+        dbId: 60002,
         code: "CAN",
         name: "Cán",
         icon: "▤",
@@ -82,6 +90,7 @@ const processes = [
 
     {
         id: "bavia",
+        dbId: null,
         code: "BAVIA",
         name: "BAVIA",
         icon: "✎",
@@ -402,11 +411,13 @@ function SelectProcess() {
                                     key={item.id}
                                     type="button"
                                     className="worker-process-card"
-                                    onClick={() =>
-                                        navigate(
-                                            `/worker/process/${item.id}`
-                                        )
-                                    }
+                                    onPointerEnter={() => item.dbId && prefetchProcessMasterData(item.dbId)}
+                                    onFocus={() => item.dbId && prefetchProcessMasterData(item.dbId)}
+                                    onTouchStart={() => item.dbId && prefetchProcessMasterData(item.dbId)}
+                                    onClick={() => {
+                                        if (item.dbId) prefetchProcessMasterData(item.dbId);
+                                        navigate(`/worker/process/${item.id}`);
+                                    }}
                                 >
 
                                     <span className="worker-process-icon">

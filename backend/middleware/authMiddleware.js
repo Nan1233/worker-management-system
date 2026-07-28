@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const db = require("../config/db");
+const { getOrLoadAuthUser } = require("../utils/authUserCache");
 
 function normalize(value) {
     return String(value ?? "")
@@ -29,30 +30,35 @@ module.exports = async (req, res, next) => {
             });
         }
 
-        const [rows] = await db.promise().query(
-            `SELECT
-                u.id,
-                u.username,
-                u.role,
-                u.status,
-                w.id AS worker_id,
-                w.status AS worker_status,
-                DATABASE() AS database_name
-             FROM users u
-             LEFT JOIN workers w ON w.user_id = u.id
-             WHERE u.id = ?
-             LIMIT 1`,
-            [decodedUserId]
+        const currentUser = await getOrLoadAuthUser(
+            decodedUserId,
+            async () => {
+                const [rows] = await db.promise().query(
+                    `SELECT
+                        u.id,
+                        u.username,
+                        u.role,
+                        u.status,
+                        w.id AS worker_id,
+                        w.status AS worker_status,
+                        DATABASE() AS database_name
+                     FROM users u
+                     LEFT JOIN workers w ON w.user_id = u.id
+                     WHERE u.id = ?
+                     LIMIT 1`,
+                    [decodedUserId]
+                );
+                return rows[0] || null;
+            }
         );
 
-        if (!rows.length) {
+        if (!currentUser) {
             return res.status(401).json({
                 code: "USER_NOT_FOUND",
                 message: "Tài khoản không còn tồn tại"
             });
         }
 
-        const currentUser = rows[0];
         const role = normalize(currentUser.role);
         const userStatus = normalize(currentUser.status);
         const workerStatus = normalize(currentUser.worker_status);

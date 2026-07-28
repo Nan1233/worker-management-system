@@ -85,6 +85,15 @@ app.use((req, res, next) => {
   req.requestId = requestId;
   res.setHeader("X-Request-Id", requestId);
 
+  const originalEnd = res.end;
+  res.end = function patchedEnd(...args) {
+    const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+    if (!res.headersSent) {
+      res.setHeader("Server-Timing", `app;dur=${durationMs.toFixed(1)}`);
+    }
+    return originalEnd.apply(this, args);
+  };
+
   res.on("finish", () => {
     const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
     if (!isProduction || res.statusCode >= 400 || durationMs >= 1_000) {

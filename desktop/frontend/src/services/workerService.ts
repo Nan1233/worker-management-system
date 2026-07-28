@@ -1,4 +1,5 @@
 import api from "./api";
+import { getSessionCached } from "./sessionCache";
 
 import type {
 
@@ -39,15 +40,24 @@ export const getAllWorkers =
 // =====================================================
 
 export const getCurrentWorker =
-    async (): Promise<WorkerProfile> => {
+    async (forceRefresh = false): Promise<WorkerProfile> => {
 
-        const response =
-            await api.get<WorkerProfileResponse>(
-                "/workers/me"
-            );
+        const loader = async (): Promise<WorkerProfile> => {
+            const response =
+                await api.get<WorkerProfileResponse>(
+                    "/workers/me"
+                );
 
+            return response.data.data;
+        };
 
-        return response.data.data;
+        if (forceRefresh) return loader();
+
+        return getSessionCached(
+            "current-worker",
+            5 * 60 * 1000,
+            loader
+        );
 
     };
 
