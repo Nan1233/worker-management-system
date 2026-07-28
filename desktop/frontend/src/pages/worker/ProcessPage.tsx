@@ -3541,7 +3541,7 @@ onSelect={(
                             <input
                                 id="totalOutput"
                                 value={formatIntegerDisplay(
-                                    (Number(form.ttOk) || 0) + (Number(form.ttNg) || 0)
+                                    String((Number(form.ttOk) || 0) + (Number(form.ttNg) || 0))
                                 )}
                                 readOnly
                                 aria-label="Tổng sản lượng bằng TT OK cộng TT NG"
