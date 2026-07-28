@@ -220,8 +220,40 @@ api.interceptors.response.use(
             return api(originalRequest);
         } catch (refreshError) {
             notifyTokenRefreshed(null);
-            clearAuthSession();
-            redirectToLogin();
+
+            /*
+             * Không xóa phiên khi backend đang deploy/cold start, mất mạng
+             * hoặc trả lỗi 5xx. localStorage phải được giữ nguyên để lần mở
+             * tiếp theo có thể tự refresh lại phiên.
+             *
+             * Chỉ đăng xuất khi server xác nhận refresh token không còn hợp lệ.
+             */
+            const refreshAxiosError =
+                axios.isAxiosError(refreshError)
+                    ? refreshError
+                    : null;
+
+            const refreshStatus =
+                refreshAxiosError?.response?.status;
+
+            const refreshCode =
+                (
+                    refreshAxiosError?.response?.data as
+                        | { code?: string }
+                        | undefined
+                )?.code;
+
+            const refreshTokenInvalid =
+                refreshStatus === 400 ||
+                refreshStatus === 401 ||
+                refreshStatus === 403 ||
+                refreshCode === "REFRESH_TOKEN_INVALID" ||
+                refreshCode === "REFRESH_TOKEN_EXPIRED";
+
+            if (refreshTokenInvalid) {
+                clearAuthSession();
+                redirectToLogin();
+            }
 
             return Promise.reject(
                 refreshError
