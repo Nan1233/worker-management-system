@@ -3529,35 +3529,27 @@ onSelect={(
 
                         </div>
 
-                    </div>
 
+                        {/* TỔNG SẢN LƯỢNG = OK + NG */}
 
-                    <div className="worker-grand-total" aria-live="polite">
+                        <div className="worker-quality-card total-output">
 
-                        <label htmlFor="totalOutput">
+                            <label htmlFor="totalOutput">
+                                Tổng sản lượng
+                            </label>
 
-                            Tổng sản lượng (OK + NG)
+                            <input
+                                id="totalOutput"
+                                value={formatIntegerDisplay(
+                                    (Number(form.ttOk) || 0) + (Number(form.ttNg) || 0)
+                                )}
+                                readOnly
+                                aria-label="Tổng sản lượng bằng TT OK cộng TT NG"
+                            />
 
-                        </label>
+                            <small>OK + NG</small>
 
-
-                        <input
-
-                            id="totalOutput"
-
-                            value={
-                                (
-                                    Number(form.ttOk || 0)
-                                    +
-                                    Number(form.ttNg || 0)
-                                ).toLocaleString("vi-VN")
-                            }
-
-                            readOnly
-
-                            tabIndex={-1}
-
-                        />
+                        </div>
 
                     </div>
 

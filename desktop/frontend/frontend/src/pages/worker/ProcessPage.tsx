@@ -3774,6 +3774,28 @@ onSelect={(
 
                         </div>
 
+
+                        {/* TỔNG SẢN LƯỢNG = OK + NG */}
+
+                        <div className="worker-quality-card total-output">
+
+                            <label htmlFor="totalOutput">
+                                Tổng sản lượng
+                            </label>
+
+                            <input
+                                id="totalOutput"
+                                value={formatIntegerDisplay(
+                                    (Number(form.ttOk) || 0) + (Number(form.ttNg) || 0)
+                                )}
+                                readOnly
+                                aria-label="Tổng sản lượng bằng TT OK cộng TT NG"
+                            />
+
+                            <small>OK + NG</small>
+
+                        </div>
+
                     </div>
 
 

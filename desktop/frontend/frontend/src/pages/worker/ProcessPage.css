@@ -344,7 +344,7 @@
 .worker-basic-grid {
     display: grid;
     grid-template-columns:
-        repeat(2, minmax(0, 1fr));
+        repeat(3, minmax(0, 1fr));
 
     gap:
         0
@@ -647,6 +647,25 @@
 .worker-quality-card.ng {
     border-color: #ffd5da;
     background: #fffdfd;
+}
+
+.worker-quality-card.total-output {
+    border-color: #c9ddff;
+    background: #f7faff;
+}
+
+.worker-quality-card.total-output label,
+.worker-quality-card.total-output input {
+    color: #174ea6;
+}
+
+.worker-quality-card.total-output small {
+    display: block;
+    margin-top: 7px;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
 }
 
 
