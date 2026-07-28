@@ -9,6 +9,7 @@ import {
     type NotificationItem
 } from "../../services/systemService";
 import { publishNotificationCount } from "../../hooks/useNotificationBadge";
+import { getStoredUser } from "../../utils/authStorage";
 import "./SystemCenter.css";
 
 export default function SystemCenter() {
@@ -19,6 +20,8 @@ export default function SystemCenter() {
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState("");
     const navigate = useNavigate();
+    const currentUser = getStoredUser();
+    const isWorker = currentUser?.role === "worker";
 
     const load = useCallback(async (silent = false) => {
         if (silent) setRefreshing(true);
@@ -27,7 +30,7 @@ export default function SystemCenter() {
 
         const [notificationResult, activityResult] = await Promise.allSettled([
             getNotifications(),
-            getActivities()
+            isWorker ? Promise.resolve([] as ActivityItem[]) : getActivities()
         ]);
 
         if (notificationResult.status === "fulfilled") {
@@ -45,7 +48,7 @@ export default function SystemCenter() {
 
         setLoading(false);
         setRefreshing(false);
-    }, []);
+    }, [isWorker]);
 
     useEffect(() => {
         void load(false);
@@ -82,8 +85,8 @@ export default function SystemCenter() {
         <section className="system-center">
             <header>
                 <div>
-                    <h1>Trung tâm hệ thống</h1>
-                    <p>Theo dõi thông báo và lịch sử hoạt động {refreshing ? "· đang cập nhật" : ""}</p>
+                    <h1>{isWorker ? "Thông báo của tôi" : "Trung tâm hệ thống"}</h1>
+                    <p>{isWorker ? "Theo dõi trạng thái duyệt và phản hồi báo cáo" : "Theo dõi thông báo và lịch sử hoạt động"} {refreshing ? "· đang cập nhật" : ""}</p>
                 </div>
                 <button type="button" onClick={() => void markAllRead()}>Đánh dấu đã đọc</button>
             </header>
@@ -92,9 +95,11 @@ export default function SystemCenter() {
                 <button className={tab === "notifications" ? "active" : ""} onClick={() => setTab("notifications")}>
                     Thông báo ({notifications.filter((item) => !item.is_read).length})
                 </button>
-                <button className={tab === "activities" ? "active" : ""} onClick={() => setTab("activities")}>
-                    Lịch sử hoạt động
-                </button>
+                {!isWorker && (
+                    <button className={tab === "activities" ? "active" : ""} onClick={() => setTab("activities")}>
+                        Lịch sử hoạt động
+                    </button>
+                )}
             </div>
 
             {error && <div className="system-error">{error}<button type="button" onClick={() => void load(false)}>Thử lại</button></div>}

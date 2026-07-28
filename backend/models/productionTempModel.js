@@ -773,7 +773,7 @@ const ProductionTemp = {
                         type: "report_approved",
                         title: "Báo cáo đã được duyệt",
                         message: `Báo cáo ngày ${workDate}, ca ${item.shift || "-"}, sản phẩm ${item.product_name || "-"} đã được duyệt.`,
-                        linkUrl: "/worker/history",
+                        linkUrl: `/worker/history/${approvedReportId}?source=approved`,
                         entityType: "approved_report",
                         entityId: approvedReportId
                     },
@@ -864,7 +864,7 @@ const ProductionTemp = {
                         type: "report_rejected",
                         title: "Báo cáo đã bị từ chối",
                         message: `Báo cáo ngày ${String(row.work_date).slice(0, 10)} ca ${row.shift || "-"} bị từ chối: ${cleanReason}`,
-                        linkUrl: "/worker/history",
+                        linkUrl: `/worker/history/${row.id}?source=pending`,
                         entityType: "temp_report",
                         entityId: row.id
                     },

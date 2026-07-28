@@ -26,7 +26,7 @@ async function createReportVersion({ reportType, reportId, snapshot, reason = nu
 }
 
 async function notifyUsers(userIds, payload, executor = db) {
-  const ids = [...new Set((userIds || []).map(Number).filter(Number.isInteger))];
+  const ids = [...new Set((userIds || []).map(Number).filter((id) => Number.isInteger(id) && id > 0))];
   if (!ids.length) return;
   const values = ids.map(() => '(?,?,?,?,?,?,?)').join(',');
   const params = ids.flatMap(id => [id, payload.type || 'info', payload.title, payload.message, payload.linkUrl || null, payload.entityType || null, payload.entityId || null]);
