@@ -8,7 +8,6 @@ import type {
 } from "axios";
 
 import { API_BASE_URL, REQUEST_TIMEOUT_MS } from "../config/env";
-import { BUILD_VERSION } from "../config/version";
 
 import {
     clearAuthSession,
@@ -21,7 +20,7 @@ import type {
     AuthUser
 } from "../utils/authStorage";
 
-const api = axios.create({
+export const api = axios.create({
     baseURL: API_BASE_URL,
     timeout: REQUEST_TIMEOUT_MS,
     headers: {
@@ -33,7 +32,6 @@ interface RetryableRequestConfig
     extends InternalAxiosRequestConfig {
     _retry?: boolean;
     _skipProactiveRefresh?: boolean;
-    _skipAuthRefresh?: boolean;
 }
 
 interface RefreshResponse {
@@ -51,11 +49,6 @@ const TRANSIENT_REFRESH_COOLDOWN_MS = 10_000;
 let refreshPromise: Promise<string> | null = null;
 let transientRefreshBlockedUntil = 0;
 let redirectingToLogin = false;
-
-export function isAuthRefreshInProgress(): boolean { return refreshPromise !== null; }
-function publishRefreshState(active: boolean): void {
-    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("ktc:auth-refresh-state", { detail: active }));
-}
 
 function decodeJwtExpiration(token: string): number | null {
     try {
@@ -137,7 +130,7 @@ function invalidateSessionAndRedirect(): void {
     redirectToLogin();
 }
 
-async function refreshAccessToken(
+export async function refreshAccessToken(
     force = false
 ): Promise<string> {
     if (refreshPromise) {
@@ -160,16 +153,16 @@ async function refreshAccessToken(
         throw new Error("Không có refresh token");
     }
 
-    publishRefreshState(true);
-    refreshPromise = api
+    refreshPromise = axios
         .post<RefreshResponse>(
-            "/auth/refresh",
+            `${API_BASE_URL}/auth/refresh`,
             { refreshToken },
             {
                 timeout: REFRESH_REQUEST_TIMEOUT_MS,
-                _skipAuthRefresh: true,
-                _skipProactiveRefresh: true
-            } as RetryableRequestConfig
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            }
         )
         .then((response) => {
             const newAccessToken =
@@ -207,10 +200,25 @@ async function refreshAccessToken(
         })
         .finally(() => {
             refreshPromise = null;
-            publishRefreshState(false);
         });
 
     return refreshPromise;
+}
+
+export function isAuthRefreshInProgress(): boolean {
+    return Boolean(refreshPromise);
+}
+
+export async function initializeAuthSession(): Promise<void> {
+    const accessToken = getAccessToken();
+    const refreshToken = getRefreshToken();
+    if (!accessToken && !refreshToken) return;
+    if (!refreshToken) return;
+    if (!accessToken || shouldRefreshAccessToken(accessToken)) {
+        try { await refreshAccessToken(true); } catch (error) {
+            if (isConfirmedInvalidRefresh(error)) throw error;
+        }
+    }
 }
 
 api.interceptors.request.use(
@@ -219,9 +227,6 @@ api.interceptors.request.use(
     ): Promise<InternalAxiosRequestConfig> => {
         const retryableConfig =
             config as RetryableRequestConfig;
-        if (!config.headers) config.headers = new AxiosHeaders();
-        config.headers.set("X-Frontend-Version", BUILD_VERSION);
-        if (retryableConfig._skipAuthRefresh) return config;
         let accessToken = getAccessToken();
         const refreshToken = getRefreshToken();
 
@@ -250,10 +255,8 @@ api.interceptors.request.use(
                 config.headers = new AxiosHeaders();
             }
 
-            config.headers.set(
-                "Authorization",
-                `Bearer ${accessToken}`
-            );
+            config.headers.set("Authorization", `Bearer ${accessToken}`);
+            config.headers.set("X-Frontend-Version", String(import.meta.env.VITE_BUILD_VERSION || "1.5.0"));
         }
 
         return config;
@@ -283,7 +286,6 @@ api.interceptors.response.use(
         if (
             status !== 401 ||
             originalRequest._retry ||
-            originalRequest._skipAuthRefresh ||
             isAuthRequest
         ) {
             return Promise.reject(error);
@@ -353,19 +355,3 @@ if (typeof window !== "undefined") {
 }
 
 export default api;
-
-export async function initializeAuthSession(): Promise<void> {
-    const accessToken = getAccessToken();
-    const refreshToken = getRefreshToken();
-    if (!refreshToken) return;
-    if (!accessToken || shouldRefreshAccessToken(accessToken)) {
-        try { await refreshAccessToken(true); } catch (error) {
-            if (isConfirmedInvalidRefresh(error)) throw error;
-            // Temporary network/backend failure: keep local session and let UI mount.
-        }
-    }
-}
-
-export async function waitForSharedRefresh(): Promise<void> {
-    if (refreshPromise) await refreshPromise;
-}

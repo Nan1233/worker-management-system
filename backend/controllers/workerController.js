@@ -391,14 +391,10 @@ exports.getCurrentWorker = async (req, res) => {
         });
 
         if (!profile) {
-            const [[userRow]] = await db.promise().query(`SELECT id,status FROM users WHERE id=? LIMIT 1`, [loginUserId]);
-            if (!userRow) { console.error("WORKER_ME_NOT_FOUND", { reason:"user_not_found", userId:loginUserId, workerId:tokenWorkerId }); return res.status(401).json({success:false,code:"SESSION_REVOKED",message:"Tài khoản không còn tồn tại"}); }
-            const [workers] = await db.promise().query(`SELECT id,user_id,status FROM workers WHERE user_id=? OR (? > 0 AND id=?) LIMIT 2`, [loginUserId,tokenWorkerId,tokenWorkerId]);
-            if (!workers.length) { console.error("WORKER_ME_NOT_FOUND", { reason:"worker_not_found", userId:loginUserId, workerId:tokenWorkerId }); return res.status(404).json({success:false,code:"WORKER_NOT_FOUND",message:"Không tìm thấy hồ sơ công nhân"}); }
-            const worker=workers.find(w=>Number(w.user_id)===loginUserId)||workers[0];
-            if(String(worker.status).toLowerCase()!=="active") { console.error("WORKER_ME_NOT_FOUND", { reason:"worker_inactive", userId:loginUserId, workerId:worker.id }); return res.status(403).json({success:false,code:"USER_INACTIVE",message:"Hồ sơ công nhân đã bị khóa"}); }
-            console.error("WORKER_ME_NOT_FOUND", { reason:"user_id_not_linked", userId:loginUserId, workerId:worker.id, linkedUserId:worker.user_id });
-            return res.status(409).json({success:false,code:"WORKER_NOT_FOUND",message:"Hồ sơ công nhân chưa liên kết đúng tài khoản"});
+            return res.status(404).json({
+                success: false,
+                message: "Tài khoản chưa có hồ sơ nhân viên"
+            });
         }
 
         return res.status(200).json({ success: true, data: profile });

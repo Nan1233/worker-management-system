@@ -1,8 +1,4 @@
-import axios from "axios";
-
-import api from "./api";
-import { API_BASE_URL, REQUEST_TIMEOUT_MS } from "../config/env";
-
+import api, { refreshAccessToken } from "./api";
 import type {
     LoginResponse
 } from "../types/auth";
@@ -75,56 +71,10 @@ export const login = async (
     return data;
 };
 
-export const refreshSession =
-    async (): Promise<RefreshResponse> => {
-        const refreshToken =
-            getRefreshToken();
-
-        if (!refreshToken) {
-            throw new Error(
-                "Không có refresh token"
-            );
-        }
-
-        const response =
-            await axios.post<RefreshResponse>(
-                `${API_BASE_URL}/auth/refresh`,
-                {
-                    refreshToken
-                },
-                {
-                    timeout: REQUEST_TIMEOUT_MS,
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    }
-                }
-            );
-
-        const accessToken =
-            response.data.accessToken ||
-            response.data.token;
-
-        if (!accessToken) {
-            throw new Error(
-                "Không nhận được access token mới"
-            );
-        }
-
-        saveAuthSession({
-            accessToken,
-            user: response.data.user
-                ? {
-                      ...response.data.user,
-                      worker_id:
-                          response.data.user
-                              .worker_id ?? null
-                  }
-                : undefined
-        });
-
-        return response.data;
-    };
+export const refreshSession = async (): Promise<RefreshResponse> => {
+    const accessToken = await refreshAccessToken(true);
+    return { success: true, message: "Phiên đã được làm mới", accessToken };
+};
 
 export const logout =
     async (): Promise<void> => {

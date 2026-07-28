@@ -30,7 +30,6 @@ const formulaSettingsRoutes = require("./routes/formulaSettingsRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const networkAccessRoutes = require("./routes/networkAccessRoutes");
 
-const versionInfo = require("./config/version");
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const isProduction = process.env.NODE_ENV === "production";
@@ -77,7 +76,6 @@ app.use(
       "Idempotency-Key",
       "X-Cron-Secret",
       "X-Request-Id",
-      "X-Frontend-Version",
     ],
     credentials: true,
     maxAge: 86_400,
@@ -112,8 +110,6 @@ app.use((req, res, next) => {
           path: req.originalUrl,
           status: res.statusCode,
           durationMs: Math.round(durationMs),
-          totalMs: Math.round(durationMs), userId:req.user?.id||null, workerId:req.user?.worker_id||null, role:req.user?.role||null,
-          frontendVersion:req.get("X-Frontend-Version")||null, backendVersion:versionInfo.backendVersion,
         }),
       );
     }
@@ -137,8 +133,6 @@ app.use("/api", (req, res, next) => {
   next();
 });
 
-app.get("/api/version", (req,res)=>res.json({success:true,data:versionInfo}));
-
 app.get("/api/health", async (req, res) => {
   try {
     await db.promise().query({ sql: "SELECT 1 AS ok", timeout: 3_000 });
@@ -160,6 +154,7 @@ app.use("/api/production-temp", productionTempRoutes);
 app.use("/api/manager", managerRoutes);
 app.use("/api/reports", reportExportRoutes);
 app.use("/api/sync-jobs", syncJobRoutes);
+app.use("/api/version", require("./routes/versionRoutes"));
 app.use("/api/system", systemRoutes);
 app.use("/api/admin/master", adminMasterRoutes);
 app.use("/api/formula-settings", formulaSettingsRoutes);
@@ -242,7 +237,9 @@ async function start() {
   }
 
   server = app.listen(PORT, () => {
+    const version = require("./config/version");
     console.log(`Server running at port ${PORT}`);
+    console.log(`[KTC] backendVersion=${version.backendVersion} commitSha=${version.commitSha} apiVersion=${version.apiVersion} schemaVersion=${version.schemaVersion}`);
     startDatabaseKeepAlive();
     void warmFrequentlyUsedMasterData();
   });
@@ -266,3 +263,4 @@ if (require.main === module) {
 }
 
 module.exports = { app, start };
+
