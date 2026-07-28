@@ -204,3 +204,18 @@
     white-space: normal !important;
     line-height: 1.35;
 }
+
+.selected-review-actions { display: flex; gap: 10px; align-items: center; }
+.selected-review-reject { min-height: 42px; padding: 0 18px; border: 0; border-radius: 9px; background: #dc2626; color: #fff; font-weight: 800; cursor: pointer; white-space: nowrap; }
+.selected-review-reject:disabled { opacity: .55; cursor: not-allowed; }
+.selected-reject-backdrop { position: fixed; inset: 0; z-index: 1300; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15,23,42,.58); }
+.selected-reject-modal { width: min(460px, 100%); padding: 22px; border-radius: 16px; background: #fff; box-shadow: 0 24px 70px rgba(15,23,42,.3); }
+.selected-reject-modal h2 { margin: 0 0 8px; color: #0f172a; }
+.selected-reject-modal p { margin: 0 0 18px; color: #64748b; line-height: 1.5; }
+.selected-reject-modal label { display: grid; gap: 7px; margin-top: 13px; color: #334155; font-weight: 700; }
+.selected-reject-modal select,
+.selected-reject-modal textarea { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 10px; background: #fff; color: #0f172a; font: inherit; }
+.selected-reject-modal textarea { min-height: 86px; resize: vertical; }
+.selected-reject-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.selected-reject-actions > button:not(.selected-review-reject) { min-height: 42px; padding: 0 17px; border: 1px solid #cbd5e1; border-radius: 9px; background: #fff; color: #334155; font-weight: 700; cursor: pointer; }
+@media (max-width: 768px) { .selected-review-actions { flex-direction: column; width: 100%; } .selected-review-actions > button { width: 100%; } .selected-reject-actions { flex-direction: column-reverse; } .selected-reject-actions > button { width: 100%; } }

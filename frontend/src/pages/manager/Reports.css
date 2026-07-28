@@ -614,3 +614,39 @@ button:disabled { opacity: .48; cursor: not-allowed; box-shadow: none; }
     color: #1d5fc2;
     box-shadow: 0 8px 18px rgba(37, 99, 235, .1);
 }
+
+.management-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(15, 23, 42, .56);
+}
+
+.management-modal {
+    width: min(460px, 100%);
+    padding: 22px;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 24px 70px rgba(15, 23, 42, .28);
+}
+
+.management-modal h2 { margin: 0 0 8px; color: #0f172a; }
+.management-modal p { margin: 0 0 18px; color: #64748b; line-height: 1.5; }
+.management-modal label { display: grid; gap: 7px; margin-top: 13px; color: #334155; font-weight: 700; }
+.management-modal select,
+.management-modal textarea { width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 12px; background: #fff; color: #0f172a; font: inherit; }
+.management-modal textarea { resize: vertical; min-height: 86px; }
+.management-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.management-modal-actions > button:not(.management-reject-button) { min-height: 42px; padding: 0 17px; border: 1px solid #cbd5e1; border-radius: 9px; background: #fff; color: #334155; font-weight: 700; cursor: pointer; }
+
+@media (max-width: 640px) {
+    .management-filter-actions { grid-template-columns: 1fr !important; }
+    .management-filter-actions > button { width: 100%; }
+    .management-modal { padding: 18px; }
+    .management-modal-actions { flex-direction: column-reverse; }
+    .management-modal-actions > button { width: 100%; }
+}

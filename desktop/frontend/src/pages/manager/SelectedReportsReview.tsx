@@ -3,11 +3,21 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
     approveSelectedTempReports,
     getReportById,
-    getTempReportDetail
+    getTempReportDetail,
+    rejectSelectedTempReports
 } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { useToast } from "../../components/feedback/toastContext";
 import "./SelectedReportsReview.css";
+
+const REJECT_REASONS = [
+    "Báo cáo trùng",
+    "Sai sản lượng",
+    "Sai thời gian",
+    "Sai máy hoặc sản phẩm",
+    "Thiếu dữ liệu",
+    "Lý do khác"
+];
 
 const formatDate = (value?: string | null) => {
     if (!value) return "---";
@@ -48,6 +58,9 @@ function SelectedReportsReview() {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
+    const [rejectOpen, setRejectOpen] = useState(false);
+    const [rejectReason, setRejectReason] = useState(REJECT_REASONS[0]);
+    const [rejectDetail, setRejectDetail] = useState("");
 
     const savedUser = localStorage.getItem("user");
     const role = (() => {
@@ -128,6 +141,33 @@ function SelectedReportsReview() {
         }
     };
 
+    const handleReject = async () => {
+        if (source !== "pending" || reportIds.length === 0 || submitting) return;
+
+        const reason = rejectReason === "Lý do khác"
+            ? rejectDetail.trim()
+            : [rejectReason, rejectDetail.trim()].filter(Boolean).join(": ");
+
+        if (!reason) {
+            setError("Vui lòng nhập lý do từ chối.");
+            return;
+        }
+
+        try {
+            setSubmitting(true);
+            setError("");
+            await rejectSelectedTempReports(reportIds, reason);
+            sessionStorage.removeItem("selectedPendingReportIds");
+            showToast(`Đã từ chối ${reportIds.length} báo cáo`, "success");
+            navigate(`${basePath}/reports`);
+        } catch (err) {
+            console.error("REJECT SELECTED REPORTS ERROR:", err);
+            setError("Từ chối báo cáo thất bại. Vui lòng thử lại.");
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
     return (
         <main className="selected-review-page">
             <header className="selected-review-header">
@@ -148,14 +188,24 @@ function SelectedReportsReview() {
                 </div>
 
                 {source === "pending" && (
-                    <button
-                        type="button"
-                        className="selected-review-approve"
-                        disabled={submitting || reportIds.length === 0}
-                        onClick={handleApprove}
-                    >
-                        {submitting ? "Đang duyệt..." : `Duyệt ${reportIds.length} báo cáo`}
-                    </button>
+                    <div className="selected-review-actions">
+                        <button
+                            type="button"
+                            className="selected-review-reject"
+                            disabled={submitting || reportIds.length === 0}
+                            onClick={() => setRejectOpen(true)}
+                        >
+                            Từ chối {reportIds.length} báo cáo
+                        </button>
+                        <button
+                            type="button"
+                            className="selected-review-approve"
+                            disabled={submitting || reportIds.length === 0}
+                            onClick={handleApprove}
+                        >
+                            {submitting ? "Đang xử lý..." : `Duyệt ${reportIds.length} báo cáo`}
+                        </button>
+                    </div>
                 )}
             </header>
 
@@ -238,6 +288,44 @@ function SelectedReportsReview() {
                         </table>
                     </div>
                 </section>
+            )}
+            {rejectOpen && (
+                <div
+                    className="selected-reject-backdrop"
+                    role="presentation"
+                    onMouseDown={() => !submitting && setRejectOpen(false)}
+                >
+                    <div
+                        className="selected-reject-modal"
+                        role="dialog"
+                        aria-modal="true"
+                        onMouseDown={event => event.stopPropagation()}
+                    >
+                        <h2>Từ chối báo cáo</h2>
+                        <p>{reportIds.length} báo cáo sẽ được trả lại cho công nhân kèm lý do.</p>
+                        <label>
+                            Lý do
+                            <select value={rejectReason} onChange={event => setRejectReason(event.target.value)}>
+                                {REJECT_REASONS.map(reason => <option key={reason}>{reason}</option>)}
+                            </select>
+                        </label>
+                        <label>
+                            Chi tiết
+                            <textarea
+                                value={rejectDetail}
+                                onChange={event => setRejectDetail(event.target.value)}
+                                placeholder="Nội dung công nhân cần kiểm tra và sửa"
+                                rows={3}
+                            />
+                        </label>
+                        <div className="selected-reject-actions">
+                            <button type="button" disabled={submitting} onClick={() => setRejectOpen(false)}>Hủy</button>
+                            <button type="button" className="selected-review-reject" disabled={submitting} onClick={() => void handleReject()}>
+                                {submitting ? "Đang xử lý..." : "Xác nhận từ chối"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </main>
     );

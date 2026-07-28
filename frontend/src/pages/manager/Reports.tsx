@@ -12,7 +12,8 @@ import axios from "axios";
 
 import {
     approveSelectedTempReports,
-    getPendingReports
+    getPendingReports,
+    rejectSelectedTempReports
 } from "../../services/productionService";
 
 import type {
@@ -25,6 +26,15 @@ import "./Reports.css";
 
 
 const ITEMS_PER_PAGE = 20;
+
+const REJECT_REASONS = [
+    "Báo cáo trùng",
+    "Sai sản lượng",
+    "Sai thời gian",
+    "Sai máy hoặc sản phẩm",
+    "Thiếu dữ liệu",
+    "Lý do khác"
+];
 
 type DateFilterMode =
     | "today"
@@ -195,6 +205,10 @@ function Reports() {
         error,
         setError
     ] = useState("");
+
+    const [rejectOpen, setRejectOpen] = useState(false);
+    const [rejectReason, setRejectReason] = useState(REJECT_REASONS[0]);
+    const [rejectDetail, setRejectDetail] = useState("");
 
     const [
         searchKeyword,
@@ -601,6 +615,41 @@ function Reports() {
     };
 
 
+    const handleRejectSelected = async () => {
+        if (selectedIds.length === 0 || actionLoading) {
+            showToast("Vui lòng chọn ít nhất một báo cáo");
+            return;
+        }
+
+        const reason = rejectReason === "Lý do khác"
+            ? rejectDetail.trim()
+            : [rejectReason, rejectDetail.trim()].filter(Boolean).join(": ");
+
+        if (!reason) {
+            showToast("Vui lòng nhập lý do từ chối");
+            return;
+        }
+
+        try {
+            setActionLoading(true);
+            await rejectSelectedTempReports(selectedIds, reason);
+            showToast(`Đã từ chối ${selectedIds.length} báo cáo`, "success");
+            setRejectOpen(false);
+            setRejectDetail("");
+            setSelectedIds([]);
+            sessionStorage.removeItem("selectedPendingReportIds");
+            await loadReports();
+        } catch (err: unknown) {
+            console.error("REJECT SELECTED REPORTS ERROR:", err);
+            const message = axios.isAxiosError(err)
+                ? err.response?.data?.message || "Từ chối báo cáo thất bại"
+                : "Từ chối báo cáo thất bại";
+            showToast(message);
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
     // =====================================================
     // XÓA BỘ LỌC
     // =====================================================
@@ -817,6 +866,19 @@ function Reports() {
                         }
                     >
                         Xem chi tiết ({selectedIds.length})
+                    </button>
+
+                    <button
+                        type="button"
+                        className="management-reject-button"
+                        onClick={() => setRejectOpen(true)}
+                        disabled={
+                            selectedIds.length === 0 ||
+                            loading ||
+                            actionLoading
+                        }
+                    >
+                        Từ chối ({selectedIds.length})
                     </button>
 
                     <button
@@ -1085,6 +1147,62 @@ function Reports() {
                 </div>
             )}
 
+
+            {rejectOpen && (
+                <div
+                    className="management-modal-backdrop"
+                    role="presentation"
+                    onMouseDown={() => !actionLoading && setRejectOpen(false)}
+                >
+                    <div
+                        className="management-modal"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="reject-title"
+                        onMouseDown={event => event.stopPropagation()}
+                    >
+                        <h2 id="reject-title">Từ chối báo cáo</h2>
+                        <p>{selectedIds.length} báo cáo sẽ rời danh sách chờ và công nhân nhận được lý do.</p>
+                        <label>
+                            Lý do
+                            <select
+                                value={rejectReason}
+                                onChange={event => setRejectReason(event.target.value)}
+                            >
+                                {REJECT_REASONS.map(reason => (
+                                    <option key={reason} value={reason}>{reason}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label>
+                            Chi tiết
+                            <textarea
+                                value={rejectDetail}
+                                onChange={event => setRejectDetail(event.target.value)}
+                                placeholder="Có thể bổ sung nội dung công nhân cần sửa"
+                                rows={3}
+                            />
+                        </label>
+                        <div className="management-modal-actions">
+                            <button
+                                type="button"
+                                disabled={actionLoading}
+                                onClick={() => setRejectOpen(false)}
+                            >
+                                Hủy
+                            </button>
+                            <button
+                                type="button"
+                                className="management-reject-button"
+                                disabled={actionLoading}
+                                onClick={() => void handleRejectSelected()}
+                            >
+                                {actionLoading ? "Đang xử lý..." : "Xác nhận từ chối"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="duplicate-note">
                 <span />
