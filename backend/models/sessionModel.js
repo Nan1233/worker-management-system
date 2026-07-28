@@ -60,7 +60,6 @@ exports.findByRefreshToken = (refreshToken, callback) => {
 
         WHERE us.refresh_token = ?
           AND us.revoked_at IS NULL
-          AND us.expires_at > NOW()
 
         LIMIT 1
     `;
@@ -104,11 +103,8 @@ exports.revokeAllUserSessions = (userId, callback) => {
 exports.deleteExpiredSessions = (callback) => {
     const sql = `
         DELETE FROM user_sessions
-        WHERE expires_at <= NOW()
-           OR (
-                revoked_at IS NOT NULL
-                AND revoked_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
-           )
+        WHERE revoked_at IS NOT NULL
+          AND revoked_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
     `;
 
     db.query(sql, callback);

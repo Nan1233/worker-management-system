@@ -8,11 +8,9 @@ const auditService = require("../services/auditService");
 const { setCachedAuthUser } = require("../utils/authUserCache");
 
 const ACCESS_TOKEN_EXPIRES_IN =
-    process.env.ACCESS_TOKEN_EXPIRES_IN || "15m";
+    process.env.ACCESS_TOKEN_EXPIRES_IN || "7d";
 
-const REFRESH_TOKEN_DAYS = Number(
-    process.env.REFRESH_TOKEN_DAYS || 30
-);
+const PERMANENT_SESSION_EXPIRES_AT = "2099-12-31 23:59:59";
 
 function findUserByUsername(username) {
     return new Promise((resolve, reject) => {
@@ -145,11 +143,9 @@ async function issueLoginSession(req, res, user) {
         .randomBytes(32)
         .toString("hex");
 
-    const expiresAt = new Date();
-
-    expiresAt.setDate(
-        expiresAt.getDate() + REFRESH_TOKEN_DAYS
-    );
+    // Phiên đăng nhập không tự hết hạn theo thời gian.
+    // Vẫn có thể thu hồi khi người dùng đăng xuất hoặc tài khoản bị khóa.
+    const expiresAt = PERMANENT_SESSION_EXPIRES_AT;
 
     const userAgent =
         typeof req.headers["user-agent"] === "string"
