@@ -9,7 +9,7 @@ const indexes = [
   ["production_reports_temp", "idx_prt_process_date", ["process_id", "work_date"]],
   ["manager_processes", "idx_mp_manager_process", ["manager_id", "process_id"]],
   ["worker_processes", "idx_wp_worker_process", ["worker_id", "process_id"]],
-  ["product_standards", "idx_ps_lookup", ["process_id", "product_code", "work_type", "status"]],
+  ["product_standards", "idx_ps_lookup", ["process_id", "product_code", "status"]],
   ["production_report_defects", "idx_prd_report", ["report_id"]],
   ["production_report_deductions", "idx_prdu_report", ["report_id"]],
   ["production_temp_defects", "idx_ptd_report", ["temp_report_id"]],

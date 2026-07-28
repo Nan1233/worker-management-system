@@ -21,7 +21,6 @@ import {
     createTempReport,
     getCompanyNetworkAccess,
     updateTempReport,
-    getDefectOptionsByProcess
 } from "../../services/productionService";
 
 import {
@@ -34,9 +33,10 @@ import type {
 } from "../../types/worker";
 import type { ProductionReport } from "../../types/production";
 import {
-    getMachinesByProcess,
-    getProductStandardsByProcess
-} from "../../services/masterDataService";
+    getCachedDefects,
+    getCachedMachines,
+    getCachedProductStandards
+} from "../../services/masterDataCache";
 
 import type {
     MachineOption,
@@ -1409,9 +1409,9 @@ useEffect(() => {
                     productsResult,
                     defectsResult
                 ] = await Promise.allSettled([
-                    getMachinesByProcess(processInfo.id),
-                    getProductStandardsByProcess(processInfo.id),
-                    getDefectOptionsByProcess(processInfo.id)
+                    getCachedMachines(processInfo.id),
+                    getCachedProductStandards(processInfo.id),
+                    getCachedDefects(processInfo.id)
                 ]);
 
                 const machines = machinesResult.status === "fulfilled"
