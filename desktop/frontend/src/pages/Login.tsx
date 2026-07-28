@@ -17,7 +17,8 @@ import {
 import {
     clearAuthSession,
     getAccessToken,
-    getStoredUser
+    getStoredUser,
+    recoverUserFromAccessToken
 } from "../utils/authStorage";
 
 import type {
@@ -129,7 +130,7 @@ function Login() {
 
     useEffect(() => {
         const accessToken = getAccessToken();
-        const savedUser = getStoredUser();
+        const savedUser = getStoredUser() || recoverUserFromAccessToken();
 
         if (accessToken && savedUser) {
             const targetPath = homeByRole[savedUser.role];
@@ -140,9 +141,9 @@ function Login() {
             }
         }
 
-        if (accessToken && !savedUser) {
-            clearAuthSession();
-        }
+        // Không xóa phiên chỉ vì thông tin user cục bộ bị thiếu.
+        // User tối thiểu được khôi phục từ access token để app không báo
+        // "không tồn tại" khi reload hoặc mở lại PWA/Desktop.
     }, [navigate]);
 
     const matchingAccounts = useMemo(() => {

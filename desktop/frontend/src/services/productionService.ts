@@ -201,20 +201,30 @@ export interface PendingReportFilters {
 export const getPendingReports = async (
     filters: PendingReportFilters = {}
 ) => {
-    const res = await api.get(
-        "/production-temp/pending",
-        {
-            params: {
-                date_from: filters.dateFrom || undefined,
-                date_to: filters.dateTo || undefined,
-                shift: filters.shift || undefined,
-                process_id: filters.processId || undefined,
-                search: filters.search?.trim() || undefined
-            }
-        }
-    );
+    const key = [
+        "manager-pending",
+        filters.dateFrom || "",
+        filters.dateTo || "",
+        filters.shift || "",
+        filters.processId || "",
+        filters.search?.trim() || ""
+    ].join(":");
 
-    return res.data.data || res.data || [];
+    return getSessionCached(key, 15_000, async () => {
+        const res = await api.get(
+            "/production-temp/pending",
+            {
+                params: {
+                    date_from: filters.dateFrom || undefined,
+                    date_to: filters.dateTo || undefined,
+                    shift: filters.shift || undefined,
+                    process_id: filters.processId || undefined,
+                    search: filters.search?.trim() || undefined
+                }
+            }
+        );
+        return res.data.data || res.data || [];
+    });
 };
 
 
@@ -255,21 +265,11 @@ export const getApprovedReports = async()=>{
 export const getReports = async():
 
 Promise<ProductionReport[]>=>{
-
-
-    const res = await api.get(
-
-        "/production"
-
-    );
-
-
-    return res.data.data || res.data || [];
-
-
+    return getSessionCached("manager-approved:all", 20_000, async () => {
+        const res = await api.get("/production-temp/approved");
+        return res.data.data || res.data || [];
+    });
 };
-
-
 
 
 
@@ -439,14 +439,13 @@ export const getApprovedReportsByDate = async(
 ):Promise<ProductionReport[]>=>{
 
 
-    const res = await api.get(
-
-        `/production/by-date?date=${date}`
-
-    );
-
-
-    return res.data.data || res.data || [];
+    return getSessionCached(`manager-approved:${date}`, 20_000, async () => {
+        const res = await api.get(
+            "/production-temp/approved",
+            { params: { date } }
+        );
+        return res.data.data || res.data || [];
+    });
 
 
 };

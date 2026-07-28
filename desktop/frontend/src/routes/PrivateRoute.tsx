@@ -1,6 +1,6 @@
 import { Navigate } from "react-router-dom";
 import type { User } from "../types/auth";
-import { getAccessToken, getStoredUser } from "../utils/authStorage";
+import { getAccessToken, getStoredUser, recoverUserFromAccessToken } from "../utils/authStorage";
 
 type Role = User["role"];
 
@@ -18,7 +18,7 @@ const homeByRole: Record<Role, string> = {
 
 const PrivateRoute = ({ children, allowedRoles }: PrivateRouteProps) => {
     const token = getAccessToken();
-    const storedUser = getStoredUser();
+    const storedUser = getStoredUser() || recoverUserFromAccessToken();
 
     if (!token || !storedUser) {
         return <Navigate to="/login" replace />;

@@ -7,6 +7,8 @@ const indexes = [
   ["production_reports_temp", "idx_prt_status_date_process", ["status", "work_date", "process_id"]],
   ["production_reports_temp", "idx_prt_worker_date", ["worker_id", "work_date"]],
   ["production_reports_temp", "idx_prt_process_date", ["process_id", "work_date"]],
+  ["production_reports_temp", "idx_prt_similar_lookup", ["worker_id", "process_id", "work_date", "shift", "machine_no", "product_name", "status"]],
+  ["production_reports_temp", "idx_prt_client_request", ["worker_id", "client_request_id"]],
   ["manager_processes", "idx_mp_manager_process", ["manager_id", "process_id"]],
   ["worker_processes", "idx_wp_worker_process", ["worker_id", "process_id"]],
   ["machines", "idx_machines_process_status_code", ["process_id", "status", "machine_code"]],

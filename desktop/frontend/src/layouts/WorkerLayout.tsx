@@ -3,6 +3,7 @@ import AppIcon, { type IconName } from "../components/common/AppIcon";
 import "./WorkerLayout.css";
 import { clearAuthSession } from "../utils/authStorage";
 import { useMobileKeyboard } from "../hooks/useMobileKeyboard";
+import { useNotificationBadge } from "../hooks/useNotificationBadge";
 
 const menuItems: { label: string; path: string; icon: IconName; exact?: boolean }[] = [
     { label: "Trang chủ", path: "/worker", icon: "process", exact: true },
@@ -25,6 +26,7 @@ function WorkerLayout() {
     const navigate = useNavigate();
     const location = useLocation();
     const { keyboardOpen, hideKeyboard } = useMobileKeyboard();
+    const { unreadCount } = useNotificationBadge();
 
     const handleLogout = () => {
         clearAuthSession();
@@ -58,7 +60,7 @@ function WorkerLayout() {
                             className={isActive(item.path, item.exact) ? "active" : ""}
                             onClick={() => navigate(item.path)}
                         >
-                            <span className="worker-nav-icon"><AppIcon name={item.icon} size={18} /></span>
+                            <span className="worker-nav-icon"><AppIcon name={item.icon} size={18} />{item.icon === "bell" && unreadCount > 0 && <span className="notification-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}</span>
                             {item.label}
                         </button>
                     ))}
@@ -96,7 +98,7 @@ function WorkerLayout() {
                         className={isActive(item.path, item.exact) ? "active" : ""}
                         onClick={() => navigate(item.path)}
                     >
-                        <span className="worker-mobile-nav-icon"><AppIcon name={item.icon} size={19} /></span>
+                        <span className="worker-mobile-nav-icon"><AppIcon name={item.icon} size={19} />{item.icon === "bell" && unreadCount > 0 && <span className="notification-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}</span>
                         <small>{item.label}</small>
                     </button>
                 ))}

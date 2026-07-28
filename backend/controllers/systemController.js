@@ -9,6 +9,17 @@ exports.getNotifications = async (req,res) => {
   res.json({success:true,data:rows,unread:Number(count.unread||0)});
  } catch(e){ console.error('GET NOTIFICATIONS ERROR:', e); res.status(500).json({success:false,message:publicMessage(e,'Không thể tải thông báo')}); }
 };
+
+exports.getUnreadNotificationCount = async (req,res) => {
+ try {
+  const [[count]] = await db.promise().query(
+   `SELECT COUNT(*) unread FROM notifications WHERE user_id=? AND is_read=0`,
+   [req.user.id]
+  );
+  res.json({success:true,unread:Number(count?.unread||0)});
+ } catch(e){ console.error('GET UNREAD NOTIFICATION COUNT ERROR:', e); res.status(500).json({success:false,message:publicMessage(e,'Không thể tải số thông báo chưa đọc')}); }
+};
+
 exports.markNotificationRead = async (req,res) => {
  try { await db.promise().query(`UPDATE notifications SET is_read=1, read_at=NOW() WHERE id=? AND user_id=?`,[req.params.id,req.user.id]); res.json({success:true}); }
  catch(e){ console.error('MARK NOTIFICATION ERROR:', e); res.status(500).json({success:false,message:publicMessage(e,'Không thể cập nhật thông báo')}); }

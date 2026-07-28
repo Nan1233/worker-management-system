@@ -3,6 +3,7 @@ import type { User } from "../types/auth";
 import AppIcon, { type IconName } from "../components/common/AppIcon";
 import "./ManagementLayout.css";
 import { clearAuthSession, getStoredUser } from "../utils/authStorage";
+import { useNotificationBadge } from "../hooks/useNotificationBadge";
 
 type ManagementRole = "lead" | "manager" | "admin";
 
@@ -56,6 +57,7 @@ function ManagementLayout({ role }: Props) {
     const location = useLocation();
 
     const user = getStoredUser() as User | null;
+    const { unreadCount } = useNotificationBadge();
 
     const basePath = role === "lead" ? "/lead" : role === "admin" ? "/admin" : "/manager";
     const visibleMenuItems = menuItems.filter((item) => item.roles.includes(role));
@@ -114,7 +116,7 @@ function ManagementLayout({ role }: Props) {
                                 className={isActive(item) ? "management-menu-item active" : "management-menu-item"}
                                 onClick={() => navigate(getFullPath(item.path))}
                             >
-                                <span className="management-menu-icon"><AppIcon name={item.icon} size={19} /></span>
+                                <span className="management-menu-icon"><AppIcon name={item.icon} size={19} />{item.id === "system" && unreadCount > 0 && <span className="notification-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}</span>
                                 <span className="management-menu-copy">
                                     <span className="management-menu-label">{item.label}</span>
                                 </span>

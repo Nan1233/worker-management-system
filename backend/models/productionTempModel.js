@@ -159,59 +159,113 @@ const ProductionTemp = {
     async createDefects(tempReportId, processId, defects, executor = db) {
         if (!Array.isArray(defects) || defects.length === 0) return;
 
-        for (const item of defects) {
-            let defectTypeId = Number(item.defect_type_id) || null;
+        const validItems = defects
+            .map((item) => ({
+                defectTypeId: Number(item.defect_type_id) || null,
+                defectName: String(item.defect_name || "").trim(),
+                quantity: Number(item.quantity) || 0
+            }))
+            .filter((item) => item.quantity > 0);
 
-            if (!defectTypeId && item.defect_name) {
-                const rows = await query(
-                    executor,
-                    `SELECT id FROM defect_types
-                     WHERE process_id = ? AND defect_name = ? AND status = 'active'
-                     LIMIT 1`,
-                    [processId, item.defect_name]
-                );
-                defectTypeId = rows[0]?.id || null;
-            }
+        if (!validItems.length) return;
 
-            if (!defectTypeId) continue;
+        const unresolvedNames = [
+            ...new Set(
+                validItems
+                    .filter((item) => !item.defectTypeId && item.defectName)
+                    .map((item) => item.defectName)
+            )
+        ];
 
-            await query(
+        const nameToId = new Map();
+        if (unresolvedNames.length) {
+            const placeholders = unresolvedNames.map(() => "?").join(",");
+            const rows = await query(
                 executor,
-                `INSERT INTO production_temp_defects
-                 (temp_report_id, defect_type_id, quantity)
-                 VALUES (?, ?, ?)`,
-                [tempReportId, defectTypeId, Number(item.quantity) || 0]
+                `SELECT id, defect_name
+                 FROM defect_types
+                 WHERE process_id = ?
+                   AND status = 'active'
+                   AND defect_name IN (${placeholders})`,
+                [processId, ...unresolvedNames]
             );
+            rows.forEach((row) => nameToId.set(String(row.defect_name), Number(row.id)));
         }
+
+        const values = validItems
+            .map((item) => [
+                tempReportId,
+                item.defectTypeId || nameToId.get(item.defectName) || null,
+                item.quantity
+            ])
+            .filter((item) => item[1]);
+
+        if (!values.length) return;
+
+        const placeholders = values.map(() => "(?, ?, ?)").join(",");
+        await query(
+            executor,
+            `INSERT INTO production_temp_defects
+             (temp_report_id, defect_type_id, quantity)
+             VALUES ${placeholders}`,
+            values.flat()
+        );
     },
 
     async createDeductions(tempReportId, processId, deductions, executor = db) {
         if (!Array.isArray(deductions) || deductions.length === 0) return;
 
-        for (const item of deductions) {
-            let deductionTypeId = Number(item.deduction_type_id) || null;
+        const validItems = deductions
+            .map((item) => ({
+                deductionTypeId: Number(item.deduction_type_id) || null,
+                deductionName: String(item.deduction_name || "").trim(),
+                hours: Number(item.hours) || 0
+            }))
+            .filter((item) => item.hours > 0);
 
-            if (!deductionTypeId && item.deduction_name) {
-                const rows = await query(
-                    executor,
-                    `SELECT id FROM deduction_types
-                     WHERE process_id = ? AND deduction_name = ? AND status = 'active'
-                     LIMIT 1`,
-                    [processId, item.deduction_name]
-                );
-                deductionTypeId = rows[0]?.id || null;
-            }
+        if (!validItems.length) return;
 
-            if (!deductionTypeId) continue;
+        const unresolvedNames = [
+            ...new Set(
+                validItems
+                    .filter((item) => !item.deductionTypeId && item.deductionName)
+                    .map((item) => item.deductionName)
+            )
+        ];
 
-            await query(
+        const nameToId = new Map();
+        if (unresolvedNames.length) {
+            const placeholders = unresolvedNames.map(() => "?").join(",");
+            const rows = await query(
                 executor,
-                `INSERT INTO production_temp_deductions
-                 (temp_report_id, deduction_type_id, hours)
-                 VALUES (?, ?, ?)`,
-                [tempReportId, deductionTypeId, Number(item.hours) || 0]
+                `SELECT id, deduction_name
+                 FROM deduction_types
+                 WHERE process_id = ?
+                   AND status = 'active'
+                   AND deduction_name IN (${placeholders})`,
+                [processId, ...unresolvedNames]
             );
+            rows.forEach((row) => nameToId.set(String(row.deduction_name), Number(row.id)));
         }
+
+        const values = validItems
+            .map((item) => [
+                tempReportId,
+                item.deductionTypeId || nameToId.get(item.deductionName) || null,
+                item.hours
+            ])
+            .filter((item) => item[1]);
+
+        if (!values.length) return;
+
+        const placeholders = values.map(() => "(?, ?, ?)").join(",");
+        await query(
+            executor,
+            `INSERT INTO production_temp_deductions
+             (temp_report_id, deduction_type_id, hours)
+             VALUES ${placeholders}`,
+            values.flat()
+        );
     },
 
     async logAction({ reportType = "temp", reportId, userId, action, note = null, ipAddress = null, userAgent = null }, executor = db) {
@@ -227,10 +281,11 @@ const ProductionTemp = {
     },
 
 
-    async createCompleteReport({ data, defects = [], deductions = [], log }) {
+    async createCompleteReport({ data, defects = [], deductions = [] }) {
         const connection = await getConnection();
         try {
             await beginTransaction(connection);
+
             const existing = await this.findByClientRequest(
                 data.worker_id,
                 data.client_request_id,
@@ -238,136 +293,143 @@ const ProductionTemp = {
             );
             if (existing) {
                 await commit(connection);
-                return { id: existing.id, duplicate: true, duplicate_reason: "request_id" };
+                return {
+                    id: existing.id,
+                    duplicate: true,
+                    duplicate_reason: "request_id",
+                    existing_report: existing
+                };
             }
 
             if (!data.force_create) {
+                const similar = await this.findSimilarReport({
+                    workerId: data.worker_id,
+                    processId: data.process_id,
+                    workDate: data.work_date,
+                    shift: data.shift,
+                    machineNo: data.machine_no,
+                    productName: data.product_name
+                }, connection);
+
+                if (similar) {
+                    await commit(connection);
+                    return {
+                        id: similar.id,
+                        duplicate: true,
+                        duplicate_reason: "similar_report",
+                        existing_report: similar
+                    };
+                }
+
                 const recent = await this.findRecentIdentical(data, connection);
                 if (recent) {
                     await commit(connection);
-                    return { id: recent.id, duplicate: true, duplicate_reason: "rapid_repeat" };
+                    return {
+                        id: recent.id,
+                        duplicate: true,
+                        duplicate_reason: "rapid_repeat",
+                        existing_report: recent
+                    };
                 }
             }
 
             const tempId = await this.create(data, connection);
-            await this.createDefects(tempId, data.process_id, defects, connection);
-            await this.createDeductions(tempId, data.process_id, deductions, connection);
-            await this.logAction({ ...log, reportId: tempId }, connection);
+
+            await Promise.all([
+                this.createDefects(tempId, data.process_id, defects, connection),
+                this.createDeductions(tempId, data.process_id, deductions, connection)
+            ]);
+
             await commit(connection);
-            return { id: tempId, duplicate: false, duplicate_reason: null };
+            return {
+                id: tempId,
+                duplicate: false,
+                duplicate_reason: null,
+                existing_report: null
+            };
         } catch (error) {
             await rollback(connection);
             if (error.code === "ER_DUP_ENTRY" && data.client_request_id) {
-                const existing = await this.findByClientRequest(data.worker_id, data.client_request_id);
-                if (existing) return { id: existing.id, duplicate: true };
+                const existing = await this.findByClientRequest(
+                    data.worker_id,
+                    data.client_request_id
+                );
+                if (existing) {
+                    return {
+                        id: existing.id,
+                        duplicate: true,
+                        duplicate_reason: "request_id",
+                        existing_report: existing
+                    };
+                }
             }
             throw error;
         } finally {
             connection.release();
         }
     },
+
     async getPending(managerId, filters = {}, isAdmin = false) {
         const params = [];
         const conditions = ["pr.status IN ('pending', 'need_fix')"];
         if (!isAdmin) {
-            conditions.push("mp.manager_id = ?");
+            conditions.push(`EXISTS (
+                SELECT 1 FROM manager_processes mp
+                WHERE mp.process_id = pr.process_id
+                  AND mp.manager_id = ?
+            )`);
             params.push(managerId);
         }
-
-        if (filters.date) {
-            conditions.push("pr.work_date = ?");
-            params.push(filters.date);
-        }
-        if (filters.date_from) {
-            conditions.push("pr.work_date >= ?");
-            params.push(filters.date_from);
-        }
-        if (filters.date_to) {
-            conditions.push("pr.work_date <= ?");
-            params.push(filters.date_to);
-        }
-        if (filters.shift) {
-            conditions.push("pr.shift = ?");
-            params.push(filters.shift);
-        }
-        if (filters.process_id) {
-            conditions.push("pr.process_id = ?");
-            params.push(filters.process_id);
-        }
+        if (filters.date) { conditions.push("pr.work_date = ?"); params.push(filters.date); }
+        if (filters.date_from) { conditions.push("pr.work_date >= ?"); params.push(filters.date_from); }
+        if (filters.date_to) { conditions.push("pr.work_date <= ?"); params.push(filters.date_to); }
+        if (filters.shift) { conditions.push("pr.shift = ?"); params.push(filters.shift); }
+        if (filters.process_id) { conditions.push("pr.process_id = ?"); params.push(filters.process_id); }
         if (filters.search) {
             conditions.push("(w.worker_code LIKE ? OR u.full_name LIKE ? OR pr.machine_no LIKE ? OR pr.product_name LIKE ?)");
             const search = `%${filters.search}%`;
             params.push(search, search, search, search);
         }
-
-        return query(
-            db,
-            `SELECT
-                pr.*, w.worker_code, u.full_name, p.process_name,
-                CASE WHEN dup.duplicate_count > 1 THEN 1 ELSE 0 END AS is_duplicate,
-                COALESCE(dup.duplicate_count, 1) AS duplicate_count
+        return query(db, `SELECT
+                pr.*, w.worker_code, u.full_name, p.process_name
              FROM production_reports_temp pr
              JOIN workers w ON pr.worker_id = w.id
              JOIN users u ON w.user_id = u.id
              JOIN processes p ON pr.process_id = p.id
-             JOIN manager_processes mp ON mp.process_id = pr.process_id
-             LEFT JOIN (
-                SELECT worker_id, work_date, shift, machine_no, product_name, COUNT(*) AS duplicate_count
-                FROM production_reports_temp
-                WHERE status IN ('pending', 'need_fix')
-                GROUP BY worker_id, work_date, shift, machine_no, product_name
-             ) dup
-                ON dup.worker_id = pr.worker_id
-               AND dup.work_date = pr.work_date
-               AND dup.shift = pr.shift
-               AND COALESCE(dup.machine_no, '') = COALESCE(pr.machine_no, '')
-               AND COALESCE(dup.product_name, '') = COALESCE(pr.product_name, '')
              WHERE ${conditions.join(" AND ")}
-             ORDER BY pr.work_date DESC, pr.created_at ASC`,
-            params
-        );
+             ORDER BY pr.work_date DESC, pr.created_at ASC`, params);
     },
 
     async getApproved(managerId, filters = {}, isAdmin = false) {
         const params = [];
         const conditions = ["pr.status = 'approved'"];
         if (!isAdmin) {
-            conditions.push("mp.manager_id = ?");
+            conditions.push(`EXISTS (
+                SELECT 1 FROM manager_processes mp
+                WHERE mp.process_id = pr.process_id
+                  AND mp.manager_id = ?
+            )`);
             params.push(managerId);
         }
-
-        if (filters.date) {
-            conditions.push("pr.work_date = ?");
-            params.push(filters.date);
-        }
-        if (filters.shift) {
-            conditions.push("pr.shift = ?");
-            params.push(filters.shift);
-        }
-        if (filters.process_id) {
-            conditions.push("pr.process_id = ?");
-            params.push(filters.process_id);
-        }
+        if (filters.date) { conditions.push("pr.work_date = ?"); params.push(filters.date); }
+        if (filters.date_from) { conditions.push("pr.work_date >= ?"); params.push(filters.date_from); }
+        if (filters.date_to) { conditions.push("pr.work_date <= ?"); params.push(filters.date_to); }
+        if (filters.shift) { conditions.push("pr.shift = ?"); params.push(filters.shift); }
+        if (filters.process_id) { conditions.push("pr.process_id = ?"); params.push(filters.process_id); }
         if (filters.search) {
             conditions.push("(w.worker_code LIKE ? OR u.full_name LIKE ? OR pr.machine_no LIKE ? OR pr.product_name LIKE ?)");
             const search = `%${filters.search}%`;
             params.push(search, search, search, search);
         }
-
-        return query(
-            db,
-            `SELECT pr.*, w.worker_code, u.full_name, p.process_name,
+        return query(db, `SELECT pr.*, w.worker_code, u.full_name, p.process_name,
                     reviewer.full_name AS reviewer_name
              FROM production_reports pr
              JOIN workers w ON pr.worker_id = w.id
              JOIN users u ON w.user_id = u.id
              JOIN processes p ON pr.process_id = p.id
-             JOIN manager_processes mp ON mp.process_id = pr.process_id
              LEFT JOIN users reviewer ON reviewer.id = pr.reviewed_by
              WHERE ${conditions.join(" AND ")}
-             ORDER BY pr.approved_at DESC, pr.id DESC`,
-            params
-        );
+             ORDER BY pr.approved_at DESC, pr.id DESC`, params);
     },
 
     async getDates(
@@ -593,8 +655,9 @@ const ProductionTemp = {
             const scopeWhere = isAdmin ? "" : "AND mp.manager_id = ?";
             const rows = await query(
                 connection,
-                `SELECT DISTINCT temp.*
+                `SELECT DISTINCT temp.*, w.user_id AS worker_user_id
                  FROM production_reports_temp temp
+                 JOIN workers w ON w.id = temp.worker_id
                  ${scopeJoin}
                  WHERE temp.id IN (${placeholders})
                    AND temp.status IN ('pending', 'need_fix')
@@ -701,6 +764,20 @@ const ProductionTemp = {
                      SET status = 'approved', reviewed_by = ?, approved_at = NOW()
                      WHERE id = ?`,
                     [reviewerId, item.id]
+                );
+
+
+                await AuditService.notifyUsers(
+                    [item.worker_user_id],
+                    {
+                        type: "report_approved",
+                        title: "Báo cáo đã được duyệt",
+                        message: `Báo cáo ngày ${workDate}, ca ${item.shift || "-"}, sản phẩm ${item.product_name || "-"} đã được duyệt.`,
+                        linkUrl: "/worker/history",
+                        entityType: "approved_report",
+                        entityId: approvedReportId
+                    },
+                    connection
                 );
             }
 
@@ -851,6 +928,10 @@ const ProductionTemp = {
                     "Báo cáo đã duyệt không thể sửa ở bảng tạm"
                 );
             }
+
+
+            const resubmittingRejected =
+                isWorkerEdit && current.status === "rejected";
 
             const hasDeductions =
                 Object.prototype.hasOwnProperty.call(
@@ -1083,6 +1164,7 @@ const ProductionTemp = {
                      SET ${assignments},
                          updated_by = ?,
                          updated_at = NOW()
+                         ${resubmittingRejected ? ", status = 'pending', review_note = NULL, reviewed_by = NULL, approved_at = NULL" : ""}
                      WHERE id = ?`,
                     [
                         ...changes.map(
@@ -1131,6 +1213,7 @@ const ProductionTemp = {
                     `UPDATE production_reports_temp
                      SET updated_by = ?,
                          updated_at = NOW()
+                         ${resubmittingRejected ? ", status = 'pending', review_note = NULL, reviewed_by = NULL, approved_at = NULL" : ""}
                      WHERE id = ?`,
                     [changedBy, id]
                 );
@@ -1295,6 +1378,34 @@ const ProductionTemp = {
                 },
                 connection
             );
+
+            if (resubmittingRejected) {
+                const reviewers = await query(
+                    connection,
+                    `SELECT DISTINCT u.id, u.role
+                     FROM users u
+                     LEFT JOIN manager_processes mp ON mp.manager_id = u.id
+                     WHERE u.status = 'active'
+                       AND (u.role = 'admin' OR (u.role IN ('manager','lead') AND mp.process_id = ?))`,
+                    [current.process_id]
+                );
+                const reviewerGroups = { lead: [], manager: [], admin: [] };
+                reviewers.forEach((reviewer) => {
+                    if (reviewerGroups[reviewer.role]) reviewerGroups[reviewer.role].push(reviewer.id);
+                });
+                const notification = {
+                    type: "report_resubmitted",
+                    title: "Báo cáo đã được sửa và gửi lại",
+                    message: `Báo cáo #${id} đã được công nhân chỉnh sửa sau khi bị từ chối và đang chờ duyệt lại.`,
+                    entityType: "temp_report",
+                    entityId: id
+                };
+                await Promise.all([
+                    AuditService.notifyUsers(reviewerGroups.lead, { ...notification, linkUrl: "/lead/reports" }, connection),
+                    AuditService.notifyUsers(reviewerGroups.manager, { ...notification, linkUrl: "/manager/reports" }, connection),
+                    AuditService.notifyUsers(reviewerGroups.admin, { ...notification, linkUrl: "/admin/reports" }, connection)
+                ]);
+            }
 
             await commit(connection);
 

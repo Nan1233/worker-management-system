@@ -530,3 +530,27 @@
         justify-content: flex-start;
     }
 }
+
+
+.notification-badge {
+    position: absolute;
+    top: -7px;
+    right: -9px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #fff;
+    border-radius: 999px;
+    background: #dc2626;
+    color: #fff;
+    font-size: 10px;
+    line-height: 1;
+    font-weight: 900;
+    box-shadow: 0 3px 9px rgba(127, 29, 29, .28);
+}
+.worker-nav-icon,
+.worker-mobile-nav-icon,
+.management-menu-icon { position: relative; }

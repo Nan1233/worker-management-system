@@ -4,6 +4,7 @@ const role=require('../middleware/roleMiddleware');
 const validate=require('../middleware/validateRequest');
 const c=require('../controllers/systemController');
 router.use(auth);
+router.get('/notifications/unread-count',c.getUnreadNotificationCount);
 router.get('/notifications',c.getNotifications);
 router.patch('/notifications/read-all',c.markAllNotificationsRead);
 router.patch('/notifications/:id/read',validate({id:{in:'params',type:'positiveInt',required:true}}),c.markNotificationRead);

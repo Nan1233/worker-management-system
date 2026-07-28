@@ -7,3 +7,5 @@ export async function markNotificationRead(id:number){ await api.patch(`/system/
 export async function markAllNotificationsRead(){ await api.patch('/system/notifications/read-all'); }
 export async function getActivities(){ const r=await api.get('/system/activities'); return r.data.data as ActivityItem[]; }
 export async function getReportVersions(id:number,type:'temp'|'approved'='approved'){ const r=await api.get(`/system/reports/${id}/versions`,{params:{type}}); return r.data.data as ReportVersion[]; }
+
+export async function getUnreadNotificationCount(){ const r=await api.get('/system/notifications/unread-count'); return Number(r.data.unread||0); }

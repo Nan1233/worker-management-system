@@ -48,6 +48,44 @@ export function setRefreshToken(
     );
 }
 
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+    try {
+        const payload = token.split(".")[1];
+        if (!payload) return null;
+        const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+        const decoded = decodeURIComponent(
+            atob(normalized)
+                .split("")
+                .map((char) => `%${char.charCodeAt(0).toString(16).padStart(2, "0")}`)
+                .join("")
+        );
+        return JSON.parse(decoded) as Record<string, unknown>;
+    } catch {
+        return null;
+    }
+}
+
+export function recoverUserFromAccessToken(): AuthUser | null {
+    const token = getAccessToken();
+    if (!token) return null;
+    const payload = decodeJwtPayload(token);
+    if (!payload) return null;
+    const role = String(payload.role || "");
+    if (!["admin", "manager", "lead", "worker"].includes(role)) return null;
+    const id = Number(payload.id);
+    if (!Number.isInteger(id) || id <= 0) return null;
+    const username = String(payload.username || "").trim();
+    const recovered: AuthUser = {
+        id,
+        worker_id: payload.worker_id == null ? null : Number(payload.worker_id),
+        username: username || `user-${id}`,
+        full_name: username || "Người dùng",
+        role: role as AuthUser["role"]
+    };
+    setStoredUser(recovered);
+    return recovered;
+}
 export function getStoredUser(): AuthUser | null {
     const rawUser =
         localStorage.getItem(USER_KEY);
