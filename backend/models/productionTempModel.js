@@ -65,12 +65,12 @@ const ProductionTemp = {
         const sql = `
             INSERT INTO production_reports_temp
             (
-                worker_id, process_id, work_date, shift, machine_no, operation_type, operation_mode,
+                worker_id, process_id, work_date, shift, machine_no,
                 product_name, total_time, actual_time, deduction_time,
                 standard_output, actual_output, tt_ok, tt_ng, note,
                 client_request_id, status
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
         `;
 
         const result = await query(executor, sql, [
@@ -79,8 +79,6 @@ const ProductionTemp = {
             data.work_date,
             data.shift,
             data.machine_no || null,
-            data.operation_type || null,
-            data.operation_mode || null,
             data.product_name || null,
             Number(data.total_time) || 0,
             Number(data.actual_time) || 0,
@@ -187,35 +185,6 @@ const ProductionTemp = {
         }
     },
 
-    async createMachineLines(tempReportId, machineLines, executor = db) {
-        if (!Array.isArray(machineLines) || machineLines.length === 0) return;
-
-        for (let index = 0; index < machineLines.length; index += 1) {
-            const item = machineLines[index];
-            await query(
-                executor,
-                `INSERT INTO production_temp_machine_lines
-                 (temp_report_id, machine_id, machine_code, product_standard_id,
-                  product_code, machine_time_hours, standard_output,
-                  ok_quantity, ng_quantity, maximum_output, sort_order)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [
-                    tempReportId,
-                    item.machine_id || null,
-                    item.machine_code,
-                    item.product_standard_id || null,
-                    item.product_code,
-                    Number(item.machine_time_hours) || 0,
-                    Number(item.standard_output) || 0,
-                    Number(item.ok_quantity) || 0,
-                    Number(item.ng_quantity) || 0,
-                    Number(item.maximum_output) || 0,
-                    index + 1
-                ]
-            );
-        }
-    },
-
     async createDeductions(tempReportId, processId, deductions, executor = db) {
         if (!Array.isArray(deductions) || deductions.length === 0) return;
 
@@ -283,7 +252,6 @@ const ProductionTemp = {
             const tempId = await this.create(data, connection);
             await this.createDefects(tempId, data.process_id, defects, connection);
             await this.createDeductions(tempId, data.process_id, deductions, connection);
-            await this.createMachineLines(tempId, data.machine_lines || [], connection);
             await this.logAction({ ...log, reportId: tempId }, connection);
             await commit(connection);
             return { id: tempId, duplicate: false, duplicate_reason: null };
@@ -646,15 +614,15 @@ const ProductionTemp = {
                 const insertResult = await query(
                     connection,
                     `INSERT INTO production_reports
-                     (source_temp_id, worker_id, process_id, work_date, shift, machine_no, operation_type, operation_mode,
+                     (source_temp_id, worker_id, process_id, work_date, shift, machine_no,
                       product_name, total_time, actual_time, deduction_time,
                       standard_output, actual_output, tt_ok, tt_ng, note,
                       status, review_note, reviewed_by, approved_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                              'approved', ?, ?, NOW())`,
                     [
                         item.id, item.worker_id, item.process_id, item.work_date,
-                        item.shift, item.machine_no, item.operation_type, item.operation_mode, item.product_name,
+                        item.shift, item.machine_no, item.product_name,
                         item.total_time, item.actual_time, item.deduction_time,
                         item.standard_output, item.actual_output, item.tt_ok,
                         item.tt_ng, item.note, item.review_note, reviewerId
@@ -682,20 +650,6 @@ const ProductionTemp = {
                     `INSERT INTO production_report_deductions (report_id, deduction_type_id, hours)
                      SELECT ?, deduction_type_id, hours
                      FROM production_temp_deductions
-                     WHERE temp_report_id = ?`,
-                    [approvedReportId, item.id]
-                );
-
-                await query(
-                    connection,
-                    `INSERT INTO production_report_machine_lines
-                     (report_id, machine_id, machine_code, product_standard_id, product_code,
-                      machine_time_hours, standard_output, ok_quantity, ng_quantity,
-                      maximum_output, sort_order)
-                     SELECT ?, machine_id, machine_code, product_standard_id, product_code,
-                            machine_time_hours, standard_output, ok_quantity, ng_quantity,
-                            maximum_output, sort_order
-                     FROM production_temp_machine_lines
                      WHERE temp_report_id = ?`,
                     [approvedReportId, item.id]
                 );

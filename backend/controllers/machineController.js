@@ -9,12 +9,11 @@ exports.getMachines = async (req, res) => {
       return res.status(400).json({ success: false, message: "process_id không hợp lệ" });
     }
 
-    const operationType = String(req.query.operation_type || "").toUpperCase();
-    const cacheKey = `machines:${processId}:${operationType}`;
+    const cacheKey = `machines:${processId}`;
     let data = masterDataCache.get(cacheKey);
 
     if (!data) {
-      data = await machineModel.findByProcess(processId, { operationType });
+      data = await machineModel.findByProcess(processId);
       masterDataCache.set(cacheKey, data, TTL.machines);
     }
 
