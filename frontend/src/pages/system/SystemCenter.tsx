@@ -23,8 +23,11 @@ export default function SystemCenter() {
     }, []);
 
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         void load();
+        const timer = window.setInterval(() => void load(), 30_000);
+        const onVisible = () => { if (document.visibilityState === "visible") void load(); };
+        document.addEventListener("visibilitychange", onVisible);
+        return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
     }, [load]);
 
     const open = async (item: NotificationItem) => {

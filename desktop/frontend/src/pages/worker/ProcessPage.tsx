@@ -31,7 +31,7 @@ import {
 import type {
     WorkerProfile
 } from "../../types/worker";
-import type { ProductionReport } from "../../types/production";
+import type { ProductionReport, ProductionMachineLine } from "../../types/production";
 import {
     getCachedDefects,
     getCachedMachines,
@@ -53,6 +53,22 @@ import type {
 // =====================================================
 // KIỂU DỮ LIỆU FORM
 // =====================================================
+
+type MachineLineForm = {
+    machineCode: string;
+    productCode: string;
+    machineHours: string;
+    okQuantity: string;
+    ngQuantity: string;
+};
+
+const emptyMachineLine = (): MachineLineForm => ({
+    machineCode: "",
+    productCode: "",
+    machineHours: "",
+    okQuantity: "",
+    ngQuantity: ""
+});
 
 type FormState = {
 
@@ -973,6 +989,40 @@ const productAutocompleteOptions =
         initialForm
     );
 
+    const [operationType, setOperationType] = useState<"CUT" | "NEST">("CUT");
+    const [operationMode, setOperationMode] = useState<"MANUAL" | "MACHINE">("MACHINE");
+    const [machineLines, setMachineLines] = useState<MachineLineForm[]>([emptyMachineLine()]);
+
+    const updateMachineLine = (index: number, patch: Partial<MachineLineForm>) => {
+        setMachineLines((current) => current.map((line, lineIndex) =>
+            lineIndex === index ? { ...line, ...patch } : line
+        ));
+    };
+
+    const selectedMachineCodes = new Set(
+        machineLines.map((line) => line.machineCode).filter(Boolean)
+    );
+
+    const machineLineSummary = useMemo(() => {
+        return machineLines.reduce((summary, line) => {
+            const product = productOptions.find((item) => item.product_code === line.productCode);
+            const standard = Number(product?.standard_output || 0);
+            const hours = Number(line.machineHours || 0);
+            const ok = Number(line.okQuantity || 0);
+            const ng = Number(line.ngQuantity || 0);
+            summary.ok += ok;
+            summary.ng += ng;
+            summary.maximum += standard * hours;
+            return summary;
+        }, { ok: 0, ng: 0, maximum: 0 });
+    }, [machineLines, productOptions]);
+
+const filteredMachineOptions = useMemo(() => processInfo.id === 1
+    ? machineOptions.filter((item) => !item.operation_type || item.operation_type === operationType)
+    : machineOptions, [machineOptions, operationType, processInfo.id]);
+
+const filteredProductOptions = productOptions;
+
 const selectedProduct = useMemo(
     () => productOptions.find((product) => product.product_code === form.productName),
     [productOptions, form.productName]
@@ -1409,8 +1459,8 @@ useEffect(() => {
                     productsResult,
                     defectsResult
                 ] = await Promise.allSettled([
-                    getCachedMachines(processInfo.id),
-                    getCachedProductStandards(processInfo.id),
+                    getCachedMachines(processInfo.id, processInfo.id === 1 ? operationType : undefined),
+                    getCachedProductStandards(processInfo.id, processInfo.id === 1 ? { operationType, operationMode } : {}),
                     getCachedDefects(processInfo.id)
                 ]);
 
@@ -1502,7 +1552,7 @@ useEffect(() => {
 
     void loadMasterData();
 
-}, [processInfo.id, showToast]);
+}, [processInfo.id, operationType, operationMode]);
 
     // =====================================================
     // CHỈ CHO PHÉP NHẬP SỐ NGUYÊN
@@ -2130,26 +2180,35 @@ const updateDeductionValue = (
         }
 
 
-        if (!form.productName.trim()) {
-            return "Vui lòng chọn sản phẩm";
-        }
-
-        const matchedProduct = productOptions.find(
-            (item) => item.product_code.trim().toLowerCase() === form.productName.trim().toLowerCase()
-        );
-        if (!matchedProduct) {
-            return "Sản phẩm không có trong danh mục. Vui lòng chọn lại từ danh sách gợi ý";
-        }
-
-        if (!form.machineNo.trim()) {
-            return "Vui lòng chọn số máy";
-        }
-
-        const matchedMachine = machineOptions.find(
-            (item) => item.machine_code.trim().toLowerCase() === form.machineNo.trim().toLowerCase()
-        );
-        if (!matchedMachine) {
-            return "Máy không có trong danh mục. Vui lòng chọn lại từ danh sách gợi ý";
+        const usesMultipleMachines = processInfo.id === 1 && operationMode === "MACHINE";
+        if (usesMultipleMachines) {
+            if (machineLines.length < 1 || machineLines.length > 4) {
+                return "Cần chọn từ 1 đến 4 máy";
+            }
+            const codes = machineLines.map((line) => line.machineCode.trim()).filter(Boolean);
+            if (codes.length !== machineLines.length) return "Vui lòng chọn máy cho tất cả các dòng";
+            if (new Set(codes).size !== codes.length) return "Không được chọn trùng máy";
+            for (let index = 0; index < machineLines.length; index += 1) {
+                const line = machineLines[index];
+                const machine = machineOptions.find((item) => item.machine_code === line.machineCode);
+                const product = productOptions.find((item) => item.product_code === line.productCode);
+                const hours = Number(line.machineHours || 0);
+                const ok = Number(line.okQuantity || 0);
+                const ng = Number(line.ngQuantity || 0);
+                if (!machine) return `Máy dòng ${index + 1} không hợp lệ`;
+                if (!product) return `Sản phẩm dòng ${index + 1} không hợp lệ`;
+                if (!(hours > 0 && hours <= 24)) return `Thời gian máy dòng ${index + 1} phải lớn hơn 0 và không quá 24 giờ`;
+                const maximum = Number(product.standard_output || 0) * hours;
+                if (ok < 0 || ng < 0 || !Number.isInteger(ok) || !Number.isInteger(ng)) return `OK và NG dòng ${index + 1} phải là số nguyên không âm`;
+                if (ok + ng > maximum) return `Máy ${line.machineCode}: OK + NG không được vượt ${Math.floor(maximum).toLocaleString("vi-VN")} sản phẩm`;
+            }
+        } else {
+            if (!form.productName.trim()) return "Vui lòng chọn sản phẩm";
+            const matchedProduct = productOptions.find((item) => item.product_code.trim().toLowerCase() === form.productName.trim().toLowerCase());
+            if (!matchedProduct) return "Sản phẩm không có trong danh mục. Vui lòng chọn lại từ danh sách gợi ý";
+            if (!form.machineNo.trim()) return "Vui lòng chọn số máy";
+            const matchedMachine = machineOptions.find((item) => item.machine_code.trim().toLowerCase() === form.machineNo.trim().toLowerCase());
+            if (!matchedMachine) return "Máy không có trong danh mục. Vui lòng chọn lại từ danh sách gợi ý";
         }
 
 
@@ -2283,8 +2342,30 @@ const updateDeductionValue = (
             try {
                 setSubmitting(true);
 
+                const usesMultipleMachines = processInfo.id === 1 && operationMode === "MACHINE";
+                const normalizedMachineLines: ProductionMachineLine[] = usesMultipleMachines
+                    ? machineLines.map((line, index) => {
+                        const product = productOptions.find((item) => item.product_code === line.productCode);
+                        const standard = Number(product?.standard_output || 0);
+                        const hours = Number(line.machineHours || 0);
+                        return {
+                            machine_code: line.machineCode,
+                            product_code: line.productCode,
+                            machine_time_hours: hours,
+                            standard_output: standard,
+                            ok_quantity: Number(line.okQuantity || 0),
+                            ng_quantity: Number(line.ngQuantity || 0),
+                            maximum_output: standard * hours,
+                            sort_order: index + 1
+                        };
+                    })
+                    : [];
+
                 const payload: ProductionReport = {
                     client_request_id: clientRequestIdRef.current,
+                    machine_lines: normalizedMachineLines,
+                    operation_type: processInfo.id === 1 ? operationType : undefined,
+                    operation_mode: processInfo.id === 1 ? operationMode : undefined,
 
                     process_id:
                         processInfo.id,
@@ -2295,8 +2376,9 @@ const updateDeductionValue = (
                     shift:
                         form.shift,
 
-                    machine_no:
-                        machineOptions.find(
+                    machine_no: usesMultipleMachines
+                        ? normalizedMachineLines.map((item) => item.machine_code).join(", ")
+                        : machineOptions.find(
                             (item) => item.machine_code.trim().toLowerCase() === form.machineNo.trim().toLowerCase()
                         )?.machine_code || form.machineNo.trim(),
 
@@ -2315,39 +2397,28 @@ const updateDeductionValue = (
 
 
                 
-                    product_name:
-                        productOptions.find(
+                    product_name: usesMultipleMachines
+                        ? normalizedMachineLines.map((item) => item.product_code).join(", ")
+                        : productOptions.find(
                             (item) => item.product_code.trim().toLowerCase() === form.productName.trim().toLowerCase()
                         )?.product_code || form.productName.trim(),
 
-                    standard_output:
-                        Number(
-                            form.standardOutput
-                            ||
-                            0
-                        ),
+                    standard_output: usesMultipleMachines
+                        ? normalizedMachineLines.reduce((sum, item) => sum + item.standard_output, 0)
+                        : Number(form.standardOutput || 0),
 
-                    actual_output:
-                        Number(
-                            form.actualOutput
-                            ||
-                            0
-                        ),
+                    actual_output: usesMultipleMachines
+                        ? machineLineSummary.ok + machineLineSummary.ng
+                        : Number(form.actualOutput || 0),
 
 
-                    tt_ok:
-                        Number(
-                            form.ttOk
-                            ||
-                            0
-                        ),
+                    tt_ok: usesMultipleMachines
+                        ? machineLineSummary.ok
+                        : Number(form.ttOk || 0),
 
-                    tt_ng:
-                        Number(
-                            form.ttNg
-                            ||
-                            0
-                        ),
+                    tt_ng: usesMultipleMachines
+                        ? machineLineSummary.ng
+                        : Number(form.ttNg || 0),
 
 
                     kqd_dap_lai:
@@ -2895,125 +2966,134 @@ window.setTimeout(() => {
 
                         </div>
 
-<div className="worker-field-block worker-field-full">
+{processInfo.id === 1 && (
+    <div className="worker-operation-panel worker-field-full">
+        <div className="worker-operation-group">
+            <span className="worker-field-label">Công việc</span>
+            <div className="worker-radio-row">
+                <label><input type="radio" checked={operationType === "CUT"} onChange={() => setOperationType("CUT")} /> Cắt</label>
+                <label><input type="radio" checked={operationType === "NEST"} onChange={() => setOperationType("NEST")} /> Lồng</label>
+            </div>
+        </div>
+        <div className="worker-operation-group">
+            <span className="worker-field-label">Phương thức</span>
+            <div className="worker-radio-row">
+                <label><input type="radio" checked={operationMode === "MANUAL"} onChange={() => setOperationMode("MANUAL")} /> Tay</label>
+                <label><input type="radio" checked={operationMode === "MACHINE"} onChange={() => setOperationMode("MACHINE")} /> Máy</label>
+            </div>
+        </div>
+    </div>
+)}
 
-    <AutocompleteInput
-        id="productName"
-        label="Sản phẩm"
-        value={form.productName}
-        options={productAutocompleteOptions}
-        placeholder="Nhập mã sản phẩm"
-        required
-        disabled={loadingMasterData}
-        emptyMessage="Không tìm thấy sản phẩm"
-        onChange={(value) => {
+{processInfo.id === 1 && operationMode === "MACHINE" ? (
+    <div className="worker-machine-lines worker-field-full">
+        <div className="worker-machine-lines-header">
+            <div>
+                <strong>Danh sách máy chạy</strong>
+                <small>Tối đa 4 máy khác nhau; sản phẩm có thể trùng.</small>
+            </div>
+            {machineLines.length < 4 && (
+                <button type="button" className="worker-add-machine" onClick={() => setMachineLines((items) => [...items, emptyMachineLine()])}>
+                    + Thêm máy
+                </button>
+            )}
+        </div>
 
-            const selectedProduct =
-                productOptions.find(
-                    (item) =>
-                        item.product_code
-                            .trim()
-                            .toLowerCase()
-                        ===
-                        value
-                            .trim()
-                            .toLowerCase()
-                );
+        {machineLines.map((line, index) => {
+            const product = productOptions.find((item) => item.product_code === line.productCode);
+            const maximum = Number(product?.standard_output || 0) * Number(line.machineHours || 0);
+            const actual = Number(line.okQuantity || 0) + Number(line.ngQuantity || 0);
+            return (
+                <div className="worker-machine-line" key={`machine-line-${index}`}>
+                    <div className="worker-machine-line-title">
+                        <strong>Máy {index + 1}</strong>
+                        {machineLines.length > 1 && (
+                            <button type="button" onClick={() => setMachineLines((items) => items.filter((_, itemIndex) => itemIndex !== index))}>Xóa</button>
+                        )}
+                    </div>
+                    <div className="worker-machine-line-grid">
+                        <label>
+                            <span>Máy</span>
+                            <select value={line.machineCode} onChange={(event) => updateMachineLine(index, { machineCode: event.target.value })}>
+                                <option value="">Chọn máy</option>
+                                {filteredMachineOptions.map((machine) => (
+                                    <option key={machine.id || machine.machine_code} value={machine.machine_code} disabled={selectedMachineCodes.has(machine.machine_code) && line.machineCode !== machine.machine_code}>
+                                        {machine.machine_code}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                        <label>
+                            <span>Sản phẩm</span>
+                            <select value={line.productCode} onChange={(event) => updateMachineLine(index, { productCode: event.target.value })}>
+                                <option value="">Chọn sản phẩm</option>
+                                {filteredProductOptions.map((item) => <option key={item.id || item.product_code} value={item.product_code}>{item.product_code}</option>)}
+                            </select>
+                        </label>
+                        <label>
+                            <span>Thời gian máy chạy (giờ)</span>
+                            <input type="number" min="0" max="24" step="0.01" value={line.machineHours} onChange={(event) => updateMachineLine(index, { machineHours: event.target.value })} placeholder="VD: 2.5" />
+                        </label>
+                        <label>
+                            <span>OK</span>
+                            <input type="number" min="0" step="1" value={line.okQuantity} onChange={(event) => updateMachineLine(index, { okQuantity: event.target.value })} />
+                        </label>
+                        <label>
+                            <span>NG</span>
+                            <input type="number" min="0" step="1" value={line.ngQuantity} onChange={(event) => updateMachineLine(index, { ngQuantity: event.target.value })} />
+                        </label>
+                    </div>
+                    <div className={`worker-machine-capacity ${actual > maximum ? "is-over" : ""}`}>
+                        Định mức: {Math.round(Number(product?.standard_output || 0)).toLocaleString("vi-VN")}/giờ · Tối đa: {Math.floor(maximum).toLocaleString("vi-VN")} · Đã nhập: {actual.toLocaleString("vi-VN")}
+                    </div>
+                </div>
+            );
+        })}
 
-
-            setForm((prev) => ({
-
-                ...prev,
-
-                productName:
-                    value,
-
-                standardOutput:
-                    selectedProduct
-                        ? String(
-                            Math.round(Number(selectedProduct.standard_output) || 0)
-                        )
-                        : ""
-
-            }));
-
-        }}
-        onSelect={(option) => {
-
-            const selectedProduct =
-                productOptions.find(
-                    (item) =>
-                        item.product_code
-                        .trim()
-                        .toLowerCase()
-                    ===
-                    option.value
-                        .trim()
-                        .toLowerCase()
-                );
-
-
-            setForm((prev) => ({
-
-                ...prev,
-
-                productName:
-                    option.value,
-
-                standardOutput:
-                    selectedProduct
-                        ? String(
-                            Math.round(Number(selectedProduct.standard_output) || 0)
-                        )
-                        : ""
-
-            }));
-
-        }}
-    />
-
-</div>
-                    
-                        {/* SỐ MÁY */}
-
-<div className="worker-field-block worker-field-full">
-
-    <AutocompleteInput
-        id="machineNo"
-        label="Số máy"
-        value={form.machineNo}
-        options={machineAutocompleteOptions}
-        placeholder="Nhập mã máy"
-        required
-        disabled={loadingMasterData}
-        emptyMessage="Không tìm thấy máy"
-onChange={(value: string) => {
-            setForm((prev) => ({
-
-                ...prev,
-
-                machineNo:
-                    value
-
-            }));
-
-        }}
-onSelect={(
-    option: AutocompleteOption
-) => {
-            setForm((prev) => ({
-
-                ...prev,
-
-                machineNo:
-                    option.value
-
-            }));
-
-        }}
-    />
-
-</div>
+        <div className="worker-machine-summary">
+            <span>Tổng OK: <strong>{machineLineSummary.ok.toLocaleString("vi-VN")}</strong></span>
+            <span>Tổng NG: <strong>{machineLineSummary.ng.toLocaleString("vi-VN")}</strong></span>
+            <span>Tối đa: <strong>{Math.floor(machineLineSummary.maximum).toLocaleString("vi-VN")}</strong></span>
+        </div>
+    </div>
+) : (
+    <>
+        <div className="worker-field-block worker-field-full">
+            <AutocompleteInput
+                id="productName"
+                label="Sản phẩm"
+                value={form.productName}
+                options={productAutocompleteOptions}
+                placeholder="Nhập mã sản phẩm"
+                required
+                disabled={loadingMasterData}
+                emptyMessage="Không tìm thấy sản phẩm"
+                onChange={(value) => {
+                    const selected = productOptions.find((item) => item.product_code.trim().toLowerCase() === value.trim().toLowerCase());
+                    setForm((prev) => ({ ...prev, productName: value, standardOutput: selected ? String(Math.round(Number(selected.standard_output) || 0)) : "" }));
+                }}
+                onSelect={(option) => {
+                    const selected = productOptions.find((item) => item.product_code.trim().toLowerCase() === option.value.trim().toLowerCase());
+                    setForm((prev) => ({ ...prev, productName: option.value, standardOutput: selected ? String(Math.round(Number(selected.standard_output) || 0)) : "" }));
+                }}
+            />
+        </div>
+        <div className="worker-field-block worker-field-full">
+            <AutocompleteInput
+                id="machineNo"
+                label="Số máy"
+                value={form.machineNo}
+                options={machineAutocompleteOptions}
+                placeholder="Nhập mã máy"
+                required
+                disabled={loadingMasterData}
+                emptyMessage="Không tìm thấy máy"
+                onChange={(value: string) => setForm((prev) => ({ ...prev, machineNo: value }))}
+                onSelect={(option: AutocompleteOption) => setForm((prev) => ({ ...prev, machineNo: option.value }))}
+            />
+        </div>
+    </>
+ )}
 
                     </div>
 
@@ -3384,6 +3464,7 @@ onSelect={(
                                                         autoComplete="off"
 
                                                     />
+                                                    <span className="worker-minute-suffix">phút</span>
 
                                                 </div>
 

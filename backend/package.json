@@ -10,7 +10,9 @@
     "worker": "node worker.js",
     "check": "npm test && node --check server.js && node scripts/checkSource.js",
     "db:indexes": "node scripts/ensureIndexes.js",
-    "db:analyze": "node scripts/analyzeTables.js"
+    "db:analyze": "node scripts/analyzeTables.js",
+    "db:backup": "node scripts/backupDatabase.js",
+    "db:restore": "node scripts/restoreDatabase.js"
   },
   "keywords": [],
   "author": "",

@@ -60,6 +60,20 @@ export interface ProductionDeduction {
 // BÁO CÁO SẢN XUẤT
 // =====================================================
 
+
+export interface ProductionMachineLine {
+    machine_id?: number | null;
+    machine_code: string;
+    product_standard_id?: number | null;
+    product_code: string;
+    machine_time_hours: number;
+    standard_output: number;
+    ok_quantity: number;
+    ng_quantity: number;
+    maximum_output?: number;
+    sort_order?: number;
+}
+
 export interface ProductionReport {
 
     // ==========================
@@ -183,6 +197,10 @@ export interface ProductionReport {
     defects?: ProductionDefect[];
 
     deductions?: ProductionDeduction[];
+
+    machine_lines?: ProductionMachineLine[];
+    operation_type?: "CUT" | "NEST";
+    operation_mode?: "MANUAL" | "MACHINE";
 
 
     // ==========================

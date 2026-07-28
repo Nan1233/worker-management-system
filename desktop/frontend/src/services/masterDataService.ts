@@ -10,6 +10,7 @@ export interface MachineOption {
     machine_code: string;
 
     machine_name: string;
+    operation_type?: "CUT" | "NEST" | null;
 
 }
 
@@ -34,7 +35,8 @@ export interface ProductStandardOption {
 
 export const getMachinesByProcess =
     async (
-        processId: number
+        processId: number,
+        filters: { operationType?: "CUT" | "NEST" } = {}
     ): Promise<MachineOption[]> => {
 
         const response =
@@ -43,7 +45,8 @@ export const getMachinesByProcess =
                 {
                     params: {
                         process_id:
-                            processId
+                            processId,
+                        operation_type: filters.operationType
                     }
                 }
             );
@@ -60,7 +63,8 @@ export const getMachinesByProcess =
 
 export const getProductStandardsByProcess =
     async (
-        processId: number
+        processId: number,
+        filters: { operationType?: "CUT" | "NEST"; operationMode?: "MANUAL" | "MACHINE"; machineId?: number } = {}
     ): Promise<ProductStandardOption[]> => {
 
         const response =
@@ -69,7 +73,10 @@ export const getProductStandardsByProcess =
                 {
                     params: {
                         process_id:
-                            processId
+                            processId,
+                        operation_type: filters.operationType,
+                        operation_mode: filters.operationMode,
+                        machine_id: filters.machineId
                     }
                 }
             );

@@ -9,11 +9,14 @@ exports.getProductStandards = async (req, res) => {
       return res.status(400).json({ success: false, message: "process_id không hợp lệ" });
     }
 
-    const cacheKey = `product-standards:${processId}`;
+    const operationType = String(req.query.operation_type || "").toUpperCase();
+    const operationMode = String(req.query.operation_mode || "").toUpperCase();
+    const machineId = Number(req.query.machine_id) || 0;
+    const cacheKey = `product-standards:${processId}:${operationType}:${operationMode}:${machineId}`;
     let data = masterDataCache.get(cacheKey);
 
     if (!data) {
-      data = await productStandardModel.findByProcess(processId);
+      data = await productStandardModel.findByProcess(processId, { operationType, operationMode, machineId });
       masterDataCache.set(cacheKey, data, TTL.productStandards);
     }
 

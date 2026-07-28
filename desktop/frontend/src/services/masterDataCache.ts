@@ -8,37 +8,37 @@ interface CacheEntry<T> {
 }
 
 const TTL_MS = 10 * 60 * 1000;
-const machinesCache = new Map<number, CacheEntry<MachineOption[]>>();
-const productsCache = new Map<number, CacheEntry<ProductStandardOption[]>>();
-const defectsCache = new Map<number, CacheEntry<Awaited<ReturnType<typeof getDefectOptionsByProcess>>>>();
+const machinesCache = new Map<string, CacheEntry<MachineOption[]>>();
+const productsCache = new Map<string, CacheEntry<ProductStandardOption[]>>();
+const defectsCache = new Map<string, CacheEntry<Awaited<ReturnType<typeof getDefectOptionsByProcess>>>>();
 
 async function getCached<T>(
-  cache: Map<number, CacheEntry<T>>,
-  processId: number,
+  cache: Map<string, CacheEntry<T>>,
+  cacheKey: string,
   loader: () => Promise<T>,
 ): Promise<T> {
-  const current = cache.get(processId);
+  const current = cache.get(cacheKey);
   if (current && current.expiresAt > Date.now()) return current.value;
 
   const value = await loader();
-  cache.set(processId, { value, expiresAt: Date.now() + TTL_MS });
+  cache.set(cacheKey, { value, expiresAt: Date.now() + TTL_MS });
   return value;
 }
 
-export const getCachedMachines = (processId: number) =>
-  getCached(machinesCache, processId, () => getMachinesByProcess(processId));
+export const getCachedMachines = (processId: number, operationType?: "CUT" | "NEST") =>
+  getCached(machinesCache, `${processId}:${operationType || ""}`, () => getMachinesByProcess(processId, { operationType }));
 
-export const getCachedProductStandards = (processId: number) =>
-  getCached(productsCache, processId, () => getProductStandardsByProcess(processId));
+export const getCachedProductStandards = (processId: number, filters: { operationType?: "CUT" | "NEST"; operationMode?: "MANUAL" | "MACHINE"; machineId?: number } = {}) =>
+  getCached(productsCache, `${processId}:${filters.operationType || ""}:${filters.operationMode || ""}:${filters.machineId || 0}`, () => getProductStandardsByProcess(processId, filters));
 
 export const getCachedDefects = (processId: number) =>
-  getCached(defectsCache, processId, () => getDefectOptionsByProcess(processId));
+  getCached(defectsCache, String(processId), () => getDefectOptionsByProcess(processId));
 
 export function clearMasterDataCache(processId?: number): void {
   if (processId !== undefined) {
-    machinesCache.delete(processId);
-    productsCache.delete(processId);
-    defectsCache.delete(processId);
+    [...machinesCache.keys()].filter((key) => key.startsWith(`${processId}:`)).forEach((key) => machinesCache.delete(key));
+    [...productsCache.keys()].filter((key) => key.startsWith(`${processId}:`)).forEach((key) => productsCache.delete(key));
+    defectsCache.delete(String(processId));
     return;
   }
   machinesCache.clear();

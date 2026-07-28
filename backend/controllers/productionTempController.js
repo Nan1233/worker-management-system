@@ -4,6 +4,7 @@ const MonthlyExcelService = require("../services/monthlyExcelService");
 const AuditService = require("../services/auditService");
 const db = require("../config/db");
 const { publicMessage } = require("../utils/httpError");
+const { validateMachineLines } = require("../services/machineLineValidationService");
 
 const {
     validateMasterData
@@ -225,6 +226,32 @@ exports.createTempReport = async (req, res) => {
         }
 
 
+        // Cắt/Lồng chạy máy: tối đa 4 máy, mỗi máy có thời gian và định mức riêng.
+        const machineLineValidation = await validateMachineLines({
+            processId,
+            machineLines: req.body?.machine_lines,
+            operationType: ["CUT", "NEST"].includes(String(req.body?.operation_type || "").toUpperCase()) ? String(req.body.operation_type).toUpperCase() : null,
+            operationMode: ["MANUAL", "MACHINE"].includes(String(req.body?.operation_mode || "").toUpperCase()) ? String(req.body.operation_mode).toUpperCase() : null
+        });
+
+        if (!machineLineValidation.valid) {
+            return res.status(422).json({
+                success: false,
+                message: "Dữ liệu máy chạy không hợp lệ",
+                errors: machineLineValidation.errors
+            });
+        }
+
+        if (machineLineValidation.lines.length > 0) {
+            const totals = machineLineValidation.totals;
+            req.body.machine_no = machineLineValidation.lines.map((item) => item.machine_code).join(", ");
+            req.body.product_name = machineLineValidation.lines.map((item) => item.product_code).join(", ");
+            req.body.standard_output = machineLineValidation.lines.reduce((sum, item) => sum + item.standard_output, 0);
+            req.body.tt_ok = totals.totalOk;
+            req.body.tt_ng = totals.totalNg;
+            req.body.actual_output = totals.totalActual;
+        }
+
         // =================================================
         // VALIDATE DỮ LIỆU NGHIỆP VỤ
         // =================================================
@@ -263,12 +290,10 @@ exports.createTempReport = async (req, res) => {
                 processId,
 
                 machineNo:
-                    validation.normalized
-                        .machine_no,
+                    machineLineValidation.lines[0]?.machine_code || validation.normalized.machine_no,
 
                 productName:
-                    validation.normalized
-                        .product_name,
+                    machineLineValidation.lines[0]?.product_code || validation.normalized.product_name,
 
                 defects,
                 deductions,
@@ -298,13 +323,19 @@ exports.createTempReport = async (req, res) => {
                 processId,
 
             machine_no:
-                masterValidation.machineCode,
+                machineLineValidation.lines.length
+                    ? machineLineValidation.lines.map((item) => item.machine_code).join(", ")
+                    : masterValidation.machineCode,
 
             product_name:
-                masterValidation.productCode,
+                machineLineValidation.lines.length
+                    ? machineLineValidation.lines.map((item) => item.product_code).join(", ")
+                    : masterValidation.productCode,
 
             standard_output:
-                masterValidation.standardOutput,
+                machineLineValidation.lines.length
+                    ? machineLineValidation.lines.reduce((sum, item) => sum + item.standard_output, 0)
+                    : masterValidation.standardOutput,
 
             exclude_kqd_from_tt:
                 masterValidation.excludeKqdFromTt,
@@ -316,7 +347,11 @@ exports.createTempReport = async (req, res) => {
                 undefined,
 
             force_create:
-                req.body?.force_create === true
+                req.body?.force_create === true,
+
+            operation_type: ["CUT", "NEST"].includes(String(req.body?.operation_type || "").toUpperCase()) ? String(req.body.operation_type).toUpperCase() : null,
+            operation_mode: ["MANUAL", "MACHINE"].includes(String(req.body?.operation_mode || "").toUpperCase()) ? String(req.body.operation_mode).toUpperCase() : null,
+            machine_lines: machineLineValidation.lines
         };
 
 
