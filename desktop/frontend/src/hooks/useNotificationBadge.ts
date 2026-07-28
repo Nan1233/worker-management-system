@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getUnreadNotificationCount } from "../services/systemService";
 
 const POLL_INTERVAL_MS = 30_000;
@@ -17,17 +17,27 @@ export function publishNotificationCount(count: number) {
 
 export function useNotificationBadge() {
     const [unreadCount, setUnreadCount] = useState(readCachedCount);
+    const loadingRef = useRef(false);
+    const mountedRef = useRef(true);
 
     const refresh = useCallback(async () => {
+        if (loadingRef.current || !navigator.onLine || !localStorage.getItem("token")) {
+            return;
+        }
+
+        loadingRef.current = true;
         try {
             const count = await getUnreadNotificationCount();
-            publishNotificationCount(count);
+            if (mountedRef.current) publishNotificationCount(count);
         } catch {
-            // Giữ số cũ nếu mạng hoặc Render tạm thời chậm.
+            // Giữ số cũ. Interceptor sẽ tự refresh token; không tạo request lặp.
+        } finally {
+            loadingRef.current = false;
         }
     }, []);
 
     useEffect(() => {
+        mountedRef.current = true;
         const onCountChanged = (event: Event) => {
             const customEvent = event as CustomEvent<number>;
             setUnreadCount(Math.max(0, Math.trunc(Number(customEvent.detail) || 0)));
@@ -35,15 +45,22 @@ export function useNotificationBadge() {
         const onVisible = () => {
             if (document.visibilityState === "visible") void refresh();
         };
+        const onConnectionRestored = () => {
+            window.setTimeout(() => void refresh(), 300);
+        };
 
         window.addEventListener(NOTIFICATION_COUNT_CHANGED_EVENT, onCountChanged);
+        window.addEventListener("ktc:connection-restored", onConnectionRestored);
         document.addEventListener("visibilitychange", onVisible);
+
         void refresh();
         const timer = window.setInterval(() => void refresh(), POLL_INTERVAL_MS);
 
         return () => {
+            mountedRef.current = false;
             window.clearInterval(timer);
             window.removeEventListener(NOTIFICATION_COUNT_CHANGED_EVENT, onCountChanged);
+            window.removeEventListener("ktc:connection-restored", onConnectionRestored);
             document.removeEventListener("visibilitychange", onVisible);
         };
     }, [refresh]);

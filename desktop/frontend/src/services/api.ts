@@ -74,6 +74,11 @@ function decodeJwtExpiration(token: string): number | null {
     }
 }
 
+function isAccessTokenExpired(token: string): boolean {
+    const expiresAt = decodeJwtExpiration(token);
+    return Boolean(expiresAt && expiresAt <= Date.now());
+}
+
 function shouldRefreshAccessToken(token: string): boolean {
     const expiresAt = decodeJwtExpiration(token);
 
@@ -217,10 +222,15 @@ api.interceptors.request.use(
         ) {
             try {
                 accessToken = await refreshAccessToken();
-            } catch {
-                // Không xóa đăng nhập khi Render đang deploy/cold start.
-                // Request hiện tại vẫn dùng token cũ; response interceptor
-                // sẽ thử lại một lần khi backend đã sẵn sàng.
+            } catch (error) {
+                // Nếu token đã hết hạn thì tuyệt đối không gửi request bằng
+                // token cũ, vì sẽ tạo bão 401 trong lúc Render deploy/chuyển mạng.
+                // Giữ nguyên phiên đăng nhập và chờ sự kiện online/reconnect.
+                if (isAccessTokenExpired(accessToken)) {
+                    return Promise.reject(error);
+                }
+                // Token chỉ sắp hết hạn nhưng vẫn còn hợp lệ: cho request hiện
+                // tại tiếp tục; lần sau hệ thống sẽ thử refresh lại.
             }
         }
 

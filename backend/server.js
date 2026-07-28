@@ -49,9 +49,9 @@ function parseCorsOrigins() {
 
 const allowedOrigins = parseCorsOrigins();
 
-// Render có thể có nhiều lớp reverse proxy. Cho Express xử lý đầy đủ
-// chuỗi X-Forwarded-For; middleware mạng vẫn tự loại IP private của proxy.
-app.set("trust proxy", true);
+// Render dùng reverse proxy phía trước ứng dụng. Chỉ tin đúng một lớp proxy
+// để express-rate-limit không cho phép giả mạo X-Forwarded-For.
+app.set("trust proxy", 1);
 app.disable("x-powered-by");
 app.set("etag", "weak");
 
