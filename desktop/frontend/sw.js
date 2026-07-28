@@ -1,4 +1,4 @@
-const VERSION = "ktc-pwa-v1.0.2";
+const VERSION = "ktc-pwa-v3";
 const APP_CACHE = `${VERSION}-app`;
 const STATIC_CACHE = `${VERSION}-static`;
 
