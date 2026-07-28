@@ -300,3 +300,67 @@
         font-size: 11px;
     }
 }
+
+/* KTC v1.2.9: mobile keyboard handling for iOS and Android. */
+.worker-hide-keyboard {
+    display: none;
+}
+
+@media (max-width: 900px) {
+    html,
+    body,
+    #root {
+        min-height: 100%;
+    }
+
+    html.mobile-keyboard-open {
+        scroll-padding-top: 82px;
+        scroll-padding-bottom: 84px;
+    }
+
+    html.mobile-keyboard-open .worker-mobile-nav,
+    html.mobile-keyboard-open .worker-action-group {
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+    }
+
+    html.mobile-keyboard-open .worker-main-content {
+        min-height: calc(100dvh - 62px);
+        padding-bottom: 84px !important;
+    }
+
+    .worker-hide-keyboard {
+        position: fixed;
+        right: 12px;
+        bottom: calc(10px + env(safe-area-inset-bottom));
+        z-index: 10000;
+        min-height: 42px;
+        padding: 0 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        border: 1px solid #cbd7e7;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.97);
+        color: #173d78;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 800;
+        box-shadow: 0 8px 24px rgba(21, 47, 83, 0.2);
+        -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: blur(12px);
+        touch-action: manipulation;
+    }
+
+    .worker-hide-keyboard span {
+        font-size: 22px;
+        line-height: 1;
+        transform: translateY(-1px);
+    }
+
+    html:not(.mobile-keyboard-open) .worker-hide-keyboard {
+        display: none !important;
+    }
+}

@@ -2,6 +2,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import AppIcon, { type IconName } from "../components/common/AppIcon";
 import "./WorkerLayout.css";
 import { clearAuthSession } from "../utils/authStorage";
+import { useMobileKeyboard } from "../hooks/useMobileKeyboard";
 
 const menuItems: { label: string; path: string; icon: IconName; exact?: boolean }[] = [
     { label: "Trang chủ", path: "/worker", icon: "process", exact: true },
@@ -23,6 +24,7 @@ const formatToday = (): string => {
 function WorkerLayout() {
     const navigate = useNavigate();
     const location = useLocation();
+    const { keyboardOpen, hideKeyboard } = useMobileKeyboard();
 
     const handleLogout = () => {
         clearAuthSession();
@@ -73,6 +75,18 @@ function WorkerLayout() {
             <main className="worker-main-content">
                 <Outlet />
             </main>
+
+            {keyboardOpen && (
+                <button
+                    type="button"
+                    className="worker-hide-keyboard"
+                    onClick={hideKeyboard}
+                    aria-label="Ẩn bàn phím"
+                >
+                    <span aria-hidden="true">⌄</span>
+                    Ẩn bàn phím
+                </button>
+            )}
 
             <nav className="worker-mobile-nav" aria-label="Điều hướng công nhân trên điện thoại">
                 {menuItems.map((item) => (

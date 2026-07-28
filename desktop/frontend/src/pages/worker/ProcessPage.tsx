@@ -17,7 +17,6 @@ import "./ProcessPage.css";
 
 
 import {
-    checkSimilarTempReport,
     createTempReport,
     getCompanyNetworkAccess,
     updateTempReport,
@@ -2501,29 +2500,28 @@ const updateDeductionValue = (
 
                 };
 
-                const similar = await checkSimilarTempReport({
-                    process_id: payload.process_id,
-                    work_date: payload.work_date,
-                    shift: payload.shift,
-                    machine_no: payload.machine_no,
-                    product_name: payload.product_name
-                });
+                const response = await createTempReport(payload);
 
-                if (similar.duplicate && similar.data?.id) {
-                    setDuplicatePrompt({ reportId: similar.data.id, payload });
+                if (
+                    response?.duplicate &&
+                    response?.duplicate_reason === "similar_report" &&
+                    response?.data?.id
+                ) {
+                    setDuplicatePrompt({
+                        reportId: Number(response.data.id),
+                        payload
+                    });
                     return;
                 }
 
-                const response = await createTempReport(payload);
-
                 showToast(
-    response?.duplicate
-        ? "Báo cáo này đã được hệ thống ghi nhận trước đó"
-        : "Lưu báo cáo thành công. Báo cáo đã được gửi chờ duyệt.",
-    response?.duplicate
-        ? "info"
-        : "success"
-);
+                    response?.duplicate
+                        ? "Báo cáo này đã được hệ thống ghi nhận trước đó"
+                        : "Lưu báo cáo thành công. Báo cáo đã được gửi chờ duyệt.",
+                    response?.duplicate
+                        ? "info"
+                        : "success"
+                );
 
 clientRequestIdRef.current = null;
 
