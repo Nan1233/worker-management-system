@@ -1,5 +1,5 @@
 const Defect = require("../models/defectModel");
-const { masterDataCache, TTL } = require("../utils/masterDataCache");
+const { TTL, getOrLoadMasterData } = require("../utils/masterDataCache");
 
 exports.getDefectsByProcess = async (req, res) => {
   try {
@@ -9,11 +9,11 @@ exports.getDefectsByProcess = async (req, res) => {
     }
 
     const cacheKey = `defects:${processId}`;
-    let data = masterDataCache.get(cacheKey);
-    if (!data) {
-      data = await Defect.getByProcess(processId);
-      masterDataCache.set(cacheKey, data, TTL.defects);
-    }
+    const data = await getOrLoadMasterData(
+      cacheKey,
+      TTL.defects,
+      () => Defect.getByProcess(processId)
+    );
 
     return res.json({ success: true, data });
   } catch (error) {

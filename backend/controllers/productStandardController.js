@@ -1,5 +1,5 @@
 const productStandardModel = require("../models/productStandardModel");
-const { masterDataCache, TTL } = require("../utils/masterDataCache");
+const { TTL, getOrLoadMasterData } = require("../utils/masterDataCache");
 
 exports.getProductStandards = async (req, res) => {
   try {
@@ -10,12 +10,11 @@ exports.getProductStandards = async (req, res) => {
     }
 
     const cacheKey = `product-standards:${processId}`;
-    let data = masterDataCache.get(cacheKey);
-
-    if (!data) {
-      data = await productStandardModel.findByProcess(processId);
-      masterDataCache.set(cacheKey, data, TTL.productStandards);
-    }
+    const data = await getOrLoadMasterData(
+      cacheKey,
+      TTL.productStandards,
+      () => productStandardModel.findByProcess(processId)
+    );
 
     return res.status(200).json({ success: true, data });
   } catch (error) {

@@ -1,56 +1,32 @@
 import type { MachineOption, ProductStandardOption } from "./masterDataService";
 import { getMachinesByProcess, getProductStandardsByProcess } from "./masterDataService";
 import { getDefectOptionsByProcess } from "./productionService";
+import { getSessionCached, clearSessionCache } from "./sessionCache";
 
-interface CacheEntry<T> {
-  value?: T;
-  expiresAt: number;
-  pending?: Promise<T>;
-}
+const TTL_MS = 30 * 60 * 1000;
 
-const TTL_MS = 10 * 60 * 1000;
-const machinesCache = new Map<number, CacheEntry<MachineOption[]>>();
-const productsCache = new Map<number, CacheEntry<ProductStandardOption[]>>();
-const defectsCache = new Map<number, CacheEntry<Awaited<ReturnType<typeof getDefectOptionsByProcess>>>>();
+type DefectOptions = Awaited<ReturnType<typeof getDefectOptionsByProcess>>;
 
-async function getCached<T>(
-  cache: Map<number, CacheEntry<T>>,
-  processId: number,
-  loader: () => Promise<T>,
-): Promise<T> {
-  const current = cache.get(processId);
-  const now = Date.now();
+export const getCachedMachines = (processId: number): Promise<MachineOption[]> =>
+  getSessionCached(
+    `master:machines:${processId}`,
+    TTL_MS,
+    () => getMachinesByProcess(processId),
+  );
 
-  if (current?.value !== undefined && current.expiresAt > now) {
-    return current.value;
-  }
+export const getCachedProductStandards = (processId: number): Promise<ProductStandardOption[]> =>
+  getSessionCached(
+    `master:products:${processId}`,
+    TTL_MS,
+    () => getProductStandardsByProcess(processId),
+  );
 
-  // Nếu nhiều component cùng mở một công đoạn, dùng chung request đang chạy
-  // thay vì gửi lặp machines/products/defects tới Render và TiDB.
-  if (current?.pending) return current.pending;
-
-  const pending = loader()
-    .then((value) => {
-      cache.set(processId, { value, expiresAt: Date.now() + TTL_MS });
-      return value;
-    })
-    .catch((error) => {
-      cache.delete(processId);
-      throw error;
-    });
-
-  cache.set(processId, { expiresAt: 0, pending });
-  return pending;
-}
-
-export const getCachedMachines = (processId: number) =>
-  getCached(machinesCache, processId, () => getMachinesByProcess(processId));
-
-export const getCachedProductStandards = (processId: number) =>
-  getCached(productsCache, processId, () => getProductStandardsByProcess(processId));
-
-export const getCachedDefects = (processId: number) =>
-  getCached(defectsCache, processId, () => getDefectOptionsByProcess(processId));
+export const getCachedDefects = (processId: number): Promise<DefectOptions> =>
+  getSessionCached(
+    `master:defects:${processId}`,
+    TTL_MS,
+    () => getDefectOptionsByProcess(processId),
+  );
 
 export function prefetchProcessMasterData(processId: number): void {
   void Promise.allSettled([
@@ -62,12 +38,10 @@ export function prefetchProcessMasterData(processId: number): void {
 
 export function clearMasterDataCache(processId?: number): void {
   if (processId !== undefined) {
-    machinesCache.delete(processId);
-    productsCache.delete(processId);
-    defectsCache.delete(processId);
+    clearSessionCache(`master:machines:${processId}`);
+    clearSessionCache(`master:products:${processId}`);
+    clearSessionCache(`master:defects:${processId}`);
     return;
   }
-  machinesCache.clear();
-  productsCache.clear();
-  defectsCache.clear();
+  clearSessionCache("master:");
 }

@@ -8,7 +8,7 @@ const productStandardController =
     require("../controllers/productStandardController");
 
 const verifyToken =
-    require("../middleware/authMiddleware");
+    require("../middleware/fastAuthMiddleware");
 
 
 router.get(

@@ -1,5 +1,5 @@
 const machineModel = require("../models/machineModel");
-const { masterDataCache, TTL } = require("../utils/masterDataCache");
+const { TTL, getOrLoadMasterData } = require("../utils/masterDataCache");
 
 exports.getMachines = async (req, res) => {
   try {
@@ -10,12 +10,11 @@ exports.getMachines = async (req, res) => {
     }
 
     const cacheKey = `machines:${processId}`;
-    let data = masterDataCache.get(cacheKey);
-
-    if (!data) {
-      data = await machineModel.findByProcess(processId);
-      masterDataCache.set(cacheKey, data, TTL.machines);
-    }
+    const data = await getOrLoadMasterData(
+      cacheKey,
+      TTL.machines,
+      () => machineModel.findByProcess(processId)
+    );
 
     return res.status(200).json({ success: true, data });
   } catch (error) {

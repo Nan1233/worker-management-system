@@ -4,6 +4,9 @@ const workerModel =
 const db =
     require("../config/db");
 
+const { getOrLoadWorkerProfile } =
+    require("../utils/workerProfileCache");
+
 
 // =====================================================
 // ROLE ĐƯỢC QUẢN LÝ NHÂN VIÊN
@@ -339,49 +342,66 @@ exports.createWorker = (
 // :id ở endpoint này là user_id.
 // =====================================================
 
-exports.getCurrentWorker = (
-    req,
-    res
-) => {
+exports.getCurrentWorker = async (req, res) => {
 
-    const loginUserId =
-        Number(
-            req.user?.id
-        );
+    const loginUserId = Number(req.user?.id);
 
-
-    if (
-        !Number.isInteger(
-            loginUserId
-        )
-        ||
-        loginUserId <= 0
-    ) {
-
+    if (!Number.isInteger(loginUserId) || loginUserId <= 0) {
         return res.status(401).json({
-
-            success:
-                false,
-
-            message:
-                "Thông tin đăng nhập không hợp lệ"
-
+            success: false,
+            message: "Thông tin đăng nhập không hợp lệ"
         });
-
     }
 
+    try {
+        const profile = await getOrLoadWorkerProfile(loginUserId, async () => {
+            const [rows] = await db.promise().query(`
+                SELECT
+                    w.id AS worker_id,
+                    w.user_id,
+                    w.worker_code,
+                    w.phone,
+                    w.department,
+                    w.position,
+                    w.training_percent,
+                    w.status,
+                    w.created_at,
+                    w.updated_at,
+                    u.username,
+                    u.full_name,
+                    u.role,
+                    GROUP_CONCAT(DISTINCT wp.process_id ORDER BY wp.process_id) AS process_ids,
+                    GROUP_CONCAT(DISTINCT CASE WHEN p.status = 'active' THEN p.process_code END ORDER BY p.id) AS process_codes,
+                    GROUP_CONCAT(DISTINCT CASE WHEN p.status = 'active' THEN p.process_name END ORDER BY p.id SEPARATOR ', ') AS process_names
+                FROM workers w
+                INNER JOIN users u ON u.id = w.user_id
+                LEFT JOIN worker_processes wp ON wp.worker_id = w.id
+                LEFT JOIN processes p ON p.id = wp.process_id
+                WHERE w.user_id = ?
+                GROUP BY
+                    w.id, w.user_id, w.worker_code, w.phone, w.department,
+                    w.position, w.training_percent, w.status, w.created_at,
+                    w.updated_at, u.username, u.full_name, u.role
+                LIMIT 1
+            `, [loginUserId]);
+            return rows[0] || null;
+        });
 
-    req.params.id =
-        String(
-            loginUserId
-        );
+        if (!profile) {
+            return res.status(404).json({
+                success: false,
+                message: "Tài khoản chưa có hồ sơ nhân viên"
+            });
+        }
 
-
-    return exports.getWorkerById(
-        req,
-        res
-    );
-
+        return res.status(200).json({ success: true, data: profile });
+    } catch (error) {
+        console.error("GET CURRENT WORKER ERROR:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Không thể lấy thông tin nhân viên"
+        });
+    }
 };
 
 
@@ -390,195 +410,61 @@ exports.getWorkerById = (
     res
 ) => {
 
-    const userId =
-        Number(
-            req.params.id
-        );
+    const userId = Number(req.params.id);
 
-
-    if (
-        !Number.isInteger(
-            userId
-        )
-        ||
-        userId <= 0
-    ) {
-
-        return res.status(400).json({
-
-            success:
-                false,
-
-            message:
-                "ID người dùng không hợp lệ"
-
-        });
-
+    if (!Number.isInteger(userId) || userId <= 0) {
+        return res.status(400).json({ success: false, message: "ID người dùng không hợp lệ" });
     }
 
+    const loginUserId = Number(req.user?.id);
+    const loginRole = req.user?.role;
+    const isOwnProfile = loginUserId === userId;
+    const isManagement = MANAGEMENT_ROLES.includes(loginRole);
 
-    const loginUserId =
-        Number(
-            req.user?.id
-        );
-
-
-    const loginRole =
-        req.user?.role;
-
-
-    const isOwnProfile =
-        loginUserId === userId;
-
-
-    const isManagement =
-        MANAGEMENT_ROLES.includes(
-            loginRole
-        );
-
-
-    if (
-        !isOwnProfile
-        &&
-        !isManagement
-    ) {
-
-        return res.status(403).json({
-
-            success:
-                false,
-
-            message:
-                "Bạn không có quyền xem nhân viên này"
-
-        });
-
+    if (!isOwnProfile && !isManagement) {
+        return res.status(403).json({ success: false, message: "Bạn không có quyền xem nhân viên này" });
     }
-
 
     const sql = `
-
         SELECT
-
             w.id AS worker_id,
-
             w.user_id,
-
             w.worker_code,
-
             w.phone,
-
             w.department,
-
             w.position,
-
             w.training_percent,
-
             w.status,
-
             w.created_at,
-
             w.updated_at,
-
             u.username,
-
             u.full_name,
-
             u.role,
-
-            (
-                SELECT GROUP_CONCAT(DISTINCT wp.process_id ORDER BY wp.process_id)
-                FROM worker_processes wp
-                WHERE wp.worker_id = w.id
-            ) AS process_ids,
-
-            (
-                SELECT GROUP_CONCAT(DISTINCT p.process_code ORDER BY p.id)
-                FROM worker_processes wp
-                INNER JOIN processes p ON p.id = wp.process_id
-                WHERE wp.worker_id = w.id AND p.status = 'active'
-            ) AS process_codes,
-
-            (
-                SELECT GROUP_CONCAT(DISTINCT p.process_name ORDER BY p.id SEPARATOR ', ')
-                FROM worker_processes wp
-                INNER JOIN processes p ON p.id = wp.process_id
-                WHERE wp.worker_id = w.id AND p.status = 'active'
-            ) AS process_names
-
-        FROM workers AS w
-
-        INNER JOIN users AS u
-            ON w.user_id = u.id
-
+            GROUP_CONCAT(DISTINCT wp.process_id ORDER BY wp.process_id) AS process_ids,
+            GROUP_CONCAT(DISTINCT CASE WHEN p.status = 'active' THEN p.process_code END ORDER BY p.id) AS process_codes,
+            GROUP_CONCAT(DISTINCT CASE WHEN p.status = 'active' THEN p.process_name END ORDER BY p.id SEPARATOR ', ') AS process_names
+        FROM workers w
+        INNER JOIN users u ON u.id = w.user_id
+        LEFT JOIN worker_processes wp ON wp.worker_id = w.id
+        LEFT JOIN processes p ON p.id = wp.process_id
         WHERE w.user_id = ?
-
+        GROUP BY
+            w.id, w.user_id, w.worker_code, w.phone, w.department,
+            w.position, w.training_percent, w.status, w.created_at,
+            w.updated_at, u.username, u.full_name, u.role
         LIMIT 1
-
     `;
 
-
-    db.query(
-        sql,
-        [
-            userId
-        ],
-        (
-            err,
-            result
-        ) => {
-
-            if (err) {
-
-                console.error(
-                    "GET WORKER BY USER ID ERROR:",
-                    err
-                );
-
-
-                return res.status(500).json({
-
-                    success:
-                        false,
-
-                    message:
-                        "Không thể lấy thông tin nhân viên"
-
-                });
-
-            }
-
-
-            if (
-                result.length === 0
-            ) {
-
-                return res.status(404).json({
-
-                    success:
-                        false,
-
-                    message:
-                        "Tài khoản chưa có hồ sơ nhân viên"
-
-                });
-
-            }
-
-
-            return res.status(200).json({
-
-                success:
-                    true,
-
-                data:
-                    result[0]
-
-            });
-
+    db.query(sql, [userId], (err, result) => {
+        if (err) {
+            console.error("GET WORKER BY USER ID ERROR:", err);
+            return res.status(500).json({ success: false, message: "Không thể lấy thông tin nhân viên" });
         }
-    );
-
+        if (result.length === 0) {
+            return res.status(404).json({ success: false, message: "Tài khoản chưa có hồ sơ nhân viên" });
+        }
+        return res.status(200).json({ success: true, data: result[0] });
+    });
 };
 
 

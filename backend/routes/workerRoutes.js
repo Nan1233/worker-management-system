@@ -14,6 +14,9 @@ const verifyToken =
 const checkRole =
     require("../middleware/roleMiddleware");
 
+const fastAuth =
+    require("../middleware/fastAuthMiddleware");
+
 
 // =====================================================
 // LẤY DANH SÁCH CÔNG NHÂN
@@ -94,7 +97,7 @@ router.get(
 
     "/me",
 
-    verifyToken,
+    fastAuth,
 
     workerController.getCurrentWorker
 

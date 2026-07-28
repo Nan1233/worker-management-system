@@ -8,7 +8,7 @@ const machineController =
     require("../controllers/machineController");
 
 const verifyToken =
-    require("../middleware/authMiddleware");
+    require("../middleware/fastAuthMiddleware");
 
 
 router.get(

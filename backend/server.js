@@ -7,6 +7,11 @@ require("dotenv").config();
 
 const db = require("./config/db");
 
+const machineModel = require("./models/machineModel");
+const productStandardModel = require("./models/productStandardModel");
+const Defect = require("./models/defectModel");
+const { TTL, getOrLoadMasterData } = require("./utils/masterDataCache");
+
 const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
 const workerRoutes = require("./routes/workerRoutes");
@@ -186,6 +191,38 @@ app.use((error, req, res, next) => {
   return res.status(error.status || 500).json({ success: false, message, request_id: req.requestId });
 });
 
+let databaseKeepAliveTimer = null;
+
+async function warmFrequentlyUsedMasterData() {
+  try {
+    const [processRows] = await db.promise().query(
+      "SELECT id FROM processes WHERE status = 'active' ORDER BY id LIMIT 20"
+    );
+
+    // Nạp tuần tự để chỉ tái sử dụng một vài kết nối TiDB thay vì mở nhiều
+    // TLS session đồng thời ngay sau khi Render khởi động.
+    for (const row of processRows) {
+      const processId = Number(row.id);
+      await getOrLoadMasterData(`machines:${processId}`, TTL.machines, () => machineModel.findByProcess(processId));
+      await getOrLoadMasterData(`product-standards:${processId}`, TTL.productStandards, () => productStandardModel.findByProcess(processId));
+      await getOrLoadMasterData(`defects:${processId}`, TTL.defects, () => Defect.getByProcess(processId));
+    }
+    console.log(`Master data warmed for ${processRows.length} processes`);
+  } catch (error) {
+    console.warn(`Master data warmup skipped: ${error.message}`);
+  }
+}
+
+function startDatabaseKeepAlive() {
+  const intervalMs = Math.max(60_000, Number(process.env.DB_KEEPALIVE_INTERVAL_MS || 240_000));
+  databaseKeepAliveTimer = setInterval(() => {
+    void db.promise().query({ sql: "SELECT 1 AS ok", timeout: 5_000 }).catch((error) => {
+      console.warn(`Database keepalive failed: ${error.message}`);
+    });
+  }, intervalMs);
+  databaseKeepAliveTimer.unref?.();
+}
+
 let server;
 
 async function start() {
@@ -200,11 +237,14 @@ async function start() {
 
   server = app.listen(PORT, () => {
     console.log(`Server running at port ${PORT}`);
+    startDatabaseKeepAlive();
+    void warmFrequentlyUsedMasterData();
   });
 }
 
 async function shutdown(signal) {
   console.log(`${signal} received; shutting down`);
+  if (databaseKeepAliveTimer) clearInterval(databaseKeepAliveTimer);
   if (server) {
     await new Promise((resolve) => server.close(resolve));
   }
