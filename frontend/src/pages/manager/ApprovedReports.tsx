@@ -509,13 +509,6 @@ const handleExportExcel = async () => {
                     </select>
                 </label>
 
-                <button
-                    className="management-clear-button"
-                    onClick={clearFilters}
-                    disabled={!searchKeyword && !selectedShift && !selectedProcess}
-                >
-                    Xóa lọc
-                </button>
                 <label className="management-filter-field management-month-filter">
                     <span>Tháng cập nhật Excel</span>
                     <input
@@ -526,6 +519,14 @@ const handleExportExcel = async () => {
                 </label>
 
                 <div className="management-filter-actions">
+                    <button
+                        type="button"
+                        className="management-clear-button management-action-clear"
+                        onClick={clearFilters}
+                        disabled={!searchKeyword && !selectedShift && !selectedProcess}
+                    >
+                        Xóa lọc
+                    </button>
                     <button
                         type="button"
                         className="management-view-selected-button"

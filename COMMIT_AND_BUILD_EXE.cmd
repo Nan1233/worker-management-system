@@ -17,7 +17,7 @@ echo === COMMIT ===
 git add .
 git diff --cached --quiet
 if errorlevel 1 (
-  git commit -m "Finalize professional UI and responsive layout"
+  git commit -m "Unify professional button system and finalize responsive UI"
   if errorlevel 1 exit /b 1
 ) else (
   echo Khong co thay doi moi de commit.

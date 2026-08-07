@@ -386,3 +386,244 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 @media (max-width: 820px) {
   .management-workers-table td::before { font-size: 10px; }
 }
+
+/* --------------------------------------------------------------------------
+   Unified action/button system
+   -------------------------------------------------------------------------- */
+:root {
+  --ktc-control-h: 42px;
+  --ktc-button-radius: 10px;
+  --ktc-button-pad-x: 15px;
+  --ktc-disabled-bg: #f4f6f8;
+  --ktc-disabled-border: #e4e9ef;
+  --ktc-disabled-text: #9aa7b6;
+}
+
+/* Shared action geometry for management/admin pages. Page-specific buttons can
+   keep their semantic color while using the same height, radius and typography. */
+.management-filter-actions > button,
+.management-all-dates-button,
+.management-modal-actions > button,
+.selected-review-actions > button,
+.selected-reject-actions > button,
+.formula-actions > button,
+.master-toolbar button,
+.governance-header button,
+.governance-form button,
+.governance-row button,
+.download-actions button,
+.edit-back,
+.edit-save {
+  min-height: var(--ktc-control-h);
+  border-radius: var(--ktc-button-radius);
+  padding: 0 var(--ktc-button-pad-x);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease, color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+
+/* Neutral / secondary */
+.management-view-selected-button,
+.management-all-dates-button,
+.management-clear-button,
+.management-modal-actions > button:not(.management-approve-button):not(.management-reject-button),
+.selected-review-actions > button:not(.selected-review-approve):not(.selected-review-reject),
+.selected-reject-actions > button:not(.selected-review-reject),
+.edit-back {
+  border: 1px solid var(--ktc-border-strong);
+  background: var(--ktc-surface);
+  color: var(--ktc-ink-700);
+  box-shadow: var(--ktc-shadow-xs);
+}
+.management-view-selected-button:hover:not(:disabled),
+.management-all-dates-button:hover:not(:disabled),
+.management-clear-button:hover:not(:disabled),
+.management-modal-actions > button:not(.management-approve-button):not(.management-reject-button):hover:not(:disabled),
+.selected-review-actions > button:not(.selected-review-approve):not(.selected-review-reject):hover:not(:disabled),
+.selected-reject-actions > button:not(.selected-review-reject):hover:not(:disabled),
+.edit-back:hover:not(:disabled) {
+  border-color: var(--ktc-brand-300);
+  background: var(--ktc-brand-50);
+  color: var(--ktc-brand-800);
+}
+
+/* Filter scope works as a compact segmented/toggle control, not a browser-default button. */
+.management-all-dates-button {
+  width: 100%;
+  justify-content: center;
+  display: inline-flex;
+  align-items: center;
+}
+.management-all-dates-button.active {
+  border-color: var(--ktc-brand-600);
+  background: var(--ktc-brand-700);
+  color: #fff;
+  box-shadow: 0 5px 12px rgba(28, 82, 152, .14);
+}
+
+/* Primary action */
+.management-export-button,
+.edit-save,
+.master-page button.primary,
+.formula-actions .primary,
+.modal-actions .primary {
+  border: 1px solid var(--ktc-brand-700);
+  background: var(--ktc-brand-700);
+  color: #fff;
+  box-shadow: 0 5px 12px rgba(28, 82, 152, .16);
+}
+.management-export-button:hover:not(:disabled),
+.edit-save:hover:not(:disabled),
+.master-page button.primary:hover:not(:disabled),
+.formula-actions .primary:hover:not(:disabled),
+.modal-actions .primary:hover:not(:disabled) {
+  border-color: var(--ktc-brand-800);
+  background: var(--ktc-brand-800);
+  box-shadow: 0 7px 16px rgba(28, 82, 152, .20);
+}
+
+/* Semantic approval/rejection retain meaning but share the same control language. */
+.management-approve-button,
+.selected-review-approve {
+  border: 1px solid #0f7551;
+  background: var(--ktc-success);
+  color: #fff;
+  box-shadow: 0 5px 12px rgba(22, 132, 91, .15);
+}
+.management-reject-button,
+.selected-review-reject {
+  border: 1px solid #f3c6cb;
+  background: var(--ktc-danger-bg);
+  color: #a82935;
+  box-shadow: none;
+}
+
+/* Clear is a tertiary action and sits away from primary workflow actions. */
+.management-filter-actions .management-action-clear {
+  margin-right: auto;
+  border-color: transparent;
+  background: transparent;
+  color: var(--ktc-ink-500);
+  box-shadow: none;
+}
+.management-filter-actions .management-action-clear:hover:not(:disabled) {
+  border-color: var(--ktc-border);
+  background: var(--ktc-surface-muted);
+  color: var(--ktc-ink-800);
+}
+
+/* One disabled appearance everywhere — no faint browser-default controls. */
+.management-filter-actions > button:disabled,
+.management-all-dates-button:disabled,
+.management-modal-actions > button:disabled,
+.selected-review-actions > button:disabled,
+.selected-reject-actions > button:disabled,
+.formula-actions > button:disabled,
+.master-toolbar button:disabled,
+.governance-header button:disabled,
+.governance-form button:disabled,
+.governance-row button:disabled,
+.download-actions button:disabled,
+.edit-back:disabled,
+.edit-save:disabled {
+  border-color: var(--ktc-disabled-border);
+  background: var(--ktc-disabled-bg);
+  color: var(--ktc-disabled-text);
+  box-shadow: none;
+  opacity: 1;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Approved/Pending filters use the same visual rhythm. */
+.approved-filter-card .management-month-filter { grid-column: 1 / span 2; max-width: 420px; }
+.management-filter-actions {
+  align-items: center;
+  min-height: 58px;
+}
+
+/* Compact view: keep actions usable without turning them into tiny text buttons. */
+@media (max-width: 820px) {
+  .management-filter-actions { grid-template-columns: 1fr 1fr; }
+  .management-filter-actions .management-action-clear { margin-right: 0; grid-column: 1 / -1; }
+  .management-filter-actions > button { min-height: 44px; font-size: 12px; }
+}
+@media (max-width: 520px) {
+  .approved-filter-card .management-month-filter { grid-column: 1; max-width: none; }
+  .management-filter-actions { grid-template-columns: 1fr; }
+  .management-filter-actions .management-action-clear { grid-column: 1; }
+}
+
+/* Admin-wide button geometry pass: legacy page CSS may define color, but all
+   interactive controls now share the same radius, typography and focus rhythm. */
+.master-heading button,
+.master-toolbar button,
+.master-table-wrap .actions button,
+.modal-actions button,
+.formula-actions button,
+.governance-header button,
+.governance-form button,
+.governance-row button,
+.system-center header button,
+.system-tabs button,
+.dashboard-period-filter button {
+  border-radius: var(--ktc-button-radius);
+  font-size: 13px;
+  font-weight: 700;
+  transition: border-color .15s ease, background .15s ease, color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+.master-heading button,
+.master-toolbar button,
+.master-table-wrap .actions button,
+.modal-actions button,
+.formula-actions button,
+.governance-header button,
+.governance-form button,
+.governance-row button,
+.system-center header button {
+  min-height: var(--ktc-control-h);
+}
+.master-table-wrap .actions button { min-height: 36px; padding-inline: 12px; }
+.system-tabs button,
+.dashboard-period-filter button { min-height: 38px; }
+
+/* Neutral admin buttons */
+.master-heading button:not(.primary),
+.master-toolbar button:not(.primary),
+.master-table-wrap .actions button:not(.primary),
+.modal-actions button:not(.primary),
+.formula-actions .secondary,
+.governance-header button:not(.primary),
+.governance-form button:not(.primary),
+.governance-row button:not(.primary),
+.system-center header button {
+  border: 1px solid var(--ktc-border-strong);
+  background: #fff;
+  color: var(--ktc-ink-700);
+  box-shadow: var(--ktc-shadow-xs);
+}
+.master-heading button:not(.primary):hover:not(:disabled),
+.master-toolbar button:not(.primary):hover:not(:disabled),
+.master-table-wrap .actions button:not(.primary):hover:not(:disabled),
+.modal-actions button:not(.primary):hover:not(:disabled),
+.formula-actions .secondary:hover:not(:disabled),
+.governance-header button:not(.primary):hover:not(:disabled),
+.governance-form button:not(.primary):hover:not(:disabled),
+.governance-row button:not(.primary):hover:not(:disabled),
+.system-center header button:hover:not(:disabled) {
+  border-color: var(--ktc-brand-300);
+  background: var(--ktc-brand-50);
+  color: var(--ktc-brand-800);
+}
+
+/* Make browser native-looking buttons impossible inside report filter/action areas. */
+.management-filter-card button,
+.management-selected-info button,
+.management-pagination button {
+  font-family: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+}

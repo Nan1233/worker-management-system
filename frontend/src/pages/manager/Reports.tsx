@@ -840,22 +840,20 @@ function Reports() {
                 </label>
 
 
-                <button
-                    type="button"
-                    className="management-clear-button"
-                    onClick={clearFilters}
-                    disabled={
-                        !searchKeyword &&
-                        !selectedShift &&
-                        !selectedProcess &&
-                        dateMode === "today"
-                    }
-                >
-                    Xóa lọc
-                </button>
-
-
                 <div className="management-filter-actions">
+                    <button
+                        type="button"
+                        className="management-clear-button management-action-clear"
+                        onClick={clearFilters}
+                        disabled={
+                            !searchKeyword &&
+                            !selectedShift &&
+                            !selectedProcess &&
+                            dateMode === "today"
+                        }
+                    >
+                        Xóa lọc
+                    </button>
                     <button
                         type="button"
                         className="management-view-selected-button"
