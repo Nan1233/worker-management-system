@@ -1,0 +1,572 @@
+[
+  {
+    "process_code": "GC",
+    "process_id": 1,
+    "work_date": "2026-08-01",
+    "entry_date": "2026-08-01",
+    "shift": "A",
+    "machine_no": "CAT-01",
+    "product_name": "QC5-1657",
+    "total_time": 8,
+    "actual_time": 7.5,
+    "deduction_time": 0.5,
+    "standard_output": 100,
+    "actual_output": 98,
+    "tt_ok": 96,
+    "tt_ng": 2,
+    "defects": [
+      {
+        "defect_code": "KQD",
+        "defect_name": "KQD",
+        "quantity": 2
+      }
+    ],
+    "deductions": [
+      {
+        "deduction_code": "5S",
+        "deduction_name": "5S",
+        "hours": 0.5
+      }
+    ],
+    "extra_data": {}
+  },
+  {
+    "process_code": "MAI",
+    "process_id": 2,
+    "work_date": "2026-08-01",
+    "entry_date": "2026-08-01",
+    "shift": "A",
+    "machine_no": "MAI-01",
+    "product_name": "QC5-5770",
+    "total_time": 8,
+    "actual_time": 7.5,
+    "deduction_time": 0.5,
+    "standard_output": 100,
+    "actual_output": 98,
+    "tt_ok": 96,
+    "tt_ng": 2,
+    "defects": [
+      {
+        "defect_code": "KQD",
+        "defect_name": "KQD",
+        "quantity": 2
+      }
+    ],
+    "deductions": [
+      {
+        "deduction_code": "5S",
+        "deduction_name": "5S",
+        "hours": 0.5
+      }
+    ],
+    "extra_data": {}
+  },
+  {
+    "process_code": "DO",
+    "process_id": 60001,
+    "work_date": "2026-08-01",
+    "entry_date": "2026-08-01",
+    "shift": "A",
+    "machine_no": "DO-01",
+    "product_name": "QC5-5770",
+    "total_time": 8,
+    "actual_time": 7.5,
+    "deduction_time": 0.5,
+    "standard_output": 100,
+    "actual_output": 98,
+    "tt_ok": 96,
+    "tt_ng": 2,
+    "defects": [
+      {
+        "defect_code": "KQD",
+        "defect_name": "KQD",
+        "quantity": 2
+      }
+    ],
+    "deductions": [
+      {
+        "deduction_code": "5S",
+        "deduction_name": "5S",
+        "hours": 0.5
+      }
+    ],
+    "extra_data": {}
+  },
+  {
+    "process_code": "K1",
+    "process_id": 3,
+    "work_date": "2026-08-01",
+    "entry_date": "2026-08-01",
+    "shift": "A",
+    "machine_no": "",
+    "product_name": "QC5-5770",
+    "total_time": 8,
+    "actual_time": 7.5,
+    "deduction_time": 0.5,
+    "standard_output": 100,
+    "actual_output": 98,
+    "tt_ok": 96,
+    "tt_ng": 2,
+    "defects": [
+      {
+        "defect_code": "KQD",
+        "defect_name": "KQD",
+        "quantity": 2
+      }
+    ],
+    "deductions": [
+      {
+        "deduction_code": "5S",
+        "deduction_name": "5S",
+        "hours": 0.5
+      }
+    ],
+    "extra_data": {}
+  },
+  {
+    "process_code": "K2",
+    "process_id": 4,
+    "work_date": "2026-08-01",
+    "entry_date": "2026-08-01",
+    "shift": "A",
+    "machine_no": "",
+    "product_name": "D008UM",
+    "total_time": 8,
+    "actual_time": 7.5,
+    "deduction_time": 0.5,
+    "standard_output": 100,
+    "actual_output": 98,
+    "tt_ok": 96,
+    "tt_ng": 2,
+    "defects": [
+      {
+        "defect_code": "KQD",
+        "defect_name": "KQD",
+        "quantity": 2
+      }
+    ],
+    "deductions": [
+      {
+        "deduction_code": "5S",
+        "deduction_name": "5S",
+        "hours": 0.5
+      }
+    ],
+    "extra_data": {}
+  },
+  {
+    "process_code": "CAN",
+    "process_id": 60002,
+    "work_date": "2026-08-01",
+    "entry_date": "2026-08-01",
+    "shift": "A",
+    "machine_no": "16''",
+    "product_name": "QC5-1657",
+    "total_time": 8,
+    "actual_time": 7.5,
+    "deduction_time": 0.5,
+    "standard_output": 100,
+    "actual_output": 98,
+    "tt_ok": 96,
+    "tt_ng": 2,
+    "defects": [
+      {
+        "defect_code": "KQD",
+        "defect_name": "KQD",
+        "quantity": 2
+      }
+    ],
+    "deductions": [
+      {
+        "deduction_code": "5S",
+        "deduction_name": "5S",
+        "hours": 0.5
+      }
+    ],
+    "extra_data": {
+      "material_code": "NL-CS-001"
+    }
+  },
+  {
+    "process_code": "EP",
+    "process_id": 60003,
+    "work_date": "2026-08-01",
+    "entry_date": "2026-08-01",
+    "shift": "A",
+    "machine_no": "Press No 1",
+    "product_name": "QC5-1657",
+    "total_time": 8,
+    "actual_time": 7.5,
+    "deduction_time": 0.5,
+    "standard_output": 100,
+    "actual_output": 98,
+    "tt_ok": 96,
+    "tt_ng": 2,
+    "defects": [
+      {
+        "defect_code": "KQD",
+        "defect_name": "KQD",
+        "quantity": 2
+      }
+    ],
+    "deductions": [
+      {
+        "deduction_code": "5S",
+        "deduction_name": "5S",
+        "hours": 0.5
+      }
+    ],
+    "extra_data": {}
+  },
+  {
+    "process_code": "XLBV",
+    "process_id": 60004,
+    "work_date": "2026-08-01",
+    "entry_date": "2026-08-01",
+    "shift": "A",
+    "machine_no": "",
+    "product_name": "QC5-1657",
+    "total_time": 8,
+    "actual_time": 7.5,
+    "deduction_time": 0.5,
+    "standard_output": 100,
+    "actual_output": 98,
+    "tt_ok": 96,
+    "tt_ng": 2,
+    "defects": [
+      {
+        "defect_code": "KQD",
+        "defect_name": "KQD",
+        "quantity": 2
+      }
+    ],
+    "deductions": [
+      {
+        "deduction_code": "5S",
+        "deduction_name": "5S",
+        "hours": 0.5
+      }
+    ],
+    "extra_data": {}
+  },
+  {
+    "process_code": "SX3",
+    "process_id": 60005,
+    "work_date": "2026-08-01",
+    "entry_date": "2026-08-01",
+    "shift": "A",
+    "machine_no": "LINE-SX3",
+    "product_name": "QL3-0259-001",
+    "total_time": 8,
+    "actual_time": 7.5,
+    "deduction_time": 0.5,
+    "standard_output": 100,
+    "actual_output": 98,
+    "tt_ok": 96,
+    "tt_ng": 2,
+    "defects": [
+      {
+        "defect_code": "KQD",
+        "defect_name": "KQD",
+        "quantity": 2
+      }
+    ],
+    "deductions": [
+      {
+        "deduction_code": "5S",
+        "deduction_name": "5S",
+        "hours": 0.5
+      }
+    ],
+    "extra_data": {
+      "work_minutes": 480,
+      "assembly_minutes": 450,
+      "plan_quantity": 100
+    }
+  },
+  {
+    "process_code": "GC",
+    "process_id": 1,
+    "work_date": "2026-08-02",
+    "entry_date": "2026-08-02",
+    "shift": "B",
+    "machine_no": "CAT-01",
+    "product_name": "QC5-1657",
+    "total_time": 8,
+    "actual_time": 7.5,
+    "deduction_time": 0.5,
+    "standard_output": 100,
+    "actual_output": 98,
+    "tt_ok": 96,
+    "tt_ng": 2,
+    "defects": [
+      {
+        "defect_code": "KQD",
+        "defect_name": "KQD",
+        "quantity": 2
+      }
+    ],
+    "deductions": [
+      {
+        "deduction_code": "5S",
+        "deduction_name": "5S",
+        "hours": 0.5
+      }
+    ],
+    "extra_data": {}
+  },
+  {
+    "process_code": "MAI",
+    "process_id": 2,
+    "work_date": "2026-08-02",
+    "entry_date": "2026-08-03",
+    "shift": "B",
+    "machine_no": "MAI-01",
+    "product_name": "QC5-5770",
+    "total_time": 8,
+    "actual_time": 7.5,
+    "deduction_time": 0.5,
+    "standard_output": 100,
+    "actual_output": 98,
+    "tt_ok": 96,
+    "tt_ng": 2,
+    "defects": [
+      {
+        "defect_code": "KQD",
+        "defect_name": "KQD",
+        "quantity": 2
+      }
+    ],
+    "deductions": [
+      {
+        "deduction_code": "5S",
+        "deduction_name": "5S",
+        "hours": 0.5
+      }
+    ],
+    "extra_data": {}
+  },
+  {
+    "process_code": "DO",
+    "process_id": 60001,
+    "work_date": "2026-08-02",
+    "entry_date": "2026-08-02",
+    "shift": "B",
+    "machine_no": "DO-01",
+    "product_name": "QC5-5770",
+    "total_time": 8,
+    "actual_time": 7.5,
+    "deduction_time": 0.5,
+    "standard_output": 100,
+    "actual_output": 98,
+    "tt_ok": 96,
+    "tt_ng": 2,
+    "defects": [
+      {
+        "defect_code": "KQD",
+        "defect_name": "KQD",
+        "quantity": 2
+      }
+    ],
+    "deductions": [
+      {
+        "deduction_code": "5S",
+        "deduction_name": "5S",
+        "hours": 0.5
+      }
+    ],
+    "extra_data": {}
+  },
+  {
+    "process_code": "K1",
+    "process_id": 3,
+    "work_date": "2026-08-02",
+    "entry_date": "2026-08-02",
+    "shift": "B",
+    "machine_no": "",
+    "product_name": "QC5-5770",
+    "total_time": 8,
+    "actual_time": 7.5,
+    "deduction_time": 0.5,
+    "standard_output": 100,
+    "actual_output": 98,
+    "tt_ok": 96,
+    "tt_ng": 2,
+    "defects": [
+      {
+        "defect_code": "KQD",
+        "defect_name": "KQD",
+        "quantity": 2
+      }
+    ],
+    "deductions": [
+      {
+        "deduction_code": "5S",
+        "deduction_name": "5S",
+        "hours": 0.5
+      }
+    ],
+    "extra_data": {}
+  },
+  {
+    "process_code": "K2",
+    "process_id": 4,
+    "work_date": "2026-08-02",
+    "entry_date": "2026-08-03",
+    "shift": "B",
+    "machine_no": "",
+    "product_name": "D008UM",
+    "total_time": 8,
+    "actual_time": 7.5,
+    "deduction_time": 0.5,
+    "standard_output": 100,
+    "actual_output": 98,
+    "tt_ok": 96,
+    "tt_ng": 2,
+    "defects": [
+      {
+        "defect_code": "KQD",
+        "defect_name": "KQD",
+        "quantity": 2
+      }
+    ],
+    "deductions": [
+      {
+        "deduction_code": "5S",
+        "deduction_name": "5S",
+        "hours": 0.5
+      }
+    ],
+    "extra_data": {}
+  },
+  {
+    "process_code": "CAN",
+    "process_id": 60002,
+    "work_date": "2026-08-02",
+    "entry_date": "2026-08-02",
+    "shift": "B",
+    "machine_no": "16''",
+    "product_name": "QC5-1657",
+    "total_time": 8,
+    "actual_time": 7.5,
+    "deduction_time": 0.5,
+    "standard_output": 100,
+    "actual_output": 98,
+    "tt_ok": 96,
+    "tt_ng": 2,
+    "defects": [
+      {
+        "defect_code": "KQD",
+        "defect_name": "KQD",
+        "quantity": 2
+      }
+    ],
+    "deductions": [
+      {
+        "deduction_code": "5S",
+        "deduction_name": "5S",
+        "hours": 0.5
+      }
+    ],
+    "extra_data": {
+      "material_code": "NL-CS-001"
+    }
+  },
+  {
+    "process_code": "EP",
+    "process_id": 60003,
+    "work_date": "2026-08-02",
+    "entry_date": "2026-08-02",
+    "shift": "B",
+    "machine_no": "Press No 1",
+    "product_name": "QC5-1657",
+    "total_time": 8,
+    "actual_time": 7.5,
+    "deduction_time": 0.5,
+    "standard_output": 100,
+    "actual_output": 98,
+    "tt_ok": 96,
+    "tt_ng": 2,
+    "defects": [
+      {
+        "defect_code": "KQD",
+        "defect_name": "KQD",
+        "quantity": 2
+      }
+    ],
+    "deductions": [
+      {
+        "deduction_code": "5S",
+        "deduction_name": "5S",
+        "hours": 0.5
+      }
+    ],
+    "extra_data": {}
+  },
+  {
+    "process_code": "XLBV",
+    "process_id": 60004,
+    "work_date": "2026-08-02",
+    "entry_date": "2026-08-03",
+    "shift": "B",
+    "machine_no": "",
+    "product_name": "QC5-1657",
+    "total_time": 8,
+    "actual_time": 7.5,
+    "deduction_time": 0.5,
+    "standard_output": 100,
+    "actual_output": 98,
+    "tt_ok": 96,
+    "tt_ng": 2,
+    "defects": [
+      {
+        "defect_code": "KQD",
+        "defect_name": "KQD",
+        "quantity": 2
+      }
+    ],
+    "deductions": [
+      {
+        "deduction_code": "5S",
+        "deduction_name": "5S",
+        "hours": 0.5
+      }
+    ],
+    "extra_data": {}
+  },
+  {
+    "process_code": "SX3",
+    "process_id": 60005,
+    "work_date": "2026-08-02",
+    "entry_date": "2026-08-02",
+    "shift": "B",
+    "machine_no": "LINE-SX3",
+    "product_name": "QL3-0259-001",
+    "total_time": 8,
+    "actual_time": 7.5,
+    "deduction_time": 0.5,
+    "standard_output": 100,
+    "actual_output": 98,
+    "tt_ok": 96,
+    "tt_ng": 2,
+    "defects": [
+      {
+        "defect_code": "KQD",
+        "defect_name": "KQD",
+        "quantity": 2
+      }
+    ],
+    "deductions": [
+      {
+        "deduction_code": "5S",
+        "deduction_name": "5S",
+        "hours": 0.5
+      }
+    ],
+    "extra_data": {
+      "work_minutes": 480,
+      "assembly_minutes": 450,
+      "plan_quantity": 100
+    }
+  }
+]

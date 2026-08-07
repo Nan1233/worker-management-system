@@ -1,0 +1,346 @@
+/* ============================================================
+   KTC BALANCED BLUE — 2026-08-03
+   Một bảng màu xanh nước biển trung tính cho toàn bộ frontend.
+   Import cuối cùng để đồng bộ các màn hình cũ mà không đổi nghiệp vụ.
+============================================================ */
+:root {
+  --ktc-blue-900: #234766;
+  --ktc-blue-800: #2a5578;
+  --ktc-blue-700: #32658f;
+  --ktc-blue-600: #3f77a8;
+  --ktc-blue-500: #4f88b8;
+  --ktc-blue-300: #9dbbd3;
+  --ktc-blue-200: #c7d9e8;
+  --ktc-blue-100: #e8f0f7;
+  --ktc-blue-050: #f3f7fb;
+
+  --ktc-primary: var(--ktc-blue-600);
+  --ktc-primary-hover: var(--ktc-blue-700);
+  --ktc-primary-active: var(--ktc-blue-800);
+  --ktc-primary-soft: var(--ktc-blue-100);
+  --ktc-focus-ring: rgba(63, 119, 168, 0.18);
+
+  --ktc-bg: #f4f7fa;
+  --ktc-surface: #ffffff;
+  --ktc-surface-subtle: #f8fafc;
+  --ktc-surface-selected: #edf4fa;
+  --ktc-border: #d8e2eb;
+  --ktc-border-strong: #c3d1de;
+  --ktc-text: #213246;
+  --ktc-text-muted: #64758a;
+  --ktc-text-faint: #8795a6;
+
+  --management-primary: var(--ktc-primary);
+  --management-sidebar: var(--ktc-blue-800);
+  --management-sidebar-deep: var(--ktc-blue-900);
+  --management-bg: var(--ktc-bg);
+  --management-border: var(--ktc-border);
+  --management-text: var(--ktc-text);
+  --management-muted: var(--ktc-text-muted);
+
+  --login-primary: var(--ktc-primary);
+  --login-primary-hover: var(--ktc-primary-hover);
+  --login-navy: var(--ktc-blue-800);
+  --login-navy-deep: var(--ktc-blue-900);
+  --login-background: var(--ktc-bg);
+  --login-border: var(--ktc-border);
+  --login-text: var(--ktc-text);
+  --login-muted: var(--ktc-text-muted);
+
+  --worker-primary: var(--ktc-primary);
+  --worker-primary-hover: var(--ktc-primary-hover);
+  --worker-primary-soft: var(--ktc-primary-soft);
+  --worker-bg: var(--ktc-bg);
+  --worker-border: var(--ktc-border);
+  --worker-text: var(--ktc-text);
+  --worker-muted: var(--ktc-text-muted);
+}
+
+html,
+body,
+#root,
+.management-layout,
+.worker-layout,
+.login-page,
+.select-process-page,
+.worker-form-page,
+.history-page,
+.manager-dashboard,
+.management-report-page,
+.report-detail-page,
+.edit-report-page,
+.system-center-page {
+  background: var(--ktc-bg) !important;
+  color: var(--ktc-text) !important;
+}
+
+/* Primary actions */
+button.primary,
+.btn-primary,
+.login-submit,
+.worker-submit-button,
+.management-view-selected-button,
+.management-primary-button,
+.management-export-button,
+.edit-save-button,
+.selected-review-approve,
+.detail-approve-button,
+[class*="approve-button"] {
+  border-color: var(--ktc-primary) !important;
+  background: var(--ktc-primary) !important;
+  color: #fff !important;
+}
+
+button.primary:hover:not(:disabled),
+.btn-primary:hover:not(:disabled),
+.login-submit:hover:not(:disabled),
+.worker-submit-button:hover:not(:disabled),
+.management-view-selected-button:hover:not(:disabled),
+.management-primary-button:hover:not(:disabled),
+.management-export-button:hover:not(:disabled),
+.edit-save-button:hover:not(:disabled),
+.selected-review-approve:hover:not(:disabled),
+.detail-approve-button:hover:not(:disabled) {
+  border-color: var(--ktc-primary-hover) !important;
+  background: var(--ktc-primary-hover) !important;
+}
+
+/* Inputs and selected controls */
+input:not([type="checkbox"]):not([type="radio"]):focus,
+select:focus,
+textarea:focus,
+.worker-form-page input:focus,
+.worker-form-page select:focus,
+.worker-form-page textarea:focus {
+  border-color: var(--ktc-primary) !important;
+  box-shadow: 0 0 0 3px var(--ktc-focus-ring) !important;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--ktc-primary) !important;
+}
+
+/* Login */
+.login-showcase {
+  background: linear-gradient(145deg, var(--ktc-blue-800) 0%, var(--ktc-blue-900) 100%) !important;
+}
+
+.login-eyebrow {
+  color: #c7dbea !important;
+}
+
+.login-description {
+  color: #edf4f9 !important;
+}
+
+.login-benefits strong {
+  color: #b9d6eb !important;
+}
+
+.login-panel {
+  background: var(--ktc-bg) !important;
+}
+
+.login-card,
+.remembered-section,
+.login-role-card {
+  border-color: var(--ktc-border) !important;
+}
+
+.remembered-account > button:first-child:hover,
+.login-role-card:hover {
+  border-color: var(--ktc-blue-300) !important;
+  background: var(--ktc-blue-050) !important;
+}
+
+.remembered-avatar,
+.login-role-icon,
+.login-input-icon {
+  background: var(--ktc-primary-soft) !important;
+  color: var(--ktc-primary) !important;
+}
+
+.login-role-card.active,
+.login-role-card.selected,
+.login-role-choice input:checked + .login-role-card {
+  border-color: var(--ktc-primary) !important;
+  background: var(--ktc-primary-soft) !important;
+  box-shadow: 0 0 0 3px var(--ktc-focus-ring) !important;
+}
+
+/* Management shell */
+.management-sidebar-shell {
+  background: linear-gradient(180deg, var(--ktc-blue-800) 0%, var(--ktc-blue-900) 100%) !important;
+  box-shadow: 0 10px 26px rgba(35, 71, 102, 0.16) !important;
+}
+
+.management-brand-mark {
+  background: var(--ktc-primary) !important;
+}
+
+.management-user-avatar {
+  background: #e8f1f8 !important;
+  color: var(--ktc-blue-700) !important;
+}
+
+.management-menu-item.active {
+  border-color: rgba(199, 217, 232, 0.34) !important;
+  background: rgba(79, 136, 184, 0.28) !important;
+}
+
+.management-menu-item:hover {
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  background: rgba(255, 255, 255, 0.09) !important;
+}
+
+.management-topbar,
+.management-header,
+.worker-topbar {
+  border-color: var(--ktc-border) !important;
+  background: rgba(255, 255, 255, 0.98) !important;
+}
+
+/* Dashboard and general management cards */
+.dashboard-kpi-icon,
+.dashboard-quick-icon,
+.download-header-icon,
+.export-box-icon,
+.formula-card-title svg,
+.governance-kicker,
+.management-date-chip.active,
+.management-date-chip:hover,
+.management-all-dates-button.active {
+  background: var(--ktc-primary-soft) !important;
+  color: var(--ktc-primary) !important;
+}
+
+.dashboard-kpi-card,
+.dashboard-panel,
+.dashboard-quick-actions,
+.management-filter-card,
+.management-report-card,
+.management-table-container,
+.detail-basic-card,
+.detail-section,
+.edit-report-card,
+.formula-card,
+.governance-panel,
+.system-card,
+.export-box,
+.history-card {
+  border-color: var(--ktc-border) !important;
+}
+
+.dashboard-panel-heading,
+.management-page-title,
+.management-header h1,
+.formula-header h1,
+.governance-header h1,
+.system-center-header h1,
+.history-title-group h1 {
+  color: var(--ktc-text) !important;
+}
+
+.management-date-chip.active,
+.management-all-dates-button.active,
+.management-filter-actions .active,
+.dashboard-period-filter button.active {
+  border-color: var(--ktc-primary) !important;
+  background: var(--ktc-primary-soft) !important;
+  color: var(--ktc-primary-active) !important;
+}
+
+.management-detail-button,
+.detail-link-button,
+.history-entry-button,
+.worker-desktop-nav button.active,
+.worker-desktop-nav button:hover {
+  border-color: var(--ktc-blue-200) !important;
+  background: var(--ktc-primary-soft) !important;
+  color: var(--ktc-primary-active) !important;
+}
+
+/* Worker */
+.worker-brand-mark {
+  background: var(--ktc-primary) !important;
+}
+
+.worker-brand-text strong,
+.worker-form-title-row h1,
+.worker-card-title,
+.machine-section-title {
+  color: var(--ktc-blue-900) !important;
+}
+
+.worker-avatar,
+.worker-card-title span,
+.worker-form-page a,
+.worker-sticky-date-select {
+  color: var(--ktc-primary-active) !important;
+}
+
+.worker-avatar,
+.worker-sticky-date-select,
+.worker-shift-button.active,
+.worker-mode-button.active,
+.worker-option-button.active,
+.machine-card-badge {
+  border-color: var(--ktc-blue-200) !important;
+  background: var(--ktc-primary-soft) !important;
+}
+
+.worker-shift-button.active,
+.worker-mode-button.active,
+.worker-option-button.active {
+  color: var(--ktc-primary-active) !important;
+  box-shadow: 0 0 0 2px var(--ktc-focus-ring) !important;
+}
+
+.worker-form-header,
+.worker-sticky-info,
+.worker-form-card,
+.machine-line,
+.machine-standard-card,
+.worker-quality-card {
+  border-color: var(--ktc-border) !important;
+}
+
+.worker-card-title {
+  border-bottom-color: var(--ktc-border) !important;
+  background: #f8fbfd !important;
+}
+
+/* Links, tabs and pagination */
+a,
+.link-button,
+.management-pagination button:not(:disabled),
+.history-pagination button:not(:disabled),
+[class*="tab"].active {
+  color: var(--ktc-primary-active);
+}
+
+.management-pagination button.active,
+.history-pagination button.active,
+[class*="tab"].active {
+  border-color: var(--ktc-primary) !important;
+  background: var(--ktc-primary) !important;
+  color: #fff !important;
+}
+
+/* Neutralize leftover saturated blue literals in common components */
+.badge.info,
+.status-badge.info,
+.management-status.info,
+.detail-state.info,
+.info-banner,
+.info-box {
+  border-color: var(--ktc-blue-200) !important;
+  background: var(--ktc-primary-soft) !important;
+  color: var(--ktc-primary-active) !important;
+}
+
+::selection {
+  background: #cfe0ed;
+  color: var(--ktc-blue-900);
+}

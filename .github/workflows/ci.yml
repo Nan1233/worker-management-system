@@ -1,0 +1,30 @@
+name: KTC CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+            desktop/package-lock.json
+      - name: Install backend
+        run: npm ci --prefix backend
+      - name: Install frontend
+        run: npm ci --prefix frontend
+      - name: Install desktop
+        run: npm ci --prefix desktop
+      - name: Verify project
+        run: npm run verify

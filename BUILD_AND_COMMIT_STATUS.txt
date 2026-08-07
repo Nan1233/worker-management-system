@@ -1,0 +1,5 @@
+Commit: 6770c92
+Message: test(excel): align daily grouping and freeze checks
+Backend tests: 49/49 pass
+Repository guard: 353 tracked files, no generated binaries
+Build note: run npm run install:all before npm run build:exe on Windows

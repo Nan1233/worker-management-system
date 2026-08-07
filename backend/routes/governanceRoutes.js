@@ -1,0 +1,14 @@
+const express=require('express');
+const router=express.Router();
+const auth=require('../middleware/authMiddleware');
+const role=require('../middleware/roleMiddleware');
+const c=require('../controllers/governanceController');
+router.use(auth,role('admin','manager'));
+router.get('/summary',c.summary);
+router.get('/period-locks',c.listLocks);
+router.post('/period-locks',c.lockPeriod);
+router.patch('/period-locks/:id/unlock',role('admin'),c.unlockPeriod);
+router.get('/plans',c.listPlans);
+router.post('/plans',c.createPlan);
+router.get('/validation-issues',c.validationIssues);
+module.exports=router;

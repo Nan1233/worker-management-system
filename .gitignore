@@ -1,0 +1,91 @@
+# Dependencies — never commit
+node_modules/
+**/node_modules/
+
+# Compiled frontend/backend output
+dist/
+**/dist/
+dist-ssr/
+**/dist-ssr/
+build/
+**/build/
+out/
+**/out/
+
+# Electron packaging output
+release/
+**/release/
+desktop/frontend/dist/
+desktop/release/
+
+# Binary installers and archives
+*.exe
+*.msi
+*.msix
+*.appx
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+*.blockmap
+*.zip
+*.7z
+*.rar
+*.tar
+*.tar.gz
+
+# Runtime exports and temporary files
+exports/
+**/exports/
+temp/
+**/temp/
+tmp/
+**/tmp/
+.tmp/
+**/.tmp/
+
+# Logs
+logs/
+**/logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Test coverage and caches
+coverage/
+**/coverage/
+.cache/
+**/.cache/
+.vite/
+**/.vite/
+.eslintcache
+*.tsbuildinfo
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Editor and operating system files
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.example.json
+
+# Git cleanup reports
+.git-filter-repo/
+git-objects.txt

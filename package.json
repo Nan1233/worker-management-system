@@ -1,0 +1,14 @@
+{
+  "name": "ktc-production-control",
+  "private": true,
+  "scripts": {
+    "install:all": "npm ci --prefix backend && npm ci --prefix frontend && npm ci --prefix desktop",
+    "verify": "npm run check:repo && npm run verify:backend && npm run verify:frontend && npm run verify:desktop",
+    "verify:backend": "npm --prefix backend run verify",
+    "verify:frontend": "npm --prefix frontend run check",
+    "verify:desktop": "npm --prefix desktop run check",
+    "ci": "npm run install:all && npm run verify",
+    "build:exe": "npm --prefix desktop run dist:win",
+    "check:repo": "node scripts/checkRepository.cjs"
+  }
+}

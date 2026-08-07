@@ -1,0 +1,16 @@
+KTC CLEAN SOURCE PACKAGE
+
+This archive intentionally excludes:
+- .git
+- all node_modules folders
+- desktop/release and other release folders
+- dist/build/out folders
+- EXE/MSI/ZIP build artifacts
+
+Before the first commit in an existing repository, run:
+  prepare-git-clean.bat
+
+Then commit safely with:
+  commit-code.bat "your commit message"
+
+Do not copy a .git folder from another ZIP or backup into this source tree.

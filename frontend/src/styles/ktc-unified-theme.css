@@ -1,0 +1,567 @@
+/* ============================================================
+   KTC UNIFIED UI THEME — 2026-07-31
+   Tối giản, trung tính, nhất quán giữa Worker / Lead / Manager / Admin.
+   File này được import cuối cùng để chuẩn hóa các style cũ mà không phá logic.
+============================================================ */
+
+:root {
+  --ktc-bg: #f4f6f8;
+  --ktc-surface: #ffffff;
+  --ktc-surface-subtle: #f8fafb;
+  --ktc-surface-selected: #eef3f7;
+  --ktc-text: #17212f;
+  --ktc-text-muted: #667085;
+  --ktc-text-faint: #8a94a3;
+  --ktc-border: #dfe4ea;
+  --ktc-border-strong: #cbd3dc;
+  --ktc-primary: #3f77a8;
+  --ktc-primary-hover: #32658f;
+  --ktc-primary-soft: #e8f0f7;
+  --ktc-success: #317258;
+  --ktc-success-soft: #edf6f1;
+  --ktc-warning: #8a6422;
+  --ktc-warning-soft: #fbf5e8;
+  --ktc-danger: #a33d3d;
+  --ktc-danger-soft: #fbefef;
+  --ktc-radius-sm: 6px;
+  --ktc-radius: 10px;
+  --ktc-radius-lg: 14px;
+  --ktc-shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 4px 14px rgba(16, 24, 40, .035);
+  --ktc-shadow-lg: 0 8px 30px rgba(16, 24, 40, .07);
+  --ktc-control-height: 42px;
+}
+
+html, body, #root {
+  background: var(--ktc-bg) !important;
+  color: var(--ktc-text);
+}
+
+body {
+  font-family: "Segoe UI", Inter, Arial, sans-serif !important;
+  letter-spacing: 0;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--ktc-text);
+  letter-spacing: -.015em;
+}
+
+p, small, .muted, [class*="description"], [class*="subtitle"] {
+  color: var(--ktc-text-muted);
+}
+
+/* Single-color icons */
+svg, .icon, [class*="-icon"], [class*="icon-"] {
+  color: currentColor;
+  fill: none;
+  flex-shrink: 0;
+}
+
+/* Remove decorative gradients and oversized shadows */
+.management-layout,
+.worker-layout,
+.login-page,
+.select-process-page,
+.worker-form-page,
+.history-page,
+.manager-dashboard,
+.management-report-page,
+.report-detail-page,
+.edit-report-page,
+.system-center-page {
+  background: var(--ktc-bg) !important;
+}
+
+/* Shared surfaces */
+.worker-form-card,
+.worker-quality-card,
+.machine-line,
+.detail-basic-card,
+.detail-section,
+.detail-list-card,
+.management-filter-card,
+.management-report-card,
+.management-table-container,
+.dashboard-kpi-card,
+.dashboard-panel,
+.edit-report-card,
+.formula-card,
+.governance-panel,
+.system-card,
+.export-box,
+.history-card,
+.process-card,
+[class$="-card"]:not(.login-role-card):not(.remembered-account) {
+  border: 1px solid var(--ktc-border) !important;
+  border-radius: var(--ktc-radius-lg) !important;
+  background: var(--ktc-surface) !important;
+  box-shadow: var(--ktc-shadow) !important;
+}
+
+/* Inputs */
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea,
+.worker-text-input,
+.management-search-box input,
+.history-filter-field input,
+.history-filter-field select,
+.management-filter-field input,
+.management-filter-field select {
+  min-height: var(--ktc-control-height);
+  border: 1px solid var(--ktc-border-strong) !important;
+  border-radius: var(--ktc-radius) !important;
+  background: var(--ktc-surface) !important;
+  color: var(--ktc-text) !important;
+  box-shadow: none !important;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+
+input:hover, select:hover, textarea:hover {
+  border-color: #aeb8c4 !important;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--ktc-primary) !important;
+  outline: 0 !important;
+  box-shadow: 0 0 0 3px rgba(31, 58, 86, .10) !important;
+}
+
+input:disabled, input[readonly], select:disabled, textarea:disabled {
+  border-color: var(--ktc-border) !important;
+  background: var(--ktc-surface-subtle) !important;
+  color: #4b5563 !important;
+  opacity: 1 !important;
+  cursor: default;
+}
+
+input[type="checkbox"], input[type="radio"] {
+  accent-color: var(--ktc-primary);
+}
+
+/* Buttons: one visual language */
+button,
+.btn,
+[class*="-button"] {
+  border-radius: var(--ktc-radius) !important;
+  box-shadow: none !important;
+  font-weight: 650 !important;
+}
+
+button:hover:not(:disabled),
+.btn:hover:not(:disabled),
+[class*="-button"]:hover:not(:disabled) {
+  transform: none !important;
+}
+
+button.primary,
+.btn-primary,
+.login-submit,
+.worker-submit-button,
+.management-view-selected-button,
+.management-primary-button,
+.edit-save-button,
+.selected-review-approve,
+[class*="approve-button"] {
+  border: 1px solid var(--ktc-primary) !important;
+  background: var(--ktc-primary) !important;
+  color: #fff !important;
+}
+
+button.primary:hover,
+.btn-primary:hover,
+.login-submit:hover,
+.worker-submit-button:hover,
+.management-view-selected-button:hover,
+.management-primary-button:hover {
+  background: var(--ktc-primary-hover) !important;
+}
+
+button.secondary,
+.btn-secondary,
+.management-clear-button,
+.login-back,
+.worker-reset-button,
+[class*="secondary-button"] {
+  border: 1px solid var(--ktc-border-strong) !important;
+  background: var(--ktc-surface) !important;
+  color: var(--ktc-text) !important;
+}
+
+button.danger,
+.btn-danger,
+.management-reject-button,
+.detail-reject-button,
+.selected-review-reject,
+.remove-remembered {
+  border: 1px solid #e5c6c6 !important;
+  background: var(--ktc-danger-soft) !important;
+  color: var(--ktc-danger) !important;
+}
+
+button:disabled {
+  opacity: .55 !important;
+  cursor: not-allowed !important;
+}
+
+/* Badges / status */
+.status-badge,
+[class*="status-badge"],
+.management-status,
+.detail-state,
+.machine-card-badge,
+.badge {
+  border-radius: 999px !important;
+  border: 1px solid var(--ktc-border) !important;
+  background: var(--ktc-surface-subtle) !important;
+  color: var(--ktc-text-muted) !important;
+  font-weight: 650 !important;
+  box-shadow: none !important;
+}
+
+.status-badge.approved, .status-approved, .success {
+  border-color: #cfe4d8 !important;
+  background: var(--ktc-success-soft) !important;
+  color: var(--ktc-success) !important;
+}
+
+.status-badge.pending, .status-pending, .warning {
+  border-color: #eadbb9 !important;
+  background: var(--ktc-warning-soft) !important;
+  color: var(--ktc-warning) !important;
+}
+
+.status-badge.rejected, .status-rejected, .error, .danger {
+  border-color: #e9c9c9 !important;
+  background: var(--ktc-danger-soft) !important;
+  color: var(--ktc-danger) !important;
+}
+
+/* Tables */
+table,
+.management-report-table,
+.history-table,
+.report-table {
+  width: 100%;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  color: var(--ktc-text);
+}
+
+thead th {
+  border-bottom: 1px solid var(--ktc-border-strong) !important;
+  background: var(--ktc-surface-subtle) !important;
+  color: #4d5968 !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: .02em;
+  text-transform: none !important;
+}
+
+tbody td {
+  border-bottom: 1px solid #edf0f3 !important;
+  background: var(--ktc-surface) !important;
+}
+
+tbody tr:hover td {
+  background: #fafbfc !important;
+}
+
+/* Page headers */
+.management-report-header,
+.dashboard-header,
+.history-header,
+.worker-form-header,
+.detail-header,
+.edit-report-header,
+.system-header,
+.formula-header {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.management-report-header h1,
+.dashboard-header h1,
+.history-header h1,
+.worker-form-header h1,
+.detail-header h1,
+.edit-report-header h1 {
+  font-size: clamp(22px, 2.2vw, 30px) !important;
+  font-weight: 750 !important;
+}
+
+/* Worker navigation */
+.worker-topbar {
+  border-bottom: 1px solid var(--ktc-border) !important;
+  background: rgba(255,255,255,.98) !important;
+  box-shadow: 0 1px 8px rgba(16,24,40,.04) !important;
+}
+
+.worker-brand-mark,
+.management-brand-mark {
+  border: 0 !important;
+  border-radius: 9px !important;
+  background: var(--ktc-primary) !important;
+  box-shadow: none !important;
+}
+
+.worker-desktop-nav button,
+.worker-mobile-nav button {
+  color: var(--ktc-text-muted) !important;
+}
+
+.worker-desktop-nav button:hover,
+.worker-desktop-nav button.active,
+.worker-mobile-nav button.active {
+  border-color: var(--ktc-border) !important;
+  background: var(--ktc-primary-soft) !important;
+  color: var(--ktc-primary) !important;
+}
+
+.worker-avatar {
+  background: var(--ktc-primary-soft) !important;
+  color: var(--ktc-primary) !important;
+}
+
+/* Management sidebar: elegant, not flashy */
+.management-layout {
+  grid-template-columns: 276px minmax(0, 1fr) !important;
+}
+
+.management-sidebar {
+  padding: 12px !important;
+}
+
+.management-sidebar-shell {
+  border: 1px solid #263c53 !important;
+  border-radius: var(--ktc-radius-lg) !important;
+  background: #182b3e !important;
+  box-shadow: none !important;
+}
+
+.management-user-card,
+.management-menu-item,
+.management-menu-icon,
+.management-footer {
+  border-radius: var(--ktc-radius) !important;
+  box-shadow: none !important;
+}
+
+.management-user-card {
+  border-color: rgba(255,255,255,.10) !important;
+  background: rgba(255,255,255,.045) !important;
+  backdrop-filter: none !important;
+}
+
+.management-menu-item {
+  min-height: 50px !important;
+  color: #cbd5df !important;
+}
+
+.management-menu-item:hover {
+  border-color: rgba(255,255,255,.08) !important;
+  background: rgba(255,255,255,.055) !important;
+}
+
+.management-menu-item.active {
+  border-color: rgba(255,255,255,.12) !important;
+  background: rgba(255,255,255,.10) !important;
+  color: #fff !important;
+}
+
+.management-menu-icon,
+.management-menu-item.active .management-menu-icon {
+  background: transparent !important;
+}
+
+/* KPI cards */
+.dashboard-kpi-grid,
+.metric-grid {
+  gap: 12px !important;
+}
+
+.dashboard-kpi-card {
+  min-height: 118px !important;
+  padding: 18px !important;
+}
+
+.dashboard-kpi-icon,
+.dashboard-quick-icon,
+.export-box-icon {
+  border: 1px solid var(--ktc-border) !important;
+  border-radius: var(--ktc-radius) !important;
+  background: var(--ktc-surface-subtle) !important;
+  color: var(--ktc-primary) !important;
+  box-shadow: none !important;
+}
+
+/* Multi-machine cards */
+.multi-machine-panel {
+  gap: 14px !important;
+}
+
+.machine-line {
+  gap: 16px !important;
+  padding: 18px !important;
+  border-color: var(--ktc-border) !important;
+  border-radius: var(--ktc-radius-lg) !important;
+  background: var(--ktc-surface) !important;
+  box-shadow: none !important;
+}
+
+.machine-card-header {
+  border-bottom-color: var(--ktc-border) !important;
+}
+
+.machine-card-header strong {
+  color: var(--ktc-text) !important;
+}
+
+.machine-card-badge {
+  background: var(--ktc-primary-soft) !important;
+  color: var(--ktc-primary) !important;
+}
+
+.machine-section-title {
+  color: var(--ktc-text-muted) !important;
+  font-size: 12px !important;
+  letter-spacing: .025em !important;
+  text-transform: none !important;
+}
+
+.machine-standard-card {
+  border-color: var(--ktc-border) !important;
+  background: var(--ktc-surface-subtle) !important;
+}
+
+.machine-standard-card strong,
+.machine-line-total strong {
+  color: var(--ktc-primary) !important;
+}
+
+.machine-line-total {
+  border-color: var(--ktc-border) !important;
+  background: var(--ktc-primary-soft) !important;
+}
+
+.machine-deduction-box {
+  border-color: var(--ktc-border) !important;
+  background: var(--ktc-surface) !important;
+}
+
+.machine-deduction-option {
+  background: var(--ktc-surface-subtle) !important;
+}
+
+/* Quality summary: subdued status colors */
+.worker-quality-card.ok {
+  border-color: #cfe4d8 !important;
+  background: var(--ktc-success-soft) !important;
+}
+
+.worker-quality-card.ng {
+  border-color: #e9c9c9 !important;
+  background: var(--ktc-danger-soft) !important;
+}
+
+.worker-quality-card.total-output {
+  border-color: #d3dce5 !important;
+  background: var(--ktc-primary-soft) !important;
+}
+
+/* Login */
+.login-page {
+  background: var(--ktc-bg) !important;
+}
+
+.login-showcase {
+  background: #182b3e !important;
+}
+
+.login-card,
+.login-role-card,
+.remembered-account {
+  border: 1px solid var(--ktc-border) !important;
+  border-radius: var(--ktc-radius-lg) !important;
+  background: var(--ktc-surface) !important;
+  box-shadow: var(--ktc-shadow) !important;
+}
+
+.login-role-card:hover,
+.remembered-account:hover {
+  border-color: var(--ktc-border-strong) !important;
+  transform: none !important;
+}
+
+.login-role-icon,
+.login-input-icon {
+  background: var(--ktc-surface-subtle) !important;
+  color: var(--ktc-primary) !important;
+}
+
+/* Empty / loading states */
+.management-empty,
+.detail-empty-list,
+.dashboard-empty,
+.history-empty,
+.edit-empty,
+.formula-empty,
+.system-empty,
+.empty-row {
+  border: 1px dashed var(--ktc-border-strong) !important;
+  border-radius: var(--ktc-radius-lg) !important;
+  background: var(--ktc-surface-subtle) !important;
+  color: var(--ktc-text-muted) !important;
+  box-shadow: none !important;
+}
+
+/* Toasts */
+.toast,
+[class*="toast-"] {
+  border-radius: var(--ktc-radius) !important;
+  box-shadow: var(--ktc-shadow-lg) !important;
+}
+
+/* Mobile */
+@media (max-width: 900px) {
+  .management-layout {
+    display: block !important;
+  }
+  .management-sidebar {
+    padding: 0 !important;
+  }
+  .management-sidebar-shell {
+    border-radius: 0 !important;
+  }
+}
+
+@media (max-width: 640px) {
+  :root { --ktc-control-height: 44px; }
+  .worker-form-card,
+  .machine-line,
+  .management-filter-card,
+  .management-report-card,
+  .detail-basic-card,
+  .detail-section,
+  .edit-report-card {
+    border-radius: 10px !important;
+  }
+  .machine-line { padding: 14px !important; }
+}
+
+/* Accessibility */
+:focus-visible {
+  outline: 2px solid var(--ktc-primary) !important;
+  outline-offset: 2px !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

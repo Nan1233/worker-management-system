@@ -1,0 +1,13 @@
+const express=require('express');
+const router=express.Router();
+const controller=require('../controllers/adminMasterController');
+const verifyToken=require('../middleware/authMiddleware');
+const checkRole=require('../middleware/roleMiddleware');
+router.use(verifyToken,checkRole('admin','manager','lead'));
+router.get('/:resource',controller.list);
+router.post('/:resource',controller.create);
+router.put('/:resource/:id',controller.update);
+router.delete('/:resource/:id',controller.remove);
+router.put('/workers/:id/profile',controller.updateWorker);
+router.put('/workers/:id/processes',controller.setWorkerProcesses);
+module.exports=router;

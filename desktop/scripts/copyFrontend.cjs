@@ -1,0 +1,14 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const desktopDir = path.resolve(__dirname, '..');
+const projectDir = path.resolve(desktopDir, '..');
+const sourceDir = path.join(projectDir, 'frontend', 'dist');
+const targetDir = path.join(desktopDir, 'frontend', 'dist');
+const sourceIndex = path.join(sourceDir, 'index.html');
+if (!fs.existsSync(sourceIndex)) throw new Error(`Frontend chưa build hoặc thiếu file: ${sourceIndex}`);
+fs.rmSync(targetDir, { recursive: true, force: true });
+fs.mkdirSync(path.dirname(targetDir), { recursive: true });
+fs.cpSync(sourceDir, targetDir, { recursive: true });
+const targetIndex = path.join(targetDir, 'index.html');
+if (!fs.existsSync(targetIndex)) throw new Error(`Sao chép frontend thất bại: ${targetIndex}`);
+console.log(`[KTC] Frontend copied: ${targetIndex}`);
