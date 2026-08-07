@@ -67,7 +67,7 @@
     place-items: center;
     border-radius: 12px;
     background: #edf3ff;
-    color: #2563eb;
+    color: var(--ktc-brand-600);
 }
 
 .dashboard-kpi-card.success .dashboard-kpi-icon {
@@ -426,7 +426,7 @@
     place-items: center;
     border-radius: 11px;
     background: #eff5ff;
-    color: #2563eb;
+    color: var(--ktc-brand-600);
 }
 
 .dashboard-skeleton {

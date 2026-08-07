@@ -408,7 +408,7 @@ function Login() {
                                     <span className="login-input-icon">♙</span>
                                     <input
                                         type="text"
-                                        inputMode="numeric"
+                                        inputMode="text"
                                         autoComplete="username"
                                         placeholder="Ví dụ: 0599"
                                         value={username}

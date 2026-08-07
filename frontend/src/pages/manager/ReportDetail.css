@@ -24,7 +24,7 @@
     padding: 0;
     border: 0;
     background: transparent;
-    color: #2563eb;
+    color: var(--ktc-brand-600);
     font-weight: 700;
     cursor: pointer;
 }
@@ -222,7 +222,7 @@
 .detail-timeline { display: grid; gap: 0; }
 .detail-timeline-item { position: relative; display: grid; grid-template-columns: 20px 1fr; gap: 10px; padding-bottom: 18px; }
 .detail-timeline-item:not(:last-child)::before { content: ""; position: absolute; left: 7px; top: 14px; bottom: 0; width: 2px; background: #dbeafe; }
-.detail-timeline-dot { width: 16px; height: 16px; margin-top: 2px; border-radius: 50%; background: #2563eb; box-shadow: 0 0 0 4px #dbeafe; }
+.detail-timeline-dot { width: 16px; height: 16px; margin-top: 2px; border-radius: 50%; background: var(--ktc-brand-600); box-shadow: 0 0 0 4px #dbeafe; }
 .detail-timeline-item p { margin: 4px 0; color: #475569; }
 .detail-timeline-item time { color: #94a3b8; font-size: 12px; }
 .detail-sticky-actions { position: sticky; bottom: 12px; z-index: 20; max-width: 1080px; margin: 16px auto 0; padding: 12px; display: flex; justify-content: flex-end; gap: 12px; border: 1px solid #cbd5e1; border-radius: 14px; background: rgba(255,255,255,.96); box-shadow: 0 10px 30px rgba(15,23,42,.16); backdrop-filter: blur(8px); }

@@ -56,7 +56,7 @@
       "artifactName": "KTC-Production-Control-Setup.exe"
     },
     "portable": {
-      "artifactName": "KTC-Production-Control-${version}-${arch}.${ext}"
+      "artifactName": "KTC-Production-Control.exe"
     },
     "compression": "store"
   },

@@ -37,7 +37,7 @@
     border: 1px solid #dfe5ec;
     border-radius: 10px;
     background: #fff;
-    color: #2563eb;
+    color: var(--ktc-brand-600);
     font-size: 25px;
     line-height: 1;
     cursor: pointer;
@@ -89,9 +89,9 @@
     margin: 0 0 20px;
     padding: 0 0 4px;
     border: none;
-    border-bottom: 1px solid #2563eb;
+    border-bottom: 1px solid var(--ktc-brand-600);
     background: transparent;
-    color: #2563eb;
+    color: var(--ktc-brand-600);
     font: inherit;
     font-size: 16px;
     font-weight: 700;
@@ -143,7 +143,7 @@
     border: 1px solid #dbe4ef;
     border-radius: 17px;
     background: #eff6ff;
-    color: #3b82f6;
+    color: var(--ktc-brand-500);
     font-size: 40px;
     line-height: 1;
     font-weight: 600;

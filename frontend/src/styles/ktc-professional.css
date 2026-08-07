@@ -228,3 +228,161 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 @media (max-width: 520px) {
   .process-list { grid-template-columns: 1fr; }
 }
+
+/* ===== KTC Professional UI v2: shared page scale and visual consistency ===== */
+.management-content {
+  font-size: 14px;
+  line-height: 1.5;
+}
+.management-content > :where(section, div) { min-width: 0; }
+.management-content :where(h1) { color: var(--ktc-ink-950); letter-spacing: -.03em; }
+.management-content :where(h2, h3) { color: var(--ktc-ink-900); }
+.management-content :where(p) { line-height: 1.55; }
+
+/* Pages already live inside ManagementLayout; avoid double outer padding. */
+.management-content .manager-dashboard,
+.management-content .formula-page,
+.management-content .governance-page,
+.management-content .system-center,
+.management-content .download-page {
+  width: 100%;
+  max-width: none;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+}
+
+/* Consistent page titles across all management/admin screens. */
+.management-workers-header h1,
+.manager-dashboard-header h1,
+.master-heading h1,
+.formula-header h1,
+.governance-header h1,
+.system-center h1,
+.download-header h1,
+.management-content > section > h1 {
+  margin-top: 0;
+  color: var(--ktc-ink-950);
+  font-size: clamp(28px, 2.25vw, 34px);
+  line-height: 1.16;
+  letter-spacing: -.03em;
+}
+.management-workers-header p,
+.manager-dashboard-header p,
+.master-heading p,
+.formula-header p,
+.governance-header p,
+.system-center header p,
+.download-header p,
+.management-content > section > p {
+  color: var(--ktc-ink-500);
+  font-size: 14px;
+}
+
+/* Cards and toolbars share one enterprise surface language. */
+.management-workers-toolbar,
+.management-workers-card,
+.dashboard-kpi-card,
+.dashboard-panel,
+.dashboard-quick-actions,
+.formula-card,
+.governance-cards article,
+.governance-panel,
+.master-toolbar,
+.master-table-wrap,
+.system-list,
+.download-card,
+.export-box {
+  border-color: var(--ktc-border);
+  border-radius: var(--ktc-radius-lg);
+  background: var(--ktc-surface);
+  box-shadow: var(--ktc-shadow-xs);
+}
+
+/* Normalize legacy buttons without flattening semantic colors. */
+.management-content button:not(.management-approve-button):not(.management-reject-button):not(.primary):not(.edit-save) {
+  font-size: 13px;
+}
+.management-content :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  font-size: 14px;
+}
+
+/* Admin/master pages */
+.master-page { gap: 20px; }
+.master-heading { align-items: center; }
+.master-heading span { color: var(--ktc-brand-600); font-size: 11px; letter-spacing: .1em; }
+.master-tabs { gap: 9px; }
+.master-tabs button { min-height: 62px; border-color: var(--ktc-border); color: var(--ktc-ink-700); }
+.master-tabs button.active { border-color: var(--ktc-brand-300); background: var(--ktc-brand-50); box-shadow: inset 0 0 0 1px var(--ktc-brand-200); color: var(--ktc-brand-900); }
+.master-toolbar { padding: 14px; }
+.master-table-wrap table { font-size: 13px; }
+.master-table-wrap th { color: var(--ktc-ink-600); background: #f8fafc; }
+
+/* Formula settings */
+.formula-card { margin-top: 18px; padding: 22px; }
+.formula-card-title h2 { font-size: 21px; }
+.formula-grid label > span, .threshold span { color: var(--ktc-ink-700); font-size: 12px; }
+.formula-check { border-color: var(--ktc-border); background: var(--ktc-surface-subtle); }
+.formula-switch input:checked + span { background: var(--ktc-brand-600); }
+.formula-table th { color: var(--ktc-ink-600); }
+
+/* System center */
+.system-center header { margin-bottom: 22px; }
+.system-center header button, .system-tabs button { min-height: 40px; border: 1px solid var(--ktc-border); background: #fff; color: var(--ktc-ink-700); }
+.system-tabs { gap: 8px; }
+.system-tabs button.active { border-color: var(--ktc-brand-700); background: var(--ktc-brand-700); color: #fff; }
+.system-item { border-color: var(--ktc-border); box-shadow: none; }
+.system-item.unread { border-left: 4px solid var(--ktc-brand-600); background: var(--ktc-brand-50); }
+.unread .dot { background: var(--ktc-brand-600); }
+
+/* Governance */
+.governance-cards { gap: 14px; }
+.governance-cards article, .governance-panel { border-color: var(--ktc-border); box-shadow: var(--ktc-shadow-xs); }
+.governance-header button, .governance-form button, .governance-row button { min-height: 40px; }
+
+/* Worker secondary pages */
+.detail-container { background: var(--ktc-bg); color: var(--ktc-ink-900); }
+.detail-summary > div, .detail-grid > div, .metric-grid > div, .detail-section { border-color: var(--ktc-border); box-shadow: var(--ktc-shadow-xs); }
+.detail-header h1, .detail-summary strong, .detail-grid strong, .metric-grid strong, .detail-section h2 { color: var(--ktc-ink-950); }
+.detail-header p, .detail-summary span, .detail-grid span, .metric-grid span { color: var(--ktc-ink-500); }
+
+/* Loading and unfinished pages should still look deliberate. */
+.route-loading,
+.management-content > section:not([class]) {
+  border: 1px solid var(--ktc-border);
+  border-radius: var(--ktc-radius-lg);
+  background: #fff;
+}
+.route-loading { min-height: 180px; display: grid; place-items: center; color: var(--ktc-ink-500); font-size: 14px; }
+.management-content > section:not([class]) { padding: 26px; }
+.management-content > section:not([class]) h1 { margin-bottom: 8px; }
+.management-content > section:not([class]) p { margin: 0; }
+
+@media (max-width: 820px) {
+  .management-content { font-size: 13.5px; }
+  .management-workers-header h1,
+  .manager-dashboard-header h1,
+  .master-heading h1,
+  .formula-header h1,
+  .governance-header h1,
+  .system-center h1,
+  .download-header h1,
+  .management-content > section > h1 { font-size: 24px; }
+  .master-heading, .management-workers-header { align-items: stretch; flex-direction: column; }
+  .master-tabs { display: flex; overflow-x: auto; padding-bottom: 3px; }
+  .master-tabs button { min-width: 150px; flex: 0 0 auto; }
+}
+
+/* Readability pass for dashboards and dense management views. */
+.dashboard-process-meta { font-size: 11.5px; }
+.dashboard-ng-badge { font-size: 11px !important; }
+.dashboard-shift-column > span:last-child { font-size: 10.5px; }
+.dashboard-shift-quality-list strong { font-size: 12px; }
+.dashboard-shift-quality-list span { font-size: 10.5px; }
+.dashboard-shift-quality-list b { font-size: 11px; }
+.management-workers-table { font-size: 13px; }
+
+@media (max-width: 820px) {
+  .management-workers-table td::before { font-size: 10px; }
+}
