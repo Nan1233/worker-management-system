@@ -432,6 +432,16 @@ function solidFill(argb) {
   return { type: 'pattern', pattern: 'solid', fgColor: { argb } };
 }
 
+function applyAllBorders(sheet, { fromRow = 1, toRow = null, fromCol = 1, toCol = null } = {}) {
+  const lastRow = Math.max(fromRow, Number(toRow || sheet.rowCount || 0));
+  const lastCol = Math.max(fromCol, Number(toCol || sheet.columnCount || 0));
+  for (let row = fromRow; row <= lastRow; row += 1) {
+    for (let col = fromCol; col <= lastCol; col += 1) {
+      sheet.getCell(row, col).border = thinBorder();
+    }
+  }
+}
+
 function applyCellStyle(cell, options = {}) {
   // Ghi đè đầy đủ style để Excel luôn hiển thị nội dung ngay khi mở file.
   cell.font = {
@@ -745,7 +755,7 @@ function renderProcessSheet(workbook, code, processConfig, processData, yearMont
         const cell = dateRow.getCell(col);
         cell.value = null;
         cell.fill = solidFill(col <= 4 ? COLORS.blueLight : COLORS.white);
-        cell.border = col <= 4 ? thinBorder() : {};
+        cell.border = thinBorder();
       }
 
       // Chỉ gộp A:D trên hàng phân cách ngày. Các dòng dữ liệu phía dưới
@@ -854,6 +864,8 @@ function renderProcessSheet(workbook, code, processConfig, processData, yearMont
     margins: { left: 0.2, right: 0.2, top: 0.4, bottom: 0.4, header: 0.15, footer: 0.15 }
   };
   sheet.headerFooter = { oddFooter: '&LKTC Production Control&CTrang &P / &N&R&D &T' };
+  // All Borders cho toàn bộ vùng bảng: header nhóm, header cột, hàng ngày, dữ liệu và tổng cộng.
+  applyAllBorders(sheet, { fromRow: 4, toRow: totalRowNumber, fromCol: 1, toCol: lastColumn });
   return { code, sheet: processConfig.sheet, reportCount: reports.length, deductionColumnCount: deductionTypes.length, defectColumnCount: defectTypes.length };
 }
 
@@ -898,6 +910,7 @@ function addSummary(workbook, payload, yearMonth) {
     rowNumber += 1;
   }
   sheet.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 1 };
+  applyAllBorders(sheet, { fromRow: 4, toRow: rowNumber - 1, fromCol: 1, toCol: columns.length });
   return sheet;
 }
 
@@ -934,6 +947,7 @@ function addReconciliationSheet(workbook, payload) {
     }
   }
   sheet.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+  applyAllBorders(sheet, { fromRow: 3, toRow: rowNumber - 1, fromCol: 1, toCol: headers.length });
   return sheet;
 }
 
@@ -988,6 +1002,7 @@ async function buildReconciliationWorkbook({ date, payload }) {
     }
   }
   sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: Math.max(1, count + 1), column: headers.length } };
+  applyAllBorders(sheet, { fromRow: 1, toRow: Math.max(1, count + 1), fromCol: 1, toCol: headers.length });
   const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
   return { buffer, rowCount: count };
 }
@@ -1007,6 +1022,7 @@ module.exports = {
     sortReports,
     trainingFactor,
     countedNg,
-    reportTimeKey
+    reportTimeKey,
+    applyAllBorders
   }
 };
