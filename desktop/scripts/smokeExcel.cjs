@@ -124,6 +124,12 @@ const payload = {
     assert.equal(sheet.getCell(7, outputCol).value, 0, 'SP quy đổi phải dùng cùng quy tắc học việc');
     assert.equal(Number(sheet.getCell(7, ngRateCol).value.toFixed(8)), Number((2 / 47).toFixed(8)), 'Tỷ lệ NG phải là Tổng NG/(OK+NG), KQD vẫn thuộc tổng NG chất lượng');
 
+    // Tổng SP không được cộng dồn các báo cáo. Chỉ lấy kết quả SP quy đổi cuối cùng
+    // hợp lệ theo đúng thứ tự báo cáo đã render. GC có 0 + 47 + 47, kết quả phải là 47, không phải 94.
+    assert.equal(sheet.getCell(11, outputCol).value, 47, 'TỔNG CỘNG - Tổng SP phải lấy đúng kết quả cuối cùng, không cộng dồn');
+    const monthlySummary = workbook.getWorksheet('TỔNG HỢP THÁNG');
+    assert.equal(monthlySummary.getCell(5, 9).value, 47, 'TỔNG HỢP THÁNG - Tổng SP phải lấy đúng kết quả cuối cùng, không cộng dồn');
+
     const integerFormat = '#,##0;-#,##0;0';
     const decimalFormat = '#,##0.##;-#,##0.##;0';
 

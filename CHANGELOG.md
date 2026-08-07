@@ -1,3 +1,9 @@
+
+## 2026-08-07 — Tổng SP lấy kết quả cuối
+- Sửa workbook tháng: `Tổng SP`/`Tổng SP quy đổi` không còn cộng dồn.
+- Dòng `TỔNG CỘNG` của từng công đoạn chỉ lấy SP quy đổi cuối cùng hợp lệ.
+- `TỔNG HỢP THÁNG` dùng cùng quy tắc.
+- Bổ sung smoke test chống regression.
 # Thay đổi
 
 - Sửa quyền công đoạn theo từng công nhân.
