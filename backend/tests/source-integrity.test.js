@@ -160,3 +160,16 @@ test('release source has one Electron implementation and no generated archives',
   assert.equal(fs.existsSync(path.join(root, 'electron')), false);
   assert.equal(fs.existsSync(path.join(root, 'templates.zip')), false);
 });
+
+test('desktop monthly export is split into one summary file and nine process files', () => {
+  const monthly = read('../desktop/electron/monthlyWorkbookLocal.cjs');
+  const desktopMain = read('../desktop/electron/main.cjs');
+  assert.match(monthly, /buildSplitMonthlyWorkbooksLocal/);
+  assert.match(monthly, /00_TONG_HOP_SAN_XUAT_/);
+  for (const prefix of ['01_CAN','02_EP','03_XU_LY_BAVIA','04_CAT_LONG','05_MAI','06_DO','07_KIEM_1','08_KIEM_2','09_SAN_XUAT_3']) {
+    assert.ok(monthly.includes(`'${prefix}'`), `missing split workbook prefix ${prefix}`);
+  }
+  assert.match(desktopMain, /MONTHLY_SPLIT_WORKBOOKS_START/);
+  assert.match(desktopMain, /buildSplitMonthlyWorkbooksLocal/);
+  assert.match(desktopMain, /expectedFileCount = Object\.keys\(PROCESS_SHEETS\)\.length \+ 1/);
+});

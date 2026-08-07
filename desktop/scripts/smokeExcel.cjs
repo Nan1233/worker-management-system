@@ -3,7 +3,7 @@ const os = require('node:os');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const ExcelJS = require('exceljs');
-const { buildMonthlyWorkbookLocal, buildReconciliationWorkbook, PROCESS_SHEETS } = require('../electron/monthlyWorkbookLocal.cjs');
+const { buildSplitMonthlyWorkbooksLocal, PROCESS_SHEETS, PROCESS_FILE_PREFIXES } = require('../electron/monthlyWorkbookLocal.cjs');
 
 function pad2(value) {
   return String(value).padStart(2, '0');
@@ -76,18 +76,40 @@ const payload = {
 (async () => {
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'ktc-excel-smoke-'));
   try {
-    const reportBuilt = await buildMonthlyWorkbookLocal({ date: '2026-08-01', payload });
-    const dataBuilt = await buildReconciliationWorkbook({ date: '2026-08-01', payload });
-    const reportPath = path.join(temp, 'report.xlsx');
-    const dataPath = path.join(temp, 'data.xlsx');
-    await fs.writeFile(reportPath, reportBuilt.buffer);
-    await fs.writeFile(dataPath, dataBuilt.buffer);
+    const splitBuilt = await buildSplitMonthlyWorkbooksLocal({ date: '2026-08-01', payload });
+    assert.equal(splitBuilt.processes.length, 9, 'Phải tạo đúng 9 file công đoạn');
+    assert.equal(splitBuilt.summary.fileName, '00_TONG_HOP_SAN_XUAT_08-2026.xlsx');
+
+    const expectedProcessFiles = Object.keys(PROCESS_SHEETS).map(
+      (code) => `${PROCESS_FILE_PREFIXES[code]}_08-2026.xlsx`
+    );
+    assert.deepEqual(splitBuilt.processes.map((item) => item.fileName), expectedProcessFiles);
+
+    // Ghi đủ 10 file ra thư mục tạm để mô phỏng đúng cách Desktop cập nhật tháng.
+    const summaryPath = path.join(temp, splitBuilt.summary.fileName);
+    await fs.writeFile(summaryPath, splitBuilt.summary.buffer);
+    const processPaths = new Map();
+    for (const item of splitBuilt.processes) {
+      const filePath = path.join(temp, item.fileName);
+      await fs.writeFile(filePath, item.buffer);
+      processPaths.set(item.processCode, filePath);
+    }
+    const generatedXlsx = (await fs.readdir(temp)).filter((name) => name.toLowerCase().endsWith('.xlsx')).sort();
+    assert.equal(generatedXlsx.length, 10, 'Desktop phải tạo đúng 10 file Excel tháng');
+
+    // Mỗi file công đoạn chỉ chứa một sheet tương ứng, tránh workbook quá nặng/rộng.
+    for (const [code, config] of Object.entries(PROCESS_SHEETS)) {
+      const processWorkbook = new ExcelJS.Workbook();
+      await processWorkbook.xlsx.readFile(processPaths.get(code));
+      assert.deepEqual(
+        processWorkbook.worksheets.map((worksheet) => worksheet.name),
+        [config.sheet],
+        `${code} phải nằm trong file riêng và chỉ chứa sheet ${config.sheet}`
+      );
+    }
 
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.readFile(reportPath);
-    const expectedSheets = ['BÌA', 'TỔNG HỢP THÁNG', ...Object.values(PROCESS_SHEETS).map((x) => x.sheet), 'ĐỐI CHIẾU DỮ LIỆU'];
-    assert.deepEqual(workbook.worksheets.map((s) => s.name), expectedSheets);
-
+    await workbook.xlsx.readFile(processPaths.get('GC'));
     const sheet = workbook.getWorksheet('CẮT LỒNG');
     assert.equal(sheet.views[0].xSplit, 4, 'Freeze phải dừng ở Tên NV');
     assert.equal(sheet.views[0].topLeftCell, 'E6');
@@ -127,8 +149,24 @@ const payload = {
     // Tổng SP không được cộng dồn các báo cáo. Chỉ lấy kết quả SP quy đổi cuối cùng
     // hợp lệ theo đúng thứ tự báo cáo đã render. GC có 0 + 47 + 47, kết quả phải là 47, không phải 94.
     assert.equal(sheet.getCell(11, outputCol).value, 47, 'TỔNG CỘNG - Tổng SP phải lấy đúng kết quả cuối cùng, không cộng dồn');
-    const monthlySummary = workbook.getWorksheet('TỔNG HỢP THÁNG');
-    assert.equal(monthlySummary.getCell(5, 9).value, 47, 'TỔNG HỢP THÁNG - Tổng SP phải lấy đúng kết quả cuối cùng, không cộng dồn');
+
+    // File 00 giữ phần tổng hợp và đối chiếu chung; không nhét lại 9 sheet công đoạn.
+    const summaryWorkbook = new ExcelJS.Workbook();
+    await summaryWorkbook.xlsx.readFile(summaryPath);
+    assert.deepEqual(
+      summaryWorkbook.worksheets.map((worksheet) => worksheet.name),
+      ['BÌA', 'TỔNG HỢP THÁNG', 'ĐỐI CHIẾU DỮ LIỆU']
+    );
+    const monthlySummary = summaryWorkbook.getWorksheet('TỔNG HỢP THÁNG');
+    let gcSummaryRow = null;
+    for (let row = 5; row <= monthlySummary.rowCount; row += 1) {
+      if (String(monthlySummary.getCell(row, 1).value || '').trim() === PROCESS_SHEETS.GC.title) {
+        gcSummaryRow = row;
+        break;
+      }
+    }
+    assert.ok(gcSummaryRow, 'TỔNG HỢP THÁNG phải có dòng công đoạn CẮT/LỒNG');
+    assert.equal(monthlySummary.getCell(gcSummaryRow, 9).value, 47, 'TỔNG HỢP THÁNG - Tổng SP phải lấy đúng kết quả cuối cùng, không cộng dồn');
 
     const integerFormat = '#,##0;-#,##0;0';
     const decimalFormat = '#,##0.##;-#,##0.##;0';
@@ -140,8 +178,6 @@ const payload = {
     assert.equal(sheet.getCell(7, enteredOutputCol).numFmt, integerFormat, 'SP công nhân nhập phải hiển thị số nguyên');
     assert.equal(sheet.getCell(7, outputCol).numFmt, integerFormat, 'SP quy đổi phải hiển thị số nguyên');
 
-    // Renderer chọn format theo chính giá trị: số nguyên không có dấu chấm,
-    // giá trị thật sự có phần lẻ mới dùng tối đa hai chữ số thập phân.
     assert.equal(sheet.getCell(7, totalTimeCol).numFmt, integerFormat, 'Thời gian nguyên phải hiển thị không có dấu chấm');
     assert.equal(sheet.getCell(7, deductionTimeCol).numFmt, decimalFormat, 'Trừ giờ có phần lẻ phải giữ tối đa 2 số thập phân');
     assert.equal(sheet.getCell(7, standardCol).numFmt, integerFormat, 'Định mức nguyên phải hiển thị không có dấu chấm');
@@ -151,10 +187,9 @@ const payload = {
       assert.equal(sheet.getCell(9, col).value, null, 'Ngoài vùng A:D, hàng phân cách ngày phải để trống');
     }
 
-    const dataWorkbook = new ExcelJS.Workbook();
-    await dataWorkbook.xlsx.readFile(dataPath);
-    assert.equal(excelDateKey(dataWorkbook.getWorksheet('DATA_DB').getCell('C2').value), '2026-08-01');
-    assert.equal(excelDateKey(dataWorkbook.getWorksheet('DATA_DB').getCell('D2').value), '2026-08-02');
+    const reconciliation = summaryWorkbook.getWorksheet('ĐỐI CHIẾU DỮ LIỆU');
+    assert.ok(reconciliation, 'File tổng hợp phải giữ sheet đối chiếu dữ liệu');
+    assert.equal(excelDateKey(reconciliation.getCell('C4').value), '2026-08-01');
     console.log('[KTC] Excel integration smoke OK');
   } finally {
     await fs.rm(temp, { recursive: true, force: true });

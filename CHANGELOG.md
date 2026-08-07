@@ -1,3 +1,9 @@
+## 2026-08-07 - Split monthly Excel files
+- Desktop monthly Excel export now creates 10 files: one summary workbook plus nine process workbooks.
+- Each process workbook contains only its own process sheet.
+- Preserves All Borders, daily STT reset, freeze panes, process-specific details and final-result Total SP rule.
+- Smoke contract updated to verify all 10 files and their sheet structure.
+
 
 ## 2026-08-07 — Tổng SP lấy kết quả cuối
 - Sửa workbook tháng: `Tổng SP`/`Tổng SP quy đổi` không còn cộng dồn.

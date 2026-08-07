@@ -2,21 +2,20 @@
 
 Bộ dựng Excel tháng không đọc hoặc sửa file mẫu khi chạy. File mẫu được dùng để xác định nghiệp vụ và cách chia nhóm, còn workbook đầu ra được tạo mới để tránh dữ liệu mẫu, công thức ngoài và lỗi OOXML.
 
-## File báo cáo chính
+## File Excel tháng trên Desktop
 
-- BÌA
-- TỔNG HỢP THÁNG
-- CÁN
-- ÉP
-- XỬ LÝ BAVIA
-- CẮT LỒNG
-- MÀI
-- ĐO
-- KIỂM 1
-- KIỂM 2
-- SẢN XUẤT 3
-- ĐỐI CHIẾU DỮ LIỆU
+Từ 07/08/2026, mỗi công đoạn được tách thành một file riêng để dễ mở, lọc và chỉnh sửa:
 
-Mỗi sheet dùng danh mục trừ giờ và NG riêng của đúng công đoạn từ TiDB. Danh mục active luôn được hiển thị; loại lịch sử có phát sinh trong tháng cũng được bổ sung.
+- `00_TONG_HOP_SAN_XUAT_MM-YYYY.xlsx` (BÌA + TỔNG HỢP THÁNG + ĐỐI CHIẾU DỮ LIỆU)
+- `01_CAN_MM-YYYY.xlsx`
+- `02_EP_MM-YYYY.xlsx`
+- `03_XU_LY_BAVIA_MM-YYYY.xlsx`
+- `04_CAT_LONG_MM-YYYY.xlsx`
+- `05_MAI_MM-YYYY.xlsx`
+- `06_DO_MM-YYYY.xlsx`
+- `07_KIEM_1_MM-YYYY.xlsx`
+- `08_KIEM_2_MM-YYYY.xlsx`
+- `09_SAN_XUAT_3_MM-YYYY.xlsx`
 
-Nguồn dữ liệu duy nhất là `production_reports` đã duyệt cùng các bảng chi tiết theo `report_id`.
+Mỗi file công đoạn chỉ có một sheet của đúng công đoạn. Nguồn dữ liệu duy nhất vẫn là `production_reports` đã duyệt cùng các bảng chi tiết theo `report_id`.
+

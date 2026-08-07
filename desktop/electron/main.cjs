@@ -8,7 +8,7 @@ const { promisify } = require('node:util');
 const { buildCompanyExcelLocal, buildProcessExcelLocal } = require('./companyExcelLocal.cjs');
 const { createDesktopLogger, normalizeError } = require('./desktopLog.cjs');
 const { normalizeAccessToken, isUsableAccessToken } = require('./authToken.cjs');
-const { buildMonthlyWorkbookLocal, buildReconciliationWorkbook } = require('./monthlyWorkbookLocal.cjs');
+const { buildSplitMonthlyWorkbooksLocal, PROCESS_SHEETS } = require('./monthlyWorkbookLocal.cjs');
 const { getCompanyMonthTarget } = require('./excelDualLayout.cjs');
 const {
   getDateParts,
@@ -642,7 +642,7 @@ async function syncProcessReportsFirst({ date, files, processes, companyData }) 
 
 async function performSync({ date, source }) {
   const startedAt = Date.now();
-  await writeLog('INFO', 'SYNC_START', { source, date, mode: 'one-month-one-workbook' });
+  await writeLog('INFO', 'SYNC_START', { source, date, mode: 'split-monthly-workbooks' });
 
   const root = getExportRoot();
   await fs.mkdir(root, { recursive: true });
@@ -680,43 +680,64 @@ async function performSync({ date, source }) {
     }
     const [year, month] = date.split('-');
     const folder = path.join(root, year, month);
-    const reportFileName = `Bao-cao-san-xuat-${month}-${year}.xlsx`;
-    const reportFilePath = path.join(folder, reportFileName);
-    const dataFileName = `Du-lieu-doi-chieu-${month}-${year}.xlsx`;
-    const dataFilePath = path.join(folder, dataFileName);
+    await fs.mkdir(folder, { recursive: true });
 
-    await writeLog('INFO', 'MONTHLY_TWO_WORKBOOKS_START', { date, reportFilePath, dataFilePath });
-    const dataBuilt = await buildReconciliationWorkbook({
+    await writeLog('INFO', 'MONTHLY_SPLIT_WORKBOOKS_START', {
+      date,
+      folder,
+      expectedFileCount: Object.keys(PROCESS_SHEETS).length + 1
+    });
+
+    const built = await buildSplitMonthlyWorkbooksLocal({
       appPath: app.getAppPath(),
       date,
       payload: companyData
     });
-    const dataWrite = await atomicOverwrite(dataFilePath, dataBuilt.buffer, date);
+
+    // File 00: tổng hợp chung + đối chiếu dữ liệu DB.
+    const summaryFilePath = path.join(folder, built.summary.fileName);
+    const summaryWrite = await atomicOverwrite(summaryFilePath, built.summary.buffer, date);
     files.push({
-      category: 'MONTHLY_DATA', processId: -1, processCode: 'ALL',
-      processName: 'Dữ liệu đối chiếu tháng', fileName: dataFileName, filePath: dataFilePath,
-      folder, size: dataBuilt.buffer.length, saved: dataWrite.saved,
-      pendingPath: dataWrite.pendingPath, backupPath: dataWrite.backupPath,
-      success: true, rowCount: dataBuilt.rowCount
+      category: 'MONTHLY_SUMMARY', processId: -1, processCode: 'ALL',
+      processName: 'Tổng hợp sản xuất tháng', fileName: built.summary.fileName,
+      filePath: summaryFilePath, folder, size: built.summary.buffer.length,
+      saved: summaryWrite.saved, pendingPath: summaryWrite.pendingPath,
+      backupPath: summaryWrite.backupPath, success: true,
+      formulaReplacementCount: built.summary.formulaReplacementCount
     });
 
-    const reportBuilt = await buildMonthlyWorkbookLocal({
-      appPath: app.getAppPath(), date, payload: companyData
-    });
-    const reportWrite = await atomicOverwrite(reportFilePath, reportBuilt.buffer, date);
-    files.push({
-      category: 'MONTHLY_REPORT', processId: -1, processCode: 'ALL',
-      processName: 'Báo cáo sản xuất tháng', fileName: reportFileName, filePath: reportFilePath,
-      folder, size: reportBuilt.buffer.length, saved: reportWrite.saved,
-      pendingPath: reportWrite.pendingPath, backupPath: reportWrite.backupPath,
-      success: true, sheetResults: reportBuilt.results,
-      formulaReplacementCount: reportBuilt.formulaReplacementCount
-    });
+    // 9 công đoạn: mỗi công đoạn một file riêng, kể cả tháng chưa có dữ liệu.
+    for (const processBuilt of built.processes) {
+      const filePath = path.join(folder, processBuilt.fileName);
+      const writeResult = await atomicOverwrite(filePath, processBuilt.buffer, date);
+      files.push({
+        category: 'MONTHLY_PROCESS',
+        processId: -1,
+        processCode: processBuilt.processCode,
+        processName: processBuilt.processName,
+        fileName: processBuilt.fileName,
+        filePath,
+        folder,
+        size: processBuilt.buffer.length,
+        saved: writeResult.saved,
+        pendingPath: writeResult.pendingPath,
+        backupPath: writeResult.backupPath,
+        success: true,
+        sheetResult: processBuilt.result,
+        formulaReplacementCount: processBuilt.formulaReplacementCount
+      });
+    }
 
-    await writeLog('INFO', 'MONTHLY_TWO_WORKBOOKS_UPDATED', {
-      date, reportFilePath, dataFilePath, rowCount: dataBuilt.rowCount,
-      sheetResults: reportBuilt.results,
-      formulaReplacementCount: reportBuilt.formulaReplacementCount
+    await writeLog('INFO', 'MONTHLY_SPLIT_WORKBOOKS_UPDATED', {
+      date,
+      folder,
+      fileCount: files.length,
+      files: files.map((file) => ({
+        processCode: file.processCode,
+        fileName: file.fileName,
+        saved: file.saved,
+        pendingPath: file.pendingPath || null
+      }))
     });
   } catch (error) {
     files.push({
@@ -730,12 +751,13 @@ async function performSync({ date, source }) {
     await writeLog('ERROR', 'MONTHLY_WORKBOOK_FAILED', { date, ...normalizeError(error) });
   }
 
-  const success = files.length === 2 && files.every((file) => file.success === true);
+  const expectedFileCount = Object.keys(PROCESS_SHEETS).length + 1;
+  const success = files.length === expectedFileCount && files.every((file) => file.success === true);
   const result = {
     success,
     partialSuccess: false,
     message: success
-      ? 'Đã tạo 2 file Excel cho tháng: dữ liệu đối chiếu và báo cáo sản xuất.'
+      ? `Đã cập nhật ${expectedFileCount} file Excel tháng: 1 file tổng hợp và ${Object.keys(PROCESS_SHEETS).length} file công đoạn.`
       : 'Không thể cập nhật file Excel tháng. Xem desktop.log để biết chi tiết.',
     date,
     files,

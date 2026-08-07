@@ -13,6 +13,40 @@ const PROCESS_SHEETS = Object.freeze({
 });
 
 
+// Tên file cố định để thư mục tháng luôn sắp xếp đúng thứ tự công đoạn.
+// Không dùng dấu tiếng Việt trong tên file để tránh lỗi đường dẫn ở Excel/Windows cũ.
+const PROCESS_FILE_PREFIXES = Object.freeze({
+  CAN: '01_CAN',
+  EP: '02_EP',
+  XLBV: '03_XU_LY_BAVIA',
+  GC: '04_CAT_LONG',
+  MAI: '05_MAI',
+  DO: '06_DO',
+  K1: '07_KIEM_1',
+  K2: '08_KIEM_2',
+  SX3: '09_SAN_XUAT_3'
+});
+
+function monthlyFileSuffix(date, payload) {
+  const yearMonth = String(payload?.yearMonth || date || '').slice(0, 7);
+  const [year, month] = yearMonth.split('-');
+  if (!/^\d{4}$/.test(year || '') || !/^\d{2}$/.test(month || '')) {
+    throw new Error(`Tháng xuất Excel không hợp lệ: ${yearMonth}`);
+  }
+  return `${month}-${year}`;
+}
+
+function processWorkbookFileName(processCode, date, payload) {
+  const prefix = PROCESS_FILE_PREFIXES[processCode];
+  if (!prefix) throw new Error(`Công đoạn không hỗ trợ xuất file riêng: ${processCode}`);
+  return `${prefix}_${monthlyFileSuffix(date, payload)}.xlsx`;
+}
+
+function summaryWorkbookFileName(date, payload) {
+  return `00_TONG_HOP_SAN_XUAT_${monthlyFileSuffix(date, payload)}.xlsx`;
+}
+
+
 
 // Danh mục cố định đọc từ desktop/assets/templates/file-mau.xlsx.
 // Mỗi công đoạn có cấu trúc riêng; master DB và dữ liệu thực tế được ghép thêm
@@ -969,6 +1003,73 @@ async function buildMonthlyWorkbookLocal({ date, payload }) {
   return { buffer, results, formulaReplacementCount: 0 };
 }
 
+
+/**
+ * Tạo một workbook chỉ chứa đúng một sheet công đoạn.
+ * Dùng cho Desktop để mỗi công đoạn là một file Excel độc lập, nhẹ và dễ mở/chỉnh.
+ */
+async function buildProcessWorkbookLocal({ date, payload, processCode }) {
+  assertApprovedDatabasePayload(payload);
+  const code = String(processCode || '').trim().toUpperCase();
+  const config = PROCESS_SHEETS[code];
+  if (!config) throw new Error(`Công đoạn không hợp lệ: ${processCode}`);
+
+  const yearMonth = String(payload.yearMonth || date || '').slice(0, 7);
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'KTC Production Control';
+  workbook.created = new Date();
+  workbook.modified = new Date();
+  const result = renderProcessSheet(
+    workbook,
+    code,
+    config,
+    payload.processes?.[code] || {},
+    yearMonth,
+    formulaSettingsFor(payload, code)
+  );
+  const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+  return {
+    buffer,
+    result,
+    processCode: code,
+    processName: config.title,
+    fileName: processWorkbookFileName(code, date, payload),
+    formulaReplacementCount: 0
+  };
+}
+
+/**
+ * File số 00: chỉ giữ thông tin chung của tháng. Các sheet công đoạn được tách
+ * hoàn toàn sang 9 file riêng để không phải mở một workbook quá rộng/nặng.
+ */
+async function buildMonthlySummaryWorkbookLocal({ date, payload }) {
+  assertApprovedDatabasePayload(payload);
+  const yearMonth = String(payload.yearMonth || date || '').slice(0, 7);
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'KTC Production Control';
+  workbook.created = new Date();
+  workbook.modified = new Date();
+  addCover(workbook, yearMonth, payload.diagnostics);
+  addSummary(workbook, payload, yearMonth);
+  addReconciliationSheet(workbook, payload);
+  const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+  return {
+    buffer,
+    fileName: summaryWorkbookFileName(date, payload),
+    formulaReplacementCount: 0
+  };
+}
+
+async function buildSplitMonthlyWorkbooksLocal({ date, payload }) {
+  assertApprovedDatabasePayload(payload);
+  const summary = await buildMonthlySummaryWorkbookLocal({ date, payload });
+  const processes = [];
+  for (const code of Object.keys(PROCESS_SHEETS)) {
+    processes.push(await buildProcessWorkbookLocal({ date, payload, processCode: code }));
+  }
+  return { summary, processes };
+}
+
 async function buildReconciliationWorkbook({ date, payload }) {
   assertApprovedDatabasePayload(payload);
   const workbook = new ExcelJS.Workbook();
@@ -1009,8 +1110,14 @@ async function buildReconciliationWorkbook({ date, payload }) {
 
 module.exports = {
   buildMonthlyWorkbookLocal,
+  buildProcessWorkbookLocal,
+  buildMonthlySummaryWorkbookLocal,
+  buildSplitMonthlyWorkbooksLocal,
   buildReconciliationWorkbook,
   PROCESS_SHEETS,
+  PROCESS_FILE_PREFIXES,
+  processWorkbookFileName,
+  summaryWorkbookFileName,
   _private: {
     assertApprovedDatabasePayload,
     normalize,
