@@ -216,7 +216,6 @@ function AutocompleteInput({
     useEffect(() => {
 
         // Giá trị thay đổi thì bỏ lựa chọn bàn phím cũ.
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setActiveIndex(
             -1
         );

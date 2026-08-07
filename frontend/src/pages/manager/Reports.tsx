@@ -22,6 +22,7 @@ import type {
 } from "../../types/production";
 
 import { useToast } from "../../components/feedback/toastContext";
+import { getStoredUser } from "../../utils/authStorage";
 
 import "./Reports.css";
 
@@ -164,12 +165,7 @@ function Reports() {
     const { showToast } = useToast();
     const navigate = useNavigate();
 
-    const savedUser =
-        localStorage.getItem("user");
-
-    const currentUser = savedUser
-        ? JSON.parse(savedUser)
-        : null;
+    const currentUser = getStoredUser();
 
     const basePath =
         currentUser?.role === "lead"

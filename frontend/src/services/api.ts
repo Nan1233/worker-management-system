@@ -12,6 +12,7 @@ import { API_BASE_URL, REQUEST_TIMEOUT_MS } from "../config/env";
 import {
     bumpAuthEpoch,
     clearAuthSession,
+    clearLegacyRefreshToken,
     getAccessToken,
     getAuthEpoch,
     getAuthSessionId,
@@ -28,7 +29,8 @@ export const api = axios.create({
     timeout: REQUEST_TIMEOUT_MS,
     headers: {
         "Content-Type": "application/json"
-    }
+    },
+    withCredentials: true
 });
 
 interface RetryableRequestConfig
@@ -182,19 +184,16 @@ export async function refreshAccessToken(
     const epochAtStart = getAuthEpoch();
     const sessionIdAtStart = getAuthSessionId();
 
-    if (!refreshToken) {
-        invalidateSessionAndRedirect();
-        throw new Error("Không có refresh token");
-    }
-
+    // Web dùng HttpOnly refresh cookie; Electron vẫn có body-token fallback.
     refreshAbortController = new AbortController();
 
     refreshPromise = axios
         .post<RefreshResponse>(
             `${API_BASE_URL}/auth/refresh`,
-            { refreshToken },
+            refreshToken ? { refreshToken } : {},
             {
                 timeout: REFRESH_REQUEST_TIMEOUT_MS,
+                withCredentials: true,
                 headers: {
                     "Content-Type": "application/json"
                 },
@@ -216,7 +215,7 @@ export async function refreshAccessToken(
                 generationAtStart !== authGeneration ||
                 epochAtStart !== getAuthEpoch() ||
                 loginTransitionActive ||
-                refreshToken !== getRefreshToken() ||
+                (refreshToken && refreshToken !== getRefreshToken()) ||
                 sessionIdAtStart !== getAuthSessionId()
             ) {
                 throw new axios.CanceledError(
@@ -230,6 +229,7 @@ export async function refreshAccessToken(
                 sessionId: sessionIdAtStart || undefined
             });
 
+            clearLegacyRefreshToken();
             transientRefreshBlockedUntil = 0;
             redirectingToLogin = false;
 
@@ -266,9 +266,9 @@ export async function initializeAuthSession(): Promise<void> {
     if (/^\/login(?:\/|$)/.test(currentRoute)) return;
 
     const accessToken = getAccessToken();
-    const refreshToken = getRefreshToken();
-    if (!accessToken && !refreshToken) return;
-    if (!refreshToken) return;
+    // Web refresh sessions live in an HttpOnly cookie, so the absence of a
+    // JavaScript-visible refresh token does not mean there is no session.
+    // Electron may still provide a body-token fallback.
     if (!accessToken || shouldRefreshAccessToken(accessToken)) {
         try { await refreshAccessToken(true); } catch (error) {
             if (isConfirmedInvalidRefresh(error)) throw error;
@@ -290,13 +290,10 @@ api.interceptors.request.use(
             requestUrl.includes("/auth/refresh") ||
             requestUrl.includes("/auth/logout");
         let accessToken = getAccessToken();
-        const refreshToken = getRefreshToken();
-
         if (
             !loginTransitionActive &&
             !isAuthRequest &&
             accessToken &&
-            refreshToken &&
             !retryableConfig._skipProactiveRefresh &&
             shouldRefreshAccessToken(accessToken)
         ) {
@@ -377,11 +374,6 @@ api.interceptors.response.use(
             return Promise.reject(error);
         }
 
-        if (!getRefreshToken()) {
-            invalidateSessionAndRedirect();
-            return Promise.reject(error);
-        }
-
         originalRequest._retry = true;
         originalRequest._skipProactiveRefresh = true;
 
@@ -417,7 +409,9 @@ function scheduleConnectionRestore(): void {
     window.clearTimeout(reconnectTimer);
 
     reconnectTimer = window.setTimeout(async () => {
-        if (!getRefreshToken() || loginTransitionActive) return;
+        if (loginTransitionActive) return;
+        const currentRoute = window.location.hash.replace(/^#/, "") || "/";
+        if (/^\/login(?:\/|$)/.test(currentRoute)) return;
 
         try {
             await refreshAccessToken(true);

@@ -5,6 +5,8 @@ const path = require('node:path');
 
 const schema = fs.readFileSync(path.join(__dirname, '../../frontend/src/pages/worker/processFormSchemas.ts'), 'utf8');
 const page = fs.readFileSync(path.join(__dirname, '../../frontend/src/pages/worker/ProcessPage.tsx'), 'utf8');
+const timeSection = fs.readFileSync(path.join(__dirname, '../../frontend/src/pages/worker/components/ProcessTimeDeductionSection.tsx'), 'utf8');
+const pageUi = `${page}\n${timeSection}`;
 
 test('worker forms keep process-specific fields from file-mau.xlsx', () => {
   assert.match(schema, /Số giờ hâm khuôn/);
@@ -30,7 +32,7 @@ test('deduction keys stay string-safe for payload and form attributes', () => {
   const config = fs.readFileSync(path.join(__dirname, '../../frontend/src/pages/worker/processPageConfig.ts'), 'utf8');
   assert.match(config, /Extract<keyof DeductionState, string>/);
   assert.match(page, /deduction_code:\s*String\(item\.code\)/);
-  assert.match(page, /htmlFor=\{\s*String\(item\.key\)\s*\}/);
-  assert.match(page, /id=\{\s*String\(item\.key\)\s*\}/);
-  assert.match(page, /name=\{\s*String\(item\.key\)\s*\}/);
+  assert.match(pageUi, /htmlFor=\{\s*String\(item\.key\)\s*\}/);
+  assert.match(pageUi, /id=\{\s*String\(item\.key\)\s*\}/);
+  assert.match(pageUi, /name=\{\s*String\(item\.key\)\s*\}/);
 });

@@ -453,7 +453,6 @@ function ProductionHistory() {
     useEffect(() => {
 
         // Trang lọc mới luôn bắt đầu từ trang đầu tiên.
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setCurrentPage(
             1
         );

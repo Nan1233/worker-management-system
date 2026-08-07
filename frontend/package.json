@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run clean && tsc -b && vite build",
+    "build": "npm run clean && tsc -b && vite build && npm run check:bundle",
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc -b --pretty false",
-    "check": "npm run lint && npm run typecheck && npm run build",
-    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\""
+    "check": "npm run lint && npm run typecheck && npm test && npm run build",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "test": "node --test tests/*.test.cjs",
+    "check:bundle": "node scripts/checkBundleSize.cjs"
   },
   "dependencies": {
     "axios": "^1.18.1",

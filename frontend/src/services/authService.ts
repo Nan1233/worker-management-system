@@ -53,6 +53,7 @@ export const login = async (
             },
             {
                 timeout: REQUEST_TIMEOUT_MS,
+                withCredentials: true,
                 headers: { "Content-Type": "application/json" }
             }
         );
@@ -66,10 +67,6 @@ export const login = async (
 
         if (!accessToken) {
             throw new Error("Backend không trả về access token");
-        }
-
-        if (!data.refreshToken) {
-            throw new Error("Backend không trả về refresh token");
         }
 
         saveAuthSession({
@@ -105,14 +102,10 @@ export const logout =
             getRefreshToken();
 
         try {
-            if (refreshToken) {
-                await api.post(
-                    "/auth/logout",
-                    {
-                        refreshToken
-                    }
-                );
-            }
+            await api.post(
+                "/auth/logout",
+                refreshToken ? { refreshToken } : {}
+            );
         } catch (error) {
             console.error(
                 "Không thể đăng xuất trên server:",

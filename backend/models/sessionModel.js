@@ -1,4 +1,5 @@
 const db = require("../config/db");
+const { hashRefreshToken } = require("../utils/refreshTokenHash");
 
 exports.createSession = (data, callback) => {
     const sql = `
@@ -16,7 +17,7 @@ exports.createSession = (data, callback) => {
 
     const params = [
         data.user_id,
-        data.refresh_token,
+        hashRefreshToken(data.refresh_token),
         data.device_id,
         data.device_name || null,
         data.user_agent || null,
@@ -28,6 +29,7 @@ exports.createSession = (data, callback) => {
 };
 
 exports.findByRefreshToken = (refreshToken, callback) => {
+    const tokenHash = hashRefreshToken(refreshToken);
     const sql = `
         SELECT
             us.id,
@@ -59,35 +61,38 @@ exports.findByRefreshToken = (refreshToken, callback) => {
         LEFT JOIN workers w
             ON w.user_id = u.id
 
-        WHERE us.refresh_token = ?
+        WHERE us.refresh_token IN (?, ?)
           AND us.revoked_at IS NULL
 
         LIMIT 1
     `;
 
-    db.query(sql, [refreshToken], callback);
+    // Second value keeps one-release compatibility with sessions created before hashing.
+    db.query(sql, [tokenHash, refreshToken], callback);
 };
 
 exports.updateLastUsed = (refreshToken, callback) => {
+    const tokenHash = hashRefreshToken(refreshToken);
     const sql = `
         UPDATE user_sessions
         SET last_used_at = NOW()
-        WHERE refresh_token = ?
+        WHERE refresh_token IN (?, ?)
           AND revoked_at IS NULL
     `;
 
-    db.query(sql, [refreshToken], callback);
+    db.query(sql, [tokenHash, refreshToken], callback);
 };
 
 exports.revokeSession = (refreshToken, callback) => {
+    const tokenHash = hashRefreshToken(refreshToken);
     const sql = `
         UPDATE user_sessions
         SET revoked_at = NOW()
-        WHERE refresh_token = ?
+        WHERE refresh_token IN (?, ?)
           AND revoked_at IS NULL
     `;
 
-    db.query(sql, [refreshToken], callback);
+    db.query(sql, [tokenHash, refreshToken], callback);
 };
 
 exports.revokeAllUserSessions = (userId, callback) => {

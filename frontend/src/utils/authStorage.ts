@@ -16,6 +16,44 @@ const USER_KEY = "user";
 const AUTH_EPOCH_KEY = "ktcAuthEpoch";
 const AUTH_SESSION_ID_KEY = "ktcAuthSessionId";
 
+function isElectronRuntime(): boolean {
+    return typeof navigator !== "undefined" && /electron/i.test(navigator.userAgent);
+}
+
+/**
+ * Web auth data is intentionally session-scoped. A long-lived refresh session
+ * is restored from the backend HttpOnly cookie after browser restart.
+ * Electron keeps the previous local-storage behavior as a native fallback.
+ */
+function authStorage(): Storage {
+    return isElectronRuntime() ? localStorage : sessionStorage;
+}
+
+function readAuthValue(key: string, legacyKey?: string): string | null {
+    const store = authStorage();
+    const current = store.getItem(key) || (legacyKey ? store.getItem(legacyKey) : null);
+    if (current) return current;
+
+    // One-release migration from the old web implementation that persisted
+    // access/user data in localStorage. Electron already uses localStorage.
+    if (!isElectronRuntime()) {
+        const legacy = localStorage.getItem(key) || (legacyKey ? localStorage.getItem(legacyKey) : null);
+        if (legacy) {
+            store.setItem(key, legacy);
+            if (legacyKey) store.setItem(legacyKey, legacy);
+            localStorage.removeItem(key);
+            if (legacyKey) localStorage.removeItem(legacyKey);
+            return legacy;
+        }
+    }
+
+    return null;
+}
+
+function removeAuthValue(key: string): void {
+    sessionStorage.removeItem(key);
+    localStorage.removeItem(key);
+}
 
 export function getAuthEpoch(): number {
     const raw = localStorage.getItem(AUTH_EPOCH_KEY);
@@ -30,11 +68,11 @@ export function bumpAuthEpoch(): number {
 }
 
 export function getAuthSessionId(): string | null {
-    return localStorage.getItem(AUTH_SESSION_ID_KEY);
+    return readAuthValue(AUTH_SESSION_ID_KEY);
 }
 
 export function setAuthSessionId(sessionId: string): void {
-    localStorage.setItem(AUTH_SESSION_ID_KEY, sessionId);
+    authStorage().setItem(AUTH_SESSION_ID_KEY, sessionId);
 }
 
 export function createAuthSessionId(): string {
@@ -45,50 +83,57 @@ export function createAuthSessionId(): string {
 }
 
 export function getAccessToken(): string | null {
-    return (
-        localStorage.getItem(ACCESS_TOKEN_KEY) ||
-        localStorage.getItem(LEGACY_TOKEN_KEY)
-    );
+    return readAuthValue(ACCESS_TOKEN_KEY, LEGACY_TOKEN_KEY);
 }
 
-export function setAccessToken(
-    token: string
-): void {
-    localStorage.setItem(
-        ACCESS_TOKEN_KEY,
-        token
-    );
+export function setAccessToken(token: string): void {
+    const store = authStorage();
+    store.setItem(ACCESS_TOKEN_KEY, token);
+    store.setItem(LEGACY_TOKEN_KEY, token);
 
-    // Giữ tương thích với code cũ.
-    localStorage.setItem(
-        LEGACY_TOKEN_KEY,
-        token
-    );
+    if (!isElectronRuntime()) {
+        localStorage.removeItem(ACCESS_TOKEN_KEY);
+        localStorage.removeItem(LEGACY_TOKEN_KEY);
+    }
 }
 
+/**
+ * Web uses an HttpOnly cookie, so this function normally returns null there.
+ * It can still return a legacy localStorage token during a one-release
+ * migration, allowing the next refresh request to move that session to a
+ * secure cookie. Electron intentionally retains the body-token fallback.
+ */
 export function getRefreshToken(): string | null {
-    return localStorage.getItem(
-        REFRESH_TOKEN_KEY
-    );
+    if (isElectronRuntime()) {
+        return localStorage.getItem(REFRESH_TOKEN_KEY);
+    }
+    return localStorage.getItem(REFRESH_TOKEN_KEY);
 }
 
-export function setRefreshToken(
-    token: string
-): void {
-    localStorage.setItem(
-        REFRESH_TOKEN_KEY,
-        token
-    );
+export function setRefreshToken(token: string): void {
+    if (isElectronRuntime()) {
+        localStorage.setItem(REFRESH_TOKEN_KEY, token);
+        return;
+    }
+    // Normal web sessions never persist a JS-readable refresh token.
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    sessionStorage.removeItem(REFRESH_TOKEN_KEY);
 }
 
+export function clearLegacyRefreshToken(): void {
+    if (isElectronRuntime()) return;
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    sessionStorage.removeItem(REFRESH_TOKEN_KEY);
+}
 
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
     try {
         const payload = token.split(".")[1];
         if (!payload) return null;
         const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+        const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
         const decoded = decodeURIComponent(
-            atob(normalized)
+            atob(padded)
                 .split("")
                 .map((char) => `%${char.charCodeAt(0).toString(16).padStart(2, "0")}`)
                 .join("")
@@ -121,35 +166,29 @@ export function recoverUserFromAccessToken(): AuthUser | null {
     setStoredUser(recovered);
     return recovered;
 }
-export function getStoredUser(): AuthUser | null {
-    const rawUser =
-        localStorage.getItem(USER_KEY);
 
-    if (!rawUser) {
-        return null;
-    }
+export function getStoredUser(): AuthUser | null {
+    const rawUser = readAuthValue(USER_KEY);
+    if (!rawUser) return null;
 
     try {
         return JSON.parse(rawUser) as AuthUser;
     } catch {
-        localStorage.removeItem(USER_KEY);
+        removeAuthValue(USER_KEY);
         return null;
     }
 }
 
-export function setStoredUser(
-    user: AuthUser
-): void {
-    localStorage.setItem(
+export function setStoredUser(user: AuthUser): void {
+    authStorage().setItem(
         USER_KEY,
         JSON.stringify({
             ...user,
-            worker_id:
-                user.worker_id ?? null,
-            worker_code:
-                user.worker_code?.trim() || null
+            worker_id: user.worker_id ?? null,
+            worker_code: user.worker_code?.trim() || null
         })
     );
+    if (!isElectronRuntime()) localStorage.removeItem(USER_KEY);
 }
 
 export function saveAuthSession(data: {
@@ -159,47 +198,28 @@ export function saveAuthSession(data: {
     sessionId?: string;
 }): void {
     setAccessToken(data.accessToken);
-
-    if (data.sessionId) {
-        setAuthSessionId(data.sessionId);
-    }
-
-    if (data.refreshToken) {
-        setRefreshToken(
-            data.refreshToken
-        );
-    }
-
-    if (data.user) {
-        setStoredUser(data.user);
-    }
+    if (data.sessionId) setAuthSessionId(data.sessionId);
+    if (data.refreshToken) setRefreshToken(data.refreshToken);
+    if (data.user) setStoredUser(data.user);
 }
 
 export function clearAuthSession(options: { bumpEpoch?: boolean } = {}): void {
     clearSessionCache();
-    if (options.bumpEpoch !== false) {
-        bumpAuthEpoch();
+    if (options.bumpEpoch !== false) bumpAuthEpoch();
+
+    for (const key of [
+        "auth",
+        "authUser",
+        "currentUser",
+        ACCESS_TOKEN_KEY,
+        LEGACY_TOKEN_KEY,
+        REFRESH_TOKEN_KEY,
+        USER_KEY,
+        AUTH_SESSION_ID_KEY,
+    ]) {
+        sessionStorage.removeItem(key);
+        localStorage.removeItem(key);
     }
-    localStorage.removeItem("auth");
-    localStorage.removeItem("authUser");
-    localStorage.removeItem("currentUser");
-    localStorage.removeItem(
-        ACCESS_TOKEN_KEY
-    );
-
-    localStorage.removeItem(
-        LEGACY_TOKEN_KEY
-    );
-
-    localStorage.removeItem(
-        REFRESH_TOKEN_KEY
-    );
-
-    localStorage.removeItem(
-        USER_KEY
-    );
-
-    localStorage.removeItem(AUTH_SESSION_ID_KEY);
 
     if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("ktc:auth-cleared"));
@@ -207,8 +227,5 @@ export function clearAuthSession(options: { bumpEpoch?: boolean } = {}): void {
 }
 
 export function hasAuthSession(): boolean {
-    return Boolean(
-        getAccessToken() ||
-        getRefreshToken()
-    );
+    return Boolean(getAccessToken() || getRefreshToken());
 }

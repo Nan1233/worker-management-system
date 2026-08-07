@@ -14,6 +14,7 @@ import {
 import type { ProductionReport } from "../../types/production";
 
 import { useToast } from "../../components/feedback/toastContext";
+import { getStoredUser } from "../../utils/authStorage";
 
 import "./Reports.css";
 
@@ -326,20 +327,8 @@ const handleViewSelectedDetails = () => {
         JSON.stringify(selectedIds)
     );
 
-    const savedUser = localStorage.getItem("user");
-    let basePath = "/manager";
-
-    try {
-        const savedRole = savedUser
-            ? JSON.parse(savedUser)?.role
-            : null;
-
-        if (savedRole === "lead") {
-            basePath = "/lead";
-        }
-    } catch {
-        // Giữ đường dẫn manager khi localStorage không hợp lệ.
-    }
+    const savedRole = getStoredUser()?.role;
+    const basePath = savedRole === "lead" ? "/lead" : "/manager";
 
     navigate(`${basePath}/reports/review?source=approved`);
 };

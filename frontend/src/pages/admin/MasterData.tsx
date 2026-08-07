@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../services/api';
 import { getApiError } from '../../utils/apiError';
+import { getStoredUser } from '../../utils/authStorage';
 import './MasterData.css';
 
 type Row = Record<string, unknown> & { id?: number; status?: string; role?: string };
@@ -36,7 +37,7 @@ function parseProcessIds(value:unknown):string[]{
 function MasterData(){
   const navigate=useNavigate();
   const params=useParams<{resource?:string}>();
-  const currentUser=useMemo(()=>{try{return JSON.parse(localStorage.getItem('user')||'null') as {role?:string}|null;}catch{return null;}},[]);
+  const currentUser=useMemo(()=>getStoredUser(),[]);
   const tabs=useMemo(()=>allTabs.filter(tab=>tab.roles.includes(currentUser?.role||'')),[currentUser]);
   const requestedResource=String(params.resource||'users') as Resource;
   const initialResource=allTabs.some(tab=>tab.key===requestedResource&&tab.roles.includes(currentUser?.role||''))?requestedResource:'users';

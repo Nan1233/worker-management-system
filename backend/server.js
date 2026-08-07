@@ -141,20 +141,18 @@ app.use("/api", (req, res, next) => {
 
 app.get("/api/health", async (req, res) => {
   try {
-    const [rows] = await db.promise().query({
-      sql: "SELECT DATABASE() AS database_name, COUNT(*) AS user_count FROM users",
-      timeout: 3_000,
-    });
+    await db.promise().query({ sql: "SELECT 1 AS ok", timeout: 3_000 });
     return res.json({
       success: true,
       service: "ktc-api",
       database: "ok",
-      database_name: rows[0]?.database_name || null,
-      user_count: Number(rows[0]?.user_count || 0),
-      version: "auth-render-stability-v2",
     });
   } catch (error) {
-    return res.status(503).json({ success: false, service: "ktc-api", database: "unavailable" });
+    return res.status(503).json({
+      success: false,
+      service: "ktc-api",
+      database: "unavailable",
+    });
   }
 });
 

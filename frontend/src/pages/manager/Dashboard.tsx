@@ -5,6 +5,7 @@ import api from "../../services/api";
 import AppIcon from "../../components/common/AppIcon";
 import { useToast } from "../../components/feedback/toastContext";
 import { getApiError } from "../../utils/apiError";
+import { getStoredUser } from "../../utils/authStorage";
 import "./Dashboard.css";
 
 const formatNumber = (value: number) =>
@@ -96,13 +97,7 @@ function Dashboard() {
     const [loading, setLoading] = useState(true);
     const [period, setPeriod] = useState<PeriodKey>("today");
 
-    const currentUser = useMemo(() => {
-        try {
-            return JSON.parse(localStorage.getItem("user") || "null") as { role?: string } | null;
-        } catch {
-            return null;
-        }
-    }, []);
+    const currentUser = useMemo(() => getStoredUser(), []);
 
     const basePath = currentUser?.role === "admin"
         ? "/admin"

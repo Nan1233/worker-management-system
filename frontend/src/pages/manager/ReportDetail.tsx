@@ -12,6 +12,7 @@ import {
 import type { ProductionReport } from "../../types/production";
 import { getAllReportDefects } from "../../utils/reportDetails";
 import { decimalHoursToMinutes, formatMinutes, sumDeductionMinutes } from "../../utils/timeDisplay";
+import { getStoredUser } from "../../utils/authStorage";
 import "./ReportDetail.css";
 
 const formatDate = (value?: string | null) => {
@@ -62,11 +63,7 @@ function ReportDetail() {
     const [rejectReason, setRejectReason] = useState(REJECT_REASONS[0]);
     const [rejectDetail, setRejectDetail] = useState("");
 
-    const role = useMemo(() => {
-        const savedUser = localStorage.getItem("user");
-        try { return savedUser ? JSON.parse(savedUser)?.role || "manager" : "manager"; }
-        catch { return "manager"; }
-    }, []);
+    const role = useMemo(() => getStoredUser()?.role || "manager", []);
 
     const canEdit = role === "manager" || role === "admin";
     const canReview = ["lead", "manager", "admin"].includes(role);

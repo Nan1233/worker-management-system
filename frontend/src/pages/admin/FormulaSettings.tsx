@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../../services/api';
 import { getApiError } from '../../utils/apiError';
 import './FormulaSettings.css';
@@ -34,19 +34,19 @@ export default function FormulaSettings(){
   const [query,setQuery]=useState('');
   const [productProcessId,setProductProcessId]=useState('');
 
-  const load=async()=>{
+  const load=useCallback(async()=>{
     setLoading(true); setError('');
     try{
       const response=await api.get('/formula-settings');
       const next=response.data.data as FormulaResponse;
       setData(next);
-      const scope=next.scopes.find(item=>item.scope_code===selectedScope)||next.scopes[0];
+      const scope=next.scopes.find(item=>item.scope_code==='GLOBAL')||next.scopes[0];
       setSelectedScope(scope?.scope_code||'GLOBAL');
       setDraft(scope?{...scope}:null);
     }catch(e){setError(getApiError(e,'Không thể tải cài đặt công thức').message);}
     finally{setLoading(false);}
-  };
-  useEffect(()=>{void load();},[]);
+  },[]);
+  useEffect(()=>{void load();},[load]);
 
   const chooseScope=(scopeCode:string)=>{
     setSelectedScope(scopeCode);

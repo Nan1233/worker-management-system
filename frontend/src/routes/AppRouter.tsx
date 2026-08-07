@@ -4,16 +4,17 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import PrivateRoute from "./PrivateRoute";
 import WorkerLayout from "../layouts/WorkerLayout";
 import ManagementLayout from "../layouts/ManagementLayout";
+import RouteLoading from "../components/system/RouteLoading";
 
 const Login = lazy(() => import("../pages/Login"));
 const AdminDashboard = lazy(() => import("../pages/admin/Dashboard"));
 const MasterData = lazy(() => import("../pages/admin/MasterData"));
 const FormulaSettings = lazy(() => import("../pages/admin/FormulaSettings"));
 const Governance = lazy(() => import("../pages/admin/Governance"));
-const LeadDashboard = lazy(() => import("../pages/lead/Dashboard"));
-const LeadPendingReports = lazy(() => import("../pages/lead/PendingReports"));
-const LeadApprovedReports = lazy(() => import("../pages/lead/ApprovedReports"));
-const LeadReportDetail = lazy(() => import("../pages/lead/ReportDetail"));
+const ManagementDashboard = lazy(() => import("../pages/lead/Dashboard"));
+const ManagementPendingReports = lazy(() => import("../pages/lead/PendingReports"));
+const ManagementApprovedReports = lazy(() => import("../pages/lead/ApprovedReports"));
+const ManagementReportDetail = lazy(() => import("../pages/lead/ReportDetail"));
 const ManagerEditReport = lazy(() => import("../pages/manager/EditReport"));
 const ManagerStatistics = lazy(() => import("../pages/manager/Statistics"));
 const SelectedReportsReview = lazy(() => import("../pages/manager/SelectedReportsReview"));
@@ -30,7 +31,7 @@ const SystemCenter = lazy(() => import("../pages/system/SystemCenter"));
 function AppRouter() {
 
     return (
-        <Suspense fallback={<div className="route-loading">Đang tải...</div>}>
+        <Suspense fallback={<RouteLoading />}>
         <Routes>
 
 
@@ -75,8 +76,8 @@ function AppRouter() {
                 <Route path="master/:resource" element={<MasterData />} />
                 <Route path="formulas" element={<FormulaSettings />} />
                 <Route path="governance" element={<Governance />} />
-                <Route path="reports" element={<LeadPendingReports />} />
-                <Route path="approved" element={<LeadApprovedReports />} />
+                <Route path="reports" element={<ManagementPendingReports />} />
+                <Route path="approved" element={<ManagementApprovedReports />} />
                 <Route path="statistics" element={<ManagerStatistics />} />
                 <Route path="system" element={<SystemCenter />} />
             </Route>
@@ -114,7 +115,7 @@ function AppRouter() {
                         ]}
                     >
 
-                        <LeadReportDetail />
+                        <ManagementReportDetail />
 
                     </PrivateRoute>
 
@@ -156,7 +157,7 @@ function AppRouter() {
                         ]}
                     >
 
-                        <LeadReportDetail />
+                        <ManagementReportDetail />
 
                     </PrivateRoute>
 
@@ -210,7 +211,7 @@ function AppRouter() {
                     index
                     element={
 
-                        <LeadDashboard />
+                        <ManagementDashboard />
 
                     }
                 />
@@ -220,7 +221,7 @@ function AppRouter() {
                     path="reports"
                     element={
 
-                        <LeadPendingReports />
+                        <ManagementPendingReports />
 
                     }
                 />
@@ -230,7 +231,7 @@ function AppRouter() {
                     path="approved"
                     element={
 
-                        <LeadApprovedReports />
+                        <ManagementApprovedReports />
 
                     }
                 />
@@ -268,7 +269,7 @@ function AppRouter() {
                     index
                     element={
 
-                        <LeadDashboard />
+                        <ManagementDashboard />
 
                     }
                 />
@@ -282,7 +283,7 @@ function AppRouter() {
                     path="reports"
                     element={
 
-                        <LeadPendingReports />
+                        <ManagementPendingReports />
 
                     }
                 />
@@ -292,7 +293,7 @@ function AppRouter() {
                     path="approved"
                     element={
 
-                        <LeadApprovedReports />
+                        <ManagementApprovedReports />
 
                     }
                 />

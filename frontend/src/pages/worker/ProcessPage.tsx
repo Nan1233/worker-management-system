@@ -46,7 +46,6 @@ import type {
     ProductStandardOption
 } from "../../services/masterDataService";
 
-import AutocompleteInput from "../../components/common/AutocompleteInput";
 import { useToast } from "../../components/feedback/toastContext";
 import { getApiError } from "../../utils/apiError";
 import { workerCanAccessProcess } from "../../utils/processAccess";
@@ -65,7 +64,6 @@ import {
     allNgOptions,
     clampWorkerWorkDate,
     createEmptyMachineLine,
-    decimalHoursToText,
     deductionOptions,
     getCurrentLocalDate,
     getWorkerAllowedWorkDates,
@@ -77,6 +75,21 @@ import {
     shiftLocalDate,
 } from "./processPageConfig";
 import { processExtraFields } from "./processExtraFields";
+import ProcessExtraFieldsSection from "./components/ProcessExtraFieldsSection";
+import ProcessTimeDeductionSection from "./components/ProcessTimeDeductionSection";
+import ProcessNetworkGate from "./components/ProcessNetworkGate";
+import ProcessWorkerHeader from "./components/ProcessWorkerHeader";
+import ProcessQualitySection from "./components/ProcessQualitySection";
+import ProcessBasicInfoSection from "./components/ProcessBasicInfoSection";
+import ProcessSubmitActions from "./components/ProcessSubmitActions";
+import {
+    MAX_TOTAL_WORK_MINUTES,
+    calculateActualOutput as calculateActualOutputValue,
+    formatIntegerDisplay,
+    getDeductionMinutes,
+    parseFlexibleTime,
+    parseIntegerDisplay,
+} from "./processFormUtils";
 
 import type {
     DeductionKey,
@@ -378,15 +391,8 @@ const selectedProduct = useMemo(
 const productExcludesKqd = (): boolean =>
     Number(selectedProduct?.exclude_kqd_from_tt || 0) === 1;
 
-const calculateCountedNg = (values: FormState): number =>
-    activeNgOptions.reduce((sum, item) => {
-        const code = String(item.code || "").trim().toUpperCase();
-        if (productExcludesKqd() && (KQD_CODES.has(code) || code.startsWith("KQD"))) return sum;
-        return sum + Number(values[item.key] || 0);
-    }, 0);
-
 const calculateActualOutput = (values: FormState): number =>
-    Number(values.ttOk || 0) + calculateCountedNg(values);
+    calculateActualOutputValue(values, activeNgOptions, productExcludesKqd(), KQD_CODES);
 
 
 
@@ -953,35 +959,6 @@ useEffect(() => {
 // 0.25
 // =====================================================
 
-const MAX_TOTAL_WORK_MINUTES = 12 * 60;
-
-const getDeductionMinutes = (data: DeductionState): number =>
-    Object.values(data).reduce(
-        (sum, currentValue) => sum + (Number(currentValue) || 0),
-        0
-    );
-
-const parseFlexibleTime = (value: string): number => {
-    const normalized = value.trim().toLowerCase().replace(",", ".");
-
-    if (!normalized) return 0;
-
-    const hourMinuteMatch = normalized.match(/^(\d{1,3})\s*(?:h|:|g)\s*(\d{1,2})$/);
-    if (hourMinuteMatch) {
-        const hours = Number(hourMinuteMatch[1]);
-        const minutes = Number(hourMinuteMatch[2]);
-
-        if (minutes > 59) return Number.NaN;
-
-        return hours + minutes / 60;
-    }
-
-    const hourOnlyMatch = normalized.match(/^(\d{1,3})\s*(?:h|g)$/);
-    if (hourOnlyMatch) return Number(hourOnlyMatch[1]);
-
-    const parsed = Number(normalized);
-    return Number.isFinite(parsed) ? parsed : Number.NaN;
-};
 
 
 
@@ -1402,14 +1379,6 @@ const updateDeductionValue = (
     // =====================================================
     // CẬP NHẬT TT OK
     // =====================================================
-
-    const formatIntegerDisplay = (value: string): string => {
-        const digits = value.replace(/\D/g, "");
-        return digits ? Number(digits).toLocaleString("vi-VN") : "";
-    };
-
-    const parseIntegerDisplay = (value: string): string =>
-        value.replace(/\D/g, "");
 
 
     const handleTtOkChange = (
@@ -2166,38 +2135,16 @@ window.setTimeout(() => {
         );
 
     };
-        if (networkChecking) {
+        if (networkChecking || !networkAllowed) {
             return (
-                <main className="worker-form-page worker-network-page">
-                    <section className="worker-network-card" aria-live="polite">
-                        <div className="worker-network-symbol">↻</div>
-                        <h1>Đang kiểm tra mạng công ty</h1>
-                        <p>Vui lòng chờ trong giây lát.</p>
-                    </section>
-                </main>
-            );
-        }
-
-        if (!networkAllowed) {
-            return (
-                <main className="worker-form-page worker-network-page">
-                    <section className="worker-network-card worker-network-denied" role="alert">
-                        <div className="worker-network-symbol">!</div>
-                        <h1>Không thể nhập báo cáo</h1>
-                        <p>{networkMessage}</p>
-                        {clientIp && (
-                            <small>IP hiện tại: {clientIp}</small>
-                        )}
-                        <div className="worker-network-actions">
-                            <button type="button" onClick={() => void checkCompanyNetwork()}>
-                                Kiểm tra lại
-                            </button>
-                            <button type="button" className="secondary" onClick={() => navigate("/worker")}>
-                                Quay lại
-                            </button>
-                        </div>
-                    </section>
-                </main>
+                <ProcessNetworkGate
+                    checking={networkChecking}
+                    allowed={networkAllowed}
+                    message={networkMessage}
+                    clientIp={clientIp}
+                    onRetry={() => void checkCompanyNetwork()}
+                    onBack={() => navigate("/worker")}
+                />
             );
         }
 
@@ -2208,822 +2155,64 @@ window.setTimeout(() => {
             <div className="worker-form-shell">
 
 
-                {/* =================================================
-                    HEADER
-                ================================================= */}
+                <ProcessWorkerHeader
+                    processTitle={processInfo.title}
+                    workerName={form.workerName}
+                    workerCode={form.workerCode}
+                    trainingPercent={form.trainingPercent}
+                    workDate={clampWorkerWorkDate(form.workDate)}
+                    dateOptions={getWorkerAllowedWorkDates()}
+                    onBack={() => navigate(-1)}
+                    onDateChange={handleChange}
+                />
+
+                <ProcessBasicInfoSection
+                    form={form}
+                    setForm={setForm}
+                    onFormChange={handleChange}
+                    isCutLongProcess={isCutLongProcess}
+                    isInspectionProcess={isInspectionProcess}
+                    operationType={operationType}
+                    setOperationType={setOperationType}
+                    operationMode={operationMode}
+                    setOperationMode={setOperationMode}
+                    usesMultiMachineLines={usesMultiMachineLines}
+                    usesSingleMachine={usesSingleMachine}
+                    productAutocompleteOptions={productAutocompleteOptions}
+                    productOptions={productOptions}
+                    machineAutocompleteOptions={machineAutocompleteOptions}
+                    loadingMasterData={loadingMasterData}
+                    machineCount={machineCount}
+                    machineLines={machineLines}
+                    resizeMachineLines={resizeMachineLines}
+                    updateMachineLine={updateMachineLine}
+                    refreshMachineLineStandard={refreshMachineLineStandard}
+                    getMachineNgTotal={getMachineNgTotal}
+                    activeNgOptions={activeNgOptions}
+                    toggleMachineDefect={toggleMachineDefect}
+                    updateMachineDefectValue={updateMachineDefectValue}
+                />
+
+                <ProcessExtraFieldsSection
+                    fields={currentExtraFields}
+                    extraData={extraData}
+                    setExtraData={setExtraData}
+                />
+
+                <ProcessTimeDeductionSection
+                    form={form}
+                    setForm={setForm}
+                    deductions={deductions}
+                    activeDeductionOptions={activeDeductionOptions}
+                    selectedDeduction={selectedDeduction}
+                    showDeduction={showDeduction}
+                    setShowDeduction={setShowDeduction}
+                    onToggleDeduction={handleToggleDeduction}
+                    onUpdateDeduction={updateDeductionValue}
+                    onNormalizeDeduction={normalizeDeductionValue}
+                    onWarning={(message) => showToast(message, "warning")}
+                />
 
-                <header className="worker-form-header">
-
-                    <div className="worker-form-title-row">
-
-                        <button
-
-                            type="button"
-
-                            className="worker-form-back"
-
-                            onClick={() =>
-                                navigate(-1)
-                            }
-
-                            aria-label="Quay lại"
-
-                        >
-
-                            ←
-
-                        </button>
-
-
-                        <h1>
-
-                            {processInfo.title}
-
-                        </h1>
-
-                    </div>
-
-
-                </header>
-
-                <div className="worker-sticky-info">
-
-                    <div className="worker-sticky-person">
-
-                        <strong>
-                            {form.workerName || "Đang tải..."}
-                        </strong>
-
-                        <span>
-                            {form.workerCode || "---"}
-                        </span>
-
-                    </div>
-
-                    <div className="worker-sticky-meta">
-
-                        <span className="worker-sticky-training">
-                            Học việc: {form.trainingPercent || 0}%
-                        </span>
-
-                        <label className="worker-sticky-date" htmlFor="workerWorkDate">
-
-                            <select
-                                id="workerWorkDate"
-                                className="worker-sticky-date-select"
-                                name="workDate"
-                                value={clampWorkerWorkDate(form.workDate)}
-                                onChange={handleChange}
-                                aria-label="Chọn ngày báo cáo trong 15 ngày gần nhất"
-                            >
-                                {getWorkerAllowedWorkDates().map((dateOption) => (
-                                    <option key={dateOption.value} value={dateOption.value}>
-                                        {dateOption.label}
-                                    </option>
-                                ))}
-                            </select>
-
-                        </label>
-
-                    </div>
-
-                </div>
-
-
-                {/* =================================================
-                    THÔNG TIN CƠ BẢN
-                ================================================= */}
-
-                <section className="worker-form-card">
-
-                    <h2 className="worker-card-title">
-
-                        <span>
-
-                            ⓘ
-
-                        </span>
-
-                        Thông tin cơ bản
-
-                    </h2>
-
-
-                    <div className="worker-basic-grid">
-
-
-                        {/* CA LÀM VIỆC */}
-
-                        <div className="worker-field-block worker-field-full">
-
-                            <label className="worker-field-label">
-
-                                Ca làm việc
-
-                                <em>
-
-                                    *
-
-                                </em>
-
-                            </label>
-
-
-                            <div className="worker-shift-list">
-
-                                {
-                                    [
-                                        "A",
-                                        "B",
-                                        "C",
-                                        "D"
-                                    ]
-                                        .map(
-                                            (
-                                                shift
-                                            ) => (
-
-                                                <label
-
-                                                    key={
-                                                        shift
-                                                    }
-
-                                                    className="worker-shift-item"
-
-                                                >
-
-                                                    <input
-
-                                                        type="radio"
-
-                                                        name="shift"
-
-                                                        value={
-                                                            shift
-                                                        }
-
-                                                        checked={
-                                                            form.shift
-                                                            ===
-                                                            shift
-                                                        }
-
-                                                        onChange={
-                                                            handleChange
-                                                        }
-
-                                                    />
-
-
-                                                    <span>
-
-                                                        {
-                                                            shift.replace(
-                                                                "Ca ",
-                                                                ""
-                                                            )
-                                                        }
-
-                                                    </span>
-
-                                                </label>
-
-                                            )
-                                        )
-                                }
-
-                            </div>
-
-                        </div>
-
-
-                    
-                        {isCutLongProcess && (
-                            <div className="worker-field-block worker-field-full multi-machine-controls">
-                                <label>Loại gia công</label>
-                                <div className="worker-choice-row">
-                                    <button type="button" className={operationType === "CUT" ? "active" : ""} onClick={() => setOperationType("CUT")}>Cắt</button>
-                                    <button type="button" className={operationType === "LONG" ? "active" : ""} onClick={() => setOperationType("LONG")}>Lồng</button>
-                                </div>
-                                <label>Hình thức thực hiện</label>
-                                <div className="worker-choice-row">
-                                    <button type="button" className={operationMode === "MANUAL" ? "active" : ""} onClick={() => setOperationMode("MANUAL")}>Tay</button>
-                                    <button type="button" className={operationMode === "MACHINE" ? "active" : ""} onClick={() => setOperationMode("MACHINE")}>Máy</button>
-                                </div>
-                            </div>
-                        )}
-
-                        {isInspectionProcess && (
-                            <div className="worker-field-block worker-field-full multi-machine-controls">
-                                <label>Hình thức kiểm tra</label>
-                                <div className="worker-choice-row">
-                                    <button type="button" className={operationMode === "MANUAL" ? "active" : ""} onClick={() => setOperationMode("MANUAL")}>Làm tay</button>
-                                    <button type="button" className={operationMode === "MACHINE" ? "active" : ""} onClick={() => setOperationMode("MACHINE")}>Làm bằng máy</button>
-                                </div>
-                                <small>Công đoạn Kiểm chỉ được chọn tối đa 1 máy.</small>
-                            </div>
-                        )}
-
-{!usesMultiMachineLines && (
-<div className="worker-field-block worker-field-full">
-
-    <AutocompleteInput
-        id="productName"
-        label="Sản phẩm"
-        value={form.productName}
-        options={productAutocompleteOptions}
-        placeholder="Nhập mã sản phẩm"
-        required
-        disabled={loadingMasterData}
-        emptyMessage="Không tìm thấy sản phẩm"
-        onChange={(value) => {
-
-            const selectedProduct =
-                productOptions.find(
-                    (item) =>
-                        item.product_code
-                            .trim()
-                            .toLowerCase()
-                        ===
-                        value
-                            .trim()
-                            .toLowerCase()
-                );
-
-
-            setForm((prev) => ({
-
-                ...prev,
-
-                productName:
-                    value,
-
-                standardOutput:
-                    selectedProduct
-                        ? String(
-                            Math.round(Number(selectedProduct.standard_output) || 0)
-                        )
-                        : ""
-
-            }));
-
-        }}
-        onSelect={(option) => {
-
-            const selectedProduct =
-                productOptions.find(
-                    (item) =>
-                        item.product_code
-                        .trim()
-                        .toLowerCase()
-                    ===
-                    option.value
-                        .trim()
-                        .toLowerCase()
-                );
-
-
-            setForm((prev) => ({
-
-                ...prev,
-
-                productName:
-                    option.value,
-
-                standardOutput:
-                    selectedProduct
-                        ? String(
-                            Math.round(Number(selectedProduct.standard_output) || 0)
-                        )
-                        : ""
-
-            }));
-
-        }}
-    />
-
-</div>
-)}
-
-                        {usesMultiMachineLines ? (
-                            <div className="worker-field-block worker-field-full multi-machine-panel">
-                                <label>Số lượng máy (tối đa 4)</label>
-                                <select value={machineCount} onChange={(event) => resizeMachineLines(Number(event.target.value))}>
-                                    {[1, 2, 3, 4].map((count) => <option key={count} value={count}>{count} máy</option>)}
-                                </select>
-                                {machineLines.map((line, index) => (
-                                    <div className="machine-line" key={index}>
-                                        <AutocompleteInput
-                                            id={`machineNo-${index}`}
-                                            label={`Máy ${index + 1}`}
-                                            value={line.machineCode}
-                                            options={machineAutocompleteOptions}
-                                            placeholder="Chọn mã máy"
-                                            required
-                                            disabled={loadingMasterData}
-                                            emptyMessage="Không tìm thấy máy"
-                                            onChange={(value: string) => {
-                                                updateMachineLine(index, { machineCode: value });
-                                                void refreshMachineLineStandard(index, value, line.productCode);
-                                            }}
-                                            onSelect={(option: AutocompleteOption) => {
-                                                updateMachineLine(index, { machineCode: option.value });
-                                                void refreshMachineLineStandard(index, option.value, line.productCode);
-                                            }}
-                                        />
-                                        <AutocompleteInput
-                                            id={`machineProduct-${index}`}
-                                            label={`Sản phẩm máy ${index + 1}`}
-                                            value={line.productCode}
-                                            options={productAutocompleteOptions}
-                                            placeholder="Chọn mã sản phẩm"
-                                            required
-                                            disabled={loadingMasterData}
-                                            emptyMessage="Không tìm thấy sản phẩm"
-                                            onChange={(value: string) => {
-                                                updateMachineLine(index, { productCode: value });
-                                                void refreshMachineLineStandard(index, line.machineCode, value);
-                                            }}
-                                            onSelect={(option: AutocompleteOption) => {
-                                                updateMachineLine(index, { productCode: option.value });
-                                                void refreshMachineLineStandard(index, line.machineCode, option.value);
-                                            }}
-                                        />
-                                        <div className="machine-card-header">
-                                            <div>
-                                                <strong>Máy {index + 1}</strong>
-                                                <span>{line.machineCode || "Chưa chọn máy"}</span>
-                                            </div>
-                                            <span className="machine-card-badge">{line.productCode || "Chưa chọn SP"}</span>
-                                        </div>
-                                        <div className="machine-section-title">Thời gian chạy máy</div>
-                                        <div className="machine-time-row">
-                                            <input type="number" min="0" max="24" inputMode="numeric" placeholder="Giờ" value={line.hours} onChange={(event) => updateMachineLine(index, { hours: event.target.value.replace(/\D/g, "") })} />
-                                            <span>giờ</span>
-                                            <input type="number" min="0" max="59" inputMode="numeric" placeholder="Phút" value={line.minutes} onChange={(event) => { const value = event.target.value.replace(/\D/g, ""); if (value === "" || Number(value) <= 59) updateMachineLine(index, { minutes: value }); }} />
-                                            <span>phút</span>
-                                        </div>
-                                        <div className="machine-section-title">Sản lượng máy</div>
-                                        <div className="machine-quantity-row">
-                                            <label>OK<input type="number" min="0" inputMode="numeric" value={line.okQuantity} onChange={(event) => updateMachineLine(index, { okQuantity: event.target.value.replace(/\D/g, "") })} /></label>
-                                            <label>NG<input type="number" min="0" inputMode="numeric" value={line.ngQuantity} readOnly aria-readonly="true" title="Tự động cộng từ chi tiết lỗi NG" /></label>
-                                            <div className="machine-line-total"><span>Tổng</span><strong>{(Number(line.okQuantity) || 0) + (Number(line.ngQuantity) || 0)}</strong></div>
-                                        </div>
-                                        <details className="machine-deduction-box">
-                                            <summary>Chi tiết lỗi NG <strong>{getMachineNgTotal(line)} sản phẩm</strong></summary>
-                                            <div className="machine-deduction-options">
-                                                {activeNgOptions.map((item) => (
-                                                    <label key={item.key} className="machine-deduction-option">
-                                                        <input type="checkbox" checked={line.selectedDefects.includes(item.key)} onChange={() => toggleMachineDefect(index, item.key)} />
-                                                        <span>{item.label}</span>
-                                                        {line.selectedDefects.includes(item.key) && (
-                                                            <input className="machine-deduction-minute" inputMode="numeric" placeholder="SL" value={line.defects[item.key] || ""} onChange={(event) => updateMachineDefectValue(index, item.key, event.target.value)} />
-                                                        )}
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        </details>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : usesSingleMachine ? (
-                            <div className="worker-field-block worker-field-full">
-                                <AutocompleteInput
-                                    id="machineNo"
-                                    label="Số máy"
-                                    value={form.machineNo}
-                                    options={machineAutocompleteOptions}
-                                    placeholder="Nhập mã máy"
-                                    required
-                                    disabled={loadingMasterData}
-                                    emptyMessage="Không tìm thấy máy"
-                                    onChange={(value: string) => setForm((prev) => ({ ...prev, machineNo: value }))}
-                                    onSelect={(option: AutocompleteOption) => setForm((prev) => ({ ...prev, machineNo: option.value }))}
-                                />
-                            </div>
-                        ) : null}
-                    </div>
-
-                </section>
-
-
-                {currentExtraFields.length > 0 && (
-                    <section className="worker-form-card">
-                        <h2 className="worker-card-title"><span>▦</span> Thông tin riêng công đoạn</h2>
-                        <div className="worker-basic-grid">
-                            {currentExtraFields.map((field) => (
-                                <div className="worker-field-block" key={field.key}>
-                                    <label className="worker-field-label" htmlFor={`extra-${field.key}`}>
-                                        {field.label}{field.required ? <em>*</em> : null}
-                                    </label>
-                                    <div className="worker-input-with-unit">
-                                        <input
-                                            id={`extra-${field.key}`}
-                                            className="worker-text-input"
-                                            type={field.type}
-                                            min={field.type === "number" ? "0" : undefined}
-                                            step={field.type === "number" ? "any" : undefined}
-                                            value={extraData[field.key] || ""}
-                                            placeholder={field.placeholder}
-                                            required={field.required}
-                                            onChange={(event) => setExtraData((current) => ({ ...current, [field.key]: event.target.value }))}
-                                        />
-                                        {field.unit ? <span>{field.unit}</span> : null}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </section>
-                )}
-
-                {/* =================================================
-                    HIỆU SUẤT & THỜI GIAN
-                ================================================= */}
-
-                <section className="worker-form-card">
-
-                    <h2 className="worker-card-title">
-
-                        <span>
-
-                            ◷
-
-                        </span>
-
-                        Hiệu suất &amp; Thời gian
-
-                    </h2>
-
-
-                    <div className="worker-time-grid">
-                        <div className="worker-time-item">
-                            <label>Thời gian làm thực tế</label>
-                            <div className="worker-time-split">
-                                <input
-                                    type="number"
-                                    min="0"
-                                    max="12"
-                                    step="1"
-                                    inputMode="numeric"
-                                    value={form.actualHours}
-                                    onChange={(event) => {
-                                        const value = event.target.value.replace(/\D/g, "");
-                                        if (value !== "" && Number(value) > 12) {
-                                            showToast("Thời gian tối đa là 12 giờ", "warning");
-                                            return;
-                                        }
-
-                                        const hours = Number(value) || 0;
-                                        const deductionMinutes = getDeductionMinutes(deductions);
-                                        const currentMinutes =
-                                            hours === 12
-                                                ? 0
-                                                : Math.min(59, Number(form.actualMinutes) || 0);
-                                        const prospectiveTotalMinutes =
-                                            hours * 60 + currentMinutes + deductionMinutes;
-
-                                        if (prospectiveTotalMinutes > MAX_TOTAL_WORK_MINUTES) {
-                                            showToast(
-                                                "Không thể chọn số giờ này vì tổng thời gian sẽ vượt quá 12 giờ",
-                                                "warning"
-                                            );
-                                            return;
-                                        }
-
-                                        setForm((prev) => {
-                                            const minutes = hours === 12
-                                                ? 0
-                                                : Math.min(59, Number(prev.actualMinutes) || 0);
-                                            const actualTime = hours + minutes / 60;
-                                            const deductionTime = parseFlexibleTime(prev.deductionTime);
-                                            return {
-                                                ...prev,
-                                                actualHours: value,
-                                                actualMinutes: hours === 12 ? "0" : prev.actualMinutes,
-                                                actualTime: String(actualTime),
-                                                totalTime: String(actualTime + deductionTime)
-                                            };
-                                        });
-                                    }}
-                                    placeholder="Giờ"
-                                />
-                                <span>giờ</span>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    max="59"
-                                    step="1"
-                                    inputMode="numeric"
-                                    value={form.actualMinutes}
-                                    disabled={
-                                        Number(form.actualHours) >= 12
-                                        || (Number(form.actualHours) || 0) * 60
-                                            + getDeductionMinutes(deductions)
-                                            >= MAX_TOTAL_WORK_MINUTES
-                                    }
-                                    onChange={(event) => {
-                                        const value = event.target.value.replace(/\D/g, "");
-                                        if (value !== "" && Number(value) > 59) return;
-
-                                        const hours = Number(form.actualHours) || 0;
-                                        const minutes = Number(value) || 0;
-                                        const deductionMinutes = getDeductionMinutes(deductions);
-
-                                        if (hours === 12 && minutes > 0) {
-                                            showToast(
-                                                "Đã đủ 12 giờ nên số phút phải bằng 0",
-                                                "warning"
-                                            );
-                                            return;
-                                        }
-
-                                        if (hours * 60 + minutes + deductionMinutes > MAX_TOTAL_WORK_MINUTES) {
-                                            showToast(
-                                                "Không thể tăng số phút vì tổng thời gian sẽ vượt quá 12 giờ",
-                                                "warning"
-                                            );
-                                            return;
-                                        }
-
-                                        setForm((prev) => {
-                                            const actualTime = hours + minutes / 60;
-                                            const deductionTime = parseFlexibleTime(prev.deductionTime);
-                                            return {
-                                                ...prev,
-                                                actualMinutes: value,
-                                                actualTime: String(actualTime),
-                                                totalTime: String(actualTime + deductionTime)
-                                            };
-                                        });
-                                    }}
-                                    placeholder="Phút"
-                                />
-                                <span>phút</span>
-                            </div>
-                            <small>Lưu DB/Excel: {parseFlexibleTime(form.actualTime).toFixed(3)} giờ</small>
-                        </div>
-
-                        <div className="worker-time-item">
-                            <label>Tổng thời gian</label>
-                            <input value={form.totalTime} readOnly />
-                            <small>{decimalHoursToText(form.totalTime)}</small>
-                        </div>
-
-                        <div className="worker-time-item">
-                            <label>Thời gian trừ</label>
-                            <input value={form.deductionTime} readOnly />
-                            <small>{decimalHoursToText(form.deductionTime)}</small>
-                        </div>
-                    </div>
-
-                    {/* =================================================
-                        CHỌN LOẠI TRỪ GIỜ
-                    ================================================= */}
-
-                    <div className="worker-dropdown-box">
-
-                        <button
-
-                            type="button"
-
-                            className="worker-dropdown-title"
-
-                            onClick={() =>
-                                setShowDeduction(
-                                    (
-                                        prev
-                                    ) => !prev
-                                )
-                            }
-
-                        >
-
-                            <span>
-
-                                ⏱ Chọn loại trừ thời gian
-
-                            </span>
-
-
-                            <span>
-
-                                {
-                                    showDeduction
-
-                                        ? "▲"
-
-                                        : "▼"
-                                }
-
-                            </span>
-
-                        </button>
-
-
-                        {
-                            showDeduction
-                            && (
-
-                                <div className="worker-dropdown-options">
-
-                                    {
-                                        activeDeductionOptions
-                                            .map(
-                                                (
-                                                    item
-                                                ) => {
-
-                                                    const checked =
-                                                        selectedDeduction
-                                                            .includes(
-                                                                item.key
-                                                            );
-
-
-                                                    return (
-
-                                                        <label
-
-                                                            key={
-                                                                item.key
-                                                            }
-
-                                                            className="worker-dropdown-option"
-
-                                                        >
-
-                                                            <input
-
-                                                                type="checkbox"
-
-                                                                checked={
-                                                                    checked
-                                                                }
-
-                                                                onChange={
-                                                                    (
-                                                                        event
-                                                                    ) =>
-
-                                                                        handleToggleDeduction(
-
-                                                                            item.key,
-
-                                                                            event.target.checked
-
-                                                                        )
-                                                                }
-
-                                                            />
-
-
-                                                            <span>
-
-                                                                {
-                                                                    item.label
-                                                                }
-
-                                                            </span>
-
-                                                        </label>
-
-                                                    );
-
-                                                }
-                                            )
-                                    }
-
-                                </div>
-
-                            )
-                        }
-
-                    </div>
-
-
-                    {/* =================================================
-                        CÁC Ô TRỪ GIỜ ĐÃ CHỌN
-                    ================================================= */}
-
-                    {
-                        selectedDeduction.length
-                        >
-                        0
-                        && (
-
-                            <div className="worker-dynamic-grid">
-
-                                {
-                                    activeDeductionOptions
-
-                                        .filter(
-                                            (
-                                                item
-                                            ) =>
-
-                                                selectedDeduction
-                                                    .includes(
-                                                        item.key
-                                                    )
-                                        )
-
-                                        .map(
-                                            (
-                                                item
-                                            ) => (
-
-                                                <div
-
-                                                    key={
-                                                        item.key
-                                                    }
-
-                                                    className="worker-field-block"
-
-                                                >
-
-                                                    <label
-
-                                                        className="worker-field-label"
-
-                                                        htmlFor={
-                                                            String(item.key)
-                                                        }
-
-                                                    >
-
-                                                        {
-                                                            item.label
-                                                        }
-
-                                                    </label>
-
-
-                                                    <div className="worker-deduction-input-row">
-                                                        <input
-
-                                                            id={
-                                                                String(item.key)
-                                                            }
-
-                                                            className="worker-text-input worker-deduction-input"
-
-                                                            name={
-                                                                String(item.key)
-                                                            }
-
-                                                            value={
-                                                                deductions[
-                                                                    item.key
-                                                                ]
-                                                            }
-
-                                                            onChange={
-                                                                (
-                                                                    event
-                                                                ) =>
-
-                                                                    updateDeductionValue(
-
-                                                                        item.key,
-
-                                                                        event.target.value
-
-                                                                    )
-                                                            }
-
-                                                            onBlur={() => normalizeDeductionValue(item.key)}
-
-                                                            inputMode="numeric"
-
-                                                            placeholder="Phút"
-
-                                                            autoComplete="off"
-
-                                                        />
-                                                        <span className="worker-time-unit" aria-hidden="true">phút</span>
-                                                    </div>
-
-                                                </div>
-
-                                            )
-                                        )
-                                }
-
-                            </div>
-
-                        )
-                    }
-
-
-                    {/* =================================================
-                        LÝ DO DỪNG MÁY
-                    ================================================= */}
-
-
-
-                </section>
                                 {/* =================================================
                     SẢN XUẤT
                 ================================================= */}
@@ -3046,427 +2235,36 @@ window.setTimeout(() => {
 </section> */}
 
 
-                {/* =================================================
-                    BÁO CÁO CHẤT LƯỢNG
-                ================================================= */}
-
-                <section className="worker-form-card worker-quality-section">
-
-                    <h2 className="worker-card-title">
-
-                        <span>
-
-                            ▣
-
-                        </span>
-
-                        Báo cáo Chất lượng
-
-                    </h2>
-
-
-                    {/* =================================================
-                        TT OK / TT NG
-                    ================================================= */}
-
-                    <div className="worker-quality-summary">
-
-
-                        {/* TT OK */}
-
-                        <div className="worker-quality-card ok">
-
-                            <label
-
-                                htmlFor="ttOk"
-
-                            >
-
-                                TT OK
-
-                            </label>
-
-
-                            <input
-
-                                id="ttOk"
-
-                                name="ttOk"
-
-                                value={
-                                    formatIntegerDisplay(form.ttOk)
-                                }
-
-                                onChange={usesMultiMachineLines ? undefined : handleTtOkChange}
-                                onBlur={usesMultiMachineLines ? undefined : handleNumberBlur}
-                                readOnly={usesMultiMachineLines}
-                                disabled={usesMultiMachineLines}
-
-                                inputMode="numeric"
-
-                                placeholder=""
-
-                                autoComplete="off"
-
-                            />
-
-                        </div>
-
-
-                        {/* TT NG */}
-
-                        <div className="worker-quality-card ng">
-
-                            <label
-
-                                htmlFor="ttNg"
-
-                            >
-
-                                TT NG
-
-                            </label>
-
-
-                            <input
-
-                                id="ttNg"
-
-                                name="ttNg"
-
-                                value={
-                                    formatIntegerDisplay(form.ttNg)
-                                }
-
-                                readOnly
-                                disabled={usesMultiMachineLines}
-
-                                placeholder=""
-
-                            />
-
-                        </div>
-
-
-                        {/* TỔNG SẢN LƯỢNG = OK + NG */}
-
-                        <div className="worker-quality-card total-output">
-
-                            <label htmlFor="totalOutput">
-                                Tổng sản lượng
-                            </label>
-
-                            <input
-                                id="totalOutput"
-                                value={formatIntegerDisplay(
-                                    String((Number(form.ttOk) || 0) + (Number(form.ttNg) || 0))
-                                )}
-                                readOnly
-                                disabled={usesMultiMachineLines}
-                                aria-label="Tổng sản lượng bằng TT OK cộng TT NG"
-                            />
-
-                            <small>OK + NG</small>
-
-                        </div>
-
-                    </div>
-
-
-                    {/* =================================================
-                        CHỌN LỖI NG
-                    ================================================= */}
-
-                    <div className="worker-dropdown-box">
-
-                        <button
-
-                            type="button"
-
-                            className="worker-dropdown-title"
-
-                            onClick={() => setShowNg((prev) => !prev)}
-
-                        >
-
-                            <span>
-
-                                ⚠️ {usesMultiMachineLines
-                                    ? "Tổng lỗi NG từ các máy"
-                                    : "Chọn lỗi NG"}
-
-                            </span>
-
-
-                            <span>
-
-                                {
-                                    showNg
-
-                                        ? "▲"
-
-                                        : "▼"
-                                }
-
-                            </span>
-
-                        </button>
-
-
-                        {
-                            showNg
-                            && (
-
-                                <div className="worker-dropdown-options">
-
-                                    {
-                                        activeNgOptions
-                                            .map(
-                                                (
-                                                    item
-                                                ) => {
-
-                                                    const checked =
-                                                        selectedNg
-                                                            .includes(
-                                                                item.key
-                                                            );
-
-
-                                                    return (
-
-                                                        <label
-
-                                                            key={
-                                                                item.key
-                                                            }
-
-                                                            className="worker-dropdown-option"
-
-                                                        >
-
-                                                            <input
-
-                                                                type="checkbox"
-
-                                                                checked={
-                                                                    checked
-                                                                }
-
-                                                                onChange={(event) => {
-                                                                    if (usesMultiMachineLines) return;
-                                                                    handleToggleNg(item.key, event.target.checked);
-                                                                }}
-                                                                disabled={usesMultiMachineLines}
-
-                                                            />
-
-
-                                                            <span>
-
-                                                                {
-                                                                    item.label
-                                                                }
-
-                                                            </span>
-
-                                                        </label>
-
-                                                    );
-
-                                                }
-                                            )
-                                    }
-
-                                </div>
-
-                            )
-                        }
-
-                    </div>
-
-
-                    {/* =================================================
-                        CÁC Ô LỖI NG ĐÃ CHỌN
-                    ================================================= */}
-
-                    {
-                        selectedNg.length
-                        >
-                        0
-                        && (
-
-                            <div className="worker-dynamic-grid worker-ng-grid">
-
-                                {
-                                    activeNgOptions
-
-                                        .filter(
-                                            (
-                                                item
-                                            ) =>
-
-                                                selectedNg
-                                                    .includes(
-                                                        item.key
-                                                    )
-                                        )
-
-                                        .map(
-                                            (
-                                                item
-                                            ) => (
-
-                                                <div
-
-                                                    key={
-                                                        item.key
-                                                    }
-
-                                                    className="worker-field-block"
-
-                                                >
-
-                                                    <label
-
-                                                        className="worker-field-label"
-
-                                                        htmlFor={
-                                                            String(item.key)
-                                                        }
-
-                                                    >
-
-                                                        {
-                                                            item.label
-                                                        }
-
-                                                    </label>
-
-
-                                                    <input
-
-                                                        id={
-                                                            item.key
-                                                        }
-
-                                                        className="worker-text-input"
-
-                                                        name={
-                                                            item.key
-                                                        }
-
-                                                        value={
-                                                            form[
-                                                                item.key
-                                                            ]
-                                                        }
-
-                                                        onChange={(event) => {
-                                                            if (usesMultiMachineLines) return;
-                                                            handleNgValue(item.key, event.target.value);
-                                                        }}
-                                                        readOnly={usesMultiMachineLines}
-                                                        disabled={usesMultiMachineLines}
-
-                                                        inputMode="numeric"
-
-                                                        placeholder=""
-
-                                                        autoComplete="off"
-
-                                                    />
-
-                                                </div>
-
-                                            )
-                                        )
-                                }
-
-                            </div>
-
-                        )
-                    }
-
-
-                </section>
+                <ProcessQualitySection
+                    form={form}
+                    activeNgOptions={activeNgOptions}
+                    selectedNg={selectedNg}
+                    showNg={showNg}
+                    setShowNg={setShowNg}
+                    usesMultiMachineLines={usesMultiMachineLines}
+                    formatIntegerDisplay={formatIntegerDisplay}
+                    onTtOkChange={handleTtOkChange}
+                    onNumberBlur={handleNumberBlur}
+                    onToggleNg={handleToggleNg}
+                    onNgValue={handleNgValue}
+                />
 
             </div>
 
 
-            {duplicatePrompt && (
-                <div className="duplicate-dialog-backdrop" role="presentation">
-                    <div className="duplicate-dialog" role="dialog" aria-modal="true" aria-labelledby="duplicate-dialog-title">
-                        <h2 id="duplicate-dialog-title">Phát hiện báo cáo tương tự</h2>
-                        <p>
-                            Đã tồn tại báo cáo cùng nhân viên, ngày, ca, máy và sản phẩm.
-                            Bạn muốn chỉnh sửa báo cáo cũ hay vẫn tạo báo cáo mới?
-                        </p>
-                        <div className="duplicate-dialog-actions">
-                            <button type="button" className="duplicate-dialog-cancel" onClick={() => { setDuplicatePrompt(null); submitLockRef.current = false; }}>Hủy</button>
-                            <button type="button" className="duplicate-dialog-edit" onClick={handleUpdateExistingReport} disabled={submitting}>Chỉnh sửa báo cáo cũ</button>
-                            <button type="button" className="duplicate-dialog-create" onClick={handleCreateDuplicateAnyway} disabled={submitting}>Vẫn tạo báo cáo mới</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* =================================================
-                NÚT THAO TÁC
-            ================================================= */}
-
-            <div className="worker-action-group">
-
-                <button
-
-                    type="button"
-
-                    className="worker-reset-button"
-
-                    onClick={
-                        handleReset
-                    }
-
-                    disabled={
-                        submitting
-                    }
-
-                >
-
-                    Làm mới
-
-                </button>
-
-
-                <button
-
-                    type="button"
-
-                    className="worker-floating-save"
-
-                    onClick={
-                        handleSubmit
-                    }
-
-                    disabled={
-                        loadingWorker
-                        ||
-                        submitting
-                    }
-
-                >
-
-                    {
-                        submitting
-
-                            ? "Đang lưu..."
-
-                            : "Lưu"
-                    }
-
-                </button>
-
-            </div>
+            <ProcessSubmitActions
+                duplicatePrompt={duplicatePrompt}
+                submitting={submitting}
+                loadingWorker={loadingWorker}
+                onCancelDuplicate={() => {
+                    setDuplicatePrompt(null);
+                    submitLockRef.current = false;
+                }}
+                onUpdateExisting={() => void handleUpdateExistingReport()}
+                onCreateDuplicate={() => void handleCreateDuplicateAnyway()}
+                onReset={handleReset}
+                onSubmit={() => void handleSubmit()}
+            />
 
         </main>
 

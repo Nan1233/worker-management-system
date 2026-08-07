@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getUnreadNotificationCount } from "../services/systemService";
 import { isAuthRefreshInProgress, refreshAccessToken } from "../services/api";
+import { getAccessToken } from "../utils/authStorage";
 
 const POLL_INTERVAL_MS = 30_000;
 export const NOTIFICATION_COUNT_CHANGED_EVENT = "ktc:notification-count-changed";
@@ -29,7 +30,7 @@ export function useNotificationBadge() {
             !navigator.onLine ||
             document.visibilityState !== "visible" ||
             isAuthRefreshInProgress() ||
-            !(localStorage.getItem("accessToken") || localStorage.getItem("token"))
+            !getAccessToken()
         ) {
             return;
         }

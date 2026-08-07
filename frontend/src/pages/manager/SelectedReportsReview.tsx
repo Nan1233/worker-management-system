@@ -9,6 +9,7 @@ import {
 import type { ProductionReport } from "../../types/production";
 import { useToast } from "../../components/feedback/toastContext";
 import { decimalHoursToMinutes, formatMinutes } from "../../utils/timeDisplay";
+import { getStoredUser } from "../../utils/authStorage";
 import "./SelectedReportsReview.css";
 
 const REJECT_REASONS = [
@@ -63,14 +64,7 @@ function SelectedReportsReview() {
     const [rejectReason, setRejectReason] = useState(REJECT_REASONS[0]);
     const [rejectDetail, setRejectDetail] = useState("");
 
-    const savedUser = localStorage.getItem("user");
-    const role = (() => {
-        try {
-            return savedUser ? JSON.parse(savedUser)?.role || "manager" : "manager";
-        } catch {
-            return "manager";
-        }
-    })();
+    const role = getStoredUser()?.role || "manager";
 
     const basePath = role === "lead" ? "/lead" : "/manager";
     const canEdit = role === "manager" || role === "admin";

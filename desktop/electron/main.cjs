@@ -6,13 +6,19 @@ const os = require('node:os');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const { buildCompanyExcelLocal, buildProcessExcelLocal } = require('./companyExcelLocal.cjs');
+const { createDesktopLogger, normalizeError } = require('./desktopLog.cjs');
+const { normalizeAccessToken, isUsableAccessToken } = require('./authToken.cjs');
 const { buildMonthlyWorkbookLocal, buildReconciliationWorkbook } = require('./monthlyWorkbookLocal.cjs');
+const { getCompanyMonthTarget } = require('./excelDualLayout.cjs');
 const {
-  getCompanyMonthTarget,
-  getProcessMonthTarget,
-  normalizeProcessFolder,
-  processReportFileName
-} = require('./excelDualLayout.cjs');
+  getDateParts,
+  assertDate,
+  safeFolderName,
+  safeFileName,
+  getExportRoot,
+  getProcessExportPath,
+  cleanupMisplacedCompanyFiles,
+} = require('./excelPaths.cjs');
 
 const execFileAsync = promisify(execFile);
 
@@ -43,218 +49,10 @@ app.setPath('cache', path.join(appDataRoot, 'Cache'));
 app.commandLine.appendSwitch('disk-cache-dir', path.join(appDataRoot, 'Cache'));
 app.commandLine.appendSwitch('gpu-cache-dir', path.join(appDataRoot, 'GPUCache'));
 
-function nowText() {
-  return new Date().toISOString();
-}
-
-function normalizeError(error) {
-  if (error instanceof Error) return { message: error.message, stack: error.stack, code: error.code };
-  return { message: String(error) };
-}
-
-async function rotateDesktopLogIfNeeded(logPath) {
-  const maxBytes = Math.max(1, Number(process.env.DESKTOP_LOG_MAX_MB || 8)) * 1024 * 1024;
-  try {
-    const stat = await fs.stat(logPath);
-    if (stat.size < maxBytes) return;
-    for (let index = 4; index >= 1; index -= 1) {
-      const source = `${logPath}.${index}`;
-      const target = `${logPath}.${index + 1}`;
-      await fs.rm(target, { force: true }).catch(() => {});
-      await fs.rename(source, target).catch(() => {});
-    }
-    await fs.rename(logPath, `${logPath}.1`).catch(() => {});
-  } catch {
-    // A missing log file does not require rotation.
-  }
-}
-
-async function writeLog(level, message, details) {
-  const serialized = details === undefined ? '' : ` ${typeof details === 'string' ? details : JSON.stringify(details)}`;
-  const line = `[${nowText()}] [${level}] ${message}${serialized}\n`;
-  try {
-    const folder = path.join(app.getPath('userData'), 'logs');
-    const logPath = path.join(folder, 'desktop.log');
-    await fs.mkdir(folder, { recursive: true });
-    await rotateDesktopLogIfNeeded(logPath);
-    await fs.appendFile(logPath, line, 'utf8');
-  } catch {
-    // Logging must never crash the desktop application.
-  }
-  const method = level === 'ERROR' ? console.error : level === 'WARN' ? console.warn : console.log;
-  method(line.trim());
-}
+const writeLog = createDesktopLogger(() => app.getPath('userData'));
 
 process.on('uncaughtException', (error) => void writeLog('ERROR', 'UNCAUGHT_EXCEPTION', normalizeError(error)));
 process.on('unhandledRejection', (error) => void writeLog('ERROR', 'UNHANDLED_REJECTION', normalizeError(error)));
-
-function getDateParts(dateValue = new Date()) {
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit'
-  });
-  const [year, month, day] = formatter.format(dateValue).split('-');
-  return { year, month, day, date: `${year}-${month}-${day}` };
-}
-
-function assertDate(date) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) throw new Error('Ngày đồng bộ Excel không hợp lệ.');
-  const parsed = new Date(`${date}T00:00:00Z`);
-  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) {
-    throw new Error('Ngày đồng bộ Excel không tồn tại.');
-  }
-}
-
-function safeFolderName(value, fallback = 'Cong doan') {
-  return String(value || fallback)
-    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-')
-    .replace(/\s+/g, ' ')
-    .replace(/[. ]+$/g, '')
-    .trim() || fallback;
-}
-
-function safeFileName(value, fallback) {
-  const candidate = safeFolderName(value, fallback);
-  return candidate.toLowerCase().endsWith('.xlsx') ? candidate : `${candidate}.xlsx`;
-}
-
-function getExportRoot() {
-  const configured = String(process.env.KTC_EXPORT_ROOT || "").trim();
-  if (configured) {
-    return path.resolve(configured);
-  }
-
-  return path.join(
-    os.homedir(),
-    "Documents",
-    "KTC",
-    "Bao cao san xuat"
-  );
-}
-
-async function findExistingProcessReportFile(folder, processInfo, month, year) {
-  let entries = [];
-  try {
-    entries = await fs.readdir(folder, { withFileTypes: true });
-  } catch (error) {
-    if (error?.code === 'ENOENT') return null;
-    throw error;
-  }
-
-  const processFolder = normalizeProcessFolder({
-    processCode: processInfo.processCode,
-    processName: processInfo.processName
-  });
-  const compact = (value) => String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '');
-  const processToken = compact(processFolder);
-  const targetPeriodTokens = new Set([
-    compact(`${month}${year}`),
-    compact(`${year}${month}`),
-    compact(`${month}-${year}`),
-    compact(`${year}-${month}`)
-  ]);
-  const periodPattern = /(?:19|20)\d{2}|(?:^|[^0-9])(0?[1-9]|1[0-2])(?:[^0-9]|$)/;
-
-  const candidates = entries
-    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.xlsx'))
-    .filter((entry) => !entry.name.toLowerCase().endsWith('.pending.xlsx'))
-    .filter((entry) => !entry.name.toLowerCase().startsWith('a+b'))
-    .map((entry) => {
-      const key = compact(entry.name);
-      const baseName = entry.name.replace(/\.xlsx$/i, '');
-      const hasTargetPeriod = [...targetPeriodTokens].some((token) => key.includes(token));
-      const hasAnyPeriod = periodPattern.test(baseName);
-      return { entry, key, hasTargetPeriod, hasAnyPeriod };
-    })
-    .filter(({ key }) => key.includes('baocao') && key.includes(processToken))
-    // Chỉ tái sử dụng file đúng tháng hoặc file tên chung không chứa kỳ.
-    // Tuyệt đối không chọn file 07-2026 để ghi dữ liệu 08-2026.
-    .filter(({ hasTargetPeriod, hasAnyPeriod }) => hasTargetPeriod || !hasAnyPeriod)
-    .map((item) => {
-      const keyWithoutExtension = item.key.replace(/xlsx$/, '');
-      const exactGenericNames = new Set([
-        `baocao${processToken}`,
-        `baocaosanxuat${processToken}`,
-        `baocao${processToken}thang`
-      ]);
-      let score = item.hasTargetPeriod ? 200 : 0;
-      if (exactGenericNames.has(keyWithoutExtension)) score += 100;
-      if (item.key === `baocao${processToken}xlsx`) score += 110;
-      return { ...item, score };
-    })
-    .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name));
-
-  return candidates.length > 0 ? candidates[0].entry.name : null;
-}
-
-async function getProcessExportPath(date, processInfo, serverFileName) {
-  assertDate(date);
-  const [year, month] = date.split('-');
-  const root = getExportRoot();
-  const processFolder = normalizeProcessFolder({
-    processCode: processInfo.processCode,
-    processName: processInfo.processName
-  });
-  const folder = path.join(root, year, processFolder);
-  await fs.mkdir(folder, { recursive: true });
-
-  // Ưu tiên đúng file báo cáo tháng đã tồn tại tại công ty, ví dụ:
-  // Bao-cao-Gia-cong-07-2026.xlsx. Nhờ đó không tạo thêm một tên mới rồi bỏ
-  // nguyên file cũ chưa được cập nhật.
-  const existingFileName = await findExistingProcessReportFile(folder, processInfo, month, year);
-  const canonicalName = processReportFileName({
-    processCode: processInfo.processCode,
-    processName: processInfo.processName,
-    month,
-    year
-  });
-
-  return getProcessMonthTarget({
-    root,
-    date,
-    processCode: processInfo.processCode,
-    processName: processInfo.processName,
-    fileName: existingFileName || canonicalName || serverFileName
-  });
-}
-
-async function cleanupMisplacedCompanyFiles(root, date) {
-  assertDate(date);
-  const [year, month] = date.split('-');
-  const monthFolder = path.join(root, year, month);
-  const processFolders = ['Gia công', 'Mài', 'Đo', 'Kiểm 1', 'Kiểm 2', 'Ép', 'Cán', 'Xử lý bavia'];
-
-  for (const processFolder of processFolders) {
-    const folder = path.join(root, year, processFolder);
-    let entries = [];
-    try {
-      entries = await fs.readdir(folder, { withFileTypes: true });
-    } catch (error) {
-      if (error?.code === 'ENOENT') continue;
-      throw error;
-    }
-
-    for (const entry of entries) {
-      if (!entry.isFile()) continue;
-      const lower = entry.name.toLowerCase();
-      if (!lower.startsWith('a+b') || !lower.endsWith('.xlsx')) continue;
-
-      const misplacedPath = path.join(folder, entry.name);
-      const correctPath = path.join(monthFolder, entry.name);
-      try {
-        await fs.access(correctPath);
-        await fs.rm(misplacedPath, { force: true });
-        await writeLog('INFO', 'MISPLACED_AB_REMOVED', { misplacedPath, correctPath });
-      } catch {
-        // Không xóa nếu chưa có bản đúng trong thư mục tháng.
-        await writeLog('WARN', 'MISPLACED_AB_KEPT_NO_MONTH_COPY', { misplacedPath, correctPath });
-      }
-    }
-  }
-}
 
 async function fetchWithTimeout(url, options = {}) {
   const controller = new AbortController();
@@ -1027,11 +825,6 @@ function stopAutomaticSync() {
   syncTimer = null;
 }
 
-function normalizeAccessToken(token) {
-  const value = typeof token === 'string' ? token.trim() : '';
-  return value.replace(/^Bearer\s+/i, '').trim();
-}
-
 function configureAutomaticSync(token) {
   currentToken = normalizeAccessToken(token);
   stopAutomaticSync();
@@ -1084,26 +877,6 @@ async function readRendererAccessToken() {
   );
 
   return normalizeAccessToken(token);
-}
-
-function decodeJwtPayload(token) {
-  try {
-    const parts = String(token || '').split('.');
-    if (parts.length !== 3) return null;
-    const normalized = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
-    return JSON.parse(Buffer.from(padded, 'base64').toString('utf8'));
-  } catch {
-    return null;
-  }
-}
-
-function isUsableAccessToken(token, clockSkewSeconds = 20) {
-  const normalized = normalizeAccessToken(token);
-  if (!normalized) return false;
-  const payload = decodeJwtPayload(normalized);
-  if (!payload || !Number.isFinite(Number(payload.exp))) return true;
-  return Number(payload.exp) * 1000 > Date.now() + clockSkewSeconds * 1000;
 }
 
 async function resolveDesktopToken(candidateToken) {

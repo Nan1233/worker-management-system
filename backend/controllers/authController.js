@@ -12,6 +12,56 @@ const ACCESS_TOKEN_EXPIRES_IN =
 
 const REFRESH_TOKEN_TTL_DAYS = Math.max(1, Number(process.env.REFRESH_TOKEN_TTL_DAYS || 90));
 
+const REFRESH_COOKIE_NAME = "ktc_refresh_token";
+
+function parseCookie(req, name) {
+    const cookieHeader = String(req.headers.cookie || "");
+    for (const part of cookieHeader.split(";")) {
+        const separator = part.indexOf("=");
+        if (separator < 0) continue;
+        const key = part.slice(0, separator).trim();
+        if (key !== name) continue;
+        try {
+            return decodeURIComponent(part.slice(separator + 1).trim());
+        } catch {
+            return part.slice(separator + 1).trim();
+        }
+    }
+    return "";
+}
+
+function getRequestRefreshToken(req) {
+    const bodyToken = typeof req.body?.refreshToken === "string"
+        ? req.body.refreshToken.trim()
+        : "";
+    return bodyToken || parseCookie(req, REFRESH_COOKIE_NAME);
+}
+
+function setRefreshCookie(res, refreshToken) {
+    res.cookie(REFRESH_COOKIE_NAME, refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+        maxAge: REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000,
+        path: "/api/auth",
+    });
+}
+
+function clearRefreshCookie(res) {
+    res.clearCookie(REFRESH_COOKIE_NAME, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+        path: "/api/auth",
+    });
+}
+
+function shouldReturnRefreshToken(req) {
+    // Electron keeps a body-token fallback because file:// renderer cookie behavior
+    // differs by platform. Normal web clients use the HttpOnly cookie.
+    return /electron/i.test(String(req.headers["user-agent"] || ""));
+}
+
 function getRefreshTokenExpiresAt() {
     const expiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
     return expiresAt.toISOString().slice(0, 19).replace("T", " ");
@@ -172,9 +222,9 @@ function generateAccessToken(user) {
 
 async function issueLoginSession(req, res, user) {
     const previousRefreshToken =
-        typeof req.body?.previous_refresh_token === "string"
+        (typeof req.body?.previous_refresh_token === "string"
             ? req.body.previous_refresh_token.trim()
-            : "";
+            : "") || parseCookie(req, REFRESH_COOKIE_NAME);
 
     // Khi đổi tài khoản, thu hồi phiên cũ trước khi tạo phiên mới. Điều này
     // ngăn tab/PWA cũ dùng refresh token trước đó để ghi đè tài khoản vừa đăng nhập.
@@ -222,12 +272,14 @@ async function issueLoginSession(req, res, user) {
         worker_status: user.worker_status || (user.role === "worker" ? "active" : null)
     });
 
+    setRefreshCookie(res, refreshToken);
+
     const responseBody = {
         success: true,
         message: "Đăng nhập thành công",
         token: accessToken,
         accessToken,
-        refreshToken,
+        ...(shouldReturnRefreshToken(req) ? { refreshToken } : {}),
         expiresIn: ACCESS_TOKEN_EXPIRES_IN,
         user: {
             id: user.id,
@@ -420,10 +472,7 @@ exports.login = async (req, res) => {
 
 exports.refresh = async (req, res) => {
     try {
-        const refreshToken =
-            typeof req.body?.refreshToken === "string"
-                ? req.body.refreshToken.trim()
-                : "";
+        const refreshToken = getRequestRefreshToken(req);
 
         if (!refreshToken) {
             return res.status(400).json({
@@ -487,6 +536,7 @@ exports.refresh = async (req, res) => {
         });
 
         await updateSessionLastUsed(refreshToken);
+        setRefreshCookie(res, refreshToken);
 
         return res.status(200).json({
             success: true,
@@ -520,10 +570,7 @@ exports.refresh = async (req, res) => {
 
 exports.logout = async (req, res) => {
     try {
-        const refreshToken =
-            typeof req.body?.refreshToken === "string"
-                ? req.body.refreshToken.trim()
-                : "";
+        const refreshToken = getRequestRefreshToken(req);
 
         if (!refreshToken) {
             return res.status(400).json({
@@ -533,6 +580,7 @@ exports.logout = async (req, res) => {
         }
 
         await revokeSession(refreshToken);
+        clearRefreshCookie(res);
 
         try {
             await auditService.logActivity({
