@@ -4,9 +4,7 @@ import { HashRouter } from "react-router-dom";
 
 import App from "./App";
 import "./index.css";
-import "./styles/ktc-unified-theme.css";
-import "./styles/worker-visual-refresh.css";
-import "./styles/ktc-balanced-blue.css";
+import "./styles/ktc-professional.css";
 import { ToastProvider } from "./components/feedback/ToastProvider";
 import AuthBootstrap from "./components/AuthBootstrap";
 import { FRONTEND_VERSION, FRONTEND_COMMIT_SHA } from "./config/version";

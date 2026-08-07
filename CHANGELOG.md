@@ -125,3 +125,9 @@
 - `DeductionKey` now uses `Extract<keyof DeductionState, string>`.
 - Deduction payload codes and form `htmlFor`/`id`/`name` are explicitly converted with `String(...)`.
 - Added source regression test so CI catches this issue before Electron packaging.
+
+## 2026-08-07 - Render startup module fix
+- Restored `backend/services/schemaCompatibilityService.js` required by `processExcelExportService.js`.
+- Added cached TiDB `INFORMATION_SCHEMA.COLUMNS` compatibility checks for optional legacy columns.
+- Added regression tests that fail when any relative backend `require()` points to a missing deploy-source module.
+- Backend tests: 60/60 pass; backend source check passes.
