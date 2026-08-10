@@ -1,0 +1,6 @@
+P0.4 Render build hotfix - 2026-08-10
+
+Fixed frontend/src/pages/manager/SelectedReportsReview.tsx:
+- Added import axios from "axios".
+- axios.isAxiosError(err) now acts as a proper type guard for catch(err: unknown).
+- Fixes TS2304 and TS18046 reported by Render.
