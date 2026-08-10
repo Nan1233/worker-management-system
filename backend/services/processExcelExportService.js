@@ -3,6 +3,7 @@ const fs = require('node:fs/promises');
 const db = require('../config/db');
 const { assertReportVolume, chunkArray } = require('./excelExportGuards');
 const { hasColumn } = require('./schemaCompatibilityService');
+const { calculateReportPerformance } = require('./machinePerformanceService');
 
 const query = (sql, params = []) => new Promise((resolve, reject) => {
   db.query(sql, params, (error, rows) => error ? reject(error) : resolve(rows));
@@ -101,11 +102,16 @@ async function loadProcessMonthReports(value, processId) {
         pr.note, ${extraDataSelect}, pr.status, pr.review_note,
         pr.reviewed_by, pr.approved_at, pr.created_at, pr.updated_at,
         w.worker_code, w.training_percent, w.position, w.department,
-        u.full_name, p.process_name, p.process_code
+        u.full_name, p.process_name, p.process_code,
+        COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt
        FROM production_reports AS pr
        INNER JOIN workers AS w ON w.id = pr.worker_id
        INNER JOIN users AS u ON u.id = w.user_id
        INNER JOIN processes AS p ON p.id = pr.process_id
+       LEFT JOIN product_standards AS ps
+         ON ps.process_id = pr.process_id
+        AND ps.product_code = pr.product_name
+        AND LOWER(COALESCE(ps.status, 'active')) IN ('active', 'enabled', '1')
       WHERE LOWER(TRIM(COALESCE(pr.status, ''))) = 'approved'
         AND pr.work_date >= ?
         AND pr.work_date < ?
@@ -163,6 +169,15 @@ async function loadProcessMonthReports(value, processId) {
     report.deductions = deductions.get(id) || [];
     report.defects = defects.get(id) || [];
     report.machineLines = machineLines.get(id) || [];
+
+    // Tính aggregate multi-machine từ chính snapshot từng máy đã lưu trong DB.
+    // Không ghi đè các cột production_reports; chỉ bổ sung machinePerformance
+    // để calculationSnapshot và Excel dùng đúng tổng counted/max của nhiều máy.
+    Object.assign(report, calculateReportPerformance({
+      report,
+      machineLines: report.machineLines
+    }));
+
     report.dataSource = 'production_reports';
     report.isApprovedDatabaseRecord = true;
   });

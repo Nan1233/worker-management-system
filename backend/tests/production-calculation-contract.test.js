@@ -15,3 +15,20 @@ test('company-data API attaches backend calculationSnapshot and desktop prefers 
   assert.match(controller, /calculationSnapshot:\s*calculateProductionMetrics\(report, settings\)/);
   assert.match(desktop, /report\.calculationSnapshot\s*\|\|\s*calculateProductionMetrics\(report, settings\)/);
 });
+
+test('company-data loader carries product KQD policy and multi-machine aggregate into canonical snapshot', () => {
+  const loader = fs.readFileSync(path.join(__dirname, '../services/processExcelExportService.js'), 'utf8');
+  assert.match(loader, /LEFT JOIN product_standards AS ps/);
+  assert.match(loader, /COALESCE\(ps\.exclude_kqd_from_tt, 0\) AS exclude_kqd_from_tt/);
+  assert.match(loader, /calculateReportPerformance\(\{/);
+  assert.match(loader, /machineLines:\s*report\.machineLines/);
+  assert.match(loader, /Object\.assign\(report, calculateReportPerformance/);
+});
+
+
+test('company-data advertises the current split workbook contract', () => {
+  const controller = fs.readFileSync(path.join(__dirname, '../controllers/companyExcelDataController.js'), 'utf8');
+  assert.match(controller, /mode:\s*'SPLIT_MONTHLY_WORKBOOKS'/);
+  assert.match(controller, /expectedFileCount:\s*PROCESS_CODES\.length \+ 1/);
+  assert.match(controller, /calculationContractVersion:\s*2/);
+});

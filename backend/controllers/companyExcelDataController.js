@@ -95,7 +95,9 @@ async function buildCompanyData(yearMonth) {
 
   return {
     yearMonth,
-    mode: 'TWO_MONTHLY_WORKBOOKS',
+    mode: 'SPLIT_MONTHLY_WORKBOOKS',
+    expectedFileCount: PROCESS_CODES.length + 1,
+    calculationContractVersion: 2,
     dataSource: 'tidb.production_reports.approved',
     sourceTables: [
       'production_reports',
