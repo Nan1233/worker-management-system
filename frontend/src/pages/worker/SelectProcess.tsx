@@ -9,15 +9,13 @@ import {
 
 import axios from "axios";
 
+import { clearAuthSession, getStoredUser } from "../../utils/authStorage";
+
 import {
     getCurrentWorker
 } from "../../services/workerService";
 
 import { prefetchProcessMasterData } from "../../services/masterDataCache";
-
-import type {
-    User
-} from "../../types/auth";
 
 import type {
     WorkerProfile
@@ -77,34 +75,13 @@ function SelectProcess() {
                     setError("");
 
 
-                    const savedUser =
-                        localStorage.getItem(
-                            "user"
-                        );
+                    const user = getStoredUser();
 
-
-                    if (!savedUser) {
-
-                        localStorage.removeItem(
-                            "token"
-                        );
-
-                        navigate(
-                            "/login",
-                            {
-                                replace: true
-                            }
-                        );
-
+                    if (!user) {
+                        clearAuthSession({ bumpEpoch: false });
+                        navigate("/login", { replace: true });
                         return;
-
                     }
-
-
-                    const user: User =
-                        JSON.parse(
-                            savedUser
-                        );
 
 
                     if (user.role !== "worker") {
@@ -145,13 +122,7 @@ function SelectProcess() {
                         401
                     ) {
 
-                        localStorage.removeItem(
-                            "token"
-                        );
-
-                        localStorage.removeItem(
-                            "user"
-                        );
+                        clearAuthSession({ bumpEpoch: false });
 
                         navigate(
                             "/login",

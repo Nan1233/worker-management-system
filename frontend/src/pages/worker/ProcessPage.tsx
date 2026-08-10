@@ -7,6 +7,8 @@ import {
 
 import axios from "axios";
 
+import { clearAuthSession, getStoredUser } from "../../utils/authStorage";
+
 import {
     useNavigate,
     useParams
@@ -521,29 +523,12 @@ const calculateActualOutput = (values: FormState): number =>
                     );
 
 
-                    const savedUser =
-                        localStorage.getItem(
-                            "user"
-                        );
-
+                    const savedUser = getStoredUser();
 
                     if (!savedUser) {
-
-                        localStorage.removeItem(
-                            "token"
-                        );
-
-
-                        navigate(
-                            "/login",
-                            {
-                                replace: true
-                            }
-                        );
-
-
+                        clearAuthSession({ bumpEpoch: false });
+                        navigate("/login", { replace: true });
                         return;
-
                     }
 
 
@@ -610,13 +595,7 @@ const calculateActualOutput = (values: FormState): number =>
                         401
                     ) {
 
-                        localStorage.removeItem(
-                            "token"
-                        );
-
-                        localStorage.removeItem(
-                            "user"
-                        );
+                        clearAuthSession({ bumpEpoch: false });
 
 
                         navigate(
