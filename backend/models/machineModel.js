@@ -18,7 +18,10 @@ exports.findByProcess = (
                     id,
                     process_id,
                     machine_code,
-                    machine_name
+                    machine_name,
+                    COALESCE(is_automatic, 0) AS is_automatic,
+                    COALESCE(max_workers_per_machine, 1) AS max_workers_per_machine,
+                    COALESCE(output_basis, 'PRODUCT') AS output_basis
 
                 FROM machines
 

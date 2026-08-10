@@ -16,7 +16,9 @@
     "backup:db": "node scripts/createDatabaseBackup.js",
     "backup:verify": "node scripts/verifyDatabaseBackup.js",
     "restore:db": "node scripts/restoreDatabaseBackup.js",
-    "db:demo-schema": "node scripts/ensureDemoSchema.js"
+    "db:demo-schema": "node scripts/ensureDemoSchema.js",
+    "db:seed-master": "node scripts/runMasterSeed.js",
+    "db:verify-master": "node scripts/verifyMasterSeed.js"
   },
   "keywords": [],
   "author": "",

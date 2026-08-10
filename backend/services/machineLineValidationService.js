@@ -91,7 +91,8 @@ const createMachineLineValidator = ({ query = defaultQuery } = {}) => async ({ p
                     ps.standard_output AS default_standard_output,
                     COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
                     pms.standard_time_seconds,
-                    pms.calculated_output_per_hour AS machine_standard_output
+                    pms.calculated_output_per_hour AS machine_standard_output,
+                    EXISTS(SELECT 1 FROM product_machine_standards px WHERE px.process_id=ps.process_id AND px.product_code=ps.product_code AND px.is_active=1) AS has_machine_specific_standard
              FROM product_standards ps
              LEFT JOIN product_machine_standards pms
                ON pms.process_id = ps.process_id
@@ -109,6 +110,12 @@ const createMachineLineValidator = ({ query = defaultQuery } = {}) => async ({ p
         );
         if (!products.length) {
             errors[`machine_lines.${index}.product_code`] = `Sản phẩm ${productCode} không thuộc công đoạn`;
+            continue;
+        }
+
+        if (Number(products[0].has_machine_specific_standard || 0) === 1 && products[0].machine_standard_output == null) {
+            errors[`machine_lines.${index}.product_code`] =
+                `Sản phẩm ${productCode} không được cấu hình chạy trên máy ${machines[0].machine_code} theo dữ liệu Book2`;
             continue;
         }
 

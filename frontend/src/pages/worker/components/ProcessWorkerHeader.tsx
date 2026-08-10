@@ -27,7 +27,7 @@ export default function ProcessWorkerHeader({
     onDateChange,
 }: Props) {
     return (
-        <>
+        <div className="worker-sticky-context">
             <header className="worker-form-header">
                 <div className="worker-form-title-row">
                     <button type="button" className="worker-form-back" onClick={onBack} aria-label="Quay lại">←</button>
@@ -58,6 +58,6 @@ export default function ProcessWorkerHeader({
                     </label>
                 </div>
             </div>
-        </>
+        </div>
     );
 }

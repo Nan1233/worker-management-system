@@ -103,7 +103,7 @@ export const PROCESS_FORM_SCHEMAS: Record<string, ProcessFormSchema> = {
     machineLabel: "Số máy đo",
     fields: [
       ...COMMON_FIELDS,
-      { key: "machine_lines", label: "Danh sách máy đo", kind: "machine-list", required: true },
+      { key: "machine_no", label: "Máy đo", kind: "machine", required: true },
       { key: "product_code", label: "Mã sản phẩm", kind: "product", required: true },
       { key: "total_time", label: "Thời gian đo", kind: "number", required: true, unit: "giờ" },
       { key: "actual_time", label: "Thời gian đo thực tế", kind: "number", required: true, unit: "giờ" },
@@ -179,7 +179,7 @@ export const PROCESS_FORM_SCHEMAS: Record<string, ProcessFormSchema> = {
     machineLabel: "Số máy ép",
     fields: [
       ...COMMON_FIELDS,
-      { key: "machine_lines", label: "Danh sách máy ép", kind: "machine-list", required: true },
+      { key: "machine_no", label: "Máy ép", kind: "machine", required: true },
       { key: "product_code", label: "Mã sản phẩm", kind: "product", required: true },
       { key: "press_box_shift", label: "Ca/thùng ép", kind: "text" },
       { key: "actual_time", label: "Thời gian ép thực tế", kind: "number", required: true, unit: "giờ" },

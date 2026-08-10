@@ -36,3 +36,8 @@ frontend/src/pages/manager/ReportDetail.css
 frontend/src/pages/system/SystemCenter.css
 frontend/src/pages/system/SystemCenter.tsx
 desktop/electron/monthlyWorkbookLocal.cjs
+
+[2026-08-10 14:45] Mobile sticky header + Cắt/Lồng controls
+- frontend/src/pages/worker/components/ProcessWorkerHeader.tsx
+- frontend/src/pages/worker/components/ProcessBasicInfoSection.tsx
+- frontend/src/pages/worker/ProcessPage.css

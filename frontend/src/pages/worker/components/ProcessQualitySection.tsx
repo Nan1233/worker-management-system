@@ -41,7 +41,7 @@ export default function ProcessQualitySection({
 
             <div className="worker-quality-summary">
                 <div className="worker-quality-card ok">
-                    <label htmlFor="ttOk">TT OK</label>
+                    <label htmlFor="ttOk">{usesMultiMachineLines ? "OK của người (tổng các máy)" : "TT OK"}</label>
                     <input
                         id="ttOk"
                         name="ttOk"
@@ -56,7 +56,7 @@ export default function ProcessQualitySection({
                 </div>
 
                 <div className="worker-quality-card ng">
-                    <label htmlFor="ttNg">TT NG</label>
+                    <label htmlFor="ttNg">{usesMultiMachineLines ? "NG của người (tổng các máy)" : "TT NG"}</label>
                     <input
                         id="ttNg"
                         name="ttNg"
@@ -67,7 +67,7 @@ export default function ProcessQualitySection({
                 </div>
 
                 <div className="worker-quality-card total-output">
-                    <label htmlFor="totalOutput">Tổng sản lượng</label>
+                    <label htmlFor="totalOutput">{usesMultiMachineLines ? "Sản lượng người" : "Tổng sản lượng"}</label>
                     <input
                         id="totalOutput"
                         value={formatIntegerDisplay(String((Number(form.ttOk) || 0) + (Number(form.ttNg) || 0)))}
@@ -75,7 +75,7 @@ export default function ProcessQualitySection({
                         disabled={usesMultiMachineLines}
                         aria-label="Tổng sản lượng bằng TT OK cộng TT NG"
                     />
-                    <small>OK + NG</small>
+                    <small>{usesMultiMachineLines ? "Tổng sản lượng thực tế của tất cả máy người này chạy" : "OK + NG"}</small>
                 </div>
             </div>
 

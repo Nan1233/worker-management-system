@@ -1,7 +1,7 @@
 import type { ChangeEvent, Dispatch, SetStateAction } from "react";
 import AutocompleteInput from "../../../components/common/AutocompleteInput";
 import type { AutocompleteOption } from "../../../components/common/AutocompleteInput";
-import type { ProductStandardOption } from "../../../services/masterDataService";
+import type { MachineOption, ProductStandardOption } from "../../../services/masterDataService";
 import AppIcon from "../../../components/common/AppIcon";
 import type {
     FormState,
@@ -32,8 +32,10 @@ interface Props {
     productAutocompleteOptions: AutocompleteOption[];
     productOptions: ProductStandardOption[];
     machineAutocompleteOptions: AutocompleteOption[];
+    machineOptions: MachineOption[];
     loadingMasterData: boolean;
     machineCount: number;
+    maxMachineCount: number;
     machineLines: MachineLineState[];
     resizeMachineLines: (count: number) => void;
     updateMachineLine: (index: number, patch: Partial<MachineLineState>) => void;
@@ -59,8 +61,10 @@ export default function ProcessBasicInfoSection({
     productAutocompleteOptions,
     productOptions,
     machineAutocompleteOptions,
+    machineOptions,
     loadingMasterData,
     machineCount,
+    maxMachineCount,
     machineLines,
     resizeMachineLines,
     updateMachineLine,
@@ -106,7 +110,7 @@ export default function ProcessBasicInfoSection({
                 </div>
 
                 {isCutLongProcess && (
-                    <div className="worker-field-block worker-field-full multi-machine-controls">
+                    <div className="worker-field-block worker-field-full multi-machine-controls cut-long-controls">
                         <label>Loại gia công</label>
                         <div className="worker-choice-row">
                             <button type="button" className={operationType === "CUT" ? "active" : ""} onClick={() => setOperationType("CUT")}>Cắt</button>
@@ -150,10 +154,13 @@ export default function ProcessBasicInfoSection({
 
                 {usesMultiMachineLines ? (
                     <div className="worker-field-block worker-field-full multi-machine-panel">
-                        <label>Số lượng máy (tối đa 4)</label>
+                        <label>Số lượng máy (tối đa {maxMachineCount})</label>
                         <select value={machineCount} onChange={(event) => resizeMachineLines(Number(event.target.value))}>
-                            {[1, 2, 3, 4].map((count) => <option key={count} value={count}>{count} máy</option>)}
+                            {Array.from({ length: maxMachineCount }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count} máy</option>)}
                         </select>
+                        {isCutLongProcess && (
+                            <small>Máy tự động được chạy tối đa 4 máy/người. Nếu chọn máy thường, hệ thống giới hạn 1 máy/người.</small>
+                        )}
 
                         {machineLines.map((line, index) => (
                             <div className="machine-line" key={index}>
@@ -208,12 +215,30 @@ export default function ProcessBasicInfoSection({
                                     }} />
                                     <span>phút</span>
                                 </div>
-                                <div className="machine-section-title">Sản lượng máy</div>
+                                <div className="machine-section-title">{(() => {
+                                    const selected = machineOptions.find((machine) => machine.machine_code.trim().toUpperCase() === line.machineCode.trim().toUpperCase());
+                                    return selected?.output_basis === "MACHINE" ? "Sản lượng theo máy" : "Sản lượng sản phẩm";
+                                })()}</div>
                                 <div className="machine-quantity-row">
                                     <label>OK<input type="number" min="0" inputMode="numeric" value={line.okQuantity} onChange={(event) => updateMachineLine(index, { okQuantity: event.target.value.replace(/\D/g, "") })} /></label>
                                     <label>NG<input type="number" min="0" inputMode="numeric" value={line.ngQuantity} readOnly aria-readonly="true" title="Tự động cộng từ chi tiết lỗi NG" /></label>
                                     <div className="machine-line-total"><span>Tổng</span><strong>{(Number(line.okQuantity) || 0) + (Number(line.ngQuantity) || 0)}</strong></div>
                                 </div>
+                                {(() => {
+                                    const runtimeHours = (Number(line.hours) || 0) + ((Number(line.minutes) || 0) / 60);
+                                    const target = Math.max(0, Number(line.standardOutputPerHour || 0) * runtimeHours);
+                                    const actual = (Number(line.okQuantity) || 0) + (Number(line.ngQuantity) || 0);
+                                    const efficiency = target > 0 ? (actual / target) * 100 : 0;
+                                    return (
+                                        <div className="machine-performance-strip" aria-label={`Năng suất máy ${index + 1}`}>
+                                            <div className="machine-performance-metric"><span>Định mức máy/SP</span><strong>{line.standardLoading ? "Đang tải..." : line.standardOutputPerHour > 0 ? `${line.standardOutputPerHour.toLocaleString("vi-VN", { maximumFractionDigits: 2 })} SP/giờ` : "Chưa có"}</strong></div>
+                                            <div className="machine-performance-metric"><span>Thời gian chuẩn</span><strong>{line.standardTimeSeconds ? `${Number(line.standardTimeSeconds).toLocaleString("vi-VN", { maximumFractionDigits: 2 })} giây/SP` : "Theo định mức SP"}</strong></div>
+                                            <div className="machine-performance-metric machine-target"><span>SL theo TG chạy</span><strong>{target > 0 ? Math.floor(target).toLocaleString("vi-VN") : "—"}</strong></div>
+                                            <div className="machine-performance-metric machine-actual"><span>SL thực tế / Hiệu suất</span><strong>{actual.toLocaleString("vi-VN")} / {target > 0 ? `${efficiency.toFixed(1)}%` : "—"}</strong></div>
+                                        </div>
+                                    );
+                                })()}
+                                {line.standardError && <small className="worker-machine-total-note">{line.standardError}</small>}
                                 <details className="machine-deduction-box">
                                     <summary>Chi tiết lỗi NG <strong>{getMachineNgTotal(line)} sản phẩm</strong></summary>
                                     <div className="machine-deduction-options">

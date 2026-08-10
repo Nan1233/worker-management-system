@@ -237,8 +237,8 @@ const productAutocompleteOptions =
     } as Record<string, string>)[process] || "GC";
     const isCutLongProcess = processCode === "GC";
     const isInspectionProcess = processCode === "K1" || processCode === "K2";
-    const isAlwaysMultiMachineProcess = ["MAI", "DO", "EP"].includes(processCode);
-    const isSingleMachineProcess = processCode === "CAN";
+    const isAlwaysMultiMachineProcess = processCode === "MAI";
+    const isSingleMachineProcess = ["DO", "EP", "CAN"].includes(processCode);
     const isManualOnlyProcess = processCode === "XLBV" || processCode === "SX3";
     const [operationType, setOperationType] = useState<OperationType>("CUT");
     const [operationMode, setOperationMode] = useState<OperationMode>(
@@ -267,8 +267,24 @@ const productAutocompleteOptions =
         }
     }, [usesSingleMachine]);
 
+    const selectedGcMachineOptions = machineLines
+        .map((line) => machineOptions.find((machine) => machine.machine_code.trim().toUpperCase() === line.machineCode.trim().toUpperCase()))
+        .filter(Boolean);
+    const maxMachineCount = processCode === "MAI"
+        ? 4
+        : processCode === "GC"
+            ? (selectedGcMachineOptions.length === 0 || selectedGcMachineOptions.every((machine) => Number(machine?.is_automatic || 0) === 1) ? 4 : 1)
+            : 1;
+
+    useEffect(() => {
+        if (machineCount > maxMachineCount) {
+            setMachineCount(maxMachineCount);
+            setMachineLines((current) => current.slice(0, maxMachineCount));
+        }
+    }, [machineCount, maxMachineCount]);
+
     const resizeMachineLines = (count: number) => {
-        const normalizedCount = Math.min(4, Math.max(1, count));
+        const normalizedCount = Math.min(maxMachineCount, Math.max(1, count));
         setMachineCount(normalizedCount);
         setMachineLines((current) =>
             Array.from({ length: normalizedCount }, (_, index) => current[index] || createEmptyMachineLine())
@@ -2160,8 +2176,10 @@ window.setTimeout(() => {
                     productAutocompleteOptions={productAutocompleteOptions}
                     productOptions={productOptions}
                     machineAutocompleteOptions={machineAutocompleteOptions}
+                    machineOptions={machineOptions}
                     loadingMasterData={loadingMasterData}
                     machineCount={machineCount}
+                    maxMachineCount={maxMachineCount}
                     machineLines={machineLines}
                     resizeMachineLines={resizeMachineLines}
                     updateMachineLine={updateMachineLine}
@@ -2228,10 +2246,7 @@ window.setTimeout(() => {
                     onNgValue={handleNgValue}
                 />
 
-            </div>
-
-
-            <ProcessSubmitActions
+                <ProcessSubmitActions
                 duplicatePrompt={duplicatePrompt}
                 submitting={submitting}
                 loadingWorker={loadingWorker}
@@ -2241,9 +2256,11 @@ window.setTimeout(() => {
                 }}
                 onUpdateExisting={() => void handleUpdateExistingReport()}
                 onCreateDuplicate={() => void handleCreateDuplicateAnyway()}
-                onReset={handleReset}
-                onSubmit={() => void handleSubmit()}
-            />
+                    onReset={handleReset}
+                    onSubmit={() => void handleSubmit()}
+                />
+
+            </div>
 
         </main>
 

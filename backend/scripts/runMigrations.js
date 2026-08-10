@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const db = require('../config/db');
+const { runMasterSeed } = require('./runMasterSeed');
 
 const MIGRATIONS_DIR = path.join(__dirname, '..', 'migrations');
 
@@ -81,6 +82,7 @@ async function run() {
         // A unique/index migration may already have been applied by the
         // index-maintenance command before the migration runner was introduced.
         if (error?.code === 'ER_DUP_KEYNAME') continue;
+        error.message = `${file}: ${error.message}`;
         throw error;
       }
     }
@@ -91,6 +93,8 @@ async function run() {
     );
     console.log(`APPLIED ${file}`);
   }
+
+  await runMasterSeed({ closePool: false });
 }
 
 run()

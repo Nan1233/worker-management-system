@@ -11,6 +11,12 @@ export interface MachineOption {
 
     machine_name: string;
 
+    is_automatic?: number;
+
+    max_workers_per_machine?: number;
+
+    output_basis?: "MACHINE" | "PRODUCT";
+
 }
 
 

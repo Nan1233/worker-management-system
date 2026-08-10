@@ -39,6 +39,10 @@ exports.resolveProductStandard = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Không tìm thấy định mức cho máy và sản phẩm đã chọn' });
     }
 
+    if (Number(data.has_machine_specific_standard || 0) === 1 && String(data.standard_source || '').toUpperCase() !== 'MACHINE') {
+      return res.status(422).json({ success: false, message: 'Sản phẩm này không được cấu hình chạy trên máy đã chọn theo dữ liệu Book2' });
+    }
+
     const resolved = Number(data.resolved_output_per_hour || 0);
     return res.status(200).json({
       success: true,

@@ -2,6 +2,7 @@ const ProductionTemp = require("../models/productionTempModel");
 const { publicMessage } = require("../utils/httpError");
 const { validateMachineLines } = require("../services/machineLineValidationService");
 const { getProcessMachinePolicy } = require("../services/processMachinePolicy");
+const { validateFactoryMachineRules, validateMachineWorkerCapacity } = require("../services/factoryMachineRuleService");
 const {
     toPositiveInteger,
     normalizeOperationType,
@@ -192,11 +193,12 @@ exports.createTempReport = async (req, res) => {
             });
         }
 
-        if (machinePolicy.mode === "SINGLE_MACHINE_REQUIRED" && (!normalizedMachineNo || rawMachineLines.length > 1)) {
+        if (machinePolicy.mode === "SINGLE_MACHINE_REQUIRED" && (!normalizedMachineNo && rawMachineLines.length === 0 || rawMachineLines.length > 1)) {
+            const label = machinePolicy.code === "DO" ? "Đo" : machinePolicy.code === "EP" ? "Ép" : "Cán";
             return res.status(422).json({
                 success: false,
-                message: "Công đoạn Cán yêu cầu đúng một máy cho mỗi công nhân",
-                errors: { machine_no: "Vui lòng chọn đúng một máy cán" }
+                message: `Công đoạn ${label} yêu cầu đúng một máy cho mỗi công nhân`,
+                errors: { machine_no: `Vui lòng chọn đúng một máy ${label.toLowerCase()}` }
             });
         }
 
@@ -229,6 +231,38 @@ exports.createTempReport = async (req, res) => {
                 success: false,
                 message: "Vui lòng chọn máy",
                 errors: { machine_no: "Máy không được để trống" }
+            });
+        }
+
+        const factoryRuleValidation = await validateFactoryMachineRules({
+            processCode: machinePolicy.code,
+            processId,
+            machineLines: machineValidation.lines.length
+                ? machineValidation.lines
+                : (normalizedMachineNo ? [{ machine_code: normalizedMachineNo }] : [])
+        });
+        if (!factoryRuleValidation.valid) {
+            return res.status(422).json({
+                success: false,
+                message: "Cách sử dụng máy không đúng quy tắc thực tế tại xưởng",
+                errors: factoryRuleValidation.errors
+            });
+        }
+        const machineCapacityValidation = await validateMachineWorkerCapacity({
+            processCode: machinePolicy.code,
+            processId,
+            machineLines: machineValidation.lines.length
+                ? machineValidation.lines
+                : (normalizedMachineNo ? [{ machine_code: normalizedMachineNo }] : []),
+            workerId,
+            workDate: req.body.work_date,
+            shift: req.body.shift
+        });
+        if (!machineCapacityValidation.valid) {
+            return res.status(422).json({
+                success: false,
+                message: "Máy đã đủ số người cho phép trong ngày/ca",
+                errors: machineCapacityValidation.errors
             });
         }
 
