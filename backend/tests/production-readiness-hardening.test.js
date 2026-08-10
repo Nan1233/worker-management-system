@@ -36,3 +36,12 @@ test('root scripts expose restore rehearsal and readiness load',()=>{
   assert.ok(pkg.scripts['restore:rehearsal']);
   assert.ok(pkg.scripts['load:readiness']);
 });
+
+
+test('real-data validator covers machine-line aggregates and coverage reporting',()=>{
+  const source=fs.readFileSync(path.join(root,'scripts','validateRealProductionData.js'),'utf8');
+  assert.match(source,/production_report_machine_defects/);
+  assert.match(source,/calculateReportPerformance/);
+  assert.match(source,/coverage/);
+  assert.match(source,/MACHINE_COUNT_MISMATCH/);
+});

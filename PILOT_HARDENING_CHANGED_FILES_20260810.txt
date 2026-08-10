@@ -1,0 +1,8 @@
+frontend/src/services/offlineReportQueue.ts
+backend/scripts/validateRealProductionData.js
+desktop/scripts/validateExcelFolder.cjs
+scripts/pilotReadiness.cjs
+frontend/tests/offline-reliability.test.cjs
+backend/tests/production-readiness-hardening.test.js
+PILOT_HARDENING_20260810.md
+frontend/public/sw.js

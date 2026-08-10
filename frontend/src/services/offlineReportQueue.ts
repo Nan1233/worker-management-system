@@ -4,8 +4,9 @@ import { getStoredUser } from "../utils/authStorage";
 import { createTempReport } from "./productionService";
 
 const STORAGE_KEY = "ktcOfflineReportQueueV1";
-const MAX_ITEMS = 25;
-const MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const MAX_ITEMS_PER_OWNER = 50;
+const MAX_TOTAL_ITEMS = 100;
+const STALE_AFTER_MS = 24 * 60 * 60 * 1000;
 export const OFFLINE_QUEUE_CHANGED_EVENT = "ktc:offline-queue-changed";
 
 interface QueueOwner {
@@ -41,22 +42,40 @@ function ownerMatches(a: QueueOwner, b: QueueOwner): boolean {
     return a.userId === b.userId && a.workerId === b.workerId && a.workerCode === b.workerCode;
 }
 
+function normalizeStoredItem(item: OfflineReportQueueItem): OfflineReportQueueItem | null {
+    if (!item?.payload || !item?.owner || !item?.id) return null;
+    const createdAt = Number(item.createdAt || 0);
+    const stale = createdAt > 0 && Date.now() - createdAt > STALE_AFTER_MS;
+    if (!stale || item.status === "blocked") return item;
+    // Không bao giờ âm thầm xóa báo cáo sản xuất chưa đồng bộ. Báo cáo chờ
+    // quá lâu được giữ lại và chuyển sang kiểm tra thủ công để worker biết.
+    return {
+        ...item,
+        status: "blocked",
+        nextRetryAt: Number.MAX_SAFE_INTEGER,
+        lastError: item.lastError || "Báo cáo đã chờ đồng bộ quá 24 giờ. Hãy kiểm tra trước khi gửi lại."
+    };
+}
+
 function readAll(): OfflineReportQueueItem[] {
     try {
         const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]") as OfflineReportQueueItem[];
-        const now = Date.now();
-        return Array.isArray(parsed)
-            ? parsed.filter((item) => item?.payload && now - Number(item.createdAt || 0) <= MAX_AGE_MS)
-            : [];
+        if (!Array.isArray(parsed)) return [];
+        return parsed.map(normalizeStoredItem).filter((item): item is OfflineReportQueueItem => Boolean(item));
     } catch {
         return [];
     }
 }
 
 function writeAll(items: OfflineReportQueueItem[]): void {
-    const safe = items.slice(-MAX_ITEMS);
-    if (!safe.length) localStorage.removeItem(STORAGE_KEY);
-    else localStorage.setItem(STORAGE_KEY, JSON.stringify(safe));
+    // Không slice/cắt queue: cắt âm thầm có thể làm mất báo cáo sản xuất.
+    // Giới hạn được kiểm tra lúc enqueue để người dùng nhận lỗi rõ ràng.
+    try {
+        if (!items.length) localStorage.removeItem(STORAGE_KEY);
+        else localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    } catch {
+        throw new Error("Không còn đủ bộ nhớ trên thiết bị để giữ báo cáo offline. Hãy kết nối mạng và đồng bộ trước khi nhập thêm.");
+    }
     window.dispatchEvent(new CustomEvent(OFFLINE_QUEUE_CHANGED_EVENT));
 }
 
@@ -101,6 +120,13 @@ export function enqueueOfflineReport(payload: ProductionReport): OfflineReportQu
     const all = readAll();
     const existing = all.find((item) => ownerMatches(item.owner, owner) && item.payload.client_request_id === clientRequestId);
     if (existing) return existing;
+    const mine = all.filter((item) => ownerMatches(item.owner, owner));
+    if (mine.length >= MAX_ITEMS_PER_OWNER) {
+        throw new Error(`Thiết bị đang giữ ${mine.length} báo cáo chưa đồng bộ. Hãy đồng bộ hoặc xử lý hàng đợi trước khi nhập thêm.`);
+    }
+    if (all.length >= MAX_TOTAL_ITEMS) {
+        throw new Error("Hàng đợi offline trên thiết bị đã đầy. Không thể lưu thêm báo cáo mà không có nguy cơ mất dữ liệu.");
+    }
 
     const item: OfflineReportQueueItem = {
         id: crypto.randomUUID(),
