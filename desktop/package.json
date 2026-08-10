@@ -17,7 +17,8 @@
     "copy:frontend": "node scripts/copyFrontend.cjs",
     "smoke:excel": "node scripts/smokeExcel.cjs",
     "dist:dir": "npm run build:frontend && npm run smoke:excel && electron-builder --win dir --x64",
-    "check:excel-db-sync": "node scripts/checkExcelDbSync.cjs"
+    "check:excel-db-sync": "node scripts/checkExcelDbSync.cjs",
+    "validate:excel-folder": "node scripts/validateExcelFolder.cjs"
   },
   "devDependencies": {
     "electron": "^37.2.3",

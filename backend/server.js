@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const runtimeMetrics = require("./services/runtimeMetrics");
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -117,6 +118,13 @@ app.use((req, res, next) => {
 
   res.on("finish", () => {
     const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+    runtimeMetrics.recordHttp({
+      requestId,
+      method: req.method,
+      path: req.originalUrl,
+      status: res.statusCode,
+      durationMs
+    });
     if (!isProduction || res.statusCode >= 400 || durationMs >= 1_000) {
       console.log(
         JSON.stringify({

@@ -8,7 +8,9 @@ import {
     markNotificationRead,
     type ActivityItem,
     type DeletedReportItem,
-    type NotificationItem
+    type NotificationItem,
+    getObservability,
+    type ObservabilitySnapshot
 } from "../../services/systemService";
 import { publishNotificationCount } from "../../hooks/useNotificationBadge";
 import { getStoredUser } from "../../utils/authStorage";
@@ -25,10 +27,11 @@ const prettyMetadata = (value: unknown): string => {
 };
 
 export default function SystemCenter() {
-    const [tab, setTab] = useState<"notifications" | "activities" | "deleted">("notifications");
+    const [tab, setTab] = useState<"notifications" | "activities" | "deleted" | "monitoring">("notifications");
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
     const [activities, setActivities] = useState<ActivityItem[]>([]);
     const [deletedReports, setDeletedReports] = useState<DeletedReportItem[]>([]);
+    const [observability, setObservability] = useState<ObservabilitySnapshot | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState("");
@@ -41,11 +44,12 @@ export default function SystemCenter() {
     const isWorker = currentUser?.role === "worker";
     const { can } = usePermissions();
     const canAudit = !isWorker && can("AUDIT_VIEW");
+    const canMonitor = !isWorker && can("SYSTEM_HEALTH_VIEW");
 
     const load = useCallback(async (silent = false) => {
         if (silent) setRefreshing(true); else setLoading(true);
         setError("");
-        const [notificationResult, activityResult, deletedResult] = await Promise.allSettled([
+        const [notificationResult, activityResult, deletedResult, monitoringResult] = await Promise.allSettled([
             getNotifications(),
             canAudit ? getActivities({
                 search: activitySearch,
@@ -54,7 +58,8 @@ export default function SystemCenter() {
                 to: activityTo,
                 limit: 150
             }) : Promise.resolve([] as ActivityItem[]),
-            canAudit ? getDeletedReports() : Promise.resolve([] as DeletedReportItem[])
+            canAudit ? getDeletedReports() : Promise.resolve([] as DeletedReportItem[]),
+            canMonitor ? getObservability() : Promise.resolve(null)
         ]);
 
         if (notificationResult.status === "fulfilled") {
@@ -67,9 +72,10 @@ export default function SystemCenter() {
         else setError(current => current || activityResult.reason?.response?.data?.message || "Không tải được lịch sử hoạt động");
         if (deletedResult.status === "fulfilled") setDeletedReports(deletedResult.value || []);
         else setError(current => current || deletedResult.reason?.response?.data?.message || "Không tải được dữ liệu đã xóa");
+        if (monitoringResult.status === "fulfilled") setObservability(monitoringResult.value);
         setLoading(false);
         setRefreshing(false);
-    }, [canAudit, activitySearch, activityAction, activityFrom, activityTo]);
+    }, [canAudit, canMonitor, activitySearch, activityAction, activityFrom, activityTo]);
 
     useEffect(() => {
         void load(false);
@@ -116,6 +122,7 @@ export default function SystemCenter() {
                 <button className={tab === "notifications" ? "active" : ""} onClick={() => setTab("notifications")}>Thông báo ({notifications.filter(item => !item.is_read).length})</button>
                 {canAudit && <button className={tab === "activities" ? "active" : ""} onClick={() => setTab("activities")}>Nhật ký thay đổi</button>}
                 {canAudit && <button className={tab === "deleted" ? "active" : ""} onClick={() => setTab("deleted")}>Dữ liệu đã xóa ({deletedReports.length})</button>}
+                {canMonitor && <button className={tab === "monitoring" ? "active" : ""} onClick={() => setTab("monitoring")}>Giám sát</button>}
             </div>
 
             {tab === "activities" && canAudit && (
@@ -156,7 +163,7 @@ export default function SystemCenter() {
                         </article>;
                     }) : <div className="system-empty">Chưa có hoạt động</div>}
                 </div>
-            ) : (
+            ) : tab === "deleted" ? (
                 <div className="system-list">
                     {deletedReports.length ? deletedReports.map(item => (
                         <article key={item.id} className="system-item system-deleted-item">
@@ -169,6 +176,16 @@ export default function SystemCenter() {
                             <button type="button" className="system-open-deleted" onClick={() => navigate(`/${currentUser?.role || "manager"}/report/${item.id}?source=approved`)}>Xem phiên bản / khôi phục</button>
                         </article>
                     )) : <div className="system-empty">Chưa có báo cáo đã xóa</div>}
+                </div>
+            ) : (
+                <div className="system-monitor-grid">
+                    <article className="system-monitor-card"><span>Database</span><strong>{observability?.database.status === "ok" ? "Hoạt động" : "Không khả dụng"}</strong><small>{observability?.database.latencyMs ?? "-"} ms</small></article>
+                    <article className="system-monitor-card"><span>API requests</span><strong>{observability?.http.requests ?? 0}</strong><small>TB {observability?.http.averageDurationMs ?? 0} ms</small></article>
+                    <article className="system-monitor-card"><span>Lỗi 5xx</span><strong>{observability?.http.errors5xx ?? 0}</strong><small>4xx: {observability?.http.errors4xx ?? 0}</small></article>
+                    <article className="system-monitor-card"><span>RAM</span><strong>{observability?.memory.rssMb ?? 0} MB</strong><small>Heap {observability?.memory.heapUsedMb ?? 0}/{observability?.memory.heapTotalMb ?? 0} MB</small></article>
+                    <article className="system-monitor-card"><span>Request chậm</span><strong>{observability?.http.slowRequests ?? 0}</strong><small>Max {observability?.http.maxDurationMs ?? 0} ms</small></article>
+                    <article className="system-monitor-card"><span>Uptime</span><strong>{Math.floor((observability?.uptimeSeconds ?? 0)/3600)} giờ</strong><small>Từ {observability?.startedAt ? new Date(observability.startedAt).toLocaleString("vi-VN") : "-"}</small></article>
+                    <div className="system-monitor-errors"><h3>Lỗi server gần nhất</h3>{observability?.recentErrors?.length ? observability.recentErrors.map((item,index)=><div key={`${item.requestId}-${index}`}><code>{item.status}</code><span>{item.method} {item.path}</span><small>{item.requestId || "-"}</small></div>) : <p>Chưa ghi nhận lỗi 5xx trong tiến trình hiện tại.</p>}</div>
                 </div>
             )}
         </section>

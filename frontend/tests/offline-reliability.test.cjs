@@ -1,0 +1,5 @@
+const test=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');
+const root=path.resolve(__dirname,'..');const read=(p)=>fs.readFileSync(path.join(root,p),'utf8');
+test('offline report queue is identity scoped and preserves client_request_id',()=>{const s=read('src/services/offlineReportQueue.ts');assert.match(s,/userId:/);assert.match(s,/workerId:/);assert.match(s,/workerCode:/);assert.match(s,/client_request_id/);assert.match(s,/createTempReport\(item\.payload\)/);});
+test('worker submit queues only transient failures after company network was allowed',()=>{const s=read('src/pages/worker/ProcessPage.tsx');assert.match(s,/networkAllowed && isTransientNetworkFailure\(error\)/);assert.match(s,/enqueueOfflineReport\(payload\)/);});
+test('global online listener flushes pending worker reports',()=>{const s=read('src/components/system/OfflineReportSync.tsx');assert.match(s,/addEventListener\("online", sync\)/);assert.match(s,/flushOfflineReportQueue/);});

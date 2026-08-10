@@ -20,7 +20,9 @@
     "db:seed-master": "node scripts/runMasterSeed.js",
     "db:verify-master": "node scripts/verifyMasterSeed.js",
     "db:integrity": "node scripts/checkDatabaseIntegrity.js",
-    "audit:prod": "npm audit --omit=dev --audit-level=high"
+    "audit:prod": "npm audit --omit=dev --audit-level=high",
+    "validate:real-data": "node scripts/validateRealProductionData.js",
+    "backup:drill": "node scripts/drillDatabaseBackup.js"
   },
   "keywords": [],
   "author": "",

@@ -58,3 +58,8 @@ test('web auth uses HttpOnly-cookie compatible credentialed requests', () => {
   assert.match(authStorage, /Normal web sessions never persist a JS-readable refresh token/);
   assert.match(api, /withCredentials:\s*true/);
 });
+
+test('release polish stylesheet is loaded after responsive safeguards', () => {
+  const main = fs.readFileSync(path.join(srcRoot, 'main.tsx'), 'utf8');
+  assert.match(main, /enterprise-responsive\.css";\nimport "\.\/styles\/release-polish\.css"/);
+});

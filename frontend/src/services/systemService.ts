@@ -94,3 +94,16 @@ export async function getDeletedReports(){
  const r=await api.get('/system/deleted-reports');
  return (r.data?.data || []) as DeletedReportItem[];
 }
+
+export interface ObservabilitySnapshot {
+  startedAt:string;
+  uptimeSeconds:number;
+  http:{requests:number;errors4xx:number;errors5xx:number;slowRequests:number;averageDurationMs:number;maxDurationMs:number;byStatus:Record<string,number>};
+  memory:{rssMb:number;heapUsedMb:number;heapTotalMb:number};
+  database:{status:string;latencyMs?:number};
+  recentErrors:Array<{requestId?:string;method?:string;path?:string;status?:number;at?:string}>;
+}
+export async function getObservability(){
+ const r=await api.get('/system/observability');
+ return r.data.data as ObservabilitySnapshot;
+}

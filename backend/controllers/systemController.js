@@ -2,6 +2,7 @@ const db = require('../config/db');
 const { publicMessage } = require('../utils/httpError');
 const AuditService = require('../services/auditService');
 const { loadApprovedSnapshot } = require('../services/approvedReportEditService');
+const runtimeMetrics = require('../services/runtimeMetrics');
 
 const workerNotificationBackfills = new Map();
 
@@ -99,6 +100,18 @@ async function backfillWorkerReportNotifications(user) {
  await task;
 }
 
+
+exports.getObservability = async (_req, res) => {
+ try {
+  const metrics = runtimeMetrics.snapshot();
+  const dbStarted = Date.now();
+  await db.promise().query({sql:'SELECT 1 AS ok',timeout:3000});
+  res.json({success:true,data:{...metrics,database:{status:'ok',latencyMs:Date.now()-dbStarted}}});
+ } catch(e){
+  const metrics = runtimeMetrics.snapshot();
+  res.status(503).json({success:false,data:{...metrics,database:{status:'unavailable'}},message:'Database unavailable'});
+ }
+};
 exports.getNotifications = async (req,res) => {
  try {
   // Công nhân có thể đã có báo cáo được xử lý trước khi tính năng thông báo

@@ -6,9 +6,11 @@ import App from "./App";
 import "./index.css";
 import "./styles/ktc-professional.css";
 import "./styles/enterprise-responsive.css";
+import "./styles/release-polish.css";
 import { ToastProvider } from "./components/feedback/ToastProvider";
 import AuthBootstrap from "./components/AuthBootstrap";
 import AppErrorBoundary from "./components/system/AppErrorBoundary";
+import OfflineReportSync from "./components/system/OfflineReportSync";
 import { FRONTEND_VERSION, FRONTEND_COMMIT_SHA } from "./config/version";
 
 const initialTheme = localStorage.getItem("ktcTheme");
@@ -27,6 +29,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
         <AppErrorBoundary>
             <ToastProvider>
+                <OfflineReportSync />
                 <AuthBootstrap>
                     <HashRouter>
                         <App />

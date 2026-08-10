@@ -21,6 +21,8 @@ for %%D in (frontend backend desktop) do (
 
 copy /Y "%~dp0README_DEMO_READY_20260810.md" "%ROOT%\README_DEMO_READY_20260810.md" >nul
 copy /Y "%~dp0CHANGED_FILES.txt" "%ROOT%\CHANGED_FILES_DEMO_20260810.txt" >nul
+if exist "%~dp0FULL_STABILIZATION_20260810.md" copy /Y "%~dp0FULL_STABILIZATION_20260810.md" "%ROOT%\FULL_STABILIZATION_20260810.md" >nul
+if exist "%~dp0FULL_STABILIZATION_CHANGED_FILES_20260810.txt" copy /Y "%~dp0FULL_STABILIZATION_CHANGED_FILES_20260810.txt" "%ROOT%\FULL_STABILIZATION_CHANGED_FILES_20260810.txt" >nul
 
 echo [KTC] Da chep patch demo vao: %ROOT%
 echo [KTC] Tiep theo chay:

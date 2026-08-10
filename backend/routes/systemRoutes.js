@@ -20,6 +20,7 @@ router.patch(
   validate({ id: { in: 'params', type: 'positiveInt', required: true } }),
   c.markNotificationRead
 );
+router.get('/observability', auth, role('admin','manager'), permission('SYSTEM_HEALTH_VIEW'), c.getObservability);
 router.get('/activities', auth, role('admin','manager','lead'), permission('AUDIT_VIEW'), c.getActivities);
 router.get('/deleted-reports', auth, role('admin','manager','lead'), permission('AUDIT_VIEW'), c.getDeletedReports);
 router.get(

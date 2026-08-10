@@ -50,6 +50,7 @@ import type {
 
 import { useToast } from "../../components/feedback/toastContext";
 import { getApiError } from "../../utils/apiError";
+import { enqueueOfflineReport, isTransientNetworkFailure } from "../../services/offlineReportQueue";
 import { workerCanAccessProcess } from "../../utils/processAccess";
 import { getProcessFormSchema } from "./processFormSchemas";
 
@@ -1963,7 +1964,19 @@ const updateDeductionValue = (
 
                 };
 
-                const response = await createTempReport(payload);
+                let response;
+                try {
+                    response = await createTempReport(payload);
+                } catch (error) {
+                    if (networkAllowed && isTransientNetworkFailure(error)) {
+                        enqueueOfflineReport(payload);
+                        showToast("Mạng vừa bị gián đoạn. Báo cáo đã được lưu an toàn và sẽ tự gửi lại khi Wi-Fi KTC hoạt động.", "warning");
+                        clientRequestIdRef.current = null;
+                        window.setTimeout(() => navigate("/worker", { replace: true }), 900);
+                        return;
+                    }
+                    throw error;
+                }
 
                 if (
                     response?.duplicate &&
