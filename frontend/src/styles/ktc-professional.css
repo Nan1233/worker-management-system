@@ -750,40 +750,40 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 /* ===== KTC Light / Dark theme ===== */
 [data-theme="dark"] {
-  --ktc-brand-50: #13283b;
-  --ktc-brand-100: #183750;
-  --ktc-brand-200: #245274;
-  --ktc-brand-300: #3677a6;
-  --ktc-brand-400: #4d97cd;
-  --ktc-brand-500: #62ace1;
-  --ktc-brand-600: #83c2eb;
-  --ktc-brand-700: #9cd0f0;
-  --ktc-brand-800: #b8def5;
-  --ktc-brand-900: #d4ebf9;
-  --ktc-ink-950: #f7fafc;
-  --ktc-ink-900: #edf2f7;
-  --ktc-ink-800: #d9e2ec;
-  --ktc-ink-700: #c3cfdb;
-  --ktc-ink-600: #aab8c6;
-  --ktc-ink-500: #91a0af;
-  --ktc-ink-400: #778695;
-  --ktc-bg: #0d151e;
-  --ktc-surface: #16212c;
-  --ktc-surface-subtle: #1b2936;
-  --ktc-surface-muted: #22313f;
-  --ktc-border: #2d3d4c;
-  --ktc-border-strong: #405263;
-  --ktc-success: #63d6a5;
-  --ktc-success-bg: #15352a;
-  --ktc-warning: #f7b955;
-  --ktc-warning-bg: #3a2b16;
-  --ktc-danger: #ff8790;
-  --ktc-danger-bg: #3d2025;
-  --ktc-info: #72b8e8;
-  --ktc-shadow-xs: 0 1px 2px rgba(0,0,0,.22);
-  --ktc-shadow-sm: 0 2px 8px rgba(0,0,0,.24);
-  --ktc-shadow-md: 0 12px 32px rgba(0,0,0,.34);
-  --ktc-focus: 0 0 0 3px rgba(98,172,225,.24);
+  --ktc-brand-50: #1b2b3d;
+  --ktc-brand-100: #21374d;
+  --ktc-brand-200: #2d4e6c;
+  --ktc-brand-300: #426f98;
+  --ktc-brand-400: #5b8fbd;
+  --ktc-brand-500: #73a9d7;
+  --ktc-brand-600: #86b8e0;
+  --ktc-brand-700: #9dc7e9;
+  --ktc-brand-800: #bdd9f1;
+  --ktc-brand-900: #dbeaf8;
+  --ktc-ink-950: #f8fbff;
+  --ktc-ink-900: #edf3fa;
+  --ktc-ink-800: #d5deea;
+  --ktc-ink-700: #bcc8d7;
+  --ktc-ink-600: #9fb0c2;
+  --ktc-ink-500: #8598ad;
+  --ktc-ink-400: #6d8095;
+  --ktc-bg: #16222e;
+  --ktc-surface: #1d2b38;
+  --ktc-surface-subtle: #223240;
+  --ktc-surface-muted: #293b4a;
+  --ktc-border: #314456;
+  --ktc-border-strong: #446079;
+  --ktc-success: #67d49b;
+  --ktc-success-bg: #183728;
+  --ktc-warning: #f0c15e;
+  --ktc-warning-bg: #433119;
+  --ktc-danger: #f38f96;
+  --ktc-danger-bg: #432228;
+  --ktc-info: #7cbbe6;
+  --ktc-shadow-xs: 0 1px 2px rgba(0,0,0,.18);
+  --ktc-shadow-sm: 0 4px 12px rgba(0,0,0,.20);
+  --ktc-shadow-md: 0 14px 34px rgba(0,0,0,.26);
+  --ktc-focus: 0 0 0 3px rgba(124,187,230,.20);
 }
 
 .ktc-theme-toggle {
@@ -822,7 +822,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 [data-theme="dark"] .management-header,
 [data-theme="dark"] .worker-topbar,
 [data-theme="dark"] .worker-mobile-nav {
-  background: rgba(22,33,44,.96) !important;
+  background: rgba(29,43,56,.95) !important;
   border-color: var(--ktc-border) !important;
 }
 
@@ -905,4 +905,55 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 @media (max-width: 720px) {
   .ktc-theme-toggle { width: 38px; padding: 0; }
   .ktc-theme-toggle-label { display: none; }
+}
+
+
+[data-theme="dark"] .worker-brand-mark {
+  background: #2e5e87;
+  color: #f8fbff;
+}
+[data-theme="dark"] .worker-desktop-nav,
+[data-theme="dark"] .worker-account .ktc-theme-toggle {
+  background: rgba(255,255,255,.03);
+  border-color: var(--ktc-border);
+}
+[data-theme="dark"] .worker-desktop-nav button.active {
+  background: rgba(124, 187, 230, .14);
+  border-color: rgba(124, 187, 230, .22);
+  color: var(--ktc-ink-950);
+}
+[data-theme="dark"] .history-entry-button {
+  background: var(--ktc-surface);
+  border-color: var(--ktc-border);
+  color: var(--ktc-ink-900);
+}
+[data-theme="dark"] .history-entry-button:hover {
+  background: var(--ktc-surface-subtle);
+  color: var(--ktc-ink-950);
+}
+[data-theme="dark"] .worker-process-card:hover,
+[data-theme="dark"] .worker-process-card:focus-visible {
+  background: #223241;
+  border-color: #4d7398;
+  box-shadow: 0 10px 28px rgba(0,0,0,.22);
+}
+[data-theme="dark"] .worker-process-icon {
+  background: linear-gradient(180deg, #edf4fb 0%, #dce9f6 100%);
+  border-color: #b6cce2;
+  color: #225784;
+}
+[data-theme="dark"] .worker-process-content strong {
+  color: var(--ktc-ink-950);
+}
+[data-theme="dark"] .worker-process-content small {
+  color: var(--ktc-ink-700);
+}
+[data-theme="dark"] .select-process-training {
+  background: rgba(124, 187, 230, .12);
+  border-color: rgba(124, 187, 230, .18);
+  color: #dceaf7;
+}
+[data-theme="dark"] .process-state-box {
+  background: var(--ktc-surface);
+  border-color: var(--ktc-border);
 }

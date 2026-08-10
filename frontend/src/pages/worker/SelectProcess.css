@@ -177,14 +177,15 @@
     justify-content: center;
     border: 1px solid var(--ktc-brand-100);
     border-radius: 14px;
-    background: linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);
-    color: var(--ktc-brand-700);
+    background: linear-gradient(180deg, #f9fbff 0%, #edf4fb 100%);
+    color: #255d89;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
 }
 
 .worker-process-icon svg {
     width: 28px;
     height: 28px;
-    stroke-width: 1.9;
+    stroke-width: 2;
 }
 
 .worker-process-content {
