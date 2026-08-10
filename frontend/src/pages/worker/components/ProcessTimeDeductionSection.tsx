@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { DeductionKey, DeductionState, FormState } from "../processPageConfig";
 import { decimalHoursToText } from "../processPageConfig";
+import AppIcon from "../../../components/common/AppIcon";
 import {
     MAX_TOTAL_WORK_MINUTES,
     getDeductionMinutes,
@@ -102,7 +103,7 @@ export default function ProcessTimeDeductionSection({
 
     return (
         <section className="worker-form-card">
-            <h2 className="worker-card-title"><span>◷</span> Hiệu suất &amp; Thời gian</h2>
+            <h2 className="worker-card-title"><span><AppIcon name="clock" size={15} /></span> Hiệu suất &amp; Thời gian</h2>
 
             <div className="worker-time-grid">
                 <div className="worker-time-item">
@@ -136,7 +137,6 @@ export default function ProcessTimeDeductionSection({
                         />
                         <span>phút</span>
                     </div>
-                    <small>Lưu DB/Excel: {parseFlexibleTime(form.actualTime).toFixed(3)} giờ</small>
                 </div>
 
                 <div className="worker-time-item">

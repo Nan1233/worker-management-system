@@ -2,6 +2,7 @@ import type { ChangeEvent, Dispatch, SetStateAction } from "react";
 import AutocompleteInput from "../../../components/common/AutocompleteInput";
 import type { AutocompleteOption } from "../../../components/common/AutocompleteInput";
 import type { ProductStandardOption } from "../../../services/masterDataService";
+import AppIcon from "../../../components/common/AppIcon";
 import type {
     FormState,
     MachineLineState,
@@ -84,7 +85,7 @@ export default function ProcessBasicInfoSection({
 
     return (
         <section className="worker-form-card">
-            <h2 className="worker-card-title"><span>ⓘ</span> Thông tin cơ bản</h2>
+            <h2 className="worker-card-title"><span><AppIcon name="checklist" size={15} /></span> Thông tin cơ bản</h2>
             <div className="worker-basic-grid">
                 <div className="worker-field-block worker-field-full">
                     <label className="worker-field-label">Ca làm việc <em>*</em></label>

@@ -2,16 +2,16 @@
    Calm enterprise visual language inspired by modern productivity products.
    One source of truth for color, spacing, radius, elevation and focus states. */
 :root {
-  --ktc-brand-50: #eff6ff;
-  --ktc-brand-100: #dbeafe;
-  --ktc-brand-200: #bfdbfe;
-  --ktc-brand-300: #93c5fd;
-  --ktc-brand-400: #60a5fa;
-  --ktc-brand-500: #3b82f6;
-  --ktc-brand-600: #2563eb;
-  --ktc-brand-700: #1d4ed8;
-  --ktc-brand-800: #1e40af;
-  --ktc-brand-900: #1d3c66;
+  --ktc-brand-50: #f1f6fa;
+  --ktc-brand-100: #ddeaf4;
+  --ktc-brand-200: #bfd5e6;
+  --ktc-brand-300: #9bbbd3;
+  --ktc-brand-400: #79a3c3;
+  --ktc-brand-500: #5d8db3;
+  --ktc-brand-600: #4b7fa8;
+  --ktc-brand-700: #3f7198;
+  --ktc-brand-800: #345f83;
+  --ktc-brand-900: #294c69;
 
   --ktc-ink-950: #101828;
   --ktc-ink-900: #172033;
@@ -43,7 +43,7 @@
   --ktc-shadow-xs: 0 1px 2px rgba(16, 24, 40, .04);
   --ktc-shadow-sm: 0 1px 3px rgba(16, 24, 40, .06), 0 1px 2px rgba(16, 24, 40, .03);
   --ktc-shadow-md: 0 12px 32px rgba(15, 23, 42, .12);
-  --ktc-focus: 0 0 0 3px rgba(59, 130, 246, .12);
+  --ktc-focus: 0 0 0 3px rgba(75, 127, 168, .15);
   --ktc-sidebar-width: 244px;
   --worker-topbar-height: 68px;
   --worker-mobile-nav-height: 70px;
