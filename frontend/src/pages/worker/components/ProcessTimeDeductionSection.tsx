@@ -185,7 +185,7 @@ export default function ProcessTimeDeductionSection({
             </div>
 
             {selectedDeduction.length > 0 && (
-                <div className="worker-dynamic-grid">
+                <div className="worker-dynamic-grid worker-deduction-detail-grid">
                     {activeDeductionOptions
                         .filter((item) => selectedDeduction.includes(item.key))
                         .map((item) => (
