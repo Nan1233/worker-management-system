@@ -24,3 +24,22 @@ test('frontend fallback version matches its package version', () => {
   const source = read('src/config/version.ts');
   assert.ok(source.includes(`VITE_BUILD_VERSION || "${pkg.version}"`));
 });
+
+test('service worker cache namespace tracks the current stabilization release', () => {
+  const pkg = JSON.parse(read('package.json'));
+  const sw = read('public/sw.js');
+  assert.match(sw, new RegExp(pkg.version.replaceAll('.', '\\.') + '-full-stabilization-20260810'));
+  assert.match(sw, /if \(isApiRequest\(url\)\) return/);
+});
+
+test('permissions UI uses theme tokens instead of a light-only surface', () => {
+  const css = read('src/pages/admin/Permissions.css');
+  assert.match(css, /\.permission-card,.permission-loading\{background:var\(--ktc-surface/);
+  assert.match(css, /background:var\(--ktc-surface-muted/);
+  assert.match(css, /color:var\(--ktc-ink-900/);
+});
+
+test('production dependency audit command is available without forcing breaking upgrades', () => {
+  const pkg = JSON.parse(read('package.json'));
+  assert.equal(pkg.scripts['audit:prod'], 'npm audit --omit=dev --audit-level=high');
+});

@@ -64,3 +64,60 @@ test('desktop prevents concurrent application instances', () => {
   assert.match(desktop, /SECOND_INSTANCE_BLOCKED/);
   assert.match(desktop, /setPermissionRequestHandler/);
 });
+
+test('production detail rows are protected against duplicate defect/deduction types', () => {
+  const migration = read('migrations/016_integrity_constraints_20260810.sql');
+  const runner = read('scripts/runMigrations.js');
+  assert.match(migration, /uq_temp_defect_once/);
+  assert.match(migration, /uq_report_defect_once/);
+  assert.match(migration, /uq_temp_deduction_once/);
+  assert.match(migration, /uq_report_deduction_once/);
+  assert.match(runner, /normalizeProductionDetailDuplicates/);
+});
+
+test('approval and rejection notifications are post-commit best-effort side effects', () => {
+  const approval = read('models/productionTempApprovalModel.js');
+  const approveCommit = approval.indexOf('await commit(connection);');
+  const firstNotify = approval.indexOf('await AuditService.notifyUsers(notification.userIds, notification.payload)');
+  assert.ok(approveCommit >= 0 && firstNotify > approveCommit);
+  assert.match(approval, /Post-commit approval notification failed/);
+  assert.match(approval, /Post-commit rejection notification failed/);
+});
+
+test('database integrity command covers orphan and invalid production rows', () => {
+  const script = read('scripts/checkDatabaseIntegrity.js');
+  const pkg = JSON.parse(read('package.json'));
+  assert.equal(pkg.scripts['db:integrity'], 'node scripts/checkDatabaseIntegrity.js');
+  assert.match(script, /TEMP_REPORT_WORKER_ORPHAN/);
+  assert.match(script, /APPROVED_SOURCE_TEMP_ORPHAN/);
+  assert.match(script, /INVALID_TRAINING_PERCENT/);
+  assert.match(script, /DATABASE_INTEGRITY_FAILED/);
+});
+
+test('API hardening maps CORS, malformed JSON and large payloads to public client errors', () => {
+  const server = read('server.js');
+  assert.match(server, /CORS_ORIGIN_DENIED/);
+  assert.match(server, /PAYLOAD_TOO_LARGE/);
+  assert.match(server, /INVALID_JSON/);
+  assert.match(server, /\^\[A-Za-z0-9\._:-\]\{1,120\}\$/);
+  assert.match(server, /closeAllConnections/);
+});
+
+test('backend exposes a production-only dependency audit command', () => {
+  const pkg = JSON.parse(read('package.json'));
+  assert.equal(pkg.scripts['audit:prod'], 'npm audit --omit=dev --audit-level=high');
+});
+
+test('desktop package uses compressed release artifacts', () => {
+  const pkg = JSON.parse(read('../desktop/package.json'));
+  assert.equal(pkg.build.compression, 'maximum');
+});
+
+test('temp create/update aggregate duplicate defect and deduction types before unique inserts', () => {
+  const createModel = read('models/productionTempCreateModel.js');
+  const updateModel = read('models/productionTempUpdateModel.js');
+  assert.match(createModel, /const defectTotals = new Map\(\)/);
+  assert.match(createModel, /const deductionTotals = new Map\(\)/);
+  assert.match(updateModel, /const deductionTotalsByType = new Map\(\)/);
+  assert.match(updateModel, /const defectTotalsByType = new Map\(\)/);
+});

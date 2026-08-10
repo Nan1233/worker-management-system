@@ -204,7 +204,8 @@ CREATE TABLE IF NOT EXISTS production_reports_temp (
   PRIMARY KEY (id),
   KEY idx_prt_worker_date (worker_id, work_date),
   KEY idx_prt_process_date (process_id, work_date, status),
-  KEY idx_prt_status_created (status, created_at)
+  KEY idx_prt_status_created (status, created_at),
+  KEY idx_prt_review_queue (status, process_id, work_date, updated_at)
 );
 
 CREATE TABLE IF NOT EXISTS production_reports (
@@ -249,7 +250,8 @@ CREATE TABLE IF NOT EXISTS production_reports (
   PRIMARY KEY (id),
   UNIQUE KEY uq_production_source_temp (source_temp_id),
   KEY idx_pr_worker_date (worker_id, work_date),
-  KEY idx_pr_process_date (process_id, work_date, status)
+  KEY idx_pr_process_date (process_id, work_date, status),
+  KEY idx_pr_approved_export (status, process_id, work_date, approved_at)
 );
 
 CREATE TABLE IF NOT EXISTS production_temp_defects (
@@ -258,6 +260,7 @@ CREATE TABLE IF NOT EXISTS production_temp_defects (
   defect_type_id BIGINT NOT NULL,
   quantity BIGINT NOT NULL DEFAULT 0,
   PRIMARY KEY (id),
+  UNIQUE KEY uq_temp_defect_once (temp_report_id, defect_type_id),
   KEY idx_temp_defect_report (temp_report_id),
   KEY idx_temp_defect_type (defect_type_id)
 );
@@ -268,6 +271,7 @@ CREATE TABLE IF NOT EXISTS production_report_defects (
   defect_type_id BIGINT NOT NULL,
   quantity BIGINT NOT NULL DEFAULT 0,
   PRIMARY KEY (id),
+  UNIQUE KEY uq_report_defect_once (report_id, defect_type_id),
   KEY idx_report_defect_report (report_id),
   KEY idx_report_defect_type (defect_type_id)
 );
@@ -278,6 +282,7 @@ CREATE TABLE IF NOT EXISTS production_temp_deductions (
   deduction_type_id BIGINT NOT NULL,
   hours DECIMAL(12,4) NOT NULL DEFAULT 0,
   PRIMARY KEY (id),
+  UNIQUE KEY uq_temp_deduction_once (temp_report_id, deduction_type_id),
   KEY idx_temp_deduction_report (temp_report_id),
   KEY idx_temp_deduction_type (deduction_type_id)
 );
@@ -288,6 +293,7 @@ CREATE TABLE IF NOT EXISTS production_report_deductions (
   deduction_type_id BIGINT NOT NULL,
   hours DECIMAL(12,4) NOT NULL DEFAULT 0,
   PRIMARY KEY (id),
+  UNIQUE KEY uq_report_deduction_once (report_id, deduction_type_id),
   KEY idx_report_deduction_report (report_id),
   KEY idx_report_deduction_type (deduction_type_id)
 );

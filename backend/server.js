@@ -75,7 +75,11 @@ app.use(
     origin(origin, callback) {
       // Native Electron, curl and server-to-server calls may not send Origin.
       if (!origin || allowedOrigins.has(origin)) return callback(null, true);
-      return callback(new Error("Nguồn truy cập không được phép bởi CORS"));
+      const error = new Error("Nguồn truy cập không được phép bởi CORS");
+      error.status = 403;
+      error.code = "CORS_ORIGIN_DENIED";
+      error.isPublic = true;
+      return callback(error);
     },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
@@ -94,7 +98,10 @@ app.use(
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || "768kb" }));
 
 app.use((req, res, next) => {
-  const requestId = String(req.get("X-Request-Id") || crypto.randomUUID());
+  const rawRequestId = String(req.get("X-Request-Id") || "").trim();
+  const requestId = /^[A-Za-z0-9._:-]{1,120}$/.test(rawRequestId)
+    ? rawRequestId
+    : crypto.randomUUID();
   const startedAt = process.hrtime.bigint();
   req.requestId = requestId;
   res.setHeader("X-Request-Id", requestId);
@@ -209,13 +216,32 @@ app.use((error, req, res, next) => {
     }),
   );
 
-  const message = error?.isPublic
-    ? error.message
-    : isProduction
-      ? "Lỗi máy chủ"
-      : error.message || "Lỗi máy chủ";
+  let status = Number(error?.status || error?.statusCode || 500);
+  let code = error?.code || "INTERNAL_SERVER_ERROR";
+  let message;
 
-  return res.status(error.status || 500).json({ success: false, message, request_id: req.requestId });
+  if (error?.type === "entity.too.large" || status === 413) {
+    status = 413;
+    code = "PAYLOAD_TOO_LARGE";
+    message = "Dữ liệu gửi lên vượt quá giới hạn cho phép";
+  } else if (error?.type === "entity.parse.failed" || (error instanceof SyntaxError && status === 400)) {
+    status = 400;
+    code = "INVALID_JSON";
+    message = "Dữ liệu JSON không hợp lệ";
+  } else {
+    message = error?.isPublic
+      ? error.message
+      : isProduction
+        ? "Lỗi máy chủ"
+        : error.message || "Lỗi máy chủ";
+  }
+
+  return res.status(status).json({
+    success: false,
+    code,
+    message,
+    request_id: req.requestId
+  });
 });
 
 let databaseKeepAliveTimer = null;
@@ -277,7 +303,13 @@ async function shutdown(signal) {
   console.log(`${signal} received; shutting down`);
   if (databaseKeepAliveTimer) clearInterval(databaseKeepAliveTimer);
   if (server) {
-    await new Promise((resolve) => server.close(resolve));
+    await Promise.race([
+      new Promise((resolve) => server.close(resolve)),
+      new Promise((resolve) => setTimeout(() => {
+        server.closeAllConnections?.();
+        resolve();
+      }, 10_000)),
+    ]);
   }
   await db.closePool().catch((error) => console.error("Pool close failed:", error.message));
   process.exit(0);

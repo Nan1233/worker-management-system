@@ -138,13 +138,15 @@ module.exports = {
             rows.forEach((row) => nameToId.set(String(row.defect_name), Number(row.id)));
         }
 
-        const values = validItems
-            .map((item) => [
-                tempReportId,
-                item.defectTypeId || nameToId.get(item.defectName) || null,
-                item.quantity
-            ])
-            .filter((item) => item[1]);
+        const defectTotals = new Map();
+        for (const item of validItems) {
+            const defectTypeId = item.defectTypeId || nameToId.get(item.defectName) || null;
+            if (!defectTypeId) continue;
+            defectTotals.set(defectTypeId, (defectTotals.get(defectTypeId) || 0) + item.quantity);
+        }
+        const values = [...defectTotals.entries()]
+            .filter(([, quantity]) => quantity > 0)
+            .map(([defectTypeId, quantity]) => [tempReportId, defectTypeId, Math.trunc(quantity)]);
 
         if (!values.length) return;
 
@@ -194,13 +196,15 @@ module.exports = {
             rows.forEach((row) => nameToId.set(String(row.deduction_name), Number(row.id)));
         }
 
-        const values = validItems
-            .map((item) => [
-                tempReportId,
-                item.deductionTypeId || nameToId.get(item.deductionName) || null,
-                item.hours
-            ])
-            .filter((item) => item[1]);
+        const deductionTotals = new Map();
+        for (const item of validItems) {
+            const deductionTypeId = item.deductionTypeId || nameToId.get(item.deductionName) || null;
+            if (!deductionTypeId) continue;
+            deductionTotals.set(deductionTypeId, (deductionTotals.get(deductionTypeId) || 0) + item.hours);
+        }
+        const values = [...deductionTotals.entries()]
+            .filter(([, hours]) => hours > 0)
+            .map(([deductionTypeId, hours]) => [tempReportId, deductionTypeId, hours]);
 
         if (!values.length) return;
 

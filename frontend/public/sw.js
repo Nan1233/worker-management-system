@@ -1,4 +1,4 @@
-const BUILD_VERSION = "1.8.10-auth-cross-tab-fix";
+const BUILD_VERSION = "1.8.11-full-stabilization-20260810";
 const APP_CACHE = `ktc-${BUILD_VERSION}-app`;
 const STATIC_CACHE = `ktc-${BUILD_VERSION}-static`;
 const APP_SHELL = ["./", "./index.html", "./manifest.webmanifest", "./offline.html"];

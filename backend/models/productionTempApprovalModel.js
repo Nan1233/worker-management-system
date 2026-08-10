@@ -11,6 +11,7 @@ module.exports = {
         if (reportIds.length === 0) throw new Error("Danh sách báo cáo không hợp lệ");
 
         const connection = await getConnection();
+        const postCommitNotifications = [];
         try {
             await beginTransaction(connection);
             const placeholders = reportIds.map(() => "?").join(",");
@@ -220,21 +221,27 @@ module.exports = {
                     }, connection);
                 }
 
-                await AuditService.notifyUsers(
-                    [item.worker_user_id],
-                    {
+                postCommitNotifications.push({
+                    userIds: [item.worker_user_id],
+                    payload: {
                         type: "report_approved",
                         title: "Báo cáo đã được duyệt",
                         message: `Báo cáo ngày ${workDate}, ca ${item.shift || "-"}, sản phẩm ${item.product_name || "-"} đã được duyệt.`,
                         linkUrl: `/worker/history/${approvedReportId}?source=approved`,
                         entityType: "approved_report",
                         entityId: approvedReportId
-                    },
-                    connection
-                );
+                    }
+                });
             }
 
             await commit(connection);
+            for (const notification of postCommitNotifications) {
+                try {
+                    await AuditService.notifyUsers(notification.userIds, notification.payload);
+                } catch (error) {
+                    console.warn(`[KTC] Post-commit approval notification failed: ${error.message}`);
+                }
+            }
             return {
                 count: rows.length,
                 temp_ids: rows.map((row) => row.id),
@@ -260,6 +267,7 @@ module.exports = {
         if (!cleanReason) throw new Error("Vui lòng nhập lý do từ chối");
 
         const connection = await getConnection();
+        const postCommitNotifications = [];
         try {
             await beginTransaction(connection);
             const placeholders = reportIds.map(() => "?").join(",");
@@ -335,21 +343,27 @@ module.exports = {
                     connection
                 );
 
-                await AuditService.notifyUsers(
-                    [row.worker_user_id],
-                    {
+                postCommitNotifications.push({
+                    userIds: [row.worker_user_id],
+                    payload: {
                         type: "report_rejected",
                         title: "Báo cáo đã bị từ chối",
                         message: `Báo cáo ngày ${String(row.work_date).slice(0, 10)} ca ${row.shift || "-"} bị từ chối: ${cleanReason}`,
                         linkUrl: `/worker/history/${row.id}?source=pending`,
                         entityType: "temp_report",
                         entityId: row.id
-                    },
-                    connection
-                );
+                    }
+                });
             }
 
             await commit(connection);
+            for (const notification of postCommitNotifications) {
+                try {
+                    await AuditService.notifyUsers(notification.userIds, notification.payload);
+                } catch (error) {
+                    console.warn(`[KTC] Post-commit rejection notification failed: ${error.message}`);
+                }
+            }
             return { count: rows.length, ids: rows.map((row) => row.id) };
         } catch (error) {
             await rollback(connection);

@@ -183,6 +183,33 @@ module.exports = {
                 });
             }
 
+            // One report/detail type must be represented by one DB row.
+            // Aggregate repeated UI entries before DELETE+INSERT so the UNIQUE
+            // integrity indexes cannot be tripped by duplicate selections.
+            const deductionTotalsByType = new Map();
+            for (const item of normalizedDeductions) {
+                deductionTotalsByType.set(
+                    item.deduction_type_id,
+                    (deductionTotalsByType.get(item.deduction_type_id) || 0) + item.hours
+                );
+            }
+            normalizedDeductions.length = 0;
+            normalizedDeductions.push(...[...deductionTotalsByType.entries()]
+                .filter(([, hours]) => hours > 0)
+                .map(([deduction_type_id, hours]) => ({ deduction_type_id, hours })));
+
+            const defectTotalsByType = new Map();
+            for (const item of normalizedDefects) {
+                defectTotalsByType.set(
+                    item.defect_type_id,
+                    (defectTotalsByType.get(item.defect_type_id) || 0) + item.quantity
+                );
+            }
+            normalizedDefects.length = 0;
+            normalizedDefects.push(...[...defectTotalsByType.entries()]
+                .filter(([, quantity]) => quantity > 0)
+                .map(([defect_type_id, quantity]) => ({ defect_type_id, quantity: Math.trunc(quantity) })));
+
             const detailValues = {
                 deduction_time:
                     normalizedDeductions.reduce(

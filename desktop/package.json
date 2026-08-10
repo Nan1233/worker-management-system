@@ -59,7 +59,7 @@
     "portable": {
       "artifactName": "KTC-Production-Control.exe"
     },
-    "compression": "store"
+    "compression": "maximum"
   },
   "dependencies": {
     "exceljs": "^4.4.0",
