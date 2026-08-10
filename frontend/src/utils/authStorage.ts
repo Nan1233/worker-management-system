@@ -217,6 +217,53 @@ export function saveAuthSession(data: {
     markRefreshSessionAvailable();
 }
 
+
+/**
+ * Clears only authentication state owned by the current browser tab.
+ *
+ * Web refresh cookies and the auth epoch live outside sessionStorage and are
+ * intentionally preserved here. This is used when another tab switches
+ * accounts: the stale tab must stop using its old access token immediately,
+ * without deleting the new account's shared HttpOnly refresh session.
+ */
+export function clearCurrentTabAuthSession(): void {
+    clearSessionCache();
+
+    for (const key of [
+        "auth",
+        "authUser",
+        "currentUser",
+        ACCESS_TOKEN_KEY,
+        LEGACY_TOKEN_KEY,
+        USER_KEY,
+        AUTH_SESSION_ID_KEY,
+        REFRESH_TOKEN_KEY
+    ]) {
+        sessionStorage.removeItem(key);
+    }
+
+    // Old web builds may have left access/user values in localStorage. They
+    // are not used for current web sessions and must not resurrect a stale
+    // account after a cross-tab switch. Never remove refresh/session-hint
+    // keys here because those belong to the newly active shared web session.
+    if (!isElectronRuntime()) {
+        for (const key of [
+            "auth",
+            "authUser",
+            "currentUser",
+            ACCESS_TOKEN_KEY,
+            LEGACY_TOKEN_KEY,
+            USER_KEY
+        ]) {
+            localStorage.removeItem(key);
+        }
+    }
+
+    if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("ktc:tab-auth-cleared"));
+    }
+}
+
 export function clearAuthSession(options: { bumpEpoch?: boolean } = {}): void {
     clearSessionCache();
     if (options.bumpEpoch !== false) bumpAuthEpoch();

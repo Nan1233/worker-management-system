@@ -12,10 +12,12 @@ import { API_BASE_URL, REQUEST_TIMEOUT_MS } from "../config/env";
 import {
     bumpAuthEpoch,
     clearAuthSession,
+    clearCurrentTabAuthSession,
     clearLegacyRefreshToken,
     getAccessToken,
     getAuthEpoch,
     getAuthSessionId,
+    getStoredUser,
     getRefreshToken,
     hasRefreshSessionHint,
     saveAuthSession
@@ -52,6 +54,7 @@ interface RefreshResponse {
 const TOKEN_REFRESH_LEEWAY_MS = 2 * 60 * 1000;
 const REFRESH_REQUEST_TIMEOUT_MS = 90_000;
 const TRANSIENT_REFRESH_COOLDOWN_MS = 10_000;
+const CROSS_TAB_LOGIN_MARKER_KEY = "ktcCrossTabAuthInvalidated";
 
 let refreshPromise: Promise<string> | null = null;
 let refreshAbortController: AbortController | null = null;
@@ -224,9 +227,26 @@ export async function refreshAccessToken(
                 );
             }
 
+            const currentUser = getStoredUser();
+            const refreshedUser = response.data.user;
+
+            // A web refresh cookie is shared by tabs. If another tab changed
+            // accounts before this tab observed the auth-epoch event, never
+            // let the refresh response silently replace user A with user B.
+            if (
+                currentUser &&
+                refreshedUser &&
+                currentUser.id !== refreshedUser.id
+            ) {
+                clearCurrentTabAuthSession();
+                throw new axios.CanceledError(
+                    "Phiên làm mới thuộc tài khoản khác. Tab hiện tại đã được đăng xuất."
+                );
+            }
+
             saveAuthSession({
                 accessToken: newAccessToken,
-                user: response.data.user,
+                user: refreshedUser,
                 sessionId: sessionIdAtStart || undefined
             });
 
@@ -438,12 +458,26 @@ function scheduleConnectionRestore(): void {
 if (typeof window !== "undefined") {
     window.addEventListener("storage", (event) => {
         if (event.key !== "ktcAuthEpoch") return;
+
         authGeneration = getAuthEpoch();
         refreshAbortController?.abort();
         refreshAbortController = null;
         refreshPromise = null;
         transientRefreshBlockedUntil = 0;
+
+        // authEpoch only changes when another tab logs in/logs out/switches
+        // account. Immediately retire this tab's access token so an old user
+        // cannot continue making authenticated requests until JWT expiry.
+        clearCurrentTabAuthSession();
+        sessionStorage.setItem(CROSS_TAB_LOGIN_MARKER_KEY, "1");
         window.dispatchEvent(new CustomEvent("ktc:auth-epoch-changed"));
+
+        const currentRoute = window.location.hash.replace(/^#/, "") || "/";
+        if (!/^\/login(?:\/|$)/.test(currentRoute)) {
+            window.location.replace(
+                `${window.location.origin}${window.location.pathname}#/login`
+            );
+        }
     });
 
     window.addEventListener("online", scheduleConnectionRestore);

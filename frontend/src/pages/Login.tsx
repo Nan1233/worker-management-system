@@ -20,7 +20,8 @@ import {
 } from "../services/api";
 
 import {
-    clearAuthSession
+    clearAuthSession,
+    clearCurrentTabAuthSession
 } from "../utils/authStorage";
 
 import type {
@@ -44,6 +45,7 @@ type LoginStep =
 
 const REMEMBERED_ACCOUNTS_KEY =
     "ktc_remembered_accounts";
+const CROSS_TAB_LOGIN_MARKER_KEY = "ktcCrossTabAuthInvalidated";
 
 const homeByRole: Record<UserRole, string> = {
     admin: "/admin",
@@ -137,13 +139,22 @@ function Login() {
         useState<RememberedAccount[]>(initialAccounts);
 
     useEffect(() => {
-        // Khi đã vào trang đăng nhập, luôn coi đây là yêu cầu đổi tài khoản.
-        // Hủy mọi refresh đang chạy và xóa phiên cũ để tài khoản trước không
-        // thể tự khôi phục rồi ghi đè lần đăng nhập mới.
-        beginLoginTransition();
-        clearAuthSession({ bumpEpoch: false });
+        const passiveCrossTabRedirect =
+            sessionStorage.getItem(CROSS_TAB_LOGIN_MARKER_KEY) === "1";
+        sessionStorage.removeItem(CROSS_TAB_LOGIN_MARKER_KEY);
+
+        if (passiveCrossTabRedirect) {
+            // Một tab khác vừa đổi tài khoản. Không bump authEpoch lần nữa,
+            // nếu không tab mới đăng nhập sẽ bị chính tab cũ đăng xuất ngược.
+            clearCurrentTabAuthSession();
+        } else {
+            // Khi người dùng chủ động vào trang đăng nhập, coi đây là yêu cầu
+            // đổi tài khoản và vô hiệu hóa phiên cũ ở các tab khác.
+            beginLoginTransition();
+            clearAuthSession({ bumpEpoch: false });
+            finishLoginTransition();
+        }
         sessionStorage.removeItem("redirectAfterLogin");
-        finishLoginTransition();
 
         // HashRouter phải luôn chạy ở pathname gốc. Các bản cũ từng chuyển
         // sang /login#/worker khiến reload/deploy giữ pathname /login.
