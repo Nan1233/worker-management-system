@@ -13,6 +13,7 @@ import type { ProductionReport } from "../../types/production";
 import { getAllReportDefects } from "../../utils/reportDetails";
 import { decimalHoursToMinutes, formatMinutes, sumDeductionMinutes } from "../../utils/timeDisplay";
 import { getStoredUser } from "../../utils/authStorage";
+import { usePermissions } from "../../hooks/usePermissions";
 import "./ReportDetail.css";
 
 const formatDate = (value?: string | null) => {
@@ -64,10 +65,11 @@ function ReportDetail() {
     const [rejectDetail, setRejectDetail] = useState("");
 
     const role = useMemo(() => getStoredUser()?.role || "manager", []);
+    const { can } = usePermissions();
 
-    const canEdit = role === "manager" || role === "admin";
-    const canReview = ["lead", "manager", "admin"].includes(role);
-    const basePath = role === "lead" ? "/lead" : "/manager";
+    const canEdit = source === "pending" ? can("REPORT_PENDING_EDIT") : can("REPORT_APPROVED_EDIT");
+    const canReview = can("REPORT_APPROVE");
+    const basePath = role === "lead" ? "/lead" : role === "admin" ? "/admin" : "/manager";
     const reportId = Number(id);
 
     const loadReport = useCallback(async () => {
@@ -136,11 +138,11 @@ function ReportDetail() {
                     <h1>{report.worker_code || "---"} - {report.full_name || "Không có tên"}</h1>
                     <span className={`detail-status ${source === "approved" ? "is-approved" : "is-pending"}`}>{source === "approved" ? "Đã duyệt" : "Chờ duyệt"}</span>
                 </div>
-                {canEdit && source === "pending" && <button className="detail-edit-button" type="button" onClick={() => navigate(`${basePath}/report/${report.id}/edit?source=${source}`)}>✎ Sửa báo cáo</button>}
+                {canEdit && source === "pending" && <button className="detail-edit-button" type="button" onClick={() => navigate(`${basePath}/report/${report.id}/edit?source=${source}`)}>Sửa báo cáo</button>}
             </header>
 
             {error && <div className="detail-inline-error">{error}</div>}
-            {outputWarning && <div className="detail-warning">⚠ Tổng OK + NG đang lớn hơn định mức × thời gian thực tế. Cần kiểm tra trước khi duyệt.</div>}
+            {outputWarning && <div className="detail-warning">Cảnh báo: Tổng OK + NG đang lớn hơn định mức × thời gian thực tế. Cần kiểm tra trước khi duyệt.</div>}
 
             <section className="detail-basic-card">
                 <h2>Thông tin cần kiểm tra</h2>

@@ -6,6 +6,7 @@ import AppIcon from "../../components/common/AppIcon";
 import { useToast } from "../../components/feedback/toastContext";
 import { getApiError } from "../../utils/apiError";
 import { getStoredUser } from "../../utils/authStorage";
+import { usePermissions } from "../../hooks/usePermissions";
 import "./Dashboard.css";
 
 const formatNumber = (value: number) =>
@@ -98,6 +99,7 @@ function Dashboard() {
     const [period, setPeriod] = useState<PeriodKey>("today");
 
     const currentUser = useMemo(() => getStoredUser(), []);
+    const { can } = usePermissions();
 
     const basePath = currentUser?.role === "admin"
         ? "/admin"
@@ -315,9 +317,9 @@ function Dashboard() {
             </section>
 
             <section className="dashboard-quick-actions">
-                <button type="button" onClick={() => navigate(`${basePath}/reports`)}><span className="dashboard-quick-icon"><AppIcon name="pending" size={24} /></span><strong>Duyệt báo cáo</strong></button>
-                <button type="button" onClick={() => navigate(`${basePath}/approved`)}><span className="dashboard-quick-icon"><AppIcon name="approved" size={24} /></span><strong>Báo cáo đã duyệt</strong></button>
-                <button type="button" onClick={() => navigate(`${basePath}/master`)}><span className="dashboard-quick-icon"><AppIcon name="settings" size={24} /></span><strong>Trung tâm quản lý</strong></button>
+                {can("REPORT_PENDING_VIEW") && <button type="button" onClick={() => navigate(`${basePath}/reports`)}><span className="dashboard-quick-icon"><AppIcon name="pending" size={24} /></span><strong>Duyệt báo cáo</strong></button>}
+                {can("REPORT_APPROVED_VIEW") && <button type="button" onClick={() => navigate(`${basePath}/approved`)}><span className="dashboard-quick-icon"><AppIcon name="approved" size={24} /></span><strong>Báo cáo đã duyệt</strong></button>}
+                {can("MASTER_VIEW") && <button type="button" onClick={() => navigate(`${basePath}/master`)}><span className="dashboard-quick-icon"><AppIcon name="settings" size={24} /></span><strong>Dữ liệu chuẩn</strong></button>}
             </section>
         </main>
     );

@@ -8,7 +8,7 @@ const indexes = [
   ["production_reports_temp", "idx_prt_worker_date", ["worker_id", "work_date"]],
   ["production_reports_temp", "idx_prt_process_date", ["process_id", "work_date"]],
   ["production_reports_temp", "idx_prt_similar_lookup", ["worker_id", "process_id", "work_date", "shift", "machine_no", "product_name", "status"]],
-  ["production_reports_temp", "idx_prt_client_request", ["worker_id", "client_request_id"]],
+  ["production_reports_temp", "uq_prt_worker_client_request", ["worker_id", "client_request_id"], { unique: true }],
   ["manager_processes", "idx_mp_manager_process", ["manager_id", "process_id"]],
   ["worker_processes", "idx_wp_worker_process", ["worker_id", "process_id"]],
   ["machines", "idx_machines_process_status_code", ["process_id", "status", "machine_code"]],
@@ -43,7 +43,7 @@ async function indexExists(table, name) {
 
 (async () => {
   await db.testConnection();
-  for (const [table, name, columns] of indexes) {
+  for (const [table, name, columns, options = {}] of indexes) {
     if (!(await tableExists(table))) {
       console.log(`SKIP missing table: ${table}`);
       continue;
@@ -53,7 +53,7 @@ async function indexExists(table, name) {
       continue;
     }
     const escapedColumns = columns.map((column) => `\`${column}\``).join(", ");
-    await db.promise().query(`CREATE INDEX \`${name}\` ON \`${table}\` (${escapedColumns})`);
+    await db.promise().query(`CREATE ${options.unique ? "UNIQUE " : ""}INDEX \`${name}\` ON \`${table}\` (${escapedColumns})`);
     console.log(`CREATED: ${table}.${name}`);
   }
 })()

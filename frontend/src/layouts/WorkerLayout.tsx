@@ -4,11 +4,14 @@ import "./WorkerLayout.css";
 import { clearAuthSession } from "../utils/authStorage";
 import { useMobileKeyboard } from "../hooks/useMobileKeyboard";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
+import { usePermissions } from "../hooks/usePermissions";
+import type { PermissionCode } from "../security/permissions";
 
-const menuItems: { label: string; path: string; icon: IconName; exact?: boolean }[] = [
-    { label: "Trang chủ", path: "/worker", icon: "process", exact: true },
-    { label: "Lịch sử báo cáo", path: "/worker/history", icon: "history" },
-    { label: "Thông báo", path: "/worker/system", icon: "bell" }
+const menuItems: { label: string; path: string; icon: IconName; exact?: boolean; permission: PermissionCode }[] = [
+    { label: "Nhập báo cáo", path: "/worker", icon: "process", exact: true, permission: "WORKER_ENTRY" },
+    { label: "Lịch sử", path: "/worker/history", icon: "history", permission: "WORKER_HISTORY" },
+    { label: "Thông báo", path: "/worker/system", icon: "bell", permission: "NOTIFICATION_VIEW" },
+    { label: "Tài khoản", path: "/worker/profile", icon: "user", permission: "PROFILE_VIEW" }
 ];
 
 const formatToday = (): string => {
@@ -26,7 +29,9 @@ function WorkerLayout() {
     const navigate = useNavigate();
     const location = useLocation();
     const { keyboardOpen, hideKeyboard } = useMobileKeyboard();
-    const { unreadCount } = useNotificationBadge();
+    const { can } = usePermissions();
+    const { unreadCount } = useNotificationBadge(can("NOTIFICATION_VIEW"));
+    const visibleMenuItems = menuItems.filter((item) => can(item.permission));
 
     const handleLogout = () => {
         clearAuthSession();
@@ -53,7 +58,7 @@ function WorkerLayout() {
                 </button>
 
                 <nav className="worker-desktop-nav" aria-label="Điều hướng công nhân">
-                    {menuItems.map((item) => (
+                    {visibleMenuItems.map((item) => (
                         <button
                             key={item.path}
                             type="button"
@@ -91,7 +96,7 @@ function WorkerLayout() {
             )}
 
             <nav className="worker-mobile-nav" aria-label="Điều hướng công nhân trên điện thoại">
-                {menuItems.map((item) => (
+                {visibleMenuItems.map((item) => (
                     <button
                         key={item.path}
                         type="button"

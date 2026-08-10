@@ -1,4 +1,5 @@
 const { calculateCountedNg } = require('../utils/outputCalculation');
+const { trainingFactor } = require('../utils/trainingPercent');
 const ExcelJS = require('exceljs');
 const fs = require('node:fs/promises');
 const path = require('node:path');
@@ -169,16 +170,13 @@ const toExcelDate = (value) => {
   return new Date(year, month - 1, day);
 };
 
-const sortReports = (a, b) => {
-  const byDate = normalizeDateKey(a.work_date).localeCompare(normalizeDateKey(b.work_date));
-  if (byDate) return byDate;
-  const byWorker = String(a.worker_code || '').localeCompare(
-    String(b.worker_code || ''),
-    undefined,
-    { numeric: true, sensitivity: 'base' }
-  );
-  return byWorker || Number(a.id) - Number(b.id);
-};
+const reportTimeKey = (report) => String(report.approved_at || report.created_at || report.entry_date || report.work_date || '');
+
+const sortReports = (a, b) => normalizeDateKey(a.work_date).localeCompare(normalizeDateKey(b.work_date))
+  || reportTimeKey(a).localeCompare(reportTimeKey(b))
+  || String(a.worker_code || '').localeCompare(String(b.worker_code || ''), undefined, { numeric: true, sensitivity: 'base' })
+  || String(a.machine_no || '').localeCompare(String(b.machine_no || ''), undefined, { numeric: true, sensitivity: 'base' })
+  || Number(a.id) - Number(b.id);
 
 const clone = (value) => (value == null ? value : JSON.parse(JSON.stringify(value)));
 
@@ -235,18 +233,18 @@ const safeFolderName = (value, fallback) => String(value || fallback)
   .replace(/\s+/g, ' ')
   .trim() || fallback;
 
-const getMonthlyTarget = (yearMonth) => {
+const getMonthlyTarget = (yearMonth, options = {}) => {
   const [year, month] = yearMonth.split('-');
-  const root = process.env.EXCEL_EXPORT_ROOT || path.join(process.cwd(), 'exports');
-  const stageName = safeFolderName(process.env.EXCEL_STAGE_FOLDER_NAME || 'Cắt lồng', 'Cắt lồng');
+  const root = options.exportRoot || process.env.EXCEL_EXPORT_ROOT || path.join(process.cwd(), 'exports');
+  const stageName = safeFolderName(options.stageFolder || process.env.EXCEL_STAGE_FOLDER_NAME || 'Cắt lồng', 'Cắt lồng');
   const folder = path.join(root, year, stageName);
   const fileName = `Bao-cao-san-xuat-${month}-${year}.xlsx`;
   const filePath = path.join(folder, fileName);
   return { folder, fileName, filePath, metadataPath: `${filePath}.meta.json` };
 };
 
-const readMonthlyCacheMetadata = async (yearMonth) => {
-  const target = getMonthlyTarget(yearMonth);
+const readMonthlyCacheMetadata = async (yearMonth, options = {}) => {
+  const target = getMonthlyTarget(yearMonth, options);
   try {
     const [fileStat, metadataText] = await Promise.all([
       fs.stat(target.filePath),
@@ -452,9 +450,7 @@ const buildReportValue = (column, report, sequence) => {
       return report.shift || '';
 
     case 'training_percent':
-      return toNumber(
-        report.training_percent || 100
-      ) / 100;
+      return trainingFactor(report.training_percent);
 
     case 'total_time':
       return toNumber(
@@ -679,7 +675,7 @@ const buildMonthlyTemplateWorkbook = async (reports, yearMonth, options = {}) =>
     printArea: `A1:${lastColumnLetter}${Math.max(HEADER_ROW, rowNumber - 1)}`
   };
 
-  const target = getMonthlyTarget(yearMonth);
+  const target = getMonthlyTarget(yearMonth, options);
   await fs.mkdir(target.folder, { recursive: true });
   const temporaryPath = `${target.filePath}.${process.pid}.${Date.now()}.tmp`;
   try {

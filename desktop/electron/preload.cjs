@@ -13,6 +13,11 @@ contextBridge.exposeInMainWorld('ktcDesktop', {
     ipcRenderer.on('ktc-excel-sync-result', handler);
     return () => ipcRenderer.removeListener('ktc-excel-sync-result', handler);
   },
+  onExcelDbSyncResult: (callback) => {
+    const handler = (_event, value) => callback(value);
+    ipcRenderer.on('ktc-excel-db-sync-result', handler);
+    return () => ipcRenderer.removeListener('ktc-excel-db-sync-result', handler);
+  },
   onSyncError: (callback) => {
     const handler = (_event, value) => callback(value);
     ipcRenderer.on('ktc-excel-sync-error', handler);

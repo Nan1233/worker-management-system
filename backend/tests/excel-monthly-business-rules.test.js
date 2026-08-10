@@ -9,7 +9,7 @@ const legacyBackend = fs.readFileSync(path.join(__dirname, '../services/companyE
 const smoke = fs.readFileSync(path.join(__dirname, '../../desktop/scripts/smokeExcel.cjs'), 'utf8');
 
 test('monthly workbook preserves zero training and uses counted NG only for output', () => {
-  assert.match(monthly, /Math\.min\(1, Math\.max\(0, normalized\)\)/);
+  assert.match(monthly, /Math\.min\(1, Math\.max\(0, number \/ 100\)\)/);
   assert.match(monthly, /countedNgValue/);
   assert.match(monthly, /ng \/ ngDenominator/);
   assert.match(monthly, /ok \+ ng/);

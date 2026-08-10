@@ -32,8 +32,9 @@ test('desktop validates generated workbooks with smoke test before packaging', (
   assert.match(String(scripts['dist:win'] || ''), /smoke:excel/);
   assert.match(String(scripts['smoke:excel'] || ''), /smokeExcel\.cjs/);
 
-  assert.match(smokeSource, /buildMonthlyWorkbookLocal/);
-  assert.match(smokeSource, /buildReconciliationWorkbook/);
+  assert.match(smokeSource, /buildSplitMonthlyWorkbooksLocal/);
+  assert.match(smokeSource, /00_TONG_HOP_SAN_XUAT_08-2026\.xlsx/);
+  assert.match(smokeSource, /ĐỐI CHIẾU DỮ LIỆU/);
   assert.match(smokeSource, /workbook\.xlsx\.readFile/);
   assert.match(smokeSource, /tidb\.production_reports\.approved/);
 });

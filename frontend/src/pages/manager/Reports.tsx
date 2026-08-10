@@ -23,6 +23,7 @@ import type {
 
 import { useToast } from "../../components/feedback/toastContext";
 import { getStoredUser } from "../../utils/authStorage";
+import { usePermissions } from "../../hooks/usePermissions";
 
 import "./Reports.css";
 
@@ -162,6 +163,9 @@ const duplicateKey = (
 
 
 function Reports() {
+    const { can } = usePermissions();
+    const canReview = can("REPORT_APPROVE");
+
     const { showToast } = useToast();
     const navigate = useNavigate();
 
@@ -863,7 +867,7 @@ function Reports() {
                         Xem chi tiết ({selectedIds.length})
                     </button>
 
-                    <button
+                    {canReview && <button
                         type="button"
                         className="management-reject-button"
                         onClick={() => setRejectOpen(true)}
@@ -874,9 +878,9 @@ function Reports() {
                         }
                     >
                         Từ chối ({selectedIds.length})
-                    </button>
+                    </button>}
 
-                    <button
+                    {canReview && <button
                         type="button"
                         className="management-approve-button"
                         onClick={handleApproveSelected}
@@ -887,7 +891,7 @@ function Reports() {
                         }
                     >
                         {actionLoading ? "Đang xử lý..." : `Duyệt (${selectedIds.length})`}
-                    </button>
+                    </button>}
                 </div>
             </div>
 
@@ -1143,7 +1147,7 @@ function Reports() {
             )}
 
 
-            {rejectOpen && (
+            {rejectOpen && canReview && (
                 <div
                     className="management-modal-backdrop"
                     role="presentation"

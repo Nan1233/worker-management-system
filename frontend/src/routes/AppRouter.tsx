@@ -1,7 +1,8 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-
 import PrivateRoute from "./PrivateRoute";
+import PermissionRoute from "./PermissionRoute";
+import type { PermissionCode } from "../security/permissions";
 import WorkerLayout from "../layouts/WorkerLayout";
 import ManagementLayout from "../layouts/ManagementLayout";
 import RouteLoading from "../components/system/RouteLoading";
@@ -11,381 +12,81 @@ const AdminDashboard = lazy(() => import("../pages/admin/Dashboard"));
 const MasterData = lazy(() => import("../pages/admin/MasterData"));
 const FormulaSettings = lazy(() => import("../pages/admin/FormulaSettings"));
 const Governance = lazy(() => import("../pages/admin/Governance"));
+const Permissions = lazy(() => import("../pages/admin/Permissions"));
 const ManagementDashboard = lazy(() => import("../pages/lead/Dashboard"));
-const ManagementPendingReports = lazy(() => import("../pages/lead/PendingReports"));
-const ManagementApprovedReports = lazy(() => import("../pages/lead/ApprovedReports"));
-const ManagementReportDetail = lazy(() => import("../pages/lead/ReportDetail"));
-const ManagerEditReport = lazy(() => import("../pages/manager/EditReport"));
-const ManagerStatistics = lazy(() => import("../pages/manager/Statistics"));
+const PendingReports = lazy(() => import("../pages/lead/PendingReports"));
+const ApprovedReports = lazy(() => import("../pages/lead/ApprovedReports"));
+const ReportDetail = lazy(() => import("../pages/lead/ReportDetail"));
+const EditReport = lazy(() => import("../pages/manager/EditReport"));
+const Statistics = lazy(() => import("../pages/manager/Statistics"));
 const SelectedReportsReview = lazy(() => import("../pages/manager/SelectedReportsReview"));
+const ReportDownload = lazy(() => import("../pages/manager/ReportDownload"));
+const Workers = lazy(() => import("../pages/manager/Workers"));
 const SelectProcess = lazy(() => import("../pages/worker/SelectProcess"));
 const ProcessPage = lazy(() => import("../pages/worker/ProcessPage"));
 const ProductionHistory = lazy(() => import("../pages/worker/ProductionHistory"));
 const ProductionDetail = lazy(() => import("../pages/worker/ProductionDetail"));
+const Profile = lazy(() => import("../pages/worker/Profile"));
 const SystemCenter = lazy(() => import("../pages/system/SystemCenter"));
 
-// =====================================================
-// ROUTER
-// =====================================================
-
-function AppRouter() {
-
-    return (
-        <Suspense fallback={<RouteLoading />}>
-        <Routes>
-
-
-            {/* =================================================
-                DEFAULT
-            ================================================= */}
-
-            <Route
-                path="/"
-                element={
-
-                    <Navigate
-                        to="/login"
-                        replace
-                    />
-
-                }
-            />
-
-
-            {/* =================================================
-                LOGIN
-            ================================================= */}
-
-            <Route
-                path="/login"
-                element={
-
-                    <Login />
-
-                }
-            />
-
-
-            {/* =================================================
-                ADMIN
-            ================================================= */}
-
-            <Route path="/admin" element={<PrivateRoute allowedRoles={["admin"]}><ManagementLayout role="admin" /></PrivateRoute>}>
-                <Route index element={<AdminDashboard />} />
-                <Route path="master" element={<Navigate to="users" replace />} />
-                <Route path="master/:resource" element={<MasterData />} />
-                <Route path="formulas" element={<FormulaSettings />} />
-                <Route path="governance" element={<Governance />} />
-                <Route path="reports" element={<ManagementPendingReports />} />
-                <Route path="approved" element={<ManagementApprovedReports />} />
-                <Route path="statistics" element={<ManagerStatistics />} />
-                <Route path="system" element={<SystemCenter />} />
-            </Route>
-
-
-            {/* =================================================
-                LEAD - TRANG CHI TIẾT KHÔNG SIDEBAR
-            ================================================= */}
-
-            <Route
-                path="/lead/reports/review"
-                element={
-
-                    <PrivateRoute
-                        allowedRoles={[
-                            "lead"
-                        ]}
-                    >
-
-                        <SelectedReportsReview />
-
-                    </PrivateRoute>
-
-                }
-            />
-
-
-            <Route
-                path="/lead/report/:id"
-                element={
-
-                    <PrivateRoute
-                        allowedRoles={[
-                            "lead"
-                        ]}
-                    >
-
-                        <ManagementReportDetail />
-
-                    </PrivateRoute>
-
-                }
-            />
-
-
-            {/* =================================================
-                MANAGER - TRANG CHI TIẾT KHÔNG SIDEBAR
-            ================================================= */}
-
-            <Route
-                path="/manager/reports/review"
-                element={
-
-                    <PrivateRoute
-                        allowedRoles={[
-                            "admin",
-                            "manager"
-                        ]}
-                    >
-
-                        <SelectedReportsReview />
-
-                    </PrivateRoute>
-
-                }
-            />
-
-
-            <Route
-                path="/manager/report/:id"
-                element={
-
-                    <PrivateRoute
-                        allowedRoles={[
-                            "admin",
-                            "manager"
-                        ]}
-                    >
-
-                        <ManagementReportDetail />
-
-                    </PrivateRoute>
-
-                }
-            />
-
-
-            <Route
-                path="/manager/report/:id/edit"
-                element={
-
-                    <PrivateRoute
-                        allowedRoles={[
-                            "admin",
-                            "manager"
-                        ]}
-                    >
-
-                        <ManagerEditReport />
-
-                    </PrivateRoute>
-
-                }
-            />
-
-
-            {/* =================================================
-                LEAD - CÓ SIDEBAR
-            ================================================= */}
-
-            <Route
-                path="/lead"
-                element={
-
-                    <PrivateRoute
-                        allowedRoles={[
-                            "lead"
-                        ]}
-                    >
-
-                        <ManagementLayout
-                            role="lead"
-                        />
-
-                    </PrivateRoute>
-
-                }
-            >
-
-                <Route
-                    index
-                    element={
-
-                        <ManagementDashboard />
-
-                    }
-                />
-
-
-                <Route
-                    path="reports"
-                    element={
-
-                        <ManagementPendingReports />
-
-                    }
-                />
-
-
-                <Route
-                    path="approved"
-                    element={
-
-                        <ManagementApprovedReports />
-
-                    }
-                />
-
-
-                <Route path="system" element={<SystemCenter />} />
-            </Route>
-
-
-            {/* =================================================
-                MANAGER - CÓ SIDEBAR
-            ================================================= */}
-
-            <Route
-                path="/manager"
-                element={
-
-                    <PrivateRoute
-                        allowedRoles={[
-                            "admin",
-                            "manager"
-                        ]}
-                    >
-
-                        <ManagementLayout
-                            role="manager"
-                        />
-
-                    </PrivateRoute>
-
-                }
-            >
-
-                <Route
-                    index
-                    element={
-
-                        <ManagementDashboard />
-
-                    }
-                />
-                <Route path="master" element={<Navigate to="users" replace />} />
-                <Route path="master/:resource" element={<MasterData />} />
-                <Route path="formulas" element={<FormulaSettings />} />
-                <Route path="governance" element={<Governance />} />
-
-
-                <Route
-                    path="reports"
-                    element={
-
-                        <ManagementPendingReports />
-
-                    }
-                />
-
-
-                <Route
-                    path="approved"
-                    element={
-
-                        <ManagementApprovedReports />
-
-                    }
-                />
-
-
-       
-
-
-                <Route path="statistics" element={<ManagerStatistics />} />
-                <Route path="system" element={<SystemCenter />} />
-
-            </Route>
-
-
-            {/* =================================================
-                WORKER
-            ================================================= */}
-
-            <Route
-                path="/worker"
-                element={
-
-                    <PrivateRoute
-                        allowedRoles={[
-                            "worker"
-                        ]}
-                    >
-
-                        <WorkerLayout />
-
-                    </PrivateRoute>
-
-                }
-            >
-
-                <Route
-                    index
-                    element={
-
-                        <SelectProcess />
-
-                    }
-                />
-
-
-                <Route
-                    path="process/:process"
-                    element={
-
-                        <ProcessPage />
-
-                    }
-                />
-
-
-                <Route
-                    path="history"
-                    element={
-
-                        <ProductionHistory />
-
-                    }
-                />
-
-
-                <Route path="history/:id" element={<ProductionDetail />} />
-                <Route path="system" element={<SystemCenter />} />
-
-            </Route>
-
-
-            {/* =================================================
-                NOT FOUND
-            ================================================= */}
-
-            <Route
-                path="*"
-                element={
-
-                    <Navigate
-                        to="/login"
-                        replace
-                    />
-
-                }
-            />
-
-        </Routes>
-        </Suspense>
-    );
-
+const P = ({code,children}:{code:PermissionCode;children:ReactNode}) => <PermissionRoute permission={code}>{children}</PermissionRoute>;
+
+export default function AppRouter(){
+ return <Suspense fallback={<RouteLoading/>}><Routes>
+  <Route path="/" element={<Navigate to="/login" replace/>}/>
+  <Route path="/login" element={<Login/>}/>
+
+  <Route path="/admin" element={<PrivateRoute allowedRoles={["admin"]}><ManagementLayout role="admin"/></PrivateRoute>}>
+   <Route index element={<P code="DASHBOARD_VIEW"><AdminDashboard/></P>}/>
+   <Route path="reports" element={<P code="REPORT_PENDING_VIEW"><PendingReports/></P>}/>
+   <Route path="approved" element={<P code="REPORT_APPROVED_VIEW"><ApprovedReports/></P>}/>
+   <Route path="export" element={<P code="REPORT_EXPORT"><ReportDownload/></P>}/>
+   <Route path="workers" element={<P code="USER_VIEW"><Workers/></P>}/>
+   <Route path="master" element={<Navigate to="processes" replace/>}/>
+   <Route path="master/:resource" element={<P code="MASTER_VIEW"><MasterData/></P>}/>
+   <Route path="formulas" element={<P code="FORMULA_VIEW"><FormulaSettings/></P>}/>
+   <Route path="governance" element={<P code="GOVERNANCE_VIEW"><Governance/></P>}/>
+   <Route path="statistics" element={<P code="STATISTICS_VIEW"><Statistics/></P>}/>
+   <Route path="permissions" element={<P code="PERMISSION_MANAGE"><Permissions/></P>}/>
+   <Route path="system" element={<P code="NOTIFICATION_VIEW"><SystemCenter/></P>}/>
+  </Route>
+
+  <Route path="/manager" element={<PrivateRoute allowedRoles={["manager"]}><ManagementLayout role="manager"/></PrivateRoute>}>
+   <Route index element={<P code="DASHBOARD_VIEW"><ManagementDashboard/></P>}/>
+   <Route path="reports" element={<P code="REPORT_PENDING_VIEW"><PendingReports/></P>}/>
+   <Route path="approved" element={<P code="REPORT_APPROVED_VIEW"><ApprovedReports/></P>}/>
+   <Route path="export" element={<P code="REPORT_EXPORT"><ReportDownload/></P>}/>
+   <Route path="workers" element={<P code="USER_VIEW"><Workers/></P>}/>
+   <Route path="master" element={<Navigate to="processes" replace/>}/>
+   <Route path="master/:resource" element={<P code="MASTER_VIEW"><MasterData/></P>}/>
+   <Route path="formulas" element={<P code="FORMULA_VIEW"><FormulaSettings/></P>}/>
+   <Route path="governance" element={<P code="GOVERNANCE_VIEW"><Governance/></P>}/>
+   <Route path="statistics" element={<P code="STATISTICS_VIEW"><Statistics/></P>}/>
+   <Route path="system" element={<P code="NOTIFICATION_VIEW"><SystemCenter/></P>}/>
+  </Route>
+
+  <Route path="/lead" element={<PrivateRoute allowedRoles={["lead"]}><ManagementLayout role="lead"/></PrivateRoute>}>
+   <Route index element={<P code="DASHBOARD_VIEW"><ManagementDashboard/></P>}/>
+   <Route path="reports" element={<P code="REPORT_PENDING_VIEW"><PendingReports/></P>}/>
+   <Route path="approved" element={<P code="REPORT_APPROVED_VIEW"><ApprovedReports/></P>}/>
+   <Route path="export" element={<P code="REPORT_EXPORT"><ReportDownload/></P>}/>
+   <Route path="workers" element={<P code="USER_VIEW"><Workers/></P>}/>
+   <Route path="statistics" element={<P code="STATISTICS_VIEW"><Statistics/></P>}/>
+   <Route path="system" element={<P code="NOTIFICATION_VIEW"><SystemCenter/></P>}/>
+  </Route>
+
+  {(["admin","manager","lead"] as const).map(role => <Route key={`${role}-review`} path={`/${role}/reports/review`} element={<PrivateRoute allowedRoles={[role]}><P code="REPORT_APPROVE"><SelectedReportsReview/></P></PrivateRoute>}/>)}
+  {(["admin","manager","lead"] as const).map(role => <Route key={`${role}-detail`} path={`/${role}/report/:id`} element={<PrivateRoute allowedRoles={[role]}><P code="REPORT_APPROVED_VIEW"><ReportDetail/></P></PrivateRoute>}/>)}
+  {(["admin","manager"] as const).map(role => <Route key={`${role}-edit`} path={`/${role}/report/:id/edit`} element={<PrivateRoute allowedRoles={[role]}><P code="REPORT_APPROVED_EDIT"><EditReport/></P></PrivateRoute>}/>)}
+
+  <Route path="/worker" element={<PrivateRoute allowedRoles={["worker"]}><WorkerLayout/></PrivateRoute>}>
+   <Route index element={<P code="WORKER_ENTRY"><SelectProcess/></P>}/>
+   <Route path="process/:process" element={<P code="WORKER_ENTRY"><ProcessPage/></P>}/>
+   <Route path="history" element={<P code="WORKER_HISTORY"><ProductionHistory/></P>}/>
+   <Route path="history/:id" element={<P code="WORKER_HISTORY"><ProductionDetail/></P>}/>
+   <Route path="system" element={<P code="NOTIFICATION_VIEW"><SystemCenter/></P>}/>
+   <Route path="profile" element={<P code="PROFILE_VIEW"><Profile/></P>}/>
+  </Route>
+  <Route path="*" element={<Navigate to="/login" replace/>}/>
+ </Routes></Suspense>;
 }
-
-
-export default AppRouter;

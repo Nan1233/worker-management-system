@@ -25,6 +25,7 @@ const machineRoutes = require("./routes/machineRoutes");
 const productStandardRoutes = require("./routes/productStandardRoutes");
 const syncJobRoutes = require("./routes/syncJobRoutes");
 const systemRoutes = require("./routes/systemRoutes");
+const permissionRoutes = require("./routes/permissionRoutes");
 const adminMasterRoutes = require("./routes/adminMasterRoutes");
 const formulaSettingsRoutes = require("./routes/formulaSettingsRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
@@ -34,6 +35,8 @@ const excelMasterSyncRoutes = require("./routes/excelMasterSyncRoutes");
 const authMiddleware = require("./middleware/authMiddleware");
 const checkRole = require("./middleware/roleMiddleware");
 const reportExportController = require("./controllers/reportExportController");
+const excelExportJobQueue = require("./services/excelExportJobQueue");
+const { validateEnvironment } = require("./config/validateEnvironment");
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -172,6 +175,7 @@ console.log("[KTC] Company Excel API v3 mounted at /api/reports/export-excel/com
 app.use("/api/sync-jobs", syncJobRoutes);
 app.use("/api/version", require("./routes/versionRoutes"));
 app.use("/api/system", systemRoutes);
+app.use("/api/permissions", permissionRoutes);
 app.use("/api/admin/master", adminMasterRoutes);
 app.use("/api/formula-settings", formulaSettingsRoutes);
 app.use("/api/governance", governanceRoutes);
@@ -246,8 +250,10 @@ let server;
 
 async function start() {
   try {
+    validateEnvironment(process.env, { production: isProduction });
     const database = await db.testConnection();
     console.log(`Database connected: ${database.host}:${database.port}; SSL=${database.ssl}`);
+    await excelExportJobQueue.initialize();
   } catch (error) {
     console.error(`Database startup check failed: ${error.message}`);
     // Render should restart a service that cannot reach its primary database.

@@ -1,4 +1,5 @@
 const { calculateCountedNg } = require('../utils/outputCalculation');
+const { trainingFactor } = require('../utils/trainingPercent');
 const { google } = require('googleapis');
 const ReportService = require('./reportService');
 const db = require('../config/db');
@@ -156,7 +157,7 @@ const buildSheetValues = (reports, options = {}) => {
       report.full_name || report.worker_name || '',
       report.machine_no || '',
       report.shift || '',
-      toNumber(report.training_percent || 100) / 100,
+      trainingFactor(report.training_percent),
       toNumber(report.total_time),
       actualTime,
       toNumber(report.deduction_time),

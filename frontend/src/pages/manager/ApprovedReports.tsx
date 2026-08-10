@@ -15,6 +15,7 @@ import type { ProductionReport } from "../../types/production";
 
 import { useToast } from "../../components/feedback/toastContext";
 import { getStoredUser } from "../../utils/authStorage";
+import { usePermissions } from "../../hooks/usePermissions";
 
 import "./Reports.css";
 
@@ -51,6 +52,9 @@ const duplicateKey = (
         .join("|");
 
 function ApprovedReports() {
+    const { can } = usePermissions();
+    const canExport = can("REPORT_EXPORT");
+
     const { showToast } = useToast();
     const navigate = useNavigate();
 
@@ -528,7 +532,7 @@ const handleExportExcel = async () => {
                     >
                         Xem chi tiết ({selectedIds.length})
                     </button>
-                    <button
+                    {canExport && <button
                         type="button"
                         className="management-export-button"
                         onClick={handleExportExcel}
@@ -539,7 +543,7 @@ const handleExportExcel = async () => {
                             : window.ktcDesktop?.isDesktop
                               ? "Cập nhật Excel tháng"
                               : "Tải Excel theo tháng"}
-                    </button>
+                    </button>}
                 </div>
             </div>
 {selectedIds.length > 0 && (

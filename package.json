@@ -1,14 +1,20 @@
 {
-  "name": "ktc-production-control",
+  "name": "worker-management-system",
+  "version": "1.9.7",
   "private": true,
+  "description": "KTC Worker Management System monorepo",
   "scripts": {
     "install:all": "npm ci --prefix backend && npm ci --prefix frontend && npm ci --prefix desktop",
-    "verify": "npm run check:repo && npm run verify:backend && npm run verify:frontend && npm run verify:desktop",
-    "verify:backend": "npm --prefix backend run verify",
-    "verify:frontend": "npm --prefix frontend run check",
-    "verify:desktop": "npm --prefix desktop run check",
-    "ci": "npm run install:all && npm run verify",
+    "verify": "npm --prefix backend run verify && npm --prefix frontend run check && npm --prefix desktop run check && npm --prefix desktop run smoke:excel",
     "build:exe": "npm --prefix desktop run dist:win",
-    "check:repo": "node scripts/checkRepository.cjs"
+    "db:migrate": "npm --prefix backend run db:migrate",
+    "db:indexes": "npm --prefix backend run db:indexes",
+    "backup:db": "npm --prefix backend run backup:db",
+    "backup:verify": "npm --prefix backend run backup:verify --",
+    "restore:db": "npm --prefix backend run restore:db --"
+  },
+  "engines": {
+    "node": "22.x",
+    "npm": ">=10"
   }
 }

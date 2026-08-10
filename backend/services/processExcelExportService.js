@@ -207,41 +207,34 @@ async function buildProcessWorkbook(value, processId) {
   const folder = path.join(tempRoot, year, processFolder, month);
   await fs.mkdir(folder, { recursive: true });
 
-  const originalRoot = process.env.EXCEL_EXPORT_ROOT;
-  const originalStage = process.env.EXCEL_STAGE_FOLDER_NAME;
-  process.env.EXCEL_EXPORT_ROOT = tempRoot;
-  process.env.EXCEL_STAGE_FOLDER_NAME = path.join(processFolder, month);
-
-  try {
-    // Lazy-load ExcelJS-dependent code only for the legacy server-side export path.
-    const { buildMonthlyTemplateWorkbook } = require('./consolidatedExcelExportService');
-    const result = await buildMonthlyTemplateWorkbook(reports, yearMonth, {
-      latestUpdatedAt,
-      deductionTypes: reports.deductionTypes || [],
-      defectTypes: reports.defectTypes || []
-    });
-    // A+B là workbook công ty và chỉ được tạo bởi luồng company Excel.
-    // Mọi workbook tại đây phải mang tên Báo-cáo-<công đoạn>-MM-YYYY.
-    const desiredName = `Bao-cao-${slugName(processName)}-${month}-${year}.xlsx`;
-    const desiredPath = path.join(folder, desiredName);
-    if (result.archivePath !== desiredPath) {
-      await fs.rm(desiredPath, { force: true });
-      await fs.rename(result.archivePath, desiredPath);
-    }
-    return {
-      path: desiredPath,
-      fileName: desiredName,
-      processId: Number(processId),
-      processName,
-      reportCount: reports.length,
-      yearMonth
-    };
-  } finally {
-    if (originalRoot === undefined) delete process.env.EXCEL_EXPORT_ROOT;
-    else process.env.EXCEL_EXPORT_ROOT = originalRoot;
-    if (originalStage === undefined) delete process.env.EXCEL_STAGE_FOLDER_NAME;
-    else process.env.EXCEL_STAGE_FOLDER_NAME = originalStage;
+  // Pass output configuration explicitly. process.env is process-global; mutating it
+  // during a request creates a race where concurrent exports can write into each
+  // other's folders.
+  const { buildMonthlyTemplateWorkbook } = require('./consolidatedExcelExportService');
+  const result = await buildMonthlyTemplateWorkbook(reports, yearMonth, {
+    latestUpdatedAt,
+    deductionTypes: reports.deductionTypes || [],
+    defectTypes: reports.defectTypes || [],
+    exportRoot: tempRoot,
+    stageFolder: path.join(processFolder, month)
+  });
+  // A+B là workbook công ty và chỉ được tạo bởi luồng company Excel.
+  // Mọi workbook tại đây phải mang tên Báo-cáo-<công đoạn>-MM-YYYY.
+  const desiredName = `Bao-cao-${slugName(processName)}-${month}-${year}.xlsx`;
+  const desiredPath = path.join(folder, desiredName);
+  if (result.archivePath !== desiredPath) {
+    await fs.rm(desiredPath, { force: true });
+    await fs.rename(result.archivePath, desiredPath);
   }
+  return {
+    path: desiredPath,
+    fileName: desiredName,
+    processId: Number(processId),
+    processName,
+    reportCount: reports.length,
+    yearMonth
+  };
+
 }
 
 module.exports = {

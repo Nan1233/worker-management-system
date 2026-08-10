@@ -27,6 +27,9 @@ const verifyToken =
 
 const checkRole =
     require("../middleware/roleMiddleware");
+const permission = require("../middleware/permissionMiddleware");
+
+const { syncExcelEdits } = require("../controllers/excelEditSyncController");
 
 
 
@@ -43,6 +46,7 @@ router.get(
     verifyToken,
 
     checkRole("admin", "manager", "lead"),
+    permission("REPORT_APPROVED_VIEW"),
 
     getReportDates
 
@@ -65,6 +69,7 @@ router.get(
     verifyToken,
 
     checkRole("admin", "manager", "lead"),
+    permission("REPORT_APPROVED_VIEW"),
 
     getReportsByDate
 
@@ -87,6 +92,7 @@ router.get(
     verifyToken,
 
     checkRole("admin", "manager", "lead"),
+    permission("REPORT_APPROVED_VIEW"),
 
     getAllReports
 
@@ -96,6 +102,18 @@ router.get(
 
 
 
+
+
+// =====================================
+// ĐỒNG BỘ CHỈNH SỬA TỪ EXCEL DESKTOP
+// =====================================
+router.post(
+    "/excel-sync",
+    verifyToken,
+    checkRole("admin", "manager"),
+    permission("EXCEL_DB_SYNC"),
+    syncExcelEdits
+);
 
 
 // =====================================
@@ -131,6 +149,7 @@ router.put(
     verifyToken,
 
     checkRole("admin", "manager"),
+    permission("REPORT_APPROVED_EDIT"),
 
     updateReport
 
@@ -153,6 +172,7 @@ router.delete(
     verifyToken,
 
     checkRole("admin", "manager"),
+    permission("REPORT_DELETE"),
 
     deleteReport
 

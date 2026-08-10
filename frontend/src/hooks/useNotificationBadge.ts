@@ -17,7 +17,7 @@ export function publishNotificationCount(count: number) {
     window.dispatchEvent(new CustomEvent(NOTIFICATION_COUNT_CHANGED_EVENT, { detail: normalized }));
 }
 
-export function useNotificationBadge() {
+export function useNotificationBadge(enabled = true) {
     const [unreadCount, setUnreadCount] = useState(readCachedCount);
     const loadingRef = useRef(false);
     const mountedRef = useRef(true);
@@ -25,6 +25,7 @@ export function useNotificationBadge() {
 
     const refresh = useCallback(async () => {
         if (
+            !enabled ||
             loadingRef.current ||
             Date.now() < pausedUntilRef.current ||
             !navigator.onLine ||
@@ -56,7 +57,7 @@ export function useNotificationBadge() {
         } finally {
             loadingRef.current = false;
         }
-    }, []);
+    }, [enabled]);
 
     useEffect(() => {
         mountedRef.current = true;

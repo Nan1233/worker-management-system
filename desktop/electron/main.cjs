@@ -10,6 +10,7 @@ const { createDesktopLogger, normalizeError } = require('./desktopLog.cjs');
 const { normalizeAccessToken, isUsableAccessToken } = require('./authToken.cjs');
 const { buildSplitMonthlyWorkbooksLocal, PROCESS_SHEETS } = require('./monthlyWorkbookLocal.cjs');
 const { getCompanyMonthTarget } = require('./excelDualLayout.cjs');
+const { readExcelChanges } = require('./excelDbSync.cjs');
 const {
   getDateParts,
   assertDate,
@@ -42,6 +43,9 @@ let quitting = false;
 let tokenDiscoveryTimer = null;
 let lastApprovedMutationAt = 0;
 let lastSuccessfulSyncAt = 0;
+let excelDbSyncTimer = null;
+let excelDbSyncRunning = false;
+const excelDbSyncState = new Map();
 
 const appDataRoot = path.join(os.homedir(), 'AppData', 'Local', 'KTC-Worker-Management');
 app.setPath('userData', path.join(appDataRoot, 'UserData'));
@@ -50,6 +54,21 @@ app.commandLine.appendSwitch('disk-cache-dir', path.join(appDataRoot, 'Cache'));
 app.commandLine.appendSwitch('gpu-cache-dir', path.join(appDataRoot, 'GPUCache'));
 
 const writeLog = createDesktopLogger(() => app.getPath('userData'));
+
+// Production desktop must have only one active instance. Multiple instances can
+// race on the same Excel files and local cache folders.
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+    void writeLog('INFO', 'SECOND_INSTANCE_BLOCKED');
+  });
+}
 
 process.on('uncaughtException', (error) => void writeLog('ERROR', 'UNCAUGHT_EXCEPTION', normalizeError(error)));
 process.on('unhandledRejection', (error) => void writeLog('ERROR', 'UNHANDLED_REJECTION', normalizeError(error)));
@@ -367,6 +386,64 @@ async function compactCompletedBackupMonths(processBackupRoot, currentYear, curr
   }
 }
 
+
+function backupDateFromName(fileName) {
+  const match = String(fileName || '').match(/_(\d{4})-(\d{2})-(\d{2})\.xlsx$/i);
+  if (!match) return null;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function backupDayKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+}
+function backupMonthKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;
+}
+function backupWeekKey(date) {
+  const copy = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const day = (copy.getDay() + 6) % 7;
+  copy.setDate(copy.getDate() - day);
+  return backupDayKey(copy);
+}
+
+async function pruneExcelBackupRetention(processBackupRoot, policy = { daily: 14, weekly: 8, monthly: 12 }) {
+  const files = [];
+  const walk = async (folder) => {
+    let entries = [];
+    try { entries = await fs.readdir(folder, { withFileTypes: true }); } catch { return; }
+    for (const entry of entries) {
+      const full = path.join(folder, entry.name);
+      if (entry.isDirectory()) await walk(full);
+      else if (entry.isFile()) {
+        const date = backupDateFromName(entry.name);
+        if (date) files.push({ full, name: entry.name, date });
+      }
+    }
+  };
+  await walk(processBackupRoot);
+  files.sort((a,b) => b.date - a.date || b.name.localeCompare(a.name));
+  const keep = new Set();
+  const keepBy = (keyFn, limit) => {
+    const seen = new Set();
+    for (const item of files) {
+      const key = keyFn(item.date);
+      if (seen.has(key) || seen.size >= limit) continue;
+      seen.add(key); keep.add(item.full);
+    }
+  };
+  keepBy(backupDayKey, policy.daily);
+  keepBy(backupWeekKey, policy.weekly);
+  keepBy(backupMonthKey, policy.monthly);
+  let removed = 0;
+  for (const item of files) {
+    if (keep.has(item.full)) continue;
+    await fs.rm(item.full, { force: true });
+    removed += 1;
+  }
+  if (removed) await writeLog('INFO', 'EXCEL_BACKUP_RETENTION_PRUNED', { processBackupRoot, removed, policy });
+}
+
 async function backupExistingExcel(filePath, syncDate) {
   try {
     const stat = await fs.stat(filePath);
@@ -391,16 +468,17 @@ async function backupExistingExcel(filePath, syncDate) {
       `${path.basename(filePath, '.xlsx')}_${syncDate}.xlsx`
     );
 
-    await compactCompletedBackupMonths(processBackupRoot, year, month);
     await fs.mkdir(monthFolder, { recursive: true });
 
     try {
       await fs.copyFile(filePath, backupPath, fsSync.constants.COPYFILE_EXCL);
       await writeLog('INFO', 'EXCEL_DAILY_BACKUP_CREATED', { filePath, backupPath, syncDate });
+      await pruneExcelBackupRetention(processBackupRoot);
       return backupPath;
     } catch (error) {
       if (error?.code === 'EEXIST') {
         await writeLog('INFO', 'EXCEL_DAILY_BACKUP_ALREADY_EXISTS', { filePath, backupPath, syncDate });
+        await pruneExcelBackupRetention(processBackupRoot);
         return backupPath;
       }
       throw error;
@@ -640,6 +718,110 @@ async function syncProcessReportsFirst({ date, files, processes, companyData }) 
   }
 }
 
+
+async function listExcelFiles(rootFolder) {
+  const result = [];
+  const walk = async (folder) => {
+    let entries = [];
+    try { entries = await fs.readdir(folder, { withFileTypes: true }); } catch { return; }
+    for (const entry of entries) {
+      const full = path.join(folder, entry.name);
+      if (entry.isDirectory()) await walk(full);
+      else if (entry.isFile() && entry.name.toLowerCase().endsWith('.xlsx') && !entry.name.endsWith('.pending.xlsx')) result.push(full);
+    }
+  };
+  await walk(rootFolder);
+  return result;
+}
+
+async function postExcelChanges(changes) {
+  const response = await authenticatedFetch(`${API_BASE_URL}/production/excel-sync`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ changes })
+  });
+  if (response.status === 401 || response.status === 403) {
+    const error = new Error('Tài khoản hiện tại không có quyền đồng bộ chỉnh sửa Excel về DB.');
+    error.code = 'EXCEL_DB_SYNC_FORBIDDEN';
+    throw error;
+  }
+  const payload = await response.json().catch(() => ({}));
+  if (![200, 207].includes(response.status)) throw new Error(payload.message || `Đồng bộ Excel về DB lỗi HTTP ${response.status}`);
+  return payload;
+}
+
+async function syncEditedExcelFilesToDb({ source = 'watcher' } = {}) {
+  if (excelDbSyncRunning || quitting) return { skipped: true };
+  const token = await waitForUsableRendererToken('', 2_000);
+  if (!token) return { skipped: true, reason: 'no-token' };
+  excelDbSyncRunning = true;
+  try {
+    const files = await listExcelFiles(getExportRoot());
+    let detected = 0;
+    let succeeded = 0;
+    let failed = 0;
+    const changedMonths = new Set();
+    for (const filePath of files) {
+      let stat;
+      try { stat = await fs.stat(filePath); } catch { continue; }
+      const state = excelDbSyncState.get(filePath) || { mtimeMs: 0, versions: new Map() };
+      if (Math.abs(Number(state.mtimeMs || 0) - Number(stat.mtimeMs || 0)) < 1) continue;
+      let parsed;
+      try {
+        parsed = await readExcelChanges(filePath);
+      } catch (error) {
+        // File đang mở/đang save có thể tạm thời không đọc được; vòng sau sẽ thử lại.
+        await writeLog('WARN', 'EXCEL_DB_SYNC_READ_SKIPPED', { filePath, source, ...normalizeError(error) });
+        continue;
+      }
+      if (!parsed.managed) { excelDbSyncState.set(filePath, { ...state, mtimeMs: stat.mtimeMs }); continue; }
+      if (!parsed.changes.length) { excelDbSyncState.set(filePath, { ...state, mtimeMs: stat.mtimeMs }); continue; }
+      for (const change of parsed.changes) {
+        if (state.versions?.has(change.id)) change.expected_updated_at = state.versions.get(change.id);
+      }
+      detected += parsed.changes.length;
+      if (/^\d{4}-\d{2}$/.test(String(parsed.yearMonth || ''))) changedMonths.add(parsed.yearMonth);
+      for (let index = 0; index < parsed.changes.length; index += 100) {
+        const chunk = parsed.changes.slice(index, index + 100);
+        try {
+          const result = await postExcelChanges(chunk);
+          succeeded += Number(result.succeeded || 0);
+          failed += Number(result.failed || 0);
+          for (const item of result.results || []) {
+            if (item.success && item.updated_at) state.versions.set(Number(item.id), item.updated_at);
+            if (!item.success) await writeLog('WARN', 'EXCEL_DB_SYNC_ROW_FAILED', { filePath, reportId: item.id, code: item.code, message: item.message });
+          }
+        } catch (error) {
+          failed += chunk.length;
+          await writeLog('ERROR', 'EXCEL_DB_SYNC_BATCH_FAILED', { filePath, source, count: chunk.length, ...normalizeError(error) });
+          if (error.code === 'EXCEL_DB_SYNC_FORBIDDEN') return { detected, succeeded, failed, forbidden: true };
+        }
+      }
+      excelDbSyncState.set(filePath, { mtimeMs: stat.mtimeMs, versions: state.versions });
+    }
+    if (detected > 0) {
+      await writeLog('INFO', 'EXCEL_DB_SYNC_FINISH', { source, detected, succeeded, failed, changedMonths: [...changedMonths] });
+      sendRenderer('ktc-excel-db-sync-result', { detected, succeeded, failed });
+      if (succeeded > 0 && !syncRunning && source === 'watcher') {
+        for (const yearMonth of changedMonths) {
+          void enqueueManualExcelSync({ date: `${yearMonth}-01`, source: 'excel-db-rebuild' }).catch((error) =>
+            writeLog('ERROR', 'EXCEL_DB_REBUILD_FAILED', { yearMonth, ...normalizeError(error) })
+          );
+        }
+      }
+    }
+    return { detected, succeeded, failed, changedMonths: [...changedMonths] };
+  } finally {
+    excelDbSyncRunning = false;
+  }
+}
+
+function startExcelDbSyncWatcher() {
+  if (excelDbSyncTimer) clearInterval(excelDbSyncTimer);
+  excelDbSyncTimer = setInterval(() => void syncEditedExcelFilesToDb({ source: 'watcher' }), 20_000);
+  excelDbSyncTimer.unref?.();
+}
+
 async function performSync({ date, source }) {
   const startedAt = Date.now();
   await writeLog('INFO', 'SYNC_START', { source, date, mode: 'split-monthly-workbooks' });
@@ -654,6 +836,9 @@ async function performSync({ date, source }) {
 
   const files = [];
   try {
+    // Không ghi đè workbook có chỉnh sửa chưa sync: nhập thay đổi Excel vào DB trước,
+    // sau đó mới tải snapshot DB mới nhất để rebuild file.
+    await syncEditedExcelFilesToDb({ source: `before-${source}` });
     const companyData = await fetchCompanyData(date);
     const processCounts = Object.fromEntries(
       Object.entries(companyData?.processes || {}).map(([code, data]) => [
@@ -993,6 +1178,8 @@ async function discoverRendererToken() {
 
 function startTokenDiscovery() {
   if (tokenDiscoveryTimer) clearInterval(tokenDiscoveryTimer);
+  if (excelDbSyncTimer) clearInterval(excelDbSyncTimer);
+  excelDbSyncTimer = null;
   void discoverRendererToken();
   tokenDiscoveryTimer = setInterval(() => void discoverRendererToken(), 5000);
   tokenDiscoveryTimer.unref?.();
@@ -1159,6 +1346,7 @@ ipcMain.handle('ktc-open-log-folder', async () => {
 });
 
 app.whenReady().then(async () => {
+  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   try {
     await session.defaultSession.clearCache();
     await session.defaultSession.clearStorageData({ storages: ['serviceworkers', 'cachestorage'] });
@@ -1172,6 +1360,7 @@ app.whenReady().then(async () => {
     api: API_BASE_URL
   });
   createWindow();
+  startExcelDbSyncWatcher();
   powerMonitor.on('resume', () => {
     void writeLog('INFO', 'SYSTEM_RESUME_AUTO_SYNC_SKIPPED');
   });
@@ -1183,6 +1372,8 @@ app.on('activate', () => {
 app.on('before-quit', () => {
   quitting = true;
   if (tokenDiscoveryTimer) clearInterval(tokenDiscoveryTimer);
+  if (excelDbSyncTimer) clearInterval(excelDbSyncTimer);
+  excelDbSyncTimer = null;
   tokenDiscoveryTimer = null;
   currentToken = '';
   stopAutomaticSync();

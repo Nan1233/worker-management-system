@@ -1,0 +1,11 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const root=path.join(__dirname,'..','electron');
+const main=fs.readFileSync(path.join(root,'main.cjs'),'utf8');
+const workbook=fs.readFileSync(path.join(root,'monthlyWorkbookLocal.cjs'),'utf8');
+const sync=fs.readFileSync(path.join(root,'excelDbSync.cjs'),'utf8');
+if(!/_KTC_SYNC/.test(workbook)) throw new Error('Thiếu metadata sheet _KTC_SYNC');
+if(!/veryHidden/.test(workbook)) throw new Error('_KTC_SYNC phải veryHidden');
+if(!/production\/excel-sync/.test(main)) throw new Error('Desktop chưa gọi API Excel->DB');
+if(!/REPORT_VERSION_CONFLICT|expected_updated_at/.test(sync)) throw new Error('Thiếu optimistic concurrency metadata');
+console.log('[KTC] Excel <-> DB source contract OK');

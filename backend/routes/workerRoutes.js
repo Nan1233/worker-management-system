@@ -13,6 +13,7 @@ const verifyToken =
 
 const checkRole =
     require("../middleware/roleMiddleware");
+const permission = require("../middleware/permissionMiddleware");
 
 
 
@@ -32,6 +33,7 @@ router.get(
         "manager",
         "lead"
     ),
+    permission("USER_VIEW"),
 
     workerController.getAllWorkers
 
@@ -52,6 +54,7 @@ router.post(
     checkRole(
         "admin"
     ),
+    permission("USER_CREATE"),
 
     workerController.createWorker
 
@@ -77,6 +80,7 @@ router.patch(
         "manager",
         "lead"
     ),
+    permission("USER_EDIT"),
 
     workerController.updateTrainingPercent
 

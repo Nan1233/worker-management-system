@@ -284,197 +284,57 @@ exports.getReportById = async (req, res) => {
 
 
 // =====================================================
-// UPDATE
+// ENTERPRISE UPDATE / DELETE: VERSION + AUDIT + PERIOD LOCK
 // =====================================================
 
-exports.updateReport=(req,res)=>{
-
-
-const {
-
-machine_no,
-
-product_name,
-
-note
-
-}=req.body;
-
-
-
-const sql=`
-
-UPDATE production_reports
-
-SET
-
-machine_no=?,
-
-product_name=?,
-
-note=?
-
-
-WHERE id=?
-
-
-`;
-
-
-
-db.query(
-
-sql,
-
-[
-
-machine_no,
-
-product_name,
-
-note,
-
-req.params.id
-
-],
-
-
-(err)=>{
-
-
-if(err)
-
-return safeDbError(res, err, "Không thể tải dữ liệu báo cáo");
-
-
-
-res.json({
-
-message:"Update thành công"
-
-});
-
-
-});
-
-
-};
-
-
-
-
-
-
-
-
-// =====================================================
-// DELETE
-// =====================================================
-
-exports.deleteReport=(req,res)=>{
-
-
-db.query(
-
-`
-
-DELETE FROM production_reports
-
-WHERE id=?
-
-`,
-
-[req.params.id],
-
-
-(err)=>{
-
-
-if(err)
-
-return safeDbError(res, err, "Không thể tải dữ liệu báo cáo");
-
-
-
-res.json({
-
-message:"Xóa thành công"
-
-});
-
-
-});
-
-
-};
-// =====================================================
-// ENTERPRISE UPDATE: VERSION + AUDIT + NOTIFICATION
-// =====================================================
 const AuditService = require('../services/auditService');
-const { validateProductionReport } = require('../utils/reportValidation');
-const { validateMasterData } = require('../services/reportBusinessValidationService');
 const { publicMessage } = require('../utils/httpError');
+const ReportGovernanceService = require('../services/reportGovernanceService');
+const { updateApprovedReport, loadApprovedSnapshot } = require('../services/approvedReportEditService');
 
-async function loadApprovedSnapshot(reportId, executor = db) {
-    const q = (sql, params) => executor.promise ? executor.promise().query(sql, params) : executor.query(sql, params);
-    const [[reports], [defects], [deductions]] = await Promise.all([
-        q(`SELECT * FROM production_reports WHERE id=? LIMIT 1`, [reportId]),
-        q(`SELECT * FROM production_report_defects WHERE report_id=? ORDER BY id`, [reportId]),
-        q(`SELECT * FROM production_report_deductions WHERE report_id=? ORDER BY id`, [reportId])
-    ]);
-    if (!reports[0]) return null;
-    return { ...reports[0], defects, deductions };
-}
-
-exports.updateReport = async (req,res) => {
-    const reportId=Number(req.params.id);
-    if(!Number.isInteger(reportId)||reportId<=0) return res.status(422).json({success:false,message:'ID báo cáo không hợp lệ'});
-    const connection=await db.promise().getConnection();
+exports.updateReport = async (req, res) => {
+    const reportId = Number(req.params.id);
     try {
-        await connection.beginTransaction();
-        const [lockedRows] = await connection.query(`SELECT * FROM production_reports WHERE id=? FOR UPDATE`, [reportId]);
-        if(!lockedRows[0]) { await connection.rollback(); return res.status(404).json({success:false,message:'Không tìm thấy báo cáo'}); }
-        const before=await loadApprovedSnapshot(reportId, connection);
-        const isMachineReport=String(before.operation_mode||'').toUpperCase()==='MACHINE';
-        const aggregateKeys=['standard_output','actual_output','tt_ok','tt_ng','machine_no','product_name'];
-        if(isMachineReport && aggregateKeys.some((key)=>Object.prototype.hasOwnProperty.call(req.body||{},key))){
-            await connection.rollback();
-            return res.status(422).json({success:false,message:'Báo cáo Máy chỉ được sửa tại từng dòng máy; các tổng được hệ thống tự tính',errors:{machine_lines:'Hãy sửa máy, sản phẩm, thời gian, OK và lỗi NG trong danh sách máy'}});
-        }
-        const payload={...before,...(req.body||{}),defects:req.body?.defects??before.defects,deductions:req.body?.deductions??before.deductions};
-        const validation=validateProductionReport(payload,{enforceBackDate:false});
-        if(!validation.valid){await connection.rollback();return res.status(422).json({success:false,message:'Dữ liệu báo cáo không hợp lệ',errors:validation.errors});}
-        const master=await validateMasterData({workerId:before.worker_id,processId:before.process_id,machineNo:validation.normalized.machine_no,productName:validation.normalized.product_name,defects:validation.normalized.defects,deductions:validation.normalized.deductions});
-        if(!master.valid){await connection.rollback();return res.status(422).json({success:false,message:'Dữ liệu danh mục không hợp lệ',errors:master.errors});}
-        const allowed=['machine_no','product_name','note','shift','work_date','total_time','actual_time','deduction_time','standard_output','actual_output','tt_ok','tt_ng'];
-        await AuditService.createReportVersion({reportType:'approved',reportId,snapshot:before,reason:req.body.reason||'Trước khi chỉnh sửa',userId:req.user.id},connection);
-        const values=allowed.map(k=>validation.normalized[k]);
-        await connection.query(`UPDATE production_reports SET ${allowed.map(k=>`${k}=?`).join(',')}, updated_by=?, updated_at=NOW() WHERE id=?`,[...values,req.user.id,reportId]);
-        await connection.query(`DELETE FROM production_report_defects WHERE report_id=?`,[reportId]);
-        for(const item of validation.normalized.defects) await connection.query(`INSERT INTO production_report_defects(report_id,defect_type_id,quantity) VALUES(?,?,?)`,[reportId,item.defect_type_id,item.quantity]);
-        await connection.query(`DELETE FROM production_report_deductions WHERE report_id=?`,[reportId]);
-        for(const item of validation.normalized.deductions) await connection.query(`INSERT INTO production_report_deductions(report_id,deduction_type_id,hours) VALUES(?,?,?)`,[reportId,item.deduction_type_id,item.hours]);
-        const after=await loadApprovedSnapshot(reportId, connection);
-        const versionNo=await AuditService.createReportVersion({reportType:'approved',reportId,snapshot:after,reason:req.body.reason||'Sau khi chỉnh sửa',userId:req.user.id},connection);
-        await AuditService.logActivity({userId:req.user.id,action:'REPORT_UPDATED',entityType:'approved_report',entityId:reportId,description:`Cập nhật báo cáo phiên bản ${versionNo}`,metadata:{reason:req.body.reason||null},req},connection);
-        await connection.commit();
+        const result = await updateApprovedReport({
+            reportId,
+            patch: req.body || {},
+            reason: req.body?.reason,
+            userId: req.user.id,
+            req,
+            source: 'web'
+        });
         if (envEnabled('ENABLE_SERVER_HEAVY_EXCEL') && envEnabled('ENABLE_EXCEL_EXPORT_WORKER')) {
-            await require('../services/excelExportJobQueue').enqueueMonthlyDates([before.work_date, after.work_date], req.user?.id);
+            await require('../services/excelExportJobQueue').enqueueMonthlyDates([result.before.work_date, result.report.work_date], req.user?.id);
         }
-        return res.json({success:true,message:'Cập nhật thành công',version:versionNo,data:after});
-    } catch(e){ await connection.rollback(); console.error('UPDATE APPROVED REPORT ERROR:',e); return res.status(e.status||500).json({success:false,message:publicMessage(e,'Không thể cập nhật báo cáo')}); }
-    finally{ connection.release(); }
+        return res.json({ success: true, message: 'Cập nhật thành công', version: result.version, data: result.report });
+    } catch (e) {
+        console.error('UPDATE APPROVED REPORT ERROR:', e);
+        return res.status(e.status || 500).json({ success: false, code: e.code, message: publicMessage(e, 'Không thể cập nhật báo cáo'), errors: e.details });
+    }
 };
 
 exports.deleteReport = async (req,res) => {
     const reportId=Number(req.params.id);
+    const deleteReason = String(req.body?.reason || '').trim().slice(0, 500);
+    if(!Number.isInteger(reportId)||reportId<=0) return res.status(422).json({success:false,message:'ID báo cáo không hợp lệ'});
+    if(!deleteReason) return res.status(422).json({success:false,code:'DELETE_REASON_REQUIRED',message:'Vui lòng nhập lý do xóa báo cáo đã duyệt'});
     const connection=await db.promise().getConnection();
     try{
       await connection.beginTransaction();
+      const [lockedRows] = await connection.query(`SELECT * FROM production_reports WHERE id=? FOR UPDATE`, [reportId]);
+      if(!lockedRows[0]){await connection.rollback();return res.status(404).json({success:false,message:'Không tìm thấy báo cáo'});}
       const snapshot=await loadApprovedSnapshot(reportId,connection);
-      if(!snapshot){await connection.rollback();return res.status(404).json({success:false,message:'Không tìm thấy báo cáo'});}
-      await AuditService.createReportVersion({reportType:'approved',reportId,snapshot,reason:req.body?.reason||'Trước khi xóa',userId:req.user.id},connection);
-      await AuditService.logActivity({userId:req.user.id,action:'REPORT_DELETED',entityType:'approved_report',entityId:reportId,description:'Xóa báo cáo đã duyệt',metadata:{reason:req.body?.reason||null},req},connection);
+      const periodLocked = await ReportGovernanceService.isPeriodLocked(snapshot.work_date, snapshot.process_id, connection);
+      if (periodLocked) {
+        await connection.rollback();
+        return res.status(423).json({
+          success:false,
+          code:'REPORTING_PERIOD_LOCKED',
+          message:'Kỳ báo cáo đã khóa, không thể xóa dữ liệu'
+        });
+      }
+      await AuditService.createReportVersion({reportType:'approved',reportId,snapshot,reason:deleteReason,userId:req.user.id},connection);
+      await AuditService.logActivity({userId:req.user.id,action:'REPORT_DELETED',entityType:'approved_report',entityId:reportId,description:'Xóa báo cáo đã duyệt',metadata:{reason:deleteReason},req},connection);
       await connection.query(`DELETE FROM production_report_defects WHERE report_id=?`,[reportId]);
       await connection.query(`DELETE FROM production_report_deductions WHERE report_id=?`,[reportId]);
       await connection.query(`DELETE FROM production_reports WHERE id=?`,[reportId]);

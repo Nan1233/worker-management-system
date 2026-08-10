@@ -9,6 +9,7 @@ const authMiddleware = require(
 const checkRole = require(
     "../middleware/roleMiddleware"
 );
+const permission = require("../middleware/permissionMiddleware");
 
 const controller = require(
     "../controllers/productionTempController"
@@ -25,6 +26,7 @@ router.post(
     "/",
     authMiddleware,
     checkRole("worker"),
+    permission("WORKER_ENTRY"),
     requireCompanyNetworkForWorker,
     validate({ process_id:{required:true,type:"positiveInt"}, work_date:{required:true}, shift:{required:true,maxLength:20}, machine_no:{required:false,maxLength:100}, product_name:{required:true,maxLength:150} }),
     controller.createTempReport
@@ -34,6 +36,7 @@ router.post(
     "/check-similar",
     authMiddleware,
     checkRole("worker"),
+    permission("WORKER_ENTRY"),
     requireCompanyNetworkForWorker,
     validate({ process_id:{required:true,type:"positiveInt"}, work_date:{required:true}, shift:{required:true,maxLength:20}, machine_no:{required:false,maxLength:100}, product_name:{required:true,maxLength:150} }),
     controller.checkSimilarReport
@@ -48,6 +51,7 @@ router.get(
     "/my",
     authMiddleware,
     checkRole("worker"),
+    permission("WORKER_HISTORY"),
     controller.getMyTempReports
 );
 
@@ -64,6 +68,7 @@ router.get(
         "manager",
         "lead"
     ),
+    permission("REPORT_PENDING_VIEW"),
     controller.getPendingReports
 );
 
@@ -80,6 +85,7 @@ router.get(
         "manager",
         "lead"
     ),
+    permission("REPORT_APPROVED_VIEW"),
     controller.getApprovedReports
 );
 
@@ -96,6 +102,7 @@ router.get(
         "manager",
         "lead"
     ),
+    permission("REPORT_PENDING_VIEW"),
     controller.getTempDates
 );
 
@@ -112,6 +119,7 @@ router.get(
         "manager",
         "lead"
     ),
+    permission("REPORT_PENDING_VIEW"),
     controller.getTempReportsByDate
 );
 
@@ -129,6 +137,7 @@ router.post(
         "lead"
     ),
     validate({ ids:{required:true,type:"array",itemType:"positiveInt",minItems:1,maxItems:100,unique:true} }),
+    permission("REPORT_APPROVE"),
     controller.approveSelectedReports
 );
 
@@ -150,6 +159,7 @@ router.post(
         ids:{required:true,type:"array",itemType:"positiveInt",minItems:1,maxItems:100,unique:true},
         reason:{required:true,type:"string",minLength:2,maxLength:500}
     }),
+    permission("REPORT_APPROVE"),
     controller.rejectSelectedReports
 );
 
@@ -162,6 +172,7 @@ router.post(
         "manager",
         "lead"
     ),
+    permission("REPORT_APPROVE"),
     controller.approveSelectedReports
 );
 
@@ -178,6 +189,7 @@ router.get(
         "manager",
         "lead"
     ),
+    permission("AUDIT_VIEW"),
     controller.getReportActionLogs
 );
 
@@ -197,6 +209,7 @@ router.put(
     ),
     requireCompanyNetworkForWorker,
     validate({ id:{in:"params",required:true,type:"positiveInt"} }),
+    permission("REPORT_PENDING_EDIT", "WORKER_ENTRY"),
     controller.updateTempReport
 );
 
@@ -214,6 +227,7 @@ router.get(
         "lead",
         "worker"
     ),
+    permission("REPORT_PENDING_VIEW", "WORKER_HISTORY"),
     controller.getTempReportDetail
 );
 

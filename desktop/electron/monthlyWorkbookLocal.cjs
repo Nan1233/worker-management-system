@@ -239,10 +239,10 @@ function productDisplay(report) {
 }
 
 function trainingFactor(value) {
+  if (value === null || value === undefined || (typeof value === 'string' && value.trim() === '')) return 1;
   const number = asNumber(value);
   if (number === null) return 1;
-  const normalized = number > 1 ? number / 100 : number;
-  return Math.min(1, Math.max(0, normalized));
+  return Math.min(1, Math.max(0, number / 100));
 }
 
 function reportTimeKey(report) {
@@ -833,13 +833,19 @@ function renderProcessSheet(workbook, code, processConfig, processData, yearMont
       let fill = reportIndex % 2 === 0 ? COLORS.white : 'FFF8FAFC';
       let bold = false;
       let fontColor = COLORS.black;
+      const machineMode = asText(report.operation_mode).toUpperCase() === 'MACHINE';
+      const editableCore = machineMode
+        ? new Set(['training','note'])
+        : new Set(['shift','machine','product','training','actualTime','ok','note']);
+      const editableCell = editableCore.has(column.key) || (!machineMode && (column.key.startsWith('deduction:') || column.key.startsWith('defect:')));
+      if (editableCell) fill = COLORS.warning;
 
       if (column.group === 'deduction') {
-        fill = numericValue !== null && numericValue > 0 ? COLORS.orangeLight : COLORS.white;
+        fill = numericValue !== null && numericValue > 0 ? COLORS.orangeLight : (editableCell ? COLORS.warning : COLORS.white);
         bold = numericValue !== null && numericValue > 0;
         fontColor = numericValue !== null && numericValue > 0 ? 'FF9C5700' : COLORS.black;
       } else if (column.group === 'defect') {
-        fill = numericValue !== null && numericValue > 0 ? COLORS.redLight : COLORS.white;
+        fill = numericValue !== null && numericValue > 0 ? COLORS.redLight : (editableCell ? COLORS.warning : COLORS.white);
         bold = numericValue !== null && numericValue > 0;
         fontColor = numericValue !== null && numericValue > 0 ? COLORS.red : COLORS.black;
       }
@@ -853,6 +859,7 @@ function renderProcessSheet(workbook, code, processConfig, processData, yearMont
         wrap: Boolean(column.wide),
         shrink: false
       });
+      if (editableCell) cell.protection = { locked: false, hidden: false };
 
       if (column.key === 'achievement') {
         const achievementFill = achievementColor(value, settings);
@@ -985,6 +992,63 @@ function addReconciliationSheet(workbook, payload) {
   return sheet;
 }
 
+
+function typeIdFromSyncKey(key) {
+  const match = String(key || '').match(/^id:(\d+)$/);
+  return match ? Number(match[1]) : null;
+}
+
+function syncOriginalPatch(report) {
+  return {
+    shift: asText(report.shift),
+    machine_no: asText(report.machine_no),
+    product_name: asText(report.product_name),
+    training_percent: Number.isFinite(Number(report.training_percent)) ? Number(report.training_percent) : 100,
+    actual_time: asNumber(report.actual_time),
+    tt_ok: asInteger(report.tt_ok),
+    note: asText(report.note),
+    deductions: (report.deductions || []).map((item) => ({
+      deduction_type_id: detailId(item, 'deduction'),
+      hours: detailValue(item, 'deduction') || 0
+    })).filter((item) => item.deduction_type_id),
+    defects: (report.defects || []).map((item) => ({
+      defect_type_id: detailId(item, 'defect'),
+      quantity: detailValue(item, 'defect') || 0
+    })).filter((item) => item.defect_type_id)
+  };
+}
+
+function addExcelDbSyncMetadata(workbook, code, processConfig, processData, yearMonth) {
+  const deductionTypes = processDetailTypes(code, processData, 'deductionTypes', 'deductions', 'deduction');
+  const defectTypes = processDetailTypes(code, processData, 'defectTypes', 'defects', 'defect');
+  const columns = makeColumns(code, deductionTypes, defectTypes);
+  const editable = columns.map((column, index) => {
+    const entry = { index: index + 1, key: column.key, header: column.header };
+    if (column.key.startsWith('deduction:')) entry.typeId = typeIdFromSyncKey(column.key.slice('deduction:'.length));
+    if (column.key.startsWith('defect:')) entry.typeId = typeIdFromSyncKey(column.key.slice('defect:'.length));
+    return entry;
+  });
+  const sheet = workbook.addWorksheet('_KTC_SYNC');
+  sheet.state = 'veryHidden';
+  sheet.getCell('A1').value = JSON.stringify({
+    version: 1,
+    processCode: code,
+    sheetName: processConfig.sheet,
+    generatedAt: new Date().toISOString(),
+    yearMonth,
+    columns: editable
+  });
+  sheet.addRow(['report_id', 'expected_updated_at', 'operation_mode', 'original_json']);
+  for (const report of processData?.reports || []) {
+    sheet.addRow([
+      Number(report.id),
+      report.updated_at || report.created_at || null,
+      asText(report.operation_mode).toUpperCase(),
+      JSON.stringify(syncOriginalPatch(report))
+    ]);
+  }
+}
+
 async function buildMonthlyWorkbookLocal({ date, payload }) {
   assertApprovedDatabasePayload(payload);
   const yearMonth = String(payload.yearMonth || date || '').slice(0, 7);
@@ -1019,14 +1083,16 @@ async function buildProcessWorkbookLocal({ date, payload, processCode }) {
   workbook.creator = 'KTC Production Control';
   workbook.created = new Date();
   workbook.modified = new Date();
+  const processData = payload.processes?.[code] || {};
   const result = renderProcessSheet(
     workbook,
     code,
     config,
-    payload.processes?.[code] || {},
+    processData,
     yearMonth,
     formulaSettingsFor(payload, code)
   );
+  addExcelDbSyncMetadata(workbook, code, config, processData, yearMonth);
   const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
   return {
     buffer,

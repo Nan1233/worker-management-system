@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../services/api";
 import "./Governance.css";
+import { usePermissions } from "../../hooks/usePermissions";
 
 type Summary = {
   locked_periods: number;
@@ -40,6 +41,9 @@ const initialSummary: Summary = {
 };
 
 export default function Governance() {
+  const { can } = usePermissions();
+  const canLock = can("PERIOD_LOCK");
+  const canUnlock = can("PERIOD_UNLOCK");
   const now = new Date();
   const [summary, setSummary] = useState(initialSummary);
   const [locks, setLocks] = useState<PeriodLock[]>([]);
@@ -128,17 +132,17 @@ export default function Governance() {
       <section className="governance-grid">
         <article className="governance-panel">
           <h2>Khóa kỳ báo cáo</h2>
-          <form onSubmit={lockPeriod} className="governance-form">
+          {canLock && <form onSubmit={lockPeriod} className="governance-form">
             <label>Năm<input type="number" value={lockForm.year} onChange={(e) => setLockForm({ ...lockForm, year: Number(e.target.value) })} /></label>
             <label>Tháng<input type="number" min="1" max="12" value={lockForm.month} onChange={(e) => setLockForm({ ...lockForm, month: Number(e.target.value) })} /></label>
             <label className="wide">Lý do<input value={lockForm.reason} onChange={(e) => setLockForm({ ...lockForm, reason: e.target.value })} /></label>
             <button type="submit">Khóa kỳ</button>
-          </form>
+          </form>}
           <div className="governance-list">
             {locks.map((item) => (
               <div key={item.id} className="governance-row">
                 <div><strong>{String(item.report_month).padStart(2, "0")}/{item.report_year}</strong><small>{item.process_name || "Toàn bộ công đoạn"} · {item.reason || "Không có lý do"}</small></div>
-                {item.status === "locked" && <button type="button" onClick={() => void unlockPeriod(item.id)}>Mở khóa</button>}
+                {item.status === "locked" && canUnlock && <button type="button" onClick={() => void unlockPeriod(item.id)}>Mở khóa</button>}
               </div>
             ))}
           </div>

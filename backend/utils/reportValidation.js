@@ -1,4 +1,5 @@
 const { calculateActualOutput } = require('./outputCalculation');
+const { normalizeTrainingPercent } = require('./trainingPercent');
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const ALLOWED_SHIFTS = new Set(["A", "B", "C", "D", "Ca 1", "Ca 2", "Ca 3"]);
 const EPSILON = 0.02;
@@ -113,6 +114,7 @@ const validateProductionReport = (payload = {}, options = {}) => {
             product_name: String(payload.product_name || "").trim() || null,
             note: String(payload.note || "").trim().slice(0, 1000),
             client_request_id: String(payload.client_request_id || "").trim().slice(0, 64) || null,
+            training_percent: normalizeTrainingPercent(payload.training_percent, 100),
             total_time: totalTime,
             deduction_time: deductionTime,
             actual_time: actualTime,

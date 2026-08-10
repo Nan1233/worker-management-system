@@ -77,6 +77,7 @@ export interface ProductionReport {
     client_request_id?: string;
 
     force_create?: boolean;
+    reason?: string;
 
 
     // ==========================

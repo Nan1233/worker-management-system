@@ -521,9 +521,11 @@ function getMetrics(report) {
   const totalNg = sumDetails(report.defects, 'quantity');
   const actualTime = num(report.actual_time ?? report.working_time ?? report.work_time);
   const totalTime = num(report.total_time) || (actualTime + sumDetails(report.deductions, 'hours'));
-  const rawTraining = num(report.training_percent ?? 100);
-  const trainingFactor = rawTraining > 1 ? rawTraining / 100 : Math.max(0, rawTraining);
-  const trainingPercent = trainingFactor * 100;
+  const rawTraining = report.training_percent === null || report.training_percent === undefined || (typeof report.training_percent === 'string' && report.training_percent.trim() === '')
+    ? 100
+    : num(report.training_percent);
+  const trainingPercent = Math.min(100, Math.max(0, rawTraining));
+  const trainingFactor = trainingPercent / 100;
   // Không làm tròn định mức theo giờ. Nhiều mã có định mức thập phân
   // (ví dụ 6.315789 SP/giờ); làm tròn sẽ khiến TT và tỷ lệ đạt sai.
   const standardOutput = num(report.standard_output ?? report.standard_output_per_hour ?? report.standard);
@@ -765,7 +767,9 @@ async function buildCompanyExcelLocal({ appPath, date, groupCode, payload, exist
       .flatMap((item) => item.reports || [])
       .filter(isValidReport)
       .sort((a, b) => dateKey(a.work_date).localeCompare(dateKey(b.work_date))
+        || safeText(a.approved_at || a.created_at || a.entry_date || a.work_date).localeCompare(safeText(b.approved_at || b.created_at || b.entry_date || b.work_date))
         || safeText(a.worker_code).localeCompare(safeText(b.worker_code), undefined, { numeric: true })
+        || safeText(a.machine_no).localeCompare(safeText(b.machine_no), undefined, { numeric: true })
         || Number(a.id) - Number(b.id));
 
     const deductionTypes = uniqueBy(

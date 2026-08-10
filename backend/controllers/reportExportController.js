@@ -9,6 +9,7 @@ const {
     readMonthlyCacheMetadata
 } = require("../services/consolidatedExcelExportService");
 const excelJobManager = require("../services/excelExportJobManager");
+const { trainingFactor } = require("../utils/trainingPercent");
 
 // =====================================================
 // CHUẨN HÓA CHUỖI
@@ -364,9 +365,7 @@ const writeReportToRow = (
 
     // F - Coefficient
     row.getCell("F").value =
-        toNumber(
-            report.training_percent || 100
-        ) / 100;
+        trainingFactor(report.training_percent);
 
     // G - Total time
     row.getCell("G").value =

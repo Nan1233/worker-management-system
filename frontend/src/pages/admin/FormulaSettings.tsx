@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../../services/api';
 import { getApiError } from '../../utils/apiError';
 import './FormulaSettings.css';
+import { usePermissions } from '../../hooks/usePermissions';
 
 type ProductRule = {
   id:number; process_id:number; process_code:string; process_name:string;
@@ -23,6 +24,8 @@ type FormulaResponse = {
 const percent = (value:number) => `${Number(value || 0).toLocaleString('vi-VN')}%`;
 
 export default function FormulaSettings(){
+  const { can } = usePermissions();
+  const canEdit = can("FORMULA_EDIT");
   const [data,setData]=useState<FormulaResponse>({products:[],scopes:[],formulaOptions:{}});
   const [selectedScope,setSelectedScope]=useState('GLOBAL');
   const [draft,setDraft]=useState<FormulaScope|null>(null);
@@ -140,7 +143,7 @@ export default function FormulaSettings(){
         </div>
 
         <div className="formula-preview"><div><span>Ví dụ sản lượng nhập</span><strong>{previewInput.toLocaleString('vi-VN')}</strong></div><div><span>% học việc</span><strong>{previewTraining}%</strong></div><div><span>Sản lượng quy đổi</span><strong>{previewAdjusted.toLocaleString('vi-VN')}</strong></div><div><span>SP/giờ (8 giờ)</span><strong>{previewPerHour.toLocaleString('vi-VN')}</strong></div><div><span>Tỷ lệ đạt (ĐM 100)</span><strong>{previewAchievement.toFixed(1)}%</strong></div></div>
-        <div className="formula-actions"><button className="secondary" disabled={saving} onClick={()=>void reset()}>Khôi phục mặc định</button><button className="primary" disabled={saving} onClick={()=>void save()}>{saving?'Đang lưu...':'Lưu thay đổi'}</button></div>
+        {canEdit&&<div className="formula-actions"><button className="secondary" disabled={saving} onClick={()=>void reset()}>Khôi phục mặc định</button><button className="primary" disabled={saving} onClick={()=>void save()}>{saving?'Đang lưu...':'Lưu thay đổi'}</button></div>}
       </>}
     </section>
 

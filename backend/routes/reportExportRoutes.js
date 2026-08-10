@@ -2,12 +2,14 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/authMiddleware');
 const checkRole = require('../middleware/roleMiddleware');
+const permission = require('../middleware/permissionMiddleware');
 const validate = require('../middleware/validateRequest');
 const companyExcelDataController = require('../controllers/companyExcelDataController');
 const desktopExcelExportController = require('../controllers/desktopExcelExportController');
 const { anyEnvEnabled } = require('../utils/featureFlags');
 
 const roles = checkRole('admin', 'manager', 'lead');
+const canExport = permission('REPORT_EXPORT');
 const legacyServerExcelEnabled = () => {
   const requested = anyEnvEnabled([
     'ENABLE_PROCESS_EXCEL_EXPORT',
@@ -43,24 +45,24 @@ function lazyController(modulePath, method) {
   };
 }
 
-router.get('/export-excel/company-status', authMiddleware, roles, (req, res) => res.json({
+router.get('/export-excel/company-status', authMiddleware, roles, canExport, (req, res) => res.json({
   success: true,
   version: 'desktop-monthly-excel',
   mode: 'DESKTOP_JSON_ONLY',
   serverHeavyExcel: false
 }));
 
-router.get('/export-excel/company-data', authMiddleware, roles, companyExcelDataController.get);
-router.get('/export-excel/processes', authMiddleware, roles, desktopExcelExportController.listProcesses);
+router.get('/export-excel/company-data', authMiddleware, roles, canExport, companyExcelDataController.get);
+router.get('/export-excel/processes', authMiddleware, roles, canExport, desktopExcelExportController.listProcesses);
 
-router.post('/export-excel', authMiddleware, roles, validate({ date:{required:true,type:'date'} }), lazyController('../controllers/reportExportController', 'exportGiaCongExcel'));
-router.post('/export-excel/process', authMiddleware, roles, validate({ date:{required:true,type:'date'}, processId:{required:true,type:'number'} }), lazyController('../controllers/desktopExcelExportController', 'exportProcess'));
-router.get('/export-excel/company-files', authMiddleware, roles, lazyController('../controllers/desktopExcelExportController', 'listCompanyFiles'));
-router.post('/export-excel/company-build-all', authMiddleware, roles, validate({ date:{required:true,type:'date'} }), lazyController('../controllers/desktopExcelExportController', 'buildAllCompanyFiles'));
-router.post('/export-excel/company-file', authMiddleware, roles, validate({ date:{required:true,type:'date'}, groupCode:{required:true,type:'string'} }), lazyController('../controllers/desktopExcelExportController', 'exportCompanyFile'));
-router.post('/export-excel/jobs', authMiddleware, roles, lazyController('../controllers/excelJobController', 'create'));
-router.get('/export-excel/jobs', authMiddleware, roles, lazyController('../controllers/excelJobController', 'list'));
-router.get('/export-excel/jobs/:jobId', authMiddleware, roles, lazyController('../controllers/excelJobController', 'get'));
-router.get('/export-excel/jobs/:jobId/download', authMiddleware, roles, lazyController('../controllers/excelJobController', 'download'));
+router.post('/export-excel', authMiddleware, roles, canExport, validate({ date:{required:true,type:'date'} }), lazyController('../controllers/reportExportController', 'exportGiaCongExcel'));
+router.post('/export-excel/process', authMiddleware, roles, canExport, validate({ date:{required:true,type:'date'}, processId:{required:true,type:'number'} }), lazyController('../controllers/desktopExcelExportController', 'exportProcess'));
+router.get('/export-excel/company-files', authMiddleware, roles, canExport, lazyController('../controllers/desktopExcelExportController', 'listCompanyFiles'));
+router.post('/export-excel/company-build-all', authMiddleware, roles, canExport, validate({ date:{required:true,type:'date'} }), lazyController('../controllers/desktopExcelExportController', 'buildAllCompanyFiles'));
+router.post('/export-excel/company-file', authMiddleware, roles, canExport, validate({ date:{required:true,type:'date'}, groupCode:{required:true,type:'string'} }), lazyController('../controllers/desktopExcelExportController', 'exportCompanyFile'));
+router.post('/export-excel/jobs', authMiddleware, roles, canExport, lazyController('../controllers/excelJobController', 'create'));
+router.get('/export-excel/jobs', authMiddleware, roles, canExport, lazyController('../controllers/excelJobController', 'list'));
+router.get('/export-excel/jobs/:jobId', authMiddleware, roles, canExport, lazyController('../controllers/excelJobController', 'get'));
+router.get('/export-excel/jobs/:jobId/download', authMiddleware, roles, canExport, lazyController('../controllers/excelJobController', 'download'));
 
 module.exports = router;

@@ -4,6 +4,8 @@ import AppIcon, { type IconName } from "../components/common/AppIcon";
 import "./ManagementLayout.css";
 import { clearAuthSession, getStoredUser } from "../utils/authStorage";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
+import { usePermissions } from "../hooks/usePermissions";
+import type { PermissionCode } from "../security/permissions";
 
 type ManagementRole = "lead" | "manager" | "admin";
 
@@ -18,16 +20,21 @@ interface MenuItem {
     icon: IconName;
     roles: ManagementRole[];
     description: string;
+    permission: PermissionCode;
 }
 
 const menuItems: MenuItem[] = [
-    { id: "dashboard", label: "Tổng quan", path: "", icon: "dashboard", roles: ["lead", "manager", "admin"], description: "" },
-    { id: "reports", label: "Chờ duyệt", path: "reports", icon: "pending", roles: ["lead", "manager", "admin"], description: "" },
-    { id: "approved", label: "Đã duyệt", path: "approved", icon: "approved", roles: ["lead", "manager", "admin"], description: "" },
-    { id: "master", label: "Trung tâm quản lý", path: "master", icon: "settings", roles: ["manager", "admin"], description: "" },
-    { id: "formulas", label: "Công thức đầu ra", path: "formulas", icon: "settings", roles: ["manager", "admin"], description: "" },
-    { id: "statistics", label: "Thống kê", path: "statistics", icon: "statistics", roles: ["manager", "admin"], description: "" },
-    { id: "system", label: "Thông báo & lịch sử", path: "system", icon: "system", roles: ["lead", "manager", "admin"], description: "" }
+    { id: "dashboard", label: "Tổng quan", path: "", icon: "dashboard", roles: ["lead", "manager", "admin"], description: "", permission: "DASHBOARD_VIEW" },
+    { id: "reports", label: "Chờ duyệt", path: "reports", icon: "pending", roles: ["lead", "manager", "admin"], description: "", permission: "REPORT_PENDING_VIEW" },
+    { id: "approved", label: "Đã duyệt", path: "approved", icon: "approved", roles: ["lead", "manager", "admin"], description: "", permission: "REPORT_APPROVED_VIEW" },
+    { id: "export", label: "Xuất báo cáo", path: "export", icon: "download", roles: ["lead", "manager", "admin"], description: "", permission: "REPORT_EXPORT" },
+    { id: "workers", label: "Nhân sự", path: "workers", icon: "workers", roles: ["lead", "manager", "admin"], description: "", permission: "USER_VIEW" },
+    { id: "master", label: "Dữ liệu chuẩn", path: "master", icon: "settings", roles: ["manager", "admin"], description: "", permission: "MASTER_VIEW" },
+    { id: "formulas", label: "Công thức", path: "formulas", icon: "checklist", roles: ["manager", "admin"], description: "", permission: "FORMULA_VIEW" },
+    { id: "governance", label: "Quản trị dữ liệu", path: "governance", icon: "sheet", roles: ["manager", "admin"], description: "", permission: "GOVERNANCE_VIEW" },
+    { id: "statistics", label: "Thống kê", path: "statistics", icon: "statistics", roles: ["lead", "manager", "admin"], description: "", permission: "STATISTICS_VIEW" },
+    { id: "permissions", label: "Vai trò & quyền", path: "permissions", icon: "user", roles: ["admin"], description: "", permission: "PERMISSION_MANAGE" },
+    { id: "system", label: "Hệ thống", path: "system", icon: "system", roles: ["lead", "manager", "admin"], description: "", permission: "NOTIFICATION_VIEW" }
 ];
 
 const roleLabel: Record<ManagementRole, string> = { lead: "Tổ trưởng", manager: "Quản lý", admin: "Quản trị viên" };
@@ -65,10 +72,11 @@ function ManagementLayout({ role }: Props) {
     const location = useLocation();
 
     const user = getStoredUser() as User | null;
-    const { unreadCount } = useNotificationBadge();
+    const { can } = usePermissions();
+    const { unreadCount } = useNotificationBadge(can("NOTIFICATION_VIEW"));
 
     const basePath = role === "lead" ? "/lead" : role === "admin" ? "/admin" : "/manager";
-    const visibleMenuItems = menuItems.filter((item) => item.roles.includes(role));
+    const visibleMenuItems = menuItems.filter((item) => item.roles.includes(role) && can(item.permission));
 
     const getFullPath = (path: string): string => (path ? `${basePath}/${path}` : basePath);
 

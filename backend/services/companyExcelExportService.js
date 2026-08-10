@@ -4,6 +4,7 @@ const ExcelJS = require('exceljs');
 const db = require('../config/db');
 const { loadProcessMonthReports, normalizeYearMonth } = require('./processExcelExportService');
 const { calculateCountedNg } = require('../utils/outputCalculation');
+const { normalizeTrainingPercent, trainingFactor } = require('../utils/trainingPercent');
 
 const query = (sql, params = []) => new Promise((resolve, reject) => {
 const { assertReportVolume } = require('./excelExportGuards');
@@ -152,7 +153,7 @@ const getReportMetrics = (report) => {
   const actualTime = toNumber(report.actual_time);
   const plannedOutput = machineMetrics?.machine_count > 0
     ? toNumber(machineMetrics.maximum_output)
-    : standard * actualTime * (toNumber(report.training_percent || 100) / 100);
+    : standard * actualTime * trainingFactor(report.training_percent);
   const outputPerHour = actualTime > 0 ? actualOutput / actualTime : 0;
   return {
     ok, allNg, actualOutput, standard, actualTime, plannedOutput, outputPerHour,
@@ -312,9 +313,9 @@ const writeReportRow = (sheet, rowNumber, report, layout, deductionTypes, defect
   }
   setCell(row, fixed.machine, report.machine_no || report.machine_code || '');
   setCell(row, fixed.shift, report.shift || '');
-  const rawTraining = toNumber(report.training_percent ?? 100);
-  const trainingFactor = rawTraining > 1 ? rawTraining / 100 : Math.max(0, rawTraining);
-  setCell(row, fixed.training, trainingFactor, '0%');
+  const trainingPercent = normalizeTrainingPercent(report.training_percent);
+  const trainingFactorValue = trainingPercent / 100;
+  setCell(row, fixed.training, trainingFactorValue, '0%');
   setCell(row, fixed.totalTime, toNumber(report.total_time), '0.00');
   setCell(row, fixed.product, report.product_code || report.product_name || '');
   setCell(row, fixed.ok, metrics.ok, '#,##0');

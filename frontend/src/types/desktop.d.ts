@@ -11,8 +11,15 @@ declare global {
             getExportFolder: (date?: string) => Promise<string>;
             openLogFolder: () => Promise<string>;
             onSyncResult: (callback: (result: DesktopExcelSyncResult) => void) => () => void;
+            onExcelDbSyncResult: (callback: (result: DesktopExcelDbSyncResult) => void) => () => void;
             onSyncError: (callback: (error: unknown) => void) => () => void;
         };
+    }
+
+    interface DesktopExcelDbSyncResult {
+        detected: number;
+        succeeded: number;
+        failed: number;
     }
 
     interface DesktopExcelSyncResult {

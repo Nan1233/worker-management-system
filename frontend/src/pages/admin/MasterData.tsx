@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../services/api';
 import { getApiError } from '../../utils/apiError';
 import { getStoredUser } from '../../utils/authStorage';
+import { usePermissions } from '../../hooks/usePermissions';
 import './MasterData.css';
 
 type Row = Record<string, unknown> & { id?: number; status?: string; role?: string };
@@ -38,10 +39,13 @@ function MasterData(){
   const navigate=useNavigate();
   const params=useParams<{resource?:string}>();
   const currentUser=useMemo(()=>getStoredUser(),[]);
+  const { can }=usePermissions();
   const tabs=useMemo(()=>allTabs.filter(tab=>tab.roles.includes(currentUser?.role||'')),[currentUser]);
-  const requestedResource=String(params.resource||'users') as Resource;
-  const initialResource=allTabs.some(tab=>tab.key===requestedResource&&tab.roles.includes(currentUser?.role||''))?requestedResource:'users';
+  const requestedResource=String(params.resource||'processes') as Resource;
+  const initialResource=allTabs.some(tab=>tab.key===requestedResource&&tab.roles.includes(currentUser?.role||''))?requestedResource:'processes';
   const [resource,setResource]=useState<Resource>(initialResource);
+  const canCreate=resource==='users'?can('USER_CREATE'):can('MASTER_EDIT');
+  const canModify=resource==='users'?can('USER_EDIT'):can('MASTER_EDIT');
   const [rows,setRows]=useState<Row[]>([]);
   const [processes,setProcesses]=useState<ProcessOption[]>([]);
   const [loading,setLoading]=useState(false);
@@ -71,12 +75,12 @@ function MasterData(){
 
   useEffect(()=>{
     const allowed=tabs.some(tab=>tab.key===requestedResource);
-    const nextResource=allowed?requestedResource:'users';
+    const nextResource=allowed?requestedResource:'processes';
     setResource(nextResource);
     setEditing(null);
     setForm({});
     setSelectedProcessIds([]);
-    if(!allowed&&params.resource!=='users') navigate(`/${currentUser?.role||'manager'}/master/users`,{replace:true});
+    if(!allowed&&params.resource!=='processes') navigate(`/${currentUser?.role||'manager'}/master/processes`,{replace:true});
   },[requestedResource,tabs,navigate,params.resource,currentUser?.role]);
 
   useEffect(()=>{const timer=window.setTimeout(()=>{void loadProcesses().catch(err=>setError(getApiError(err,'Không thể tải công đoạn').message));},0);return()=>window.clearTimeout(timer);},[loadProcesses]);
@@ -173,15 +177,15 @@ function MasterData(){
     : fields.filter(field=>field.key!=='password');
 
   return <div className="master-page">
-    <div className="master-heading"><div><h1>Trung tâm quản lý</h1></div><button className="primary" onClick={openCreate}>+ Thêm mới</button></div>
+    <div className="master-heading"><div><h1>Trung tâm quản lý</h1></div>{canCreate&&<button className="primary" onClick={openCreate}>Thêm mới</button>}</div>
     <div className="master-tabs">{tabs.map(tab=><button key={tab.key} className={resource===tab.key?'active':''} onClick={()=>navigate(`/${currentUser?.role||'manager'}/master/${tab.key}`)}><strong>{tab.label}</strong></button>)}</div>
     <div className="master-toolbar"><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Tìm theo mã, tên, công đoạn..."/><span>{filtered.length} bản ghi</span></div>
     {error&&<div className="master-error">{error}</div>}
-    <div className="master-table-wrap"><table><thead><tr>{tableFields.map(field=><th key={field.key}>{field.label}</th>)}<th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
-      {loading?<tr><td colSpan={tableFields.length+2}>Đang tải...</td></tr>:filtered.length===0?<tr><td colSpan={tableFields.length+2}>Chưa có dữ liệu phù hợp.</td></tr>:visibleRows.map((row,index)=><tr key={String(row.id||index)}>{tableFields.map(field=><td key={field.key}>{field.key==='process_id'?String(row.process_name||''):field.key==='role'?String(roleLabels[String(row.role)]||row.role||''):field.key==='standard_output'?Math.round(Number(row[field.key])||0).toLocaleString('vi-VN'):String(row[field.key]??'')}</td>)}<td><span className={`status ${row.status}`}>{row.status==='inactive'?'Ngừng dùng':'Đang dùng'}</span></td><td><div className="actions"><button onClick={()=>openEdit(row)}>Sửa</button><button onClick={()=>void toggle(row)}>{row.status==='active'?'Khóa':'Mở'}</button></div></td></tr>)}
+    <div className="master-table-wrap"><table><thead><tr>{tableFields.map(field=><th key={field.key}>{field.label}</th>)}<th>Trạng thái</th>{canModify&&<th>Thao tác</th>}</tr></thead><tbody>
+      {loading?<tr><td colSpan={tableFields.length+(canModify?2:1)}>Đang tải...</td></tr>:filtered.length===0?<tr><td colSpan={tableFields.length+(canModify?2:1)}>Chưa có dữ liệu phù hợp.</td></tr>:visibleRows.map((row,index)=><tr key={String(row.id||index)}>{tableFields.map(field=><td key={field.key}>{field.key==='process_id'?String(row.process_name||''):field.key==='role'?String(roleLabels[String(row.role)]||row.role||''):field.key==='standard_output'?Math.round(Number(row[field.key])||0).toLocaleString('vi-VN'):String(row[field.key]??'')}</td>)}<td><span className={`status ${row.status}`}>{row.status==='inactive'?'Ngừng dùng':'Đang dùng'}</span></td>{canModify&&<td><div className="actions"><button onClick={()=>openEdit(row)}>Sửa</button><button onClick={()=>void toggle(row)}>{row.status==='active'?'Khóa':'Mở'}</button></div></td>}</tr>)}
     </tbody></table></div>
     {filtered.length>pageSize&&<div className="master-pagination"><button disabled={page<=1} onClick={()=>setPage(value=>value-1)}>Trước</button><span>Trang {page}/{pageCount}</span><button disabled={page>=pageCount} onClick={()=>setPage(value=>value+1)}>Sau</button></div>}
-    {editing&&<div className="modal-backdrop" onMouseDown={()=>setEditing(null)}><div className="modal-card" onMouseDown={event=>event.stopPropagation()}><h2>{editing.id?'Cập nhật người dùng/dữ liệu':'Thêm dữ liệu mới'}</h2><div className="form-grid">
+    {editing&&canModify&&<div className="modal-backdrop" onMouseDown={()=>setEditing(null)}><div className="modal-card" onMouseDown={event=>event.stopPropagation()}><h2>{editing.id?'Cập nhật người dùng/dữ liệu':'Thêm dữ liệu mới'}</h2><div className="form-grid">
       {fields.map(field=><label key={field.key}><span>{field.label}{field.required?' *':''}</span>{field.type==='select'?<select disabled={resource==='users'&&Boolean(editing?.id)&&field.key==='role'} value={form[field.key]||''} onChange={event=>setForm({...form,[field.key]:event.target.value})}><option value="">Chọn...</option>{field.options?.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select>:<input type={field.key==='password'?'password':field.type==='number'?'number':'text'} min={field.min} step={field.step} inputMode={field.key==='standard_output'?'numeric':undefined} value={field.key==='standard_output'&&form[field.key]!==undefined?String(Math.round(Number(form[field.key])||0)):(form[field.key]||'')} onChange={event=>setForm({...form,[field.key]:field.key==='standard_output'?String(Math.round(Number(event.target.value)||0)):event.target.value})}/>}</label>)}
       {resource==='users'&&['manager','lead','worker'].includes(selectedRole)&&<div className="process-assignment"><span>Công đoạn *</span><div className="process-check-list">{processes.map(process=><label key={process.id}><input type="checkbox" checked={selectedProcessIds.includes(String(process.id))} onChange={()=>toggleProcess(String(process.id))}/><span>{process.process_name}</span></label>)}</div></div>}
       <label><span>Trạng thái</span><select value={form.status||'active'} onChange={event=>setForm({...form,status:event.target.value})}><option value="active">Đang dùng</option><option value="inactive">Ngừng dùng</option></select></label>

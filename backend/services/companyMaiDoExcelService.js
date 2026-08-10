@@ -6,6 +6,7 @@ const { loadProcessMonthReports, normalizeYearMonth } = require('./processExcelE
 const { buildCompanyWorkbook } = require('./companyExcelExportService');
 const { assertReportVolume } = require('./excelExportGuards');
 const { removeQuietly, cleanupOldExports } = require('./exportFileMaintenance');
+const { trainingFactor } = require('../utils/trainingPercent');
 
 const TEMPLATE_PATH = path.join(__dirname, '../templates/bao-cao-mai-do-export.xlsx');
 const PROCESS_CODES = new Set(['MAI', 'DO']);
@@ -165,8 +166,12 @@ const groupByDay = (reports, yearMonth) => {
     grouped.get(day).push(report);
   });
   grouped.forEach((rows) => rows.sort((a, b) => {
-    const workerCompare = String(a.worker_code || '').localeCompare(String(b.worker_code || ''), undefined, { numeric: true });
-    return workerCompare || String(a.machine_no || '').localeCompare(String(b.machine_no || ''), undefined, { numeric: true }) || Number(a.id) - Number(b.id);
+    const timeA = String(a.approved_at || a.created_at || a.entry_date || a.work_date || '');
+    const timeB = String(b.approved_at || b.created_at || b.entry_date || b.work_date || '');
+    return timeA.localeCompare(timeB)
+      || String(a.worker_code || '').localeCompare(String(b.worker_code || ''), undefined, { numeric: true })
+      || String(a.machine_no || '').localeCompare(String(b.machine_no || ''), undefined, { numeric: true })
+      || Number(a.id) - Number(b.id);
   }));
   return grouped;
 };
@@ -195,19 +200,17 @@ const fillMaiSheet = (sheet, reports, yearMonth) => {
     const dayReports = validDay ? (grouped.get(day) || []) : [];
     dayReports.slice(0, rowNumbers.length).forEach((report, index) => {
       const row = sheet.getRow(rowNumbers[index]);
-      const trainingFactor = toNumber(report.training_percent) > 1
-        ? toNumber(report.training_percent) / 100
-        : (toNumber(report.training_percent) || 1);
+      const trainingFactorValue = trainingFactor(report.training_percent);
       const actualTime = toNumber(report.actual_time);
       const standardRate = toNumber(report.standard_output);
-      const plannedOutput = actualTime * trainingFactor * standardRate;
+      const plannedOutput = actualTime * trainingFactorValue * standardRate;
       const actualOutput = toNumber(report.actual_output);
       const totalNg = toNumber(report.tt_ng);
 
       setInputCell(row, 2, report.worker_code);
       setInputCell(row, 4, shiftToCompanyValue(report.shift));
       setInputCell(row, 5, report.machine_no);
-      setInputCell(row, 8, trainingFactor);
+      setInputCell(row, 8, trainingFactorValue);
       setInputCell(row, 9, toNumber(report.total_time));
 
       const deductions = report.deductions || [];
@@ -271,19 +274,17 @@ const fillDoSheet = (sheet, reports, yearMonth) => {
     const dayReports = validDay ? (grouped.get(day) || []) : [];
     dayReports.slice(0, rowNumbers.length).forEach((report, index) => {
       const row = sheet.getRow(rowNumbers[index]);
-      const trainingFactor = toNumber(report.training_percent) > 1
-        ? toNumber(report.training_percent) / 100
-        : (toNumber(report.training_percent) || 1);
+      const trainingFactorValue = trainingFactor(report.training_percent);
       const actualTime = toNumber(report.actual_time);
       const standardRate = toNumber(report.standard_output);
-      const plannedOutput = actualTime * trainingFactor * standardRate;
+      const plannedOutput = actualTime * trainingFactorValue * standardRate;
       const actualOutput = toNumber(report.actual_output);
       const totalNg = toNumber(report.tt_ng);
 
       setInputCell(row, 2, report.worker_code);
       setInputCell(row, 4, shiftToCompanyValue(report.shift));
       setInputCell(row, 5, report.machine_no);
-      setInputCell(row, 7, trainingFactor);
+      setInputCell(row, 7, trainingFactorValue);
       setInputCell(row, 8, toNumber(report.total_time));
 
       const deductions = report.deductions || [];

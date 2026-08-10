@@ -143,7 +143,22 @@ exports.getActivities = async (req,res) => {
  try {
   const limit=Math.min(Math.max(Number(req.query.limit)||50,1),200);
   const params=[]; let where='1=1';
-  if(req.user.role==='worker'){ where+=' AND a.user_id=?'; params.push(req.user.id); }
+  if(req.user.role==='worker'){
+   where+=' AND a.user_id=?'; params.push(req.user.id);
+  } else if(req.user.role==='manager' || req.user.role==='lead'){
+   where+=` AND (a.user_id=? OR (
+     a.entity_type IN ('approved_report','production_report') AND EXISTS (
+       SELECT 1 FROM production_reports pr JOIN manager_processes mp ON mp.process_id=pr.process_id
+       WHERE pr.id=a.entity_id AND mp.manager_id=?
+     )
+   ) OR (
+     a.entity_type IN ('temp_report','production_temp') AND EXISTS (
+       SELECT 1 FROM production_reports_temp prt JOIN manager_processes mp2 ON mp2.process_id=prt.process_id
+       WHERE prt.id=a.entity_id AND mp2.manager_id=?
+     )
+   ))`;
+   params.push(req.user.id,req.user.id,req.user.id);
+  }
   const [rows]=await db.promise().query(`SELECT a.*,u.full_name,u.username FROM activity_logs a LEFT JOIN users u ON u.id=a.user_id WHERE ${where} ORDER BY a.created_at DESC LIMIT ?`,[...params,limit]);
   res.json({success:true,data:rows});
  } catch(e){ console.error('GET ACTIVITIES ERROR:', e); res.status(500).json({success:false,message:publicMessage(e,'Không thể tải lịch sử hoạt động')});}

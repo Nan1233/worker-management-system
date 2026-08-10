@@ -338,14 +338,16 @@ export const updateReport = async (
 
 export const deleteReport = async(
 
-    id:number
+    id:number,
+    reason:string
 
 )=>{
 
 
     const res = await api.delete(
 
-        `/production/${id}`
+        `/production/${id}`,
+        { data: { reason: String(reason || "").trim() } }
 
     );
 

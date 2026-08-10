@@ -10,6 +10,7 @@ import {
 } from "../../services/systemService";
 import { publishNotificationCount } from "../../hooks/useNotificationBadge";
 import { getStoredUser } from "../../utils/authStorage";
+import { usePermissions } from "../../hooks/usePermissions";
 import "./SystemCenter.css";
 
 export default function SystemCenter() {
@@ -22,6 +23,8 @@ export default function SystemCenter() {
     const navigate = useNavigate();
     const currentUser = getStoredUser();
     const isWorker = currentUser?.role === "worker";
+    const { can } = usePermissions();
+    const canAudit = !isWorker && can("AUDIT_VIEW");
 
     const load = useCallback(async (silent = false) => {
         if (silent) setRefreshing(true);
@@ -30,7 +33,7 @@ export default function SystemCenter() {
 
         const [notificationResult, activityResult] = await Promise.allSettled([
             getNotifications(),
-            isWorker ? Promise.resolve([] as ActivityItem[]) : getActivities()
+            canAudit ? getActivities() : Promise.resolve([] as ActivityItem[])
         ]);
 
         if (notificationResult.status === "fulfilled") {
@@ -48,7 +51,7 @@ export default function SystemCenter() {
 
         setLoading(false);
         setRefreshing(false);
-    }, [isWorker]);
+    }, [canAudit]);
 
     useEffect(() => {
         void load(false);
@@ -95,7 +98,7 @@ export default function SystemCenter() {
                 <button className={tab === "notifications" ? "active" : ""} onClick={() => setTab("notifications")}>
                     Thông báo ({notifications.filter((item) => !item.is_read).length})
                 </button>
-                {!isWorker && (
+                {canAudit && (
                     <button className={tab === "activities" ? "active" : ""} onClick={() => setTab("activities")}>
                         Lịch sử hoạt động
                     </button>
@@ -123,7 +126,7 @@ export default function SystemCenter() {
                 <div className="system-list">
                     {activities.length ? activities.map((item) => (
                         <article key={item.id} className="system-item">
-                            <span className="activity-icon">↺</span>
+                            <span className="activity-icon">•</span>
                             <div>
                                 <strong>{item.description || item.action}</strong>
                                 <p>{item.full_name || item.username || "Hệ thống"} · {item.entity_type || "system"} {item.entity_id ? `#${item.entity_id}` : ""}</p>

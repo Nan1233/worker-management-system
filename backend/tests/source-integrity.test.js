@@ -19,8 +19,13 @@ test('company Excel endpoints are mounted through report router', () => {
   assert.match(routes, /company-data/);
 });
 
-test('JWT secret cannot be absent in production startup path', () => {
-  assert.match(read('controllers/authController.js'), /process\.env\.JWT_SECRET/);
+test('production startup validates critical environment before database startup', () => {
+  const server = read('server.js');
+  const validator = read('config/validateEnvironment.js');
+  assert.match(server, /validateEnvironment\(process\.env, \{ production: isProduction \}\)/);
+  assert.match(validator, /'JWT_SECRET'/);
+  assert.match(validator, /'DB_PASSWORD'/);
+  assert.match(validator, /ENVIRONMENT_VALIDATION_FAILED/);
 });
 
 test('heavy Excel exports use one worker-thread job manager', () => {

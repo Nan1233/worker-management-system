@@ -102,6 +102,7 @@ function EditReport() {
     const [error, setError] = useState("");
     const [actualHours, setActualHours] = useState("");
     const [actualMinutes, setActualMinutes] = useState("");
+    const [changeReason, setChangeReason] = useState("");
 
     useEffect(() => {
         const load = async () => {
@@ -196,8 +197,14 @@ function EditReport() {
             setSaving(true);
             setError("");
 
+            if (source === "approved" && !changeReason.trim()) {
+                setError("Vui lòng nhập lý do chỉnh sửa báo cáo đã duyệt.");
+                return;
+            }
+
             const payload: ProductionReport = {
                 ...form,
+                reason: source === "approved" ? changeReason.trim() : undefined,
                 work_date: String(form.work_date).slice(0, 10),
                 actual_time: Math.max(0, Number(actualHours) || 0) + Math.min(59, Math.max(0, Number(actualMinutes) || 0)) / 60,
                 total_time: (Math.max(0, Number(actualHours) || 0) + Math.min(59, Math.max(0, Number(actualMinutes) || 0)) / 60) + deductionTotal,
@@ -318,6 +325,9 @@ function EditReport() {
                 </section>
 
                 <label className="edit-note">Ghi chú<textarea rows={4} value={form.note || ""} onChange={(e) => setField("note", e.target.value)} /></label>
+                {source === "approved" ? (
+                    <label className="edit-note">Lý do chỉnh sửa <textarea rows={3} value={changeReason} onChange={(e) => setChangeReason(e.target.value)} placeholder="Bắt buộc để phục vụ audit và truy vết" required /></label>
+                ) : null}
             </form>
         </main>
     );

@@ -10,6 +10,7 @@ import type { ProductionReport } from "../../types/production";
 import { useToast } from "../../components/feedback/toastContext";
 import { decimalHoursToMinutes, formatMinutes } from "../../utils/timeDisplay";
 import { getStoredUser } from "../../utils/authStorage";
+import { usePermissions } from "../../hooks/usePermissions";
 import "./SelectedReportsReview.css";
 
 const REJECT_REASONS = [
@@ -65,9 +66,11 @@ function SelectedReportsReview() {
     const [rejectDetail, setRejectDetail] = useState("");
 
     const role = getStoredUser()?.role || "manager";
+    const { can } = usePermissions();
 
-    const basePath = role === "lead" ? "/lead" : "/manager";
-    const canEdit = role === "manager" || role === "admin";
+    const basePath = role === "lead" ? "/lead" : role === "admin" ? "/admin" : "/manager";
+    const canEdit = source === "pending" ? can("REPORT_PENDING_EDIT") : can("REPORT_APPROVED_EDIT");
+    const canReview = can("REPORT_APPROVE");
     const storageKey = source === "approved"
         ? "selectedApprovedReportIds"
         : "selectedPendingReportIds";
@@ -182,7 +185,7 @@ function SelectedReportsReview() {
                     <p>{reports.length} báo cáo được hiển thị trong một bảng ngang.</p>
                 </div>
 
-                {source === "pending" && (
+                {source === "pending" && canReview && (
                     <div className="selected-review-actions">
                         <button
                             type="button"
@@ -273,7 +276,7 @@ function SelectedReportsReview() {
                                                         `${basePath}/report/${report.id}/edit?source=${source}`
                                                     )}
                                                 >
-                                                    ✎ Sửa
+                                                    Sửa
                                                 </button>
                                             </td>
                                         )}

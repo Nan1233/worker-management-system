@@ -19,12 +19,15 @@ import type {
 } from "../../types/worker";
 
 import { useToast } from "../../components/feedback/toastContext";
+import { usePermissions } from "../../hooks/usePermissions";
 
 import "./Workers.css";
 
 
 function Workers() {
     const { showToast } = useToast();
+    const { can } = usePermissions();
+    const canEdit = can("USER_EDIT");
 
     const [
         workers,
@@ -514,9 +517,9 @@ function Workers() {
                                                 Trạng thái
                                             </th>
 
-                                            <th>
+                                            {canEdit && <th>
                                                 Thao tác
-                                            </th>
+                                            </th>}
 
                                         </tr>
 
@@ -676,7 +679,7 @@ function Workers() {
                                                             </td>
 
 
-                                                            <td data-label="Thao tác">
+                                                            {canEdit && <td data-label="Thao tác">
 
                                                                 {
                                                                     isEditing
@@ -745,7 +748,7 @@ function Workers() {
                                                                         )
                                                                 }
 
-                                                            </td>
+                                                            </td>}
 
                                                         </tr>
 
