@@ -632,3 +632,79 @@ html[data-theme="dark"] :is(.permission-card-head,.permission-user-grid label) {
     box-shadow: 0 8px 20px rgba(0,0,0,.24) !important;
   }
 }
+
+/* ===== Login page: prevent split-theme white panel in dark mode =====
+   Login.css is loaded with the lazy Login route and contains a hard-coded
+   .login-panel background (#fdfefe). Keep this selector explicit and
+   !important so the right half follows the active application theme. */
+html[data-theme="dark"] .login-page {
+  background: #0b1118 !important;
+}
+
+html[data-theme="dark"] .login-panel {
+  background: #0b1118 !important;
+  color: var(--ktc-text) !important;
+}
+
+html[data-theme="dark"] .login-card {
+  background: #141d27 !important;
+  border: 1px solid #3b4e60 !important;
+  box-shadow: 0 18px 46px rgba(0, 0, 0, .28) !important;
+}
+
+html[data-theme="dark"] .login-heading > h2,
+html[data-theme="dark"] .login-mobile-brand strong,
+html[data-theme="dark"] .remembered-account strong {
+  color: #f7fafc !important;
+}
+
+html[data-theme="dark"] .login-heading > span,
+html[data-theme="dark"] .login-mobile-brand small,
+html[data-theme="dark"] .remembered-account small,
+html[data-theme="dark"] .login-helper,
+html[data-theme="dark"] .login-note {
+  color: #a9b8c5 !important;
+}
+
+html[data-theme="dark"] .remembered-section {
+  border-color: #334657 !important;
+}
+
+html[data-theme="dark"] .remembered-account {
+  background: #182431 !important;
+  border-color: #3b4e60 !important;
+}
+
+html[data-theme="dark"] .remembered-account:hover {
+  background: #1d2c3a !important;
+  border-color: #617789 !important;
+}
+
+html[data-theme="dark"] .login-input-wrap input {
+  background: #0e1822 !important;
+  border-color: #52687b !important;
+  color: #f7fafc !important;
+}
+
+html[data-theme="dark"] .login-input-wrap input:focus {
+  background: #111d28 !important;
+  border-color: #6197b9 !important;
+  box-shadow: 0 0 0 3px rgba(97, 151, 185, .28) !important;
+}
+
+html[data-theme="dark"] .login-input-icon {
+  color: #91bedc !important;
+}
+
+/* Explicit light-mode guard so browser/system dark preferences never leave
+   the login card dark while the application is in light mode. */
+html[data-theme="light"] .login-page,
+html[data-theme="light"] .login-panel {
+  background: #f7f9fb !important;
+}
+
+html[data-theme="light"] .login-card {
+  background: #ffffff !important;
+  border-color: #dbe2ea !important;
+  color: #172033 !important;
+}
