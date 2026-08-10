@@ -15,6 +15,7 @@ const REFRESH_TOKEN_KEY = "refreshToken";
 const USER_KEY = "user";
 const AUTH_EPOCH_KEY = "ktcAuthEpoch";
 const AUTH_SESSION_ID_KEY = "ktcAuthSessionId";
+const REFRESH_SESSION_HINT_KEY = "ktcRefreshSessionHint";
 
 function isElectronRuntime(): boolean {
     return typeof navigator !== "undefined" && /electron/i.test(navigator.userAgent);
@@ -103,6 +104,18 @@ export function setAccessToken(token: string): void {
  * migration, allowing the next refresh request to move that session to a
  * secure cookie. Electron intentionally retains the body-token fallback.
  */
+export function hasRefreshSessionHint(): boolean {
+    return localStorage.getItem(REFRESH_SESSION_HINT_KEY) === "1";
+}
+
+export function markRefreshSessionAvailable(): void {
+    localStorage.setItem(REFRESH_SESSION_HINT_KEY, "1");
+}
+
+export function clearRefreshSessionHint(): void {
+    localStorage.removeItem(REFRESH_SESSION_HINT_KEY);
+}
+
 export function getRefreshToken(): string | null {
     if (isElectronRuntime()) {
         return localStorage.getItem(REFRESH_TOKEN_KEY);
@@ -201,6 +214,7 @@ export function saveAuthSession(data: {
     if (data.sessionId) setAuthSessionId(data.sessionId);
     if (data.refreshToken) setRefreshToken(data.refreshToken);
     if (data.user) setStoredUser(data.user);
+    markRefreshSessionAvailable();
 }
 
 export function clearAuthSession(options: { bumpEpoch?: boolean } = {}): void {
@@ -216,6 +230,7 @@ export function clearAuthSession(options: { bumpEpoch?: boolean } = {}): void {
         REFRESH_TOKEN_KEY,
         USER_KEY,
         AUTH_SESSION_ID_KEY,
+        REFRESH_SESSION_HINT_KEY,
     ]) {
         sessionStorage.removeItem(key);
         localStorage.removeItem(key);

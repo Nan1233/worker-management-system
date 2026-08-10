@@ -17,6 +17,7 @@ import {
     getAuthEpoch,
     getAuthSessionId,
     getRefreshToken,
+    hasRefreshSessionHint,
     saveAuthSession
 } from "../utils/authStorage";
 
@@ -263,14 +264,23 @@ export function isAuthRefreshInProgress(): boolean {
 export async function initializeAuthSession(): Promise<void> {
     if (loginTransitionActive) return;
     const currentRoute = window.location.hash.replace(/^#/, "") || "/";
-    if (currentRoute === "/" || /^\/login(?:\/|$)/.test(currentRoute)) return;
+    if (/^\/login(?:\/|$)/.test(currentRoute)) return;
 
     const accessToken = getAccessToken();
-    // Web refresh sessions live in an HttpOnly cookie, so the absence of a
-    // JavaScript-visible refresh token does not mean there is no session.
-    // Electron may still provide a body-token fallback.
+    const refreshToken = getRefreshToken();
+    const canRestoreSession = Boolean(
+        accessToken ||
+        refreshToken ||
+        hasRefreshSessionHint()
+    );
+
+    // May chua tung co phien dang nhap: khong probe /auth/refresh.
+    if (!canRestoreSession) return;
+
     if (!accessToken || shouldRefreshAccessToken(accessToken)) {
-        try { await refreshAccessToken(true); } catch (error) {
+        try {
+            await refreshAccessToken(true);
+        } catch (error) {
             if (isConfirmedInvalidRefresh(error)) throw error;
         }
     }
@@ -411,7 +421,8 @@ function scheduleConnectionRestore(): void {
     reconnectTimer = window.setTimeout(async () => {
         if (loginTransitionActive) return;
         const currentRoute = window.location.hash.replace(/^#/, "") || "/";
-        if (currentRoute === "/" || /^\/login(?:\/|$)/.test(currentRoute)) return;
+        if (/^\/login(?:\/|$)/.test(currentRoute)) return;
+        if (!getAccessToken() && !getRefreshToken() && !hasRefreshSessionHint()) return;
 
         try {
             await refreshAccessToken(true);
@@ -419,7 +430,7 @@ function scheduleConnectionRestore(): void {
                 new CustomEvent("ktc:connection-restored")
             );
         } catch {
-            // Giữ nguyên phiên; request tiếp theo sẽ thử lại.
+            // Giu nguyen phien; request tiep theo se thu lai.
         }
     }, 1200);
 }
