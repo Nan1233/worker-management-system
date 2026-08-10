@@ -5,7 +5,7 @@ export default function AuthBootstrap({ children }: { children: ReactNode }) {
   const [authReady, setAuthReady] = useState(false);
   useEffect(() => {
     let active = true;
-    void initializeAuthSession().finally(() => {
+    void initializeAuthSession().catch(() => undefined).finally(() => {
       if (active) {
         setAuthReady(true);
         window.dispatchEvent(new CustomEvent("ktc:auth-ready"));

@@ -263,7 +263,7 @@ export function isAuthRefreshInProgress(): boolean {
 export async function initializeAuthSession(): Promise<void> {
     if (loginTransitionActive) return;
     const currentRoute = window.location.hash.replace(/^#/, "") || "/";
-    if (/^\/login(?:\/|$)/.test(currentRoute)) return;
+    if (currentRoute === "/" || /^\/login(?:\/|$)/.test(currentRoute)) return;
 
     const accessToken = getAccessToken();
     // Web refresh sessions live in an HttpOnly cookie, so the absence of a
@@ -411,7 +411,7 @@ function scheduleConnectionRestore(): void {
     reconnectTimer = window.setTimeout(async () => {
         if (loginTransitionActive) return;
         const currentRoute = window.location.hash.replace(/^#/, "") || "/";
-        if (/^\/login(?:\/|$)/.test(currentRoute)) return;
+        if (currentRoute === "/" || /^\/login(?:\/|$)/.test(currentRoute)) return;
 
         try {
             await refreshAccessToken(true);
