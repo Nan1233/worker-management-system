@@ -30,13 +30,13 @@ import AppIcon, { type IconName } from "../../components/common/AppIcon";
 
 const processIconMap: Record<string, IconName> = {
     GC: "cut",
-    MAI: "polish",
-    DO: "measure",
+    MAI: "grind",
+    DO: "caliper",
     K1: "inspect",
-    K2: "inspect",
-    CAN: "roll",
+    K2: "verify",
+    CAN: "roller",
     EP: "press",
-    XLBV: "trim",
+    XLBV: "deburr",
     SX3: "assembly",
 };
 

@@ -22,12 +22,13 @@ type IconName =
     | "spark"
     | "checklist"
     | "cut"
-    | "polish"
-    | "measure"
+    | "grind"
+    | "caliper"
     | "inspect"
-    | "roll"
+    | "verify"
+    | "roller"
     | "press"
-    | "trim"
+    | "deburr"
     | "assembly";
 
 interface AppIconProps extends SVGProps<SVGSVGElement> {
@@ -210,20 +211,30 @@ function AppIcon({ name, size = 20, style, ...rest }: AppIconProps) {
                     <Path d="M16.2 13.9 19.5 17.2" />
                 </>
             )}
-            {name === "polish" && (
+            {name === "grind" && (
                 <>
-                    <Path d="M8 16.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z" />
-                    <Path d="M13.5 8.5 17 5" />
-                    <Path d="M15 14.5 19 18.5" />
-                    <Path d="M15.5 8.5h3" />
+                    <Path d="M10 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6z" />
+                    <Path d="M10 6V4.5" />
+                    <Path d="M10 19.5V18" />
+                    <Path d="M7 7.1 5.9 6" />
+                    <Path d="M14.1 16 15.2 17.1" />
+                    <Path d="M5 12h1.5" />
+                    <Path d="M13.5 12H15" />
+                    <Path d="M7 16 5.9 17.1" />
+                    <Path d="M14.1 8 18.8 5.2" />
+                    <Path d="M16.5 6.6 19.2 11.1" />
                 </>
             )}
-            {name === "measure" && (
+            {name === "caliper" && (
                 <>
-                    <Path d="M4.5 15.5 15.5 4.5l4 4-11 11h-4z" />
-                    <Path d="M10 10l1.5 1.5" />
-                    <Path d="M12.5 7.5 14 9" />
-                    <Path d="M7.5 12.5 9 14" />
+                    <Path d="M5.5 7.5h9" />
+                    <Path d="M5.5 7.5v8" />
+                    <Path d="M8.5 7.5v4" />
+                    <Path d="M8.5 11.5h6" />
+                    <Path d="M14.5 5v10.5" />
+                    <Path d="M14.5 15.5h4" />
+                    <Path d="M10.5 4.5v3" />
+                    <Path d="M10.5 17v2.5" />
                 </>
             )}
             {name === "inspect" && (
@@ -232,13 +243,22 @@ function AppIcon({ name, size = 20, style, ...rest }: AppIconProps) {
                     <Path d="m9.5 12 1.7 1.7L14.8 10" />
                 </>
             )}
-            {name === "roll" && (
+            {name === "verify" && (
                 <>
-                    <Path d="M5 12h14" />
-                    <Path d="M7 8.5h10" />
-                    <Path d="M7 15.5h10" />
-                    <Path d="M6.5 18.5a2 2 0 1 1 0-4 2 2 0 0 1 0 4z" />
-                    <Path d="M17.5 18.5a2 2 0 1 1 0-4 2 2 0 0 1 0 4z" />
+                    <Path d="M12 4.5 18 7v4.5c0 3.6-2.4 6.9-6 8-3.6-1.1-6-4.4-6-8V7z" />
+                    <Path d="m8.8 12.2 1.6 1.6 2.1-2.3" />
+                    <Path d="m12.4 13.4 1.1 1.1 2-2.1" />
+                </>
+            )}
+            {name === "roller" && (
+                <>
+                    <Path d="M6.5 9.5h11" />
+                    <Path d="M5 13h14" />
+                    <Path d="M6.5 16.5h11" />
+                    <Path d="M7 18.5a2 2 0 1 1 0-4 2 2 0 0 1 0 4z" />
+                    <Path d="M17 18.5a2 2 0 1 1 0-4 2 2 0 0 1 0 4z" />
+                    <Path d="M9 9.5V7.5" />
+                    <Path d="M15 9.5V7.5" />
                 </>
             )}
             {name === "press" && (
@@ -252,14 +272,15 @@ function AppIcon({ name, size = 20, style, ...rest }: AppIconProps) {
                     <Path d="M15 14.5v4" />
                 </>
             )}
-            {name === "trim" && (
+            {name === "deburr" && (
                 <>
-                    <Path d="M6 7.5h12" />
-                    <Path d="M8.5 7.5V5" />
-                    <Path d="M12 7.5V4" />
-                    <Path d="M15.5 7.5V5" />
-                    <Path d="M7.5 10.5h9v6a2 2 0 0 1-2 2h-5a2 2 0 0 1-2-2z" />
-                    <Path d="M10.5 13.5 12 15l3-3" />
+                    <Path d="M7 6.5h10" />
+                    <Path d="M8.5 6.5V5" />
+                    <Path d="M12 6.5V4" />
+                    <Path d="M15.5 6.5V5" />
+                    <Path d="M8 9h8v7a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2z" />
+                    <Path d="M12 10.5v3" />
+                    <Path d="M12 16.5h.01" />
                 </>
             )}
             {name === "assembly" && (
