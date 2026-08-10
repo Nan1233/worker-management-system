@@ -396,6 +396,17 @@ module.exports = {
             await this.createDeductions(tempId, data.process_id, deductions, connection);
             await this.replaceMachineLines(tempId, machineLines, connection);
 
+            const createdSnapshot = await AuditService.loadTempReportSnapshot(tempId, connection);
+            if (createdSnapshot) {
+                await AuditService.createReportVersion({
+                    reportType: "temp",
+                    reportId: tempId,
+                    snapshot: createdSnapshot,
+                    reason: "Tạo báo cáo chờ duyệt",
+                    userId: auditUserId
+                }, connection);
+            }
+
             {
                 await this.logAction({
                     reportType: "temp",

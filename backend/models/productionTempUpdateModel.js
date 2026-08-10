@@ -60,6 +60,10 @@ module.exports = {
             const resubmittingRejected =
                 isWorkerEdit && current.status === "rejected";
 
+            // Snapshot đầy đủ trước khi sửa để audit có thể so sánh dữ liệu thật,
+            // bao gồm NG, thời gian trừ và từng dòng máy.
+            const oldSnapshot = await AuditService.loadTempReportSnapshot(id, connection);
+
             const hasDeductions =
                 Object.prototype.hasOwnProperty.call(
                     data,
@@ -305,39 +309,6 @@ module.exports = {
                         id
                     ]
                 );
-
-                for (const field of changes) {
-                    await query(
-                        connection,
-                        `INSERT INTO report_edit_logs
-                         (
-                            report_type,
-                            report_id,
-                            changed_by,
-                            field_name,
-                            old_value,
-                            new_value,
-                            reason
-                         )
-                         VALUES (
-                            'temp',
-                            ?,
-                            ?,
-                            ?,
-                            ?,
-                            ?,
-                            ?
-                         )`,
-                        [
-                            id,
-                            changedBy,
-                            field,
-                            current[field] ?? null,
-                            data[field] ?? null,
-                            reason
-                        ]
-                    );
-                }
             } else {
                 await query(
                     connection,
@@ -378,38 +349,6 @@ module.exports = {
                         ]
                     );
                 }
-
-                await query(
-                    connection,
-                    `INSERT INTO report_edit_logs
-                     (
-                        report_type,
-                        report_id,
-                        changed_by,
-                        field_name,
-                        old_value,
-                        new_value,
-                        reason
-                     )
-                     VALUES (
-                        'temp',
-                        ?,
-                        ?,
-                        'deductions',
-                        ?,
-                        ?,
-                        ?
-                     )`,
-                    [
-                        id,
-                        changedBy,
-                        "Chi tiết cũ",
-                        JSON.stringify(
-                            normalizedDeductions
-                        ),
-                        reason
-                    ]
-                );
             }
 
             if (hasDefects) {
@@ -440,38 +379,48 @@ module.exports = {
                         ]
                     );
                 }
+            }
 
-                await query(
-                    connection,
-                    `INSERT INTO report_edit_logs
-                     (
-                        report_type,
-                        report_id,
-                        changed_by,
-                        field_name,
-                        old_value,
-                        new_value,
-                        reason
-                     )
-                     VALUES (
-                        'temp',
-                        ?,
-                        ?,
-                        'defects',
-                        ?,
-                        ?,
-                        ?
-                     )`,
-                    [
-                        id,
-                        changedBy,
-                        "Chi tiết cũ",
-                        JSON.stringify(
-                            normalizedDefects
-                        ),
-                        reason
-                    ]
+            if (hasMachineLines) {
+                await this.replaceMachineLines(
+                    id,
+                    Array.isArray(data.machine_lines) ? data.machine_lines : [],
+                    connection
                 );
+            }
+
+            const newSnapshot = await AuditService.loadTempReportSnapshot(id, connection);
+            const changedFieldsForAudit = [
+                ...changes,
+                ...(hasDeductions ? ["deductions"] : []),
+                ...(hasDefects ? ["defects"] : []),
+                ...(hasMachineLines ? ["machine_lines"] : []),
+                ...(resubmittingRejected ? ["status", "review_note", "reviewed_by"] : [])
+            ];
+
+            await query(
+                connection,
+                `INSERT INTO report_edit_logs
+                 (report_type, report_id, user_id, old_data, new_data, changed_fields, note)
+                 VALUES ('temp', ?, ?, ?, ?, ?, ?)`,
+                [
+                    id,
+                    changedBy,
+                    JSON.stringify(oldSnapshot || null),
+                    JSON.stringify(newSnapshot || null),
+                    JSON.stringify(changedFieldsForAudit),
+                    reason || (resubmittingRejected ? "Công nhân sửa và gửi lại báo cáo" : "Cập nhật báo cáo chờ duyệt")
+                ]
+            );
+
+            if (newSnapshot) {
+                await AuditService.createReportVersion({
+                    reportType: "temp",
+                    reportId: id,
+                    snapshot: newSnapshot,
+                    reason: reason || (resubmittingRejected ? "Gửi lại sau khi bị từ chối" : "Cập nhật báo cáo chờ duyệt"),
+                    userId: changedBy
+                }, connection);
             }
 
             await this.logAction(
@@ -479,7 +428,7 @@ module.exports = {
                     reportType: "temp",
                     reportId: id,
                     userId: changedBy,
-                    action: "UPDATE",
+                    action: resubmittingRejected ? "RESUBMIT" : "UPDATE",
                     note:
                         reason ||
                         `Đã sửa ${
@@ -496,14 +445,19 @@ module.exports = {
             await AuditService.logActivity(
                 {
                     userId: changedBy,
-                    action: "TEMP_REPORT_UPDATED",
+                    action: resubmittingRejected ? "TEMP_REPORT_RESUBMITTED" : "TEMP_REPORT_UPDATED",
                     entityType: "temp_report",
                     entityId: id,
-                    description: `Cập nhật báo cáo chờ duyệt #${id}`,
+                    description: resubmittingRejected
+                        ? `Gửi lại báo cáo chờ duyệt #${id} sau khi bị từ chối`
+                        : `Cập nhật báo cáo chờ duyệt #${id}`,
                     metadata: {
                         changed_fields: changes,
                         deductions_changed: hasDeductions,
                         defects_changed: hasDefects,
+                        machine_lines_changed: hasMachineLines,
+                        previous_status: current.status,
+                        new_status: resubmittingRejected ? "pending" : current.status,
                         reason: reason || null
                     }
                 },
@@ -536,14 +490,6 @@ module.exports = {
                     AuditService.notifyUsers(reviewerGroups.manager, { ...notification, linkUrl: "/manager/reports" }, connection),
                     AuditService.notifyUsers(reviewerGroups.admin, { ...notification, linkUrl: "/admin/reports" }, connection)
                 ]);
-            }
-
-            if (hasMachineLines) {
-                await this.replaceMachineLines(
-                    id,
-                    Array.isArray(data.machine_lines) ? data.machine_lines : [],
-                    connection
-                );
             }
 
             await commit(connection);

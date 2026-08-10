@@ -204,11 +204,21 @@ module.exports = {
                 await query(
                     connection,
                     `UPDATE production_reports_temp
-                     SET status = 'approved', reviewed_by = ?, approved_at = NOW()
+                     SET status = 'approved', reviewed_by = ?, approved_at = NOW(), updated_at = NOW()
                      WHERE id = ?`,
                     [reviewerId, item.id]
                 );
 
+                const approvedTempSnapshot = await AuditService.loadTempReportSnapshot(item.id, connection);
+                if (approvedTempSnapshot) {
+                    await AuditService.createReportVersion({
+                        reportType: "temp",
+                        reportId: item.id,
+                        snapshot: approvedTempSnapshot,
+                        reason: `Được duyệt thành báo cáo chính thức #${approvedReportId}`,
+                        userId: reviewerId
+                    }, connection);
+                }
 
                 await AuditService.notifyUsers(
                     [item.worker_user_id],
@@ -290,6 +300,17 @@ module.exports = {
                      WHERE id = ?`,
                     [cleanReason, reviewerId, row.id]
                 );
+
+                const rejectedSnapshot = await AuditService.loadTempReportSnapshot(row.id, connection);
+                if (rejectedSnapshot) {
+                    await AuditService.createReportVersion({
+                        reportType: "temp",
+                        reportId: row.id,
+                        snapshot: rejectedSnapshot,
+                        reason: `Bị từ chối: ${cleanReason}`,
+                        userId: reviewerId
+                    }, connection);
+                }
 
                 await this.logAction(
                     {

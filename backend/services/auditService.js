@@ -145,6 +145,71 @@ async function createReportVersion(
   return versionNo;
 }
 
+
+async function loadTempReportSnapshot(reportId, executor = db) {
+  const [reportRows] = await query(
+    executor,
+    `SELECT * FROM production_reports_temp WHERE id=? LIMIT 1`,
+    [Number(reportId)],
+  );
+  const report = reportRows[0];
+  if (!report) return null;
+
+  const [[defects], [deductions], [machineLines]] = await Promise.all([
+    query(
+      executor,
+      `SELECT d.id,d.defect_type_id,dt.defect_code,dt.defect_name,d.quantity
+         FROM production_temp_defects d
+         LEFT JOIN defect_types dt ON dt.id=d.defect_type_id
+        WHERE d.temp_report_id=? ORDER BY d.id`,
+      [Number(reportId)],
+    ),
+    query(
+      executor,
+      `SELECT d.id,d.deduction_type_id,dt.deduction_code,dt.deduction_name,d.hours
+         FROM production_temp_deductions d
+         LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id
+        WHERE d.temp_report_id=? ORDER BY d.id`,
+      [Number(reportId)],
+    ),
+    query(
+      executor,
+      `SELECT * FROM production_temp_machine_lines
+        WHERE temp_report_id=? ORDER BY sort_order,id`,
+      [Number(reportId)],
+    ),
+  ]);
+
+  const machineIds = machineLines.map((line) => Number(line.id)).filter(Boolean);
+  let machineDefects = [];
+  if (machineIds.length) {
+    const [rows] = await query(
+      executor,
+      `SELECT * FROM production_temp_machine_defects
+        WHERE machine_line_id IN (${machineIds.map(() => '?').join(',')})
+        ORDER BY machine_line_id,id`,
+      machineIds,
+    );
+    machineDefects = rows;
+  }
+  const defectsByMachine = new Map();
+  machineDefects.forEach((item) => {
+    const key = Number(item.machine_line_id);
+    if (!defectsByMachine.has(key)) defectsByMachine.set(key, []);
+    defectsByMachine.get(key).push(item);
+  });
+
+  return {
+    ...report,
+    defects,
+    deductions,
+    machine_lines: machineLines.map((line) => ({
+      ...line,
+      defects: defectsByMachine.get(Number(line.id)) || [],
+    })),
+  };
+}
+
 async function notifyUsers(userIds, payload, executor = db) {
   const ids = [...new Set((userIds || [])
     .map(Number)
@@ -176,5 +241,6 @@ module.exports = {
   ensureSchema,
   logActivity,
   createReportVersion,
+  loadTempReportSnapshot,
   notifyUsers,
 };
