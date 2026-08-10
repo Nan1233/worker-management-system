@@ -1,37 +1,83 @@
-import {
-    useEffect,
-    useMemo,
-    useState
-} from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
 import {
     exportSelectedApprovedExcel,
-    getApprovedReportsByDate,
-    getReports
+    getApprovedReports
 } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
-
 import { useToast } from "../../components/feedback/toastContext";
 import { getStoredUser } from "../../utils/authStorage";
 import { usePermissions } from "../../hooks/usePermissions";
-
 import "./Reports.css";
 
 const ITEMS_PER_PAGE = 20;
 
-const getToday = (): string => {
-    const now = new Date();
-    const offset = now.getTimezoneOffset();
-    return new Date(now.getTime() - offset * 60_000)
+type DateFilterMode =
+    | "today"
+    | "yesterday"
+    | "week"
+    | "currentMonth"
+    | "month"
+    | "range"
+    | "all";
+
+const toLocalDateString = (value: Date): string => {
+    const offset = value.getTimezoneOffset();
+    return new Date(value.getTime() - offset * 60_000)
         .toISOString()
         .split("T")[0];
 };
 
+const getToday = (): string => toLocalDateString(new Date());
 
+const getDateRangeForMode = (
+    mode: DateFilterMode,
+    selectedMonth: string,
+    dateFrom: string,
+    dateTo: string
+): { dateFrom?: string; dateTo?: string } => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-const normalizeText = (value?: string): string =>
+    if (mode === "all") return {};
+    if (mode === "range") {
+        return {
+            dateFrom: dateFrom || undefined,
+            dateTo: dateTo || undefined
+        };
+    }
+    if (mode === "month" && selectedMonth) {
+        const [year, month] = selectedMonth.split("-").map(Number);
+        const lastDay = new Date(year, month, 0).getDate();
+        return {
+            dateFrom: `${selectedMonth}-01`,
+            dateTo: `${selectedMonth}-${String(lastDay).padStart(2, "0")}`
+        };
+    }
+    if (mode === "yesterday") {
+        const value = new Date(today);
+        value.setDate(value.getDate() - 1);
+        const day = toLocalDateString(value);
+        return { dateFrom: day, dateTo: day };
+    }
+    if (mode === "week") {
+        const start = new Date(today);
+        const day = start.getDay() || 7;
+        start.setDate(start.getDate() - day + 1);
+        return { dateFrom: toLocalDateString(start), dateTo: toLocalDateString(today) };
+    }
+    if (mode === "currentMonth") {
+        const start = new Date(today.getFullYear(), today.getMonth(), 1);
+        const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        return { dateFrom: toLocalDateString(start), dateTo: toLocalDateString(end) };
+    }
+    const day = toLocalDateString(today);
+    return { dateFrom: day, dateTo: day };
+};
+
+const normalizeText = (value?: string | number | null): string =>
     String(value ?? "")
         .trim()
         .toLowerCase()
@@ -39,9 +85,7 @@ const normalizeText = (value?: string): string =>
         .replace(/[\u0300-\u036f]/g, "")
         .replace(/đ/g, "d");
 
-const duplicateKey = (
-    report: ProductionReport
-): string =>
+const duplicateKey = (report: ProductionReport): string =>
     [
         String(report.work_date || "").slice(0, 10),
         report.worker_code,
@@ -51,47 +95,93 @@ const duplicateKey = (
         .map(normalizeText)
         .join("|");
 
-function ApprovedReports() {
+const getAxiosErrorMessage = async (error: unknown): Promise<string | null> => {
+    if (!axios.isAxiosError(error)) return null;
+    const responseData = error.response?.data;
+    if (responseData instanceof Blob) {
+        try {
+            const text = await responseData.text();
+            if (text) {
+                const parsed = JSON.parse(text) as { message?: string; error?: string };
+                return parsed.message || parsed.error || null;
+            }
+        } catch {
+            return null;
+        }
+    }
+    if (responseData && typeof responseData === "object" && "message" in responseData) {
+        return String(responseData.message || "");
+    }
+    return null;
+};
+
+export default function ApprovedReports() {
     const { can } = usePermissions();
     const canExport = can("REPORT_EXPORT");
-
     const { showToast } = useToast();
     const navigate = useNavigate();
 
-    const [date, setDate] = useState(getToday());
+    const [dateMode, setDateMode] = useState<DateFilterMode>("today");
+    const [selectedMonth, setSelectedMonth] = useState("");
+    const [dateFrom, setDateFrom] = useState(getToday());
+    const [dateTo, setDateTo] = useState(getToday());
     const [excelMonth, setExcelMonth] = useState(getToday().slice(0, 7));
 
-    const [showAllDates, setShowAllDates] = useState(false);
+    const [reports, setReports] = useState<ProductionReport[]>([]);
+    const [selectedIds, setSelectedIds] = useState<number[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [exporting, setExporting] = useState(false);
+    const [error, setError] = useState("");
+    const [searchKeyword, setSearchKeyword] = useState("");
+    const [selectedShift, setSelectedShift] = useState("");
+    const [selectedProcess, setSelectedProcess] = useState("");
+    const [currentPage, setCurrentPage] = useState(1);
+    const [reloadNonce, setReloadNonce] = useState(0);
 
-    const [reports, setReports] =
-        useState<ProductionReport[]>([]);
+    const activeDateRange = useMemo(
+        () => getDateRangeForMode(dateMode, selectedMonth, dateFrom, dateTo),
+        [dateMode, selectedMonth, dateFrom, dateTo]
+    );
 
-    const [selectedIds, setSelectedIds] =
-        useState<number[]>([]);
-
-    const [loading, setLoading] =
-        useState(true);
-
-    const [exporting, setExporting] =
-        useState(false);
-
-    const [error, setError] =
-        useState("");
-
-    const [searchKeyword, setSearchKeyword] =
-        useState("");
-
-    const [selectedShift, setSelectedShift] =
-        useState("");
-
-    const [selectedProcess, setSelectedProcess] =
-        useState("");
-
-    const [currentPage, setCurrentPage] =
-        useState(1);
-
-    const [reloadNonce, setReloadNonce] =
-        useState(0);
+    const loadReports = useCallback(async () => {
+        try {
+            setLoading(true);
+            setError("");
+            const load = () => getApprovedReports({
+                dateFrom: activeDateRange.dateFrom,
+                dateTo: activeDateRange.dateTo
+            });
+            let data: ProductionReport[];
+            try {
+                data = await load();
+            } catch (firstError) {
+                const retryable = !axios.isAxiosError(firstError)
+                    || !firstError.response
+                    || firstError.response.status === 401
+                    || firstError.response.status >= 500;
+                if (!retryable) throw firstError;
+                await new Promise(resolve => window.setTimeout(resolve, 800));
+                data = await load();
+            }
+            const normalized = Array.isArray(data) ? data : [];
+            setReports(normalized);
+            setSelectedIds(previous => {
+                const available = new Set(normalized.map(item => Number(item.id)).filter(id => id > 0));
+                return previous.filter(id => available.has(id));
+            });
+        } catch (err: unknown) {
+            console.error("GET APPROVED REPORTS ERROR:", err);
+            setError(
+                axios.isAxiosError(err)
+                    ? err.response?.data?.message || "Không thể tải báo cáo đã duyệt"
+                    : "Không thể tải báo cáo đã duyệt"
+            );
+            setReports([]);
+            setSelectedIds([]);
+        } finally {
+            setLoading(false);
+        }
+    }, [activeDateRange.dateFrom, activeDateRange.dateTo]);
 
     useEffect(() => {
         const reload = () => setReloadNonce(value => value + 1);
@@ -100,89 +190,31 @@ function ApprovedReports() {
     }, []);
 
     useEffect(() => {
-        const loadReports = async () => {
-            try {
-                setLoading(true);
-                setError("");
-
-                const load = () => showAllDates
-                    ? getReports()
-                    : getApprovedReportsByDate(date);
-
-                let data;
-                try {
-                    data = await load();
-                } catch (firstError) {
-                    const retryable = !axios.isAxiosError(firstError)
-                        || !firstError.response
-                        || firstError.response.status === 401
-                        || firstError.response.status >= 500;
-                    if (!retryable) throw firstError;
-                    await new Promise(resolve => window.setTimeout(resolve, 900));
-                    data = await load();
-                }
-
-                const normalizedReports = Array.isArray(data) ? data : [];
-                setReports(normalizedReports);
-
-                setSelectedIds(previousIds => {
-                    const availableIds = new Set(
-                        normalizedReports
-                            .map(item => Number(item.id))
-                            .filter(id => Number.isInteger(id) && id > 0)
-                    );
-                    return previousIds.filter(id => availableIds.has(id));
-                });
-            } catch (err: unknown) {
-                console.error("GET APPROVED REPORTS ERROR:", err);
-                const message = axios.isAxiosError(err)
-                    ? err.response?.data?.message || "Không thể tải báo cáo đã duyệt"
-                    : "Không thể tải báo cáo đã duyệt";
-                setError(message);
-                setReports([]);
-                setSelectedIds([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        queueMicrotask(() => setSelectedIds([]));
-        void loadReports();
-    }, [date, showAllDates, reloadNonce]);
+        queueMicrotask(() => {
+            setSelectedIds([]);
+            void loadReports();
+        });
+    }, [loadReports, reloadNonce]);
 
     const processes = useMemo(
         () => Array.from(new Set(reports.map(item => item.process_name).filter(Boolean))).sort(),
         [reports]
     );
 
-const duplicateCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-
-    reports.forEach(report => {
-        if (
-            !report.worker_code ||
-            !report.shift ||
-            !report.machine_no ||
-            !report.product_name
-        ) {
-            return;
-        }
-
-        const key = duplicateKey(report);
-
-        counts.set(
-            key,
-            (counts.get(key) ?? 0) + 1
-        );
-    });
-
-    return counts;
-}, [reports]);
+    const duplicateCounts = useMemo(() => {
+        const counts = new Map<string, number>();
+        reports.forEach(report => {
+            if (!report.worker_code || !report.machine_no || !report.product_name) return;
+            const key = duplicateKey(report);
+            counts.set(key, (counts.get(key) ?? 0) + 1);
+        });
+        return counts;
+    }, [reports]);
 
     const filteredReports = useMemo(() => {
         const keyword = normalizeText(searchKeyword);
         return reports.filter(report => {
-            const searchableText = normalizeText([
+            const searchable = normalizeText([
                 report.worker_code,
                 report.full_name,
                 report.machine_no,
@@ -190,248 +222,104 @@ const duplicateCounts = useMemo(() => {
                 report.process_name,
                 report.shift
             ].join(" "));
-
-            return (
-                (!keyword || searchableText.includes(keyword)) &&
-                (!selectedShift || report.shift === selectedShift) &&
-                (!selectedProcess || report.process_name === selectedProcess)
-            );
+            return (!keyword || searchable.includes(keyword))
+                && (!selectedShift || report.shift === selectedShift)
+                && (!selectedProcess || report.process_name === selectedProcess);
         });
     }, [reports, searchKeyword, selectedShift, selectedProcess]);
 
     useEffect(() => {
         queueMicrotask(() => setCurrentPage(1));
-    }, [date, searchKeyword, selectedShift, selectedProcess]);
+    }, [dateMode, selectedMonth, dateFrom, dateTo, searchKeyword, selectedShift, selectedProcess]);
 
     const totalPages = Math.max(1, Math.ceil(filteredReports.length / ITEMS_PER_PAGE));
-const paginatedReports = useMemo(
-    () =>
-        filteredReports.slice(
-            (
-                currentPage - 1
-            ) * ITEMS_PER_PAGE,
-            currentPage * ITEMS_PER_PAGE
-        ),
-    [
-        filteredReports,
-        currentPage
-    ]
-);
-// =====================================================
-// DANH SÁCH ID TRANG HIỆN TẠI
-// =====================================================
+    useEffect(() => {
+        if (currentPage > totalPages) queueMicrotask(() => setCurrentPage(totalPages));
+    }, [currentPage, totalPages]);
 
-const currentPageIds = useMemo(
-    () =>
-        paginatedReports
-            .map(report =>
-                Number(report.id)
-            )
-            .filter(
-                id =>
-                    Number.isInteger(id) &&
-                    id > 0
-            ),
-    [paginatedReports]
-);
-
-
-// =====================================================
-// SET ID ĐÃ CHỌN
-// =====================================================
-
-const selectedIdSet = useMemo(
-    () => new Set(selectedIds),
-    [selectedIds]
-);
-
-
-// =====================================================
-// KIỂM TRA CHECKBOX CHỌN TẤT CẢ
-// =====================================================
-
-const selectedOnCurrentPageCount =
-    currentPageIds.filter(
-        id => selectedIdSet.has(id)
-    ).length;
-
-
-const isAllCurrentPageSelected =
-    currentPageIds.length > 0 &&
-    selectedOnCurrentPageCount ===
-        currentPageIds.length;
-
-
-const isSomeCurrentPageSelected =
-    selectedOnCurrentPageCount > 0 &&
-    !isAllCurrentPageSelected;
-
-
-// =====================================================
-// CHỌN MỘT BÁO CÁO
-// =====================================================
-
-const toggleSelectReport = (
-    reportId: number
-) => {
-    if (
-        !Number.isInteger(reportId) ||
-        reportId <= 0
-    ) {
-        return;
-    }
-
-    setSelectedIds(previousIds => {
-        if (
-            previousIds.includes(reportId)
-        ) {
-            return previousIds.filter(
-                id => id !== reportId
-            );
-        }
-
-        return [
-            ...previousIds,
-            reportId
-        ];
-    });
-};
-
-
-// =====================================================
-// CHỌN TẤT CẢ BÁO CÁO TRANG HIỆN TẠI
-// =====================================================
-
-const toggleSelectCurrentPage = () => {
-    setSelectedIds(previousIds => {
-        const previousSet =
-            new Set(previousIds);
-
-        if (isAllCurrentPageSelected) {
-            currentPageIds.forEach(
-                id => previousSet.delete(id)
-            );
-        } else {
-            currentPageIds.forEach(
-                id => previousSet.add(id)
-            );
-        }
-
-        return Array.from(previousSet);
-    });
-};
-const handleViewSelectedDetails = () => {
-    if (selectedIds.length === 0) {
-        showToast("Vui lòng chọn ít nhất một báo cáo");
-        return;
-    }
-
-    sessionStorage.setItem(
-        "selectedApprovedReportIds",
-        JSON.stringify(selectedIds)
+    const paginatedReports = useMemo(
+        () => filteredReports.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE),
+        [filteredReports, currentPage]
     );
+    const currentPageIds = useMemo(
+        () => paginatedReports.map(report => Number(report.id)).filter(id => Number.isInteger(id) && id > 0),
+        [paginatedReports]
+    );
+    const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+    const selectedOnCurrentPageCount = currentPageIds.filter(id => selectedIdSet.has(id)).length;
+    const isAllCurrentPageSelected = currentPageIds.length > 0 && selectedOnCurrentPageCount === currentPageIds.length;
+    const isSomeCurrentPageSelected = selectedOnCurrentPageCount > 0 && !isAllCurrentPageSelected;
 
-    const savedRole = getStoredUser()?.role;
-    const basePath = savedRole === "lead" ? "/lead" : "/manager";
+    const toggleSelectReport = (reportId: number) => {
+        if (!Number.isInteger(reportId) || reportId <= 0) return;
+        setSelectedIds(previous => previous.includes(reportId)
+            ? previous.filter(id => id !== reportId)
+            : [...previous, reportId]);
+    };
 
-    navigate(`${basePath}/reports/review?source=approved`);
-};
+    const toggleSelectCurrentPage = () => {
+        setSelectedIds(previous => {
+            const set = new Set(previous);
+            if (isAllCurrentPageSelected) currentPageIds.forEach(id => set.delete(id));
+            else currentPageIds.forEach(id => set.add(id));
+            return Array.from(set);
+        });
+    };
 
-const getAxiosErrorMessage = async (error: unknown): Promise<string | null> => {
-    if (!axios.isAxiosError(error)) return null;
-
-    const responseData = error.response?.data;
-
-    if (responseData instanceof Blob) {
-        try {
-            const text = await responseData.text();
-            if (text) {
-                const parsed = JSON.parse(text) as {
-                    message?: string;
-                    error?: string;
-                };
-                return parsed.message || parsed.error || null;
-            }
-        } catch {
-            // Dữ liệu lỗi không phải JSON hợp lệ, dùng thông báo dự phòng bên dưới.
+    const selectQuickDate = (mode: DateFilterMode) => {
+        setDateMode(mode);
+        setSelectedMonth("");
+        if (mode !== "range") {
+            const range = getDateRangeForMode(mode, "", dateFrom, dateTo);
+            setDateFrom(range.dateFrom || "");
+            setDateTo(range.dateTo || "");
         }
-    }
+    };
 
-    if (
-        responseData &&
-        typeof responseData === "object" &&
-        "message" in responseData
-    ) {
-        return String(responseData.message || "");
-    }
-
-    return null;
-};
-
-const handleExportExcel = async () => {
-    if (exporting) return;
-
-    if (showAllDates) {
-        showToast("Hãy chọn một ngày thuộc tháng cần cập nhật Excel.");
-        return;
-    }
-
-    try {
-        setExporting(true);
-
-        const result = await exportSelectedApprovedExcel(`${excelMonth}-01`);
-
-        if (result?.success) {
-            showToast(
-                result.message ||
-                (window.ktcDesktop?.isDesktop
-                    ? "Đã cập nhật file Excel tháng trong thư mục Documents."
-                    : "Đã tải file Excel theo tháng.")
-            );
-        }
-    } catch (err: unknown) {
-        console.error("EXPORT SELECTED EXCEL ERROR:", err);
-
-        if (axios.isAxiosError(err)) {
-            if (err.code === "ECONNABORTED") {
-                showToast(
-                    "Xuất Excel quá 3 phút. Vui lòng thử lại hoặc giảm phạm vi dữ liệu."
-                );
-                return;
-            }
-
-            if (err.response?.status === 401) {
-                showToast(
-                    "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại rồi xuất Excel."
-                );
-                return;
-            }
-
-            if (err.response?.status === 403) {
-                showToast("Tài khoản không có quyền xuất Excel.");
-                return;
-            }
-
-            const serverMessage = await getAxiosErrorMessage(err);
-            showToast(
-                serverMessage ||
-                err.message ||
-                "Không thể xử lý file Excel"
-            );
+    const handleViewSelectedDetails = () => {
+        if (!selectedIds.length) {
+            showToast("Vui lòng chọn ít nhất một báo cáo");
             return;
         }
+        sessionStorage.setItem("selectedApprovedReportIds", JSON.stringify(selectedIds));
+        const role = getStoredUser()?.role;
+        const basePath = role === "lead" ? "/lead" : role === "admin" ? "/admin" : "/manager";
+        navigate(`${basePath}/reports/review?source=approved`);
+    };
 
-        showToast(
-            err instanceof Error
-                ? err.message
-                : "Không thể xử lý file Excel"
-        );
-    } finally {
-        setExporting(false);
-    }
-};
+    const handleExportExcel = async () => {
+        if (exporting || !excelMonth) return;
+        try {
+            setExporting(true);
+            const result = await exportSelectedApprovedExcel(`${excelMonth}-01`);
+            if (result?.success) {
+                showToast(result.message || `Đã cập nhật Excel toàn bộ báo cáo đã duyệt tháng ${excelMonth}.`);
+            }
+        } catch (err: unknown) {
+            console.error("EXPORT APPROVED EXCEL ERROR:", err);
+            if (axios.isAxiosError(err)) {
+                if (err.response?.status === 401) {
+                    showToast("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+                    return;
+                }
+                if (err.response?.status === 403) {
+                    showToast("Tài khoản không có quyền cập nhật Excel.");
+                    return;
+                }
+                showToast((await getAxiosErrorMessage(err)) || err.message || "Không thể cập nhật Excel");
+                return;
+            }
+            showToast(err instanceof Error ? err.message : "Không thể cập nhật Excel");
+        } finally {
+            setExporting(false);
+        }
+    };
 
     const clearFilters = () => {
+        setDateMode("today");
+        setSelectedMonth("");
+        setDateFrom(getToday());
+        setDateTo(getToday());
         setSearchKeyword("");
         setSelectedShift("");
         setSelectedProcess("");
@@ -442,7 +330,7 @@ const handleExportExcel = async () => {
             <div className="management-report-header">
                 <div>
                     <h1>Báo cáo đã duyệt</h1>
-                    <p>Xem danh sách báo cáo của toàn bộ công nhân.</p>
+                    <p>Lọc theo ngày, tháng hoặc khoảng thời gian. Phạm vi hiển thị không ảnh hưởng dữ liệu Excel tháng.</p>
                 </div>
                 <div className="management-report-count">
                     <strong>{filteredReports.length}</strong>
@@ -460,37 +348,73 @@ const handleExportExcel = async () => {
                     />
                 </div>
 
-                <label className="management-filter-field management-date-filter">
-                    <span>Ngày báo cáo</span>
+                <div className="management-date-presets management-date-presets-full">
+                    {[
+                        ["today", "Hôm nay"],
+                        ["yesterday", "Hôm qua"],
+                        ["week", "Tuần này"],
+                        ["currentMonth", "Tháng này"],
+                        ["all", "Tất cả ngày"]
+                    ].map(([mode, label]) => (
+                        <button
+                            key={mode}
+                            type="button"
+                            className={dateMode === mode ? "active" : ""}
+                            onClick={() => selectQuickDate(mode as DateFilterMode)}
+                        >
+                            {label}
+                        </button>
+                    ))}
+                </div>
+
+                <label className="management-filter-field">
+                    <span>Chọn tháng hiển thị</span>
                     <input
-                        type="date"
-                        value={date}
-                        disabled={showAllDates}
+                        type="month"
+                        value={selectedMonth}
                         onChange={event => {
-                            setDate(event.target.value);
-                            setShowAllDates(false);
+                            setSelectedMonth(event.target.value);
+                            setDateMode("month");
+                            setDateFrom("");
+                            setDateTo("");
                         }}
                     />
                 </label>
 
-                <div className="management-filter-field management-scope-filter">
-                    <span>Phạm vi dữ liệu</span>
-                    <button
-                        type="button"
-                        className={showAllDates ? "management-all-dates-button active" : "management-all-dates-button"}
-                        onClick={() => setShowAllDates(current => !current)}
-                    >
-                        {showAllDates ? "Đang xem tất cả ngày" : "Chỉ xem ngày đã chọn"}
-                    </button>
-                </div>
+                <label className="management-filter-field">
+                    <span>Từ ngày</span>
+                    <input
+                        type="date"
+                        value={dateFrom}
+                        onChange={event => {
+                            setDateFrom(event.target.value);
+                            setSelectedMonth("");
+                            setDateMode("range");
+                        }}
+                    />
+                </label>
+
+                <label className="management-filter-field">
+                    <span>Đến ngày</span>
+                    <input
+                        type="date"
+                        min={dateFrom || undefined}
+                        value={dateTo}
+                        onChange={event => {
+                            setDateTo(event.target.value);
+                            setSelectedMonth("");
+                            setDateMode("range");
+                        }}
+                    />
+                </label>
 
                 <label className="management-filter-field">
                     <span>Ca</span>
                     <select value={selectedShift} onChange={event => setSelectedShift(event.target.value)}>
                         <option value="">Tất cả ca</option>
-                        <option value="Ca 1">Ca 1</option>
-                        <option value="Ca 2">Ca 2</option>
-                        <option value="Ca 3">Ca 3</option>
+                        <option value="A">Ca A</option>
+                        <option value="B">Ca B</option>
+                        <option value="C">Ca C</option>
                     </select>
                 </label>
 
@@ -502,72 +426,53 @@ const handleExportExcel = async () => {
                     </select>
                 </label>
 
-                <label className="management-filter-field management-month-filter">
-                    <span>Tháng cập nhật Excel</span>
-                    <input
-                        type="month"
-                        value={excelMonth}
-                        onChange={event => setExcelMonth(event.target.value)}
-                    />
-                </label>
+                <div className="management-excel-month-panel">
+                    <label className="management-filter-field management-month-filter">
+                        <span>Tháng cập nhật Excel</span>
+                        <input type="month" value={excelMonth} onChange={event => setExcelMonth(event.target.value)} />
+                    </label>
+                    <small>
+                        Excel luôn lấy toàn bộ báo cáo <strong>đã duyệt</strong> trong tháng này, không phụ thuộc phạm vi dữ liệu đang hiển thị.
+                    </small>
+                </div>
 
                 <div className="management-filter-actions">
-                    <button
-                        type="button"
-                        className="management-clear-button management-action-clear"
-                        onClick={clearFilters}
-                        disabled={!searchKeyword && !selectedShift && !selectedProcess}
-                    >
-                        Xóa lọc
-                    </button>
+                    <button type="button" className="management-clear-button" onClick={clearFilters}>Đặt lại bộ lọc</button>
                     <button
                         type="button"
                         className="management-view-selected-button"
                         onClick={handleViewSelectedDetails}
-                        disabled={
-                            selectedIds.length === 0 ||
-                            loading ||
-                            exporting
-                        }
+                        disabled={!selectedIds.length || loading || exporting}
                     >
                         Xem chi tiết ({selectedIds.length})
                     </button>
-                    {canExport && <button
-                        type="button"
-                        className="management-export-button"
-                        onClick={handleExportExcel}
-                        disabled={loading || exporting || !excelMonth}
-                    >
-                        {exporting
-                            ? "Đang cập nhật file tháng..."
-                            : window.ktcDesktop?.isDesktop
-                              ? "Cập nhật Excel tháng"
-                              : "Tải Excel theo tháng"}
-                    </button>}
+                    {canExport && (
+                        <button
+                            type="button"
+                            className="management-export-button"
+                            onClick={() => void handleExportExcel()}
+                            disabled={loading || exporting || !excelMonth}
+                        >
+                            {exporting ? "Đang cập nhật Excel..." : `Cập nhật Excel ${excelMonth || "theo tháng"}`}
+                        </button>
+                    )}
                 </div>
             </div>
-{selectedIds.length > 0 && (
-    <div className="management-selected-info">
-        Đã chọn{" "}
 
-        <strong>
-            {selectedIds.length}
-        </strong>
+            {selectedIds.length > 0 && (
+                <div className="management-selected-info">
+                    Đã chọn <strong>{selectedIds.length}</strong> báo cáo.
+                    <button type="button" onClick={() => setSelectedIds([])} disabled={exporting}>Bỏ chọn tất cả</button>
+                </div>
+            )}
 
-        {" "}báo cáo.
-
-        <button
-            type="button"
-            onClick={() =>
-                setSelectedIds([])
-            }
-            disabled={exporting}
-        >
-            Bỏ chọn tất cả
-        </button>
-    </div>
-)}
-            {error && <div className="management-error">{error}</div>}
+            {error && (
+                <div className="management-error" role="alert">
+                    <strong>Không thể tải đầy đủ dữ liệu.</strong>
+                    <span>{error}</span>
+                    <button type="button" onClick={() => void loadReports()}>Thử lại</button>
+                </div>
+            )}
 
             <div className="management-report-card">
                 {loading ? (
@@ -579,162 +484,58 @@ const handleExportExcel = async () => {
                         <table className="management-report-table">
                             <thead>
                                 <tr>
-    <th className="management-checkbox-column">
-        <input
-            type="checkbox"
-            checked={
-                isAllCurrentPageSelected
-            }
-            ref={input => {
-                if (input) {
-                    input.indeterminate =
-                        isSomeCurrentPageSelected;
-                }
-            }}
-            onChange={
-                toggleSelectCurrentPage
-            }
-            disabled={
-                loading ||
-                exporting ||
-                currentPageIds.length === 0
-            }
-            aria-label="Chọn tất cả báo cáo trang hiện tại"
-            title="Chọn tất cả báo cáo trang hiện tại"
-        />
-    </th>
-
-    <th>STT</th>
-    <th>Mã NV</th>
-    <th>Họ tên</th>
-    <th>Công đoạn</th>
-    <th>Ca</th>
-    <th>Mã máy</th>
-    <th>Mã sản phẩm</th>
-</tr>
+                                    <th className="management-checkbox-column">
+                                        <input
+                                            type="checkbox"
+                                            checked={isAllCurrentPageSelected}
+                                            ref={input => { if (input) input.indeterminate = isSomeCurrentPageSelected; }}
+                                            onChange={toggleSelectCurrentPage}
+                                            disabled={!currentPageIds.length || loading || exporting}
+                                            aria-label="Chọn tất cả báo cáo trang hiện tại"
+                                        />
+                                    </th>
+                                    <th>STT</th>
+                                    <th>Mã NV</th>
+                                    <th>Họ tên</th>
+                                    <th>Công đoạn</th>
+                                    <th>Ca</th>
+                                    <th>Mã máy</th>
+                                    <th>Mã sản phẩm</th>
+                                    <th>Ngày</th>
+                                </tr>
                             </thead>
                             <tbody>
-    {paginatedReports.map(
-        (
-            report,
-            index
-        ) => {
-            const reportId =
-                Number(report.id);
-
-            const validReportId =
-                Number.isInteger(reportId) &&
-                reportId > 0;
-
-            const isSelected =
-                validReportId &&
-                selectedIdSet.has(
-                    reportId
-                );
-
-            const isDuplicate =
-                (
-                    duplicateCounts.get(
-                        duplicateKey(report)
-                    ) ?? 0
-                ) > 1;
-
-            const rowClassNames = [
-                isDuplicate
-                    ? "duplicate-report-row"
-                    : "",
-                isSelected
-                    ? "selected-report-row"
-                    : ""
-            ]
-                .filter(Boolean)
-                .join(" ");
-
-            return (
-                <tr
-                    key={
-                        report.id ??
-                        `${report.worker_code}-${index}`
-                    }
-                    className={
-                        rowClassNames
-                    }
-                >
-                    <td className="management-checkbox-column">
-                        <input
-                            type="checkbox"
-                            checked={
-                                isSelected
-                            }
-                            disabled={
-                                !validReportId ||
-                                exporting
-                            }
-                            onChange={() =>
-                                toggleSelectReport(
-                                    reportId
-                                )
-                            }
-                            aria-label={
-                                `Chọn báo cáo của ${
-                                    report.worker_code ||
-                                    reportId
-                                }`
-                            }
-                        />
-                    </td>
-
-                    <td>
-                        {
-                            (
-                                currentPage -
-                                1
-                            ) *
-                                ITEMS_PER_PAGE +
-                            index +
-                            1
-                        }
-                    </td>
-
-                    <td>
-                        <strong>
-                            {report.worker_code ||
-                                "---"}
-                        </strong>
-                    </td>
-
-                    <td>
-                        {report.full_name ||
-                            "---"}
-                    </td>
-
-
-                    <td>
-                        {report.process_name ||
-                            "---"}
-                    </td>
-
-                    <td>
-                        {report.shift ||
-                            "---"}
-                    </td>
-
-                    <td>
-                        {report.machine_no ||
-                            "---"}
-                    </td>
-
-                    <td>
-                        {report.product_name ||
-                            "---"}
-                    </td>
-
-
-                </tr>
-            );
-        }
-    )}
-</tbody>
+                                {paginatedReports.map((report, index) => {
+                                    const reportId = Number(report.id);
+                                    const validReportId = Number.isInteger(reportId) && reportId > 0;
+                                    const selected = validReportId && selectedIdSet.has(reportId);
+                                    const duplicate = (duplicateCounts.get(duplicateKey(report)) ?? 0) > 1;
+                                    return (
+                                        <tr
+                                            key={report.id ?? `${report.worker_code}-${index}`}
+                                            className={[duplicate ? "duplicate-report-row" : "", selected ? "selected-report-row" : ""].filter(Boolean).join(" ")}
+                                        >
+                                            <td className="management-checkbox-column">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selected}
+                                                    disabled={!validReportId || exporting}
+                                                    onChange={() => toggleSelectReport(reportId)}
+                                                    aria-label={`Chọn báo cáo ${report.worker_code || reportId}`}
+                                                />
+                                            </td>
+                                            <td>{(currentPage - 1) * ITEMS_PER_PAGE + index + 1}</td>
+                                            <td><strong>{report.worker_code || "---"}</strong></td>
+                                            <td>{report.full_name || "---"}</td>
+                                            <td>{report.process_name || "---"}</td>
+                                            <td>{report.shift || "---"}</td>
+                                            <td>{report.machine_no || "---"}</td>
+                                            <td>{report.product_name || "---"}</td>
+                                            <td>{String(report.work_date || "").slice(0, 10) || "---"}</td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
                         </table>
                     </div>
                 )}
@@ -749,13 +550,8 @@ const handleExportExcel = async () => {
             )}
 
             <div className="duplicate-note">
-    <span />
-
-    Hàng màu đỏ: có từ hai báo cáo trùng đồng thời ngày,
-    mã nhân viên, mã máy và mã sản phẩm.
-</div>
+                <span /> Hàng màu đỏ: có từ hai báo cáo trùng đồng thời ngày, mã nhân viên, mã máy và mã sản phẩm.
+            </div>
         </div>
     );
 }
-
-export default ApprovedReports;

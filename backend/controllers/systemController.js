@@ -1,5 +1,7 @@
 const db = require('../config/db');
 const { publicMessage } = require('../utils/httpError');
+const AuditService = require('../services/auditService');
+const { loadApprovedSnapshot } = require('../services/approvedReportEditService');
 
 const workerNotificationBackfills = new Map();
 
@@ -141,7 +143,8 @@ exports.markAllNotificationsRead = async (req,res) => {
 };
 exports.getActivities = async (req,res) => {
  try {
-  const limit=Math.min(Math.max(Number(req.query.limit)||50,1),200);
+  await AuditService.ensureSchema();
+  const limit=Math.min(Math.max(Number(req.query.limit)||80,1),300);
   const params=[]; let where='1=1';
   if(req.user.role==='worker'){
    where+=' AND a.user_id=?'; params.push(req.user.id);
@@ -159,12 +162,36 @@ exports.getActivities = async (req,res) => {
    ))`;
    params.push(req.user.id,req.user.id,req.user.id);
   }
-  const [rows]=await db.promise().query(`SELECT a.*,u.full_name,u.username FROM activity_logs a LEFT JOIN users u ON u.id=a.user_id WHERE ${where} ORDER BY a.created_at DESC LIMIT ?`,[...params,limit]);
+
+  const action=String(req.query.action||'').trim().slice(0,80);
+  const entityType=String(req.query.entity_type||'').trim().slice(0,80);
+  const from=String(req.query.from||'').slice(0,10);
+  const to=String(req.query.to||'').slice(0,10);
+  const search=String(req.query.search||'').trim().slice(0,120);
+  if(action){where+=' AND a.action=?';params.push(action);}
+  if(entityType){where+=' AND a.entity_type=?';params.push(entityType);}
+  if(/^\d{4}-\d{2}-\d{2}$/.test(from)){where+=' AND a.created_at>=?';params.push(`${from} 00:00:00`);}
+  if(/^\d{4}-\d{2}-\d{2}$/.test(to)){where+=' AND a.created_at<?';params.push(`${to} 23:59:59.999999`);}
+  if(search){
+   where+=` AND (a.description LIKE ? OR a.action LIKE ? OR a.entity_type LIKE ? OR a.entity_id LIKE ? OR u.full_name LIKE ? OR u.username LIKE ?)`;
+   const like=`%${search}%`;params.push(like,like,like,like,like,like);
+  }
+
+  const [rows]=await db.promise().query(
+   `SELECT a.*,u.full_name,u.username,u.role
+    FROM activity_logs a
+    LEFT JOIN users u ON u.id=a.user_id
+    WHERE ${where}
+    ORDER BY a.created_at DESC,a.id DESC
+    LIMIT ?`,
+   [...params,limit]
+  );
   res.json({success:true,data:rows});
  } catch(e){ console.error('GET ACTIVITIES ERROR:', e); res.status(500).json({success:false,message:publicMessage(e,'Không thể tải lịch sử hoạt động')});}
 };
 exports.getReportVersions = async (req,res) => {
  try {
+  await AuditService.ensureSchema();
   const reportId=Number(req.params.id); const type=req.query.type==='temp'?'temp':'approved';
   const table=type==='temp'?'production_reports_temp':'production_reports';
   const [access]=await db.promise().query(
@@ -172,7 +199,49 @@ exports.getReportVersions = async (req,res) => {
    [reportId,req.user.role,req.user.role,req.user.worker_id||0,req.user.role,req.user.id]
   );
   if(!access.length) return res.status(404).json({success:false,message:'Không tìm thấy báo cáo hoặc bạn không có quyền truy cập'});
-  const [rows]=await db.promise().query(`SELECT rv.id,rv.version_no,rv.change_reason,rv.created_at,rv.snapshot_json,u.full_name created_by_name FROM report_versions rv LEFT JOIN users u ON u.id=rv.created_by WHERE rv.report_type=? AND rv.report_id=? ORDER BY rv.version_no DESC`,[type,reportId]);
+  let [rows]=await db.promise().query(`SELECT rv.id,rv.version_no,rv.change_reason,rv.created_at,rv.snapshot_json,u.full_name created_by_name FROM report_versions rv LEFT JOIN users u ON u.id=rv.created_by WHERE rv.report_type=? AND rv.report_id=? ORDER BY rv.version_no DESC`,[type,reportId]);
+  // Báo cáo đã tồn tại trước khi bật versioning vẫn phải demo/xem lịch sử được.
+  // Lần mở đầu tiên tạo một baseline trung tính, không gán cho người đang xem.
+  if(type==='approved' && rows.length===0){
+   const snapshot=await loadApprovedSnapshot(reportId);
+   if(snapshot){
+    await AuditService.createReportVersion({
+     reportType:'approved',reportId,snapshot,
+     reason:'Phiên bản cơ sở khi bật lịch sử báo cáo',userId:null
+    });
+    [rows]=await db.promise().query(`SELECT rv.id,rv.version_no,rv.change_reason,rv.created_at,rv.snapshot_json,u.full_name created_by_name FROM report_versions rv LEFT JOIN users u ON u.id=rv.created_by WHERE rv.report_type=? AND rv.report_id=? ORDER BY rv.version_no DESC`,[type,reportId]);
+   }
+  }
   res.json({success:true,data:rows});
  } catch(e){ console.error('GET REPORT VERSIONS ERROR:',e); res.status(500).json({success:false,message:publicMessage(e,'Không thể tải phiên bản báo cáo')});}
+};
+
+exports.getDeletedReports = async (req,res) => {
+ try {
+  const params=[];
+  let scope='1=1';
+  if(req.user.role==='manager' || req.user.role==='lead'){
+   scope=`EXISTS (
+     SELECT 1 FROM manager_processes mp
+     WHERE mp.manager_id=? AND mp.process_id=pr.process_id
+   )`;
+   params.push(req.user.id);
+  }
+  const [rows]=await db.promise().query(
+   `SELECT pr.id,pr.work_date,pr.shift,pr.machine_no,pr.product_name,pr.review_note,pr.updated_at,
+           w.worker_code,u.full_name,p.process_code,p.process_name
+    FROM production_reports pr
+    JOIN workers w ON w.id=pr.worker_id
+    JOIN users u ON u.id=w.user_id
+    LEFT JOIN processes p ON p.id=pr.process_id
+    WHERE pr.status='deleted' AND ${scope}
+    ORDER BY pr.updated_at DESC,pr.id DESC
+    LIMIT 300`,
+   params
+  );
+  res.json({success:true,data:rows});
+ } catch(e){
+  console.error('GET DELETED REPORTS ERROR:',e);
+  res.status(500).json({success:false,message:publicMessage(e,'Không thể tải dữ liệu đã xóa')});
+ }
 };

@@ -21,6 +21,7 @@ router.patch(
   c.markNotificationRead
 );
 router.get('/activities', auth, role('admin','manager','lead'), permission('AUDIT_VIEW'), c.getActivities);
+router.get('/deleted-reports', auth, role('admin','manager','lead'), permission('AUDIT_VIEW'), c.getDeletedReports);
 router.get(
   '/reports/:id/versions',
   auth,

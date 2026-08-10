@@ -676,10 +676,16 @@ function sortReports(reports) {
   );
 }
 
-function lastValidOutput(reports, settings = {}) {
+function settingsForReport(report, fallback = {}, settingsByDate = {}) {
+  const key = dateKey(report?.work_date);
+  return (key && settingsByDate && settingsByDate[key]) || fallback || {};
+}
+
+function lastValidOutput(reports, settings = {}, settingsByDate = {}) {
   const sorted = sortReports(reports);
   for (let index = sorted.length - 1; index >= 0; index -= 1) {
-    const output = reportSnapshot(sorted[index], settings).output;
+    const itemSettings = settingsForReport(sorted[index], settings, settingsByDate);
+    const output = reportSnapshot(sorted[index], itemSettings).output;
     if (output !== null && output !== undefined && Number.isFinite(Number(output))) {
       return Number(output);
     }
@@ -704,7 +710,7 @@ function renderProcessSheet(workbook, code, processConfig, processData, yearMont
   const settings = formulaSettings || {};
   // Nghiệp vụ KTC: "Tổng SP" là kết quả SP quy đổi cuối cùng hợp lệ,
   // không phải tổng cộng dồn các kết quả trung gian trong tháng.
-  const finalOutput = lastValidOutput(reports, settings);
+  const finalOutput = lastValidOutput(reports, settings, processData?.formulaSettingsByDate || {});
   const sheet = workbook.addWorksheet(processConfig.sheet, {
     views: [{
       state: 'frozen',
@@ -821,7 +827,8 @@ function renderProcessSheet(workbook, code, processConfig, processData, yearMont
 
     sequenceInDate += 1;
     const rowNumber = currentRowNumber;
-    const values = rowValues(code, report, deductionTypes, defectTypes, settings);
+    const reportSettings = settingsForReport(report, settings, processData?.formulaSettingsByDate || {});
+    const values = rowValues(code, report, deductionTypes, defectTypes, reportSettings);
     values.stt = sequenceInDate;
 
     columns.forEach((column, columnIndex) => {
@@ -862,7 +869,7 @@ function renderProcessSheet(workbook, code, processConfig, processData, yearMont
       if (editableCell) cell.protection = { locked: false, hidden: false };
 
       if (column.key === 'achievement') {
-        const achievementFill = achievementColor(value, settings);
+        const achievementFill = achievementColor(value, reportSettings);
         if (achievementFill) cell.fill = solidFill(achievementFill);
         cell.font = { ...cell.font, color: { argb: COLORS.black }, bold: true };
       } else if (column.key === 'status' && asText(value).toLowerCase() === 'approved') {
@@ -926,11 +933,13 @@ function addSummary(workbook, payload, yearMonth) {
   });
   let rowNumber = 5;
   for (const [code, config] of Object.entries(PROCESS_SHEETS)) {
-    const reports = sortReports(payload.processes?.[code]?.reports);
+    const processData = payload.processes?.[code] || {};
+    const reports = sortReports(processData.reports);
     const employees = new Set(reports.map((item) => asText(item.worker_code)).filter(Boolean));
     const settings = formulaSettingsFor(payload, code);
     const totals = reports.reduce((sum, report) => {
-      const item = reportSnapshot(report, settings);
+      const itemSettings = settingsForReport(report, settings, processData.formulaSettingsByDate || {});
+      const item = reportSnapshot(report, itemSettings);
       sum.working += item.workingTime || 0;
       sum.actual += item.actualTime || 0;
       sum.deduction += item.deductionTime || 0;
@@ -938,7 +947,7 @@ function addSummary(workbook, payload, yearMonth) {
       sum.ng += item.ng || 0;
       return sum;
     }, { working: 0, actual: 0, deduction: 0, ok: 0, ng: 0 });
-    const finalOutput = lastValidOutput(reports, settings);
+    const finalOutput = lastValidOutput(reports, settings, processData.formulaSettingsByDate || {});
     const values = [config.title, reports.length, employees.size, totals.working, totals.actual, totals.deduction, totals.ok, totals.ng, finalOutput, totals.ok + totals.ng > 0 ? totals.ng / (totals.ok + totals.ng) : null];
     values.forEach((value, index) => {
       const cell = sheet.getCell(rowNumber, index + 1);
@@ -968,8 +977,11 @@ function addReconciliationSheet(workbook, payload) {
   applyCellStyle(sheet.getCell(1, 1), { fill: COLORS.navy, fontColor: COLORS.white, bold: true, size: 16, border: false });
   let rowNumber = 4;
   for (const [code, config] of Object.entries(PROCESS_SHEETS)) {
-    for (const report of sortReports(payload.processes?.[code]?.reports)) {
-      const item = reportSnapshot(report, formulaSettingsFor(payload, code));
+    const processData = payload.processes?.[code] || {};
+    const baseSettings = formulaSettingsFor(payload, code);
+    for (const report of sortReports(processData.reports)) {
+      const itemSettings = settingsForReport(report, baseSettings, processData.formulaSettingsByDate || {});
+      const item = reportSnapshot(report, itemSettings);
       const detailDeduction = (report.deductions || []).reduce((sum, value) => sum + (detailValue(value, 'deduction') || 0), 0);
       const detailNg = (report.defects || []).reduce((sum, value) => sum + (detailValue(value, 'defect') || 0), 0);
       const deductionDiff = (item.deductionTime || 0) - detailDeduction;
@@ -1149,8 +1161,11 @@ async function buildReconciliationWorkbook({ date, payload }) {
   });
   let count = 0;
   for (const [code, config] of Object.entries(PROCESS_SHEETS)) {
-    for (const report of sortReports(payload.processes?.[code]?.reports)) {
-      const value = reportSnapshot(report, formulaSettingsFor(payload, code));
+    const processData = payload.processes?.[code] || {};
+    const baseSettings = formulaSettingsFor(payload, code);
+    for (const report of sortReports(processData.reports)) {
+      const itemSettings = settingsForReport(report, baseSettings, processData.formulaSettingsByDate || {});
+      const value = reportSnapshot(report, itemSettings);
       const row = sheet.addRow([config.title,value.id,value.date,value.entryDate,value.workerCode,value.workerName,value.shift,value.machine,value.product,value.training,value.standard,value.workingTime,value.actualTime,value.deductionTime,value.ok,value.ng,value.enteredOutput,value.output,JSON.stringify(report.deductions || []),JSON.stringify(report.defects || []),JSON.stringify(report.machineLines || []),report.status,value.note]);
       row.getCell(2).numFmt = NUMBER_FORMATS.INTEGER;
       row.getCell(3).numFmt = NUMBER_FORMATS.DATE;

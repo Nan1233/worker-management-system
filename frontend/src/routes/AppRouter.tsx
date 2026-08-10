@@ -55,7 +55,7 @@ export default function AppRouter(){
    <Route index element={<P code="DASHBOARD_VIEW"><ManagementDashboard/></P>}/>
    <Route path="reports" element={<P code="REPORT_PENDING_VIEW"><PendingReports/></P>}/>
    <Route path="approved" element={<P code="REPORT_APPROVED_VIEW"><ApprovedReports/></P>}/>
-   <Route path="export" element={<P code="REPORT_EXPORT"><ReportDownload/></P>}/>
+   <Route path="export" element={<Navigate to="/manager/approved" replace/>}/>
    <Route path="workers" element={<P code="USER_VIEW"><Workers/></P>}/>
    <Route path="master" element={<Navigate to="processes" replace/>}/>
    <Route path="master/:resource" element={<P code="MASTER_VIEW"><MasterData/></P>}/>
@@ -69,7 +69,7 @@ export default function AppRouter(){
    <Route index element={<P code="DASHBOARD_VIEW"><ManagementDashboard/></P>}/>
    <Route path="reports" element={<P code="REPORT_PENDING_VIEW"><PendingReports/></P>}/>
    <Route path="approved" element={<P code="REPORT_APPROVED_VIEW"><ApprovedReports/></P>}/>
-   <Route path="export" element={<P code="REPORT_EXPORT"><ReportDownload/></P>}/>
+   <Route path="export" element={<Navigate to="/lead/approved" replace/>}/>
    <Route path="workers" element={<P code="USER_VIEW"><Workers/></P>}/>
    <Route path="statistics" element={<P code="STATISTICS_VIEW"><Statistics/></P>}/>
    <Route path="system" element={<P code="NOTIFICATION_VIEW"><SystemCenter/></P>}/>

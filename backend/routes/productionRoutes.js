@@ -15,7 +15,9 @@ const {
 
     updateReport,
 
-    deleteReport
+    deleteReport,
+
+    restoreReportVersion
 
 
 } = require("../controllers/productionController");
@@ -136,6 +138,18 @@ router.get(
 
 
 
+
+
+// =====================================
+// KHÔI PHỤC PHIÊN BẢN BÁO CÁO ĐÃ DUYỆT
+// =====================================
+router.post(
+    "/:id/versions/:versionNo/restore",
+    verifyToken,
+    checkRole("admin", "manager"),
+    permission("REPORT_APPROVED_EDIT"),
+    restoreReportVersion
+);
 
 
 // =====================================

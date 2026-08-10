@@ -1,7 +1,9 @@
 const db = require('../config/db');
+const { ensureSchema } = require('../services/governanceSchemaService');
 
 exports.summary = async (req, res, next) => {
   try {
+    await ensureSchema();
     const [[locks], [plans], [issues], [standards], [snapshots]] = await Promise.all([
       db.promise().query(`SELECT COUNT(*) total FROM reporting_period_locks WHERE status='locked'`),
       db.promise().query(`SELECT COUNT(*) total FROM production_plans WHERE plan_date >= DATE_FORMAT(CURRENT_DATE, '%Y-%m-01')`),
@@ -18,6 +20,7 @@ exports.summary = async (req, res, next) => {
 };
 
 exports.listLocks = async (req,res,next) => { try {
+  await ensureSchema();
   const [rows]=await db.promise().query(`SELECT l.*, p.process_name, u.full_name locked_by_name
     FROM reporting_period_locks l LEFT JOIN processes p ON p.id=l.process_id
     LEFT JOIN users u ON u.id=l.locked_by ORDER BY report_year DESC, report_month DESC, process_id`);
@@ -25,6 +28,7 @@ exports.listLocks = async (req,res,next) => { try {
 } catch(e){next(e);} };
 
 exports.lockPeriod = async (req,res,next) => { try {
+  await ensureSchema();
   const year=Number(req.body.year), month=Number(req.body.month), processId=req.body.process_id?Number(req.body.process_id):null;
   if(!Number.isInteger(year)||year<2020||!Number.isInteger(month)||month<1||month>12) return res.status(400).json({success:false,message:'Kỳ báo cáo không hợp lệ'});
   await db.promise().query(`INSERT INTO reporting_period_locks(report_year,report_month,process_id,status,reason,locked_by)
@@ -34,11 +38,13 @@ exports.lockPeriod = async (req,res,next) => { try {
 } catch(e){next(e);} };
 
 exports.unlockPeriod = async (req,res,next) => { try {
+  await ensureSchema();
   await db.promise().query(`UPDATE reporting_period_locks SET status='unlocked',unlocked_by=?,unlocked_at=CURRENT_TIMESTAMP WHERE id=?`,[req.user.id,Number(req.params.id)]);
   res.json({success:true,message:'Đã mở khóa kỳ báo cáo'});
 } catch(e){next(e);} };
 
 exports.listPlans = async (req,res,next) => { try {
+  await ensureSchema();
   const from=String(req.query.from||'').slice(0,10), to=String(req.query.to||'').slice(0,10);
   const params=[]; let where='1=1';
   if(from){where+=' AND pp.plan_date>=?';params.push(from)} if(to){where+=' AND pp.plan_date<=?';params.push(to)}
@@ -49,6 +55,7 @@ exports.listPlans = async (req,res,next) => { try {
 } catch(e){next(e);} };
 
 exports.createPlan = async (req,res,next) => { try {
+  await ensureSchema();
   const b=req.body||{};
   if(!b.plan_date||!Number(b.process_id)||!String(b.product_code||'').trim()) return res.status(400).json({success:false,message:'Thiếu ngày, công đoạn hoặc mã sản phẩm'});
   const [r]=await db.promise().query(`INSERT INTO production_plans(plan_date,shift,process_id,machine_id,product_code,planned_quantity,planned_minutes,planned_workers,priority,status,note,created_by)
@@ -57,6 +64,7 @@ exports.createPlan = async (req,res,next) => { try {
 } catch(e){next(e);} };
 
 exports.validationIssues = async (req,res,next) => { try {
+  await ensureSchema();
   const [rows]=await db.promise().query(`SELECT * FROM report_validation_results WHERE resolved=0 ORDER BY FIELD(severity,'error','warning','info'),created_at DESC LIMIT 1000`);
   res.json({success:true,data:rows});
 } catch(e){next(e);} };

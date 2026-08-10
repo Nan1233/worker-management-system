@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "../../services/api";
 import "./Governance.css";
 import { usePermissions } from "../../hooks/usePermissions";
+import { getApiError } from "../../utils/apiError";
 
 type Summary = {
   locked_periods: number;
@@ -65,47 +66,78 @@ export default function Governance() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    try {
-      const [summaryRes, locksRes, plansRes] = await Promise.all([
-        api.get("/governance/summary"),
-        api.get("/governance/period-locks"),
-        api.get("/governance/plans"),
-      ]);
-      setSummary(summaryRes.data.data ?? initialSummary);
-      setLocks(locksRes.data.data ?? []);
-      setPlans(plansRes.data.data ?? []);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Không tải được dữ liệu quản trị");
-    } finally {
-      setLoading(false);
+    setMessage("");
+    const results = await Promise.allSettled([
+      api.get("/governance/summary"),
+      api.get("/governance/period-locks"),
+      api.get("/governance/plans"),
+    ]);
+
+    const [summaryResult, locksResult, plansResult] = results;
+    if (summaryResult.status === "fulfilled") {
+      setSummary(summaryResult.value.data.data ?? initialSummary);
+    } else {
+      setSummary(initialSummary);
     }
+    if (locksResult.status === "fulfilled") {
+      setLocks(locksResult.value.data.data ?? []);
+    } else {
+      setLocks([]);
+    }
+    if (plansResult.status === "fulfilled") {
+      setPlans(plansResult.value.data.data ?? []);
+    } else {
+      setPlans([]);
+    }
+
+    const failed = results.filter(result => result.status === "rejected");
+    if (failed.length > 0) {
+      const first = failed[0] as PromiseRejectedResult;
+      setMessage(
+        `Một số dữ liệu quản trị chưa tải được (${failed.length}/3). ` +
+        getApiError(first.reason, "Hệ thống vẫn hiển thị các phần còn sử dụng được.").message
+      );
+    }
+    setLoading(false);
   }, []);
 
   useEffect(() => { void load(); }, [load]);
 
   async function lockPeriod(event: React.FormEvent) {
     event.preventDefault();
-    await api.post("/governance/period-locks", lockForm);
-    setMessage("Đã khóa kỳ báo cáo.");
-    await load();
+    try {
+      await api.post("/governance/period-locks", lockForm);
+      setMessage("Đã khóa kỳ báo cáo.");
+      await load();
+    } catch (error) {
+      setMessage(getApiError(error, "Không thể khóa kỳ báo cáo").message);
+    }
   }
 
   async function unlockPeriod(id: number) {
-    await api.patch(`/governance/period-locks/${id}/unlock`);
-    setMessage("Đã mở khóa kỳ báo cáo.");
-    await load();
+    try {
+      await api.patch(`/governance/period-locks/${id}/unlock`);
+      setMessage("Đã mở khóa kỳ báo cáo.");
+      await load();
+    } catch (error) {
+      setMessage(getApiError(error, "Không thể mở khóa kỳ báo cáo").message);
+    }
   }
 
   async function createPlan(event: React.FormEvent) {
     event.preventDefault();
-    await api.post("/governance/plans", {
-      ...planForm,
-      process_id: Number(planForm.process_id),
-      planned_quantity: Number(planForm.planned_quantity || 0),
-    });
-    setMessage("Đã tạo kế hoạch sản xuất.");
-    setPlanForm((current) => ({ ...current, product_code: "", planned_quantity: "" }));
-    await load();
+    try {
+      await api.post("/governance/plans", {
+        ...planForm,
+        process_id: Number(planForm.process_id),
+        planned_quantity: Number(planForm.planned_quantity || 0),
+      });
+      setMessage("Đã tạo kế hoạch sản xuất.");
+      setPlanForm((current) => ({ ...current, product_code: "", planned_quantity: "" }));
+      await load();
+    } catch (error) {
+      setMessage(getApiError(error, "Không thể tạo kế hoạch sản xuất").message);
+    }
   }
 
   return (

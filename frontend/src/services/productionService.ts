@@ -237,19 +237,41 @@ export const getPendingReports = async (
 // MANAGER XEM ĐÃ DUYỆT
 // =====================================================
 
-export const getApprovedReports = async()=>{
+export interface ApprovedReportFilters {
+    dateFrom?: string;
+    dateTo?: string;
+    shift?: string;
+    processId?: number | string;
+    search?: string;
+}
 
+export const getApprovedReports = async(
+    filters: ApprovedReportFilters = {}
+): Promise<ProductionReport[]> => {
+    const key = [
+        "manager-approved",
+        filters.dateFrom || "",
+        filters.dateTo || "",
+        filters.shift || "",
+        filters.processId || "",
+        filters.search?.trim() || ""
+    ].join(":");
 
-    const res = await api.get(
-
-        "/production-temp/approved"
-
-    );
-
-
-    return res.data.data || res.data || [];
-
-
+    return getSessionCached(key, 15_000, async () => {
+        const res = await api.get(
+            "/production-temp/approved",
+            {
+                params: {
+                    date_from: filters.dateFrom || undefined,
+                    date_to: filters.dateTo || undefined,
+                    shift: filters.shift || undefined,
+                    process_id: filters.processId || undefined,
+                    search: filters.search?.trim() || undefined
+                }
+            }
+        );
+        return res.data.data || res.data || [];
+    });
 };
 
 
@@ -262,14 +284,8 @@ export const getApprovedReports = async()=>{
 // LẤY BÁO CÁO ĐÃ DUYỆT
 // =====================================================
 
-export const getReports = async():
-
-Promise<ProductionReport[]>=>{
-    return getSessionCached("manager-approved:all", 20_000, async () => {
-        const res = await api.get("/production-temp/approved");
-        return res.data.data || res.data || [];
-    });
-};
+export const getReports = async(): Promise<ProductionReport[]> =>
+    getApprovedReports();
 
 
 
@@ -441,13 +457,7 @@ export const getApprovedReportsByDate = async(
 ):Promise<ProductionReport[]>=>{
 
 
-    return getSessionCached(`manager-approved:${date}`, 20_000, async () => {
-        const res = await api.get(
-            "/production-temp/approved",
-            { params: { date } }
-        );
-        return res.data.data || res.data || [];
-    });
+    return getApprovedReports({ dateFrom: date, dateTo: date });
 
 
 };

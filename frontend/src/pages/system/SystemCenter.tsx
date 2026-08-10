@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
     getActivities,
+    getDeletedReports,
     getNotifications,
     markAllNotificationsRead,
     markNotificationRead,
     type ActivityItem,
+    type DeletedReportItem,
     type NotificationItem
 } from "../../services/systemService";
 import { publishNotificationCount } from "../../hooks/useNotificationBadge";
@@ -13,13 +15,27 @@ import { getStoredUser } from "../../utils/authStorage";
 import { usePermissions } from "../../hooks/usePermissions";
 import "./SystemCenter.css";
 
+const prettyMetadata = (value: unknown): string => {
+    if (!value) return "";
+    let parsed: unknown = value;
+    if (typeof parsed === "string") {
+        try { parsed = JSON.parse(parsed); } catch { return String(value); }
+    }
+    try { return JSON.stringify(parsed, null, 2); } catch { return String(value); }
+};
+
 export default function SystemCenter() {
-    const [tab, setTab] = useState<"notifications" | "activities">("notifications");
+    const [tab, setTab] = useState<"notifications" | "activities" | "deleted">("notifications");
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
     const [activities, setActivities] = useState<ActivityItem[]>([]);
+    const [deletedReports, setDeletedReports] = useState<DeletedReportItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState("");
+    const [activitySearch, setActivitySearch] = useState("");
+    const [activityAction, setActivityAction] = useState("");
+    const [activityFrom, setActivityFrom] = useState("");
+    const [activityTo, setActivityTo] = useState("");
     const navigate = useNavigate();
     const currentUser = getStoredUser();
     const isWorker = currentUser?.role === "worker";
@@ -27,13 +43,18 @@ export default function SystemCenter() {
     const canAudit = !isWorker && can("AUDIT_VIEW");
 
     const load = useCallback(async (silent = false) => {
-        if (silent) setRefreshing(true);
-        else setLoading(true);
+        if (silent) setRefreshing(true); else setLoading(true);
         setError("");
-
-        const [notificationResult, activityResult] = await Promise.allSettled([
+        const [notificationResult, activityResult, deletedResult] = await Promise.allSettled([
             getNotifications(),
-            canAudit ? getActivities() : Promise.resolve([] as ActivityItem[])
+            canAudit ? getActivities({
+                search: activitySearch,
+                action: activityAction,
+                from: activityFrom,
+                to: activityTo,
+                limit: 150
+            }) : Promise.resolve([] as ActivityItem[]),
+            canAudit ? getDeletedReports() : Promise.resolve([] as DeletedReportItem[])
         ]);
 
         if (notificationResult.status === "fulfilled") {
@@ -42,36 +63,33 @@ export default function SystemCenter() {
         } else {
             setError(notificationResult.reason?.response?.data?.message || "Không tải được thông báo");
         }
-
-        if (activityResult.status === "fulfilled") {
-            setActivities(activityResult.value || []);
-        } else {
-            setError((current) => current || activityResult.reason?.response?.data?.message || "Không tải được lịch sử hoạt động");
-        }
-
+        if (activityResult.status === "fulfilled") setActivities(activityResult.value || []);
+        else setError(current => current || activityResult.reason?.response?.data?.message || "Không tải được lịch sử hoạt động");
+        if (deletedResult.status === "fulfilled") setDeletedReports(deletedResult.value || []);
+        else setError(current => current || deletedResult.reason?.response?.data?.message || "Không tải được dữ liệu đã xóa");
         setLoading(false);
         setRefreshing(false);
-    }, [canAudit]);
+    }, [canAudit, activitySearch, activityAction, activityFrom, activityTo]);
 
     useEffect(() => {
         void load(false);
         const timer = window.setInterval(() => void load(true), 30_000);
-        const onVisible = () => {
-            if (document.visibilityState === "visible") void load(true);
-        };
+        const onVisible = () => { if (document.visibilityState === "visible") void load(true); };
         document.addEventListener("visibilitychange", onVisible);
-        return () => {
-            window.clearInterval(timer);
-            document.removeEventListener("visibilitychange", onVisible);
-        };
+        return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
     }, [load]);
+
+    const actionOptions = useMemo(
+        () => Array.from(new Set(activities.map(item => item.action).filter(Boolean))).sort(),
+        [activities]
+    );
 
     const open = async (item: NotificationItem) => {
         if (!item.is_read) {
             await markNotificationRead(item.id);
-            setNotifications((current) => {
-                const next = current.map((value) => value.id === item.id ? { ...value, is_read: 1 } : value);
-                publishNotificationCount(next.filter((value) => !value.is_read).length);
+            setNotifications(current => {
+                const next = current.map(value => value.id === item.id ? { ...value, is_read: 1 } : value);
+                publishNotificationCount(next.filter(value => !value.is_read).length);
                 return next;
             });
         }
@@ -81,7 +99,7 @@ export default function SystemCenter() {
     const markAllRead = async () => {
         await markAllNotificationsRead();
         publishNotificationCount(0);
-        setNotifications((current) => current.map((item) => ({ ...item, is_read: 1 })));
+        setNotifications(current => current.map(item => ({ ...item, is_read: 1 })));
     };
 
     return (
@@ -89,51 +107,68 @@ export default function SystemCenter() {
             <header>
                 <div>
                     <h1>{isWorker ? "Thông báo của tôi" : "Trung tâm hệ thống"}</h1>
-                    <p>{isWorker ? "Theo dõi trạng thái duyệt và phản hồi báo cáo" : "Theo dõi thông báo và lịch sử hoạt động"} {refreshing ? "· đang cập nhật" : ""}</p>
+                    <p>{isWorker ? "Theo dõi trạng thái duyệt và phản hồi báo cáo" : "Theo dõi ai đã thêm, sửa, xóa, cập nhật dữ liệu và thông báo hệ thống"} {refreshing ? "· đang cập nhật" : ""}</p>
                 </div>
                 <button type="button" onClick={() => void markAllRead()}>Đánh dấu đã đọc</button>
             </header>
 
             <div className="system-tabs">
-                <button className={tab === "notifications" ? "active" : ""} onClick={() => setTab("notifications")}>
-                    Thông báo ({notifications.filter((item) => !item.is_read).length})
-                </button>
-                {canAudit && (
-                    <button className={tab === "activities" ? "active" : ""} onClick={() => setTab("activities")}>
-                        Lịch sử hoạt động
-                    </button>
-                )}
+                <button className={tab === "notifications" ? "active" : ""} onClick={() => setTab("notifications")}>Thông báo ({notifications.filter(item => !item.is_read).length})</button>
+                {canAudit && <button className={tab === "activities" ? "active" : ""} onClick={() => setTab("activities")}>Nhật ký thay đổi</button>}
+                {canAudit && <button className={tab === "deleted" ? "active" : ""} onClick={() => setTab("deleted")}>Dữ liệu đã xóa ({deletedReports.length})</button>}
             </div>
+
+            {tab === "activities" && canAudit && (
+                <div className="system-audit-filters">
+                    <input value={activitySearch} onChange={event => setActivitySearch(event.target.value)} placeholder="Tìm người, thao tác, dữ liệu..." />
+                    <select value={activityAction} onChange={event => setActivityAction(event.target.value)}>
+                        <option value="">Tất cả hành động</option>
+                        {actionOptions.map(action => <option key={action} value={action}>{action}</option>)}
+                    </select>
+                    <label><span>Từ ngày</span><input type="date" value={activityFrom} onChange={event => setActivityFrom(event.target.value)} /></label>
+                    <label><span>Đến ngày</span><input type="date" min={activityFrom || undefined} value={activityTo} onChange={event => setActivityTo(event.target.value)} /></label>
+                    <button type="button" onClick={() => void load(false)}>Lọc / tải lại</button>
+                </div>
+            )}
 
             {error && <div className="system-error">{error}<button type="button" onClick={() => void load(false)}>Thử lại</button></div>}
 
-            {loading ? (
-                <div className="system-empty">Đang tải...</div>
-            ) : tab === "notifications" ? (
+            {loading ? <div className="system-empty">Đang tải...</div> : tab === "notifications" ? (
                 <div className="system-list">
-                    {notifications.length ? notifications.map((item) => (
+                    {notifications.length ? notifications.map(item => (
                         <button key={item.id} className={`system-item ${!item.is_read ? "unread" : ""}`} onClick={() => void open(item)}>
-                            <span className="dot" />
-                            <div>
-                                <strong>{item.title}</strong>
-                                <p>{item.message}</p>
-                                <small>{new Date(item.created_at).toLocaleString("vi-VN")}</small>
-                            </div>
+                            <span className="dot" /><div><strong>{item.title}</strong><p>{item.message}</p><small>{new Date(item.created_at).toLocaleString("vi-VN")}</small></div>
                         </button>
                     )) : <div className="system-empty">Chưa có thông báo</div>}
                 </div>
+            ) : tab === "activities" ? (
+                <div className="system-list">
+                    {activities.length ? activities.map(item => {
+                        const metadata = prettyMetadata(item.metadata_json);
+                        return <article key={item.id} className="system-item system-activity-item">
+                            <span className="activity-icon">•</span>
+                            <div className="system-activity-content">
+                                <div className="system-activity-title"><strong>{item.description || item.action}</strong><code>{item.action}</code></div>
+                                <p><b>{item.full_name || item.username || "Hệ thống"}</b>{item.role ? ` · ${item.role}` : ""} · {item.entity_type || "system"} {item.entity_id ? `#${item.entity_id}` : ""}</p>
+                                <small>{new Date(item.created_at).toLocaleString("vi-VN")}{item.ip_address ? ` · IP ${item.ip_address}` : ""}</small>
+                                {metadata && <details><summary>Xem dữ liệu thay đổi</summary><pre>{metadata}</pre></details>}
+                            </div>
+                        </article>;
+                    }) : <div className="system-empty">Chưa có hoạt động</div>}
+                </div>
             ) : (
                 <div className="system-list">
-                    {activities.length ? activities.map((item) => (
-                        <article key={item.id} className="system-item">
-                            <span className="activity-icon">•</span>
-                            <div>
-                                <strong>{item.description || item.action}</strong>
-                                <p>{item.full_name || item.username || "Hệ thống"} · {item.entity_type || "system"} {item.entity_id ? `#${item.entity_id}` : ""}</p>
-                                <small>{new Date(item.created_at).toLocaleString("vi-VN")}</small>
+                    {deletedReports.length ? deletedReports.map(item => (
+                        <article key={item.id} className="system-item system-deleted-item">
+                            <span className="activity-icon">×</span>
+                            <div className="system-activity-content">
+                                <strong>#{item.id} · {item.worker_code || "---"} · {item.full_name || "---"}</strong>
+                                <p>{item.process_name || item.process_code || "---"} · {String(item.work_date || "").slice(0,10)} · {item.product_name || "---"}</p>
+                                <small>{item.review_note || "Đã xóa"}</small>
                             </div>
+                            <button type="button" className="system-open-deleted" onClick={() => navigate(`/${currentUser?.role || "manager"}/report/${item.id}?source=approved`)}>Xem phiên bản / khôi phục</button>
                         </article>
-                    )) : <div className="system-empty">Chưa có hoạt động</div>}
+                    )) : <div className="system-empty">Chưa có báo cáo đã xóa</div>}
                 </div>
             )}
         </section>

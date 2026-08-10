@@ -90,3 +90,26 @@
   .management-date-presets button { flex: 0 0 auto; }
   .management-filter-actions { grid-template-columns: 1fr; }
 }
+
+/* ===== Approved report date scope + Excel month ===== */
+.management-date-presets-full { grid-column: 1 / -1; }
+.management-excel-month-panel {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) minmax(240px, 1fr);
+  gap: 14px;
+  align-items: end;
+  padding: 12px 14px;
+  border: 1px solid var(--ktc-border);
+  border-radius: 12px;
+  background: var(--ktc-surface-subtle);
+}
+.management-excel-month-panel small { color: var(--ktc-ink-600); line-height: 1.55; }
+.management-error { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.management-error span { flex:1 1 280px; }
+.management-error button { min-height:34px; border:1px solid currentColor; border-radius:8px; background:transparent; color:inherit; padding:0 12px; cursor:pointer; }
+@media (max-width: 760px) {
+  .management-excel-month-panel { grid-template-columns: 1fr; }
+  .management-filter-actions > button { flex: 1 1 100%; }
+  .management-report-table { min-width: 860px; }
+}

@@ -142,6 +142,10 @@ app.use("/api", (req, res, next) => {
   next();
 });
 
+// Ghi lại mọi thao tác tạo/sửa/xóa sau khi request hoàn tất thành công.
+// Middleware đặt trước routes để có thể quan sát req.user do auth middleware gắn ở downstream.
+app.use("/api", require("./middleware/activityAuditMiddleware"));
+
 app.get("/api/health", async (req, res) => {
   try {
     await db.promise().query({ sql: "SELECT 1 AS ok", timeout: 3_000 });

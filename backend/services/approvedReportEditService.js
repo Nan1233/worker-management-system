@@ -146,4 +146,168 @@ async function updateApprovedReport({ reportId, patch, reason, userId, req = nul
   }
 }
 
-module.exports = { updateApprovedReport, loadApprovedSnapshot };
+function parseSnapshotJson(value) {
+  if (!value) return null;
+  if (typeof value === 'object') return value;
+  try { return JSON.parse(String(value)); } catch { return null; }
+}
+
+function normalizeVersionSnapshot(value) {
+  const parsed = parseSnapshotJson(value);
+  if (!parsed || typeof parsed !== 'object') return null;
+  if (parsed.report && typeof parsed.report === 'object') {
+    return {
+      ...parsed.report,
+      product_name: parsed.report.product_name ?? parsed.report.product_code ?? null,
+      defects: Array.isArray(parsed.defects) ? parsed.defects : [],
+      deductions: Array.isArray(parsed.deductions) ? parsed.deductions : []
+    };
+  }
+  return {
+    ...parsed,
+    product_name: parsed.product_name ?? parsed.product_code ?? null,
+    defects: Array.isArray(parsed.defects) ? parsed.defects : [],
+    deductions: Array.isArray(parsed.deductions) ? parsed.deductions : []
+  };
+}
+
+async function restoreApprovedReportVersion({ reportId, versionNo, reason, userId, req = null }) {
+  const id = Number(reportId);
+  const version = Number(versionNo);
+  if (!Number.isInteger(id) || id <= 0 || !Number.isInteger(version) || version <= 0) {
+    throw httpError(422, 'INVALID_REPORT_VERSION', 'Phiên bản báo cáo không hợp lệ');
+  }
+  const changeReason = String(reason || '').trim().slice(0, 500);
+  if (!changeReason) {
+    throw httpError(422, 'CHANGE_REASON_REQUIRED', 'Vui lòng nhập lý do khôi phục phiên bản');
+  }
+
+  const connection = await db.promise().getConnection();
+  try {
+    await connection.beginTransaction();
+    await AuditService.ensureSchema();
+
+    const [currentRows] = await connection.query(
+      'SELECT * FROM production_reports WHERE id=? FOR UPDATE',
+      [id]
+    );
+    if (!currentRows[0]) throw httpError(404, 'REPORT_NOT_FOUND', 'Không tìm thấy báo cáo');
+
+    const [versionRows] = await connection.query(
+      `SELECT snapshot_json
+       FROM report_versions
+       WHERE report_type='approved' AND report_id=? AND version_no=?
+       LIMIT 1`,
+      [id, version]
+    );
+    if (!versionRows[0]) throw httpError(404, 'REPORT_VERSION_NOT_FOUND', 'Không tìm thấy phiên bản cần khôi phục');
+
+    const target = normalizeVersionSnapshot(versionRows[0].snapshot_json);
+    if (!target) throw httpError(422, 'INVALID_VERSION_SNAPSHOT', 'Dữ liệu phiên bản không hợp lệ');
+
+    const current = await loadApprovedSnapshot(id, connection);
+    if (await ReportGovernanceService.isPeriodLocked(current.work_date, current.process_id, connection)) {
+      throw httpError(423, 'REPORTING_PERIOD_LOCKED', 'Kỳ báo cáo hiện tại đã khóa, không thể khôi phục');
+    }
+
+    const targetWorkDate = String(target.work_date || current.work_date).slice(0, 10);
+    if (await ReportGovernanceService.isPeriodLocked(targetWorkDate, current.process_id, connection)) {
+      throw httpError(423, 'REPORTING_PERIOD_LOCKED', 'Phiên bản cần khôi phục thuộc kỳ đã khóa');
+    }
+
+    await AuditService.createReportVersion({
+      reportType: 'approved', reportId: id, snapshot: current,
+      reason: `Trước khi khôi phục V${version}: ${changeReason}`, userId
+    }, connection);
+
+    const fields = [
+      'machine_no','product_name','note','shift','work_date','training_percent',
+      'total_time','actual_time','deduction_time','standard_output','actual_output','tt_ok','tt_ng'
+    ];
+    const restored = { ...current };
+    for (const key of fields) {
+      if (Object.prototype.hasOwnProperty.call(target, key)) restored[key] = target[key];
+    }
+    restored.status = 'approved';
+
+    await connection.query(
+      `UPDATE production_reports SET
+        machine_no=?, product_name=?, note=?, shift=?, work_date=?, training_percent=?,
+        total_time=?, actual_time=?, deduction_time=?, standard_output=?, actual_output=?,
+        tt_ok=?, tt_ng=?, status='approved', updated_by=?, updated_at=NOW()
+       WHERE id=?`,
+      [
+        restored.machine_no ?? null,
+        restored.product_name ?? current.product_name,
+        restored.note ?? null,
+        restored.shift ?? current.shift,
+        targetWorkDate,
+        restored.training_percent ?? current.training_percent ?? 100,
+        Number(restored.total_time || 0),
+        Number(restored.actual_time || 0),
+        Number(restored.deduction_time || 0),
+        Number(restored.standard_output || 0),
+        Number(restored.actual_output || 0),
+        Number(restored.tt_ok || 0),
+        Number(restored.tt_ng || 0),
+        Number(userId) || null,
+        id
+      ]
+    );
+
+    await connection.query('DELETE FROM production_report_defects WHERE report_id=?', [id]);
+    for (const item of target.defects || []) {
+      const defectTypeId = Number(item.defect_type_id || item.type_id || 0);
+      const quantity = Number(item.quantity || 0);
+      if (defectTypeId > 0 && quantity >= 0) {
+        await connection.query(
+          'INSERT INTO production_report_defects(report_id,defect_type_id,quantity) VALUES(?,?,?)',
+          [id, defectTypeId, quantity]
+        );
+      }
+    }
+
+    await connection.query('DELETE FROM production_report_deductions WHERE report_id=?', [id]);
+    for (const item of target.deductions || []) {
+      const deductionTypeId = Number(item.deduction_type_id || item.type_id || 0);
+      const hours = Number(item.hours || 0);
+      if (deductionTypeId > 0 && hours >= 0) {
+        await connection.query(
+          'INSERT INTO production_report_deductions(report_id,deduction_type_id,hours) VALUES(?,?,?)',
+          [id, deductionTypeId, hours]
+        );
+      }
+    }
+
+    const after = await loadApprovedSnapshot(id, connection);
+    const newVersion = await AuditService.createReportVersion({
+      reportType: 'approved', reportId: id, snapshot: after,
+      reason: `Khôi phục từ V${version}: ${changeReason}`, userId
+    }, connection);
+
+    await AuditService.logActivity({
+      userId,
+      action: 'REPORT_RESTORED',
+      entityType: 'approved_report',
+      entityId: id,
+      description: `Khôi phục báo cáo #${id} từ phiên bản ${version} thành phiên bản ${newVersion}`,
+      metadata: {
+        restored_from_version: version,
+        new_version: newVersion,
+        reason: changeReason,
+        work_date: targetWorkDate
+      },
+      req
+    }, connection);
+
+    await connection.commit();
+    return { report: after, version: newVersion, restored_from_version: version, before: current };
+  } catch (error) {
+    await connection.rollback().catch(() => {});
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+module.exports = { updateApprovedReport, loadApprovedSnapshot, restoreApprovedReportVersion, normalizeVersionSnapshot };

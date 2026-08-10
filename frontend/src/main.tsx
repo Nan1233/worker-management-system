@@ -11,6 +11,13 @@ import AuthBootstrap from "./components/AuthBootstrap";
 import AppErrorBoundary from "./components/system/AppErrorBoundary";
 import { FRONTEND_VERSION, FRONTEND_COMMIT_SHA } from "./config/version";
 
+const initialTheme = localStorage.getItem("ktcTheme");
+const resolvedTheme = initialTheme === "dark" || initialTheme === "light"
+    ? initialTheme
+    : window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+document.documentElement.dataset.theme = resolvedTheme;
+document.documentElement.style.colorScheme = resolvedTheme;
+
 if (/\/login\/?$/.test(window.location.pathname)) {
     const route = window.location.hash || "#/login";
     window.history.replaceState(null, "", `${window.location.origin}/${route}`);

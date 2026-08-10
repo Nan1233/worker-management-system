@@ -747,3 +747,162 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .ktc-btn-secondary { background: #fff; border-color: var(--ktc-border-strong, #cbd7e3); color: var(--ktc-text, #1e293b); }
 .ktc-btn-secondary:hover:not(:disabled) { background: var(--ktc-surface-subtle, #f6f8fb); border-color: var(--ktc-brand-300, #9dbbd5); }
 .ktc-btn:active:not(:disabled) { transform: translateY(1px); }
+
+/* ===== KTC Light / Dark theme ===== */
+[data-theme="dark"] {
+  --ktc-brand-50: #13283b;
+  --ktc-brand-100: #183750;
+  --ktc-brand-200: #245274;
+  --ktc-brand-300: #3677a6;
+  --ktc-brand-400: #4d97cd;
+  --ktc-brand-500: #62ace1;
+  --ktc-brand-600: #83c2eb;
+  --ktc-brand-700: #9cd0f0;
+  --ktc-brand-800: #b8def5;
+  --ktc-brand-900: #d4ebf9;
+  --ktc-ink-950: #f7fafc;
+  --ktc-ink-900: #edf2f7;
+  --ktc-ink-800: #d9e2ec;
+  --ktc-ink-700: #c3cfdb;
+  --ktc-ink-600: #aab8c6;
+  --ktc-ink-500: #91a0af;
+  --ktc-ink-400: #778695;
+  --ktc-bg: #0d151e;
+  --ktc-surface: #16212c;
+  --ktc-surface-subtle: #1b2936;
+  --ktc-surface-muted: #22313f;
+  --ktc-border: #2d3d4c;
+  --ktc-border-strong: #405263;
+  --ktc-success: #63d6a5;
+  --ktc-success-bg: #15352a;
+  --ktc-warning: #f7b955;
+  --ktc-warning-bg: #3a2b16;
+  --ktc-danger: #ff8790;
+  --ktc-danger-bg: #3d2025;
+  --ktc-info: #72b8e8;
+  --ktc-shadow-xs: 0 1px 2px rgba(0,0,0,.22);
+  --ktc-shadow-sm: 0 2px 8px rgba(0,0,0,.24);
+  --ktc-shadow-md: 0 12px 32px rgba(0,0,0,.34);
+  --ktc-focus: 0 0 0 3px rgba(98,172,225,.24);
+}
+
+.ktc-theme-toggle {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--ktc-border);
+  border-radius: 999px;
+  padding: 0 11px;
+  background: var(--ktc-surface);
+  color: var(--ktc-ink-700);
+  box-shadow: var(--ktc-shadow-xs);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+.ktc-theme-toggle:hover { border-color: var(--ktc-brand-300); color: var(--ktc-brand-800); }
+
+[data-theme="dark"] body,
+[data-theme="dark"] .management-layout,
+[data-theme="dark"] .worker-layout,
+[data-theme="dark"] .management-main,
+[data-theme="dark"] .management-content,
+[data-theme="dark"] .worker-main-content,
+[data-theme="dark"] .select-process-page,
+[data-theme="dark"] .formula-page,
+[data-theme="dark"] .governance-page,
+[data-theme="dark"] .system-center-page,
+[data-theme="dark"] .management-report-page {
+  background: var(--ktc-bg) !important;
+  color: var(--ktc-ink-900) !important;
+}
+
+[data-theme="dark"] .management-header,
+[data-theme="dark"] .worker-topbar,
+[data-theme="dark"] .worker-mobile-nav {
+  background: rgba(22,33,44,.96) !important;
+  border-color: var(--ktc-border) !important;
+}
+
+[data-theme="dark"] .management-filter-card,
+[data-theme="dark"] .management-report-card,
+[data-theme="dark"] .report-card,
+[data-theme="dark"] .dashboard-card,
+[data-theme="dark"] .stats-card,
+[data-theme="dark"] .formula-card,
+[data-theme="dark"] .governance-card,
+[data-theme="dark"] .master-card,
+[data-theme="dark"] .system-card,
+[data-theme="dark"] .history-filter-card,
+[data-theme="dark"] .history-state-card,
+[data-theme="dark"] .select-process-worker,
+[data-theme="dark"] .worker-process-card,
+[data-theme="dark"] .formula-preview div,
+[data-theme="dark"] .formula-check {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border) !important;
+  color: var(--ktc-ink-900) !important;
+}
+
+[data-theme="dark"] .management-content input:not([type="checkbox"]):not([type="radio"]),
+[data-theme="dark"] .management-content select,
+[data-theme="dark"] .management-content textarea,
+[data-theme="dark"] .worker-main-content input:not([type="checkbox"]):not([type="radio"]),
+[data-theme="dark"] .worker-main-content select,
+[data-theme="dark"] .worker-main-content textarea,
+[data-theme="dark"] .formula-card input,
+[data-theme="dark"] .formula-card select {
+  background: var(--ktc-surface-subtle) !important;
+  color: var(--ktc-ink-900) !important;
+  border-color: var(--ktc-border-strong) !important;
+}
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder { color: var(--ktc-ink-500) !important; opacity: 1; }
+[data-theme="dark"] option { background: var(--ktc-surface); color: var(--ktc-ink-900); }
+
+[data-theme="dark"] .management-content thead th,
+[data-theme="dark"] .history-page thead th,
+[data-theme="dark"] .formula-table th {
+  background: var(--ktc-surface-muted) !important;
+  color: var(--ktc-ink-700) !important;
+  border-color: var(--ktc-border-strong) !important;
+}
+[data-theme="dark"] .management-content tbody td,
+[data-theme="dark"] .history-page tbody td,
+[data-theme="dark"] .formula-table td {
+  background: var(--ktc-surface) !important;
+  color: var(--ktc-ink-800) !important;
+  border-color: var(--ktc-border) !important;
+}
+[data-theme="dark"] .management-content tbody tr:hover td,
+[data-theme="dark"] .history-page tbody tr:hover td,
+[data-theme="dark"] .formula-table tbody tr:hover td {
+  background: var(--ktc-surface-subtle) !important;
+}
+[data-theme="dark"] .selected-report-row td { background: #17354d !important; }
+[data-theme="dark"] .duplicate-report-row td { background: #412529 !important; }
+
+[data-theme="dark"] h1,
+[data-theme="dark"] h2,
+[data-theme="dark"] h3,
+[data-theme="dark"] h4,
+[data-theme="dark"] strong { color: var(--ktc-ink-950); }
+[data-theme="dark"] p,
+[data-theme="dark"] small,
+[data-theme="dark"] label,
+[data-theme="dark"] .formula-card-title p,
+[data-theme="dark"] .management-report-header p { color: var(--ktc-ink-600); }
+
+[data-theme="dark"] .threshold.red { background: #3d2025 !important; }
+[data-theme="dark"] .threshold.orange { background: #3b2b18 !important; }
+[data-theme="dark"] .threshold.yellow { background: #3a3418 !important; }
+[data-theme="dark"] .threshold.green { background: #17372b !important; }
+[data-theme="dark"] .threshold.blue { background: #173147 !important; }
+[data-theme="dark"] .app-error-detail { background: var(--ktc-surface-subtle); color: var(--ktc-ink-700); }
+
+@media (max-width: 720px) {
+  .ktc-theme-toggle { width: 38px; padding: 0; }
+  .ktc-theme-toggle-label { display: none; }
+}

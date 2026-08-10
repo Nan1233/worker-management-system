@@ -55,9 +55,30 @@ async function buildCompanyData(yearMonth) {
     }];
   }));
 
-  const formulaSettings = await getSettingsMap();
+  // Công thức có thể đổi giữa tháng. Trả thêm cấu hình theo từng ngày có dữ liệu
+  // để Desktop tính đúng từng báo cáo, đồng thời giữ formulaSettings mức tháng cho
+  // tương thích với các bản Desktop cũ.
+  const reportDates = [...new Set(
+    PROCESS_CODES.flatMap((code) => (processData[code]?.reports || [])
+      .map((report) => String(report.work_date || '').slice(0, 10))
+      .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)))
+  )].sort();
+  const mapsByDate = new Map();
+  await Promise.all(reportDates.map(async (date) => {
+    mapsByDate.set(date, await getSettingsMap(date));
+  }));
+  for (const code of PROCESS_CODES) {
+    processData[code].formulaSettingsByDate = Object.fromEntries(
+      reportDates.map((date) => {
+        const map = mapsByDate.get(date) || {};
+        return [date, map[code] || map.GLOBAL || null];
+      }).filter(([, settings]) => Boolean(settings))
+    );
+  }
 
-  console.log('[KTC] Company Excel data loaded', { yearMonth, diagnostics });
+  const formulaSettings = await getSettingsMap(`${yearMonth}-01`);
+
+  console.log('[KTC] Company Excel data loaded', { yearMonth, diagnostics, formulaSettingDates: reportDates.length });
 
   return {
     yearMonth,

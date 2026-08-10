@@ -14,6 +14,7 @@ import { getAllReportDefects } from "../../utils/reportDetails";
 import { decimalHoursToMinutes, formatMinutes, sumDeductionMinutes } from "../../utils/timeDisplay";
 import { getStoredUser } from "../../utils/authStorage";
 import { usePermissions } from "../../hooks/usePermissions";
+import { getReportVersions, restoreApprovedReportVersion, type ReportVersion } from "../../services/systemService";
 import "./ReportDetail.css";
 
 const formatDate = (value?: string | null) => {
@@ -40,6 +41,40 @@ const ACTION_LABELS: Record<string, string> = {
     REJECT: "Từ chối báo cáo",
 };
 
+const parseVersionSnapshot = (value: unknown): Record<string, unknown> | null => {
+    if (!value) return null;
+    let parsed: unknown = value;
+    if (typeof parsed === "string") {
+        try { parsed = JSON.parse(parsed); } catch { return null; }
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const object = parsed as Record<string, unknown>;
+    if (object.report && typeof object.report === "object" && !Array.isArray(object.report)) {
+        return {
+            ...(object.report as Record<string, unknown>),
+            defects: object.defects,
+            deductions: object.deductions
+        };
+    }
+    return object;
+};
+
+const VERSION_FIELDS: Array<[string, string]> = [
+    ["work_date", "Ngày báo cáo"],
+    ["shift", "Ca"],
+    ["machine_no", "Máy"],
+    ["product_name", "Mã sản phẩm"],
+    ["training_percent", "% học việc"],
+    ["total_time", "TG làm việc"],
+    ["actual_time", "TG thực tế"],
+    ["deduction_time", "TG trừ"],
+    ["standard_output", "Định mức"],
+    ["actual_output", "Sản lượng"],
+    ["tt_ok", "OK"],
+    ["tt_ng", "NG"],
+    ["note", "Ghi chú"]
+];
+
 const REJECT_REASONS = [
     "Báo cáo trùng",
     "Sai sản lượng",
@@ -57,6 +92,9 @@ function ReportDetail() {
 
     const [report, setReport] = useState<ProductionReport | null>(null);
     const [logs, setLogs] = useState<ReportActionLog[]>([]);
+    const [versions, setVersions] = useState<ReportVersion[]>([]);
+    const [selectedVersion, setSelectedVersion] = useState<ReportVersion | null>(null);
+    const [restoring, setRestoring] = useState(false);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
@@ -84,6 +122,12 @@ function ReportDetail() {
             setReport(data || null);
             if (source === "pending") {
                 setLogs(await getTempReportActionLogs(reportId));
+                setVersions([]);
+                setSelectedVersion(null);
+            } else {
+                const history = await getReportVersions(reportId, "approved");
+                setVersions(Array.isArray(history) ? history : []);
+                setSelectedVersion(null);
             }
         } catch (err: unknown) {
             console.error("LOAD REPORT DETAIL ERROR:", err);
@@ -119,6 +163,28 @@ function ReportDetail() {
         } finally { setSubmitting(false); }
     };
 
+    const restoreVersion = async (version: ReportVersion) => {
+        if (!report || source !== "approved" || !canEdit || restoring) return;
+        const reason = window.prompt(
+            `Lý do khôi phục báo cáo #${report.id} về nội dung phiên bản V${version.version_no}:`,
+            "Khôi phục dữ liệu theo phiên bản đã kiểm tra"
+        );
+        if (!reason?.trim()) return;
+        if (!window.confirm(`Khôi phục nội dung V${version.version_no}? Lịch sử hiện tại vẫn được giữ lại và hệ thống sẽ tạo một phiên bản mới.`)) return;
+        try {
+            setRestoring(true);
+            setError("");
+            await restoreApprovedReportVersion(Number(report.id), version.version_no, reason.trim());
+            await loadReport();
+        } catch (err: unknown) {
+            setError(axios.isAxiosError(err)
+                ? err.response?.data?.message || "Không thể khôi phục phiên bản báo cáo."
+                : "Không thể khôi phục phiên bản báo cáo.");
+        } finally {
+            setRestoring(false);
+        }
+    };
+
     if (loading) return <main className="report-detail-page"><div className="detail-state">Đang tải báo cáo...</div></main>;
     if (error && !report) return <main className="report-detail-page"><div className="detail-state detail-state-error">{error}</div><button className="detail-back-button" type="button" onClick={() => navigate(-1)}>Quay lại</button></main>;
     if (!report) return null;
@@ -138,7 +204,7 @@ function ReportDetail() {
                     <h1>{report.worker_code || "---"} - {report.full_name || "Không có tên"}</h1>
                     <span className={`detail-status ${source === "approved" ? "is-approved" : "is-pending"}`}>{source === "approved" ? "Đã duyệt" : "Chờ duyệt"}</span>
                 </div>
-                {canEdit && source === "pending" && <button className="detail-edit-button" type="button" onClick={() => navigate(`${basePath}/report/${report.id}/edit?source=${source}`)}>Sửa báo cáo</button>}
+                {canEdit && <button className="detail-edit-button" type="button" onClick={() => navigate(`${basePath}/report/${report.id}/edit?source=${source}`)}>Sửa báo cáo</button>}
             </header>
 
             {error && <div className="detail-inline-error">{error}</div>}
@@ -188,6 +254,57 @@ function ReportDetail() {
             </div>
 
             {source === "pending" && <section className="detail-basic-card"><h2>Lịch sử báo cáo</h2>{logs.length === 0 ? <div className="detail-empty-list">Chưa có nhật ký.</div> : <div className="detail-timeline">{logs.map(log => <div className="detail-timeline-item" key={log.id}><span className="detail-timeline-dot"/><div><strong>{ACTION_LABELS[log.action] || log.action}</strong><p>{log.full_name || log.username || "Hệ thống"}{log.note ? ` · ${log.note}` : ""}</p><time>{formatDateTime(log.created_at)}</time></div></div>)}</div>}</section>}
+
+            {source === "approved" && <section className="detail-basic-card detail-version-card">
+                <div className="detail-list-heading">
+                    <div>
+                        <h2>Phiên bản báo cáo</h2>
+                        <span>{versions.length} phiên bản được lưu · Không ghi đè lịch sử khi khôi phục</span>
+                    </div>
+                </div>
+                {versions.length === 0 ? (
+                    <div className="detail-empty-list">Báo cáo cũ chưa có phiên bản. Từ bản demo này, các lần tạo/sửa/xóa/khôi phục sẽ được lưu tự động.</div>
+                ) : (
+                    <div className="detail-version-layout">
+                        <div className="detail-version-list">
+                            {versions.map(version => (
+                                <button
+                                    type="button"
+                                    key={version.id}
+                                    className={selectedVersion?.id === version.id ? "detail-version-item active" : "detail-version-item"}
+                                    onClick={() => setSelectedVersion(version)}
+                                >
+                                    <strong>V{version.version_no}</strong>
+                                    <span>{version.change_reason || "Cập nhật dữ liệu"}</span>
+                                    <small>{version.created_by_name || "Hệ thống"} · {formatDateTime(version.created_at)}</small>
+                                </button>
+                            ))}
+                        </div>
+                        <div className="detail-version-preview">
+                            {!selectedVersion ? (
+                                <div className="detail-empty-list">Chọn một phiên bản để xem và so sánh với dữ liệu hiện tại.</div>
+                            ) : (() => {
+                                const snapshot = parseVersionSnapshot(selectedVersion.snapshot_json);
+                                return snapshot ? <>
+                                    <div className="detail-version-preview-head">
+                                        <div><strong>V{selectedVersion.version_no}</strong><span>{selectedVersion.change_reason || "Cập nhật dữ liệu"}</span></div>
+                                        {canEdit && <button type="button" disabled={restoring} onClick={() => void restoreVersion(selectedVersion)}>{restoring ? "Đang khôi phục..." : "Khôi phục phiên bản này"}</button>}
+                                    </div>
+                                    <div className="detail-version-diff">
+                                        <div className="detail-version-diff-head"><span>Trường</span><span>Phiên bản</span><span>Hiện tại</span></div>
+                                        {VERSION_FIELDS.map(([key,label]) => {
+                                            const previous = snapshot[key];
+                                            const current = (report as unknown as Record<string, unknown>)[key];
+                                            const changed = String(previous ?? "") !== String(current ?? "");
+                                            return <div key={key} className={changed ? "changed" : ""}><span>{label}</span><span>{String(previous ?? "---")}</span><span>{String(current ?? "---")}</span></div>;
+                                        })}
+                                    </div>
+                                </> : <div className="detail-empty-list">Không đọc được snapshot của phiên bản này.</div>;
+                            })()}
+                        </div>
+                    </div>
+                )}
+            </section>}
 
             <section className="detail-basic-card"><h2>Thông tin hệ thống</h2><div className="detail-basic-grid"><div className="detail-basic-item"><span>Mã báo cáo</span><strong>#{report.id}</strong></div><div className="detail-basic-item"><span>Thời gian tạo</span><strong>{formatDateTime(report.created_at)}</strong></div><div className="detail-basic-item"><span>Cập nhật gần nhất</span><strong>{formatDateTime(report.updated_at)}</strong></div>{source === "approved" && <div className="detail-basic-item"><span>Thời gian duyệt</span><strong>{formatDateTime(report.approved_at)}</strong></div>}</div></section>
 

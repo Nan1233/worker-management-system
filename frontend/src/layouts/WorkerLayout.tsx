@@ -1,5 +1,6 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import AppIcon, { type IconName } from "../components/common/AppIcon";
+import ThemeToggle from "../components/common/ThemeToggle";
 import "./WorkerLayout.css";
 import { clearAuthSession } from "../utils/authStorage";
 import { useMobileKeyboard } from "../hooks/useMobileKeyboard";
@@ -72,6 +73,7 @@ function WorkerLayout() {
                 </nav>
 
                 <div className="worker-account">
+                    <ThemeToggle />
                     <button type="button" className="worker-logout" onClick={handleLogout}>
                         <span className="worker-nav-icon"><AppIcon name="logout" size={18} /></span>
                         <span className="worker-logout-label">Đăng xuất</span>

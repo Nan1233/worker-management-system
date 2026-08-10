@@ -10,6 +10,7 @@ type ProductRule = {
 };
 type FormulaScope = {
   scope_code:string; process_id:number|null; process_code:string|null; process_name:string;
+  effective_from:string|null; effective_to:string|null;
   apply_training_percent:number; output_formula:string; output_per_hour_formula:string;
   achievement_formula:string; ng_rate_formula:string; actual_time_formula:string;
   threshold_red:number; threshold_orange:number; threshold_yellow:number; threshold_green:number;
@@ -67,7 +68,7 @@ export default function FormulaSettings(){
       setData(prev=>({...prev,scopes:next.scopes}));
       const scope=next.scopes.find(item=>item.scope_code===draft.scope_code)||draft;
       setDraft({...scope});
-      setSuccess('Đã lưu. Web và Excel sẽ dùng cấu hình mới cho lần tính/xuất tiếp theo.');
+      setSuccess('Đã lưu phạm vi công đoạn/thời gian. Web và Excel tháng sẽ dùng cấu hình khi ngày nằm trong khoảng hiệu lực.');
     }catch(e){setError(getApiError(e,'Không thể lưu cài đặt công thức').message);}
     finally{setSaving(false);}
   };
@@ -121,6 +122,18 @@ export default function FormulaSettings(){
         <select value={selectedScope} onChange={e=>chooseScope(e.target.value)}>{data.scopes.map(scope=><option key={scope.scope_code} value={scope.scope_code}>{scope.process_name}{scope.inherits_global?' — đang kế thừa':''}</option>)}</select>
       </div>
       {draft&&<>
+        <div className="formula-period-card">
+          <div>
+            <strong>Phạm vi áp dụng</strong>
+            <p>Công đoạn: <b>{draft.process_name}</b>. Khoảng thời gian này quyết định khi nào cấu hình được dùng; ngoài khoảng đó công đoạn sẽ kế thừa cấu hình chung.</p>
+          </div>
+          <div className="formula-period-grid">
+            <label><span>Hiệu lực từ</span><input type="date" value={draft.effective_from||''} onChange={e=>setField('effective_from',e.target.value||null)} /></label>
+            <label><span>Hiệu lực đến</span><input type="date" min={draft.effective_from||undefined} value={draft.effective_to||''} onChange={e=>setField('effective_to',e.target.value||null)} /></label>
+          </div>
+          <small>Để trống ngày bắt đầu/kết thúc nếu muốn áp dụng không giới hạn về phía tương ứng.</small>
+        </div>
+
         <div className="formula-grid">
           <label><span>Tổng sản lượng</span><select value={draft.output_formula} onChange={e=>setField('output_formula',e.target.value)}>{option('output_formula').map(item=><option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
           <label><span>Sản phẩm/giờ</span><select value={draft.output_per_hour_formula} onChange={e=>setField('output_per_hour_formula',e.target.value)}>{option('output_per_hour_formula').map(item=><option key={item.value} value={item.value}>{item.label}</option>)}</select></label>

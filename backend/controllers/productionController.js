@@ -290,7 +290,7 @@ exports.getReportById = async (req, res) => {
 const AuditService = require('../services/auditService');
 const { publicMessage } = require('../utils/httpError');
 const ReportGovernanceService = require('../services/reportGovernanceService');
-const { updateApprovedReport, loadApprovedSnapshot } = require('../services/approvedReportEditService');
+const { updateApprovedReport, loadApprovedSnapshot, restoreApprovedReportVersion } = require('../services/approvedReportEditService');
 
 exports.updateReport = async (req, res) => {
     const reportId = Number(req.params.id);
@@ -333,16 +333,68 @@ exports.deleteReport = async (req,res) => {
           message:'Kỳ báo cáo đã khóa, không thể xóa dữ liệu'
         });
       }
-      await AuditService.createReportVersion({reportType:'approved',reportId,snapshot,reason:deleteReason,userId:req.user.id},connection);
-      await AuditService.logActivity({userId:req.user.id,action:'REPORT_DELETED',entityType:'approved_report',entityId:reportId,description:'Xóa báo cáo đã duyệt',metadata:{reason:deleteReason},req},connection);
-      await connection.query(`DELETE FROM production_report_defects WHERE report_id=?`,[reportId]);
-      await connection.query(`DELETE FROM production_report_deductions WHERE report_id=?`,[reportId]);
-      await connection.query(`DELETE FROM production_reports WHERE id=?`,[reportId]);
+      await AuditService.createReportVersion({reportType:'approved',reportId,snapshot,reason:`Trước khi xóa: ${deleteReason}`,userId:req.user.id},connection);
+
+      // Soft delete: giữ dữ liệu và chi tiết để có thể xem lịch sử/khôi phục.
+      await connection.query(
+        `UPDATE production_reports
+         SET status='deleted', review_note=?, updated_by=?, updated_at=NOW()
+         WHERE id=?`,
+        [`Đã xóa: ${deleteReason}`, req.user.id, reportId]
+      );
+
+      const deletedSnapshot=await loadApprovedSnapshot(reportId,connection);
+      const versionNo=await AuditService.createReportVersion({reportType:'approved',reportId,snapshot:deletedSnapshot,reason:`Đã xóa: ${deleteReason}`,userId:req.user.id},connection);
+      await AuditService.logActivity({
+        userId:req.user.id,
+        action:'REPORT_DELETED',
+        entityType:'approved_report',
+        entityId:reportId,
+        description:'Xóa mềm báo cáo đã duyệt',
+        metadata:{reason:deleteReason,version:versionNo,work_date:snapshot.work_date,process_id:snapshot.process_id},
+        req
+      },connection);
       await connection.commit();
       if (envEnabled('ENABLE_SERVER_HEAVY_EXCEL') && envEnabled('ENABLE_EXCEL_EXPORT_WORKER')) {
         await require('../services/excelExportJobQueue').enqueueMonthlyDates(snapshot.work_date, req.user?.id);
       }
-      return res.json({success:true,message:'Xóa thành công'});
-    }catch(e){await connection.rollback();console.error('DELETE REPORT ERROR:',e);return res.status(500).json({success:false,message:publicMessage(e,'Không thể xóa báo cáo')});}
+      return res.json({success:true,message:'Đã xóa báo cáo. Dữ liệu vẫn được giữ trong lịch sử để có thể khôi phục.',version:versionNo});
+    }catch(e){await connection.rollback().catch(()=>{});console.error('DELETE REPORT ERROR:',e);return res.status(e.status||500).json({success:false,code:e.code,message:publicMessage(e,'Không thể xóa báo cáo')});}
     finally{connection.release();}
 };
+
+exports.restoreReportVersion = async (req,res) => {
+    const reportId = Number(req.params.id);
+    const versionNo = Number(req.params.versionNo);
+    try {
+      const result = await restoreApprovedReportVersion({
+        reportId,
+        versionNo,
+        reason: req.body?.reason,
+        userId: req.user.id,
+        req
+      });
+      if (envEnabled('ENABLE_SERVER_HEAVY_EXCEL') && envEnabled('ENABLE_EXCEL_EXPORT_WORKER')) {
+        await require('../services/excelExportJobQueue').enqueueMonthlyDates(
+          [result.before?.work_date, result.report?.work_date].filter(Boolean),
+          req.user?.id
+        );
+      }
+      return res.json({
+        success:true,
+        message:`Đã khôi phục báo cáo về nội dung phiên bản ${versionNo}`,
+        version:result.version,
+        restored_from_version:versionNo,
+        data:result.report
+      });
+    } catch (e) {
+      console.error('RESTORE REPORT VERSION ERROR:', e);
+      return res.status(e.status || 500).json({
+        success:false,
+        code:e.code,
+        message:publicMessage(e,'Không thể khôi phục phiên bản báo cáo'),
+        errors:e.details
+      });
+    }
+};
+

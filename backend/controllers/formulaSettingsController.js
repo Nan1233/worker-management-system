@@ -67,7 +67,7 @@ exports.resetScope = async (req, res, next) => {
     if (!/^GLOBAL$|^PROCESS:[A-Z0-9_-]+$/.test(scopeCode)) {
       return res.status(400).json({ success: false, message: 'Phạm vi công thức không hợp lệ' });
     }
-    const data = await formulaSettingsService.resetScope(scopeCode);
+    const data = await formulaSettingsService.resetScope(scopeCode, req.user?.id);
     res.json({ success: true, message: 'Đã khôi phục cấu hình mặc định', data });
   } catch (error) { next(error); }
 };

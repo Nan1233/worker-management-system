@@ -101,16 +101,22 @@ const payload = {
     for (const [code, config] of Object.entries(PROCESS_SHEETS)) {
       const processWorkbook = new ExcelJS.Workbook();
       await processWorkbook.xlsx.readFile(processPaths.get(code));
+      const visibleSheetNames = processWorkbook.worksheets
+        .filter((worksheet) => worksheet.state !== 'hidden' && worksheet.state !== 'veryHidden')
+        .map((worksheet) => worksheet.name);
       assert.deepEqual(
-        processWorkbook.worksheets.map((worksheet) => worksheet.name),
+        visibleSheetNames,
         [config.sheet],
-        `${code} phải nằm trong file riêng và chỉ chứa sheet ${config.sheet}`
+        code + ' phải nằm trong file riêng và chỉ chứa sheet hiển thị ' + config.sheet
       );
+      const syncSheet = processWorkbook.getWorksheet('_KTC_SYNC');
+      assert.ok(syncSheet, code + ' phải có sheet metadata _KTC_SYNC');
+      assert.equal(syncSheet.state, 'veryHidden', code + ': _KTC_SYNC phải ở trạng thái veryHidden');
     }
 
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile(processPaths.get('GC'));
-    const sheet = workbook.getWorksheet('CẮT LỒNG');
+    const sheet = workbook.getWorksheet(PROCESS_SHEETS.GC.sheet);
     assert.equal(sheet.views[0].xSplit, 4, 'Freeze phải dừng ở Tên NV');
     assert.equal(sheet.views[0].topLeftCell, 'E6');
 

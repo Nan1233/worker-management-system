@@ -15,7 +15,8 @@
     "db:migrate": "node scripts/runMigrations.js",
     "backup:db": "node scripts/createDatabaseBackup.js",
     "backup:verify": "node scripts/verifyDatabaseBackup.js",
-    "restore:db": "node scripts/restoreDatabaseBackup.js"
+    "restore:db": "node scripts/restoreDatabaseBackup.js",
+    "db:demo-schema": "node scripts/ensureDemoSchema.js"
   },
   "keywords": [],
   "author": "",

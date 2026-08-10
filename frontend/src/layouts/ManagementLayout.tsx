@@ -1,6 +1,7 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import type { User } from "../types/auth";
 import AppIcon, { type IconName } from "../components/common/AppIcon";
+import ThemeToggle from "../components/common/ThemeToggle";
 import "./ManagementLayout.css";
 import { clearAuthSession, getStoredUser } from "../utils/authStorage";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
@@ -27,7 +28,7 @@ const menuItems: MenuItem[] = [
     { id: "dashboard", label: "Tổng quan", path: "", icon: "dashboard", roles: ["lead", "manager", "admin"], description: "", permission: "DASHBOARD_VIEW" },
     { id: "reports", label: "Chờ duyệt", path: "reports", icon: "pending", roles: ["lead", "manager", "admin"], description: "", permission: "REPORT_PENDING_VIEW" },
     { id: "approved", label: "Đã duyệt", path: "approved", icon: "approved", roles: ["lead", "manager", "admin"], description: "", permission: "REPORT_APPROVED_VIEW" },
-    { id: "export", label: "Xuất báo cáo", path: "export", icon: "download", roles: ["lead", "manager", "admin"], description: "", permission: "REPORT_EXPORT" },
+    { id: "export", label: "Xuất báo cáo", path: "export", icon: "download", roles: ["admin"], description: "", permission: "REPORT_EXPORT" },
     { id: "workers", label: "Nhân sự", path: "workers", icon: "workers", roles: ["lead", "manager", "admin"], description: "", permission: "USER_VIEW" },
     { id: "master", label: "Dữ liệu chuẩn", path: "master", icon: "settings", roles: ["manager", "admin"], description: "", permission: "MASTER_VIEW" },
     { id: "formulas", label: "Công thức", path: "formulas", icon: "checklist", roles: ["manager", "admin"], description: "", permission: "FORMULA_VIEW" },
@@ -156,6 +157,7 @@ function ManagementLayout({ role }: Props) {
                     </div>
 
                     <div className="management-header-meta">
+                        <ThemeToggle />
                         <div className="management-role-badge">{roleLabel[role]}</div>
                         <div className="management-date-chip">{formatToday()}</div>
                     </div>

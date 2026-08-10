@@ -128,6 +128,25 @@ module.exports = {
                     ON DUPLICATE KEY UPDATE snapshot_data=VALUES(snapshot_data),standard_version_id=VALUES(standard_version_id),created_by=VALUES(created_by),created_at=CURRENT_TIMESTAMP`,
                     [approvedReportId, standardVersions[0]?.id || null, snapshotData, reviewerId]);
 
+                // Phiên bản V1 dùng để xem/so sánh/khôi phục về sau.
+                const [versionReports, versionDefects, versionDeductions] = await Promise.all([
+                    query(connection, `SELECT * FROM production_reports WHERE id=? LIMIT 1`, [approvedReportId]),
+                    query(connection, `SELECT * FROM production_report_defects WHERE report_id=? ORDER BY id`, [approvedReportId]),
+                    query(connection, `SELECT * FROM production_report_deductions WHERE report_id=? ORDER BY id`, [approvedReportId])
+                ]);
+                if (versionReports[0]) {
+                    await AuditService.createReportVersion(
+                        {
+                            reportType: 'approved',
+                            reportId: approvedReportId,
+                            snapshot: { ...versionReports[0], defects: versionDefects, deductions: versionDeductions },
+                            reason: `Tạo từ báo cáo tạm #${item.id}`,
+                            userId: reviewerId
+                        },
+                        connection
+                    );
+                }
+
                 await this.logAction(
                     {
                         reportType: "temp",
