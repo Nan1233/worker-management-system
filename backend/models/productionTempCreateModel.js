@@ -329,7 +329,7 @@ module.exports = {
         }
     },
 
-    async createCompleteReport({ data, defects = [], deductions = [], machineLines = [] }) {
+    async createCompleteReport({ data, defects = [], deductions = [], machineLines = [], audit = null }) {
         const connection = await getConnection();
         try {
             await beginTransaction(connection);
@@ -381,13 +381,58 @@ module.exports = {
                 }
             }
 
+            const auditUserId = Number(audit?.userId || 0);
+            if (!Number.isInteger(auditUserId) || auditUserId <= 0) {
+                const auditError = new Error("Không xác định được người tạo báo cáo để ghi audit");
+                auditError.code = "REPORT_AUDIT_ACTOR_REQUIRED";
+                throw auditError;
+            }
+
             const tempId = await this.create(data, connection);
 
-            await Promise.all([
-                this.createDefects(tempId, data.process_id, defects, connection),
-                this.createDeductions(tempId, data.process_id, deductions, connection),
-                this.replaceMachineLines(tempId, machineLines, connection)
-            ]);
+            // Dùng cùng một connection cho toàn bộ dữ liệu con. Không commit bất kỳ
+            // phần nào nếu NG, thời gian trừ, machine line hoặc audit bị lỗi.
+            await this.createDefects(tempId, data.process_id, defects, connection);
+            await this.createDeductions(tempId, data.process_id, deductions, connection);
+            await this.replaceMachineLines(tempId, machineLines, connection);
+
+            {
+                await this.logAction({
+                    reportType: "temp",
+                    reportId: tempId,
+                    userId: auditUserId,
+                    action: "CREATE",
+                    note: audit.note || "Công nhân tạo báo cáo",
+                    ipAddress: audit.ipAddress || null,
+                    userAgent: audit.userAgent || null
+                }, connection);
+
+                await query(
+                    connection,
+                    `INSERT INTO activity_logs
+                     (user_id, action, entity_type, entity_id, description, metadata_json, ip_address, user_agent)
+                     VALUES (?, 'CREATE_REPORT', 'temp_report', ?, ?, ?, ?, ?)`,
+                    [
+                        auditUserId,
+                        String(tempId),
+                        audit.description || `Tạo báo cáo chờ duyệt #${tempId}`,
+                        JSON.stringify({
+                            report_id: tempId,
+                            worker_id: data.worker_id,
+                            process_id: data.process_id,
+                            work_date: data.work_date,
+                            shift: data.shift,
+                            machine_no: data.machine_no || null,
+                            product_name: data.product_name || null,
+                            tt_ok: Number(data.tt_ok || 0),
+                            tt_ng: Number(data.tt_ng || 0),
+                            client_request_id: data.client_request_id || null
+                        }),
+                        audit.ipAddress || null,
+                        audit.userAgent || null
+                    ]
+                );
+            }
 
             await commit(connection);
             return {

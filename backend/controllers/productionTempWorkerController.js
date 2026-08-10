@@ -8,6 +8,7 @@ const {
     normalizeOperationType,
     normalizeOperationMode,
     validateWorkerWorkDate,
+    requestMeta,
 } = require("./productionTempControllerUtils");
 const { validateMasterData } = require("../services/reportBusinessValidationService");
 const { validateProductionReport } = require("../utils/reportValidation");
@@ -125,6 +126,17 @@ exports.createTempReport = async (req, res) => {
                 success: false,
                 message:
                     "Thiếu ca làm việc"
+            });
+        }
+
+        // client_request_id là khóa idempotency do client sinh ra và phải được
+        // tái sử dụng khi retry cùng một lần gửi. DB có UNIQUE(worker_id, client_request_id).
+        const clientRequestId = String(req.body?.client_request_id || "").trim();
+        if (!clientRequestId || clientRequestId.length > 64) {
+            return res.status(400).json({
+                success: false,
+                code: "CLIENT_REQUEST_ID_REQUIRED",
+                message: "Thiếu mã yêu cầu gửi báo cáo. Vui lòng tải lại biểu mẫu và gửi lại."
             });
         }
 
@@ -372,6 +384,8 @@ exports.createTempReport = async (req, res) => {
             deductions:
                 undefined,
 
+            client_request_id: clientRequestId,
+
             force_create:
                 req.body?.force_create === true
         };
@@ -388,12 +402,17 @@ exports.createTempReport = async (req, res) => {
                     data,
                     defects,
                     deductions,
-                    machineLines: machineValidation.lines
+                    machineLines: machineValidation.lines,
+                    audit: {
+                        userId: req.user?.id,
+                        note: "Công nhân tạo báo cáo",
+                        description: "Công nhân tạo báo cáo sản xuất chờ duyệt",
+                        ...requestMeta(req)
+                    }
                 });
 
 
         queuePostCreateSideEffects({
-            req,
             result,
             workerId,
             processId,
