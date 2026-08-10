@@ -1,4 +1,4 @@
-const BUILD_VERSION = "1.8.11-ui-electron-hardening-20260810";
+const BUILD_VERSION = "1.8.12-dark-theme-full-audit-20260811";
 const APP_CACHE = `ktc-${BUILD_VERSION}-app`;
 const STATIC_CACHE = `ktc-${BUILD_VERSION}-static`;
 const APP_SHELL = ["./", "./index.html", "./manifest.webmanifest", "./offline.html"];

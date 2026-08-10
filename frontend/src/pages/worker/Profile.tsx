@@ -92,25 +92,25 @@ export default function Profile() {
   return (
     <main style={{ maxWidth: 980, margin: "0 auto", padding: "clamp(16px, 3vw, 32px)" }}>
       <header style={{ marginBottom: 24 }}>
-        <p style={{ margin: 0, color: "#64748b", fontSize: 14, fontWeight: 600 }}>TÀI KHOẢN</p>
-        <h1 style={{ margin: "6px 0 8px", fontSize: "clamp(24px, 4vw, 34px)", color: "#0f172a" }}>Hồ sơ cá nhân</h1>
-        <p style={{ margin: 0, color: "#64748b" }}>Thông tin nhận diện và phân công đang áp dụng cho tài khoản của bạn.</p>
+        <p style={{ margin: 0, color: "var(--ktc-ink-600)", fontSize: 14, fontWeight: 600 }}>TÀI KHOẢN</p>
+        <h1 style={{ margin: "6px 0 8px", fontSize: "clamp(24px, 4vw, 34px)", color: "var(--ktc-ink-950)" }}>Hồ sơ cá nhân</h1>
+        <p style={{ margin: 0, color: "var(--ktc-ink-600)" }}>Thông tin nhận diện và phân công đang áp dụng cho tài khoản của bạn.</p>
       </header>
 
       {error && (
-        <div role="alert" style={{ marginBottom: 16, padding: "12px 14px", border: "1px solid #f59e0b", borderRadius: 10, background: "#fffbeb", color: "#92400e" }}>
+        <div role="alert" style={{ marginBottom: 16, padding: "12px 14px", border: "1px solid var(--ktc-warning)", borderRadius: 10, background: "var(--ktc-warning-bg)", color: "var(--ktc-warning)" }}>
           {error}
         </div>
       )}
 
-      <section style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)", overflow: "hidden" }}>
-        <div style={{ padding: "20px clamp(16px, 3vw, 28px)", borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
-          <strong style={{ display: "block", fontSize: 20, color: "#0f172a" }}>{profile?.full_name || storedUser?.full_name || "Người dùng"}</strong>
-          <span style={{ display: "block", marginTop: 4, color: "#64748b" }}>{displayRole(profile?.role || storedUser?.role)}</span>
+      <section style={{ background: "var(--ktc-surface)", border: "1px solid var(--ktc-border)", borderRadius: 16, boxShadow: "var(--ktc-shadow-sm)", overflow: "hidden" }}>
+        <div style={{ padding: "20px clamp(16px, 3vw, 28px)", borderBottom: "1px solid var(--ktc-border)", background: "var(--ktc-surface-subtle)" }}>
+          <strong style={{ display: "block", fontSize: 20, color: "var(--ktc-ink-950)" }}>{profile?.full_name || storedUser?.full_name || "Người dùng"}</strong>
+          <span style={{ display: "block", marginTop: 4, color: "var(--ktc-ink-600)" }}>{displayRole(profile?.role || storedUser?.role)}</span>
         </div>
 
         {loading ? (
-          <div style={{ padding: 28, color: "#64748b" }}>Đang tải hồ sơ…</div>
+          <div style={{ padding: 28, color: "var(--ktc-ink-600)" }}>Đang tải hồ sơ…</div>
         ) : (
           <dl style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 0, margin: 0 }}>
             {[
@@ -123,9 +123,9 @@ export default function Profile() {
               ["Công đoạn", processNames],
               ["Số điện thoại", profile?.phone || "—"]
             ].map(([label, value]) => (
-              <div key={String(label)} style={{ padding: "18px clamp(16px, 3vw, 28px)", borderBottom: "1px solid #eef2f7" }}>
-                <dt style={{ marginBottom: 6, color: "#64748b", fontSize: 13, fontWeight: 600 }}>{label}</dt>
-                <dd style={{ margin: 0, color: "#0f172a", fontWeight: 600, overflowWrap: "anywhere" }}>{value}</dd>
+              <div key={String(label)} style={{ padding: "18px clamp(16px, 3vw, 28px)", borderBottom: "1px solid var(--ktc-divider)" }}>
+                <dt style={{ marginBottom: 6, color: "var(--ktc-ink-600)", fontSize: 13, fontWeight: 600 }}>{label}</dt>
+                <dd style={{ margin: 0, color: "var(--ktc-ink-950)", fontWeight: 600, overflowWrap: "anywhere" }}>{value}</dd>
               </div>
             ))}
           </dl>

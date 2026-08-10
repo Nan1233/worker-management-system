@@ -715,3 +715,476 @@ html[data-theme="light"] .login-card {
   overflow: visible !important;
   color: #172033 !important;
 }
+
+/* ===== Full dark-mode coverage pass — 2026-08-11 =====
+   Covers lazy-loaded page CSS and legacy component CSS that still hard-code
+   white/light surfaces after the global theme file has loaded. */
+
+/* Generic page canvases */
+html[data-theme="dark"] :is(
+  .detail-container,
+  .edit-report-page,
+  .formula-page,
+  .governance-page,
+  .master-page,
+  .permissions-page,
+  .workers-page,
+  .report-download-page,
+  .selected-review-page,
+  .history-page,
+  .system-center,
+  .management-report-page
+) {
+  background: var(--ktc-bg) !important;
+  color: var(--ktc-text) !important;
+}
+
+/* Worker history / detail / profile-like surfaces */
+html[data-theme="dark"] :is(
+  .history-back-button,
+  .history-count,
+  .history-clear-button,
+  .pagination button,
+  .detail-state,
+  .detail-summary > div,
+  .detail-grid > div,
+  .metric-grid > div,
+  .detail-section
+) {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border) !important;
+  color: var(--ktc-text) !important;
+}
+
+html[data-theme="dark"] :is(
+  .detail-header p,
+  .detail-summary span,
+  .detail-grid span,
+  .metric-grid span,
+  .detail-list span,
+  .empty-row
+) {
+  color: var(--ktc-text-muted) !important;
+}
+
+html[data-theme="dark"] :is(
+  .detail-header h1,
+  .detail-summary strong,
+  .detail-grid strong,
+  .metric-grid strong,
+  .detail-list strong,
+  .detail-section h2,
+  .detail-note
+) {
+  color: var(--ktc-ink-950) !important;
+}
+
+html[data-theme="dark"] .detail-list,
+html[data-theme="dark"] .detail-list > div {
+  border-color: var(--ktc-divider) !important;
+}
+
+html[data-theme="dark"] .metric-grid > div.ok {
+  background: #163126 !important;
+  border-color: #35644d !important;
+}
+
+html[data-theme="dark"] .metric-grid > div.ng {
+  background: #38291d !important;
+  border-color: #71563b !important;
+}
+
+html[data-theme="dark"] .detail-rejection {
+  background: var(--ktc-danger-bg) !important;
+  border-color: #6e3d47 !important;
+  color: #f2aab1 !important;
+}
+
+/* Autocomplete is lazy/component-scoped and previously stayed white. */
+html[data-theme="dark"] .autocomplete-label {
+  color: var(--ktc-text-muted) !important;
+}
+html[data-theme="dark"] .autocomplete-input {
+  background: var(--ktc-input-bg) !important;
+  border-color: var(--ktc-border-strong) !important;
+  color: var(--ktc-ink-950) !important;
+}
+html[data-theme="dark"] .autocomplete-input:disabled {
+  background: var(--ktc-input-readonly) !important;
+  color: var(--ktc-ink-500) !important;
+}
+html[data-theme="dark"] .autocomplete-menu {
+  background: #131f2a !important;
+  border-color: var(--ktc-border-strong) !important;
+  box-shadow: var(--ktc-shadow-md) !important;
+}
+html[data-theme="dark"] .autocomplete-option {
+  color: var(--ktc-ink-800) !important;
+}
+html[data-theme="dark"] .autocomplete-option:hover,
+html[data-theme="dark"] .autocomplete-option.active {
+  background: var(--ktc-surface-hover) !important;
+}
+html[data-theme="dark"] .autocomplete-option-main { color: var(--ktc-ink-950) !important; }
+html[data-theme="dark"] .autocomplete-option-label { color: var(--ktc-ink-700) !important; }
+html[data-theme="dark"] .autocomplete-option-description,
+html[data-theme="dark"] .autocomplete-empty,
+html[data-theme="dark"] .autocomplete-search-icon { color: var(--ktc-ink-500) !important; }
+
+/* Toasts */
+html[data-theme="dark"] .toast {
+  background: #17232e !important;
+  border-top: 1px solid var(--ktc-border) !important;
+  border-right: 1px solid var(--ktc-border) !important;
+  border-bottom: 1px solid var(--ktc-border) !important;
+  box-shadow: var(--ktc-shadow-md) !important;
+}
+html[data-theme="dark"] .toast-success { color: #8bd8ad !important; }
+html[data-theme="dark"] .toast-error { color: #f0a0a6 !important; }
+html[data-theme="dark"] .toast-warning { color: #e8c17e !important; }
+html[data-theme="dark"] .toast-info { color: #91c4e4 !important; }
+
+/* Manager reports / selection / pagination */
+html[data-theme="dark"] :is(
+  .management-report-count,
+  .management-date-presets button,
+  .management-clear-button,
+  .management-pagination button,
+  .management-modal,
+  .selected-review-empty,
+  .selected-table-card,
+  .selected-reject-modal,
+  .selected-reject-modal select,
+  .selected-reject-modal textarea,
+  .selected-reject-actions > button:not(.selected-review-reject)
+) {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border-strong) !important;
+  color: var(--ktc-ink-800) !important;
+}
+
+html[data-theme="dark"] .selected-review-table :is(.sticky-col-1,.sticky-col-2,.sticky-col-3) {
+  background: var(--ktc-surface) !important;
+}
+html[data-theme="dark"] .selected-review-table thead :is(.sticky-col-1,.sticky-col-2,.sticky-col-3) {
+  background: var(--ktc-surface-muted) !important;
+}
+html[data-theme="dark"] :is(.management-date-presets button:hover,.management-clear-button:hover,.management-pagination button:hover) {
+  background: var(--ktc-surface-hover) !important;
+  color: var(--ktc-ink-950) !important;
+}
+
+/* Report detail / edit dialogs and sticky actions */
+html[data-theme="dark"] :is(
+  .detail-sticky-actions,
+  .detail-modal,
+  .detail-modal-actions > button:not(.detail-reject-button),
+  .edit-report-card
+) {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border-strong) !important;
+  color: var(--ktc-text) !important;
+}
+html[data-theme="dark"] .detail-sticky-actions {
+  background: rgba(20,29,39,.97) !important;
+  box-shadow: 0 12px 34px rgba(0,0,0,.34) !important;
+}
+html[data-theme="dark"] .edit-report-card label { color: var(--ktc-ink-700) !important; }
+html[data-theme="dark"] .edit-report-header p { color: var(--ktc-text-muted) !important; }
+html[data-theme="dark"] .edit-detail-section { border-color: var(--ktc-divider) !important; }
+html[data-theme="dark"] .edit-error {
+  background: var(--ktc-danger-bg) !important;
+  border-color: #6e3d47 !important;
+  color: #f0a0a6 !important;
+}
+
+/* Admin formula / governance / master / permissions */
+html[data-theme="dark"] :is(
+  .formula-card,
+  .formula-filters,
+  .formula-actions .secondary,
+  .master-toolbar,
+  .master-tabs button,
+  .system-tabs button,
+  .system-center header button,
+  .ktc-btn-secondary,
+  .governance-panel,
+  .governance-card,
+  .permission-card,
+  .master-card,
+  .modal-card
+) {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border-strong) !important;
+  color: var(--ktc-ink-800) !important;
+}
+html[data-theme="dark"] .formula-check,
+html[data-theme="dark"] .formula-preview div {
+  background: var(--ktc-surface-subtle) !important;
+  border-color: var(--ktc-border) !important;
+}
+html[data-theme="dark"] .formula-thresholds { border-color: var(--ktc-divider) !important; }
+html[data-theme="dark"] .formula-card-title p,
+html[data-theme="dark"] .formula-preview span,
+html[data-theme="dark"] .threshold-legend { color: var(--ktc-text-muted) !important; }
+html[data-theme="dark"] .formula-grid label > span,
+html[data-theme="dark"] .threshold span { color: var(--ktc-ink-700) !important; }
+
+/* Workers management page: cards, toolbars and dialogs use several hard-coded #fff values. */
+html[data-theme="dark"] :is(
+  .workers-toolbar,
+  .workers-filter-card,
+  .workers-table-card,
+  .worker-card,
+  .worker-modal,
+  .worker-edit-modal,
+  .worker-process-modal,
+  .worker-detail-modal
+) {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border) !important;
+  color: var(--ktc-text) !important;
+}
+
+/* Download/export cards */
+html[data-theme="dark"] :is(
+  .report-download-card,
+  .download-card,
+  .export-card,
+  .download-box
+) {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border) !important;
+  color: var(--ktc-text) !important;
+}
+
+/* System center and offline sync */
+html[data-theme="dark"] .offline-sync {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border-strong) !important;
+  box-shadow: var(--ktc-shadow-md) !important;
+}
+html[data-theme="dark"] .offline-sync__item {
+  background: var(--ktc-surface-subtle) !important;
+}
+html[data-theme="dark"] .offline-sync__actions button {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border-strong) !important;
+  color: var(--ktc-ink-800) !important;
+}
+html[data-theme="dark"] .offline-sync__summary,
+html[data-theme="dark"] .offline-sync__summary strong { color: var(--ktc-ink-900) !important; }
+html[data-theme="dark"] .offline-sync__item span,
+html[data-theme="dark"] .offline-sync__item small { color: var(--ktc-ink-600) !important; }
+
+/* Browser-native controls and state clarity */
+html[data-theme="dark"] input[type="date"],
+html[data-theme="dark"] input[type="time"],
+html[data-theme="dark"] input[type="datetime-local"],
+html[data-theme="dark"] input[type="month"] {
+  color-scheme: dark !important;
+}
+html[data-theme="dark"] input:disabled,
+html[data-theme="dark"] select:disabled,
+html[data-theme="dark"] textarea:disabled,
+html[data-theme="dark"] button:disabled {
+  opacity: .62;
+}
+html[data-theme="dark"] input[readonly],
+html[data-theme="dark"] textarea[readonly] {
+  background: var(--ktc-input-readonly) !important;
+  border-color: var(--ktc-border) !important;
+  color: var(--ktc-ink-700) !important;
+}
+html[data-theme="dark"] hr { border-color: var(--ktc-divider) !important; }
+
+/* Notification badge rings must follow dark chrome, not remain bright white. */
+html[data-theme="dark"] :is(
+  .worker-nav-icon .notification-badge,
+  .worker-mobile-nav-icon .notification-badge,
+  .management-menu-icon .notification-badge
+) {
+  border-color: #101923 !important;
+}
+
+/* Mobile chrome: legacy CSS uses nearly opaque white. */
+@media (max-width: 860px) {
+  html[data-theme="dark"] .worker-mobile-nav,
+  html[data-theme="dark"] .management-sidebar {
+    background: rgba(16,25,35,.98) !important;
+    border-color: var(--ktc-border) !important;
+  }
+  html[data-theme="dark"] .worker-hide-keyboard {
+    background: #182431 !important;
+    border-color: var(--ktc-border-strong) !important;
+    color: var(--ktc-ink-800) !important;
+  }
+}
+
+/* ===== Page-specific legacy hard-code cleanup ===== */
+
+/* Worker production form */
+html[data-theme="dark"] :is(
+  .worker-sticky-info,
+  .worker-choice-row button,
+  .machine-performance-metric,
+  .machine-deduction-option,
+  .worker-time-item,
+  .worker-quality-section,
+  .worker-quality-card,
+  .worker-dropdown-box,
+  .worker-dropdown-title,
+  .worker-dropdown-options,
+  .worker-dropdown-option,
+  .worker-reset-button,
+  .duplicate-dialog,
+  .duplicate-dialog-cancel,
+  .worker-network-card,
+  .worker-network-actions button
+) {
+  background: var(--ktc-surface-subtle) !important;
+  border-color: var(--ktc-border) !important;
+  color: var(--ktc-ink-800) !important;
+}
+html[data-theme="dark"] :is(
+  .worker-time-item > input,
+  .worker-time-split input,
+  .worker-quality-card input,
+  .machine-deduction-minute
+) {
+  background: var(--ktc-input-bg) !important;
+  border-color: var(--ktc-border-strong) !important;
+  color: var(--ktc-ink-950) !important;
+  box-shadow: none !important;
+}
+html[data-theme="dark"] :is(.worker-time-item > input:focus,.worker-time-split input:focus,.worker-quality-card input:focus) {
+  background: #111d28 !important;
+  border-color: var(--ktc-brand-500) !important;
+  box-shadow: var(--ktc-focus) !important;
+}
+html[data-theme="dark"] .worker-quality-card.ok {
+  background: #1a2f3e !important;
+  border-color: #476b89 !important;
+}
+html[data-theme="dark"] .worker-quality-card.ng {
+  background: #34252c !important;
+  border-color: #704650 !important;
+}
+html[data-theme="dark"] .worker-quality-card.total-output {
+  background: #1b2935 !important;
+  border-color: #425769 !important;
+}
+html[data-theme="dark"] .worker-dropdown-title:hover,
+html[data-theme="dark"] .worker-dropdown-option:hover,
+html[data-theme="dark"] .worker-reset-button:hover:not(:disabled),
+html[data-theme="dark"] .worker-network-actions button:hover {
+  background: var(--ktc-surface-hover) !important;
+}
+html[data-theme="dark"] .duplicate-dialog h2 { color: var(--ktc-ink-950) !important; }
+html[data-theme="dark"] .duplicate-dialog p { color: var(--ktc-text-muted) !important; }
+html[data-theme="dark"] .worker-network-symbol {
+  background: var(--ktc-danger-bg) !important;
+  color: var(--ktc-danger) !important;
+}
+
+/* Manager workers page */
+html[data-theme="dark"] .management-workers-header h1 { color: var(--ktc-ink-950) !important; }
+html[data-theme="dark"] .management-workers-header p,
+html[data-theme="dark"] .management-workers-count span,
+html[data-theme="dark"] .management-workers-table td::before { color: var(--ktc-text-muted) !important; }
+html[data-theme="dark"] :is(
+  .management-workers-count,
+  .management-workers-toolbar input,
+  .management-workers-table-wrapper,
+  .worker-cancel-training,
+  .management-workers-state
+) {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border) !important;
+  color: var(--ktc-ink-800) !important;
+}
+html[data-theme="dark"] .management-workers-table th {
+  background: var(--ktc-surface-muted) !important;
+  border-color: var(--ktc-border) !important;
+  color: var(--ktc-ink-700) !important;
+}
+html[data-theme="dark"] .management-workers-table td {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-divider) !important;
+  color: var(--ktc-ink-800) !important;
+}
+html[data-theme="dark"] .management-workers-table tbody tr:hover td {
+  background: var(--ktc-surface-hover) !important;
+}
+html[data-theme="dark"] .training-percent-badge {
+  background: var(--ktc-brand-100) !important;
+  color: var(--ktc-brand-900) !important;
+}
+html[data-theme="dark"] .worker-status.active {
+  background: var(--ktc-success-bg) !important;
+  color: var(--ktc-success) !important;
+}
+html[data-theme="dark"] .worker-status.inactive {
+  background: var(--ktc-surface-muted) !important;
+  color: var(--ktc-ink-600) !important;
+}
+html[data-theme="dark"] .management-workers-error {
+  background: var(--ktc-danger-bg) !important;
+  border-color: #6e3d47 !important;
+  color: var(--ktc-danger) !important;
+}
+@media (max-width: 767px) {
+  html[data-theme="dark"] .management-workers-table tr {
+    background: var(--ktc-surface) !important;
+    border-color: var(--ktc-border) !important;
+  }
+}
+
+/* Dashboard */
+html[data-theme="dark"] :is(
+  .dashboard-period-filter,
+  .dashboard-kpi-card,
+  .dashboard-panel,
+  .dashboard-table-card,
+  .dashboard-detail-button
+) {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border) !important;
+  color: var(--ktc-text) !important;
+}
+html[data-theme="dark"] .dashboard-detail-button:hover { background: var(--ktc-surface-hover) !important; }
+html[data-theme="dark"] .dashboard-ng-badge.warning {
+  background: var(--ktc-warning-bg) !important;
+  color: var(--ktc-warning) !important;
+}
+html[data-theme="dark"] .dashboard-ng-badge.critical {
+  background: var(--ktc-danger-bg) !important;
+  color: var(--ktc-danger) !important;
+}
+html[data-theme="dark"] .dashboard-kpi-card.danger .dashboard-kpi-icon {
+  background: var(--ktc-danger-bg) !important;
+  color: var(--ktc-danger) !important;
+}
+
+/* Downloads */
+html[data-theme="dark"] .download-page { background: var(--ktc-bg) !important; }
+html[data-theme="dark"] .download-card,
+html[data-theme="dark"] .export-box {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border) !important;
+}
+html[data-theme="dark"] :is(.download-header h1,.export-box h3) { color: var(--ktc-ink-950) !important; }
+html[data-theme="dark"] :is(.download-header p,.export-box p) { color: var(--ktc-text-muted) !important; }
+html[data-theme="dark"] .download-header-icon,
+html[data-theme="dark"] .export-box-icon {
+  background: var(--ktc-brand-100) !important;
+  color: var(--ktc-brand-800) !important;
+}
+html[data-theme="dark"] .export-box-icon.success {
+  background: var(--ktc-success-bg) !important;
+  color: var(--ktc-success) !important;
+}
+html[data-theme="dark"] .export-box-icon.warning {
+  background: var(--ktc-warning-bg) !important;
+  color: var(--ktc-warning) !important;
+}
