@@ -2,6 +2,7 @@ const { assertReportVolume } = require('../services/excelExportGuards');
 const { loadProcessMonthReports } = require('../services/processExcelExportService');
 const db = require('../config/db');
 const { getSettingsMap } = require('../services/formulaSettingsService');
+const { calculateProductionMetrics } = require('../domain/productionCalculationEngine.cjs');
 
 const PROCESS_CODES = ['CAN','EP','XLBV','GC','MAI','DO','K1','K2','SX3'];
 const query = (sql, params = []) => db.promise().query(sql, params).then(([rows]) => rows);
@@ -74,6 +75,18 @@ async function buildCompanyData(yearMonth) {
         return [date, map[code] || map.GLOBAL || null];
       }).filter(([, settings]) => Boolean(settings))
     );
+
+    // Backend là nguồn tính chuẩn. Desktop/Excel ưu tiên snapshot này thay vì
+    // tự diễn giải lại công thức, tránh lệch số giữa API, màn hình và file Excel.
+    processData[code].reports = (processData[code].reports || []).map((report) => {
+      const workDate = String(report.work_date || '').slice(0, 10);
+      const map = mapsByDate.get(workDate) || {};
+      const settings = map[code] || map.GLOBAL || undefined;
+      return {
+        ...report,
+        calculationSnapshot: calculateProductionMetrics(report, settings)
+      };
+    });
   }
 
   const formulaSettings = await getSettingsMap(`${yearMonth}-01`);

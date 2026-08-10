@@ -13,7 +13,7 @@
     "dist:win": "npm run build:frontend && npm run smoke:excel && electron-builder --win portable nsis --x64",
     "dist:portable": "npm run build:frontend && npm run smoke:excel && electron-builder --win portable --x64",
     "dist:nsis": "npm run build:frontend && npm run smoke:excel && electron-builder --win nsis --x64",
-    "check": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check electron/desktopLog.cjs && node --check electron/excelPaths.cjs && node --check electron/authToken.cjs && node --check electron/companyExcelLocal.cjs && node --check electron/excelDualLayout.cjs && node --check electron/monthlyWorkbookLocal.cjs && node --check scripts/smokeExcel.cjs && npm run check:excel-db-sync",
+    "check": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check electron/desktopLog.cjs && node --check electron/excelPaths.cjs && node --check electron/authToken.cjs && node --check electron/companyExcelLocal.cjs && node --check electron/productionCalculationEngine.cjs && node --check electron/excelDualLayout.cjs && node --check electron/monthlyWorkbookLocal.cjs && node --check scripts/smokeExcel.cjs && npm run check:excel-db-sync",
     "copy:frontend": "node scripts/copyFrontend.cjs",
     "smoke:excel": "node scripts/smokeExcel.cjs",
     "dist:dir": "npm run build:frontend && npm run smoke:excel && electron-builder --win dir --x64",

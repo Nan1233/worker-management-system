@@ -1,4 +1,5 @@
 const ExcelJS = require('exceljs');
+const { calculateProductionMetrics, DEFAULT_SETTINGS, trainingFactor, calculateNg } = require('./productionCalculationEngine.cjs');
 
 const PROCESS_SHEETS = Object.freeze({
   CAN: { sheet: 'CÁN', title: 'CÁN', deductionGroup: 'CHI TIẾT THỜI GIAN TRỪ', defectGroup: 'CHI TIẾT NG' },
@@ -238,89 +239,21 @@ function productDisplay(report) {
   return values.length ? [...new Set(values)].join(', ') : asText(report.product_name);
 }
 
-function trainingFactor(value) {
-  if (value === null || value === undefined || (typeof value === 'string' && value.trim() === '')) return 1;
-  const number = asNumber(value);
-  if (number === null) return 1;
-  return Math.min(1, Math.max(0, number / 100));
+function countedNg(report) {
+  return calculateNg(report).countedNg;
 }
 
 function reportTimeKey(report) {
   return asText(report.approved_at || report.created_at || report.entry_date || report.work_date);
 }
 
-function countedNg(report) {
-  const excludeKqd = Number(report.exclude_kqd_from_tt || 0) === 1;
-  const details = Array.isArray(report.defects) ? report.defects : [];
-  if (!details.length) return asNumber(report.tt_ng);
-  return details.reduce((sum, item) => {
-    const code = normalize(item.defect_type_code || item.defect_code || item.code || item.defect_type_name || item.name);
-    const quantity = asInteger(item.quantity) || 0;
-    return excludeKqd && code === 'KQD' ? sum : sum + quantity;
-  }, 0);
-}
-
-function machineLineHours(report) {
-  const lines = Array.isArray(report.machineLines) ? report.machineLines : [];
-  return lines.reduce((sum, line) => sum + (asNumber(line.hours ?? line.actual_time ?? line.machine_time) || 0), 0);
-}
-
 function formulaSettingsFor(payload, processCode) {
   const source = payload?.formulaSettings || {};
-  return source[String(processCode || '').toUpperCase()] || source.GLOBAL || {
-    apply_training_percent: 1,
-    output_formula: 'ENTERED_X_TRAINING',
-    output_per_hour_formula: 'ADJUSTED_OUTPUT_DIV_ACTUAL_TIME',
-    achievement_formula: 'OUTPUT_PER_HOUR_DIV_STANDARD',
-    ng_rate_formula: 'NG_DIV_OK_PLUS_NG',
-    actual_time_formula: 'DATABASE_SNAPSHOT',
-    threshold_red: 80,
-    threshold_orange: 95,
-    threshold_yellow: 100,
-    threshold_green: 110
-  };
-}
-
-function calculateActualTime(report, settings, workingTime, deductionTime) {
-  if (settings.actual_time_formula === 'WORKING_MINUS_DEDUCTION') {
-    if (workingTime === null) return null;
-    return Math.max(0, workingTime - (deductionTime || 0));
-  }
-  if (settings.actual_time_formula === 'MACHINE_LINES_SUM') {
-    const sum = machineLineHours(report);
-    return sum > 0 ? sum : asNumber(report.actual_time);
-  }
-  return asNumber(report.actual_time);
-}
-
-function calculateOutput({ enteredOutput, ok, countedNgValue, factor, settings }) {
-  let output = null;
-  if (settings.output_formula === 'ENTERED_OUTPUT') output = enteredOutput;
-  else if (settings.output_formula === 'OK_PLUS_NG') {
-    output = ok !== null && countedNgValue !== null ? ok + countedNgValue : null;
-  } else if (settings.output_formula === 'OK_X_TRAINING') {
-    output = ok === null ? null : ok * (settings.apply_training_percent ? factor : 1);
-  } else {
-    output = enteredOutput === null ? null : enteredOutput * (settings.apply_training_percent ? factor : 1);
-  }
-  return output === null ? null : Math.round(output);
+  return source[String(processCode || '').toUpperCase()] || source.GLOBAL || DEFAULT_SETTINGS;
 }
 
 function reportSnapshot(report, settings = {}) {
-  const workingTime = asNumber(report.total_time);
-  const deductionTime = asNumber(report.deduction_time);
-  const actualTime = calculateActualTime(report, settings, workingTime, deductionTime);
-  const ok = asInteger(report.tt_ok);
-  const ng = asInteger(report.tt_ng);
-  const countedNgValue = countedNg(report);
-  const enteredOutput = asInteger(report.actual_output);
-  const factor = trainingFactor(report.training_percent);
-  const output = calculateOutput({ enteredOutput, ok, countedNgValue, factor, settings });
-  const standard = asNumber(report.standard_output);
-  const perHourNumerator = settings.output_per_hour_formula === 'ENTERED_OUTPUT_DIV_ACTUAL_TIME' ? enteredOutput : output;
-  const outputPerHour = actualTime && perHourNumerator !== null ? perHourNumerator / actualTime : null;
-  const achievement = outputPerHour !== null && standard ? outputPerHour / standard : null;
-  const ngDenominator = ok !== null && ng !== null ? ok + ng : null;
+  const metrics = report.calculationSnapshot || calculateProductionMetrics(report, settings);
   return {
     id: asNumber(report.id),
     date: asDate(report.work_date),
@@ -330,19 +263,19 @@ function reportSnapshot(report, settings = {}) {
     shift: asText(report.shift),
     machine: machineDisplay(report),
     product: productDisplay(report),
-    training: factor,
-    standard,
-    workingTime,
-    actualTime,
-    deductionTime,
-    ok,
-    ng,
-    countedNg: countedNgValue,
-    enteredOutput,
-    output,
-    outputPerHour,
-    achievement,
-    ngRate: ng !== null && ngDenominator ? ng / ngDenominator : null,
+    training: metrics.trainingFactor,
+    standard: metrics.standard,
+    workingTime: metrics.workingTime,
+    actualTime: metrics.actualTime,
+    deductionTime: metrics.deductionTime,
+    ok: metrics.ok,
+    ng: metrics.allNg,
+    countedNg: metrics.countedNg,
+    enteredOutput: metrics.enteredOutput,
+    output: metrics.adjustedOutput,
+    outputPerHour: metrics.outputPerHour,
+    achievement: metrics.achievement,
+    ngRate: metrics.ngRate,
     status: asText(report.status),
     note: asText(report.note)
   };

@@ -122,33 +122,34 @@ test('monthly workbook only accepts approved TiDB database payload', () => {
 test('monthly workbook uses database snapshots and report_id details', () => {
   const service = read('services/processExcelExportService.js');
   const source = read('../desktop/electron/monthlyWorkbookLocal.cjs');
+  const engine = read('domain/productionCalculationEngine.cjs');
   assert.match(service, /WHERE prd\.report_id IN/);
   assert.match(service, /report\.deductions = deductions\.get\(id\) \|\| \[\]/);
   assert.match(service, /report\.defects = defects\.get\(id\) \|\| \[\]/);
   assert.match(
-    source,
-    /const enteredOutput = asInteger\(report\.actual_output\)/,
+    engine,
+    /const enteredOutput = asInteger\(report\.actual_output \?\? fallbackEnteredOutput\)/,
     'SP nhập phải được chuẩn hóa thành số nguyên'
   );
   assert.match(
-    source,
+    engine,
     /const ok = asInteger\(report\.tt_ok\)/,
     'OK phải được chuẩn hóa thành số nguyên'
   );
   assert.match(
-    source,
-    /const ng = asInteger\(report\.tt_ng\)/,
+    engine,
+    /const total = asInteger\(report\.tt_ng\)/,
     'Tổng NG phải được chuẩn hóa thành số nguyên'
   );
   assert.match(
-    source,
+    engine,
     /return output === null \? null : Math\.round\(output\)/,
     'SP quy đổi phải được làm tròn thành số nguyên'
   );
   assert.match(source, /INTEGER:\s*'#,##0;-#,##0;0'/);
   assert.match(source, /DECIMAL:\s*'#,##0\.##;-#,##0\.##;0'/);
   assert.match(source, /RATE:\s*'#,##0\.######;-#,##0\.######;0'/);
-  assert.match(source, /asNumber\(report\.standard_output\)/);
+  assert.match(engine, /asNumber\(report\.standard_output\)/);
   assert.match(source, /productDisplay\(report\)/);
   assert.doesNotMatch(source, /training_percent\s*\|\|\s*100/);
 });

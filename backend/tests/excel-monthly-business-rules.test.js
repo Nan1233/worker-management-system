@@ -7,12 +7,14 @@ const monthly = fs.readFileSync(path.join(__dirname, '../../desktop/electron/mon
 const legacyDesktop = fs.readFileSync(path.join(__dirname, '../../desktop/electron/companyExcelLocal.cjs'), 'utf8');
 const legacyBackend = fs.readFileSync(path.join(__dirname, '../services/companyExcelExportService.js'), 'utf8');
 const smoke = fs.readFileSync(path.join(__dirname, '../../desktop/scripts/smokeExcel.cjs'), 'utf8');
+const engine = fs.readFileSync(path.join(__dirname, '../domain/productionCalculationEngine.cjs'), 'utf8');
 
-test('monthly workbook preserves zero training and uses counted NG only for output', () => {
-  assert.match(monthly, /Math\.min\(1, Math\.max\(0, number \/ 100\)\)/);
-  assert.match(monthly, /countedNgValue/);
-  assert.match(monthly, /ng \/ ngDenominator/);
-  assert.match(monthly, /ok \+ ng/);
+test('monthly workbook preserves zero training and uses canonical calculation engine', () => {
+  assert.match(monthly, /calculateProductionMetrics/);
+  assert.match(monthly, /report\.calculationSnapshot\s*\|\|\s*calculateProductionMetrics/);
+  assert.match(engine, /Math\.min\(100, Math\.max\(0, number\)\)/);
+  assert.match(engine, /countedNg/);
+  assert.match(engine, /ok \+ ng\.allNg/);
 });
 
 test('monthly workbook separates report and entry dates and sorts consistently', () => {
