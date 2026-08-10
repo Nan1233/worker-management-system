@@ -10,15 +10,19 @@
     "frontend:install": "node scripts/run-frontend-command.cjs install",
     "build:frontend": "npm --prefix ../frontend run build && npm run copy:frontend",
     "start": "npm run build:frontend && electron .",
-    "dist:win": "npm run build:frontend && npm run smoke:excel && electron-builder --win portable nsis --x64",
-    "dist:portable": "npm run build:frontend && npm run smoke:excel && electron-builder --win portable --x64",
-    "dist:nsis": "npm run build:frontend && npm run smoke:excel && electron-builder --win nsis --x64",
-    "check": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check electron/desktopLog.cjs && node --check electron/excelPaths.cjs && node --check electron/authToken.cjs && node --check electron/companyExcelLocal.cjs && node --check electron/productionCalculationEngine.cjs && node --check electron/excelDualLayout.cjs && node --check electron/monthlyWorkbookLocal.cjs && node --check scripts/smokeExcel.cjs && npm run check:excel-db-sync",
+    "dist:win": "npm run preflight && npm run build:frontend && npm run smoke:excel && electron-builder --win portable nsis --x64",
+    "dist:portable": "npm run preflight && npm run build:frontend && npm run smoke:excel && electron-builder --win portable --x64",
+    "dist:nsis": "npm run preflight && npm run build:frontend && npm run smoke:excel && electron-builder --win nsis --x64",
+    "check": "node --check electron/main.cjs && node --check electron/platformPaths.cjs && node --check scripts/preflight.cjs && node --check scripts/checkPlatformPaths.cjs && node --check electron/preload.cjs && node --check electron/desktopLog.cjs && node --check electron/excelPaths.cjs && node --check electron/authToken.cjs && node --check electron/companyExcelLocal.cjs && node --check electron/productionCalculationEngine.cjs && node --check electron/excelDualLayout.cjs && node --check electron/monthlyWorkbookLocal.cjs && node --check scripts/smokeExcel.cjs && npm run check:excel-db-sync && npm run check:platform-paths && node --check scripts/fieldReadiness.cjs && node scripts/fieldReadiness.cjs",
     "copy:frontend": "node scripts/copyFrontend.cjs",
     "smoke:excel": "node scripts/smokeExcel.cjs",
-    "dist:dir": "npm run build:frontend && npm run smoke:excel && electron-builder --win dir --x64",
+    "dist:dir": "npm run preflight && npm run build:frontend && npm run smoke:excel && electron-builder --win dir --x64",
     "check:excel-db-sync": "node scripts/checkExcelDbSync.cjs",
-    "validate:excel-folder": "node scripts/validateExcelFolder.cjs"
+    "validate:excel-folder": "node scripts/validateExcelFolder.cjs",
+    "preflight": "node scripts/preflight.cjs",
+    "check:platform-paths": "node scripts/checkPlatformPaths.cjs",
+    "dist:mac": "npm run preflight && npm run build:frontend && npm run smoke:excel && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --universal",
+    "field:readiness": "npm run preflight && node scripts/fieldReadiness.cjs"
   },
   "devDependencies": {
     "electron": "^37.2.3",
@@ -60,7 +64,18 @@
     "portable": {
       "artifactName": "KTC-Production-Control.exe"
     },
-    "compression": "maximum"
+    "compression": "maximum",
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "assets/icon.png",
+      "category": "public.app-category.business"
+    },
+    "dmg": {
+      "artifactName": "KTC-Production-Control-${version}-${arch}.dmg"
+    }
   },
   "dependencies": {
     "exceljs": "^4.4.0",

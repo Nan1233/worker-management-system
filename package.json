@@ -14,6 +14,9 @@
     "audit:prod": "npm --prefix frontend run audit:prod && npm --prefix backend run audit:prod",
     "restore:rehearsal": "npm --prefix backend run restore:rehearsal --",
     "load:readiness": "npm --prefix backend run load:readiness",
-    "pilot:readiness": "node scripts/pilotReadiness.cjs"
+    "pilot:readiness": "node scripts/pilotReadiness.cjs",
+    "build:mac": "npm --prefix desktop run dist:mac",
+    "desktop:preflight": "npm --prefix desktop run preflight",
+    "desktop:field-readiness": "npm --prefix desktop run field:readiness"
   }
 }

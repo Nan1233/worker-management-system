@@ -1,0 +1,84 @@
+/* KTC Pilot UI Polish — visual hierarchy and readability only. No business-flow changes. */
+:root{
+  --ktc-page-gap:20px;
+  --ktc-section-gap:14px;
+  --ktc-card-pad:16px;
+  --ktc-row-h:46px;
+}
+
+body{font-feature-settings:"kern" 1,"tnum" 1;font-variant-numeric:tabular-nums lining-nums}
+.management-content,.worker-main-content{color:var(--ktc-ink-900)}
+.management-content :where(h1,h2,h3),.worker-main-content :where(h1,h2,h3){text-wrap:balance}
+.management-content :where(h1),.system-center h1{font-size:clamp(24px,2.2vw,30px);line-height:1.18;font-weight:800;letter-spacing:-.035em}
+.management-content :where(h2){font-size:18px;line-height:1.3;letter-spacing:-.015em}
+.management-content :where(h3){font-size:15px;line-height:1.35}
+
+/* Stronger but calm card hierarchy. */
+:where(.dashboard-panel,.dashboard-kpi-card,.management-report-card,.detail-section,.edit-report-card,.history-card,.permission-card,.system-monitor-card,.system-monitor-errors){
+  border:1px solid var(--ktc-border);
+  background:var(--ktc-surface);
+  box-shadow:0 1px 2px rgba(16,24,40,.035),0 8px 24px rgba(16,24,40,.035);
+}
+:where(.dashboard-panel,.detail-section,.edit-report-card,.history-card,.permission-card){padding:var(--ktc-card-pad)}
+
+/* Dense data tables: easier scanning, stable header and selected-row feedback. */
+.management-content :where(.management-table-wrapper,.management-table-container,.table-scroll,.permission-table-wrap){
+  border:1px solid var(--ktc-border);border-radius:12px;background:var(--ktc-surface);scrollbar-gutter:stable both-edges;
+}
+.management-content table{width:100%}
+.management-content thead th{top:0;z-index:3;background:var(--ktc-surface-subtle);box-shadow:inset 0 -1px 0 var(--ktc-border);font-size:11px;letter-spacing:.025em}
+.management-content tbody td{min-height:var(--ktc-row-h);padding-block:10px;vertical-align:middle}
+.management-content tbody tr:focus-within td{background:color-mix(in srgb,var(--ktc-brand-50) 75%,var(--ktc-surface))}
+
+/* Toolbars do not leave isolated controls floating in wide whitespace. */
+:where(.management-toolbar,.management-actions,.manager-dashboard-header,.management-workers-header,.master-heading,.formula-header){gap:10px 14px}
+:where(.management-toolbar,.management-actions) button{white-space:nowrap}
+
+/* System center: timeline feel without introducing a new interaction model. */
+.system-list{position:relative}
+.system-activity-item{position:relative;overflow:visible}
+.system-activity-item::before{content:"";position:absolute;left:24px;top:38px;bottom:-11px;width:1px;background:var(--ktc-border)}
+.system-activity-item:last-child::before{display:none}
+.system-activity-item .activity-icon{position:relative;z-index:1;width:20px;height:20px;display:grid;place-items:center;border-radius:999px;background:var(--ktc-brand-100);color:var(--ktc-brand-800);font-size:0;margin-top:1px}
+.system-activity-item .activity-icon::after{content:"";width:7px;height:7px;border-radius:50%;background:var(--ktc-brand-700)}
+.system-diff-row .after{font-weight:650}
+.system-monitor-card>strong{letter-spacing:-.025em}
+.system-health-banner{box-shadow:0 8px 24px rgba(16,24,40,.04)}
+
+/* Loading and empty states read like part of the product rather than raw text. */
+.system-empty,.management-empty,.empty-state{min-height:132px;background:linear-gradient(180deg,var(--ktc-surface),var(--ktc-surface-subtle));color:var(--ktc-ink-500)}
+.system-empty::before,.management-empty::before,.empty-state::before{content:"";width:34px;height:4px;border-radius:999px;background:var(--ktc-brand-200);box-shadow:12px 0 0 var(--ktc-brand-100),-12px 0 0 var(--ktc-brand-100);margin-right:10px}
+
+/* Forms: field groups stay aligned and numeric/time inputs visually match. */
+.worker-form-page :where(input:not([type=checkbox]):not([type=radio]),select,textarea),
+.management-content :where(input:not([type=checkbox]):not([type=radio]),select,textarea){
+  border-color:var(--ktc-border-strong);box-shadow:inset 0 1px 0 rgba(16,24,40,.015);
+}
+.worker-form-page :where(input:not([type=checkbox]):not([type=radio]),select):focus,
+.management-content :where(input:not([type=checkbox]):not([type=radio]),select,textarea):focus{
+  border-color:var(--ktc-brand-500);box-shadow:0 0 0 3px color-mix(in srgb,var(--ktc-brand-500) 16%,transparent);
+}
+
+/* Offline card must remain visible without obscuring primary mobile submit controls. */
+.offline-sync{backdrop-filter:saturate(1.1) blur(10px)}
+.offline-sync__item{border:1px solid color-mix(in srgb,var(--ktc-border) 84%,transparent)}
+
+@media(max-width:1024px){
+  :root{--ktc-page-gap:16px;--ktc-card-pad:14px}
+  .management-content tbody td{padding-block:9px}
+}
+@media(max-width:720px){
+  :root{--ktc-page-gap:12px;--ktc-section-gap:10px;--ktc-card-pad:12px}
+  .management-content :where(h1),.system-center h1{font-size:24px}
+  .management-content :where(.management-table-wrapper,.management-table-container,.table-scroll,.permission-table-wrap){border-radius:10px}
+  .management-content thead th{font-size:10px}
+  .system-activity-item::before{left:22px}
+  .offline-sync{bottom:calc(12px + env(safe-area-inset-bottom))}
+}
+@media(max-width:480px){
+  :root{--ktc-row-h:44px}
+  .management-content tbody td{padding-block:8px}
+  .system-activity-item::before{display:none}
+  .system-health-banner strong{font-size:18px}
+  .system-monitor-card>strong{font-size:21px}
+}

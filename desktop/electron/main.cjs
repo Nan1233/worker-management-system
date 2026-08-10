@@ -10,6 +10,7 @@ const { createDesktopLogger, normalizeError } = require('./desktopLog.cjs');
 const { normalizeAccessToken, isUsableAccessToken } = require('./authToken.cjs');
 const { buildSplitMonthlyWorkbooksLocal, PROCESS_SHEETS } = require('./monthlyWorkbookLocal.cjs');
 const { getCompanyMonthTarget } = require('./excelDualLayout.cjs');
+const { getDesktopDataRoot, getDocumentsRoot } = require('./platformPaths.cjs');
 const { readExcelChanges } = require('./excelDbSync.cjs');
 const {
   getDateParts,
@@ -47,7 +48,7 @@ let excelDbSyncTimer = null;
 let excelDbSyncRunning = false;
 const excelDbSyncState = new Map();
 
-const appDataRoot = path.join(os.homedir(), 'AppData', 'Local', 'KTC-Worker-Management');
+const appDataRoot = getDesktopDataRoot();
 app.setPath('userData', path.join(appDataRoot, 'UserData'));
 app.setPath('cache', path.join(appDataRoot, 'Cache'));
 app.commandLine.appendSwitch('disk-cache-dir', path.join(appDataRoot, 'Cache'));
@@ -455,8 +456,7 @@ async function backupExistingExcel(filePath, syncDate) {
     const relativeParts = relative.split(path.sep);
     const processName = safeFolderName(relativeParts.length >= 2 ? relativeParts[1] : 'Tong hop');
     const processBackupRoot = path.join(
-      os.homedir(),
-      'Documents',
+      getDocumentsRoot(),
       'KTC',
       'Backup',
       'Excel',
@@ -1202,8 +1202,8 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
-    minWidth: 1024,
-    minHeight: 680,
+    minWidth: 900,
+    minHeight: 620,
     show: false,
     backgroundColor: '#f3f6fb',
     autoHideMenuBar: true,
