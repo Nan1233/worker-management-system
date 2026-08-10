@@ -658,3 +658,20 @@
   .login-heading { margin-bottom: 20px; }
   .remembered-section { margin-bottom: 16px; padding-bottom: 16px; }
 }
+
+/* ===== Login content frame removal =====
+   The login content itself must not look like a bounded card. Keep borders
+   only on interactive controls (remembered account, inputs, role buttons).
+   This also prevents headings/helper text from appearing visually clipped
+   by a card edge. */
+.login-card,
+html[data-theme="light"] .login-card,
+html[data-theme="dark"] .login-card {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  overflow: visible !important;
+  padding: 0 !important;
+}
