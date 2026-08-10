@@ -143,7 +143,7 @@ function ReportDetail() {
         if (!report) return;
         try {
             setSubmitting(true);
-            await approveSelectedTempReports([Number(report.id)]);
+            await approveSelectedTempReports([{ id: Number(report.id), expected_updated_at: report.updated_at || null }]);
             navigate(`${basePath}/reports`, { replace: true });
         } catch (err: unknown) {
             setError(axios.isAxiosError(err) ? err.response?.data?.message || "Không thể duyệt báo cáo." : "Không thể duyệt báo cáo.");
@@ -156,7 +156,7 @@ function ReportDetail() {
         if (!reason) { setError("Vui lòng nhập lý do từ chối."); return; }
         try {
             setSubmitting(true);
-            await rejectSelectedTempReports([Number(report.id)], reason);
+            await rejectSelectedTempReports([{ id: Number(report.id), expected_updated_at: report.updated_at || null }], reason);
             navigate(`${basePath}/reports`, { replace: true });
         } catch (err: unknown) {
             setError(axios.isAxiosError(err) ? err.response?.data?.message || "Không thể từ chối báo cáo." : "Không thể từ chối báo cáo.");

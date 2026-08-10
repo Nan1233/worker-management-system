@@ -11,6 +11,7 @@ const {
     toPositiveInteger,
     validateWorkerWorkDate,
     normalizeIds,
+    normalizeReviewTargets,
     requestMeta,
 } = require("./productionTempControllerUtils");
 const { validateMasterData } = require("../services/reportBusinessValidationService");
@@ -127,12 +128,13 @@ exports.getTempReportDetail = async (req, res) => {
 
 exports.approveSelectedReports = async (req, res) => {
     try {
-        const ids = normalizeIds(req.body?.ids);
+        const targets = normalizeReviewTargets(req.body);
+        const ids = targets.map((item) => item.id);
         const reviewerId = toPositiveInteger(req.user?.id);
         if (ids.length === 0) return res.status(400).json({ success: false, message: "Vui lòng chọn ít nhất một báo cáo" });
         if (!reviewerId) return res.status(401).json({ success: false, message: "Thông tin người duyệt không hợp lệ" });
 
-        const result = await ProductionTemp.approveSelected(ids, reviewerId, req.user?.role === "admin");
+        const result = await ProductionTemp.approveSelected(targets, reviewerId, req.user?.role === "admin");
 
         // Desktop owns workbook generation. Do not enqueue server-side Excel jobs
         // unless a legacy feature has been explicitly enabled.
@@ -175,7 +177,8 @@ exports.approveSelectedReports = async (req, res) => {
 
 exports.rejectSelectedReports = async (req, res) => {
     try {
-        const ids = normalizeIds(req.body?.ids);
+        const targets = normalizeReviewTargets(req.body);
+        const ids = targets.map((item) => item.id);
         const reviewerId = toPositiveInteger(req.user?.id);
         const reason = String(req.body?.reason || "").trim();
 
@@ -183,7 +186,7 @@ exports.rejectSelectedReports = async (req, res) => {
         if (!reviewerId) return res.status(401).json({ success: false, message: "Thông tin người xử lý không hợp lệ" });
         if (!reason) return res.status(400).json({ success: false, message: "Vui lòng nhập lý do từ chối" });
 
-        const result = await ProductionTemp.rejectSelected(ids, reviewerId, reason, req.user?.role === "admin");
+        const result = await ProductionTemp.rejectSelected(targets, reviewerId, reason, req.user?.role === "admin");
         return res.status(200).json({ success: true, message: "Đã từ chối báo cáo", data: result });
     } catch (error) {
         console.error("REJECT SELECTED REPORTS ERROR:", error);
@@ -323,7 +326,8 @@ exports.updateTempReport = async (req, res) => {
             req.body?.reason || null,
             {
                 isAdmin: req.user?.role === "admin",
-                workerId: req.user?.role === "worker" ? req.user?.worker_id : null
+                workerId: req.user?.role === "worker" ? req.user?.worker_id : null,
+                expectedUpdatedAt: req.body?.expected_updated_at || null
             }
         );
 

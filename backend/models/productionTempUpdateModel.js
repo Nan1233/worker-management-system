@@ -49,6 +49,13 @@ module.exports = {
                 );
             }
 
+            if (options.expectedUpdatedAt && new Date(options.expectedUpdatedAt).getTime() !== new Date(current.updated_at).getTime()) {
+                const error = new Error("Báo cáo đã thay đổi sau khi bạn mở. Hãy tải lại dữ liệu trước khi sửa hoặc gửi lại.");
+                error.status = 409;
+                error.code = "TEMP_REPORT_VERSION_CONFLICT";
+                throw error;
+            }
+
 
             const resubmittingRejected =
                 isWorkerEdit && current.status === "rejected";

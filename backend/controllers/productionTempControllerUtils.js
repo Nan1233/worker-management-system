@@ -57,6 +57,21 @@ const normalizeIds = (ids) => [
     ...new Set((Array.isArray(ids) ? ids : []).map(Number).filter((id) => Number.isInteger(id) && id > 0)),
 ];
 
+
+const normalizeReviewTargets = (body = {}) => {
+    const targets = Array.isArray(body?.targets) ? body.targets : [];
+    if (targets.length) {
+        const seen = new Set();
+        return targets
+            .map((item) => ({
+                id: toPositiveInteger(item?.id),
+                expected_updated_at: item?.expected_updated_at ? String(item.expected_updated_at) : null,
+            }))
+            .filter((item) => item.id && !seen.has(item.id) && seen.add(item.id));
+    }
+    return normalizeIds(body?.ids).map((id) => ({ id, expected_updated_at: null }));
+};
+
 const requestMeta = (req) => ({
     ipAddress: req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || null,
     userAgent: req.headers['user-agent'] || null,
@@ -70,5 +85,6 @@ module.exports = {
     dateKeyToUtcDay,
     validateWorkerWorkDate,
     normalizeIds,
+    normalizeReviewTargets,
     requestMeta,
 };

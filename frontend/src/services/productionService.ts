@@ -635,21 +635,20 @@ const downloadExcel = (
 // LEAD / MANAGER DUYỆT CÁC BÁO CÁO ĐÃ CHỌN
 // =====================================================
 
+export type TempReviewTarget = { id: number; expected_updated_at?: string | null };
+
+const normalizeTempReviewTargets = (items: Array<number | TempReviewTarget>) =>
+    items.map((item) => typeof item === "number"
+        ? { id: item, expected_updated_at: null }
+        : { id: Number(item.id), expected_updated_at: item.expected_updated_at || null });
+
 export const approveSelectedTempReports = async (
-
-    ids: number[]
-
+    items: Array<number | TempReviewTarget>
 ) => {
-
-
+    const targets = normalizeTempReviewTargets(items);
     const res = await api.post(
-
         "/production-temp/approve-selected",
-
-        {
-            ids
-        }
-
+        { ids: targets.map((item) => item.id), targets }
     );
 
 
@@ -657,10 +656,11 @@ export const approveSelectedTempReports = async (
 
 };
 
-export const rejectSelectedTempReports = async (ids: number[], reason: string) => {
+export const rejectSelectedTempReports = async (items: Array<number | TempReviewTarget>, reason: string) => {
+    const targets = normalizeTempReviewTargets(items);
     const res = await api.post(
         "/production-temp/reject-selected",
-        { ids, reason }
+        { ids: targets.map((item) => item.id), targets, reason }
     );
     return res.data;
 };
@@ -741,7 +741,7 @@ export const updateTempReport = async (
 ) => {
     const res = await api.put(
         `/production-temp/${id}`,
-        data
+        { ...data, expected_updated_at: data.updated_at || undefined }
     );
 
     return res.data;

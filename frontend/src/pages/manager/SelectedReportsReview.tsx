@@ -121,19 +121,31 @@ function SelectedReportsReview() {
         [reports]
     );
 
+    const reviewTargets = useMemo(
+        () => reports
+            .map((report) => ({
+                id: Number(report.id),
+                expected_updated_at: report.updated_at || null
+            }))
+            .filter((item) => Number.isInteger(item.id) && item.id > 0),
+        [reports]
+    );
+
     const handleApprove = async () => {
         if (source !== "pending" || reportIds.length === 0 || submitting) return;
 
         try {
             setSubmitting(true);
             setError("");
-            await approveSelectedTempReports(reportIds);
+            await approveSelectedTempReports(reviewTargets);
             sessionStorage.removeItem("selectedPendingReportIds");
             showToast(`Đã duyệt ${reportIds.length} báo cáo`, "success");
             navigate(`${basePath}/reports`);
         } catch (err) {
             console.error("APPROVE SELECTED REPORTS ERROR:", err);
-            setError("Duyệt báo cáo thất bại. Vui lòng kiểm tra lại dữ liệu.");
+            setError(axios.isAxiosError(err)
+                ? err.response?.data?.message || "Duyệt báo cáo thất bại. Vui lòng kiểm tra lại dữ liệu."
+                : "Duyệt báo cáo thất bại. Vui lòng kiểm tra lại dữ liệu.");
         } finally {
             setSubmitting(false);
         }
@@ -154,13 +166,15 @@ function SelectedReportsReview() {
         try {
             setSubmitting(true);
             setError("");
-            await rejectSelectedTempReports(reportIds, reason);
+            await rejectSelectedTempReports(reviewTargets, reason);
             sessionStorage.removeItem("selectedPendingReportIds");
             showToast(`Đã từ chối ${reportIds.length} báo cáo`, "success");
             navigate(`${basePath}/reports`);
         } catch (err) {
             console.error("REJECT SELECTED REPORTS ERROR:", err);
-            setError("Từ chối báo cáo thất bại. Vui lòng thử lại.");
+            setError(axios.isAxiosError(err)
+                ? err.response?.data?.message || "Từ chối báo cáo thất bại. Vui lòng thử lại."
+                : "Từ chối báo cáo thất bại. Vui lòng thử lại.");
         } finally {
             setSubmitting(false);
         }

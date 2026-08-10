@@ -464,6 +464,16 @@ function Reports() {
         [selectedIds]
     );
 
+    const selectedReviewTargets = useMemo(
+        () => reports
+            .filter((report) => selectedIdSet.has(Number(report.id)))
+            .map((report) => ({
+                id: Number(report.id),
+                expected_updated_at: report.updated_at || null
+            })),
+        [reports, selectedIdSet]
+    );
+
 
     const selectedOnCurrentPageCount =
         currentPageIds.filter(
@@ -585,7 +595,7 @@ function Reports() {
             setActionLoading(true);
 
             await approveSelectedTempReports(
-                selectedIds
+                selectedReviewTargets
             );
 
             showToast(`Đã duyệt ${selectedIds.length} báo cáo`, "success");
@@ -633,7 +643,7 @@ function Reports() {
 
         try {
             setActionLoading(true);
-            await rejectSelectedTempReports(selectedIds, reason);
+            await rejectSelectedTempReports(selectedReviewTargets, reason);
             showToast(`Đã từ chối ${selectedIds.length} báo cáo`, "success");
             setRejectOpen(false);
             setRejectDetail("");

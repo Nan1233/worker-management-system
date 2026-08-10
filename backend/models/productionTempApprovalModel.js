@@ -2,8 +2,12 @@ const AuditService = require("../services/auditService");
 const { query, getConnection, beginTransaction, commit, rollback, normalizeIds, editableFields } = require("./productionTempModelShared");
 
 module.exports = {
-    async approveSelected(ids, reviewerId, isAdmin = false) {
-        const reportIds = normalizeIds(ids);
+    async approveSelected(targets, reviewerId, isAdmin = false) {
+        const normalizedTargets = Array.isArray(targets)
+            ? targets.map((item) => typeof item === "object" ? item : { id: item, expected_updated_at: null })
+            : [];
+        const reportIds = normalizeIds(normalizedTargets.map((item) => item.id));
+        const expectedById = new Map(normalizedTargets.map((item) => [Number(item.id), item.expected_updated_at || null]));
         if (reportIds.length === 0) throw new Error("Danh sách báo cáo không hợp lệ");
 
         const connection = await getConnection();
@@ -27,6 +31,15 @@ module.exports = {
 
             if (rows.length !== reportIds.length) {
                 throw new Error("Có báo cáo không tồn tại, đã xử lý hoặc ngoài phạm vi phụ trách");
+            }
+            for (const row of rows) {
+                const expected = expectedById.get(Number(row.id));
+                if (expected && new Date(expected).getTime() !== new Date(row.updated_at).getTime()) {
+                    const error = new Error(`Báo cáo #${row.id} đã thay đổi sau khi bạn mở danh sách. Hãy tải lại trước khi duyệt.`);
+                    error.status = 409;
+                    error.code = "TEMP_REPORT_VERSION_CONFLICT";
+                    throw error;
+                }
             }
 
             const approvedIds = [];
@@ -226,8 +239,12 @@ module.exports = {
         }
     },
 
-    async rejectSelected(ids, reviewerId, reason, isAdmin = false) {
-        const reportIds = normalizeIds(ids);
+    async rejectSelected(targets, reviewerId, reason, isAdmin = false) {
+        const normalizedTargets = Array.isArray(targets)
+            ? targets.map((item) => typeof item === "object" ? item : { id: item, expected_updated_at: null })
+            : [];
+        const reportIds = normalizeIds(normalizedTargets.map((item) => item.id));
+        const expectedById = new Map(normalizedTargets.map((item) => [Number(item.id), item.expected_updated_at || null]));
         const cleanReason = String(reason || "").trim();
         if (reportIds.length === 0) throw new Error("Danh sách báo cáo không hợp lệ");
         if (!cleanReason) throw new Error("Vui lòng nhập lý do từ chối");
@@ -240,7 +257,7 @@ module.exports = {
             const scopeWhere = isAdmin ? "" : "AND mp.manager_id = ?";
             const rows = await query(
                 connection,
-                `SELECT DISTINCT temp.id, temp.worker_id, temp.process_id, temp.work_date, temp.shift,
+                `SELECT DISTINCT temp.id, temp.worker_id, temp.process_id, temp.work_date, temp.shift, temp.updated_at,
                         w.user_id AS worker_user_id
                  FROM production_reports_temp temp
                  JOIN workers w ON w.id = temp.worker_id
@@ -254,6 +271,15 @@ module.exports = {
 
             if (rows.length !== reportIds.length) {
                 throw new Error("Có báo cáo không tồn tại, đã xử lý hoặc ngoài phạm vi phụ trách");
+            }
+            for (const row of rows) {
+                const expected = expectedById.get(Number(row.id));
+                if (expected && new Date(expected).getTime() !== new Date(row.updated_at).getTime()) {
+                    const error = new Error(`Báo cáo #${row.id} đã thay đổi sau khi bạn mở danh sách. Hãy tải lại trước khi từ chối.`);
+                    error.status = 409;
+                    error.code = "TEMP_REPORT_VERSION_CONFLICT";
+                    throw error;
+                }
             }
 
             for (const row of rows) {
