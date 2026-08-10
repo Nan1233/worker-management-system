@@ -274,15 +274,26 @@
 
 /* Three metrics echo the reference, but remain compact on desktop. */
 .worker-time-grid { display: grid; grid-template-columns: 1.35fr 1fr 1fr; gap: 14px; }
-.worker-time-item { padding: 14px; border: 1px solid #dfe6ef; border-radius: 16px; background: #ffffff; }
-.worker-time-item > label { display: block; margin-bottom: 8px; color: #65758a; font-size: 12px; line-height: 1.25; font-weight: 650; }
-.worker-time-item > input { min-height: 50px; font-size: 18px !important; font-weight: 700; text-align: center; }
-.worker-time-item > small { display: block; margin-top: 8px; color: #91a0b3; font-size: 11px; }
+.worker-time-item { padding: 14px; border: 1px solid #d8e1ec; border-radius: 16px; background: #f7f9fc; }
+.worker-time-item > label { display: block; margin-bottom: 8px; color: #5f7086; font-size: 12px; line-height: 1.25; font-weight: 700; }
+.worker-time-item > input { min-height: 50px; font-size: 18px !important; font-weight: 760; text-align: center; border: 1px solid #cad6e3; border-radius: 12px; background: #f4f7fb; color: #21364f; box-shadow: inset 0 1px 0 rgba(255,255,255,.72); }
+.worker-time-item > small { display: block; margin-top: 8px; color: #70849c; font-size: 11px; font-weight: 600; }
 .worker-time-split { display: grid; grid-template-columns: 1fr 1fr; align-items: start; gap: 10px; }
 .worker-time-part { display: grid; gap: 6px; }
-.worker-time-part > span { color: #7b8ca0; font-size: 11px; font-weight: 700; }
-.worker-time-split input { min-width: 0; text-align: center; min-height: 50px; font-size: 18px !important; font-weight: 700; border: 1px solid #dfe6ef; border-radius: 12px; padding: 10px 12px; background: #fff; color: #17283f; }
+.worker-time-part > span { color: #6e8096; font-size: 11px; font-weight: 700; }
+.worker-time-split input { min-width: 0; text-align: center; min-height: 50px; font-size: 18px !important; font-weight: 760; border: 1px solid #cad6e3; border-radius: 12px; padding: 10px 12px; background: #f4f7fb; color: #21364f; box-shadow: inset 0 1px 0 rgba(255,255,255,.72); }
 .worker-time-unit { color: #8a99aa; font-size: 11px; font-weight: 650; }
+.worker-time-item > input:focus,
+.worker-time-split input:focus {
+  border-color: #86a9cd;
+  outline: none;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(120, 154, 194, .14);
+}
+.worker-time-item > input[readonly] {
+  background: #eef3f8;
+  color: #2d4a68;
+}
 .worker-deduction-input-row { display: grid; grid-template-columns: minmax(0,1fr) 76px; gap: 8px; align-items: center; }
 .worker-text-input.worker-deduction-input { min-height: 44px; }
 
@@ -490,6 +501,23 @@
 [data-theme="dark"] .machine-line { background: #263745; border-color: #344a5d; }
 [data-theme="dark"] .worker-time-part > span,
 [data-theme="dark"] .worker-time-item > small { color: #a7b6c5; }
+[data-theme="dark"] .worker-time-item > input,
+[data-theme="dark"] .worker-time-split input {
+  background: #20303d;
+  border-color: #466078;
+  color: #f0f5fb;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+}
+[data-theme="dark"] .worker-time-item > input[readonly] {
+  background: #2a3b49;
+  color: #dbe8f6;
+}
+[data-theme="dark"] .worker-time-item > input:focus,
+[data-theme="dark"] .worker-time-split input:focus {
+  background: #223544;
+  border-color: #88abd0;
+  box-shadow: 0 0 0 3px rgba(136,171,208,.14);
+}
 [data-theme="dark"] .worker-quality-card { background: #263745; border-color: #3a5164; }
 [data-theme="dark"] .worker-quality-card.ok { background: #233646; border-color: #4d6c8a; }
 [data-theme="dark"] .worker-quality-card.ng { background: #352a31; border-color: #664451; }
