@@ -11,7 +11,7 @@ export default function PermissionRoute({permission,children}:{permission:Permis
  const [allowed,setAllowed]=useState<boolean|null>(null); const user=getStoredUser();
  const base=useMemo(()=>user?.role==='admin'?'/admin':user?.role==='manager'?'/manager':user?.role==='lead'?'/lead':'/worker',[user?.role]);
  const [fallback,setFallback]=useState(base);
- useEffect(()=>{let active=true; loadMyPermissions().then(set=>{if(!active)return;setAllowed(set.has(permission)); const item=fallbackOrder.find(([code])=>set.has(code)); setFallback(item ? `${base}${item[1]?`/${item[1]}`:''}` : '/login');}); return()=>{active=false};},[permission,base]);
+ useEffect(()=>{let active=true; loadMyPermissions().then(set=>{if(!active)return;setAllowed(set.has(permission)); const item=fallbackOrder.find(([code])=>set.has(code)); setFallback(item ? `${base}${item[1]?`/${item[1]}`:''}` : base);}); return()=>{active=false};},[permission,base]);
  if(allowed===null) return <RouteLoading/>;
  return allowed ? <>{children}</> : <Navigate to={fallback} replace/>;
 }
