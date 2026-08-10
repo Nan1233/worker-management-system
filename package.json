@@ -13,6 +13,7 @@
     "backup:drill": "npm --prefix backend run backup:drill --",
     "audit:prod": "npm --prefix frontend run audit:prod && npm --prefix backend run audit:prod",
     "restore:rehearsal": "npm --prefix backend run restore:rehearsal --",
-    "load:readiness": "npm --prefix backend run load:readiness"
+    "load:readiness": "npm --prefix backend run load:readiness",
+    "pilot:readiness": "node scripts/pilotReadiness.cjs"
   }
 }

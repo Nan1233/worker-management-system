@@ -10,21 +10,53 @@ import {
     type DeletedReportItem,
     type NotificationItem,
     getObservability,
-    type ObservabilitySnapshot
+    getReadiness,
+    type ObservabilitySnapshot,
+    type ReadinessSnapshot
 } from "../../services/systemService";
 import { publishNotificationCount } from "../../hooks/useNotificationBadge";
 import { getStoredUser } from "../../utils/authStorage";
 import { usePermissions } from "../../hooks/usePermissions";
 import "./SystemCenter.css";
 
-const prettyMetadata = (value: unknown): string => {
-    if (!value) return "";
-    let parsed: unknown = value;
-    if (typeof parsed === "string") {
-        try { parsed = JSON.parse(parsed); } catch { return String(value); }
-    }
-    try { return JSON.stringify(parsed, null, 2); } catch { return String(value); }
+const FIELD_LABELS: Record<string,string> = {
+    changed_fields:"Trường thay đổi", deductions_changed:"Thời gian trừ", defects_changed:"NG", machine_lines_changed:"Máy",
+    previous_status:"Trạng thái cũ", new_status:"Trạng thái mới", reason:"Lý do", worker_code:"Mã NV", full_name:"Tên NV",
+    work_date:"Ngày báo cáo", entry_date:"Ngày nhập", shift:"Ca", machine_no:"Máy", product_code:"Mã SP", product_name:"Sản phẩm",
+    ok_quantity:"OK", ng_quantity:"NG", actual_output:"SP quy đổi", training_percent:"% học việc", actual_time:"TG thực tế"
 };
+const labelFor = (key:string) => FIELD_LABELS[key] || key.replace(/_/g," ");
+const displayValue = (value:unknown):string => {
+    if (value === null || value === undefined || value === "") return "—";
+    if (typeof value === "boolean") return value ? "Có" : "Không";
+    if (Array.isArray(value)) return value.map(item => typeof item === "object" ? JSON.stringify(item) : String(item)).join(", ");
+    if (typeof value === "object") return JSON.stringify(value);
+    return String(value);
+};
+const parseMetadata = (value:unknown):Record<string,unknown>|null => {
+    if (!value) return null;
+    let parsed:unknown=value;
+    if (typeof parsed === "string") { try { parsed=JSON.parse(parsed); } catch { return { value:String(value) }; } }
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string,unknown> : { value:parsed };
+};
+function ActivityMetadata({value}:{value:unknown}) {
+    const data=parseMetadata(value);
+    if (!data) return null;
+    const oldData=parseMetadata(data.old_data);
+    const newData=parseMetadata(data.new_data);
+    const changed=Array.isArray(data.changed_fields) ? data.changed_fields.map(String) : [];
+    if (oldData && newData && changed.length) {
+        return <details className="system-change-details"><summary>Xem thay đổi trước → sau</summary><div className="system-diff-table">
+            <div className="system-diff-head"><span>Trường</span><span>Trước</span><span>Sau</span></div>
+            {changed.map(key=><div className="system-diff-row" key={key}><strong>{labelFor(key)}</strong><span>{displayValue(oldData[key])}</span><span className="after">{displayValue(newData[key])}</span></div>)}
+        </div></details>;
+    }
+    const entries=Object.entries(data).filter(([,v])=>v!==null&&v!==undefined&&v!==false&&v!=="");
+    if (!entries.length) return null;
+    return <details className="system-change-details"><summary>Xem dữ liệu thay đổi</summary><div className="system-meta-grid">
+        {entries.map(([key,val])=><div key={key}><span>{labelFor(key)}</span><strong>{displayValue(val)}</strong></div>)}
+    </div></details>;
+}
 
 export default function SystemCenter() {
     const [tab, setTab] = useState<"notifications" | "activities" | "deleted" | "monitoring">("notifications");
@@ -32,6 +64,7 @@ export default function SystemCenter() {
     const [activities, setActivities] = useState<ActivityItem[]>([]);
     const [deletedReports, setDeletedReports] = useState<DeletedReportItem[]>([]);
     const [observability, setObservability] = useState<ObservabilitySnapshot | null>(null);
+    const [readiness, setReadiness] = useState<ReadinessSnapshot | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState("");
@@ -49,7 +82,7 @@ export default function SystemCenter() {
     const load = useCallback(async (silent = false) => {
         if (silent) setRefreshing(true); else setLoading(true);
         setError("");
-        const [notificationResult, activityResult, deletedResult, monitoringResult] = await Promise.allSettled([
+        const [notificationResult, activityResult, deletedResult, monitoringResult, readinessResult] = await Promise.allSettled([
             getNotifications(),
             canAudit ? getActivities({
                 search: activitySearch,
@@ -59,7 +92,8 @@ export default function SystemCenter() {
                 limit: 150
             }) : Promise.resolve([] as ActivityItem[]),
             canAudit ? getDeletedReports() : Promise.resolve([] as DeletedReportItem[]),
-            canMonitor ? getObservability() : Promise.resolve(null)
+            canMonitor ? getObservability() : Promise.resolve(null),
+            canMonitor ? getReadiness() : Promise.resolve(null)
         ]);
 
         if (notificationResult.status === "fulfilled") {
@@ -73,6 +107,7 @@ export default function SystemCenter() {
         if (deletedResult.status === "fulfilled") setDeletedReports(deletedResult.value || []);
         else setError(current => current || deletedResult.reason?.response?.data?.message || "Không tải được dữ liệu đã xóa");
         if (monitoringResult.status === "fulfilled") setObservability(monitoringResult.value);
+        if (readinessResult.status === "fulfilled") setReadiness(readinessResult.value);
         setLoading(false);
         setRefreshing(false);
     }, [canAudit, canMonitor, activitySearch, activityAction, activityFrom, activityTo]);
@@ -151,14 +186,13 @@ export default function SystemCenter() {
             ) : tab === "activities" ? (
                 <div className="system-list">
                     {activities.length ? activities.map(item => {
-                        const metadata = prettyMetadata(item.metadata_json);
                         return <article key={item.id} className="system-item system-activity-item">
                             <span className="activity-icon">•</span>
                             <div className="system-activity-content">
                                 <div className="system-activity-title"><strong>{item.description || item.action}</strong><code>{item.action}</code></div>
                                 <p><b>{item.full_name || item.username || "Hệ thống"}</b>{item.role ? ` · ${item.role}` : ""} · {item.entity_type || "system"} {item.entity_id ? `#${item.entity_id}` : ""}</p>
                                 <small>{new Date(item.created_at).toLocaleString("vi-VN")}{item.ip_address ? ` · IP ${item.ip_address}` : ""}</small>
-                                {metadata && <details><summary>Xem dữ liệu thay đổi</summary><pre>{metadata}</pre></details>}
+                                <ActivityMetadata value={item.metadata_json} />
                             </div>
                         </article>;
                     }) : <div className="system-empty">Chưa có hoạt động</div>}
@@ -179,7 +213,11 @@ export default function SystemCenter() {
                 </div>
             ) : (
                 <div className="system-monitor-grid">
-                    <article className="system-monitor-card"><span>Database</span><strong>{observability?.database.status === "ok" ? "Hoạt động" : "Không khả dụng"}</strong><small>{observability?.database.latencyMs ?? "-"} ms</small></article>
+                    <article className={`system-health-banner ${readiness?.status === "ok" ? "ok" : "critical"}`}>
+                        <div><span>Tình trạng hệ thống</span><strong>{readiness?.status === "ok" ? "Sẵn sàng phục vụ" : "Chưa sẵn sàng"}</strong></div>
+                        <small>{readiness?.status === "ok" ? "API và database đang phản hồi bình thường." : "Không nên nhập/duyệt dữ liệu mới cho tới khi database hoạt động lại."}</small>
+                    </article>
+                    <article className={`system-monitor-card ${observability?.database.status === "ok" ? "ok" : "critical"}`}><span>Database</span><strong>{observability?.database.status === "ok" ? "Hoạt động" : "Không khả dụng"}</strong><small>{observability?.database.latencyMs ?? "-"} ms</small></article>
                     <article className="system-monitor-card"><span>API requests</span><strong>{observability?.http.requests ?? 0}</strong><small>TB {observability?.http.averageDurationMs ?? 0} ms</small></article>
                     <article className="system-monitor-card"><span>Lỗi 5xx</span><strong>{observability?.http.errors5xx ?? 0}</strong><small>4xx: {observability?.http.errors4xx ?? 0}</small></article>
                     <article className="system-monitor-card"><span>RAM</span><strong>{observability?.memory.rssMb ?? 0} MB</strong><small>Heap {observability?.memory.heapUsedMb ?? 0}/{observability?.memory.heapTotalMb ?? 0} MB</small></article>

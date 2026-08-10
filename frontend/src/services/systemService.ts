@@ -107,3 +107,13 @@ export async function getObservability(){
  const r=await api.get('/system/observability');
  return r.data.data as ObservabilitySnapshot;
 }
+
+export interface ReadinessSnapshot {
+  status:string;
+  database?:{status?:string;latencyMs?:number};
+  timestamp?:string;
+}
+export async function getReadiness(){
+ const r=await api.get('/health/ready',{validateStatus:(status)=>status===200||status===503});
+ return r.data as ReadinessSnapshot;
+}

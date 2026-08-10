@@ -6,6 +6,7 @@ import { createTempReport } from "./productionService";
 const STORAGE_KEY = "ktcOfflineReportQueueV1";
 const MAX_ITEMS = 25;
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
+export const OFFLINE_QUEUE_CHANGED_EVENT = "ktc:offline-queue-changed";
 
 interface QueueOwner {
     userId: number;
@@ -56,6 +57,7 @@ function writeAll(items: OfflineReportQueueItem[]): void {
     const safe = items.slice(-MAX_ITEMS);
     if (!safe.length) localStorage.removeItem(STORAGE_KEY);
     else localStorage.setItem(STORAGE_KEY, JSON.stringify(safe));
+    window.dispatchEvent(new CustomEvent(OFFLINE_QUEUE_CHANGED_EVENT));
 }
 
 export function isTransientNetworkFailure(error: unknown): boolean {
@@ -117,6 +119,29 @@ export function getCurrentOfflineQueueCount(): number {
     const owner = currentOwner();
     if (!owner) return 0;
     return readAll().filter((item) => ownerMatches(item.owner, owner)).length;
+}
+
+export function retryBlockedOfflineReport(id: string): boolean {
+    const owner = currentOwner();
+    if (!owner) return false;
+    let changed = false;
+    const next = readAll().map((item) => {
+        if (item.id !== id || !ownerMatches(item.owner, owner)) return item;
+        changed = true;
+        return { ...item, status: "queued" as const, nextRetryAt: Date.now(), lastError: undefined };
+    });
+    if (changed) writeAll(next);
+    return changed;
+}
+
+export function removeOfflineReport(id: string): boolean {
+    const owner = currentOwner();
+    if (!owner) return false;
+    const all = readAll();
+    const next = all.filter((item) => item.id !== id || !ownerMatches(item.owner, owner));
+    if (next.length === all.length) return false;
+    writeAll(next);
+    return true;
 }
 
 export async function flushOfflineReportQueue(): Promise<{ sent: number; remaining: number }> {
