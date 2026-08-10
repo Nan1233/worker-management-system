@@ -108,35 +108,40 @@ export default function ProcessTimeDeductionSection({
             <div className="worker-time-grid">
                 <div className="worker-time-item">
                     <label>Thời gian làm thực tế</label>
-                    <div className="worker-time-split">
-                        <input
-                            type="number"
-                            min="0"
-                            max="12"
-                            step="1"
-                            inputMode="numeric"
-                            value={form.actualHours}
-                            onChange={(event) => handleHoursChange(event.target.value)}
-                            placeholder="Giờ"
-                        />
-                        <span>giờ</span>
-                        <input
-                            type="number"
-                            min="0"
-                            max="59"
-                            step="1"
-                            inputMode="numeric"
-                            value={form.actualMinutes}
-                            disabled={
-                                Number(form.actualHours) >= 12
-                                || (Number(form.actualHours) || 0) * 60 + getDeductionMinutes(deductions)
-                                    >= MAX_TOTAL_WORK_MINUTES
-                            }
-                            onChange={(event) => handleMinutesChange(event.target.value)}
-                            placeholder="Phút"
-                        />
-                        <span>phút</span>
+                    <div className="worker-time-split worker-time-parts">
+                        <div className="worker-time-part">
+                            <span>Giờ</span>
+                            <input
+                                type="number"
+                                min="0"
+                                max="12"
+                                step="1"
+                                inputMode="numeric"
+                                value={form.actualHours}
+                                onChange={(event) => handleHoursChange(event.target.value)}
+                                placeholder="0"
+                            />
+                        </div>
+                        <div className="worker-time-part">
+                            <span>Phút</span>
+                            <input
+                                type="number"
+                                min="0"
+                                max="59"
+                                step="1"
+                                inputMode="numeric"
+                                value={form.actualMinutes}
+                                disabled={
+                                    Number(form.actualHours) >= 12
+                                    || (Number(form.actualHours) || 0) * 60 + getDeductionMinutes(deductions)
+                                        >= MAX_TOTAL_WORK_MINUTES
+                                }
+                                onChange={(event) => handleMinutesChange(event.target.value)}
+                                placeholder="0"
+                            />
+                        </div>
                     </div>
+                    <small>{Number(form.actualHours || 0)} giờ {Number(form.actualMinutes || 0)} phút</small>
                 </div>
 
                 <div className="worker-time-item">
