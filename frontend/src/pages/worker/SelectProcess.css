@@ -272,3 +272,53 @@
     .worker-process-content strong { font-size: 16px; }
     .worker-process-content small { font-size: 12px; }
 }
+
+
+/* Reference-inspired worker chooser refinement */
+.select-process-page { background: #f3f6fd; }
+.select-process-title-row h1 { color: #164780; }
+.history-entry-button {
+    border: 0;
+    border-bottom: 1px solid #174b87;
+    border-radius: 0;
+    padding: 0 0 3px;
+    min-height: auto;
+    background: transparent;
+    color: #174b87;
+    box-shadow: none;
+}
+.history-entry-button__icon { display: none; }
+.history-entry-button:hover { background: transparent; border-color: #0f3c73; color: #0f3c73; }
+.worker-process-card { border-color: #e5eaf2; border-radius: 17px; box-shadow: 0 5px 18px rgba(41,66,96,.04); }
+.worker-process-icon { border-color: #d9e4f4; background: #e9efff; color: #2d61b8; box-shadow: none; }
+.worker-process-content strong { color: #17283f; }
+.worker-process-content small { color: #8a9bb0; }
+.worker-process-arrow { color: #9eafc1; }
+
+@media (max-width: 767px) {
+    .select-process-page { padding: 24px 16px 34px; }
+    .select-process-header { margin-bottom: 22px; }
+    .select-process-title-row { gap: 8px; }
+    .select-process-back { border: 0; background: transparent; box-shadow: none; color: #20589b; font-size: 29px; }
+    .select-process-title-row h1 { font-size: 29px; color: #164780; letter-spacing: -.035em; }
+    .select-process-worker { margin-left: 48px; padding: 0; border: 0; background: transparent; box-shadow: none; }
+    .select-process-worker strong { color: #2f6bb0; font-size: 15px; }
+    .select-process-worker span { color: #6d88aa; }
+    .select-process-training { display: none; }
+    .history-entry-button { width: auto; justify-content: flex-start; margin: 0 0 26px; font-size: 16px; }
+    .process-list { gap: 12px; }
+    .worker-process-card { min-height: 104px; padding: 15px 16px; grid-template-columns: 58px minmax(0,1fr) 18px; gap: 14px; border-radius: 18px; }
+    .worker-process-icon { width: 58px; height: 58px; border-radius: 16px; }
+    .worker-process-icon svg { width: 27px; height: 27px; }
+    .worker-process-content strong { font-size: 17px; }
+    .worker-process-content small { font-size: 13px; line-height: 1.4; }
+}
+
+[data-theme="dark"] .select-process-page { background: #1b2733; }
+[data-theme="dark"] .select-process-title-row h1 { color: #dbe9f8; }
+[data-theme="dark"] .select-process-back { color: #a8c6e6; background: transparent; }
+[data-theme="dark"] .history-entry-button { color: #b7d4f1; border-color: #6f93b8; background: transparent; }
+[data-theme="dark"] .worker-process-card { background: #22313f; border-color: #314659; }
+[data-theme="dark"] .worker-process-icon { background: #2b4054; border-color: #405a73; color: #a9cdf0; }
+[data-theme="dark"] .worker-process-content strong { color: #edf4fb; }
+[data-theme="dark"] .worker-process-content small { color: #aab8c7; }

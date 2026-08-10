@@ -1,5 +1,6 @@
 import type { ChangeEvent, FocusEvent, Dispatch, SetStateAction } from "react";
 import type { FormState, NgKey } from "../processPageConfig";
+import AppIcon from "../../../components/common/AppIcon";
 
 interface NgOption {
     key: NgKey;
@@ -36,7 +37,7 @@ export default function ProcessQualitySection({
 }: Props) {
     return (
         <section className="worker-form-card worker-quality-section">
-            <h2 className="worker-card-title"><span>▣</span> Báo cáo Chất lượng</h2>
+            <h2 className="worker-card-title"><span><AppIcon name="sheet" size={20} /></span> Báo cáo Chất lượng</h2>
 
             <div className="worker-quality-summary">
                 <div className="worker-quality-card ok">
