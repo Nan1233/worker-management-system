@@ -2,7 +2,7 @@
   min-height: 100dvh;
   display: grid;
   grid-template-columns: minmax(540px, 1.08fr) minmax(520px, .92fr);
-  background: #f5f7fa;
+  background: #f5f7fb;
   color: var(--ktc-ink-900);
   overflow: hidden;
 }
@@ -13,12 +13,9 @@
   overflow: hidden;
   display: flex;
   align-items: center;
-  padding: clamp(52px, 6vw, 96px);
+  padding: clamp(44px, 5vw, 76px);
   color: #fff;
-  background:
-    radial-gradient(circle at 86% 10%, rgba(91,180,255,.18), transparent 30%),
-    radial-gradient(circle at 8% 92%, rgba(80,165,238,.12), transparent 28%),
-    linear-gradient(145deg, #102b49 0%, #173f69 58%, #1b4c7e 100%);
+  background: #1e40af;
 }
 
 .login-showcase::before {
@@ -30,9 +27,7 @@
   top: -245px;
   border-radius: 50%;
   border: 1px solid rgba(255,255,255,.10);
-  box-shadow:
-    0 0 0 72px rgba(255,255,255,.025),
-    0 0 0 146px rgba(255,255,255,.018);
+  box-shadow: none;
   pointer-events: none;
 }
 
@@ -44,7 +39,7 @@
   left: -88px;
   bottom: -100px;
   border-radius: 50%;
-  background: rgba(91,180,255,.08);
+  background: rgba(255,255,255,.04);
   pointer-events: none;
 }
 
@@ -58,7 +53,7 @@
   display: flex;
   align-items: center;
   gap: 13px;
-  margin-bottom: clamp(50px, 7vh, 78px);
+  margin-bottom: clamp(34px, 5vh, 52px);
 }
 
 .login-brand-mark {
@@ -68,11 +63,11 @@
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: linear-gradient(145deg, #65bcff, #2f8ee8);
+  background: #2563eb;
   color: #fff;
   font-size: 22px;
   font-weight: 800;
-  box-shadow: 0 10px 24px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.28);
+  box-shadow: 0 2px 8px rgba(15,23,42,.18);
 }
 
 .login-company-name {
@@ -96,8 +91,8 @@
   margin: 0;
   max-width: 560px;
   color: #fff;
-  font-size: clamp(34px, 3.35vw, 52px);
-  line-height: 1.08;
+  font-size: clamp(30px, 3vw, 43px);
+  line-height: 1.12;
   letter-spacing: -.035em;
   font-weight: 750;
 }
@@ -143,8 +138,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 52px clamp(38px, 5vw, 76px);
-  background: #f8fafc;
+  padding: 44px clamp(34px, 4.5vw, 64px);
+  background: #ffffff;
   overflow-y: auto;
 }
 
@@ -555,7 +550,7 @@
   .login-page {
     grid-template-columns: 1fr;
     min-height: 100dvh;
-    background: #f8fafc;
+    background: #ffffff;
     overflow: auto;
   }
   .login-showcase { display: none; }

@@ -20,7 +20,15 @@ type IconName =
     | "settings"
     | "search"
     | "spark"
-    | "checklist";
+    | "checklist"
+    | "cut"
+    | "polish"
+    | "measure"
+    | "inspect"
+    | "roll"
+    | "press"
+    | "trim"
+    | "assembly";
 
 interface AppIconProps extends SVGProps<SVGSVGElement> {
     name: IconName;
@@ -193,6 +201,76 @@ function AppIcon({ name, size = 20, style, ...rest }: AppIconProps) {
                     <Path d="M4.5 17.5h.01" />
                 </>
             )}
+            {name === "cut" && (
+                <>
+                    <Path d="M7.5 7.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z" />
+                    <Path d="M7.5 11.5 16.8 5.8" />
+                    <Path d="M7.5 12.5 16.8 18.2" />
+                    <Path d="M16.2 10.1 19.5 6.8" />
+                    <Path d="M16.2 13.9 19.5 17.2" />
+                </>
+            )}
+            {name === "polish" && (
+                <>
+                    <Path d="M8 16.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z" />
+                    <Path d="M13.5 8.5 17 5" />
+                    <Path d="M15 14.5 19 18.5" />
+                    <Path d="M15.5 8.5h3" />
+                </>
+            )}
+            {name === "measure" && (
+                <>
+                    <Path d="M4.5 15.5 15.5 4.5l4 4-11 11h-4z" />
+                    <Path d="M10 10l1.5 1.5" />
+                    <Path d="M12.5 7.5 14 9" />
+                    <Path d="M7.5 12.5 9 14" />
+                </>
+            )}
+            {name === "inspect" && (
+                <>
+                    <Path d="M12 4.5 18 7v4.5c0 3.6-2.4 6.9-6 8-3.6-1.1-6-4.4-6-8V7z" />
+                    <Path d="m9.5 12 1.7 1.7L14.8 10" />
+                </>
+            )}
+            {name === "roll" && (
+                <>
+                    <Path d="M5 12h14" />
+                    <Path d="M7 8.5h10" />
+                    <Path d="M7 15.5h10" />
+                    <Path d="M6.5 18.5a2 2 0 1 1 0-4 2 2 0 0 1 0 4z" />
+                    <Path d="M17.5 18.5a2 2 0 1 1 0-4 2 2 0 0 1 0 4z" />
+                </>
+            )}
+            {name === "press" && (
+                <>
+                    <Path d="M8 5.5h8" />
+                    <Path d="M10 5.5v4" />
+                    <Path d="M14 5.5v4" />
+                    <Path d="M7 9.5h10v3H7z" />
+                    <Path d="M6 14.5h12" />
+                    <Path d="M9 14.5v4" />
+                    <Path d="M15 14.5v4" />
+                </>
+            )}
+            {name === "trim" && (
+                <>
+                    <Path d="M6 7.5h12" />
+                    <Path d="M8.5 7.5V5" />
+                    <Path d="M12 7.5V4" />
+                    <Path d="M15.5 7.5V5" />
+                    <Path d="M7.5 10.5h9v6a2 2 0 0 1-2 2h-5a2 2 0 0 1-2-2z" />
+                    <Path d="M10.5 13.5 12 15l3-3" />
+                </>
+            )}
+            {name === "assembly" && (
+                <>
+                    <Path d="M6 8.5h5v5H6z" />
+                    <Path d="M13 10.5h5v5h-5z" />
+                    <Path d="M8.5 13.5V16a2 2 0 0 0 2 2H13" />
+                    <Path d="M13 7h-2.5a2 2 0 0 0-2 2v.5" />
+                </>
+            )}
+
         </svg>
     );
 }

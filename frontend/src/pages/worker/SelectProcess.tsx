@@ -26,6 +26,19 @@ import "./SelectProcess.css";
 
 import { PROCESS_SELECTIONS } from "./processFormSchemas";
 import { workerCanAccessProcess } from "../../utils/processAccess";
+import AppIcon, { type IconName } from "../../components/common/AppIcon";
+
+const processIconMap: Record<string, IconName> = {
+    GC: "cut",
+    MAI: "polish",
+    DO: "measure",
+    K1: "inspect",
+    K2: "inspect",
+    CAN: "roll",
+    EP: "press",
+    XLBV: "trim",
+    SX3: "assembly",
+};
 
 const allProcesses = PROCESS_SELECTIONS.map((item) => ({
     id: item.slug,
@@ -33,6 +46,7 @@ const allProcesses = PROCESS_SELECTIONS.map((item) => ({
     code: item.processCode,
     name: item.name,
     icon: item.icon,
+    visualIcon: processIconMap[item.processCode] ?? "process",
     description: item.description,
 }));
 
@@ -301,8 +315,11 @@ function SelectProcess() {
                             "/worker/history"
                         )
                     }
-                >
-                    Danh sách lịch sử nhập
+>
+                    <span className="history-entry-button__icon" aria-hidden="true">
+                        <AppIcon name="history" size={16} />
+                    </span>
+                    <span>Danh sách lịch sử nhập</span>
                 </button>
 
 
@@ -327,7 +344,7 @@ function SelectProcess() {
 
                                     <span className="worker-process-icon">
 
-                                        {item.icon}
+                                        <AppIcon name={item.visualIcon} size={22} />
 
                                     </span>
 

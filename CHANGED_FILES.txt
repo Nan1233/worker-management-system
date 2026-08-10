@@ -36,4 +36,3 @@ frontend/src/pages/manager/ReportDetail.css
 frontend/src/pages/system/SystemCenter.css
 frontend/src/pages/system/SystemCenter.tsx
 desktop/electron/monthlyWorkbookLocal.cjs
-frontend/src/styles/ktc-demo-ui.css

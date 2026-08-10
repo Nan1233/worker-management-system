@@ -2,15 +2,15 @@
    Calm enterprise visual language inspired by modern productivity products.
    One source of truth for color, spacing, radius, elevation and focus states. */
 :root {
-  --ktc-brand-50: #eef7ff;
-  --ktc-brand-100: #dceefe;
-  --ktc-brand-200: #b9ddfb;
-  --ktc-brand-300: #87c5f6;
-  --ktc-brand-400: #50a5ee;
-  --ktc-brand-500: #2c83dc;
-  --ktc-brand-600: #1f67bd;
-  --ktc-brand-700: #1c5298;
-  --ktc-brand-800: #1c477c;
+  --ktc-brand-50: #eff6ff;
+  --ktc-brand-100: #dbeafe;
+  --ktc-brand-200: #bfdbfe;
+  --ktc-brand-300: #93c5fd;
+  --ktc-brand-400: #60a5fa;
+  --ktc-brand-500: #3b82f6;
+  --ktc-brand-600: #2563eb;
+  --ktc-brand-700: #1d4ed8;
+  --ktc-brand-800: #1e40af;
   --ktc-brand-900: #1d3c66;
 
   --ktc-ink-950: #101828;
@@ -21,34 +21,34 @@
   --ktc-ink-500: #6b7c90;
   --ktc-ink-400: #98a6b8;
 
-  --ktc-bg: #f5f7fa;
+  --ktc-bg: #f5f7fb;
   --ktc-surface: #ffffff;
-  --ktc-surface-subtle: #f9fafb;
-  --ktc-surface-muted: #f2f4f7;
-  --ktc-border: #e3e8ef;
-  --ktc-border-strong: #d2d9e3;
+  --ktc-surface-subtle: #f8fafc;
+  --ktc-surface-muted: #f1f5f9;
+  --ktc-border: #e2e8f0;
+  --ktc-border-strong: #dbe2ea;
 
-  --ktc-success: #16845b;
+  --ktc-success: #16a34a;
   --ktc-success-bg: #ecfdf3;
-  --ktc-warning: #b35b00;
+  --ktc-warning: #d97706;
   --ktc-warning-bg: #fff7e8;
-  --ktc-danger: #c4323f;
+  --ktc-danger: #dc2626;
   --ktc-danger-bg: #fff0f1;
-  --ktc-info: #1f67bd;
+  --ktc-info: #0284c7;
 
-  --ktc-radius-sm: 8px;
-  --ktc-radius-md: 12px;
-  --ktc-radius-lg: 16px;
-  --ktc-radius-xl: 22px;
+  --ktc-radius-sm: 6px;
+  --ktc-radius-md: 8px;
+  --ktc-radius-lg: 10px;
+  --ktc-radius-xl: 12px;
   --ktc-shadow-xs: 0 1px 2px rgba(16, 24, 40, .04);
   --ktc-shadow-sm: 0 1px 3px rgba(16, 24, 40, .06), 0 1px 2px rgba(16, 24, 40, .03);
-  --ktc-shadow-md: 0 10px 30px rgba(16, 24, 40, .08), 0 2px 8px rgba(16, 24, 40, .04);
-  --ktc-focus: 0 0 0 3px rgba(44, 131, 220, .16);
-  --ktc-sidebar-width: 264px;
+  --ktc-shadow-md: 0 12px 32px rgba(15, 23, 42, .12);
+  --ktc-focus: 0 0 0 3px rgba(59, 130, 246, .12);
+  --ktc-sidebar-width: 244px;
   --worker-topbar-height: 68px;
   --worker-mobile-nav-height: 70px;
 
-  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  font-family: "Be Vietnam Pro", Inter, "Segoe UI", Arial, sans-serif;
   color: var(--ktc-ink-900);
   background: var(--ktc-bg);
   font-synthesis: none;
