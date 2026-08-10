@@ -502,9 +502,9 @@ function Login() {
                         </form>
                     )}
 
-                    <p className="login-security-note">
+                    {/* <p className="login-security-note">
                         Công nhân đăng nhập bằng mã nhân viên. Tài khoản quản lý vẫn được bảo vệ bằng mật khẩu.
-                    </p>
+                    </p> */}
                 </div>
             </section>
         </main>

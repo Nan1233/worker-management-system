@@ -18,15 +18,21 @@ async function main() {
     dinh_muc_dang_dung: await scalar("SELECT COUNT(*) n FROM product_standards WHERE status='active'"),
     tru_gio: await scalar("SELECT COUNT(*) n FROM deduction_types WHERE status='active'"),
     loi_ng: await scalar("SELECT COUNT(*) n FROM defect_types WHERE status='active'"),
-    lan_seed: await scalar('SELECT COUNT(*) n FROM master_seed_runs')
+    lan_seed: await scalar('SELECT COUNT(*) n FROM master_seed_runs'),
+    dinh_muc_book2_loi: await scalar(`SELECT COUNT(*) n
+      FROM product_machine_standards pms
+      JOIN processes p ON p.id=pms.process_id
+      WHERE p.process_code='MAI'
+        AND pms.product_code IN ('QC8-1467','QC8-1470')`)
   };
   console.table(result);
   const errors = [];
   if (result.cong_doan < 9) errors.push(`Công đoạn thiếu: ${result.cong_doan}/9`);
-  if (result.cong_nhan < 590) errors.push(`Công nhân có vẻ thiếu: ${result.cong_nhan}`);
+  if (result.cong_nhan < 596) errors.push(`Công nhân có vẻ thiếu: ${result.cong_nhan}/596`);
   if (result.may < 110) errors.push(`Máy có vẻ thiếu: ${result.may}`);
   if (result.ma_san_pham_anh_xa < 700) errors.push(`Ánh xạ sản phẩm có vẻ thiếu: ${result.ma_san_pham_anh_xa}`);
   if (result.dinh_muc_bien_the < 1900) errors.push(`Định mức biến thể có vẻ thiếu: ${result.dinh_muc_bien_the}`);
+  if (result.dinh_muc_book2_loi !== 0) errors.push(`Book2(4) còn định mức cũ QC8-1467/QC8-1470: ${result.dinh_muc_book2_loi}`);
   if (errors.length) throw new Error(errors.join('; '));
   console.log('[KTC] KIỂM TRA MASTER DATA: ĐẠT');
 }

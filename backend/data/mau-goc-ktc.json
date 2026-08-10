@@ -2,7 +2,18 @@
   "meta": {
     "nguon": "file mẫu(5).xlsx",
     "sha256": "0aab63bffa213f335d06326231baa9a395455ab73d1aa19e0ef37182984704a4",
-    "mo_ta": "Snapshot dữ liệu gốc KTC trích từ file mẫu; dùng cho migration/seed idempotent."
+    "mo_ta": "Snapshot dữ liệu gốc KTC trích từ file mẫu; dùng cho migration/seed idempotent.",
+    "worker_count": 596,
+    "source_file_sha256": "0aab63bffa213f335d06326231baa9a395455ab73d1aa19e0ef37182984704a4",
+    "source_file_name": "file mẫu(6).xlsx",
+    "book1_sha256": "51f0dded6dcba4ae87b8a26ef72779235e2369e81b2ef562365f584a9605d667",
+    "book2_sha256": "a9f6f677fe9c627b129933639a0b5064e3c2f88a4408ba7df3c6b381eb89dacd",
+    "book2_name": "Book2(4).xlsx",
+    "historical_worker_additions": [
+      "HẠO:XLBV",
+      "thu:GC",
+      "vấn:MAI,DO"
+    ]
   },
   "processes": [
     {
@@ -62,6 +73,218 @@
       "training_percent": 100
     },
     {
+      "worker_code": "2",
+      "full_name": "AO",
+      "process_codes": [
+        "XLBV"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "3",
+      "full_name": "Sống A Chịa",
+      "process_codes": [
+        "XLBV"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "4",
+      "full_name": "Nguyễn Thị Hoa",
+      "process_codes": [
+        "XLBV"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "5",
+      "full_name": "Trần Hải Nam",
+      "process_codes": [
+        "XLBV"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "13",
+      "full_name": "Đào Anh Đức",
+      "process_codes": [
+        "K1"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "25",
+      "full_name": "Vũ Ngọc Bảo Nam",
+      "process_codes": [
+        "K1"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "62",
+      "full_name": "Hà Thế Vinh",
+      "process_codes": [
+        "EP"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "63",
+      "full_name": "Nguyễn Thị Nga",
+      "process_codes": [
+        "EP"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "66",
+      "full_name": "Lò Thị Hưng",
+      "process_codes": [
+        "EP"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "67",
+      "full_name": "Vì Thị Xuyên",
+      "process_codes": [
+        "EP"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "68",
+      "full_name": "Hoàng Thị Quyền",
+      "process_codes": [
+        "EP"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "71",
+      "full_name": "Nguyễn Thị Nhung",
+      "process_codes": [
+        "GC",
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "72",
+      "full_name": "Ngần Thị Thảo",
+      "process_codes": [
+        "EP"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "74",
+      "full_name": "Đinh Thị Lý",
+      "process_codes": [
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "82",
+      "full_name": "Lò Đức Duy",
+      "process_codes": [
+        "EP"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "83",
+      "full_name": "Cầm Tuấn Anh",
+      "process_codes": [
+        "EP"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "92",
+      "full_name": "Trần Quốc Vui",
+      "process_codes": [
+        "EP"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "93",
+      "full_name": "Hoàng Hà Minh Khuê",
+      "process_codes": [
+        "K1"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "94",
+      "full_name": "Bùi Thủy Lan",
+      "process_codes": [
+        "K1",
+        "EP"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "95",
+      "full_name": "Trần Thị Lợi",
+      "process_codes": [
+        "EP"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "96",
+      "full_name": "Phương Hiền Linh",
+      "process_codes": [
+        "K1",
+        "EP"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "97",
+      "full_name": "Lữ Thành Đạt",
+      "process_codes": [
+        "EP"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "98",
+      "full_name": "Lò Mạnh Đình",
+      "process_codes": [
+        "EP"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
       "worker_code": "100",
       "full_name": "Đinh Văn Đạt",
       "process_codes": [
@@ -71,41 +294,10 @@
       "training_percent": 100
     },
     {
-      "worker_code": "1007",
-      "full_name": "NGUYỄN THỊ HOA",
-      "process_codes": [
-        "XLBV"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "1010",
-      "full_name": "ĐINH THU HÀ",
-      "process_codes": [
-        "XLBV"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
       "worker_code": "102",
       "full_name": "Hà Văn Quang",
       "process_codes": [
         "EP"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "1020",
-      "full_name": "Nguyễn Thị Thiều",
-      "process_codes": [
-        "GC",
-        "MAI",
-        "DO",
-        "K2",
-        "XLBV"
       ],
       "status": "active",
       "training_percent": 100
@@ -148,18 +340,6 @@
       "training_percent": 100
     },
     {
-      "worker_code": "1094",
-      "full_name": "Đinh Quốc Huy",
-      "process_codes": [
-        "GC",
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
       "worker_code": "110",
       "full_name": "Nguyễn Văn Vinh",
       "process_codes": [
@@ -196,18 +376,6 @@
       "training_percent": 100
     },
     {
-      "worker_code": "1134",
-      "full_name": "Nguyễn Thị Thủy",
-      "process_codes": [
-        "GC",
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
       "worker_code": "117",
       "full_name": "DINH DUC LOI",
       "process_codes": [
@@ -235,6 +403,846 @@
       "training_percent": 100
     },
     {
+      "worker_code": "126",
+      "full_name": "LUONG HONG QUAN",
+      "process_codes": [
+        "EP"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "140",
+      "full_name": "Nguyễn Lan Anh",
+      "process_codes": [
+        "K1"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "141",
+      "full_name": "Nguyễn Minh Anh",
+      "process_codes": [
+        "K1"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "146",
+      "full_name": "Đỗ Thùy Dương",
+      "process_codes": [
+        "K1"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "152",
+      "full_name": "Phạm Trần Bảo Linh",
+      "process_codes": [
+        "K1"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "153",
+      "full_name": "Phan Thùy Linh",
+      "process_codes": [
+        "K1"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "159",
+      "full_name": "Nguyễn Diệu Thảo",
+      "process_codes": [
+        "K1"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "342",
+      "full_name": "Nguyễn Anh Sơn",
+      "process_codes": [
+        "XLBV"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "352",
+      "full_name": "LUONG VAN MANH",
+      "process_codes": [
+        "EP"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "357",
+      "full_name": "Lò Thị Diệu Ly",
+      "process_codes": [
+        "GC",
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "376",
+      "full_name": "HÀ VĂN CHUNG",
+      "process_codes": [
+        "EP"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "416",
+      "full_name": "Nguyễn Thị Thủy",
+      "process_codes": [
+        "GC",
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "433",
+      "full_name": "SÙNG A SÀO",
+      "process_codes": [
+        "EP"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "435",
+      "full_name": "LO VAN PHUC",
+      "process_codes": [
+        "EP"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "465",
+      "full_name": "Bùi Thị Điệp",
+      "process_codes": [
+        "GC",
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "489",
+      "full_name": "Nguyễn Thị Nhường",
+      "process_codes": [
+        "GC",
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "525",
+      "full_name": "Chương Văn Hôn",
+      "process_codes": [
+        "GC",
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "526",
+      "full_name": "Trần Thị Thùy",
+      "process_codes": [
+        "GC",
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "551",
+      "full_name": "Mùi Thị Ngọc Diệp",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "560",
+      "full_name": "MÙI THI LIÊN",
+      "process_codes": [
+        "XLBV"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "561",
+      "full_name": "MÙI THỊ LINH",
+      "process_codes": [
+        "XLBV"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "562",
+      "full_name": "Lò Thị Tươi",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2",
+        "K1"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "582",
+      "full_name": "LƯỜNG GIA HUY",
+      "process_codes": [
+        "EP"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "590",
+      "full_name": "MÙI VĂN ĐỊNH",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "591",
+      "full_name": "ĐINH KHÁNH BẢO",
+      "process_codes": [
+        "GC",
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "599",
+      "full_name": "An Thị Thanh Phương",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "602",
+      "full_name": "LÒ VĂN NHIÊN",
+      "process_codes": [
+        "EP"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "606",
+      "full_name": "MÙA A PHANG",
+      "process_codes": [
+        "EP"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "613",
+      "full_name": "Phùng Viết Phượng",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "625",
+      "full_name": "Hứa Thị Thấm",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2",
+        "K1"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "632",
+      "full_name": "Giàng A Vông",
+      "process_codes": [
+        "GC",
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "639",
+      "full_name": "Hoàng Tâm Như",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "640",
+      "full_name": "Lò Thị Diệp",
+      "process_codes": [
+        "GC",
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "641",
+      "full_name": "Hoàng Thị Đoan",
+      "process_codes": [
+        "GC",
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "642",
+      "full_name": "Đinh Xuân Nam",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "643",
+      "full_name": "Hoàng Thị Phương",
+      "process_codes": [
+        "GC",
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "644",
+      "full_name": "Hà Thị Ngọc Yến",
+      "process_codes": [
+        "GC",
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "646",
+      "full_name": "LÒ THỊ DUYÊN",
+      "process_codes": [
+        "GC",
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "647",
+      "full_name": "Hoàng Ngọc Tuyền",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "648",
+      "full_name": "Lò Lê Mây",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "649",
+      "full_name": "Lò Thị Vy Oanh",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "651",
+      "full_name": "Mùi Anh Quyền",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "655",
+      "full_name": "Giàng Thị Đông",
+      "process_codes": [
+        "GC",
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "656",
+      "full_name": "Vừ A Nánh",
+      "process_codes": [
+        "GC",
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "657",
+      "full_name": "Lường Tuấn Kiệt",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "658",
+      "full_name": "Lường Văn Đạt",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "659",
+      "full_name": "SÙNG A PÓ",
+      "process_codes": [
+        "EP"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "661",
+      "full_name": "Giàng Thị Pàng",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "666",
+      "full_name": "Vàng Mười Phành",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "668",
+      "full_name": "Vừ A Chiến",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "669",
+      "full_name": "Vàng Thị Quỳnh Châu",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "670",
+      "full_name": "Giàng A Công",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "671",
+      "full_name": "Tròng THị La",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "672",
+      "full_name": "Lường Duy Quân",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "673",
+      "full_name": "Nguyễn Gia Tuệ",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "674",
+      "full_name": "Mùi Trọng Quyền",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "675",
+      "full_name": "Mùa A Chu",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "676",
+      "full_name": "Trương Thị Hòa",
+      "process_codes": [
+        "GC",
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "679",
+      "full_name": "Lò Thị Mừng",
+      "process_codes": [
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "681",
+      "full_name": "Sùng Thị Cu",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "682",
+      "full_name": "Hảng A Tình",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "684",
+      "full_name": "Vì Minh Đức",
+      "process_codes": [
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "685",
+      "full_name": "Vì Văn Phùng",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "686",
+      "full_name": "Ngần Văn Vĩnh",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "748",
+      "full_name": "Đào Thị Hường",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "761",
+      "full_name": "Giàng Mí Vư",
+      "process_codes": [
+        "GC",
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "762",
+      "full_name": "Sùng Thị Mua",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "763",
+      "full_name": "Giàng A Tuấn",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "764",
+      "full_name": "Giàng Mí Cho",
+      "process_codes": [
+        "GC",
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "765",
+      "full_name": "MUA MÍ SÙNG",
+      "process_codes": [
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "766",
+      "full_name": "MUA MÍ SÍNH",
+      "process_codes": [
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "800",
+      "full_name": "Nguyễn Thị Thanh",
+      "process_codes": [
+        "GC",
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "909",
+      "full_name": "Đặng Quang Trung",
+      "process_codes": [
+        "XLBV"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "958",
+      "full_name": "Lục Văn Ngân",
+      "process_codes": [
+        "GC",
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "1007",
+      "full_name": "NGUYỄN THỊ HOA",
+      "process_codes": [
+        "XLBV"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "1010",
+      "full_name": "ĐINH THU HÀ",
+      "process_codes": [
+        "XLBV"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "1020",
+      "full_name": "Nguyễn Thị Thiều",
+      "process_codes": [
+        "GC",
+        "MAI",
+        "DO",
+        "K2",
+        "XLBV"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "1094",
+      "full_name": "Đinh Quốc Huy",
+      "process_codes": [
+        "GC",
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "1134",
+      "full_name": "Nguyễn Thị Thủy",
+      "process_codes": [
+        "GC",
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
       "worker_code": "1246",
       "full_name": "Nguyễn Quang Tuấn",
       "process_codes": [
@@ -254,24 +1262,6 @@
         "MAI",
         "DO",
         "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "126",
-      "full_name": "LUONG HONG QUAN",
-      "process_codes": [
-        "EP"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "13",
-      "full_name": "Đào Anh Đức",
-      "process_codes": [
-        "K1"
       ],
       "status": "active",
       "training_percent": 100
@@ -306,24 +1296,6 @@
       "full_name": "HIỀN THU SXC",
       "process_codes": [
         "K2",
-        "K1"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "140",
-      "full_name": "Nguyễn Lan Anh",
-      "process_codes": [
-        "K1"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "141",
-      "full_name": "Nguyễn Minh Anh",
-      "process_codes": [
         "K1"
       ],
       "status": "active",
@@ -379,15 +1351,6 @@
       "training_percent": 100
     },
     {
-      "worker_code": "146",
-      "full_name": "Đỗ Thùy Dương",
-      "process_codes": [
-        "K1"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
       "worker_code": "1476",
       "full_name": "Đào Thị Phương",
       "process_codes": [
@@ -404,24 +1367,6 @@
       "full_name": "Nhật Anh",
       "process_codes": [
         "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "152",
-      "full_name": "Phạm Trần Bảo Linh",
-      "process_codes": [
-        "K1"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "153",
-      "full_name": "Phan Thùy Linh",
-      "process_codes": [
-        "K1"
       ],
       "status": "active",
       "training_percent": 100
@@ -470,15 +1415,6 @@
         "MAI",
         "DO",
         "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "159",
-      "full_name": "Nguyễn Diệu Thảo",
-      "process_codes": [
-        "K1"
       ],
       "status": "active",
       "training_percent": 100
@@ -628,15 +1564,6 @@
       "training_percent": 100
     },
     {
-      "worker_code": "2",
-      "full_name": "AO",
-      "process_codes": [
-        "XLBV"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
       "worker_code": "2009",
       "full_name": "Cao Thị Thu",
       "process_codes": [
@@ -759,15 +1686,6 @@
         "K1",
         "XLBV",
         "EP"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "25",
-      "full_name": "Vũ Ngọc Bảo Nam",
-      "process_codes": [
-        "K1"
       ],
       "status": "active",
       "training_percent": 100
@@ -1055,15 +1973,6 @@
         "DO",
         "K2",
         "K1"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "3",
-      "full_name": "Sống A Chịa",
-      "process_codes": [
-        "XLBV"
       ],
       "status": "active",
       "training_percent": 100
@@ -1523,15 +2432,6 @@
       "training_percent": 100
     },
     {
-      "worker_code": "342",
-      "full_name": "Nguyễn Anh Sơn",
-      "process_codes": [
-        "XLBV"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
       "worker_code": "3421",
       "full_name": "Bùi Thị Thoa",
       "process_codes": [
@@ -1563,15 +2463,6 @@
       "training_percent": 100
     },
     {
-      "worker_code": "352",
-      "full_name": "LUONG VAN MANH",
-      "process_codes": [
-        "EP"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
       "worker_code": "3526",
       "full_name": "Đinh Thị Tân",
       "process_codes": [
@@ -1590,18 +2481,6 @@
         "XLBV",
         "EP",
         "CAN"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "357",
-      "full_name": "Lò Thị Diệu Ly",
-      "process_codes": [
-        "GC",
-        "MAI",
-        "DO",
-        "K2"
       ],
       "status": "active",
       "training_percent": 100
@@ -1953,15 +2832,6 @@
     {
       "worker_code": "3759",
       "full_name": "Nguyễn Thị Hồng Ngát",
-      "process_codes": [
-        "EP"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "376",
-      "full_name": "HÀ VĂN CHUNG",
       "process_codes": [
         "EP"
       ],
@@ -2533,15 +3403,6 @@
       "training_percent": 100
     },
     {
-      "worker_code": "4",
-      "full_name": "Nguyễn Thị Hoa",
-      "process_codes": [
-        "XLBV"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
       "worker_code": "4013",
       "full_name": "Lường Thị Xuân",
       "process_codes": [
@@ -2954,18 +3815,6 @@
     {
       "worker_code": "4155",
       "full_name": "Đỗ Quang Anh",
-      "process_codes": [
-        "GC",
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "416",
-      "full_name": "Nguyễn Thị Thủy",
       "process_codes": [
         "GC",
         "MAI",
@@ -3556,15 +4405,6 @@
       "training_percent": 100
     },
     {
-      "worker_code": "433",
-      "full_name": "SÙNG A SÀO",
-      "process_codes": [
-        "EP"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
       "worker_code": "4330",
       "full_name": "HÀ VIỆT BẮC",
       "process_codes": [
@@ -3730,15 +4570,6 @@
       "training_percent": 100
     },
     {
-      "worker_code": "435",
-      "full_name": "LO VAN PHUC",
-      "process_codes": [
-        "EP"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
       "worker_code": "4350",
       "full_name": "LÝ A HỒNG",
       "process_codes": [
@@ -3885,138 +4716,8 @@
       "training_percent": 100
     },
     {
-      "worker_code": "465",
-      "full_name": "Bùi Thị Điệp",
-      "process_codes": [
-        "GC",
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "489",
-      "full_name": "Nguyễn Thị Nhường",
-      "process_codes": [
-        "GC",
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "5",
-      "full_name": "Trần Hải Nam",
-      "process_codes": [
-        "XLBV"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "525",
-      "full_name": "Chương Văn Hôn",
-      "process_codes": [
-        "GC",
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "526",
-      "full_name": "Trần Thị Thùy",
-      "process_codes": [
-        "GC",
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "551",
-      "full_name": "Mùi Thị Ngọc Diệp",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "560",
-      "full_name": "MÙI THI LIÊN",
-      "process_codes": [
-        "XLBV"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "561",
-      "full_name": "MÙI THỊ LINH",
-      "process_codes": [
-        "XLBV"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "562",
-      "full_name": "Lò Thị Tươi",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2",
-        "K1"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "582",
-      "full_name": "LƯỜNG GIA HUY",
-      "process_codes": [
-        "EP"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "590",
-      "full_name": "MÙI VĂN ĐỊNH",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "591",
-      "full_name": "ĐINH KHÁNH BẢO",
-      "process_codes": [
-        "GC",
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "599",
-      "full_name": "An Thị Thanh Phương",
+      "worker_code": "h101",
+      "full_name": "Nguyễn Duy Minh -101",
       "process_codes": [
         "GC"
       ],
@@ -4024,524 +4725,8 @@
       "training_percent": 100
     },
     {
-      "worker_code": "602",
-      "full_name": "LÒ VĂN NHIÊN",
-      "process_codes": [
-        "EP"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "606",
-      "full_name": "MÙA A PHANG",
-      "process_codes": [
-        "EP"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "613",
-      "full_name": "Phùng Viết Phượng",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "62",
-      "full_name": "Hà Thế Vinh",
-      "process_codes": [
-        "EP"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "625",
-      "full_name": "Hứa Thị Thấm",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2",
-        "K1"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "63",
-      "full_name": "Nguyễn Thị Nga",
-      "process_codes": [
-        "EP"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "632",
-      "full_name": "Giàng A Vông",
-      "process_codes": [
-        "GC",
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "639",
-      "full_name": "Hoàng Tâm Như",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "640",
-      "full_name": "Lò Thị Diệp",
-      "process_codes": [
-        "GC",
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "641",
-      "full_name": "Hoàng Thị Đoan",
-      "process_codes": [
-        "GC",
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "642",
-      "full_name": "Đinh Xuân Nam",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "643",
-      "full_name": "Hoàng Thị Phương",
-      "process_codes": [
-        "GC",
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "644",
-      "full_name": "Hà Thị Ngọc Yến",
-      "process_codes": [
-        "GC",
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "646",
-      "full_name": "LÒ THỊ DUYÊN",
-      "process_codes": [
-        "GC",
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "647",
-      "full_name": "Hoàng Ngọc Tuyền",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "648",
-      "full_name": "Lò Lê Mây",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "649",
-      "full_name": "Lò Thị Vy Oanh",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "651",
-      "full_name": "Mùi Anh Quyền",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "655",
-      "full_name": "Giàng Thị Đông",
-      "process_codes": [
-        "GC",
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "656",
-      "full_name": "Vừ A Nánh",
-      "process_codes": [
-        "GC",
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "657",
-      "full_name": "Lường Tuấn Kiệt",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "658",
-      "full_name": "Lường Văn Đạt",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "659",
-      "full_name": "SÙNG A PÓ",
-      "process_codes": [
-        "EP"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "66",
-      "full_name": "Lò Thị Hưng",
-      "process_codes": [
-        "EP"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "661",
-      "full_name": "Giàng Thị Pàng",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "666",
-      "full_name": "Vàng Mười Phành",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "668",
-      "full_name": "Vừ A Chiến",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "669",
-      "full_name": "Vàng Thị Quỳnh Châu",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "67",
-      "full_name": "Vì Thị Xuyên",
-      "process_codes": [
-        "EP"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "670",
-      "full_name": "Giàng A Công",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "671",
-      "full_name": "Tròng THị La",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "672",
-      "full_name": "Lường Duy Quân",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "673",
-      "full_name": "Nguyễn Gia Tuệ",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "674",
-      "full_name": "Mùi Trọng Quyền",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "675",
-      "full_name": "Mùa A Chu",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "676",
-      "full_name": "Trương Thị Hòa",
-      "process_codes": [
-        "GC",
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "679",
-      "full_name": "Lò Thị Mừng",
-      "process_codes": [
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "68",
-      "full_name": "Hoàng Thị Quyền",
-      "process_codes": [
-        "EP"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "681",
-      "full_name": "Sùng Thị Cu",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "682",
-      "full_name": "Hảng A Tình",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "684",
-      "full_name": "Vì Minh Đức",
-      "process_codes": [
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "685",
-      "full_name": "Vì Văn Phùng",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "686",
-      "full_name": "Ngần Văn Vĩnh",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "71",
-      "full_name": "Nguyễn Thị Nhung",
-      "process_codes": [
-        "GC",
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "72",
-      "full_name": "Ngần Thị Thảo",
-      "process_codes": [
-        "EP"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "74",
-      "full_name": "Đinh Thị Lý",
-      "process_codes": [
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "748",
-      "full_name": "Đào Thị Hường",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "761",
-      "full_name": "Giàng Mí Vư",
-      "process_codes": [
-        "GC",
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "762",
-      "full_name": "Sùng Thị Mua",
+      "worker_code": "h110",
+      "full_name": "Lê Việt Anh -110",
       "process_codes": [
         "GC"
       ],
@@ -4549,8 +4734,8 @@
       "training_percent": 100
     },
     {
-      "worker_code": "763",
-      "full_name": "Giàng A Tuấn",
+      "worker_code": "h114",
+      "full_name": "Nguyễn Gia Bách -114",
       "process_codes": [
         "GC"
       ],
@@ -4558,10 +4743,144 @@
       "training_percent": 100
     },
     {
-      "worker_code": "764",
-      "full_name": "Giàng Mí Cho",
+      "worker_code": "h116",
+      "full_name": "Nguyễn Hoàng Hải -116",
       "process_codes": [
-        "GC",
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "h117",
+      "full_name": "Đặng Sơn Hải -117",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "h118",
+      "full_name": "Vũ Đức Khánh -118",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "h120",
+      "full_name": "Bùi Trí Long -120",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "h121",
+      "full_name": "Trần Bảo Minh -121",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "h122",
+      "full_name": "Vũ Hữu Quân -122",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "h22",
+      "full_name": "Hà Đức Minh -22",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "h23",
+      "full_name": "Nguyễn Thế Minh -23",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "h30",
+      "full_name": "Hoàng Thiệu Quang -30",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "h31",
+      "full_name": "Lê Minh Sơn -31",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "h36",
+      "full_name": "Lê Minh Triết -36",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "h37",
+      "full_name": "Nguyễn Duy Việt -37",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "h41",
+      "full_name": "Đặng Hải Yến -41",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "h42",
+      "full_name": "Nguyễn Khánh Linh -42",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "h7",
+      "full_name": "Bùi Gia Bảo -7",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs002",
+      "full_name": "Dương Tuấn Anh",
+      "process_codes": [
         "MAI",
         "DO"
       ],
@@ -4569,137 +4888,11 @@
       "training_percent": 100
     },
     {
-      "worker_code": "765",
-      "full_name": "MUA MÍ SÙNG",
+      "worker_code": "hs003",
+      "full_name": "Phan Đình Quang Anh",
       "process_codes": [
         "MAI",
         "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "766",
-      "full_name": "MUA MÍ SÍNH",
-      "process_codes": [
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "800",
-      "full_name": "Nguyễn Thị Thanh",
-      "process_codes": [
-        "GC",
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "82",
-      "full_name": "Lò Đức Duy",
-      "process_codes": [
-        "EP"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "83",
-      "full_name": "Cầm Tuấn Anh",
-      "process_codes": [
-        "EP"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "909",
-      "full_name": "Đặng Quang Trung",
-      "process_codes": [
-        "XLBV"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "92",
-      "full_name": "Trần Quốc Vui",
-      "process_codes": [
-        "EP"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "93",
-      "full_name": "Hoàng Hà Minh Khuê",
-      "process_codes": [
-        "K1"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "94",
-      "full_name": "Bùi Thủy Lan",
-      "process_codes": [
-        "K1",
-        "EP"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "95",
-      "full_name": "Trần Thị Lợi",
-      "process_codes": [
-        "EP"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "958",
-      "full_name": "Lục Văn Ngân",
-      "process_codes": [
-        "GC",
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "96",
-      "full_name": "Phương Hiền Linh",
-      "process_codes": [
-        "K1",
-        "EP"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "97",
-      "full_name": "Lữ Thành Đạt",
-      "process_codes": [
-        "EP"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "98",
-      "full_name": "Lò Mạnh Đình",
-      "process_codes": [
-        "EP"
       ],
       "status": "active",
       "training_percent": 100
@@ -4714,10 +4907,221 @@
       "training_percent": 100
     },
     {
+      "worker_code": "hs006",
+      "full_name": "Nguyễn Tiến Bách",
+      "process_codes": [
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs008",
+      "full_name": "Đặng Gia Bình",
+      "process_codes": [
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs009",
+      "full_name": "Nguyễn Thành Công",
+      "process_codes": [
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs014",
+      "full_name": "Lê Minh Đức",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs015",
+      "full_name": "Nguyễn Gia Hiển",
+      "process_codes": [
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs017",
+      "full_name": "La Quốc Hưng",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs018",
+      "full_name": "Trần Gia Huy",
+      "process_codes": [
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs021",
+      "full_name": "Bùi Quang Minh",
+      "process_codes": [
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs024",
+      "full_name": "Nguyễn Hải Nam",
+      "process_codes": [
+        "MAI",
+        "DO",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
       "worker_code": "HS025",
       "full_name": "Nguyễn Đức Huy",
       "process_codes": [
         "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs026",
+      "full_name": "Nguyễn Thành Phát",
+      "process_codes": [
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs033",
+      "full_name": "Lê Phan Đức Thành",
+      "process_codes": [
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs034",
+      "full_name": "Đồng Phúc Thịnh",
+      "process_codes": [
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs038",
+      "full_name": "Nguyễn Quốc Việt",
+      "process_codes": [
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs046",
+      "full_name": "Bùi Nguyễn Gia Hân",
+      "process_codes": [
+        "MAI"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs054",
+      "full_name": "Lê Khánh An",
+      "process_codes": [
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs057",
+      "full_name": "Nguyễn Lưu Bảo Anh",
+      "process_codes": [
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs061",
+      "full_name": "Nguyễn Ngọc Bảo",
+      "process_codes": [
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs062",
+      "full_name": "Hoàng Ngọc Diệp",
+      "process_codes": [
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs074",
+      "full_name": "Nguyễn Bảo Linh",
+      "process_codes": [
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs076",
+      "full_name": "Nguyễn Hà My",
+      "process_codes": [
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs077",
+      "full_name": "Hoàng Đặng Linh Nga",
+      "process_codes": [
+        "MAI",
+        "DO"
       ],
       "status": "active",
       "training_percent": 100
@@ -4732,8 +5136,221 @@
       "training_percent": 100
     },
     {
+      "worker_code": "hs079",
+      "full_name": "Vũ Minh Ngọc",
+      "process_codes": [
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
       "worker_code": "HS081",
       "full_name": "Nguyễn Duy Khánh",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs083",
+      "full_name": "Nguyễn Anh Quân",
+      "process_codes": [
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs085",
+      "full_name": "Nguyễn Minh Thư",
+      "process_codes": [
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs097",
+      "full_name": "Nguyễn Huyền Linh",
+      "process_codes": [
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs098",
+      "full_name": "Nguyễn Gia Linh",
+      "process_codes": [
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs113",
+      "full_name": "Nguyễn Phương Anh",
+      "process_codes": [
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs115",
+      "full_name": "Hồ Dạ Minh Châu",
+      "process_codes": [
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs125",
+      "full_name": "Nguyễn Minh Thuận",
+      "process_codes": [
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs126",
+      "full_name": "Lương Thùy Trang",
+      "process_codes": [
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs127",
+      "full_name": "Trần Quỳnh Anh",
+      "process_codes": [
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs129",
+      "full_name": "Vũ Hương Giang",
+      "process_codes": [
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs130",
+      "full_name": "Chu Vũ tường Linh",
+      "process_codes": [
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs134",
+      "full_name": "Nguyễn Thanh Tâm",
+      "process_codes": [
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs135",
+      "full_name": "Lê Phương Trang",
+      "process_codes": [
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs137",
+      "full_name": "Đặng Minh Anh",
+      "process_codes": [
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs138",
+      "full_name": "Đào Hoàng Trang Anh",
+      "process_codes": [
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs141",
+      "full_name": "M.Anh SX1",
+      "process_codes": [
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs145",
+      "full_name": "Nguyễn Linh Chi",
+      "process_codes": [
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs146",
+      "full_name": "Đỗ Thùy Dương - Kiểm 1",
+      "process_codes": [
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs151",
+      "full_name": "Nguyễn Thùy Linh",
+      "process_codes": [
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "hs156",
+      "full_name": "Nguyễn Minh Ngọc",
+      "process_codes": [
+        "MAI",
+        "DO"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "HẠO",
+      "full_name": "VÌ BU HẠO",
+      "process_codes": [
+        "XLBV"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k010",
+      "full_name": "Trần Bảo Ngân - 10",
       "process_codes": [
         "GC"
       ],
@@ -4806,6 +5423,249 @@
       "training_percent": 100
     },
     {
+      "worker_code": "k104",
+      "full_name": "Nguyễn Thùy Trang",
+      "process_codes": [
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k133",
+      "full_name": "Nguyễn Bảo Nhi - 133",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k136",
+      "full_name": "Vũ Huyền Trang - 136",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k139",
+      "full_name": "Đinh Ngọc Anh - 139",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k144",
+      "full_name": "Nguyễn Bảo Châu - 144",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k148",
+      "full_name": "Lê Thị Thanh Huyền - 148",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k149",
+      "full_name": "Lê Thu Huyền - 149",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k155",
+      "full_name": "Trần Bảo Ngân-155",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k157",
+      "full_name": "Vương Thảo Nhi - 157",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k160",
+      "full_name": "Bạch Nhữ Uyển Vy - 160",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k164",
+      "full_name": "Ngô Phương Linh - 164",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k45",
+      "full_name": "Bùi Ánh Dương - 45",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k46",
+      "full_name": "Bùi Nguyễn Gia Hân - 46",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k47",
+      "full_name": "Nguyễn Minh Hòa - 47",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k50",
+      "full_name": "Nguyễn Hoàng KHánh Ngọc - 50",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k64",
+      "full_name": "Lại Việt Đức - 64",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k66",
+      "full_name": "Mai Thanh Hà-66",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k68",
+      "full_name": "Vũ Sử Khánh Hưng - 68",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k69",
+      "full_name": "Nguyễn Nhật Hương - 69",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k71",
+      "full_name": "Nguyễn Hữu Minh Khang - 71",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k72",
+      "full_name": "Phạm Đức Khiêm - 72",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k74",
+      "full_name": "Nguyễn Bảo Linh - 74",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k78",
+      "full_name": "Trần Đại Nghĩa - 78",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k80",
+      "full_name": "Phạm Đan Nhi - 80",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k82",
+      "full_name": "Phạm VŨ Phương - 82",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k84",
+      "full_name": "Trần Thành Sơn - 84",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "k87",
+      "full_name": "Nguyễn Lan Vy - 87",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
       "worker_code": "P599",
       "full_name": "An Thị Thanh Phương",
       "process_codes": [
@@ -4817,11 +5677,182 @@
       "training_percent": 100
     },
     {
+      "worker_code": "t-551",
+      "full_name": "Mùi Thị Ngọc Diệp",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "thu",
+      "full_name": "Đỗ Hiền Thu",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "v1134",
+      "full_name": "Nguyễn Thị Thủy",
+      "process_codes": [
+        "GC",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "v1333",
+      "full_name": "Hoàng Thị Thư",
+      "process_codes": [
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "v1448",
+      "full_name": "Lê Thị Dung",
+      "process_codes": [
+        "GC",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "v1572",
+      "full_name": "Trần Thị Diên",
+      "process_codes": [
+        "GC",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
       "worker_code": "V2278",
       "full_name": "Sa Thị Ương",
       "process_codes": [
         "GC",
         "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "v2284",
+      "full_name": "Lò Thị Mư",
+      "process_codes": [
+        "GC",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "v2564",
+      "full_name": "Đinh Phương Thảo",
+      "process_codes": [
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "v2984",
+      "full_name": "Lò Thị Uyên",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "v3046",
+      "full_name": "Giang Thị Mậu",
+      "process_codes": [
+        "GC",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "v3263",
+      "full_name": "Phạm Thị Lan Hương",
+      "process_codes": [
+        "GC",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "v3351",
+      "full_name": "Đinh Thị Hà",
+      "process_codes": [
+        "GC",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "v3607",
+      "full_name": "Tô Thị Thao",
+      "process_codes": [
+        "GC",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "v3622",
+      "full_name": "Lường Thị Ngân",
+      "process_codes": [
+        "GC"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "v3971",
+      "full_name": "Nguyễn Thị Hoàng Vinh",
+      "process_codes": [
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "v4083",
+      "full_name": "Phạm Thị Hợp",
+      "process_codes": [
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "v416",
+      "full_name": "Nguyễn Thị Thủy",
+      "process_codes": [
+        "GC",
+        "K2"
+      ],
+      "status": "active",
+      "training_percent": 100
+    },
+    {
+      "worker_code": "v4162",
+      "full_name": "Cà Thị Viết",
+      "process_codes": [
+        "GC"
       ],
       "status": "active",
       "training_percent": 100
@@ -5139,1003 +6170,11 @@
       "training_percent": 100
     },
     {
-      "worker_code": "h101",
-      "full_name": "Nguyễn Duy Minh -101",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "h110",
-      "full_name": "Lê Việt Anh -110",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "h114",
-      "full_name": "Nguyễn Gia Bách -114",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "h116",
-      "full_name": "Nguyễn Hoàng Hải -116",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "h117",
-      "full_name": "Đặng Sơn Hải -117",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "h118",
-      "full_name": "Vũ Đức Khánh -118",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "h120",
-      "full_name": "Bùi Trí Long -120",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "h121",
-      "full_name": "Trần Bảo Minh -121",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "h122",
-      "full_name": "Vũ Hữu Quân -122",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "h22",
-      "full_name": "Hà Đức Minh -22",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "h23",
-      "full_name": "Nguyễn Thế Minh -23",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "h30",
-      "full_name": "Hoàng Thiệu Quang -30",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "h31",
-      "full_name": "Lê Minh Sơn -31",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "h36",
-      "full_name": "Lê Minh Triết -36",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "h37",
-      "full_name": "Nguyễn Duy Việt -37",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "h41",
-      "full_name": "Đặng Hải Yến -41",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "h42",
-      "full_name": "Nguyễn Khánh Linh -42",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "h7",
-      "full_name": "Bùi Gia Bảo -7",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs002",
-      "full_name": "Dương Tuấn Anh",
+      "worker_code": "vấn",
+      "full_name": "Lường Thị Vấn",
       "process_codes": [
         "MAI",
         "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs003",
-      "full_name": "Phan Đình Quang Anh",
-      "process_codes": [
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs006",
-      "full_name": "Nguyễn Tiến Bách",
-      "process_codes": [
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs008",
-      "full_name": "Đặng Gia Bình",
-      "process_codes": [
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs009",
-      "full_name": "Nguyễn Thành Công",
-      "process_codes": [
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs014",
-      "full_name": "Lê Minh Đức",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs015",
-      "full_name": "Nguyễn Gia Hiển",
-      "process_codes": [
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs017",
-      "full_name": "La Quốc Hưng",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs018",
-      "full_name": "Trần Gia Huy",
-      "process_codes": [
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs021",
-      "full_name": "Bùi Quang Minh",
-      "process_codes": [
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs024",
-      "full_name": "Nguyễn Hải Nam",
-      "process_codes": [
-        "MAI",
-        "DO",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs026",
-      "full_name": "Nguyễn Thành Phát",
-      "process_codes": [
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs033",
-      "full_name": "Lê Phan Đức Thành",
-      "process_codes": [
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs034",
-      "full_name": "Đồng Phúc Thịnh",
-      "process_codes": [
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs038",
-      "full_name": "Nguyễn Quốc Việt",
-      "process_codes": [
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs046",
-      "full_name": "Bùi Nguyễn Gia Hân",
-      "process_codes": [
-        "MAI"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs054",
-      "full_name": "Lê Khánh An",
-      "process_codes": [
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs057",
-      "full_name": "Nguyễn Lưu Bảo Anh",
-      "process_codes": [
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs061",
-      "full_name": "Nguyễn Ngọc Bảo",
-      "process_codes": [
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs062",
-      "full_name": "Hoàng Ngọc Diệp",
-      "process_codes": [
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs074",
-      "full_name": "Nguyễn Bảo Linh",
-      "process_codes": [
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs076",
-      "full_name": "Nguyễn Hà My",
-      "process_codes": [
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs077",
-      "full_name": "Hoàng Đặng Linh Nga",
-      "process_codes": [
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs079",
-      "full_name": "Vũ Minh Ngọc",
-      "process_codes": [
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs083",
-      "full_name": "Nguyễn Anh Quân",
-      "process_codes": [
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs085",
-      "full_name": "Nguyễn Minh Thư",
-      "process_codes": [
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs097",
-      "full_name": "Nguyễn Huyền Linh",
-      "process_codes": [
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs098",
-      "full_name": "Nguyễn Gia Linh",
-      "process_codes": [
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs113",
-      "full_name": "Nguyễn Phương Anh",
-      "process_codes": [
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs115",
-      "full_name": "Hồ Dạ Minh Châu",
-      "process_codes": [
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs125",
-      "full_name": "Nguyễn Minh Thuận",
-      "process_codes": [
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs126",
-      "full_name": "Lương Thùy Trang",
-      "process_codes": [
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs127",
-      "full_name": "Trần Quỳnh Anh",
-      "process_codes": [
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs129",
-      "full_name": "Vũ Hương Giang",
-      "process_codes": [
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs130",
-      "full_name": "Chu Vũ tường Linh",
-      "process_codes": [
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs134",
-      "full_name": "Nguyễn Thanh Tâm",
-      "process_codes": [
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs135",
-      "full_name": "Lê Phương Trang",
-      "process_codes": [
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs137",
-      "full_name": "Đặng Minh Anh",
-      "process_codes": [
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs138",
-      "full_name": "Đào Hoàng Trang Anh",
-      "process_codes": [
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs141",
-      "full_name": "M.Anh SX1",
-      "process_codes": [
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs145",
-      "full_name": "Nguyễn Linh Chi",
-      "process_codes": [
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs146",
-      "full_name": "Đỗ Thùy Dương - Kiểm 1",
-      "process_codes": [
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs151",
-      "full_name": "Nguyễn Thùy Linh",
-      "process_codes": [
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "hs156",
-      "full_name": "Nguyễn Minh Ngọc",
-      "process_codes": [
-        "MAI",
-        "DO"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k010",
-      "full_name": "Trần Bảo Ngân - 10",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k104",
-      "full_name": "Nguyễn Thùy Trang",
-      "process_codes": [
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k133",
-      "full_name": "Nguyễn Bảo Nhi - 133",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k136",
-      "full_name": "Vũ Huyền Trang - 136",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k139",
-      "full_name": "Đinh Ngọc Anh - 139",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k144",
-      "full_name": "Nguyễn Bảo Châu - 144",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k148",
-      "full_name": "Lê Thị Thanh Huyền - 148",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k149",
-      "full_name": "Lê Thu Huyền - 149",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k155",
-      "full_name": "Trần Bảo Ngân-155",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k157",
-      "full_name": "Vương Thảo Nhi - 157",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k160",
-      "full_name": "Bạch Nhữ Uyển Vy - 160",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k164",
-      "full_name": "Ngô Phương Linh - 164",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k45",
-      "full_name": "Bùi Ánh Dương - 45",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k46",
-      "full_name": "Bùi Nguyễn Gia Hân - 46",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k47",
-      "full_name": "Nguyễn Minh Hòa - 47",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k50",
-      "full_name": "Nguyễn Hoàng KHánh Ngọc - 50",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k64",
-      "full_name": "Lại Việt Đức - 64",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k66",
-      "full_name": "Mai Thanh Hà-66",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k68",
-      "full_name": "Vũ Sử Khánh Hưng - 68",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k69",
-      "full_name": "Nguyễn Nhật Hương - 69",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k71",
-      "full_name": "Nguyễn Hữu Minh Khang - 71",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k72",
-      "full_name": "Phạm Đức Khiêm - 72",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k74",
-      "full_name": "Nguyễn Bảo Linh - 74",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k78",
-      "full_name": "Trần Đại Nghĩa - 78",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k80",
-      "full_name": "Phạm Đan Nhi - 80",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k82",
-      "full_name": "Phạm VŨ Phương - 82",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k84",
-      "full_name": "Trần Thành Sơn - 84",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "k87",
-      "full_name": "Nguyễn Lan Vy - 87",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "t-551",
-      "full_name": "Mùi Thị Ngọc Diệp",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "v1134",
-      "full_name": "Nguyễn Thị Thủy",
-      "process_codes": [
-        "GC",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "v1333",
-      "full_name": "Hoàng Thị Thư",
-      "process_codes": [
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "v1448",
-      "full_name": "Lê Thị Dung",
-      "process_codes": [
-        "GC",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "v1572",
-      "full_name": "Trần Thị Diên",
-      "process_codes": [
-        "GC",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "v2284",
-      "full_name": "Lò Thị Mư",
-      "process_codes": [
-        "GC",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "v2564",
-      "full_name": "Đinh Phương Thảo",
-      "process_codes": [
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "v2984",
-      "full_name": "Lò Thị Uyên",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "v3046",
-      "full_name": "Giang Thị Mậu",
-      "process_codes": [
-        "GC",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "v3263",
-      "full_name": "Phạm Thị Lan Hương",
-      "process_codes": [
-        "GC",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "v3351",
-      "full_name": "Đinh Thị Hà",
-      "process_codes": [
-        "GC",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "v3607",
-      "full_name": "Tô Thị Thao",
-      "process_codes": [
-        "GC",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "v3622",
-      "full_name": "Lường Thị Ngân",
-      "process_codes": [
-        "GC"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "v3971",
-      "full_name": "Nguyễn Thị Hoàng Vinh",
-      "process_codes": [
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "v4083",
-      "full_name": "Phạm Thị Hợp",
-      "process_codes": [
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "v416",
-      "full_name": "Nguyễn Thị Thủy",
-      "process_codes": [
-        "GC",
-        "K2"
-      ],
-      "status": "active",
-      "training_percent": 100
-    },
-    {
-      "worker_code": "v4162",
-      "full_name": "Cà Thị Viết",
-      "process_codes": [
-        "GC"
       ],
       "status": "active",
       "training_percent": 100
