@@ -11,6 +11,8 @@
     "db:integrity": "npm --prefix backend run db:integrity",
     "backup:db": "npm --prefix backend run backup:db",
     "backup:drill": "npm --prefix backend run backup:drill --",
-    "audit:prod": "npm --prefix frontend run audit:prod && npm --prefix backend run audit:prod"
+    "audit:prod": "npm --prefix frontend run audit:prod && npm --prefix backend run audit:prod",
+    "restore:rehearsal": "npm --prefix backend run restore:rehearsal --",
+    "load:readiness": "npm --prefix backend run load:readiness"
   }
 }

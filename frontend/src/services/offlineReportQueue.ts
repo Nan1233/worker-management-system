@@ -13,11 +13,16 @@ interface QueueOwner {
     workerCode: string;
 }
 
+export type OfflineQueueStatus = "queued" | "retrying" | "blocked";
+
 export interface OfflineReportQueueItem {
     id: string;
     owner: QueueOwner;
     createdAt: number;
     attempts: number;
+    status: OfflineQueueStatus;
+    nextRetryAt: number;
+    lastError?: string;
     payload: ProductionReport;
 }
 
@@ -56,7 +61,33 @@ function writeAll(items: OfflineReportQueueItem[]): void {
 export function isTransientNetworkFailure(error: unknown): boolean {
     if (!axios.isAxiosError(error)) return false;
     if (axios.isCancel(error)) return false;
-    return !error.response || error.code === "ERR_NETWORK" || error.code === "ECONNABORTED";
+    const status = Number(error.response?.status || 0);
+    return !error.response
+        || error.code === "ERR_NETWORK"
+        || error.code === "ECONNABORTED"
+        || status === 408
+        || status === 425
+        || status === 429
+        || status >= 500;
+}
+
+function retryDelayMs(attempts: number): number {
+    const step = Math.max(0, Math.min(6, attempts));
+    return Math.min(15 * 60_000, 15_000 * 2 ** step);
+}
+
+function errorMessage(error: unknown): string {
+    if (axios.isAxiosError(error)) {
+        const message = error.response?.data?.message;
+        return String(message || error.message || "Không thể đồng bộ báo cáo").slice(0, 240);
+    }
+    return error instanceof Error ? error.message.slice(0, 240) : "Không thể đồng bộ báo cáo";
+}
+
+export function getCurrentOfflineQueueItems(): OfflineReportQueueItem[] {
+    const owner = currentOwner();
+    if (!owner) return [];
+    return readAll().filter((item) => ownerMatches(item.owner, owner));
 }
 
 export function enqueueOfflineReport(payload: ProductionReport): OfflineReportQueueItem {
@@ -74,6 +105,8 @@ export function enqueueOfflineReport(payload: ProductionReport): OfflineReportQu
         owner,
         createdAt: Date.now(),
         attempts: 0,
+        status: "queued",
+        nextRetryAt: Date.now(),
         payload
     };
     writeAll([...all, item]);
@@ -95,24 +128,43 @@ export async function flushOfflineReportQueue(): Promise<{ sent: number; remaini
     const others = all.filter((item) => !ownerMatches(item.owner, owner));
     const remaining: OfflineReportQueueItem[] = [];
     let sent = 0;
+    const now = Date.now();
 
-    for (const item of mine) {
+    for (let index = 0; index < mine.length; index += 1) {
+        const item = mine[index];
+        if (item.status === "blocked" || Number(item.nextRetryAt || 0) > now) {
+            remaining.push(item);
+            continue;
+        }
         try {
             await createTempReport(item.payload);
             sent += 1;
         } catch (error) {
+            const attempts = Number(item.attempts || 0) + 1;
+            const message = errorMessage(error);
             if (isTransientNetworkFailure(error)) {
-                remaining.push({ ...item, attempts: item.attempts + 1 });
+                remaining.push({
+                    ...item,
+                    attempts,
+                    status: "retrying",
+                    nextRetryAt: Date.now() + retryDelayMs(attempts),
+                    lastError: message
+                });
+                // Khi mạng/server đang lỗi, dừng batch để không bắn hàng loạt request thất bại.
+                remaining.push(...mine.slice(index + 1));
                 break;
             }
-            // Server-side validation/auth errors require manual review; keep item instead of losing production data.
-            remaining.push({ ...item, attempts: item.attempts + 1 });
+            // 4xx nghiệp vụ/auth không tự retry vô hạn. Giữ dữ liệu để worker/manager xử lý thủ công.
+            remaining.push({
+                ...item,
+                attempts,
+                status: "blocked",
+                nextRetryAt: Number.MAX_SAFE_INTEGER,
+                lastError: message
+            });
         }
     }
 
-    // Preserve any unprocessed items after a transient failure.
-    const processed = sent + remaining.length;
-    if (processed < mine.length) remaining.push(...mine.slice(processed));
     writeAll([...others, ...remaining]);
     return { sent, remaining: remaining.length };
 }

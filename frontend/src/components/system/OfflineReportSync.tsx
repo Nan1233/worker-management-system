@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useToast } from "../feedback/toastContext";
-import { flushOfflineReportQueue, getCurrentOfflineQueueCount } from "../../services/offlineReportQueue";
+import { flushOfflineReportQueue, getCurrentOfflineQueueCount, getCurrentOfflineQueueItems } from "../../services/offlineReportQueue";
 
 export default function OfflineReportSync() {
     const { showToast } = useToast();
@@ -12,8 +12,12 @@ export default function OfflineReportSync() {
             syncing.current = true;
             try {
                 const result = await flushOfflineReportQueue();
+                const queue = getCurrentOfflineQueueItems();
+                const blocked = queue.filter((item) => item.status === "blocked").length;
                 if (result.sent > 0) {
                     showToast(`Đã đồng bộ ${result.sent} báo cáo chờ gửi${result.remaining ? `, còn ${result.remaining} báo cáo` : ""}.`, result.remaining ? "warning" : "success");
+                } else if (blocked > 0) {
+                    showToast(`${blocked} báo cáo offline cần kiểm tra trước khi gửi lại. Dữ liệu vẫn được giữ trên thiết bị.`, "warning");
                 }
             } finally {
                 syncing.current = false;

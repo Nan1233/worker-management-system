@@ -161,15 +161,52 @@ app.use("/api", (req, res, next) => {
 // Middleware đặt trước routes để có thể quan sát req.user do auth middleware gắn ở downstream.
 app.use("/api", require("./middleware/activityAuditMiddleware"));
 
-app.get("/api/health", async (req, res) => {
+app.get("/api/health/live", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  return res.json({
+    success: true,
+    service: "ktc-api",
+    status: "live",
+    uptimeSeconds: Math.round(process.uptime()),
+    version: process.env.KTC_BACKEND_VERSION || process.env.npm_package_version || "unknown",
+  });
+});
+
+app.get("/api/health/ready", async (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  const started = Date.now();
+  try {
+    await db.promise().query({ sql: "SELECT 1 AS ok", timeout: 3_000 });
+    return res.json({
+      success: true,
+      service: "ktc-api",
+      status: "ready",
+      database: "ok",
+      databaseLatencyMs: Date.now() - started,
+    });
+  } catch (_error) {
+    return res.status(503).json({
+      success: false,
+      service: "ktc-api",
+      status: "not_ready",
+      database: "unavailable",
+    });
+  }
+});
+
+// Backward-compatible health endpoint for Render and existing clients.
+app.get("/api/health", async (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  const started = Date.now();
   try {
     await db.promise().query({ sql: "SELECT 1 AS ok", timeout: 3_000 });
     return res.json({
       success: true,
       service: "ktc-api",
       database: "ok",
+      databaseLatencyMs: Date.now() - started,
     });
-  } catch (error) {
+  } catch (_error) {
     return res.status(503).json({
       success: false,
       service: "ktc-api",
