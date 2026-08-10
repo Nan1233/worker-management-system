@@ -1,5 +1,5 @@
 import api from "./api";
-import { getSessionCached } from "./sessionCache";
+import { getSessionCached, clearSessionCache } from "./sessionCache";
 import { getStoredUser } from "../utils/authStorage";
 
 import type {
@@ -49,15 +49,32 @@ export const getCurrentWorker =
                     "/workers/me"
                 );
 
-            return response.data.data;
+            const worker = response.data.data;
+            const currentUser = getStoredUser();
+            if (currentUser?.role === "worker") {
+                const wrongUser = Number(worker?.user_id) !== Number(currentUser.id);
+                const expectedCode = String(currentUser.worker_code || "").trim();
+                const actualCode = String(worker?.worker_code || "").trim();
+                const wrongCode = Boolean(expectedCode && actualCode && expectedCode !== actualCode);
+                if (wrongUser || wrongCode) {
+                    clearSessionCache("current-worker:");
+                    throw new Error("WORKER_PROFILE_IDENTITY_MISMATCH");
+                }
+            }
+            return worker;
         };
 
         if (forceRefresh) return loader();
 
-        const currentUserId = getStoredUser()?.id ?? "anonymous";
+        const currentUser = getStoredUser();
+        const currentIdentity = [
+            currentUser?.id ?? "anonymous",
+            currentUser?.worker_id ?? 0,
+            currentUser?.worker_code ?? "-"
+        ].join(":");
 
         return getSessionCached(
-            `current-worker:${currentUserId}`,
+            `current-worker:${currentIdentity}`,
             60 * 1000,
             loader
         );
@@ -160,6 +177,10 @@ export const updateWorkerTrainingPercent =
 
             );
 
+        const currentUser = getStoredUser();
+        if (Number(currentUser?.worker_id) === workerId) {
+            clearSessionCache("current-worker:");
+        }
 
         return response.data;
 

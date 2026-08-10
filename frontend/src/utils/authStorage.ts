@@ -1,4 +1,4 @@
-import { clearSessionCache } from "../services/sessionCache";
+import { clearSessionCache, setSessionCacheScope } from "../services/sessionCache";
 
 export interface AuthUser {
     id: number;
@@ -180,12 +180,24 @@ export function recoverUserFromAccessToken(): AuthUser | null {
     return recovered;
 }
 
+function cacheScopeForUser(user: AuthUser | null): string {
+    if (!user) return "anonymous";
+    return [
+        `u${Number(user.id) || 0}`,
+        `w${Number(user.worker_id) || 0}`,
+        `c${String(user.worker_code || "-").trim() || "-"}`,
+        `s${getAuthSessionId() || "-"}`
+    ].join(":");
+}
+
 export function getStoredUser(): AuthUser | null {
     const rawUser = readAuthValue(USER_KEY);
     if (!rawUser) return null;
 
     try {
-        return JSON.parse(rawUser) as AuthUser;
+        const user = JSON.parse(rawUser) as AuthUser;
+        setSessionCacheScope(cacheScopeForUser(user));
+        return user;
     } catch {
         removeAuthValue(USER_KEY);
         return null;
@@ -202,6 +214,7 @@ export function setStoredUser(user: AuthUser): void {
         })
     );
     if (!isElectronRuntime()) localStorage.removeItem(USER_KEY);
+    setSessionCacheScope(cacheScopeForUser(user));
 }
 
 export function saveAuthSession(data: {
@@ -228,6 +241,7 @@ export function saveAuthSession(data: {
  */
 export function clearCurrentTabAuthSession(): void {
     clearSessionCache();
+    setSessionCacheScope("anonymous");
 
     for (const key of [
         "auth",
@@ -266,6 +280,7 @@ export function clearCurrentTabAuthSession(): void {
 
 export function clearAuthSession(options: { bumpEpoch?: boolean } = {}): void {
     clearSessionCache();
+    setSessionCacheScope("anonymous");
     if (options.bumpEpoch !== false) bumpAuthEpoch();
 
     for (const key of [

@@ -5,6 +5,9 @@ import { getApiError } from '../../utils/apiError';
 import { getStoredUser } from '../../utils/authStorage';
 import { usePermissions } from '../../hooks/usePermissions';
 import './MasterData.css';
+import { bumpMasterDataEpoch } from "../../services/masterDataCache";
+import { clearSessionCache } from "../../services/sessionCache";
+import { clearPermissionClientCache } from "../../security/permissions";
 
 type Row = Record<string, unknown> & { id?: number; status?: string; role?: string };
 type Resource = 'users'|'processes'|'defects'|'deductions'|'machines'|'standards';
@@ -133,6 +136,15 @@ function MasterData(){
 
   const toggleProcess=(id:string)=>setSelectedProcessIds(previous=>previous.includes(id)?previous.filter(value=>value!==id):[...previous,id]);
 
+  const invalidateChangedResource=()=>{
+    if(resource==='users'){
+      clearSessionCache('current-worker:');
+      clearPermissionClientCache();
+      return;
+    }
+    bumpMasterDataEpoch();
+  };
+
   const save=async()=>{
     if(saving)return;
     const missing=fields.filter(field=>field.required&&!String(form[field.key]||'').trim());
@@ -156,6 +168,7 @@ function MasterData(){
         if(editing?.id) await api.put(`/admin/master/${resource}/${editing.id}`,payload);
         else await api.post(`/admin/master/${resource}`,payload);
       }
+      invalidateChangedResource();
       setEditing(null);setForm({});setSelectedProcessIds([]);await load();
     }catch(err){setError(getApiError(err,'Không thể lưu dữ liệu').message);}
     finally{setSaving(false);}
@@ -168,6 +181,7 @@ function MasterData(){
       const status=row.status==='active'?'inactive':'active';
       if(resource==='users') await api.put(`/users/${row.id}`,{status});
       else await api.put(`/admin/master/${resource}/${row.id}`,{status});
+      invalidateChangedResource();
       await load();
     }catch(err){setError(getApiError(err,'Không thể đổi trạng thái').message);}
   };

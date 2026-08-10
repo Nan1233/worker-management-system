@@ -4,26 +4,40 @@ import { getDefectOptionsByProcess } from "./productionService";
 import { getSessionCached, clearSessionCache } from "./sessionCache";
 
 const TTL_MS = 30 * 60 * 1000;
+const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch";
 
 type DefectOptions = Awaited<ReturnType<typeof getDefectOptionsByProcess>>;
 
+function getMasterDataEpoch(): number {
+  try {
+    const value = Number(localStorage.getItem(MASTER_DATA_EPOCH_KEY));
+    return Number.isSafeInteger(value) && value >= 0 ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function epochKey(key: string): string {
+  return `master:v${getMasterDataEpoch()}:${key}`;
+}
+
 export const getCachedMachines = (processId: number): Promise<MachineOption[]> =>
   getSessionCached(
-    `master:machines:${processId}`,
+    epochKey(`machines:${processId}`),
     TTL_MS,
     () => getMachinesByProcess(processId),
   );
 
 export const getCachedProductStandards = (processId: number): Promise<ProductStandardOption[]> =>
   getSessionCached(
-    `master:products:${processId}`,
+    epochKey(`products:${processId}`),
     TTL_MS,
     () => getProductStandardsByProcess(processId),
   );
 
 export const getCachedDefects = (processId: number): Promise<DefectOptions> =>
   getSessionCached(
-    `master:defects:${processId}`,
+    epochKey(`defects:${processId}`),
     TTL_MS,
     () => getDefectOptionsByProcess(processId),
   );
@@ -36,11 +50,22 @@ export function prefetchProcessMasterData(processId: number): void {
   ]);
 }
 
+/**
+ * Advances a browser-wide master-data revision. Other tabs immediately stop
+ * addressing the previous cache namespace on their next master-data read.
+ */
+export function bumpMasterDataEpoch(): number {
+  const next = getMasterDataEpoch() + 1;
+  try { localStorage.setItem(MASTER_DATA_EPOCH_KEY, String(next)); } catch { /* noop */ }
+  clearMasterDataCache();
+  return next;
+}
+
 export function clearMasterDataCache(processId?: number): void {
   if (processId !== undefined) {
-    clearSessionCache(`master:machines:${processId}`);
-    clearSessionCache(`master:products:${processId}`);
-    clearSessionCache(`master:defects:${processId}`);
+    clearSessionCache(epochKey(`machines:${processId}`));
+    clearSessionCache(epochKey(`products:${processId}`));
+    clearSessionCache(epochKey(`defects:${processId}`));
     return;
   }
   clearSessionCache("master:");
