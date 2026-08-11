@@ -186,10 +186,30 @@ function Dashboard() {
                 </label>
             </header>
 
+            {summary.pending_count > 0 && can("REPORT_PENDING_VIEW") && (
+                <section className="dashboard-attention" aria-label="Việc cần xử lý">
+                    <div>
+                        <span className="dashboard-attention-icon"><AppIcon name="pending" size={22} /></span>
+                        <div>
+                            <strong>{formatNumber(summary.pending_count)} báo cáo đang chờ duyệt</strong>
+                            <span>Ưu tiên xử lý báo cáo mới trước khi xem thống kê chi tiết.</span>
+                        </div>
+                    </div>
+                    <button type="button" onClick={() => navigate(`${basePath}/reports`)}>Xem báo cáo chờ duyệt</button>
+                </section>
+            )}
+
             <section className="dashboard-kpi-grid">
-                <article className="dashboard-kpi-card">
+                <article
+                    className={`dashboard-kpi-card ${can("REPORT_PENDING_VIEW") ? "actionable" : ""}`}
+                    onClick={can("REPORT_PENDING_VIEW") ? () => navigate(`${basePath}/reports`) : undefined}
+                    onKeyDown={can("REPORT_PENDING_VIEW") ? (event) => { if (event.key === "Enter" || event.key === " ") navigate(`${basePath}/reports`); } : undefined}
+                    role={can("REPORT_PENDING_VIEW") ? "button" : undefined}
+                    tabIndex={can("REPORT_PENDING_VIEW") ? 0 : undefined}
+                    aria-label={can("REPORT_PENDING_VIEW") ? `${summary.pending_count} báo cáo chờ duyệt, mở danh sách` : undefined}
+                >
                     <div className="dashboard-kpi-icon"><AppIcon name="pending" size={24} /></div>
-                    <div><span>Chờ duyệt</span><strong>{formatNumber(summary.pending_count)}</strong></div>
+                    <div><span>Chờ duyệt</span><strong>{formatNumber(summary.pending_count)}</strong>{can("REPORT_PENDING_VIEW") && <small>Nhấn để xử lý</small>}</div>
                 </article>
                 <article className="dashboard-kpi-card success">
                     <div className="dashboard-kpi-icon"><AppIcon name="ok" size={24} /></div>
@@ -317,7 +337,7 @@ function Dashboard() {
             </section>
 
             <section className="dashboard-quick-actions">
-                {can("REPORT_PENDING_VIEW") && <button type="button" onClick={() => navigate(`${basePath}/reports`)}><span className="dashboard-quick-icon"><AppIcon name="pending" size={24} /></span><strong>Duyệt báo cáo</strong></button>}
+                {can("REPORT_PENDING_VIEW") && <button type="button" onClick={() => navigate(`${basePath}/reports`)}><span className="dashboard-quick-icon"><AppIcon name="pending" size={24} /></span><strong>Duyệt báo cáo</strong>{summary.pending_count > 0 && <em>{formatNumber(summary.pending_count)}</em>}</button>}
                 {can("REPORT_APPROVED_VIEW") && <button type="button" onClick={() => navigate(`${basePath}/approved`)}><span className="dashboard-quick-icon"><AppIcon name="approved" size={24} /></span><strong>Báo cáo đã duyệt</strong></button>}
                 {can("MASTER_VIEW") && <button type="button" onClick={() => navigate(`${basePath}/master`)}><span className="dashboard-quick-icon"><AppIcon name="settings" size={24} /></span><strong>Dữ liệu chuẩn</strong></button>}
             </section>

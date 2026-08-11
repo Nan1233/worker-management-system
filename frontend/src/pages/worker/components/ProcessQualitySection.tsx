@@ -86,7 +86,14 @@ export default function ProcessQualitySection({
                     onClick={() => setShowNg((prev) => !prev)}
                     aria-expanded={showNg}
                 >
-                    <span>{usesMultiMachineLines ? "Tổng lỗi NG từ các máy" : "Chọn lỗi NG"}</span>
+                    <span className="worker-dropdown-title-main">
+                        <span>{usesMultiMachineLines ? "Tổng lỗi NG từ các máy" : "Lỗi NG"}</span>
+                        <small>
+                            {Number(form.ttNg || 0) > 0
+                                ? `${selectedNg.length} loại · ${formatIntegerDisplay(form.ttNg)} NG`
+                                : "Không có NG"}
+                        </small>
+                    </span>
                     <span aria-hidden="true">{showNg ? "▲" : "▼"}</span>
                 </button>
 

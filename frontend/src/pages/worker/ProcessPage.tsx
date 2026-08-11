@@ -1667,30 +1667,46 @@ const updateDeductionValue = (
     // GỬI BÁO CÁO
     // =====================================================
 
+    const focusValidationTarget = (message: string) => {
+        const normalized = message.toLowerCase();
+        let selector = "";
+
+        if (normalized.includes("ngày làm việc")) selector = "#workerWorkDate";
+        else if (normalized.includes("ca làm việc")) selector = 'input[name="shift"]';
+        else if (normalized.includes("sản phẩm")) selector = usesMultiMachineLines ? '#machineProduct-0' : '#productName';
+        else if (normalized.includes("máy")) selector = usesMultiMachineLines ? '#machineNo-0' : '#machineNo';
+        else if (normalized.includes("thời gian")) selector = 'input[placeholder="0"]';
+        else if (normalized.includes("tt ok") || normalized.includes("sản lượng")) selector = '#ttOk';
+
+        if (normalized.includes("ng")) setShowNg(true);
+        if (normalized.includes("trừ")) setShowDeduction(true);
+
+        if (!selector) return;
+        window.setTimeout(() => {
+            const element = document.querySelector<HTMLElement>(selector);
+            element?.focus({ preventScroll: true });
+            element?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 30);
+    };
+
     const handleSubmit =
         async () => {
 
-            // Kiểm tra lại ngay trước lúc gửi để chặn trường hợp người dùng
-            // mở form bằng Wi-Fi công ty rồi chuyển sang 4G/5G.
+            // UX: kiểm tra dữ liệu tại chỗ trước, tránh bắt công nhân chờ một request
+            // kiểm tra mạng rồi mới biết form đang thiếu trường bắt buộc.
+            const validationMessage = validateForm();
+
+            if (validationMessage) {
+                showToast(validationMessage, "warning");
+                focusValidationTarget(validationMessage);
+                return;
+            }
+
+            // Chỉ kiểm tra mạng sau khi dữ liệu tại chỗ đã hợp lệ.
             const isOnCompanyNetwork = await checkCompanyNetwork();
             if (!isOnCompanyNetwork) {
                 showToast("Không thể gửi dữ liệu. Hãy tắt 4G/5G và kết nối Wi-Fi KTC.", "error");
                 return;
-            }
-
-            const validationMessage =
-                validateForm();
-
-
-            if (
-                validationMessage
-            ) {
-
-                showToast(validationMessage, "warning");
-
-
-                return;
-
             }
 
 
@@ -2091,6 +2107,27 @@ window.setTimeout(() => {
     // =====================================================
 
     const handleReset = () => {
+        const hasEnteredData = Boolean(
+            form.productName.trim()
+            || form.machineNo.trim()
+            || Number(form.actualTime || 0) > 0
+            || Number(form.ttOk || 0) > 0
+            || Number(form.ttNg || 0) > 0
+            || selectedNg.length
+            || selectedDeduction.length
+            || machineLines.some((line) =>
+                line.machineCode.trim()
+                || line.productCode.trim()
+                || Number(line.okQuantity || 0) > 0
+                || Number(line.ngQuantity || 0) > 0
+                || Number(line.hours || 0) > 0
+                || Number(line.minutes || 0) > 0
+            )
+        );
+
+        if (hasEnteredData && !window.confirm("Làm mới sẽ xóa dữ liệu bạn đang nhập. Bạn có chắc muốn tiếp tục?")) {
+            return;
+        }
 
         setForm((prev) => ({
 

@@ -164,7 +164,14 @@ export default function ProcessTimeDeductionSection({
                     onClick={() => setShowDeduction((prev) => !prev)}
                     aria-expanded={showDeduction}
                 >
-                    <span>⏱ Chọn loại trừ thời gian</span>
+                    <span className="worker-dropdown-title-main">
+                        <span>⏱ Thời gian trừ</span>
+                        <small>
+                            {selectedDeduction.length > 0
+                                ? `${selectedDeduction.length} loại · ${getDeductionMinutes(deductions)} phút`
+                                : "Không có thời gian trừ"}
+                        </small>
+                    </span>
                     <span aria-hidden="true">{showDeduction ? "▲" : "▼"}</span>
                 </button>
 

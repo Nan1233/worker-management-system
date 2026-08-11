@@ -42,11 +42,17 @@ export default function ProcessSubmitActions({
                 </div>
             )}
 
-            <div className="worker-action-group">
-                <button type="button" className="worker-reset-button" onClick={onReset} disabled={submitting}>Làm mới</button>
-                <button type="button" className="worker-floating-save" onClick={onSubmit} disabled={loadingWorker || submitting}>
-                    {submitting ? "Đang lưu..." : "Lưu"}
-                </button>
+            <div className="worker-action-group" aria-busy={submitting}>
+                <div className="worker-action-copy">
+                    <strong>{submitting ? "Đang kiểm tra và lưu báo cáo" : "Sẵn sàng gửi báo cáo"}</strong>
+                    <span>{submitting ? "Vui lòng giữ màn hình này cho tới khi hoàn tất." : "Hệ thống sẽ kiểm tra dữ liệu trước khi gửi."}</span>
+                </div>
+                <div className="worker-action-buttons">
+                    <button type="button" className="worker-reset-button" onClick={onReset} disabled={submitting}>Làm mới</button>
+                    <button type="button" className="worker-floating-save" onClick={onSubmit} disabled={loadingWorker || submitting}>
+                        {submitting ? "Đang lưu..." : "Lưu báo cáo"}
+                    </button>
+                </div>
             </div>
         </>
     );
