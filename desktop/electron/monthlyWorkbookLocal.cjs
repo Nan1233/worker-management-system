@@ -954,17 +954,21 @@ function addGcModeHelperSheet(workbook, dataSheet, processData, columns) {
   headers.forEach((h,i)=>{ helper.getCell(3,i+1).value=h; applyCellStyle(helper.getCell(3,i+1), { fill: COLORS.blue, fontColor: COLORS.white, bold: true }); });
   [12,10,12,8,18,16,12,18,18,32].forEach((w,i)=>helper.getColumn(i+1).width=w);
 
-  const idCol = columns.find(c=>c.key==='id');
-  const workerCol = columns.find(c=>c.key==='workerCode');
-  const shiftCol = columns.find(c=>c.key==='shift');
-  const productCol = columns.find(c=>c.key==='product');
+  const columnNumberByKey = (key) => {
+    const index = columns.findIndex((column) => column.key === key);
+    return index >= 0 ? index + 1 : 0;
+  };
+  const idCol = columnNumberByKey('id');
+  const workerCol = columnNumberByKey('workerCode');
+  const shiftCol = columnNumberByKey('shift');
+  const productCol = columnNumberByKey('product');
   const reportById = new Map((processData?.reports||[]).map(r=>[Number(r.id), r]));
   let outRow = 4;
   for (let row=6; row<=dataSheet.rowCount; row += 1) {
-    const id = idCol ? Number(dataSheet.getCell(row,idCol.index).value||0) : 0;
-    const worker = workerCol ? asText(dataSheet.getCell(row,workerCol.index).value) : '';
-    const shift = shiftCol ? asText(dataSheet.getCell(row,shiftCol.index).value) : '';
-    const product = productCol ? asText(dataSheet.getCell(row,productCol.index).value) : '';
+    const id = idCol ? Number(dataSheet.getCell(row, idCol).value||0) : 0;
+    const worker = workerCol ? asText(dataSheet.getCell(row, workerCol).value) : '';
+    const shift = shiftCol ? asText(dataSheet.getCell(row, shiftCol).value) : '';
+    const product = productCol ? asText(dataSheet.getCell(row, productCol).value) : '';
     if (!id && !worker && !shift && !product) continue;
     const report = reportById.get(id);
     const opType = operationTypeLabel(report?.operation_type);
