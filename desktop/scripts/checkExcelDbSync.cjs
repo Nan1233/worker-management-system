@@ -14,4 +14,9 @@ if(!/previewExcelDbSync/.test(preload) || !/applyExcelDbSync/.test(preload)) thr
 if(/setInterval\(\(\) => void syncEditedExcelFilesToDb/.test(main)) throw new Error('Không được tự động Excel -> DB bằng watcher');
 if(!/EXCEL_UNSYNCED_CHANGES/.test(main)) throw new Error('Thiếu guard chống ghi đè Excel chưa sync');
 if(!/preview/.test(sync) || !/SL OK/.test(sync)) throw new Error('Thiếu diff preview trước -> sau');
+
+if(!/Missing Excel columns mean/.test(sync) || !/preserved/.test(sync)) throw new Error('Thiếu guard giữ nguyên detail DB không có cột trong Excel');
+if(!/if \(!preview\.length\) continue/.test(sync)) throw new Error('Preview phải bỏ report không có field thay đổi thật');
+if(!/changedPatch/.test(sync) || !/patch: changedPatch/.test(sync)) throw new Error('Excel sync phải chỉ gửi field thực sự thay đổi');
+if(!/stableValue/.test(sync)) throw new Error('Thiếu canonical deep comparison chống false diff do thứ tự key');
 console.log('[KTC] Excel <-> DB manual preview/apply contract OK');
