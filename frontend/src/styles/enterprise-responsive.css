@@ -1,6 +1,7 @@
 /* Enterprise responsive safeguards: preserve data readability before density. */
 :root{--ktc-content-max:1680px;--ktc-touch:44px}
-.management-content>*,.worker-main-content>*{max-width:var(--ktc-content-max);margin-inline:auto}
+.management-content>*{max-width:var(--ktc-content-max);margin-inline:auto}
+.worker-main-content>*{max-width:none;margin-inline:0}
 button,a,[role="button"],select{min-height:var(--ktc-touch)}
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid rgba(36,112,181,.28);outline-offset:2px}
 table{font-variant-numeric:tabular-nums lining-nums}

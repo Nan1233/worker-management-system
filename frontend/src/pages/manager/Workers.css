@@ -49,7 +49,7 @@
     border: 1px solid #dce5f1;
     border-radius: 12px;
 
-    background: var(--ktc-surface)fff;
+    background: var(--ktc-surface);
 }
 
 
@@ -82,7 +82,7 @@
     border: 1px solid #d6dfeb;
     border-radius: 11px;
 
-    background: var(--ktc-surface)fff;
+    background: var(--ktc-surface);
     color: #263b5a;
 
     font: inherit;
@@ -109,7 +109,7 @@
     border: 1px solid #dfe6ef;
     border-radius: 15px;
 
-    background: var(--ktc-surface)fff;
+    background: var(--ktc-surface);
 
     box-shadow:
         0 5px 16px
@@ -282,7 +282,7 @@
 .worker-cancel-training {
     border: 1px solid #d8e0eb;
 
-    background: var(--ktc-surface)fff;
+    background: var(--ktc-surface);
     color: #5f6d81;
 }
 
@@ -302,7 +302,7 @@
 
     border-radius: 13px;
 
-    background: var(--ktc-surface)fff;
+    background: var(--ktc-surface);
 
     text-align: center;
 }
@@ -313,7 +313,7 @@
 
     border: 1px solid #f1cccc;
 
-    background: var(--ktc-surface)2f2;
+    background: var(--ktc-danger-bg);
     color: #b63232;
 }
 
@@ -382,7 +382,7 @@
         border: 1px solid #dfe6ef;
         border-radius: 13px;
 
-        background: var(--ktc-surface)fff;
+        background: var(--ktc-surface);
     }
 
 

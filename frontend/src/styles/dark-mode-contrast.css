@@ -5,6 +5,8 @@
 html[data-theme="dark"] {
   /* Deliberately larger luminance steps than the previous palette. */
   --ktc-bg: #0b1118;
+  --ktc-workspace: #0d151e;
+  --ktc-workspace-subtle: #17222d;
   --ktc-surface: #141d27;
   --ktc-surface-subtle: #1c2834;
   --ktc-surface-muted: #263543;

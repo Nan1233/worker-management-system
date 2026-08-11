@@ -76,7 +76,7 @@
 }
 
 .dashboard-kpi-card.danger .dashboard-kpi-icon {
-    background: var(--ktc-surface)2f2;
+    background: var(--ktc-danger-bg);
     color: #c94343;
 }
 
@@ -216,12 +216,12 @@
 }
 
 .dashboard-ng-badge.warning {
-    background: var(--ktc-surface)7df;
+    background: var(--ktc-warning-bg);
     color: #9a6700;
 }
 
 .dashboard-ng-badge.critical {
-    background: var(--ktc-surface)0f0;
+    background: var(--ktc-danger-bg);
     color: #c52b31;
 }
 

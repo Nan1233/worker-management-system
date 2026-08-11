@@ -23,7 +23,7 @@
 .selected-worker-cell span { margin-top: 3px; color: var(--ktc-ink-600); }
 .selected-long-cell { min-width: 230px; max-width: 340px; white-space: normal; text-align: left; line-height: 1.45; }
 .selected-note-cell { min-width: 190px; max-width: 280px; white-space: normal; text-align: left; }
-.selected-edit-link { border: 1px solid #f1c77c; border-radius: 9px; padding: 7px 11px; background: var(--ktc-surface)7e8; color: #9a5a00; font-weight: 700; cursor: pointer; }
+.selected-edit-link { border: 1px solid #f1c77c; border-radius: 9px; padding: 7px 11px; background: var(--ktc-warning-bg); color: #9a5a00; font-weight: 700; cursor: pointer; }
 
 /* Freeze only the identity columns. Widths are declared once as variables so zoom/scale stays predictable. */
 .selected-review-table { --review-col-stt: 58px; --review-col-code: 96px; --review-col-name: 184px; }

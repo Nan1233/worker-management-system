@@ -47,7 +47,7 @@
     border: 1px solid #d7dfeb;
     border-radius: 16px;
 
-    background: var(--ktc-surface)fff;
+    background: var(--ktc-surface);
     color: #172033;
 
     font: inherit;
@@ -110,7 +110,7 @@
     border: 1px solid #dce3ed;
     border-radius: 14px;
 
-    background: var(--ktc-surface)fff;
+    background: var(--ktc-surface);
 
     box-shadow:
         0 16px 34px

@@ -1,4 +1,4 @@
-const BUILD_VERSION = "1.8.15-ux-freeze-20260811";
+const BUILD_VERSION = "1.8.16-layout-contrast-fix-20260811";
 const APP_CACHE = `ktc-${BUILD_VERSION}-app`;
 const STATIC_CACHE = `ktc-${BUILD_VERSION}-static`;
 const APP_SHELL = ["./", "./index.html", "./manifest.webmanifest", "./offline.html"];

@@ -28,7 +28,7 @@ test('frontend fallback version matches its package version', () => {
 test('service worker cache namespace tracks the current stabilization release', () => {
   const pkg = JSON.parse(read('package.json'));
   const sw = read('public/sw.js');
-  assert.match(sw, new RegExp(pkg.version.replaceAll('.', '\\.') + '-ux-freeze-20260811'));
+  assert.match(sw, new RegExp(pkg.version.replaceAll('.', '\\.') + '-layout-contrast-fix-20260811'));
   assert.match(sw, /if \(isApiRequest\(url\)\) return/);
 });
 

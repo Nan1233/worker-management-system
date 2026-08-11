@@ -5,7 +5,7 @@
   --ktc-shadow-hover:0 12px 34px rgba(28,49,70,.11);
   --ktc-control-h:44px;
 }
-button,input,select,textarea{font:inherit}button,input,select{min-height:var(--ktc-control-h)}
+button,input,select,textarea{font:inherit}button,select,input:not([type=checkbox]):not([type=radio]){min-height:var(--ktc-control-h)}
 button{transition:transform .14s ease,box-shadow .14s ease,background-color .14s ease,border-color .14s ease}
 button:not(:disabled):active{transform:translateY(1px)}
 .management-report-card,.dashboard-kpi-card,.dashboard-panel,.detail-section,.edit-report-card,.history-card,.system-item,.permission-card{border-radius:var(--ktc-radius-lg);box-shadow:var(--ktc-shadow-soft)}

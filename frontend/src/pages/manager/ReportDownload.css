@@ -74,7 +74,7 @@
 }
 
 .export-box-icon.warning {
-    background: var(--ktc-surface)4e8;
+    background: var(--ktc-warning-bg);
     color: #d97706;
 }
 

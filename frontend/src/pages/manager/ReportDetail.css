@@ -210,8 +210,8 @@
     font-weight: 700;
 }
 .detail-inline-error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
-.detail-warning { background: var(--ktc-surface)7ed; color: #9a3412; border: 1px solid #fed7aa; }
-.detail-summary-row > .is-warning { background: var(--ktc-surface)1f2; outline: 2px solid #fda4af; }
+.detail-warning { background: var(--ktc-warning-bg); color: #9a3412; border: 1px solid #fed7aa; }
+.detail-summary-row > .is-warning { background: var(--ktc-danger-bg); outline: 2px solid #fda4af; }
 .detail-two-column { max-width: 1080px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .detail-two-column .detail-basic-card { margin: 0 0 16px; }
 .detail-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }

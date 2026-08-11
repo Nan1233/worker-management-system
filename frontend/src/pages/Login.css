@@ -560,7 +560,7 @@
   line-height: 1;
   cursor: pointer;
 }
-.remove-remembered:hover { background: var(--ktc-surface)0f1; color: var(--ktc-danger); }
+.remove-remembered:hover { background: var(--ktc-danger-bg); color: var(--ktc-danger); }
 
 @media (max-width: 1180px) {
   .login-page { grid-template-columns: minmax(460px, 1fr) minmax(470px, .9fr); }
@@ -573,7 +573,7 @@
   .login-page {
     grid-template-columns: 1fr;
     min-height: 100dvh;
-    background: var(--ktc-surface)fff;
+    background: var(--ktc-surface);
     overflow: auto;
   }
   .login-showcase { display: none; }
