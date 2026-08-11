@@ -7,6 +7,7 @@ const defaultQuery = (sql, params = []) => {
 };
 
 const normalizeCode = (value) => String(value || "").trim();
+const { validateEncodedGcMachineProduct } = require("../utils/productMachineEligibility");
 
 const createMachineLineValidator = ({ query = defaultQuery } = {}) => async ({ processId, machineLines, operationMode = null, maxMachines = 4 }) => {
     if (!Array.isArray(machineLines) || machineLines.length === 0) {
@@ -74,9 +75,10 @@ const createMachineLineValidator = ({ query = defaultQuery } = {}) => async ({ p
         }
 
         const machines = await query(
-            `SELECT id, machine_code FROM machines
-             WHERE process_id = ? AND status = 'active'
-               AND UPPER(TRIM(machine_code)) = UPPER(?) LIMIT 1`,
+            `SELECT m.id, m.machine_code, COALESCE(m.is_automatic,0) AS is_automatic, p.process_code
+             FROM machines m JOIN processes p ON p.id=m.process_id
+             WHERE m.process_id = ? AND m.status = 'active'
+               AND UPPER(TRIM(m.machine_code)) = UPPER(?) LIMIT 1`,
             [processId, machineCode]
         );
         if (!machines.length) {
@@ -110,6 +112,18 @@ const createMachineLineValidator = ({ query = defaultQuery } = {}) => async ({ p
         );
         if (!products.length) {
             errors[`machine_lines.${index}.product_code`] = `Sản phẩm ${productCode} không thuộc công đoạn`;
+            continue;
+        }
+
+        const encodedScopeError = validateEncodedGcMachineProduct({
+            processCode: machines[0].process_code,
+            productCode,
+            machineCode: machines[0].machine_code,
+            isAutomatic: machines[0].is_automatic,
+            operationMode: "MACHINE"
+        });
+        if (encodedScopeError) {
+            errors[`machine_lines.${index}.product_code`] = encodedScopeError;
             continue;
         }
 

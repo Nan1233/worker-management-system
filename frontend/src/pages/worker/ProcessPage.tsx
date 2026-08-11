@@ -86,6 +86,7 @@ import ProcessWorkerHeader from "./components/ProcessWorkerHeader";
 import ProcessQualitySection from "./components/ProcessQualitySection";
 import ProcessBasicInfoSection from "./components/ProcessBasicInfoSection";
 import ProcessSubmitActions from "./components/ProcessSubmitActions";
+import { filterProductsForSelection, toProductAutocompleteOptions } from "./productSuggestionRules";
 import {
     MAX_TOTAL_WORK_MINUTES,
     calculateActualOutput as calculateActualOutputValue,
@@ -250,24 +251,6 @@ const machineAutocompleteOptions =
         });
     }, [productOptions, processCode, processInfo.id, isCutLongProcess, operationType]);
 
-    const productAutocompleteOptions = useMemo<AutocompleteOption[]>(
-        () => scopedProductOptions.map((product) => ({ value: product.product_code, label: product.product_code })),
-        [scopedProductOptions]
-    );
-
-    const getMachineProductAutocompleteOptions = useCallback((machineCode: string): AutocompleteOption[] => {
-        const normalizedMachine = machineCode.trim().toUpperCase();
-        return scopedProductOptions
-            .filter((product) => {
-                if (!normalizedMachine || Number(product.has_machine_specific_standard || 0) !== 1) return true;
-                const eligibleMachines = String(product.eligible_machine_codes || "")
-                    .split(",")
-                    .map((code) => code.trim().toUpperCase())
-                    .filter(Boolean);
-                return eligibleMachines.includes(normalizedMachine);
-            })
-            .map((product) => ({ value: product.product_code, label: product.product_code }));
-    }, [scopedProductOptions]);
     const [machineCount, setMachineCount] = useState(1);
     const [machineLines, setMachineLines] = useState<MachineLineState[]>([createEmptyMachineLine()]);
     const [extraData, setExtraData] = useState<Record<string, string>>({});
@@ -276,6 +259,29 @@ const machineAutocompleteOptions =
     const usesSingleMachine = isSingleMachineProcess || (isInspectionProcess && operationMode === "MACHINE");
     const usesAnyMachine = usesMultiMachineLines || usesSingleMachine;
 
+    const productAutocompleteOptions = useMemo<AutocompleteOption[]>(() => {
+        const effectiveMode: OperationMode = usesAnyMachine ? "MACHINE" : "MANUAL";
+        const filtered = filterProductsForSelection({
+            products: scopedProductOptions,
+            mode: effectiveMode,
+            machineCode: usesSingleMachine ? form.machineNo : undefined,
+            machineOptions,
+            useEncodedMachineSuffix: processCode === "GC",
+        });
+        return toProductAutocompleteOptions(filtered);
+    }, [scopedProductOptions, usesAnyMachine, usesSingleMachine, form.machineNo, machineOptions, processCode]);
+
+    const getMachineProductOptions = useCallback((machineCode: string): ProductStandardOption[] =>
+        filterProductsForSelection({
+            products: scopedProductOptions,
+            mode: "MACHINE",
+            machineCode,
+            machineOptions,
+            useEncodedMachineSuffix: processCode === "GC",
+        }), [scopedProductOptions, machineOptions, processCode]);
+
+    const getMachineProductAutocompleteOptions = useCallback((machineCode: string): AutocompleteOption[] =>
+        toProductAutocompleteOptions(getMachineProductOptions(machineCode)), [getMachineProductOptions]);
     useEffect(() => {
         if (!isCutLongProcess) return;
         setForm((current) => current.productName ? { ...current, productName: "", standardOutput: "" } : current);
@@ -283,6 +289,13 @@ const machineAutocompleteOptions =
             ? { ...line, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" }
             : line));
     }, [operationType, isCutLongProcess]);
+
+    useEffect(() => {
+        if (!isCutLongProcess && !isInspectionProcess) return;
+        setForm((current) => ({ ...current, productName: "", standardOutput: "", machineNo: "" }));
+        setMachineLines([createEmptyMachineLine()]);
+        setMachineCount(1);
+    }, [operationMode, isCutLongProcess, isInspectionProcess]);
 
     useEffect(() => {
         setExtraData({});
@@ -1578,7 +1591,10 @@ const updateDeductionValue = (
                 return "Vui lòng chọn sản phẩm";
             }
 
-            const matchedProduct = scopedProductOptions.find(
+            const eligibleProducts = usesSingleMachine
+                ? getMachineProductOptions(form.machineNo)
+                : filterProductsForSelection({ products: scopedProductOptions, mode: "MANUAL", machineOptions, useEncodedMachineSuffix: processCode === "GC" });
+            const matchedProduct = eligibleProducts.find(
                 (item) => item.product_code.trim().toLowerCase() === form.productName.trim().toLowerCase()
             );
             if (!matchedProduct) {
@@ -1600,7 +1616,7 @@ const updateDeductionValue = (
                 if (!matchedMachine) return `Vui lòng chọn đúng máy ${index + 1} từ danh mục`;
                 if (usedMachines.has(code)) return "Không được chọn trùng số máy";
                 usedMachines.add(code);
-                const matchedLineProduct = scopedProductOptions.find(
+                const matchedLineProduct = getMachineProductOptions(line.machineCode).find(
                     (item) => item.product_code.trim().toLowerCase() === line.productCode.trim().toLowerCase()
                 );
                 if (!matchedLineProduct) return `Vui lòng chọn đúng sản phẩm cho máy ${index + 1}`;

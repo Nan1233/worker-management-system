@@ -299,7 +299,8 @@ exports.createTempReport = async (req, res) => {
                 deductions,
                 ttOk: validation.normalized.tt_ok,
                 actualOutput: validation.normalized.actual_output,
-                allowEmptyMachine: operationMode === "MANUAL" || machinePolicy.mode === "MANUAL_ONLY"
+                allowEmptyMachine: operationMode === "MANUAL" || machinePolicy.mode === "MANUAL_ONLY",
+                operationMode
             });
 
 

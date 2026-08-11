@@ -137,7 +137,7 @@ export default function ProcessBasicInfoSection({
                     </div>
                 )}
 
-                {!usesMultiMachineLines && (
+                {!usesMultiMachineLines && !usesSingleMachine && (
                     <div className="worker-field-block worker-field-full">
                         <AutocompleteInput
                             id="productName"
@@ -176,12 +176,10 @@ export default function ProcessBasicInfoSection({
                                     disabled={loadingMasterData}
                                     emptyMessage="Không tìm thấy máy"
                                     onChange={(value) => {
-                                        updateMachineLine(index, { machineCode: value });
-                                        void refreshMachineLineStandard(index, value, line.productCode);
+                                        updateMachineLine(index, { machineCode: value, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" });
                                     }}
                                     onSelect={(option) => {
-                                        updateMachineLine(index, { machineCode: option.value });
-                                        void refreshMachineLineStandard(index, option.value, line.productCode);
+                                        updateMachineLine(index, { machineCode: option.value, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" });
                                     }}
                                 />
                                 <AutocompleteInput
@@ -259,7 +257,7 @@ export default function ProcessBasicInfoSection({
                         ))}
                     </div>
                 ) : usesSingleMachine ? (
-                    <div className="worker-field-block worker-field-full">
+                    <div className="worker-field-block worker-field-full single-machine-product-scope">
                         <AutocompleteInput
                             id="machineNo"
                             label="Số máy"
@@ -269,8 +267,20 @@ export default function ProcessBasicInfoSection({
                             required
                             disabled={loadingMasterData}
                             emptyMessage="Không tìm thấy máy"
-                            onChange={(value) => setForm((prev) => ({ ...prev, machineNo: value }))}
-                            onSelect={(option) => setForm((prev) => ({ ...prev, machineNo: option.value }))}
+                            onChange={(value) => setForm((prev) => ({ ...prev, machineNo: value, productName: "", standardOutput: "" }))}
+                            onSelect={(option) => setForm((prev) => ({ ...prev, machineNo: option.value, productName: "", standardOutput: "" }))}
+                        />
+                        <AutocompleteInput
+                            id="productName"
+                            label="Sản phẩm"
+                            value={form.productName}
+                            options={productAutocompleteOptions}
+                            placeholder={form.machineNo.trim() ? "Nhập mã sản phẩm" : "Chọn máy trước"}
+                            required
+                            disabled={loadingMasterData || !form.machineNo.trim()}
+                            emptyMessage={form.machineNo.trim() ? "Không có sản phẩm phù hợp với máy đã chọn" : "Vui lòng chọn máy trước"}
+                            onChange={setProduct}
+                            onSelect={(option) => setProduct(option.value)}
                         />
                     </div>
                 ) : null}

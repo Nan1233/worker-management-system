@@ -1,4 +1,5 @@
 const db = require("../config/db");
+const { validateEncodedGcMachineProduct } = require("../utils/productMachineEligibility");
 
 const query = (sql, params = []) => new Promise((resolve, reject) => {
     db.query(sql, params, (error, rows) => error ? reject(error) : resolve(rows));
@@ -23,7 +24,8 @@ const validateMasterData = async ({
     deductions = [],
     ttOk,
     actualOutput,
-    allowEmptyMachine = false
+    allowEmptyMachine = false,
+    operationMode = null
 }) => {
     const errors = {};
     const normalizedMachineNo = normalizeText(machineNo);
@@ -43,7 +45,7 @@ const validateMasterData = async ({
         ),
         normalizedMachineNo
             ? query(
-                `SELECT machine_code
+                `SELECT id, machine_code, COALESCE(is_automatic, 0) AS is_automatic
                  FROM machines
                  WHERE process_id = ?
                    AND status = 'active'
@@ -54,13 +56,16 @@ const validateMasterData = async ({
             : Promise.resolve([]),
         normalizedProductName
             ? query(
-                `SELECT product_code,
-                        standard_output,
-                        COALESCE(exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt
-                 FROM product_standards
-                 WHERE process_id = ?
-                   AND status = 'active'
-                   AND product_code = ?
+                `SELECT ps.id, ps.product_code,
+                        ps.standard_output,
+                        COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
+                        p.process_code,
+                        EXISTS(SELECT 1 FROM product_machine_standards pms WHERE pms.process_id=ps.process_id AND pms.product_code=ps.product_code AND pms.is_active=1) AS has_machine_specific_standard
+                 FROM product_standards ps
+                 JOIN processes p ON p.id=ps.process_id
+                 WHERE ps.process_id = ?
+                   AND ps.status = 'active'
+                   AND ps.product_code = ?
                  LIMIT 1`,
                 [processId, normalizedProductName]
             )
@@ -113,6 +118,29 @@ const validateMasterData = async ({
         productCode = products[0].product_code;
         standardOutput = Math.round(Number(products[0].standard_output) || 0);
         excludeKqdFromTt = Number(products[0].exclude_kqd_from_tt || 0) === 1 ? 1 : 0;
+
+        const encodedScopeError = validateEncodedGcMachineProduct({
+            processCode: products[0].process_code,
+            productCode,
+            machineCode: machineCode || normalizedMachineNo,
+            isAutomatic: machines[0]?.is_automatic || 0,
+            operationMode: operationMode || (normalizedMachineNo ? "MACHINE" : "MANUAL")
+        });
+        if (encodedScopeError) errors.product_name = encodedScopeError;
+
+        if (normalizedMachineNo && machines.length && Number(products[0].has_machine_specific_standard || 0) === 1) {
+            const compatible = await query(
+                `SELECT 1 FROM product_machine_standards
+                 WHERE process_id=? AND product_code=? AND machine_id=? AND is_active=1
+                   AND effective_from <= CURRENT_DATE
+                   AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)
+                 LIMIT 1`,
+                [processId, productCode, machines[0].id]
+            );
+            if (!compatible.length) {
+                errors.product_name = `Sản phẩm ${productCode} không được cấu hình cho máy ${machines[0].machine_code}`;
+            }
+        }
 
         if (ttOk !== undefined && actualOutput !== undefined) {
             const { calculateActualOutput } = require("../utils/outputCalculation");
