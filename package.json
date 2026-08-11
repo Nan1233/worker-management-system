@@ -17,6 +17,11 @@
     "pilot:readiness": "node scripts/pilotReadiness.cjs",
     "build:mac": "npm --prefix desktop run dist:mac",
     "desktop:preflight": "npm --prefix desktop run preflight",
-    "desktop:field-readiness": "npm --prefix desktop run field:readiness"
+    "desktop:field-readiness": "npm --prefix desktop run field:readiness",
+    "android:add": "npm --prefix frontend run android:add",
+    "android:sync": "npm --prefix frontend run android:sync",
+    "android:open": "npm --prefix frontend run android:open",
+    "build:android": "npm --prefix frontend run android:apk:debug",
+    "build:android:aab": "npm --prefix frontend run android:aab:release"
   }
 }

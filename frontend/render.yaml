@@ -6,6 +6,12 @@ services:
     staticPublishPath: ./dist
     pullRequestPreviewsEnabled: false
     headers:
+      - path: /KTC-Production-Control.mobileconfig
+        name: Content-Type
+        value: application/x-apple-aspen-config
+      - path: /KTC-Production-Control.mobileconfig
+        name: Cache-Control
+        value: no-cache, no-store, must-revalidate
       - path: /assets/*
         name: Cache-Control
         value: public, max-age=31536000, immutable

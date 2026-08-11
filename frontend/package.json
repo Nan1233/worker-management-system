@@ -14,7 +14,13 @@
     "test": "node --test tests/*.test.cjs",
     "check:bundle": "node scripts/checkBundleSize.cjs",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
-    "check:theme": "node scripts/checkThemeContract.cjs"
+    "check:theme": "node scripts/checkThemeContract.cjs",
+    "android:add": "npm run android:prepare && cap add android",
+    "android:sync": "npm run android:prepare && npm run build && cap sync android",
+    "android:open": "npm run android:prepare && cap open android",
+    "android:apk:debug": "npm run android:prepare && npm run build && cap sync android && cd android && gradlew.bat assembleDebug",
+    "android:aab:release": "npm run android:prepare && npm run build && cap sync android && cd android && gradlew.bat bundleRelease",
+    "android:prepare": "npm install --no-save --package-lock=false @capacitor/core@8.5.0 @capacitor/android@8.5.0 @capacitor/cli@8.5.0"
   },
   "dependencies": {
     "axios": "^1.18.1",

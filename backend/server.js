@@ -51,6 +51,8 @@ function parseCorsOrigins() {
 
   return new Set([
     "http://localhost:5173",
+    "https://localhost", // Capacitor Android native WebView
+    "capacitor://localhost", // Reserved for Capacitor native clients
     "https://worker-management-system-3-dzox.onrender.com",
     ...configured,
   ]);

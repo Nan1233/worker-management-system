@@ -22,6 +22,10 @@ const resolvedTheme = initialTheme === "dark" || initialTheme === "light"
 document.documentElement.dataset.theme = resolvedTheme;
 document.documentElement.style.colorScheme = resolvedTheme;
 
+const isNativeCapacitor = Boolean(
+    (window as Window & { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()
+);
+
 if (/\/login\/?$/.test(window.location.pathname)) {
     const route = window.location.hash || "#/login";
     window.history.replaceState(null, "", `${window.location.origin}/${route}`);
@@ -42,7 +46,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </React.StrictMode>
 );
 
-if ("serviceWorker" in navigator && import.meta.env.PROD && /^https?:$/.test(window.location.protocol)) {
+if (!isNativeCapacitor && "serviceWorker" in navigator && import.meta.env.PROD && /^https?:$/.test(window.location.protocol)) {
     window.addEventListener("load", () => {
         navigator.serviceWorker.register("/sw.js", { scope: "/" }).then((registration) => {
             registration.update().catch(() => undefined);
@@ -56,7 +60,7 @@ if ("serviceWorker" in navigator && import.meta.env.PROD && /^https?:$/.test(win
 console.info(`[KTC] frontendVersion=${FRONTEND_VERSION} commitSha=${FRONTEND_COMMIT_SHA}`);
 
 let controllerReloaded = false;
-if ("serviceWorker" in navigator) {
+if (!isNativeCapacitor && "serviceWorker" in navigator) {
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     if (controllerReloaded || sessionStorage.getItem("ktc_sw_reloaded") === FRONTEND_VERSION) return;
     controllerReloaded = true;
