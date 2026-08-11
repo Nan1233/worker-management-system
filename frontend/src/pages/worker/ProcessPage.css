@@ -79,16 +79,16 @@
 .worker-sticky-person span { color: #6f88a8; font-size: 12px; font-weight: 650; }
 .worker-sticky-meta { display: flex; align-items: center; gap: 8px; }
 .worker-sticky-training {
-  min-height: 32px;
+  min-height: 38px;
   display: inline-flex;
   align-items: center;
-  padding: 0 10px;
-  border: 1px solid #d7e2f2;
-  border-radius: 9px;
-  background: #f8fbff;
-  color: #4d6786;
+  padding: 0 12px;
+  border: 1px solid #d8e2ef;
+  border-radius: 10px;
+  background: #e8effb;
+  color: #355b83;
   font-size: 11px;
-  font-weight: 650;
+  font-weight: 700;
   white-space: nowrap;
 }
 .worker-sticky-date { display: block; }
@@ -544,6 +544,7 @@
 [data-theme="dark"] .worker-form-back { color: #a8c6e6; }
 [data-theme="dark"] .worker-sticky-info { background: rgba(27,39,51,.92); }
 [data-theme="dark"] .worker-sticky-person strong { color: #b7d4f1; }
+[data-theme="dark"] .worker-sticky-training { background: #26384a; color: #b7d4f1; border-color: #40566b; }
 [data-theme="dark"] .worker-sticky-date-select { background: #26384a; color: #dbe9f8; border-color: #40566b; }
 [data-theme="dark"] .worker-form-card { background: #22313f; border-color: #314659; box-shadow: 0 8px 22px rgba(0,0,0,.16); }
 [data-theme="dark"] .worker-card-title { border-color: #304456; color: #eff5fb; }
