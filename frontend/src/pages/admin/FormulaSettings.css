@@ -18,6 +18,8 @@
   --threshold-card-bg: var(--ktc-surface);
   --threshold-input-bg: var(--ktc-surface);
   --threshold-accent: var(--ktc-border-strong);
+  border-color: var(--threshold-accent) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--threshold-accent) 14%, transparent);
 }
 .threshold.red {
   --threshold-card-bg: #fff0f1;
@@ -54,13 +56,17 @@
 .threshold input:hover,
 .threshold input:focus {
   background: var(--threshold-input-bg) !important;
-  border-color: color-mix(in srgb, var(--threshold-accent) 42%, var(--ktc-border-strong)) !important;
+  border-color: color-mix(in srgb, var(--threshold-accent) 68%, var(--ktc-border-strong)) !important;
   color: var(--ktc-ink-900) !important;
   -webkit-text-fill-color: var(--ktc-ink-900) !important;
   opacity: 1;
 }
+.threshold input:hover {
+  border-color: color-mix(in srgb, var(--threshold-accent) 82%, var(--ktc-border-strong)) !important;
+}
 .threshold input:focus {
   outline: 0;
+  border-color: var(--threshold-accent) !important;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--threshold-accent) 16%, transparent) !important;
 }
 
