@@ -1,7 +1,11 @@
 const ExcelJS = require('exceljs');
 const path = require('node:path');
 
-const asText = (value) => String(value ?? '').trim();
+const asText = (value) => {
+  if (value && typeof value === 'object' && value.result !== undefined) return asText(value.result);
+  if (value && typeof value === 'object' && value.text !== undefined) return asText(value.text);
+  return String(value ?? '').trim();
+};
 const asNumber = (value) => {
   if (value === null || value === undefined || value === '') return 0;
   if (typeof value === 'object' && value.result !== undefined) return asNumber(value.result);
@@ -292,6 +296,10 @@ async function readExcelChanges(filePath) {
   // It is sent as CREATE and the backend remains authoritative for validation/calculation.
   const knownIds = new Set(meta.reports.keys());
   for (let row = 6; row <= sheet.rowCount; row += 1) {
+    // Chỉ coi dòng có STT số nguyên dương là dòng báo cáo mới.
+    // Điều này loại bỏ dòng ngày, dòng TỔNG CỘNG và các dòng công thức/trang trí.
+    const stt = Number(sheet.getCell(row, 1).value);
+    if (!Number.isInteger(stt) || stt <= 0) continue;
     const id = Number(sheet.getCell(row, idColumn.index).value);
     if (Number.isInteger(id) && id > 0) continue;
     const current = currentByKey(sheet, row, meta.config.columns);
