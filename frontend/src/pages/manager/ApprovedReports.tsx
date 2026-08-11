@@ -135,6 +135,8 @@ export default function ApprovedReports() {
     const [excelDbSyncing, setExcelDbSyncing] = useState(false);
     const [excelDbBaselineMonth, setExcelDbBaselineMonth] = useState(() => sessionStorage.getItem("ktc:excel-db-baseline-month") || "");
     const [excelDbPreview, setExcelDbPreview] = useState<DesktopExcelDbSyncPreview | null>(null);
+    const [reportImportPreview, setReportImportPreview] = useState<DesktopReportImportPreview | null>(null);
+    const [reportImporting, setReportImporting] = useState(false);
     const [error, setError] = useState("");
     const [searchKeyword, setSearchKeyword] = useState("");
     const [selectedShift, setSelectedShift] = useState("");
@@ -389,6 +391,50 @@ export default function ApprovedReports() {
         }
     };
 
+
+    const handlePreviewReportImport = async () => {
+        if (reportImporting) return;
+        if (!window.ktcDesktop?.isDesktop || typeof window.ktcDesktop.previewReportImport !== "function") {
+            showToast("Import báo cáo chỉ khả dụng trên ứng dụng Desktop.", "warning");
+            return;
+        }
+        const token = getAccessToken() || "";
+        if (!token) {
+            showToast("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.", "warning");
+            return;
+        }
+        try {
+            setReportImporting(true);
+            const preview = await window.ktcDesktop.previewReportImport(token);
+            if (preview.canceled) return;
+            setReportImportPreview(preview);
+            if (!preview.detected) showToast("File không có dòng mới hoặc thay đổi cần import.", "success");
+        } catch (err) {
+            showToast(err instanceof Error ? err.message : "Không thể đọc file import", "error");
+        } finally {
+            setReportImporting(false);
+        }
+    };
+
+    const handleApplyReportImport = async () => {
+        if (reportImporting || !reportImportPreview?.detected || !reportImportPreview.filePath) return;
+        if (!window.ktcDesktop?.isDesktop || typeof window.ktcDesktop.applyReportImport !== "function") return;
+        const token = getAccessToken() || "";
+        if (!token) return;
+        try {
+            setReportImporting(true);
+            const result = await window.ktcDesktop.applyReportImport(token, reportImportPreview.filePath);
+            setReportImportPreview(null);
+            if (result.failed > 0) showToast(`Import: ${result.succeeded} dòng thành công, ${result.failed} dòng lỗi.`, "warning");
+            else showToast(`Import thành công ${result.succeeded} báo cáo. DB là nguồn dữ liệu chính thức và Excel đã được dựng lại từ DB.`, "success");
+            setReloadNonce(value => value + 1);
+        } catch (err) {
+            showToast(err instanceof Error ? err.message : "Không thể import báo cáo", "error");
+        } finally {
+            setReportImporting(false);
+        }
+    };
+
     const clearFilters = () => {
         setDateMode("today");
         setSelectedMonth("");
@@ -543,6 +589,17 @@ export default function ApprovedReports() {
                             {excelDbSyncing ? "Đang kiểm tra Excel..." : "2. Cập nhật DB từ Excel"}
                         </button>
                     )}
+                    {canExcelDbSync && window.ktcDesktop?.isDesktop && (
+                        <button
+                            type="button"
+                            className="management-import-button"
+                            onClick={() => void handlePreviewReportImport()}
+                            disabled={loading || exporting || excelDbSyncing || reportImporting}
+                            title="Chọn workbook KTC để xem trước rồi import báo cáo vào DB"
+                        >
+                            {reportImporting ? "Đang đọc file..." : "Import báo cáo Excel"}
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -582,6 +639,47 @@ export default function ApprovedReports() {
                             <button type="button" className="management-clear-button" onClick={() => setExcelDbPreview(null)} disabled={excelDbSyncing}>Hủy</button>
                             <button type="button" className="management-db-sync-button" onClick={() => void handleApplyExcelDbSync()} disabled={excelDbSyncing || excelDbPreview.changes.some(change => change.invalid)}>
                                 {excelDbSyncing ? "Đang cập nhật DB..." : `Xác nhận ${excelDbPreview.detected} dòng`}
+                            </button>
+                        </footer>
+                    </section>
+                </div>
+            )}
+
+            {reportImportPreview && reportImportPreview.detected > 0 && (
+                <div className="excel-db-preview-backdrop" role="presentation" onMouseDown={() => !reportImporting && setReportImportPreview(null)}>
+                    <section className="excel-db-preview-modal" role="dialog" aria-modal="true" aria-label="Xem trước import báo cáo" onMouseDown={event => event.stopPropagation()}>
+                        <header>
+                            <div>
+                                <h2>Import báo cáo vào DB</h2>
+                                <p><strong>{reportImportPreview.fileName || "Workbook KTC"}</strong> · {reportImportPreview.creates || 0} tạo mới · {reportImportPreview.updates || 0} cập nhật. Chưa có dữ liệu nào bị ghi vào DB.</p>
+                            </div>
+                            <button type="button" className="excel-db-preview-close" onClick={() => setReportImportPreview(null)} disabled={reportImporting}>×</button>
+                        </header>
+                        <div className="excel-db-preview-list">
+                            {reportImportPreview.changes.map(change => (
+                                <article key={`import-${change.source?.file || "file"}-${change.id ?? `new-${change.row || change.source?.row || 0}`}`} className={`excel-db-preview-item ${change.invalid ? "is-invalid" : ""}`}>
+                                    <div className="excel-db-preview-item-head">
+                                        <strong>{change.create ? `Tạo mới · dòng ${change.row || change.source?.row || "?"}` : `Cập nhật báo cáo #${change.id}`}</strong>
+                                        <span>{change.source?.process_code || "—"} · {change.source?.sheet || "—"}</span>
+                                        {change.invalid && <small className="excel-db-preview-error">{change.error || "Dòng chưa hợp lệ"}</small>}
+                                    </div>
+                                    <div className="excel-db-diff-table">
+                                        {(change.preview || []).map(diff => (
+                                            <div className="excel-db-diff-row" key={`import-${change.id}-${diff.field}`}>
+                                                <strong>{diff.label}</strong>
+                                                <span className="excel-db-before">{formatPreviewValue(diff.before)}</span>
+                                                <span className="excel-db-arrow">→</span>
+                                                <span className="excel-db-after">{formatPreviewValue(diff.after)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </article>
+                            ))}
+                        </div>
+                        <footer>
+                            <button type="button" className="management-clear-button" onClick={() => setReportImportPreview(null)} disabled={reportImporting}>Hủy</button>
+                            <button type="button" className="management-import-button" onClick={() => void handleApplyReportImport()} disabled={reportImporting || reportImportPreview.changes.some(change => change.invalid)}>
+                                {reportImporting ? "Đang import..." : `Xác nhận import ${reportImportPreview.detected} dòng`}
                             </button>
                         </footer>
                     </section>

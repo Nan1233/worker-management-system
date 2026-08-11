@@ -9,6 +9,7 @@ import "./styles/enterprise-responsive.css";
 import "./styles/release-polish.css";
 import "./styles/pilot-ui-polish.css";
 import "./styles/dark-mode-contrast.css";
+import "./styles/light-contrast-hardening.css";
 import { ToastProvider } from "./components/feedback/ToastProvider";
 import AuthBootstrap from "./components/AuthBootstrap";
 import AppErrorBoundary from "./components/system/AppErrorBoundary";

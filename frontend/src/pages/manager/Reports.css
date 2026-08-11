@@ -176,3 +176,9 @@
     .excel-db-arrow { display: none; }
     .excel-db-preview-item-head small { width: 100%; margin-left: 0; }
 }
+
+.management-import-button {
+  border: 1px solid #176b55; background: #1f7a61; color:#fff; border-radius:10px; padding:10px 14px; font-weight:750; cursor:pointer;
+}
+.management-import-button:hover:not(:disabled){background:#176b55;}
+.management-import-button:disabled{opacity:.55;cursor:not-allowed;}

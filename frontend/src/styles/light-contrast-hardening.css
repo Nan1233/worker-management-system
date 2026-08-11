@@ -1,0 +1,45 @@
+/* KTC Light Contrast Hardening — remove the washed-white veil.
+   Dark mode owns its own palette in dark-mode-contrast.css. */
+:root:not([data-theme="dark"]) {
+  --ktc-bg: #e7edf4;
+  --ktc-workspace: #c7d4e1;
+  --ktc-workspace-subtle: #dce5ee;
+  --ktc-surface: #f8fafc;
+  --ktc-surface-subtle: #edf2f6;
+  --ktc-surface-muted: #e3eaf1;
+  --ktc-surface-hover: #e8eff6;
+  --ktc-input-bg: #ffffff;
+  --ktc-input-readonly: #e9eef4;
+  --ktc-border: #c4d0dc;
+  --ktc-border-strong: #aab9c8;
+  --ktc-divider: #cfdae4;
+  --ktc-table-head: #dfe8f1;
+  --ktc-table-hover: #eef4f8;
+  --ktc-ink-900: #132238;
+  --ktc-ink-800: #21364f;
+  --ktc-ink-700: #344b64;
+  --ktc-ink-600: #52677d;
+  --ktc-shadow-xs: 0 1px 2px rgba(18,38,61,.08);
+  --ktc-shadow-sm: 0 2px 4px rgba(18,38,61,.07), 0 10px 28px rgba(18,38,61,.08);
+  --ktc-premium-card-shadow: 0 1px 2px rgba(18,38,61,.07), 0 10px 28px rgba(18,38,61,.07);
+}
+:root:not([data-theme="dark"]) body,
+:root:not([data-theme="dark"]) #root { background: var(--ktc-bg); }
+:root:not([data-theme="dark"]) :where(.management-sidebar,.management-header,.worker-topbar,.worker-mobile-nav) {
+  background: #f3f6f9 !important;
+  border-color: var(--ktc-border) !important;
+}
+:root:not([data-theme="dark"]) :where(.management-report-card,.dashboard-panel,.dashboard-kpi-card,.detail-section,.edit-report-card,.history-card,.permission-card,.formula-card,.system-monitor-card,.worker-form-card,.worker-quality-card,.process-card,.download-card,.master-card,.governance-card) {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border) !important;
+  box-shadow: var(--ktc-shadow-sm) !important;
+}
+:root:not([data-theme="dark"]) .management-content :where(input:not([type="checkbox"]):not([type="radio"]),select,textarea),
+:root:not([data-theme="dark"]) .worker-form-page :where(input:not([type="checkbox"]):not([type="radio"]),select,textarea) {
+  background: var(--ktc-input-bg);
+  border-color: var(--ktc-border-strong);
+}
+:root:not([data-theme="dark"]) :where(.management-filter-card,.management-excel-month-panel,.formula-period-card,.worker-form-card .form-section) {
+  background: var(--ktc-surface-subtle) !important;
+  border-color: var(--ktc-border) !important;
+}

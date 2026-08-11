@@ -8,6 +8,8 @@ declare global {
             syncAllExcel: (token: string, date: string) => Promise<DesktopExcelSyncResult>;
             previewExcelDbSync: (token: string, yearMonth: string) => Promise<DesktopExcelDbSyncPreview>;
             applyExcelDbSync: (token: string, yearMonth: string) => Promise<DesktopExcelDbSyncResult>;
+            previewReportImport: (token: string) => Promise<DesktopReportImportPreview>;
+            applyReportImport: (token: string, filePath: string) => Promise<DesktopReportImportResult>;
             configureAutoSync: (token: string) => Promise<unknown>;
             openExportFolder: (date?: string) => Promise<string>;
             getExportFolder: (date?: string) => Promise<string>;
@@ -42,6 +44,25 @@ declare global {
         succeeded: number;
         failed: number;
         changedMonths?: string[];
+    }
+
+
+
+    interface DesktopReportImportPreview extends DesktopExcelDbSyncPreview {
+        canceled?: boolean;
+        filePath?: string;
+        fileName?: string;
+        creates?: number;
+        updates?: number;
+    }
+
+    interface DesktopReportImportResult {
+        detected: number;
+        succeeded: number;
+        failed: number;
+        filePath?: string;
+        yearMonth?: string | null;
+        results?: Array<{ id?: number | null; success?: boolean; create?: boolean; message?: string; code?: string }>;
     }
 
     interface DesktopExcelSyncResult {

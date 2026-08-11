@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, session, powerMonitor } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, session, powerMonitor, dialog } = require('electron');
 const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
 const path = require('node:path');
@@ -1380,7 +1380,78 @@ async function handleApplyExcelDbSync(payload = {}) {
   return result;
 }
 
+
+async function handlePreviewReportImport(payload = {}) {
+  const token = await waitForUsableRendererToken(payload.token || '', 8_000);
+  if (!token) throw new Error('Chưa tìm thấy phiên đăng nhập. Hãy đăng nhập lại rồi thử.');
+  currentToken = token;
+  const picked = await dialog.showOpenDialog(mainWindow, {
+    title: 'Import báo cáo Excel vào KTC',
+    properties: ['openFile'],
+    filters: [{ name: 'Excel', extensions: ['xlsx'] }]
+  });
+  if (picked.canceled || !picked.filePaths?.[0]) return { canceled: true, detected: 0, changes: [] };
+  const filePath = path.resolve(picked.filePaths[0]);
+  const parsed = await readExcelChanges(filePath);
+  if (!parsed?.managed) {
+    const error = new Error('File này không phải workbook KTC có metadata đồng bộ. Hãy dùng file được xuất từ KTC hoặc template import KTC.');
+    error.code = 'KTC_IMPORT_UNMANAGED_WORKBOOK';
+    throw error;
+  }
+  const changes = Array.isArray(parsed.changes) ? parsed.changes : [];
+  await writeLog('INFO', 'REPORT_IMPORT_PREVIEW', {
+    filePath,
+    yearMonth: parsed.yearMonth || null,
+    detected: changes.length,
+    creates: changes.filter((item) => item?.create === true).length,
+    updates: changes.filter((item) => item?.create !== true).length
+  });
+  return {
+    canceled: false,
+    filePath,
+    fileName: path.basename(filePath),
+    yearMonth: parsed.yearMonth || null,
+    detected: changes.length,
+    creates: changes.filter((item) => item?.create === true).length,
+    updates: changes.filter((item) => item?.create !== true).length,
+    changes
+  };
+}
+
+async function handleApplyReportImport(payload = {}) {
+  const token = await waitForUsableRendererToken(payload.token || '', 8_000);
+  if (!token) throw new Error('Chưa tìm thấy phiên đăng nhập. Hãy đăng nhập lại rồi thử.');
+  currentToken = token;
+  const filePath = path.resolve(String(payload.filePath || ''));
+  if (!filePath.toLowerCase().endsWith('.xlsx') || !fsSync.existsSync(filePath)) throw new Error('File import không còn tồn tại.');
+  const parsed = await readExcelChanges(filePath);
+  if (!parsed?.managed) throw new Error('File import không còn đúng contract KTC. Hãy xuất lại file từ DB trước.');
+  const changes = Array.isArray(parsed.changes) ? parsed.changes : [];
+  if (!changes.length) return { detected: 0, succeeded: 0, failed: 0, filePath, yearMonth: parsed.yearMonth || null };
+  const payloadResult = await postExcelChanges(changes.map((change) => ({
+    ...change,
+    source: { ...(change.source || {}), file: path.basename(filePath), import_center: true }
+  })));
+  const succeeded = Number(payloadResult.succeeded || 0);
+  const failed = Number(payloadResult.failed || 0);
+  if (parsed.yearMonth && /^\d{4}-\d{2}$/.test(parsed.yearMonth)) {
+    await enqueueManualExcelSync({ date: `${parsed.yearMonth}-01`, source: 'report-import-rebuild', token }).catch((error) =>
+      writeLog('ERROR', 'REPORT_IMPORT_REBUILD_FAILED', { yearMonth: parsed.yearMonth, ...normalizeError(error) })
+    );
+  }
+  await writeLog(failed ? 'WARN' : 'INFO', 'REPORT_IMPORT_APPLY', {
+    filePath,
+    yearMonth: parsed.yearMonth || null,
+    detected: changes.length,
+    succeeded,
+    failed
+  });
+  return { detected: changes.length, succeeded, failed, results: payloadResult.results || [], filePath, yearMonth: parsed.yearMonth || null };
+}
+
 ipcMain.handle('ktc-preview-excel-db-sync', (_event, payload) => handlePreviewExcelDbSync(payload));
+ipcMain.handle('ktc-preview-report-import', (_event, payload) => handlePreviewReportImport(payload));
+ipcMain.handle('ktc-apply-report-import', (_event, payload) => handleApplyReportImport(payload));
 ipcMain.handle('ktc-apply-excel-db-sync', (_event, payload) => handleApplyExcelDbSync(payload));
 ipcMain.handle('ktc-save-excel', (_event, payload) => handleManualExcelSync(payload));
 ipcMain.handle('ktc-sync-all-excel', (_event, payload) => handleManualExcelSync(payload));
