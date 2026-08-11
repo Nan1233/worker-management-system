@@ -21,16 +21,16 @@
   --ktc-ink-500: #6b7c90;
   --ktc-ink-400: #98a6b8;
 
-  --ktc-bg: #f3f6f9;
+  --ktc-bg: #f5f7fa;
   --ktc-surface: #ffffff;
-  --ktc-surface-subtle: #f7f9fb;
-  --ktc-surface-muted: #eef3f7;
-  --ktc-surface-hover: #f1f5f8;
+  --ktc-surface-subtle: #f8fafc;
+  --ktc-surface-muted: #eef2f6;
+  --ktc-surface-hover: #f3f6f9;
   --ktc-input-bg: #ffffff;
   --ktc-input-readonly: #f2f5f8;
-  --ktc-border: #e2e8f0;
-  --ktc-border-strong: #dbe2ea;
-  --ktc-divider: #edf0f4;
+  --ktc-border: #e5eaf0;
+  --ktc-border-strong: #d4dce5;
+  --ktc-divider: #edf1f5;
 
   /* Semantic aliases: page CSS must use these instead of hard-coded neutrals. */
   --ktc-text: var(--ktc-ink-900);
@@ -48,19 +48,19 @@
   --ktc-danger-bg: #fff0f1;
   --ktc-info: #0284c7;
 
-  --ktc-radius-sm: 6px;
-  --ktc-radius-md: 8px;
-  --ktc-radius-lg: 10px;
-  --ktc-radius-xl: 12px;
-  --ktc-shadow-xs: 0 1px 2px rgba(16, 24, 40, .04);
-  --ktc-shadow-sm: 0 1px 3px rgba(16, 24, 40, .06), 0 1px 2px rgba(16, 24, 40, .03);
-  --ktc-shadow-md: 0 12px 32px rgba(15, 23, 42, .12);
+  --ktc-radius-sm: 8px;
+  --ktc-radius-md: 12px;
+  --ktc-radius-lg: 16px;
+  --ktc-radius-xl: 20px;
+  --ktc-shadow-xs: 0 1px 2px rgba(16, 24, 40, .035);
+  --ktc-shadow-sm: 0 1px 2px rgba(16,24,40,.035), 0 8px 24px rgba(16,24,40,.045);
+  --ktc-shadow-md: 0 16px 40px rgba(15,23,42,.10);
   --ktc-focus: 0 0 0 3px rgba(75, 127, 168, .15);
   --ktc-sidebar-width: 244px;
   --worker-topbar-height: 68px;
   --worker-mobile-nav-height: 70px;
 
-  font-family: "Be Vietnam Pro", Inter, "Segoe UI", Arial, sans-serif;
+  font-family: "Segoe UI Variable", "Be Vietnam Pro", Inter, "Segoe UI", Arial, sans-serif;
   color: var(--ktc-ink-900);
   background: var(--ktc-bg);
   font-synthesis: none;
