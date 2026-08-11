@@ -2,18 +2,6 @@
    Visual-only layer. Keeps existing layout/business flow and fixes low-contrast
    surfaces caused by legacy #fff / rgba(255,255,255,...) declarations. */
 
-:root {
-  /* Compatibility aliases used by newer polish files. */
-  --ktc-text: var(--ktc-ink-900);
-  --ktc-text-muted: var(--ktc-ink-600);
-  --ktc-text-faint: var(--ktc-ink-500);
-  --ktc-surface-hover: #f1f5f8;
-  --ktc-input-bg: #ffffff;
-  --ktc-input-readonly: #f2f5f8;
-  --ktc-divider: var(--ktc-border);
-  --ktc-overlay: rgba(15, 23, 42, .55);
-}
-
 html[data-theme="dark"] {
   /* Deliberately larger luminance steps than the previous palette. */
   --ktc-bg: #0b1118;
@@ -216,7 +204,7 @@ html[data-theme="dark"] .worker-text-input {
   background: var(--ktc-input-bg) !important;
   color: var(--ktc-ink-950) !important;
   border-color: var(--ktc-border-strong) !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .025) !important;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ktc-ink-950) 3%, transparent) !important;
 }
 
 html[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):hover,

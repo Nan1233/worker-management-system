@@ -15,7 +15,7 @@
   gap: 22px;
   padding: 0 clamp(16px, 2.8vw, 34px);
   border-bottom: 1px solid var(--ktc-border);
-  background: rgba(255,255,255,.96);
+  background: color-mix(in srgb,var(--ktc-surface) 96%,transparent);
   backdrop-filter: blur(8px);
 }
 
@@ -74,7 +74,7 @@
   padding: 4px;
   border: 1px solid var(--ktc-border);
   border-radius: 12px;
-  background: #fff;
+  background: var(--ktc-surface);
 }
 
 .worker-desktop-nav button,
@@ -147,7 +147,7 @@
   border: 1px solid var(--ktc-border);
   border-radius: 999px;
   padding: 9px 14px;
-  background: rgba(255,255,255,.96);
+  background: color-mix(in srgb,var(--ktc-surface) 96%,transparent);
   color: var(--ktc-ink-700);
   box-shadow: var(--ktc-shadow-md);
 }
@@ -183,7 +183,7 @@
     padding: 6px;
     border: 1px solid var(--ktc-border);
     border-radius: 16px;
-    background: rgba(255,255,255,.98);
+    background: color-mix(in srgb,var(--ktc-surface) 98%,transparent);
     box-shadow: 0 10px 26px rgba(16,24,40,.12);
   }
 

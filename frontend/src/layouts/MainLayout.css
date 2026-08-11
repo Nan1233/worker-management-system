@@ -1,13 +1,13 @@
 .main-layout {
     width: 100%;
-    min-height: 100vh;
+    min-height: 100dvh;
 
     background: #f3f6fc;
 }
 
 .main-layout-content {
     width: 100%;
-    min-height: 100vh;
+    min-height: 100dvh;
 }
 
 
