@@ -15,7 +15,6 @@ const controller = require(
     "../controllers/productionTempController"
 );
 const validate = require("../middleware/validateRequest");
-const { requireCompanyNetworkForWorker } = require("../middleware/companyNetworkMiddleware");
 
 
 // =====================================================
@@ -27,7 +26,6 @@ router.post(
     authMiddleware,
     checkRole("worker"),
     permission("WORKER_ENTRY"),
-    requireCompanyNetworkForWorker,
     validate({ process_id:{required:true,type:"positiveInt"}, work_date:{required:true}, shift:{required:true,maxLength:20}, machine_no:{required:false,maxLength:100}, product_name:{required:true,maxLength:150} }),
     controller.createTempReport
 );
@@ -37,7 +35,6 @@ router.post(
     authMiddleware,
     checkRole("worker"),
     permission("WORKER_ENTRY"),
-    requireCompanyNetworkForWorker,
     validate({ process_id:{required:true,type:"positiveInt"}, work_date:{required:true}, shift:{required:true,maxLength:20}, machine_no:{required:false,maxLength:100}, product_name:{required:true,maxLength:150} }),
     controller.checkSimilarReport
 );
@@ -207,7 +204,6 @@ router.put(
         "manager",
         "worker"
     ),
-    requireCompanyNetworkForWorker,
     validate({ id:{in:"params",required:true,type:"positiveInt"} }),
     permission("REPORT_PENDING_EDIT", "WORKER_ENTRY"),
     controller.updateTempReport

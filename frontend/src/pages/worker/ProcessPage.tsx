@@ -1728,13 +1728,6 @@ const updateDeductionValue = (
                 return;
             }
 
-            // Chỉ kiểm tra mạng sau khi dữ liệu tại chỗ đã hợp lệ.
-            const isOnCompanyNetwork = await checkCompanyNetwork();
-            if (!isOnCompanyNetwork) {
-                showToast("Không thể gửi dữ liệu. Hãy tắt 4G/5G và kết nối Wi-Fi KTC.", "error");
-                return;
-            }
-
 
             if (submitLockRef.current) return;
             submitLockRef.current = true;
