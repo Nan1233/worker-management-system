@@ -118,23 +118,29 @@ const PROCESS_TEMPLATE_SCHEMAS = Object.freeze({
   }
 });
 
+// KTC Excel color contract: bám hệ màu file tháng 07/2026.
+// Tất cả mã màu được quản lý tập trung tại đây; không rải mã màu trực tiếp trong code.
 const COLORS = Object.freeze({
   navy: 'FF17365D',
-  blue: 'FF2F75B5',
+  blue: 'FF1F4E78',
   blue2: 'FF5B9BD5',
   blueLight: 'FFDDEBF7',
-  orange: 'FFED7D31',
-  orangeLight: 'FFFCE4D6',
+  orange: 'FFD6B656',
+  orangeLight: 'FFFFF2CC',
   green: 'FF70AD47',
   greenLight: 'FFE2F0D9',
-  red: 'FFC00000',
-  redLight: 'FFF4CCCC',
-  gray: 'FF5B6573',
-  grayLight: 'FFE7E6E6',
+  red: 'FFC65911',
+  redLight: 'FFFCE4D6',
+  gray: 'FF7F8C9A',
+  grayLight: 'FFF2F2F2',
   white: 'FFFFFFFF',
-  black: 'FF1F1F1F',
-  border: 'FFB7C9E2',
-  warning: 'FFFFF2CC'
+  black: 'FF1F2937',
+  border: 'FFD7DEE7',
+  warning: 'FFFFF2CC',
+  actualOutput: 'FFE4DFEC',
+  rateGood: 'FFC6E0B4',
+  rateWarning: 'FFFFE699',
+  rateBad: 'FFF4B084'
 });
 
 const asText = (value) => String(value ?? '').trim();
@@ -300,11 +306,10 @@ function reportSnapshot(report, settings = {}) {
 function achievementColor(value, settings) {
   if (value === null || value === undefined || !Number.isFinite(Number(value))) return null;
   const percentValue = Number(value) * 100;
-  if (percentValue < Number(settings.threshold_red ?? 80)) return 'FFFDE8E7';
-  if (percentValue < Number(settings.threshold_orange ?? 95)) return 'FFFFEEDB';
-  if (percentValue < Number(settings.threshold_yellow ?? 100)) return 'FFFFF7CC';
-  if (percentValue < Number(settings.threshold_green ?? 110)) return 'FFE1F5E8';
-  return 'FFDCEEFF';
+  // Quy tắc màu thống nhất: >=100% xanh; 90-<100% vàng; <90% cam đỏ.
+  if (percentValue >= 100) return COLORS.rateGood;
+  if (percentValue >= 90) return COLORS.rateWarning;
+  return COLORS.rateBad;
 }
 
 function detailId(item, kind) {
@@ -555,12 +560,13 @@ function makeColumns(processCode, deductionTypes, defectTypes) {
 }
 
 function groupStyle(group) {
-  if (group === 'general') return { fill: COLORS.blue, light: COLORS.blueLight, label: 'THÔNG TIN CHUNG' };
-  if (group === 'time') return { fill: COLORS.orange, light: COLORS.orangeLight, label: 'THỜI GIAN' };
-  if (group === 'deduction') return { fill: COLORS.orange, light: COLORS.orangeLight, label: 'CHI TIẾT THỜI GIAN TRỪ' };
-  if (group === 'result') return { fill: COLORS.green, light: COLORS.greenLight, label: 'KẾT QUẢ SẢN XUẤT' };
-  if (group === 'defect') return { fill: COLORS.red, light: COLORS.redLight, label: 'CHI TIẾT NG' };
-  return { fill: COLORS.gray, light: COLORS.grayLight, label: 'TỔNG HỢP' };
+  // Rule tháng 07/2026: toàn bộ header dùng cùng một hệ xanh, không chia màu theo nhóm.
+  if (group === 'general') return { fill: COLORS.blue, light: COLORS.white, label: 'THÔNG TIN CHUNG' };
+  if (group === 'time') return { fill: COLORS.blue, light: COLORS.white, label: 'THỜI GIAN' };
+  if (group === 'deduction') return { fill: COLORS.blue, light: COLORS.white, label: 'CHI TIẾT THỜI GIAN TRỪ' };
+  if (group === 'result') return { fill: COLORS.blue, light: COLORS.white, label: 'KẾT QUẢ SẢN XUẤT' };
+  if (group === 'defect') return { fill: COLORS.blue, light: COLORS.white, label: 'CHI TIẾT NG' };
+  return { fill: COLORS.blue, light: COLORS.white, label: 'TỔNG HỢP' };
 }
 
 function setGroupHeader(sheet, columns, processConfig) {
@@ -680,16 +686,16 @@ function renderProcessSheet(workbook, code, processConfig, processData, yearMont
     const style = groupStyle(column.group);
     const headerText = asText(column.header) || column.key;
 
-    // Dùng nền sáng + chữ đậm màu tối để tránh lỗi chữ trắng bị ẩn trong Excel/WPS.
+    // Rule tháng 07/2026: header cột nền xanh đậm, chữ trắng, đồng nhất toàn bảng.
     cell.value = headerText;
     cell.numFmt = '@';
     cell.font = {
       name: 'Arial',
       size: headerFontSize(headerText),
       bold: true,
-      color: { argb: COLORS.black }
+      color: { argb: COLORS.white }
     };
-    cell.fill = solidFill(style.light);
+    cell.fill = solidFill(COLORS.blue);
     cell.border = thinBorder();
     cell.alignment = {
       horizontal: 'center',
@@ -773,7 +779,9 @@ function renderProcessSheet(workbook, code, processConfig, processData, yearMont
       cell.value = value === undefined ? null : value;
       if (column.format) cell.numFmt = resolvedNumberFormat(value, column.format);
       const numericValue = typeof value === 'number' && Number.isFinite(value) ? value : null;
-      let fill = reportIndex % 2 === 0 ? COLORS.white : 'FFF8FAFC';
+      // Rule tháng 07/2026: nền dữ liệu mặc định trắng, không zebra/rainbow.
+      // Chỉ các chỉ số tổng hợp chính mới có màu cố định; chi tiết trừ giờ/NG luôn nền trắng.
+      let fill = COLORS.white;
       let bold = false;
       let fontColor = COLORS.black;
       const machineMode = asText(report.operation_mode).toUpperCase() === 'MACHINE';
@@ -781,16 +789,17 @@ function renderProcessSheet(workbook, code, processConfig, processData, yearMont
         ? new Set(['training','note'])
         : new Set(['shift','machine','product','training','actualTime','ok','note']);
       const editableCell = editableCore.has(column.key) || (!machineMode && (column.key.startsWith('deduction:') || column.key.startsWith('defect:')));
-      if (editableCell) fill = COLORS.warning;
 
-      if (column.group === 'deduction') {
-        fill = numericValue !== null && numericValue > 0 ? COLORS.orangeLight : (editableCell ? COLORS.warning : COLORS.white);
+      if (column.key === 'workingTime' || column.key === 'outputPerHour') fill = COLORS.blueLight;
+      else if (column.key === 'deductionTime') fill = COLORS.orangeLight;
+      else if (column.key === 'actualTime' || column.key === 'ok') fill = COLORS.greenLight;
+      else if (column.key === 'output' || column.key === 'enteredOutput') fill = COLORS.actualOutput;
+      else if (column.key === 'ng') fill = COLORS.redLight;
+
+      if (column.group === 'deduction' || column.group === 'defect') {
+        fill = COLORS.white;
         bold = numericValue !== null && numericValue > 0;
-        fontColor = numericValue !== null && numericValue > 0 ? 'FF9C5700' : COLORS.black;
-      } else if (column.group === 'defect') {
-        fill = numericValue !== null && numericValue > 0 ? COLORS.redLight : (editableCell ? COLORS.warning : COLORS.white);
-        bold = numericValue !== null && numericValue > 0;
-        fontColor = numericValue !== null && numericValue > 0 ? COLORS.red : COLORS.black;
+        fontColor = COLORS.black;
       }
 
       applyCellStyle(cell, {
@@ -808,8 +817,14 @@ function renderProcessSheet(workbook, code, processConfig, processData, yearMont
         const achievementFill = achievementColor(value, reportSettings);
         if (achievementFill) cell.fill = solidFill(achievementFill);
         cell.font = { ...cell.font, color: { argb: COLORS.black }, bold: true };
+      } else if (column.key === 'ngRate') {
+        const rate = Number(value);
+        if (Number.isFinite(rate)) {
+          cell.fill = solidFill(rate <= 0.01 ? COLORS.rateGood : rate <= 0.03 ? COLORS.rateWarning : COLORS.rateBad);
+          cell.font = { ...cell.font, color: { argb: COLORS.black }, bold: true };
+        }
       } else if (column.key === 'status' && asText(value).toLowerCase() === 'approved') {
-        cell.fill = solidFill(COLORS.greenLight);
+        // Trạng thái giữ nền trắng để không tạo thêm mảng màu rời rạc.
         cell.font = { ...cell.font, color: { argb: COLORS.black }, bold: true };
       }
 
@@ -1018,8 +1033,10 @@ function addGcModeHelperSheet(workbook, dataSheet, processData, columns) {
     helper.getCell(outRow, 10).value = { formula: `IF($A${outRow}=\"\",\"\",IF($F${outRow}=\"\",\"Loại thao tác\",\"\")&IF(AND($F${outRow}=\"\",$G${outRow}=\"\"),\", \",\"\")&IF($G${outRow}=\"\",\"Chế độ\",\"\")&IF(AND($G${outRow}=\"MÁY\",$H${outRow}=\"\"),IF(OR($F${outRow}=\"\",$G${outRow}=\"\"),\", Máy\",\"Máy\"),\"\"))` };
 
     for (let col = 1; col <= 10; col += 1) {
-      applyCellStyle(helper.getCell(outRow, col), { fill: outRow % 2 ? COLORS.white : COLORS.blueLight, align: [3,5,10].includes(col) ? 'left' : 'center' });
+      const isEditableMeta = [6,7,8].includes(col);
+      applyCellStyle(helper.getCell(outRow, col), { fill: isEditableMeta ? COLORS.warning : COLORS.white, align: [3,5,10].includes(col) ? 'left' : 'center' });
     }
+    helper.getCell(outRow, 9).fill = solidFill(COLORS.warning);
     helper.getCell(outRow, 6).dataValidation = { type:'list', allowBlank:true, formulae:['"CẮT,LỒNG"'] };
     helper.getCell(outRow, 7).dataValidation = { type:'list', allowBlank:true, formulae:['"TAY,MÁY"'] };
     helper.getCell(outRow, 6).protection = { locked:false };
