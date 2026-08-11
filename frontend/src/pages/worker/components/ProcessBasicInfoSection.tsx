@@ -177,7 +177,6 @@ export default function ProcessBasicInfoSection({
                                     emptyMessage="Không tìm thấy máy"
                                     onChange={(value) => {
                                         updateMachineLine(index, { machineCode: value });
-                                        void refreshMachineLineStandard(index, value, line.productCode);
                                     }}
                                     onSelect={(option) => {
                                         updateMachineLine(index, { machineCode: option.value });
@@ -195,7 +194,6 @@ export default function ProcessBasicInfoSection({
                                     emptyMessage="Không tìm thấy sản phẩm"
                                     onChange={(value) => {
                                         updateMachineLine(index, { productCode: value });
-                                        void refreshMachineLineStandard(index, line.machineCode, value);
                                     }}
                                     onSelect={(option) => {
                                         updateMachineLine(index, { productCode: option.value });

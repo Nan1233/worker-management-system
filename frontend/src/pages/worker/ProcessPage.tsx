@@ -332,7 +332,16 @@ const machineAutocompleteOptions =
     const refreshMachineLineStandard = async (index: number, machineCode: string, productCode: string) => {
         const normalizedMachine = machineCode.trim();
         const normalizedProduct = productCode.trim();
-        if (!normalizedMachine || !normalizedProduct) {
+        const matchedMachine = machineOptions.some(
+            (machine) => machine.machine_code.trim().toLowerCase() === normalizedMachine.toLowerCase()
+        );
+        const matchedProduct = getMachineProductAutocompleteOptions(normalizedMachine).some(
+            (product) => product.value.trim().toLowerCase() === normalizedProduct.toLowerCase()
+        );
+
+        // Không gọi API resolve khi người dùng mới đang gõ từng ký tự.
+        // Chỉ resolve khi cả máy và sản phẩm đều là giá trị hợp lệ trong danh mục đã lọc.
+        if (!normalizedMachine || !normalizedProduct || !matchedMachine || !matchedProduct) {
             updateMachineLine(index, {
                 standardOutputPerHour: 0,
                 standardTimeSeconds: null,
