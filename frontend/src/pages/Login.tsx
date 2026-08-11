@@ -1,6 +1,7 @@
 import {
     useEffect,
     useMemo,
+    useRef,
     useState
 } from "react";
 
@@ -116,6 +117,7 @@ const saveRememberedAccount = (
 
 function Login() {
     const navigate = useNavigate();
+    const loginPageInitializedRef = useRef(false);
 
     const initialAccounts = useMemo(
         () => readRememberedAccounts(),
@@ -139,6 +141,12 @@ function Login() {
         useState<RememberedAccount[]>(initialAccounts);
 
     useEffect(() => {
+        // React StrictMode chạy effect hai lần ở development. Không được bump
+        // auth epoch/clear session hai lần vì có thể hủy request login đầu tiên
+        // trên thiết bị chậm.
+        if (loginPageInitializedRef.current) return;
+        loginPageInitializedRef.current = true;
+
         const passiveCrossTabRedirect =
             sessionStorage.getItem(CROSS_TAB_LOGIN_MARKER_KEY) === "1";
         sessionStorage.removeItem(CROSS_TAB_LOGIN_MARKER_KEY);
