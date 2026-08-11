@@ -754,6 +754,8 @@ async function postExcelChanges(changes) {
 async function previewEditedExcelFilesToDb({ yearMonth = '' } = {}) {
   const files = await listExcelFiles(getExportRoot());
   const changes = [];
+  const helperUpdatedFiles = [];
+  const helperUpdateErrors = [];
   for (const filePath of files) {
     let parsed;
     try {
@@ -762,7 +764,10 @@ async function previewEditedExcelFilesToDb({ yearMonth = '' } = {}) {
       await writeLog('WARN', 'EXCEL_DB_PREVIEW_READ_SKIPPED', { filePath, ...normalizeError(error) });
       continue;
     }
-    if (!parsed?.managed || !parsed.changes?.length) continue;
+    if (!parsed?.managed) continue;
+    if (parsed.helperUpdated) helperUpdatedFiles.push(path.basename(filePath));
+    if (parsed.helperUpdateError) helperUpdateErrors.push({ file: path.basename(filePath), message: parsed.helperUpdateError });
+    if (!parsed.changes?.length) continue;
     if (yearMonth && parsed.yearMonth && parsed.yearMonth !== yearMonth) continue;
     for (const change of parsed.changes) {
       changes.push({
@@ -775,7 +780,9 @@ async function previewEditedExcelFilesToDb({ yearMonth = '' } = {}) {
   return {
     detected: changes.length,
     changes,
-    yearMonth: yearMonth || null
+    yearMonth: yearMonth || null,
+    helperUpdatedFiles,
+    helperUpdateErrors
   };
 }
 

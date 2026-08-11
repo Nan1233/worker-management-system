@@ -341,7 +341,13 @@ export default function ApprovedReports() {
             setExcelDbSyncing(true);
             const preview = await window.ktcDesktop.previewExcelDbSync(token, excelMonth);
             setExcelDbPreview(preview);
-            if (!preview.detected) showToast(`Không phát hiện thay đổi Excel trong tháng ${excelMonth}.`, "success");
+            if (preview.helperUpdateErrors?.length) {
+                showToast(`Không thể tự bổ sung sheet TAY MÁY CẮT LỒNG cho ${preview.helperUpdateErrors.length} file. Hãy đóng Excel rồi thử lại.`, "warning");
+            } else if (preview.helperUpdatedFiles?.length) {
+                showToast(`Đã tự bổ sung dòng mới vào sheet TAY MÁY CẮT LỒNG. Hãy điền các thông tin còn thiếu rồi lưu file.`, "warning");
+            } else if (!preview.detected) {
+                showToast(`Không phát hiện thay đổi Excel trong tháng ${excelMonth}.`, "success");
+            }
         } catch (err) {
             showToast(err instanceof Error ? err.message : "Không thể đọc thay đổi từ Excel", "error");
         } finally {
@@ -532,17 +538,18 @@ export default function ApprovedReports() {
                         <header>
                             <div>
                                 <h2>Xem trước cập nhật DB từ Excel</h2>
-                                <p>Phát hiện <strong>{excelDbPreview.detected}</strong> báo cáo thay đổi trong tháng {excelMonth}. DB chưa bị thay đổi ở bước này.</p>
+                                <p>Phát hiện <strong>{excelDbPreview.detected}</strong> dòng cần tạo/cập nhật trong tháng {excelMonth}. DB chưa bị thay đổi ở bước này.</p>
                             </div>
                             <button type="button" className="excel-db-preview-close" onClick={() => setExcelDbPreview(null)} disabled={excelDbSyncing}>×</button>
                         </header>
                         <div className="excel-db-preview-list">
                             {excelDbPreview.changes.map(change => (
-                                <article key={`${change.source?.file || "file"}-${change.id}`} className="excel-db-preview-item">
+                                <article key={`${change.source?.file || "file"}-${change.id ?? `new-${change.row || change.source?.row || 0}`}`} className={`excel-db-preview-item ${change.invalid ? "is-invalid" : ""}`}>
                                     <div className="excel-db-preview-item-head">
-                                        <strong>Báo cáo #{change.id}</strong>
+                                        <strong>{change.create ? `Báo cáo mới · dòng ${change.row || change.source?.row || "?"}` : `Báo cáo #${change.id}`}</strong>
                                         <span>{change.source?.process_code || "—"} · {change.source?.sheet || "—"}</span>
                                         <small>{change.source?.file || "Không rõ file"}</small>
+                                        {change.invalid && <small className="excel-db-preview-error">{change.error || "Dòng mới chưa đủ dữ liệu"}</small>}
                                     </div>
                                     <div className="excel-db-diff-table">
                                         {(change.preview || []).map(diff => (
@@ -559,8 +566,8 @@ export default function ApprovedReports() {
                         </div>
                         <footer>
                             <button type="button" className="management-clear-button" onClick={() => setExcelDbPreview(null)} disabled={excelDbSyncing}>Hủy</button>
-                            <button type="button" className="management-db-sync-button" onClick={() => void handleApplyExcelDbSync()} disabled={excelDbSyncing}>
-                                {excelDbSyncing ? "Đang cập nhật DB..." : `Xác nhận cập nhật ${excelDbPreview.detected} báo cáo`}
+                            <button type="button" className="management-db-sync-button" onClick={() => void handleApplyExcelDbSync()} disabled={excelDbSyncing || excelDbPreview.changes.some(change => change.invalid)}>
+                                {excelDbSyncing ? "Đang cập nhật DB..." : `Xác nhận ${excelDbPreview.detected} dòng`}
                             </button>
                         </footer>
                     </section>

@@ -111,7 +111,7 @@ async function updateApprovedReport({ reportId, patch, reason, userId, req = nul
     });
     if (!master.valid) throw httpError(422, 'MASTER_DATA_INVALID', 'Dữ liệu danh mục không hợp lệ', master.errors);
 
-    const allowed = ['machine_no','product_name','note','shift','work_date','training_percent','total_time','actual_time','deduction_time','standard_output','actual_output','tt_ok','tt_ng'];
+    const allowed = ['machine_no','product_name','note','shift','work_date','operation_type','operation_mode','training_percent','total_time','actual_time','deduction_time','standard_output','actual_output','tt_ok','tt_ng'];
     await AuditService.createReportVersion({ reportType: 'approved', reportId: Number(reportId), snapshot: before, reason: changeReason, userId }, connection);
     const values = allowed.map((key) => validation.normalized[key]);
     await connection.query(`UPDATE production_reports SET ${allowed.map((key) => `${key}=?`).join(',')}, updated_by=?, updated_at=NOW() WHERE id=?`, [...values, userId, Number(reportId)]);
@@ -127,7 +127,7 @@ async function updateApprovedReport({ reportId, patch, reason, userId, req = nul
 
     const after = await loadApprovedSnapshot(Number(reportId), connection);
     const versionNo = await AuditService.createReportVersion({ reportType: 'approved', reportId: Number(reportId), snapshot: after, reason: changeReason, userId }, connection);
-    const trackedKeys = ['shift','machine_no','product_name','training_percent','actual_time','total_time','deduction_time','actual_output','tt_ok','tt_ng','note'];
+    const trackedKeys = ['work_date','shift','operation_type','operation_mode','machine_no','product_name','training_percent','actual_time','total_time','deduction_time','actual_output','tt_ok','tt_ng','note'];
     const changedFields = {};
     for (const key of trackedKeys) {
       if (JSON.stringify(before?.[key] ?? null) !== JSON.stringify(after?.[key] ?? null)) {

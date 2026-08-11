@@ -261,6 +261,8 @@ function reportSnapshot(report, settings = {}) {
     workerCode: asText(report.worker_code),
     workerName: asText(report.full_name),
     shift: asText(report.shift),
+    operationType: asText(report.operation_type),
+    operationMode: asText(report.operation_mode),
     machine: machineDisplay(report),
     product: productDisplay(report),
     training: metrics.trainingFactor,
@@ -483,6 +485,8 @@ function makeColumns(processCode, deductionTypes, defectTypes) {
     { key: 'workerCode', header: 'Mã NV', group: 'general', width: 11 },
     { key: 'workerName', header: 'Tên NV', group: 'general', width: 24, align: 'left' },
     { key: 'shift', header: 'Ca', group: 'general', width: 7 },
+    { key: 'operationType', header: 'Loại thao tác', group: 'general', width: 13 },
+    { key: 'operationMode', header: 'Chế độ', group: 'general', width: 11 },
     { key: 'machine', header: 'Máy', group: 'general', width: 16, align: 'left' },
     { key: 'product', header: 'Mã SP', group: 'general', width: 18, align: 'left' },
     ...(PROCESS_TEMPLATE_SCHEMAS[processCode]?.extras || []).map((field) => ({
@@ -812,7 +816,7 @@ function renderProcessSheet(workbook, code, processConfig, processData, yearMont
     sheet.getCell(totalRowNumber, col).fill = solidFill(COLORS.navy);
     sheet.getCell(totalRowNumber, col).border = thinBorder();
   }
-  const nonTotalKeys = new Set(['stt','entryDate','workerCode','workerName','shift','machine','product','training','standard','outputPerHour','achievement','ngRate','status','note','id']);
+  const nonTotalKeys = new Set(['stt','entryDate','workerCode','workerName','shift','operationType','operationMode','machine','product','training','standard','outputPerHour','achievement','ngRate','status','note','id']);
   columns.forEach((column, index) => {
     if (index + 1 <= totalLabelEnd) return;
     const cell = sheet.getCell(totalRowNumber, index + 1);
@@ -921,6 +925,66 @@ function addReconciliationSheet(workbook, payload) {
 }
 
 
+
+const GC_HELPER_SHEET = 'TAY MÁY CẮT LỒNG';
+
+function operationTypeLabel(value) {
+  const text = asText(value).toUpperCase();
+  if (['CUT','CẮT','CAT'].includes(text)) return 'CẮT';
+  if (['NEST','LỒNG','LONG'].includes(text)) return 'LỒNG';
+  return '';
+}
+
+function operationModeLabel(value) {
+  const text = asText(value).toUpperCase();
+  if (['MACHINE','MÁY','MAY'].includes(text)) return 'MÁY';
+  if (['MANUAL','TAY','THỦ CÔNG','THU CONG'].includes(text)) return 'TAY';
+  return '';
+}
+
+function addGcModeHelperSheet(workbook, dataSheet, processData, columns) {
+  const helper = workbook.addWorksheet(GC_HELPER_SHEET, { views: [{ state: 'frozen', ySplit: 3, showGridLines: false }] });
+  helper.mergeCells('A1:J1');
+  helper.getCell('A1').value = 'BỔ SUNG THÔNG TIN TAY/MÁY - CẮT/LỒNG';
+  applyCellStyle(helper.getCell('A1'), { fill: COLORS.navy, fontColor: COLORS.white, bold: true, size: 15, border: false });
+  helper.mergeCells('A2:J2');
+  helper.getCell('A2').value = 'Sheet này tự đối chiếu dữ liệu từ CẮT LỒNG. Với dòng mới, chỉ cần bổ sung Loại thao tác, Chế độ và Máy nếu chọn MÁY.';
+  applyCellStyle(helper.getCell('A2'), { fill: COLORS.blueLight, fontColor: COLORS.navy, bold: false, size: 10, border: false, align: 'left' });
+  const headers = ['Dòng nguồn','ID','Mã NV','Ca','Mã SP','Loại thao tác','Chế độ','Máy','Trạng thái','Thiếu thông tin'];
+  headers.forEach((h,i)=>{ helper.getCell(3,i+1).value=h; applyCellStyle(helper.getCell(3,i+1), { fill: COLORS.blue, fontColor: COLORS.white, bold: true }); });
+  [12,10,12,8,18,16,12,18,18,32].forEach((w,i)=>helper.getColumn(i+1).width=w);
+
+  const idCol = columns.find(c=>c.key==='id');
+  const workerCol = columns.find(c=>c.key==='workerCode');
+  const shiftCol = columns.find(c=>c.key==='shift');
+  const productCol = columns.find(c=>c.key==='product');
+  const reportById = new Map((processData?.reports||[]).map(r=>[Number(r.id), r]));
+  let outRow = 4;
+  for (let row=6; row<=dataSheet.rowCount; row += 1) {
+    const id = idCol ? Number(dataSheet.getCell(row,idCol.index).value||0) : 0;
+    const worker = workerCol ? asText(dataSheet.getCell(row,workerCol.index).value) : '';
+    const shift = shiftCol ? asText(dataSheet.getCell(row,shiftCol.index).value) : '';
+    const product = productCol ? asText(dataSheet.getCell(row,productCol.index).value) : '';
+    if (!id && !worker && !shift && !product) continue;
+    const report = reportById.get(id);
+    const opType = operationTypeLabel(report?.operation_type);
+    const opMode = operationModeLabel(report?.operation_mode);
+    const machine = asText(report?.machine_no);
+    const missing = [];
+    if (!opType) missing.push('Loại thao tác');
+    if (!opMode) missing.push('Chế độ');
+    if (opMode === 'MÁY' && !machine) missing.push('Máy');
+    const vals = [row, id||'', worker, shift, product, opType, opMode, machine, missing.length ? 'THIẾU THÔNG TIN' : 'ĐỦ THÔNG TIN', missing.join(', ')];
+    vals.forEach((v,i)=>{ helper.getCell(outRow,i+1).value=v; applyCellStyle(helper.getCell(outRow,i+1), { fill: outRow%2 ? COLORS.white : COLORS.blueLight, align: i in [2,4,9] ? 'left' : 'center' }); });
+    helper.getCell(outRow,6).dataValidation = { type:'list', allowBlank:true, formulae:['"CẮT,LỒNG"'] };
+    helper.getCell(outRow,7).dataValidation = { type:'list', allowBlank:true, formulae:['"TAY,MÁY"'] };
+    helper.getCell(outRow,6).protection = { locked:false }; helper.getCell(outRow,7).protection = { locked:false }; helper.getCell(outRow,8).protection = { locked:false };
+    outRow += 1;
+  }
+  applyAllBorders(helper, { fromRow:3, toRow:Math.max(3,outRow-1), fromCol:1, toCol:10 });
+  return helper;
+}
+
 function typeIdFromSyncKey(key) {
   const match = String(key || '').match(/^id:(\d+)$/);
   return match ? Number(match[1]) : null;
@@ -929,6 +993,8 @@ function typeIdFromSyncKey(key) {
 function syncOriginalPatch(report) {
   return {
     shift: asText(report.shift),
+    operation_type: asText(report.operation_type),
+    operation_mode: asText(report.operation_mode),
     machine_no: asText(report.machine_no),
     product_name: asText(report.product_name),
     training_percent: Number.isFinite(Number(report.training_percent)) ? Number(report.training_percent) : 100,
@@ -964,6 +1030,7 @@ function addExcelDbSyncMetadata(workbook, code, processConfig, processData, year
     sheetName: processConfig.sheet,
     generatedAt: new Date().toISOString(),
     yearMonth,
+    gcHelperSheet: code === 'GC' ? GC_HELPER_SHEET : null,
     columns: editable
   });
   sheet.addRow(['report_id', 'expected_updated_at', 'operation_mode', 'original_json']);
@@ -1020,6 +1087,11 @@ async function buildProcessWorkbookLocal({ date, payload, processCode }) {
     yearMonth,
     formulaSettingsFor(payload, code)
   );
+  if (code === 'GC') {
+    const deductionTypes = processDetailTypes(code, processData, 'deductionTypes', 'deductions', 'deduction');
+    const defectTypes = processDetailTypes(code, processData, 'defectTypes', 'defects', 'defect');
+    addGcModeHelperSheet(workbook, workbook.getWorksheet(config.sheet), processData, makeColumns(code, deductionTypes, defectTypes));
+  }
   addExcelDbSyncMetadata(workbook, code, config, processData, yearMonth);
   const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
   return {

@@ -19,9 +19,13 @@ declare global {
     }
 
     interface DesktopExcelDbSyncChangePreview {
-        id: number;
+        id: number | null;
+        create?: boolean;
+        row?: number;
+        invalid?: boolean;
+        error?: string;
         expected_updated_at?: string | null;
-        source?: { file?: string; sheet?: string; process_code?: string };
+        source?: { file?: string; sheet?: string; process_code?: string; row?: number };
         preview?: Array<{ field: string; label: string; before: unknown; after: unknown }>;
     }
 
@@ -29,6 +33,8 @@ declare global {
         detected: number;
         yearMonth?: string | null;
         changes: DesktopExcelDbSyncChangePreview[];
+        helperUpdatedFiles?: string[];
+        helperUpdateErrors?: Array<{ file: string; message: string }>;
     }
 
     interface DesktopExcelDbSyncResult {

@@ -19,4 +19,9 @@ if(!/Missing Excel columns mean/.test(sync) || !/preserved/.test(sync)) throw ne
 if(!/if \(!preview\.length\) continue/.test(sync)) throw new Error('Preview phải bỏ report không có field thay đổi thật');
 if(!/changedPatch/.test(sync) || !/patch: changedPatch/.test(sync)) throw new Error('Excel sync phải chỉ gửi field thực sự thay đổi');
 if(!/stableValue/.test(sync)) throw new Error('Thiếu canonical deep comparison chống false diff do thứ tự key');
+
+if(!/TAY MÁY CẮT LỒNG/.test(workbook)) throw new Error('Thiếu sheet phụ TAY MÁY CẮT LỒNG');
+if(!/parseGcHelperSheet/.test(sync) || !/gcMissingFields/.test(sync)) throw new Error('Excel sync chưa đọc/validate metadata Cắt-Lồng từ sheet phụ');
+if(!/Dòng mới CẮT\/LỒNG thiếu/.test(sync)) throw new Error('Thiếu cảnh báo chi tiết metadata dòng mới Cắt/Lồng');
+
 console.log('[KTC] Excel <-> DB manual preview/apply contract OK');

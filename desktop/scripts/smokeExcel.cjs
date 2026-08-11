@@ -106,8 +106,8 @@ const payload = {
         .map((worksheet) => worksheet.name);
       assert.deepEqual(
         visibleSheetNames,
-        [config.sheet],
-        code + ' phải nằm trong file riêng và chỉ chứa sheet hiển thị ' + config.sheet
+        code === 'GC' ? [config.sheet, 'TAY MÁY CẮT LỒNG'] : [config.sheet],
+        code + ' phải có đúng các sheet hiển thị theo cấu hình công đoạn'
       );
       const syncSheet = processWorkbook.getWorksheet('_KTC_SYNC');
       assert.ok(syncSheet, code + ' phải có sheet metadata _KTC_SYNC');

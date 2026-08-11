@@ -1,10 +1,11 @@
 const { updateApprovedReport } = require('../services/approvedReportEditService');
+const { createApprovedReportFromExcel } = require('../services/approvedReportExcelCreateService');
 const { envEnabled } = require('../utils/featureFlags');
 
 function cleanPatch(input = {}) {
   const allowed = new Set([
-    'machine_no','product_name','note','shift','training_percent','total_time','actual_time',
-    'deduction_time','standard_output','actual_output','tt_ok','tt_ng','defects','deductions'
+    'machine_no','product_name','note','shift','work_date','operation_type','operation_mode','training_percent','actual_time',
+    'tt_ok','defects','deductions'
   ]);
   return Object.fromEntries(Object.entries(input || {}).filter(([key]) => allowed.has(key)));
 }
@@ -18,6 +19,13 @@ exports.syncExcelEdits = async (req, res) => {
   for (const change of changes) {
     const id = Number(change?.id);
     try {
+      if (change?.create === true) {
+        if (change?.invalid) throw Object.assign(new Error(change.error || 'Dòng Excel mới không hợp lệ'), { status: 422, code: 'EXCEL_NEW_ROW_INVALID', isPublic: true });
+        const created = await createApprovedReportFromExcel({ data: change?.data || {}, userId: req.user.id, req, sourceMeta: change?.source || null });
+        affectedDates.add(String(created.report.work_date).slice(0, 10));
+        results.push({ id: created.report.id, create: true, success: true, version: created.version, updated_at: created.report.updated_at || created.report.created_at || null });
+        continue;
+      }
       const patch = cleanPatch(change?.patch);
       if (!Object.keys(patch).length) {
         results.push({ id, success: true, skipped: true, message: 'Không có cột được phép thay đổi' });
