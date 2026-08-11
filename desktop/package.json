@@ -13,7 +13,7 @@
     "dist:win": "npm run preflight && npm run build:frontend && npm run smoke:excel && electron-builder --win portable nsis --x64",
     "dist:portable": "npm run preflight && npm run build:frontend && npm run smoke:excel && electron-builder --win portable --x64",
     "dist:nsis": "npm run preflight && npm run build:frontend && npm run smoke:excel && electron-builder --win nsis --x64",
-    "check": "node --check electron/main.cjs && node --check electron/platformPaths.cjs && node --check scripts/preflight.cjs && node --check scripts/checkPlatformPaths.cjs && node --check electron/preload.cjs && node --check electron/desktopLog.cjs && node --check electron/excelPaths.cjs && node --check electron/authToken.cjs && node --check electron/companyExcelLocal.cjs && node --check electron/productionCalculationEngine.cjs && node --check electron/excelDualLayout.cjs && node --check electron/monthlyWorkbookLocal.cjs && node --check scripts/smokeExcel.cjs && npm run check:excel-db-sync && npm run check:platform-paths && node --check scripts/fieldReadiness.cjs && node scripts/fieldReadiness.cjs",
+    "check": "node --check electron/main.cjs && node --check electron/platformPaths.cjs && node --check scripts/preflight.cjs && node --check scripts/checkPlatformPaths.cjs && node --check electron/preload.cjs && node --check electron/desktopLog.cjs && node --check electron/excelPaths.cjs && node --check electron/authToken.cjs && node --check electron/companyExcelLocal.cjs && node --check electron/productionCalculationEngine.cjs && node --check electron/excelDualLayout.cjs && node --check electron/monthlyWorkbookLocal.cjs && node --check scripts/smokeExcel.cjs && npm run check:excel-db-sync && npm run check:platform-paths && node --check scripts/fieldReadiness.cjs && node scripts/fieldReadiness.cjs && node scripts/checkPackagedSharedContract.cjs",
     "copy:frontend": "node scripts/copyFrontend.cjs",
     "smoke:excel": "node scripts/smokeExcel.cjs",
     "dist:dir": "npm run preflight && npm run build:frontend && npm run smoke:excel && electron-builder --win dir --x64",
@@ -75,7 +75,16 @@
     },
     "dmg": {
       "artifactName": "KTC-Production-Control-${version}-${arch}.dmg"
-    }
+    },
+    "extraResources": [
+      {
+        "from": "../shared",
+        "to": "shared",
+        "filter": [
+          "excelSyncContract.cjs"
+        ]
+      }
+    ]
   },
   "dependencies": {
     "exceljs": "^4.4.0",
