@@ -28,11 +28,11 @@ export const getCachedMachines = (processId: number): Promise<MachineOption[]> =
     () => getMachinesByProcess(processId),
   );
 
-export const getCachedProductStandards = (processId: number): Promise<ProductStandardOption[]> =>
+export const getCachedProductStandards = (processId: number, processCode?: string): Promise<ProductStandardOption[]> =>
   getSessionCached(
-    epochKey(`products:${processId}`),
+    epochKey(`products:${processCode ? processCode.trim().toUpperCase() : processId}`),
     TTL_MS,
-    () => getProductStandardsByProcess(processId),
+    () => getProductStandardsByProcess(processId, processCode),
   );
 
 export const getCachedDefects = (processId: number): Promise<DefectOptions> =>

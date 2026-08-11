@@ -194,27 +194,6 @@ const machineAutocompleteOptions =
     );
 
 
-const productAutocompleteOptions =
-    useMemo<AutocompleteOption[]>(
-        () =>
-
-            productOptions.map(
-                (
-                    product:
-                        ProductStandardOption
-                ) => ({
-
-                    value:
-                        product.product_code,
-
-                    label:
-                        product.product_code
-
-                })
-            ),
-
-        [productOptions]
-    );
     // =================================================
     // DỮ LIỆU FORM
     // =================================================
@@ -246,6 +225,49 @@ const productAutocompleteOptions =
     const [operationMode, setOperationMode] = useState<OperationMode>(
         isAlwaysMultiMachineProcess || isSingleMachineProcess ? "MACHINE" : "MANUAL"
     );
+
+
+    const normalizeMasterText = (value: unknown) =>
+        String(value ?? "")
+            .trim()
+            .toLocaleLowerCase("vi-VN")
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/đ/g, "d");
+
+    const scopedProductOptions = useMemo<ProductStandardOption[]>(() => {
+        const expectedProcessCode = processCode.trim().toUpperCase();
+        const expectedWorkType = operationType === "CUT" ? "cat" : "long";
+
+        return productOptions.filter((product) => {
+            const returnedProcessCode = String(product.process_code || "").trim().toUpperCase();
+            const sameProcess = returnedProcessCode
+                ? returnedProcessCode === expectedProcessCode
+                : Number(product.process_id) === Number(processInfo.id);
+            if (!sameProcess) return false;
+            if (!isCutLongProcess) return true;
+            return normalizeMasterText(product.work_type) === expectedWorkType;
+        });
+    }, [productOptions, processCode, processInfo.id, isCutLongProcess, operationType]);
+
+    const productAutocompleteOptions = useMemo<AutocompleteOption[]>(
+        () => scopedProductOptions.map((product) => ({ value: product.product_code, label: product.product_code })),
+        [scopedProductOptions]
+    );
+
+    const getMachineProductAutocompleteOptions = useCallback((machineCode: string): AutocompleteOption[] => {
+        const normalizedMachine = machineCode.trim().toUpperCase();
+        return scopedProductOptions
+            .filter((product) => {
+                if (!normalizedMachine || Number(product.has_machine_specific_standard || 0) !== 1) return true;
+                const eligibleMachines = String(product.eligible_machine_codes || "")
+                    .split(",")
+                    .map((code) => code.trim().toUpperCase())
+                    .filter(Boolean);
+                return eligibleMachines.includes(normalizedMachine);
+            })
+            .map((product) => ({ value: product.product_code, label: product.product_code }));
+    }, [scopedProductOptions]);
     const [machineCount, setMachineCount] = useState(1);
     const [machineLines, setMachineLines] = useState<MachineLineState[]>([createEmptyMachineLine()]);
     const [extraData, setExtraData] = useState<Record<string, string>>({});
@@ -253,6 +275,14 @@ const productAutocompleteOptions =
     const usesMultiMachineLines = isAlwaysMultiMachineProcess || (isCutLongProcess && operationMode === "MACHINE");
     const usesSingleMachine = isSingleMachineProcess || (isInspectionProcess && operationMode === "MACHINE");
     const usesAnyMachine = usesMultiMachineLines || usesSingleMachine;
+
+    useEffect(() => {
+        if (!isCutLongProcess) return;
+        setForm((current) => current.productName ? { ...current, productName: "", standardOutput: "" } : current);
+        setMachineLines((current) => current.map((line) => line.productCode
+            ? { ...line, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" }
+            : line));
+    }, [operationType, isCutLongProcess]);
 
     useEffect(() => {
         setExtraData({});
@@ -404,8 +434,8 @@ const productAutocompleteOptions =
     }, [usesMultiMachineLines, machineLines, activeNgOptions]);
 
 const selectedProduct = useMemo(
-    () => productOptions.find((product) => product.product_code === form.productName),
-    [productOptions, form.productName]
+    () => scopedProductOptions.find((product) => product.product_code === form.productName),
+    [scopedProductOptions, form.productName]
 );
 
 const productExcludesKqd = (): boolean =>
@@ -846,7 +876,7 @@ useEffect(() => {
                     deductionsResult
                 ] = await Promise.allSettled([
                     getCachedMachines(processInfo.id),
-                    getCachedProductStandards(processInfo.id),
+                    getCachedProductStandards(processInfo.id, processCode),
                     getCachedDefects(processInfo.id),
                     getDeductionOptionsByProcess(processInfo.id)
                 ]);
@@ -1548,7 +1578,7 @@ const updateDeductionValue = (
                 return "Vui lòng chọn sản phẩm";
             }
 
-            const matchedProduct = productOptions.find(
+            const matchedProduct = scopedProductOptions.find(
                 (item) => item.product_code.trim().toLowerCase() === form.productName.trim().toLowerCase()
             );
             if (!matchedProduct) {
@@ -1570,7 +1600,7 @@ const updateDeductionValue = (
                 if (!matchedMachine) return `Vui lòng chọn đúng máy ${index + 1} từ danh mục`;
                 if (usedMachines.has(code)) return "Không được chọn trùng số máy";
                 usedMachines.add(code);
-                const matchedLineProduct = productOptions.find(
+                const matchedLineProduct = scopedProductOptions.find(
                     (item) => item.product_code.trim().toLowerCase() === line.productCode.trim().toLowerCase()
                 );
                 if (!matchedLineProduct) return `Vui lòng chọn đúng sản phẩm cho máy ${index + 1}`;
@@ -1785,7 +1815,7 @@ const updateDeductionValue = (
                             machine_code: machineOptions.find(
                                 (item) => item.machine_code.trim().toLowerCase() === line.machineCode.trim().toLowerCase()
                             )?.machine_code || line.machineCode.trim(),
-                            product_code: productOptions.find(
+                            product_code: scopedProductOptions.find(
                                 (item) => item.product_code.trim().toLowerCase() === line.productCode.trim().toLowerCase()
                             )?.product_code || line.productCode.trim(),
                             machine_time_hours: (Number(line.hours) || 0) + (Number(line.minutes) || 0) / 60,
@@ -1823,7 +1853,7 @@ const updateDeductionValue = (
                     product_name:
                         usesMultiMachineLines
                             ? (machineLines[0]?.productCode.trim() || "")
-                            : productOptions.find(
+                            : scopedProductOptions.find(
                                 (item) => item.product_code.trim().toLowerCase() === form.productName.trim().toLowerCase()
                             )?.product_code || form.productName.trim(),
 
@@ -2254,7 +2284,8 @@ window.setTimeout(() => {
                     usesMultiMachineLines={usesMultiMachineLines}
                     usesSingleMachine={usesSingleMachine}
                     productAutocompleteOptions={productAutocompleteOptions}
-                    productOptions={productOptions}
+                    getMachineProductAutocompleteOptions={getMachineProductAutocompleteOptions}
+                    productOptions={scopedProductOptions}
                     machineAutocompleteOptions={machineAutocompleteOptions}
                     machineOptions={machineOptions}
                     loadingMasterData={loadingMasterData}

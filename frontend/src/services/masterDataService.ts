@@ -26,11 +26,13 @@ export interface ProductStandardOption {
 
     process_id: number;
 
-    work_type:
-        | "cat"
-        | "long";
+    process_code?: string;
+
+    work_type: string;
 
     product_code: string;
+    has_machine_specific_standard?: number;
+    eligible_machine_codes?: string;
 
     standard_output: number;
     exclude_kqd_from_tt?: number;
@@ -66,17 +68,17 @@ export const getMachinesByProcess =
 
 export const getProductStandardsByProcess =
     async (
-        processId: number
+        processId: number,
+        processCode?: string
     ): Promise<ProductStandardOption[]> => {
 
         const response =
             await api.get(
                 "/product-standards",
                 {
-                    params: {
-                        process_id:
-                            processId
-                    }
+                    params: processCode
+                        ? { process_code: processCode }
+                        : { process_id: processId }
                 }
             );
 

@@ -30,6 +30,7 @@ interface Props {
     usesMultiMachineLines: boolean;
     usesSingleMachine: boolean;
     productAutocompleteOptions: AutocompleteOption[];
+    getMachineProductAutocompleteOptions: (machineCode: string) => AutocompleteOption[];
     productOptions: ProductStandardOption[];
     machineAutocompleteOptions: AutocompleteOption[];
     machineOptions: MachineOption[];
@@ -59,6 +60,7 @@ export default function ProcessBasicInfoSection({
     usesMultiMachineLines,
     usesSingleMachine,
     productAutocompleteOptions,
+    getMachineProductAutocompleteOptions,
     productOptions,
     machineAutocompleteOptions,
     machineOptions,
@@ -186,7 +188,7 @@ export default function ProcessBasicInfoSection({
                                     id={`machineProduct-${index}`}
                                     label={`Sản phẩm máy ${index + 1}`}
                                     value={line.productCode}
-                                    options={productAutocompleteOptions}
+                                    options={getMachineProductAutocompleteOptions(line.machineCode)}
                                     placeholder="Chọn mã sản phẩm"
                                     required
                                     disabled={loadingMasterData}
