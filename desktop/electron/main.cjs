@@ -750,7 +750,36 @@ async function postExcelChanges(changes) {
   return payload;
 }
 
-async function syncEditedExcelFilesToDb({ source = 'watcher' } = {}) {
+
+async function previewEditedExcelFilesToDb({ yearMonth = '' } = {}) {
+  const files = await listExcelFiles(getExportRoot());
+  const changes = [];
+  for (const filePath of files) {
+    let parsed;
+    try {
+      parsed = await readExcelChanges(filePath);
+    } catch (error) {
+      await writeLog('WARN', 'EXCEL_DB_PREVIEW_READ_SKIPPED', { filePath, ...normalizeError(error) });
+      continue;
+    }
+    if (!parsed?.managed || !parsed.changes?.length) continue;
+    if (yearMonth && parsed.yearMonth && parsed.yearMonth !== yearMonth) continue;
+    for (const change of parsed.changes) {
+      changes.push({
+        ...change,
+        filePath,
+        yearMonth: parsed.yearMonth || null
+      });
+    }
+  }
+  return {
+    detected: changes.length,
+    changes,
+    yearMonth: yearMonth || null
+  };
+}
+
+async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } = {}) {
   if (excelDbSyncRunning || quitting) return { skipped: true };
   const token = await waitForUsableRendererToken('', 2_000);
   if (!token) return { skipped: true, reason: 'no-token' };
@@ -775,6 +804,7 @@ async function syncEditedExcelFilesToDb({ source = 'watcher' } = {}) {
         continue;
       }
       if (!parsed.managed) { excelDbSyncState.set(filePath, { ...state, mtimeMs: stat.mtimeMs }); continue; }
+      if (yearMonth && parsed.yearMonth && parsed.yearMonth !== yearMonth) continue;
       if (!parsed.changes.length) { excelDbSyncState.set(filePath, { ...state, mtimeMs: stat.mtimeMs }); continue; }
       for (const change of parsed.changes) {
         if (state.versions?.has(change.id)) change.expected_updated_at = state.versions.get(change.id);
@@ -801,7 +831,7 @@ async function syncEditedExcelFilesToDb({ source = 'watcher' } = {}) {
     }
     if (detected > 0) {
       await writeLog('INFO', 'EXCEL_DB_SYNC_FINISH', { source, detected, succeeded, failed, changedMonths: [...changedMonths] });
-      sendRenderer('ktc-excel-db-sync-result', { detected, succeeded, failed });
+      if (source === 'watcher') sendRenderer('ktc-excel-db-sync-result', { detected, succeeded, failed });
       if (succeeded > 0 && !syncRunning && source === 'watcher') {
         for (const yearMonth of changedMonths) {
           void enqueueManualExcelSync({ date: `${yearMonth}-01`, source: 'excel-db-rebuild' }).catch((error) =>
@@ -817,9 +847,10 @@ async function syncEditedExcelFilesToDb({ source = 'watcher' } = {}) {
 }
 
 function startExcelDbSyncWatcher() {
+  // Excel -> DB chỉ chạy khi người quản lý bấm nút và xác nhận.
+  // Không tự đẩy dữ liệu khi người dùng đang sửa dở workbook.
   if (excelDbSyncTimer) clearInterval(excelDbSyncTimer);
-  excelDbSyncTimer = setInterval(() => void syncEditedExcelFilesToDb({ source: 'watcher' }), 20_000);
-  excelDbSyncTimer.unref?.();
+  excelDbSyncTimer = null;
 }
 
 async function performSync({ date, source }) {
@@ -836,9 +867,14 @@ async function performSync({ date, source }) {
 
   const files = [];
   try {
-    // Không ghi đè workbook có chỉnh sửa chưa sync: nhập thay đổi Excel vào DB trước,
-    // sau đó mới tải snapshot DB mới nhất để rebuild file.
-    await syncEditedExcelFilesToDb({ source: `before-${source}` });
+    // Không tự đẩy Excel -> DB khi đang xuất. Nếu workbook có chỉnh sửa chưa sync,
+    // dừng lại để người quản lý xem trước và chủ động xác nhận cập nhật DB.
+    const pendingExcelEdits = await previewEditedExcelFilesToDb({ yearMonth: String(date).slice(0, 7) });
+    if (pendingExcelEdits.detected > 0 && source !== 'excel-db-rebuild') {
+      const error = new Error(`Có ${pendingExcelEdits.detected} báo cáo đã sửa trong Excel nhưng chưa cập nhật DB. Hãy bấm “Cập nhật DB từ Excel” và xác nhận trước khi cập nhật Excel từ DB.`);
+      error.code = 'EXCEL_UNSYNCED_CHANGES';
+      throw error;
+    }
     const companyData = await fetchCompanyData(date);
     const processCounts = Object.fromEntries(
       Object.entries(companyData?.processes || {}).map(([code, data]) => [
@@ -1307,6 +1343,38 @@ async function handleManualExcelSync(payload) {
   }
 }
 
+
+async function handlePreviewExcelDbSync(payload = {}) {
+  const token = await waitForUsableRendererToken(payload.token || '', 8_000);
+  if (!token) throw new Error('Chưa tìm thấy phiên đăng nhập. Hãy đăng nhập lại rồi thử.');
+  currentToken = token;
+  const yearMonth = /^\d{4}-\d{2}$/.test(String(payload.yearMonth || '')) ? String(payload.yearMonth) : '';
+  const result = await previewEditedExcelFilesToDb({ yearMonth });
+  await writeLog('INFO', 'MANUAL_EXCEL_DB_PREVIEW', { yearMonth, detected: result.detected });
+  return result;
+}
+
+async function handleApplyExcelDbSync(payload = {}) {
+  const token = await waitForUsableRendererToken(payload.token || '', 8_000);
+  if (!token) throw new Error('Chưa tìm thấy phiên đăng nhập. Hãy đăng nhập lại rồi thử.');
+  currentToken = token;
+  const yearMonth = /^\d{4}-\d{2}$/.test(String(payload.yearMonth || '')) ? String(payload.yearMonth) : '';
+  const result = await syncEditedExcelFilesToDb({ source: 'manual-db-sync', yearMonth });
+  const months = Array.isArray(result.changedMonths) ? result.changedMonths : [];
+  for (const month of months) {
+    if (yearMonth && month !== yearMonth) continue;
+    await enqueueManualExcelSync({ date: `${month}-01`, source: 'excel-db-rebuild', token }).catch((error) =>
+      writeLog('ERROR', 'EXCEL_DB_REBUILD_FAILED', { yearMonth: month, ...normalizeError(error) })
+    );
+  }
+  await writeLog(result.failed ? 'WARN' : 'INFO', 'MANUAL_EXCEL_DB_APPLY_FINISHED', {
+    yearMonth, detected: result.detected, succeeded: result.succeeded, failed: result.failed
+  });
+  return result;
+}
+
+ipcMain.handle('ktc-preview-excel-db-sync', (_event, payload) => handlePreviewExcelDbSync(payload));
+ipcMain.handle('ktc-apply-excel-db-sync', (_event, payload) => handleApplyExcelDbSync(payload));
 ipcMain.handle('ktc-save-excel', (_event, payload) => handleManualExcelSync(payload));
 ipcMain.handle('ktc-sync-all-excel', (_event, payload) => handleManualExcelSync(payload));
 ipcMain.handle('ktc-configure-auto-sync', async (_event, token) => {

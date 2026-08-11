@@ -8,7 +8,7 @@ import {
 } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { useToast } from "../../components/feedback/toastContext";
-import { getStoredUser } from "../../utils/authStorage";
+import { getAccessToken, getStoredUser } from "../../utils/authStorage";
 import { usePermissions } from "../../hooks/usePermissions";
 import "./Reports.css";
 
@@ -118,6 +118,7 @@ const getAxiosErrorMessage = async (error: unknown): Promise<string | null> => {
 export default function ApprovedReports() {
     const { can } = usePermissions();
     const canExport = can("REPORT_EXPORT");
+    const canExcelDbSync = can("EXCEL_DB_SYNC");
     const { showToast } = useToast();
     const navigate = useNavigate();
 
@@ -131,6 +132,8 @@ export default function ApprovedReports() {
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [loading, setLoading] = useState(true);
     const [exporting, setExporting] = useState(false);
+    const [excelDbSyncing, setExcelDbSyncing] = useState(false);
+    const [excelDbPreview, setExcelDbPreview] = useState<DesktopExcelDbSyncPreview | null>(null);
     const [error, setError] = useState("");
     const [searchKeyword, setSearchKeyword] = useState("");
     const [selectedShift, setSelectedShift] = useState("");
@@ -315,6 +318,59 @@ export default function ApprovedReports() {
         }
     };
 
+    const formatPreviewValue = (value: unknown): string => {
+        if (value === null || value === undefined || value === "") return "—";
+        if (Array.isArray(value) || typeof value === "object") {
+            try { return JSON.stringify(value); } catch { return String(value); }
+        }
+        return String(value);
+    };
+
+    const handlePreviewExcelDbSync = async () => {
+        if (excelDbSyncing || !excelMonth) return;
+        if (!window.ktcDesktop?.isDesktop || typeof window.ktcDesktop.previewExcelDbSync !== "function") {
+            showToast("Cập nhật DB từ Excel chỉ khả dụng trên ứng dụng Desktop.", "warning");
+            return;
+        }
+        const token = getAccessToken() || "";
+        if (!token) {
+            showToast("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.", "warning");
+            return;
+        }
+        try {
+            setExcelDbSyncing(true);
+            const preview = await window.ktcDesktop.previewExcelDbSync(token, excelMonth);
+            setExcelDbPreview(preview);
+            if (!preview.detected) showToast(`Không phát hiện thay đổi Excel trong tháng ${excelMonth}.`, "success");
+        } catch (err) {
+            showToast(err instanceof Error ? err.message : "Không thể đọc thay đổi từ Excel", "error");
+        } finally {
+            setExcelDbSyncing(false);
+        }
+    };
+
+    const handleApplyExcelDbSync = async () => {
+        if (excelDbSyncing || !excelDbPreview?.detected) return;
+        if (!window.ktcDesktop?.isDesktop || typeof window.ktcDesktop.applyExcelDbSync !== "function") return;
+        const token = getAccessToken() || "";
+        if (!token) return;
+        try {
+            setExcelDbSyncing(true);
+            const result = await window.ktcDesktop.applyExcelDbSync(token, excelMonth);
+            setExcelDbPreview(null);
+            if (result.failed > 0) {
+                showToast(`Excel → DB: ${result.succeeded} dòng thành công, ${result.failed} dòng cần kiểm tra.`, "warning");
+            } else {
+                showToast(`Đã cập nhật ${result.succeeded} báo cáo từ Excel vào DB.`, "success");
+            }
+            setReloadNonce(value => value + 1);
+        } catch (err) {
+            showToast(err instanceof Error ? err.message : "Không thể cập nhật DB từ Excel", "error");
+        } finally {
+            setExcelDbSyncing(false);
+        }
+    };
+
     const clearFilters = () => {
         setDateMode("today");
         setSelectedMonth("");
@@ -456,8 +512,60 @@ export default function ApprovedReports() {
                             {exporting ? "Đang cập nhật Excel..." : `Cập nhật Excel ${excelMonth || "theo tháng"}`}
                         </button>
                     )}
+                    {canExcelDbSync && window.ktcDesktop?.isDesktop && (
+                        <button
+                            type="button"
+                            className="management-db-sync-button"
+                            onClick={() => void handlePreviewExcelDbSync()}
+                            disabled={loading || exporting || excelDbSyncing || !excelMonth}
+                            title="Đọc các ô đã sửa trong Excel, xem trước thay đổi rồi cập nhật DB"
+                        >
+                            {excelDbSyncing ? "Đang kiểm tra Excel..." : "Cập nhật DB từ Excel"}
+                        </button>
+                    )}
                 </div>
             </div>
+
+            {excelDbPreview && excelDbPreview.detected > 0 && (
+                <div className="excel-db-preview-backdrop" role="presentation" onMouseDown={() => !excelDbSyncing && setExcelDbPreview(null)}>
+                    <section className="excel-db-preview-modal" role="dialog" aria-modal="true" aria-label="Xem trước cập nhật DB từ Excel" onMouseDown={event => event.stopPropagation()}>
+                        <header>
+                            <div>
+                                <h2>Xem trước cập nhật DB từ Excel</h2>
+                                <p>Phát hiện <strong>{excelDbPreview.detected}</strong> báo cáo thay đổi trong tháng {excelMonth}. DB chưa bị thay đổi ở bước này.</p>
+                            </div>
+                            <button type="button" className="excel-db-preview-close" onClick={() => setExcelDbPreview(null)} disabled={excelDbSyncing}>×</button>
+                        </header>
+                        <div className="excel-db-preview-list">
+                            {excelDbPreview.changes.map(change => (
+                                <article key={`${change.source?.file || "file"}-${change.id}`} className="excel-db-preview-item">
+                                    <div className="excel-db-preview-item-head">
+                                        <strong>Báo cáo #{change.id}</strong>
+                                        <span>{change.source?.process_code || "—"} · {change.source?.sheet || "—"}</span>
+                                        <small>{change.source?.file || "Không rõ file"}</small>
+                                    </div>
+                                    <div className="excel-db-diff-table">
+                                        {(change.preview || []).map(diff => (
+                                            <div className="excel-db-diff-row" key={`${change.id}-${diff.field}`}>
+                                                <strong>{diff.label}</strong>
+                                                <span className="excel-db-before">{formatPreviewValue(diff.before)}</span>
+                                                <span className="excel-db-arrow">→</span>
+                                                <span className="excel-db-after">{formatPreviewValue(diff.after)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </article>
+                            ))}
+                        </div>
+                        <footer>
+                            <button type="button" className="management-clear-button" onClick={() => setExcelDbPreview(null)} disabled={excelDbSyncing}>Hủy</button>
+                            <button type="button" className="management-db-sync-button" onClick={() => void handleApplyExcelDbSync()} disabled={excelDbSyncing}>
+                                {excelDbSyncing ? "Đang cập nhật DB..." : `Xác nhận cập nhật ${excelDbPreview.detected} báo cáo`}
+                            </button>
+                        </footer>
+                    </section>
+                </div>
+            )}
 
             {selectedIds.length > 0 && (
                 <div className="management-selected-info">

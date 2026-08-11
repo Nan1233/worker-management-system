@@ -23,7 +23,7 @@ const FIELD_LABELS: Record<string,string> = {
     changed_fields:"Trường thay đổi", deductions_changed:"Thời gian trừ", defects_changed:"NG", machine_lines_changed:"Máy",
     previous_status:"Trạng thái cũ", new_status:"Trạng thái mới", reason:"Lý do", worker_code:"Mã NV", full_name:"Tên NV",
     work_date:"Ngày báo cáo", entry_date:"Ngày nhập", shift:"Ca", machine_no:"Máy", product_code:"Mã SP", product_name:"Sản phẩm",
-    ok_quantity:"OK", ng_quantity:"NG", actual_output:"SP quy đổi", training_percent:"% học việc", actual_time:"TG thực tế"
+    ok_quantity:"OK", tt_ok:"SL OK", tt_ng:"SL NG", ng_quantity:"NG", actual_output:"SP quy đổi", total_time:"Tổng TG", deduction_time:"TG trừ", training_percent:"% học việc", actual_time:"TG thực tế", source_file:"File nguồn", source_sheet:"Sheet", process_code:"Công đoạn"
 };
 const labelFor = (key:string) => FIELD_LABELS[key] || key.replace(/_/g," ");
 const displayValue = (value:unknown):string => {
@@ -45,10 +45,19 @@ function ActivityMetadata({value}:{value:unknown}) {
     const oldData=parseMetadata(data.old_data);
     const newData=parseMetadata(data.new_data);
     const changed=Array.isArray(data.changed_fields) ? data.changed_fields.map(String) : [];
+    const changedMap=data.changed_fields && typeof data.changed_fields === "object" && !Array.isArray(data.changed_fields)
+        ? data.changed_fields as Record<string, { before?: unknown; after?: unknown }>
+        : null;
     if (oldData && newData && changed.length) {
         return <details className="system-change-details"><summary>Xem thay đổi trước → sau</summary><div className="system-diff-table">
             <div className="system-diff-head"><span>Trường</span><span>Trước</span><span>Sau</span></div>
             {changed.map(key=><div className="system-diff-row" key={key}><strong>{labelFor(key)}</strong><span>{displayValue(oldData[key])}</span><span className="after">{displayValue(newData[key])}</span></div>)}
+        </div></details>;
+    }
+    if (changedMap && Object.keys(changedMap).length) {
+        return <details className="system-change-details"><summary>Xem thay đổi trước → sau</summary><div className="system-diff-table">
+            <div className="system-diff-head"><span>Trường</span><span>Trước</span><span>Sau</span></div>
+            {Object.entries(changedMap).map(([key,diff])=><div className="system-diff-row" key={key}><strong>{labelFor(key)}</strong><span>{displayValue(diff?.before)}</span><span className="after">{displayValue(diff?.after)}</span></div>)}
         </div></details>;
     }
     const entries=Object.entries(data).filter(([,v])=>v!==null&&v!==undefined&&v!==false&&v!=="");

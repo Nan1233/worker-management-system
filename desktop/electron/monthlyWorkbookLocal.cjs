@@ -614,18 +614,6 @@ function settingsForReport(report, fallback = {}, settingsByDate = {}) {
   return (key && settingsByDate && settingsByDate[key]) || fallback || {};
 }
 
-function lastValidOutput(reports, settings = {}, settingsByDate = {}) {
-  const sorted = sortReports(reports);
-  for (let index = sorted.length - 1; index >= 0; index -= 1) {
-    const itemSettings = settingsForReport(sorted[index], settings, settingsByDate);
-    const output = reportSnapshot(sorted[index], itemSettings).output;
-    if (output !== null && output !== undefined && Number.isFinite(Number(output))) {
-      return Number(output);
-    }
-  }
-  return null;
-}
-
 function headerFontSize(header) {
   const length = asText(header).length;
   if (length <= 5) return 8;
@@ -641,9 +629,6 @@ function renderProcessSheet(workbook, code, processConfig, processData, yearMont
   const columns = makeColumns(code, deductionTypes, defectTypes);
   const reports = sortReports(processData?.reports);
   const settings = formulaSettings || {};
-  // Nghiệp vụ KTC: "Tổng SP" là kết quả SP quy đổi cuối cùng hợp lệ,
-  // không phải tổng cộng dồn các kết quả trung gian trong tháng.
-  const finalOutput = lastValidOutput(reports, settings, processData?.formulaSettingsByDate || {});
   const sheet = workbook.addWorksheet(processConfig.sheet, {
     views: [{
       state: 'frozen',
@@ -831,9 +816,7 @@ function renderProcessSheet(workbook, code, processConfig, processData, yearMont
   columns.forEach((column, index) => {
     if (index + 1 <= totalLabelEnd) return;
     const cell = sheet.getCell(totalRowNumber, index + 1);
-    const value = column.key === 'output'
-      ? finalOutput
-      : (nonTotalKeys.has(column.key) ? null : numericTotals[index]);
+    const value = nonTotalKeys.has(column.key) ? null : numericTotals[index];
     cell.value = value;
     if (column.format) cell.numFmt = resolvedNumberFormat(value, column.format);
     applyCellStyle(cell, { fill: COLORS.navy, fontColor: COLORS.white, bold: true, align: 'right' });
@@ -878,10 +861,10 @@ function addSummary(workbook, payload, yearMonth) {
       sum.deduction += item.deductionTime || 0;
       sum.ok += item.ok || 0;
       sum.ng += item.ng || 0;
+      sum.output += item.output || 0;
       return sum;
-    }, { working: 0, actual: 0, deduction: 0, ok: 0, ng: 0 });
-    const finalOutput = lastValidOutput(reports, settings, processData.formulaSettingsByDate || {});
-    const values = [config.title, reports.length, employees.size, totals.working, totals.actual, totals.deduction, totals.ok, totals.ng, finalOutput, totals.ok + totals.ng > 0 ? totals.ng / (totals.ok + totals.ng) : null];
+    }, { working: 0, actual: 0, deduction: 0, ok: 0, ng: 0, output: 0 });
+    const values = [config.title, reports.length, employees.size, totals.working, totals.actual, totals.deduction, totals.ok, totals.ng, totals.output, totals.ok + totals.ng > 0 ? totals.ng / (totals.ok + totals.ng) : null];
     values.forEach((value, index) => {
       const cell = sheet.getCell(rowNumber, index + 1);
       cell.value = value;

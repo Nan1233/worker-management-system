@@ -1,6 +1,11 @@
 const { TtlCache } = require("../utils/cache");
 const managerListCache = new TtlCache({ maxEntries: 300 });
 const MANAGER_LIST_TTL_MS = 15000;
+
+function invalidateManagerReportLists() {
+    managerListCache.deleteByPrefix("manager:pending:");
+    managerListCache.deleteByPrefix("manager:approved:");
+}
 const ProductionTemp = require("../models/productionTempModel");
 const { publicMessage } = require("../utils/httpError");
 const { validateMachineLines } = require("../services/machineLineValidationService");
@@ -135,6 +140,7 @@ exports.approveSelectedReports = async (req, res) => {
         if (!reviewerId) return res.status(401).json({ success: false, message: "Thông tin người duyệt không hợp lệ" });
 
         const result = await ProductionTemp.approveSelected(targets, reviewerId, req.user?.role === "admin");
+        invalidateManagerReportLists();
 
         // Desktop owns workbook generation. Do not enqueue server-side Excel jobs
         // unless a legacy feature has been explicitly enabled.
@@ -187,6 +193,7 @@ exports.rejectSelectedReports = async (req, res) => {
         if (!reason) return res.status(400).json({ success: false, message: "Vui lòng nhập lý do từ chối" });
 
         const result = await ProductionTemp.rejectSelected(targets, reviewerId, reason, req.user?.role === "admin");
+        invalidateManagerReportLists();
         return res.status(200).json({ success: true, message: "Đã từ chối báo cáo", data: result });
     } catch (error) {
         console.error("REJECT SELECTED REPORTS ERROR:", error);

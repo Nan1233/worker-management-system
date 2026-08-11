@@ -35,7 +35,7 @@ function httpError(status, code, message, details) {
   return error;
 }
 
-async function updateApprovedReport({ reportId, patch, reason, userId, req = null, expectedUpdatedAt = null, source = 'web' }) {
+async function updateApprovedReport({ reportId, patch, reason, userId, req = null, expectedUpdatedAt = null, source = 'web', sourceMeta = null }) {
   if (!Number.isInteger(Number(reportId)) || Number(reportId) <= 0) {
     throw httpError(422, 'INVALID_REPORT_ID', 'ID báo cáo không hợp lệ');
   }
@@ -127,13 +127,26 @@ async function updateApprovedReport({ reportId, patch, reason, userId, req = nul
 
     const after = await loadApprovedSnapshot(Number(reportId), connection);
     const versionNo = await AuditService.createReportVersion({ reportType: 'approved', reportId: Number(reportId), snapshot: after, reason: changeReason, userId }, connection);
+    const trackedKeys = ['shift','machine_no','product_name','training_percent','actual_time','total_time','deduction_time','actual_output','tt_ok','tt_ng','note'];
+    const changedFields = {};
+    for (const key of trackedKeys) {
+      if (JSON.stringify(before?.[key] ?? null) !== JSON.stringify(after?.[key] ?? null)) {
+        changedFields[key] = { before: before?.[key] ?? null, after: after?.[key] ?? null };
+      }
+    }
+    if (JSON.stringify(before?.defects || []) !== JSON.stringify(after?.defects || [])) {
+      changedFields.defects = { before: before?.defects || [], after: after?.defects || [] };
+    }
+    if (JSON.stringify(before?.deductions || []) !== JSON.stringify(after?.deductions || [])) {
+      changedFields.deductions = { before: before?.deductions || [], after: after?.deductions || [] };
+    }
     await AuditService.logActivity({
       userId,
       action: source === 'excel' ? 'REPORT_UPDATED_FROM_EXCEL' : 'REPORT_UPDATED',
       entityType: 'approved_report',
       entityId: Number(reportId),
       description: `Cập nhật báo cáo phiên bản ${versionNo}${source === 'excel' ? ' từ Excel' : ''}`,
-      metadata: { reason: changeReason, source },
+      metadata: { reason: changeReason, source, source_file: sourceMeta?.file || null, source_sheet: sourceMeta?.sheet || null, process_code: sourceMeta?.process_code || null, changed_fields: changedFields },
       req
     }, connection);
     await connection.commit();

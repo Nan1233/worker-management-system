@@ -32,7 +32,8 @@ exports.syncExcelEdits = async (req, res) => {
         userId: req.user.id,
         req,
         expectedUpdatedAt: change?.expected_updated_at || null,
-        source: 'excel'
+        source: 'excel',
+        sourceMeta: change?.source || null
       });
       affectedDates.add(String(result.before.work_date).slice(0, 10));
       affectedDates.add(String(result.report.work_date).slice(0, 10));

@@ -4,6 +4,8 @@ contextBridge.exposeInMainWorld('ktcDesktop', {
   isDesktop: true,
   saveExcel: (token, date) => ipcRenderer.invoke('ktc-save-excel', { token, date }),
   syncAllExcel: (token, date) => ipcRenderer.invoke('ktc-sync-all-excel', { token, date }),
+  previewExcelDbSync: (token, yearMonth) => ipcRenderer.invoke('ktc-preview-excel-db-sync', { token, yearMonth }),
+  applyExcelDbSync: (token, yearMonth) => ipcRenderer.invoke('ktc-apply-excel-db-sync', { token, yearMonth }),
   configureAutoSync: (token) => ipcRenderer.invoke('ktc-configure-auto-sync', token),
   openExportFolder: (date) => ipcRenderer.invoke('ktc-open-export-folder', date),
   getExportFolder: (date) => ipcRenderer.invoke('ktc-get-export-folder', date),

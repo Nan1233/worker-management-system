@@ -109,10 +109,22 @@ async function readExcelChanges(filePath) {
           defects: reportMeta.original.defects || []
         };
     if (!same(comparable(patch), comparable(original))) {
+      const preview = [];
+      const labels = {
+        shift: 'Ca', machine_no: 'Máy', product_name: 'Sản phẩm', training_percent: '% học việc',
+        actual_time: 'TG thực tế', tt_ok: 'SL OK', note: 'Ghi chú', deductions: 'Trừ giờ', defects: 'NG chi tiết'
+      };
+      for (const [key, after] of Object.entries(patch)) {
+        const before = original[key];
+        const left = (key === 'deductions' || key === 'defects') ? comparable({ [key]: before })[key] : before;
+        const right = (key === 'deductions' || key === 'defects') ? comparable({ [key]: after })[key] : after;
+        if (!same(left, right)) preview.push({ field: key, label: labels[key] || key, before, after });
+      }
       changes.push({
         id,
         expected_updated_at: reportMeta.expectedUpdatedAt,
         patch,
+        preview,
         source: { file: path.basename(filePath), sheet: meta.config.sheetName, process_code: meta.config.processCode }
       });
     }

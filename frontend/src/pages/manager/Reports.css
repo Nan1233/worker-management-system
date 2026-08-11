@@ -113,3 +113,66 @@
   .management-filter-actions > button { flex: 1 1 100%; }
   .management-report-table { min-width: 860px; }
 }
+
+/* Excel -> DB manual review flow */
+.management-db-sync-button {
+    border: 1px solid var(--border-strong, #1f5f8b);
+    background: var(--surface-strong, #163d5a);
+    color: #fff;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.management-db-sync-button:disabled { opacity: .55; cursor: not-allowed; }
+.excel-db-preview-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    background: rgba(8, 18, 28, .62);
+    display: grid;
+    place-items: center;
+    padding: 20px;
+}
+.excel-db-preview-modal {
+    width: min(920px, 100%);
+    max-height: min(82vh, 820px);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface, #fff);
+    color: var(--text-primary, #17212b);
+    border: 1px solid var(--border, #d8e0e7);
+    border-radius: 16px;
+    box-shadow: 0 22px 60px rgba(0,0,0,.28);
+}
+.excel-db-preview-modal > header,
+.excel-db-preview-modal > footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border, #d8e0e7);
+}
+.excel-db-preview-modal > footer { border-top: 1px solid var(--border, #d8e0e7); border-bottom: 0; justify-content: flex-end; }
+.excel-db-preview-modal h2 { margin: 0 0 4px; font-size: 20px; }
+.excel-db-preview-modal p { margin: 0; color: var(--text-secondary, #607080); }
+.excel-db-preview-close { border: 0; background: transparent; color: inherit; font-size: 28px; cursor: pointer; }
+.excel-db-preview-list { overflow: auto; padding: 14px 18px; display: grid; gap: 12px; }
+.excel-db-preview-item { border: 1px solid var(--border, #d8e0e7); border-radius: 12px; overflow: hidden; background: var(--surface-subtle, rgba(127,127,127,.04)); }
+.excel-db-preview-item-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; padding: 11px 12px; border-bottom: 1px solid var(--border, #d8e0e7); }
+.excel-db-preview-item-head small { margin-left: auto; color: var(--text-secondary, #607080); }
+.excel-db-diff-table { display: grid; }
+.excel-db-diff-row { display: grid; grid-template-columns: minmax(120px, .8fr) minmax(120px, 1fr) auto minmax(120px, 1fr); gap: 10px; align-items: center; padding: 9px 12px; border-top: 1px solid var(--border-soft, rgba(127,127,127,.15)); }
+.excel-db-diff-row:first-child { border-top: 0; }
+.excel-db-before { text-decoration: line-through; opacity: .72; overflow-wrap: anywhere; }
+.excel-db-after { font-weight: 700; overflow-wrap: anywhere; }
+.excel-db-arrow { opacity: .55; }
+@media (max-width: 640px) {
+    .excel-db-preview-backdrop { padding: 8px; }
+    .excel-db-preview-modal { max-height: 92vh; border-radius: 12px; }
+    .excel-db-diff-row { grid-template-columns: 1fr; gap: 4px; }
+    .excel-db-arrow { display: none; }
+    .excel-db-preview-item-head small { width: 100%; margin-left: 0; }
+}
