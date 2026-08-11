@@ -332,16 +332,7 @@ const machineAutocompleteOptions =
     const refreshMachineLineStandard = async (index: number, machineCode: string, productCode: string) => {
         const normalizedMachine = machineCode.trim();
         const normalizedProduct = productCode.trim();
-        const matchedMachine = machineOptions.some(
-            (machine) => machine.machine_code.trim().toLowerCase() === normalizedMachine.toLowerCase()
-        );
-        const matchedProduct = getMachineProductAutocompleteOptions(normalizedMachine).some(
-            (product) => product.value.trim().toLowerCase() === normalizedProduct.toLowerCase()
-        );
-
-        // Không gọi API resolve khi người dùng mới đang gõ từng ký tự.
-        // Chỉ resolve khi cả máy và sản phẩm đều là giá trị hợp lệ trong danh mục đã lọc.
-        if (!normalizedMachine || !normalizedProduct || !matchedMachine || !matchedProduct) {
+        if (!normalizedMachine || !normalizedProduct) {
             updateMachineLine(index, {
                 standardOutputPerHour: 0,
                 standardTimeSeconds: null,
@@ -866,9 +857,6 @@ const calculateActualOutput = (values: FormState): number =>
 // =====================================================
 
 useEffect(() => {
-    let cancelled = false;
-    const requestedProcessId = Number(processInfo.id);
-    const requestedProcessCode = String(processCode).trim().toUpperCase();
 
     const loadMasterData =
         async () => {
@@ -900,20 +888,8 @@ useEffect(() => {
                     ? productsResult.value
                     : [];
 
-                if (cancelled) return;
-
-                // Chặn response cũ ghi đè master-data khi người dùng chuyển công đoạn nhanh.
-                // Đồng thời lọc phòng thủ ngay tại boundary trước khi đưa dữ liệu vào UI.
-                const safeMachines = machines.filter((machine) => Number(machine.process_id) === requestedProcessId);
-                const safeProducts = products.filter((product) => {
-                    const returnedCode = String(product.process_code || "").trim().toUpperCase();
-                    return returnedCode
-                        ? returnedCode === requestedProcessCode
-                        : Number(product.process_id) === requestedProcessId;
-                });
-
-                setMachineOptions(safeMachines);
-                setProductOptions(safeProducts);
+                setMachineOptions(machines);
+                setProductOptions(products);
 
                 if (defectsResult.status === "fulfilled") {
                     setActiveNgOptions(
@@ -948,11 +924,11 @@ useEffect(() => {
                     console.error("LOAD PRODUCT STANDARDS ERROR:", productsResult.reason);
                 }
 
-                if (safeMachines.length === 0 || safeProducts.length === 0) {
+                if (machines.length === 0 || products.length === 0) {
                     showToast(
-                        safeMachines.length === 0 && safeProducts.length === 0
+                        machines.length === 0 && products.length === 0
                             ? "Không tìm thấy máy và sản phẩm cho công đoạn này"
-                            : safeMachines.length === 0
+                            : machines.length === 0
                                 ? "Không tìm thấy máy cho công đoạn này"
                                 : "Không tìm thấy sản phẩm cho công đoạn này"
                     );
@@ -995,7 +971,7 @@ useEffect(() => {
             }
             finally {
 
-                if (!cancelled) setLoadingMasterData(
+                setLoadingMasterData(
                     false
                 );
 
@@ -1006,11 +982,7 @@ useEffect(() => {
 
     void loadMasterData();
 
-    return () => {
-        cancelled = true;
-    };
-
-}, [processInfo.id, processCode, showToast]);
+}, [processInfo.id, showToast]);
 
     // =====================================================
     // CHỈ CHO PHÉP NHẬP SỐ NGUYÊN

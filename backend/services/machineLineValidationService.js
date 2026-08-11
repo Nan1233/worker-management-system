@@ -38,49 +38,6 @@ const createMachineLineValidator = ({ query = defaultQuery } = {}) => async ({ p
     let totalNg = 0;
     let totalMaximum = 0;
 
-    // TiDB Cloud có network latency đáng kể. Tra danh mục cho từng dòng tuần tự
-    // khiến báo cáo 4 máy phải chờ 8 round-trip. Gom theo 2 wave song song:
-    // wave 1 tra máy, wave 2 tra định mức máy+sản phẩm.
-    const machineRowsByIndex = await Promise.all(machineLines.map((line) => {
-        const machineCode = normalizeCode(line?.machine_code);
-        if (!machineCode) return Promise.resolve([]);
-        return query(
-            `SELECT id, machine_code FROM machines
-             WHERE process_id = ? AND status = 'active'
-               AND UPPER(TRIM(machine_code)) = UPPER(?) LIMIT 1`,
-            [processId, machineCode]
-        );
-    }));
-
-    const productRowsByIndex = await Promise.all(machineLines.map((line, index) => {
-        const machine = machineRowsByIndex[index]?.[0];
-        const productCode = normalizeCode(line?.product_code);
-        if (!machine || !productCode) return Promise.resolve([]);
-        return query(
-            `SELECT ps.id,
-                    ps.product_code,
-                    ps.standard_output AS default_standard_output,
-                    COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
-                    pms.standard_time_seconds,
-                    pms.calculated_output_per_hour AS machine_standard_output,
-                    EXISTS(SELECT 1 FROM product_machine_standards px WHERE px.process_id=ps.process_id AND px.product_code=ps.product_code AND px.is_active=1) AS has_machine_specific_standard
-             FROM product_standards ps
-             LEFT JOIN product_machine_standards pms
-               ON pms.process_id = ps.process_id
-              AND pms.product_code = ps.product_code
-              AND pms.machine_id = ?
-              AND pms.is_active = 1
-              AND pms.effective_from <= CURRENT_DATE
-              AND (pms.effective_to IS NULL OR pms.effective_to >= CURRENT_DATE)
-             WHERE ps.process_id = ?
-               AND ps.status = 'active'
-               AND UPPER(TRIM(ps.product_code)) = UPPER(?)
-             ORDER BY pms.effective_from DESC, pms.id DESC
-             LIMIT 1`,
-            [machine.id, processId, productCode]
-        );
-    }));
-
     for (let index = 0; index < machineLines.length; index += 1) {
         const line = machineLines[index] || {};
         const machineCode = normalizeCode(line.machine_code);
@@ -116,14 +73,41 @@ const createMachineLineValidator = ({ query = defaultQuery } = {}) => async ({ p
             continue;
         }
 
-        const machines = machineRowsByIndex[index] || [];
+        const machines = await query(
+            `SELECT id, machine_code FROM machines
+             WHERE process_id = ? AND status = 'active'
+               AND UPPER(TRIM(machine_code)) = UPPER(?) LIMIT 1`,
+            [processId, machineCode]
+        );
         if (!machines.length) {
             errors[`machine_lines.${index}.machine_code`] = `Máy ${machineCode} không thuộc công đoạn`;
             continue;
         }
         
 
-        const products = productRowsByIndex[index] || [];
+        const products = await query(
+            `SELECT ps.id,
+                    ps.product_code,
+                    ps.standard_output AS default_standard_output,
+                    COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
+                    pms.standard_time_seconds,
+                    pms.calculated_output_per_hour AS machine_standard_output,
+                    EXISTS(SELECT 1 FROM product_machine_standards px WHERE px.process_id=ps.process_id AND px.product_code=ps.product_code AND px.is_active=1) AS has_machine_specific_standard
+             FROM product_standards ps
+             LEFT JOIN product_machine_standards pms
+               ON pms.process_id = ps.process_id
+              AND pms.product_code = ps.product_code
+              AND pms.machine_id = ?
+              AND pms.is_active = 1
+              AND pms.effective_from <= CURRENT_DATE
+              AND (pms.effective_to IS NULL OR pms.effective_to >= CURRENT_DATE)
+             WHERE ps.process_id = ?
+               AND ps.status = 'active'
+               AND UPPER(TRIM(ps.product_code)) = UPPER(?)
+             ORDER BY pms.effective_from DESC, pms.id DESC
+             LIMIT 1`,
+            [machines[0].id, processId, productCode]
+        );
         if (!products.length) {
             errors[`machine_lines.${index}.product_code`] = `Sản phẩm ${productCode} không thuộc công đoạn`;
             continue;

@@ -30,7 +30,7 @@ export const getCachedMachines = (processId: number): Promise<MachineOption[]> =
 
 export const getCachedProductStandards = (processId: number, processCode?: string): Promise<ProductStandardOption[]> =>
   getSessionCached(
-    epochKey(`products:${processId}:${processCode ? processCode.trim().toUpperCase() : "BY_ID"}`),
+    epochKey(`products:${processCode ? processCode.trim().toUpperCase() : processId}`),
     TTL_MS,
     () => getProductStandardsByProcess(processId, processCode),
   );
@@ -42,10 +42,10 @@ export const getCachedDefects = (processId: number): Promise<DefectOptions> =>
     () => getDefectOptionsByProcess(processId),
   );
 
-export function prefetchProcessMasterData(processId: number, processCode?: string): void {
+export function prefetchProcessMasterData(processId: number): void {
   void Promise.allSettled([
     getCachedMachines(processId),
-    getCachedProductStandards(processId, processCode),
+    getCachedProductStandards(processId),
     getCachedDefects(processId),
   ]);
 }

@@ -1,6 +1,27 @@
 const AuditService = require("../services/auditService");
 const { query, getConnection, beginTransaction, commit, rollback, normalizeIds, editableFields } = require("./productionTempModelShared");
 
+function serializeExtraData(value) {
+    if (value === null || value === undefined || value === "") return null;
+
+    if (Buffer.isBuffer(value)) {
+        value = value.toString("utf8");
+    }
+
+    if (typeof value === "string") {
+        try {
+            return JSON.stringify(JSON.parse(value));
+        } catch {
+            // Legacy/bad values must never be written into a JSON column as
+            // "[object Object]" or another invalid JSON text. Keep the raw
+            // value as a JSON string so approval can proceed without data loss.
+            return JSON.stringify(value);
+        }
+    }
+
+    return JSON.stringify(value);
+}
+
 module.exports = {
     async approveSelected(targets, reviewerId, isAdmin = false) {
         const normalizedTargets = Array.isArray(targets)
@@ -77,7 +98,7 @@ module.exports = {
                         item.machine_no, item.product_name,
                         item.total_time, item.actual_time, item.deduction_time,
                         item.standard_output, item.actual_output, item.tt_ok,
-                        item.tt_ng, item.note, item.extra_data || null, item.review_note, reviewerId
+                        item.tt_ng, item.note, serializeExtraData(item.extra_data), item.review_note, reviewerId
                     ]
                 );
 
