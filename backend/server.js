@@ -31,6 +31,7 @@ const adminMasterRoutes = require("./routes/adminMasterRoutes");
 const formulaSettingsRoutes = require("./routes/formulaSettingsRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const networkAccessRoutes = require("./routes/networkAccessRoutes");
+const mobileRoutes = require("./routes/mobileRoutes");
 const governanceRoutes = require("./routes/governanceRoutes");
 const excelMasterSyncRoutes = require("./routes/excelMasterSyncRoutes");
 const authMiddleware = require("./middleware/authMiddleware");
@@ -217,6 +218,7 @@ app.get("/api/health", async (_req, res) => {
   }
 });
 
+app.use("/api/mobile", mobileRoutes);
 app.use("/api/network", networkAccessRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/machines", machineRoutes);
