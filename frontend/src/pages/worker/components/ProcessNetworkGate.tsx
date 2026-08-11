@@ -30,7 +30,7 @@ export default function ProcessNetworkGate({ checking, allowed, message, clientI
                 <p>{message}</p>
                 {clientIp ? <small>IP hiện tại: {clientIp}</small> : null}
                 <div className="worker-network-actions">
-                    <button type="button" onClick={onRetry}>Kiểm tra lại</button>
+                    <button type="button" onClick={onRetry} aria-label="Kiểm tra lại kết nối mạng KTC">Kiểm tra lại</button>
                     <button type="button" className="secondary" onClick={onBack}>Quay lại</button>
                 </div>
             </section>

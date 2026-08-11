@@ -1,4 +1,5 @@
 import {
+    useCallback,
     useEffect,
     useMemo,
     useRef,
@@ -497,10 +498,13 @@ const calculateActualOutput = (values: FormState): number =>
     const [networkMessage, setNetworkMessage] = useState("Đang kiểm tra mạng công ty...");
     const [clientIp, setClientIp] = useState("");
 
-    const checkCompanyNetwork = async (): Promise<boolean> => {
+    const checkCompanyNetwork = useCallback(async (): Promise<boolean> => {
         try {
             setNetworkChecking(true);
-            const access = await getCompanyNetworkAccess();
+            // Network access is identity/session cached for normal reads. A gate check must
+            // always bypass that cache, otherwise switching Wi-Fi can leave the old IP
+            // decision visible for up to five minutes.
+            const access = await getCompanyNetworkAccess(true);
             const allowed = Boolean(access.allowed);
             setNetworkAllowed(allowed);
             setNetworkMessage(access.message || (allowed
@@ -517,11 +521,37 @@ const calculateActualOutput = (values: FormState): number =>
         } finally {
             setNetworkChecking(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         void checkCompanyNetwork();
-    }, []);
+    }, [checkCompanyNetwork]);
+
+    useEffect(() => {
+        let lastAutomaticCheckAt = 0;
+        const recheckIfNeeded = () => {
+            const now = Date.now();
+            if (now - lastAutomaticCheckAt < 800) return;
+            lastAutomaticCheckAt = now;
+            void checkCompanyNetwork();
+        };
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === "visible") recheckIfNeeded();
+        };
+
+        // Switching Wi-Fi/4G does not always emit `online` because both networks may be
+        // considered online. Focus + visibilitychange covers returning from iOS/Android
+        // Settings, while online handles a real offline -> online transition.
+        window.addEventListener("online", recheckIfNeeded);
+        window.addEventListener("focus", recheckIfNeeded);
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+
+        return () => {
+            window.removeEventListener("online", recheckIfNeeded);
+            window.removeEventListener("focus", recheckIfNeeded);
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+        };
+    }, [checkCompanyNetwork]);
 
 
     // =====================================================

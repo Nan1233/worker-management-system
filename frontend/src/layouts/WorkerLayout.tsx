@@ -109,10 +109,6 @@ function WorkerLayout() {
                         <small>{item.label}</small>
                     </button>
                 ))}
-                <button type="button" className="logout" onClick={handleLogout}>
-                    <span className="worker-mobile-nav-icon"><AppIcon name="logout" size={19} /></span>
-                    <small>Đăng xuất</small>
-                </button>
             </nav>
         </div>
     );

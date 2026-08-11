@@ -178,8 +178,9 @@
     z-index: 140;
     height: var(--worker-mobile-nav-height);
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     align-items: stretch;
+    overflow: hidden;
     padding: 6px;
     border: 1px solid var(--ktc-border);
     border-radius: 16px;
@@ -190,6 +191,8 @@
   .worker-mobile-nav button {
     position: relative;
     min-width: 0;
+    width: 100%;
+    min-height: 0;
     border: 0;
     border-radius: 12px;
     display: flex;
@@ -216,7 +219,8 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 10px;
+    font-size: clamp(9px, 2.6vw, 11px);
+    line-height: 1.15;
     font-weight: 700;
   }
 

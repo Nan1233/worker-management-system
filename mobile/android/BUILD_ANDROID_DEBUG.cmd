@@ -12,6 +12,7 @@ if %NODE_MAJOR% LSS 22 (
 )
 
 call npm --prefix frontend install || exit /b 1
+call npm --prefix frontend run android:prepare || exit /b 1
 call npm --prefix frontend run build || exit /b 1
 if not exist "frontend\android\gradlew.bat" (
   pushd frontend

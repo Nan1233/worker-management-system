@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../../services/api';
 import { useToast } from '../../components/feedback/toastContext';
 import { getApiError } from '../../utils/apiError';
@@ -12,8 +12,8 @@ type Matrix={permissions:Perm[];roles:RoleRow[];users:UserRow[];userOverrides:Re
 const roleNames:Record<string,string>={admin:'Admin',manager:'Manager',lead:'Tổ trưởng',worker:'Công nhân'};
 export default function Permissions(){
  const toast=useToast(); const [data,setData]=useState<Matrix|null>(null); const [loading,setLoading]=useState(true); const [userId,setUserId]=useState('');
- const load=async()=>{setLoading(true);try{const r=await api.get('/permissions/matrix');setData(r.data?.data||null);}catch(e){toast.showToast(getApiError(e,'Không tải được phân quyền').message,'error');}finally{setLoading(false)}};
- useEffect(()=>{void load()},[]);
+ const load=useCallback(async()=>{setLoading(true);try{const r=await api.get('/permissions/matrix');setData(r.data?.data||null);}catch(e){toast.showToast(getApiError(e,'Không tải được phân quyền').message,'error');}finally{setLoading(false)}},[toast]);
+ useEffect(()=>{void load()},[load]);
  const modules=useMemo(()=>{const out=new Map<string,Perm[]>(); for(const p of data?.permissions||[]){const arr=out.get(p.module)||[];arr.push(p);out.set(p.module,arr)}return [...out.entries()]},[data]);
  const setRole=async(role:string,code:string,allowed:boolean|null)=>{try{await api.put(`/permissions/roles/${role}/${code}`,{allowed});clearPermissionClientCache();await load();toast.showToast('Đã cập nhật quyền vai trò','success')}catch(e){toast.showToast(getApiError(e,'Không cập nhật được quyền').message,'error')}};
  const setUser=async(code:string,allowed:boolean|null)=>{if(!userId)return;try{await api.put(`/permissions/users/${userId}/${code}`,{allowed});clearPermissionClientCache();await load();toast.showToast('Đã cập nhật quyền riêng người dùng','success')}catch(e){toast.showToast(getApiError(e,'Không cập nhật được quyền').message,'error')}};
