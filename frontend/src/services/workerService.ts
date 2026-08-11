@@ -1,6 +1,7 @@
 import api from "./api";
 import { getSessionCached, clearSessionCache } from "./sessionCache";
 import { getStoredUser } from "../utils/authStorage";
+import { isOfflineLikeError, readOfflineSnapshot, writeOfflineSnapshot } from "./offlinePersistentCache";
 
 import type {
 
@@ -64,19 +65,34 @@ export const getCurrentWorker =
             return worker;
         };
 
-        if (forceRefresh) return loader();
-
         const currentUser = getStoredUser();
         const currentIdentity = [
             currentUser?.id ?? "anonymous",
             currentUser?.worker_id ?? 0,
             currentUser?.worker_code ?? "-"
         ].join(":");
+        const snapshotName = `current-worker:${currentIdentity}`;
+        const loadWithOfflineFallback = async (): Promise<WorkerProfile> => {
+            try {
+                const worker = await loader();
+                writeOfflineSnapshot(snapshotName, worker);
+                return worker;
+            } catch (error) {
+                if (isOfflineLikeError(error)) {
+                    const cached = readOfflineSnapshot<WorkerProfile>(snapshotName);
+                    if (cached) return cached;
+                }
+                throw error;
+            }
+        };
+
+        if (forceRefresh) return loadWithOfflineFallback();
+
 
         return getSessionCached(
             `current-worker:${currentIdentity}`,
             60 * 1000,
-            loader
+            loadWithOfflineFallback
         );
 
     };

@@ -1,12 +1,14 @@
 import type { MachineOption, ProductStandardOption } from "./masterDataService";
 import { getMachinesByProcess, getProductStandardsByProcess } from "./masterDataService";
-import { getDefectOptionsByProcess } from "./productionService";
+import { getDeductionOptionsByProcess, getDefectOptionsByProcess } from "./productionService";
+import { isOfflineLikeError, readOfflineSnapshot, writeOfflineSnapshot } from "./offlinePersistentCache";
 import { getSessionCached, clearSessionCache } from "./sessionCache";
 
 const TTL_MS = 30 * 60 * 1000;
 const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch";
 
 type DefectOptions = Awaited<ReturnType<typeof getDefectOptionsByProcess>>;
+type DeductionOptions = Awaited<ReturnType<typeof getDeductionOptionsByProcess>>;
 
 function getMasterDataEpoch(): number {
   try {
@@ -21,25 +23,48 @@ function epochKey(key: string): string {
   return `master:v${getMasterDataEpoch()}:${key}`;
 }
 
+async function withOfflineSnapshot<T>(name: string, loader: () => Promise<T>): Promise<T> {
+  try {
+    const value = await loader();
+    writeOfflineSnapshot(name, value);
+    return value;
+  } catch (error) {
+    if (isOfflineLikeError(error)) {
+      const cached = readOfflineSnapshot<T>(name);
+      if (cached !== null) return cached;
+    }
+    throw error;
+  }
+}
+
 export const getCachedMachines = (processId: number): Promise<MachineOption[]> =>
   getSessionCached(
     epochKey(`machines:${processId}`),
     TTL_MS,
-    () => getMachinesByProcess(processId),
+    () => withOfflineSnapshot(`machines:${processId}`, () => getMachinesByProcess(processId)),
   );
 
-export const getCachedProductStandards = (processId: number, processCode?: string): Promise<ProductStandardOption[]> =>
-  getSessionCached(
-    epochKey(`products:${processCode ? processCode.trim().toUpperCase() : processId}`),
+export const getCachedProductStandards = (processId: number, processCode?: string): Promise<ProductStandardOption[]> => {
+  const code = processCode ? processCode.trim().toUpperCase() : String(processId);
+  return getSessionCached(
+    epochKey(`products:${code}`),
     TTL_MS,
-    () => getProductStandardsByProcess(processId, processCode),
+    () => withOfflineSnapshot(`products:${code}`, () => getProductStandardsByProcess(processId, processCode)),
   );
+};
 
 export const getCachedDefects = (processId: number): Promise<DefectOptions> =>
   getSessionCached(
     epochKey(`defects:${processId}`),
     TTL_MS,
-    () => getDefectOptionsByProcess(processId),
+    () => withOfflineSnapshot(`defects:${processId}`, () => getDefectOptionsByProcess(processId)),
+  );
+
+export const getCachedDeductions = (processId: number): Promise<DeductionOptions> =>
+  getSessionCached(
+    epochKey(`deductions:${processId}`),
+    TTL_MS,
+    () => withOfflineSnapshot(`deductions:${processId}`, () => getDeductionOptionsByProcess(processId)),
   );
 
 export function prefetchProcessMasterData(processId: number): void {
@@ -47,6 +72,7 @@ export function prefetchProcessMasterData(processId: number): void {
     getCachedMachines(processId),
     getCachedProductStandards(processId),
     getCachedDefects(processId),
+    getCachedDeductions(processId),
   ]);
 }
 
@@ -66,6 +92,7 @@ export function clearMasterDataCache(processId?: number): void {
     clearSessionCache(epochKey(`machines:${processId}`));
     clearSessionCache(epochKey(`products:${processId}`));
     clearSessionCache(epochKey(`defects:${processId}`));
+    clearSessionCache(epochKey(`deductions:${processId}`));
     return;
   }
   clearSessionCache("master:");

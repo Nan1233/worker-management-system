@@ -618,3 +618,5 @@
   .worker-action-buttons { width: 100%; display: grid; grid-template-columns: minmax(96px,.7fr) minmax(0,1.3fr); }
   .worker-action-buttons > button { width: 100%; }
 }
+
+.worker-offline-banner{margin:0 0 12px;padding:10px 12px;border:1px solid var(--ktc-warning,#c58a16);border-radius:10px;background:var(--ktc-warning-bg,#fff7dc);color:var(--ktc-ink-800,#27364a);font-size:13px;font-weight:700;line-height:1.45}

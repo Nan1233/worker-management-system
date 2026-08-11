@@ -252,6 +252,20 @@ function formulaSettingsFor(payload, processCode) {
   return source[String(processCode || '').toUpperCase()] || source.GLOBAL || DEFAULT_SETTINGS;
 }
 
+function excelOperationTypeLabel(value) {
+  const text = asText(value).toUpperCase();
+  if (['CUT', 'CẮT', 'CAT'].includes(text)) return 'CẮT';
+  if (['NEST', 'NESTING', 'LỒNG', 'LONG'].includes(text)) return 'LỒNG';
+  return asText(value);
+}
+
+function excelOperationModeLabel(value) {
+  const text = asText(value).toUpperCase();
+  if (['MACHINE', 'MÁY', 'MAY'].includes(text)) return 'MÁY';
+  if (['MANUAL', 'TAY', 'THỦ CÔNG', 'THU CONG'].includes(text)) return 'TAY';
+  return asText(value);
+}
+
 function reportSnapshot(report, settings = {}) {
   const metrics = report.calculationSnapshot || calculateProductionMetrics(report, settings);
   return {
@@ -261,8 +275,8 @@ function reportSnapshot(report, settings = {}) {
     workerCode: asText(report.worker_code),
     workerName: asText(report.full_name),
     shift: asText(report.shift),
-    operationType: asText(report.operation_type),
-    operationMode: asText(report.operation_mode),
+    operationType: excelOperationTypeLabel(report.operation_type),
+    operationMode: excelOperationModeLabel(report.operation_mode),
     machine: machineDisplay(report),
     product: productDisplay(report),
     training: metrics.trainingFactor,

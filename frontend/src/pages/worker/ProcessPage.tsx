@@ -21,8 +21,6 @@ import "./ProcessPage.css";
 
 import {
     createTempReport,
-    getCompanyNetworkAccess,
-    getDeductionOptionsByProcess,
     updateTempReport,
 } from "../../services/productionService";
 
@@ -37,6 +35,7 @@ import type {
 import type { ProductionReport } from "../../types/production";
 import {
     getCachedDefects,
+    getCachedDeductions,
     getCachedMachines,
     getCachedProductStandards
 } from "../../services/masterDataCache";
@@ -81,7 +80,6 @@ import {
 import { processExtraFields } from "./processExtraFields";
 import ProcessExtraFieldsSection from "./components/ProcessExtraFieldsSection";
 import ProcessTimeDeductionSection from "./components/ProcessTimeDeductionSection";
-import ProcessNetworkGate from "./components/ProcessNetworkGate";
 import ProcessWorkerHeader from "./components/ProcessWorkerHeader";
 import ProcessQualitySection from "./components/ProcessQualitySection";
 import ProcessBasicInfoSection from "./components/ProcessBasicInfoSection";
@@ -536,66 +534,18 @@ const calculateActualOutput = (values: FormState): number =>
         setSubmitting
     ] = useState(false);
 
-    const [networkChecking, setNetworkChecking] = useState(true);
-    const [networkAllowed, setNetworkAllowed] = useState(false);
-    const [networkMessage, setNetworkMessage] = useState("Đang kiểm tra mạng công ty...");
-    const [clientIp, setClientIp] = useState("");
-
-    const checkCompanyNetwork = useCallback(async (): Promise<boolean> => {
-        try {
-            setNetworkChecking(true);
-            // Network access is identity/session cached for normal reads. A gate check must
-            // always bypass that cache, otherwise switching Wi-Fi can leave the old IP
-            // decision visible for up to five minutes.
-            const access = await getCompanyNetworkAccess(true);
-            const allowed = Boolean(access.allowed);
-            setNetworkAllowed(allowed);
-            setNetworkMessage(access.message || (allowed
-                ? "Thiết bị đang kết nối qua mạng công ty."
-                : "Vui lòng tắt 4G/5G và kết nối Wi-Fi KTC để nhập báo cáo."));
-            setClientIp(access.client_ip || "");
-            return allowed;
-        } catch (error: unknown) {
-            const { message } = getApiError(error, "Không thể kiểm tra mạng công ty");
-            setNetworkAllowed(false);
-            setNetworkMessage(message);
-            setClientIp("");
-            return false;
-        } finally {
-            setNetworkChecking(false);
-        }
-    }, []);
+    const [isOnline, setIsOnline] = useState(() => navigator.onLine);
 
     useEffect(() => {
-        void checkCompanyNetwork();
-    }, [checkCompanyNetwork]);
-
-    useEffect(() => {
-        let lastAutomaticCheckAt = 0;
-        const recheckIfNeeded = () => {
-            const now = Date.now();
-            if (now - lastAutomaticCheckAt < 800) return;
-            lastAutomaticCheckAt = now;
-            void checkCompanyNetwork();
-        };
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === "visible") recheckIfNeeded();
-        };
-
-        // Switching Wi-Fi/4G does not always emit `online` because both networks may be
-        // considered online. Focus + visibilitychange covers returning from iOS/Android
-        // Settings, while online handles a real offline -> online transition.
-        window.addEventListener("online", recheckIfNeeded);
-        window.addEventListener("focus", recheckIfNeeded);
-        document.addEventListener("visibilitychange", handleVisibilityChange);
-
+        const online = () => setIsOnline(true);
+        const offline = () => setIsOnline(false);
+        window.addEventListener("online", online);
+        window.addEventListener("offline", offline);
         return () => {
-            window.removeEventListener("online", recheckIfNeeded);
-            window.removeEventListener("focus", recheckIfNeeded);
-            document.removeEventListener("visibilitychange", handleVisibilityChange);
+            window.removeEventListener("online", online);
+            window.removeEventListener("offline", offline);
         };
-    }, [checkCompanyNetwork]);
-
+    }, []);
 
     // =====================================================
     // LẤY THÔNG TIN WORKER THEO USER ID
@@ -891,7 +841,7 @@ useEffect(() => {
                     getCachedMachines(processInfo.id),
                     getCachedProductStandards(processInfo.id, processCode),
                     getCachedDefects(processInfo.id),
-                    getDeductionOptionsByProcess(processInfo.id)
+                    getCachedDeductions(processInfo.id)
                 ]);
 
                 const machines = machinesResult.status === "fulfilled"
@@ -2057,12 +2007,19 @@ const updateDeductionValue = (
                 };
 
                 let response;
+                if (!navigator.onLine) {
+                    enqueueOfflineReport(payload);
+                    showToast("Đang mất mạng. Báo cáo đã được lưu trên thiết bị và sẽ tự gửi khi có Internet.", "warning");
+                    clientRequestIdRef.current = null;
+                    window.setTimeout(() => navigate("/worker", { replace: true }), 900);
+                    return;
+                }
                 try {
                     response = await createTempReport(payload);
                 } catch (error) {
-                    if (networkAllowed && isTransientNetworkFailure(error)) {
+                    if (isTransientNetworkFailure(error)) {
                         enqueueOfflineReport(payload);
-                        showToast("Mạng vừa bị gián đoạn. Báo cáo đã được lưu an toàn và sẽ tự gửi lại khi Wi-Fi KTC hoạt động.", "warning");
+                        showToast("Kết nối Internet bị gián đoạn. Báo cáo đã được lưu trên thiết bị và sẽ tự gửi lại khi có mạng.", "warning");
                         clientRequestIdRef.current = null;
                         window.setTimeout(() => navigate("/worker", { replace: true }), 900);
                         return;
@@ -2256,25 +2213,17 @@ window.setTimeout(() => {
         );
 
     };
-        if (networkChecking || !networkAllowed) {
-            return (
-                <ProcessNetworkGate
-                    checking={networkChecking}
-                    allowed={networkAllowed}
-                    message={networkMessage}
-                    clientIp={clientIp}
-                    onRetry={() => void checkCompanyNetwork()}
-                    onBack={() => navigate("/worker")}
-                />
-            );
-        }
-
         return (
 
         <main className="worker-form-page">
 
             <div className="worker-form-shell">
 
+                {!isOnline ? (
+                    <div className="worker-offline-banner" role="status">
+                        Đang ngoại tuyến · Bạn vẫn có thể nhập báo cáo. Dữ liệu sẽ lưu trên thiết bị và tự đồng bộ khi có Internet.
+                    </div>
+                ) : null}
 
                 <ProcessWorkerHeader
                     processTitle={processInfo.title}

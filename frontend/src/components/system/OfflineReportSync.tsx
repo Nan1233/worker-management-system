@@ -65,7 +65,7 @@ export default function OfflineReportSync() {
         <div className={`offline-sync ${blocked ? "offline-sync--warning" : ""}`} role="status" aria-live="polite">
             <button type="button" className="offline-sync__summary" onClick={() => setOpen(value => !value)} aria-expanded={open}>
                 <span className="offline-sync__dot" />
-                <span><strong>{items.length} báo cáo chưa đồng bộ</strong>{blocked ? ` · ${blocked} cần kiểm tra` : navigator.onLine ? " · hệ thống sẽ tự gửi lại" : " · đang mất mạng"}</span>
+                <span><strong>{items.length} báo cáo chưa đồng bộ</strong>{blocked ? ` · ${blocked} cần kiểm tra` : navigator.onLine ? " · sẽ tự gửi khi có Internet" : " · đang mất mạng"}</span>
                 <span aria-hidden="true">{open ? "▴" : "▾"}</span>
             </button>
             {open && <div className="offline-sync__panel">
