@@ -246,13 +246,40 @@ exports.createTempReport = async (req, res) => {
             });
         }
 
-        const factoryRuleValidation = await validateFactoryMachineRules({
-            processCode: machinePolicy.code,
-            processId,
-            machineLines: machineValidation.lines.length
-                ? machineValidation.lines
-                : (normalizedMachineNo ? [{ machine_code: normalizedMachineNo }] : [])
-        });
+        const validatedMachineLines = machineValidation.lines.length
+            ? machineValidation.lines
+            : (normalizedMachineNo ? [{ machine_code: normalizedMachineNo }] : []);
+        const firstMachineLine = machineValidation.lines[0] || null;
+
+        // Ba nhóm kiểm tra sau machine-line độc lập với nhau. Chạy song song để
+        // giảm round-trip tới TiDB Cloud trên đường lưu báo cáo.
+        const [factoryRuleValidation, machineCapacityValidation, masterValidation] = await Promise.all([
+            validateFactoryMachineRules({
+                processCode: machinePolicy.code,
+                processId,
+                machineLines: validatedMachineLines
+            }),
+            validateMachineWorkerCapacity({
+                processCode: machinePolicy.code,
+                processId,
+                machineLines: validatedMachineLines,
+                workerId,
+                workDate: req.body.work_date,
+                shift: req.body.shift
+            }),
+            validateMasterData({
+                workerId,
+                processId,
+                machineNo: firstMachineLine?.machine_code || validation.normalized.machine_no,
+                productName: firstMachineLine?.product_code || validation.normalized.product_name,
+                defects,
+                deductions,
+                ttOk: validation.normalized.tt_ok,
+                actualOutput: validation.normalized.actual_output,
+                allowEmptyMachine: operationMode === "MANUAL" || machinePolicy.mode === "MANUAL_ONLY"
+            })
+        ]);
+
         if (!factoryRuleValidation.valid) {
             return res.status(422).json({
                 success: false,
@@ -260,16 +287,6 @@ exports.createTempReport = async (req, res) => {
                 errors: factoryRuleValidation.errors
             });
         }
-        const machineCapacityValidation = await validateMachineWorkerCapacity({
-            processCode: machinePolicy.code,
-            processId,
-            machineLines: machineValidation.lines.length
-                ? machineValidation.lines
-                : (normalizedMachineNo ? [{ machine_code: normalizedMachineNo }] : []),
-            workerId,
-            workDate: req.body.work_date,
-            shift: req.body.shift
-        });
         if (!machineCapacityValidation.valid) {
             return res.status(422).json({
                 success: false,
@@ -277,42 +294,13 @@ exports.createTempReport = async (req, res) => {
                 errors: machineCapacityValidation.errors
             });
         }
-
-
-        // =================================================
-        // KIỂM TRA DANH MỤC MÁY, SẢN PHẨM, NG, TRỪ GIỜ
-        // =================================================
-
-        const firstMachineLine = machineValidation.lines[0] || null;
-        const masterValidation =
-            await validateMasterData({
-                workerId,
-                processId,
-
-                machineNo:
-                    firstMachineLine?.machine_code || validation.normalized.machine_no,
-
-                productName:
-                    firstMachineLine?.product_code || validation.normalized.product_name,
-
-                defects,
-                deductions,
-                ttOk: validation.normalized.tt_ok,
-                actualOutput: validation.normalized.actual_output,
-                allowEmptyMachine: operationMode === "MANUAL" || machinePolicy.mode === "MANUAL_ONLY"
-            });
-
-
         if (!masterValidation.valid) {
             return res.status(422).json({
                 success: false,
-                message:
-                    "Dữ liệu không khớp danh mục hệ thống",
-                errors:
-                    masterValidation.errors
+                message: "Dữ liệu không khớp danh mục hệ thống",
+                errors: masterValidation.errors
             });
         }
-
 
         const data = {
             ...validation.normalized,

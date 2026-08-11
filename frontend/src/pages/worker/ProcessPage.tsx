@@ -866,6 +866,9 @@ const calculateActualOutput = (values: FormState): number =>
 // =====================================================
 
 useEffect(() => {
+    let cancelled = false;
+    const requestedProcessId = Number(processInfo.id);
+    const requestedProcessCode = String(processCode).trim().toUpperCase();
 
     const loadMasterData =
         async () => {
@@ -897,8 +900,20 @@ useEffect(() => {
                     ? productsResult.value
                     : [];
 
-                setMachineOptions(machines);
-                setProductOptions(products);
+                if (cancelled) return;
+
+                // Chặn response cũ ghi đè master-data khi người dùng chuyển công đoạn nhanh.
+                // Đồng thời lọc phòng thủ ngay tại boundary trước khi đưa dữ liệu vào UI.
+                const safeMachines = machines.filter((machine) => Number(machine.process_id) === requestedProcessId);
+                const safeProducts = products.filter((product) => {
+                    const returnedCode = String(product.process_code || "").trim().toUpperCase();
+                    return returnedCode
+                        ? returnedCode === requestedProcessCode
+                        : Number(product.process_id) === requestedProcessId;
+                });
+
+                setMachineOptions(safeMachines);
+                setProductOptions(safeProducts);
 
                 if (defectsResult.status === "fulfilled") {
                     setActiveNgOptions(
@@ -933,11 +948,11 @@ useEffect(() => {
                     console.error("LOAD PRODUCT STANDARDS ERROR:", productsResult.reason);
                 }
 
-                if (machines.length === 0 || products.length === 0) {
+                if (safeMachines.length === 0 || safeProducts.length === 0) {
                     showToast(
-                        machines.length === 0 && products.length === 0
+                        safeMachines.length === 0 && safeProducts.length === 0
                             ? "Không tìm thấy máy và sản phẩm cho công đoạn này"
-                            : machines.length === 0
+                            : safeMachines.length === 0
                                 ? "Không tìm thấy máy cho công đoạn này"
                                 : "Không tìm thấy sản phẩm cho công đoạn này"
                     );
@@ -980,7 +995,7 @@ useEffect(() => {
             }
             finally {
 
-                setLoadingMasterData(
+                if (!cancelled) setLoadingMasterData(
                     false
                 );
 
@@ -991,7 +1006,11 @@ useEffect(() => {
 
     void loadMasterData();
 
-}, [processInfo.id, showToast]);
+    return () => {
+        cancelled = true;
+    };
+
+}, [processInfo.id, processCode, showToast]);
 
     // =====================================================
     // CHỈ CHO PHÉP NHẬP SỐ NGUYÊN
