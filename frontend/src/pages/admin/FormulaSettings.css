@@ -10,3 +10,84 @@
 .formula-table th{color:var(--ktc-ink-600)}
 .formula-actions .secondary{background:var(--ktc-surface);color:var(--ktc-ink-800);border-color:var(--ktc-border-strong)}
 @media(max-width:800px){.formula-period-card{grid-template-columns:1fr}.formula-period-grid{grid-template-columns:1fr}}
+
+/* KTC 2026-08-11: keep threshold colour visible inside number controls.
+   The generic form-control rule above used var(--ktc-surface), which made
+   every threshold input look white and visually hid the semantic colour. */
+.threshold {
+  --threshold-card-bg: var(--ktc-surface);
+  --threshold-input-bg: var(--ktc-surface);
+  --threshold-accent: var(--ktc-border-strong);
+}
+.threshold.red {
+  --threshold-card-bg: #fff0f1;
+  --threshold-input-bg: #fff7f7;
+  --threshold-accent: #f04438;
+  background: var(--threshold-card-bg) !important;
+}
+.threshold.orange {
+  --threshold-card-bg: #fff6e8;
+  --threshold-input-bg: #fffaf2;
+  --threshold-accent: #f79009;
+  background: var(--threshold-card-bg) !important;
+}
+.threshold.yellow {
+  --threshold-card-bg: #fff9db;
+  --threshold-input-bg: #fffceb;
+  --threshold-accent: #fdb022;
+  background: var(--threshold-card-bg) !important;
+}
+.threshold.green {
+  --threshold-card-bg: #effbf3;
+  --threshold-input-bg: #f6fcf8;
+  --threshold-accent: #12b76a;
+  background: var(--threshold-card-bg) !important;
+}
+.threshold.blue {
+  --threshold-card-bg: #eff8ff;
+  --threshold-input-bg: #f6fbff;
+  --threshold-accent: var(--ktc-brand-500);
+  background: var(--threshold-card-bg) !important;
+}
+.threshold input,
+.threshold input:disabled,
+.threshold input:hover,
+.threshold input:focus {
+  background: var(--threshold-input-bg) !important;
+  border-color: color-mix(in srgb, var(--threshold-accent) 42%, var(--ktc-border-strong)) !important;
+  color: var(--ktc-ink-900) !important;
+  -webkit-text-fill-color: var(--ktc-ink-900) !important;
+  opacity: 1;
+}
+.threshold input:focus {
+  outline: 0;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--threshold-accent) 16%, transparent) !important;
+}
+
+html[data-theme="dark"] .threshold.red {
+  --threshold-card-bg: #3d2025;
+  --threshold-input-bg: #49262c;
+}
+html[data-theme="dark"] .threshold.orange {
+  --threshold-card-bg: #3b2b18;
+  --threshold-input-bg: #46331d;
+}
+html[data-theme="dark"] .threshold.yellow {
+  --threshold-card-bg: #3a3418;
+  --threshold-input-bg: #453e1d;
+}
+html[data-theme="dark"] .threshold.green {
+  --threshold-card-bg: #17372b;
+  --threshold-input-bg: #1c4435;
+}
+html[data-theme="dark"] .threshold.blue {
+  --threshold-card-bg: #173147;
+  --threshold-input-bg: #1c3b56;
+}
+html[data-theme="dark"] .threshold input,
+html[data-theme="dark"] .threshold input:disabled,
+html[data-theme="dark"] .threshold input:hover,
+html[data-theme="dark"] .threshold input:focus {
+  color: var(--ktc-ink-900) !important;
+  -webkit-text-fill-color: var(--ktc-ink-900) !important;
+}
