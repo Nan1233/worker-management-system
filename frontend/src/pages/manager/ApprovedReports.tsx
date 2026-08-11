@@ -133,6 +133,7 @@ export default function ApprovedReports() {
     const [loading, setLoading] = useState(true);
     const [exporting, setExporting] = useState(false);
     const [excelDbSyncing, setExcelDbSyncing] = useState(false);
+    const [excelDbBaselineMonth, setExcelDbBaselineMonth] = useState(() => sessionStorage.getItem("ktc:excel-db-baseline-month") || "");
     const [excelDbPreview, setExcelDbPreview] = useState<DesktopExcelDbSyncPreview | null>(null);
     const [error, setError] = useState("");
     const [searchKeyword, setSearchKeyword] = useState("");
@@ -296,7 +297,10 @@ export default function ApprovedReports() {
             setExporting(true);
             const result = await exportSelectedApprovedExcel(`${excelMonth}-01`);
             if (result?.success) {
-                showToast(result.message || `Đã cập nhật Excel toàn bộ báo cáo đã duyệt tháng ${excelMonth}.`);
+                sessionStorage.setItem("ktc:excel-db-baseline-month", excelMonth);
+                setExcelDbBaselineMonth(excelMonth);
+                setExcelDbPreview(null);
+                showToast(result.message || `Bước 1 hoàn tất: Excel đã được cập nhật từ DB tháng ${excelMonth}. Bây giờ có thể sửa Excel rồi dùng Bước 2 để cập nhật lại DB.`);
             }
         } catch (err: unknown) {
             console.error("EXPORT APPROVED EXCEL ERROR:", err);
@@ -328,6 +332,10 @@ export default function ApprovedReports() {
 
     const handlePreviewExcelDbSync = async () => {
         if (excelDbSyncing || !excelMonth) return;
+        if (excelDbBaselineMonth !== excelMonth) {
+            showToast(`Hãy thực hiện Bước 1: Cập nhật Excel từ DB cho tháng ${excelMonth} trước khi cập nhật DB từ Excel.`, "warning");
+            return;
+        }
         if (!window.ktcDesktop?.isDesktop || typeof window.ktcDesktop.previewExcelDbSync !== "function") {
             showToast("Cập nhật DB từ Excel chỉ khả dụng trên ứng dụng Desktop.", "warning");
             return;
@@ -364,6 +372,10 @@ export default function ApprovedReports() {
             setExcelDbSyncing(true);
             const result = await window.ktcDesktop.applyExcelDbSync(token, excelMonth);
             setExcelDbPreview(null);
+            if (result.failed === 0) {
+                sessionStorage.setItem("ktc:excel-db-baseline-month", excelMonth);
+                setExcelDbBaselineMonth(excelMonth);
+            }
             if (result.failed > 0) {
                 showToast(`Excel → DB: ${result.succeeded} dòng thành công, ${result.failed} dòng cần kiểm tra.`, "warning");
             } else {
@@ -515,7 +527,7 @@ export default function ApprovedReports() {
                             onClick={() => void handleExportExcel()}
                             disabled={loading || exporting || !excelMonth}
                         >
-                            {exporting ? "Đang cập nhật Excel..." : `Cập nhật Excel ${excelMonth || "theo tháng"}`}
+                            {exporting ? "Đang cập nhật Excel từ DB..." : `1. Cập nhật Excel từ DB · ${excelMonth || "theo tháng"}`}
                         </button>
                     )}
                     {canExcelDbSync && window.ktcDesktop?.isDesktop && (
@@ -523,10 +535,12 @@ export default function ApprovedReports() {
                             type="button"
                             className="management-db-sync-button"
                             onClick={() => void handlePreviewExcelDbSync()}
-                            disabled={loading || exporting || excelDbSyncing || !excelMonth}
-                            title="Đọc các ô đã sửa trong Excel, xem trước thay đổi rồi cập nhật DB"
+                            disabled={loading || exporting || excelDbSyncing || !excelMonth || excelDbBaselineMonth !== excelMonth}
+                            title={excelDbBaselineMonth === excelMonth
+                                ? "Bước 2: đọc các ô đã sửa trong Excel, xem trước thay đổi rồi cập nhật DB"
+                                : `Cần hoàn tất Bước 1: Cập nhật Excel từ DB cho tháng ${excelMonth} trước`}
                         >
-                            {excelDbSyncing ? "Đang kiểm tra Excel..." : "Cập nhật DB từ Excel"}
+                            {excelDbSyncing ? "Đang kiểm tra Excel..." : "2. Cập nhật DB từ Excel"}
                         </button>
                     )}
                 </div>
