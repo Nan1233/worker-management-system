@@ -1,4 +1,5 @@
 const ExcelJS = require('exceljs');
+const { EXCEL_SYNC_CONTRACT_VERSION, isExcelMutableField } = require('../../shared/excelSyncContract.cjs');
 const path = require('node:path');
 
 const asText = (value) => {
@@ -117,6 +118,11 @@ function parseMeta(workbook) {
   let config;
   try { config = JSON.parse(String(metaSheet.getCell('A1').value || '')); } catch { return null; }
   if (!config?.sheetName || !Array.isArray(config?.columns)) return null;
+  if (String(config.version || '') !== EXCEL_SYNC_CONTRACT_VERSION) {
+    const error = new Error('File Excel đang dùng contract cũ. Hãy chạy Bước 1: Cập nhật Excel từ DB trước khi cập nhật DB từ Excel.');
+    error.code = 'EXCEL_SYNC_CONTRACT_OUTDATED';
+    throw error;
+  }
   const reports = new Map();
   for (let row = 3; row <= metaSheet.rowCount; row += 1) {
     const id = Number(metaSheet.getCell(row, 1).value);
@@ -271,6 +277,7 @@ async function readExcelChanges(filePath) {
       actual_time: 'TG thực tế', tt_ok: 'SL OK', note: 'Ghi chú', deductions: 'Trừ giờ', defects: 'NG chi tiết'
     };
     for (const [key, afterRaw] of Object.entries(candidate)) {
+      if (!isExcelMutableField(key)) continue;
       const beforeRaw = original[key];
       const before = fieldValue(key, beforeRaw);
       const after = fieldValue(key, afterRaw);

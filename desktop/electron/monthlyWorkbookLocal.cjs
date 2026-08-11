@@ -1,5 +1,6 @@
 const ExcelJS = require('exceljs');
 const { calculateProductionMetrics, DEFAULT_SETTINGS, trainingFactor, calculateNg } = require('./productionCalculationEngine.cjs');
+const { EXCEL_SYNC_CONTRACT_VERSION } = require('../../shared/excelSyncContract.cjs');
 
 const PROCESS_SHEETS = Object.freeze({
   CAN: { sheet: 'CÁN', title: 'CÁN', deductionGroup: 'CHI TIẾT THỜI GIAN TRỪ', defectGroup: 'CHI TIẾT NG' },
@@ -117,6 +118,8 @@ const PROCESS_TEMPLATE_SCHEMAS = Object.freeze({
     defects: ['Thiếu Slitring 1','Khe hở Slitring 1 lớn','Lắp 2 Slitring 1','Thiếu Washer','Thiếu Slitring & Washer','Lắp 2 Slitring & 2 Washer','Cao su lệch vị trí or đảo','Cao su bị rách, xước','Thiếu Slitring 2','Khe hở Slitring 2 lớn','Lắp 2 Slitring 2','Bushing xước, biến dạng, GÃY','Thiếu Bushing','Lắp 2 Bushing','Ngược Bushing','Thiếu Slitring 2 & Bushing','Slitring 2 không vào vấu','Lắp 2 lò xo','Thiếu Gear','Gear lắp quá tiêu chuẩn QAFC','Lực p/hủy Gear ngoài t/chuẩn','Gear dính bẩn','Lắp 2 Gear','Mẻ Gear','Thiếu Gear & Lò xo','Slitring mắc vào lò xo','Cong, Xước trục roller or Trục roller biến dạng','BẨN SLITRING','Bushing có vết bẩn','Kẹt bushing','RP']
   }
 });
+
+const EXCEL_CONTRACT_VERSION = EXCEL_SYNC_CONTRACT_VERSION;
 
 // KTC Excel color contract: bám hệ màu file tháng 07/2026.
 // Tất cả mã màu được quản lý tập trung tại đây; không rải mã màu trực tiếp trong code.
@@ -1087,7 +1090,7 @@ function addExcelDbSyncMetadata(workbook, code, processConfig, processData, year
   const sheet = workbook.addWorksheet('_KTC_SYNC');
   sheet.state = 'veryHidden';
   sheet.getCell('A1').value = JSON.stringify({
-    version: 1,
+    version: EXCEL_SYNC_CONTRACT_VERSION,
     processCode: code,
     sheetName: processConfig.sheet,
     generatedAt: new Date().toISOString(),
@@ -1247,6 +1250,7 @@ module.exports = {
   buildReconciliationWorkbook,
   PROCESS_SHEETS,
   PROCESS_FILE_PREFIXES,
+  EXCEL_CONTRACT_VERSION,
   processWorkbookFileName,
   summaryWorkbookFileName,
   _private: {
@@ -1261,6 +1265,7 @@ module.exports = {
     trainingFactor,
     countedNg,
     reportTimeKey,
-    applyAllBorders
+    applyAllBorders,
+    COLORS
   }
 };

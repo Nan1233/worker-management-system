@@ -4,6 +4,7 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 const ExcelJS = require('exceljs');
 const { buildSplitMonthlyWorkbooksLocal, PROCESS_SHEETS, PROCESS_FILE_PREFIXES } = require('../electron/monthlyWorkbookLocal.cjs');
+const { EXCEL_SYNC_CONTRACT_VERSION } = require('../../shared/excelSyncContract.cjs');
 
 function pad2(value) {
   return String(value).padStart(2, '0');
@@ -41,7 +42,7 @@ function report(overrides = {}) {
   return {
     id: 1, dataSource: 'production_reports', isApprovedDatabaseRecord: true,
     work_date: '2026-08-01', entry_date: '2026-08-02', created_at: '2026-08-02T08:00:00.000Z', approved_at: '2026-08-02T09:00:00.000Z',
-    worker_code: '599', full_name: 'Nguyễn Văn Kiểm tra', shift: 'A', machine_no: 'M-01', product_name: 'QC5-1657',
+    worker_code: '599', full_name: 'Nguyễn Văn Kiểm tra', shift: 'A', operation_type: 'NEST', operation_mode: 'MANUAL', machine_no: 'M-01', product_name: 'QC5-1657',
     training_percent: 100, standard_output: 10, total_time: 8, actual_time: 7.5, deduction_time: 0.5,
     tt_ok: 45, tt_ng: 2, actual_output: 47, exclude_kqd_from_tt: 1, status: 'approved', note: 'Smoke test',
     deductions: [{ deduction_type_id: 1, deduction_type_code: '5S', hours: 0.5 }],
@@ -112,6 +113,17 @@ const payload = {
       const syncSheet = processWorkbook.getWorksheet('_KTC_SYNC');
       assert.ok(syncSheet, code + ' phải có sheet metadata _KTC_SYNC');
       assert.equal(syncSheet.state, 'veryHidden', code + ': _KTC_SYNC phải ở trạng thái veryHidden');
+      const syncConfig = JSON.parse(String(syncSheet.getCell('A1').value || '{}'));
+      assert.equal(syncConfig.version, EXCEL_SYNC_CONTRACT_VERSION, code + ': workbook phải dùng đúng Excel sync contract version');
+      if (code === 'GC') {
+        const helper = processWorkbook.getWorksheet('TAY MÁY CẮT LỒNG');
+        for (let row = 4; row <= helper.rowCount; row += 1) {
+          const sourceRow = Number(helper.getCell(row, 1).value);
+          if (!Number.isFinite(sourceRow) || sourceRow <= 0) continue;
+          assert.ok(Number.isInteger(sourceRow), 'Helper GC chỉ được chứa dòng nguồn dữ liệu thật');
+          assert.notEqual(String(helper.getCell(row, 3).value || '').trim().toUpperCase(), 'TỔNG CỘNG', 'Helper GC không được kéo dòng TỔNG CỘNG');
+        }
+      }
     }
 
     const workbook = new ExcelJS.Workbook();
@@ -136,6 +148,8 @@ const payload = {
     assert.equal(headerRow.indexOf('Ngày báo cáo'), -1, 'Không được lặp ngày báo cáo trên từng dòng dữ liệu');
     assert.ok(headerRow.indexOf('Thời gian nhập') > 0, 'Phải có cột Thời gian nhập');
 
+    const operationTypeCol = headerRow.indexOf('Loại thao tác');
+    const operationModeCol = headerRow.indexOf('Chế độ');
     const trainingCol = headerRow.indexOf('% học việc');
     const standardCol = headerRow.indexOf('Định mức');
     const totalTimeCol = headerRow.indexOf('Tổng thời gian');
@@ -148,12 +162,14 @@ const payload = {
     const outputPerHourCol = headerRow.indexOf('SP/giờ');
     const ngRateCol = headerRow.indexOf('Tỷ lệ NG');
 
+    assert.equal(sheet.getCell(7, operationTypeCol).value, 'LỒNG', 'Excel phải hiển thị Loại thao tác bằng tiếng Việt');
+    assert.equal(sheet.getCell(7, operationModeCol).value, 'TAY', 'Excel phải hiển thị Chế độ bằng tiếng Việt');
     assert.equal(sheet.getCell(7, trainingCol).value, 0, '0% học việc không được đổi thành 100%');
     assert.equal(sheet.getCell(7, outputCol).value, 0, 'SP quy đổi phải dùng cùng quy tắc học việc');
     assert.equal(Number(sheet.getCell(7, ngRateCol).value.toFixed(8)), Number((2 / 47).toFixed(8)), 'Tỷ lệ NG phải là Tổng NG/(OK+NG), KQD vẫn thuộc tổng NG chất lượng');
 
     // Tổng SP quy đổi phải cộng toàn bộ dòng dữ liệu trong kỳ.
-    // hợp lệ theo đúng thứ tự báo cáo đã render. GC có 0 + 47 + 47, kết quả phải là 47, không phải 94.
+    // GC có 0 + 47 + 47 nên tổng phải là 94; không được lấy giá trị dòng cuối.
     assert.equal(sheet.getCell(11, outputCol).value, 94, 'TỔNG CỘNG - Tổng SP quy đổi phải cộng toàn bộ dòng');
 
     // File 00 giữ phần tổng hợp và đối chiếu chung; không nhét lại 9 sheet công đoạn.

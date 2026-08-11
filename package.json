@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "install:all": "npm --prefix backend install && npm --prefix frontend install && npm --prefix desktop install",
-    "verify": "npm --prefix backend run verify && npm --prefix frontend run check && npm --prefix desktop run check && npm --prefix desktop run smoke:excel",
+    "verify": "npm run verify:excel-contract && npm --prefix backend run verify && npm --prefix frontend run check && npm --prefix desktop run check && npm --prefix desktop run smoke:excel",
     "build:web": "npm --prefix frontend run build",
     "build:exe": "npm --prefix desktop run dist:win",
     "validate:real-data": "npm --prefix backend run validate:real-data",
@@ -22,6 +22,7 @@
     "android:sync": "npm --prefix frontend run android:sync",
     "android:open": "npm --prefix frontend run android:open",
     "build:android": "npm --prefix frontend run android:apk:debug",
-    "build:android:aab": "npm --prefix frontend run android:aab:release"
+    "build:android:aab": "npm --prefix frontend run android:aab:release",
+    "verify:excel-contract": "node scripts/excelStabilityContract.cjs"
   }
 }

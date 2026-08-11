@@ -1,13 +1,10 @@
 const { updateApprovedReport } = require('../services/approvedReportEditService');
 const { createApprovedReportFromExcel } = require('../services/approvedReportExcelCreateService');
 const { envEnabled } = require('../utils/featureFlags');
+const { sanitizeExcelPatch } = require('../../shared/excelSyncContract.cjs');
 
 function cleanPatch(input = {}) {
-  const allowed = new Set([
-    'machine_no','product_name','note','shift','work_date','operation_type','operation_mode','training_percent','actual_time',
-    'tt_ok','defects','deductions'
-  ]);
-  return Object.fromEntries(Object.entries(input || {}).filter(([key]) => allowed.has(key)));
+  return sanitizeExcelPatch(input);
 }
 
 exports.syncExcelEdits = async (req, res) => {
