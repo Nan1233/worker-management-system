@@ -180,22 +180,23 @@ function mergeEditableDetails(current, columns, prefix, originalItems, idField, 
 
 function normalizeEditable(current, columns, operationMode, original = {}) {
   const trainingRaw = asNumber(current.training);
-  const patch = {
+  // Excel Import/Sync phải so sánh cùng một contract field cho cả TAY và MÁY.
+  // Trước đây MACHINE return sớm nên thay đổi SL OK / TG thực tế / SP / NG / trừ giờ
+  // không bao giờ được phát hiện và Import Center báo sai "không có thay đổi".
+  return {
     work_date: excelDateToIso(current.workDate),
+    shift: asText(current.shift),
     operation_type: normalizeOperationType(current.operationType),
-    operation_mode: normalizeOperationMode(current.operationMode),
+    operation_mode: normalizeOperationMode(current.operationMode) || operationMode || null,
+    machine_no: asText(current.machine) || null,
+    product_name: asText(current.product) || null,
     training_percent: trainingRaw >= 0 && trainingRaw <= 1 ? trainingRaw * 100 : trainingRaw,
-    note: asText(current.note)
+    actual_time: asNumber(current.actualTime),
+    tt_ok: asInteger(current.ok),
+    note: asText(current.note),
+    deductions: mergeEditableDetails(current, columns, 'deduction:', original.deductions, 'deduction_type_id', 'hours', false),
+    defects: mergeEditableDetails(current, columns, 'defect:', original.defects, 'defect_type_id', 'quantity', true)
   };
-  if (operationMode === 'MACHINE') return patch;
-  patch.shift = asText(current.shift);
-  patch.machine_no = asText(current.machine) || null;
-  patch.product_name = asText(current.product) || null;
-  patch.actual_time = asNumber(current.actualTime);
-  patch.tt_ok = asInteger(current.ok);
-  patch.deductions = mergeEditableDetails(current, columns, 'deduction:', original.deductions, 'deduction_type_id', 'hours', false);
-  patch.defects = mergeEditableDetails(current, columns, 'defect:', original.defects, 'defect_type_id', 'quantity', true);
-  return patch;
 }
 
 function comparable(patch) {
@@ -249,22 +250,22 @@ async function readExcelChanges(filePath) {
     if (helperItem?.operationType) current.operationType = helperDisplayType(helperItem.operationType);
     if (helperItem?.operationMode) current.operationMode = helperDisplayMode(helperItem.operationMode);
     if (helperItem?.machine) current.machine = helperItem.machine;
-    const original = reportMeta.operationMode === 'MACHINE'
-      ? { work_date: rowDate.get(row) || null, operation_type: normalizeOperationType(reportMeta.original.operation_type), operation_mode: normalizeOperationMode(reportMeta.original.operation_mode), training_percent: Number(reportMeta.original.training_percent ?? 100), note: asText(reportMeta.original.note) }
-      : {
-          work_date: rowDate.get(row) || null,
-          shift: asText(reportMeta.original.shift),
-          operation_type: normalizeOperationType(reportMeta.original.operation_type),
-          operation_mode: normalizeOperationMode(reportMeta.original.operation_mode),
-          machine_no: asText(reportMeta.original.machine_no) || null,
-          product_name: asText(reportMeta.original.product_name) || null,
-          training_percent: Number(reportMeta.original.training_percent ?? 100),
-          actual_time: asNumber(reportMeta.original.actual_time),
-          tt_ok: asInteger(reportMeta.original.tt_ok),
-          note: asText(reportMeta.original.note),
-          deductions: normalizeDetailList(reportMeta.original.deductions, 'deduction_type_id', 'hours', false),
-          defects: normalizeDetailList(reportMeta.original.defects, 'defect_type_id', 'quantity', true)
-        };
+    // Dùng cùng snapshot gốc cho mọi operation mode. Máy vẫn có các field tổng hợp
+    // (SL OK, TG thực tế, NG, trừ giờ...) cần được phát hiện khi manager sửa Excel.
+    const original = {
+      work_date: rowDate.get(row) || null,
+      shift: asText(reportMeta.original.shift),
+      operation_type: normalizeOperationType(reportMeta.original.operation_type),
+      operation_mode: normalizeOperationMode(reportMeta.original.operation_mode),
+      machine_no: asText(reportMeta.original.machine_no) || null,
+      product_name: asText(reportMeta.original.product_name) || null,
+      training_percent: Number(reportMeta.original.training_percent ?? 100),
+      actual_time: asNumber(reportMeta.original.actual_time),
+      tt_ok: asInteger(reportMeta.original.tt_ok),
+      note: asText(reportMeta.original.note),
+      deductions: normalizeDetailList(reportMeta.original.deductions, 'deduction_type_id', 'hours', false),
+      defects: normalizeDetailList(reportMeta.original.defects, 'defect_type_id', 'quantity', true)
+    };
     if (gcHelper) {
       helperDirty = upsertGcHelperRow(gcHelper, { sourceRow: row, reportId: id, workerCode: asText(current.workerCode), shift: asText(current.shift || original.shift), product: asText(current.product || original.product_name), operationType: normalizeOperationType(current.operationType) || normalizeOperationType(original.operation_type), operationMode: normalizeOperationMode(current.operationMode) || normalizeOperationMode(original.operation_mode), machine: asText(current.machine || original.machine_no) || null }) || helperDirty;
     }

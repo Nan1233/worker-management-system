@@ -20,6 +20,9 @@ if(!/if \(!preview\.length\) continue/.test(sync)) throw new Error('Preview ph�
 if(!/changedPatch/.test(sync) || !/patch: changedPatch/.test(sync)) throw new Error('Excel sync phải chỉ gửi field thực sự thay đổi');
 if(!/stableValue/.test(sync)) throw new Error('Thiếu canonical deep comparison chống false diff do thứ tự key');
 
+if (/operationMode === 'MACHINE'\) return patch/.test(sync)) throw new Error('Import Center không được bỏ qua field editable của báo cáo Máy');
+if (!/Máy vẫn có các field tổng hợp/.test(sync)) throw new Error('Thiếu regression guard phát hiện diff SL OK\/TG thực tế cho báo cáo Máy');
+
 if(!/TAY MÁY CẮT LỒNG/.test(workbook)) throw new Error('Thiếu sheet phụ TAY MÁY CẮT LỒNG');
 if(!/STT số nguyên dương/.test(workbook) || !/STT số nguyên dương/.test(sync)) throw new Error('Thiếu guard bỏ qua dòng ngày/TỔNG CỘNG khi sync Excel');
 if(!/parseGcHelperSheet/.test(sync) || !/gcMissingFields/.test(sync)) throw new Error('Excel sync chưa đọc/validate metadata Cắt-Lồng từ sheet phụ');
