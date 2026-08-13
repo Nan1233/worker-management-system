@@ -11,6 +11,26 @@ function sha256(text) {
   return crypto.createHash('sha256').update(text).digest('hex');
 }
 
+function normalizeMigrationText(text) {
+  return String(text).replace(/\r\n?/g, '\n');
+}
+
+function migrationChecksum(text) {
+  return sha256(normalizeMigrationText(text));
+}
+
+function getCompatibleMigrationChecksums(text) {
+  const raw = String(text);
+  const normalized = normalizeMigrationText(raw);
+  const variants = new Set([
+    raw,
+    normalized,
+    normalized.replace(/\n/g, '\r\n'),
+    normalized.replace(/\n/g, '\r'),
+  ]);
+  return Object.freeze([...variants].map(sha256));
+}
+
 function migrationVersion(filename) {
   const match = String(filename || '').match(/^(\d+)_/);
   if (!match) return null;
@@ -32,7 +52,8 @@ function getMigrationManifestSync({ migrationsDir = DEFAULT_MIGRATIONS_DIR } = {
     return Object.freeze({
       version: migrationVersion(filename),
       filename,
-      checksum: sha256(content),
+      checksum: migrationChecksum(content),
+      compatibleChecksums: getCompatibleMigrationChecksums(content),
     });
   });
 
@@ -63,6 +84,9 @@ module.exports = {
   MIGRATION_FILE_PATTERN,
   DEFAULT_MIGRATIONS_DIR,
   sha256,
+  normalizeMigrationText,
+  migrationChecksum,
+  getCompatibleMigrationChecksums,
   migrationVersion,
   sortMigrationFilenames,
   getMigrationManifestSync,

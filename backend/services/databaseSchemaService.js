@@ -71,7 +71,7 @@ function analyzeMigrationState(expectedManifest, actualRows) {
   for (const entry of expected) {
     const applied = actualByFilename.get(entry.filename);
     if (!applied) missing.push(entry);
-    else if (applied.checksum !== entry.checksum) {
+    else if (!(entry.compatibleChecksums || [entry.checksum]).includes(applied.checksum)) {
       checksumMismatches.push({
         filename: entry.filename,
         version: entry.version,

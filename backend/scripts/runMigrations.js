@@ -129,7 +129,7 @@ async function run() {
     const rows = appliedRows.filter((row) => row.migration_id === file);
 
     if (rows[0]) {
-      if (rows[0].checksum !== digest) {
+      if (!(entry.compatibleChecksums || [digest]).includes(rows[0].checksum)) {
         const error = new Error(`Migration đã chạy nhưng checksum thay đổi: ${file}`);
         error.code = 'MIGRATION_CHECKSUM_MISMATCH';
         throw error;
