@@ -62,10 +62,19 @@ async function main() {
   };
 
   console.log(`[KTC] Restore rehearsal target: ${rehearsal.host}:${rehearsal.port}/${rehearsal.name}`);
-  await runNode(path.join(__dirname, 'restoreDatabaseBackup.js'), ['--file', file, '--confirm', 'KTC_RESTORE', '--replace'], env);
-  await runNode(path.join(__dirname, 'checkDatabaseIntegrity.js'), [], env);
-  await runNode(path.join(__dirname, 'validateRealProductionData.js'), [], { ...env, KTC_E2E_SAMPLE_LIMIT: process.env.KTC_E2E_SAMPLE_LIMIT || '500' });
-  console.log('[KTC] Restore rehearsal PASS: restore + integrity + real-data validation completed on staging DB.');
+  const targetName = `${rehearsal.name}_restore_${Date.now()}`.replace(/[^A-Za-z0-9_]/g, '_');
+  const restoreEnv = {
+    ...process.env,
+    KTC_RESTORE_DB_HOST: rehearsal.host,
+    KTC_RESTORE_DB_PORT: rehearsal.port,
+    KTC_RESTORE_DB_USER: rehearsal.user,
+    KTC_RESTORE_DB_PASSWORD: rehearsal.password,
+    KTC_RESTORE_DB_SSL: rehearsal.ssl,
+    KTC_RESTORE_TARGET_DB: targetName,
+    KTC_RESTORE_ENV_CLASS: 'STAGING'
+  };
+  await runNode(path.join(__dirname, 'restoreDatabaseBackup.js'), ['--file', file, '--target-db', targetName, '--env-class', 'STAGING', '--confirm', 'KTC_DISASTER_RESTORE_STAGE'], restoreEnv);
+  console.log(`[KTC] Restore rehearsal PASS: staged restore verified at ${rehearsal.host}:${rehearsal.port}/${targetName}; no cutover performed.`);
 }
 
 main().catch((error) => {

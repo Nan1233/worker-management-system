@@ -37,12 +37,13 @@ exports.resolveProductStandard = async (req, res) => {
     const processId = Number(req.query.process_id);
     const machineCode = String(req.query.machine_code || '').trim();
     const productCode = String(req.query.product_code || '').trim();
+    const workDate = String(req.query.work_date || '').trim();
 
-    if (!Number.isInteger(processId) || processId <= 0 || !machineCode || !productCode) {
-      return res.status(400).json({ success: false, message: 'Thiếu process_id, machine_code hoặc product_code' });
+    if (!Number.isInteger(processId) || processId <= 0 || !productCode || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
+      return res.status(400).json({ success: false, message: 'Thiếu process_id, product_code hoặc work_date hợp lệ' });
     }
 
-    const data = await productStandardModel.resolveByMachineAndProduct(processId, machineCode, productCode);
+    const data = await productStandardModel.resolveByMachineAndProduct(processId, machineCode, productCode, workDate);
     if (!data) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy định mức cho máy và sản phẩm đã chọn' });
     }
@@ -62,6 +63,6 @@ exports.resolveProductStandard = async (req, res) => {
     });
   } catch (error) {
     console.error('RESOLVE PRODUCT STANDARD ERROR:', error);
-    return res.status(500).json({ success: false, message: 'Không thể tra định mức theo máy và sản phẩm' });
+    return res.status(error.status || 500).json({ success: false, code: error.code || undefined, message: error.isPublic ? error.message : 'Không thể tra định mức theo máy và sản phẩm' });
   }
 };

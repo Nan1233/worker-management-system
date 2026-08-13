@@ -44,25 +44,34 @@ const loadMonthReports = async (yearMonth) => {
         `SELECT
             pr.*,
             w.worker_code,
-            w.training_percent,
+            pr.training_percent_snapshot AS training_percent,
             w.position,
             w.department,
             u.full_name,
             p.process_name,
-            COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt
+            pr.exclude_kqd_from_tt_snapshot,
+            pr.exclude_kqd_from_tt_snapshot AS exclude_kqd_from_tt
          FROM production_reports AS pr
          INNER JOIN workers AS w ON w.id = pr.worker_id
          INNER JOIN users AS u ON u.id = w.user_id
          LEFT JOIN processes AS p ON p.id = pr.process_id
-         LEFT JOIN product_standards AS ps ON ps.process_id = pr.process_id
-          AND ps.product_code = pr.product_name
-          AND ps.status = 'active'
          WHERE LOWER(TRIM(COALESCE(pr.status, ''))) = 'approved'
            AND pr.work_date >= ?
            AND pr.work_date < ?
          ORDER BY pr.work_date, w.worker_code, pr.machine_no, pr.created_at, pr.id`,
         [start, next]
     );
+
+    for (const report of reports) {
+        const isMachineReport = String(report.operation_mode || '').toUpperCase() === 'MACHINE';
+        if (!isMachineReport && (report.exclude_kqd_from_tt_snapshot === null || report.exclude_kqd_from_tt_snapshot === undefined)) {
+            const error = new Error('Báo cáo cũ chưa có snapshot chính sách KQD; cần audit trước khi xuất Excel lịch sử');
+            error.status = 422;
+            error.code = 'KQD_POLICY_SNAPSHOT_MISSING';
+            error.isPublic = true;
+            throw error;
+        }
+    }
 
     const reportIds = reports.map((report) => Number(report.id));
     // Lấy danh mục cho toàn bộ công đoạn đang hoạt động, không chỉ các công

@@ -107,13 +107,15 @@ export interface ResolvedProductStandard {
 export const resolveProductStandard = async (
     processId: number,
     machineCode: string,
-    productCode: string
+    productCode: string,
+    workDate: string
 ): Promise<ResolvedProductStandard> => {
     const response = await api.get("/product-standards/resolve", {
         params: {
             process_id: processId,
             machine_code: machineCode,
-            product_code: productCode
+            product_code: productCode,
+            work_date: workDate
         }
     });
 

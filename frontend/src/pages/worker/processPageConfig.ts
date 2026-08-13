@@ -1,3 +1,4 @@
+import kqdExclusionRegistry from "../../../../shared/kqdExclusionRegistry.json";
 import { PROCESS_FORM_SCHEMAS } from "./processFormSchemas";
 
 export type FormState = {
@@ -129,6 +130,7 @@ export type MachineLineState = {
     standardOutputPerHour: number;
     standardTimeSeconds: number | null;
     standardSource: "MACHINE" | "DEFAULT" | null;
+    excludeKqdFromTt: boolean | null;
     standardLoading: boolean;
     standardError: string;
     selectedDefects: string[];
@@ -145,6 +147,7 @@ export const createEmptyMachineLine = (): MachineLineState => ({
     standardOutputPerHour: 0,
     standardTimeSeconds: null,
     standardSource: null,
+    excludeKqdFromTt: null,
     standardLoading: false,
     standardError: "",
     selectedDefects: [],
@@ -756,7 +759,7 @@ export const initialDeduction: DeductionState = {
 
 
 
-export const KQD_CODES = new Set(["KQD_DL", "KQD_DAP_LAI", "KQD_TUOT"]);
+export const KQD_CODES = new Set(kqdExclusionRegistry.map((code) => String(code).trim().toUpperCase()));
 
 // =====================================================
 // COMPONENT

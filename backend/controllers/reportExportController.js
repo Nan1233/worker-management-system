@@ -1,4 +1,6 @@
 const path = require("path");
+const dbAuth = require('../config/db');
+const { assertProcessesScope } = require('../services/processAuthorizationService');
 const fs = require("fs/promises");
 const fsSync = require("fs");
 const { pipeline } = require("stream/promises");
@@ -904,6 +906,8 @@ exports.exportGiaCongExcel = async (req, res) => {
             return res.status(400).json({ success: false, message: "Ngày tải Excel không hợp lệ" });
         }
 
+        const [scopeRows] = await dbAuth.promise().query(`SELECT id FROM processes WHERE status='active' ORDER BY id`);
+        await assertProcessesScope(req.user, scopeRows.map((row)=>Number(row.id)), { action:'MONTHLY_EXPORT' });
         // Nút tải chỉ đọc file đã được tạo tự động khi duyệt/sửa/xóa.
         // Không query toàn bộ tháng và không dựng lại workbook trong request tải.
         const yearMonth = selectedDate.slice(0, 7);

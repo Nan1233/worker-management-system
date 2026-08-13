@@ -84,7 +84,7 @@ export default function ProcessBasicInfoSection({
             ...prev,
             productName: value,
             standardOutput: selectedProduct
-                ? String(Math.round(Number(selectedProduct.standard_output) || 0))
+                ? String(Number(selectedProduct.standard_output))
                 : "",
         }));
     };
@@ -176,10 +176,10 @@ export default function ProcessBasicInfoSection({
                                     disabled={loadingMasterData}
                                     emptyMessage="Không tìm thấy máy"
                                     onChange={(value) => {
-                                        updateMachineLine(index, { machineCode: value, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" });
+                                        updateMachineLine(index, { machineCode: value, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, excludeKqdFromTt: null, standardError: "" });
                                     }}
                                     onSelect={(option) => {
-                                        updateMachineLine(index, { machineCode: option.value, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" });
+                                        updateMachineLine(index, { machineCode: option.value, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, excludeKqdFromTt: null, standardError: "" });
                                     }}
                                 />
                                 <AutocompleteInput
@@ -219,6 +219,9 @@ export default function ProcessBasicInfoSection({
                                     const selected = machineOptions.find((machine) => machine.machine_code.trim().toUpperCase() === line.machineCode.trim().toUpperCase());
                                     return selected?.output_basis === "MACHINE" ? "Sản lượng theo máy" : "Sản lượng sản phẩm";
                                 })()}</div>
+                                {[5, 6, 7, 11].includes(Number(String(line.machineCode || "").match(/(\d{1,2})$/)?.[1] || -1)) && (
+                                    <small className="worker-machine-total-note"><strong>Shared machine:</strong> OK/NG bên dưới là sản lượng được credit cho công nhân này. Sản lượng vật lý của máy do tổ trưởng/manager quản lý bằng production event riêng.</small>
+                                )}
                                 <div className="machine-quantity-row">
                                     <label>OK<input type="number" min="0" inputMode="numeric" value={line.okQuantity} onChange={(event) => updateMachineLine(index, { okQuantity: event.target.value.replace(/\D/g, "") })} /></label>
                                     <label>NG<input type="number" min="0" inputMode="numeric" value={line.ngQuantity} readOnly aria-readonly="true" title="Tự động cộng từ chi tiết lỗi NG" /></label>

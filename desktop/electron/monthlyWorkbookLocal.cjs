@@ -1077,6 +1077,26 @@ function syncOriginalPatch(report) {
   };
 }
 
+function addPhysicalMachineEventsMetadata(workbook, processData) {
+  const existing = workbook.getWorksheet('_KTC_MACHINE_EVENTS');
+  if (existing) workbook.removeWorksheet(existing.id);
+  const sheet = workbook.addWorksheet('_KTC_MACHINE_EVENTS');
+  sheet.state = 'veryHidden';
+  sheet.addRow(['event_id','work_date','shift','machine_id','machine_code','product_code','physical_ok','physical_ng','physical_counted_output','physical_total_output','machine_time_hours','maximum_output','standard_output','kqd_exclude_snapshot','status']);
+  const seen = new Set();
+  for (const event of processData?.physicalMachineEvents || []) {
+    const id = Number(event.id || 0);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    sheet.addRow([
+      id, event.work_date || null, asText(event.shift), Number(event.machine_id || 0) || null, asText(event.machine_code), asText(event.product_code),
+      asNumber(event.physical_ok_quantity), asNumber(event.physical_ng_quantity), asNumber(event.physical_counted_output), asNumber(event.physical_total_output),
+      asNumber(event.machine_time_hours), asNumber(event.maximum_output), asNumber(event.standard_output), Number(event.exclude_kqd_from_tt_snapshot || 0), asText(event.status)
+    ]);
+  }
+  return sheet;
+}
+
 function addExcelDbSyncMetadata(workbook, code, processConfig, processData, yearMonth) {
   const deductionTypes = processDetailTypes(code, processData, 'deductionTypes', 'deductions', 'deduction');
   const defectTypes = processDetailTypes(code, processData, 'defectTypes', 'defects', 'defect');
@@ -1158,6 +1178,7 @@ async function buildProcessWorkbookLocal({ date, payload, processCode }) {
     addGcModeHelperSheet(workbook, workbook.getWorksheet(config.sheet), processData, makeColumns(code, deductionTypes, defectTypes));
   }
   addExcelDbSyncMetadata(workbook, code, config, processData, yearMonth);
+  addPhysicalMachineEventsMetadata(workbook, processData);
   const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
   return {
     buffer,

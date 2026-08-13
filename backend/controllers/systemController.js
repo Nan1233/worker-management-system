@@ -2,6 +2,7 @@ const db = require('../config/db');
 const { publicMessage } = require('../utils/httpError');
 const AuditService = require('../services/auditService');
 const { loadApprovedSnapshot } = require('../services/approvedReportEditService');
+const { createApprovedReportVersion } = require('../services/approvedVersionSnapshotService');
 const runtimeMetrics = require('../services/runtimeMetrics');
 
 const workerNotificationBackfills = new Map();
@@ -218,8 +219,8 @@ exports.getReportVersions = async (req,res) => {
   if(type==='approved' && rows.length===0){
    const snapshot=await loadApprovedSnapshot(reportId);
    if(snapshot){
-    await AuditService.createReportVersion({
-     reportType:'approved',reportId,snapshot,
+    await createApprovedReportVersion({
+     reportId,
      reason:'Phiên bản cơ sở khi bật lịch sử báo cáo',userId:null
     });
     [rows]=await db.promise().query(`SELECT rv.id,rv.version_no,rv.change_reason,rv.created_at,rv.snapshot_json,u.full_name created_by_name FROM report_versions rv LEFT JOIN users u ON u.id=rv.created_by WHERE rv.report_type=? AND rv.report_id=? ORDER BY rv.version_no DESC`,[type,reportId]);

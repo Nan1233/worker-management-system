@@ -18,8 +18,8 @@ test('company-data API attaches backend calculationSnapshot and desktop prefers 
 
 test('company-data loader carries product KQD policy and multi-machine aggregate into canonical snapshot', () => {
   const loader = fs.readFileSync(path.join(__dirname, '../services/processExcelExportService.js'), 'utf8');
-  assert.match(loader, /LEFT JOIN product_standards AS ps/);
-  assert.match(loader, /COALESCE\(ps\.exclude_kqd_from_tt, 0\) AS exclude_kqd_from_tt/);
+  assert.doesNotMatch(loader, /LEFT JOIN product_standards AS ps/);
+  assert.match(loader, /pr\.exclude_kqd_from_tt_snapshot AS exclude_kqd_from_tt/);
   assert.match(loader, /calculateReportPerformance\(\{/);
   assert.match(loader, /machineLines:\s*report\.machineLines/);
   assert.match(loader, /Object\.assign\(report, calculateReportPerformance/);

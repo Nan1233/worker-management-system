@@ -20,12 +20,21 @@ import {
     getStoredUser,
     getRefreshToken,
     hasRefreshSessionHint,
-    saveAuthSession
+    isElectronRuntime,
+    saveAuthSession,
+    setRefreshToken
 } from "../utils/authStorage";
 
 import type {
     AuthUser
 } from "../utils/authStorage";
+
+import {
+    coordinateBrowserRefresh,
+    CrossTabRefreshFailure,
+    type CoordinatedRefreshFailure,
+    type CoordinatedRefreshSuccess
+} from "./authRefreshCoordinator";
 
 export const api = axios.create({
     baseURL: API_BASE_URL,
@@ -49,6 +58,7 @@ interface RefreshResponse {
     accessToken?: string;
     expiresIn?: string;
     user?: AuthUser;
+    refreshToken?: string;
 }
 
 const TOKEN_REFRESH_LEEWAY_MS = 2 * 60 * 1000;
@@ -128,21 +138,50 @@ function shouldRefreshAccessToken(token: string): boolean {
     return expiresAt - Date.now() <= TOKEN_REFRESH_LEEWAY_MS;
 }
 
+function refreshErrorCode(error: unknown): string | undefined {
+    if (error instanceof CrossTabRefreshFailure) {
+        return error.failure.code;
+    }
+    if (!axios.isAxiosError(error)) return undefined;
+    const data = error.response?.data as { code?: string } | undefined;
+    return data?.code;
+}
+
+const DEFINITIVE_REFRESH_CODES = new Set([
+    "REFRESH_TOKEN_INVALID",
+    "REFRESH_TOKEN_EXPIRED",
+    "REFRESH_TOKEN_REVOKED",
+    "REFRESH_TOKEN_REUSE_DETECTED",
+    "REFRESH_TOKEN_RELOGIN_REQUIRED",
+    "SESSION_USER_DISABLED",
+    "USER_INACTIVE",
+    "WORKER_INACTIVE"
+]);
+
 function isConfirmedInvalidRefresh(error: unknown): boolean {
+    if (error instanceof CrossTabRefreshFailure) {
+        return error.failure.kind === "auth";
+    }
     if (!axios.isAxiosError(error)) return false;
 
     const status = error.response?.status;
-    const data = error.response?.data as
-        | { code?: string }
-        | undefined;
+    const code = refreshErrorCode(error);
 
     return (
         status === 400 ||
         status === 401 ||
         status === 403 ||
-        data?.code === "REFRESH_TOKEN_INVALID" ||
-        data?.code === "REFRESH_TOKEN_EXPIRED"
+        Boolean(code && DEFINITIVE_REFRESH_CODES.has(code))
     );
+}
+
+function classifyRefreshFailure(error: unknown): CoordinatedRefreshFailure {
+    const code = refreshErrorCode(error);
+    return {
+        kind: isConfirmedInvalidRefresh(error) ? "auth" : "transient",
+        code,
+        message: error instanceof Error ? error.message : undefined
+    };
 }
 
 function redirectToLogin(): void {
@@ -183,16 +222,15 @@ export async function refreshAccessToken(
         );
     }
 
-    const refreshToken = getRefreshToken();
     const generationAtStart = authGeneration;
     const epochAtStart = getAuthEpoch();
     const sessionIdAtStart = getAuthSessionId();
 
-    // Web dùng HttpOnly refresh cookie; Electron vẫn có body-token fallback.
-    refreshAbortController = new AbortController();
+    const performNetworkRefresh = async (): Promise<CoordinatedRefreshSuccess> => {
+        const refreshToken = getRefreshToken();
+        refreshAbortController = new AbortController();
 
-    refreshPromise = axios
-        .post<RefreshResponse>(
+        const response = await axios.post<RefreshResponse>(
             `${API_BASE_URL}/auth/refresh`,
             refreshToken ? { refreshToken } : {},
             {
@@ -203,41 +241,76 @@ export async function refreshAccessToken(
                 },
                 signal: refreshAbortController.signal
             }
-        )
-        .then((response) => {
-            const newAccessToken =
-                response.data.accessToken ||
-                response.data.token;
+        );
 
-            if (!newAccessToken) {
-                throw new Error(
-                    "Backend không trả về access token mới"
-                );
+        const newAccessToken = response.data.accessToken || response.data.token;
+        if (!newAccessToken) {
+            throw new Error("Backend không trả về access token mới");
+        }
+
+        if (
+            generationAtStart !== authGeneration ||
+            epochAtStart !== getAuthEpoch() ||
+            loginTransitionActive ||
+            sessionIdAtStart !== getAuthSessionId()
+        ) {
+            throw new axios.CanceledError(
+                "Kết quả refresh thuộc phiên cũ đã bị bỏ qua."
+            );
+        }
+
+        const currentUser = getStoredUser();
+        const refreshedUser = response.data.user;
+        if (
+            currentUser &&
+            refreshedUser &&
+            currentUser.id !== refreshedUser.id
+        ) {
+            clearCurrentTabAuthSession();
+            throw new axios.CanceledError(
+                "Phiên làm mới thuộc tài khoản khác. Tab hiện tại đã được đăng xuất."
+            );
+        }
+
+        // Electron refresh tokens are one-time. Persist R2 synchronously before
+        // publishing the new access token or resolving refreshPromise. If this
+        // write fails, R1 is already consumed server-side and the only safe
+        // recovery is a fresh login. Normal web never receives a body token.
+        if (isElectronRuntime()) {
+            if (!response.data.refreshToken) {
+                clearAuthSession();
+                redirectToLogin();
+                throw new Error("ELECTRON_REFRESH_TOKEN_SUCCESSOR_MISSING");
             }
-
-            if (
-                generationAtStart !== authGeneration ||
-                epochAtStart !== getAuthEpoch() ||
-                loginTransitionActive ||
-                (refreshToken && refreshToken !== getRefreshToken()) ||
-                sessionIdAtStart !== getAuthSessionId()
-            ) {
-                throw new axios.CanceledError(
-                    "Kết quả refresh thuộc phiên cũ đã bị bỏ qua."
-                );
+            try {
+                setRefreshToken(response.data.refreshToken);
+            } catch {
+                clearAuthSession();
+                redirectToLogin();
+                throw new Error("ELECTRON_REFRESH_TOKEN_PERSIST_FAILED");
             }
+        }
 
+        return {
+            accessToken: newAccessToken,
+            user: refreshedUser
+        };
+    };
+
+    const coordinatedRefresh = async (): Promise<CoordinatedRefreshSuccess> => {
+        // Electron currently creates a single renderer BrowserWindow. Keep its
+        // refresh in the existing same-renderer single-flight path; cross-tab
+        // browser coordination is only needed for shared HttpOnly cookies.
+        if (isElectronRuntime()) {
+            return performNetworkRefresh();
+        }
+        return coordinateBrowserRefresh(performNetworkRefresh, classifyRefreshFailure);
+    };
+
+    refreshPromise = coordinatedRefresh()
+        .then((result) => {
             const currentUser = getStoredUser();
-            const refreshedUser = response.data.user;
-
-            // A web refresh cookie is shared by tabs. If another tab changed
-            // accounts before this tab observed the auth-epoch event, never
-            // let the refresh response silently replace user A with user B.
-            if (
-                currentUser &&
-                refreshedUser &&
-                currentUser.id !== refreshedUser.id
-            ) {
+            if (currentUser && result.user && currentUser.id !== result.user.id) {
                 clearCurrentTabAuthSession();
                 throw new axios.CanceledError(
                     "Phiên làm mới thuộc tài khoản khác. Tab hiện tại đã được đăng xuất."
@@ -245,28 +318,23 @@ export async function refreshAccessToken(
             }
 
             saveAuthSession({
-                accessToken: newAccessToken,
-                user: refreshedUser,
+                accessToken: result.accessToken,
+                user: result.user,
                 sessionId: sessionIdAtStart || undefined
             });
 
             clearLegacyRefreshToken();
             transientRefreshBlockedUntil = 0;
             redirectingToLogin = false;
-
-            return newAccessToken;
+            return result.accessToken;
         })
         .catch((error: unknown) => {
             if (isConfirmedInvalidRefresh(error)) {
                 invalidateSessionAndRedirect();
-            } else {
-                // Render deploy/cold start, timeout, mất mạng hoặc lỗi 5xx:
-                // giữ nguyên localStorage và thử lại ở request sau.
+            } else if (!(axios.isCancel(error))) {
                 transientRefreshBlockedUntil =
-                    Date.now() +
-                    TRANSIENT_REFRESH_COOLDOWN_MS;
+                    Date.now() + TRANSIENT_REFRESH_COOLDOWN_MS;
             }
-
             throw error;
         })
         .finally(() => {

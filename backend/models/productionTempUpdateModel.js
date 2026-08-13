@@ -1,5 +1,7 @@
 const AuditService = require("../services/auditService");
+const { recalculateReportOutput } = require("../services/kqdReportCalculationService");
 const { query, getConnection, beginTransaction, commit, rollback, normalizeIds, editableFields } = require("./productionTempModelShared");
+const { validateMachineWorkerCapacityLocked } = require("../services/factoryMachineRuleService");
 
 module.exports = {
     async updateReport(id, data, changedBy, reason = null, options = {}) {
@@ -268,14 +270,47 @@ module.exports = {
             }
 
             if (hasDefects) {
-                data.tt_ng =
-                    detailValues.tt_ng;
+                data.tt_ng = detailValues.tt_ng;
 
-                data.tt_ok = Math.max(
-                    0,
-                    actualOutput -
-                        detailValues.tt_ng
-                );
+                // F04: parent manual output is derived from the immutable KQD policy snapshot.
+                // Never reconstruct OK as actual_output - total_ng because excluded KQD is already
+                // absent from actual_output. Machine reports are authoritative from machine_lines.
+                if (!hasMachineLines) {
+                    const policySnapshot = Object.prototype.hasOwnProperty.call(data, "exclude_kqd_from_tt_snapshot")
+                        ? data.exclude_kqd_from_tt_snapshot
+                        : current.exclude_kqd_from_tt_snapshot;
+                    if (policySnapshot === null || policySnapshot === undefined || String(policySnapshot).trim() === "") {
+                        const error = new Error("Báo cáo cũ chưa có snapshot chính sách KQD");
+                        error.status = 422;
+                        error.code = "KQD_POLICY_SNAPSHOT_MISSING";
+                        error.isPublic = true;
+                        throw error;
+                    }
+                    const defectIds = normalizedDefects.map((item) => Number(item.defect_type_id)).filter(Boolean);
+                    const codeRows = defectIds.length
+                        ? await query(
+                            connection,
+                            `SELECT id, defect_code, defect_name FROM defect_types WHERE id IN (${defectIds.map(() => "?").join(",")})`,
+                            defectIds
+                        )
+                        : [];
+                    const byId = new Map(codeRows.map((row) => [Number(row.id), row]));
+                    const calculationDefects = normalizedDefects.map((item) => ({
+                        ...item,
+                        defect_code: byId.get(Number(item.defect_type_id))?.defect_code || null,
+                        defect_name: byId.get(Number(item.defect_type_id))?.defect_name || null
+                    }));
+                    const okValue = Object.prototype.hasOwnProperty.call(data, "tt_ok")
+                        ? Number(data.tt_ok || 0)
+                        : Number(current.tt_ok || 0);
+                    const output = recalculateReportOutput({
+                        ttOk: okValue,
+                        defects: calculationDefects,
+                        excludeKqdFromTtSnapshot: policySnapshot
+                    });
+                    data.tt_ok = output.ttOk;
+                    data.actual_output = output.actualOutput;
+                }
             }
 
             const changes = editableFields
@@ -409,10 +444,31 @@ module.exports = {
             }
 
             if (hasMachineLines) {
+                const nextWorkDate = Object.prototype.hasOwnProperty.call(data, 'work_date') ? data.work_date : current.work_date;
+                const nextShift = Object.prototype.hasOwnProperty.call(data, 'shift') ? data.shift : current.shift;
+                const processRows = await query(connection, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(current.process_id)]);
+                const lockedCapacity = await validateMachineWorkerCapacityLocked({
+                    executor: connection,
+                    processCode: processRows[0]?.process_code,
+                    processId: current.process_id,
+                    machineLines: Array.isArray(data.machine_lines) ? data.machine_lines : [],
+                    workerId: current.worker_id,
+                    workDate: nextWorkDate,
+                    shift: nextShift,
+                    excludeTempReportId: id
+                });
+                if (!lockedCapacity.valid) {
+                    const error = new Error('Máy đã đủ số người cho phép trong ngày/ca');
+                    error.status = 422; error.code = 'MACHINE_WORKER_LIMIT_EXCEEDED'; error.isPublic = true; error.details = lockedCapacity.errors;
+                    throw error;
+                }
+                const preserveEventLinks = String(nextWorkDate).slice(0,10) === String(current.work_date).slice(0,10)
+                    && String(nextShift || '').trim() === String(current.shift || '').trim();
                 await this.replaceMachineLines(
                     id,
                     Array.isArray(data.machine_lines) ? data.machine_lines : [],
-                    connection
+                    connection,
+                    { preserveEventLinks }
                 );
             }
 

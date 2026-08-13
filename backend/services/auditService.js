@@ -8,69 +8,10 @@ const query = (executor, sql, params = []) => executor.promise
 let schemaReadyPromise = null;
 
 async function ensureSchema() {
-  if (schemaReadyPromise) return schemaReadyPromise;
-
-  schemaReadyPromise = (async () => {
-    await db.promise().query(`
-      CREATE TABLE IF NOT EXISTS activity_logs (
-        id BIGINT NOT NULL AUTO_INCREMENT,
-        user_id BIGINT NULL,
-        action VARCHAR(80) NOT NULL,
-        entity_type VARCHAR(80) NULL,
-        entity_id VARCHAR(100) NULL,
-        description VARCHAR(500) NULL,
-        metadata_json JSON NULL,
-        ip_address VARCHAR(80) NULL,
-        user_agent VARCHAR(500) NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        KEY idx_activity_created_at (created_at),
-        KEY idx_activity_user (user_id, created_at),
-        KEY idx_activity_entity (entity_type, entity_id, created_at),
-        KEY idx_activity_action (action, created_at)
-      )
-    `);
-
-    // Báo cáo đã duyệt dùng soft-delete để có thể xem lịch sử/khôi phục.
-    // Các schema KTC cũ dùng ENUM không có 'deleted', vì vậy nới riêng cột
-    // production_reports.status sang VARCHAR nếu cần. Không đụng status của temp.
-    const [statusColumns] = await db.promise().query(`
-      SELECT DATA_TYPE AS data_type, COLUMN_TYPE AS column_type
-      FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'production_reports'
-        AND COLUMN_NAME = 'status'
-      LIMIT 1
-    `);
-    const statusColumn = statusColumns[0];
-    if (statusColumn && String(statusColumn.data_type || '').toLowerCase() === 'enum'
-      && !String(statusColumn.column_type || '').toLowerCase().includes("'deleted'")) {
-      await db.promise().query(
-        "ALTER TABLE production_reports MODIFY COLUMN status VARCHAR(30) NOT NULL DEFAULT 'approved'"
-      );
-    }
-
-    await db.promise().query(`
-      CREATE TABLE IF NOT EXISTS report_versions (
-        id BIGINT NOT NULL AUTO_INCREMENT,
-        report_type VARCHAR(20) NOT NULL,
-        report_id BIGINT NOT NULL,
-        version_no INT NOT NULL,
-        snapshot_json JSON NOT NULL,
-        change_reason VARCHAR(500) NULL,
-        created_by BIGINT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        UNIQUE KEY uq_report_version (report_type, report_id, version_no),
-        KEY idx_report_version_lookup (report_type, report_id, created_at),
-        KEY idx_report_version_creator (created_by, created_at)
-      )
-    `);
-  })().catch((error) => {
-    schemaReadyPromise = null;
-    throw error;
-  });
-
+  // Schema creation belongs exclusively to canonical migrations/release.
+  // Keep this function for call-site compatibility only; startup/readiness
+  // already fail closed when the migration ledger is not READY.
+  if (!schemaReadyPromise) schemaReadyPromise = Promise.resolve(true);
   return schemaReadyPromise;
 }
 

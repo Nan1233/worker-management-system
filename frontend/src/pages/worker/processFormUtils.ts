@@ -46,7 +46,7 @@ export function calculateCountedNg(
 ): number {
     return activeNgOptions.reduce((sum, item) => {
         const code = String(item.code || '').trim().toUpperCase();
-        if (excludeKqd && (kqdCodes.has(code) || code.startsWith('KQD'))) {
+        if (excludeKqd && kqdCodes.has(code)) {
             return sum;
         }
         return sum + Number(values[item.key] || 0);

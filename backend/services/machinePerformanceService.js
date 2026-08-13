@@ -1,5 +1,7 @@
 "use strict";
 
+const { isKqdDefect } = require("../../shared/kqdPolicy.cjs");
+
 const safeNumber = (value) => {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
@@ -16,11 +18,7 @@ const parseDefects = (value) => {
   }
 };
 
-const isKqdDefect = (defect) => {
-  const code = String(defect?.defect_code || defect?.code || "").trim().toUpperCase();
-  const name = String(defect?.defect_name || defect?.name || "").trim().toUpperCase();
-  return code === "KQD" || code.startsWith("KQD_") || name.includes("KQD");
-};
+
 
 const calculateMachineLinePerformance = (line = {}) => {
   const ok = Math.max(0, safeNumber(line.ok_quantity));

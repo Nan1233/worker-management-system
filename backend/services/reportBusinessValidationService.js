@@ -1,5 +1,6 @@
 const db = require("../config/db");
 const { validateEncodedGcMachineProduct } = require("../utils/productMachineEligibility");
+const { resolveStandard } = require("./standardResolutionService");
 
 const query = (sql, params = []) => new Promise((resolve, reject) => {
     db.query(sql, params, (error, rows) => error ? reject(error) : resolve(rows));
@@ -25,7 +26,8 @@ const validateMasterData = async ({
     ttOk,
     actualOutput,
     allowEmptyMachine = false,
-    operationMode = null
+    operationMode = null,
+    workDate
 }) => {
     const errors = {};
     const normalizedMachineNo = normalizeText(machineNo);
@@ -72,7 +74,7 @@ const validateMasterData = async ({
             : Promise.resolve([]),
         defectIds.length
             ? query(
-                `SELECT DISTINCT id
+                `SELECT DISTINCT id, defect_code, defect_name
                  FROM defect_types
                  WHERE process_id = ?
                    AND status = 'active'
@@ -92,6 +94,13 @@ const validateMasterData = async ({
             : Promise.resolve([])
     ]);
 
+    const canonicalDefectsById = new Map(validDefectRows.map((row) => [Number(row.id), row]));
+    const authoritativeDefects = (defects || []).map((item) => ({
+        ...item,
+        defect_code: canonicalDefectsById.get(Number(item?.defect_type_id))?.defect_code || null,
+        defect_name: canonicalDefectsById.get(Number(item?.defect_type_id))?.defect_name || null
+    }));
+
     if (!assignments.length) {
         errors.process_id = "Công nhân chưa được phân công công đoạn này";
     }
@@ -110,14 +119,27 @@ const validateMasterData = async ({
     let productCode = null;
     let standardOutput = null;
     let excludeKqdFromTt = 0;
+    let standardVersionId = null;
+    let machineStandardId = null;
+    let productStandardId = null;
     if (!normalizedProductName) {
         errors.product_name = "Vui lòng chọn sản phẩm trong danh mục";
     } else if (!products.length) {
         errors.product_name = "Sản phẩm không tồn tại hoặc không thuộc công đoạn đã chọn";
     } else {
         productCode = products[0].product_code;
-        standardOutput = Math.round(Number(products[0].standard_output) || 0);
-        excludeKqdFromTt = Number(products[0].exclude_kqd_from_tt || 0) === 1 ? 1 : 0;
+        const resolvedStandard = await resolveStandard({
+            processId,
+            productCode,
+            machineId: machines[0]?.id || null,
+            machineCode: machines[0]?.machine_code || null,
+            workDate
+        });
+        standardOutput = Number(resolvedStandard.standardOutput);
+        excludeKqdFromTt = Number(resolvedStandard.excludeKqdFromTt || 0) === 1 ? 1 : 0;
+        standardVersionId = resolvedStandard.standardVersionId;
+        machineStandardId = resolvedStandard.machineStandardId;
+        productStandardId = resolvedStandard.productStandardId;
 
         const encodedScopeError = validateEncodedGcMachineProduct({
             processCode: products[0].process_code,
@@ -128,25 +150,12 @@ const validateMasterData = async ({
         });
         if (encodedScopeError) errors.product_name = encodedScopeError;
 
-        if (normalizedMachineNo && machines.length && Number(products[0].has_machine_specific_standard || 0) === 1) {
-            const compatible = await query(
-                `SELECT 1 FROM product_machine_standards
-                 WHERE process_id=? AND product_code=? AND machine_id=? AND is_active=1
-                   AND effective_from <= CURRENT_DATE
-                   AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)
-                 LIMIT 1`,
-                [processId, productCode, machines[0].id]
-            );
-            if (!compatible.length) {
-                errors.product_name = `Sản phẩm ${productCode} không được cấu hình cho máy ${machines[0].machine_code}`;
-            }
-        }
 
         if (ttOk !== undefined && actualOutput !== undefined) {
             const { calculateActualOutput } = require("../utils/outputCalculation");
             const expected = calculateActualOutput({
                 ttOk,
-                defects,
+                defects: authoritativeDefects,
                 excludeKqdFromTt: Boolean(excludeKqdFromTt)
             });
             if (Math.abs(Number(actualOutput) - expected) > 0.02) {
@@ -169,7 +178,11 @@ const validateMasterData = async ({
         machineCode,
         productCode,
         standardOutput,
-        excludeKqdFromTt
+        excludeKqdFromTt,
+        standardVersionId,
+        machineStandardId,
+        productStandardId,
+        authoritativeDefects
     };
 };
 

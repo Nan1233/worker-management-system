@@ -1,5 +1,7 @@
 'use strict';
 
+const { isKqdDefect } = require('../../shared/kqdPolicy.cjs');
+
 const DEFAULT_SETTINGS = Object.freeze({
   apply_training_percent: 1,
   output_formula: 'ENTERED_X_TRAINING',
@@ -41,14 +43,16 @@ function defectQuantity(item) {
 }
 
 function defectCode(item) {
-  return normalizeCode(
-    item?.defect_type_code || item?.defect_code || item?.code || item?.defect_type_name || item?.name
-  );
+  // F04: only an explicitly configured defect CODE can carry KQD semantics.
+  // Human-readable names are never business authority.
+  return normalizeCode(item?.defect_type_code || item?.defect_code || item?.code);
 }
 
 function calculateNg(report = {}) {
   const details = Array.isArray(report.defects) ? report.defects : [];
-  const excludeKqd = Number(report.exclude_kqd_from_tt || 0) === 1;
+  const hasKqdSnapshot = Object.prototype.hasOwnProperty.call(report, 'exclude_kqd_from_tt_snapshot');
+  const kqdPolicyValue = hasKqdSnapshot ? report.exclude_kqd_from_tt_snapshot : report.exclude_kqd_from_tt;
+  const excludeKqd = Number(kqdPolicyValue || 0) === 1;
 
   if (!details.length) {
     const total = asInteger(report.tt_ng);
@@ -66,7 +70,7 @@ function calculateNg(report = {}) {
   for (const item of details) {
     const quantity = defectQuantity(item);
     allNg += quantity;
-    if (excludeKqd && defectCode(item) === 'KQD') excludedKqd += quantity;
+    if (excludeKqd && isKqdDefect({ defect_code: defectCode(item) })) excludedKqd += quantity;
     else countedNg += quantity;
   }
 
@@ -106,9 +110,9 @@ function calculateAdjustedOutput({ enteredOutput, ok, countedNg, factor, setting
   else if (resolved.output_formula === 'OK_PLUS_NG') {
     output = ok !== null && countedNg !== null ? ok + countedNg : null;
   } else if (resolved.output_formula === 'OK_X_TRAINING') {
-    output = ok === null ? null : ok * (resolved.apply_training_percent ? factor : 1);
+    output = ok === null || (resolved.apply_training_percent && factor === null) ? null : ok * (resolved.apply_training_percent ? factor : 1);
   } else {
-    output = enteredOutput === null ? null : enteredOutput * (resolved.apply_training_percent ? factor : 1);
+    output = enteredOutput === null || (resolved.apply_training_percent && factor === null) ? null : enteredOutput * (resolved.apply_training_percent ? factor : 1);
   }
   return output === null ? null : Math.round(output);
 }
@@ -122,8 +126,12 @@ function calculateProductionMetrics(report = {}, settings = {}) {
   const ng = calculateNg(report);
   const fallbackEnteredOutput = ok !== null && ng.countedNg !== null ? ok + ng.countedNg : null;
   const enteredOutput = asInteger(report.actual_output ?? fallbackEnteredOutput);
-  const trainingPercent = normalizeTrainingPercent(report.training_percent);
-  const factor = trainingPercent / 100;
+  const hasSnapshotField = Object.prototype.hasOwnProperty.call(report, 'training_percent_snapshot');
+  const snapshotMissing = hasSnapshotField && (report.training_percent_snapshot === null || report.training_percent_snapshot === undefined || String(report.training_percent_snapshot).trim() === '');
+  const trainingPercent = snapshotMissing
+    ? null
+    : normalizeTrainingPercent(hasSnapshotField ? report.training_percent_snapshot : report.training_percent);
+  const factor = trainingPercent === null ? null : trainingPercent / 100;
   const standard = asNumber(report.standard_output);
   const machinePerformance = report.machinePerformance || report.machine_performance || null;
   const hasMachinePerformance = Number(machinePerformance?.machine_count || 0) > 0;
@@ -137,7 +145,7 @@ function calculateProductionMetrics(report = {}, settings = {}) {
   });
   let outputPerHour = null;
   let achievement = null;
-  let plannedOutput = standard !== null && actualTime !== null
+  let plannedOutput = standard !== null && actualTime !== null && (!resolved.apply_training_percent || factor !== null)
     ? standard * actualTime * (resolved.apply_training_percent ? factor : 1)
     : null;
 
@@ -169,6 +177,7 @@ function calculateProductionMetrics(report = {}, settings = {}) {
   return {
     trainingPercent,
     trainingFactor: factor,
+    trainingSnapshotAvailable: !snapshotMissing,
     workingTime,
     deductionTime,
     actualTime,

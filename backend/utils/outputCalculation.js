@@ -1,26 +1,21 @@
-const KQD_CODES = new Set(['KQD', 'KQD_DL', 'KQD_DAP_LAI', 'KQD_TUOT']);
+const {
+  KQD_EXCLUSION_CODES,
+  isKqdDefect,
+  calculateProductionOutput
+} = require('../../shared/kqdPolicy.cjs');
 
-const normalizeCode = (value) => String(value || '').trim().toUpperCase();
-
-const isKqdDefect = (item = {}) => {
-  const code = normalizeCode(item.defect_code || item.code);
-  const name = normalizeCode(item.defect_name || item.name).replace(/\s+/g, '_');
-  return KQD_CODES.has(code) || code.startsWith('KQD') || name.startsWith('KQD');
-};
+const KQD_CODES = new Set(KQD_EXCLUSION_CODES);
 
 const calculateCountedNg = (defects = [], excludeKqdFromTt = false) =>
-  (defects || []).reduce((sum, item) => {
-    if (excludeKqdFromTt && isKqdDefect(item)) return sum;
-    const quantity = Number(item.quantity || 0);
-    return sum + (Number.isFinite(quantity) ? quantity : 0);
-  }, 0);
+  calculateProductionOutput({ ok: 0, defects, excludeKqdFromTt }).countedNg;
 
 const calculateActualOutput = ({ ttOk, defects, excludeKqdFromTt = false }) =>
-  Number(ttOk || 0) + calculateCountedNg(defects, excludeKqdFromTt);
+  calculateProductionOutput({ ok: ttOk, defects, excludeKqdFromTt }).actualOutput;
 
 module.exports = {
   KQD_CODES,
   isKqdDefect,
+  calculateProductionOutput,
   calculateCountedNg,
   calculateActualOutput
 };

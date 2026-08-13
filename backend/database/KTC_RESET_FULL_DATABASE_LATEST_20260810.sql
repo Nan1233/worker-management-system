@@ -177,6 +177,10 @@ CREATE TABLE IF NOT EXISTS production_reports_temp (
   actual_time DECIMAL(12,4) NOT NULL DEFAULT 0,
   deduction_time DECIMAL(12,4) NOT NULL DEFAULT 0,
   standard_output DECIMAL(18,6) NOT NULL DEFAULT 0,
+  standard_version_id BIGINT NULL,
+  machine_standard_id BIGINT NULL,
+  training_percent_snapshot DECIMAL(7,2) NULL,
+  exclude_kqd_from_tt_snapshot TINYINT(1) NULL,
   actual_output DECIMAL(18,6) NOT NULL DEFAULT 0,
   tt_ok BIGINT NOT NULL DEFAULT 0,
   tt_ng BIGINT NOT NULL DEFAULT 0,
@@ -195,6 +199,7 @@ CREATE TABLE IF NOT EXISTS production_reports_temp (
   note TEXT NULL,
   extra_data JSON NULL,
   client_request_id VARCHAR(120) NULL,
+  logical_duplicate_key CHAR(64) NULL,
   status VARCHAR(30) NOT NULL DEFAULT 'pending',
   review_note TEXT NULL,
   reviewed_by BIGINT NULL,
@@ -205,7 +210,17 @@ CREATE TABLE IF NOT EXISTS production_reports_temp (
   KEY idx_prt_worker_date (worker_id, work_date),
   KEY idx_prt_process_date (process_id, work_date, status),
   KEY idx_prt_status_created (status, created_at),
-  KEY idx_prt_review_queue (status, process_id, work_date, updated_at)
+  KEY idx_prt_review_queue (status, process_id, work_date, updated_at),
+  KEY idx_prt_standard_version (standard_version_id),
+  KEY idx_prt_logical_duplicate_status (logical_duplicate_key, status, worker_id, process_id, work_date, shift)
+);
+
+
+CREATE TABLE IF NOT EXISTS production_report_duplicate_locks (
+  logical_key CHAR(64) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_used_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (logical_key)
 );
 
 CREATE TABLE IF NOT EXISTS production_reports (
@@ -224,6 +239,10 @@ CREATE TABLE IF NOT EXISTS production_reports (
   actual_time DECIMAL(12,4) NOT NULL DEFAULT 0,
   deduction_time DECIMAL(12,4) NOT NULL DEFAULT 0,
   standard_output DECIMAL(18,6) NOT NULL DEFAULT 0,
+  standard_version_id BIGINT NULL,
+  machine_standard_id BIGINT NULL,
+  training_percent_snapshot DECIMAL(7,2) NULL,
+  exclude_kqd_from_tt_snapshot TINYINT(1) NULL,
   actual_output DECIMAL(18,6) NOT NULL DEFAULT 0,
   tt_ok BIGINT NOT NULL DEFAULT 0,
   tt_ng BIGINT NOT NULL DEFAULT 0,
@@ -251,6 +270,7 @@ CREATE TABLE IF NOT EXISTS production_reports (
   UNIQUE KEY uq_production_source_temp (source_temp_id),
   KEY idx_pr_worker_date (worker_id, work_date),
   KEY idx_pr_process_date (process_id, work_date, status),
+  KEY idx_pr_standard_version (standard_version_id),
   KEY idx_pr_approved_export (status, process_id, work_date, approved_at)
 );
 
@@ -332,9 +352,12 @@ CREATE TABLE IF NOT EXISTS report_edit_logs (
 CREATE TABLE IF NOT EXISTS production_temp_machine_lines (
   id BIGINT NOT NULL AUTO_INCREMENT,
   temp_report_id BIGINT NOT NULL,
+  machine_event_id BIGINT NULL,
   machine_id BIGINT NULL,
   machine_code VARCHAR(100) NOT NULL,
   product_standard_id BIGINT NULL,
+  standard_version_id BIGINT NULL,
+  machine_standard_id BIGINT NULL,
   product_code VARCHAR(255) NOT NULL,
   machine_time_hours DECIMAL(12,4) NOT NULL DEFAULT 0,
   standard_output DECIMAL(18,6) NOT NULL DEFAULT 0,
@@ -353,15 +376,20 @@ CREATE TABLE IF NOT EXISTS production_temp_machine_lines (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_temp_report_machine (temp_report_id, machine_code),
-  KEY idx_temp_machine_report (temp_report_id)
+  KEY idx_temp_machine_report (temp_report_id),
+  KEY idx_ptml_machine_event (machine_event_id),
+  KEY idx_ptml_standard_identity (standard_version_id, machine_standard_id)
 );
 
 CREATE TABLE IF NOT EXISTS production_report_machine_lines (
   id BIGINT NOT NULL AUTO_INCREMENT,
   report_id BIGINT NOT NULL,
+  machine_event_id BIGINT NULL,
   machine_id BIGINT NULL,
   machine_code VARCHAR(100) NOT NULL,
   product_standard_id BIGINT NULL,
+  standard_version_id BIGINT NULL,
+  machine_standard_id BIGINT NULL,
   product_code VARCHAR(255) NOT NULL,
   machine_time_hours DECIMAL(12,4) NOT NULL DEFAULT 0,
   standard_output DECIMAL(18,6) NOT NULL DEFAULT 0,
@@ -380,7 +408,59 @@ CREATE TABLE IF NOT EXISTS production_report_machine_lines (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_report_machine (report_id, machine_code),
-  KEY idx_machine_report (report_id)
+  KEY idx_machine_report (report_id),
+  KEY idx_prml_machine_event (machine_event_id),
+  KEY idx_prml_standard_identity (standard_version_id, machine_standard_id)
+);
+
+-- ==================== 022_shared_machine_accounting_20260812.sql ====================
+-- Physical machine truth for shared-machine accounting. Worker credit remains on report machine lines.
+CREATE TABLE IF NOT EXISTS machine_production_events (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  process_id BIGINT NOT NULL,
+  machine_id BIGINT NOT NULL,
+  machine_code VARCHAR(100) NOT NULL,
+  product_code VARCHAR(255) NOT NULL,
+  work_date DATE NOT NULL,
+  shift VARCHAR(20) NOT NULL,
+  physical_ok_quantity BIGINT NOT NULL DEFAULT 0,
+  physical_ng_quantity BIGINT NOT NULL DEFAULT 0,
+  physical_counted_output DECIMAL(18,6) NOT NULL DEFAULT 0,
+  physical_total_output DECIMAL(18,6) NOT NULL DEFAULT 0,
+  machine_time_hours DECIMAL(12,4) NOT NULL DEFAULT 0,
+  maximum_output DECIMAL(18,6) NOT NULL DEFAULT 0,
+  standard_output DECIMAL(18,6) NOT NULL,
+  standard_version_id BIGINT NULL,
+  machine_standard_id BIGINT NULL,
+  standard_source VARCHAR(20) NULL,
+  exclude_kqd_from_tt_snapshot TINYINT(1) NOT NULL,
+  status VARCHAR(30) NOT NULL DEFAULT 'pending',
+  created_by BIGINT NOT NULL,
+  updated_by BIGINT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_mpe_machine_shift (process_id, machine_id, work_date, shift, status),
+  KEY idx_mpe_product_date (process_id, product_code, work_date),
+  KEY idx_mpe_standard_identity (standard_version_id, machine_standard_id),
+  KEY idx_mpe_created_by (created_by, created_at)
+);
+
+CREATE TABLE IF NOT EXISTS machine_production_event_defects (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  machine_event_id BIGINT NOT NULL,
+  defect_type_id BIGINT NULL,
+  defect_code VARCHAR(100) NOT NULL,
+  defect_name VARCHAR(255) NULL,
+  quantity BIGINT NOT NULL DEFAULT 0,
+  responsible_worker_id BIGINT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_mped_event_code_worker (machine_event_id, defect_code, responsible_worker_id),
+  KEY idx_mped_event (machine_event_id),
+  KEY idx_mped_responsible_worker (responsible_worker_id, machine_event_id),
+  KEY idx_mped_defect_code (defect_code)
 );
 
 CREATE TABLE IF NOT EXISTS production_temp_machine_defects (
@@ -412,17 +492,24 @@ CREATE TABLE IF NOT EXISTS user_sessions (
   user_id BIGINT NOT NULL,
   refresh_token VARCHAR(255) NULL,
   refresh_token_hash VARCHAR(255) NULL,
+  family_id VARCHAR(64) NULL,
   device_id VARCHAR(64) NULL,
   device_name VARCHAR(255) NULL,
   expires_at DATETIME NOT NULL,
   revoked_at DATETIME NULL,
+  consumed_at DATETIME NULL,
+  replaced_by_id BIGINT NULL,
+  reuse_detected_at DATETIME NULL,
   user_agent VARCHAR(500) NULL,
   ip_address VARCHAR(80) NULL,
   last_used_at DATETIME NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_session_user (user_id, revoked_at, expires_at),
-  KEY idx_session_refresh_token (refresh_token)
+  UNIQUE KEY uq_session_refresh_token (refresh_token),
+  KEY idx_session_family (family_id, revoked_at, expires_at),
+  KEY idx_session_replaced_by (replaced_by_id),
+  KEY idx_session_expiry (expires_at, revoked_at)
 );
 
 CREATE TABLE IF NOT EXISTS notifications (
@@ -494,14 +581,27 @@ CREATE TABLE IF NOT EXISTS excel_export_jobs (
 CREATE TABLE IF NOT EXISTS integration_sync_jobs (
   id BIGINT NOT NULL AUTO_INCREMENT,
   job_type VARCHAR(80) NOT NULL,
-  status VARCHAR(30) NOT NULL DEFAULT 'queued',
+  job_key VARCHAR(191) NULL,
+  work_date DATE NULL,
+  report_month CHAR(7) NULL,
+  process_id BIGINT NULL,
+  status VARCHAR(30) NOT NULL DEFAULT 'pending',
+  attempts INT NOT NULL DEFAULT 0,
+  max_attempts INT NOT NULL DEFAULT 8,
+  next_retry_at DATETIME NULL,
+  locked_at DATETIME NULL,
+  last_error TEXT NULL,
+  completed_at DATETIME NULL,
+  result_url TEXT NULL,
   payload_json JSON NULL,
   result_json JSON NULL,
   error_message TEXT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  KEY idx_integration_jobs_status (status, created_at)
+  UNIQUE KEY uq_integration_jobs_type_key (job_type, job_key),
+  KEY idx_integration_jobs_status (status, created_at),
+  KEY idx_integration_jobs_ready (status, next_retry_at, locked_at, created_at)
 );
 
 CREATE TABLE IF NOT EXISTS google_sheets (
@@ -531,6 +631,8 @@ WHERE entry_date IS NULL;
 CREATE TABLE IF NOT EXISTS production_formula_settings (
   scope_code VARCHAR(30) NOT NULL,
   process_id BIGINT NULL,
+  effective_from DATE NULL,
+  effective_to DATE NULL,
   apply_training_percent TINYINT(1) NOT NULL DEFAULT 1,
   output_formula VARCHAR(50) NOT NULL DEFAULT 'ENTERED_X_TRAINING',
   output_per_hour_formula VARCHAR(60) NOT NULL DEFAULT 'ADJUSTED_OUTPUT_DIV_ACTUAL_TIME',
@@ -16616,7 +16718,7 @@ WHERE p.process_code = 'GC' AND UPPER(REPLACE(REPLACE(TRIM(m.machine_code),' ','
  '26','M26','MAY26','MAY-26','MACHINE26','MACHINE-26');
 
 UPDATE machines m JOIN processes p ON p.id = m.process_id
-SET m.max_workers_per_machine = 2, m.output_basis = 'MACHINE'
+SET m.max_workers_per_machine = 4, m.output_basis = 'MACHINE'
 WHERE p.process_code = 'GC' AND UPPER(REPLACE(REPLACE(TRIM(m.machine_code),' ',''),'MÁY','MAY')) IN
 ('5','05','M5','M05','MAY5','MAY05','MAY-5','MACHINE5','MACHINE-5',
  '6','06','M6','M06','MAY6','MAY06','MAY-6','MACHINE6','MACHINE-6',
@@ -19675,3 +19777,44 @@ FROM product_machine_standards pms
 JOIN processes p ON p.id=pms.process_id
 WHERE p.process_code='MAI'
   AND pms.product_code IN ('QC8-1467','QC8-1470');
+
+
+-- ==================== 024_logical_duplicate_report_lock_20260813.sql ====================
+-- Included in base reset schema above: logical_duplicate_key + duplicate lock table.
+
+-- ==================== 025_formula_settings_effective_range_20260813.sql ====================
+-- Included in base reset schema above: effective_from/effective_to DATE NULL.
+
+-- ==================== FINAL CANONICAL MIGRATION LEDGER 001-025 ====================
+-- The reset schema embeds the physical result of migrations through 025.
+-- Reconcile the ledger with the exact canonical source checksums so db:schema:verify
+-- succeeds immediately after a clean reset. Do not use placeholder/manual checksums.
+INSERT INTO schema_migrations (migration_id, checksum) VALUES
+  ('001_core_master_schema.sql', '1a6d16270203048315a610d4baf57bd3923b625ef495dc73b4043ff60954c9d5'),
+  ('002_production_schema.sql', '7e5a0edfbf89355dd63ce101a756fe2b1a2ad4678fd28215031c7c6bf64c4a5e'),
+  ('003_machine_and_session_schema.sql', '0de9f6d5702ddcb8af16d3f69d7717654aa31c8eccd13961e0891f11f2a1dd78'),
+  ('004_sync_and_export_schema.sql', 'e177e64e251fc261087cb84d5fa6ccb8c5d745c0d942a18e6a25ccc64c441933'),
+  ('005_entry_date_compatibility.sql', '6b2aca7221cbf10ed18f7eeaaeb41da2a0a40f8366944ac29728af283ccc9f22'),
+  ('006_extra_data_compatibility.sql', '4523fea9e72566eaef036d1f8989ebaef1340cfe70db2c2f3e453e1ccc0f65d6'),
+  ('007_production_formula_settings.sql', '35041224668664e02f6ab13a75f55a930015668484fcce4cde889449ba2c9ce5'),
+  ('008_client_request_idempotency.sql', '17b07211e4ad4a4e3e31f0fc9272b4fe94b66f37fa0c1dc1821a527f53dacca2'),
+  ('009_role_permissions.sql', '1b0081b4e616ab88f9a2e6966b7b5353ecb37b979f71d22158dee2f4e27f9a4d'),
+  ('010_audit_governance_demo.sql', 'ed60a0630dd8de3177a52232fccc67983c36c7e304527ebabf5e63e4cf467ea0'),
+  ('011_master_seed_support.sql', '4bfb0cf4dacc2b045fc366312976c9ada06fb6802e0af9abcbe83a03e00e905d'),
+  ('012_factory_machine_rules_20260810.sql', '14fa966ab8c54d23512e97d6ffc028b8c9ddf31c2923ed2867ba04d7e49b6639'),
+  ('013_book2_machine_product_time_20260810.sql', 'f88429a4e88a51b7bc38e7e455711d55eead6d9332fa5cba3c64949ae7a73de4'),
+  ('014_user_sessions_login_compat_20260810.sql', '9a352cda9d437f9ecc5441ac71f6999fb29d41b1486215f8a14b425b32a6825f'),
+  ('015_latest_excel_source_sync_20260810.sql', 'd1ee61dd4d45de5b41adc4cd06dc330574f3a4c7118d09b6d3997c03da0c9f8f'),
+  ('016_integrity_constraints_20260810.sql', '6b0a7cb9e9016203d1cbb9d952903a6976a64e0c2274ff947ec8f3cf07c32403'),
+  ('017_integration_sync_job_runtime_contract_20260812.sql', 'a2dcf16dc9b1fed02c9079cf63832f8579549fabbe9ff9ee704f7d02f9af6c50'),
+  ('018_gc_shared_machine_max_workers_20260812.sql', '9ee971a02dae884b85292cb53d18ef84a4857f4ca8fc1a0055f42a6a75a7008d'),
+  ('019_historical_standard_snapshot_20260812.sql', 'ff3a1591f9288910556e74a52dba53620b4ab368fe45874bc8f7826fc15deb33'),
+  ('020_training_percent_snapshot_20260812.sql', 'ba958fc0b8fc069d587ac684285fa6c78283619dc4602c278fb2002b862954b9'),
+  ('021_kqd_policy_snapshot_20260812.sql', '461e39f69b34a9e87df2f9387d6c3db7faa0ecb7852e31d16aef053dc2f4cdf7'),
+  ('022_shared_machine_accounting_20260812.sql', '8f7d148d32dfb7d0dcbafc4c93afa37424f55e536b39c811aeb991ba0bbdad05'),
+  ('023_refresh_session_rotation_20260813.sql', '0f203c361afc20994b56da640c03a348450fbda8d6148021cac88c2fadd03c4d'),
+  ('024_logical_duplicate_report_lock_20260813.sql', '60b508fbb7e4b639486151cdcca4d7e36512ce67e018782aa7f5e566fdd7d3d2'),
+  ('025_formula_settings_effective_range_20260813.sql', '56385f116d2936411b8f978fbc122b55b1df0965154a01661a0576a1c0fef4ee')
+ON DUPLICATE KEY UPDATE checksum=checksum;
+
+SELECT migration_id, checksum FROM schema_migrations ORDER BY migration_id;

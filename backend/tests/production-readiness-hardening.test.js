@@ -19,8 +19,9 @@ test('restore rehearsal refuses the production database and validates staging af
   const s=read('scripts/rehearseDatabaseRestore.js');
   assert.match(s,/DB đích trùng DB production/);
   assert.match(s,/KTC_RESTORE_DB_NAME/);
-  assert.match(s,/checkDatabaseIntegrity\.js/);
-  assert.match(s,/validateRealProductionData\.js/);
+  assert.match(s,/KTC_DISASTER_RESTORE_STAGE/);
+  assert.match(s,/KTC_RESTORE_DB_HOST/);
+  assert.match(s,/no cutover performed/i);
 });
 
 test('readiness load test is read-only and bounded',()=>{

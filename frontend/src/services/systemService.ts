@@ -66,8 +66,8 @@ export async function getReportVersions(id:number,type:'temp'|'approved'='approv
  return r.data.data as ReportVersion[];
 }
 
-export async function restoreApprovedReportVersion(id:number,versionNo:number,reason:string){
- const r=await api.post(`/production/${id}/versions/${versionNo}/restore`,{reason});
+export async function restoreApprovedReportVersion(id:number,versionNo:number,reason:string,expectedUpdatedAt?:string|null){
+ const r=await api.post(`/production/${id}/versions/${versionNo}/restore`,{reason,expected_updated_at:expectedUpdatedAt||undefined});
  return r.data;
 }
 

@@ -80,7 +80,7 @@
 .worker-desktop-nav button,
 .worker-logout {
   position: relative;
-  min-height: 40px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -164,7 +164,7 @@
   .worker-brand-text small { display: none; }
   .worker-desktop-nav { display: none; }
   .worker-logout-label { display: none; }
-  .worker-logout { width: 40px; padding: 0; }
+  .worker-logout { width: 44px; min-height: 44px; padding: 0; }
   .worker-main-content {
     min-height: calc(100dvh - 58px);
     padding-bottom: calc(var(--worker-mobile-nav-height) + env(safe-area-inset-bottom));

@@ -1,16 +1,10 @@
 'use strict';
 
-const crypto = require('node:crypto');
-const fs = require('node:fs/promises');
-const path = require('node:path');
 const db = require('../config/db');
-const { runMasterSeed } = require('./runMasterSeed');
+const { getCanonicalMigrationManifest } = require('../services/migrationManifestService');
+const { analyzeMigrationState, SCHEMA_STATUS } = require('../services/databaseSchemaService');
+const { FORMULA_EFFECTIVE_RANGE_MIGRATION, preflightFormulaEffectiveRangeMigration } = require('../services/migrationPreflightService');
 
-const MIGRATIONS_DIR = path.join(__dirname, '..', 'migrations');
-
-function checksum(text) {
-  return crypto.createHash('sha256').update(text).digest('hex');
-}
 
 function splitStatements(sql) {
   return sql
@@ -102,6 +96,11 @@ async function preflight(file) {
 
   if (file === '016_integrity_constraints_20260810.sql') {
     await normalizeProductionDetailDuplicates();
+    return;
+  }
+
+  if (file === FORMULA_EFFECTIVE_RANGE_MIGRATION) {
+    await preflightFormulaEffectiveRangeMigration(db.promise());
   }
 }
 
@@ -109,21 +108,30 @@ async function run() {
   await db.testConnection();
   await ensureMigrationTable();
 
-  const files = (await fs.readdir(MIGRATIONS_DIR))
-    .filter((name) => /^\d+_.*\.sql$/i.test(name))
-    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const manifest = getCanonicalMigrationManifest();
+  const [appliedRows] = await db.promise().query(
+    'SELECT migration_id, checksum, applied_at FROM schema_migrations ORDER BY migration_id',
+  );
+  const initialState = analyzeMigrationState(manifest, appliedRows);
+  if ([SCHEMA_STATUS.CHECKSUM_MISMATCH, SCHEMA_STATUS.UNEXPECTED_FUTURE_MIGRATION, SCHEMA_STATUS.MIGRATION_STATE_INVALID].includes(initialState.status)) {
+    const error = new Error(`Migration ledger không an toàn: ${initialState.status}`);
+    error.code = initialState.status === SCHEMA_STATUS.CHECKSUM_MISMATCH
+      ? 'MIGRATION_CHECKSUM_MISMATCH'
+      : initialState.status;
+    throw error;
+  }
 
-  for (const file of files) {
-    const sql = await fs.readFile(path.join(MIGRATIONS_DIR, file), 'utf8');
-    const digest = checksum(sql);
-    const [rows] = await db.promise().query(
-      'SELECT checksum FROM schema_migrations WHERE migration_id=? LIMIT 1',
-      [file],
-    );
+  for (const entry of manifest) {
+    const file = entry.filename;
+    const digest = entry.checksum;
+    const sql = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'migrations', file), 'utf8');
+    const rows = appliedRows.filter((row) => row.migration_id === file);
 
     if (rows[0]) {
       if (rows[0].checksum !== digest) {
-        throw new Error(`Migration đã chạy nhưng checksum thay đổi: ${file}`);
+        const error = new Error(`Migration đã chạy nhưng checksum thay đổi: ${file}`);
+        error.code = 'MIGRATION_CHECKSUM_MISMATCH';
+        throw error;
       }
       console.log(`SKIP ${file}`);
       continue;
@@ -151,7 +159,6 @@ async function run() {
     console.log(`APPLIED ${file}`);
   }
 
-  await runMasterSeed({ closePool: false });
 }
 
 run()

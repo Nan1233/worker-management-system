@@ -1,98 +1,12 @@
-const crypto = require('node:crypto');
 const db = require('../config/db');
-
-const ENTITY_CONFIGS = Object.freeze({
-  product_standards: {
-    table: 'product_standards',
-    keyFields: ['process_id', 'product_code'],
-    fields: ['process_id', 'product_code', 'standard_output', 'exclude_kqd_from_tt'],
-    required: ['process_id', 'product_code', 'standard_output'],
-    numberFields: ['process_id', 'standard_output', 'exclude_kqd_from_tt']
-  },
-  defect_types: {
-    table: 'defect_types',
-    keyFields: ['process_id', 'defect_code'],
-    fields: ['process_id', 'defect_code', 'defect_name', 'sort_order', 'excel_column'],
-    required: ['process_id', 'defect_code', 'defect_name'],
-    numberFields: ['process_id', 'sort_order']
-  },
-  deduction_types: {
-    table: 'deduction_types',
-    keyFields: ['process_id', 'deduction_code'],
-    fields: ['process_id', 'deduction_code', 'deduction_name', 'sort_order', 'excel_column'],
-    required: ['process_id', 'deduction_code', 'deduction_name'],
-    numberFields: ['process_id', 'sort_order']
-  },
-  machines: {
-    table: 'machines',
-    keyFields: ['process_id', 'machine_code'],
-    fields: ['process_id', 'machine_code', 'machine_name'],
-    required: ['process_id', 'machine_code', 'machine_name'],
-    numberFields: ['process_id']
-  }
-});
-
-function normalizeText(value) {
-  return String(value ?? '').trim().replace(/\s+/g, ' ');
-}
-
-function normalizeCode(value) {
-  return normalizeText(value).toUpperCase();
-}
-
-function normalizeRow(config, raw) {
-  const row = {};
-  for (const field of config.fields) {
-    let value = raw?.[field];
-    if (config.numberFields.includes(field)) {
-      value = value === '' || value === null || value === undefined ? 0 : Number(value);
-      if (!Number.isFinite(value)) value = 0;
-    } else {
-      value = normalizeText(value);
-      if (field.endsWith('_code') || field === 'excel_column') value = normalizeCode(value);
-    }
-    row[field] = value;
-  }
-  return row;
-}
-
-function businessKey(config, row) {
-  return config.keyFields.map((field) => String(row[field] ?? '')).join('|');
-}
-
-function stableObject(config, row) {
-  const result = {};
-  for (const field of config.fields) result[field] = row[field] ?? null;
-  return result;
-}
-
-function hashRow(config, row) {
-  return crypto.createHash('sha256').update(JSON.stringify(stableObject(config, row))).digest('hex');
-}
-
-function validateRows(config, rows) {
-  const valid = [];
-  const invalid = [];
-  const seen = new Map();
-
-  (rows || []).forEach((raw, index) => {
-    const row = normalizeRow(config, raw);
-    const rowNumber = Number(raw?.__rowNumber) || index + 2;
-    const missing = config.required.filter((field) => row[field] === '' || row[field] === null || row[field] === undefined || (config.numberFields.includes(field) && !Number.isFinite(Number(row[field]))));
-    const key = businessKey(config, row);
-    if (missing.length) {
-      invalid.push({ rowNumber, row, message: `Thiếu trường bắt buộc: ${missing.join(', ')}` });
-      return;
-    }
-    if (seen.has(key)) {
-      invalid.push({ rowNumber, row, message: `Trùng khóa với dòng ${seen.get(key)}` });
-      return;
-    }
-    seen.set(key, rowNumber);
-    valid.push({ rowNumber, row, key, hash: hashRow(config, row) });
-  });
-  return { valid, invalid };
-}
+const { assertProcessesScope } = require('./processAuthorizationService');
+const {
+  ENTITY_CONFIGS,
+  normalizeRow,
+  businessKey,
+  validateRows,
+  collectWorkbookProcessIds
+} = require('./excelMasterSyncValidationService');
 
 async function loadExisting(connection, config, processIds) {
   if (!processIds.length) return [];
@@ -105,7 +19,7 @@ async function loadExisting(connection, config, processIds) {
 }
 
 function compareRows(config, validated, existingRows, options = {}) {
-  const existing = new Map(existingRows.map((row) => [businessKey(config, normalizeRow(config, row)), row]));
+  const existing = new Map(existingRows.map((row) => [businessKey(config, normalizeRow(config, row).row), row]));
   const incomingKeys = new Set(validated.valid.map((item) => item.key));
   const changes = [];
 
@@ -115,7 +29,7 @@ function compareRows(config, validated, existingRows, options = {}) {
       changes.push({ action: 'CREATE', ...item, oldData: null, newData: item.row, changedFields: config.fields });
       continue;
     }
-    const normalizedOld = normalizeRow(config, old);
+    const normalizedOld = normalizeRow(config, old).row;
     const changedFields = config.fields.filter((field) => String(normalizedOld[field] ?? '') !== String(item.row[field] ?? ''));
     if (String(old.status || '').toLowerCase() !== 'active') {
       changes.push({ action: 'REACTIVATE', ...item, entityId: Number(old.id), oldData: normalizedOld, newData: item.row, changedFields: [...new Set([...changedFields, 'status'])] });
@@ -128,7 +42,7 @@ function compareRows(config, validated, existingRows, options = {}) {
 
   if (options.allowDeactivate === true) {
     for (const old of existingRows) {
-      const normalizedOld = normalizeRow(config, old);
+      const normalizedOld = normalizeRow(config, old).row;
       const key = businessKey(config, normalizedOld);
       if (!incomingKeys.has(key) && String(old.status || '').toLowerCase() === 'active') {
         changes.push({ action: 'DEACTIVATE', key, rowNumber: null, entityId: Number(old.id), oldData: normalizedOld, newData: null, changedFields: ['status'] });
@@ -147,11 +61,12 @@ function summarize(changes, invalid) {
   return result;
 }
 
-async function preview({ entityType, rows, allowDeactivate = false }) {
+async function preview({ entityType, rows, allowDeactivate = false }, actor = null) {
   const config = ENTITY_CONFIGS[entityType];
   if (!config) throw Object.assign(new Error('Loại dữ liệu đồng bộ không hợp lệ'), { statusCode: 400 });
+  const processIds = collectWorkbookProcessIds(rows);
+  if (actor) await assertProcessesScope(actor, processIds, { action: 'EXCEL_MASTER_SYNC_PREVIEW' });
   const validated = validateRows(config, rows);
-  const processIds = [...new Set(validated.valid.map((item) => Number(item.row.process_id)).filter((id) => id > 0))];
   const connection = await db.promise().getConnection();
   try {
     const existing = await loadExisting(connection, config, processIds);
@@ -184,10 +99,14 @@ async function logChange(connection, batchId, entityType, change, sheetName) {
   );
 }
 
-async function apply(payload, userId) {
-  const result = await preview(payload);
+async function apply(payload, actor) {
+  const result = await preview(payload, actor);
   if (result.invalid.length && payload.rejectOnInvalid !== false) {
-    throw Object.assign(new Error(`Có ${result.invalid.length} dòng không hợp lệ; chưa ghi dữ liệu`), { statusCode: 422, details: result });
+    throw Object.assign(new Error(`Có ${result.invalid.length} dòng không hợp lệ; chưa ghi dữ liệu`), {
+      statusCode: 422,
+      code: 'MASTER_VALIDATION_FAILED',
+      details: result
+    });
   }
   const activeCount = result.changes.filter((item) => item.action !== 'DEACTIVATE').length;
   const deactivationCount = result.summary.deactivate;
@@ -201,7 +120,7 @@ async function apply(payload, userId) {
   let batchId;
   try {
     await connection.beginTransaction();
-    batchId = await insertBatch(connection, payload, result.summary, userId);
+    batchId = await insertBatch(connection, payload, result.summary, actor?.id);
     for (const change of result.changes) {
       if (change.action === 'UNCHANGED') {
         await logChange(connection, batchId, payload.entityType, change, payload.sheetName);
@@ -236,14 +155,48 @@ async function apply(payload, userId) {
   }
 }
 
-async function listBatches(limit = 50) {
+async function listBatches(limit = 50, actor = null) {
   const safeLimit = Math.min(200, Math.max(1, Number(limit) || 50));
-  const [rows] = await db.promise().query(`SELECT * FROM excel_sync_batches ORDER BY id DESC LIMIT ${safeLimit}`);
+  if (String(actor?.role || '').toLowerCase() === 'admin') {
+    const [rows] = await db.promise().query(`SELECT * FROM excel_sync_batches ORDER BY id DESC LIMIT ${safeLimit}`);
+    return rows;
+  }
+  const actorId = Number(actor?.id);
+  if (!Number.isInteger(actorId) || actorId <= 0) return [];
+  const [rows] = await db.promise().query(`SELECT * FROM excel_sync_batches WHERE performed_by=? ORDER BY id DESC LIMIT ${safeLimit}`, [actorId]);
   return rows;
 }
 
-async function getBatchLogs(batchId) {
-  const [rows] = await db.promise().query('SELECT * FROM excel_sync_logs WHERE batch_id = ? ORDER BY id', [batchId]);
+function processIdsFromSyncLogRows(rows) {
+  const ids = new Set();
+  for (const row of rows || []) {
+    for (const raw of [row?.old_data, row?.new_data]) {
+      if (!raw) continue;
+      try {
+        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        const id = Number(parsed?.process_id);
+        if (Number.isInteger(id) && id > 0) ids.add(id);
+      } catch (_) {}
+    }
+  }
+  return [...ids];
+}
+
+async function getBatchLogs(batchId, actor = null) {
+  const id = Number(batchId);
+  if (!Number.isInteger(id) || id <= 0) return [];
+  if (String(actor?.role || '').toLowerCase() !== 'admin') {
+    const actorId = Number(actor?.id);
+    const [batchRows] = await db.promise().query('SELECT id, performed_by FROM excel_sync_batches WHERE id=? LIMIT 1', [id]);
+    if (!batchRows.length || Number(batchRows[0].performed_by) !== actorId) {
+      const error = new Error('Không có quyền xem lịch sử đồng bộ này');
+      error.statusCode = 403; error.code = 'PROCESS_SCOPE_FORBIDDEN'; throw error;
+    }
+  }
+  const [rows] = await db.promise().query('SELECT * FROM excel_sync_logs WHERE batch_id = ? ORDER BY id', [id]);
+  if (actor && String(actor?.role || '').toLowerCase() !== 'admin') {
+    await assertProcessesScope(actor, processIdsFromSyncLogRows(rows), { action: 'EXCEL_MASTER_SYNC_HISTORY' });
+  }
   return rows;
 }
 

@@ -3,7 +3,6 @@ const runtimeMetrics = require("./services/runtimeMetrics");
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
-const rateLimit = require("express-rate-limit");
 require("dotenv").config();
 
 const db = require("./config/db");
@@ -30,6 +29,7 @@ const permissionRoutes = require("./routes/permissionRoutes");
 const adminMasterRoutes = require("./routes/adminMasterRoutes");
 const formulaSettingsRoutes = require("./routes/formulaSettingsRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
+const machineProductionEventRoutes = require("./routes/machineProductionEventRoutes");
 const networkAccessRoutes = require("./routes/networkAccessRoutes");
 const mobileRoutes = require("./routes/mobileRoutes");
 const governanceRoutes = require("./routes/governanceRoutes");
@@ -39,6 +39,9 @@ const checkRole = require("./middleware/roleMiddleware");
 const reportExportController = require("./controllers/reportExportController");
 const excelExportJobQueue = require("./services/excelExportJobQueue");
 const { validateEnvironment } = require("./config/validateEnvironment");
+const { verifyDatabaseSchema, assertDatabaseSchemaReady, toSafeSchemaDiagnostics } = require("./services/databaseSchemaService");
+const { globalApiLimiter } = require("./middleware/rateLimiters");
+const { resolveTrustProxySetting } = require("./services/proxyTrustPolicy");
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -61,9 +64,9 @@ function parseCorsOrigins() {
 
 const allowedOrigins = parseCorsOrigins();
 
-// Render dùng reverse proxy phía trước ứng dụng. Chỉ tin đúng một lớp proxy
-// để express-rate-limit không cho phép giả mạo X-Forwarded-For.
-app.set("trust proxy", 1);
+// Trust proxy chỉ bật khi deployment được nhận diện/cấu hình rõ ràng.
+// Mặc định local/unknown deployment không tin X-Forwarded-For do client tự gửi.
+app.set("trust proxy", resolveTrustProxySetting(process.env));
 app.disable("x-powered-by");
 app.set("etag", "weak");
 
@@ -121,10 +124,11 @@ app.use((req, res, next) => {
 
   res.on("finish", () => {
     const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+    const requestPath = String(req.originalUrl || req.path || "").split("?")[0];
     runtimeMetrics.recordHttp({
       requestId,
       method: req.method,
-      path: req.originalUrl,
+      path: requestPath,
       status: res.statusCode,
       durationMs
     });
@@ -134,7 +138,7 @@ app.use((req, res, next) => {
           type: "http",
           requestId,
           method: req.method,
-          path: req.originalUrl,
+          path: requestPath,
           status: res.statusCode,
           durationMs: Math.round(durationMs),
         }),
@@ -144,16 +148,7 @@ app.use((req, res, next) => {
   next();
 });
 
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: Number(process.env.API_RATE_LIMIT || 600),
-  standardHeaders: "draft-8",
-  legacyHeaders: false,
-  skip: (req) => req.path === "/health",
-  message: { success: false, message: "Quá nhiều yêu cầu, vui lòng thử lại sau" },
-});
-
-app.use("/api", apiLimiter);
+app.use("/api", globalApiLimiter);
 app.use("/api", (req, res, next) => {
   // Authenticated production data must not be cached by shared proxies.
   res.setHeader("Cache-Control", "private, no-store");
@@ -175,52 +170,55 @@ app.get("/api/health/live", (_req, res) => {
   });
 });
 
-app.get("/api/health/ready", async (_req, res) => {
+async function readinessHandler(_req, res) {
   res.setHeader("Cache-Control", "no-store");
   const started = Date.now();
-  try {
-    await db.promise().query({ sql: "SELECT 1 AS ok", timeout: 3_000 });
-    return res.json({
-      success: true,
-      service: "ktc-api",
-      status: "ready",
-      database: "ok",
-      databaseLatencyMs: Date.now() - started,
-    });
-  } catch (_error) {
+  const schema = await verifyDatabaseSchema();
+  const diagnostics = toSafeSchemaDiagnostics(schema);
+  const version = require("./config/version");
+  if (!schema.ready) {
     return res.status(503).json({
       success: false,
       service: "ktc-api",
       status: "not_ready",
-      database: "unavailable",
+      database: schema.status === "DATABASE_UNAVAILABLE" ? "unavailable" : "ok",
+      schemaReady: false,
+      schemaStatus: diagnostics.status,
+      expectedMigration: diagnostics.expectedMigration,
+      actualMigration: diagnostics.actualMigration,
+      appVersion: version.backendVersion,
     });
   }
-});
+  return res.json({
+    success: true,
+    service: "ktc-api",
+    status: "ready",
+    database: "ok",
+    databaseLatencyMs: Date.now() - started,
+    schemaReady: true,
+    schemaStatus: diagnostics.status,
+    expectedMigration: diagnostics.expectedMigration,
+    actualMigration: diagnostics.actualMigration,
+    appVersion: version.backendVersion,
+  });
+}
 
-// Backward-compatible health endpoint for Render and existing clients.
-app.get("/api/health", async (_req, res) => {
-  res.setHeader("Cache-Control", "no-store");
-  const started = Date.now();
-  try {
-    await db.promise().query({ sql: "SELECT 1 AS ok", timeout: 3_000 });
-    return res.json({
-      success: true,
-      service: "ktc-api",
-      database: "ok",
-      databaseLatencyMs: Date.now() - started,
-    });
-  } catch (_error) {
-    return res.status(503).json({
-      success: false,
-      service: "ktc-api",
-      database: "unavailable",
-    });
-  }
+app.get("/api/health/ready", readinessHandler);
+
+// Backward-compatible deployment health endpoint: same readiness semantics.
+app.get("/api/health", readinessHandler);
+
+// F16 disaster-restore maintenance gate: health stays readable, all API writes are quiesced.
+app.use("/api", (req, res, next) => {
+  if (String(process.env.KTC_MAINTENANCE_MODE || "").toUpperCase() !== "RESTORE") return next();
+  if (["GET", "HEAD", "OPTIONS"].includes(String(req.method || "").toUpperCase())) return next();
+  return res.status(503).json({ success: false, code: "MAINTENANCE_RESTORE", message: "Hệ thống đang ở chế độ khôi phục dữ liệu" });
 });
 
 app.use("/api/mobile", mobileRoutes);
 app.use("/api/network", networkAccessRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/machine-production-events", machineProductionEventRoutes);
 app.use("/api/machines", machineRoutes);
 app.use("/api/product-standards", productStandardRoutes);
 app.use("/api/auth", authRoutes);
@@ -332,11 +330,21 @@ async function start() {
     validateEnvironment(process.env, { production: isProduction });
     const database = await db.testConnection();
     console.log(`Database connected: ${database.host}:${database.port}; SSL=${database.ssl}`);
+    const schema = await assertDatabaseSchemaReady();
+    console.log(`Database schema READY: ${schema.expectedLatest?.filename || 'none'}`);
     await excelExportJobQueue.initialize();
   } catch (error) {
-    console.error(`Database startup check failed: ${error.message}`);
-    // Render should restart a service that cannot reach its primary database.
-    if (isProduction) process.exit(1);
+    const safeDetails = error?.details || {};
+    console.error(JSON.stringify({
+      type: "startup_not_ready",
+      code: error?.code || "DATABASE_STARTUP_FAILED",
+      schemaStatus: error?.schemaStatus || null,
+      expectedMigration: safeDetails.expectedLatest || null,
+      actualMigration: safeDetails.actualLatest || null,
+      message: error?.message,
+    }));
+    process.exitCode = 1;
+    return null;
   }
 
   server = app.listen(PORT, () => {

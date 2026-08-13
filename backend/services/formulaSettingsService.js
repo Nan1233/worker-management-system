@@ -21,84 +21,14 @@ const DEFAULT_SETTINGS = Object.freeze({
   version_no: 1
 });
 
-let schemaReadyPromise = null;
 let cache = null;
 let cacheAt = 0;
 const CACHE_TTL_MS = 15_000;
 
-async function ensureColumn(columnName, ddl) {
-  const [rows] = await db.promise().query(
-    `SELECT 1 FROM information_schema.columns
-     WHERE table_schema = DATABASE() AND table_name='production_formula_settings' AND column_name=?
-     LIMIT 1`,
-    [columnName]
-  );
-  if (!rows.length) await db.promise().query(ddl);
-}
-
 async function ensureSchema() {
-  if (schemaReadyPromise) return schemaReadyPromise;
-  schemaReadyPromise = (async () => {
-    await db.promise().query(`
-      CREATE TABLE IF NOT EXISTS production_formula_settings (
-        scope_code VARCHAR(30) NOT NULL,
-        process_id BIGINT NULL,
-        effective_from DATE NULL,
-        effective_to DATE NULL,
-        apply_training_percent TINYINT(1) NOT NULL DEFAULT 1,
-        output_formula VARCHAR(50) NOT NULL DEFAULT 'ENTERED_X_TRAINING',
-        output_per_hour_formula VARCHAR(60) NOT NULL DEFAULT 'ADJUSTED_OUTPUT_DIV_ACTUAL_TIME',
-        achievement_formula VARCHAR(60) NOT NULL DEFAULT 'OUTPUT_PER_HOUR_DIV_STANDARD',
-        ng_rate_formula VARCHAR(50) NOT NULL DEFAULT 'NG_DIV_OK_PLUS_NG',
-        actual_time_formula VARCHAR(40) NOT NULL DEFAULT 'DATABASE_SNAPSHOT',
-        threshold_red DECIMAL(7,2) NOT NULL DEFAULT 80,
-        threshold_orange DECIMAL(7,2) NOT NULL DEFAULT 95,
-        threshold_yellow DECIMAL(7,2) NOT NULL DEFAULT 100,
-        threshold_green DECIMAL(7,2) NOT NULL DEFAULT 110,
-        version_no INT NOT NULL DEFAULT 1,
-        updated_by BIGINT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY (scope_code),
-        KEY idx_formula_process_id (process_id)
-      )
-    `);
-
-    await ensureColumn(
-      'effective_from',
-      'ALTER TABLE production_formula_settings ADD COLUMN effective_from DATE NULL AFTER process_id'
-    );
-    await ensureColumn(
-      'effective_to',
-      'ALTER TABLE production_formula_settings ADD COLUMN effective_to DATE NULL AFTER effective_from'
-    );
-
-    await db.promise().query(`
-      CREATE TABLE IF NOT EXISTS production_formula_setting_versions (
-        id BIGINT NOT NULL AUTO_INCREMENT,
-        scope_code VARCHAR(30) NOT NULL,
-        process_id BIGINT NULL,
-        effective_from DATE NULL,
-        effective_to DATE NULL,
-        settings_json JSON NOT NULL,
-        source_version_no INT NOT NULL,
-        change_reason VARCHAR(500) NULL,
-        created_by BIGINT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        KEY idx_formula_history_scope (scope_code, created_at),
-        KEY idx_formula_history_process (process_id, created_at)
-      )
-    `);
-
-    await db.promise().query(
-      `INSERT IGNORE INTO production_formula_settings (scope_code, process_id) VALUES ('GLOBAL', NULL)`
-    );
-  })().catch((error) => {
-    schemaReadyPromise = null;
-    throw error;
-  });
-  return schemaReadyPromise;
+  // Schema ownership belongs exclusively to canonical migrations/release.
+  // Kept as a compatibility no-op for existing callers. Startup/readiness
+  // already fail closed if migration 025 or any required schema is missing.
 }
 
 function normalizePercent(value, fallback) {

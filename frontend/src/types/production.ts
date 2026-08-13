@@ -77,6 +77,7 @@ export interface ProductionReport {
     client_request_id?: string;
 
     force_create?: boolean;
+    duplicate_confirmation_token?: string;
     reason?: string;
 
 
@@ -98,6 +99,7 @@ export interface ProductionReport {
     operation_mode?: "MANUAL" | "MACHINE";
     machine_lines?: Array<{
         id?: number;
+        machine_event_id?: number | null;
         machine_id?: number;
         machine_code: string;
         product_code: string;

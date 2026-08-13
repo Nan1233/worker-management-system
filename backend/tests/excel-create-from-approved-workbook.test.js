@@ -12,8 +12,10 @@ test('Excel sync supports manager-created rows without bypassing backend validat
   assert.match(service,/validateProductionReport/);
   assert.match(service,/validateMasterData/);
   assert.match(service,/REPORT_CREATED_FROM_EXCEL/);
-  assert.match(service,/DUPLICATE_REPORT/);
-  assert.match(service,/report_versions|createReportVersion/);
+  assert.match(service,/DUPLICATE_PRODUCTION_REPORT/);
+  assert.match(service,/production_report_duplicate_locks/);
+  assert.match(service,/createApprovedReportVersion/);
+  assert.match(service,/loadApprovedAggregateSnapshot/);
 });
 
 test('Excel workbook exposes worker-entered operation fields and parser detects blank-ID create rows', () => {

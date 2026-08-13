@@ -72,6 +72,14 @@ const checks = [
     sql: `SELECT COUNT(*) AS total FROM production_report_deductions d LEFT JOIN deduction_types t ON t.id=d.deduction_type_id WHERE t.id IS NULL`,
   },
   {
+    code: 'INVALID_ACTIVE_PRODUCT_STANDARD',
+    sql: `SELECT COUNT(*) AS total FROM product_standards WHERE status='active' AND (standard_output IS NULL OR standard_output <= 0)`,
+  },
+  {
+    code: 'INVALID_ACTIVE_MACHINE_STANDARD',
+    sql: `SELECT COUNT(*) AS total FROM product_machine_standards WHERE is_active=1 AND (standard_output IS NULL OR standard_output <= 0 OR (standard_time_seconds IS NOT NULL AND standard_time_seconds <= 0) OR (calculated_output_per_hour IS NOT NULL AND calculated_output_per_hour <= 0))`,
+  },
+  {
     code: 'INVALID_TRAINING_PERCENT',
     sql: `SELECT COUNT(*) AS total FROM workers WHERE training_percent < 0 OR training_percent > 100`,
   },

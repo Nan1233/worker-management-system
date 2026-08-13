@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
@@ -139,10 +139,25 @@ export default function ApprovedReports() {
     const [reportImporting, setReportImporting] = useState(false);
     const [error, setError] = useState("");
     const [searchKeyword, setSearchKeyword] = useState("");
+    const [searchQuery, setSearchQuery] = useState("");
     const [selectedShift, setSelectedShift] = useState("");
     const [selectedProcess, setSelectedProcess] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
+    const [totalCount, setTotalCount] = useState(0);
+    const [totalPages, setTotalPages] = useState(1);
+    const [processes, setProcesses] = useState<string[]>([]);
     const [reloadNonce, setReloadNonce] = useState(0);
+
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            setCurrentPage(1);
+            setSelectedIds([]);
+            setSearchQuery(searchKeyword.trim());
+        }, 250);
+        return () => window.clearTimeout(timer);
+    }, [searchKeyword]);
+
+    const reportLoadSeqRef = useRef(0);
 
     const activeDateRange = useMemo(
         () => getDateRangeForMode(dateMode, selectedMonth, dateFrom, dateTo),
@@ -150,16 +165,23 @@ export default function ApprovedReports() {
     );
 
     const loadReports = useCallback(async () => {
+        const requestSeq = ++reportLoadSeqRef.current;
+        const isCurrentRequest = () => reportLoadSeqRef.current === requestSeq;
         try {
             setLoading(true);
             setError("");
             const load = () => getApprovedReports({
                 dateFrom: activeDateRange.dateFrom,
-                dateTo: activeDateRange.dateTo
+                dateTo: activeDateRange.dateTo,
+                shift: selectedShift || undefined,
+                processName: selectedProcess || undefined,
+                search: searchQuery || undefined,
+                page: currentPage,
+                pageSize: ITEMS_PER_PAGE
             });
-            let data: ProductionReport[];
+            let result;
             try {
-                data = await load();
+                result = await load();
             } catch (firstError) {
                 const retryable = !axios.isAxiosError(firstError)
                     || !firstError.response
@@ -167,15 +189,18 @@ export default function ApprovedReports() {
                     || firstError.response.status >= 500;
                 if (!retryable) throw firstError;
                 await new Promise(resolve => window.setTimeout(resolve, 800));
-                data = await load();
+                result = await load();
             }
-            const normalized = Array.isArray(data) ? data : [];
-            setReports(normalized);
-            setSelectedIds(previous => {
-                const available = new Set(normalized.map(item => Number(item.id)).filter(id => id > 0));
-                return previous.filter(id => available.has(id));
-            });
+            if (!isCurrentRequest()) return;
+            setReports(result.items);
+            setTotalCount(result.pagination.total);
+            setTotalPages(result.pagination.total_pages);
+            setProcesses(result.processes);
+            if (currentPage > result.pagination.total_pages) {
+                setCurrentPage(result.pagination.total_pages);
+            }
         } catch (err: unknown) {
+            if (!isCurrentRequest()) return;
             console.error("GET APPROVED REPORTS ERROR:", err);
             setError(
                 axios.isAxiosError(err)
@@ -183,11 +208,19 @@ export default function ApprovedReports() {
                     : "Không thể tải báo cáo đã duyệt"
             );
             setReports([]);
-            setSelectedIds([]);
+            setTotalCount(0);
+            setTotalPages(1);
         } finally {
-            setLoading(false);
+            if (isCurrentRequest()) setLoading(false);
         }
-    }, [activeDateRange.dateFrom, activeDateRange.dateTo]);
+    }, [
+        activeDateRange.dateFrom,
+        activeDateRange.dateTo,
+        selectedShift,
+        selectedProcess,
+        searchQuery,
+        currentPage
+    ]);
 
     useEffect(() => {
         const reload = () => setReloadNonce(value => value + 1);
@@ -196,16 +229,13 @@ export default function ApprovedReports() {
     }, []);
 
     useEffect(() => {
-        queueMicrotask(() => {
-            setSelectedIds([]);
-            void loadReports();
-        });
+        void loadReports();
     }, [loadReports, reloadNonce]);
 
-    const processes = useMemo(
-        () => Array.from(new Set(reports.map(item => item.process_name).filter(Boolean))).sort(),
-        [reports]
-    );
+    useEffect(() => {
+        setCurrentPage(1);
+        setSelectedIds([]);
+    }, [dateMode, selectedMonth, dateFrom, dateTo, selectedShift, selectedProcess]);
 
     const duplicateCounts = useMemo(() => {
         const counts = new Map<string, number>();
@@ -217,39 +247,10 @@ export default function ApprovedReports() {
         return counts;
     }, [reports]);
 
-    const filteredReports = useMemo(() => {
-        const keyword = normalizeText(searchKeyword);
-        return reports.filter(report => {
-            const searchable = normalizeText([
-                report.worker_code,
-                report.full_name,
-                report.machine_no,
-                report.product_name,
-                report.process_name,
-                report.shift
-            ].join(" "));
-            return (!keyword || searchable.includes(keyword))
-                && (!selectedShift || report.shift === selectedShift)
-                && (!selectedProcess || report.process_name === selectedProcess);
-        });
-    }, [reports, searchKeyword, selectedShift, selectedProcess]);
-
-    useEffect(() => {
-        queueMicrotask(() => setCurrentPage(1));
-    }, [dateMode, selectedMonth, dateFrom, dateTo, searchKeyword, selectedShift, selectedProcess]);
-
-    const totalPages = Math.max(1, Math.ceil(filteredReports.length / ITEMS_PER_PAGE));
-    useEffect(() => {
-        if (currentPage > totalPages) queueMicrotask(() => setCurrentPage(totalPages));
-    }, [currentPage, totalPages]);
-
-    const paginatedReports = useMemo(
-        () => filteredReports.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE),
-        [filteredReports, currentPage]
-    );
+    // Filtering/search/pagination are server-side; `reports` is the current page.
     const currentPageIds = useMemo(
-        () => paginatedReports.map(report => Number(report.id)).filter(id => Number.isInteger(id) && id > 0),
-        [paginatedReports]
+        () => reports.map(report => Number(report.id)).filter(id => Number.isInteger(id) && id > 0),
+        [reports]
     );
     const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
     const selectedOnCurrentPageCount = currentPageIds.filter(id => selectedIdSet.has(id)).length;
@@ -453,17 +454,18 @@ export default function ApprovedReports() {
                     <p>Lọc theo ngày, tháng hoặc khoảng thời gian. Phạm vi hiển thị không ảnh hưởng dữ liệu Excel tháng.</p>
                 </div>
                 <div className="management-report-count">
-                    <strong>{filteredReports.length}</strong>
+                    <strong>{totalCount}</strong>
                     <span>báo cáo</span>
                 </div>
             </div>
 
             <div className="management-filter-card approved-filter-card">
                 <div className="management-search-box">
-                    <span>⌕</span>
+                    <span aria-hidden="true">⌕</span>
                     <input
                         value={searchKeyword}
                         onChange={event => setSearchKeyword(event.target.value)}
+                        aria-label="Tìm báo cáo theo mã, tên công nhân, máy hoặc sản phẩm"
                         placeholder="Tìm mã, tên công nhân, máy, sản phẩm..."
                     />
                 </div>
@@ -703,9 +705,9 @@ export default function ApprovedReports() {
 
             <div className="management-report-card">
                 {loading ? (
-                    <div className="management-empty">Đang tải...</div>
-                ) : paginatedReports.length === 0 ? (
-                    <div className="management-empty">Không có báo cáo phù hợp</div>
+                    <div className="management-empty" role="status" aria-live="polite">Đang tải...</div>
+                ) : reports.length === 0 ? (
+                    <div className="management-empty" role="status">Không có báo cáo phù hợp</div>
                 ) : (
                     <div className="management-table-container">
                         <table className="management-report-table">
@@ -732,7 +734,7 @@ export default function ApprovedReports() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {paginatedReports.map((report, index) => {
+                                {reports.map((report, index) => {
                                     const reportId = Number(report.id);
                                     const validReportId = Number.isInteger(reportId) && reportId > 0;
                                     const selected = validReportId && selectedIdSet.has(reportId);
@@ -769,11 +771,11 @@ export default function ApprovedReports() {
             </div>
 
             {totalPages > 1 && (
-                <div className="management-pagination">
-                    <button disabled={currentPage === 1} onClick={() => setCurrentPage(page => page - 1)}>‹ Trước</button>
+                <nav className="management-pagination" aria-label="Phân trang báo cáo">
+                    <button type="button" aria-label="Trang trước" disabled={currentPage === 1} onClick={() => setCurrentPage(page => page - 1)}>‹ Trước</button>
                     <span>Trang {currentPage}/{totalPages}</span>
-                    <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(page => page + 1)}>Sau ›</button>
-                </div>
+                    <button type="button" aria-label="Trang sau" disabled={currentPage === totalPages} onClick={() => setCurrentPage(page => page + 1)}>Sau ›</button>
+                </nav>
             )}
 
             <div className="duplicate-note">

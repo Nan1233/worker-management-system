@@ -182,9 +182,8 @@ test('desktop monthly export is split into one summary file and nine process fil
 
 test('company Excel calculation source includes KQD product policy and multi-machine performance', () => {
   const source = read('services/processExcelExportService.js');
-  assert.match(source, /LEFT JOIN product_standards AS ps/);
-  assert.match(source, /ps\.product_code = pr\.product_name/);
-  assert.match(source, /exclude_kqd_from_tt/);
+  assert.doesNotMatch(source, /LEFT JOIN product_standards AS ps/);
+  assert.match(source, /pr\.exclude_kqd_from_tt_snapshot AS exclude_kqd_from_tt/);
   assert.match(source, /calculateReportPerformance/);
   assert.match(source, /machineLines:\s*report\.machineLines/);
 });

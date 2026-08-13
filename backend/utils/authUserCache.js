@@ -2,6 +2,7 @@ const { TtlCache } = require("./cache");
 
 const authUserCache = new TtlCache({ maxEntries: 1000 });
 const pendingLoads = new Map();
+const invalidationEpochs = new Map();
 const AUTH_USER_TTL_MS = Math.max(
   5_000,
   Number(process.env.AUTH_USER_CACHE_TTL_MS || 60_000),
@@ -36,7 +37,10 @@ function setCachedAuthUser(user, ttlMs = AUTH_USER_TTL_MS) {
 }
 
 function deleteCachedAuthUser(userId) {
-  authUserCache.deleteByPrefix(keyFor(userId));
+  const cacheKey = keyFor(userId);
+  authUserCache.deleteByPrefix(cacheKey);
+  pendingLoads.delete(cacheKey);
+  invalidationEpochs.set(cacheKey, (invalidationEpochs.get(cacheKey) || 0) + 1);
 }
 
 async function getOrLoadAuthUser(userId, loader) {
@@ -46,14 +50,19 @@ async function getOrLoadAuthUser(userId, loader) {
 
   if (pendingLoads.has(cacheKey)) return pendingLoads.get(cacheKey);
 
+  const loadEpoch = invalidationEpochs.get(cacheKey) || 0;
   const pending = Promise.resolve()
     .then(loader)
     .then((user) => {
       const normalized = normalizeAuthUser(user);
-      if (normalized) authUserCache.set(cacheKey, normalized, AUTH_USER_TTL_MS);
+      if (normalized && (invalidationEpochs.get(cacheKey) || 0) === loadEpoch) {
+        authUserCache.set(cacheKey, normalized, AUTH_USER_TTL_MS);
+      }
       return normalized;
     })
-    .finally(() => pendingLoads.delete(cacheKey));
+    .finally(() => {
+      if (pendingLoads.get(cacheKey) === pending) pendingLoads.delete(cacheKey);
+    });
 
   pendingLoads.set(cacheKey, pending);
   return pending;
@@ -65,4 +74,5 @@ module.exports = {
   setCachedAuthUser,
   deleteCachedAuthUser,
   getOrLoadAuthUser,
+  _test: { keyFor, normalizeAuthUser, invalidationEpochs, pendingLoads },
 };

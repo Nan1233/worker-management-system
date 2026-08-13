@@ -148,8 +148,8 @@ const getReportMetrics = (report) => {
   const machineMetrics = report.machinePerformance;
   const actualOutput = machineMetrics?.machine_count > 0
     ? toNumber(machineMetrics.counted_output)
-    : Number(report.actual_output ?? (ok + calculateCountedNg(report.defects || [], Boolean(Number(report.exclude_kqd_from_tt || 0)))));
-  const standard = machineMetrics?.machine_count > 0 ? 0 : Math.round(toNumber(report.standard_output));
+    : Number(report.actual_output ?? (ok + calculateCountedNg(report.defects || [], Boolean(Number(report.exclude_kqd_from_tt_snapshot ?? report.exclude_kqd_from_tt ?? 0)))));
+  const standard = machineMetrics?.machine_count > 0 ? 0 : toNumber(report.standard_output);
   const actualTime = toNumber(report.actual_time);
   const plannedOutput = machineMetrics?.machine_count > 0
     ? toNumber(machineMetrics.maximum_output)

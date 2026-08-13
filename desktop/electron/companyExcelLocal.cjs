@@ -1,6 +1,7 @@
 const path = require('node:path');
 const fs = require('node:fs');
 const ExcelJS = require('exceljs');
+const { isKqdDefect } = require('../../shared/kqdPolicy.cjs');
 
 const GROUPS = Object.freeze({
   GIA_CONG: {
@@ -530,8 +531,7 @@ function getMetrics(report) {
   // (ví dụ 6.315789 SP/giờ); làm tròn sẽ khiến TT và tỷ lệ đạt sai.
   const standardOutput = num(report.standard_output ?? report.standard_output_per_hour ?? report.standard);
   const countedNg = (report.defects || []).reduce((sum, item) => {
-    const code = normalizeCode(item.defect_code || item.code);
-    if (code === 'KQD' && Number(report.exclude_kqd_from_tt || 0) === 1) return sum;
+    if (isKqdDefect(item) && Number(report.exclude_kqd_from_tt || 0) === 1) return sum;
     return sum + num(item.quantity);
   }, 0);
   const hasActualOutput = report.actual_output !== null && report.actual_output !== undefined && safeText(report.actual_output).trim() !== '';

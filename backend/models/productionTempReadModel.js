@@ -1,69 +1,119 @@
 const db = require("../config/db");
 const { mergeDefects, normalizeDeductions } = require("../utils/reportDetailNormalizer");
 const { query } = require("./productionTempModelShared");
+const { paginationMeta } = require("../services/managerReportPaginationService");
+
+function buildListFilters(managerId, filters, isAdmin, statusSql) {
+    const params = [];
+    const conditions = [statusSql];
+    if (!isAdmin) {
+        conditions.push(`EXISTS (
+            SELECT 1 FROM manager_processes mp
+            WHERE mp.process_id = pr.process_id
+              AND mp.manager_id = ?
+        )`);
+        params.push(managerId);
+    }
+    if (filters.date) { conditions.push("pr.work_date = ?"); params.push(filters.date); }
+    if (filters.date_from) { conditions.push("pr.work_date >= ?"); params.push(filters.date_from); }
+    if (filters.date_to) { conditions.push("pr.work_date <= ?"); params.push(filters.date_to); }
+    if (filters.shift) { conditions.push("pr.shift = ?"); params.push(filters.shift); }
+    if (filters.process_id) { conditions.push("pr.process_id = ?"); params.push(filters.process_id); }
+    if (filters.process_name) { conditions.push("p.process_name = ?"); params.push(filters.process_name); }
+    if (filters.search) {
+        conditions.push("(w.worker_code LIKE ? OR u.full_name LIKE ? OR pr.machine_no LIKE ? OR pr.product_name LIKE ?)");
+        const search = `%${filters.search}%`;
+        params.push(search, search, search, search);
+    }
+    return { conditions, params };
+}
+
+async function getProcessOptions(managerId, isAdmin) {
+    const params = [];
+    const scope = isAdmin ? "" : `AND EXISTS (
+        SELECT 1 FROM manager_processes mp
+        WHERE mp.manager_id = ? AND mp.process_id = p.id
+    )`;
+    if (!isAdmin) params.push(managerId);
+    return query(db, `SELECT p.id, p.process_name
+        FROM processes p
+        WHERE p.status='active' ${scope}
+        ORDER BY p.process_name ASC, p.id ASC`, params);
+}
+
+async function getPreviousPendingCount(managerId, isAdmin) {
+    const params = [];
+    const scope = isAdmin ? "" : `AND EXISTS (
+        SELECT 1 FROM manager_processes mp
+        WHERE mp.manager_id = ? AND mp.process_id = pr.process_id
+    )`;
+    if (!isAdmin) params.push(managerId);
+    const rows = await query(db, `SELECT COUNT(*) AS total
+        FROM production_reports_temp pr
+        WHERE pr.status IN ('pending','need_fix')
+          AND pr.work_date < CURRENT_DATE()
+          ${scope}`, params);
+    return Number(rows?.[0]?.total || 0);
+}
 
 module.exports = {
     async getPending(managerId, filters = {}, isAdmin = false) {
-        const params = [];
-        const conditions = ["pr.status IN ('pending', 'need_fix')"];
-        if (!isAdmin) {
-            conditions.push(`EXISTS (
-                SELECT 1 FROM manager_processes mp
-                WHERE mp.process_id = pr.process_id
-                  AND mp.manager_id = ?
-            )`);
-            params.push(managerId);
-        }
-        if (filters.date) { conditions.push("DATE(pr.work_date) = ?"); params.push(filters.date); }
-        if (filters.date_from) { conditions.push("pr.work_date >= ?"); params.push(filters.date_from); }
-        if (filters.date_to) { conditions.push("pr.work_date <= ?"); params.push(filters.date_to); }
-        if (filters.shift) { conditions.push("pr.shift = ?"); params.push(filters.shift); }
-        if (filters.process_id) { conditions.push("pr.process_id = ?"); params.push(filters.process_id); }
-        if (filters.search) {
-            conditions.push("(w.worker_code LIKE ? OR u.full_name LIKE ? OR pr.machine_no LIKE ? OR pr.product_name LIKE ?)");
-            const search = `%${filters.search}%`;
-            params.push(search, search, search, search);
-        }
-        return query(db, `SELECT
-                pr.*, w.worker_code, u.full_name, p.process_name
-             FROM production_reports_temp pr
-             JOIN workers w ON pr.worker_id = w.id
-             JOIN users u ON w.user_id = u.id
-             JOIN processes p ON pr.process_id = p.id
-             WHERE ${conditions.join(" AND ")}
-             ORDER BY pr.work_date DESC, pr.created_at ASC`, params);
+        const { page = 1, page_size: pageSize = 20, offset = 0 } = filters.pagination || {};
+        const { conditions, params } = buildListFilters(managerId, filters, isAdmin, "pr.status IN ('pending', 'need_fix')");
+        const where = conditions.join(" AND ");
+        const [countRows, items, processes, previousCount] = await Promise.all([
+            query(db, `SELECT COUNT(*) AS total
+                 FROM production_reports_temp pr
+                 JOIN workers w ON pr.worker_id = w.id
+                 JOIN users u ON w.user_id = u.id
+                 JOIN processes p ON pr.process_id = p.id
+                 WHERE ${where}`, params),
+            query(db, `SELECT
+                    pr.id, pr.work_date, pr.shift, pr.machine_no, pr.product_name,
+                    pr.updated_at, w.worker_code, u.full_name, p.process_name
+                 FROM production_reports_temp pr
+                 JOIN workers w ON pr.worker_id = w.id
+                 JOIN users u ON w.user_id = u.id
+                 JOIN processes p ON pr.process_id = p.id
+                 WHERE ${where}
+                 ORDER BY pr.work_date DESC, pr.created_at ASC, pr.id ASC
+                 LIMIT ? OFFSET ?`, [...params, pageSize, offset]),
+            getProcessOptions(managerId, isAdmin),
+            getPreviousPendingCount(managerId, isAdmin)
+        ]);
+        const total = Number(countRows?.[0]?.total || 0);
+        return {
+            items,
+            pagination: paginationMeta({ page, pageSize, total }),
+            processes,
+            previous_count: previousCount
+        };
     },
 
     async getApproved(managerId, filters = {}, isAdmin = false) {
-        const params = [];
-        const conditions = ["pr.status = 'approved'"];
-        if (!isAdmin) {
-            conditions.push(`EXISTS (
-                SELECT 1 FROM manager_processes mp
-                WHERE mp.process_id = pr.process_id
-                  AND mp.manager_id = ?
-            )`);
-            params.push(managerId);
-        }
-        if (filters.date) { conditions.push("DATE(pr.work_date) = ?"); params.push(filters.date); }
-        if (filters.date_from) { conditions.push("pr.work_date >= ?"); params.push(filters.date_from); }
-        if (filters.date_to) { conditions.push("pr.work_date <= ?"); params.push(filters.date_to); }
-        if (filters.shift) { conditions.push("pr.shift = ?"); params.push(filters.shift); }
-        if (filters.process_id) { conditions.push("pr.process_id = ?"); params.push(filters.process_id); }
-        if (filters.search) {
-            conditions.push("(w.worker_code LIKE ? OR u.full_name LIKE ? OR pr.machine_no LIKE ? OR pr.product_name LIKE ?)");
-            const search = `%${filters.search}%`;
-            params.push(search, search, search, search);
-        }
-        return query(db, `SELECT pr.*, w.worker_code, u.full_name, p.process_name,
-                    reviewer.full_name AS reviewer_name
-             FROM production_reports pr
-             JOIN workers w ON pr.worker_id = w.id
-             JOIN users u ON w.user_id = u.id
-             JOIN processes p ON pr.process_id = p.id
-             LEFT JOIN users reviewer ON reviewer.id = pr.reviewed_by
-             WHERE ${conditions.join(" AND ")}
-             ORDER BY pr.approved_at DESC, pr.id DESC`, params);
+        const { page = 1, page_size: pageSize = 20, offset = 0 } = filters.pagination || {};
+        const { conditions, params } = buildListFilters(managerId, filters, isAdmin, "pr.status = 'approved'");
+        const where = conditions.join(" AND ");
+        const [countRows, items, processes] = await Promise.all([
+            query(db, `SELECT COUNT(*) AS total
+                 FROM production_reports pr
+                 JOIN workers w ON pr.worker_id = w.id
+                 JOIN users u ON w.user_id = u.id
+                 JOIN processes p ON pr.process_id = p.id
+                 WHERE ${where}`, params),
+            query(db, `SELECT pr.id, pr.work_date, pr.shift, pr.machine_no, pr.product_name,
+                        w.worker_code, u.full_name, p.process_name
+                 FROM production_reports pr
+                 JOIN workers w ON pr.worker_id = w.id
+                 JOIN users u ON w.user_id = u.id
+                 JOIN processes p ON pr.process_id = p.id
+                 WHERE ${where}
+                 ORDER BY pr.approved_at DESC, pr.id DESC
+                 LIMIT ? OFFSET ?`, [...params, pageSize, offset]),
+            getProcessOptions(managerId, isAdmin)
+        ]);
+        const total = Number(countRows?.[0]?.total || 0);
+        return { items, pagination: paginationMeta({ page, pageSize, total }), processes };
     },
 
     async getDates(

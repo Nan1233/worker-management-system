@@ -108,9 +108,15 @@ function ProcessPage() {
     const { showToast } = useToast();
     const submitLockRef = useRef(false);
     const clientRequestIdRef = useRef<string | null>(null);
+    const machineStandardRequestSeqRef = useRef<number[]>([]);
+    const masterDataRequestSeqRef = useRef(0);
+    const workerInfoRequestSeqRef = useRef(0);
     const [duplicatePrompt, setDuplicatePrompt] = useState<{
         reportId: number;
+        reportType: "temp" | "approved";
+        confirmationToken: string;
         payload: ProductionReport;
+        formSignature: string;
     } | null>(null);
 
     const navigate =
@@ -251,6 +257,17 @@ const machineAutocompleteOptions =
 
     const [machineCount, setMachineCount] = useState(1);
     const [machineLines, setMachineLines] = useState<MachineLineState[]>([createEmptyMachineLine()]);
+
+    const getDuplicateFormSignature = () => JSON.stringify({
+        form,
+        machineLines,
+        deductions,
+        selectedNg,
+        selectedDeduction,
+        extraData,
+        operationType,
+        operationMode
+    });
     const [extraData, setExtraData] = useState<Record<string, string>>({});
     const currentExtraFields = processExtraFields[process] || [];
     const usesMultiMachineLines = isAlwaysMultiMachineProcess || (isCutLongProcess && operationMode === "MACHINE");
@@ -284,7 +301,7 @@ const machineAutocompleteOptions =
         if (!isCutLongProcess) return;
         setForm((current) => current.productName ? { ...current, productName: "", standardOutput: "" } : current);
         setMachineLines((current) => current.map((line) => line.productCode
-            ? { ...line, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" }
+            ? { ...line, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, excludeKqdFromTt: null, standardError: "" }
             : line));
     }, [operationType, isCutLongProcess]);
 
@@ -343,11 +360,16 @@ const machineAutocompleteOptions =
     const refreshMachineLineStandard = async (index: number, machineCode: string, productCode: string) => {
         const normalizedMachine = machineCode.trim();
         const normalizedProduct = productCode.trim();
+        const requestSeq = (machineStandardRequestSeqRef.current[index] || 0) + 1;
+        machineStandardRequestSeqRef.current[index] = requestSeq;
+        const isCurrentRequest = () => machineStandardRequestSeqRef.current[index] === requestSeq;
+
         if (!normalizedMachine || !normalizedProduct) {
             updateMachineLine(index, {
                 standardOutputPerHour: 0,
                 standardTimeSeconds: null,
                 standardSource: null,
+                excludeKqdFromTt: null,
                 standardLoading: false,
                 standardError: ""
             });
@@ -359,21 +381,26 @@ const machineAutocompleteOptions =
             const resolved = await resolveProductStandard(
                 processInfo.id,
                 normalizedMachine,
-                normalizedProduct
+                normalizedProduct,
+                form.workDate
             );
+            if (!isCurrentRequest()) return;
             const output = Number(resolved.resolved_output_per_hour || 0);
             updateMachineLine(index, {
                 standardOutputPerHour: Number.isFinite(output) ? output : 0,
                 standardTimeSeconds: resolved.standard_time_seconds,
                 standardSource: resolved.standard_source,
+                excludeKqdFromTt: Number(resolved.exclude_kqd_from_tt || 0) === 1,
                 standardLoading: false,
                 standardError: output > 0 ? "" : "Định mức bằng 0"
             });
         } catch (error) {
+            if (!isCurrentRequest()) return;
             updateMachineLine(index, {
                 standardOutputPerHour: 0,
                 standardTimeSeconds: null,
                 standardSource: null,
+                excludeKqdFromTt: null,
                 standardLoading: false,
                 standardError: getApiError(error, "Không lấy được định mức").message
             });
@@ -424,6 +451,16 @@ const machineAutocompleteOptions =
             .map((item) => item.key);
 
         setSelectedNg(aggregatedSelectedNg);
+        const totalCountedOutput = machineLines.reduce((sum, line) => {
+            const countedNg = line.selectedDefects.reduce((ngSum, key) => {
+                const option = activeNgOptions.find((item) => item.key === key);
+                const code = String(option?.code || '').trim().toUpperCase();
+                if (line.excludeKqdFromTt === true && KQD_CODES.has(code)) return ngSum;
+                return ngSum + Number(line.defects[key] || 0);
+            }, 0);
+            return sum + Number(line.okQuantity || 0) + countedNg;
+        }, 0);
+
         setForm((current) => {
             const next: FormState = {
                 ...current,
@@ -431,7 +468,7 @@ const machineAutocompleteOptions =
                 standardOutput: machineLines.length
                     ? String(machineLines.reduce((sum, line) => sum + Number(line.standardOutputPerHour || 0), 0))
                     : "0",
-                actualOutput: String(totalOk + totalNg),
+                actualOutput: String(totalCountedOutput),
                 ttOk: String(totalOk),
                 ttNg: String(totalNg)
             };
@@ -444,13 +481,37 @@ const machineAutocompleteOptions =
         });
     }, [usesMultiMachineLines, machineLines, activeNgOptions]);
 
+const [resolvedReportKqdPolicy, setResolvedReportKqdPolicy] = useState<boolean | null>(null);
+
+useEffect(() => {
+    let cancelled = false;
+    const productCode = form.productName.trim();
+    if (!productCode || !/^\d{4}-\d{2}-\d{2}$/.test(form.workDate) || usesMultiMachineLines) {
+        setResolvedReportKqdPolicy(null);
+        return () => { cancelled = true; };
+    }
+    setResolvedReportKqdPolicy(null);
+    void resolveProductStandard(processInfo.id, form.machineNo.trim(), productCode, form.workDate)
+        .then((resolved) => {
+            if (!cancelled) setResolvedReportKqdPolicy(Number(resolved.exclude_kqd_from_tt || 0) === 1);
+        })
+        .catch(() => {
+            if (!cancelled) setResolvedReportKqdPolicy(null);
+        });
+    return () => { cancelled = true; };
+}, [processInfo.id, form.productName, form.machineNo, form.workDate, usesMultiMachineLines]);
+
 const selectedProduct = useMemo(
     () => scopedProductOptions.find((product) => product.product_code === form.productName),
     [scopedProductOptions, form.productName]
 );
 
-const productExcludesKqd = (): boolean =>
-    Number(selectedProduct?.exclude_kqd_from_tt || 0) === 1;
+const productExcludesKqd = (): boolean => {
+    // Historical resolver is the preview authority. Never fall back to the
+    // mutable current product master when the historical policy is unresolved.
+    if (!form.productName.trim() || usesMultiMachineLines) return false;
+    return resolvedReportKqdPolicy === true;
+};
 
 const calculateActualOutput = (values: FormState): number =>
     calculateActualOutputValue(values, activeNgOptions, productExcludesKqd(), KQD_CODES);
@@ -552,6 +613,8 @@ const calculateActualOutput = (values: FormState): number =>
     // =====================================================
 
     useEffect(() => {
+        const requestSeq = ++workerInfoRequestSeqRef.current;
+        const isCurrentRequest = () => workerInfoRequestSeqRef.current === requestSeq;
 
         const loadWorkerInfo =
             async () => {
@@ -574,6 +637,7 @@ const calculateActualOutput = (values: FormState): number =>
 
                     const workerData =
                         await getCurrentWorker(true);
+                    if (!isCurrentRequest()) return;
 
                     const schema = getProcessFormSchema(process);
                     if (!workerCanAccessProcess(workerData, schema.processId, schema.processCode)) {
@@ -618,6 +682,7 @@ const calculateActualOutput = (values: FormState): number =>
 
                 }
                 catch (error: unknown) {
+                    if (!isCurrentRequest()) return;
 
                     console.error(
                         "LOAD WORKER ERROR:",
@@ -678,17 +743,18 @@ const calculateActualOutput = (values: FormState): number =>
 
                 }
                 finally {
-
-                    setLoadingWorker(
-                        false
-                    );
-
+                    if (isCurrentRequest()) {
+                        setLoadingWorker(false);
+                    }
                 }
 
             };
 
 
         void loadWorkerInfo();
+        return () => {
+            if (workerInfoRequestSeqRef.current === requestSeq) workerInfoRequestSeqRef.current += 1;
+        };
 
     }, [navigate, process, showToast]);
         // =====================================================
@@ -820,6 +886,8 @@ const calculateActualOutput = (values: FormState): number =>
 // =====================================================
 
 useEffect(() => {
+    const requestSeq = ++masterDataRequestSeqRef.current;
+    const isCurrentRequest = () => masterDataRequestSeqRef.current === requestSeq;
 
     const loadMasterData =
         async () => {
@@ -843,6 +911,8 @@ useEffect(() => {
                     getCachedDefects(processInfo.id),
                     getCachedDeductions(processInfo.id)
                 ]);
+
+                if (!isCurrentRequest()) return;
 
                 const machines = machinesResult.status === "fulfilled"
                     ? machinesResult.value
@@ -899,6 +969,7 @@ useEffect(() => {
 
             }
             catch (error: unknown) {
+                if (!isCurrentRequest()) return;
 
                 console.error(
                     "LOAD MASTER DATA ERROR:",
@@ -933,19 +1004,18 @@ useEffect(() => {
 
             }
             finally {
-
-                setLoadingMasterData(
-                    false
-                );
-
+                if (isCurrentRequest()) setLoadingMasterData(false);
             }
 
         };
 
 
     void loadMasterData();
+    return () => {
+        if (masterDataRequestSeqRef.current === requestSeq) masterDataRequestSeqRef.current += 1;
+    };
 
-}, [processInfo.id, showToast]);
+}, [processInfo.id, processCode, showToast]);
 
     // =====================================================
     // CHỈ CHO PHÉP NHẬP SỐ NGUYÊN
@@ -2009,12 +2079,33 @@ const updateDeductionValue = (
                 }
                 try {
                     response = await createTempReport(payload);
-                } catch (error) {
+                } catch (error: any) {
+                    if (Number(error?.response?.status || 0) === 429) {
+                        const message = error?.response?.data?.message
+                            || "Bạn thao tác quá nhanh. Vui lòng chờ một chút rồi bấm Lưu lại.";
+                        showToast(message, "warning");
+                        return;
+                    }
                     if (isTransientNetworkFailure(error)) {
                         enqueueOfflineReport(payload);
                         showToast("Kết nối Internet bị gián đoạn. Báo cáo đã được lưu trên thiết bị và sẽ tự gửi lại khi có mạng.", "warning");
                         clientRequestIdRef.current = null;
                         window.setTimeout(() => navigate("/worker", { replace: true }), 900);
+                        return;
+                    }
+                    const duplicateResponse = error?.response?.data;
+                    if (
+                        error?.response?.status === 409 &&
+                        duplicateResponse?.code === "DUPLICATE_PRODUCTION_REPORT" &&
+                        duplicateResponse?.data?.id
+                    ) {
+                        setDuplicatePrompt({
+                            reportId: Number(duplicateResponse.data.id),
+                            reportType: duplicateResponse.data?.report_type === "approved" ? "approved" : "temp",
+                            confirmationToken: String(duplicateResponse?.duplicate_confirmation_token || ""),
+                            payload,
+                            formSignature: getDuplicateFormSignature()
+                        });
                         return;
                     }
                     throw error;
@@ -2027,7 +2118,10 @@ const updateDeductionValue = (
                 ) {
                     setDuplicatePrompt({
                         reportId: Number(response.data.id),
-                        payload
+                        reportType: response.data?.report_type === "approved" ? "approved" : "temp",
+                        confirmationToken: String(response?.duplicate_confirmation_token || ""),
+                        payload,
+                        formSignature: getDuplicateFormSignature()
                     });
                     return;
                 }
@@ -2089,14 +2183,26 @@ window.setTimeout(() => {
         }, 900);
     };
 
+    const ensureDuplicatePromptStillCurrent = (): boolean => {
+        if (!duplicatePrompt) return false;
+        if (duplicatePrompt.formSignature === getDuplicateFormSignature()) return true;
+        setDuplicatePrompt(null);
+        submitLockRef.current = false;
+        showToast("Dữ liệu trên form đã thay đổi sau khi phát hiện báo cáo trùng. Vui lòng bấm Lưu lại để kiểm tra theo dữ liệu mới.", "warning");
+        return false;
+    };
+
     const handleCreateDuplicateAnyway = async () => {
-        if (!duplicatePrompt) return;
+        if (!duplicatePrompt || submitLockRef.current || submitting) return;
+        if (!ensureDuplicatePromptStillCurrent()) return;
+        submitLockRef.current = true;
         try {
             setSubmitting(true);
             const payload = {
                 ...duplicatePrompt.payload,
                 client_request_id: crypto.randomUUID(),
-                force_create: true
+                force_create: true,
+                duplicate_confirmation_token: duplicatePrompt.confirmationToken
             };
             const response = await createTempReport(payload);
             finishSuccessfulSubmit(
@@ -2114,7 +2220,9 @@ window.setTimeout(() => {
     };
 
     const handleUpdateExistingReport = async () => {
-        if (!duplicatePrompt) return;
+        if (!duplicatePrompt || duplicatePrompt.reportType !== "temp" || submitLockRef.current || submitting) return;
+        if (!ensureDuplicatePromptStillCurrent()) return;
+        submitLockRef.current = true;
         try {
             setSubmitting(true);
             await updateTempReport(duplicatePrompt.reportId, duplicatePrompt.payload);
@@ -2317,6 +2425,7 @@ window.setTimeout(() => {
 
                 <ProcessSubmitActions
                 duplicatePrompt={duplicatePrompt}
+                canUpdateExisting={duplicatePrompt?.reportType !== "approved"}
                 submitting={submitting}
                 loadingWorker={loadingWorker}
                 onCancelDuplicate={() => {

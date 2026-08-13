@@ -34,15 +34,64 @@
     "appId": "vn.ktc.productioncontrol",
     "productName": "KTC Production Control",
     "asar": true,
-    "directories": {"output": "release"},
-    "files": ["electron/**/*","frontend/dist/**/*","package.json"],
-    "win": {"target": [{"target": "portable","arch": ["x64"]}],"icon": "assets/icon.ico","signAndEditExecutable": true},
-    "nsis": {"oneClick": false,"allowToChangeInstallationDirectory": true,"createDesktopShortcut": true,"createStartMenuShortcut": true,"shortcutName": "KTC Production Control","deleteAppDataOnUninstall": false,"artifactName": "KTC-Production-Control-Setup.exe"},
-    "portable": {"artifactName": "KTC-Production-Control.exe"},
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**/*",
+      "frontend/dist/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "signAndEditExecutable": true
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "KTC Production Control",
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "KTC-Production-Control-Setup.exe"
+    },
+    "portable": {
+      "artifactName": "KTC-Production-Control.exe"
+    },
     "compression": "maximum",
-    "mac": {"target": ["dmg","zip"],"icon": "assets/icon.png","category": "public.app-category.business"},
-    "dmg": {"artifactName": "KTC-Production-Control-${version}-${arch}.dmg"},
-    "extraResources": [{"from": "../shared","to": "shared","filter": ["excelSyncContract.cjs","kqdPolicy.cjs","kqdExclusionRegistry.json"]}]
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "assets/icon.png",
+      "category": "public.app-category.business"
+    },
+    "dmg": {
+      "artifactName": "KTC-Production-Control-${version}-${arch}.dmg"
+    },
+    "extraResources": [
+      {
+        "from": "../shared",
+        "to": "shared",
+        "filter": [
+          "excelSyncContract.cjs",
+          "kqdPolicy.cjs",
+          "kqdExclusionRegistry.json"
+        ]
+      }
+    ]
   },
-  "dependencies": {"exceljs": "^4.4.0","jszip": "^3.10.1"}
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "jszip": "^3.10.1"
+  }
 }

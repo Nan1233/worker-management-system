@@ -1,5 +1,46 @@
 const AuditService = require("../services/auditService");
 const { query, getConnection, beginTransaction, commit, rollback, normalizeIds, editableFields } = require("./productionTempModelShared");
+const { createStandardResolver, assertStandardSnapshotConsistency } = require("../services/standardResolutionService");
+const { assertKqdPolicySnapshotConsistency } = require("../services/kqdPolicySnapshotService");
+const { assertApprovedEventForTempLine } = require("../services/machineProductionEventService");
+const { createApprovedReportVersion } = require("../services/approvedVersionSnapshotService");
+const { assertReviewBatchSize } = require("../services/managerReportPaginationService");
+
+function workPeriod(value) {
+    const text = value instanceof Date
+        ? `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}`
+        : String(value || "").slice(0, 7);
+    const match = /^(\d{4})-(\d{2})$/.exec(text);
+    if (!match) return null;
+    return { year: Number(match[1]), month: Number(match[2]) };
+}
+
+async function loadLockedReportingPeriods(connection, rows) {
+    const unique = new Map();
+    for (const row of rows) {
+        const period = workPeriod(row.work_date);
+        const processId = Number(row.process_id);
+        if (!period || !Number.isInteger(processId) || processId <= 0) continue;
+        unique.set(`${period.year}-${period.month}-${processId}`, { ...period, processId });
+    }
+    const periods = [...unique.values()];
+    if (!periods.length) return [];
+    const clauses = periods.map(() => `(report_year=? AND report_month=? AND (process_id IS NULL OR process_id=?))`);
+    const params = periods.flatMap((item) => [item.year, item.month, item.processId]);
+    return query(connection, `SELECT report_year, report_month, process_id
+        FROM reporting_period_locks
+        WHERE status='locked' AND (${clauses.join(' OR ')})`, params);
+}
+
+function assertReportingPeriodUnlocked(item, lockedRows) {
+    const period = workPeriod(item.work_date);
+    if (!period) return;
+    const processId = Number(item.process_id);
+    const locked = lockedRows.some((row) => Number(row.report_year) === period.year
+        && Number(row.report_month) === period.month
+        && (row.process_id === null || Number(row.process_id) === processId));
+    if (locked) throw new Error(`Kỳ báo cáo ${String(item.work_date).slice(0, 7)} đã khóa`);
+}
 
 function serializeExtraData(value) {
     if (value === null || value === undefined || value === "") return null;
@@ -24,6 +65,7 @@ function serializeExtraData(value) {
 
 module.exports = {
     async approveSelected(targets, reviewerId, isAdmin = false) {
+        assertReviewBatchSize(targets);
         const normalizedTargets = Array.isArray(targets)
             ? targets.map((item) => typeof item === "object" ? item : { id: item, expected_updated_at: null })
             : [];
@@ -64,21 +106,44 @@ module.exports = {
                 }
             }
 
+            const lockedReportingPeriods = await loadLockedReportingPeriods(connection, rows);
+
             const approvedIds = [];
             const dates = new Set();
+            const standardResolver = createStandardResolver({ query: (sql, params = []) => query(connection, sql, params) });
 
             for (const item of rows) {
-                const lockRows = await query(
-                    connection,
-                    `SELECT id FROM reporting_period_locks
-                     WHERE report_year = YEAR(?) AND report_month = MONTH(?)
-                       AND status = 'locked'
-                       AND (process_id IS NULL OR process_id = ?)
-                     LIMIT 1`,
-                    [item.work_date, item.work_date, item.process_id]
-                );
-                if (lockRows.length) {
-                    throw new Error(`Kỳ báo cáo ${String(item.work_date).slice(0, 7)} đã khóa`);
+                assertReportingPeriodUnlocked(item, lockedReportingPeriods);
+
+                const isMachineReport = String(item.operation_mode || '').toUpperCase() === 'MACHINE';
+                if (isMachineReport) {
+                    const tempLines = await this.getTempMachineLines(item.id, connection);
+                    if (!tempLines.length) {
+                        const error = new Error(`Báo cáo máy #${item.id} không có dòng máy để xác minh định mức`);
+                        error.status = 422; error.code = 'STANDARD_SNAPSHOT_MISSING'; error.isPublic = true;
+                        throw error;
+                    }
+                    for (const line of tempLines) {
+                        await assertApprovedEventForTempLine(connection, { report: item, line });
+                        const resolved = await standardResolver.resolveStandard({
+                            processId: item.process_id, productCode: line.product_code, machineId: line.machine_id,
+                            machineCode: line.machine_code, workDate: item.work_date
+                        });
+                        assertStandardSnapshotConsistency({
+                            resolved, standardOutput: line.standard_output, standardVersionId: line.standard_version_id,
+                            machineStandardId: line.machine_standard_id
+                        });
+                        assertKqdPolicySnapshotConsistency({ resolved, snapshot: line.exclude_kqd_from_tt });
+                    }
+                } else {
+                    const resolved = await standardResolver.resolveStandard({
+                        processId: item.process_id, productCode: item.product_name, workDate: item.work_date
+                    });
+                    assertStandardSnapshotConsistency({
+                        resolved, standardOutput: item.standard_output, standardVersionId: item.standard_version_id,
+                        machineStandardId: item.machine_standard_id
+                    });
+                    assertKqdPolicySnapshotConsistency({ resolved, snapshot: item.exclude_kqd_from_tt_snapshot });
                 }
 
                 const insertResult = await query(
@@ -86,9 +151,9 @@ module.exports = {
                     `INSERT INTO production_reports
                      (source_temp_id, worker_id, process_id, work_date, entry_date, shift, operation_type, operation_mode, machine_no,
                       product_name, total_time, actual_time, deduction_time,
-                      standard_output, actual_output, tt_ok, tt_ng, note, extra_data,
+                      standard_output, standard_version_id, machine_standard_id, training_percent_snapshot, exclude_kqd_from_tt_snapshot, actual_output, tt_ok, tt_ng, note, extra_data,
                       status, review_note, reviewed_by, approved_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                              'approved', ?, ?, NOW())`,
                     [
                         item.id, item.worker_id, item.process_id, item.work_date,
@@ -97,7 +162,7 @@ module.exports = {
                         item.operation_mode ?? null,
                         item.machine_no, item.product_name,
                         item.total_time, item.actual_time, item.deduction_time,
-                        item.standard_output, item.actual_output, item.tt_ok,
+                        item.standard_output, item.standard_version_id || null, item.machine_standard_id || null, item.training_percent_snapshot ?? null, item.exclude_kqd_from_tt_snapshot ?? null, item.actual_output, item.tt_ok,
                         item.tt_ng, item.note, serializeExtraData(item.extra_data), item.review_note, reviewerId
                     ]
                 );
@@ -129,18 +194,13 @@ module.exports = {
 
                 await this.copyMachineLinesToApproved(item.id, approvedReportId, connection);
 
-                const [snapshotDefects, snapshotDeductions, standardVersions] = await Promise.all([
+                const [snapshotDefects, snapshotDeductions] = await Promise.all([
                     query(connection, `SELECT dt.defect_code, dt.defect_name, d.quantity
                         FROM production_report_defects d LEFT JOIN defect_types dt ON dt.id=d.defect_type_id
                         WHERE d.report_id=? ORDER BY d.id`, [approvedReportId]),
                     query(connection, `SELECT dt.deduction_code, dt.deduction_name, d.hours
                         FROM production_report_deductions d LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id
-                        WHERE d.report_id=? ORDER BY d.id`, [approvedReportId]),
-                    query(connection, `SELECT id, exclude_kqd_from_tt FROM product_standard_versions
-                        WHERE process_id=? AND product_code=? AND status='active'
-                          AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?)
-                        ORDER BY effective_from DESC, version_no DESC LIMIT 1`,
-                        [item.process_id, item.product_name, item.work_date, item.work_date])
+                        WHERE d.report_id=? ORDER BY d.id`, [approvedReportId])
                 ]);
                 const snapshotData = JSON.stringify({
                     report: {
@@ -152,7 +212,10 @@ module.exports = {
                         total_time: Number(item.total_time || 0), actual_time: Number(item.actual_time || 0),
                         deduction_time: Number(item.deduction_time || 0), standard_output: Number(item.standard_output || 0),
                         actual_output: Number(item.actual_output || 0), tt_ok: Number(item.tt_ok || 0),
-                        tt_ng: Number(item.tt_ng || 0), exclude_kqd_from_tt: Number(standardVersions[0]?.exclude_kqd_from_tt || 0)
+                        tt_ng: Number(item.tt_ng || 0), exclude_kqd_from_tt: Number(item.exclude_kqd_from_tt || 0),
+                        standard_version_id: item.standard_version_id || null, machine_standard_id: item.machine_standard_id || null,
+                        training_percent_snapshot: item.training_percent_snapshot ?? null,
+                        exclude_kqd_from_tt_snapshot: item.exclude_kqd_from_tt_snapshot ?? null
                     },
                     defects: snapshotDefects,
                     deductions: snapshotDeductions
@@ -161,26 +224,17 @@ module.exports = {
                     (report_id,snapshot_type,standard_version_id,calculation_version,snapshot_data,created_by)
                     VALUES(?,'approved',?,'v1',?,?)
                     ON DUPLICATE KEY UPDATE snapshot_data=VALUES(snapshot_data),standard_version_id=VALUES(standard_version_id),created_by=VALUES(created_by),created_at=CURRENT_TIMESTAMP`,
-                    [approvedReportId, standardVersions[0]?.id || null, snapshotData, reviewerId]);
+                    [approvedReportId, item.standard_version_id || null, snapshotData, reviewerId]);
 
-                // Phiên bản V1 dùng để xem/so sánh/khôi phục về sau.
-                const [versionReports, versionDefects, versionDeductions] = await Promise.all([
-                    query(connection, `SELECT * FROM production_reports WHERE id=? LIMIT 1`, [approvedReportId]),
-                    query(connection, `SELECT * FROM production_report_defects WHERE report_id=? ORDER BY id`, [approvedReportId]),
-                    query(connection, `SELECT * FROM production_report_deductions WHERE report_id=? ORDER BY id`, [approvedReportId])
-                ]);
-                if (versionReports[0]) {
-                    await AuditService.createReportVersion(
-                        {
-                            reportType: 'approved',
-                            reportId: approvedReportId,
-                            snapshot: { ...versionReports[0], defects: versionDefects, deductions: versionDeductions },
-                            reason: `Tạo từ báo cáo tạm #${item.id}`,
-                            userId: reviewerId
-                        },
-                        connection
-                    );
-                }
+                // Approved V1 luôn dùng canonical aggregate snapshot schema v2.
+                await createApprovedReportVersion(
+                    {
+                        reportId: approvedReportId,
+                        reason: `Tạo từ báo cáo tạm #${item.id}`,
+                        userId: reviewerId
+                    },
+                    connection
+                );
 
                 await this.logAction(
                     {
@@ -278,6 +332,7 @@ module.exports = {
     },
 
     async rejectSelected(targets, reviewerId, reason, isAdmin = false) {
+        assertReviewBatchSize(targets);
         const normalizedTargets = Array.isArray(targets)
             ? targets.map((item) => typeof item === "object" ? item : { id: item, expected_updated_at: null })
             : [];

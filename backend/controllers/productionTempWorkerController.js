@@ -13,6 +13,9 @@ const {
 const { validateMasterData } = require("../services/reportBusinessValidationService");
 const { validateProductionReport } = require("../utils/reportValidation");
 const { queuePostCreateSideEffects } = require("../services/productionReportSideEffectsService");
+const { calculateProductionOutput } = require("../../shared/kqdPolicy.cjs");
+const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
+const { issueDuplicateConfirmation } = require("../services/duplicateConfirmationService");
 
 exports.checkSimilarReport = async (req, res) => {
     try {
@@ -38,7 +41,8 @@ exports.checkSimilarReport = async (req, res) => {
             machineNo,
             productName,
             defects: [],
-            deductions: []
+            deductions: [],
+            workDate
         });
 
         if (!masterValidation.valid) {
@@ -68,11 +72,12 @@ exports.checkSimilarReport = async (req, res) => {
         });
     } catch (error) {
         console.error("CHECK SIMILAR REPORT ERROR:", error);
-        return res.status(500).json({ success: false, message: publicMessage(error, "Không thể kiểm tra báo cáo trùng") });
+        return res.status(error.status || 500).json({ success: false, code: error.code || undefined, message: publicMessage(error, "Không thể kiểm tra báo cáo trùng") });
     }
 };
 
 exports.createTempReport = async (req, res) => {
+    let data = null;
     try {
         const workerId =
             toPositiveInteger(
@@ -147,7 +152,8 @@ exports.createTempReport = async (req, res) => {
 
         const validation =
             validateProductionReport(
-                req.body
+                req.body,
+                { skipActualOutputFormula: true }
             );
 
 
@@ -229,7 +235,8 @@ exports.createTempReport = async (req, res) => {
                 machineLines: rawMachineLines,
                 operationType,
                 operationMode: "MACHINE",
-                maxMachines: machinePolicy.maxMachines || 4
+                maxMachines: machinePolicy.maxMachines || 4,
+                workDate: req.body.work_date
             });
             if (!machineValidation.valid) {
                 return res.status(422).json({
@@ -300,7 +307,8 @@ exports.createTempReport = async (req, res) => {
                 ttOk: validation.normalized.tt_ok,
                 actualOutput: validation.normalized.actual_output,
                 allowEmptyMachine: operationMode === "MANUAL" || machinePolicy.mode === "MANUAL_ONLY",
-                operationMode
+                operationMode,
+                workDate: req.body.work_date
             });
 
 
@@ -315,7 +323,21 @@ exports.createTempReport = async (req, res) => {
         }
 
 
-        const data = {
+        const manualOutput = machineValidation.lines.length
+            ? null
+            : calculateProductionOutput({
+                ok: validation.normalized.tt_ok,
+                defects: masterValidation.authoritativeDefects,
+                excludeKqdFromTt: Boolean(Number(masterValidation.excludeKqdFromTt || 0))
+            });
+        const parentKqdPolicySnapshot = machineValidation.lines.length
+            ? (() => {
+                const policies = [...new Set(machineValidation.lines.map((line) => Number(line.exclude_kqd_from_tt || 0) === 1 ? 1 : 0))];
+                return policies.length === 1 ? policies[0] : null;
+            })()
+            : (Number(masterValidation.excludeKqdFromTt || 0) === 1 ? 1 : 0);
+
+        data = {
             ...validation.normalized,
 
             // work_date là ngày công nhân chọn; entry_date là ngày thực tế nhập báo cáo.
@@ -359,12 +381,15 @@ exports.createTempReport = async (req, res) => {
                         ? Number(machineValidation.totals.totalMaximum || 0) / Number(machineValidation.totals.totalMachineHours)
                         : 0)
                     : masterValidation.standardOutput,
+            // Parent multi-machine can aggregate multiple products/standards; identity is stored per line.
+            standard_version_id: machineValidation.lines.length ? null : masterValidation.standardVersionId,
+            machine_standard_id: machineValidation.lines.length ? null : masterValidation.machineStandardId,
 
             // Với báo cáo máy, actual_output là sản lượng được tính năng suất sau quy tắc KQD.
             actual_output:
                 machineValidation.lines.length
                     ? Number(machineValidation.totals?.totalCounted || 0)
-                    : validation.normalized.actual_output,
+                    : Number(manualOutput.actualOutput),
             tt_ok:
                 machineValidation.lines.length
                     ? Number(machineValidation.totals?.totalOk || 0)
@@ -374,10 +399,9 @@ exports.createTempReport = async (req, res) => {
                     ? Number(machineValidation.totals?.totalNg || 0)
                     : validation.normalized.tt_ng,
 
-            exclude_kqd_from_tt:
-                machineValidation.lines.length
-                    ? (machineValidation.lines.every((line) => Number(line.exclude_kqd_from_tt || 0) === 1) ? 1 : 0)
-                    : masterValidation.excludeKqdFromTt,
+            // Legacy alias retained for compatibility; immutable authority is the snapshot field.
+            exclude_kqd_from_tt: parentKqdPolicySnapshot ?? 0,
+            exclude_kqd_from_tt_snapshot: parentKqdPolicySnapshot,
 
             defects:
                 undefined,
@@ -388,8 +412,21 @@ exports.createTempReport = async (req, res) => {
             client_request_id: clientRequestId,
 
             force_create:
-                req.body?.force_create === true
+                req.body?.force_create === true,
+            duplicate_confirmation_token:
+                String(req.body?.duplicate_confirmation_token || "").trim() || null
         };
+
+        data.logical_duplicate_key = buildLogicalDuplicateKey({
+            workerId,
+            processId,
+            workDate: data.work_date,
+            shift: data.shift,
+            operationMode: data.operation_mode,
+            machineNo: data.machine_no,
+            productName: data.product_name,
+            machineLines: machineValidation.lines
+        });
 
 
         // =================================================
@@ -452,11 +489,31 @@ exports.createTempReport = async (req, res) => {
             error
         );
 
-        return res.status(500).json({
+        if (error.code === "DUPLICATE_PRODUCTION_REPORT" || error.code === "DUPLICATE_CONFIRMATION_REQUIRED") {
+            const existing = error.existing_report || null;
+            let duplicateConfirmationToken = null;
+            if (existing?.id && data?.logical_duplicate_key) {
+                duplicateConfirmationToken = issueDuplicateConfirmation({
+                    workerId: data.worker_id,
+                    logicalDuplicateKey: data.logical_duplicate_key,
+                    existingReportId: existing.id,
+                    existingReportType: existing.report_type || 'temp',
+                });
+            }
+            return res.status(409).json({
+                success: false,
+                code: error.code === "DUPLICATE_CONFIRMATION_REQUIRED" ? error.code : "DUPLICATE_PRODUCTION_REPORT",
+                duplicate: true,
+                duplicate_reason: "similar_report",
+                duplicate_confirmation_token: duplicateConfirmationToken,
+                data: existing,
+                message: publicMessage(error, "Đã tồn tại báo cáo cùng công nhân/ngày/ca/máy/sản phẩm")
+            });
+        }
+        return res.status(error.status || 500).json({
             success: false,
-            message:
-                error.message ||
-                "Không thể tạo báo cáo"
+            code: error.code || undefined,
+            message: publicMessage(error, "Không thể tạo báo cáo")
         });
     }
 };

@@ -148,8 +148,8 @@ const buildSheetValues = (reports, options = {}) => {
     // Tổng NG lấy từ toàn bộ production_report_defects của báo cáo, không lấy cột tổng cũ.
     const activeDefectIds = new Set(defectTypes.map((item) => Number(item.id)));
     const ng = sumDetailValues(report.defects, 'quantity', activeDefectIds, 'defect_type_id');
-    const tt = Number(report.actual_output ?? (ok + calculateCountedNg(report.defects, Boolean(Number(report.exclude_kqd_from_tt || 0)))));
-    const standard = Math.round(toNumber(report.standard_output));
+    const tt = Number(report.actual_output ?? (ok + calculateCountedNg(report.defects, Boolean(Number(report.exclude_kqd_from_tt_snapshot ?? report.exclude_kqd_from_tt ?? 0)))));
+    const standard = toNumber(report.standard_output);
     const actualTime = toNumber(report.actual_time);
     return [
       sequence,
@@ -254,6 +254,16 @@ const writeSheetData = async (sheets, reports, options = {}) => {
 exports.syncProductionReport = async (date) => {
   if (!spreadsheetId) throw new Error('Thiếu biến môi trường GOOGLE_SPREADSHEET_ID');
   const reports = await ReportService.getAllApprovedReportsForSheet();
+  for (const report of reports) {
+    const isMachineReport = String(report.operation_mode || '').toUpperCase() === 'MACHINE';
+    if (!isMachineReport && (report.exclude_kqd_from_tt_snapshot === null || report.exclude_kqd_from_tt_snapshot === undefined)) {
+      const error = new Error('Báo cáo cũ chưa có snapshot chính sách KQD; cần audit trước khi đồng bộ lịch sử');
+      error.status = 422;
+      error.code = 'KQD_POLICY_SNAPSHOT_MISSING';
+      error.isPublic = true;
+      throw error;
+    }
+  }
   reports.sort(compareReports);
   const activeTypes = await loadActiveTypes(reports);
   const auth = getGoogleAuth();

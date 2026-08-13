@@ -99,7 +99,7 @@ exports.getApprovedReportsByDate = (date)=>{
 
 
 
-        AND pr.status = approved
+        AND pr.status = 'approved'
 
 
 
@@ -198,7 +198,7 @@ const getReportsByDate = async (date) => {
             SELECT
                 pr.*,
                 w.worker_code,
-                w.training_percent,
+                pr.training_percent_snapshot AS training_percent,
                 u.full_name,
                 p.process_name
 
@@ -377,7 +377,7 @@ const getAllApprovedReportsForSheet =
             SELECT
                 pr.*,
                 w.worker_code,
-                w.training_percent,
+                pr.training_percent_snapshot AS training_percent,
                 u.full_name,
                 p.process_name
 

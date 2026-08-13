@@ -390,7 +390,7 @@ const buildReportValue = (column, report, sequence) => {
         report.defects,
         Boolean(
           Number(
-            report.exclude_kqd_from_tt || 0
+            report.exclude_kqd_from_tt_snapshot ?? report.exclude_kqd_from_tt ?? 0
           )
         )
       )
@@ -399,7 +399,7 @@ const buildReportValue = (column, report, sequence) => {
 
   const standard = machineMetrics?.machine_count > 0
     ? 0
-    : Math.round(toNumber(report.standard_output));
+    : toNumber(report.standard_output);
 
   const actualTime =
     toNumber(

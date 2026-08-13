@@ -1,6 +1,8 @@
 const bcrypt = require('bcrypt');
 const db = require('../config/db');
 const { clearWorkerProfile } = require('../utils/workerProfileCache');
+const { deleteCachedAuthUser } = require('../utils/authUserCache');
+const { revokeAllUserFamilies } = require('../services/refreshSessionService');
 
 const ROLE_CREATE_RULES = {
   admin: ['manager', 'lead', 'worker'],
@@ -267,8 +269,13 @@ exports.updateUser = async (req, res) => {
     if (found[0].role === 'worker' && 'status' in payload) workerPayload.status = payload.status;
     if (found[0].role === 'worker' && Object.keys(workerPayload).length) await connection.query('UPDATE workers SET ? WHERE user_id=?', [workerPayload, id]);
     if (processIdsProvided) await replaceProcessAssignments(connection, found[0].role, id, found[0].worker_id, processIds);
+    // Password reset/change and account disable invalidate every refresh family.
+    if (Object.prototype.hasOwnProperty.call(payload, 'password') || payload.status === 'inactive') {
+      await revokeAllUserFamilies(id, { executor: connection });
+    }
     await connection.commit();
     clearWorkerProfile(id);
+    deleteCachedAuthUser(id);
     return res.json({ success: true, message: 'Cập nhật người dùng thành công' });
   } catch (error) {
     try { await connection.rollback(); } catch (_) {}

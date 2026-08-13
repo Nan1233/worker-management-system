@@ -3,7 +3,8 @@ import type { User } from "../types/auth";
 import AppIcon, { type IconName } from "../components/common/AppIcon";
 import ThemeToggle from "../components/common/ThemeToggle";
 import "./ManagementLayout.css";
-import { clearAuthSession, getStoredUser } from "../utils/authStorage";
+import { getStoredUser } from "../utils/authStorage";
+import { logout } from "../services/authService";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
 import { usePermissions } from "../hooks/usePermissions";
 import type { PermissionCode } from "../security/permissions";
@@ -100,7 +101,7 @@ function ManagementLayout({ role }: Props) {
     };
 
     const handleLogout = () => {
-        clearAuthSession();
+        void logout();
         navigate("/login", { replace: true });
     };
 

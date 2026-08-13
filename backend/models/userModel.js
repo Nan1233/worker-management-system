@@ -76,7 +76,7 @@ const findExactByUsername = (username, callback) => {
             w.id AS worker_id, w.worker_code, w.status AS worker_status
         FROM users u
         LEFT JOIN workers w ON u.id = w.user_id
-        WHERE TRIM(u.username) = ?
+        WHERE u.username = ?
         ORDER BY u.id
         LIMIT 2
         `,
@@ -87,25 +87,44 @@ const findExactByUsername = (username, callback) => {
 
 const findAllByWorkerCode = (workerCode, callback) => {
     const normalized = String(workerCode || "").trim();
+
+    // Common path: exact worker code can use uq_workers_code directly.
     db.query(
         `
         SELECT
             u.id, u.username, u.password, u.full_name, u.role, u.status,
             w.id AS worker_id, w.worker_code, w.status AS worker_status
-        FROM users u
-        INNER JOIN workers w ON u.id = w.user_id
-        WHERE TRIM(COALESCE(w.worker_code, '')) = ?
-           OR (
-                ? REGEXP '^[0-9]+$'
-                AND TRIM(COALESCE(w.worker_code, '')) REGEXP '^[0-9]+$'
-                AND CAST(TRIM(w.worker_code) AS UNSIGNED) = CAST(? AS UNSIGNED)
-           )
+        FROM workers w
+        INNER JOIN users u ON u.id = w.user_id
+        WHERE w.worker_code = ?
         ORDER BY u.id
         `,
-        [normalized, normalized, normalized],
-        callback
+        [normalized],
+        (error, rows) => {
+            if (error) return callback(error);
+            if (rows.length || !/^[0-9]+$/.test(normalized)) return callback(null, rows);
+
+            // Legacy compatibility only: numeric-equivalent codes such as 0599/599.
+            // This fallback may scan, but it is executed only after the indexed exact
+            // lookup misses and keeps the historical ambiguity detection contract.
+            db.query(
+                `
+                SELECT
+                    u.id, u.username, u.password, u.full_name, u.role, u.status,
+                    w.id AS worker_id, w.worker_code, w.status AS worker_status
+                FROM workers w
+                INNER JOIN users u ON u.id = w.user_id
+                WHERE w.worker_code REGEXP '^[0-9]+$'
+                  AND CAST(w.worker_code AS UNSIGNED) = CAST(? AS UNSIGNED)
+                ORDER BY u.id
+                `,
+                [normalized],
+                callback
+            );
+        }
     );
 };
+
 
 // Tương thích cho code cũ: chỉ tìm chính xác username.
 const findByUsername = findExactByUsername;

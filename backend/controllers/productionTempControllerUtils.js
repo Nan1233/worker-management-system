@@ -73,7 +73,9 @@ const normalizeReviewTargets = (body = {}) => {
 };
 
 const requestMeta = (req) => ({
-    ipAddress: req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || null,
+    // Express req.ip already applies the deployment-aware trust-proxy policy.
+    // Never trust raw X-Forwarded-For supplied by an untrusted client for audit identity.
+    ipAddress: req.ip || req.socket?.remoteAddress || null,
     userAgent: req.headers['user-agent'] || null,
 });
 

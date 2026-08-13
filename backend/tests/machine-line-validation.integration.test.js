@@ -35,6 +35,13 @@ const products = [
   }
 ];
 
+
+const defectTypes = [
+  { id: 501, process_id: 1, defect_code: 'KQD', defect_name: 'KQD', status: 'active' },
+  { id: 502, process_id: 1, defect_code: 'BAVIA', defect_name: 'Bavia', status: 'active' },
+  { id: 503, process_id: 1, defect_code: 'KQD_TEST', defect_name: 'KQD test chưa cấu hình', status: 'active' }
+];
+
 const createQueryMock = () => async (sql, params = []) => {
   const normalizedSql = String(sql).replace(/\s+/g, ' ').trim().toLowerCase();
 
@@ -49,6 +56,16 @@ const createQueryMock = () => async (sql, params = []) => {
         && String(machine.status).toLowerCase() === 'active'
       ))
       .map(({ id, machine_code }) => ({ id, machine_code }));
+  }
+
+  if (normalizedSql.includes('from defect_types')) {
+    const processId = Number(params[0]);
+    if (normalizedSql.includes('and id=?')) {
+      const id = Number(params[1]);
+      return defectTypes.filter((item) => item.process_id === processId && item.id === id && item.status === 'active');
+    }
+    const code = String(params[1] || '').trim().toUpperCase();
+    return defectTypes.filter((item) => item.process_id === processId && item.defect_code === code && item.status === 'active');
   }
 
   if (normalizedSql.includes('from product_standards')) {
@@ -76,11 +93,26 @@ const createQueryMock = () => async (sql, params = []) => {
   throw new Error(`Test query chưa được mock: ${normalizedSql}; params=${JSON.stringify(params)}`);
 };
 
-const validate = createMachineLineValidator({ query: createQueryMock() });
+const validate = createMachineLineValidator({
+  query: createQueryMock(),
+  standardResolver: {
+    resolveStandard: async ({ processId, productCode, machineId, machineCode, workDate }) => {
+      assert.equal(workDate, '2026-08-10');
+      const product = products.find((item) => Number(item.process_id) === Number(processId) && Number(item.machine_id) === Number(machineId) && item.product_code === productCode);
+      if (!product) throw new Error('Không có định mức test');
+      return {
+        productStandardId: product.id, standardVersionId: 301, machineStandardId: 401 + Number(machineId),
+        productCode: product.product_code, machineId, machineCode, standardOutput: product.machine_standard_output,
+        standardTimeSeconds: product.standard_time_seconds, excludeKqdFromTt: product.exclude_kqd_from_tt, source: 'MACHINE'
+      };
+    }
+  }
+});
 
 test('multi-machine line validates DB master data, NG detail and KQD exclusion', async () => {
   const result = await validate({
     processId: 1,
+    workDate: '2026-08-10',
     operationMode: 'MACHINE',
     maxMachines: 4,
     machineLines: [
@@ -113,6 +145,7 @@ test('multi-machine line validates DB master data, NG detail and KQD exclusion',
 test('multi-machine line rejects duplicate machine and mismatched NG', async () => {
   const duplicate = await validate({
     processId: 1,
+    workDate: '2026-08-10',
     operationMode: 'MACHINE',
     machineLines: [
       {
@@ -139,6 +172,7 @@ test('multi-machine line rejects duplicate machine and mismatched NG', async () 
 
   const mismatchedNg = await validate({
     processId: 1,
+    workDate: '2026-08-10',
     operationMode: 'MACHINE',
     machineLines: [
       {
@@ -154,4 +188,26 @@ test('multi-machine line rejects duplicate machine and mismatched NG', async () 
 
   assert.equal(mismatchedNg.valid, false);
   assert.match(mismatchedNg.errors['machine_lines.0.defects'], /phải bằng tổng chi tiết lỗi NG/);
+});
+
+test('unconfigured KQD-like machine defect is counted normally', async () => {
+  const result = await validate({
+    processId: 1,
+    workDate: '2026-08-10',
+    operationMode: 'MACHINE',
+    maxMachines: 4,
+    machineLines: [{
+      machine_code: 'CAT-01',
+      product_code: 'QC5-1657',
+      machine_time_hours: 1,
+      ok_quantity: 90,
+      ng_quantity: 10,
+      defects: [
+        { defect_code: 'KQD_TEST', defect_name: 'KQD test chưa cấu hình', quantity: 4 },
+        { defect_code: 'BAVIA', defect_name: 'Bavia', quantity: 6 }
+      ]
+    }]
+  });
+  assert.equal(result.valid, true);
+  assert.equal(result.lines[0].counted_output, 100);
 });

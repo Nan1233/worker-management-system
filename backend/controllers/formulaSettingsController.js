@@ -1,25 +1,34 @@
 const db = require('../config/db');
 const formulaSettingsService = require('../services/formulaSettingsService');
+const { getActorProcessScope, assertProcessScope } = require('../services/processAuthorizationService');
 
-exports.list = async (_req, res, next) => {
+exports.list = async (req, res, next) => {
   try {
+    const scope = await getActorProcessScope(req.user);
+    const ids = scope.type === 'ALL' ? null : [...scope.processIds];
+    const productWhere = scope.type === 'ALL' ? '' : ids.length ? ` AND ps.process_id IN (${ids.map(() => '?').join(',')})` : ' AND 1=0';
     const [products] = await db.promise().query(`
       SELECT ps.id, ps.process_id, ps.product_code,
-             CAST(ROUND(ps.standard_output) AS SIGNED) AS standard_output,
+             ps.standard_output AS standard_output,
              COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
              p.process_code, p.process_name
       FROM product_standards ps
       LEFT JOIN processes p ON p.id = ps.process_id
-      WHERE ps.status = 'active'
+      WHERE ps.status = 'active' ${productWhere}
       ORDER BY p.process_name, ps.product_code
-    `);
+    `, ids || []);
     const formulaData = await formulaSettingsService.loadAll();
+    const allowedProcessIds = scope.type === 'ALL' ? null : scope.processIds;
+    const processes = scope.type === 'ALL' ? formulaData.processes : formulaData.processes.filter((p) => allowedProcessIds.has(Number(p.id)));
+    const scopes = formulaData.scopes.filter((item) => item.scope_code === 'GLOBAL' || scope.type === 'ALL' || allowedProcessIds.has(Number(item.process_id)));
+    const history = formulaData.history.filter((item) => item.scope_code === 'GLOBAL' || scope.type === 'ALL' || allowedProcessIds.has(Number(item.process_id)));
     res.json({
       success: true,
       data: {
         products,
-        scopes: formulaData.scopes,
-        processes: formulaData.processes,
+        scopes,
+        processes,
+        history,
         defaults: formulaSettingsService.DEFAULT_SETTINGS,
         formulaOptions: {
           output_formula: [
@@ -56,6 +65,14 @@ exports.updateScope = async (req, res, next) => {
     if (!/^GLOBAL$|^PROCESS:[A-Z0-9_-]+$/.test(scopeCode)) {
       return res.status(400).json({ success: false, message: 'Phạm vi công thức không hợp lệ' });
     }
+    if (scopeCode === 'GLOBAL') {
+      if (req.user?.role !== 'admin') return res.status(403).json({success:false,code:'PROCESS_SCOPE_FORBIDDEN',message:'Chỉ admin được thay đổi công thức GLOBAL'});
+    } else {
+      const code = scopeCode.replace(/^PROCESS:/, '');
+      const [rows] = await db.promise().query('SELECT id FROM processes WHERE UPPER(process_code)=? LIMIT 1', [code]);
+      if (!rows[0]) return res.status(404).json({success:false,message:'Không tìm thấy công đoạn cần cấu hình'});
+      await assertProcessScope(req.user, rows[0].id, { action:'FORMULA_EDIT' });
+    }
     const data = await formulaSettingsService.saveScope(scopeCode, req.body || {}, req.user?.id);
     res.json({ success: true, message: 'Đã lưu cấu hình công thức và ngưỡng màu', data });
   } catch (error) { next(error); }
@@ -66,6 +83,14 @@ exports.resetScope = async (req, res, next) => {
     const scopeCode = String(req.params.scopeCode || '').trim().toUpperCase();
     if (!/^GLOBAL$|^PROCESS:[A-Z0-9_-]+$/.test(scopeCode)) {
       return res.status(400).json({ success: false, message: 'Phạm vi công thức không hợp lệ' });
+    }
+    if (scopeCode === 'GLOBAL') {
+      if (req.user?.role !== 'admin') return res.status(403).json({success:false,code:'PROCESS_SCOPE_FORBIDDEN',message:'Chỉ admin được khôi phục công thức GLOBAL'});
+    } else {
+      const code = scopeCode.replace(/^PROCESS:/, '');
+      const [rows] = await db.promise().query('SELECT id FROM processes WHERE UPPER(process_code)=? LIMIT 1', [code]);
+      if (!rows[0]) return res.status(404).json({success:false,message:'Không tìm thấy công đoạn cần cấu hình'});
+      await assertProcessScope(req.user, rows[0].id, { action:'FORMULA_RESET' });
     }
     const data = await formulaSettingsService.resetScope(scopeCode, req.user?.id);
     res.json({ success: true, message: 'Đã khôi phục cấu hình mặc định', data });
@@ -83,6 +108,9 @@ exports.updateProductRule = async (req, res, next) => {
     if (normalized === null) {
       return res.status(400).json({ success:false, message:'Quy tắc KQD không hợp lệ' });
     }
+    const [rows] = await db.promise().query('SELECT id,process_id FROM product_standards WHERE id=? LIMIT 1',[id]);
+    if (!rows[0]) return res.status(404).json({success:false,message:'Không tìm thấy mã sản phẩm'});
+    await assertProcessScope(req.user, rows[0].process_id, { action:'FORMULA_PRODUCT_EDIT' });
     const [result] = await db.promise().query(
       'UPDATE product_standards SET exclude_kqd_from_tt=? WHERE id=?',
       [normalized, id]

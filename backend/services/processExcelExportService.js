@@ -1,9 +1,11 @@
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const db = require('../config/db');
+const { getActorProcessScope, assertProcessScope, scopeSql } = require('./processAuthorizationService');
 const { assertReportVolume, chunkArray } = require('./excelExportGuards');
 const { hasColumn } = require('./schemaCompatibilityService');
 const { calculateReportPerformance } = require('./machinePerformanceService');
+const { assertTrainingSnapshotAvailable } = require('./trainingSnapshotService');
 
 const query = (sql, params = []) => new Promise((resolve, reject) => {
   db.query(sql, params, (error, rows) => error ? reject(error) : resolve(rows));
@@ -48,9 +50,11 @@ const mapDetails = (rows, reportIds, mapper) => {
   return result;
 };
 
-async function listProcessesForMonth(value) {
+async function listProcessesForMonth(value, options = {}) {
   const yearMonth = normalizeYearMonth(value);
   const { start, next } = monthRange(yearMonth);
+  const scope = options.actor ? await getActorProcessScope(options.actor) : { type:'ALL', processIds:null };
+  const scoped = scopeSql(scope, 'p.id', [start, next]);
   const rows = await query(
     `SELECT p.id, p.process_code, p.process_name, COUNT(pr.id) AS report_count
        FROM processes p
@@ -59,10 +63,10 @@ async function listProcessesForMonth(value) {
         AND LOWER(TRIM(COALESCE(pr.status, ''))) = 'approved'
         AND pr.work_date >= ?
         AND pr.work_date < ?
-      WHERE LOWER(COALESCE(p.status, 'active')) IN ('active', 'enabled', '1')
+      WHERE LOWER(COALESCE(p.status, 'active')) IN ('active', 'enabled', '1') ${scoped.clause}
       GROUP BY p.id, p.process_code, p.process_name
       ORDER BY CASE WHEN UPPER(p.process_code) = 'GC' THEN 0 ELSE 1 END, p.id`,
-    [start, next]
+    scoped.params
   );
 
   // Danh sách này phục vụ file báo cáo theo công đoạn, vì vậy Mài và Đo
@@ -75,7 +79,8 @@ async function listProcessesForMonth(value) {
   }));
 }
 
-async function loadProcessMonthReports(value, processId) {
+async function loadProcessMonthReports(value, processId, options = {}) {
+  if (options.actor) await assertProcessScope(options.actor, processId, { action:'PROCESS_EXPORT' });
   const yearMonth = normalizeYearMonth(value);
   const { start, next } = monthRange(yearMonth);
   // Dữ liệu Excel chỉ lấy từ báo cáo đã duyệt trong production_reports.
@@ -101,17 +106,13 @@ async function loadProcessMonthReports(value, processId) {
         pr.standard_output, pr.actual_output, pr.tt_ok, pr.tt_ng,
         pr.note, ${extraDataSelect}, pr.status, pr.review_note,
         pr.reviewed_by, pr.approved_at, pr.created_at, pr.updated_at,
-        w.worker_code, w.training_percent, w.position, w.department,
+        w.worker_code, pr.training_percent_snapshot, pr.training_percent_snapshot AS training_percent, w.position, w.department,
         u.full_name, p.process_name, p.process_code,
-        COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt
+        pr.exclude_kqd_from_tt_snapshot, pr.exclude_kqd_from_tt_snapshot AS exclude_kqd_from_tt
        FROM production_reports AS pr
        INNER JOIN workers AS w ON w.id = pr.worker_id
        INNER JOIN users AS u ON u.id = w.user_id
        INNER JOIN processes AS p ON p.id = pr.process_id
-       LEFT JOIN product_standards AS ps
-         ON ps.process_id = pr.process_id
-        AND ps.product_code = pr.product_name
-        AND LOWER(COALESCE(ps.status, 'active')) IN ('active', 'enabled', '1')
       WHERE LOWER(TRIM(COALESCE(pr.status, ''))) = 'approved'
         AND pr.work_date >= ?
         AND pr.work_date < ?
@@ -119,6 +120,30 @@ async function loadProcessMonthReports(value, processId) {
       ORDER BY pr.work_date, w.worker_code, pr.machine_no, pr.created_at, pr.id`,
     [start, next, Number(processId)]
   );
+
+  // F05: physical machine truth is exported once per approved production event.
+  // Worker rows remain worker credited-output rows and must never be used as machine physical aggregation.
+  reports.physicalMachineEvents = await query(
+    `SELECT e.id,e.process_id,e.machine_id,e.machine_code,e.product_code,e.work_date,e.shift,
+            e.physical_ok_quantity,e.physical_ng_quantity,e.physical_counted_output,e.physical_total_output,
+            e.machine_time_hours,e.maximum_output,e.standard_output,e.standard_version_id,e.machine_standard_id,
+            e.exclude_kqd_from_tt_snapshot,e.status
+       FROM machine_production_events e
+      WHERE e.status='approved' AND e.process_id=? AND e.work_date>=? AND e.work_date<?
+      ORDER BY e.work_date,e.shift,e.machine_code,e.id`,
+    [Number(processId), start, next]
+  );
+
+  for (const report of reports) {
+    // Historical Excel must never re-read mutable master state.
+    assertTrainingSnapshotAvailable(report);
+    const isMachineReport = String(report.operation_mode || '').toUpperCase() === 'MACHINE';
+    if (!isMachineReport && (report.exclude_kqd_from_tt === null || report.exclude_kqd_from_tt === undefined)) {
+      const error = new Error('Báo cáo cũ chưa có snapshot chính sách KQD; cần audit trước khi xuất Excel lịch sử');
+      error.status = 422; error.code = 'KQD_POLICY_SNAPSHOT_MISSING'; error.isPublic = true;
+      throw error;
+    }
+  }
 
   const reportIds = reports.map((report) => Number(report.id));
   // Danh mục NG và trừ giờ là cấu hình của công đoạn, không phụ thuộc tháng

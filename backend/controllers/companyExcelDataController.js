@@ -3,6 +3,7 @@ const { loadProcessMonthReports } = require('../services/processExcelExportServi
 const db = require('../config/db');
 const { getSettingsMap } = require('../services/formulaSettingsService');
 const { calculateProductionMetrics } = require('../domain/productionCalculationEngine.cjs');
+const { assertProcessesScope } = require('../services/processAuthorizationService');
 
 const PROCESS_CODES = ['CAN','EP','XLBV','GC','MAI','DO','K1','K2','SX3'];
 const query = (sql, params = []) => db.promise().query(sql, params).then(([rows]) => rows);
@@ -11,7 +12,7 @@ const cacheByMonth = new Map();
 const CACHE_TTL_MS = Math.max(0, Math.min(10_000, Number(process.env.COMPANY_DATA_CACHE_TTL_MS || 5_000)));
 const MAX_CACHE_ENTRIES = 1;
 
-async function buildCompanyData(yearMonth) {
+async function buildCompanyData(yearMonth, actor) {
   const placeholders = PROCESS_CODES.map(() => '?').join(',');
   const processes = await query(
     `SELECT id, process_code, process_name
@@ -21,9 +22,11 @@ async function buildCompanyData(yearMonth) {
     PROCESS_CODES
   );
 
+  const companyProcessIds = processes.map((row) => Number(row.id));
+  if (actor) await assertProcessesScope(actor, companyProcessIds, { action:'COMPANY_EXPORT' });
   await assertReportVolume({
     yearMonth,
-    processIds: processes.map((row) => Number(row.id))
+    processIds: companyProcessIds
   });
 
   const processData = Object.fromEntries(PROCESS_CODES.map((code) => [code, {
@@ -42,6 +45,7 @@ async function buildCompanyData(yearMonth) {
       processCode: code,
       processName: process.process_name,
       reports,
+      physicalMachineEvents: reports.physicalMachineEvents || [],
       deductionTypes: reports.deductionTypes || [],
       defectTypes: reports.defectTypes || []
     };
@@ -52,7 +56,8 @@ async function buildCompanyData(yearMonth) {
     return [code, {
       reports: Array.isArray(data.reports) ? data.reports.length : 0,
       deductionTypes: Array.isArray(data.deductionTypes) ? data.deductionTypes.length : 0,
-      defectTypes: Array.isArray(data.defectTypes) ? data.defectTypes.length : 0
+      defectTypes: Array.isArray(data.defectTypes) ? data.defectTypes.length : 0,
+      physicalMachineEvents: Array.isArray(data.physicalMachineEvents) ? data.physicalMachineEvents.length : 0
     }];
   }));
 
@@ -103,7 +108,9 @@ async function buildCompanyData(yearMonth) {
       'production_reports',
       'production_report_deductions',
       'production_report_defects',
-      'production_report_machine_lines'
+      'production_report_machine_lines',
+      'machine_production_events',
+      'machine_production_event_defects'
     ],
     processes: processData,
     formulaSettings,
@@ -111,14 +118,22 @@ async function buildCompanyData(yearMonth) {
   };
 }
 
-async function getCompanyData(yearMonth) {
+async function assertCompanyDataScope(actor) {
+  if (!actor) return;
+  const placeholders = PROCESS_CODES.map(() => '?').join(',');
+  const processes = await query(`SELECT id FROM processes WHERE UPPER(process_code) IN (${placeholders}) ORDER BY id`, PROCESS_CODES);
+  await assertProcessesScope(actor, processes.map((row) => Number(row.id)), { action:'COMPANY_EXPORT' });
+}
+
+async function getCompanyData(yearMonth, actor) {
+  await assertCompanyDataScope(actor);
   const cached = cacheByMonth.get(yearMonth);
   if (cached && Date.now() - cached.createdAt < CACHE_TTL_MS) return cached.data;
 
   const running = inFlightByMonth.get(yearMonth);
   if (running) return running;
 
-  const task = buildCompanyData(yearMonth)
+  const task = buildCompanyData(yearMonth, actor)
     .then((data) => {
       if (CACHE_TTL_MS > 0) {
         cacheByMonth.clear();
@@ -142,7 +157,7 @@ exports.get = async (req, res) => {
   }
 
   try {
-    const data = await getCompanyData(selectedDate.slice(0, 7));
+    const data = await getCompanyData(selectedDate.slice(0, 7), req.user);
     return res.status(200).json({ success: true, data });
   } catch (error) {
     console.error('[KTC] COMPANY_DATA_FAILED', {
@@ -160,6 +175,7 @@ exports.get = async (req, res) => {
   }
 };
 
+exports._buildCompanyData = buildCompanyData;
 exports._clearCompanyDataCache = () => {
   cacheByMonth.clear();
   inFlightByMonth.clear();

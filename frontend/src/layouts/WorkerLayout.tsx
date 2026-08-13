@@ -2,7 +2,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import AppIcon, { type IconName } from "../components/common/AppIcon";
 import ThemeToggle from "../components/common/ThemeToggle";
 import "./WorkerLayout.css";
-import { clearAuthSession } from "../utils/authStorage";
+import { logout } from "../services/authService";
 import { useMobileKeyboard } from "../hooks/useMobileKeyboard";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
 import { usePermissions } from "../hooks/usePermissions";
@@ -35,7 +35,7 @@ function WorkerLayout() {
     const visibleMenuItems = menuItems.filter((item) => can(item.permission));
 
     const handleLogout = () => {
-        clearAuthSession();
+        void logout();
         navigate("/login", { replace: true });
     };
 

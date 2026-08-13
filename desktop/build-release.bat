@@ -1,11 +1,11 @@
 @echo off
 setlocal EnableExtensions
 cd /d "%~dp0"
-call npm install
+call npm ci
 if errorlevel 1 exit /b 1
-call npm run frontend:install
+call npm --prefix ../frontend ci
 if errorlevel 1 exit /b 1
-call npm run dist:portable:fast
+call npm run dist:portable
 if errorlevel 1 exit /b 1
 echo.
 echo Hoan tat. File Portable nam trong thu muc release.

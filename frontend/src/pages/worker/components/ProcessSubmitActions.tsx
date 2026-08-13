@@ -4,6 +4,7 @@ interface DuplicatePrompt {
 
 interface Props {
     duplicatePrompt: DuplicatePrompt | null;
+    canUpdateExisting: boolean;
     submitting: boolean;
     loadingWorker: boolean;
     onCancelDuplicate: () => void;
@@ -15,6 +16,7 @@ interface Props {
 
 export default function ProcessSubmitActions({
     duplicatePrompt,
+    canUpdateExisting,
     submitting,
     loadingWorker,
     onCancelDuplicate,
@@ -35,7 +37,7 @@ export default function ProcessSubmitActions({
                         </p>
                         <div className="duplicate-dialog-actions">
                             <button type="button" className="duplicate-dialog-cancel" onClick={onCancelDuplicate}>Hủy</button>
-                            <button type="button" className="duplicate-dialog-edit" onClick={onUpdateExisting} disabled={submitting}>Chỉnh sửa báo cáo cũ</button>
+                            {canUpdateExisting && <button type="button" className="duplicate-dialog-edit" onClick={onUpdateExisting} disabled={submitting}>Chỉnh sửa báo cáo cũ</button>}
                             <button type="button" className="duplicate-dialog-create" onClick={onCreateDuplicate} disabled={submitting}>Vẫn tạo báo cáo mới</button>
                         </div>
                     </div>

@@ -26,7 +26,9 @@ test('approved reports support version history, soft delete and restore', () => 
   assert.match(routes, /versions\/:versionNo\/restore/);
   assert.match(editService, /REPORT_RESTORED/);
   assert.match(audit, /report_versions/);
-  assert.match(audit, /MODIFY COLUMN status VARCHAR\(30\)/);
+  const migration = read('migrations/010_audit_governance_demo.sql');
+  assert.match(migration, /MODIFY COLUMN status VARCHAR\(30\)/);
+  assert.doesNotMatch(audit, /ALTER TABLE production_reports|CREATE TABLE/i);
 });
 
 test('formula settings are scoped by process and effective date including historical versions', () => {

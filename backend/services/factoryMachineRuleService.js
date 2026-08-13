@@ -22,7 +22,7 @@ const getGcMachineRule = (machineCode, dbRow = null) => {
     : GC_AUTOMATIC_MACHINE_NUMBERS.includes(machineNumber);
   const maxWorkers = dbRow?.max_workers_per_machine != null
     ? Number(dbRow.max_workers_per_machine)
-    : (GC_SHARED_MACHINE_NUMBERS.includes(machineNumber) ? 2 : 1);
+    : (GC_SHARED_MACHINE_NUMBERS.includes(machineNumber) ? 4 : 1);
   const outputBasis = String(dbRow?.output_basis || ((automatic || GC_SHARED_MACHINE_NUMBERS.includes(machineNumber)) ? "MACHINE" : "PRODUCT")).toUpperCase();
   return { machineNumber, automatic, maxWorkers: Math.max(1, maxWorkers || 1), outputBasis };
 };
@@ -125,11 +125,62 @@ const validateMachineWorkerCapacity = async ({ processCode, processId, machineLi
   return { valid: Object.keys(errors).length === 0, errors };
 };
 
+
+const executorQuery = (executor, sql, params = []) => new Promise((resolve, reject) => {
+  executor.query(sql, params, (error, rows) => error ? reject(error) : resolve(rows));
+});
+
+const validateMachineWorkerCapacityLocked = async ({ executor, processCode, processId, machineLines, workerId, workDate, shift, excludeTempReportId = null }) => {
+  const lines = Array.isArray(machineLines) ? machineLines.filter((line) => String(line?.machine_code || '').trim()) : [];
+  if (!executor || !lines.length || !workerId || !workDate || !shift) return { valid: true, errors: {} };
+  const uniqueCodes = [...new Set(lines.map((line) => String(line.machine_code).trim().toUpperCase()))];
+  const placeholders = uniqueCodes.map(() => '?').join(',');
+  const machineRows = await executorQuery(executor,
+    `SELECT id, process_id, machine_code, COALESCE(is_automatic,0) is_automatic,
+            COALESCE(max_workers_per_machine,1) max_workers_per_machine,
+            COALESCE(output_basis,'PRODUCT') output_basis
+       FROM machines
+      WHERE process_id=? AND status='active' AND UPPER(TRIM(machine_code)) IN (${placeholders})
+      ORDER BY id FOR UPDATE`,
+    [Number(processId), ...uniqueCodes]
+  );
+  const rowByCode = new Map(machineRows.map((row) => [String(row.machine_code).trim().toUpperCase(), row]));
+  const errors = {};
+  for (let index=0; index<lines.length; index+=1) {
+    const code = String(lines[index].machine_code || '').trim();
+    const row = rowByCode.get(code.toUpperCase());
+    if (!row) continue;
+    const rule = processCode === 'GC' ? getGcMachineRule(code, row) : { maxWorkers:Number(row.max_workers_per_machine||1)||1 };
+    const tempExclude = excludeTempReportId ? ' AND prt.id<>?' : '';
+    const tempParams = [Number(processId), String(workDate).slice(0,10), String(shift).trim(), code];
+    if (excludeTempReportId) tempParams.push(Number(excludeTempReportId));
+    const usage = await executorQuery(executor,
+      `SELECT DISTINCT worker_id FROM (
+         SELECT prt.worker_id FROM production_reports_temp prt
+         JOIN production_temp_machine_lines ml ON ml.temp_report_id=prt.id
+         WHERE prt.process_id=? AND prt.work_date=? AND prt.shift=?
+           AND UPPER(TRIM(ml.machine_code))=UPPER(?) AND prt.status IN ('pending','approved')${tempExclude}
+         UNION
+         SELECT pr.worker_id FROM production_reports pr
+         JOIN production_report_machine_lines ml2 ON ml2.report_id=pr.id
+         WHERE pr.process_id=? AND pr.work_date=? AND pr.shift=?
+           AND UPPER(TRIM(ml2.machine_code))=UPPER(?)
+       ) used`,
+      [...tempParams, Number(processId), String(workDate).slice(0,10), String(shift).trim(), code]
+    );
+    const workers = new Set(usage.map((item)=>Number(item.worker_id)).filter(Boolean));
+    workers.add(Number(workerId));
+    if (workers.size > rule.maxWorkers) errors[`machine_lines.${index}.machine_code`] = `Máy ${code} chỉ cho phép tối đa ${rule.maxWorkers} người trong cùng ngày/ca.`;
+  }
+  return { valid:Object.keys(errors).length===0, errors };
+};
+
 module.exports = {
   GC_AUTOMATIC_MACHINE_NUMBERS,
   GC_SHARED_MACHINE_NUMBERS,
   canonicalMachineNumber,
   getGcMachineRule,
   validateFactoryMachineRules,
-  validateMachineWorkerCapacity
+  validateMachineWorkerCapacity,
+  validateMachineWorkerCapacityLocked
 };

@@ -29,8 +29,10 @@ test('database backup has checksum retention and guarded restore',()=>{
   assert.match(backup,/REPEATABLE READ/);
   assert.match(backup,/sha256File/);
   assert.match(backup,/pruneRetention/);
-  const restore=read('scripts/restoreDatabaseBackup.js');
-  assert.match(restore,/KTC_RESTORE/);
-  assert.match(restore,/--replace/);
-  assert.match(restore,/Checksum backup không hợp lệ/);
+  const restore=read('scripts/disasterRestoreDatabase.js');
+  const policy=read('services/disasterRestorePolicyService.js');
+  assert.match(policy,/KTC_DISASTER_RESTORE_STAGE/);
+  assert.match(restore,/verifyBackupArtifact/);
+  assert.match(restore,/VERIFIED_NOT_ACTIVATED/);
+  assert.doesNotMatch(restore,/--replace/);
 });

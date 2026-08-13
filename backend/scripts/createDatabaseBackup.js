@@ -7,6 +7,8 @@ const crypto = require('node:crypto');
 const { once } = require('node:events');
 const db = require('../config/db');
 const { backupRoot, backupFileName, sha256File, pruneRetention } = require('./backup/backupUtils');
+const { getExpectedSchemaMetadata } = require('../services/migrationManifestService');
+const backendPkg = require('../package.json');
 
 const CHUNK_SIZE = Math.max(100, Math.min(2000, Number(process.env.KTC_BACKUP_CHUNK_SIZE) || 500));
 const json = (value) => JSON.stringify(value, (_key, item) => typeof item === 'bigint' ? item.toString() : item);
@@ -34,7 +36,10 @@ async function main() {
     gzip.pipe(output);
   }
   const connection=await db.promise().getConnection();
-  const manifest={format:'KTC_DB_JSONL_GZIP_V1',created_at:new Date().toISOString(),database:process.env.DB_NAME,tables:{}};
+  const schemaMeta=getExpectedSchemaMetadata();
+  const [versionRows]=await db.promise().query('SELECT VERSION() AS db_version, DATABASE() AS current_database');
+  const [ledgerRows]=await db.promise().query('SELECT migration_id FROM schema_migrations ORDER BY migration_id DESC LIMIT 1').catch(()=>[[]]);
+  const manifest={format:'KTC_DB_JSONL_GZIP_V1',created_at:new Date().toISOString(),database:process.env.DB_NAME,db_version:String(versionRows[0]?.db_version||''),app_version:String(backendPkg.version||''),expected_migration:schemaMeta.expectedMigration||null,actual_migration:ledgerRows[0]?.migration_id||null,tables:{}};
   try {
     await connection.query('SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ').catch(()=>{});
     await connection.beginTransaction();

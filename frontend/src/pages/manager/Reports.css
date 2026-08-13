@@ -15,10 +15,10 @@
   margin-bottom: 16px;
 }
 .management-search-box { position: relative; min-width: 0; }
-.management-search-box > span { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--ktc-ink-400); font-size: 18px; }
+.management-search-box > span { position: absolute; pointer-events: none; left: 13px; top: 50%; transform: translateY(-50%); color: var(--ktc-ink-400); font-size: 18px; }
 .management-search-box input { width: 100%; padding-left: 40px; }
 .management-date-presets { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 7px; }
-.management-date-presets button { min-height: 34px; border: 1px solid var(--ktc-border); border-radius: 9px; padding: 0 12px; background: var(--ktc-surface); color: var(--ktc-ink-600); font-size: 12px; font-weight: 650; cursor: pointer; }
+.management-date-presets button { min-height: 44px; border: 1px solid var(--ktc-border); border-radius: 9px; padding: 0 12px; background: var(--ktc-surface); color: var(--ktc-ink-600); font-size: 12px; font-weight: 650; cursor: pointer; }
 .management-date-presets button:hover { border-color: var(--ktc-brand-200); background: var(--ktc-brand-50); color: var(--ktc-brand-800); }
 .management-date-presets button.active { border-color: var(--ktc-brand-600); background: var(--ktc-brand-700); color: #fff; }
 .management-filter-field { min-width: 0; display: grid; gap: 7px; }
@@ -27,7 +27,7 @@
 .management-clear-button:hover:not(:disabled) { background: var(--ktc-surface-muted); color: var(--ktc-ink-900); }
 .management-clear-button:disabled { opacity: .45; cursor: default; }
 .management-filter-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 9px; padding-top: 4px; border-top: 1px solid var(--ktc-border); margin-top: 2px; padding-top: 14px; }
-.management-filter-actions button { min-height: 42px; border-radius: 10px; padding: 0 15px; font-size: 13px; font-weight: 700; cursor: pointer; transition: background .14s ease, transform .14s ease, box-shadow .14s ease; }
+.management-filter-actions button { min-height: 44px; border-radius: 10px; padding: 0 15px; font-size: 13px; font-weight: 700; cursor: pointer; transition: background .14s ease, transform .14s ease, box-shadow .14s ease; }
 .management-view-selected-button { border: 1px solid var(--ktc-brand-200); background: var(--ktc-brand-50); color: var(--ktc-brand-800); }
 .management-reject-button { border: 1px solid #ffd1d5; background: var(--ktc-danger-bg); color: #a82935; }
 .management-approve-button { border: 1px solid #0c704d; background: var(--ktc-success); color: #fff; box-shadow: 0 6px 14px rgba(22, 132, 91, .16); }
@@ -48,11 +48,11 @@
 .management-report-table td { max-width: 240px; height: 52px; padding: 9px 12px; vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .management-report-table td:nth-child(4), .management-report-table td:nth-child(7) { max-width: 190px; }
 .management-checkbox-column { width: 46px; min-width: 46px; text-align: center; }
-.management-report-table input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--ktc-brand-600); }
+.management-report-table input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--ktc-brand-600); }
 .duplicate-note { display: inline-flex; margin-left: 5px; padding: 2px 6px; border-radius: 6px; background: var(--ktc-warning-bg); color: var(--ktc-warning); font-size: 10px; font-weight: 700; }
 .management-empty { min-height: 150px; display: grid; place-items: center; padding: 44px 20px; text-align: center; color: var(--ktc-ink-500); font-size: 14px; }
-.management-pagination { display: flex; justify-content: center; gap: 7px; margin-top: 18px; }
-.management-pagination button { min-width: 37px; height: 37px; border: 1px solid var(--ktc-border); border-radius: 9px; background: var(--ktc-surface); color: var(--ktc-ink-600); cursor: pointer; }
+.management-pagination { display: flex; align-items: center; justify-content: center; gap: 9px; margin-top: 18px; }
+.management-pagination button { min-width: 44px; min-height: 44px; border: 1px solid var(--ktc-border); border-radius: 9px; background: var(--ktc-surface); color: var(--ktc-ink-600); cursor: pointer; }
 .management-pagination button:hover:not(:disabled) { border-color: var(--ktc-brand-200); background: var(--ktc-brand-50); }
 .management-pagination button:disabled { opacity: .42; cursor: default; }
 
@@ -61,7 +61,7 @@
 .management-modal h2 { margin: 0 0 8px; color: var(--ktc-ink-950); font-size: 21px; }
 .management-modal textarea { width: 100%; min-height: 100px; margin-top: 12px; }
 .management-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
-.management-modal-actions button { min-height: 42px; border-radius: 10px; padding: 0 14px; font-weight: 700; cursor: pointer; }
+.management-modal-actions button { min-height: 44px; border-radius: 10px; padding: 0 14px; font-weight: 700; cursor: pointer; }
 
 @media (max-width: 1380px) {
   .management-filter-card { grid-template-columns: minmax(240px, 1.45fr) repeat(3, minmax(135px, 1fr)); }
@@ -88,7 +88,7 @@
   .management-filter-field, .management-search-box, .management-date-presets, .management-filter-actions { grid-column: 1; }
   .management-date-presets { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
   .management-date-presets button { flex: 0 0 auto; }
-  .management-filter-actions { grid-template-columns: 1fr; }
+  .management-filter-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* ===== Approved report date scope + Excel month ===== */
@@ -107,7 +107,7 @@
 .management-excel-month-panel small { color: var(--ktc-ink-600); line-height: 1.55; }
 .management-error { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .management-error span { flex:1 1 280px; }
-.management-error button { min-height:34px; border:1px solid currentColor; border-radius:8px; background:transparent; color:inherit; padding:0 12px; cursor:pointer; }
+.management-error button { min-height:44px; border:1px solid currentColor; border-radius:8px; background:transparent; color:inherit; padding:0 12px; cursor:pointer; }
 @media (max-width: 760px) {
   .management-excel-month-panel { grid-template-columns: 1fr; }
   .management-filter-actions > button { flex: 1 1 100%; }
@@ -182,3 +182,26 @@
 }
 .management-import-button:hover:not(:disabled){background:#176b55;}
 .management-import-button:disabled{opacity:.55;cursor:not-allowed;}
+
+
+/* Final manager polish: stronger state readability and touch accessibility. */
+.management-pagination span { min-height: 44px; display: inline-flex; align-items: center; color: var(--ktc-text-muted); font-size: 13px; font-weight: 650; }
+.management-filter-actions button:disabled,
+.management-pagination button:disabled,
+.management-clear-button:disabled { opacity: .62; }
+.management-empty[role="status"] { color: var(--ktc-text-muted); }
+@media (max-width: 390px) {
+  .management-report-header { align-items: flex-start; gap: 10px; }
+  .management-report-header h1 { font-size: 22px; }
+  .management-report-count { flex: 0 0 auto; }
+  .management-filter-actions { gap: 8px; }
+  .management-filter-actions button { min-width: 0; padding-inline: 10px; font-size: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .management-report-page *, .management-report-page *::before, .management-report-page *::after {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

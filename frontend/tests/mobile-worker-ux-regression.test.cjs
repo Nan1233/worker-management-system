@@ -11,10 +11,11 @@ test("mobile worker nav contains four primary destinations and no logout item", 
   assert.doesNotMatch(mobileNav, /className="logout"/);
 });
 
-test("worker network gate bypasses cached IP decision and rechecks on app return", () => {
+test("worker report form does not require company-network gate", () => {
   const s = read("src/pages/worker/ProcessPage.tsx");
-  assert.match(s, /getCompanyNetworkAccess\(true\)/);
-  assert.match(s, /addEventListener\("online"/);
-  assert.match(s, /addEventListener\("focus"/);
-  assert.match(s, /visibilitychange/);
+  assert.doesNotMatch(s, /getCompanyNetworkAccess\(/);
+  assert.doesNotMatch(s, /ProcessNetworkGate/);
+  assert.doesNotMatch(s, /networkAllowed/);
+  assert.match(s, /createTempReport\(payload\)/);
+  assert.match(s, /workerCanAccessProcess/);
 });

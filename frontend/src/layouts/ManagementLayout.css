@@ -74,7 +74,7 @@
 .management-menu-item {
   position: relative;
   width: 100%;
-  min-height: 42px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -97,7 +97,7 @@
 
 .management-logout {
   margin-top: auto;
-  min-height: 42px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   gap: 10px;

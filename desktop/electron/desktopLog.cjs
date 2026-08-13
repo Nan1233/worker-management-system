@@ -1,6 +1,38 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 
+const SECRET_KEY_PATTERN = /(password|token|authorization|cookie|secret|credential)/i;
+const PATH_KEY_PATTERN = /(filePath|backupPath|pendingPath|replacementPath|folder|userData|exportRoot|frontendIndex|processBackupRoot)$/i;
+const URL_KEY_PATTERN = /(url|uri)$/i;
+
+function safeUrlForLog(value) {
+  try {
+    const parsed = new URL(String(value));
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return String(value || '').split('?')[0].split('#')[0];
+  }
+}
+
+function sanitizeLogDetails(value, key = '', seen = new WeakSet()) {
+  if (value === null || value === undefined) return value;
+  if (SECRET_KEY_PATTERN.test(key)) return '[REDACTED]';
+  if (typeof value === 'string') {
+    if (URL_KEY_PATTERN.test(key)) return safeUrlForLog(value);
+    if (PATH_KEY_PATTERN.test(key)) return value.includes('\\') ? path.win32.basename(value) : path.basename(value);
+    return value;
+  }
+  if (typeof value !== 'object') return value;
+  if (seen.has(value)) return '[CIRCULAR]';
+  seen.add(value);
+  if (Array.isArray(value)) return value.map((item) => sanitizeLogDetails(item, key, seen));
+  const result = {};
+  for (const [childKey, childValue] of Object.entries(value)) {
+    result[childKey] = sanitizeLogDetails(childValue, childKey, seen);
+  }
+  return result;
+}
+
 function nowText() {
   return new Date().toISOString();
 }
@@ -33,7 +65,7 @@ function createDesktopLogger(getUserDataPath) {
   return async function writeLog(level, message, details) {
     const serialized = details === undefined
       ? ''
-      : ` ${typeof details === 'string' ? details : JSON.stringify(details)}`;
+      : ` ${typeof details === 'string' ? details : JSON.stringify(sanitizeLogDetails(details))}`;
     const line = `[${nowText()}] [${level}] ${message}${serialized}\n`;
 
     try {
@@ -54,4 +86,6 @@ function createDesktopLogger(getUserDataPath) {
 module.exports = {
   createDesktopLogger,
   normalizeError,
+  sanitizeLogDetails,
+  safeUrlForLog,
 };

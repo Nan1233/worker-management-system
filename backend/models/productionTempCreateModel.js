@@ -1,5 +1,9 @@
 const db = require("../config/db");
 const { query, getConnection, beginTransaction, commit, rollback } = require("./productionTempModelShared");
+const { resolveInitialTrainingSnapshot } = require("../services/trainingSnapshotService");
+const { validateMachineWorkerCapacityLocked } = require("../services/factoryMachineRuleService");
+const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
+const { verifyDuplicateConfirmation } = require("../services/duplicateConfirmationService");
 
 module.exports = {
     async create(data, executor = db) {
@@ -9,10 +13,10 @@ module.exports = {
                 worker_id, process_id, work_date, entry_date, shift,
                 operation_type, operation_mode, machine_no,
                 product_name, total_time, actual_time, deduction_time,
-                standard_output, actual_output, tt_ok, tt_ng, note, extra_data,
-                client_request_id, status
+                standard_output, standard_version_id, machine_standard_id, training_percent_snapshot, exclude_kqd_from_tt_snapshot, actual_output, tt_ok, tt_ng, note, extra_data,
+                client_request_id, logical_duplicate_key, status
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
         `;
 
         const result = await query(executor, sql, [
@@ -29,12 +33,17 @@ module.exports = {
             Number(data.actual_time) || 0,
             Number(data.deduction_time) || 0,
             Number(data.standard_output) || 0,
+            Number(data.standard_version_id) || null,
+            Number(data.machine_standard_id) || null,
+            data.training_percent_snapshot === null || data.training_percent_snapshot === undefined ? null : Number(data.training_percent_snapshot),
+            data.exclude_kqd_from_tt_snapshot === null || data.exclude_kqd_from_tt_snapshot === undefined ? null : (Number(data.exclude_kqd_from_tt_snapshot) === 1 ? 1 : 0),
             Number(data.actual_output) || 0,
             Number(data.tt_ok) || 0,
             Number(data.tt_ng) || 0,
             data.note || "",
             JSON.stringify(data.extra_data || {}),
-            data.client_request_id || null
+            data.client_request_id || null,
+            data.logical_duplicate_key || null
         ]);
 
         return result.insertId;
@@ -52,23 +61,101 @@ module.exports = {
         return rows[0] || null;
     },
 
-    async findSimilarReport({ workerId, processId, workDate, shift, machineNo, productName }, executor = db) {
+    async findSimilarTempReport({ workerId, processId, workDate, shift, machineNo, productName, logicalDuplicateKey = null }, executor = db) {
+        const params = [workerId, processId, workDate, shift];
+        let identitySql;
+        if (logicalDuplicateKey) {
+            identitySql = `((t.logical_duplicate_key = ?) OR (t.logical_duplicate_key IS NULL AND t.machine_no <=> ? AND t.product_name <=> ?))`;
+            params.push(logicalDuplicateKey, machineNo, productName);
+        } else {
+            identitySql = `(t.machine_no <=> ? AND t.product_name <=> ?)`;
+            params.push(machineNo, productName);
+        }
         const rows = await query(
             executor,
-            `SELECT id, status, work_date, shift, machine_no, product_name, created_at, updated_at
-             FROM production_reports_temp
-             WHERE worker_id = ?
-               AND process_id = ?
-               AND work_date = ?
-               AND shift = ?
-               AND machine_no <=> ?
-               AND product_name <=> ?
-               AND status IN ('pending', 'need_fix')
-             ORDER BY created_at DESC, id DESC
+            `SELECT t.id, t.status, t.work_date, t.shift, t.machine_no, t.product_name, t.logical_duplicate_key, t.created_at, t.updated_at,
+                    CASE WHEN t.status='approved' THEN 'approved' ELSE 'temp' END AS report_type
+             FROM production_reports_temp t
+             WHERE t.worker_id = ?
+               AND t.process_id = ?
+               AND t.work_date = ?
+               AND t.shift = ?
+               AND ${identitySql}
+               AND (
+                    t.status IN ('pending', 'need_fix')
+                    OR (t.status='approved' AND EXISTS (
+                        SELECT 1 FROM production_reports a
+                        WHERE a.source_temp_id=t.id AND a.status <> 'deleted'
+                    ))
+               )
+             ORDER BY t.created_at DESC, t.id DESC
              LIMIT 1`,
-            [workerId, processId, workDate, shift, machineNo, productName]
+            params
         );
         return rows[0] || null;
+    },
+
+    async findSimilarApprovedReport({ workerId, processId, workDate, shift, logicalDuplicateKey }, executor = db) {
+        if (!logicalDuplicateKey) return null;
+        const rows = await query(executor,
+            `SELECT id, worker_id, process_id, work_date, shift, operation_mode, machine_no, product_name, status, created_at, updated_at
+             FROM production_reports
+             WHERE worker_id=? AND process_id=? AND work_date=? AND shift=? AND status <> 'deleted'
+             ORDER BY id DESC
+             FOR UPDATE`,
+            [workerId, processId, workDate, shift]
+        );
+        if (!rows.length) return null;
+        const ids = rows.map((row) => Number(row.id)).filter(Boolean);
+        const placeholders = ids.map(() => '?').join(',');
+        const machineRows = ids.length ? await query(executor,
+            `SELECT report_id,machine_code,product_code,sort_order,id
+             FROM production_report_machine_lines
+             WHERE report_id IN (${placeholders})
+             ORDER BY report_id,sort_order,id
+             FOR UPDATE`, ids) : [];
+        const byReport = new Map();
+        for (const line of machineRows) {
+            const reportId = Number(line.report_id);
+            if (!byReport.has(reportId)) byReport.set(reportId, []);
+            byReport.get(reportId).push(line);
+        }
+        for (const row of rows) {
+            const key = buildLogicalDuplicateKey({
+                workerId: row.worker_id,
+                processId: row.process_id,
+                workDate: row.work_date,
+                shift: row.shift,
+                operationMode: row.operation_mode,
+                machineNo: row.machine_no,
+                productName: row.product_name,
+                machineLines: byReport.get(Number(row.id)) || [],
+            });
+            if (key === logicalDuplicateKey) return { ...row, report_type: 'approved' };
+        }
+        return null;
+    },
+
+    async findSimilarReport(input, executor = db) {
+        const temp = await this.findSimilarTempReport(input, executor);
+        if (temp) return temp;
+        return this.findSimilarApprovedReport(input, executor);
+    },
+
+    async lockLogicalDuplicateKey(logicalDuplicateKey, executor = db) {
+        if (!logicalDuplicateKey) return;
+        await query(
+            executor,
+            `INSERT INTO production_report_duplicate_locks (logical_key, last_used_at)
+             VALUES (?, NOW())
+             ON DUPLICATE KEY UPDATE last_used_at = last_used_at`,
+            [logicalDuplicateKey]
+        );
+        await query(
+            executor,
+            `SELECT logical_key FROM production_report_duplicate_locks WHERE logical_key = ? FOR UPDATE`,
+            [logicalDuplicateKey]
+        );
     },
 
 
@@ -231,8 +318,8 @@ module.exports = {
     },
 
 
-    async replaceMachineLines(tempReportId, machineLines = [], executor = db) {
-        const oldLines = await query(executor, `SELECT id FROM production_temp_machine_lines WHERE temp_report_id = ?`, [tempReportId]);
+    async replaceMachineLines(tempReportId, machineLines = [], executor = db, options = {}) {
+        const oldLines = await query(executor, `SELECT id, machine_event_id, machine_code, product_code FROM production_temp_machine_lines WHERE temp_report_id = ?`, [tempReportId]);
         if (oldLines.length) {
             const ids = oldLines.map((row) => Number(row.id)).filter(Boolean);
             if (ids.length) {
@@ -244,16 +331,25 @@ module.exports = {
 
         for (let index = 0; index < Math.min(machineLines.length, 4); index += 1) {
             const line = machineLines[index] || {};
+            const preservedEventId = options.preserveEventLinks
+                ? Number((oldLines || []).find((old) =>
+                    String(old.machine_code || '').trim().toUpperCase() === String(line.machine_code || '').trim().toUpperCase()
+                    && String(old.product_code || '').trim() === String(line.product_code || '').trim()
+                  )?.machine_event_id || 0) || null
+                : null;
             const result = await query(executor, `INSERT INTO production_temp_machine_lines
-                (temp_report_id, machine_id, machine_code, product_standard_id, product_code,
+                (temp_report_id, machine_event_id, machine_id, machine_code, product_standard_id, standard_version_id, machine_standard_id, product_code,
                  machine_time_hours, standard_output, standard_time_seconds, standard_source, exclude_kqd_from_tt,
                  ok_quantity, ng_quantity, maximum_output, counted_output, earned_standard_hours,
                  defects_json, sort_order)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
                 tempReportId,
+                preservedEventId,
                 Number(line.machine_id) || null,
                 String(line.machine_code || "").trim(),
                 Number(line.product_standard_id) || null,
+                Number(line.standard_version_id) || null,
+                Number(line.machine_standard_id) || null,
                 String(line.product_code || "").trim(),
                 Number(line.machine_time_hours) || 0,
                 Number(line.standard_output) || 0,
@@ -289,7 +385,7 @@ module.exports = {
     },
 
     async getTempMachineLines(tempReportId, executor = db) {
-        const lines = await query(executor, `SELECT id, machine_id, machine_code, product_standard_id, product_code,
+        const lines = await query(executor, `SELECT id, machine_event_id, machine_id, machine_code, product_standard_id, standard_version_id, machine_standard_id, product_code,
             machine_time_hours, standard_output, standard_time_seconds, standard_source, exclude_kqd_from_tt,
             ok_quantity, ng_quantity, maximum_output, counted_output, earned_standard_hours,
             defects_json, sort_order
@@ -311,12 +407,12 @@ module.exports = {
         const tempLines = await this.getTempMachineLines(tempReportId, executor);
         for (const line of tempLines) {
             const result = await query(executor, `INSERT INTO production_report_machine_lines
-                (report_id, machine_id, machine_code, product_standard_id, product_code,
+                (report_id, machine_event_id, machine_id, machine_code, product_standard_id, standard_version_id, machine_standard_id, product_code,
                  machine_time_hours, standard_output, standard_time_seconds, standard_source, exclude_kqd_from_tt,
                  ok_quantity, ng_quantity, maximum_output, counted_output, earned_standard_hours,
                  defects_json, sort_order)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
-                reportId, line.machine_id, line.machine_code, line.product_standard_id, line.product_code,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+                reportId, line.machine_event_id || null, line.machine_id, line.machine_code, line.product_standard_id, line.standard_version_id, line.machine_standard_id, line.product_code,
                 line.machine_time_hours, line.standard_output, line.standard_time_seconds, line.standard_source, line.exclude_kqd_from_tt,
                 line.ok_quantity, line.ng_quantity, line.maximum_output, line.counted_output,
                 line.earned_standard_hours, JSON.stringify(line.defects || []), line.sort_order
@@ -353,26 +449,56 @@ module.exports = {
                 };
             }
 
-            if (!data.force_create) {
-                const similar = await this.findSimilarReport({
-                    workerId: data.worker_id,
-                    processId: data.process_id,
-                    workDate: data.work_date,
-                    shift: data.shift,
-                    machineNo: data.machine_no,
-                    productName: data.product_name
-                }, connection);
+            // Logical duplicate concurrency authority. The lock key is independent
+            // from client_request_id so two different requests for the same business
+            // report serialize before the friendly duplicate check. force_create still
+            // acquires the lock but intentionally skips the duplicate rejection because
+            // it represents an explicit separate run confirmed by the worker.
+            await this.lockLogicalDuplicateKey(data.logical_duplicate_key, connection);
 
-                if (similar) {
-                    await commit(connection);
-                    return {
-                        id: similar.id,
-                        duplicate: true,
-                        duplicate_reason: "similar_report",
-                        existing_report: similar
-                    };
+            const similar = await this.findSimilarReport({
+                workerId: data.worker_id,
+                processId: data.process_id,
+                workDate: data.work_date,
+                shift: data.shift,
+                machineNo: data.machine_no,
+                productName: data.product_name,
+                logicalDuplicateKey: data.logical_duplicate_key
+            }, connection);
+
+            if (similar) {
+                if (data.force_create) {
+                    const confirmation = verifyDuplicateConfirmation(data.duplicate_confirmation_token, {
+                        workerId: data.worker_id,
+                        logicalDuplicateKey: data.logical_duplicate_key,
+                        existingReportId: similar.id,
+                        existingReportType: similar.report_type || 'temp',
+                    });
+                    if (!confirmation.valid) {
+                        const confirmationError = new Error("Cần xác nhận báo cáo trùng từ máy chủ trước khi tạo run riêng");
+                        confirmationError.status = 409;
+                        confirmationError.code = "DUPLICATE_CONFIRMATION_REQUIRED";
+                        confirmationError.isPublic = true;
+                        confirmationError.existing_report = similar;
+                        throw confirmationError;
+                    }
+                } else {
+                    const duplicateError = new Error("Đã tồn tại báo cáo cùng công nhân/ngày/ca/máy/sản phẩm");
+                    duplicateError.status = 409;
+                    duplicateError.code = "DUPLICATE_PRODUCTION_REPORT";
+                    duplicateError.isPublic = true;
+                    duplicateError.existing_report = similar;
+                    throw duplicateError;
                 }
+            } else if (data.force_create) {
+                const confirmationError = new Error("Không có báo cáo trùng hiện tại để xác nhận tạo run riêng");
+                confirmationError.status = 409;
+                confirmationError.code = "DUPLICATE_CONFIRMATION_REQUIRED";
+                confirmationError.isPublic = true;
+                throw confirmationError;
+            }
 
+            if (!data.force_create) {
                 const recent = await this.findRecentIdentical(data, connection);
                 if (recent) {
                     await commit(connection);
@@ -382,6 +508,38 @@ module.exports = {
                         duplicate_reason: "rapid_repeat",
                         existing_report: recent
                     };
+                }
+            }
+
+            // Initial Worker Save is the only authority for the training snapshot.
+            // Ignore any client-supplied training value and read the worker master
+            // on the same DB transaction that persists the report.
+            data.training_percent_snapshot = await resolveInitialTrainingSnapshot({
+                workerId: data.worker_id,
+                query: (sql, params = []) => query(connection, sql, params)
+            });
+
+            // F05: serialize the maxWorkers check with deterministic row locks on the
+            // selected machines. This closes the check-before-insert race where the
+            // 4th and 5th workers could both observe a free slot and commit.
+            if (Array.isArray(machineLines) && machineLines.length) {
+                const processRows = await query(connection, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data.process_id)]);
+                const capacity = await validateMachineWorkerCapacityLocked({
+                    executor: connection,
+                    processCode: processRows[0]?.process_code,
+                    processId: data.process_id,
+                    machineLines,
+                    workerId: data.worker_id,
+                    workDate: data.work_date,
+                    shift: data.shift
+                });
+                if (!capacity.valid) {
+                    const error = new Error('Số công nhân trên máy vượt giới hạn trong cùng ngày/ca');
+                    error.status = 422;
+                    error.code = 'MACHINE_WORKER_LIMIT_EXCEEDED';
+                    error.isPublic = true;
+                    error.details = capacity.errors;
+                    throw error;
                 }
             }
 

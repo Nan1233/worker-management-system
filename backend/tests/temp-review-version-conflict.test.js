@@ -8,7 +8,7 @@ const projectRoot = path.resolve(backendRoot, '..');
 const readBackend = (relative) => fs.readFileSync(path.join(backendRoot, relative), 'utf8');
 const readProject = (relative) => fs.readFileSync(path.join(projectRoot, relative), 'utf8');
 
-test('approve and reject lock rows and reject stale manager snapshots', () => {
+test('approve/reject lock rows, reject stale snapshots and keep legacy need_fix read compatibility', () => {
   const source = readBackend('models/productionTempApprovalModel.js');
   assert.match(source, /FOR UPDATE/);
   assert.match(source, /expectedById/);

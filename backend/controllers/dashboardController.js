@@ -120,17 +120,17 @@ exports.getSummary = async (req, res, next) => {
       : { clause: "AND EXISTS (SELECT 1 FROM manager_processes mp WHERE mp.manager_id=? AND mp.process_id=r.process_id)", params: [req.user.id] };
     const [[machineTotals], [workerTotals], [machineRows]] = await Promise.all([
       db.promise().query(
-        `SELECT COUNT(DISTINCT ml.machine_id) AS machine_count,
+        `SELECT COUNT(DISTINCT e.machine_id) AS machine_count,
                 COUNT(*) AS machine_line_count,
-                COALESCE(SUM(ml.machine_time_hours),0) AS total_machine_hours,
-                COALESCE(SUM(ml.maximum_output),0) AS maximum_output,
-                COALESCE(SUM(ml.counted_output),0) AS counted_output,
-                COALESCE(SUM(ml.ok_quantity),0) AS machine_ok,
-                COALESCE(SUM(ml.ng_quantity),0) AS machine_ng
-         FROM production_report_machine_lines ml
-         JOIN production_reports r ON r.id=ml.report_id
-         WHERE r.work_date BETWEEN ? AND ? ${machineScope.clause}`,
-        [from, to, ...machineScope.params],
+                COALESCE(SUM(e.machine_time_hours),0) AS total_machine_hours,
+                COALESCE(SUM(e.maximum_output),0) AS maximum_output,
+                COALESCE(SUM(e.physical_counted_output),0) AS counted_output,
+                COALESCE(SUM(e.physical_ok_quantity),0) AS machine_ok,
+                COALESCE(SUM(e.physical_ng_quantity),0) AS machine_ng
+         FROM machine_production_events e
+         WHERE e.status='approved' AND e.work_date BETWEEN ? AND ?
+           ${req.user.role === 'admin' ? '' : 'AND EXISTS (SELECT 1 FROM manager_processes mp WHERE mp.manager_id=? AND mp.process_id=e.process_id)'}`,
+        [from, to, ...(req.user.role === 'admin' ? [] : [req.user.id])],
       ),
       db.promise().query(
         `SELECT COALESCE(SUM(r.actual_time),0) AS actual_worker_hours,
@@ -144,19 +144,19 @@ exports.getSummary = async (req, res, next) => {
         [from, to, ...machineScope.params],
       ),
       db.promise().query(
-        `SELECT ml.machine_id, ml.machine_code,
+        `SELECT e.machine_id, e.machine_code,
                 COUNT(*) AS run_count,
-                COALESCE(SUM(ml.machine_time_hours),0) AS machine_hours,
-                COALESCE(SUM(ml.maximum_output),0) AS maximum_output,
-                COALESCE(SUM(ml.counted_output),0) AS counted_output,
-                COALESCE(SUM(ml.ok_quantity),0) AS ok,
-                COALESCE(SUM(ml.ng_quantity),0) AS ng
-         FROM production_report_machine_lines ml
-         JOIN production_reports r ON r.id=ml.report_id
-         WHERE r.work_date BETWEEN ? AND ? ${machineScope.clause}
-         GROUP BY ml.machine_id, ml.machine_code
-         ORDER BY ml.machine_code`,
-        [from, to, ...machineScope.params],
+                COALESCE(SUM(e.machine_time_hours),0) AS machine_hours,
+                COALESCE(SUM(e.maximum_output),0) AS maximum_output,
+                COALESCE(SUM(e.physical_counted_output),0) AS counted_output,
+                COALESCE(SUM(e.physical_ok_quantity),0) AS ok,
+                COALESCE(SUM(e.physical_ng_quantity),0) AS ng
+         FROM machine_production_events e
+         WHERE e.status='approved' AND e.work_date BETWEEN ? AND ?
+           ${req.user.role === 'admin' ? '' : 'AND EXISTS (SELECT 1 FROM manager_processes mp WHERE mp.manager_id=? AND mp.process_id=e.process_id)'}
+         GROUP BY e.machine_id, e.machine_code
+         ORDER BY e.machine_code`,
+        [from, to, ...(req.user.role === 'admin' ? [] : [req.user.id])],
       ),
     ]);
 

@@ -1,0 +1,5 @@
+- source baseline = Frozen R2
+- backend included = YES
+- frontend included = YES
+- desktop included = YES
+- production touched = NO

@@ -3,7 +3,7 @@ const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 
 const userModel = require("../models/userModel");
-const sessionModel = require("../models/sessionModel");
+const refreshSessionService = require("../services/refreshSessionService");
 const auditService = require("../services/auditService");
 const { setCachedAuthUser } = require("../utils/authUserCache");
 
@@ -37,12 +37,16 @@ function getRequestRefreshToken(req) {
     return bodyToken || parseCookie(req, REFRESH_COOKIE_NAME);
 }
 
-function setRefreshCookie(res, refreshToken) {
+function setRefreshCookie(res, refreshToken, expiresAt = null) {
+    const absoluteExpiry = expiresAt ? new Date(expiresAt).getTime() : NaN;
+    const remainingMs = Number.isFinite(absoluteExpiry)
+        ? Math.max(0, absoluteExpiry - Date.now())
+        : REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000;
     res.cookie(REFRESH_COOKIE_NAME, refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-        maxAge: REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000,
+        maxAge: remainingMs,
         path: "/api/auth",
     });
 }
@@ -58,8 +62,13 @@ function clearRefreshCookie(res) {
 
 function shouldReturnRefreshToken(req) {
     // Electron keeps a body-token fallback because file:// renderer cookie behavior
-    // differs by platform. Normal web clients use the HttpOnly cookie.
-    return /electron/i.test(String(req.headers["user-agent"] || ""));
+    // differs by platform. Chromium file:// requests may omit Origin or send the
+    // opaque value "null". HTTP(S) browser origins must keep refresh tokens
+    // HttpOnly-only. Browser JavaScript cannot set a forged User-Agent header.
+    const userAgent = String(req.headers["user-agent"] || "");
+    const origin = String(req.headers.origin || "").trim().toLowerCase();
+    const isOpaqueNativeOrigin = !origin || origin === "null" || origin.startsWith("file:");
+    return /electron/i.test(userAgent) && isOpaqueNativeOrigin;
 }
 
 function getRefreshTokenExpiresAt() {
@@ -108,77 +117,9 @@ async function resolveLoginAccount(loginName) {
     return { user: null, ambiguous: false, matchedBy: null };
 }
 
-function createSession(sessionData) {
-    return new Promise((resolve, reject) => {
-        sessionModel.createSession(sessionData, (error, result) => {
-            if (error) {
-                reject(error);
-                return;
-            }
-
-            resolve(result);
-        });
-    });
-}
-
-function findSessionByRefreshToken(refreshToken) {
-    return new Promise((resolve, reject) => {
-        sessionModel.findByRefreshToken(
-            refreshToken,
-            (error, results) => {
-                if (error) {
-                    reject(error);
-                    return;
-                }
-
-                resolve(results || []);
-            }
-        );
-    });
-}
-
-function updateSessionLastUsed(refreshToken) {
-    return new Promise((resolve, reject) => {
-        sessionModel.updateLastUsed(
-            refreshToken,
-            (error, result) => {
-                if (error) {
-                    reject(error);
-                    return;
-                }
-
-                resolve(result);
-            }
-        );
-    });
-}
-
-function revokeSession(refreshToken) {
-    return new Promise((resolve, reject) => {
-        sessionModel.revokeSession(
-            refreshToken,
-            (error, result) => {
-                if (error) {
-                    reject(error);
-                    return;
-                }
-
-                resolve(result);
-            }
-        );
-    });
-}
-
 function getClientIp(req) {
-    const forwardedFor = req.headers["x-forwarded-for"];
-
-    if (
-        typeof forwardedFor === "string" &&
-        forwardedFor.trim()
-    ) {
-        return forwardedFor.split(",")[0].trim();
-    }
-
+    // Express req.ip already applies the deployment-aware trust-proxy policy.
+    // Never trust raw X-Forwarded-For directly here.
     return req.ip || req.socket?.remoteAddress || null;
 }
 
@@ -230,35 +171,29 @@ async function issueLoginSession(req, res, user) {
     // ngăn tab/PWA cũ dùng refresh token trước đó để ghi đè tài khoản vừa đăng nhập.
     if (previousRefreshToken) {
         try {
-            await revokeSession(previousRefreshToken);
+            await refreshSessionService.revokeFamilyByRefreshToken(previousRefreshToken);
         } catch (revokeError) {
             console.warn("Không thể thu hồi phiên trước khi đổi tài khoản:", revokeError?.message || revokeError);
         }
     }
 
-    const accessToken = generateAccessToken(user);
-
-    const refreshToken = crypto
-        .randomBytes(32)
-        .toString("hex");
-
-    // Phiên đăng nhập có thời hạn và vẫn có thể thu hồi khi đăng xuất hoặc khóa tài khoản.
     const expiresAt = getRefreshTokenExpiresAt();
-
     const userAgent =
         typeof req.headers["user-agent"] === "string"
             ? req.headers["user-agent"]
             : null;
 
-    await createSession({
+    // Persist family root before exposing any usable refresh credential.
+    const rootSession = await refreshSessionService.createFamilyRoot({
         user_id: user.id,
-        refresh_token: refreshToken,
         device_id: crypto.randomUUID(),
         device_name: getDeviceName(req),
         user_agent: userAgent,
         ip_address: getClientIp(req),
         expires_at: expiresAt
     });
+    const refreshToken = rootSession.refreshToken;
+    const accessToken = generateAccessToken(user);
 
     // Làm nóng cache xác thực để các API ngay sau đăng nhập không phải
     // truy vấn lại users/workers qua TiDB cho từng request.
@@ -272,7 +207,7 @@ async function issueLoginSession(req, res, user) {
         worker_status: user.worker_status || (user.role === "worker" ? "active" : null)
     });
 
-    setRefreshCookie(res, refreshToken);
+    setRefreshCookie(res, refreshToken, rootSession.expiresAt);
 
     const responseBody = {
         success: true,
@@ -358,13 +293,12 @@ exports.login = async (req, res) => {
         if (resolvedAccount.ambiguous) {
             console.error("AUTH_ACCOUNT_AMBIGUOUS", {
                 login: username,
-                usernames: resolvedAccount.usernames
+                candidateCount: resolvedAccount.usernames.length
             });
             return res.status(409).json({
                 success: false,
                 code: "ACCOUNT_AMBIGUOUS",
-                message: "Mã công nhân này đang có nhiều tài khoản. Vui lòng đăng nhập bằng tên đăng nhập cụ thể.",
-                usernames: resolvedAccount.usernames
+                message: "Mã công nhân này đang có nhiều tài khoản. Vui lòng đăng nhập bằng tên đăng nhập cụ thể."
             });
         }
 
@@ -473,58 +407,22 @@ exports.login = async (req, res) => {
 exports.refresh = async (req, res) => {
     try {
         const refreshToken = getRequestRefreshToken(req);
-
         if (!refreshToken) {
-            return res.status(400).json({
-                success: false,
-                message: "Thiếu refresh token"
-            });
+            clearRefreshCookie(res);
+            return res.status(400).json({ success: false, code: "REFRESH_TOKEN_INVALID", message: "Thiếu refresh token" });
         }
-
         if (!process.env.JWT_SECRET) {
-            return res.status(500).json({
-                success: false,
-                message: "Cấu hình xác thực chưa hợp lệ"
-            });
+            return res.status(500).json({ success: false, message: "Cấu hình xác thực chưa hợp lệ" });
         }
 
-        const sessions =
-            await findSessionByRefreshToken(refreshToken);
+        const rotated = await refreshSessionService.rotateRefreshToken({
+            refreshToken,
+            userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : null,
+            ipAddress: getClientIp(req),
+        });
+        const session = rotated.user;
+        const accessToken = generateAccessToken(session);
 
-        if (sessions.length === 0) {
-            return res.status(401).json({
-                success: false,
-                code: "REFRESH_TOKEN_INVALID",
-                message:
-                    "Phiên đăng nhập đã hết hạn hoặc không hợp lệ"
-            });
-        }
-
-        const session = sessions[0];
-
-        const userIsInactive =
-            session.status !== "active";
-
-        const workerIsInactive =
-            session.role === "worker" &&
-            session.worker_status !== "active";
-
-        if (userIsInactive || workerIsInactive) {
-            await revokeSession(refreshToken);
-
-            return res.status(403).json({
-                success: false,
-                code: userIsInactive ? "USER_INACTIVE" : "WORKER_INACTIVE",
-                message:
-                    "Tài khoản đã bị khóa. Vui lòng liên hệ quản lý"
-            });
-        }
-
-        const accessToken =
-            generateAccessToken(session);
-
-        // Sau deploy/restart, cache xác thực bị mất. Làm nóng lại cache bằng
-        // users.id thật lấy từ refresh session trước khi client gọi API tiếp.
         setCachedAuthUser({
             id: session.user_id,
             username: session.username,
@@ -535,19 +433,14 @@ exports.refresh = async (req, res) => {
             worker_status: session.worker_status || null
         });
 
-        await updateSessionLastUsed(refreshToken);
-        setRefreshCookie(res, refreshToken);
-
+        setRefreshCookie(res, rotated.refreshToken, rotated.expiresAt);
         return res.status(200).json({
             success: true,
             message: "Làm mới phiên đăng nhập thành công",
-
-            // Giữ tương thích trong giai đoạn chuyển đổi.
             token: accessToken,
-
             accessToken,
+            ...(shouldReturnRefreshToken(req) ? { refreshToken: rotated.refreshToken } : {}),
             expiresIn: ACCESS_TOKEN_EXPIRES_IN,
-
             user: {
                 id: session.user_id,
                 worker_id: session.worker_id || null,
@@ -558,13 +451,24 @@ exports.refresh = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error("Lỗi làm mới token:", error);
-
-        return res.status(500).json({
-            success: false,
-            message:
-                "Không thể làm mới phiên đăng nhập lúc này"
-        });
+        const code = error?.code || "REFRESH_TOKEN_INVALID";
+        const securityCodes = new Set([
+            "REFRESH_TOKEN_INVALID", "REFRESH_TOKEN_EXPIRED", "REFRESH_TOKEN_REVOKED",
+            "REFRESH_TOKEN_REUSE_DETECTED", "SESSION_USER_DISABLED", "REFRESH_TOKEN_RELOGIN_REQUIRED"
+        ]);
+        if (securityCodes.has(code)) {
+            clearRefreshCookie(res);
+            const status = code === "SESSION_USER_DISABLED" ? 403 : 401;
+            return res.status(status).json({
+                success: false,
+                code,
+                message: code === "SESSION_USER_DISABLED"
+                    ? "Tài khoản đã bị khóa. Vui lòng đăng nhập lại"
+                    : "Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại"
+            });
+        }
+        console.error("Lỗi làm mới token:", error?.message || error);
+        return res.status(500).json({ success: false, message: "Không thể làm mới phiên đăng nhập lúc này" });
     }
 };
 
@@ -579,7 +483,7 @@ exports.logout = async (req, res) => {
             });
         }
 
-        await revokeSession(refreshToken);
+        await refreshSessionService.revokeFamilyByRefreshToken(refreshToken);
         clearRefreshCookie(res);
 
         try {

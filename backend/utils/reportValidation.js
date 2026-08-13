@@ -54,7 +54,7 @@ const validateProductionReport = (payload = {}, options = {}) => {
         today.setHours(0, 0, 0, 0);
         if (parsedDate > today) errors.work_date = "Không được nhập báo cáo cho ngày tương lai";
 
-        const maxBackDays = Number(options.maxBackDays ?? 3);
+        const maxBackDays = Number(options.maxBackDays ?? 14);
         if (Number.isFinite(maxBackDays) && maxBackDays >= 0 && options.enforceBackDate !== false) {
             const oldest = new Date(today);
             oldest.setDate(oldest.getDate() - maxBackDays);
@@ -69,9 +69,7 @@ const validateProductionReport = (payload = {}, options = {}) => {
     const totalTime = finiteNumber(payload.total_time, "total_time", errors, { max: MAX_TOTAL_TIME_HOURS });
     const deductionTime = finiteNumber(payload.deduction_time, "deduction_time", errors, { max: MAX_TOTAL_TIME_HOURS });
     const actualTime = finiteNumber(payload.actual_time, "actual_time", errors, { max: MAX_TOTAL_TIME_HOURS });
-    const standardOutputRaw = finiteNumber(payload.standard_output, "standard_output", errors, { max: 100000000 });
-    const standardOutput = Math.round(standardOutputRaw);
-    if (standardOutputRaw !== standardOutput) errors.standard_output = "standard_output phải là số nguyên";
+    const standardOutput = finiteNumber(payload.standard_output, "standard_output", errors, { min: Number.MIN_VALUE, max: 100000000 });
     const actualOutput = finiteNumber(payload.actual_output, "actual_output", errors, { max: 100000000 });
     const ttOk = finiteNumber(payload.tt_ok, "tt_ok", errors, { max: 100000000 });
     const ttNg = finiteNumber(payload.tt_ng, "tt_ng", errors, { max: 100000000 });
@@ -82,13 +80,18 @@ const validateProductionReport = (payload = {}, options = {}) => {
         errors.total_time = "Tổng thời gian phải bằng thời gian làm thực tế cộng thời gian trừ";
     }
     const defects = normalizeDetails(payload.defects || [], "defect_type_id", "quantity", "defects", errors);
-    const expectedActualOutput = calculateActualOutput({
-        ttOk,
-        defects,
-        excludeKqdFromTt: Boolean(Number(payload.exclude_kqd_from_tt || 0))
-    });
-    if (Math.abs(actualOutput - expectedActualOutput) > EPSILON) {
-        errors.actual_output = "Sản lượng thực tế không đúng theo quy tắc tính của mã sản phẩm";
+    if (options.skipActualOutputFormula !== true) {
+        const policyValue = Object.prototype.hasOwnProperty.call(payload, 'exclude_kqd_from_tt_snapshot')
+            ? payload.exclude_kqd_from_tt_snapshot
+            : payload.exclude_kqd_from_tt;
+        const expectedActualOutput = calculateActualOutput({
+            ttOk,
+            defects,
+            excludeKqdFromTt: Boolean(Number(policyValue || 0))
+        });
+        if (Math.abs(actualOutput - expectedActualOutput) > EPSILON) {
+            errors.actual_output = "Sản lượng thực tế không đúng theo quy tắc tính của mã sản phẩm";
+        }
     }
 
     const deductions = normalizeDetails(payload.deductions || [], "deduction_type_id", "hours", "deductions", errors);

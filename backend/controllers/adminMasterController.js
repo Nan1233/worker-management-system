@@ -1,5 +1,8 @@
 const db = require('../config/db');
 const { clearWorkerProfile } = require('../utils/workerProfileCache');
+const { getActorProcessScope, assertProcessScope, assertProcessesScope, scopeSql } = require('../services/processAuthorizationService');
+const { revokeAllUserFamilies } = require('../services/refreshSessionService');
+const { validateMasterNumeric } = require('../services/masterNumericValidationService');
 
 const TABLES = {
   processes: { table:'processes', fields:['process_code','process_name','description','status'], required:['process_code','process_name'], order:'process_name' },
@@ -8,6 +11,40 @@ const TABLES = {
   machines: { table:'machines', fields:['process_id','machine_code','machine_name','status'], required:['process_id','machine_code','machine_name'], order:'process_id, machine_code' },
   standards: { table:'product_standards', fields:['process_id','work_type','product_code','standard_output','exclude_kqd_from_tt','status'], required:['process_id','product_code','standard_output'], order:'process_id, product_code' }
 };
+
+const PROCESS_BOUND_RESOURCES = new Set(['defects','deductions','machines','standards']);
+
+function authErrorResponse(res, error) {
+  if (error?.status === 403 || error?.statusCode === 403) {
+    return res.status(403).json({ success:false, code:error.code || 'PROCESS_SCOPE_FORBIDDEN', message:error.message });
+  }
+  return null;
+}
+
+async function assertMasterResourceScope(actor, cfg, id, executor) {
+  if (cfg.table === 'processes') {
+    await assertProcessScope(actor, id, { executor, action:'MASTER_RESOURCE' });
+    return Number(id);
+  }
+  const [rows] = await executor.query(`SELECT id, process_id FROM ${cfg.table} WHERE id=? LIMIT 1`, [Number(id)]);
+  if (!rows.length) return null;
+  await assertProcessScope(actor, rows[0].process_id, { executor, action:'MASTER_RESOURCE' });
+  return Number(rows[0].process_id);
+}
+
+async function assertCanManageWorker(actor, workerId, executor, { requireAllAssignments = false } = {}) {
+  if (actor?.role === 'admin') return true;
+  const [assigned] = await executor.query('SELECT process_id FROM worker_processes WHERE worker_id=? ORDER BY process_id', [Number(workerId)]);
+  const targetIds = assigned.map((row) => Number(row.process_id)).filter(Boolean);
+  if (!targetIds.length) throw Object.assign(new Error('Công nhân chưa có công đoạn thuộc phạm vi phụ trách'), { status:403, code:'PROCESS_SCOPE_FORBIDDEN' });
+  const scope = await getActorProcessScope(actor, executor);
+  if (scope.type === 'ALL') return true;
+  const allowed = targetIds.filter((id) => scope.processIds.has(id));
+  if (!allowed.length || (requireAllAssignments && allowed.length !== targetIds.length)) {
+    throw Object.assign(new Error('Công nhân có phân công ngoài phạm vi phụ trách'), { status:403, code:'PROCESS_SCOPE_FORBIDDEN' });
+  }
+  return true;
+}
 
 
 
@@ -62,35 +99,44 @@ function cleanPayload(body, cfg, partial=false) {
   if ('status' in payload && !['active','inactive'].includes(payload.status)) {
     const error = new Error('Trạng thái không hợp lệ'); error.status = 400; throw error;
   }
-  if ('exclude_kqd_from_tt' in payload) payload.exclude_kqd_from_tt = Number(payload.exclude_kqd_from_tt) === 1 ? 1 : 0;
-  ['process_id','sort_order'].forEach((field) => {
-    if (field in payload) payload[field] = Number(payload[field]);
-  });
+  if ('exclude_kqd_from_tt' in payload) payload.exclude_kqd_from_tt = validateMasterNumeric('exclude_kqd_from_tt', payload.exclude_kqd_from_tt).value;
+  if ('process_id' in payload) payload.process_id = validateMasterNumeric('process_id', payload.process_id).value;
+  if ('sort_order' in payload) payload.sort_order = validateMasterNumeric('sort_order', payload.sort_order).value;
   if ('standard_output' in payload) {
-    payload.standard_output = Number(payload.standard_output);
-    if (!Number.isInteger(payload.standard_output) || payload.standard_output <= 0) {
-      const error = new Error('Định mức phải là số nguyên dương');
-      error.status = 400;
+    try {
+      payload.standard_output = validateMasterNumeric('standard_output', payload.standard_output).value;
+    } catch (error) {
+      if (/^MASTER_NUMERIC_/.test(String(error?.code || ''))) error.message = 'Định mức phải là số dương hợp lệ';
       throw error;
     }
   }
   return payload;
 }
 
-exports.list = (req, res, next) => {
-  if (req.params.resource === 'managers') return res.status(410).json({success:false,message:'Chức năng manager đã chuyển sang Quản lý người dùng'});
-  if (!requireMasterPermission(req,res) || !requireAdminForManagers(req,res)) return;
-  const cfg = config(req,res); if (!cfg) return;
-  const select = cfg.table === 'processes' ? 't.*' : 't.*, p.process_code, p.process_name';
-  const join = cfg.table === 'processes' ? '' : 'LEFT JOIN processes p ON p.id=t.process_id';
-  const sql = `SELECT ${select} FROM ${cfg.table} t ${join} ORDER BY ${cfg.order}`;
-  db.query(sql, (error, rows) => {
-    if (error) return next(error);
+exports.list = async (req, res, next) => {
+  try {
+    if (req.params.resource === 'managers') return res.status(410).json({success:false,message:'Chức năng manager đã chuyển sang Quản lý người dùng'});
+    if (!requireMasterPermission(req,res) || !requireAdminForManagers(req,res)) return;
+    const cfg = config(req,res); if (!cfg) return;
+    const scope = await getActorProcessScope(req.user);
+    if (cfg.table === 'processes') {
+      const scoped = scopeSql(scope, 't.id', []);
+      const [rows] = await db.promise().query(`SELECT t.* FROM processes t WHERE 1=1 ${scoped.clause} ORDER BY ${cfg.order}`, scoped.params);
+      return res.json({ success:true, data:rows });
+    }
+    const scoped = scopeSql(scope, 't.process_id', []);
+    const [rows] = await db.promise().query(
+      `SELECT t.*, p.process_code, p.process_name FROM ${cfg.table} t LEFT JOIN processes p ON p.id=t.process_id WHERE 1=1 ${scoped.clause} ORDER BY ${cfg.order}`,
+      scoped.params
+    );
     const data = req.params.resource === 'standards'
-      ? rows.map((row) => ({ ...row, standard_output: Math.round(Number(row.standard_output) || 0) }))
+      ? rows.map((row) => ({ ...row, standard_output: Number(row.standard_output) }))
       : rows;
     return res.json({ success:true, data });
-  });
+  } catch (error) {
+    if (authErrorResponse(res,error)) return;
+    next(error);
+  }
 };
 
 exports.create = async (req,res,next) => {
@@ -111,13 +157,19 @@ exports.create = async (req,res,next) => {
     }
     const cfg=config(req,res); if(!cfg) return;
     const payload=cleanPayload(req.body,cfg);
+    if (cfg.table === 'processes' && req.user?.role !== 'admin') {
+      return res.status(403).json({success:false,code:'PROCESS_SCOPE_FORBIDDEN',message:'Chỉ admin được tạo công đoạn'});
+    }
+    if (PROCESS_BOUND_RESOURCES.has(req.params.resource)) {
+      await assertProcessScope(req.user, payload.process_id, { action:'MASTER_CREATE' });
+    }
     if (req.params.resource === 'standards' && !payload.work_type);
     db.query(`INSERT INTO ${cfg.table} SET ?`, payload, (error,result) => {
       if (error?.code === 'ER_DUP_ENTRY') return res.status(409).json({success:false,message:'Mã hoặc dữ liệu đã tồn tại'});
       if (error) return next(error);
       res.status(201).json({success:true,message:'Tạo mới thành công',data:{id:result.insertId}});
     });
-  } catch(error) { res.status(error.status||400).json({success:false,message:error.message}); }
+  } catch(error) { res.status(error.status||error.statusCode||400).json({success:false,code:error.code||undefined,message:error.message}); }
 };
 
 exports.update = async (req,res,next) => {
@@ -143,29 +195,47 @@ exports.update = async (req,res,next) => {
     const id=Number(req.params.id); if(!Number.isInteger(id)||id<=0) return res.status(400).json({success:false,message:'ID không hợp lệ'});
     const payload=cleanPayload(req.body,cfg,true);
     if(!Object.keys(payload).length) return res.status(400).json({success:false,message:'Không có dữ liệu cập nhật'});
-    db.query(`UPDATE ${cfg.table} SET ? WHERE id=?`,[payload,id],(error,result)=>{
+    if (cfg.table === 'processes' && req.user?.role !== 'admin') {
+      return res.status(403).json({success:false,code:'PROCESS_SCOPE_FORBIDDEN',message:'Chỉ admin được sửa công đoạn'});
+    }
+    const connection = await db.promise().getConnection();
+    try {
+      await connection.beginTransaction();
+      const existingProcessId = await assertMasterResourceScope(req.user, cfg, id, connection);
+      if (existingProcessId === null) { await connection.rollback(); return res.status(404).json({success:false,message:'Không tìm thấy dữ liệu'}); }
+      if ('process_id' in payload && PROCESS_BOUND_RESOURCES.has(req.params.resource)) {
+        await assertProcessScope(req.user, payload.process_id, { executor:connection, action:'MASTER_UPDATE_TARGET' });
+      }
+      const [result] = await connection.query(`UPDATE ${cfg.table} SET ? WHERE id=?`,[payload,id]);
+      await connection.commit();
+      return res.json({success:true,message:'Cập nhật thành công'});
+    } catch (error) {
+      try { await connection.rollback(); } catch (_) {}
       if (error?.code === 'ER_DUP_ENTRY') return res.status(409).json({success:false,message:'Mã hoặc dữ liệu đã tồn tại'});
-      if(error) return next(error);
-      if(!result.affectedRows) return res.status(404).json({success:false,message:'Không tìm thấy dữ liệu'});
-      res.json({success:true,message:'Cập nhật thành công'});
-    });
-  } catch(error) { res.status(error.status||400).json({success:false,message:error.message}); }
+      if (authErrorResponse(res,error)) return;
+      throw error;
+    } finally { connection.release(); }
+  } catch(error) { res.status(error.status||error.statusCode||400).json({success:false,code:error.code||undefined,message:error.message}); }
 };
 
-exports.remove = (req,res,next) => {
-  if (!requireMasterPermission(req,res) || !requireAdminForManagers(req,res)) return;
-  if (req.params.resource === 'managers') return res.status(410).json({success:false,message:'Chức năng manager đã chuyển sang Quản lý người dùng'});
-  if (false) {
+exports.remove = async (req,res,next) => {
+  try {
+    if (!requireMasterPermission(req,res) || !requireAdminForManagers(req,res)) return;
+    if (req.params.resource === 'managers') return res.status(410).json({success:false,message:'Chức năng manager đã chuyển sang Quản lý người dùng'});
+    const cfg=config(req,res); if(!cfg) return;
     const id=Number(req.params.id); if(!Number.isInteger(id)||id<=0) return res.status(400).json({success:false,message:'ID không hợp lệ'});
-    return db.query("UPDATE users SET status='inactive' WHERE id=? AND role='manager'",[id],(error,result)=>{if(error)return next(error);if(!result.affectedRows)return res.status(404).json({success:false,message:'Không tìm thấy manager'});res.json({success:true,message:'Đã khóa manager'});});
-  }
-  const cfg=config(req,res); if(!cfg) return;
-  const id=Number(req.params.id); if(!Number.isInteger(id)||id<=0) return res.status(400).json({success:false,message:'ID không hợp lệ'});
-  db.query(`UPDATE ${cfg.table} SET status='inactive' WHERE id=?`,[id],(error,result)=>{
-    if(error) return next(error);
-    if(!result.affectedRows) return res.status(404).json({success:false,message:'Không tìm thấy dữ liệu'});
-    res.json({success:true,message:'Đã ngừng sử dụng dữ liệu'});
-  });
+    if (cfg.table === 'processes' && req.user?.role !== 'admin') return res.status(403).json({success:false,code:'PROCESS_SCOPE_FORBIDDEN',message:'Chỉ admin được ngừng công đoạn'});
+    const connection=await db.promise().getConnection();
+    try {
+      await connection.beginTransaction();
+      const processId=await assertMasterResourceScope(req.user,cfg,id,connection);
+      if(processId===null){await connection.rollback();return res.status(404).json({success:false,message:'Không tìm thấy dữ liệu'});}
+      const [result]=await connection.query(`UPDATE ${cfg.table} SET status='inactive' WHERE id=?`,[id]);
+      await connection.commit();
+      return res.json({success:true,message:'Đã ngừng sử dụng dữ liệu'});
+    } catch(error){try{await connection.rollback();}catch(_){} if(authErrorResponse(res,error))return; throw error;}
+    finally{connection.release();}
+  } catch(error){next(error);}
 };
 
 exports.updateWorker = async (req,res,next) => {
@@ -183,6 +253,7 @@ exports.updateWorker = async (req,res,next) => {
   try {
     await connection.beginTransaction();
     const [workers] = await connection.query('SELECT user_id FROM workers WHERE id=? LIMIT 1',[id]);
+    await assertCanManageWorker(req.user, id, connection);
     if (!workers.length) {
       await connection.rollback();
       return res.status(404).json({success:false,message:'Không tìm thấy công nhân'});
@@ -190,6 +261,9 @@ exports.updateWorker = async (req,res,next) => {
     await connection.query('UPDATE workers SET ? WHERE id=?',[payload,id]);
     if ('status' in payload) {
       await connection.query('UPDATE users SET status=? WHERE id=?',[payload.status,workers[0].user_id]);
+      if (payload.status === 'inactive') {
+        await revokeAllUserFamilies(workers[0].user_id, { executor: connection });
+      }
     }
     await connection.commit();
     return res.json({success:true,message:'Cập nhật công nhân thành công'});
@@ -218,6 +292,8 @@ exports.setWorkerProcesses = async (req, res, next) => {
       await connection.rollback();
       return res.status(404).json({ success:false, message:'Không tìm thấy công nhân' });
     }
+    await assertCanManageWorker(req.user, workerId, connection, { requireAllAssignments:true });
+    await assertProcessesScope(req.user, processIds, { executor:connection, action:'WORKER_PROCESS_ASSIGNMENT' });
 
     if (processIds.length) {
       const [activeProcesses] = await connection.query(

@@ -5,6 +5,8 @@ const path = require('node:path');
 
 const schema = fs.readFileSync(path.join(__dirname, '../../frontend/src/pages/worker/processFormSchemas.ts'), 'utf8');
 const page = fs.readFileSync(path.join(__dirname, '../../frontend/src/pages/worker/ProcessPage.tsx'), 'utf8');
+const masterDataCache = fs.readFileSync(path.join(__dirname, '../../frontend/src/services/masterDataCache.ts'), 'utf8');
+const productionService = fs.readFileSync(path.join(__dirname, '../../frontend/src/services/productionService.ts'), 'utf8');
 const timeSection = fs.readFileSync(path.join(__dirname, '../../frontend/src/pages/worker/components/ProcessTimeDeductionSection.tsx'), 'utf8');
 const pageUi = `${page}\n${timeSection}`;
 
@@ -21,8 +23,11 @@ test('worker forms keep process-specific fields from file-mau.xlsx', () => {
   assert.match(schema, /SỐ THAU|Số thau\/thời gian liên quan/);
 });
 
-test('worker form loads deduction catalogue by process instead of using GC list for every process', () => {
-  assert.match(page, /getDeductionOptionsByProcess/);
+test('worker deduction catalogue remains process scoped through cache and API contract', () => {
+  assert.match(page, /getCachedDeductions\(processInfo\.id\)/);
+  assert.match(masterDataCache, /getCachedDeductions = \(processId: number\)/);
+  assert.match(masterDataCache, /getDeductionOptionsByProcess\(processId\)/);
+  assert.match(productionService, /`\/processes\/\$\{processId\}\/deductions`/);
   assert.match(page, /activeDeductionOptions/);
   assert.match(page, /deduction_type_id:/);
   assert.match(page, /deduction_code:/);

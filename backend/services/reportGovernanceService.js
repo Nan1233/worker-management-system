@@ -27,21 +27,18 @@ async function isPeriodLocked(workDate, processId, executor = db.promise()) {
 async function createApprovedSnapshot(reportId, createdBy, executor = db.promise()) {
   const reports = await q(
     `SELECT pr.*, w.worker_code, u.full_name, p.process_code, p.process_name,
-            ps.id AS product_standard_id,
-            COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt
+            pr.exclude_kqd_from_tt_snapshot AS exclude_kqd_from_tt
      FROM production_reports pr
      JOIN workers w ON w.id = pr.worker_id
      JOIN users u ON u.id = w.user_id
      JOIN processes p ON p.id = pr.process_id
-     LEFT JOIN product_standards ps
-       ON ps.process_id = pr.process_id AND ps.product_code = pr.product_name
      WHERE pr.id = ? LIMIT 1`,
     [reportId], executor
   );
   if (!reports[0]) throw new Error('Không tìm thấy báo cáo để tạo snapshot');
   const report = reports[0];
 
-  const [defects, deductions, versions] = await Promise.all([
+  const [defects, deductions] = await Promise.all([
     q(`SELECT dt.defect_code, dt.defect_name, d.quantity
        FROM production_report_defects d
        LEFT JOIN defect_types dt ON dt.id=d.defect_type_id
@@ -49,13 +46,7 @@ async function createApprovedSnapshot(reportId, createdBy, executor = db.promise
     q(`SELECT dt.deduction_code, dt.deduction_name, d.hours
        FROM production_report_deductions d
        LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id
-       WHERE d.report_id=? ORDER BY d.id`, [reportId], executor),
-    q(`SELECT id FROM product_standard_versions
-       WHERE process_id=? AND product_code=? AND status='active'
-         AND effective_from <= ?
-         AND (effective_to IS NULL OR effective_to >= ?)
-       ORDER BY effective_from DESC, version_no DESC LIMIT 1`,
-      [report.process_id, report.product_name, normalizeDate(report.work_date), normalizeDate(report.work_date)], executor)
+       WHERE d.report_id=? ORDER BY d.id`, [reportId], executor)
   ]);
 
   const snapshot = {
@@ -90,7 +81,7 @@ async function createApprovedSnapshot(reportId, createdBy, executor = db.promise
      VALUES (?, 'approved', ?, 'v1', ?, ?)
      ON DUPLICATE KEY UPDATE snapshot_data=VALUES(snapshot_data),
        standard_version_id=VALUES(standard_version_id), created_by=VALUES(created_by), created_at=CURRENT_TIMESTAMP`,
-    [reportId, versions[0]?.id || null, JSON.stringify(snapshot), createdBy || null], executor
+    [reportId, report.standard_version_id || null, JSON.stringify(snapshot), createdBy || null], executor
   );
   return snapshot;
 }

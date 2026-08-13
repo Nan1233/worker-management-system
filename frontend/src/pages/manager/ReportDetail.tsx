@@ -16,6 +16,7 @@ import { getStoredUser } from "../../utils/authStorage";
 import { usePermissions } from "../../hooks/usePermissions";
 import { getReportVersions, restoreApprovedReportVersion, type ReportVersion } from "../../services/systemService";
 import "./ReportDetail.css";
+import MachineEventPanel from "./MachineEventPanel";
 
 const formatDate = (value?: string | null) => {
     if (!value) return "---";
@@ -174,7 +175,7 @@ function ReportDetail() {
         try {
             setRestoring(true);
             setError("");
-            await restoreApprovedReportVersion(Number(report.id), version.version_no, reason.trim());
+            await restoreApprovedReportVersion(Number(report.id), version.version_no, reason.trim(), report.updated_at || null);
             await loadReport();
         } catch (err: unknown) {
             setError(axios.isAxiosError(err)
@@ -218,14 +219,14 @@ function ReportDetail() {
                     <div className="detail-basic-item"><span>Ca</span><strong>{report.shift || "---"}</strong></div>
                     <div className="detail-basic-item"><span>Số máy</span><strong>{report.machine_no || "---"}</strong></div>
                     <div className="detail-basic-item"><span>Sản phẩm</span><strong>{report.product_name || "---"}</strong></div>
-                    <div className="detail-basic-item"><span>% học việc</span><strong>{formatNumber(report.training_percent ?? 100)}%</strong></div>
+                    <div className="detail-basic-item"><span>% học việc</span><strong>{report.training_percent == null ? "Chưa có snapshot" : `${formatNumber(report.training_percent)}%`}</strong></div>
                 </div>
             </section>
 
             <section className="detail-basic-card">
                 <h2>Sản lượng</h2>
                 <div className="detail-summary-row">
-                    <div><span>Định mức</span><strong>{formatNumber(Math.round(Number(report.standard_output) || 0))} SP/h</strong></div>
+                    <div><span>Định mức</span><strong>{formatNumber(Number(report.standard_output) || 0)} SP/h</strong></div>
                     <div><span>OK</span><strong>{formatNumber(report.tt_ok)}</strong></div>
                     <div><span>Tổng NG</span><strong>{formatNumber(report.tt_ng)}</strong></div>
                     <div className={outputWarning ? "is-warning" : ""}><span>Tổng OK + NG</span><strong>{formatNumber(totalOutput)}</strong></div>
@@ -241,6 +242,10 @@ function ReportDetail() {
                     <div><span>Thời gian thực tế</span><strong>{formatNumber(report.actual_time)} giờ</strong></div>
                 </div>
             </section>
+
+            {Array.isArray(report.machine_lines) && report.machine_lines.map((line) => (
+                <MachineEventPanel key={line.id ?? `${line.machine_code}-${line.product_code}`} report={report} line={line} source={source} onChanged={loadReport} />
+            ))}
 
             <div className="detail-two-column">
                 <section className="detail-basic-card detail-list-card">

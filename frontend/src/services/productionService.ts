@@ -1,6 +1,6 @@
 import { getAccessToken } from "../utils/authStorage";
 import api from "./api";
-import { getSessionCached } from "./sessionCache";
+import { getSessionCached, clearSessionCache } from "./sessionCache";
 
 
 
@@ -10,6 +10,11 @@ import type {
     ProductionDefect,
     ProductionReport
 } from "../types/production";
+const invalidateManagerReportCaches = () => {
+    clearSessionCache("manager-pending");
+    clearSessionCache("manager-approved");
+};
+
 export interface CompanyNetworkAccess {
     allowed: boolean;
     restricted: boolean;
@@ -190,105 +195,110 @@ export const getMyTempReports = async()=>{
 // MANAGER XEM CHỜ DUYỆT
 // =====================================================
 
+export interface ManagerReportPagination {
+    page: number;
+    page_size: number;
+    total: number;
+    total_pages: number;
+}
+
+export interface ManagerReportPage {
+    items: ProductionReport[];
+    pagination: ManagerReportPagination;
+    processes: string[];
+    previousCount?: number;
+}
+
 export interface PendingReportFilters {
     dateFrom?: string;
     dateTo?: string;
     shift?: string;
     processId?: number | string;
+    processName?: string;
     search?: string;
+    page?: number;
+    pageSize?: number;
 }
+
+const normalizeManagerReportPage = (payload: any, fallbackPage = 1, fallbackPageSize = 20): ManagerReportPage => {
+    const items = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
+    const rawPagination = payload?.pagination || {};
+    const total = Number(rawPagination.total ?? items.length);
+    const pageSize = Number(rawPagination.page_size ?? fallbackPageSize) || fallbackPageSize;
+    const page = Number(rawPagination.page ?? fallbackPage) || fallbackPage;
+    return {
+        items,
+        pagination: {
+            page,
+            page_size: pageSize,
+            total: Number.isFinite(total) && total >= 0 ? total : items.length,
+            total_pages: Math.max(1, Number(rawPagination.total_pages) || Math.ceil(Math.max(0, total) / pageSize) || 1)
+        },
+        processes: Array.isArray(payload?.processes)
+            ? payload.processes.map((item: any) => String(item?.process_name || item || '').trim()).filter(Boolean)
+            : [],
+        previousCount: Number(payload?.previous_count || 0)
+    };
+};
 
 export const getPendingReports = async (
     filters: PendingReportFilters = {}
-) => {
+): Promise<ManagerReportPage> => {
     const key = [
-        "manager-pending",
-        filters.dateFrom || "",
-        filters.dateTo || "",
-        filters.shift || "",
-        filters.processId || "",
-        filters.search?.trim() || ""
+        "manager-pending", filters.dateFrom || "", filters.dateTo || "",
+        filters.shift || "", filters.processId || "", filters.processName || "",
+        filters.search?.trim() || "", filters.page || 1, filters.pageSize || 20
     ].join(":");
 
     return getSessionCached(key, 15_000, async () => {
-        const res = await api.get(
-            "/production-temp/pending",
-            {
-                params: {
-                    date_from: filters.dateFrom || undefined,
-                    date_to: filters.dateTo || undefined,
-                    shift: filters.shift || undefined,
-                    process_id: filters.processId || undefined,
-                    search: filters.search?.trim() || undefined
-                }
+        const res = await api.get("/production-temp/pending", {
+            params: {
+                date_from: filters.dateFrom || undefined,
+                date_to: filters.dateTo || undefined,
+                shift: filters.shift || undefined,
+                process_id: filters.processId || undefined,
+                process_name: filters.processName || undefined,
+                search: filters.search?.trim() || undefined,
+                page: filters.page || 1,
+                page_size: filters.pageSize || 20
             }
-        );
-        return res.data.data || res.data || [];
+        });
+        return normalizeManagerReportPage(res.data, filters.page || 1, filters.pageSize || 20);
     });
 };
 
+export type ApprovedReportFilters = PendingReportFilters;
 
-
-
-
-
-
-// =====================================================
-// MANAGER XEM ĐÃ DUYỆT
-// =====================================================
-
-export interface ApprovedReportFilters {
-    dateFrom?: string;
-    dateTo?: string;
-    shift?: string;
-    processId?: number | string;
-    search?: string;
-}
-
-export const getApprovedReports = async(
+export const getApprovedReports = async (
     filters: ApprovedReportFilters = {}
-): Promise<ProductionReport[]> => {
+): Promise<ManagerReportPage> => {
     const key = [
-        "manager-approved",
-        filters.dateFrom || "",
-        filters.dateTo || "",
-        filters.shift || "",
-        filters.processId || "",
-        filters.search?.trim() || ""
+        "manager-approved", filters.dateFrom || "", filters.dateTo || "",
+        filters.shift || "", filters.processId || "", filters.processName || "",
+        filters.search?.trim() || "", filters.page || 1, filters.pageSize || 20
     ].join(":");
 
     return getSessionCached(key, 15_000, async () => {
-        const res = await api.get(
-            "/production-temp/approved",
-            {
-                params: {
-                    date_from: filters.dateFrom || undefined,
-                    date_to: filters.dateTo || undefined,
-                    shift: filters.shift || undefined,
-                    process_id: filters.processId || undefined,
-                    search: filters.search?.trim() || undefined
-                }
+        const res = await api.get("/production-temp/approved", {
+            params: {
+                date_from: filters.dateFrom || undefined,
+                date_to: filters.dateTo || undefined,
+                shift: filters.shift || undefined,
+                process_id: filters.processId || undefined,
+                process_name: filters.processName || undefined,
+                search: filters.search?.trim() || undefined,
+                page: filters.page || 1,
+                page_size: filters.pageSize || 20
             }
-        );
-        return res.data.data || res.data || [];
+        });
+        return normalizeManagerReportPage(res.data, filters.page || 1, filters.pageSize || 20);
     });
 };
 
-
-
-
-
-
-
-// =====================================================
-// LẤY BÁO CÁO ĐÃ DUYỆT
-// =====================================================
-
+// Compatibility helpers intentionally remain bounded. Full-data exports use the
+// dedicated export endpoints and are never routed through manager list pagination.
 export const getReports = async(): Promise<ProductionReport[]> =>
-    getApprovedReports();
-
-
-
+    (await getApprovedReports({ page: 1, pageSize: 100 })).items;
 
 
 // =====================================================
@@ -332,13 +342,17 @@ export const getReportById = async(
 export const updateReport = async (
     id: number,
     data: ProductionReport,
-    source: "pending" | "approved" = "approved"
+    source: "pending" | "approved" = "approved",
+    expectedUpdatedAt?: string | null
 ) => {
     const endpoint = source === "pending"
         ? `/production-temp/${id}`
         : `/production/${id}`;
+    const payload = source === "approved"
+        ? { ...data, expected_updated_at: expectedUpdatedAt || undefined }
+        : data;
 
-    const res = await api.put(endpoint, data);
+    const res = await api.put(endpoint, payload);
     return res.data;
 };
 
@@ -457,7 +471,7 @@ export const getApprovedReportsByDate = async(
 ):Promise<ProductionReport[]>=>{
 
 
-    return getApprovedReports({ dateFrom: date, dateTo: date });
+    return (await getApprovedReports({ dateFrom: date, dateTo: date, page: 1, pageSize: 100 })).items;
 
 
 };
@@ -650,8 +664,7 @@ export const approveSelectedTempReports = async (
         "/production-temp/approve-selected",
         { ids: targets.map((item) => item.id), targets }
     );
-
-
+    invalidateManagerReportCaches();
     return res.data;
 
 };
@@ -662,6 +675,7 @@ export const rejectSelectedTempReports = async (items: Array<number | TempReview
         "/production-temp/reject-selected",
         { ids: targets.map((item) => item.id), targets, reason }
     );
+    invalidateManagerReportCaches();
     return res.data;
 };
 
@@ -945,4 +959,84 @@ export const getMonthlyExcelStatus = async (
     );
 
     return response.data.data;
+};
+
+// =====================================================
+// F05 SHARED-MACHINE PHYSICAL EVENT API
+// =====================================================
+export interface MachineProductionEventDefectInput {
+    defect_type_id?: number;
+    defect_code?: string;
+    quantity: number;
+    responsible_worker_id: number;
+}
+
+export interface MachineProductionEvent {
+    id: number;
+    process_id: number;
+    process_code?: string;
+    machine_id: number;
+    machine_code: string;
+    product_code: string;
+    work_date: string;
+    shift: string;
+    physical_ok_quantity: number;
+    physical_ng_quantity: number;
+    physical_counted_output: number;
+    physical_total_output: number;
+    machine_time_hours: number;
+    maximum_output: number;
+    standard_output: number;
+    exclude_kqd_from_tt_snapshot: number;
+    status: "pending" | "approved";
+    defects?: Array<MachineProductionEventDefectInput & { id?: number; defect_name?: string }>;
+    participants?: Array<{
+        source: "temp" | "approved";
+        machine_line_id: number;
+        report_id: number;
+        worker_id: number;
+        credited_output: number;
+        participation_time_hours: number;
+    }>;
+}
+
+export const listMachineProductionEvents = async (filters: Record<string, string | number | undefined> = {}) => {
+    const res = await api.get('/machine-production-events', { params: filters });
+    return (res.data.data || []) as MachineProductionEvent[];
+};
+
+export const getMachineProductionEvent = async (id: number) => {
+    const res = await api.get(`/machine-production-events/${id}`);
+    return res.data.data as MachineProductionEvent;
+};
+
+export const createMachineProductionEvent = async (payload: {
+    process_id: number;
+    machine_id?: number;
+    machine_code?: string;
+    product_code: string;
+    work_date: string;
+    shift: string;
+    physical_ok_quantity: number;
+    machine_time_hours: number;
+    defects?: MachineProductionEventDefectInput[];
+    temp_machine_line_ids?: number[];
+}) => {
+    const res = await api.post('/machine-production-events', payload);
+    return res.data.data as MachineProductionEvent;
+};
+
+export const updateMachineProductionEvent = async (id: number, patch: Record<string, unknown>) => {
+    const res = await api.put(`/machine-production-events/${id}`, patch);
+    return res.data.data as MachineProductionEvent;
+};
+
+export const linkMachineEventParticipants = async (id: number, tempMachineLineIds: number[]) => {
+    const res = await api.post(`/machine-production-events/${id}/link-participants`, { temp_machine_line_ids: tempMachineLineIds });
+    return res.data.data as MachineProductionEvent;
+};
+
+export const approveMachineProductionEvent = async (id: number) => {
+    const res = await api.post(`/machine-production-events/${id}/approve`);
+    return res.data.data as MachineProductionEvent;
 };

@@ -15,6 +15,7 @@ const controller = require(
     "../controllers/productionTempController"
 );
 const validate = require("../middleware/validateRequest");
+const { workerReportLimiter } = require("../middleware/rateLimiters");
 
 
 // =====================================================
@@ -24,6 +25,7 @@ const validate = require("../middleware/validateRequest");
 router.post(
     "/",
     authMiddleware,
+    workerReportLimiter,
     checkRole("worker"),
     permission("WORKER_ENTRY"),
     validate({ process_id:{required:true,type:"positiveInt"}, work_date:{required:true}, shift:{required:true,maxLength:20}, machine_no:{required:false,maxLength:100}, product_name:{required:true,maxLength:150} }),

@@ -13,6 +13,13 @@ const { getCompanyMonthTarget } = require('./excelDualLayout.cjs');
 const { getDesktopDataRoot, getDocumentsRoot } = require('./platformPaths.cjs');
 const { readExcelChanges } = require('./excelDbSync.cjs');
 const {
+  isTrustedRendererNavigation,
+  isSafeExternalUrl,
+  isRetrySafeMethod,
+  assertImportFileSize,
+  ReportImportPreviewGuard,
+} = require('./securityPolicy.cjs');
+const {
   getDateParts,
   assertDate,
   safeFolderName,
@@ -47,6 +54,7 @@ let lastSuccessfulSyncAt = 0;
 let excelDbSyncTimer = null;
 let excelDbSyncRunning = false;
 const excelDbSyncState = new Map();
+const reportImportPreviewGuard = new ReportImportPreviewGuard();
 
 const appDataRoot = getDesktopDataRoot();
 app.setPath('userData', path.join(appDataRoot, 'UserData'));
@@ -1084,14 +1092,11 @@ function configureAutomaticSync(token) {
 }
 
 const FRONTEND_INDEX = path.join(__dirname, '..', 'frontend', 'dist', 'index.html');
+const OFFLINE_INDEX = path.join(__dirname, '..', 'assets', 'offline.html');
+const TRUSTED_RENDERER_FILES = [FRONTEND_INDEX, OFFLINE_INDEX];
 
 function isAllowedNavigation(targetUrl) {
-  try {
-    const url = new URL(targetUrl);
-    return url.protocol === 'file:' || url.protocol === 'about:' || url.protocol === 'data:';
-  } catch {
-    return false;
-  }
+  return isTrustedRendererNavigation(targetUrl, TRUSTED_RENDERER_FILES);
 }
 
 
@@ -1155,6 +1160,8 @@ async function waitForUsableRendererToken(previousToken = '', timeoutMs = 8_000)
 }
 
 async function authenticatedFetch(url, options = {}) {
+  const requestMethod = String(options.method || 'GET').toUpperCase();
+  const retrySafe = isRetrySafeMethod(requestMethod);
   const execute = async (token) => fetchWithTimeout(url, {
     ...options,
     headers: {
@@ -1186,7 +1193,7 @@ async function authenticatedFetch(url, options = {}) {
         }
       }
 
-      const retryableStatus = [408, 425, 429, 500, 502, 503, 504].includes(response.status);
+      const retryableStatus = retrySafe && [408, 425, 429, 500, 502, 503, 504].includes(response.status);
       if (!retryableStatus || attempt === RETRY_COUNT) return response;
 
       await writeLog('WARN', 'API_RETRYABLE_RESPONSE', {
@@ -1198,7 +1205,7 @@ async function authenticatedFetch(url, options = {}) {
       await writeLog('WARN', 'API_FETCH_RETRY', {
         url, attempt, maxAttempts: RETRY_COUNT, ...normalizeError(error)
       });
-      if (attempt === RETRY_COUNT) throw error;
+      if (!retrySafe || attempt === RETRY_COUNT) throw error;
       await wait(RETRY_DELAY_MS * attempt);
     }
   }
@@ -1268,7 +1275,7 @@ function createWindow() {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (isAllowedNavigation(url)) {
       void mainWindow.loadURL(url);
-    } else if (/^https?:\/\//i.test(url)) {
+    } else if (isSafeExternalUrl(url)) {
       void shell.openExternal(url);
     }
     return { action: 'deny' };
@@ -1277,7 +1284,7 @@ function createWindow() {
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (!isAllowedNavigation(url)) {
       event.preventDefault();
-      if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
+      if (isSafeExternalUrl(url)) void shell.openExternal(url);
     }
   });
 
@@ -1289,8 +1296,8 @@ function createWindow() {
       .replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[c] || c));
     const safeUrl = String(validatedURL || FRONTEND_INDEX)
       .replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[c] || c));
-    const html = `<!doctype html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KTC Production Control</title><style>body{margin:0;font-family:Segoe UI,Arial,sans-serif;background:#f3f6fb;color:#172033;display:grid;place-items:center;min-height:100vh}.card{width:min(560px,calc(100% - 40px));padding:36px;border:1px solid #dce5f1;border-radius:24px;background:#fff;box-shadow:0 20px 55px rgba(30,53,84,.12);text-align:center}.logo{width:68px;height:68px;margin:auto;display:grid;place-items:center;border-radius:18px;background:linear-gradient(145deg,#2464c8,#164a9d);color:#fff;font-weight:900}h1{margin:20px 0 10px;color:#183a6a}p{color:#64748b;line-height:1.6}.meta{font-size:12px;color:#94a3b8;word-break:break-word}button{min-height:46px;padding:0 20px;border:0;border-radius:13px;background:#2563eb;color:#fff;font-weight:800;cursor:pointer}</style></head><body><main class="card"><div class="logo">KTC</div><h1>Không thể kết nối hệ thống</h1><p>Hãy kiểm tra Internet hoặc chờ dịch vụ Render khởi động.</p><p class="meta">${safeDescription}<br>${safeUrl}</p><button onclick="location.reload()">Thử lại</button></main></body></html>`;
-    await mainWindow.loadURL(`data:text/html;charset=UTF-8,${encodeURIComponent(html)}`);
+    await writeLog('WARN', 'RENDERER_OFFLINE_PAGE', { safeDescription, safeUrl });
+    await mainWindow.loadFile(OFFLINE_INDEX);
     mainWindow.show();
   });
 
@@ -1392,6 +1399,8 @@ async function handlePreviewReportImport(payload = {}) {
   });
   if (picked.canceled || !picked.filePaths?.[0]) return { canceled: true, detected: 0, changes: [] };
   const filePath = path.resolve(picked.filePaths[0]);
+  const stat = await fs.stat(filePath);
+  assertImportFileSize(stat);
   const parsed = await readExcelChanges(filePath);
   if (!parsed?.managed) {
     const error = new Error('File này không phải workbook KTC có metadata đồng bộ. Hãy dùng file được xuất từ KTC hoặc template import KTC.');
@@ -1399,6 +1408,7 @@ async function handlePreviewReportImport(payload = {}) {
     throw error;
   }
   const changes = Array.isArray(parsed.changes) ? parsed.changes : [];
+  reportImportPreviewGuard.remember(filePath);
   await writeLog('INFO', 'REPORT_IMPORT_PREVIEW', {
     filePath,
     yearMonth: parsed.yearMonth || null,
@@ -1422,8 +1432,10 @@ async function handleApplyReportImport(payload = {}) {
   const token = await waitForUsableRendererToken(payload.token || '', 8_000);
   if (!token) throw new Error('Chưa tìm thấy phiên đăng nhập. Hãy đăng nhập lại rồi thử.');
   currentToken = token;
-  const filePath = path.resolve(String(payload.filePath || ''));
+  const filePath = reportImportPreviewGuard.assertAllowed(payload.filePath);
   if (!filePath.toLowerCase().endsWith('.xlsx') || !fsSync.existsSync(filePath)) throw new Error('File import không còn tồn tại.');
+  const stat = await fs.stat(filePath);
+  assertImportFileSize(stat);
   const parsed = await readExcelChanges(filePath);
   if (!parsed?.managed) throw new Error('File import không còn đúng contract KTC. Hãy xuất lại file từ DB trước.');
   const changes = Array.isArray(parsed.changes) ? parsed.changes : [];
@@ -1439,6 +1451,7 @@ async function handleApplyReportImport(payload = {}) {
       writeLog('ERROR', 'REPORT_IMPORT_REBUILD_FAILED', { yearMonth: parsed.yearMonth, ...normalizeError(error) })
     );
   }
+  if (failed === 0) reportImportPreviewGuard.consume(filePath);
   await writeLog(failed ? 'WARN' : 'INFO', 'REPORT_IMPORT_APPLY', {
     filePath,
     yearMonth: parsed.yearMonth || null,

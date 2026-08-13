@@ -43,7 +43,7 @@ function report(overrides = {}) {
     id: 1, dataSource: 'production_reports', isApprovedDatabaseRecord: true,
     work_date: '2026-08-01', entry_date: '2026-08-02', created_at: '2026-08-02T08:00:00.000Z', approved_at: '2026-08-02T09:00:00.000Z',
     worker_code: '599', full_name: 'Nguyễn Văn Kiểm tra', shift: 'A', operation_type: 'NEST', operation_mode: 'MANUAL', machine_no: 'M-01', product_name: 'QC5-1657',
-    training_percent: 100, standard_output: 10, total_time: 8, actual_time: 7.5, deduction_time: 0.5,
+    training_percent: 100, standard_output: 617.1, total_time: 8, actual_time: 7.5, deduction_time: 0.5,
     tt_ok: 45, tt_ng: 2, actual_output: 47, exclude_kqd_from_tt: 1, status: 'approved', note: 'Smoke test',
     deductions: [{ deduction_type_id: 1, deduction_type_code: '5S', hours: 0.5 }],
     defects: [
@@ -202,7 +202,8 @@ const payload = {
 
     assert.equal(sheet.getCell(7, totalTimeCol).numFmt, integerFormat, 'Thời gian nguyên phải hiển thị không có dấu chấm');
     assert.equal(sheet.getCell(7, deductionTimeCol).numFmt, decimalFormat, 'Trừ giờ có phần lẻ phải giữ tối đa 2 số thập phân');
-    assert.equal(sheet.getCell(7, standardCol).numFmt, integerFormat, 'Định mức nguyên phải hiển thị không có dấu chấm');
+    assert.equal(sheet.getCell(7, standardCol).value, 617.1, 'Định mức decimal phải giữ underlying numeric value');
+    assert.equal(sheet.getCell(7, standardCol).numFmt, decimalFormat, 'Định mức decimal phải giữ tối đa 2 số thập phân');
     assert.equal(sheet.getCell(7, outputPerHourCol).numFmt, integerFormat, 'Năng suất bằng số nguyên phải hiển thị không có dấu chấm');
 
     for (let col = 5; col <= sheet.columnCount; col += 1) {

@@ -30,6 +30,7 @@ const verifyToken =
 const checkRole =
     require("../middleware/roleMiddleware");
 const permission = require("../middleware/permissionMiddleware");
+const { expensiveUserLimiter } = require("../middleware/rateLimiters");
 
 const { syncExcelEdits } = require("../controllers/excelEditSyncController");
 
@@ -114,6 +115,7 @@ router.post(
     verifyToken,
     checkRole("admin", "manager"),
     permission("EXCEL_DB_SYNC"),
+    expensiveUserLimiter,
     syncExcelEdits
 );
 

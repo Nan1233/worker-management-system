@@ -1,3 +1,4 @@
+const { isKqdDefect } = require("../../shared/kqdPolicy.cjs");
 require('dotenv').config();
 const db = require('../config/db');
 const { calculateProductionMetrics } = require('../domain/productionCalculationEngine.cjs');
@@ -16,12 +17,12 @@ function warn(report, code, detail){ warnings.push({report_id:Number(report.id),
 async function main(){
   await db.testConnection();
   const [reports] = await db.promise().query(`
-    SELECT pr.*, w.worker_code, w.training_percent, p.process_code,
-           COALESCE(ps.exclude_kqd_from_tt,0) exclude_kqd_from_tt
+    SELECT pr.*, w.worker_code, p.process_code,
+           pr.training_percent_snapshot AS training_percent,
+           pr.exclude_kqd_from_tt_snapshot AS exclude_kqd_from_tt
     FROM production_reports pr
     JOIN workers w ON w.id=pr.worker_id
     JOIN processes p ON p.id=pr.process_id
-    LEFT JOIN product_standards ps ON ps.process_id=pr.process_id AND ps.product_code=pr.product_name
     WHERE pr.status='approved'
     ORDER BY pr.work_date DESC, pr.id DESC LIMIT ?`, [LIMIT]);
   const ids=reports.map(r=>Number(r.id));
@@ -62,7 +63,7 @@ async function main(){
     const date=String(report.work_date).slice(0,10); if(date>today) issue(report,'FUTURE_WORK_DATE',date);
     if(!report.entry_date) warn(report,'MISSING_ENTRY_DATE','entry_date is null');
     if(num(report.standard_output)<=0) warn(report,'MISSING_STANDARD',`standard=${report.standard_output}`);
-    const countedNg=d.defects.length ? d.defects.reduce((s,x)=>s+(Number(report.exclude_kqd_from_tt)===1 && String(x.defect_code).toUpperCase()==='KQD'?0:num(x.quantity)),0) : num(report.tt_ng);
+    const countedNg=d.defects.length ? d.defects.reduce((s,x)=>s+(Number(report.exclude_kqd_from_tt)===1 && isKqdDefect(x)?0:num(x.quantity)),0) : num(report.tt_ng);
     const expectedEntered=num(report.tt_ok)+countedNg;
     if(!near(report.actual_output,expectedEntered)) issue(report,'ACTUAL_OUTPUT_MISMATCH',`actual_output=${report.actual_output}, expected=${expectedEntered}`);
     if(!settingsByDate.has(date)) settingsByDate.set(date, await formulaSettings.getSettingsMap(date));

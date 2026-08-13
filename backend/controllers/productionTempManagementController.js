@@ -21,6 +21,12 @@ const {
 } = require("./productionTempControllerUtils");
 const { validateMasterData } = require("../services/reportBusinessValidationService");
 const { validateProductionReport } = require("../utils/reportValidation");
+const { calculateProductionOutput } = require("../../shared/kqdPolicy.cjs");
+const {
+    normalizePagination,
+    normalizeSearch,
+    assertReviewBatchSize
+} = require("../services/managerReportPaginationService");
 
 exports.getPendingReports = async (req, res) => {
     try {
@@ -33,7 +39,9 @@ exports.getPendingReports = async (req, res) => {
             date_to: req.query.date_to || null,
             shift: req.query.shift || null,
             process_id: toPositiveInteger(req.query.process_id),
-            search: req.query.search?.trim() || null
+            process_name: req.query.process_name?.trim() || null,
+            search: normalizeSearch(req.query.search),
+            pagination: normalizePagination(req.query)
         };
         const cacheKey = `manager:pending:${req.user?.role}:${userId}:${JSON.stringify(filters)}`;
         let data = managerListCache.get(cacheKey);
@@ -41,10 +49,16 @@ exports.getPendingReports = async (req, res) => {
             data = await ProductionTemp.getPending(userId, filters, req.user?.role === "admin");
             managerListCache.set(cacheKey, data, MANAGER_LIST_TTL_MS);
         }
-        return res.status(200).json({ success: true, data });
+        return res.status(200).json({
+            success: true,
+            data: data.items,
+            pagination: data.pagination,
+            processes: data.processes,
+            previous_count: data.previous_count
+        });
     } catch (error) {
         console.error("GET PENDING REPORTS ERROR:", error);
-        return res.status(500).json({ success: false, message: publicMessage(error, "Không thể lấy báo cáo chờ duyệt") });
+        return res.status(error.status || 500).json({ success: false, code: error.code || undefined, message: publicMessage(error, "Không thể lấy báo cáo chờ duyệt") });
     }
 };
 
@@ -59,7 +73,9 @@ exports.getApprovedReports = async (req, res) => {
             date_to: req.query.date_to || null,
             shift: req.query.shift || null,
             process_id: toPositiveInteger(req.query.process_id),
-            search: req.query.search?.trim() || null
+            process_name: req.query.process_name?.trim() || null,
+            search: normalizeSearch(req.query.search),
+            pagination: normalizePagination(req.query)
         };
         const cacheKey = `manager:approved:${req.user?.role}:${userId}:${JSON.stringify(filters)}`;
         let data = managerListCache.get(cacheKey);
@@ -67,10 +83,15 @@ exports.getApprovedReports = async (req, res) => {
             data = await ProductionTemp.getApproved(userId, filters, req.user?.role === "admin");
             managerListCache.set(cacheKey, data, MANAGER_LIST_TTL_MS);
         }
-        return res.status(200).json({ success: true, data });
+        return res.status(200).json({
+            success: true,
+            data: data.items,
+            pagination: data.pagination,
+            processes: data.processes
+        });
     } catch (error) {
         console.error("GET APPROVED REPORTS ERROR:", error);
-        return res.status(500).json({ success: false, message: publicMessage(error, "Không thể lấy báo cáo đã duyệt") });
+        return res.status(error.status || 500).json({ success: false, code: error.code || undefined, message: publicMessage(error, "Không thể lấy báo cáo đã duyệt") });
     }
 };
 
@@ -134,6 +155,7 @@ exports.getTempReportDetail = async (req, res) => {
 exports.approveSelectedReports = async (req, res) => {
     try {
         const targets = normalizeReviewTargets(req.body);
+        assertReviewBatchSize(targets);
         const ids = targets.map((item) => item.id);
         const reviewerId = toPositiveInteger(req.user?.id);
         if (ids.length === 0) return res.status(400).json({ success: false, message: "Vui lòng chọn ít nhất một báo cáo" });
@@ -184,6 +206,7 @@ exports.approveSelectedReports = async (req, res) => {
 exports.rejectSelectedReports = async (req, res) => {
     try {
         const targets = normalizeReviewTargets(req.body);
+        assertReviewBatchSize(targets);
         const ids = targets.map((item) => item.id);
         const reviewerId = toPositiveInteger(req.user?.id);
         const reason = String(req.body?.reason || "").trim();
@@ -249,7 +272,8 @@ exports.updateTempReport = async (req, res) => {
             machineLines: rawMachineLines,
             operationType,
             operationMode: operationMode || (rawMachineLines.length ? "MACHINE" : "MANUAL"),
-            maxMachines: machinePolicy.maxMachines || 4
+            maxMachines: machinePolicy.maxMachines || 4,
+            workDate: payload.work_date
         });
         if (!machineValidation.valid) {
             return res.status(422).json({
@@ -293,12 +317,24 @@ exports.updateTempReport = async (req, res) => {
             deductions: validation.normalized.deductions,
             ttOk: operationMode === "MANUAL" ? validation.normalized.tt_ok : undefined,
             actualOutput: operationMode === "MANUAL" ? validation.normalized.actual_output : undefined,
-            allowEmptyMachine: operationMode === "MANUAL" || machinePolicy.mode === "MANUAL_ONLY"
+            allowEmptyMachine: operationMode === "MANUAL" || machinePolicy.mode === "MANUAL_ONLY",
+            workDate: payload.work_date
         });
         if (!master.valid) return res.status(422).json({ success: false, message: "Dữ liệu danh mục không hợp lệ", errors: master.errors });
 
         const hasMachineLines = machineValidation.lines.length > 0;
         const totalMachineHours = Number(machineValidation.totals?.totalMachineHours || 0);
+        const manualOutput = hasMachineLines ? null : calculateProductionOutput({
+            ok: validation.normalized.tt_ok,
+            defects: master.authoritativeDefects,
+            excludeKqdFromTt: Boolean(Number(master.excludeKqdFromTt || 0))
+        });
+        const parentKqdPolicySnapshot = hasMachineLines
+            ? (() => {
+                const policies = [...new Set(machineValidation.lines.map((line) => Number(line.exclude_kqd_from_tt || 0) === 1 ? 1 : 0))];
+                return policies.length === 1 ? policies[0] : null;
+            })()
+            : (Number(master.excludeKqdFromTt || 0) === 1 ? 1 : 0);
         const normalizedUpdate = {
             ...validation.normalized,
             operation_mode: (hasMachineLines || (operationMode === "MACHINE" && master.machineCode)) ? "MACHINE" : "MANUAL",
@@ -315,14 +351,17 @@ exports.updateTempReport = async (req, res) => {
                 : master.standardOutput,
             actual_output: hasMachineLines
                 ? Number(machineValidation.totals?.totalCounted || 0)
-                : validation.normalized.actual_output,
+                : Number(manualOutput.actualOutput),
             tt_ok: hasMachineLines
                 ? Number(machineValidation.totals?.totalOk || 0)
                 : validation.normalized.tt_ok,
             tt_ng: hasMachineLines
                 ? Number(machineValidation.totals?.totalNg || 0)
                 : validation.normalized.tt_ng,
-            exclude_kqd_from_tt: hasMachineLines ? 0 : master.excludeKqdFromTt,
+            exclude_kqd_from_tt: parentKqdPolicySnapshot ?? 0,
+            exclude_kqd_from_tt_snapshot: parentKqdPolicySnapshot,
+            standard_version_id: hasMachineLines ? null : master.standardVersionId,
+            machine_standard_id: hasMachineLines ? null : master.machineStandardId,
             machine_lines: machineValidation.lines
         };
 
@@ -345,7 +384,7 @@ exports.updateTempReport = async (req, res) => {
         });
     } catch (error) {
         console.error("UPDATE TEMP REPORT ERROR:", error);
-        return res.status(error.status || 400).json({ success: false, message: publicMessage(error, "Không thể cập nhật báo cáo") });
+        return res.status(error.status || 400).json({ success: false, code: error.code || undefined, message: publicMessage(error, "Không thể cập nhật báo cáo") });
     }
 };
 

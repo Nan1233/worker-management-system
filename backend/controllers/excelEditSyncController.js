@@ -18,7 +18,7 @@ exports.syncExcelEdits = async (req, res) => {
     try {
       if (change?.create === true) {
         if (change?.invalid) throw Object.assign(new Error(change.error || 'Dòng Excel mới không hợp lệ'), { status: 422, code: 'EXCEL_NEW_ROW_INVALID', isPublic: true });
-        const created = await createApprovedReportFromExcel({ data: change?.data || {}, userId: req.user.id, req, sourceMeta: change?.source || null });
+        const created = await createApprovedReportFromExcel({ data: change?.data || {}, userId: req.user.id, actor: req.user, req, sourceMeta: change?.source || null });
         affectedDates.add(String(created.report.work_date).slice(0, 10));
         results.push({ id: created.report.id, create: true, success: true, version: created.version, updated_at: created.report.updated_at || created.report.created_at || null });
         continue;
@@ -35,6 +35,7 @@ exports.syncExcelEdits = async (req, res) => {
         patch,
         reason,
         userId: req.user.id,
+        actor: req.user,
         req,
         expectedUpdatedAt: change?.expected_updated_at || null,
         source: 'excel',
