@@ -421,12 +421,11 @@ function Login() {
 
                     {step === "employee-code" && (
                         <form onSubmit={continueToRoleChoice} className="login-form">
-                            <label htmlFor="login-employee-code">
+                            <label>
                                 <span>Mã nhân viên</span>
                                 <div className="login-input-wrap">
-                                    <span className="login-input-icon login-input-icon--id" aria-hidden="true">ID</span>
+                                    <span className="login-input-icon">♙</span>
                                     <input
-                                        id="login-employee-code"
                                         type="text"
                                         inputMode="text"
                                         autoComplete="username"
@@ -434,13 +433,11 @@ function Login() {
                                         value={username}
                                         onChange={(event) => setUsername(event.target.value)}
                                         disabled={loading}
-                                        aria-invalid={Boolean(error)}
-                                        aria-describedby={error ? "login-error" : undefined}
                                         autoFocus
                                     />
                                 </div>
                             </label>
-                            {error && <div id="login-error" className="login-error" role="alert">{error}</div>}
+                            {error && <div className="login-error" role="alert">{error}</div>}
                             <button type="submit" className="login-submit" disabled={loading}>
                                 Tiếp tục <span>→</span>
                             </button>
@@ -455,7 +452,7 @@ function Login() {
                                 disabled={loading}
                                 onClick={() => void completeLogin("worker")}
                             >
-                                <span className="login-role-icon" aria-hidden="true">CN</span>
+                                <span className="login-role-icon">♙</span>
                                 <span>
                                     <strong>Công nhân</strong>
                                     <small>Vào ngay, không cần mật khẩu</small>
@@ -471,7 +468,7 @@ function Login() {
                                     setStep("management-password");
                                 }}
                             >
-                                <span className="login-role-icon" aria-hidden="true">QL</span>
+                                <span className="login-role-icon">◆</span>
                                 <span>
                                     <strong>Quản lý</strong>
                                     <small>Quản lý, tổ trưởng hoặc quản trị viên</small>
@@ -486,20 +483,17 @@ function Login() {
 
                     {step === "management-password" && (
                         <form onSubmit={submitManagementPassword} className="login-form">
-                            <label htmlFor="login-management-password">
+                            <label>
                                 <span>Mật khẩu quản lý</span>
                                 <div className="login-input-wrap">
-                                    <span className="login-input-icon login-input-icon--password" aria-hidden="true">••</span>
+                                    <span className="login-input-icon">●</span>
                                     <input
-                                        id="login-management-password"
                                         type={showPassword ? "text" : "password"}
                                         autoComplete="current-password"
                                         placeholder="Nhập mật khẩu"
                                         value={password}
                                         onChange={(event) => setPassword(event.target.value)}
                                         disabled={loading}
-                                        aria-invalid={Boolean(error)}
-                                        aria-describedby={error ? "login-management-error" : undefined}
                                         autoFocus
                                     />
                                     <button
@@ -507,8 +501,6 @@ function Login() {
                                         className="password-toggle"
                                         onClick={() => setShowPassword((current) => !current)}
                                         disabled={loading}
-                                        aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
-                                        aria-pressed={showPassword}
                                     >{showPassword ? "Ẩn" : "Hiện"}</button>
                                 </div>
                             </label>
@@ -521,7 +513,7 @@ function Login() {
                                 />
                                 <span>Ghi nhớ mã nhân viên trên thiết bị</span>
                             </label>
-                            {error && <div id="login-management-error" className="login-error" role="alert">{error}</div>}
+                            {error && <div className="login-error" role="alert">{error}</div>}
                             <button type="submit" className="login-submit" disabled={loading}>
                                 {loading ? <><span className="login-spinner" />Đang đăng nhập...</> : <>Đăng nhập quản lý <span>→</span></>}
                             </button>
