@@ -3,16 +3,36 @@
 -- change production-report business calculations.
 
 ALTER TABLE integration_sync_jobs
-  ADD COLUMN IF NOT EXISTS job_key VARCHAR(191) NULL AFTER job_type,
-  ADD COLUMN IF NOT EXISTS work_date DATE NULL AFTER job_key,
-  ADD COLUMN IF NOT EXISTS report_month CHAR(7) NULL AFTER work_date,
-  ADD COLUMN IF NOT EXISTS process_id BIGINT NULL AFTER report_month,
-  ADD COLUMN IF NOT EXISTS attempts INT NOT NULL DEFAULT 0 AFTER status,
-  ADD COLUMN IF NOT EXISTS max_attempts INT NOT NULL DEFAULT 8 AFTER attempts,
-  ADD COLUMN IF NOT EXISTS next_retry_at DATETIME NULL AFTER max_attempts,
-  ADD COLUMN IF NOT EXISTS locked_at DATETIME NULL AFTER next_retry_at,
-  ADD COLUMN IF NOT EXISTS last_error TEXT NULL AFTER locked_at,
-  ADD COLUMN IF NOT EXISTS completed_at DATETIME NULL AFTER last_error,
+  ADD COLUMN IF NOT EXISTS job_key VARCHAR(191) NULL AFTER job_type;
+
+ALTER TABLE integration_sync_jobs
+  ADD COLUMN IF NOT EXISTS work_date DATE NULL AFTER job_key;
+
+ALTER TABLE integration_sync_jobs
+  ADD COLUMN IF NOT EXISTS report_month CHAR(7) NULL AFTER work_date;
+
+ALTER TABLE integration_sync_jobs
+  ADD COLUMN IF NOT EXISTS process_id BIGINT NULL AFTER report_month;
+
+ALTER TABLE integration_sync_jobs
+  ADD COLUMN IF NOT EXISTS attempts INT NOT NULL DEFAULT 0 AFTER status;
+
+ALTER TABLE integration_sync_jobs
+  ADD COLUMN IF NOT EXISTS max_attempts INT NOT NULL DEFAULT 8 AFTER attempts;
+
+ALTER TABLE integration_sync_jobs
+  ADD COLUMN IF NOT EXISTS next_retry_at DATETIME NULL AFTER max_attempts;
+
+ALTER TABLE integration_sync_jobs
+  ADD COLUMN IF NOT EXISTS locked_at DATETIME NULL AFTER next_retry_at;
+
+ALTER TABLE integration_sync_jobs
+  ADD COLUMN IF NOT EXISTS last_error TEXT NULL AFTER locked_at;
+
+ALTER TABLE integration_sync_jobs
+  ADD COLUMN IF NOT EXISTS completed_at DATETIME NULL AFTER last_error;
+
+ALTER TABLE integration_sync_jobs
   ADD COLUMN IF NOT EXISTS result_url TEXT NULL AFTER completed_at;
 
 UPDATE integration_sync_jobs
