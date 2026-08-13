@@ -345,119 +345,103 @@ function Login() {
 
     return (
         <main className="login-page">
-            <aside className="login-brand-panel" aria-label="KTC Production Management System">
-                <div className="login-brand-panel-inner">
+            <section className="login-showcase">
+                <div className="login-showcase-inner">
                     <div className="login-company-brand">
                         <span className="login-brand-mark" aria-hidden="true">K</span>
-                        <div>
-                            <strong>KTC (HANOI) CO., LTD</strong>
-                            <span>Production Management System</span>
-                        </div>
+                        <p className="login-company-name">KTC (HANOI) CO., LTD</p>
                     </div>
-
-                    <div className="login-brand-copy">
-                        <p className="login-eyebrow">HỆ THỐNG NỘI BỘ</p>
-                        <h1>Quản lý sản xuất</h1>
-                        <p>
-                            Truy cập hệ thống báo cáo sản xuất, chất lượng và quản lý công việc theo quyền tài khoản.
-                        </p>
-                    </div>
-
-                    <div className="login-brand-meta">
-                        <span className="login-brand-meta-dot" aria-hidden="true" />
-                        <span>Dành cho nhân sự KTC được cấp quyền</span>
+                    <p className="login-eyebrow">PRODUCTION MANAGEMENT SYSTEM</p>
+                    <h1>Dữ liệu sản xuất<br />đúng ngay từ nguồn.</h1>
+                    <p className="login-description">
+                        Ghi nhận sản lượng, kiểm soát chất lượng và theo dõi trạng thái báo cáo trên một hệ thống thống nhất dành cho nhà máy.
+                    </p>
+                    <div className="login-benefits">
+                        <div><strong>01</strong><span>Nhập báo cáo nhanh tại công đoạn</span></div>
+                        <div><strong>02</strong><span>Kiểm duyệt và lưu vết minh bạch</span></div>
+                        <div><strong>03</strong><span>Tự động tổng hợp Excel và Google Sheet</span></div>
                     </div>
                 </div>
-            </aside>
+            </section>
 
-            <section className="login-panel" aria-label="Đăng nhập hệ thống">
-                <div className="login-card" aria-busy={loading}>
-                    <header className="login-mobile-brand">
+            <section className="login-panel">
+                <div className="login-card">
+                    <div className="login-mobile-brand">
                         <span className="login-brand-mark" aria-hidden="true">K</span>
                         <div>
                             <strong>KTC (HANOI) CO., LTD</strong>
-                            <span>Production Management System</span>
+                            <small>Đăng nhập hệ thống</small>
                         </div>
-                    </header>
-
-                    <div className="login-status" role="status">
-                        <span className="login-status-dot" aria-hidden="true" />
-                        <span>Hệ thống đang hoạt động</span>
                     </div>
 
                     <div className="login-heading">
-                        <p>ĐĂNG NHẬP</p>
+                        <span className="login-status-dot" />
+                        <p>HỆ THỐNG ĐANG HOẠT ĐỘNG</p>
                         <h2>
                             {step === "employee-code" && "Nhập mã nhân viên"}
-                            {step === "role-choice" && "Chọn loại tài khoản"}
+                            {step === "role-choice" && "Bạn muốn đăng nhập với vai trò nào?"}
                             {step === "management-password" && "Xác thực tài khoản quản lý"}
                         </h2>
                         <span>
-                            {step === "employee-code" && "Nhập mã được cấp để tiếp tục vào hệ thống."}
-                            {step === "role-choice" && `Mã nhân viên: ${username.trim()}`}
-                            {step === "management-password" && `Nhập mật khẩu của tài khoản ${username.trim()}.`}
+                            {step === "employee-code" && "Chỉ cần nhập mã nhân viên để tiếp tục."}
+                            {step === "role-choice" && `Tài khoản: ${username.trim()}`}
+                            {step === "management-password" && `Nhập mật khẩu cho tài khoản ${username.trim()}.`}
                         </span>
                     </div>
 
-                    {step === "employee-code" && (
-                        <>
-                            <form onSubmit={continueToRoleChoice} className="login-form">
-                                <label htmlFor="login-employee-code">
-                                    <span>Mã nhân viên</span>
-                                    <div className="login-input-wrap">
-                                        <span className="login-input-icon" aria-hidden="true">ID</span>
-                                        <input
-                                            id="login-employee-code"
-                                            type="text"
-                                            inputMode="text"
-                                            autoComplete="username"
-                                            placeholder="Ví dụ: 0599"
-                                            value={username}
-                                            onChange={(event) => setUsername(event.target.value)}
-                                            disabled={loading}
-                                            aria-invalid={Boolean(error)}
-                                            aria-describedby={error ? "login-error" : undefined}
-                                            autoFocus
-                                        />
+                    {step === "employee-code" && rememberedAccounts.length > 0 && (
+                        <div className="remembered-section">
+                            <div className="remembered-title">
+                                <span>Tài khoản gần đây</span>
+                                <small>Chọn để điền nhanh mã đăng nhập</small>
+                            </div>
+                            <div className="remembered-list">
+                                {matchingAccounts.slice(0, 3).map((account) => (
+                                    <div className="remembered-account" key={account.username}>
+                                        <button type="button" onClick={() => selectAccount(account)}>
+                                            <span className="remembered-avatar">
+                                                {(account.fullName || account.username).charAt(0).toUpperCase()}
+                                            </span>
+                                            <span className="remembered-copy">
+                                                <strong>{account.fullName || account.username}</strong>
+                                                <small>{account.username} · {roleLabel[account.role]}</small>
+                                            </span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="remove-remembered"
+                                            onClick={() => removeAccount(account.username)}
+                                            aria-label={`Xóa gợi ý tài khoản ${account.username}`}
+                                        >×</button>
                                     </div>
-                                </label>
-                                {error && <div id="login-error" className="login-error" role="alert">{error}</div>}
-                                <button type="submit" className="login-submit" disabled={loading}>
-                                    <span>Tiếp tục</span>
-                                    <span aria-hidden="true">→</span>
-                                </button>
-                            </form>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
-                            {rememberedAccounts.length > 0 && (
-                                <div className="remembered-section">
-                                    <div className="remembered-title">
-                                        <span>Tài khoản gần đây</span>
-                                        <small>Chọn để điền nhanh mã đăng nhập</small>
-                                    </div>
-                                    <div className="remembered-list">
-                                        {matchingAccounts.slice(0, 3).map((account) => (
-                                            <div className="remembered-account" key={account.username}>
-                                                <button type="button" onClick={() => selectAccount(account)}>
-                                                    <span className="remembered-avatar" aria-hidden="true">
-                                                        {(account.fullName || account.username).charAt(0).toUpperCase()}
-                                                    </span>
-                                                    <span className="remembered-copy">
-                                                        <strong>{account.fullName || account.username}</strong>
-                                                        <small>{account.username} · {roleLabel[account.role]}</small>
-                                                    </span>
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    className="remove-remembered"
-                                                    onClick={() => removeAccount(account.username)}
-                                                    aria-label={`Xóa gợi ý tài khoản ${account.username}`}
-                                                >×</button>
-                                            </div>
-                                        ))}
-                                    </div>
+                    {step === "employee-code" && (
+                        <form onSubmit={continueToRoleChoice} className="login-form">
+                            <label>
+                                <span>Mã nhân viên</span>
+                                <div className="login-input-wrap">
+                                    <span className="login-input-icon">♙</span>
+                                    <input
+                                        type="text"
+                                        inputMode="text"
+                                        autoComplete="username"
+                                        placeholder="Ví dụ: 0599"
+                                        value={username}
+                                        onChange={(event) => setUsername(event.target.value)}
+                                        disabled={loading}
+                                        autoFocus
+                                    />
                                 </div>
-                            )}
-                        </>
+                            </label>
+                            {error && <div className="login-error" role="alert">{error}</div>}
+                            <button type="submit" className="login-submit" disabled={loading}>
+                                Tiếp tục <span>→</span>
+                            </button>
+                        </form>
                     )}
 
                     {step === "role-choice" && (
@@ -468,12 +452,12 @@ function Login() {
                                 disabled={loading}
                                 onClick={() => void completeLogin("worker")}
                             >
-                                <span className="login-role-icon" aria-hidden="true">W</span>
+                                <span className="login-role-icon">♙</span>
                                 <span>
                                     <strong>Công nhân</strong>
-                                    <small>Tiếp tục bằng mã nhân viên, không cần mật khẩu</small>
+                                    <small>Vào ngay, không cần mật khẩu</small>
                                 </span>
-                                <b aria-hidden="true">→</b>
+                                <b>→</b>
                             </button>
                             <button
                                 type="button"
@@ -484,12 +468,12 @@ function Login() {
                                     setStep("management-password");
                                 }}
                             >
-                                <span className="login-role-icon" aria-hidden="true">M</span>
+                                <span className="login-role-icon">◆</span>
                                 <span>
                                     <strong>Quản lý</strong>
                                     <small>Quản lý, tổ trưởng hoặc quản trị viên</small>
                                 </span>
-                                <b aria-hidden="true">→</b>
+                                <b>→</b>
                             </button>
                             {error && <div className="login-error" role="alert">{error}</div>}
                             {loading && <div className="login-loading-line"><span className="login-spinner" /> Đang đăng nhập...</div>}
@@ -499,20 +483,17 @@ function Login() {
 
                     {step === "management-password" && (
                         <form onSubmit={submitManagementPassword} className="login-form">
-                            <label htmlFor="login-management-password">
+                            <label>
                                 <span>Mật khẩu quản lý</span>
                                 <div className="login-input-wrap">
-                                    <span className="login-input-icon" aria-hidden="true">••</span>
+                                    <span className="login-input-icon">●</span>
                                     <input
-                                        id="login-management-password"
                                         type={showPassword ? "text" : "password"}
                                         autoComplete="current-password"
                                         placeholder="Nhập mật khẩu"
                                         value={password}
                                         onChange={(event) => setPassword(event.target.value)}
                                         disabled={loading}
-                                        aria-invalid={Boolean(error)}
-                                        aria-describedby={error ? "login-management-error" : undefined}
                                         autoFocus
                                     />
                                     <button
@@ -520,8 +501,6 @@ function Login() {
                                         className="password-toggle"
                                         onClick={() => setShowPassword((current) => !current)}
                                         disabled={loading}
-                                        aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
-                                        aria-pressed={showPassword}
                                     >{showPassword ? "Ẩn" : "Hiện"}</button>
                                 </div>
                             </label>
@@ -534,17 +513,17 @@ function Login() {
                                 />
                                 <span>Ghi nhớ mã nhân viên trên thiết bị</span>
                             </label>
-                            {error && <div id="login-management-error" className="login-error" role="alert">{error}</div>}
+                            {error && <div className="login-error" role="alert">{error}</div>}
                             <button type="submit" className="login-submit" disabled={loading}>
-                                {loading ? <><span className="login-spinner" />Đang đăng nhập...</> : <><span>Đăng nhập quản lý</span><span aria-hidden="true">→</span></>}
+                                {loading ? <><span className="login-spinner" />Đang đăng nhập...</> : <>Đăng nhập quản lý <span>→</span></>}
                             </button>
-                            <button type="button" className="login-back" onClick={() => { setPassword(""); setError(""); setStep("role-choice"); }} disabled={loading}>← Quay lại chọn loại tài khoản</button>
+                            <button type="button" className="login-back" onClick={() => { setPassword(""); setError(""); setStep("role-choice"); }} disabled={loading}>← Quay lại chọn vai trò</button>
                         </form>
                     )}
 
-                    <footer className="login-security-note">
-                        Công nhân dùng mã nhân viên. Tài khoản quản lý yêu cầu mật khẩu.
-                    </footer>
+                    <p className="login-security-note">
+                        Công nhân đăng nhập bằng mã nhân viên. Tài khoản quản lý vẫn được bảo vệ bằng mật khẩu.
+                    </p>
                 </div>
             </section>
         </main>

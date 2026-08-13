@@ -7,8 +7,6 @@
 .management-report-count span { color: var(--ktc-ink-500); font-size: 12px; }
 
 .management-filter-card {
-  container-type: inline-size;
-  container-name: manager-filters;
   display: grid;
   grid-template-columns: minmax(280px, 1.7fr) repeat(4, minmax(145px, .78fr));
   gap: 14px;
@@ -22,7 +20,7 @@
 .management-date-presets { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 7px; }
 .management-date-presets button { min-height: 44px; border: 1px solid var(--ktc-border); border-radius: 9px; padding: 0 12px; background: var(--ktc-surface); color: var(--ktc-ink-600); font-size: 12px; font-weight: 650; cursor: pointer; }
 .management-date-presets button:hover { border-color: var(--ktc-brand-200); background: var(--ktc-brand-50); color: var(--ktc-brand-800); }
-.management-date-presets button.active { border-color: var(--ktc-brand-600); background: var(--ktc-brand-700); color: var(--ktc-on-brand); }
+.management-date-presets button.active { border-color: var(--ktc-brand-600); background: var(--ktc-brand-700); color: #fff; }
 .management-filter-field { min-width: 0; display: grid; gap: 7px; }
 .management-filter-field > span { color: var(--ktc-ink-600); font-size: 11.5px; font-weight: 700; }
 .management-clear-button { min-height: 44px; border: 1px solid var(--ktc-border); border-radius: 10px; background: var(--ktc-surface); color: var(--ktc-ink-600); font-size: 13px; font-weight: 650; cursor: pointer; }
@@ -31,17 +29,17 @@
 .management-filter-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 9px; padding-top: 4px; border-top: 1px solid var(--ktc-border); margin-top: 2px; padding-top: 14px; }
 .management-filter-actions button { min-height: 44px; border-radius: 10px; padding: 0 15px; font-size: 13px; font-weight: 700; cursor: pointer; transition: background .14s ease, transform .14s ease, box-shadow .14s ease; }
 .management-view-selected-button { border: 1px solid var(--ktc-brand-200); background: var(--ktc-brand-50); color: var(--ktc-brand-800); }
-.management-reject-button { border: 1px solid color-mix(in srgb,var(--ktc-danger) 35%,var(--ktc-border)); background: var(--ktc-danger-bg); color: var(--ktc-danger-strong); }
-.management-approve-button { border: 1px solid var(--ktc-success-strong); background: var(--ktc-success); color: var(--ktc-on-brand); box-shadow: none; }
+.management-reject-button { border: 1px solid #ffd1d5; background: var(--ktc-danger-bg); color: #a82935; }
+.management-approve-button { border: 1px solid #0c704d; background: var(--ktc-success); color: #fff; box-shadow: 0 6px 14px rgba(22, 132, 91, .16); }
 .management-filter-actions button:hover:not(:disabled) { transform: translateY(-1px); }
 .management-filter-actions button:disabled { opacity: .45; cursor: default; transform: none; }
 
 .management-backlog-alert, .management-selected-info, .management-error { margin: 12px 0; padding: 12px 14px; border-radius: 11px; font-size: 13px; line-height: 1.5; }
-.management-backlog-alert { display: grid; gap: 2px; border: 1px solid color-mix(in srgb,var(--ktc-warning) 35%,var(--ktc-border)); background: var(--ktc-warning-bg); color: var(--ktc-warning); }
-.management-backlog-alert span { color: var(--ktc-warning); }
+.management-backlog-alert { display: grid; gap: 2px; border: 1px solid #f3d5a8; background: var(--ktc-warning-bg); color: #875015; }
+.management-backlog-alert span { color: #9b6b33; }
 .management-selected-info { border: 1px solid var(--ktc-brand-100); background: var(--ktc-brand-50); color: var(--ktc-brand-800); }
 .management-selected-info button { margin-left: 8px; border: 0; background: transparent; color: var(--ktc-brand-700); font-size: 12px; font-weight: 700; cursor: pointer; text-decoration: underline; }
-.management-error { border: 1px solid color-mix(in srgb,var(--ktc-danger) 35%,var(--ktc-border)); background: var(--ktc-danger-bg); color: var(--ktc-danger-strong); }
+.management-error { border: 1px solid #ffd2d7; background: var(--ktc-danger-bg); color: #9f2632; }
 
 .management-report-card { padding: 0; overflow: hidden; }
 .management-table-container { border: 0; border-radius: 0; }
@@ -58,8 +56,8 @@
 .management-pagination button:hover:not(:disabled) { border-color: var(--ktc-brand-200); background: var(--ktc-brand-50); }
 .management-pagination button:disabled { opacity: .42; cursor: default; }
 
-.management-modal-backdrop { position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; padding: 18px; background: var(--ktc-overlay);  }
-.management-modal { width: min(100%, 540px); padding: 24px; border: 1px solid var(--ktc-border); border-radius: 18px; background: var(--ktc-surface); box-shadow: var(--ktc-shadow-md); }
+.management-modal-backdrop { position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; padding: 18px; background: rgba(16, 24, 40, .5); backdrop-filter: blur(4px); }
+.management-modal { width: min(100%, 540px); padding: 24px; border: 1px solid var(--ktc-border); border-radius: 18px; background: var(--ktc-surface); box-shadow: 0 24px 60px rgba(16, 24, 40, .22); }
 .management-modal h2 { margin: 0 0 8px; color: var(--ktc-ink-950); font-size: 21px; }
 .management-modal textarea { width: 100%; min-height: 100px; margin-top: 12px; }
 .management-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
@@ -113,13 +111,14 @@
 @media (max-width: 760px) {
   .management-excel-month-panel { grid-template-columns: 1fr; }
   .management-filter-actions > button { flex: 1 1 100%; }
+  .management-report-table { min-width: 860px; }
 }
 
 /* Excel -> DB manual review flow */
 .management-db-sync-button {
-    border: 1px solid var(--ktc-brand-700);
-    background: var(--ktc-brand-800);
-    color: var(--ktc-on-brand);
+    border: 1px solid var(--border-strong, #1f5f8b);
+    background: var(--surface-strong, #163d5a);
+    color: #fff;
     border-radius: 10px;
     padding: 10px 14px;
     font-weight: 700;
@@ -130,7 +129,7 @@
     position: fixed;
     inset: 0;
     z-index: 1200;
-    background: var(--ktc-overlay);
+    background: rgba(8, 18, 28, .62);
     display: grid;
     place-items: center;
     padding: 20px;
@@ -141,11 +140,11 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    background: var(--ktc-surface);
-    color: var(--ktc-text);
-    border: 1px solid var(--ktc-border);
+    background: var(--surface, #fff);
+    color: var(--text-primary, #17212b);
+    border: 1px solid var(--border, #d8e0e7);
     border-radius: 16px;
-    box-shadow: var(--ktc-shadow-md);
+    box-shadow: 0 22px 60px rgba(0,0,0,.28);
 }
 .excel-db-preview-modal > header,
 .excel-db-preview-modal > footer {
@@ -154,18 +153,18 @@
     justify-content: space-between;
     gap: 16px;
     padding: 16px 18px;
-    border-bottom: 1px solid var(--ktc-border);
+    border-bottom: 1px solid var(--border, #d8e0e7);
 }
-.excel-db-preview-modal > footer { border-top: 1px solid var(--ktc-border); border-bottom: 0; justify-content: flex-end; }
+.excel-db-preview-modal > footer { border-top: 1px solid var(--border, #d8e0e7); border-bottom: 0; justify-content: flex-end; }
 .excel-db-preview-modal h2 { margin: 0 0 4px; font-size: 20px; }
-.excel-db-preview-modal p { margin: 0; color: var(--ktc-text-muted); }
+.excel-db-preview-modal p { margin: 0; color: var(--text-secondary, #607080); }
 .excel-db-preview-close { border: 0; background: transparent; color: inherit; font-size: 28px; cursor: pointer; }
 .excel-db-preview-list { overflow: auto; padding: 14px 18px; display: grid; gap: 12px; }
-.excel-db-preview-item { border: 1px solid var(--ktc-border); border-radius: 12px; overflow: hidden; background: var(--ktc-surface-subtle); }
-.excel-db-preview-item-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; padding: 11px 12px; border-bottom: 1px solid var(--ktc-border); }
-.excel-db-preview-item-head small { margin-left: auto; color: var(--ktc-text-muted); }
+.excel-db-preview-item { border: 1px solid var(--border, #d8e0e7); border-radius: 12px; overflow: hidden; background: var(--surface-subtle, rgba(127,127,127,.04)); }
+.excel-db-preview-item-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; padding: 11px 12px; border-bottom: 1px solid var(--border, #d8e0e7); }
+.excel-db-preview-item-head small { margin-left: auto; color: var(--text-secondary, #607080); }
 .excel-db-diff-table { display: grid; }
-.excel-db-diff-row { display: grid; grid-template-columns: minmax(120px, .8fr) minmax(120px, 1fr) auto minmax(120px, 1fr); gap: 10px; align-items: center; padding: 9px 12px; border-top: 1px solid var(--ktc-divider); }
+.excel-db-diff-row { display: grid; grid-template-columns: minmax(120px, .8fr) minmax(120px, 1fr) auto minmax(120px, 1fr); gap: 10px; align-items: center; padding: 9px 12px; border-top: 1px solid var(--border-soft, rgba(127,127,127,.15)); }
 .excel-db-diff-row:first-child { border-top: 0; }
 .excel-db-before { text-decoration: line-through; opacity: .72; overflow-wrap: anywhere; }
 .excel-db-after { font-weight: 700; overflow-wrap: anywhere; }
@@ -179,9 +178,9 @@
 }
 
 .management-import-button {
-  border: 1px solid var(--ktc-success-strong); background: var(--ktc-success); color:var(--ktc-on-brand); border-radius:10px; padding:10px 14px; font-weight:750; cursor:pointer;
+  border: 1px solid #176b55; background: #1f7a61; color:#fff; border-radius:10px; padding:10px 14px; font-weight:750; cursor:pointer;
 }
-.management-import-button:hover:not(:disabled){background:var(--ktc-success-strong);}
+.management-import-button:hover:not(:disabled){background:#176b55;}
 .management-import-button:disabled{opacity:.55;cursor:not-allowed;}
 
 
@@ -206,42 +205,3 @@
     animation-iteration-count: 1 !important;
   }
 }
-
-
-/* Mobile manager presentation: same report data, purpose-built for narrow screens. */
-.management-mobile-report-list { display: none; }
-@media (max-width: 700px) {
-  .management-table-container { display: none; }
-  .management-mobile-report-list { display: grid; gap: 8px; padding: 8px; }
-  .management-mobile-report { min-width: 0; padding: 12px; border: 1px solid var(--ktc-border); border-radius: var(--ktc-radius-md); background: var(--ktc-surface); }
-  .management-mobile-report.selected { border-color: var(--ktc-brand-400); background: var(--ktc-brand-50); }
-  .management-mobile-report.duplicate { border-left: 3px solid var(--ktc-warning); }
-  .management-mobile-report-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 9px; border-bottom: 1px solid var(--ktc-divider); }
-  .management-mobile-select { min-width: 0; display: inline-flex; align-items: center; gap: 8px; color: var(--ktc-ink-600); font-size: 11px; font-weight: 700; }
-  .management-mobile-select input { width: 22px; height: 22px; margin: 0; accent-color: var(--ktc-brand-700); }
-  .management-mobile-shift { flex: 0 0 auto; padding: 4px 7px; border-radius: var(--ktc-radius-sm); background: var(--ktc-surface-muted); color: var(--ktc-ink-700); font-size: 10.5px; font-weight: 700; }
-  .management-mobile-worker { min-width: 0; display: flex; align-items: baseline; gap: 8px; padding: 10px 0 8px; }
-  .management-mobile-worker strong { color: var(--ktc-brand-800); font-size: 15px; }
-  .management-mobile-worker span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ktc-ink-900); font-size: 13px; font-weight: 650; }
-  .management-mobile-report-grid { margin: 0; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px 12px; }
-  .management-mobile-report-grid > div { min-width: 0; }
-  .management-mobile-report-grid > div.wide { grid-column: 1 / -1; }
-  .management-mobile-report-grid dt { margin: 0 0 2px; color: var(--ktc-ink-500); font-size: 10px; font-weight: 650; }
-  .management-mobile-report-grid dd { margin: 0; overflow-wrap: anywhere; color: var(--ktc-ink-800); font-size: 12px; font-weight: 650; }
-  .management-mobile-duplicate { margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--ktc-divider); color: var(--ktc-warning); font-size: 10.5px; font-weight: 700; }
-}
-
-@container manager-filters (max-width: 760px) {
-  .management-filter-card { grid-template-columns: repeat(2,minmax(0,1fr)); }
-  .management-search-box, .management-date-presets, .management-filter-actions, .management-excel-month-panel { grid-column: 1 / -1; }
-}
-@container manager-filters (max-width: 480px) {
-  .management-filter-card { grid-template-columns: 1fr; }
-  .management-filter-field, .management-search-box, .management-date-presets, .management-filter-actions, .management-excel-month-panel { grid-column: 1; }
-}
-
-/* Explicit shared action aliases used by pending + approved screens. */
-.management-action-clear { border-color: var(--ktc-border); background: var(--ktc-surface); color: var(--ktc-ink-600); }
-.management-export-button { min-height: 44px; border: 1px solid var(--ktc-brand-700); border-radius: var(--ktc-radius-md); padding: 0 14px; background: var(--ktc-brand-700); color: var(--ktc-on-brand); font-size: 13px; font-weight: 700; cursor: pointer; }
-.management-export-button:hover:not(:disabled) { background: var(--ktc-brand-800); }
-.management-export-button:disabled { opacity: .62; cursor: not-allowed; }

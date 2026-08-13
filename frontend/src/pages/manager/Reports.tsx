@@ -899,7 +899,6 @@ function Reports() {
                         Không có báo cáo phù hợp
                     </div>
                 ) : (
-                    <>
                     <div className="management-table-container">
                         <table className="management-report-table">
                             <thead>
@@ -1062,45 +1061,6 @@ function Reports() {
                             </tbody>
                         </table>
                     </div>
-                    <div className="management-mobile-report-list" aria-label="Danh sách báo cáo chờ duyệt trên điện thoại">
-                        {reports.map((report, index) => {
-                            const reportId = Number(report.id);
-                            const validReportId = Number.isInteger(reportId) && reportId > 0;
-                            const isSelected = validReportId && selectedIdSet.has(reportId);
-                            const isDuplicate = (duplicateCounts.get(duplicateKey(report)) ?? 0) > 1;
-                            return (
-                                <article
-                                    key={`mobile-${report.id ?? `${report.worker_code}-${index}`}`}
-                                    className={["management-mobile-report", isSelected ? "selected" : "", isDuplicate ? "duplicate" : ""].filter(Boolean).join(" ")}
-                                >
-                                    <div className="management-mobile-report-head">
-                                        <label className="management-mobile-select">
-                                            <input
-                                                type="checkbox"
-                                                checked={isSelected}
-                                                disabled={!validReportId || actionLoading}
-                                                onChange={() => toggleSelectReport(reportId)}
-                                                aria-label={`Chọn báo cáo ${reportId}`}
-                                            />
-                                            <span>Báo cáo #{(currentPage - 1) * ITEMS_PER_PAGE + index + 1}</span>
-                                        </label>
-                                        <span className="management-mobile-shift">Ca {report.shift || "---"}</span>
-                                    </div>
-                                    <div className="management-mobile-worker">
-                                        <strong>{report.worker_code || "---"}</strong>
-                                        <span>{report.full_name || "---"}</span>
-                                    </div>
-                                    <dl className="management-mobile-report-grid">
-                                        <div><dt>Công đoạn</dt><dd>{report.process_name || "---"}</dd></div>
-                                        <div><dt>Máy</dt><dd>{report.machine_no || "---"}</dd></div>
-                                        <div className="wide"><dt>Sản phẩm</dt><dd>{report.product_name || "---"}</dd></div>
-                                    </dl>
-                                    {isDuplicate && <div className="management-mobile-duplicate">Có báo cáo trùng khóa nghiệp vụ</div>}
-                                </article>
-                            );
-                        })}
-                    </div>
-                    </>
                 )}
             </div>
 

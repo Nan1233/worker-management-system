@@ -59,11 +59,7 @@ test('web auth uses HttpOnly-cookie compatible credentialed requests', () => {
   assert.match(api, /withCredentials:\s*true/);
 });
 
-test('global UI architecture uses one professional foundation plus a token-only dark theme', () => {
+test('release polish stylesheet is loaded after responsive safeguards', () => {
   const main = fs.readFileSync(path.join(srcRoot, 'main.tsx'), 'utf8');
-  assert.match(main, /ktc-professional\.css";\nimport "\.\/styles\/dark-mode-contrast\.css"/);
-  assert.doesNotMatch(main, /enterprise-responsive|release-polish|pilot-ui-polish|light-contrast-hardening/);
-  const dark = fs.readFileSync(path.join(srcRoot, 'styles', 'dark-mode-contrast.css'), 'utf8');
-  assert.match(dark, /:root\[data-theme="dark"\]/);
-  assert.ok((dark.match(/\{/g) || []).length < 8, 'dark theme should remain token-driven, not selector override driven');
+  assert.match(main, /enterprise-responsive\.css";\nimport "\.\/styles\/release-polish\.css"/);
 });

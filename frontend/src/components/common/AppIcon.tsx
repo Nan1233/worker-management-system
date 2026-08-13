@@ -29,8 +29,7 @@ type IconName =
     | "roller"
     | "press"
     | "deburr"
-    | "assembly"
-    | "menu";
+    | "assembly";
 
 interface AppIconProps extends SVGProps<SVGSVGElement> {
     name: IconName;
@@ -57,13 +56,6 @@ function AppIcon({ name, size = 20, style, ...rest }: AppIconProps) {
             style={svgStyle}
             {...rest}
         >
-            {name === "menu" && (
-                <>
-                    <Path d="M5 7h14" />
-                    <Path d="M5 12h14" />
-                    <Path d="M5 17h14" />
-                </>
-            )}
             {name === "dashboard" && (
                 <>
                     <Path d="M4 13.5h6.5V20H4z" />
