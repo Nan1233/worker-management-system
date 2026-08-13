@@ -33,7 +33,10 @@ const execFileAsync = promisify(execFile);
 
 const API_BASE_URL = String(
   process.env.KTC_API_URL || 'https://worker-management-system-2-5jqv.onrender.com/api'
-).replace(/\/+$/, '');
+).trim().replace(/\/+$/, '');
+if (!/\/api$/i.test(API_BASE_URL)) {
+  throw new Error('KTC_API_URL must be the full API base URL ending in /api');
+}
 const SYNC_INTERVAL_MS = Math.max(300_000, Number(process.env.KTC_SYNC_INTERVAL_MS) || 300_000);
 const AUTO_EXCEL_SYNC_ENABLED = String(process.env.KTC_AUTO_EXCEL_SYNC || '').trim().toLowerCase() === 'true';
 const REQUEST_TIMEOUT_MS = Math.max(30_000, Number(process.env.KTC_REQUEST_TIMEOUT_MS) || 120_000);
