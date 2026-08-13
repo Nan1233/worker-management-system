@@ -3,9 +3,15 @@
 -- New refresh generations store SHA-256 hashes only in user_sessions.refresh_token.
 
 ALTER TABLE user_sessions
-  ADD COLUMN IF NOT EXISTS family_id VARCHAR(64) NULL AFTER refresh_token_hash,
-  ADD COLUMN IF NOT EXISTS consumed_at DATETIME NULL AFTER revoked_at,
-  ADD COLUMN IF NOT EXISTS replaced_by_id BIGINT NULL AFTER consumed_at,
+  ADD COLUMN IF NOT EXISTS family_id VARCHAR(64) NULL AFTER refresh_token_hash;
+
+ALTER TABLE user_sessions
+  ADD COLUMN IF NOT EXISTS consumed_at DATETIME NULL AFTER revoked_at;
+
+ALTER TABLE user_sessions
+  ADD COLUMN IF NOT EXISTS replaced_by_id BIGINT NULL AFTER consumed_at;
+
+ALTER TABLE user_sessions
   ADD COLUMN IF NOT EXISTS reuse_detected_at DATETIME NULL AFTER replaced_by_id;
 
 ALTER TABLE user_sessions
