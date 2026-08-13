@@ -1,4 +1,5 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import type { User } from "../types/auth";
 import AppIcon, { type IconName } from "../components/common/AppIcon";
 import ThemeToggle from "../components/common/ThemeToggle";
 import "./WorkerLayout.css";
@@ -6,6 +7,7 @@ import { logout } from "../services/authService";
 import { useMobileKeyboard } from "../hooks/useMobileKeyboard";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
 import { usePermissions } from "../hooks/usePermissions";
+import { getStoredUser } from "../utils/authStorage";
 import type { PermissionCode } from "../security/permissions";
 
 const menuItems: { label: string; path: string; icon: IconName; exact?: boolean; permission: PermissionCode }[] = [
@@ -26,12 +28,22 @@ const formatToday = (): string => {
     return value.charAt(0).toUpperCase() + value.slice(1);
 };
 
+function getWorkerInitials(user: User | null): string {
+    const text = (user?.full_name || user?.worker_code || user?.username || "CN").trim();
+    const parts = text.split(/\s+/).filter(Boolean);
+    if (parts.length > 1) return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
+    return text.slice(0, 2).toUpperCase();
+}
+
 function WorkerLayout() {
     const navigate = useNavigate();
     const location = useLocation();
+    const user = getStoredUser() as User | null;
     const { keyboardOpen, hideKeyboard } = useMobileKeyboard();
     const { can } = usePermissions();
-    const { unreadCount } = useNotificationBadge(can("NOTIFICATION_VIEW"));
+    const canViewNotifications = can("NOTIFICATION_VIEW");
+    const canViewProfile = can("PROFILE_VIEW");
+    const { unreadCount } = useNotificationBadge(canViewNotifications);
     const visibleMenuItems = menuItems.filter((item) => can(item.permission));
 
     const handleLogout = () => {
@@ -59,14 +71,20 @@ function WorkerLayout() {
                 </button>
 
                 <nav className="worker-desktop-nav" aria-label="Điều hướng công nhân">
-                    {visibleMenuItems.map((item) => (
+                    {visibleMenuItems.filter((item) => item.path !== "/worker/profile").map((item) => (
                         <button
                             key={item.path}
                             type="button"
                             className={isActive(item.path, item.exact) ? "active" : ""}
                             onClick={() => navigate(item.path)}
+                            aria-current={isActive(item.path, item.exact) ? "page" : undefined}
                         >
-                            <span className="worker-nav-icon"><AppIcon name={item.icon} size={18} />{item.icon === "bell" && unreadCount > 0 && <span className="notification-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}</span>
+                            <span className="worker-nav-icon">
+                                <AppIcon name={item.icon} size={18} />
+                                {item.icon === "bell" && unreadCount > 0 && (
+                                    <span className="notification-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>
+                                )}
+                            </span>
                             {item.label}
                         </button>
                     ))}
@@ -74,7 +92,22 @@ function WorkerLayout() {
 
                 <div className="worker-account">
                     <ThemeToggle />
-                    <button type="button" className="worker-logout" onClick={handleLogout}>
+                    {canViewProfile && (
+                        <button
+                            type="button"
+                            className={isActive("/worker/profile") ? "worker-profile-entry active" : "worker-profile-entry"}
+                            onClick={() => navigate("/worker/profile")}
+                            aria-label="Tài khoản công nhân"
+                            title={user?.full_name || "Tài khoản"}
+                        >
+                            <span className="worker-profile-avatar">{getWorkerInitials(user)}</span>
+                            <span className="worker-profile-copy">
+                                <strong>{user?.full_name || "Công nhân"}</strong>
+                                <small>{user?.worker_code || user?.username || "Tài khoản"}</small>
+                            </span>
+                        </button>
+                    )}
+                    <button type="button" className="worker-logout" onClick={handleLogout} title="Đăng xuất" aria-label="Đăng xuất">
                         <span className="worker-nav-icon"><AppIcon name="logout" size={18} /></span>
                         <span className="worker-logout-label">Đăng xuất</span>
                     </button>
@@ -104,8 +137,14 @@ function WorkerLayout() {
                         type="button"
                         className={isActive(item.path, item.exact) ? "active" : ""}
                         onClick={() => navigate(item.path)}
+                        aria-current={isActive(item.path, item.exact) ? "page" : undefined}
                     >
-                        <span className="worker-mobile-nav-icon"><AppIcon name={item.icon} size={19} />{item.icon === "bell" && unreadCount > 0 && <span className="notification-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}</span>
+                        <span className="worker-mobile-nav-icon">
+                            <AppIcon name={item.icon} size={20} />
+                            {item.icon === "bell" && unreadCount > 0 && (
+                                <span className="notification-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>
+                            )}
+                        </span>
                         <small>{item.label}</small>
                     </button>
                 ))}
