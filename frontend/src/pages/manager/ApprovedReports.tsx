@@ -709,6 +709,7 @@ export default function ApprovedReports() {
                 ) : reports.length === 0 ? (
                     <div className="management-empty" role="status">Không có báo cáo phù hợp</div>
                 ) : (
+                    <>
                     <div className="management-table-container">
                         <table className="management-report-table">
                             <thead>
@@ -767,6 +768,46 @@ export default function ApprovedReports() {
                             </tbody>
                         </table>
                     </div>
+                    <div className="management-mobile-report-list" aria-label="Danh sách báo cáo đã duyệt trên điện thoại">
+                        {reports.map((report, index) => {
+                            const reportId = Number(report.id);
+                            const validReportId = Number.isInteger(reportId) && reportId > 0;
+                            const selected = validReportId && selectedIdSet.has(reportId);
+                            const duplicate = (duplicateCounts.get(duplicateKey(report)) ?? 0) > 1;
+                            return (
+                                <article
+                                    key={`mobile-${report.id ?? `${report.worker_code}-${index}`}`}
+                                    className={["management-mobile-report", selected ? "selected" : "", duplicate ? "duplicate" : ""].filter(Boolean).join(" ")}
+                                >
+                                    <div className="management-mobile-report-head">
+                                        <label className="management-mobile-select">
+                                            <input
+                                                type="checkbox"
+                                                checked={selected}
+                                                disabled={!validReportId || exporting}
+                                                onChange={() => toggleSelectReport(reportId)}
+                                                aria-label={`Chọn báo cáo ${report.worker_code || reportId}`}
+                                            />
+                                            <span>Báo cáo #{(currentPage - 1) * ITEMS_PER_PAGE + index + 1}</span>
+                                        </label>
+                                        <span className="management-mobile-shift">Ca {report.shift || "---"}</span>
+                                    </div>
+                                    <div className="management-mobile-worker">
+                                        <strong>{report.worker_code || "---"}</strong>
+                                        <span>{report.full_name || "---"}</span>
+                                    </div>
+                                    <dl className="management-mobile-report-grid">
+                                        <div><dt>Công đoạn</dt><dd>{report.process_name || "---"}</dd></div>
+                                        <div><dt>Máy</dt><dd>{report.machine_no || "---"}</dd></div>
+                                        <div className="wide"><dt>Sản phẩm</dt><dd>{report.product_name || "---"}</dd></div>
+                                        <div className="wide"><dt>Ngày</dt><dd>{String(report.work_date || "").slice(0, 10) || "---"}</dd></div>
+                                    </dl>
+                                    {duplicate && <div className="management-mobile-duplicate">Có báo cáo trùng khóa nghiệp vụ</div>}
+                                </article>
+                            );
+                        })}
+                    </div>
+                    </>
                 )}
             </div>
 

@@ -15,7 +15,7 @@
   align-items: center;
   padding: clamp(44px, 5vw, 76px);
   color: #fff;
-  background: radial-gradient(circle at 18% 24%, rgba(255,255,255,.08), transparent 28%), radial-gradient(circle at 88% 10%, rgba(255,255,255,.06), transparent 24%), linear-gradient(135deg, #244d72 0%, #315f86 54%, #467ca5 100%);
+  background: #294f6b;
 }
 
 .login-showcase > * {

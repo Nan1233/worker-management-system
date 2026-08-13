@@ -177,7 +177,7 @@
     justify-content: center;
     border: 1px solid var(--ktc-brand-100);
     border-radius: 14px;
-    background: linear-gradient(180deg, #f9fbff 0%, #edf4fb 100%);
+    background: var(--ktc-surface-subtle);
     color: #255d89;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
 }
