@@ -8,8 +8,9 @@ const { FORMULA_EFFECTIVE_RANGE_MIGRATION, preflightFormulaEffectiveRangeMigrati
 
 function splitStatements(sql) {
   return sql
+    .replace(/^\s*--.*$/gm, '')
     .split(';')
-    .map((statement) => statement.replace(/^\s*--.*$/gm, '').trim())
+    .map((statement) => statement.trim())
     .filter(Boolean);
 }
 
@@ -161,11 +162,15 @@ async function run() {
 
 }
 
-run()
-  .catch((error) => {
-    console.error('MIGRATION FAILED:', error.message);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await db.closePool().catch(() => undefined);
-  });
+if (require.main === module) {
+  run()
+    .catch((error) => {
+      console.error('MIGRATION FAILED:', error.message);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await db.closePool().catch(() => undefined);
+    });
+}
+
+module.exports = { splitStatements };
