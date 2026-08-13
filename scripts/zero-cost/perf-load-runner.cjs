@@ -1,0 +1,6 @@
+#!/usr/bin/env node
+const fs=require('fs'),path=require('path'); const {performance}=require('perf_hooks'); const {Client}=require('./http.cjs');
+const fixture=JSON.parse(fs.readFileSync(path.resolve(process.env.KTC_ZERO_COST_FIXTURE||'validation-artifacts/fixture.json'))); const base=process.env.LOCAL_BACKEND_URL||'http://127.0.0.1:19080'; const out=path.resolve(process.env.KTC_VALIDATION_DIR||'validation-artifacts','performance.json');
+function pct(a,p){if(!a.length)return null;const b=[...a].sort((x,y)=>x-y);return b[Math.min(b.length-1,Math.floor((b.length-1)*p))]}
+async function batch(n,fn){const t0=performance.now();const rs=await Promise.all(Array.from({length:n},(_,i)=>fn(i)));const ms=rs.map(x=>x.ms);return {users:n,p50:pct(ms,.5),p95:pct(ms,.95),p99:pct(ms,.99),max:Math.max(...ms),errors:rs.filter(x=>x.status>=400).length,totalMs:performance.now()-t0};}
+(async()=>{const c=new Client(base);let r=await c.req('POST','/api/auth/login',{username:fixture.worker.code,access_type:'worker'});if(r.status!==200)throw new Error(`login ${r.status}`);const results=[];for(const n of [10,25,50,100]) results.push(await batch(n,()=>c.req('GET','/api/production-temp/my')));fs.mkdirSync(path.dirname(out),{recursive:true});fs.writeFileSync(out,JSON.stringify(results,null,2));console.table(results);})();

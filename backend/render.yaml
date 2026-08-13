@@ -2,9 +2,10 @@ services:
   - type: web
     name: worker-management-api
     runtime: node
-    buildCommand: npm ci --omit=dev
+    buildCommand: npm ci && npm run verify && npm prune --omit=dev
+    preDeployCommand: npm run db:release
     startCommand: npm start
-    healthCheckPath: /api/health
+    healthCheckPath: /api/health/ready
     autoDeploy: true
     envVars:
       - key: NODE_ENV
@@ -27,7 +28,7 @@ services:
   - type: worker
     name: worker-management-sync
     runtime: node
-    buildCommand: npm ci --omit=dev
+    buildCommand: npm ci && npm run verify && npm prune --omit=dev
     startCommand: npm run worker
     autoDeploy: true
     envVars:

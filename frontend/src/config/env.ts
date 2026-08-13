@@ -1,5 +1,10 @@
-const DEFAULT_API_URL = "https://worker-management-system-2-5jqv.onrender.com/api";
+const configuredApiUrl = String(import.meta.env.VITE_API_URL || "").trim();
+const developmentApiUrl = "http://127.0.0.1:10000/api";
 
-export const API_BASE_URL = (import.meta.env.VITE_API_URL || DEFAULT_API_URL).replace(/\/$/, "");
+if (import.meta.env.PROD && !configuredApiUrl) {
+  throw new Error("VITE_API_URL is required for production builds");
+}
+
+export const API_BASE_URL = (configuredApiUrl || developmentApiUrl).replace(/\/$/, "");
 
 export const REQUEST_TIMEOUT_MS = 30_000;

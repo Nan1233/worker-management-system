@@ -2,9 +2,12 @@ services:
   - type: web
     name: ktc-frontend
     runtime: static
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci && npm run check
     staticPublishPath: ./dist
     pullRequestPreviewsEnabled: false
+    envVars:
+      - key: VITE_API_URL
+        value: https://worker-management-system-2-5jqv.onrender.com/api
     headers:
       - path: /KTC-Production-Control.mobileconfig
         name: Content-Type

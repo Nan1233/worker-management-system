@@ -2,14 +2,44 @@ name: KTC CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, ktc-production-hardening]
   pull_request:
-    branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
-  verify:
+  backend:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci --prefix backend
+      - run: npm --prefix backend run check
+      - run: npm --prefix backend test
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --prefix frontend
+      - run: npm --prefix frontend run lint
+      - run: npm --prefix frontend run typecheck
+      - run: npm --prefix frontend test
+      - run: npm --prefix frontend run check:theme
+      - run: npm --prefix frontend run build
+
+  desktop-contracts:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -17,14 +47,20 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: |
-            backend/package-lock.json
-            frontend/package-lock.json
             desktop/package-lock.json
-      - name: Install backend
-        run: npm ci --prefix backend
-      - name: Install frontend
-        run: npm ci --prefix frontend
-      - name: Install desktop
-        run: npm ci --prefix desktop
-      - name: Verify project
-        run: npm run verify
+            frontend/package-lock.json
+      - run: npm ci --prefix desktop
+      - run: npm ci --prefix frontend
+      - run: npm --prefix desktop run check
+      - run: npm --prefix desktop run smoke:excel
+
+  root-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm run verify:release-contract
+      - run: npm run verify:release-consistency
+      - run: npm run verify:excel-contract

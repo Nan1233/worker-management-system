@@ -16,11 +16,12 @@
     "audit:prod": "npm audit --omit=dev --audit-level=high",
     "check:theme": "node scripts/checkThemeContract.cjs",
     "android:add": "npm run android:prepare && cap add android",
-    "android:sync": "npm run android:prepare && npm run build && cap sync android",
+    "android:sync": "npm run android:prepare && npm run build:native && cap sync android",
     "android:open": "npm run android:prepare && cap open android",
-    "android:apk:debug": "npm run android:prepare && npm run build && cap sync android && cd android && gradlew.bat assembleDebug",
-    "android:aab:release": "npm run android:prepare && npm run build && cap sync android && cd android && gradlew.bat bundleRelease",
-    "android:prepare": "npm install --no-save --package-lock=false @capacitor/core@8.5.0 @capacitor/android@8.5.0 @capacitor/cli@8.5.0"
+    "android:apk:debug": "npm run android:prepare && npm run build:native && cap sync android && cd android && gradlew.bat assembleDebug",
+    "android:aab:release": "npm run android:prepare && npm run build:native && cap sync android && cd android && gradlew.bat bundleRelease",
+    "android:prepare": "npm install --no-save --package-lock=false @capacitor/core@8.5.0 @capacitor/android@8.5.0 @capacitor/cli@8.5.0",
+    "build:native": "node scripts/buildNative.cjs"
   },
   "dependencies": {
     "axios": "^1.18.1",
