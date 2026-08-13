@@ -643,6 +643,63 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 }
 
 /* ===== Application resilience / loading states ===== */
+/* Shared auth bootstrap loading: visible before route-level CSS is loaded. */
+.auth-bootstrap-loading {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
+  background: var(--ktc-bg);
+  color: var(--ktc-ink-900);
+}
+
+.auth-bootstrap-loading__content {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  width: min(100%, 360px);
+  text-align: center;
+}
+
+.auth-bootstrap-loading__mark {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--ktc-radius-md);
+  background: var(--ktc-brand-800);
+  color: var(--ktc-on-brand);
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -.03em;
+}
+
+.auth-bootstrap-loading__copy { display: grid; gap: 4px; }
+.auth-bootstrap-loading__copy strong { color: var(--ktc-ink-900); font-size: 14px; font-weight: 700; }
+.auth-bootstrap-loading__copy span { color: var(--ktc-ink-500); font-size: 12px; }
+
+.auth-bootstrap-loading__dots {
+  height: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.auth-bootstrap-loading__dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ktc-brand-600);
+  animation: ktc-auth-dot 1s ease-in-out infinite;
+}
+.auth-bootstrap-loading__dots i:nth-child(2) { animation-delay: 120ms; }
+.auth-bootstrap-loading__dots i:nth-child(3) { animation-delay: 240ms; }
+
+@keyframes ktc-auth-dot {
+  0%, 70%, 100% { opacity: .32; transform: translateY(0); }
+  35% { opacity: 1; transform: translateY(-2px); }
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -735,7 +792,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .app-error-actions { display: flex; justify-content: center; gap: 10px; margin-top: 24px; flex-wrap: wrap; }
 
 @media (prefers-reduced-motion: reduce) {
-  .route-loading-line { animation: none; }
+  .route-loading-line,
+  .auth-bootstrap-loading__dots i { animation: none; }
 }
 
 /* ===== Shared button primitives ===== */
