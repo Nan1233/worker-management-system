@@ -759,7 +759,9 @@ export const initialDeduction: DeductionState = {
 
 
 
-export const KQD_CODES = new Set(kqdExclusionRegistry.map((code) => String(code).trim().toUpperCase()));
+export const KQD_CODES: ReadonlySet<string> = new Set<string>(
+    kqdExclusionRegistry.map((code: string) => String(code).trim().toUpperCase())
+);
 
 // =====================================================
 // COMPONENT

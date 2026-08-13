@@ -514,7 +514,7 @@ const productExcludesKqd = (): boolean => {
 };
 
 const calculateActualOutput = (values: FormState): number =>
-    calculateActualOutputValue(values, activeNgOptions, productExcludesKqd(), KQD_CODES);
+    calculateActualOutputValue(values, activeNgOptions, productExcludesKqd(), KQD_CODES as ReadonlySet<string>);
 
 
 
