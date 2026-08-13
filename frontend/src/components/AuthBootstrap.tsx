@@ -16,20 +16,14 @@ export default function AuthBootstrap({ children }: { children: ReactNode }) {
 
   if (!authReady) {
     return (
-      <main className="auth-bootstrap-loading" role="status" aria-live="polite" aria-busy="true">
-        <div className="auth-bootstrap-loading__content">
-          <span className="auth-bootstrap-loading__mark" aria-hidden="true">K</span>
-          <div className="auth-bootstrap-loading__copy">
-            <strong>KTC Production Management</strong>
-            <span>Đang chuẩn bị hệ thống...</span>
-          </div>
-          <span className="auth-bootstrap-loading__dots" aria-hidden="true">
-            <i />
-            <i />
-            <i />
-          </span>
+      <div className="app-loading" role="status" aria-live="polite" aria-label="Đang chuẩn bị hệ thống">
+        <div className="app-loading__content">
+          <span className="app-loading__mark" aria-hidden="true">K</span>
+          <strong>KTC Production Management</strong>
+          <span>Đang chuẩn bị hệ thống...</span>
+          <span className="app-loading__dots" aria-hidden="true"><i /><i /><i /></span>
         </div>
-      </main>
+      </div>
     );
   }
   return <>{children}</>;
