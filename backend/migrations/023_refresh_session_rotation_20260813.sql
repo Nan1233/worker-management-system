@@ -14,11 +14,17 @@ ALTER TABLE user_sessions
 ALTER TABLE user_sessions
   ADD COLUMN IF NOT EXISTS reuse_detected_at DATETIME NULL AFTER replaced_by_id;
 
-ALTER TABLE user_sessions
-  ADD UNIQUE INDEX IF NOT EXISTS uq_session_refresh_token (refresh_token),
-  ADD INDEX IF NOT EXISTS idx_session_family (family_id, revoked_at, expires_at),
-  ADD INDEX IF NOT EXISTS idx_session_replaced_by (replaced_by_id),
-  ADD INDEX IF NOT EXISTS idx_session_expiry (expires_at, revoked_at);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_session_refresh_token
+  ON user_sessions (refresh_token);
+
+CREATE INDEX IF NOT EXISTS idx_session_family
+  ON user_sessions (family_id, revoked_at, expires_at);
+
+CREATE INDEX IF NOT EXISTS idx_session_replaced_by
+  ON user_sessions (replaced_by_id);
+
+CREATE INDEX IF NOT EXISTS idx_session_expiry
+  ON user_sessions (expires_at, revoked_at);
 
 -- Do not fabricate lineage for legacy rows. Force one-time re-login at cutover.
 UPDATE user_sessions
