@@ -99,10 +99,10 @@ export function setAccessToken(token: string): void {
 }
 
 /**
- * Web uses an HttpOnly cookie and never exposes the refresh token to JS.
- * Migration 023 intentionally requires pre-F11 sessions to re-login, so the
- * old browser localStorage refresh-token bridge is no longer authoritative.
- * Electron intentionally retains the body-token fallback.
+ * Web uses an HttpOnly cookie, so this function normally returns null there.
+ * It can still return a legacy localStorage token during a one-release
+ * migration, allowing the next refresh request to move that session to a
+ * secure cookie. Electron intentionally retains the body-token fallback.
  */
 export function hasRefreshSessionHint(): boolean {
     return localStorage.getItem(REFRESH_SESSION_HINT_KEY) === "1";
@@ -120,6 +120,9 @@ export function getRefreshToken(): string | null {
     if (isElectronRuntime()) {
         return localStorage.getItem(REFRESH_TOKEN_KEY);
     }
+    // Web uses an HttpOnly cookie and never exposes the refresh token to JS.
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    sessionStorage.removeItem(REFRESH_TOKEN_KEY);
     return null;
 }
 

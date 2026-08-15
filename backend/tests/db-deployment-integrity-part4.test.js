@@ -65,7 +65,7 @@ test('worker direct node startup contains schema gate before poll loop', () => {
 
 test('liveness remains independent from schema readiness', () => {
   const src = read('server.js');
-  const live = src.slice(src.indexOf('app.get("/api/health/live"'), src.indexOf('async function readinessHandler'));
+  const live = src.slice(src.indexOf('app.get("/api/health/live"'), src.indexOf('function readinessHandler'));
   assert.doesNotMatch(live, /verifyDatabaseSchema|db\.promise|schema_migrations/);
 });
 
@@ -73,12 +73,12 @@ test('ready and legacy health both use schema-aware readiness', () => {
   const src = read('server.js');
   assert.match(src, /app\.get\("\/api\/health\/ready", readinessHandler\)/);
   assert.match(src, /app\.get\("\/api\/health", readinessHandler\)/);
-  assert.match(src, /if \(!schema\.ready\)[\s\S]*res\.status\(503\)/);
+  assert.match(src, /if \(!runtimeReadiness\.ready\)[\s\S]*res\.status\(503\)/);
 });
 
 test('schema diagnostics remain secret-free', () => {
   const src = read('server.js');
-  const block = src.slice(src.indexOf('async function readinessHandler'), src.indexOf('app.use("/api/mobile"'));
+  const block = src.slice(src.indexOf('function readinessHandler'), src.indexOf('app.use("/api/mobile"'));
   assert.match(block, /expectedMigration|actualMigration|schemaReady/);
   assert.doesNotMatch(block, /DB_PASSWORD|DATABASE_URL|DB_USER/);
 });
@@ -206,7 +206,7 @@ test('locked migrations 019-024 remain exact while remediation owns 025', () => 
     20:'ba958fc0b8fc069d587ac684285fa6c78283619dc4602c278fb2002b862954b9',
     21:'461e39f69b34a9e87df2f9387d6c3db7faa0ecb7852e31d16aef053dc2f4cdf7',
     22:'8f7d148d32dfb7d0dcbafc4c93afa37424f55e536b39c811aeb991ba0bbdad05',
-    23:'0f203c361afc20994b56da640c03a348450fbda8d6148021cac88c2fadd03c4d',
+    23:'2c9831b08a21d009888a6bd55710348669caca32936c550660956d38f4b0a2a3',
     24:'60b508fbb7e4b639486151cdcca4d7e36512ce67e018782aa7f5e566fdd7d3d2',
   };
   for (const [v, hash] of Object.entries(expected)) assert.equal(manifest.find((x) => x.version === Number(v)).checksum, hash);

@@ -1,5 +1,11 @@
 const crypto = require("crypto");
 const runtimeMetrics = require("./services/runtimeMetrics");
+const {
+  logProductionIndexAudit
+} = require("./services/productionIndexAuditService");
+const {
+  startProductionIndexAuditScheduler
+} = require("./services/indexAuditScheduler");
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -39,7 +45,7 @@ const checkRole = require("./middleware/roleMiddleware");
 const reportExportController = require("./controllers/reportExportController");
 const excelExportJobQueue = require("./services/excelExportJobQueue");
 const { validateEnvironment } = require("./config/validateEnvironment");
-const { verifyDatabaseSchema, assertDatabaseSchemaReady, toSafeSchemaDiagnostics } = require("./services/databaseSchemaService");
+const { assertDatabaseSchemaReady, toSafeSchemaDiagnostics } = require("./services/databaseSchemaService");
 const { globalApiLimiter } = require("./middleware/rateLimiters");
 const { resolveTrustProxySetting } = require("./services/proxyTrustPolicy");
 
@@ -170,42 +176,61 @@ app.get("/api/health/live", (_req, res) => {
   });
 });
 
-async function readinessHandler(_req, res) {
+const runtimeReadiness = {
+  ready: false,
+  initializing: false,
+  startedAt: null,
+  readyAt: null,
+  database: "starting",
+  databaseLatencyMs: null,
+  schemaReady: false,
+  schemaStatus: "STARTING",
+  expectedMigration: null,
+  actualMigration: null,
+  errorCode: null,
+  errorMessage: null,
+};
+
+function readinessHandler(_req, res) {
   res.setHeader("Cache-Control", "no-store");
-  const started = Date.now();
-  const schema = await verifyDatabaseSchema();
-  const diagnostics = toSafeSchemaDiagnostics(schema);
   const version = require("./config/version");
-  if (!schema.ready) {
+
+  if (!runtimeReadiness.ready) {
     return res.status(503).json({
       success: false,
       service: "ktc-api",
       status: "not_ready",
-      database: schema.status === "DATABASE_UNAVAILABLE" ? "unavailable" : "ok",
-      schemaReady: false,
-      schemaStatus: diagnostics.status,
-      expectedMigration: diagnostics.expectedMigration,
-      actualMigration: diagnostics.actualMigration,
+      database: runtimeReadiness.database,
+      databaseLatencyMs: runtimeReadiness.databaseLatencyMs,
+      schemaReady: runtimeReadiness.schemaReady,
+      schemaStatus: runtimeReadiness.schemaStatus,
+      expectedMigration: runtimeReadiness.expectedMigration,
+      actualMigration: runtimeReadiness.actualMigration,
+      errorCode: runtimeReadiness.errorCode,
       appVersion: version.backendVersion,
     });
   }
+
   return res.json({
     success: true,
     service: "ktc-api",
     status: "ready",
-    database: "ok",
-    databaseLatencyMs: Date.now() - started,
+    database: runtimeReadiness.database,
+    databaseLatencyMs: runtimeReadiness.databaseLatencyMs,
     schemaReady: true,
-    schemaStatus: diagnostics.status,
-    expectedMigration: diagnostics.expectedMigration,
-    actualMigration: diagnostics.actualMigration,
+    schemaStatus: runtimeReadiness.schemaStatus,
+    expectedMigration: runtimeReadiness.expectedMigration,
+    actualMigration: runtimeReadiness.actualMigration,
+    startupMs: runtimeReadiness.readyAt && runtimeReadiness.startedAt
+      ? runtimeReadiness.readyAt - runtimeReadiness.startedAt
+      : null,
     appVersion: version.backendVersion,
   });
 }
 
 app.get("/api/health/ready", readinessHandler);
 
-// Backward-compatible deployment health endpoint: same readiness semantics.
+// Backward-compatible deployment health endpoint: same cached readiness semantics.
 app.get("/api/health", readinessHandler);
 
 // F16 disaster-restore maintenance gate: health stays readable, all API writes are quiesced.
@@ -324,36 +349,104 @@ function startDatabaseKeepAlive() {
 }
 
 let server;
+let startupFailureTimer = null;
+
+async function initializeRuntime() {
+  runtimeReadiness.initializing = true;
+  runtimeReadiness.startedAt = Date.now();
+  runtimeReadiness.errorCode = null;
+  runtimeReadiness.errorMessage = null;
+
+  try {
+    const databaseStartedAt = Date.now();
+    const database = await db.testConnection();
+    runtimeReadiness.databaseLatencyMs = Date.now() - databaseStartedAt;
+    runtimeReadiness.database = "ok";
+    console.log(`Database connected: ${database.host}:${database.port}; SSL=${database.ssl}`);
+
+    const schema = await assertDatabaseSchemaReady();
+    const diagnostics = toSafeSchemaDiagnostics(schema);
+    runtimeReadiness.schemaReady = true;
+    runtimeReadiness.schemaStatus = diagnostics.status;
+    runtimeReadiness.expectedMigration = diagnostics.expectedMigration;
+    runtimeReadiness.actualMigration = diagnostics.actualMigration;
+    console.log(`Database schema READY: ${schema.expectedLatest?.filename || "none"}`);
+
+    await excelExportJobQueue.initialize();
+
+    runtimeReadiness.ready = true;
+    runtimeReadiness.readyAt = Date.now();
+    runtimeReadiness.initializing = false;
+
+    if (startupFailureTimer) {
+      clearTimeout(startupFailureTimer);
+      startupFailureTimer = null;
+    }
+
+    console.log(`[KTC] runtime READY in ${runtimeReadiness.readyAt - runtimeReadiness.startedAt}ms`);
+
+    startDatabaseKeepAlive();
+    void warmFrequentlyUsedMasterData();
+    void logProductionIndexAudit(db);
+    startProductionIndexAuditScheduler(db);
+  } catch (error) {
+    const safeDetails = error?.details || {};
+    runtimeReadiness.ready = false;
+    runtimeReadiness.initializing = false;
+    runtimeReadiness.database =
+      error?.schemaStatus === "DATABASE_UNAVAILABLE" ? "unavailable" : runtimeReadiness.database;
+    runtimeReadiness.schemaStatus = error?.schemaStatus || "STARTUP_FAILED";
+    runtimeReadiness.expectedMigration = safeDetails.expectedLatest || null;
+    runtimeReadiness.actualMigration = safeDetails.actualLatest || null;
+    runtimeReadiness.errorCode = error?.code || "DATABASE_STARTUP_FAILED";
+    runtimeReadiness.errorMessage = error?.message || "Runtime initialization failed";
+
+    console.error(JSON.stringify({
+      type: "startup_not_ready",
+      code: runtimeReadiness.errorCode,
+      schemaStatus: runtimeReadiness.schemaStatus,
+      expectedMigration: runtimeReadiness.expectedMigration,
+      actualMigration: runtimeReadiness.actualMigration,
+      message: runtimeReadiness.errorMessage,
+    }));
+
+    // Fail the instance instead of leaving Render waiting forever.
+    if (!startupFailureTimer) {
+      const exitDelayMs = Math.max(
+        5_000,
+        Number(process.env.STARTUP_FAILURE_EXIT_MS || 20_000)
+      );
+      startupFailureTimer = setTimeout(() => {
+        console.error(`[KTC] runtime still not ready after startup failure; exiting in ${exitDelayMs}ms policy`);
+        process.exit(1);
+      }, exitDelayMs);
+      startupFailureTimer.unref?.();
+    }
+  }
+}
 
 async function start() {
   try {
+    // Environment validation is synchronous and must pass before exposing the port.
     validateEnvironment(process.env, { production: isProduction });
-    const database = await db.testConnection();
-    console.log(`Database connected: ${database.host}:${database.port}; SSL=${database.ssl}`);
-    const schema = await assertDatabaseSchemaReady();
-    console.log(`Database schema READY: ${schema.expectedLatest?.filename || 'none'}`);
-    await excelExportJobQueue.initialize();
   } catch (error) {
-    const safeDetails = error?.details || {};
     console.error(JSON.stringify({
-      type: "startup_not_ready",
-      code: error?.code || "DATABASE_STARTUP_FAILED",
-      schemaStatus: error?.schemaStatus || null,
-      expectedMigration: safeDetails.expectedLatest || null,
-      actualMigration: safeDetails.actualLatest || null,
+      type: "startup_environment_invalid",
+      code: error?.code || "ENVIRONMENT_INVALID",
       message: error?.message,
     }));
     process.exitCode = 1;
     return null;
   }
 
-  server = app.listen(PORT, () => {
+  server = app.listen(PORT, "0.0.0.0", () => {
     const version = require("./config/version");
     console.log(`Server running at port ${PORT}`);
     console.log(`[KTC] backendVersion=${version.backendVersion} commitSha=${version.commitSha} apiVersion=${version.apiVersion} schemaVersion=${version.schemaVersion}`);
-    startDatabaseKeepAlive();
-    void warmFrequentlyUsedMasterData();
+    void initializeRuntime();
   });
+
+  return server;
 }
 
 async function shutdown(signal) {

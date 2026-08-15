@@ -167,7 +167,7 @@ exports.get = async (req, res) => {
       message: error.message,
       stack: process.env.NODE_ENV === 'production' ? undefined : error.stack
     });
-    return res.status(error.statusCode || 500).json({
+    return res.status(error.statusCode || error.status || 500).json({
       success: false,
       code: error.code || 'COMPANY_DATA_FAILED',
       message: error.message || 'Không thể tải dữ liệu Excel tháng'

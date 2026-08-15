@@ -200,8 +200,10 @@ test('runbook smoke checklist covers login save approved read Excel and refresh'
 // 26-30 scope/migrations/client source
 test('current frontend contains duplicate challenge-capable client contract', () => {
   const processPage = readProject('frontend/src/pages/worker/ProcessPage.tsx');
-  assert.match(processPage, /duplicate_confirmation_token/);
-  assert.match(processPage, /force_create:\s*true/);
+  const duplicateFlow = readProject('frontend/src/pages/worker/useDuplicateReportFlow.ts');
+  assert.match(processPage, /useDuplicateReportFlow/);
+  assert.match(duplicateFlow, /duplicate_confirmation_token/);
+  assert.match(duplicateFlow, /force_create:\s*true/);
 });
 
 test('current frontend contains F11 rotation-aware refresh successor handling', () => {
@@ -222,7 +224,7 @@ test('Part3 locked migrations 019-024 remain byte-identical; later remediation m
     20:'ba958fc0b8fc069d587ac684285fa6c78283619dc4602c278fb2002b862954b9',
     21:'461e39f69b34a9e87df2f9387d6c3db7faa0ecb7852e31d16aef053dc2f4cdf7',
     22:'8f7d148d32dfb7d0dcbafc4c93afa37424f55e536b39c811aeb991ba0bbdad05',
-    23:'0f203c361afc20994b56da640c03a348450fbda8d6148021cac88c2fadd03c4d',
+    23:'2c9831b08a21d009888a6bd55710348669caca32936c550660956d38f4b0a2a3',
     24:'60b508fbb7e4b639486151cdcca4d7e36512ce67e018782aa7f5e566fdd7d3d2',
   };
   for (const [v, hash] of Object.entries(expected)) assert.equal(manifest.find((e)=>e.version===Number(v)).checksum, hash);

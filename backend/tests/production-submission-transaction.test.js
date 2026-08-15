@@ -50,7 +50,7 @@ test('post-create background work is notification-only and cannot duplicate sema
   assert.match(sideEffects, /AuditService\.notifyUsers/);
 
   // A network retry must reuse the same client-side request ID until success.
-  assert.match(frontend, /clientRequestIdRef\.current \|\|= crypto\.randomUUID\(\)/);
-  assert.match(frontend, /client_request_id:\s*clientRequestIdRef\.current/);
+  assert.match(frontend, /clientRequestIdRef\.current \|\|= createClientRequestId\(\)/);
+  assert.match(frontend, /clientRequestId:\s*clientRequestIdRef\.current/);
   assert.match(frontend, /clientRequestIdRef\.current = null/);
 });

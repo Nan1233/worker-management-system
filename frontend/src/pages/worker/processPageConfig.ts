@@ -130,7 +130,6 @@ export type MachineLineState = {
     standardOutputPerHour: number;
     standardTimeSeconds: number | null;
     standardSource: "MACHINE" | "DEFAULT" | null;
-    excludeKqdFromTt: boolean | null;
     standardLoading: boolean;
     standardError: string;
     selectedDefects: string[];
@@ -147,7 +146,6 @@ export const createEmptyMachineLine = (): MachineLineState => ({
     standardOutputPerHour: 0,
     standardTimeSeconds: null,
     standardSource: null,
-    excludeKqdFromTt: null,
     standardLoading: false,
     standardError: "",
     selectedDefects: [],
@@ -759,9 +757,7 @@ export const initialDeduction: DeductionState = {
 
 
 
-export const KQD_CODES: ReadonlySet<string> = new Set<string>(
-    kqdExclusionRegistry.map((code: string) => String(code).trim().toUpperCase())
-);
+export const KQD_CODES = new Set(kqdExclusionRegistry.map((code) => String(code).trim().toUpperCase()));
 
 // =====================================================
 // COMPONENT

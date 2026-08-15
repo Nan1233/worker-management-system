@@ -15,8 +15,8 @@ import { decimalHoursToMinutes, formatMinutes, sumDeductionMinutes } from "../..
 import { getStoredUser } from "../../utils/authStorage";
 import { usePermissions } from "../../hooks/usePermissions";
 import { getReportVersions, restoreApprovedReportVersion, type ReportVersion } from "../../services/systemService";
-import "./ReportDetail.css";
 import MachineEventPanel from "./MachineEventPanel";
+import "./ReportDetail.css";
 
 const formatDate = (value?: string | null) => {
     if (!value) return "---";
@@ -219,14 +219,14 @@ function ReportDetail() {
                     <div className="detail-basic-item"><span>Ca</span><strong>{report.shift || "---"}</strong></div>
                     <div className="detail-basic-item"><span>Số máy</span><strong>{report.machine_no || "---"}</strong></div>
                     <div className="detail-basic-item"><span>Sản phẩm</span><strong>{report.product_name || "---"}</strong></div>
-                    <div className="detail-basic-item"><span>% học việc</span><strong>{report.training_percent == null ? "Chưa có snapshot" : `${formatNumber(report.training_percent)}%`}</strong></div>
+                    <div className="detail-basic-item"><span>% học việc</span><strong>{formatNumber(report.training_percent ?? 100)}%</strong></div>
                 </div>
             </section>
 
             <section className="detail-basic-card">
                 <h2>Sản lượng</h2>
                 <div className="detail-summary-row">
-                    <div><span>Định mức</span><strong>{formatNumber(Number(report.standard_output) || 0)} SP/h</strong></div>
+                    <div><span>Định mức</span><strong>{formatNumber(report.standard_output)} SP/h</strong></div>
                     <div><span>OK</span><strong>{formatNumber(report.tt_ok)}</strong></div>
                     <div><span>Tổng NG</span><strong>{formatNumber(report.tt_ng)}</strong></div>
                     <div className={outputWarning ? "is-warning" : ""}><span>Tổng OK + NG</span><strong>{formatNumber(totalOutput)}</strong></div>
@@ -243,10 +243,6 @@ function ReportDetail() {
                 </div>
             </section>
 
-            {Array.isArray(report.machine_lines) && report.machine_lines.map((line) => (
-                <MachineEventPanel key={line.id ?? `${line.machine_code}-${line.product_code}`} report={report} line={line} source={source} onChanged={loadReport} />
-            ))}
-
             <div className="detail-two-column">
                 <section className="detail-basic-card detail-list-card">
                     <div className="detail-list-heading"><h2>Chi tiết NG</h2><span>{defects.length} loại · Tổng {formatNumber(totalDefects)}</span></div>
@@ -257,6 +253,20 @@ function ReportDetail() {
                     {deductions.length === 0 ? <div className="detail-empty-list">Không có thời gian trừ.</div> : <div className="detail-list">{deductions.map((item, index) => <div className="detail-list-row" key={item.id ?? `${item.deduction_type_id}-${index}`}><span>{item.deduction_name || item.deduction_code || `Mục ${index + 1}`}</span><strong>{formatMinutes(item.hours)}</strong></div>)}</div>}
                 </section>
             </div>
+
+            {(report.machine_lines || []).length > 0 && (
+                <div className="machine-event-panels">
+                    {(report.machine_lines || []).map((line, index) => (
+                        <MachineEventPanel
+                            key={line.id ?? `${line.machine_code || "machine"}-${index}`}
+                            report={report}
+                            line={line}
+                            source={source}
+                            onChanged={loadReport}
+                        />
+                    ))}
+                </div>
+            )}
 
             {source === "pending" && <section className="detail-basic-card"><h2>Lịch sử báo cáo</h2>{logs.length === 0 ? <div className="detail-empty-list">Chưa có nhật ký.</div> : <div className="detail-timeline">{logs.map(log => <div className="detail-timeline-item" key={log.id}><span className="detail-timeline-dot"/><div><strong>{ACTION_LABELS[log.action] || log.action}</strong><p>{log.full_name || log.username || "Hệ thống"}{log.note ? ` · ${log.note}` : ""}</p><time>{formatDateTime(log.created_at)}</time></div></div>)}</div>}</section>}
 

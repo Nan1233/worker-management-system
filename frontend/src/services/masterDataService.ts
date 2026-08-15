@@ -108,14 +108,14 @@ export const resolveProductStandard = async (
     processId: number,
     machineCode: string,
     productCode: string,
-    workDate: string
+    workDate?: string
 ): Promise<ResolvedProductStandard> => {
     const response = await api.get("/product-standards/resolve", {
         params: {
             process_id: processId,
             machine_code: machineCode,
             product_code: productCode,
-            work_date: workDate
+            work_date: workDate || undefined
         }
     });
 

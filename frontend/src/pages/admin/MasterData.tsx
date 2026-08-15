@@ -11,7 +11,7 @@ import { clearPermissionClientCache } from "../../security/permissions";
 
 type Row = Record<string, unknown> & { id?: number; status?: string; role?: string };
 type Resource = 'users'|'processes'|'defects'|'deductions'|'machines'|'standards';
-type Field = { key:string; label:string; type?:'text'|'number'|'select'; required?:boolean; min?:number; step?:number|string; options?:{value:string;label:string}[] };
+type Field = { key:string; label:string; type?:'text'|'number'|'select'; required?:boolean; min?:number; step?:number; options?:{value:string;label:string}[] };
 type ProcessOption = { id:number; process_code:string; process_name:string };
 
 const allTabs:{key:Resource;label:string;description:string;roles:string[]}[]=[
@@ -26,7 +26,7 @@ const allTabs:{key:Resource;label:string;description:string;roles:string[]}[]=[
 const baseFields:Record<Exclude<Resource,'users'>,Field[]>={
   processes:[{key:'process_code',label:'Mã công đoạn',required:true},{key:'process_name',label:'Tên công đoạn',required:true},{key:'description',label:'Mô tả'}],
   machines:[{key:'process_id',label:'Công đoạn',type:'select',required:true},{key:'machine_code',label:'Mã máy',required:true},{key:'machine_name',label:'Tên máy',required:true}],
-  standards:[{key:'process_id',label:'Công đoạn',type:'select',required:true},{key:'product_code',label:'Mã sản phẩm',required:true},{key:'standard_output',label:'Định mức',type:'number',required:true,min:0.000001,step:'any'},{key:'exclude_kqd_from_tt',label:'Quy tắc KQD',type:'select',options:[{value:'0',label:'Có tính KQD vào TT'},{value:'1',label:'Không tính KQD vào TT'}]}],
+  standards:[{key:'process_id',label:'Công đoạn',type:'select',required:true},{key:'product_code',label:'Mã sản phẩm',required:true},{key:'standard_output',label:'Định mức',type:'number',required:true,min:0.000001,step:0.000001},{key:'exclude_kqd_from_tt',label:'Quy tắc KQD',type:'select',options:[{value:'0',label:'Có tính KQD vào TT'},{value:'1',label:'Không tính KQD vào TT'}]}],
   defects:[{key:'process_id',label:'Công đoạn',type:'select',required:true},{key:'defect_code',label:'Mã lỗi',required:true},{key:'defect_name',label:'Tên lỗi',required:true},{key:'sort_order',label:'Thứ tự',type:'number'}],
   deductions:[{key:'process_id',label:'Công đoạn',type:'select',required:true},{key:'deduction_code',label:'Mã trừ giờ',required:true},{key:'deduction_name',label:'Tên trừ giờ',required:true},{key:'sort_order',label:'Thứ tự',type:'number'}],
 };
@@ -150,7 +150,7 @@ function MasterData(){
     const missing=fields.filter(field=>field.required&&!String(form[field.key]||'').trim());
     if(resource==='users'&&['manager','lead','worker'].includes(selectedRole)&&selectedProcessIds.length===0){setError('Vui lòng chọn ít nhất một công đoạn');return;}
     if(missing.length){setError(`Vui lòng nhập: ${missing.map(field=>field.label).join(', ')}`);return;}
-    if(resource==='standards'&&(!Number.isFinite(Number(form.standard_output))||Number(form.standard_output)<=0)){setError('Định mức phải là số dương hợp lệ');return;}
+    if(resource==='standards'&&(!Number.isFinite(Number(form.standard_output))||Number(form.standard_output)<=0)){setError('Định mức phải là số dương');return;}
     setSaving(true);setError('');
     try{
       if(resource==='users'){

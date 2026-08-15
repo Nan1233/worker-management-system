@@ -161,7 +161,8 @@ const NUMBER_FORMATS = Object.freeze({
   // Ba phần dương;âm;0 giúp Excel 2016/WPS không hiển thị số 0 thành "0.".
   INTEGER: '#,##0;-#,##0;0',
   DECIMAL: '#,##0.##;-#,##0.##;0',
-  RATE: '#,##0.######;-#,##0.######;0',
+ STANDARD: '#,##0.##;-#,##0.##;0',
+RATE: '#,##0.######;-#,##0.######;0',
   PERCENT: '0.##%;-0.##%;0%',
   DATE: 'dd/mm/yyyy',
   DATETIME: 'dd/mm/yyyy hh:mm'
@@ -520,7 +521,7 @@ function makeColumns(processCode, deductionTypes, defectTypes) {
       format: field.kind === 'integer' ? NUMBER_FORMATS.INTEGER : field.kind === 'decimal' ? NUMBER_FORMATS.DECIMAL : field.kind === 'date' ? NUMBER_FORMATS.DATE : undefined
     })),
     { key: 'training', header: '% học việc', group: 'general', width: 9, format: NUMBER_FORMATS.PERCENT },
-    { key: 'standard', header: 'Định mức', group: 'general', width: 12, format: NUMBER_FORMATS.RATE },
+    { key: 'standard', header: 'Định mức', group: 'general', width: 12, format: NUMBER_FORMATS.STANDARD },
     { key: 'workingTime', header: 'Tổng thời gian', group: 'time', width: 12, format: NUMBER_FORMATS.DECIMAL },
     { key: 'actualTime', header: 'Thời gian thực tế', group: 'time', width: 12, format: NUMBER_FORMATS.DECIMAL },
     { key: 'deductionTime', header: 'Tổng thời gian trừ', group: 'time', width: 13, format: NUMBER_FORMATS.DECIMAL }
@@ -1245,7 +1246,7 @@ async function buildReconciliationWorkbook({ date, payload }) {
       row.getCell(3).numFmt = NUMBER_FORMATS.DATE;
       row.getCell(4).numFmt = NUMBER_FORMATS.DATE;
       row.getCell(10).numFmt = NUMBER_FORMATS.PERCENT;
-      row.getCell(11).numFmt = resolvedNumberFormat(value.standard, NUMBER_FORMATS.RATE);
+      row.getCell(11).numFmt = resolvedNumberFormat(value.standard, NUMBER_FORMATS.STANDARD);
       row.getCell(12).numFmt = resolvedNumberFormat(value.workingTime, NUMBER_FORMATS.DECIMAL);
       row.getCell(13).numFmt = resolvedNumberFormat(value.actualTime, NUMBER_FORMATS.DECIMAL);
       row.getCell(14).numFmt = resolvedNumberFormat(value.deductionTime, NUMBER_FORMATS.DECIMAL);

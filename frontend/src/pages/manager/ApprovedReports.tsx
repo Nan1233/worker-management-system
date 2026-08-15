@@ -10,90 +10,24 @@ import type { ProductionReport } from "../../types/production";
 import { useToast } from "../../components/feedback/toastContext";
 import { getAccessToken, getStoredUser } from "../../utils/authStorage";
 import { usePermissions } from "../../hooks/usePermissions";
+import {
+    getDateRangeForMode,
+    getToday,
+    type DateFilterMode,
+} from "./managerReportDateLogic";
+import { getManagerReportDuplicateKey as duplicateKey } from "./managerReportSearchLogic";
+import { getManagerReportRowNumber } from "./managerReportPagination";
+import {
+    getValidReportIds,
+    reconcileSelectedReportIds,
+    toggleCurrentPageIds,
+    toggleReportId,
+} from "./managerReportSelection";
+import {
+    isRetryableManagerReportLoadError,
+    waitForManagerReportRetry,
+} from "./managerReportRetry";
 import "./Reports.css";
-
-const ITEMS_PER_PAGE = 20;
-
-type DateFilterMode =
-    | "today"
-    | "yesterday"
-    | "week"
-    | "currentMonth"
-    | "month"
-    | "range"
-    | "all";
-
-const toLocalDateString = (value: Date): string => {
-    const offset = value.getTimezoneOffset();
-    return new Date(value.getTime() - offset * 60_000)
-        .toISOString()
-        .split("T")[0];
-};
-
-const getToday = (): string => toLocalDateString(new Date());
-
-const getDateRangeForMode = (
-    mode: DateFilterMode,
-    selectedMonth: string,
-    dateFrom: string,
-    dateTo: string
-): { dateFrom?: string; dateTo?: string } => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-    if (mode === "all") return {};
-    if (mode === "range") {
-        return {
-            dateFrom: dateFrom || undefined,
-            dateTo: dateTo || undefined
-        };
-    }
-    if (mode === "month" && selectedMonth) {
-        const [year, month] = selectedMonth.split("-").map(Number);
-        const lastDay = new Date(year, month, 0).getDate();
-        return {
-            dateFrom: `${selectedMonth}-01`,
-            dateTo: `${selectedMonth}-${String(lastDay).padStart(2, "0")}`
-        };
-    }
-    if (mode === "yesterday") {
-        const value = new Date(today);
-        value.setDate(value.getDate() - 1);
-        const day = toLocalDateString(value);
-        return { dateFrom: day, dateTo: day };
-    }
-    if (mode === "week") {
-        const start = new Date(today);
-        const day = start.getDay() || 7;
-        start.setDate(start.getDate() - day + 1);
-        return { dateFrom: toLocalDateString(start), dateTo: toLocalDateString(today) };
-    }
-    if (mode === "currentMonth") {
-        const start = new Date(today.getFullYear(), today.getMonth(), 1);
-        const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-        return { dateFrom: toLocalDateString(start), dateTo: toLocalDateString(end) };
-    }
-    const day = toLocalDateString(today);
-    return { dateFrom: day, dateTo: day };
-};
-
-const normalizeText = (value?: string | number | null): string =>
-    String(value ?? "")
-        .trim()
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/đ/g, "d");
-
-const duplicateKey = (report: ProductionReport): string =>
-    [
-        String(report.work_date || "").slice(0, 10),
-        report.worker_code,
-        report.machine_no,
-        report.product_name
-    ]
-        .map(normalizeText)
-        .join("|");
 
 const getAxiosErrorMessage = async (error: unknown): Promise<string | null> => {
     if (!axios.isAxiosError(error)) return null;
@@ -145,19 +79,15 @@ export default function ApprovedReports() {
     const [currentPage, setCurrentPage] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
     const [totalPages, setTotalPages] = useState(1);
-    const [processes, setProcesses] = useState<string[]>([]);
+    const reportLoadSeqRef = useRef(0);
     const [reloadNonce, setReloadNonce] = useState(0);
-
     useEffect(() => {
         const timer = window.setTimeout(() => {
-            setCurrentPage(1);
-            setSelectedIds([]);
             setSearchQuery(searchKeyword.trim());
         }, 250);
         return () => window.clearTimeout(timer);
     }, [searchKeyword]);
 
-    const reportLoadSeqRef = useRef(0);
 
     const activeDateRange = useMemo(
         () => getDateRangeForMode(dateMode, selectedMonth, dateFrom, dateTo),
@@ -177,50 +107,28 @@ export default function ApprovedReports() {
                 processName: selectedProcess || undefined,
                 search: searchQuery || undefined,
                 page: currentPage,
-                pageSize: ITEMS_PER_PAGE
+                pageSize: 20,
             });
             let result;
-            try {
-                result = await load();
-            } catch (firstError) {
-                const retryable = !axios.isAxiosError(firstError)
-                    || !firstError.response
-                    || firstError.response.status === 401
-                    || firstError.response.status >= 500;
-                if (!retryable) throw firstError;
-                await new Promise(resolve => window.setTimeout(resolve, 800));
+            try { result = await load(); } catch (firstError) {
+                if (!isRetryableManagerReportLoadError(firstError)) throw firstError;
+                await waitForManagerReportRetry();
                 result = await load();
             }
             if (!isCurrentRequest()) return;
-            setReports(result.items);
+            setReports(result.data);
             setTotalCount(result.pagination.total);
             setTotalPages(result.pagination.total_pages);
-            setProcesses(result.processes);
-            if (currentPage > result.pagination.total_pages) {
-                setCurrentPage(result.pagination.total_pages);
-            }
+            setSelectedIds(previous => reconcileSelectedReportIds(previous, result.data));
         } catch (err: unknown) {
             if (!isCurrentRequest()) return;
             console.error("GET APPROVED REPORTS ERROR:", err);
-            setError(
-                axios.isAxiosError(err)
-                    ? err.response?.data?.message || "Không thể tải báo cáo đã duyệt"
-                    : "Không thể tải báo cáo đã duyệt"
-            );
-            setReports([]);
-            setTotalCount(0);
-            setTotalPages(1);
+            setError(axios.isAxiosError(err) ? err.response?.data?.message || "Không thể tải báo cáo đã duyệt" : "Không thể tải báo cáo đã duyệt");
+            setReports([]); setTotalCount(0); setTotalPages(1); setSelectedIds([]);
         } finally {
             if (isCurrentRequest()) setLoading(false);
         }
-    }, [
-        activeDateRange.dateFrom,
-        activeDateRange.dateTo,
-        selectedShift,
-        selectedProcess,
-        searchQuery,
-        currentPage
-    ]);
+    }, [activeDateRange.dateFrom, activeDateRange.dateTo, selectedShift, selectedProcess, searchQuery, currentPage]);
 
     useEffect(() => {
         const reload = () => setReloadNonce(value => value + 1);
@@ -229,13 +137,16 @@ export default function ApprovedReports() {
     }, []);
 
     useEffect(() => {
-        void loadReports();
+        queueMicrotask(() => {
+            setSelectedIds([]);
+            void loadReports();
+        });
     }, [loadReports, reloadNonce]);
 
-    useEffect(() => {
-        setCurrentPage(1);
-        setSelectedIds([]);
-    }, [dateMode, selectedMonth, dateFrom, dateTo, selectedShift, selectedProcess]);
+    const processes = useMemo(
+        () => Array.from(new Set(reports.map(item => item.process_name).filter(Boolean))).sort(),
+        [reports]
+    );
 
     const duplicateCounts = useMemo(() => {
         const counts = new Map<string, number>();
@@ -247,10 +158,14 @@ export default function ApprovedReports() {
         return counts;
     }, [reports]);
 
-    // Filtering/search/pagination are server-side; `reports` is the current page.
+    useEffect(() => {
+        queueMicrotask(() => { setCurrentPage(1); setSelectedIds([]); });
+    }, [selectedShift, selectedProcess, dateMode, selectedMonth, dateFrom, dateTo, searchQuery]);
+
+    const paginatedReports = reports;
     const currentPageIds = useMemo(
-        () => reports.map(report => Number(report.id)).filter(id => Number.isInteger(id) && id > 0),
-        [reports]
+        () => getValidReportIds(paginatedReports),
+        [paginatedReports]
     );
     const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
     const selectedOnCurrentPageCount = currentPageIds.filter(id => selectedIdSet.has(id)).length;
@@ -258,19 +173,19 @@ export default function ApprovedReports() {
     const isSomeCurrentPageSelected = selectedOnCurrentPageCount > 0 && !isAllCurrentPageSelected;
 
     const toggleSelectReport = (reportId: number) => {
-        if (!Number.isInteger(reportId) || reportId <= 0) return;
-        setSelectedIds(previous => previous.includes(reportId)
-            ? previous.filter(id => id !== reportId)
-            : [...previous, reportId]);
+        setSelectedIds((previous) =>
+            toggleReportId(previous, reportId)
+        );
     };
 
     const toggleSelectCurrentPage = () => {
-        setSelectedIds(previous => {
-            const set = new Set(previous);
-            if (isAllCurrentPageSelected) currentPageIds.forEach(id => set.delete(id));
-            else currentPageIds.forEach(id => set.add(id));
-            return Array.from(set);
-        });
+        setSelectedIds((previous) =>
+            toggleCurrentPageIds(
+                previous,
+                currentPageIds,
+                isAllCurrentPageSelected
+            )
+        );
     };
 
     const selectQuickDate = (mode: DateFilterMode) => {
@@ -461,11 +376,11 @@ export default function ApprovedReports() {
 
             <div className="management-filter-card approved-filter-card">
                 <div className="management-search-box">
-                    <span aria-hidden="true">⌕</span>
+                    <span>⌕</span>
                     <input
                         value={searchKeyword}
                         onChange={event => setSearchKeyword(event.target.value)}
-                        aria-label="Tìm báo cáo theo mã, tên công nhân, máy hoặc sản phẩm"
+                        aria-label="Tìm báo cáo đã duyệt"
                         placeholder="Tìm mã, tên công nhân, máy, sản phẩm..."
                     />
                 </div>
@@ -705,9 +620,9 @@ export default function ApprovedReports() {
 
             <div className="management-report-card">
                 {loading ? (
-                    <div className="management-empty" role="status" aria-live="polite">Đang tải...</div>
-                ) : reports.length === 0 ? (
-                    <div className="management-empty" role="status">Không có báo cáo phù hợp</div>
+                    <div className="management-empty">Đang tải...</div>
+                ) : paginatedReports.length === 0 ? (
+                    <div className="management-empty">Không có báo cáo phù hợp</div>
                 ) : (
                     <div className="management-table-container">
                         <table className="management-report-table">
@@ -734,7 +649,7 @@ export default function ApprovedReports() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {reports.map((report, index) => {
+                                {paginatedReports.map((report, index) => {
                                     const reportId = Number(report.id);
                                     const validReportId = Number.isInteger(reportId) && reportId > 0;
                                     const selected = validReportId && selectedIdSet.has(reportId);
@@ -753,7 +668,7 @@ export default function ApprovedReports() {
                                                     aria-label={`Chọn báo cáo ${report.worker_code || reportId}`}
                                                 />
                                             </td>
-                                            <td>{(currentPage - 1) * ITEMS_PER_PAGE + index + 1}</td>
+                                            <td>{getManagerReportRowNumber(currentPage, index)}</td>
                                             <td><strong>{report.worker_code || "---"}</strong></td>
                                             <td>{report.full_name || "---"}</td>
                                             <td>{report.process_name || "---"}</td>
@@ -772,9 +687,9 @@ export default function ApprovedReports() {
 
             {totalPages > 1 && (
                 <nav className="management-pagination" aria-label="Phân trang báo cáo">
-                    <button type="button" aria-label="Trang trước" disabled={currentPage === 1} onClick={() => setCurrentPage(page => page - 1)}>‹ Trước</button>
-                    <span>Trang {currentPage}/{totalPages}</span>
-                    <button type="button" aria-label="Trang sau" disabled={currentPage === totalPages} onClick={() => setCurrentPage(page => page + 1)}>Sau ›</button>
+                    <button aria-label="Trang trước" disabled={currentPage === 1} onClick={() => setCurrentPage(page => page - 1)}>‹ Trước</button>
+                    <span role="status">Trang {currentPage}/{totalPages}</span>
+                    <button aria-label="Trang sau" disabled={currentPage === totalPages} onClick={() => setCurrentPage(page => page + 1)}>Sau ›</button>
                 </nav>
             )}
 

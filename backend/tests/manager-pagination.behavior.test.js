@@ -195,7 +195,7 @@ test('BEHAVIORAL: search remains substring-compatible and parameterized', async 
   await model.getApproved(5, { search: 'ABC', pagination: { page: 1, page_size: 20, offset: 0 } }, false);
   const call = db.calls.find((entry) => /FROM production_reports pr/.test(entry.sql) && /LIMIT \? OFFSET \?/.test(entry.sql));
   assert.match(call.sql, /w\.worker_code LIKE \?/);
-  assert.equal(call.params.filter((value) => value === '%ABC%').length, 4);
+  assert.equal(call.params.filter((value) => value === '%ABC%').length, 5);
   assert.doesNotMatch(call.sql, /%ABC%/);
 });
 

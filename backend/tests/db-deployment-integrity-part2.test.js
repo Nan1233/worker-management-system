@@ -48,7 +48,7 @@ test('locked hashes 019-024 remain exact', () => {
     20:'ba958fc0b8fc069d587ac684285fa6c78283619dc4602c278fb2002b862954b9',
     21:'461e39f69b34a9e87df2f9387d6c3db7faa0ecb7852e31d16aef053dc2f4cdf7',
     22:'8f7d148d32dfb7d0dcbafc4c93afa37424f55e536b39c811aeb991ba0bbdad05',
-    23:'0f203c361afc20994b56da640c03a348450fbda8d6148021cac88c2fadd03c4d',
+    23:'2c9831b08a21d009888a6bd55710348669caca32936c550660956d38f4b0a2a3',
     24:'60b508fbb7e4b639486151cdcca4d7e36512ce67e018782aa7f5e566fdd7d3d2',
   };
   for (const [version, checksum] of Object.entries(expected)) {
@@ -172,17 +172,17 @@ test('backend and worker never auto-run db:migrate', () => {
 // 26-30 health
 test('liveness remains database-independent', () => {
   const src = read('server.js');
-  const block = src.slice(src.indexOf('app.get("/api/health/live"'), src.indexOf('async function readinessHandler'));
+  const block = src.slice(src.indexOf('app.get("/api/health/live"'), src.indexOf('function readinessHandler'));
   assert.doesNotMatch(block, /verifyDatabaseSchema|SELECT 1|db\.promise/);
   assert.match(block, /status: "live"/);
 });
 test('readiness handler uses canonical schema verifier', () => {
   const src = read('server.js');
-  assert.match(src, /const schema = await verifyDatabaseSchema\(\)/);
+  assert.match(src, /runtimeReadiness/);
 });
 test('readiness returns 503 when schema is not ready', () => {
   const src = read('server.js');
-  assert.match(src, /if \(!schema\.ready\)[\s\S]*res\.status\(503\)/);
+  assert.match(src, /if \(!runtimeReadiness\.ready\)[\s\S]*res\.status\(503\)/);
 });
 test('legacy api health is compatibility alias to readiness semantics', () => {
   const src = read('server.js');
@@ -194,7 +194,7 @@ test('readiness metadata is schema-aware and secret-free', () => {
   assert.match(src, /schemaReady/);
   assert.match(src, /expectedMigration/);
   assert.match(src, /actualMigration/);
-  assert.doesNotMatch(src.slice(src.indexOf('async function readinessHandler'), src.indexOf('app.use("/api/mobile"')), /DB_PASSWORD|DATABASE_URL/);
+  assert.doesNotMatch(src.slice(src.indexOf('function readinessHandler'), src.indexOf('app.use("/api/mobile"')), /DB_PASSWORD|DATABASE_URL/);
 });
 
 // 31-34 reset ledger

@@ -117,6 +117,7 @@ function EditReport() {
                 setLoading(true);
                 setError("");
                 const data = await getReportById(reportId, source);
+                originalUpdatedAtRef.current = source === "approved" ? (data.updated_at || null) : null;
                 const processId = Number(data.process_id);
                 const [defectOptions, deductionOptions] = await Promise.all([
                     processId > 0 ? getDefectOptionsByProcess(processId) : Promise.resolve([]),
@@ -129,7 +130,6 @@ function EditReport() {
                 setActualHours(String(savedHours));
                 setActualMinutes(String(savedMinutes));
 
-                originalUpdatedAtRef.current = source === "approved" ? (data.updated_at || null) : null;
                 setForm({
                     ...data,
                     work_date: String(data.work_date || "").slice(0, 10),
@@ -199,6 +199,11 @@ function EditReport() {
             setSaving(true);
             setError("");
 
+            if (source === "approved" && !originalUpdatedAtRef.current) {
+                setError("Báo cáo thiếu thông tin phiên bản cập nhật. Vui lòng tải lại dữ liệu trước khi lưu.");
+                return;
+            }
+
             if (source === "approved" && !changeReason.trim()) {
                 setError("Vui lòng nhập lý do chỉnh sửa báo cáo đã duyệt.");
                 return;
@@ -227,15 +232,8 @@ function EditReport() {
                 }))
             };
 
-            if (source === "approved" && !originalUpdatedAtRef.current) {
-                setError("Báo cáo thiếu thông tin phiên bản cập nhật. Vui lòng tải lại dữ liệu trước khi lưu.");
-                return;
-            }
-
             const result = await updateReport(reportId, payload, source, originalUpdatedAtRef.current);
-            if (source === "approved") {
-                originalUpdatedAtRef.current = result?.data?.updated_at || originalUpdatedAtRef.current;
-            }
+            originalUpdatedAtRef.current = result?.data?.updated_at || originalUpdatedAtRef.current;
             showToast("Cập nhật đầy đủ chi tiết báo cáo thành công", "success");
             navigate(-1);
         } catch (err: any) {
@@ -288,7 +286,7 @@ function EditReport() {
                     <label>Thời gian thực tế (giờ)<input type="number" value={numberValue(form.actual_time).toFixed(3)} readOnly /></label>
                     <label>Tổng thời gian trừ (giờ)<input type="number" value={deductionTotal.toFixed(3)} readOnly /></label>
                     <label>Tổng thời gian (giờ)<input type="number" value={(numberValue(form.actual_time) + deductionTotal).toFixed(3)} readOnly /></label>
-                    <label>Định mức<input type="number" min="0.000001" step="any" inputMode="decimal" value={numberValue(form.standard_output)} readOnly /></label>
+                    <label>Định mức<input type="number" min="0.000001" step="0.000001" inputMode="decimal" value={numberValue(form.standard_output)} readOnly /></label>
                     <label>TT OK<input type="number" min="0" step="1" value={numberValue(form.tt_ok)} onChange={(e) => { const ok = numberValue(e.target.value); setForm({ ...form, tt_ok: ok, actual_output: ok + defectTotal }); }} /></label>
                     <label>TT NG<input type="number" value={defectTotal} readOnly /></label>
                     <label>Thực tế<input type="number" value={numberValue(form.tt_ok) + defectTotal} readOnly /></label>

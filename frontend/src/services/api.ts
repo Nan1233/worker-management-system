@@ -8,6 +8,17 @@ import type {
 } from "axios";
 
 import { API_BASE_URL, REQUEST_TIMEOUT_MS } from "../config/env";
+import {
+    isRetryableTransientFailure,
+    transientRetryDelayMs,
+    waitForTransientRetry,
+} from "../utils/transientRequestPolicy";
+import { emitRequestRetry } from "./requestRecoveryEvents";
+import {
+    AUTH_EPOCH_CHANGED_EVENT,
+    CONNECTION_LOST_EVENT,
+    CONNECTION_RESTORED_EVENT,
+} from "./authRuntimeEvents";
 
 import {
     bumpAuthEpoch,
@@ -31,7 +42,6 @@ import type {
 
 import {
     coordinateBrowserRefresh,
-    CrossTabRefreshFailure,
     type CoordinatedRefreshFailure,
     type CoordinatedRefreshSuccess
 } from "./authRefreshCoordinator";
@@ -50,6 +60,7 @@ interface RetryableRequestConfig
     _retry?: boolean;
     _skipProactiveRefresh?: boolean;
     _authGeneration?: number;
+    _transientRetryCount?: number;
 }
 
 interface RefreshResponse {
@@ -58,7 +69,6 @@ interface RefreshResponse {
     accessToken?: string;
     expiresIn?: string;
     user?: AuthUser;
-    refreshToken?: string;
 }
 
 const TOKEN_REFRESH_LEEWAY_MS = 2 * 60 * 1000;
@@ -138,50 +148,25 @@ function shouldRefreshAccessToken(token: string): boolean {
     return expiresAt - Date.now() <= TOKEN_REFRESH_LEEWAY_MS;
 }
 
-function refreshErrorCode(error: unknown): string | undefined {
-    if (error instanceof CrossTabRefreshFailure) {
-        return error.failure.code;
-    }
-    if (!axios.isAxiosError(error)) return undefined;
-    const data = error.response?.data as { code?: string } | undefined;
-    return data?.code;
-}
-
-const DEFINITIVE_REFRESH_CODES = new Set([
-    "REFRESH_TOKEN_INVALID",
-    "REFRESH_TOKEN_EXPIRED",
-    "REFRESH_TOKEN_REVOKED",
-    "REFRESH_TOKEN_REUSE_DETECTED",
-    "REFRESH_TOKEN_RELOGIN_REQUIRED",
-    "SESSION_USER_DISABLED",
-    "USER_INACTIVE",
-    "WORKER_INACTIVE"
-]);
-
 function isConfirmedInvalidRefresh(error: unknown): boolean {
-    if (error instanceof CrossTabRefreshFailure) {
-        return error.failure.kind === "auth";
-    }
     if (!axios.isAxiosError(error)) return false;
 
     const status = error.response?.status;
-    const code = refreshErrorCode(error);
+    const data = error.response?.data as
+        | { code?: string }
+        | undefined;
 
     return (
         status === 400 ||
         status === 401 ||
         status === 403 ||
-        Boolean(code && DEFINITIVE_REFRESH_CODES.has(code))
+        data?.code === "REFRESH_TOKEN_INVALID" ||
+        data?.code === "REFRESH_TOKEN_REUSE_DETECTED" ||
+        data?.code === "REFRESH_TOKEN_RELOGIN_REQUIRED" ||
+        data?.code === "SESSION_USER_DISABLED" ||
+        data?.code === "REFRESH_TOKEN_EXPIRED" ||
+        data?.code === "REFRESH_TOKEN_REVOKED"
     );
-}
-
-function classifyRefreshFailure(error: unknown): CoordinatedRefreshFailure {
-    const code = refreshErrorCode(error);
-    return {
-        kind: isConfirmedInvalidRefresh(error) ? "auth" : "transient",
-        code,
-        message: error instanceof Error ? error.message : undefined
-    };
 }
 
 function redirectToLogin(): void {
@@ -202,6 +187,78 @@ function invalidateSessionAndRedirect(): void {
     redirectToLogin();
 }
 
+function classifyRefreshFailure(error: unknown): CoordinatedRefreshFailure {
+    if (isConfirmedInvalidRefresh(error)) {
+        const data = axios.isAxiosError(error) ? error.response?.data as { code?: string; message?: string } | undefined : undefined;
+        return { kind: "auth", code: data?.code, message: data?.message };
+    }
+    return { kind: "transient", message: error instanceof Error ? error.message : "Refresh tạm thời thất bại" };
+}
+
+async function performNetworkRefresh(): Promise<CoordinatedRefreshSuccess> {
+    const refreshToken = getRefreshToken();
+    const generationAtStart = authGeneration;
+    const epochAtStart = getAuthEpoch();
+    const sessionIdAtStart = getAuthSessionId();
+
+    refreshAbortController = new AbortController();
+    const response = await axios.post<RefreshResponse>(
+        `${API_BASE_URL}/auth/refresh`,
+        refreshToken ? { refreshToken } : {},
+        {
+            timeout: REFRESH_REQUEST_TIMEOUT_MS,
+            withCredentials: true,
+            headers: { "Content-Type": "application/json" },
+            signal: refreshAbortController.signal
+        }
+    );
+
+    const newAccessToken = response.data.accessToken || response.data.token;
+    if (!newAccessToken) throw new Error("Backend không trả về access token mới");
+
+    if (
+        generationAtStart !== authGeneration ||
+        epochAtStart !== getAuthEpoch() ||
+        loginTransitionActive ||
+        (refreshToken && refreshToken !== getRefreshToken()) ||
+        sessionIdAtStart !== getAuthSessionId()
+    ) {
+        throw new axios.CanceledError("Kết quả refresh thuộc phiên cũ đã bị bỏ qua.");
+    }
+
+    const currentUser = getStoredUser();
+    const refreshedUser = response.data.user;
+    if (currentUser && refreshedUser && currentUser.id !== refreshedUser.id) {
+        clearCurrentTabAuthSession();
+        throw new axios.CanceledError("Phiên làm mới thuộc tài khoản khác. Tab hiện tại đã được đăng xuất.");
+    }
+
+    if (isElectronRuntime()) {
+        if (!response.data.refreshToken) {
+            throw new Error("ELECTRON_REFRESH_TOKEN_SUCCESSOR_MISSING");
+        }
+        try {
+            setRefreshToken(response.data.refreshToken);
+        } catch {
+            clearAuthSession();
+            redirectToLogin();
+            throw new Error("ELECTRON_REFRESH_TOKEN_PERSIST_FAILED");
+        }
+    }
+
+    saveAuthSession({
+        accessToken: newAccessToken,
+        user: refreshedUser,
+        sessionId: sessionIdAtStart || undefined
+    });
+    clearLegacyRefreshToken();
+
+    return {
+            accessToken: newAccessToken,
+            user: refreshedUser
+    };
+}
+
 export async function refreshAccessToken(
     force = false
 ): Promise<string> {
@@ -213,133 +270,33 @@ export async function refreshAccessToken(
         return refreshPromise;
     }
 
-    if (
-        !force &&
-        Date.now() < transientRefreshBlockedUntil
-    ) {
-        throw new Error(
-            "Backend đang khởi động lại. Giữ nguyên phiên đăng nhập."
-        );
+    if (!force && Date.now() < transientRefreshBlockedUntil) {
+        throw new Error("Backend đang khởi động lại. Giữ nguyên phiên đăng nhập.");
     }
 
-    const generationAtStart = authGeneration;
-    const epochAtStart = getAuthEpoch();
-    const sessionIdAtStart = getAuthSessionId();
-
-    const performNetworkRefresh = async (): Promise<CoordinatedRefreshSuccess> => {
-        const refreshToken = getRefreshToken();
-        refreshAbortController = new AbortController();
-
-        const response = await axios.post<RefreshResponse>(
-            `${API_BASE_URL}/auth/refresh`,
-            refreshToken ? { refreshToken } : {},
-            {
-                timeout: REFRESH_REQUEST_TIMEOUT_MS,
-                withCredentials: true,
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                signal: refreshAbortController.signal
-            }
-        );
-
-        const newAccessToken = response.data.accessToken || response.data.token;
-        if (!newAccessToken) {
-            throw new Error("Backend không trả về access token mới");
-        }
-
-        if (
-            generationAtStart !== authGeneration ||
-            epochAtStart !== getAuthEpoch() ||
-            loginTransitionActive ||
-            sessionIdAtStart !== getAuthSessionId()
-        ) {
-            throw new axios.CanceledError(
-                "Kết quả refresh thuộc phiên cũ đã bị bỏ qua."
-            );
-        }
-
-        const currentUser = getStoredUser();
-        const refreshedUser = response.data.user;
-        if (
-            currentUser &&
-            refreshedUser &&
-            currentUser.id !== refreshedUser.id
-        ) {
-            clearCurrentTabAuthSession();
-            throw new axios.CanceledError(
-                "Phiên làm mới thuộc tài khoản khác. Tab hiện tại đã được đăng xuất."
-            );
-        }
-
-        // Electron refresh tokens are one-time. Persist R2 synchronously before
-        // publishing the new access token or resolving refreshPromise. If this
-        // write fails, R1 is already consumed server-side and the only safe
-        // recovery is a fresh login. Normal web never receives a body token.
-        if (isElectronRuntime()) {
-            if (!response.data.refreshToken) {
-                clearAuthSession();
-                redirectToLogin();
-                throw new Error("ELECTRON_REFRESH_TOKEN_SUCCESSOR_MISSING");
-            }
-            try {
-                setRefreshToken(response.data.refreshToken);
-            } catch {
-                clearAuthSession();
-                redirectToLogin();
-                throw new Error("ELECTRON_REFRESH_TOKEN_PERSIST_FAILED");
-            }
-        }
-
-        return {
-            accessToken: newAccessToken,
-            user: refreshedUser
-        };
-    };
-
-    const coordinatedRefresh = async (): Promise<CoordinatedRefreshSuccess> => {
-        // Electron currently creates a single renderer BrowserWindow. Keep its
-        // refresh in the existing same-renderer single-flight path; cross-tab
-        // browser coordination is only needed for shared HttpOnly cookies.
-        if (isElectronRuntime()) {
-            return performNetworkRefresh();
-        }
-        return coordinateBrowserRefresh(performNetworkRefresh, classifyRefreshFailure);
-    };
-
-    refreshPromise = coordinatedRefresh()
-        .then((result) => {
-            const currentUser = getStoredUser();
-            if (currentUser && result.user && currentUser.id !== result.user.id) {
-                clearCurrentTabAuthSession();
-                throw new axios.CanceledError(
-                    "Phiên làm mới thuộc tài khoản khác. Tab hiện tại đã được đăng xuất."
-                );
-            }
-
-            saveAuthSession({
-                accessToken: result.accessToken,
-                user: result.user,
-                sessionId: sessionIdAtStart || undefined
-            });
-
-            clearLegacyRefreshToken();
+    const coordinatedRefresh = async (): Promise<string> => {
+        try {
+            const result = isElectronRuntime()
+                ? await performNetworkRefresh()
+                : await coordinateBrowserRefresh(performNetworkRefresh, classifyRefreshFailure);
             transientRefreshBlockedUntil = 0;
             redirectingToLogin = false;
             return result.accessToken;
-        })
-        .catch((error: unknown) => {
+        } catch (error) {
             if (isConfirmedInvalidRefresh(error)) {
                 invalidateSessionAndRedirect();
-            } else if (!(axios.isCancel(error))) {
-                transientRefreshBlockedUntil =
-                    Date.now() + TRANSIENT_REFRESH_COOLDOWN_MS;
+            } else {
+                transientRefreshBlockedUntil = Date.now() + TRANSIENT_REFRESH_COOLDOWN_MS;
             }
             throw error;
-        })
+        } finally {
+            refreshAbortController = null;
+        }
+    };
+
+    refreshPromise = coordinatedRefresh()
         .finally(() => {
             refreshPromise = null;
-            refreshAbortController = null;
         });
 
     return refreshPromise;
@@ -458,6 +415,45 @@ api.interceptors.response.use(
 
         const status = error.response?.status;
         const requestUrl = originalRequest.url || "";
+
+        const transientRetryCount =
+            originalRequest._transientRetryCount || 0;
+        const retryAfterHeader =
+            error.response?.headers?.["retry-after"] ??
+            null;
+
+        if (
+            isRetryableTransientFailure({
+                method: originalRequest.method,
+                status,
+                code: error.code,
+                retryCount: transientRetryCount,
+                retryAfterHeader: String(retryAfterHeader || "") || null,
+            })
+        ) {
+            const delayMs = transientRetryDelayMs({
+                method: originalRequest.method,
+                status,
+                code: error.code,
+                retryCount: transientRetryCount,
+                retryAfterHeader: String(retryAfterHeader || "") || null,
+            });
+
+            originalRequest._transientRetryCount =
+                transientRetryCount + 1;
+
+            emitRequestRetry({
+                method: String(
+                    originalRequest.method || "GET"
+                ).toUpperCase(),
+                path: requestUrl,
+                delayMs,
+                status,
+            });
+
+            await waitForTransientRetry(delayMs);
+            return api.request(originalRequest);
+        }
         const isAuthRequest =
             requestUrl.includes("/auth/login") ||
             requestUrl.includes("/auth/refresh") ||
@@ -515,7 +511,7 @@ function scheduleConnectionRestore(): void {
         try {
             await refreshAccessToken(true);
             window.dispatchEvent(
-                new CustomEvent("ktc:connection-restored")
+                new CustomEvent(CONNECTION_RESTORED_EVENT)
             );
         } catch {
             // Giu nguyen phien; request tiep theo se thu lai.
@@ -538,7 +534,7 @@ if (typeof window !== "undefined") {
         // cannot continue making authenticated requests until JWT expiry.
         clearCurrentTabAuthSession();
         sessionStorage.setItem(CROSS_TAB_LOGIN_MARKER_KEY, "1");
-        window.dispatchEvent(new CustomEvent("ktc:auth-epoch-changed"));
+        window.dispatchEvent(new CustomEvent(AUTH_EPOCH_CHANGED_EVENT));
 
         const currentRoute = window.location.hash.replace(/^#/, "") || "/";
         if (!/^\/login(?:\/|$)/.test(currentRoute)) {
@@ -552,7 +548,7 @@ if (typeof window !== "undefined") {
 
     window.addEventListener("offline", () => {
         window.dispatchEvent(
-            new CustomEvent("ktc:connection-lost")
+            new CustomEvent(CONNECTION_LOST_EVENT)
         );
     });
 }

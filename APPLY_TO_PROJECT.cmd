@@ -27,8 +27,8 @@ if exist "%~dp0FULL_STABILIZATION_CHANGED_FILES_20260810.txt" copy /Y "%~dp0FULL
 echo [KTC] Da chep patch demo vao: %ROOT%
 echo [KTC] Tiep theo chay:
 echo   cd /d %ROOT%
-echo   npm --prefix backend run db:migrate
-echo   npm --prefix backend run db:demo-schema
+echo   npm run release:db
+echo   rem db:demo-schema is a legacy/manual development helper; do not use for production release
 echo   npm --prefix frontend run typecheck
 echo   npm --prefix frontend run build
 echo   npm --prefix backend run verify

@@ -98,7 +98,7 @@ export default function ProductionDetail() {
                     </>
                 ) : (
                     <div className="metric-grid">
-                        <div><span>Định mức</span><strong>{quantity(report.standard_output)}</strong></div>
+                        <div><span>Định mức</span><strong>{number(report.standard_output)}</strong></div>
                         <div><span>Sản lượng thực tế</span><strong>{quantity(report.actual_output)}</strong></div>
                         <div className="ok"><span>OK</span><strong>{quantity(report.tt_ok)}</strong></div>
                         <div className="ng"><span>Tổng NG</span><strong>{quantity(report.tt_ng)}</strong></div>

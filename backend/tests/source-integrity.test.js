@@ -148,7 +148,7 @@ test('monthly workbook uses database snapshots and report_id details', () => {
   );
   assert.match(source, /INTEGER:\s*'#,##0;-#,##0;0'/);
   assert.match(source, /DECIMAL:\s*'#,##0\.##;-#,##0\.##;0'/);
-  assert.match(source, /RATE:\s*'#,##0\.######;-#,##0\.######;0'/);
+  assert.match(source, /RATE:\s*'#,##0\.##;-#,##0\.##;0'/);
   assert.match(engine, /asNumber\(report\.standard_output\)/);
   assert.match(source, /productDisplay\(report\)/);
   assert.doesNotMatch(source, /training_percent\s*\|\|\s*100/);

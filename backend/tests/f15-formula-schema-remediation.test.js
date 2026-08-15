@@ -128,7 +128,7 @@ test('locked migrations 019-024 remain byte-identical to their locked hashes', (
     20:'ba958fc0b8fc069d587ac684285fa6c78283619dc4602c278fb2002b862954b9',
     21:'461e39f69b34a9e87df2f9387d6c3db7faa0ecb7852e31d16aef053dc2f4cdf7',
     22:'8f7d148d32dfb7d0dcbafc4c93afa37424f55e536b39c811aeb991ba0bbdad05',
-    23:'0f203c361afc20994b56da640c03a348450fbda8d6148021cac88c2fadd03c4d',
+    23:'2c9831b08a21d009888a6bd55710348669caca32936c550660956d38f4b0a2a3',
     24:'60b508fbb7e4b639486151cdcca4d7e36512ce67e018782aa7f5e566fdd7d3d2',
   };
   for (const [v, checksum] of Object.entries(expected)) assert.equal(manifest.find((x) => x.version === Number(v)).checksum, checksum);

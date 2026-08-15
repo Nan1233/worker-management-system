@@ -13,7 +13,7 @@ const source = fs.readFileSync(
 test('monthly workbook hides unnecessary trailing decimal zeros', () => {
   assert.match(source, /INTEGER:\s*'#,##0;-#,##0;0'/);
   assert.match(source, /DECIMAL:\s*'#,##0\.##;-#,##0\.##;0'/);
-  assert.match(source, /RATE:\s*'#,##0\.######;-#,##0\.######;0'/);
+  assert.match(source, /RATE:\s*'#,##0\.##;-#,##0\.##;0'/);
   assert.match(source, /PERCENT:\s*'0\.##%;-0\.##%;0%'/);
 });
 

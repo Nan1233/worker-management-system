@@ -26,10 +26,22 @@ import { useToast } from "../../components/feedback/toastContext";
 import { getStoredUser } from "../../utils/authStorage";
 import { usePermissions } from "../../hooks/usePermissions";
 
+import {
+    getDateRangeForMode,
+    getToday,
+    type DateFilterMode,
+} from "./managerReportDateLogic";
+import { getManagerReportDuplicateKey as duplicateKey } from "./managerReportSearchLogic";
+import { getManagerReportRowNumber } from "./managerReportPagination";
+import {
+    getValidReportIds,
+    reconcileSelectedReportIds,
+    toggleCurrentPageIds,
+    toggleReportId,
+} from "./managerReportSelection";
+
 import "./Reports.css";
 
-
-const ITEMS_PER_PAGE = 20;
 
 const REJECT_REASONS = [
     "Báo cáo trùng",
@@ -39,129 +51,6 @@ const REJECT_REASONS = [
     "Thiếu dữ liệu",
     "Lý do khác"
 ];
-
-type DateFilterMode =
-    | "today"
-    | "yesterday"
-    | "week"
-    | "currentMonth"
-    | "month"
-    | "range"
-    | "all";
-
-const toLocalDateString = (value: Date): string => {
-    const offset = value.getTimezoneOffset();
-    return new Date(value.getTime() - offset * 60_000)
-        .toISOString()
-        .split("T")[0];
-};
-
-const getDateRangeForMode = (
-    mode: DateFilterMode,
-    selectedMonth: string,
-    dateFrom: string,
-    dateTo: string
-): { dateFrom?: string; dateTo?: string } => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-    if (mode === "all") return {};
-    if (mode === "range") return { dateFrom: dateFrom || undefined, dateTo: dateTo || undefined };
-
-    if (mode === "month" && selectedMonth) {
-        const [year, month] = selectedMonth.split("-").map(Number);
-        const lastDay = new Date(year, month, 0).getDate();
-        return {
-            dateFrom: `${selectedMonth}-01`,
-            dateTo: `${selectedMonth}-${String(lastDay).padStart(2, "0")}`
-        };
-    }
-
-    if (mode === "yesterday") {
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-        const value = toLocalDateString(yesterday);
-        return { dateFrom: value, dateTo: value };
-    }
-
-    if (mode === "week") {
-        const start = new Date(today);
-        const day = start.getDay() || 7;
-        start.setDate(start.getDate() - day + 1);
-        return { dateFrom: toLocalDateString(start), dateTo: toLocalDateString(today) };
-    }
-
-    if (mode === "currentMonth") {
-        const start = new Date(today.getFullYear(), today.getMonth(), 1);
-        const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-        return { dateFrom: toLocalDateString(start), dateTo: toLocalDateString(end) };
-    }
-
-    const value = toLocalDateString(today);
-    return { dateFrom: value, dateTo: value };
-};
-
-
-// =====================================================
-// LẤY NGÀY HIỆN TẠI THEO MÚI GIỜ LOCAL
-// =====================================================
-
-const getToday = (): string => {
-    const now = new Date();
-
-    const offset = now.getTimezoneOffset();
-
-    return new Date(
-        now.getTime() - offset * 60_000
-    )
-        .toISOString()
-        .split("T")[0];
-};
-
-
-// =====================================================
-// ĐỊNH DẠNG NGÀY
-// =====================================================
-
-
-
-// =====================================================
-// CHUẨN HÓA CHUỖI TÌM KIẾM
-// =====================================================
-
-const normalizeText = (
-    value?: string | number | null
-): string =>
-    String(value ?? "")
-        .trim()
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(
-            /[\u0300-\u036f]/g,
-            ""
-        )
-        .replace(
-            /đ/g,
-            "d"
-        );
-
-
-// =====================================================
-// TẠO KHÓA KIỂM TRA BÁO CÁO TRÙNG
-// =====================================================
-
-const duplicateKey = (
-    report: ProductionReport
-): string =>
-    [
-        String(report.work_date || "").slice(0, 10),
-        report.worker_code,
-        report.machine_no,
-        report.product_name
-    ]
-        .map(normalizeText)
-        .join("|");
-
 
 function Reports() {
     const { can } = usePermissions();
@@ -173,10 +62,10 @@ function Reports() {
     const currentUser = getStoredUser();
 
     const basePath =
-        currentUser?.role === "lead"
-            ? "/lead"
-            : currentUser?.role === "admin"
-                ? "/admin"
+        currentUser?.role === "admin"
+            ? "/admin"
+            : currentUser?.role === "lead"
+                ? "/lead"
                 : "/manager";
 
 
@@ -218,6 +107,7 @@ function Reports() {
         searchKeyword,
         setSearchKeyword
     ] = useState("");
+
     const [searchQuery, setSearchQuery] = useState("");
 
     const [
@@ -234,30 +124,22 @@ function Reports() {
         currentPage,
         setCurrentPage
     ] = useState(1);
-
     const [totalCount, setTotalCount] = useState(0);
     const [totalPages, setTotalPages] = useState(1);
-    const [processes, setProcesses] = useState<string[]>([]);
-    const [previousDateCount, setPreviousDateCount] = useState(0);
-    const [selectedTargetVersions, setSelectedTargetVersions] = useState<Record<number, string | null>>({});
+    const reportLoadSeqRef = useRef(0);
     const actionLockRef = useRef(false);
-
-
-    // =====================================================
-    // TẢI BÁO CÁO CHỜ DUYỆT THEO NGÀY HOẶC TOÀN BỘ
-    // =====================================================
 
     useEffect(() => {
         const timer = window.setTimeout(() => {
-            setCurrentPage(1);
-            setSelectedIds([]);
-            setSelectedTargetVersions({});
             setSearchQuery(searchKeyword.trim());
         }, 250);
         return () => window.clearTimeout(timer);
     }, [searchKeyword]);
 
-    const reportLoadSeqRef = useRef(0);
+
+    // =====================================================
+    // TẢI BÁO CÁO CHỜ DUYỆT THEO NGÀY HOẶC TOÀN BỘ
+    // =====================================================
 
     const activeDateRange = useMemo(
         () => getDateRangeForMode(dateMode, selectedMonth, dateFrom, dateTo),
@@ -270,7 +152,6 @@ function Reports() {
         try {
             setLoading(true);
             setError("");
-
             const result = await getPendingReports({
                 dateFrom: activeDateRange.dateFrom,
                 dateTo: activeDateRange.dateTo,
@@ -278,19 +159,13 @@ function Reports() {
                 processName: selectedProcess || undefined,
                 search: searchQuery || undefined,
                 page: currentPage,
-                pageSize: ITEMS_PER_PAGE
+                pageSize: 20,
             });
-
             if (!isCurrentRequest()) return;
-            setReports(result.items);
+            setReports(result.data);
             setTotalCount(result.pagination.total);
             setTotalPages(result.pagination.total_pages);
-            setProcesses(result.processes);
-            setPreviousDateCount(result.previousCount || 0);
-
-            if (currentPage > result.pagination.total_pages) {
-                setCurrentPage(result.pagination.total_pages);
-            }
+            setSelectedIds(previousIds => reconcileSelectedReportIds(previousIds, result.data));
         } catch (err: unknown) {
             if (!isCurrentRequest()) return;
             console.error("GET PENDING REPORTS ERROR:", err);
@@ -301,27 +176,48 @@ function Reports() {
             setReports([]);
             setTotalCount(0);
             setTotalPages(1);
+            setSelectedIds([]);
         } finally {
             if (isCurrentRequest()) setLoading(false);
         }
-    }, [
-        activeDateRange.dateFrom,
-        activeDateRange.dateTo,
-        selectedShift,
-        selectedProcess,
-        searchQuery,
-        currentPage
-    ]);
+    }, [activeDateRange.dateFrom, activeDateRange.dateTo, selectedShift, selectedProcess, searchQuery, currentPage]);
 
     useEffect(() => {
-        void loadReports();
+        queueMicrotask(() => {
+            setSelectedIds([]);
+            void loadReports();
+        });
     }, [loadReports]);
 
-    useEffect(() => {
-        setCurrentPage(1);
-        setSelectedIds([]);
-        setSelectedTargetVersions({});
-    }, [selectedShift, selectedProcess, dateMode, selectedMonth, dateFrom, dateTo]);
+    const previousDateCount = useMemo(() => {
+        if (dateMode !== "all") return 0;
+        return reports.filter(report => String(report.work_date || "").slice(0, 10) < getToday()).length;
+    }, [reports, dateMode]);
+
+    // =====================================================
+    // DANH SÁCH CÔNG ĐOẠN
+    // =====================================================
+
+    const processes = useMemo(
+        () =>
+            Array.from(
+                new Set(
+                    reports
+                        .map(
+                            item =>
+                                item.process_name
+                        )
+                        .filter(
+                            (
+                                process
+                            ): process is string =>
+                                Boolean(process)
+                        )
+                )
+            ).sort(),
+        [reports]
+    );
+
 
     // =====================================================
     // ĐẾM BÁO CÁO TRÙNG
@@ -355,22 +251,19 @@ function Reports() {
     }, [reports]);
 
 
-    // Filtering/search/pagination are server-side. The current `reports` array
-    // contains only the requested page.
+    // Server đã áp dụng filter và pagination; trang chỉ render đúng snapshot trả về.
+    useEffect(() => {
+        queueMicrotask(() => {
+            setCurrentPage(1);
+            setSelectedIds([]);
+        });
+    }, [selectedShift, selectedProcess, dateMode, selectedMonth, dateFrom, dateTo, searchQuery]);
+
+    const paginatedReports = reports;
 
     const currentPageIds = useMemo(
-        () =>
-            reports
-                .map(
-                    report =>
-                        Number(report.id)
-                )
-                .filter(
-                    id =>
-                        Number.isInteger(id) &&
-                        id > 0
-                ),
-        [reports]
+        () => getValidReportIds(paginatedReports),
+        [paginatedReports]
     );
 
 
@@ -379,17 +272,14 @@ function Reports() {
         [selectedIds]
     );
 
-    const reviewTargetForReport = (report: ProductionReport) => ({
-        id: Number(report.id),
-        expected_updated_at: report.updated_at || null
-    });
-
     const selectedReviewTargets = useMemo(
-        () => selectedIds.map((id) => ({
-            id,
-            expected_updated_at: selectedTargetVersions[id] || null
-        })),
-        [selectedIds, selectedTargetVersions]
+        () => reports
+            .filter((report) => selectedIdSet.has(Number(report.id)))
+            .map((report) => ({
+                id: Number(report.id),
+                expected_updated_at: report.updated_at || null
+            })),
+        [reports, selectedIdSet]
     );
 
 
@@ -414,38 +304,10 @@ function Reports() {
     // CHỌN MỘT BÁO CÁO
     // =====================================================
 
-    const toggleSelectReport = (
-        reportId: number
-    ) => {
-        if (
-            !Number.isInteger(reportId) ||
-            reportId <= 0
-        ) {
-            return;
-        }
-
-        const report = reports.find(item => Number(item.id) === reportId);
-        setSelectedTargetVersions(previous => {
-            const next = { ...previous };
-            if (selectedIdSet.has(reportId)) delete next[reportId];
-            else if (report) next[reportId] = reviewTargetForReport(report).expected_updated_at;
-            return next;
-        });
-
-        setSelectedIds(previousIds => {
-            if (
-                previousIds.includes(reportId)
-            ) {
-                return previousIds.filter(
-                    id => id !== reportId
-                );
-            }
-
-            return [
-                ...previousIds,
-                reportId
-            ];
-        });
+    const toggleSelectReport = (reportId: number) => {
+        setSelectedIds((previousIds) =>
+            toggleReportId(previousIds, reportId)
+        );
     };
 
 
@@ -454,34 +316,13 @@ function Reports() {
     // =====================================================
 
     const toggleSelectCurrentPage = () => {
-        setSelectedTargetVersions(previous => {
-            const next = { ...previous };
-            if (isAllCurrentPageSelected) {
-                currentPageIds.forEach(id => delete next[id]);
-            } else {
-                reports.forEach(report => {
-                    const id = Number(report.id);
-                    if (Number.isInteger(id) && id > 0) next[id] = reviewTargetForReport(report).expected_updated_at;
-                });
-            }
-            return next;
-        });
-        setSelectedIds(previousIds => {
-            const previousSet =
-                new Set(previousIds);
-
-            if (isAllCurrentPageSelected) {
-                currentPageIds.forEach(
-                    id => previousSet.delete(id)
-                );
-            } else {
-                currentPageIds.forEach(
-                    id => previousSet.add(id)
-                );
-            }
-
-            return Array.from(previousSet);
-        });
+        setSelectedIds((previousIds) =>
+            toggleCurrentPageIds(
+                previousIds,
+                currentPageIds,
+                isAllCurrentPageSelected
+            )
+        );
     };
 
 
@@ -530,8 +371,8 @@ function Reports() {
             return;
         }
 
+        actionLockRef.current = true;
         try {
-            actionLockRef.current = true;
             setActionLoading(true);
 
             await approveSelectedTempReports(
@@ -541,7 +382,6 @@ function Reports() {
             showToast(`Đã duyệt ${selectedIds.length} báo cáo`, "success");
 
             setSelectedIds([]);
-            setSelectedTargetVersions({});
 
             sessionStorage.removeItem(
                 "selectedPendingReportIds"
@@ -584,15 +424,14 @@ function Reports() {
             return;
         }
 
+        actionLockRef.current = true;
         try {
-            actionLockRef.current = true;
             setActionLoading(true);
             await rejectSelectedTempReports(selectedReviewTargets, reason);
             showToast(`Đã từ chối ${selectedIds.length} báo cáo`, "success");
             setRejectOpen(false);
             setRejectDetail("");
             setSelectedIds([]);
-            setSelectedTargetVersions({});
             sessionStorage.removeItem("selectedPendingReportIds");
             await loadReports();
         } catch (err: unknown) {
@@ -659,7 +498,7 @@ function Reports() {
 
             <div className="management-filter-card">
                 <div className="management-search-box">
-                    <span aria-hidden="true">
+                    <span>
                         ⌕
                     </span>
 
@@ -670,7 +509,7 @@ function Reports() {
                                 event.target.value
                             )
                         }
-                        aria-label="Tìm báo cáo theo mã, tên công nhân, máy hoặc sản phẩm"
+                        aria-label="Tìm báo cáo chờ duyệt"
                         placeholder="Tìm mã, tên công nhân, máy, sản phẩm..."
                     />
                 </div>
@@ -883,7 +722,7 @@ function Reports() {
 
 
             {error && (
-                <div className="management-error" role="alert">
+                <div className="management-error">
                     {error}
                 </div>
             )}
@@ -891,11 +730,11 @@ function Reports() {
 
             <div className="management-report-card">
                 {loading ? (
-                    <div className="management-empty" role="status" aria-live="polite">
+                    <div className="management-empty">
                         Đang tải...
                     </div>
-                ) : reports.length === 0 ? (
-                    <div className="management-empty" role="status">
+                ) : paginatedReports.length === 0 ? (
+                    <div className="management-empty">
                         Không có báo cáo phù hợp
                     </div>
                 ) : (
@@ -934,7 +773,7 @@ function Reports() {
                             </thead>
 
                             <tbody>
-                                {reports.map(
+                                {paginatedReports.map(
                                     (
                                         report,
                                         index
@@ -1012,13 +851,10 @@ function Reports() {
 
                                                 <td>
                                                     {
-                                                        (
-                                                            currentPage -
-                                                            1
-                                                        ) *
-                                                            ITEMS_PER_PAGE +
-                                                        index +
-                                                        1
+                                                        getManagerReportRowNumber(
+                                                            currentPage,
+                                                            index
+                                                        )
                                                     }
                                                 </td>
 
@@ -1082,7 +918,7 @@ function Reports() {
                         ‹ Trước
                     </button>
 
-                    <span>
+                    <span role="status">
                         Trang {currentPage}/
                         {totalPages}
                     </span>

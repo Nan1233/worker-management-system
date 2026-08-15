@@ -66,8 +66,8 @@ export async function getReportVersions(id:number,type:'temp'|'approved'='approv
  return r.data.data as ReportVersion[];
 }
 
-export async function restoreApprovedReportVersion(id:number,versionNo:number,reason:string,expectedUpdatedAt?:string|null){
- const r=await api.post(`/production/${id}/versions/${versionNo}/restore`,{reason,expected_updated_at:expectedUpdatedAt||undefined});
+export async function restoreApprovedReportVersion(id:number,versionNo:number,reason:string,expectedUpdatedAt:string|null){
+ const r=await api.post(`/production/${id}/versions/${versionNo}/restore`,{reason,expected_updated_at:expectedUpdatedAt});
  return r.data;
 }
 
@@ -98,7 +98,25 @@ export async function getDeletedReports(){
 export interface ObservabilitySnapshot {
   startedAt:string;
   uptimeSeconds:number;
-  http:{requests:number;errors4xx:number;errors5xx:number;slowRequests:number;averageDurationMs:number;maxDurationMs:number;byStatus:Record<string,number>};
+  http:{
+    requests:number;
+    errors4xx:number;
+    errors5xx:number;
+    slowRequests:number;
+    slowRequestThresholdMs?:number;
+    averageDurationMs:number;
+    p95DurationMs?:number;
+    maxDurationMs:number;
+    byStatus:Record<string,number>;
+    slowestRoutes?:Array<{
+      route:string;
+      count:number;
+      errors:number;
+      slowRequests:number;
+      averageDurationMs:number;
+      maxDurationMs:number;
+    }>;
+  };
   memory:{rssMb:number;heapUsedMb:number;heapTotalMb:number};
   database:{status:string;latencyMs?:number};
   recentErrors:Array<{requestId?:string;method?:string;path?:string;status?:number;at?:string}>;

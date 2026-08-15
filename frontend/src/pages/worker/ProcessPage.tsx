@@ -21,7 +21,6 @@ import "./ProcessPage.css";
 
 import {
     createTempReport,
-    updateTempReport,
 } from "../../services/productionService";
 
 import {
@@ -32,14 +31,6 @@ import {
 import type {
     WorkerProfile
 } from "../../types/worker";
-import type { ProductionReport } from "../../types/production";
-import {
-    getCachedDefects,
-    getCachedDeductions,
-    getCachedMachines,
-    getCachedProductStandards
-} from "../../services/masterDataCache";
-
 import {
     resolveProductStandard
 } from "../../services/masterDataService";
@@ -50,6 +41,15 @@ import type {
 
 import { useToast } from "../../components/feedback/toastContext";
 import { getApiError } from "../../utils/apiError";
+import {
+    clearProcessDraft,
+    hasMeaningfulProcessDraft,
+    loadProcessDraft,
+    saveProcessDraft,
+} from "./processDraftStorage";
+import { getCachedResolvedProductStandard } from "../../services/productStandardRequestCache";
+import { createClientRequestId } from "../../utils/workerSubmitGuard";
+import { classifyProcessSubmitResponse } from "../../utils/processSubmitOutcome";
 import { enqueueOfflineReport, isTransientNetworkFailure } from "../../services/offlineReportQueue";
 import { workerCanAccessProcess } from "../../utils/processAccess";
 import { getProcessFormSchema } from "./processFormSchemas";
@@ -64,10 +64,8 @@ import type {
 
 import {
     KQD_CODES,
-    allNgOptions,
     clampWorkerWorkDate,
     createEmptyMachineLine,
-    deductionOptions,
     getCurrentLocalDate,
     getWorkerAllowedWorkDates,
     getWorkerMaxWorkDate,
@@ -86,13 +84,57 @@ import ProcessBasicInfoSection from "./components/ProcessBasicInfoSection";
 import ProcessSubmitActions from "./components/ProcessSubmitActions";
 import { filterProductsForSelection, toProductAutocompleteOptions } from "./productSuggestionRules";
 import {
+    filterProductsForProcessScope,
+    getInitialOperationMode,
+    getProcessCapabilities,
+    usesMultiMachineLines as resolveUsesMultiMachineLines,
+    usesSingleMachine as resolveUsesSingleMachine,
+} from "./processPageDomain";
+import {
     MAX_TOTAL_WORK_MINUTES,
     calculateActualOutput as calculateActualOutputValue,
     formatIntegerDisplay,
-    getDeductionMinutes,
     parseFlexibleTime,
     parseIntegerDisplay,
 } from "./processFormUtils";
+import {
+    aggregateMachineLines,
+    getMachineNgTotal,
+    getMaxMachineCount,
+    toggleMachineDefectLine,
+    updateMachineDefectLine,
+} from "./processMachineLines";
+import { validateMachineLines } from "./processPageValidation";
+import {
+    calculateDeductionTimeSummary,
+    getProspectiveTotalWorkMinutes,
+    normalizeDeductionInput,
+    normalizeDeductionStoredValue,
+} from "./processDeductionLogic";
+import {
+    applyNgToggleToForm,
+    applyNgValueToForm,
+    applyTtOkToForm,
+    calculateNgTotal,
+    isValidIntegerInput,
+} from "./processQualityLogic";
+
+import {
+    resolveWorkDateForShiftChange,
+    validateWorkerWorkDate,
+} from "./processWorkDateLogic";
+
+import {
+    clearZeroNumberField,
+    updateTotalTimeField,
+} from "./processInputLogic";
+import {
+    canWorkerUpdateDuplicate,
+    toDuplicatePrompt,
+} from "./processDuplicateReportLogic";
+import { useDuplicateReportFlow } from "./useDuplicateReportFlow";
+import { buildProductionReportPayload } from "./processReportSubmission";
+import { useProcessMasterData } from "./useProcessMasterData";
 
 import type {
     DeductionKey,
@@ -108,16 +150,8 @@ function ProcessPage() {
     const { showToast } = useToast();
     const submitLockRef = useRef(false);
     const clientRequestIdRef = useRef<string | null>(null);
-    const machineStandardRequestSeqRef = useRef<number[]>([]);
-    const masterDataRequestSeqRef = useRef(0);
     const workerInfoRequestSeqRef = useRef(0);
-    const [duplicatePrompt, setDuplicatePrompt] = useState<{
-        reportId: number;
-        reportType: "temp" | "approved";
-        confirmationToken: string;
-        payload: ProductionReport;
-        formSignature: string;
-    } | null>(null);
+    const machineStandardRequestSeqRef = useRef<Record<number, number>>({});
 
     const navigate =
         useNavigate();
@@ -140,6 +174,7 @@ function ProcessPage() {
         );
 
 
+
     // =================================================
     // HỒ SƠ CÔNG NHÂN
     // =================================================
@@ -151,32 +186,34 @@ function ProcessPage() {
         null
     );
 
-const [
-    machineOptions,
-    setMachineOptions
-] = useState<MachineOption[]>([]);
+
+    // =================================================
+    // DỮ LIỆU FORM
+    // =================================================
+
+    const [
+        form,
+        setForm
+    ] = useState<FormState>(
+        initialForm
+    );
+
+    const processCapabilities = useMemo(() => getProcessCapabilities(process), [process]);
+    const {
+        processCode,
+        isCutLongProcess,
+        isInspectionProcess,
+        isManualOnlyProcess,
+    } = processCapabilities;
+    const {
+        machineOptions,
+        productOptions,
+        activeNgOptions,
+        activeDeductionOptions,
+        loadingMasterData,
+    } = useProcessMasterData(processInfo.id, processCode);
 
 
-const [
-    productOptions,
-    setProductOptions
-] = useState<ProductStandardOption[]>([]);
-
-const [
-    activeNgOptions,
-    setActiveNgOptions
-] = useState(allNgOptions);
-
-const [
-    activeDeductionOptions,
-    setActiveDeductionOptions
-] = useState(deductionOptions.map((item) => ({ ...item, id: undefined as number | undefined, code: item.key })));
-
-
-const [
-    loadingMasterData,
-    setLoadingMasterData
-] = useState(true);
 const machineAutocompleteOptions =
     useMemo<AutocompleteOption[]>(
         () =>
@@ -197,81 +234,27 @@ const machineAutocompleteOptions =
 
         [machineOptions]
     );
-
-
-    // =================================================
-    // DỮ LIỆU FORM
-    // =================================================
-
-    const [
-        form,
-        setForm
-    ] = useState<FormState>(
-        initialForm
-    );
-
-    const processCode = ({
-        "cat-long": "GC",
-        mai: "MAI",
-        do: "DO",
-        "kiem-1": "K1",
-        "kiem-2": "K2",
-        can: "CAN",
-        ep: "EP",
-        bavia: "XLBV",
-        sx3: "SX3",
-    } as Record<string, string>)[process] || "GC";
-    const isCutLongProcess = processCode === "GC";
-    const isInspectionProcess = processCode === "K1" || processCode === "K2";
-    const isAlwaysMultiMachineProcess = processCode === "MAI";
-    const isSingleMachineProcess = ["DO", "EP", "CAN"].includes(processCode);
-    const isManualOnlyProcess = processCode === "XLBV" || processCode === "SX3";
     const [operationType, setOperationType] = useState<OperationType>("CUT");
     const [operationMode, setOperationMode] = useState<OperationMode>(
-        isAlwaysMultiMachineProcess || isSingleMachineProcess ? "MACHINE" : "MANUAL"
+        () => getInitialOperationMode(processCapabilities)
     );
 
-
-    const normalizeMasterText = (value: unknown) =>
-        String(value ?? "")
-            .trim()
-            .toLocaleLowerCase("vi-VN")
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
-            .replace(/đ/g, "d");
-
-    const scopedProductOptions = useMemo<ProductStandardOption[]>(() => {
-        const expectedProcessCode = processCode.trim().toUpperCase();
-        const expectedWorkType = operationType === "CUT" ? "cat" : "long";
-
-        return productOptions.filter((product) => {
-            const returnedProcessCode = String(product.process_code || "").trim().toUpperCase();
-            const sameProcess = returnedProcessCode
-                ? returnedProcessCode === expectedProcessCode
-                : Number(product.process_id) === Number(processInfo.id);
-            if (!sameProcess) return false;
-            if (!isCutLongProcess) return true;
-            return normalizeMasterText(product.work_type) === expectedWorkType;
-        });
-    }, [productOptions, processCode, processInfo.id, isCutLongProcess, operationType]);
+    const scopedProductOptions = useMemo<ProductStandardOption[]>(
+        () => filterProductsForProcessScope({
+            products: productOptions,
+            processCode,
+            processId: processInfo.id,
+            operationType,
+        }),
+        [productOptions, processCode, processInfo.id, operationType]
+    );
 
     const [machineCount, setMachineCount] = useState(1);
     const [machineLines, setMachineLines] = useState<MachineLineState[]>([createEmptyMachineLine()]);
-
-    const getDuplicateFormSignature = () => JSON.stringify({
-        form,
-        machineLines,
-        deductions,
-        selectedNg,
-        selectedDeduction,
-        extraData,
-        operationType,
-        operationMode
-    });
     const [extraData, setExtraData] = useState<Record<string, string>>({});
     const currentExtraFields = processExtraFields[process] || [];
-    const usesMultiMachineLines = isAlwaysMultiMachineProcess || (isCutLongProcess && operationMode === "MACHINE");
-    const usesSingleMachine = isSingleMachineProcess || (isInspectionProcess && operationMode === "MACHINE");
+    const usesMultiMachineLines = resolveUsesMultiMachineLines(processCapabilities, operationMode);
+    const usesSingleMachine = resolveUsesSingleMachine(processCapabilities, operationMode);
     const usesAnyMachine = usesMultiMachineLines || usesSingleMachine;
 
     const productAutocompleteOptions = useMemo<AutocompleteOption[]>(() => {
@@ -301,7 +284,7 @@ const machineAutocompleteOptions =
         if (!isCutLongProcess) return;
         setForm((current) => current.productName ? { ...current, productName: "", standardOutput: "" } : current);
         setMachineLines((current) => current.map((line) => line.productCode
-            ? { ...line, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, excludeKqdFromTt: null, standardError: "" }
+            ? { ...line, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" }
             : line));
     }, [operationType, isCutLongProcess]);
 
@@ -327,14 +310,7 @@ const machineAutocompleteOptions =
         }
     }, [usesSingleMachine]);
 
-    const selectedGcMachineOptions = machineLines
-        .map((line) => machineOptions.find((machine) => machine.machine_code.trim().toUpperCase() === line.machineCode.trim().toUpperCase()))
-        .filter(Boolean);
-    const maxMachineCount = processCode === "MAI"
-        ? 4
-        : processCode === "GC"
-            ? (selectedGcMachineOptions.length === 0 || selectedGcMachineOptions.every((machine) => Number(machine?.is_automatic || 0) === 1) ? 4 : 1)
-            : 1;
+    const maxMachineCount = getMaxMachineCount(processCode, machineLines, machineOptions);
 
     useEffect(() => {
         if (machineCount > maxMachineCount) {
@@ -363,13 +339,11 @@ const machineAutocompleteOptions =
         const requestSeq = (machineStandardRequestSeqRef.current[index] || 0) + 1;
         machineStandardRequestSeqRef.current[index] = requestSeq;
         const isCurrentRequest = () => machineStandardRequestSeqRef.current[index] === requestSeq;
-
         if (!normalizedMachine || !normalizedProduct) {
             updateMachineLine(index, {
                 standardOutputPerHour: 0,
                 standardTimeSeconds: null,
                 standardSource: null,
-                excludeKqdFromTt: null,
                 standardLoading: false,
                 standardError: ""
             });
@@ -378,11 +352,16 @@ const machineAutocompleteOptions =
 
         updateMachineLine(index, { standardLoading: true, standardError: "" });
         try {
-            const resolved = await resolveProductStandard(
+            const resolved = await getCachedResolvedProductStandard(
                 processInfo.id,
                 normalizedMachine,
                 normalizedProduct,
-                form.workDate
+                () => resolveProductStandard(
+                    processInfo.id,
+                    normalizedMachine,
+                    normalizedProduct,
+                    form.workDate
+                )
             );
             if (!isCurrentRequest()) return;
             const output = Number(resolved.resolved_output_per_hour || 0);
@@ -390,7 +369,6 @@ const machineAutocompleteOptions =
                 standardOutputPerHour: Number.isFinite(output) ? output : 0,
                 standardTimeSeconds: resolved.standard_time_seconds,
                 standardSource: resolved.standard_source,
-                excludeKqdFromTt: Number(resolved.exclude_kqd_from_tt || 0) === 1,
                 standardLoading: false,
                 standardError: output > 0 ? "" : "Định mức bằng 0"
             });
@@ -400,121 +378,74 @@ const machineAutocompleteOptions =
                 standardOutputPerHour: 0,
                 standardTimeSeconds: null,
                 standardSource: null,
-                excludeKqdFromTt: null,
                 standardLoading: false,
                 standardError: getApiError(error, "Không lấy được định mức").message
             });
         }
     };
 
-    const getMachineNgTotal = (line: MachineLineState) =>
-        line.selectedDefects.reduce((sum, key) => sum + Number(line.defects[key] || 0), 0);
-
     const toggleMachineDefect = (lineIndex: number, key: string) => {
-        setMachineLines((current) => current.map((line, index) => {
-            if (index !== lineIndex) return line;
-            const exists = line.selectedDefects.includes(key);
-            const selectedDefects = exists
-                ? line.selectedDefects.filter((item) => item !== key)
-                : [...line.selectedDefects, key];
-            const defects = exists ? { ...line.defects, [key]: "" } : line.defects;
-            const ngQuantity = String(selectedDefects.reduce((sum, item) => sum + Number(defects[item] || 0), 0));
-            return { ...line, selectedDefects, defects, ngQuantity };
-        }));
+        setMachineLines((current) => current.map((line, index) =>
+            index === lineIndex ? toggleMachineDefectLine(line, key) : line
+        ));
     };
 
     const updateMachineDefectValue = (lineIndex: number, key: string, value: string) => {
-        const sanitized = value.replace(/\D/g, "");
-        setMachineLines((current) => current.map((line, index) => {
-            if (index !== lineIndex) return line;
-            const defects = { ...line.defects, [key]: sanitized };
-            const ngQuantity = String(line.selectedDefects.reduce((sum, item) => sum + Number(defects[item] || 0), 0));
-            return { ...line, defects, ngQuantity };
-        }));
+        setMachineLines((current) => current.map((line, index) =>
+            index === lineIndex ? updateMachineDefectLine(line, key, value) : line
+        ));
     };
 
     useEffect(() => {
         if (!usesMultiMachineLines) return;
 
-        const totalOk = machineLines.reduce((sum, line) => sum + Number(line.okQuantity || 0), 0);
-        const totalNg = machineLines.reduce((sum, line) => sum + Number(line.ngQuantity || 0), 0);
+        const aggregate = aggregateMachineLines(machineLines, activeNgOptions);
 
-        const aggregatedDefects = machineLines.reduce<Record<string, number>>((result, line) => {
-            line.selectedDefects.forEach((key) => {
-                result[key] = (result[key] || 0) + Number(line.defects[key] || 0);
-            });
-            return result;
-        }, {});
-
-        const aggregatedSelectedNg = activeNgOptions
-            .filter((item) => Number(aggregatedDefects[item.key] || 0) > 0)
-            .map((item) => item.key);
-
-        setSelectedNg(aggregatedSelectedNg);
-        const totalCountedOutput = machineLines.reduce((sum, line) => {
-            const countedNg = line.selectedDefects.reduce((ngSum, key) => {
-                const option = activeNgOptions.find((item) => item.key === key);
-                const code = String(option?.code || '').trim().toUpperCase();
-                if (line.excludeKqdFromTt === true && KQD_CODES.has(code)) return ngSum;
-                return ngSum + Number(line.defects[key] || 0);
-            }, 0);
-            return sum + Number(line.okQuantity || 0) + countedNg;
-        }, 0);
-
+        setSelectedNg(aggregate.selectedNg);
         setForm((current) => {
             const next: FormState = {
                 ...current,
-                productName: machineLines[0]?.productCode || "",
+                productName: aggregate.firstProductCode,
                 standardOutput: machineLines.length
-                    ? String(machineLines.reduce((sum, line) => sum + Number(line.standardOutputPerHour || 0), 0))
+                    ? String(aggregate.totalStandardOutput)
                     : "0",
-                actualOutput: String(totalCountedOutput),
-                ttOk: String(totalOk),
-                ttNg: String(totalNg)
+                actualOutput: String(aggregate.totalOk + aggregate.totalNg),
+                ttOk: String(aggregate.totalOk),
+                ttNg: String(aggregate.totalNg)
             };
 
             activeNgOptions.forEach((item) => {
-                next[item.key] = String(aggregatedDefects[item.key] || 0);
+                next[item.key] = String(aggregate.defects[item.key] || 0);
             });
 
             return next;
         });
-    }, [usesMultiMachineLines, machineLines, activeNgOptions]);
-
-const [resolvedReportKqdPolicy, setResolvedReportKqdPolicy] = useState<boolean | null>(null);
+    }, [usesMultiMachineLines, machineLines, activeNgOptions]);const [resolvedReportKqdPolicy, setResolvedReportKqdPolicy] = useState<boolean | null>(null);
 
 useEffect(() => {
-    let cancelled = false;
-    const productCode = form.productName.trim();
-    if (!productCode || !/^\d{4}-\d{2}-\d{2}$/.test(form.workDate) || usesMultiMachineLines) {
+    let active = true;
+    if (!form.productName.trim() || !form.workDate) {
         setResolvedReportKqdPolicy(null);
-        return () => { cancelled = true; };
+        return () => { active = false; };
     }
-    setResolvedReportKqdPolicy(null);
-    void resolveProductStandard(processInfo.id, form.machineNo.trim(), productCode, form.workDate)
-        .then((resolved) => {
-            if (!cancelled) setResolvedReportKqdPolicy(Number(resolved.exclude_kqd_from_tt || 0) === 1);
-        })
-        .catch(() => {
-            if (!cancelled) setResolvedReportKqdPolicy(null);
-        });
-    return () => { cancelled = true; };
-}, [processInfo.id, form.productName, form.machineNo, form.workDate, usesMultiMachineLines]);
+    void resolveProductStandard(
+        processInfo.id,
+        form.machineNo.trim(),
+        form.productName.trim(),
+        form.workDate
+    ).then((resolved) => {
+        if (!active) return;
+        setResolvedReportKqdPolicy(Number(resolved.exclude_kqd_from_tt || 0) === 1);
+        const resolvedOutput = Number(resolved.resolved_output_per_hour || 0);
+        if (resolvedOutput > 0) setForm((current) => ({ ...current, standardOutput: String(resolvedOutput) }));
+    }).catch(() => { if (active) setResolvedReportKqdPolicy(null); });
+    return () => { active = false; };
+}, [processInfo.id, form.machineNo, form.productName, form.workDate]);
 
-const selectedProduct = useMemo(
-    () => scopedProductOptions.find((product) => product.product_code === form.productName),
-    [scopedProductOptions, form.productName]
-);
-
-const productExcludesKqd = (): boolean => {
-    // Historical resolver is the preview authority. Never fall back to the
-    // mutable current product master when the historical policy is unresolved.
-    if (!form.productName.trim() || usesMultiMachineLines) return false;
-    return resolvedReportKqdPolicy === true;
-};
+const productExcludesKqd = (): boolean => resolvedReportKqdPolicy === true;
 
 const calculateActualOutput = (values: FormState): number =>
-    calculateActualOutputValue(values, activeNgOptions, productExcludesKqd(), KQD_CODES as ReadonlySet<string>);
+    calculateActualOutputValue(values, activeNgOptions, productExcludesKqd(), KQD_CODES);
 
 
 
@@ -595,6 +526,118 @@ const calculateActualOutput = (values: FormState): number =>
         setSubmitting
     ] = useState(false);
 
+    const {
+        duplicatePrompt,
+        setDuplicatePrompt,
+        handleCreateDuplicateAnyway: createDuplicateAnyway,
+        handleUpdateExistingReport: updateExistingReport,
+    } = useDuplicateReportFlow({
+        setSubmitting,
+        showToast,
+        navigateToWorker: () => navigate("/worker", { replace: true }),
+        resetClientRequestId: () => { clientRequestIdRef.current = null; },
+        releaseSubmitLock: () => { submitLockRef.current = false; },
+    });
+
+    const getDuplicateFormSignature = useCallback(() => JSON.stringify({
+        process: processInfo.id, workDate: form.workDate, shift: form.shift, machineNo: form.machineNo,
+        productName: form.productName, actualTime: form.actualTime, ttOk: form.ttOk, ttNg: form.ttNg,
+    }), [processInfo.id, form.workDate, form.shift, form.machineNo, form.productName, form.actualTime, form.ttOk, form.ttNg]);
+
+    const handleCreateDuplicateAnyway = async () => {
+        if (submitLockRef.current || !duplicatePrompt) return;
+        submitLockRef.current = true;
+        const snapshotMatches = duplicatePrompt.formSignature === getDuplicateFormSignature();
+        if (!snapshotMatches) {
+            submitLockRef.current = false;
+            showToast("Dữ liệu trên form đã thay đổi sau khi phát hiện báo cáo trùng. Vui lòng lưu lại để kiểm tra lại.", "warning");
+            setDuplicatePrompt(null);
+            return;
+        }
+        await createDuplicateAnyway();
+    };
+
+    const handleUpdateExistingReport = async () => {
+        if (submitLockRef.current || !duplicatePrompt) return;
+        submitLockRef.current = true;
+        const snapshotMatches = duplicatePrompt.formSignature === getDuplicateFormSignature();
+        if (!snapshotMatches) {
+            submitLockRef.current = false;
+            showToast("Dữ liệu trên form đã thay đổi sau khi phát hiện báo cáo trùng. Vui lòng lưu lại để kiểm tra lại.", "warning");
+            setDuplicatePrompt(null);
+            return;
+        }
+        await updateExistingReport();
+    };
+
+useEffect(() => {
+        const draft = loadProcessDraft(process);
+        if (!draft) return;
+
+        setForm((current) => ({
+            ...current,
+            ...draft.form,
+            workerCode: current.workerCode,
+            workerName: current.workerName,
+            trainingPercent: current.trainingPercent,
+        }));
+        setDeductions(draft.deductions);
+        setSelectedDeduction(draft.selectedDeduction as DeductionKey[]);
+        setSelectedNg(draft.selectedNg as NgKey[]);
+        setMachineLines(
+            draft.machineLines.length
+                ? draft.machineLines
+                : [createEmptyMachineLine()]
+        );
+        setMachineCount(Math.max(1, draft.machineCount));
+        setOperationType(draft.operationType);
+        setOperationMode(draft.operationMode);
+        setExtraData(draft.extraData || {});
+    }, [process]);
+
+    useEffect(() => {
+        if (loadingWorker || loadingMasterData || submitting) return;
+
+        const snapshot = {
+            version: 1 as const,
+            savedAt: Date.now(),
+            process,
+            form,
+            deductions,
+            selectedDeduction,
+            selectedNg,
+            machineLines,
+            machineCount,
+            operationType,
+            operationMode,
+            extraData,
+        };
+
+        const timer = window.setTimeout(() => {
+            if (hasMeaningfulProcessDraft(snapshot)) {
+                saveProcessDraft(snapshot);
+            } else {
+                clearProcessDraft(process);
+            }
+        }, 700);
+
+        return () => window.clearTimeout(timer);
+    }, [
+        process,
+        form,
+        deductions,
+        selectedDeduction,
+        selectedNg,
+        machineLines,
+        machineCount,
+        operationType,
+        operationMode,
+        extraData,
+        loadingWorker,
+        loadingMasterData,
+        submitting,
+    ]);
+
     const [isOnline, setIsOnline] = useState(() => navigator.onLine);
 
     useEffect(() => {
@@ -637,7 +680,6 @@ const calculateActualOutput = (values: FormState): number =>
 
                     const workerData =
                         await getCurrentWorker(true);
-                    if (!isCurrentRequest()) return;
 
                     const schema = getProcessFormSchema(process);
                     if (!workerCanAccessProcess(workerData, schema.processId, schema.processCode)) {
@@ -645,6 +687,8 @@ const calculateActualOutput = (values: FormState): number =>
                         navigate("/worker/process", { replace: true });
                         return;
                     }
+
+                    if (!isCurrentRequest()) return;
 
                     setWorker(
                         workerData
@@ -752,9 +796,6 @@ const calculateActualOutput = (values: FormState): number =>
 
 
         void loadWorkerInfo();
-        return () => {
-            if (workerInfoRequestSeqRef.current === requestSeq) workerInfoRequestSeqRef.current += 1;
-        };
 
     }, [navigate, process, showToast]);
         // =====================================================
@@ -799,17 +840,13 @@ const calculateActualOutput = (values: FormState): number =>
             */
 
             if (name === "shift") {
-
-                if (value === "C" && prev.shift !== "C") {
-                    next.workDate = clampWorkerWorkDate(
-                        shiftLocalDate(prev.workDate, -1)
-                    );
-                } else if (prev.shift === "C" && value !== "C") {
-                    next.workDate = clampWorkerWorkDate(
-                        shiftLocalDate(prev.workDate, 1)
-                    );
-                }
-
+                next.workDate = resolveWorkDateForShiftChange({
+                    currentWorkDate: prev.workDate,
+                    previousShift: prev.shift,
+                    nextShift: value,
+                    shiftDate: shiftLocalDate,
+                    clampDate: clampWorkerWorkDate,
+                });
             }
 
 
@@ -837,36 +874,8 @@ const calculateActualOutput = (values: FormState): number =>
                 totalTime - deductionTime
             */
 
-            if (
-                name ===
-                "totalTime"
-            ) {
-
-                next.actualTime =
-                    String(
-
-                        Math.max(
-
-                            0,
-
-                            Number(
-                                value
-                                ||
-                                0
-                            )
-
-                            -
-
-                            Number(
-                                next.deductionTime
-                                ||
-                                0
-                            )
-
-                        )
-
-                    );
-
+            if (name === "totalTime") {
+                return updateTotalTimeField(next, value);
             }
 
 
@@ -880,164 +889,6 @@ const calculateActualOutput = (values: FormState): number =>
     // =====================================================
     // CHỈ CHO PHÉP NHẬP SỐ THẬP PHÂN
     // =====================================================
-
-// =====================================================
-// LOAD DANH SÁCH MÁY VÀ SẢN PHẨM THEO CÔNG ĐOẠN
-// =====================================================
-
-useEffect(() => {
-    const requestSeq = ++masterDataRequestSeqRef.current;
-    const isCurrentRequest = () => masterDataRequestSeqRef.current === requestSeq;
-
-    const loadMasterData =
-        async () => {
-
-            try {
-
-                setLoadingMasterData(
-                    true
-                );
-
-
-                // Tải độc lập để một API lỗi không làm mất toàn bộ danh sách.
-                const [
-                    machinesResult,
-                    productsResult,
-                    defectsResult,
-                    deductionsResult
-                ] = await Promise.allSettled([
-                    getCachedMachines(processInfo.id),
-                    getCachedProductStandards(processInfo.id, processCode),
-                    getCachedDefects(processInfo.id),
-                    getCachedDeductions(processInfo.id)
-                ]);
-
-                if (!isCurrentRequest()) return;
-
-                const machines = machinesResult.status === "fulfilled"
-                    ? machinesResult.value
-                    : [];
-                const products = productsResult.status === "fulfilled"
-                    ? productsResult.value
-                    : [];
-
-                setMachineOptions(machines);
-                setProductOptions(products);
-
-                if (defectsResult.status === "fulfilled") {
-                    setActiveNgOptions(
-                        defectsResult.value.map((item) => ({
-                            id: Number(item.id || item.defect_type_id),
-                            key: `defect_${Number(item.id || item.defect_type_id)}`,
-                            code: String(item.defect_code || "").trim(),
-                            label: String(item.defect_name || item.defect_code || "Lỗi NG").trim()
-                        }))
-                    );
-                } else {
-                    console.error("LOAD DEFECT OPTIONS ERROR:", defectsResult.reason);
-                }
-
-                if (deductionsResult.status === "fulfilled") {
-                    const options = deductionsResult.value.map((item) => ({
-                        id: Number(item.id || item.deduction_type_id),
-                        key: `deduction_${Number(item.id || item.deduction_type_id)}`,
-                        code: String(item.deduction_code || "").trim(),
-                        label: String(item.deduction_name || item.deduction_code || "Trừ giờ").trim()
-                    }));
-                    setActiveDeductionOptions(options.length ? options : deductionOptions.map((item) => ({ ...item, id: undefined, code: item.key })));
-                } else {
-                    console.error("LOAD DEDUCTION OPTIONS ERROR:", deductionsResult.reason);
-                    setActiveDeductionOptions(deductionOptions.map((item) => ({ ...item, id: undefined, code: item.key })));
-                }
-
-                if (machinesResult.status === "rejected") {
-                    console.error("LOAD MACHINES ERROR:", machinesResult.reason);
-                }
-                if (productsResult.status === "rejected") {
-                    console.error("LOAD PRODUCT STANDARDS ERROR:", productsResult.reason);
-                }
-
-                if (machines.length === 0 || products.length === 0) {
-                    showToast(
-                        machines.length === 0 && products.length === 0
-                            ? "Không tìm thấy máy và sản phẩm cho công đoạn này"
-                            : machines.length === 0
-                                ? "Không tìm thấy máy cho công đoạn này"
-                                : "Không tìm thấy sản phẩm cho công đoạn này"
-                    );
-                }
-
-            }
-            catch (error: unknown) {
-                if (!isCurrentRequest()) return;
-
-                console.error(
-                    "LOAD MASTER DATA ERROR:",
-                    error
-                );
-
-
-                const message =
-
-                    axios.isAxiosError(
-                        error
-                    )
-
-                        ? error.response
-                            ?.data
-                            ?.message
-
-                            ||
-
-                            "Không thể tải danh sách máy hoặc sản phẩm"
-
-                        : error instanceof Error
-
-                            ? error.message
-
-                            : "Không thể tải danh sách máy hoặc sản phẩm";
-
-
-                showToast(
-                    message
-                );
-
-            }
-            finally {
-                if (isCurrentRequest()) setLoadingMasterData(false);
-            }
-
-        };
-
-
-    void loadMasterData();
-    return () => {
-        if (masterDataRequestSeqRef.current === requestSeq) masterDataRequestSeqRef.current += 1;
-    };
-
-}, [processInfo.id, processCode, showToast]);
-
-    // =====================================================
-    // CHỈ CHO PHÉP NHẬP SỐ NGUYÊN
-    // =====================================================
-
-    const isValidIntegerInput = (
-        value: string
-    ): boolean => {
-
-        return (
-
-            value === ""
-
-            ||
-
-            /^\d*$/.test(
-                value
-            )
-
-        );
-
-    };
 
 // =====================================================
 // KIỂM TRA SỐ THẬP PHÂN
@@ -1073,18 +924,18 @@ useEffect(() => {
         data: DeductionState
     ) => {
         // Các ô chi tiết nhập bằng PHÚT. Ví dụ 70 = 1 giờ 10 phút.
-        const totalMinutes = getDeductionMinutes(data);
-        const deductionHours = totalMinutes / 60;
-
         setForm((prev) => {
-            const actualHours = Math.max(0, Number(prev.actualHours) || 0);
-            const actualMinutes = Math.min(59, Math.max(0, Number(prev.actualMinutes) || 0));
-            const actualTime = actualHours + actualMinutes / 60;
+            const summary = calculateDeductionTimeSummary(
+                data,
+                prev.actualHours,
+                prev.actualMinutes
+            );
+
             return {
                 ...prev,
-                actualTime: String(actualTime),
-                deductionTime: String(deductionHours),
-                totalTime: String(actualTime + deductionHours)
+                actualTime: String(summary.actualTime),
+                deductionTime: String(summary.deductionHours),
+                totalTime: String(summary.totalTime)
             };
         });
     };
@@ -1096,8 +947,8 @@ useEffect(() => {
 
 const normalizeDeductionValue = (key: DeductionKey) => {
     setDeductions((prev) => {
-        const raw = String(prev[key] || "").replace(/\D/g, "");
-        const next = { ...prev, [key]: raw ? String(Number(raw)) : "" };
+        const normalizedValue = normalizeDeductionStoredValue(String(prev[key] || ""));
+        const next = { ...prev, [key]: normalizedValue };
         updateTotalDeduction(next);
         return next;
     });
@@ -1108,7 +959,7 @@ const updateDeductionValue = (
     value: string
 ) => {
 
-    const normalizedValue = value.replace(/\D/g, "");
+    const normalizedValue = normalizeDeductionInput(value);
 
     if (normalizedValue !== "" && Number(normalizedValue) > MAX_TOTAL_WORK_MINUTES) {
         showToast("Tổng thời gian tối đa là 12 giờ", "warning");
@@ -1121,11 +972,11 @@ const updateDeductionValue = (
             [key]: normalizedValue
         };
 
-        const actualMinutes =
-            (Number(form.actualHours) || 0) * 60
-            + (Number(form.actualMinutes) || 0);
-        const prospectiveTotalMinutes =
-            actualMinutes + getDeductionMinutes(next);
+        const prospectiveTotalMinutes = getProspectiveTotalWorkMinutes(
+            next,
+            form.actualHours,
+            form.actualMinutes
+        );
 
         if (prospectiveTotalMinutes > MAX_TOTAL_WORK_MINUTES) {
             showToast(
@@ -1249,220 +1100,26 @@ const updateDeductionValue = (
     // CẬP NHẬT GIÁ TRỊ LỖI NG
     // =====================================================
 
-    const handleNgValue = (
-
-        key: NgKey,
-
-        value: string
-
-    ) => {
-
-        if (
-            !isValidIntegerInput(
-                value
-            )
-        ) {
-
-            return;
-
-        }
-
-
-        setForm((prev) => {
-
-            const next = {
-
-                ...prev,
-
-                [key]:
-                    value
-
-            };
-
-
-            const totalNg =
-                activeNgOptions.reduce(
-
-                    (
-                        sum,
-                        item
-                    ) =>
-
-                        sum
-                        +
-                        Number(
-                            next[item.key]
-                            ||
-                            0
-                        ),
-
-                    0
-
-                );
-
-
-            next.ttNg =
-                String(
-                    totalNg
-                );
-
-
-            next.actualOutput = String(calculateActualOutput(next));
-
-
-            return next;
-
-        });
-
+    const handleNgValue = (key: NgKey, value: string) => {
+        if (!isValidIntegerInput(value)) return;
+        setForm((prev) =>
+            applyNgValueToForm(prev, key, value, activeNgOptions, calculateActualOutput)
+        );
     };
-
 
     // =====================================================
     // CHỌN / BỎ CHỌN LỖI NG
     // =====================================================
 
-    const handleToggleNg = (
-
-        key: NgKey,
-
-        checked: boolean
-
-    ) => {
-
-        if (checked) {
-
-            setSelectedNg(
-                (prev) => {
-
-                    if (
-                        prev.includes(
-                            key
-                        )
-                    ) {
-
-                        return prev;
-
-                    }
-
-
-                    return [
-                        ...prev,
-                        key
-                    ];
-
-                }
-            );
-
-
-            setForm((prev) => {
-
-                const next = {
-
-                    ...prev,
-
-                    [key]:
-                        prev[key]
-                        ||
-                        ""
-
-                };
-
-
-                const totalNg =
-                    activeNgOptions.reduce(
-
-                        (
-                            sum,
-                            item
-                        ) =>
-
-                            sum
-                            +
-                            Number(
-                                next[item.key]
-                                ||
-                                0
-                            ),
-
-                        0
-
-                    );
-
-
-                next.ttNg =
-                    String(
-                        totalNg
-                    );
-
-
-                next.actualOutput = String(calculateActualOutput(next));
-
-
-                return next;
-
-            });
-
-
-            return;
-
-        }
-
-
-        setSelectedNg(
-            (prev) =>
-                prev.filter(
-                    (item) =>
-                        item !== key
-                )
-        );
-
-
-        setForm((prev) => {
-
-            const next = {
-
-                ...prev,
-
-                [key]:
-                    ""
-
-            };
-
-
-            const totalNg =
-                activeNgOptions.reduce(
-
-                    (
-                        sum,
-                        item
-                    ) =>
-
-                        sum
-                        +
-                        Number(
-                            next[item.key]
-                            ||
-                            0
-                        ),
-
-                    0
-
-                );
-
-
-            next.ttNg =
-                String(
-                    totalNg
-                );
-
-
-            next.actualOutput = String(calculateActualOutput(next));
-
-
-            return next;
-
+    const handleToggleNg = (key: NgKey, checked: boolean) => {
+        setSelectedNg((prev) => {
+            if (checked) return prev.includes(key) ? prev : [...prev, key];
+            return prev.filter((item) => item !== key);
         });
 
+        setForm((prev) =>
+            applyNgToggleToForm(prev, key, checked, activeNgOptions, calculateActualOutput)
+        );
     };
 
     // =====================================================
@@ -1471,40 +1128,11 @@ const updateDeductionValue = (
 
 
     const handleTtOkChange = (
-
-        event:
-            React.ChangeEvent<
-                HTMLInputElement
-            >
-
+        event: React.ChangeEvent<HTMLInputElement>
     ) => {
-
-        const value =
-            parseIntegerDisplay(event.target.value);
-
-
-        if (
-            !isValidIntegerInput(
-                value
-            )
-        ) {
-
-            return;
-
-        }
-
-
-        setForm((prev) => ({
-
-            ...prev,
-
-            ttOk:
-                value,
-
-            actualOutput: String(calculateActualOutput({ ...prev, ttOk: value }))
-
-        }));
-
+        const value = parseIntegerDisplay(event.target.value);
+        if (!isValidIntegerInput(value)) return;
+        setForm((prev) => applyTtOkToForm(prev, value, calculateActualOutput));
     };
 
 
@@ -1538,14 +1166,7 @@ const updateDeductionValue = (
         }
 
 
-        setForm((prev) => ({
-
-            ...prev,
-
-            [name]:
-                ""
-
-        }));
+        setForm((prev) => clearZeroNumberField(prev, name, value));
 
     };
 
@@ -1578,23 +1199,12 @@ const updateDeductionValue = (
         }
 
 
-        if (
-            !form.workDate
-        ) {
-
-            return "Vui lòng chọn ngày làm việc";
-
-        }
-
-
-        if (form.workDate > getWorkerMaxWorkDate()) {
-            return "Không được chọn ngày làm việc trong tương lai";
-        }
-
-
-        if (form.workDate < getWorkerMinWorkDate()) {
-            return "Chỉ được nhập báo cáo trong vòng 14 ngày gần nhất";
-        }
+        const workDateError = validateWorkerWorkDate(
+            form.workDate,
+            getWorkerMinWorkDate(),
+            getWorkerMaxWorkDate()
+        );
+        if (workDateError) return workDateError;
 
 
         if (
@@ -1623,32 +1233,16 @@ const updateDeductionValue = (
         }
 
         if (usesMultiMachineLines) {
-            if (machineLines.length < 1 || machineLines.length > 4) {
-                return "Vui lòng chọn từ 1 đến 4 máy";
-            }
-            const usedMachines = new Set<string>();
-            for (let index = 0; index < machineLines.length; index += 1) {
-                const line = machineLines[index];
-                const code = line.machineCode.trim().toLowerCase();
-                const matchedMachine = machineOptions.find(
-                    (item) => item.machine_code.trim().toLowerCase() === code
-                );
-                if (!matchedMachine) return `Vui lòng chọn đúng máy ${index + 1} từ danh mục`;
-                if (usedMachines.has(code)) return "Không được chọn trùng số máy";
-                usedMachines.add(code);
-                const matchedLineProduct = getMachineProductOptions(line.machineCode).find(
-                    (item) => item.product_code.trim().toLowerCase() === line.productCode.trim().toLowerCase()
-                );
-                if (!matchedLineProduct) return `Vui lòng chọn đúng sản phẩm cho máy ${index + 1}`;
-                const okQuantity = Number(line.okQuantity || 0);
-                const ngQuantity = Number(line.ngQuantity || 0);
-                if (!Number.isInteger(okQuantity) || okQuantity < 0) return `OK máy ${index + 1} phải là số nguyên không âm`;
-                if (!Number.isInteger(ngQuantity) || ngQuantity < 0) return `NG máy ${index + 1} phải là số nguyên không âm`;
-                const minutes = (Number(line.hours) || 0) * 60 + (Number(line.minutes) || 0);
-                if (Number(line.minutes || 0) > 59) return `Số phút máy ${index + 1} phải từ 0 đến 59`;
-                if (minutes <= 0) return `Vui lòng nhập thời gian chạy máy ${index + 1}`;
-                if (minutes > 24 * 60) return `Thời gian máy ${index + 1} không được vượt quá 24 giờ`;
-            }
+            const machineLinesError = validateMachineLines({
+                machineLines,
+                isMachineValid: (machineCode) => machineOptions.some(
+                    (item) => item.machine_code.trim().toLowerCase() === machineCode.trim().toLowerCase()
+                ),
+                isProductValid: (machineCode, productCode) => getMachineProductOptions(machineCode).some(
+                    (item) => item.product_code.trim().toLowerCase() === productCode.trim().toLowerCase()
+                ),
+            });
+            if (machineLinesError) return machineLinesError;
         } else if (usesSingleMachine) {
             if (!form.machineNo.trim()) return "Vui lòng chọn số máy";
             const matchedMachine = machineOptions.find(
@@ -1705,25 +1299,7 @@ const updateDeductionValue = (
         }
 
 
-        const totalDefects =
-            activeNgOptions.reduce(
-
-                (
-                    sum,
-                    item
-                ) =>
-
-                    sum
-                    +
-                    Number(
-                        form[item.key]
-                        ||
-                        0
-                    ),
-
-                0
-
-            );
+        const totalDefects = calculateNgTotal(form, activeNgOptions);
 
 
         if (
@@ -1801,278 +1377,35 @@ const updateDeductionValue = (
 
             if (submitLockRef.current) return;
             submitLockRef.current = true;
-            clientRequestIdRef.current ||= crypto.randomUUID();
+            clientRequestIdRef.current ||= createClientRequestId();
 
             try {
                 setSubmitting(true);
 
-                const payload: ProductionReport = {
-                    client_request_id: clientRequestIdRef.current,
-
-                    process_id:
-                        processInfo.id,
-
-                    work_date:
-                        form.workDate,
-
-                    // Ngày báo cáo dùng để phân nhóm; entry_date là ngày công nhân thực tế nhập.
-                    entry_date: getCurrentLocalDate(),
-
-                    extra_data: Object.fromEntries(
-                        Object.entries(extraData).map(([key, value]) => [
-                            key,
-                            value !== "" && !Number.isNaN(Number(value)) ? Number(value) : value
-                        ])
-                    ) as Record<string, string | number | boolean>,
-
-                    shift:
-                        form.shift,
-
-                    machine_no:
-                        usesMultiMachineLines
-                            ? machineLines.map((line) => line.machineCode.trim()).join(", ")
-                            : usesSingleMachine
-                                ? (machineOptions.find(
-                                    (item) => item.machine_code.trim().toLowerCase() === form.machineNo.trim().toLowerCase()
-                                )?.machine_code || form.machineNo.trim())
-                                : "",
-
-                    operation_type: isCutLongProcess ? operationType : undefined,
-                    operation_mode: usesAnyMachine ? "MACHINE" : "MANUAL",
-                    machine_lines: usesMultiMachineLines
-                        ? machineLines.map((line) => ({
-                            machine_code: machineOptions.find(
-                                (item) => item.machine_code.trim().toLowerCase() === line.machineCode.trim().toLowerCase()
-                            )?.machine_code || line.machineCode.trim(),
-                            product_code: scopedProductOptions.find(
-                                (item) => item.product_code.trim().toLowerCase() === line.productCode.trim().toLowerCase()
-                            )?.product_code || line.productCode.trim(),
-                            machine_time_hours: (Number(line.hours) || 0) + (Number(line.minutes) || 0) / 60,
-                            ok_quantity: Number(line.okQuantity || 0),
-                            ng_quantity: Number(line.ngQuantity || 0),
-                            defects: line.selectedDefects
-                                .filter((key) => Number(line.defects[key] || 0) > 0)
-                                .map((key) => {
-                                    const option = activeNgOptions.find((item) => item.key === key);
-                                    return {
-                                        defect_id: option?.id || null,
-                                        defect_code: option?.code || key,
-                                        defect_name: option?.label || key,
-                                        quantity: Number(line.defects[key] || 0)
-                                    };
-                                })
-                        }))
-                        : undefined,
-
-                    exclude_kqd_from_tt:
-                        Number(selectedProduct?.exclude_kqd_from_tt || 0),
-
-
-                    total_time:
-                        parseFlexibleTime(form.totalTime),
-
-                    actual_time:
-                        parseFlexibleTime(form.actualTime),
-
-                    deduction_time:
-                        parseFlexibleTime(form.deductionTime),
-
-
-                
-                    product_name:
-                        usesMultiMachineLines
-                            ? (machineLines[0]?.productCode.trim() || "")
-                            : scopedProductOptions.find(
-                                (item) => item.product_code.trim().toLowerCase() === form.productName.trim().toLowerCase()
-                            )?.product_code || form.productName.trim(),
-
-                    standard_output:
-                        Number(
-                            form.standardOutput
-                            ||
-                            0
-                        ),
-
-                    actual_output:
-                        Number(
-                            form.actualOutput
-                            ||
-                            0
-                        ),
-
-
-                    tt_ok:
-                        usesMultiMachineLines
-                            ? machineLines.reduce((sum, line) => sum + Number(line.okQuantity || 0), 0)
-                            : Number(form.ttOk || 0),
-
-                    tt_ng:
-                        usesMultiMachineLines
-                            ? machineLines.reduce((sum, line) => sum + Number(line.ngQuantity || 0), 0)
-                            : Number(form.ttNg || 0),
-
-
-                    kqd_dap_lai:
-                        Number(
-                            form.kqdDapLai
-                            ||
-                            0
-                        ),
-
-                    kqd_tuot:
-                        Number(
-                            form.kqdTuot
-                            ||
-                            0
-                        ),
-
-                    vo_do_long:
-                        Number(
-                            form.voDoLong
-                            ||
-                            0
-                        ),
-
-                    xuoc_do_long:
-                        Number(
-                            form.xuocDoLong
-                            ||
-                            0
-                        ),
-
-                    cong_gay:
-                        Number(
-                            form.congGay
-                            ||
-                            0
-                        ),
-
-                    xoay:
-                        Number(
-                            form.xoay
-                            ||
-                            0
-                        ),
-
-                    khong_dut:
-                        Number(
-                            form.khongDut
-                            ||
-                            0
-                        ),
-
-                    bavia_hut:
-                        Number(
-                            form.baviaHut
-                            ||
-                            0
-                        ),
-
-                    ppcm:
-                        Number(
-                            form.ppcm
-                            ||
-                            0
-                        ),
-
-                    loi_cao_su:
-                        Number(
-                            form.loiCaoSu
-                            ||
-                            0
-                        ),
-
-                    ng_kich_thuoc:
-                        Number(
-                            form.ngKichThuoc
-                            ||
-                            0
-                        ),
-
-                    cat_lem:
-                        Number(
-                            form.catLem
-                            ||
-                            0
-                        ),
-
-
-                    defects:
-                        activeNgOptions
-
-                            .filter(
-                                (item) =>
-
-                                    Number(
-                                        form[item.key]
-                                        ||
-                                        0
-                                    )
-                                    >
-                                    0
-                            )
-
-                            .map(
-                                (item) => ({
-
-                                    defect_type_id:
-                                        item.id,
-
-                                    defect_code:
-                                        item.code,
-
-                                    defect_name:
-                                        item.label,
-
-                                    quantity:
-                                        Number(
-                                            form[item.key]
-                                            ||
-                                            0
-                                        )
-
-                                })
-                            ),
-
-
-                    deductions:
-                        activeDeductionOptions
-
-                            .filter(
-                                (item) =>
-
-                                    Number(deductions[item.key] || 0)
-                                    >
-                                    0
-                            )
-
-                            .map(
-                                (item) => ({
-
-                                    deduction_type_id:
-                                        item.id || undefined,
-
-                                    deduction_code:
-                                        String(item.code),
-
-                                    deduction_name:
-                                        item.label,
-
-                                    hours:
-                                        Number(deductions[item.key] || 0) / 60
-
-                                })
-                            ),
-
-
-                    note: ""
-
-                };
+                const payload = buildProductionReportPayload({
+                    clientRequestId: clientRequestIdRef.current,
+                    processId: processInfo.id,
+                    form,
+                    extraData,
+                    operationType,
+                    isCutLongProcess,
+                    usesAnyMachine,
+                    usesMultiMachineLines,
+                    usesSingleMachine,
+                    machineLines,
+                    machineOptions,
+                    productOptions: scopedProductOptions,
+                    activeNgOptions,
+                    deductions,
+                    activeDeductionOptions,
+                    excludeKqdFromTt: resolvedReportKqdPolicy === true,
+                });
 
                 let response;
                 if (!navigator.onLine) {
                     enqueueOfflineReport(payload);
                     showToast("Đang mất mạng. Báo cáo đã được lưu trên thiết bị và sẽ tự gửi khi có Internet.", "warning");
+                    clearProcessDraft(process);
                     clientRequestIdRef.current = null;
                     window.setTimeout(() => navigate("/worker", { replace: true }), 900);
                     return;
@@ -2080,61 +1413,55 @@ const updateDeductionValue = (
                 try {
                     response = await createTempReport(payload);
                 } catch (error: any) {
-                    if (Number(error?.response?.status || 0) === 429) {
-                        const message = error?.response?.data?.message
-                            || "Bạn thao tác quá nhanh. Vui lòng chờ một chút rồi bấm Lưu lại.";
-                        showToast(message, "warning");
+                    if (axios.isAxiosError(error) && error.response?.status === 429) {
+                        showToast("Bạn thao tác quá nhanh. Dữ liệu trên form vẫn được giữ, vui lòng thử lại sau ít phút.", "warning");
                         return;
+                    }
+                    if (axios.isAxiosError(error) && error.response?.status === 409 && ["DUPLICATE_PRODUCTION_REPORT", "DUPLICATE_CONFIRMATION_REQUIRED"].includes(String(error.response?.data?.code || ""))) {
+                        const prompt = toDuplicatePrompt(error.response.data, payload);
+                        if (prompt) {
+                            setDuplicatePrompt({ ...prompt, formSignature: getDuplicateFormSignature() });
+                            return;
+                        }
                     }
                     if (isTransientNetworkFailure(error)) {
                         enqueueOfflineReport(payload);
                         showToast("Kết nối Internet bị gián đoạn. Báo cáo đã được lưu trên thiết bị và sẽ tự gửi lại khi có mạng.", "warning");
+                        clearProcessDraft(process);
                         clientRequestIdRef.current = null;
                         window.setTimeout(() => navigate("/worker", { replace: true }), 900);
-                        return;
-                    }
-                    const duplicateResponse = error?.response?.data;
-                    if (
-                        error?.response?.status === 409 &&
-                        duplicateResponse?.code === "DUPLICATE_PRODUCTION_REPORT" &&
-                        duplicateResponse?.data?.id
-                    ) {
-                        setDuplicatePrompt({
-                            reportId: Number(duplicateResponse.data.id),
-                            reportType: duplicateResponse.data?.report_type === "approved" ? "approved" : "temp",
-                            confirmationToken: String(duplicateResponse?.duplicate_confirmation_token || ""),
-                            payload,
-                            formSignature: getDuplicateFormSignature()
-                        });
                         return;
                     }
                     throw error;
                 }
 
+                const submitOutcome = classifyProcessSubmitResponse(response);
+
                 if (
-                    response?.duplicate &&
-                    response?.duplicate_reason === "similar_report" &&
+                    submitOutcome === "similar_report" &&
                     response?.data?.id
                 ) {
-                    setDuplicatePrompt({
-                        reportId: Number(response.data.id),
-                        reportType: response.data?.report_type === "approved" ? "approved" : "temp",
-                        confirmationToken: String(response?.duplicate_confirmation_token || ""),
-                        payload,
-                        formSignature: getDuplicateFormSignature()
-                    });
-                    return;
+                    // A force-create action is only safe when the server issued
+                    // a challenge token bound to this exact collision. Legacy /
+                    // idempotent duplicate responses without a token are treated
+                    // as already-recorded rather than exposing an unsafe action.
+                    const prompt = toDuplicatePrompt(response, payload);
+                    if (prompt) {
+                        setDuplicatePrompt({ ...prompt, formSignature: getDuplicateFormSignature() });
+                        return;
+                    }
                 }
 
                 showToast(
-                    response?.duplicate
+                    submitOutcome === "duplicate"
                         ? "Báo cáo này đã được hệ thống ghi nhận trước đó"
                         : "Lưu báo cáo thành công. Báo cáo đã được gửi chờ duyệt.",
-                    response?.duplicate
+                    submitOutcome === "duplicate"
                         ? "info"
                         : "success"
                 );
 
+clearProcessDraft(process);
 clientRequestIdRef.current = null;
 
 /*
@@ -2173,68 +1500,6 @@ window.setTimeout(() => {
 
         };
 
-
-    const finishSuccessfulSubmit = (message: string) => {
-        showToast(message, "success");
-        clientRequestIdRef.current = null;
-        setDuplicatePrompt(null);
-        window.setTimeout(() => {
-            navigate("/worker", { replace: true });
-        }, 900);
-    };
-
-    const ensureDuplicatePromptStillCurrent = (): boolean => {
-        if (!duplicatePrompt) return false;
-        if (duplicatePrompt.formSignature === getDuplicateFormSignature()) return true;
-        setDuplicatePrompt(null);
-        submitLockRef.current = false;
-        showToast("Dữ liệu trên form đã thay đổi sau khi phát hiện báo cáo trùng. Vui lòng bấm Lưu lại để kiểm tra theo dữ liệu mới.", "warning");
-        return false;
-    };
-
-    const handleCreateDuplicateAnyway = async () => {
-        if (!duplicatePrompt || submitLockRef.current || submitting) return;
-        if (!ensureDuplicatePromptStillCurrent()) return;
-        submitLockRef.current = true;
-        try {
-            setSubmitting(true);
-            const payload = {
-                ...duplicatePrompt.payload,
-                client_request_id: crypto.randomUUID(),
-                force_create: true,
-                duplicate_confirmation_token: duplicatePrompt.confirmationToken
-            };
-            const response = await createTempReport(payload);
-            finishSuccessfulSubmit(
-                response?.duplicate
-                    ? "Yêu cầu này đã được hệ thống ghi nhận trước đó"
-                    : "Đã tạo báo cáo mới theo xác nhận của bạn."
-            );
-        } catch (error: unknown) {
-            const { message, errors } = getApiError(error, "Không thể tạo báo cáo mới");
-            showToast(Object.values(errors)[0] || message, "error");
-        } finally {
-            submitLockRef.current = false;
-            setSubmitting(false);
-        }
-    };
-
-    const handleUpdateExistingReport = async () => {
-        if (!duplicatePrompt || duplicatePrompt.reportType !== "temp" || submitLockRef.current || submitting) return;
-        if (!ensureDuplicatePromptStillCurrent()) return;
-        submitLockRef.current = true;
-        try {
-            setSubmitting(true);
-            await updateTempReport(duplicatePrompt.reportId, duplicatePrompt.payload);
-            finishSuccessfulSubmit("Đã cập nhật báo cáo cũ thành công.");
-        } catch (error: unknown) {
-            const { message, errors } = getApiError(error, "Không thể cập nhật báo cáo cũ");
-            showToast(Object.values(errors)[0] || message, "error");
-        } finally {
-            submitLockRef.current = false;
-            setSubmitting(false);
-        }
-    };
 
     // =====================================================
     // LÀM MỚI FORM
@@ -2312,6 +1577,8 @@ window.setTimeout(() => {
         setShowNg(
             false
         );
+
+        clearProcessDraft(process);
 
     };
         return (
@@ -2425,7 +1692,6 @@ window.setTimeout(() => {
 
                 <ProcessSubmitActions
                 duplicatePrompt={duplicatePrompt}
-                canUpdateExisting={duplicatePrompt?.reportType !== "approved"}
                 submitting={submitting}
                 loadingWorker={loadingWorker}
                 onCancelDuplicate={() => {
@@ -2434,6 +1700,7 @@ window.setTimeout(() => {
                 }}
                 onUpdateExisting={() => void handleUpdateExistingReport()}
                 onCreateDuplicate={() => void handleCreateDuplicateAnyway()}
+                canUpdateExisting={canWorkerUpdateDuplicate(duplicatePrompt)}
                     onReset={handleReset}
                     onSubmit={() => void handleSubmit()}
                 />

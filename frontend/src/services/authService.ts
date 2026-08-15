@@ -159,12 +159,6 @@ export const logout =
     async (): Promise<void> => {
         const refreshToken =
             getRefreshToken();
-
-        // Acceptance authority: logout must retire the visible/local identity
-        // immediately even if the network is offline or the backend is slow.
-        // The captured Electron refresh token (or the web HttpOnly cookie) is
-        // then revoked best-effort on the server without allowing stale UI state
-        // to survive until the request timeout.
         clearAuthSession();
 
         try {
@@ -173,8 +167,8 @@ export const logout =
                 refreshToken ? { refreshToken } : {}
             );
         } catch {
-            // Do not log Axios errors here: Electron logout bodies may contain
-            // the current refresh token in request config. Local logout has
-            // already completed; server-side expiry/reuse protection remains.
+            // Local identity is already retired. Server-side expiry/revocation is best-effort.
+        } finally {
+            clearAuthSession();
         }
     };
