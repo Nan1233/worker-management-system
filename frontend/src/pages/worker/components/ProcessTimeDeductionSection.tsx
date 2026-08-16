@@ -163,6 +163,7 @@ export default function ProcessTimeDeductionSection({
                     className="worker-dropdown-title"
                     onClick={() => setShowDeduction((prev) => !prev)}
                     aria-expanded={showDeduction}
+                    aria-controls="worker-deduction-options"
                 >
                     <span className="worker-dropdown-title-main">
                         <span>⏱ Thời gian trừ</span>
@@ -176,8 +177,12 @@ export default function ProcessTimeDeductionSection({
                 </button>
 
                 {showDeduction && (
-                    <div className="worker-dropdown-options">
-                        {activeDeductionOptions.map((item) => (
+                    <div id="worker-deduction-options" className="worker-dropdown-options">
+                        {activeDeductionOptions.length === 0 ? (
+                            <div className="worker-dropdown-empty" role="status">
+                                Chưa có loại thời gian trừ được cấu hình cho công đoạn này.
+                            </div>
+                        ) : activeDeductionOptions.map((item) => (
                             <label key={item.key} className="worker-dropdown-option">
                                 <input
                                     type="checkbox"

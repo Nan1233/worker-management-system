@@ -85,6 +85,7 @@ export default function ProcessQualitySection({
                     className="worker-dropdown-title"
                     onClick={() => setShowNg((prev) => !prev)}
                     aria-expanded={showNg}
+                    aria-controls="worker-ng-options"
                 >
                     <span className="worker-dropdown-title-main">
                         <span>{usesMultiMachineLines ? "Tổng lỗi NG từ các máy" : "Lỗi NG"}</span>
@@ -98,8 +99,12 @@ export default function ProcessQualitySection({
                 </button>
 
                 {showNg && (
-                    <div className="worker-dropdown-options">
-                        {activeNgOptions.map((item) => (
+                    <div id="worker-ng-options" className="worker-dropdown-options">
+                        {activeNgOptions.length === 0 ? (
+                            <div className="worker-dropdown-empty" role="status">
+                                Chưa có loại lỗi NG được cấu hình cho công đoạn này.
+                            </div>
+                        ) : activeNgOptions.map((item) => (
                             <label key={item.key} className="worker-dropdown-option">
                                 <input
                                     type="checkbox"

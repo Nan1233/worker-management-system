@@ -845,3 +845,80 @@
 @media (prefers-reduced-motion: reduce) {
   .worker-form-page *, .duplicate-dialog * { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+
+/* KTC UX hardening 2026-08: make master-data choices unmistakable and touch-safe. */
+.worker-dropdown-option {
+  position: relative;
+  min-height: 46px;
+  transition: background .14s ease, border-color .14s ease, box-shadow .14s ease;
+}
+.worker-dropdown-option input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+  margin: 0;
+  flex: 0 0 20px;
+  cursor: pointer;
+}
+.worker-dropdown-option:has(input:checked) {
+  border-color: #8db2da;
+  background: #eef5fd;
+  color: #164780;
+  box-shadow: inset 3px 0 0 #2f67b5;
+}
+.worker-dropdown-empty {
+  grid-column: 1 / -1;
+  min-height: 64px;
+  display: grid;
+  place-items: center;
+  padding: 12px 14px;
+  border: 1px dashed #cbd8e6;
+  border-radius: 10px;
+  background: #fbfcfe;
+  color: #70849c;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+}
+.worker-time-item > small {
+  min-height: 16px;
+}
+
+@media (max-width: 620px) {
+  .worker-dropdown-option {
+    min-height: 50px;
+    padding: 9px 11px;
+    font-size: 13px;
+  }
+  .worker-dropdown-option input[type="checkbox"] {
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    min-height: 22px;
+    flex-basis: 22px;
+  }
+  .worker-dropdown-empty {
+    min-height: 76px;
+    font-size: 12.5px;
+  }
+  .worker-quality-card input {
+    font-variant-numeric: tabular-nums;
+  }
+  .worker-action-group {
+    box-shadow: 0 8px 22px rgba(35,57,83,.08);
+  }
+}
+
+[data-theme="dark"] .worker-dropdown-option:has(input:checked) {
+  border-color: #668db5;
+  background: #2b4358;
+  color: #edf5fc;
+  box-shadow: inset 3px 0 0 #86add3;
+}
+[data-theme="dark"] .worker-dropdown-empty {
+  border-color: #40566b;
+  background: #1d2b38;
+  color: #a7b6c5;
+}
