@@ -56,7 +56,7 @@ test('frontend can only send force_create from duplicate-confirmation handler an
   const forceRefs = [...page.matchAll(/force_create:\s*true/g)];
   assert.equal(forceRefs.length, 1);
   assert.match(page, /duplicate_confirmation_token:\s*duplicatePrompt\.confirmationToken/);
-  assert.match(page, /duplicateResponse\?\.duplicate_confirmation_token/);
+  assert.match(page, /duplicateResponse\.data\?\.duplicate_confirmation_token/);
 });
 
 test('approved collision does not expose worker edit-existing action', () => {

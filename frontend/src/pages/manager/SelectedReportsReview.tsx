@@ -34,7 +34,14 @@ const formatNumber = (value?: number | string | null) =>
     Number(value ?? 0).toLocaleString("vi-VN", { maximumFractionDigits: 3 });
 
 const detailText = (
-    items: Array<{ deduction_name?: string; defect_name?: string; hours?: number; quantity?: number }> | undefined,
+    items: Array<{
+        deduction_name?: string | null;
+        deduction_code?: string | null;
+        defect_name?: string | null;
+        defect_code?: string | null;
+        hours?: number | string | null;
+        quantity?: number | string | null;
+    }> | undefined,
     type: "deduction" | "defect"
 ) => {
     const valid = (items || []).filter((item) =>
@@ -44,11 +51,16 @@ const detailText = (
     if (valid.length === 0) return "---";
 
     return valid
-        .map((item) =>
-            type === "deduction"
-                ? `${item.deduction_name || "Khác"}: ${formatMinutes(item.hours)}`
-                : `${item.defect_name || "Khác"}: ${formatNumber(item.quantity)}`
-        )
+        .map((item) => {
+            if (type === "deduction") {
+                const label = item.deduction_name || item.deduction_code || "Khác";
+                const hours = Number(item.hours) || 0;
+                return `${label}: ${formatMinutes(hours)} (${hours.toLocaleString("vi-VN", { maximumFractionDigits: 3 })} giờ)`;
+            }
+
+            const label = item.defect_name || item.defect_code || "Khác";
+            return `${label}: ${formatNumber(item.quantity)}`;
+        })
         .join("; ");
 };
 
