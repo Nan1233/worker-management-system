@@ -12,9 +12,14 @@ export interface DuplicatePromptState {
 
 interface DuplicateResponseShape {
     duplicate_confirmation_token?: string | null;
+    id?: number | string | null;
+    report_id?: number | string | null;
+    report_type?: string | null;
     data?: {
         id?: number | string | null;
+        report_id?: number | string | null;
         report_type?: string | null;
+        duplicate_confirmation_token?: string | null;
     } | null;
 }
 

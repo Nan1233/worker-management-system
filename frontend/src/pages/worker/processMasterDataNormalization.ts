@@ -48,7 +48,6 @@ export function normalizeDefectOptions(rows: RawOption[] | null | undefined): Wo
       const label = name || clean(configured?.label) || canonicalCode || `Lỗi NG ${index + 1}`;
 
       return {
-        ...row,
         id,
         defect_type_id: id,
         code: canonicalCode,
@@ -56,6 +55,15 @@ export function normalizeDefectOptions(rows: RawOption[] | null | undefined): Wo
         key,
         defect_code: canonicalCode,
         defect_name: label,
+        ...(row.deduction_type_id != null
+          ? { deduction_type_id: Number(row.deduction_type_id) || undefined }
+          : {}),
+        ...(row.deduction_code != null
+          ? { deduction_code: clean(row.deduction_code) || undefined }
+          : {}),
+        ...(row.deduction_name != null
+          ? { deduction_name: clean(row.deduction_name) || undefined }
+          : {}),
       };
     })
     .filter((option) => Boolean(option.key));
@@ -77,7 +85,6 @@ export function normalizeDeductionOptions(rows: RawOption[] | null | undefined):
       const label = name || clean(configured?.label) || canonicalCode || `Trừ giờ ${index + 1}`;
 
       return {
-        ...row,
         id,
         deduction_type_id: id,
         code: canonicalCode,
@@ -85,6 +92,15 @@ export function normalizeDeductionOptions(rows: RawOption[] | null | undefined):
         key,
         deduction_code: canonicalCode,
         deduction_name: label,
+        ...(row.defect_type_id != null
+          ? { defect_type_id: Number(row.defect_type_id) || undefined }
+          : {}),
+        ...(row.defect_code != null
+          ? { defect_code: clean(row.defect_code) || undefined }
+          : {}),
+        ...(row.defect_name != null
+          ? { defect_name: clean(row.defect_name) || undefined }
+          : {}),
       };
     })
     .filter((option) => Boolean(option.key));
