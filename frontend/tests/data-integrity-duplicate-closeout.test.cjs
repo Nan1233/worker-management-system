@@ -34,3 +34,13 @@ test('duplicate prompt still preserves explicit cancel/edit/create UX for temp c
   assert.match(actions, /Chỉnh sửa báo cáo cũ/);
   assert.match(actions, /Vẫn tạo báo cáo mới/);
 });
+
+test('duplicate classification reads the token from the Axios response payload', () => {
+  const outcome = read('src/utils/processSubmitOutcome.ts');
+  const logic = read('src/pages/worker/processDuplicateReportLogic.ts');
+  assert.match(outcome, /response\?\.data/);
+  assert.match(outcome, /DUPLICATE_CONFIRMATION_REQUIRED/);
+  assert.match(outcome, /duplicate_confirmation_token/);
+  assert.match(logic, /unwrapDuplicatePayload/);
+  assert.match(logic, /AxiosResponse-like/);
+});

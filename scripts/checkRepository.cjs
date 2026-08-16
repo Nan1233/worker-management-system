@@ -6,6 +6,7 @@ const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
 const MAX_BYTES = 50 * 1024 * 1024;
+const ZERO_BYTE_ALLOWED = new Set([]);
 const FORBIDDEN = [
   /(^|\/)node_modules(\/|$)/i,
   /(^|\/)release(\/|$)/i,
@@ -51,6 +52,7 @@ function main() {
   const entries = readIndexEntries();
   const forbidden = [];
   const oversized = [];
+  const emptySourceFiles = [];
 
   for (const entry of entries) {
     const normalized = entry.file.replaceAll('\\', '/');
@@ -58,6 +60,13 @@ function main() {
 
     const size = objectSize(entry.hash);
     if (size > MAX_BYTES) oversized.push({ file: normalized, size });
+
+    // Empty source modules are almost always accidental artifacts. Keep an
+    // explicit allow-list so intentional marker files remain possible.
+    const sourceLike = /\.(js|cjs|mjs|ts|tsx|css|json)$/i.test(normalized);
+    if (size === 0 && sourceLike && !ZERO_BYTE_ALLOWED.has(normalized)) {
+      emptySourceFiles.push(normalized);
+    }
   }
 
   if (forbidden.length) {
@@ -72,7 +81,12 @@ function main() {
     });
   }
 
-  if (forbidden.length || oversized.length) {
+  if (emptySourceFiles.length) {
+    console.error('\n[KTC] Commit bị chặn vì có source file rỗng:');
+    emptySourceFiles.forEach((file) => console.error(`  - ${file}`));
+  }
+
+  if (forbidden.length || oversized.length || emptySourceFiles.length) {
     console.error('\nChạy: git rm -r --cached . && git add .');
     process.exit(1);
   }

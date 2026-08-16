@@ -40,6 +40,9 @@
     "validate:zero-cost:security": "node scripts/zero-cost/security-runner.cjs",
     "validate:zero-cost:perf": "node scripts/zero-cost/perf-load-runner.cjs",
     "validate:zero-cost:excel": "node scripts/zero-cost/excel-runtime-runner.cjs",
-    "verify:release-consistency": "node scripts/releaseConsistencyContract.cjs"
+    "verify:release-consistency": "node scripts/releaseConsistencyContract.cjs",
+    "test": "npm --prefix backend test && npm --prefix frontend test",
+    "verify:repo": "node scripts/checkRepository.cjs",
+    "verify:quality": "npm run verify:repo && npm run verify"
   }
 }
