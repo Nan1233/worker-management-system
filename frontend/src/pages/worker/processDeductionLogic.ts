@@ -12,7 +12,7 @@ export function normalizeDeductionStoredValue(value:string): string {
   const n=Number(value);
   return Number.isFinite(n) && n>0 ? String(Math.round(n*100)/100) : "";
 }
-export function getProspectiveTotalWorkMinutes(data:DeductionState, actualHours:string, actualMinutes:string): number {
+export function getProspectiveTotalWorkMinutes(_data:DeductionState, actualHours:string, actualMinutes:string): number {
   return baseMinutes(actualHours,actualMinutes);
 }
 export function calculateDeductionTimeSummary(data:DeductionState, actualHours:string, actualMinutes:string) {

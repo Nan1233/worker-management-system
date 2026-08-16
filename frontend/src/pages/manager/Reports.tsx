@@ -190,7 +190,6 @@ function Reports() {
     }, [loadReports]);
 
     const previousDateCount = useMemo(() => {
-        if (dateMode !== "all") return 0;
         return reports.filter(report => String(report.work_date || "").slice(0, 10) < getToday()).length;
     }, [reports, dateMode]);
 
@@ -692,7 +691,7 @@ function Reports() {
             </div>
 
 
-            {dateMode === "all" && previousDateCount > 0 && (
+            {previousDateCount > 0 && (
                 <div className="management-backlog-alert">
                     <strong>Còn {previousDateCount} báo cáo của ngày trước chưa được xử lý.</strong>
                     <span>Danh sách hiện đang hiển thị toàn bộ ngày để tránh bỏ sót.</span>

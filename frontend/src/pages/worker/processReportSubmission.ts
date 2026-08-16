@@ -1,6 +1,6 @@
 import type { MachineOption, ProductStandardOption } from "../../services/masterDataService";
 import type { ProductionReport } from "../../types/production";
-import type { DeductionState, FormState, MachineLineState, NgKey, DeductionKey, OperationMode, OperationType } from "./processPageConfig";
+import type { DeductionState, FormState, MachineLineState, OperationType } from "./processPageConfig";
 
 type Option = { key?: string; id?: number; code?: string; label?: string; defect_type_id?: number; deduction_type_id?: number; defect_name?: string; deduction_name?: string };
 

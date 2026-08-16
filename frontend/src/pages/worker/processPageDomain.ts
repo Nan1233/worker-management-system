@@ -32,6 +32,8 @@ export function resolveUsesMultiMachineLines(c: ProcessCapabilities, mode: Opera
 export function resolveUsesSingleMachine(c: ProcessCapabilities, mode: OperationMode): boolean {
   return mode === "MACHINE" && !resolveUsesMultiMachineLines(c, mode);
 }
+export const usesMultiMachineLines = resolveUsesMultiMachineLines;
+export const usesSingleMachine = resolveUsesSingleMachine;
 export function getProcessCapabilitiesLegacy(process: string) { return getProcessCapabilities(process); }
 
 export function filterProductsForProcessScope(args: {

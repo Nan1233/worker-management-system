@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { createTempReport, updateTempReport } from "../../services/productionService";
-import type { ProductionReport } from "../../types/production";
 import type { DuplicatePromptState } from "./processDuplicateReportLogic";
 
 export function useDuplicateReportFlow(args:{

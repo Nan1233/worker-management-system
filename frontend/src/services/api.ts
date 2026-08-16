@@ -67,6 +67,7 @@ interface RefreshResponse {
     success: boolean;
     token?: string;
     accessToken?: string;
+    refreshToken?: string;
     expiresIn?: string;
     user?: AuthUser;
 }
@@ -431,13 +432,7 @@ api.interceptors.response.use(
                 retryAfterHeader: String(retryAfterHeader || "") || null,
             })
         ) {
-            const delayMs = transientRetryDelayMs({
-                method: originalRequest.method,
-                status,
-                code: error.code,
-                retryCount: transientRetryCount,
-                retryAfterHeader: String(retryAfterHeader || "") || null,
-            });
+            const delayMs = transientRetryDelayMs(transientRetryCount);
 
             originalRequest._transientRetryCount =
                 transientRetryCount + 1;
