@@ -1455,7 +1455,7 @@ const updateDeductionValue = (
                     }
                     if (axios.isAxiosError(error) && error.response?.status === 409 && ["DUPLICATE_PRODUCTION_REPORT", "DUPLICATE_CONFIRMATION_REQUIRED"].includes(String(error.response?.data?.code || ""))) {
                         const duplicateResponse = error.response;
-                        const challengeToken = String(duplicateResponse?.duplicate_confirmation_token || duplicateResponse.data?.duplicate_confirmation_token || "").trim();
+                        const challengeToken = String(duplicateResponse.data?.duplicate_confirmation_token || "").trim();
                         if (!challengeToken) {
                             throw error;
                         }
