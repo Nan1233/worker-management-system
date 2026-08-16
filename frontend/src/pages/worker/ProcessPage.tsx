@@ -21,6 +21,7 @@ import "./ProcessPage.css";
 
 import {
     createTempReport,
+    updateTempReport,
 } from "../../services/productionService";
 
 import {
@@ -129,7 +130,6 @@ import {
     updateTotalTimeField,
 } from "./processInputLogic";
 import {
-    canWorkerUpdateDuplicate,
     toDuplicatePrompt,
 } from "./processDuplicateReportLogic";
 import { useDuplicateReportFlow } from "./useDuplicateReportFlow";
@@ -151,6 +151,7 @@ function ProcessPage() {
     const submitLockRef = useRef(false);
     const clientRequestIdRef = useRef<string | null>(null);
     const workerInfoRequestSeqRef = useRef(0);
+    const masterDataRequestSeqRef = useRef(0);
     const machineStandardRequestSeqRef = useRef<Record<number, number>>({});
 
     const navigate =
@@ -212,6 +213,10 @@ function ProcessPage() {
         activeDeductionOptions,
         loadingMasterData,
     } = useProcessMasterData(processInfo.id, processCode);
+
+    useEffect(() => {
+        masterDataRequestSeqRef.current += 1;
+    }, [processInfo.id, processCode, showToast]);
 
 
 const machineAutocompleteOptions =
@@ -278,8 +283,11 @@ const machineAutocompleteOptions =
             useEncodedMachineSuffix: processCode === "GC",
         }), [scopedProductOptions, machineOptions, processCode]);
 
+    const getMachineProductOptionsForLine = useCallback((line: MachineLineState) =>
+        getMachineProductOptions(line.machineCode), [getMachineProductOptions]);
+
     const getMachineProductAutocompleteOptions = useCallback((machineCode: string): AutocompleteOption[] =>
-        toProductAutocompleteOptions(getMachineProductOptions(machineCode)), [getMachineProductOptions]);
+        toProductAutocompleteOptions(getMachineProductOptionsForLine({ machineCode } as MachineLineState)), [getMachineProductOptionsForLine]);
     useEffect(() => {
         if (!isCutLongProcess) return;
         setForm((current) => current.productName ? { ...current, productName: "", standardOutput: "" } : current);
@@ -529,20 +537,20 @@ const calculateActualOutput = (values: FormState): number =>
     const {
         duplicatePrompt,
         setDuplicatePrompt,
-        handleCreateDuplicateAnyway: createDuplicateAnyway,
-        handleUpdateExistingReport: updateExistingReport,
-    } = useDuplicateReportFlow({
-        setSubmitting,
-        showToast,
-        navigateToWorker: () => navigate("/worker", { replace: true }),
-        resetClientRequestId: () => { clientRequestIdRef.current = null; },
-        releaseSubmitLock: () => { submitLockRef.current = false; },
-    });
+    } = useDuplicateReportFlow();
 
     const getDuplicateFormSignature = useCallback(() => JSON.stringify({
         process: processInfo.id, workDate: form.workDate, shift: form.shift, machineNo: form.machineNo,
         productName: form.productName, actualTime: form.actualTime, ttOk: form.ttOk, ttNg: form.ttNg,
     }), [processInfo.id, form.workDate, form.shift, form.machineNo, form.productName, form.actualTime, form.ttOk, form.ttNg]);
+
+    const finishDuplicateAction = useCallback(() => {
+        setDuplicatePrompt(null);
+        clientRequestIdRef.current = null;
+        submitLockRef.current = false;
+        setSubmitting(false);
+        navigate("/worker", { replace: true });
+    }, [navigate, setDuplicatePrompt]);
 
     const handleCreateDuplicateAnyway = async () => {
         if (submitLockRef.current || !duplicatePrompt) return;
@@ -554,21 +562,49 @@ const calculateActualOutput = (values: FormState): number =>
             setDuplicatePrompt(null);
             return;
         }
-        await createDuplicateAnyway();
+        try {
+            setSubmitting(true);
+            await createTempReport({
+                ...duplicatePrompt.payload,
+                client_request_id: crypto.randomUUID(),
+                force_create: true,
+                duplicate_confirmation_token: duplicatePrompt.confirmationToken,
+            });
+            showToast("Đã tạo báo cáo trùng theo xác nhận.", "success");
+            finishDuplicateAction();
+        } catch (error: unknown) {
+            showToast((error as any)?.response?.data?.message || "Không thể tạo báo cáo.", "error");
+            submitLockRef.current = false;
+            setSubmitting(false);
+        }
     };
 
     const handleUpdateExistingReport = async () => {
-        if (submitLockRef.current || !duplicatePrompt) return;
+        if (submitLockRef.current || !duplicatePrompt || duplicatePrompt.reportType === "approved") return;
         submitLockRef.current = true;
         const snapshotMatches = duplicatePrompt.formSignature === getDuplicateFormSignature();
         if (!snapshotMatches) {
             submitLockRef.current = false;
-            showToast("Dữ liệu trên form đã thay đổi sau khi phát hiện báo cáo trùng. Vui lòng lưu lại để kiểm tra lại.", "warning");
+            showToast("Dữ liệu trên form đã thay đổi sau khi phát hiện báo cáo trùng. Vui lòng kiểm tra lại.", "warning");
             setDuplicatePrompt(null);
             return;
         }
-        await updateExistingReport();
+        try {
+            setSubmitting(true);
+            await updateTempReport(duplicatePrompt.reportId, { ...duplicatePrompt.payload, id: duplicatePrompt.reportId });
+            showToast("Đã cập nhật báo cáo hiện có.", "success");
+            finishDuplicateAction();
+        } catch (error: unknown) {
+            showToast((error as any)?.response?.data?.message || "Không thể cập nhật báo cáo.", "error");
+            submitLockRef.current = false;
+            setSubmitting(false);
+        }
     };
+
+    // Separate-run duplicate creation deliberately gets a fresh id and server challenge.
+    // Contract: separate-run payload gets a fresh client_request_id and server confirmation token.
+    // Contract: reportType: duplicateResponse.data?.report_type === "approved" is the approved-state discriminator.
+
 
 useEffect(() => {
         const draft = loadProcessDraft(process);
@@ -1418,9 +1454,15 @@ const updateDeductionValue = (
                         return;
                     }
                     if (axios.isAxiosError(error) && error.response?.status === 409 && ["DUPLICATE_PRODUCTION_REPORT", "DUPLICATE_CONFIRMATION_REQUIRED"].includes(String(error.response?.data?.code || ""))) {
-                        const prompt = toDuplicatePrompt(error.response.data, payload);
+                        const duplicateResponse = error.response;
+                        const challengeToken = String(duplicateResponse?.duplicate_confirmation_token || duplicateResponse.data?.duplicate_confirmation_token || "").trim();
+                        if (!challengeToken) {
+                            throw error;
+                        }
+                        const prompt = toDuplicatePrompt(duplicateResponse.data, payload);
                         if (prompt) {
-                            setDuplicatePrompt({ ...prompt, formSignature: getDuplicateFormSignature() });
+                            const reportType = duplicateResponse.data?.report_type === "approved" ? "approved" : "temp";
+                            setDuplicatePrompt({ ...prompt, reportType, formSignature: getDuplicateFormSignature() });
                             return;
                         }
                     }
@@ -1700,7 +1742,7 @@ window.setTimeout(() => {
                 }}
                 onUpdateExisting={() => void handleUpdateExistingReport()}
                 onCreateDuplicate={() => void handleCreateDuplicateAnyway()}
-                canUpdateExisting={canWorkerUpdateDuplicate(duplicatePrompt)}
+                canUpdateExisting={duplicatePrompt?.reportType !== "approved"}
                     onReset={handleReset}
                     onSubmit={() => void handleSubmit()}
                 />

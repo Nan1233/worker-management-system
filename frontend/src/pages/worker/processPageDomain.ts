@@ -9,6 +9,7 @@ export type ProcessCapabilities = {
 };
 
 const codeOf = (value: unknown) => String(value || "").trim().toUpperCase();
+export const normalizeMasterText = (value: unknown) => codeOf(value);
 
 export function getProcessCapabilities(process: string): ProcessCapabilities {
   const map: Record<string,string> = {
@@ -42,6 +43,15 @@ export function filterProductsForProcessScope(args: {
   processId?: number;
   operationType?: OperationType;
 }): ProductStandardOption[] {
-  const code = codeOf(args.processCode);
-  return args.products.filter(p => !code || !p.process_code || codeOf(p.process_code) === code);
+  const expectedProcessCode = codeOf(args.processCode);
+  const expectedWorkType = codeOf(args.operationType);
+  return args.products.filter((product) => {
+    const returnedProcessCode = codeOf(product.process_code);
+    const processMatches = !expectedProcessCode || !returnedProcessCode || returnedProcessCode === expectedProcessCode;
+    if (!processMatches) return false;
+    if (expectedProcessCode === "GC" && expectedWorkType) {
+      return normalizeMasterText(product.work_type) === expectedWorkType;
+    }
+    return true;
+  });
 }

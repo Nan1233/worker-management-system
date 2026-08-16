@@ -21,9 +21,9 @@ function buildListFilters(managerId, filters, isAdmin, statusSql) {
     if (filters.process_id) { conditions.push("pr.process_id = ?"); params.push(filters.process_id); }
     if (filters.process_name) { conditions.push("p.process_name = ?"); params.push(filters.process_name); }
     if (filters.search) {
-        conditions.push("(w.worker_code LIKE ? OR u.full_name LIKE ? OR pr.machine_no LIKE ? OR pr.product_name LIKE ?)");
+        conditions.push("(w.worker_code LIKE ? OR u.full_name LIKE ? OR p.process_name LIKE ? OR pr.machine_no LIKE ? OR pr.product_name LIKE ?)");
         const search = `%${filters.search}%`;
-        params.push(search, search, search, search);
+        params.push(search, search, search, search, search);
     }
     return { conditions, params };
 }

@@ -695,6 +695,7 @@ export interface MachineProductionEvent {
     physical_ng_quantity?: number;
     physical_counted_output: number;
     physical_total_output?: number;
+    credited_output?: number;
     machine_time_hours: number;
     maximum_output?: number;
     standard_output?: number;
