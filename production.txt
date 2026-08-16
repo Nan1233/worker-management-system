@@ -676,81 +676,23 @@ export const rejectSelectedTempReports = async (items: Array<number | TempReview
     return res.data;
 };
 
-export interface MachineProductionEventDefectInput {
-    defect_type_id?: number;
-    defect_code?: string;
-    quantity: number;
-    responsible_worker_id: number;
-}
-
-export interface MachineProductionEvent {
-    id: number;
-    process_id: number;
-    machine_id: number;
-    machine_code: string;
-    product_code: string;
-    work_date: string;
-    shift: string;
-    physical_ok_quantity: number;
-    physical_ng_quantity?: number;
-    physical_counted_output: number;
-    physical_total_output?: number;
-    machine_time_hours: number;
-    maximum_output?: number;
-    standard_output?: number;
-    standard_source?: string | null;
-    exclude_kqd_from_tt_snapshot?: number | null;
-    status: string;
-    defects?: MachineProductionEventDefectInput[];
-    participants?: Array<{ worker_id: number; machine_line_id?: number; report_id?: number }>;
-    [key: string]: unknown;
-}
-
 export interface MachineProductionEventInput {
-    process_id: number;
-    machine_id?: number | null;
-    machine_code: string;
-    product_code: string;
-    work_date: string;
-    shift: string;
-    physical_ok_quantity: number;
-    machine_time_hours: number;
-    defects?: MachineProductionEventDefectInput[];
-    temp_machine_line_ids?: number[];
+    report_id: number;
+    machine_line_id?: number | null;
+    responsible_worker_id: number;
+    physical_counted_output: number;
+    credited_output?: number;
+    note?: string;
 }
 
-export interface MachineProductionEventUpdate {
-    physical_ok_quantity?: number;
-    machine_time_hours?: number;
-    defects?: MachineProductionEventDefectInput[];
-}
+export const createMachineProductionEvent = async (data: MachineProductionEventInput) =>
+    (await api.post("/machine-production-events", data)).data;
 
-export const createMachineProductionEvent = async (data: MachineProductionEventInput): Promise<MachineProductionEvent> => {
-    const res = await api.post("/machine-production-events", data);
-    return res.data?.data ?? res.data;
-};
+export const linkMachineEventParticipants = async (eventId: number, participantIds: number[]) =>
+    (await api.post(`/machine-production-events/${eventId}/participants`, { participant_ids: participantIds })).data;
 
-export const getMachineProductionEvent = async (eventId: number): Promise<MachineProductionEvent> => {
-    const res = await api.get(`/machine-production-events/${eventId}`);
-    return res.data?.data ?? res.data;
-};
-
-export const updateMachineProductionEvent = async (eventId: number, patch: MachineProductionEventUpdate): Promise<MachineProductionEvent> => {
-    const res = await api.put(`/machine-production-events/${eventId}`, patch);
-    return res.data?.data ?? res.data;
-};
-
-export const linkMachineEventParticipants = async (eventId: number, tempMachineLineIds: number[]) => {
-    const res = await api.post(`/machine-production-events/${eventId}/link-participants`, {
-        temp_machine_line_ids: tempMachineLineIds
-    });
-    return res.data?.data ?? res.data;
-};
-
-export const approveMachineProductionEvent = async (eventId: number): Promise<MachineProductionEvent> => {
-    const res = await api.post(`/machine-production-events/${eventId}/approve`);
-    return res.data?.data ?? res.data;
-};
+export const approveMachineProductionEvent = async (eventId: number) =>
+    (await api.post(`/machine-production-events/${eventId}/approve`)).data;
 
 export interface ReportActionLog {
     id: number;
