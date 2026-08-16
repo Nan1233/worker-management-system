@@ -1,0 +1,170 @@
+/* KTC Demo Polish — visual-only pass for the production demo.
+   No route, API, validation, state or business-rule changes. */
+:root {
+  --ktc-demo-font: Inter, "Be Vietnam Pro", "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+  --ktc-demo-heading: Inter, "Be Vietnam Pro", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --ktc-demo-radius: 14px;
+  --ktc-demo-shadow: 0 10px 30px rgba(15, 35, 55, .055);
+}
+
+html, body, #root,
+button, input, select, textarea {
+  font-family: var(--ktc-demo-font);
+}
+
+body {
+  font-size: 14px;
+  letter-spacing: -0.006em;
+}
+
+h1, h2, h3, h4, h5, h6,
+.management-content h1,
+.management-content h2,
+.worker-main-content h1,
+.worker-main-content h2,
+.login-panel h2,
+.login-showcase h1 {
+  font-family: var(--ktc-demo-heading);
+  text-rendering: optimizeLegibility;
+}
+
+/* Login: precise status alignment and a cleaner premium frame. */
+.login-heading {
+  grid-template-columns: 8px minmax(0, 1fr);
+  column-gap: 8px;
+  row-gap: 0;
+}
+
+.login-status-dot {
+  width: 7px;
+  height: 7px;
+  align-self: center;
+  justify-self: center;
+  margin-top: 1px;
+  flex: 0 0 7px;
+}
+
+.login-heading > p {
+  align-self: center;
+  margin: 0;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  line-height: 1;
+}
+
+.login-heading > h2 {
+  margin-top: 16px;
+  font-weight: 760;
+}
+
+.login-input-wrap input,
+.login-form button,
+.role-option,
+.remembered-account {
+  border-radius: 12px;
+}
+
+.login-submit {
+  min-height: 50px;
+  border-radius: 12px;
+  font-weight: 720;
+  letter-spacing: -.01em;
+}
+
+.login-showcase {
+  box-shadow: inset -1px 0 rgba(255,255,255,.09);
+}
+
+/* Enterprise pages: consistent visual rhythm and fewer accidental boxed edges. */
+.management-content,
+.worker-main-content {
+  font-family: var(--ktc-demo-font);
+}
+
+.management-content > :where(section, article, .management-report-card, .dashboard-panel),
+.worker-main-content > :where(section, article, .worker-form-card, .worker-quality-card, .process-card) {
+  border-radius: var(--ktc-demo-radius);
+}
+
+.management-content :where(.management-report-card, .dashboard-panel, .dashboard-kpi-card, .detail-section, .history-card, .permission-card, .formula-card, .governance-card, .master-card),
+.worker-main-content :where(.worker-form-card, .worker-quality-card, .process-card) {
+  box-shadow: var(--ktc-demo-shadow);
+}
+
+/* Data tables: clean header, readable density and stable overflow. */
+.management-content table,
+.history-page table {
+  font-variant-numeric: tabular-nums;
+}
+
+.management-content thead th,
+.history-page thead th {
+  white-space: nowrap;
+  backdrop-filter: saturate(1.05);
+}
+
+.management-content tbody td,
+.history-page tbody td {
+  line-height: 1.45;
+}
+
+/* Buttons: professional hover without excessive animation. */
+.management-content button:not(:disabled):hover,
+.worker-main-content button:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.management-content button:active,
+.worker-main-content button:active {
+  transform: translateY(0);
+}
+
+/* Status badges stay visually centered instead of inheriting line-height quirks. */
+:where(.status-badge, .status-chip, .badge, .notification-badge, .governance-status) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+/* Avoid horizontal clipping on demo laptops and tablets. */
+.management-content,
+.worker-main-content,
+.login-panel {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+  .login-heading {
+    grid-template-columns: 7px minmax(0, 1fr);
+    column-gap: 7px;
+  }
+
+  .login-status-dot {
+    width: 6px;
+    height: 6px;
+    flex-basis: 6px;
+  }
+
+  .login-heading > p {
+    min-height: 22px;
+    padding: 4px 8px;
+    font-size: 9px;
+  }
+
+  .login-heading > h2 {
+    margin-top: 13px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .management-content button,
+  .worker-main-content button,
+  .login-submit {
+    transition: none !important;
+  }
+}

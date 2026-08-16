@@ -185,35 +185,26 @@
 /* Login heading is a wrapper, not the large heading itself. */
 .login-heading {
   display: grid;
+  grid-template-columns: auto minmax(0,1fr);
+  column-gap: 8px;
   row-gap: 0;
-  align-items: start;
+  align-items: center;
   margin-bottom: 28px;
 }
 
-/* Status indicator: keep the dot optically centered with the status text.
-   The previous grid placed the dot in its own grid row, which made it look
-   vertically too high on some fonts/viewports. */
-.login-status-row {
-  display: inline-flex;
-  align-items: center;
-  justify-self: start;
-  width: max-content;
-  max-width: 100%;
-  gap: 8px;
-  min-height: 27px;
-}
-
 .login-status-dot {
-  flex: 0 0 7px;
   width: 7px;
   height: 7px;
-  margin: 0;
   border-radius: 50%;
   background: #56b98b;
   box-shadow: 0 0 0 4px rgba(86,185,139,.12);
 }
 
-.login-status-row p {
+.login-heading > p {
+  grid-column: 2;
+  justify-self: start;
+  width: max-content;
+  max-width: 100%;
   margin: 0;
   padding: 5px 9px;
   border: 1px solid rgba(86,185,139,.18);
@@ -614,18 +605,16 @@
     font-size: 18px;
   }
   .login-heading {
+    grid-template-columns: auto minmax(0,1fr);
+    column-gap: 7px;
     margin-bottom: 20px;
   }
-  .login-status-row {
-    gap: 7px;
-    min-height: 24px;
-  }
   .login-status-dot {
-    flex-basis: 7px;
     width: 7px;
     height: 7px;
   }
-  .login-status-row p {
+  .login-heading > p {
+    grid-column: 2;
     padding: 4px 8px;
     font-size: 9px;
     letter-spacing: .045em;
