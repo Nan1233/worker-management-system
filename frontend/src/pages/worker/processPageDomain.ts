@@ -11,28 +11,52 @@ export type ProcessCapabilities = {
 const codeOf = (value: unknown) => String(value || "").trim().toUpperCase();
 export const normalizeMasterText = (value: unknown) => codeOf(value);
 
+/**
+ * KTC worker form policy:
+ * - GC: Cắt/Lồng, each mode can be Tay or Máy; machine mode supports multiple machines.
+ * - MAI: machine workflow, supports multiple machines.
+ * - K1/K2: worker may do Tay or exactly one Máy.
+ * - DO/EP/CAN: exactly one Máy.
+ * - XLBV/SX3: manual-only in the worker report form.
+ */
 export function getProcessCapabilities(process: string): ProcessCapabilities {
-  const map: Record<string,string> = {
-    "cat-long":"GC","mai":"MAI","do":"DO","kiem-1":"K1","kiem-2":"K2",
-    "can":"CAN","ep":"EP","bavia":"XLBV","sx3":"SX3"
+  const map: Record<string, string> = {
+    "cat-long": "GC",
+    "mai": "MAI",
+    "do": "DO",
+    "kiem-1": "K1",
+    "kiem-2": "K2",
+    "can": "CAN",
+    "ep": "EP",
+    "bavia": "XLBV",
+    "sx3": "SX3",
   };
   const processCode = map[process] || codeOf(process);
+
   return {
     processCode,
     isCutLongProcess: processCode === "GC",
-    isInspectionProcess: ["K1","K2","DO"].includes(processCode),
-    isManualOnlyProcess: ["K1","K2","XLBV","SX3"].includes(processCode),
+    // Only K1/K2 have a Tay/Máy switch. DO is machine-only.
+    isInspectionProcess: ["K1", "K2"].includes(processCode),
+    isManualOnlyProcess: ["XLBV", "SX3"].includes(processCode),
   };
 }
+
 export function getInitialOperationMode(c: ProcessCapabilities): OperationMode {
-  return c.isManualOnlyProcess ? "MANUAL" : ["MAI","DO","CAN","EP"].includes(c.processCode) ? "MACHINE" : "MANUAL";
+  if (c.isManualOnlyProcess || c.isInspectionProcess) return "MANUAL";
+  if (["MAI", "DO", "CAN", "EP"].includes(c.processCode)) return "MACHINE";
+  return "MANUAL";
 }
+
 export function resolveUsesMultiMachineLines(c: ProcessCapabilities, mode: OperationMode): boolean {
-  return c.processCode === "GC" && mode === "MACHINE";
+  return (c.processCode === "GC" || c.processCode === "MAI") && mode === "MACHINE";
 }
+
 export function resolveUsesSingleMachine(c: ProcessCapabilities, mode: OperationMode): boolean {
-  return mode === "MACHINE" && !resolveUsesMultiMachineLines(c, mode);
+  if (mode !== "MACHINE") return false;
+  return !resolveUsesMultiMachineLines(c, mode);
 }
+
 export const usesMultiMachineLines = resolveUsesMultiMachineLines;
 export const usesSingleMachine = resolveUsesSingleMachine;
 export function getProcessCapabilitiesLegacy(process: string) { return getProcessCapabilities(process); }
