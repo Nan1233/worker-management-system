@@ -27,7 +27,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                     <button
                         type="button"
                         key={toast.id}
-                        className={`toast toast-${toast.type}`}
+                        className={`ktc-toast ktc-toast-${toast.type}`}
                         onClick={() => setToasts((current) => current.filter((item) => item.id !== toast.id))}
                     >
                         {toast.message}
@@ -37,4 +37,3 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         </ToastContext.Provider>
     );
 }
-
