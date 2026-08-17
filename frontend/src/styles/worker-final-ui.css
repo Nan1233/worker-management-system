@@ -286,3 +286,54 @@
     z-index: 2 !important;
   }
 }
+
+
+/* 2026-08-17 worker layout hardening
+   Prevent grid children/autocomplete controls from overflowing the card and
+   keep every interactive control inside the form's actual content box. */
+.worker-form-page,
+.worker-form-shell,
+.worker-form-card,
+.worker-basic-grid,
+.worker-dynamic-grid,
+.worker-field-block,
+.single-machine-product-scope,
+.single-machine-product-scope > .autocomplete-field,
+.worker-time-grid,
+.worker-time-item {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.single-machine-product-scope {
+  width: 100% !important;
+  grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.45fr) !important;
+  gap: 14px !important;
+  align-items: end !important;
+}
+
+.single-machine-product-scope > .autocomplete-field,
+.single-machine-product-scope .autocomplete-input-wrapper,
+.single-machine-product-scope .autocomplete-input {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.autocomplete-input {
+  box-sizing: border-box !important;
+}
+
+@media (max-width: 1100px) {
+  .single-machine-product-scope {
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr) !important;
+  }
+}
+
+@media (max-width: 860px) {
+  .single-machine-product-scope {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}

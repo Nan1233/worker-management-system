@@ -978,3 +978,44 @@
     font-size: 14px !important;
   }
 }
+
+
+/* Time entry hierarchy: actual time is the only editable duration; deduction and
+   gross total are calculated fields. */
+.worker-time-required {
+  color: #d92d20;
+  font-weight: 800;
+}
+.worker-time-computed input[readonly] {
+  background: #f4f7fb;
+  color: #36506d;
+  cursor: default;
+}
+.worker-time-computed small {
+  color: #7b8da2;
+}
+@media (min-width: 861px) {
+  .worker-time-grid {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr) !important;
+    align-items: stretch;
+  }
+  .worker-time-item {
+    min-width: 0;
+  }
+}
+@media (max-width: 860px) {
+  .worker-time-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  }
+  .worker-time-grid > .worker-time-item:first-child {
+    grid-column: 1 / -1 !important;
+  }
+}
+@media (max-width: 520px) {
+  .worker-time-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .worker-time-grid > .worker-time-item:first-child {
+    grid-column: auto !important;
+  }
+}

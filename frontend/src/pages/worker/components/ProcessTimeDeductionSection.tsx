@@ -59,15 +59,15 @@ export default function ProcessTimeDeductionSection({
 
         setForm((prev) => {
             const minutes = hours === 12 ? 0 : Math.min(59, Number(prev.actualMinutes) || 0);
-            const totalTime = hours + minutes / 60;
+            const actualTime = hours + minutes / 60;
             const deductionTime = parseFlexibleTime(prev.deductionTime);
-            const actualTime = Math.max(0, totalTime - (Number.isFinite(deductionTime) ? deductionTime : 0));
+            const totalTime = actualTime + (Number.isFinite(deductionTime) ? deductionTime : 0);
             return {
                 ...prev,
                 actualHours: value,
                 actualMinutes: hours === 12 ? "0" : prev.actualMinutes,
-                totalTime: String(totalTime),
                 actualTime: String(actualTime),
+                totalTime: String(totalTime),
             };
         });
     };
@@ -91,14 +91,14 @@ export default function ProcessTimeDeductionSection({
         }
 
         setForm((prev) => {
-            const totalTime = hours + minutes / 60;
+            const actualTime = hours + minutes / 60;
             const deductionTime = parseFlexibleTime(prev.deductionTime);
-            const actualTime = Math.max(0, totalTime - (Number.isFinite(deductionTime) ? deductionTime : 0));
+            const totalTime = actualTime + (Number.isFinite(deductionTime) ? deductionTime : 0);
             return {
                 ...prev,
                 actualMinutes: value,
-                totalTime: String(totalTime),
                 actualTime: String(actualTime),
+                totalTime: String(totalTime),
             };
         });
     };
@@ -109,7 +109,7 @@ export default function ProcessTimeDeductionSection({
 
             <div className="worker-time-grid">
                 <div className="worker-time-item">
-                    <label>Tổng thời gian làm việc</label>
+                    <label>Thời gian làm việc thực tế <span className="worker-time-required">*</span></label>
                     <div className="worker-time-split worker-time-parts">
                         <div className="worker-time-part">
                             <span>Giờ</span>
@@ -143,19 +143,19 @@ export default function ProcessTimeDeductionSection({
                             />
                         </div>
                     </div>
-                    <small>Giới hạn 12 giờ · Trừ giờ sẽ được tính vào thời gian thực tế</small>
+                    <small>Nhập thời gian thực tế. Thời gian trừ cộng thêm để tính tổng, tổng không quá 12 giờ.</small>
                 </div>
 
-                <div className="worker-time-item">
-                    <label>Thời gian thực tế</label>
-                    <input value={form.actualTime} readOnly />
-                    <small>{decimalHoursToText(form.actualTime)}</small>
-                </div>
-
-                <div className="worker-time-item">
+                <div className="worker-time-item worker-time-computed">
                     <label>Thời gian trừ</label>
-                    <input value={form.deductionTime} readOnly />
+                    <input value={form.deductionTime} readOnly aria-readonly="true" />
                     <small>{decimalHoursToText(form.deductionTime)}</small>
+                </div>
+
+                <div className="worker-time-item worker-time-computed">
+                    <label>Tổng thời gian</label>
+                    <input value={form.totalTime} readOnly aria-readonly="true" />
+                    <small>Thực tế + thời gian trừ · tối đa 12 giờ</small>
                 </div>
             </div>
 

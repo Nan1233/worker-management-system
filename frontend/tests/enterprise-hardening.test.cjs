@@ -28,7 +28,7 @@ test('frontend fallback version matches its package version', () => {
 test('service worker cache namespace tracks the current stabilization release', () => {
   const pkg = JSON.parse(read('package.json'));
   const sw = read('public/sw.js');
-  assert.match(sw, new RegExp(pkg.version.replaceAll('.', '\\.') + '-mobile-nav-click-fix-20260817'));
+  assert.match(sw, new RegExp(pkg.version.replaceAll('.', '\\.') + '-toast-click-fix-20260817'));
   assert.match(sw, /if \(isApiRequest\(url\)\) return/);
 });
 

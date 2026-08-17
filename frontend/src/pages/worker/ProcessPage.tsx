@@ -1293,7 +1293,7 @@ const updateDeductionValue = (
 
 
         if (parseFlexibleTime(form.actualTime) <= 0) {
-            return "Thời gian làm thực tế phải lớn hơn 0";
+            return "Thời gian làm việc thực tế phải lớn hơn 0";
         }
 
 
@@ -1301,6 +1301,11 @@ const updateDeductionValue = (
             return "Số phút làm thực tế phải từ 0 đến 59";
         }
 
+        const actualMinutes = Math.round(parseFlexibleTime(form.actualTime) * 60);
+        const deductionMinutes = Math.round(parseFlexibleTime(form.deductionTime) * 60);
+        if (actualMinutes + deductionMinutes > MAX_TOTAL_WORK_MINUTES) {
+            return "Thời gian thực tế + thời gian trừ không được vượt quá 12 giờ";
+        }
         if (parseFlexibleTime(form.totalTime) > 12) {
             return "Tổng thời gian không được vượt quá 12 giờ";
         }
@@ -1383,7 +1388,7 @@ const updateDeductionValue = (
         else if (normalized.includes("ca làm việc")) selector = 'input[name="shift"]';
         else if (normalized.includes("sản phẩm")) selector = usesMultiMachineLines ? '#machineProduct-0' : '#productName';
         else if (normalized.includes("máy")) selector = usesMultiMachineLines ? '#machineNo-0' : '#machineNo';
-        else if (normalized.includes("thời gian")) selector = 'input[placeholder="0"]';
+        else if (normalized.includes("thời gian")) selector = '.worker-time-parts input';
         else if (normalized.includes("tt ok") || normalized.includes("sản lượng")) selector = '#ttOk';
 
         if (normalized.includes("ng")) setShowNg(true);

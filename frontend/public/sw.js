@@ -1,4 +1,4 @@
-const BUILD_VERSION = "1.8.18-mobile-nav-click-fix-20260817";
+const BUILD_VERSION = "1.8.20-worker-ui-time-click-fix-20260817";
 const APP_CACHE = `ktc-${BUILD_VERSION}-app`;
 const STATIC_CACHE = `ktc-${BUILD_VERSION}-static`;
 const APP_SHELL = ["./", "./index.html", "./manifest.webmanifest", "./offline.html"];

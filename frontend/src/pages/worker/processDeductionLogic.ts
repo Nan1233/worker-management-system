@@ -17,12 +17,17 @@ export function getProspectiveTotalWorkMinutes(data:DeductionState, actualHours:
   // Keep this calculation pure so both mobile and web forms validate the same way.
   return baseMinutes(actualHours, actualMinutes) + minutesOf(data);
 }
-export function calculateDeductionTimeSummary(data:DeductionState, actualHours:string, actualMinutes:string) {
-  const total = baseMinutes(actualHours,actualMinutes);
+export function calculateDeductionTimeSummary(data: DeductionState, actualHours: string, actualMinutes: string) {
+  // Business rule:
+  //   entered time = actual/net working time
+  //   deduction time = excluded minutes
+  //   gross total = actual + deduction
+  // Gross total must be <= 12 hours.
+  const actualMinutesTotal = baseMinutes(actualHours, actualMinutes);
   const deduction = minutesOf(data);
   return {
-    actualTime: Math.max(0,total-deduction)/60,
-    deductionHours: deduction/60,
-    totalTime: total/60
+    actualTime: actualMinutesTotal / 60,
+    deductionHours: deduction / 60,
+    totalTime: (actualMinutesTotal + deduction) / 60,
   };
 }

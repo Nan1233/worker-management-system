@@ -22,7 +22,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     return (
         <ToastContext.Provider value={value}>
             {children}
-            <div className="toast-container" aria-live="polite" aria-atomic="true">
+            <div className="ktc-toast-container" data-ktc-toast-layer="true" aria-live="polite" aria-atomic="true">
                 {toasts.map((toast) => (
                     <button
                         type="button"

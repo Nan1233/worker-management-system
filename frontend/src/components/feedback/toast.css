@@ -1,12 +1,19 @@
-.toast-container {
+.ktc-toast-container {
     position: fixed;
-    right: 20px;
-    top: 20px;
+    inset: 20px 20px auto auto;
     z-index: 9999;
     display: grid;
     gap: 10px;
     width: min(380px, calc(100vw - 32px));
+    max-height: min(70vh, 640px);
+    overflow: visible;
+    pointer-events: none !important;
 }
+
+.ktc-toast-container > .toast {
+    pointer-events: auto;
+}
+
 .toast {
     border: 0;
     border-left: 5px solid currentColor;
