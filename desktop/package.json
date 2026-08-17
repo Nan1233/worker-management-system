@@ -27,7 +27,7 @@
     "check:packaged-shared-contract": "node scripts/checkPackagedSharedContract.cjs"
   },
   "devDependencies": {
-    "electron": "37.10.3",
+    "electron": "43.4.0",
     "electron-builder": "26.15.3"
   },
   "build": {
