@@ -1,0 +1,57 @@
+/*
+ * KTC interaction hardening
+ * Purpose: prevent decorative/sticky layers from becoming invisible click shields.
+ * Do not use pointer-events:none on application content.
+ */
+
+#root {
+  position: relative;
+  min-height: 100dvh;
+  isolation: isolate;
+}
+
+#root button,
+#root a,
+#root input,
+#root select,
+#root textarea,
+#root summary,
+#root [role="button"] {
+  pointer-events: auto;
+}
+
+#root .worker-main-content,
+#root .management-main,
+#root .management-content,
+#root .worker-form-page {
+  position: relative;
+  z-index: 0;
+  pointer-events: auto;
+}
+
+/* These are intentionally decorative / non-interactive. */
+#root .ktc-network-banner,
+#root .worker-input-with-unit > span,
+#root .autocomplete-search-icon {
+  pointer-events: none;
+}
+
+/* Sticky context is visual chrome; its actual controls explicitly opt back in. */
+#root .worker-sticky-context {
+  pointer-events: none;
+}
+#root .worker-sticky-context button,
+#root .worker-sticky-context input,
+#root .worker-sticky-context select,
+#root .worker-sticky-context a,
+#root .worker-sticky-context [role="button"] {
+  pointer-events: auto;
+}
+
+/* Never let a transparent page-level pseudo layer intercept interaction. */
+#root .worker-layout::before,
+#root .worker-layout::after,
+#root .management-layout::before,
+#root .management-layout::after {
+  pointer-events: none;
+}
