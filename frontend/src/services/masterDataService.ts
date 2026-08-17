@@ -79,7 +79,7 @@ export interface ResolvedProductStandard {
     product_standard_id: number;
     process_id: number;
     product_code: string;
-    machine_id: number;
+    machine_id: number | null;
     machine_code: string;
     standard_time_seconds: number | null;
     machine_standard_output: number | null;
@@ -89,17 +89,64 @@ export interface ResolvedProductStandard {
     exclude_kqd_from_tt?: number;
 }
 
+/**
+ * Resolve a machine-specific standard when a machine is selected.
+ *
+ * IMPORTANT: the worker form can know the product before the machine. In that
+ * state we must not call /product-standards/resolve with machine_code="".
+ * That endpoint is intentionally strict about historical/machine standards,
+ * and calling it too early caused a stream of 422 responses while the user was
+ * still filling the form.
+ *
+ * When machineCode is empty, read the process product master instead. This
+ * branch is only used for product-level metadata (for example KQD policy);
+ * actual machine-line output is still resolved through this function after a
+ * real machine is selected.
+ */
 export const resolveProductStandard = async (
     processId: number,
     machineCode: string,
     productCode: string,
     workDate?: string,
 ): Promise<ResolvedProductStandard> => {
+    const normalizedMachine = String(machineCode || "").trim();
+    const normalizedProduct = String(productCode || "").trim();
+
+    if (!normalizedMachine) {
+        const response = await api.get("/product-standards", {
+            params: { process_id: processId },
+        });
+        const payload = response.data?.data ?? response.data;
+        const rows = Array.isArray(payload) ? payload as ProductStandardOption[] : [];
+        const product = rows.find(
+            (row) => String(row?.product_code || "").trim().toUpperCase() === normalizedProduct.toUpperCase(),
+        );
+
+        if (!product) {
+            throw new Error(`Không tìm thấy mã sản phẩm ${normalizedProduct} trong công đoạn`);
+        }
+
+        const defaultOutput = Number(product.standard_output || 0);
+        return {
+            product_standard_id: Number(product.id),
+            process_id: Number(product.process_id || processId),
+            product_code: String(product.product_code),
+            machine_id: null,
+            machine_code: "",
+            standard_time_seconds: null,
+            machine_standard_output: null,
+            default_standard_output: Number.isFinite(defaultOutput) ? defaultOutput : 0,
+            resolved_output_per_hour: Number.isFinite(defaultOutput) ? defaultOutput : 0,
+            standard_source: "DEFAULT",
+            exclude_kqd_from_tt: Number(product.exclude_kqd_from_tt || 0),
+        };
+    }
+
     const response = await api.get("/product-standards/resolve", {
         params: {
             process_id: processId,
-            machine_code: machineCode,
-            product_code: productCode,
+            machine_code: normalizedMachine,
+            product_code: normalizedProduct,
             work_date: workDate || undefined,
         },
     });
