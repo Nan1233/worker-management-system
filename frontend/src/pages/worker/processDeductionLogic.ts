@@ -13,7 +13,7 @@ export function normalizeDeductionStoredValue(value:string): string {
   return Number.isFinite(n) && n>0 ? String(Math.round(n*100)/100) : "";
 }
 export function getProspectiveTotalWorkMinutes(data:DeductionState, actualHours:string, actualMinutes:string): number {
-  // Business rule: actual working time + all deduction minutes must never exceed 12 hours.
+  // Business rule: gross shift time (the entered total) includes deduction minutes and must never exceed 12 hours.
   // Keep this calculation pure so both mobile and web forms validate the same way.
   return baseMinutes(actualHours, actualMinutes) + minutesOf(data);
 }

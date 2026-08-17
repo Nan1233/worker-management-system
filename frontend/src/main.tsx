@@ -10,6 +10,7 @@ import "./styles/release-polish.css";
 import "./styles/pilot-ui-polish.css";
 import "./styles/demo-polish.css";
 import "./styles/ktc-edge-to-edge.css";
+import "./styles/worker-final-ui.css";
 import "./styles/light-contrast-hardening.css";
 import { ToastProvider } from "./components/feedback/ToastProvider";
 import AuthBootstrap from "./components/AuthBootstrap";
