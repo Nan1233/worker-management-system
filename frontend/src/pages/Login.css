@@ -235,6 +235,8 @@
 
 .login-heading > h2 {
   margin: 13px 0 0;
+}
+
 .login-form {
   display: grid;
   gap: 16px;
