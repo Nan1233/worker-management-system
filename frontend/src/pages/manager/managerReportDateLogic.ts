@@ -1,4 +1,32 @@
+import api from "../../services/api";
+
 export type DateFilterMode = "today" | "yesterday" | "week" | "currentMonth" | "all" | "month" | "range";
+
+// The heavy server-side consolidated Excel endpoint is intentionally disabled on
+// the Render deployment. Manager Excel updates are handled by the Desktop IPC
+// flow (company-data -> local workbook build). Guard the legacy POST at the
+// Manager feature boundary so a stale/legacy caller can never create a request
+// storm against /reports/export-excel.
+let managerExcelExportGuardInstalled = false;
+
+if (!managerExcelExportGuardInstalled) {
+  api.interceptors.request.use((config) => {
+    const method = String(config.method || "get").toLowerCase();
+    const url = String(config.url || "");
+    const isLegacyConsolidatedExport =
+      method === "post" && /(?:^|\/)reports\/export-excel\/?$/.test(url);
+
+    if (isLegacyConsolidatedExport) {
+      throw new Error(
+        "Xuất Excel tổng hợp trên Web đã được tắt để bảo vệ Render. " +
+        "Hãy dùng KTC Desktop: Cập nhật Excel từ DB."
+      );
+    }
+
+    return config;
+  });
+  managerExcelExportGuardInstalled = true;
+}
 
 export const getToday = (): string => {
   const d = new Date();
