@@ -1,0 +1,71 @@
+/* KTC final shell pass: the viewport is the frame, not a floating card. */
+html, body, #root {
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+}
+
+body { margin: 0; overflow-x: hidden; }
+
+.worker-layout,
+.management-layout {
+  width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+.worker-main-content,
+.management-main {
+  min-width: 0;
+  width: 100%;
+}
+
+@media (max-width: 860px) {
+  .worker-form-page {
+    width: 100%;
+    padding-inline: 0 !important;
+  }
+
+  .worker-form-shell {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .worker-sticky-context {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .worker-form-card {
+    margin-top: 10px;
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .worker-mobile-nav {
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: calc(var(--worker-mobile-nav-height) + env(safe-area-inset-bottom));
+    border-left: 0 !important;
+    border-right: 0 !important;
+    border-bottom: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: 0 -8px 24px rgba(16,24,40,.08);
+  }
+
+  .management-layout {
+    padding-bottom: calc(66px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .management-content {
+    padding-inline: 10px;
+  }
+}
+
+@media (max-width: 640px) {
+  .worker-form-card { padding: 18px 14px; }
+}
