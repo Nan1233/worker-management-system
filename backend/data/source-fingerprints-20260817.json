@@ -1,0 +1,14 @@
+{
+  "generated_at": "2026-08-17",
+  "file_mau_sha256": "0aab63bffa213f335d06326231baa9a395455ab73d1aa19e0ef37182984704a4",
+  "book1_sha256": "51f0dded6dcba4ae87b8a26ef72779235e2369e81b2ef562365f584a9605d667",
+  "book2_sha256": "a9f6f677fe9c627b129933639a0b5064e3c2f88a4408ba7df3c6b381eb89dacd",
+  "workers_canonical_count": 648,
+  "workers_source_unique_codes": 657,
+  "workers_source_rows": 1448,
+  "workers_unresolved_codes": 2,
+  "machines_source_count": 123,
+  "product_source_rows": 1005,
+  "product_aliases_count": 769,
+  "product_standards_count": 2019
+}
