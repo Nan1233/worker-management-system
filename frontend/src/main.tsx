@@ -13,6 +13,7 @@ import "./styles/ktc-edge-to-edge.css";
 import "./styles/worker-final-ui.css";
 import "./styles/light-contrast-hardening.css";
 import "./styles/interaction-hardening.css";
+import "./styles/management-layout-failsafe.css";
 import { ToastProvider } from "./components/feedback/ToastProvider";
 import AuthBootstrap from "./components/AuthBootstrap";
 import AppErrorBoundary from "./components/system/AppErrorBoundary";
