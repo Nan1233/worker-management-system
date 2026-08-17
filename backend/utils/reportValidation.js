@@ -114,15 +114,33 @@ const validateProductionReport = (payload = {}, options = {}) => {
         }
     }
 
-    const deductions = normalizeDetails(payload.deductions || [], "deduction_type_id", "hours", "deductions", errors);
+    let deductions = normalizeDetails(payload.deductions || [], "deduction_type_id", "hours", "deductions", errors);
+
+    // Backward compatibility for clients that still send deduction detail values
+    // in MINUTES while deduction_time is expressed in HOURS. The canonical API
+    // unit remains HOURS. Only convert when the minute interpretation matches
+    // the declared deduction_time; otherwise keep the original values so the
+    // normal validation error remains visible.
+    const deductionTotal = deductions.reduce((sum, item) => sum + item.hours, 0);
+    const minuteBasedTotal = deductionTotal / 60;
+    if (
+        deductionTime > EPSILON &&
+        Math.abs(deductionTotal - deductionTime) > EPSILON &&
+        Math.abs(minuteBasedTotal - deductionTime) <= EPSILON
+    ) {
+        deductions = deductions.map((item) => ({
+            ...item,
+            hours: item.hours / 60
+        }));
+    }
 
     const defectTotal = defects.reduce((sum, item) => sum + item.quantity, 0);
-    const deductionTotal = deductions.reduce((sum, item) => sum + item.hours, 0);
+    const normalizedDeductionTotal = deductions.reduce((sum, item) => sum + item.hours, 0);
 
     if (Math.abs(defectTotal - ttNg) > EPSILON) {
         errors.tt_ng = "TT NG phải bằng tổng số lượng trong chi tiết lỗi";
     }
-    if (Math.abs(deductionTotal - deductionTime) > EPSILON) {
+    if (Math.abs(normalizedDeductionTotal - deductionTime) > EPSILON) {
         errors.deduction_time = "Thời gian trừ phải bằng tổng thời gian trong chi tiết khấu trừ";
     }
 
