@@ -52,7 +52,7 @@ export function applyTtOkToForm(
   calc: (f: FormState) => number
 ): FormState {
   const next = { ...form, ttOk: value };
-  next.ttNg = String(calculateNgTotal(next, []));
+  // Changing OK must not overwrite the independently calculated NG total.
   next.actualOutput = String(calc(next));
   return next;
 }
