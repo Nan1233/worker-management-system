@@ -7,9 +7,9 @@ export function isValidIntegerInput(value: string): boolean {
 }
 
 /**
- * TT NG is the sum of NG quantities only.
- * An enabled/selected NG defect with an empty quantity contributes 0.
- * TT NG must never use OK/actualOutput as a fallback.
+ * TT NG = tổng số lượng của các lỗi NG đã nhập.
+ * Checkbox NG chưa có số lượng => 0.
+ * TT NG tuyệt đối không lấy TT OK/actualOutput làm fallback.
  */
 export function calculateNgTotal(form: FormState, options: NgOption[]): number {
   return (options || []).reduce((sum, option) => {
@@ -26,8 +26,7 @@ export function applyNgToggleToForm(
   calc: (f: FormState) => number
 ): FormState {
   const next = { ...form, [key]: checked ? (form[key] || "") : "" };
-  const ttNg = calculateNgTotal(next, options);
-  next.ttNg = String(ttNg);
+  next.ttNg = String(calculateNgTotal(next, options));
   next.actualOutput = String(calc(next));
   return next;
 }
@@ -40,19 +39,9 @@ export function applyNgValueToForm(
   calc: (f: FormState) => number
 ): FormState {
   const next = { ...form, [key]: value };
-  const ttNg = calculateNgTotal(next, options);
-  next.ttNg = String(ttNg);
+  next.ttNg = String(calculateNgTotal(next, options));
   next.actualOutput = String(calc(next));
   return next;
 }
 
-export function applyTtOkToForm(
-  form: FormState,
-  value: string,
-  calc: (f: FormState) => number
-): FormState {
-  const next = { ...form, ttOk: value };
-  // Changing OK must not overwrite the independently calculated NG total.
-  next.actualOutput = String(calc(next));
-  return next;
-}
+export function applyTtOkToForm(form: FormState, value: string, calc: (f: FormState) => number, options: NgOption[] = []): FormState { const next = { ...form, ttOk: value }; next.ttNg = options.length > 0 ? String(calculateNgTotal(next, options)) : String(form.ttNg || '0'); next.actualOutput = String(calc(next)); return next; }
