@@ -1,6 +1,6 @@
 {
   "name": "backend",
-  "version": "1.9.8",
+  "version": "1.9.9",
   "description": "KTC internal production reporting API optimized for Render and TiDB",
   "main": "server.js",
   "scripts": {
@@ -28,38 +28,7 @@
     "audit:shared-machines": "node scripts/auditSharedMachineAccounting.js",
     "audit:rollback-versions": "node scripts/auditRollbackVersions.js",
     "audit:logical-duplicates": "node scripts/auditLogicalDuplicates.js",
-    "db:schema:verify": "node scripts/verifyDatabaseSchema.js",
-    "db:release": "node scripts/releaseDatabase.js",
-    "restore:dry-run": "node scripts/restoreDatabaseBackup.js --dry-run",
-    "restore:cutover-check": "node scripts/checkDisasterRestoreCutover.js",
-    "restore:cutover-record": "node scripts/recordDisasterRestoreCutover.js",
-    "restore:rollback-check": "node scripts/checkDisasterRestoreRollback.js",
-    "restore:rollback-record": "node scripts/recordDisasterRestoreRollback.js",
-    "restore:cleanup-check": "node scripts/checkDisasterRestoreCleanup.js",
-    "test:template": "node --test tests/canonical-template-contract.test.js"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "dependencies": {
-    "bcrypt": "6.0.0",
-    "cors": "2.8.6",
-    "dotenv": "17.4.2",
-    "exceljs": "4.4.0",
-    "express": "5.2.1",
-    "express-rate-limit": "8.6.1",
-    "googleapis": "173.0.0",
-    "helmet": "8.3.0",
-    "ipaddr.js": "1.9.1",
-    "jsonwebtoken": "9.0.3",
-    "mysql2": "3.23.2"
-  },
-  "devDependencies": {
-    "nodemon": "3.1.14"
-  },
-  "engines": {
-    "node": "22.x",
-    "npm": ">=10"
+    "audit:worker-processes": "node scripts/auditWorkerProcesses.js",
+    "audit:production-indexes": "node scripts/auditProductionIndexes.js"
   }
 }
