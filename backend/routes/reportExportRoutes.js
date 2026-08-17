@@ -4,6 +4,7 @@ const authMiddleware = require('../middleware/authMiddleware');
 const checkRole = require('../middleware/roleMiddleware');
 const permission = require('../middleware/permissionMiddleware');
 const { expensiveUserLimiter } = require('../middleware/rateLimiters');
+const { exportRequestGuard } = require('../middleware/exportRequestGuard');
 const validate = require('../middleware/validateRequest');
 const companyExcelDataController = require('../controllers/companyExcelDataController');
 const desktopExcelExportController = require('../controllers/desktopExcelExportController');
@@ -56,14 +57,17 @@ router.get('/export-excel/company-status', authMiddleware, roles, canExport, (re
 router.get('/export-excel/company-data', authMiddleware, roles, canExport, companyExcelDataController.get);
 router.get('/export-excel/processes', authMiddleware, roles, canExport, desktopExcelExportController.listProcesses);
 
-router.post('/export-excel', authMiddleware, roles, canExport, expensiveUserLimiter, validate({ date:{required:true,type:'date'} }), lazyController('../controllers/reportExportController', 'exportGiaCongExcel'));
-router.post('/export-excel/process', authMiddleware, roles, canExport, expensiveUserLimiter, validate({ date:{required:true,type:'date'}, processId:{required:true,type:'number'} }), lazyController('../controllers/desktopExcelExportController', 'exportProcess'));
+// Excel POST endpoints are expensive and must not accept duplicate/concurrent requests
+// from a single user for the same export target. The guard runs before the rate limiter
+// so a UI retry storm becomes a controlled 409 instead of consuming the 429 budget.
+router.post('/export-excel', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'} }), lazyController('../controllers/reportExportController', 'exportGiaCongExcel'));
+router.post('/export-excel/process', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'}, processId:{required:true,type:'number'} }), lazyController('../controllers/desktopExcelExportController', 'exportProcess'));
 router.get('/export-excel/company-files', authMiddleware, roles, canExport, lazyController('../controllers/desktopExcelExportController', 'listCompanyFiles'));
-router.post('/export-excel/company-build-all', authMiddleware, roles, canExport, expensiveUserLimiter, validate({ date:{required:true,type:'date'} }), lazyController('../controllers/desktopExcelExportController', 'buildAllCompanyFiles'));
-router.post('/export-excel/company-file', authMiddleware, roles, canExport, expensiveUserLimiter, validate({ date:{required:true,type:'date'}, groupCode:{required:true,type:'string'} }), lazyController('../controllers/desktopExcelExportController', 'exportCompanyFile'));
-router.post('/export-excel/jobs', authMiddleware, roles, canExport, expensiveUserLimiter, lazyController('../controllers/excelJobController', 'create'));
+router.post('/export-excel/company-build-all', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'} }), lazyController('../controllers/desktopExcelExportController', 'buildAllCompanyFiles'));
+router.post('/export-excel/company-file', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'}, groupCode:{required:true,type:'string'} }), lazyController('../controllers/desktopExcelExportController', 'exportCompanyFile'));
+router.post('/export-excel/jobs', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, lazyController('../controllers/excelJobController', 'create'));
 router.get('/export-excel/jobs', authMiddleware, roles, canExport, lazyController('../controllers/excelJobController', 'list'));
 router.get('/export-excel/jobs/:jobId', authMiddleware, roles, canExport, lazyController('../controllers/excelJobController', 'get'));
-router.get('/export-excel/jobs/:jobId/download', authMiddleware, roles, canExport, lazyController('../controllers/excelJobController', 'download'));
+router.get('/export-excel/jobs/:jobId/download', authMiddleware, roles, canExport, lazyController('../controllers/desktopExcelExportController', 'download'));
 
 module.exports = router;
