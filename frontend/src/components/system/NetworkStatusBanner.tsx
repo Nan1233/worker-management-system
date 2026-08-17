@@ -10,17 +10,23 @@ export default function NetworkStatusBanner() {
             setOnline(false);
             setVisible(true);
         };
+        let onlineTimer: number | undefined;
         const handleOnline = () => {
             setOnline(true);
             setVisible(true);
-            const timer = window.setTimeout(() => setVisible(false), 3200);
-            return () => window.clearTimeout(timer);
+            if (onlineTimer !== undefined) {
+                window.clearTimeout(onlineTimer);
+            }
+            onlineTimer = window.setTimeout(() => setVisible(false), 3200);
         };
         window.addEventListener("offline", handleOffline);
         window.addEventListener("online", handleOnline);
         return () => {
             window.removeEventListener("offline", handleOffline);
             window.removeEventListener("online", handleOnline);
+            if (onlineTimer !== undefined) {
+                window.clearTimeout(onlineTimer);
+            }
         };
     }, []);
 
