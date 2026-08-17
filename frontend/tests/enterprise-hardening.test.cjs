@@ -25,10 +25,10 @@ test('frontend fallback version matches its package version', () => {
   assert.ok(source.includes(`VITE_BUILD_VERSION || "${pkg.version}"`));
 });
 
-test('service worker cache namespace tracks the current stabilization release', () => {
+test('service worker cache namespace tracks the current web redesign release', () => {
   const pkg = JSON.parse(read('package.json'));
   const sw = read('public/sw.js');
-  assert.match(sw, new RegExp(pkg.version.replaceAll('.', '\\.') + '-toast-click-fix-20260817'));
+  assert.match(sw, new RegExp(pkg.version.replaceAll('.', '\\.') + '-web-redesign-20260817'));
   assert.match(sw, /if \(isApiRequest\(url\)\) return/);
 });
 
