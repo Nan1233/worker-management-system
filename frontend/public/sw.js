@@ -1,4 +1,4 @@
-const BUILD_VERSION = "1.8.21-worker-form-v3-20260817";
+const BUILD_VERSION = "1.8.21-web-redesign-20260817";
 const APP_CACHE = `ktc-${BUILD_VERSION}-app`;
 const STATIC_CACHE = `ktc-${BUILD_VERSION}-static`;
 const APP_SHELL = ["./", "./index.html", "./manifest.webmanifest", "./offline.html"];
@@ -18,64 +18,3 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
-});
-
-function isApiRequest(url) {
-  return url.pathname === "/api" || url.pathname.startsWith("/api/") || url.hostname.includes("worker-management-system-2-5jqv.onrender.com");
-}
-
-self.addEventListener("fetch", (event) => {
-  const request = event.request;
-  if (request.method !== "GET") return;
-  const url = new URL(request.url);
-  if (isApiRequest(url)) return;
-
-  if (request.mode === "navigate") {
-    event.respondWith((async () => {
-      try {
-        const response = await fetch(request, { cache: "no-store" });
-        if (response.ok) {
-          const cache = await caches.open(APP_CACHE);
-          await cache.put("./index.html", response.clone());
-        }
-        return response;
-      } catch {
-        return (await caches.match("./index.html")) || (await caches.match("./offline.html")) || Response.error();
-      }
-    })());
-    return;
-  }
-
-  if (url.origin === self.location.origin && ["script", "style"].includes(request.destination)) {
-    event.respondWith((async () => {
-      try {
-        const response = await fetch(request, { cache: "no-store" });
-        if (response.ok) {
-          const cache = await caches.open(STATIC_CACHE);
-          await cache.put(request, response.clone());
-        }
-        return response;
-      } catch {
-        return (await caches.match(request)) || Response.error();
-      }
-    })());
-    return;
-  }
-
-  if (url.origin === self.location.origin && ["image", "font"].includes(request.destination)) {
-    event.respondWith((async () => {
-      try {
-        const cached = await caches.match(request);
-        if (cached) return cached;
-        const response = await fetch(request);
-        if (response.ok) {
-          const cache = await caches.open(STATIC_CACHE);
-          await cache.put(request, response.clone());
-        }
-        return response;
-      } catch {
-        return (await caches.match(request)) || Response.error();
-      }
-    })());
-  }
-});
