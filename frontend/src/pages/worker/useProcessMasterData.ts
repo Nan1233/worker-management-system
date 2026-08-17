@@ -21,20 +21,21 @@ export function useProcessMasterData(processId: number, processCode: string) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [machines, products, defects, deductions] = await Promise.all([
+      const results = await Promise.allSettled([
         getCachedMachines(processId),
         getCachedProductStandards(processId, processCode),
         getCachedDefects(processId),
         getCachedDeductions(processId),
       ]);
 
-      setMachineOptions(machines);
-      setProductOptions(products);
-      setActiveNgOptions(normalizeDefectOptions(defects));
-      setActiveDeductionOptions(normalizeDeductionOptions(deductions));
-    } catch {
-      // Keep the last successful master data instead of replacing it with []
-      // when a stale-session request is cancelled during account switching.
+      const [machines, products, defects, deductions] = results;
+      if (machines.status === "fulfilled") setMachineOptions(machines.value);
+      if (products.status === "fulfilled") setProductOptions(products.value);
+      if (defects.status === "fulfilled") setActiveNgOptions(normalizeDefectOptions(defects.value));
+      if (deductions.status === "fulfilled") setActiveDeductionOptions(normalizeDeductionOptions(deductions.value));
+
+      // A stale/cancelled request must never turn a previously loaded master
+      // list into an empty selector.
     } finally {
       setLoading(false);
     }
