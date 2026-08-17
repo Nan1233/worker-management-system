@@ -1,4 +1,5 @@
 const productStandardModel = require("../models/productStandardModel");
+const machineModel = require("../models/machineModel");
 const { TTL, getOrLoadMasterData } = require("../utils/masterDataCache");
 
 exports.getProductStandards = async (req, res) => {
@@ -31,7 +32,6 @@ exports.getProductStandards = async (req, res) => {
   }
 };
 
-
 exports.resolveProductStandard = async (req, res) => {
   try {
     const processId = Number(req.query.process_id);
@@ -42,6 +42,24 @@ exports.resolveProductStandard = async (req, res) => {
     if (!Number.isInteger(processId) || processId <= 0 || !productCode || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
       return res.status(400).json({ success: false, message: 'Thiếu process_id, product_code hoặc work_date hợp lệ' });
     }
+
+    // The resolver uses canonical DB reads, while the frontend can call this endpoint
+    // immediately after a Render cold start. Warm the same master datasets first so the
+    // first resolution request cannot race the startup master-data warmup/TiDB connection.
+    // This does not change historical-standard rules: resolveStandard still decides
+    // whether the effective historical version exists and can still fail closed.
+    await Promise.all([
+      getOrLoadMasterData(
+        `machines:${processId}`,
+        TTL.machines,
+        () => machineModel.findByProcess(processId)
+      ),
+      getOrLoadMasterData(
+        `product-standards:${processId}`,
+        TTL.productStandards,
+        () => productStandardModel.findByProcess(processId)
+      )
+    ]);
 
     const data = await productStandardModel.resolveByMachineAndProduct(processId, machineCode, productCode, workDate);
     if (!data) {
