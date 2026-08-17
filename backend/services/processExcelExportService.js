@@ -247,34 +247,30 @@ async function buildProcessWorkbook(value, processId) {
   const folder = path.join(tempRoot, year, processFolder, month);
   await fs.mkdir(folder, { recursive: true });
 
-  // Pass output configuration explicitly. process.env is process-global; mutating it
-  // during a request creates a race where concurrent exports can write into each
-  // other's folders.
-  const { buildMonthlyTemplateWorkbook } = require('./consolidatedExcelExportService');
-  const result = await buildMonthlyTemplateWorkbook(reports, yearMonth, {
+  // The process workbook now comes directly from the canonical KTC 9-process template.
+  // All template sheets, merged cells and formatting remain intact; only the matching
+  // process sheet receives approved DB rows.
+  const { buildProcessTemplateWorkbook } = require('./excelTemplateContractService');
+  const result = await buildProcessTemplateWorkbook(reports, yearMonth, {
+    processCode: String(selectedProcess.process_code || '').toUpperCase(),
+    processName,
     latestUpdatedAt,
     deductionTypes: reports.deductionTypes || [],
     defectTypes: reports.defectTypes || [],
     exportRoot: tempRoot,
-    stageFolder: path.join(processFolder, month)
+    stageFolder: processFolder
   });
-  // A+B là workbook công ty và chỉ được tạo bởi luồng company Excel.
-  // Mọi workbook tại đây phải mang tên Báo-cáo-<công đoạn>-MM-YYYY.
-  const desiredName = `Bao-cao-${slugName(processName)}-${month}-${year}.xlsx`;
-  const desiredPath = path.join(folder, desiredName);
-  if (result.archivePath !== desiredPath) {
-    await fs.rm(desiredPath, { force: true });
-    await fs.rename(result.archivePath, desiredPath);
-  }
+
   return {
-    path: desiredPath,
-    fileName: desiredName,
+    path: result.archivePath,
+    fileName: result.fileName,
     processId: Number(processId),
     processName,
     reportCount: reports.length,
-    yearMonth
+    yearMonth,
+    templateSheet: result.templateSheet,
+    templateHeaderRow: result.headerRow
   };
-
 }
 
 module.exports = {
