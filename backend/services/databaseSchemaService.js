@@ -25,7 +25,24 @@ async function verifyDatabaseSchema({ executor = db.promise() } = {}) {
     const ready = missingTables.length === 0 && missingColumns.length === 0;
     return { ready, status: ready ? SCHEMA_STATUS.READY : SCHEMA_STATUS.CONTRACT_INVALID, missingTables, missingColumns, contractVersion: 26 };
   } catch (error) {
-    return { ready:false, status:SCHEMA_STATUS.DATABASE_UNAVAILABLE, missingTables:[], missingColumns:[], contractVersion:26, error };
+    const code = String(error?.code || "DATABASE_UNAVAILABLE");
+    const reason =
+      code === "ER_ACCESS_DENIED_ERROR" || code === "ER_DBACCESS_DENIED_ERROR"
+        ? "ACCESS_DENIED"
+        : /ssl|tls|certificate/i.test(String(error?.message || ""))
+          ? "TLS_ERROR"
+          : /timeout|timed out|etimedout/i.test(String(error?.message || ""))
+            ? "TIMEOUT"
+            : "CONNECTION_ERROR";
+    return {
+      ready: false,
+      status: SCHEMA_STATUS.DATABASE_UNAVAILABLE,
+      missingTables: [],
+      missingColumns: [],
+      contractVersion: 26,
+      error,
+      reason,
+    };
   }
 }
 
@@ -39,7 +56,14 @@ function createSchemaNotReadyError(result) {
 }
 
 async function assertDatabaseSchemaReady(options={}) { const result=await verifyDatabaseSchema(options); if(!result.ready) throw createSchemaNotReadyError(result); return result; }
-function toSafeSchemaDiagnostics(result) { return { status:result.status, schemaReady:Boolean(result.ready), contractVersion:result.contractVersion || 26, missingTables:result.missingTables || [], missingColumns:result.missingColumns || [] }; }
-function loadActualMigrationLedger(){ return Promise.resolve([]); }
-function analyzeMigrationState(){ return { ready:true,status:SCHEMA_STATUS.READY,contractVersion:26,missingMigrations:[],checksumMismatches:[],unexpectedMigrations:[] }; }
-module.exports={ SCHEMA_STATUS, REQUIRED_TABLES, REQUIRED_COLUMNS, verifyDatabaseSchema, assertDatabaseSchemaReady, createSchemaNotReadyError, toSafeSchemaDiagnostics, loadActualMigrationLedger, analyzeMigrationState };
+function toSafeSchemaDiagnostics(result) {
+  return {
+    status: result.status,
+    schemaReady: Boolean(result.ready),
+    contractVersion: result.contractVersion || 26,
+    missingTables: result.missingTables || [],
+    missingColumns: result.missingColumns || [],
+    ...(result.reason ? { reason: result.reason } : {}),
+  };
+}
+module.exports={ SCHEMA_STATUS, REQUIRED_TABLES, REQUIRED_COLUMNS, verifyDatabaseSchema, assertDatabaseSchemaReady, createSchemaNotReadyError, toSafeSchemaDiagnostics };

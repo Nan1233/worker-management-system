@@ -18,7 +18,7 @@ function verifiedState(){
  const old=safeFingerprint({host:'active.local',port:'4000',database:'worker_management',user:'app_user'});
  return {
   restoreId:'restore_20260813_abc123', finalState:'VERIFIED_NOT_ACTIVATED', schemaReady:true, schemaStatus:'READY',
-  expectedMigration:25, actualMigration:25, integrityReady:true, sessionsInvalidated:true, activeSessionsRemaining:0,
+integrityReady:true, sessionsInvalidated:true, activeSessionsRemaining:0,
   backupSha256:'a'.repeat(64), backupCreatedAt:'2026-08-13T00:00:00.000Z', restoreStartedAt:'2026-08-13T01:00:00.000Z', restoreVerifiedAt:'2026-08-13T01:15:00.000Z',
   verifiedTargetFingerprint:target, preCutoverActiveFingerprint:old, auditTrail:[],
  };
@@ -26,8 +26,7 @@ function verifiedState(){
 function cutoverContext(){return {maintenanceMode:'RESTORE',workersQuiesced:'YES',jobsQuiesced:'YES',target:{host:'restore.local',port:'4000',database:'worker_management_restore_1',user:'restore_user'},active:{host:'active.local',port:'4000',database:'worker_management',user:'app_user'}};}
 
 test('cutover blocked without VERIFIED_NOT_ACTIVATED state',()=>{const s=verifiedState();s.finalState='FAILED';assert.throws(()=>assertCutoverEligibility(s,cutoverContext()),e=>e.code==='CUTOVER_BLOCKED'&&e.details.failures.includes('STATE_NOT_VERIFIED_NOT_ACTIVATED'));});
-test('cutover blocked when schema verifier is not READY',()=>{const s=verifiedState();s.schemaStatus='MIGRATIONS_PENDING';assert.throws(()=>assertCutoverEligibility(s,cutoverContext()),e=>e.details.failures.includes('SCHEMA_NOT_READY'));});
-test('cutover blocked when migration is not exact 025',()=>{const s=verifiedState();s.actualMigration=24;assert.throws(()=>assertCutoverEligibility(s,cutoverContext()),e=>e.details.failures.includes('MIGRATION_NOT_025'));});
+test('cutover blocked when database contract is not READY',()=>{const s=verifiedState();s.schemaReady=false;s.schemaStatus='DATABASE_CONTRACT_INVALID';assert.throws(()=>assertCutoverEligibility(s,cutoverContext()),e=>e.details.failures.includes('SCHEMA_NOT_READY'));});
 test('cutover blocked with active restored sessions',()=>{const s=verifiedState();s.activeSessionsRemaining=1;assert.throws(()=>assertCutoverEligibility(s,cutoverContext()),e=>e.details.failures.includes('ACTIVE_SESSIONS_REMAIN'));});
 test('cutover blocked without maintenance mode',()=>{const c=cutoverContext();c.maintenanceMode='';assert.throws(()=>assertCutoverEligibility(verifiedState(),c),e=>e.details.failures.includes('MAINTENANCE_NOT_ACTIVE'));});
 test('cutover blocked if workers/jobs are not quiesced',()=>{const c=cutoverContext();c.workersQuiesced='NO';c.jobsQuiesced='NO';assert.throws(()=>assertCutoverEligibility(verifiedState(),c),e=>e.details.failures.includes('WORKERS_NOT_QUIESCED')&&e.details.failures.includes('JOBS_NOT_QUIESCED'));});

@@ -211,7 +211,7 @@ export default function ProcessTimeDeductionSection({
                                         value={deductions[item.key]}
                                         onChange={(event) => onUpdateDeduction(item.key, event.target.value)}
                                         onBlur={() => onNormalizeDeduction(item.key)}
-                                        inputMode="numeric"
+                                        inputMode="decimal"
                                         placeholder="Phút"
                                         autoComplete="off"
                                     />

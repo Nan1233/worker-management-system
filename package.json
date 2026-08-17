@@ -43,6 +43,10 @@
     "test": "npm --prefix backend test && npm --prefix frontend test",
     "verify:repo": "node scripts/checkRepository.cjs",
     "verify:quality": "npm run verify:repo && npm run verify",
-    "db:verify": "npm --prefix backend run db:schema:verify"
+    "db:verify": "npm --prefix backend run db:schema:verify",
+    "ios:add": "npm --prefix frontend run ios:add",
+    "ios:sync": "npm --prefix frontend run ios:sync",
+    "ios:open": "npm --prefix frontend run ios:open",
+    "ios:doctor": "npm --prefix frontend run ios:doctor"
   }
 }

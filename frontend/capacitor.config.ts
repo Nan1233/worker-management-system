@@ -10,6 +10,9 @@ const config: CapacitorConfig = {
   android: {
     path: "android",
   },
+  ios: {
+    contentInset: "automatic",
+  },
 };
 
 export default config;

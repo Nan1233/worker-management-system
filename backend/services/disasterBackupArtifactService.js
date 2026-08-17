@@ -144,8 +144,6 @@ async function verifyBackupArtifact(filePath, { encryptionSecret = process.env.K
     metadata: {
       appVersion: manifest.app_version || meta.app_version || null,
       dbVersion: manifest.db_version || meta.db_version || null,
-      expectedMigration: manifest.expected_migration || meta.expected_migration || null,
-      actualMigration: manifest.actual_migration || meta.actual_migration || null,
       encrypted: Boolean(manifest.encrypted),
     },
   };

@@ -17,11 +17,22 @@ function parsePositiveInteger(value, fallback, { min = 1, max = 100 } = {}) {
 
 const dbPort = parsePositiveInteger(process.env.DB_PORT, 4000, { max: 65535 });
 const useSsl = ["true", "1", "yes"].includes(
-  String(process.env.DB_SSL ?? "true").toLowerCase(),
+  String(process.env.DB_SSL ?? process.env.MYSQL_SSL ?? "true").toLowerCase(),
 );
 
+function normalizePem(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw || raw === "...") return "";
+  return raw.replace(/\\\\n/g, "\\n");
+}
+
+const sslCa = normalizePem(process.env.DB_SSL_CA);
 const ssl = useSsl
-  ? { minVersion: "TLSv1.2", rejectUnauthorized: true }
+  ? {
+      minVersion: "TLSv1.2",
+      rejectUnauthorized: true,
+      ...(sslCa ? { ca: sslCa } : {}),
+    }
   : undefined;
 
 // Render instances are memory constrained. A small pool avoids opening more

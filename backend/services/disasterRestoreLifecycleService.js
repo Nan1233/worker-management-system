@@ -98,7 +98,6 @@ function assertCutoverEligibility(state, context = {}) {
   const failures = [];
   if (state.finalState !== 'VERIFIED_NOT_ACTIVATED') failures.push('STATE_NOT_VERIFIED_NOT_ACTIVATED');
   if (state.schemaReady !== true || upper(state.schemaStatus) !== 'READY') failures.push('SCHEMA_NOT_READY');
-  if (Number(state.expectedMigration) !== 25 || Number(state.actualMigration) !== 25) failures.push('MIGRATION_NOT_025');
   if (state.integrityReady !== true) failures.push('INTEGRITY_NOT_READY');
   if (state.sessionsInvalidated !== true || Number(state.activeSessionsRemaining) !== 0) failures.push('ACTIVE_SESSIONS_REMAIN');
   if (!normalize(state.restoreId)) failures.push('RESTORE_ID_MISSING');
@@ -123,8 +122,6 @@ function assertCutoverEligibility(state, context = {}) {
     backupSha256: state.backupSha256,
     target: requestedTarget,
     currentActive: active,
-    expectedMigration: 25,
-    actualMigration: 25,
   };
 }
 

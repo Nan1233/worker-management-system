@@ -21,7 +21,12 @@
     "android:apk:debug": "npm run android:prepare && npm run build:native && cap sync android && cd android && gradlew.bat assembleDebug",
     "android:aab:release": "npm run android:prepare && npm run build:native && cap sync android && cd android && gradlew.bat bundleRelease",
     "android:prepare": "npm install --no-save --package-lock=false @capacitor/core@8.5.0 @capacitor/android@8.5.0 @capacitor/cli@8.5.0",
-    "build:native": "node scripts/buildNative.cjs"
+    "build:native": "node scripts/buildNative.cjs",
+    "ios:add": "npm run ios:prepare && cap add ios",
+    "ios:sync": "npm run ios:prepare && npm run build:native && cap sync ios",
+    "ios:open": "npm run ios:prepare && cap open ios",
+    "ios:prepare": "npm install --no-save --package-lock=false @capacitor/core@8.5.0 @capacitor/ios@8.5.0 @capacitor/cli@8.5.0",
+    "ios:doctor": "npm run ios:prepare && cap doctor"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
