@@ -20,13 +20,39 @@
   pointer-events: auto;
 }
 
+/* Keep application content above non-modal decorative/background layers.
+ * Modal/backdrop components intentionally use z-index >= 100, while the
+ * normal page surface lives at 10. This prevents an accidental transparent
+ * layer from becoming a global click shield.
+ */
 #root .worker-main-content,
 #root .management-main,
 #root .management-content,
-#root .worker-form-page {
+#root .worker-form-page,
+#root .worker-form-shell,
+#root .select-process-page,
+#root .select-process-shell {
   position: relative;
-  z-index: 0;
+  z-index: 10;
   pointer-events: auto;
+}
+
+/* Every real control gets its own hit-test layer. The z-index is intentionally
+ * below fixed navigation (80/120/140) and below modal backdrops (>=100). */
+#root :where(button, a, input, select, textarea, summary, [role="button"], label) {
+  position: relative;
+  z-index: 11;
+  pointer-events: auto;
+}
+
+/* Decorative pseudo-elements must never become a hit-test surface. */
+#root .worker-layout::before,
+#root .worker-layout::after,
+#root .management-layout::before,
+#root .management-layout::after,
+#root .main-layout::before,
+#root .main-layout::after {
+  pointer-events: none !important;
 }
 
 /* These are intentionally decorative / non-interactive. */
@@ -48,10 +74,3 @@
   pointer-events: auto;
 }
 
-/* Never let a transparent page-level pseudo layer intercept interaction. */
-#root .worker-layout::before,
-#root .worker-layout::after,
-#root .management-layout::before,
-#root .management-layout::after {
-  pointer-events: none;
-}

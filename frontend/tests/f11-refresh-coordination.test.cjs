@@ -194,10 +194,12 @@ test('F11 FE 38 coordinator never stores refresh tokens or process scope authori
 test('F11 FE 39 browser refresh still uses HttpOnly cookie credentials', () => {
   assert.match(api(), /withCredentials: true/);
 });
-test('F11 FE 40 frontend coordination itself introduces no migration; 024 belongs to logical-duplicate backend wave', () => {
-  const migrationDir = path.resolve(root, '..', 'backend', 'migrations');
-  const names = fs.readdirSync(migrationDir);
-  assert.ok(names.includes('024_logical_duplicate_report_lock_20260813.sql'));
+test('F11 FE 40 frontend coordination introduces no migration and canonical DB snapshot carries logical-duplicate state', () => {
+  const snapshotPath = path.resolve(root, '..', 'backend', 'database', 'KTC_FULL_DATABASE_CANONICAL_20260817.sql');
+  assert.ok(fs.existsSync(snapshotPath));
+  const snapshot = fs.readFileSync(snapshotPath, 'utf8');
+  assert.match(snapshot, /logical_duplicate_key/);
+  assert.match(snapshot, /idx_prt_logical_duplicate_status/);
   const frontendSource = [coordinator(), api(), authService()].join('\n');
   assert.doesNotMatch(frontendSource, /024_logical_duplicate_report_lock/);
 });

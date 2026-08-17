@@ -1,4 +1,4 @@
-const BUILD_VERSION = "1.8.18-mobile-nav-network-fix-20260811";
+const BUILD_VERSION = "1.8.18-mobile-nav-click-fix-20260817";
 const APP_CACHE = `ktc-${BUILD_VERSION}-app`;
 const STATIC_CACHE = `ktc-${BUILD_VERSION}-static`;
 const APP_SHELL = ["./", "./index.html", "./manifest.webmanifest", "./offline.html"];
