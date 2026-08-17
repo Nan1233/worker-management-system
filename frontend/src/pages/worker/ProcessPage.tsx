@@ -1168,7 +1168,7 @@ const updateDeductionValue = (
     ) => {
         const value = parseIntegerDisplay(event.target.value);
         if (!isValidIntegerInput(value)) return;
-        setForm((prev) => applyTtOkToForm(prev, value, activeNgOptions, calculateActualOutput));
+        setForm((prev) => applyTtOkToForm(prev, value, calculateActualOutput));
     };
 
 

@@ -30,7 +30,3 @@ validation-artifacts/
 *.keystore
 *.ipa
 *.mobileprovision
-
-# The public Android installer is intentionally the single exception.
-!frontend/public/downloads/
-!frontend/public/downloads/ktc-production-control.apk

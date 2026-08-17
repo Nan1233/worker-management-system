@@ -924,104 +924,57 @@
 }
 
 
-/* KTC FINAL UI FIX — worker form edge-to-edge + consistent field rhythm.
-   The page owns the viewport; sections must not create a second nested frame. */
-.worker-form-page {
-  width: 100%;
-  max-width: none;
-  margin: 0;
-  padding: 0 0 calc(var(--worker-mobile-nav-height, 68px) + 24px);
-  background: var(--ktc-surface, #fff);
-}
-.worker-form-shell {
-  width: 100%;
-  max-width: none;
-  margin: 0;
-}
-.worker-form-card {
-  width: 100%;
-  box-sizing: border-box;
-  margin: 0;
-  padding: 24px clamp(16px, 3vw, 40px);
-  border-left: 0;
-  border-right: 0;
-  border-radius: 0;
-  box-shadow: none;
-}
-.worker-form-card + .worker-form-card {
-  margin-top: 1px;
-}
-.worker-card-title {
-  max-width: 1200px;
-  margin-left: auto;
-  margin-right: auto;
-}
-.worker-basic-grid,
-.worker-dynamic-grid,
-.worker-quality-summary,
-.worker-dropdown-box,
-.worker-action-group,
-.worker-sticky-info {
-  max-width: 1200px;
-  margin-left: auto;
-  margin-right: auto;
-}
-.worker-quality-summary {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: stretch;
-}
-.worker-quality-card {
-  box-sizing: border-box;
-  min-width: 0;
-}
-.worker-quality-card input {
-  box-sizing: border-box;
-}
-.worker-field-block {
-  min-width: 0;
-}
-.worker-field-block input,
-.worker-field-block select,
-.worker-field-block textarea,
-.worker-text-input {
-  box-sizing: border-box;
-  max-width: 100%;
-}
-.worker-form-card .single-machine-product-scope {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  align-items: start;
-}
-
-@media (max-width: 860px) {
-  .worker-form-page {
-    padding: 0 0 calc(var(--worker-mobile-nav-height, 68px) + env(safe-area-inset-bottom) + 12px);
-  }
-  .worker-form-card {
-    padding: 18px 16px;
-  }
-  .worker-basic-grid,
-  .worker-dynamic-grid,
-  .worker-quality-summary,
-  .worker-form-card .single-machine-product-scope {
-    grid-template-columns: 1fr;
-    gap: 14px;
-  }
-  .worker-quality-summary {
-    margin-bottom: 14px;
-  }
-  .worker-quality-card {
-    padding: 12px 14px;
-  }
-  .worker-dropdown-box {
-    margin-top: 12px;
-  }
-}
-
+/* KTC desktop refinement: compact time controls and calmer form density. */
 @media (min-width: 861px) {
-  .worker-form-card {
-    padding-left: clamp(24px, 4vw, 56px);
-    padding-right: clamp(24px, 4vw, 56px);
+  .worker-time-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px;
+  }
+  .worker-time-grid > .worker-time-item:first-child {
+    grid-column: auto;
+  }
+  .worker-time-item {
+    padding: 10px 12px;
+    border-radius: 12px;
+  }
+  .worker-time-item > label {
+    margin-bottom: 6px;
+    font-size: 11px;
+  }
+  .worker-time-item > input,
+  .worker-time-split input {
+    min-height: 42px;
+    height: 42px;
+    padding: 7px 10px;
+    font-size: 15px !important;
+    font-weight: 700;
+    border-radius: 9px;
+  }
+  .worker-time-item > small {
+    margin-top: 5px;
+    font-size: 10px;
+  }
+  .worker-time-split {
+    gap: 8px;
+  }
+  .worker-time-part {
+    gap: 4px;
+  }
+  .worker-time-part > span {
+    font-size: 10px;
+  }
+  .worker-time-unit {
+    font-size: 10px;
+  }
+}
+@media (min-width: 861px) and (max-width: 1100px) {
+  .worker-time-item {
+    padding: 9px 10px;
+  }
+  .worker-time-item > input,
+  .worker-time-split input {
+    min-height: 40px;
+    height: 40px;
+    font-size: 14px !important;
   }
 }

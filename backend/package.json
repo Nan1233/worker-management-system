@@ -35,7 +35,8 @@
     "restore:cutover-record": "node scripts/recordDisasterRestoreCutover.js",
     "restore:rollback-check": "node scripts/checkDisasterRestoreRollback.js",
     "restore:rollback-record": "node scripts/recordDisasterRestoreRollback.js",
-    "restore:cleanup-check": "node scripts/checkDisasterRestoreCleanup.js"
+    "restore:cleanup-check": "node scripts/checkDisasterRestoreCleanup.js",
+    "test:template": "node --test tests/canonical-template-contract.test.js"
   },
   "keywords": [],
   "author": "",

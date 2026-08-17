@@ -1,4 +1,3 @@
-import "./styles/edge-to-edge.css";
 import DesktopExcelDbSyncNotifier from "./components/DesktopExcelDbSyncNotifier";
 import AppRouter from "./routes/AppRouter";
 import NetworkStatusBanner from "./components/system/NetworkStatusBanner";

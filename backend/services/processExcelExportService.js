@@ -6,6 +6,7 @@ const { assertReportVolume, chunkArray } = require('./excelExportGuards');
 const { hasColumn } = require('./schemaCompatibilityService');
 const { calculateReportPerformance } = require('./machinePerformanceService');
 const { assertTrainingSnapshotAvailable } = require('./trainingSnapshotService');
+const { buildTemplateDrivenProcessWorkbook } = require('./templateDrivenProcessExcelExportService');
 
 const query = (sql, params = []) => new Promise((resolve, reject) => {
   db.query(sql, params, (error, rows) => error ? reject(error) : resolve(rows));
@@ -247,30 +248,30 @@ async function buildProcessWorkbook(value, processId) {
   const folder = path.join(tempRoot, year, processFolder, month);
   await fs.mkdir(folder, { recursive: true });
 
-  // The process workbook now comes directly from the canonical KTC 9-process template.
-  // All template sheets, merged cells and formatting remain intact; only the matching
-  // process sheet receives approved DB rows.
-  const { buildProcessTemplateWorkbook } = require('./excelTemplateContractService');
-  const result = await buildProcessTemplateWorkbook(reports, yearMonth, {
-    processCode: String(selectedProcess.process_code || '').toUpperCase(),
-    processName,
-    latestUpdatedAt,
-    deductionTypes: reports.deductionTypes || [],
-    defectTypes: reports.defectTypes || [],
+  // Process export is template-driven: use backend/templates/file mẫu.xlsx
+  // and the exact sheet/data block for the selected process. Company A+B
+  // export remains a separate flow.
+  const result = await buildTemplateDrivenProcessWorkbook(reports, yearMonth, {
+    processCode: selectedProcess.process_code,
+    processName: processFolder,
     exportRoot: tempRoot,
-    stageFolder: processFolder
+    fileName: `Bao-cao-${slugName(processName)}-${month}-${year}.xlsx`
   });
-
   return {
     path: result.archivePath,
     fileName: result.fileName,
     processId: Number(processId),
     processName,
-    reportCount: reports.length,
-    yearMonth,
+    processCode: result.processCode,
+    templateFile: result.templateFile,
     templateSheet: result.templateSheet,
-    templateHeaderRow: result.headerRow
+    templateHeaderRow: result.templateHeaderRow,
+    dataStartRow: result.dataStartRow,
+    removedBrokenFormulas: result.removedBrokenFormulas,
+    reportCount: reports.length,
+    yearMonth
   };
+
 }
 
 module.exports = {
