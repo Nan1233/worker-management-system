@@ -63,7 +63,6 @@ export default function ProcessBasicInfoSection({
     getMachineProductAutocompleteOptions,
     productOptions,
     machineAutocompleteOptions,
-    machineOptions,
     loadingMasterData,
     machineCount,
     maxMachineCount,
@@ -84,15 +83,6 @@ export default function ProcessBasicInfoSection({
             ...prev,
             productName: value,
             standardOutput: selectedProduct ? String(Number(selectedProduct.standard_output)) : "",
-        }));
-    };
-
-    const clearMachineSelection = () => {
-        setForm((prev) => ({
-            ...prev,
-            machineNo: "",
-            productName: "",
-            standardOutput: "",
         }));
     };
 
