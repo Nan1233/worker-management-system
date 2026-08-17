@@ -5,8 +5,10 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
 const rules = fs.readFileSync(path.join(root, 'src/pages/worker/productSuggestionRules.ts'), 'utf8');
+const domain = fs.readFileSync(path.join(root, 'src/pages/worker/processPageDomain.ts'), 'utf8');
 const page = fs.readFileSync(path.join(root, 'src/pages/worker/ProcessPage.tsx'), 'utf8');
 const basic = fs.readFileSync(path.join(root, 'src/pages/worker/components/ProcessBasicInfoSection.tsx'), 'utf8');
+
 
 test('product suggestions are scoped by operation mode and selected machine', () => {
   assert.ok(rules.includes('getProductMachineHint'));
@@ -18,6 +20,20 @@ test('product suggestions are scoped by operation mode and selected machine', ()
   assert.ok(page.includes('filterProductsForSelection'));
   assert.ok(page.includes('getMachineProductOptions(line.machineCode)'));
   assert.ok(page.includes('useEncodedMachineSuffix: processCode === "GC"'));
+});
+
+test('machine relation matching accepts common machine-code formats', () => {
+  assert.ok(rules.includes('normalizeMachineKey'));
+  assert.ok(rules.includes('MÁY|MAY|MACHINE|M'));
+  assert.ok(rules.includes('String(Number(numeric[1]))'));
+  assert.ok(rules.includes('.map(normalizeMachineKey)'));
+});
+
+test('GC work type matching accepts canonical and business-language values', () => {
+  assert.ok(rules.includes('normalizeWorkType'));
+  assert.ok(rules.includes('CUT'));
+  assert.ok(rules.includes('LONG'));
+  assert.ok(domain.includes('normalizeWorkType(product.work_type) === expectedWorkType'));
 });
 
 test('single-machine processes force machine selection before product search', () => {
