@@ -37,8 +37,7 @@ function sameDecimal(a, b, tolerance = 0.000001) {
 
 function createStandardResolver({ query = defaultQuery } = {}) {
   // Resolver lifetime is request/transaction scoped at call sites. Cache only exact
-  // lookups inside that lifetime to avoid repeating immutable historical/master
-  // reads for multi-line reports and bulk approvals; never share across requests.
+  // lookups inside that lifetime; never share historical/master values across requests.
   const productCache = new Map();
   const standardCache = new Map();
 
@@ -53,6 +52,8 @@ function createStandardResolver({ query = defaultQuery } = {}) {
     const cacheKey = `${pid}|${product}|${date}`;
     if (productCache.has(cacheKey)) return productCache.get(cacheKey);
 
+    // Canonical active master. This is intentionally read directly from the DB;
+    // the startup master-data cache is only a performance layer for list endpoints.
     const productRows = await query(
       `SELECT id AS product_standard_id, product_code, standard_output, exclude_kqd_from_tt
        FROM product_standards
@@ -74,15 +75,22 @@ function createStandardResolver({ query = defaultQuery } = {}) {
        ORDER BY effective_from, version_no, id`,
       [pid, product, date, date]
     );
+
     if (versions.length === 0) {
-      // Compatibility path for installations that already have the canonical
-      // product_standards master but have not backfilled product_standard_versions.
-      // Do not fabricate a version id: keep standardVersionId null so downstream
-      // snapshots cannot falsely claim a historical version existed.
+      // IMPORTANT: no migration is required for existing installations whose
+      // canonical product_standards table is populated but whose historical
+      // version table has not been backfilled yet. Do NOT invent a version id.
+      // Returning standardVersionId=null makes the downstream snapshot layer
+      // explicitly aware that this is a legacy master resolution.
       const legacyStandardOutput = Number(productRows[0].standard_output);
       if (!Number.isFinite(legacyStandardOutput) || legacyStandardOutput <= 0) {
-        throw businessError('HISTORICAL_STANDARD_NOT_FOUND', `Không có định mức lịch sử cho ${product} tại ngày ${date}`, { process_id: pid, product_code: product, work_date: date });
+        throw businessError(
+          'HISTORICAL_STANDARD_NOT_FOUND',
+          `Không có định mức lịch sử cho ${product} tại ngày ${date}`,
+          { process_id: pid, product_code: product, work_date: date }
+        );
       }
+
       const resolvedLegacy = {
         processId: pid,
         productCode: productRows[0].product_code,
@@ -101,8 +109,18 @@ function createStandardResolver({ query = defaultQuery } = {}) {
       productCache.set(cacheKey, resolvedLegacy);
       return resolvedLegacy;
     }
+
     if (versions.length > 1) {
-      throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT', `Có nhiều định mức cùng hiệu lực cho ${product} tại ngày ${date}`, { process_id: pid, product_code: product, work_date: date, version_ids: versions.map((row) => Number(row.id)) });
+      throw businessError(
+        'STANDARD_EFFECTIVE_RANGE_CONFLICT',
+        `Có nhiều định mức cùng hiệu lực cho ${product} tại ngày ${date}`,
+        {
+          process_id: pid,
+          product_code: product,
+          work_date: date,
+          version_ids: versions.map((row) => Number(row.id))
+        }
+      );
     }
 
     const version = versions[0];
@@ -118,7 +136,8 @@ function createStandardResolver({ query = defaultQuery } = {}) {
       effectiveFrom: String(version.effective_from).slice(0, 10),
       effectiveTo: version.effective_to ? String(version.effective_to).slice(0, 10) : null,
       source: 'PRODUCT_VERSION',
-      workDate: date
+      workDate: date,
+      historicalVersionAvailable: true
     };
     productCache.set(cacheKey, resolvedProduct);
     return resolvedProduct;
@@ -161,7 +180,17 @@ function createStandardResolver({ query = defaultQuery } = {}) {
       [product.processId, product.productCode, Number(machine.id), product.workDate, product.workDate]
     );
     if (applicable.length > 1) {
-      throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT', `Có nhiều định mức máy cùng hiệu lực cho ${product.productCode} / ${machine.machine_code}`, { process_id: product.processId, product_code: product.productCode, machine_id: Number(machine.id), work_date: product.workDate, machine_standard_ids: applicable.map((row) => Number(row.id)) });
+      throw businessError(
+        'STANDARD_EFFECTIVE_RANGE_CONFLICT',
+        `Có nhiều định mức máy cùng hiệu lực cho ${product.productCode} / ${machine.machine_code}`,
+        {
+          process_id: product.processId,
+          product_code: product.productCode,
+          machine_id: Number(machine.id),
+          work_date: product.workDate,
+          machine_standard_ids: applicable.map((row) => Number(row.id))
+        }
+      );
     }
     if (applicable.length === 1) {
       const row = applicable[0];
@@ -187,7 +216,16 @@ function createStandardResolver({ query = defaultQuery } = {}) {
       [product.processId, product.productCode]
     );
     if (anyMachineSpecific.length) {
-      throw businessError('HISTORICAL_MACHINE_STANDARD_NOT_FOUND', `Không có định mức lịch sử cho ${product.productCode} trên máy ${machine.machine_code} tại ngày ${product.workDate}`, { process_id: product.processId, product_code: product.productCode, machine_id: Number(machine.id), work_date: product.workDate });
+      throw businessError(
+        'HISTORICAL_MACHINE_STANDARD_NOT_FOUND',
+        `Không có định mức lịch sử cho ${product.productCode} trên máy ${machine.machine_code} tại ngày ${product.workDate}`,
+        {
+          process_id: product.processId,
+          product_code: product.productCode,
+          machine_id: Number(machine.id),
+          work_date: product.workDate
+        }
+      );
     }
 
     const resolvedFallback = { ...product, machineId: Number(machine.id), machineCode: machine.machine_code };
