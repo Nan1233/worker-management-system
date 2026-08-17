@@ -4,6 +4,22 @@ import type { DeductionState, FormState, MachineLineState, OperationType } from 
 
 type Option = { key?: string; id?: number; code?: string; label?: string; defect_type_id?: number; deduction_type_id?: number; defect_name?: string; deduction_name?: string };
 
+const parseHours = (value: unknown): number => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  const normalized = String(value ?? "").trim().toLowerCase().replace(",", ".");
+  if (!normalized) return 0;
+  const match = normalized.match(/^(\d{1,3})\s*(?:h|g|:)\s*(\d{1,2})$/);
+  if (match) {
+    const hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    return minutes >= 0 && minutes <= 59 ? hours + minutes / 60 : 0;
+  }
+  const hoursOnly = normalized.match(/^(\d{1,3})\s*(?:h|g)$/);
+  if (hoursOnly) return Number(hoursOnly[1]) || 0;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 export function buildProductionReportPayload(args: {
   clientRequestId: string|null;
   processId: number;
@@ -52,6 +68,9 @@ export function buildProductionReportPayload(args: {
     hours:num(args.deductions[String(o.key||"")])
   })).filter(x=>x.hours>0);
   const actualOutput=num(args.form.actualOutput);
+  const actualTime=parseHours(args.form.actualTime);
+  const deductionTime=parseHours(args.form.deductionTime);
+  const totalTime=parseHours(args.form.totalTime);
   return {
     process_id:args.processId,
     work_date:args.form.workDate,
@@ -60,9 +79,9 @@ export function buildProductionReportPayload(args: {
     product_name:args.usesMultiMachineLines ? [...new Set(lines.map(l=>l.product_code))].join(", ") : args.form.productName,
     operation_type:args.operationType,
     operation_mode:args.usesAnyMachine ? "MACHINE" : "MANUAL",
-    total_time:num(args.form.totalTime),
-    actual_time:num(args.form.actualTime),
-    deduction_time:num(args.form.deductionTime),
+    total_time:totalTime,
+    actual_time:actualTime,
+    deduction_time:deductionTime,
     standard_output:args.usesMultiMachineLines ? lines.reduce((sum,l)=>sum+num(l.standard_output),0) : num(args.form.standardOutput),
     actual_output:actualOutput,
     tt_ok:num(args.form.ttOk),
