@@ -1,5 +1,6 @@
 import type { ProductStandardOption } from "../../services/masterDataService";
 import type { OperationMode, OperationType } from "./processPageConfig";
+import { normalizeWorkType } from "./productSuggestionRules";
 
 export type ProcessCapabilities = {
   processCode: string;
@@ -36,7 +37,6 @@ export function getProcessCapabilities(process: string): ProcessCapabilities {
   return {
     processCode,
     isCutLongProcess: processCode === "GC",
-    // Only K1/K2 have a Tay/Máy switch. DO is machine-only.
     isInspectionProcess: ["K1", "K2"].includes(processCode),
     isManualOnlyProcess: ["XLBV", "SX3"].includes(processCode),
   };
@@ -68,13 +68,13 @@ export function filterProductsForProcessScope(args: {
   operationType?: OperationType;
 }): ProductStandardOption[] {
   const expectedProcessCode = codeOf(args.processCode);
-  const expectedWorkType = codeOf(args.operationType);
+  const expectedWorkType = normalizeWorkType(args.operationType);
   return args.products.filter((product) => {
     const returnedProcessCode = codeOf(product.process_code);
     const processMatches = !expectedProcessCode || !returnedProcessCode || returnedProcessCode === expectedProcessCode;
     if (!processMatches) return false;
     if (expectedProcessCode === "GC" && expectedWorkType) {
-      return normalizeMasterText(product.work_type) === expectedWorkType;
+      return normalizeWorkType(product.work_type) === expectedWorkType;
     }
     return true;
   });
