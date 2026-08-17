@@ -43,9 +43,25 @@ const normalizeDetails = (items, idField, valueField, label, errors) => {
     const usedIds = new Set();
     return items.map((item, index) => {
         const typeId = Number(item?.[idField] || 0);
-        const value = Number(item?.[valueField] ?? 0);
-
         const typeName = String(item?.defect_name || item?.deduction_name || "").trim();
+
+        // Canonical API field for deductions is `hours`, but older/mobile clients
+        // may still send the UI value as `minutes`. Accept both at the boundary.
+        let rawValue = item?.[valueField];
+        let valueUnit = "hours";
+        if (rawValue === undefined || rawValue === null || rawValue === "") {
+            if (valueField === "hours" && item?.minutes !== undefined) {
+                rawValue = item.minutes;
+                valueUnit = "minutes";
+            } else if (item?.value !== undefined) {
+                rawValue = item.value;
+            } else {
+                rawValue = 0;
+            }
+        }
+        let value = Number(rawValue);
+        if (valueUnit === "minutes" && Number.isFinite(value)) value /= 60;
+
         if ((!Number.isInteger(typeId) || typeId <= 0) && !typeName) {
             errors[`${label}.${index}.${idField}`] = `Loại ${label} không hợp lệ`;
         } else if (typeId > 0 && usedIds.has(typeId)) {
@@ -61,6 +77,8 @@ const normalizeDetails = (items, idField, valueField, label, errors) => {
         return { ...item, [idField]: typeId, [valueField]: Number.isFinite(value) ? value : 0 };
     }).filter((item) => item[valueField] > 0);
 };
+
+const finiteMinutes = (hours) => Math.round((Number(hours) || 0) * 60);
 
 const validateProductionReport = (payload = {}, options = {}) => {
     const errors = {};
@@ -116,11 +134,7 @@ const validateProductionReport = (payload = {}, options = {}) => {
 
     let deductions = normalizeDetails(payload.deductions || [], "deduction_type_id", "hours", "deductions", errors);
 
-    // Backward compatibility for clients that still send deduction detail values
-    // in MINUTES while deduction_time is expressed in HOURS. The canonical API
-    // unit remains HOURS. Only convert when the minute interpretation matches
-    // the declared deduction_time; otherwise keep the original values so the
-    // normal validation error remains visible.
+    // Canonical unit is HOURS. Support legacy minute-based detail payloads.
     const deductionTotal = deductions.reduce((sum, item) => sum + item.hours, 0);
     const minuteBasedTotal = deductionTotal / 60;
     if (
@@ -140,7 +154,10 @@ const validateProductionReport = (payload = {}, options = {}) => {
     if (Math.abs(defectTotal - ttNg) > EPSILON) {
         errors.tt_ng = "TT NG phải bằng tổng số lượng trong chi tiết lỗi";
     }
-    if (Math.abs(normalizedDeductionTotal - deductionTime) > EPSILON) {
+
+    // Compare in minutes as well as hours. This prevents harmless floating-point
+    // representations such as 20/60 = 0.3333333333333333 from being rejected.
+    if (Math.abs(finiteMinutes(normalizedDeductionTotal) - finiteMinutes(deductionTime)) > 1) {
         errors.deduction_time = "Thời gian trừ phải bằng tổng thời gian trong chi tiết khấu trừ";
     }
 
