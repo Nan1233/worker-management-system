@@ -1,7 +1,7 @@
 {
   "name": "ktc-production-control-desktop",
   "version": "1.5.2",
-  "description": "KTC Production Control Desktop - A+B theo th\u00e1ng, b\u00e1o c\u00e1o theo c\u00f4ng \u0111o\u1ea1n, pending ch\u1ea1y l\u1ea1i t\u1eeb d\u1eef li\u1ec7u DB m\u1edbi nh\u1ea5t",
+  "description": "KTC Production Control Desktop - A+B theo tháng, báo cáo theo công đoạn, pending chạy lại từ dữ liệu DB mới nhất",
   "main": "electron/main.cjs",
   "author": "KTC",
   "license": "UNLICENSED",
@@ -27,8 +27,8 @@
     "check:packaged-shared-contract": "node scripts/checkPackagedSharedContract.cjs"
   },
   "devDependencies": {
-    "electron": "^37.2.3",
-    "electron-builder": "^26.0.12"
+    "electron": "37.10.3",
+    "electron-builder": "26.15.3"
   },
   "build": {
     "appId": "vn.ktc.productioncontrol",
@@ -91,7 +91,7 @@
     ]
   },
   "dependencies": {
-    "exceljs": "^4.4.0",
-    "jszip": "^3.10.1"
+    "exceljs": "4.4.0",
+    "jszip": "3.10.1"
   }
 }

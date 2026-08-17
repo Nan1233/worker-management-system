@@ -32,7 +32,7 @@ export function clearProcessDraft(process: string): void {
   try { localStorage.removeItem(keyFor(process)); } catch { /* noop */ }
 }
 export function hasMeaningfulProcessDraft(draft: ProcessDraft): boolean {
-  const f = draft.form;
+  const f = draft.form || {};
   return Boolean(
     f.productName || f.machineNo || f.ttOk || f.ttNg || f.totalTime || f.actualTime ||
     draft.machineLines.some(l => l.machineCode || l.productCode || l.okQuantity || l.ngQuantity) ||

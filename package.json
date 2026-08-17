@@ -47,6 +47,13 @@
     "ios:add": "npm --prefix frontend run ios:add",
     "ios:sync": "npm --prefix frontend run ios:sync",
     "ios:open": "npm --prefix frontend run ios:open",
-    "ios:doctor": "npm --prefix frontend run ios:doctor"
+    "ios:doctor": "npm --prefix frontend run ios:doctor",
+    "security:contract": "node scripts/securityContract.cjs",
+    "validate:production:smoke": "node scripts/productionSmokeE2E.cjs",
+    "validate:production": "npm run db:verify && npm run db:integrity && npm run validate:real-data && npm run validate:production:smoke",
+    "android:release:check": "npm --prefix frontend run android:release:check",
+    "ios:release:check": "npm --prefix frontend run ios:doctor:production",
+    "audit:security": "npm run security:contract && npm run audit:prod",
+    "validate:e2e:staging": "node scripts/stagingE2E.cjs"
   }
 }

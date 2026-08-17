@@ -3,12 +3,18 @@ apply plugin: 'com.android.application'
 android {
     namespace = "com.ktchanoi.productioncontrol"
     compileSdk = rootProject.ext.compileSdkVersion
+
+    def releaseKeystorePath = System.getenv("KTC_ANDROID_KEYSTORE_PATH")
+    def releaseStorePassword = System.getenv("KTC_ANDROID_KEYSTORE_PASSWORD")
+    def releaseKeyAlias = System.getenv("KTC_ANDROID_KEY_ALIAS")
+    def releaseKeyPassword = System.getenv("KTC_ANDROID_KEY_PASSWORD")
+    def releaseSigningReady = releaseKeystorePath && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
     defaultConfig {
         applicationId "com.ktchanoi.productioncontrol"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode Integer.parseInt(System.getenv("KTC_ANDROID_VERSION_CODE") ?: "10")
+        versionName System.getenv("KTC_ANDROID_VERSION_NAME") ?: "10.0.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,9 +22,25 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (releaseSigningReady) {
+            release {
+                storeFile file(releaseKeystorePath)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
+            if (releaseSigningReady) {
+                signingConfig signingConfigs.release
+            } else if (String.valueOf(System.getenv("KTC_ANDROID_REQUIRE_SIGNING")).equalsIgnoreCase("true")) {
+                throw new GradleException("KTC_ANDROID_REQUIRE_SIGNING=true nhưng thiếu biến signing KTC_ANDROID_KEYSTORE_*")
+            }
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }

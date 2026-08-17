@@ -1,39 +1,56 @@
 import { useEffect, useState } from "react";
 import "./NetworkStatusBanner.css";
 
+const ONLINE_MESSAGE_MS = 3200;
+
 export default function NetworkStatusBanner() {
     const [online, setOnline] = useState(() => navigator.onLine);
     const [visible, setVisible] = useState(false);
 
     useEffect(() => {
+        let hideTimer: number | undefined;
+
+        const clearHideTimer = () => {
+            if (hideTimer !== undefined) {
+                window.clearTimeout(hideTimer);
+                hideTimer = undefined;
+            }
+        };
+
         const handleOffline = () => {
+            clearHideTimer();
             setOnline(false);
             setVisible(true);
         };
-        let onlineTimer: number | undefined;
+
         const handleOnline = () => {
+            clearHideTimer();
             setOnline(true);
             setVisible(true);
-            if (onlineTimer !== undefined) {
-                window.clearTimeout(onlineTimer);
-            }
-            onlineTimer = window.setTimeout(() => setVisible(false), 3200);
+            hideTimer = window.setTimeout(() => {
+                setVisible(false);
+                hideTimer = undefined;
+            }, ONLINE_MESSAGE_MS);
         };
+
         window.addEventListener("offline", handleOffline);
         window.addEventListener("online", handleOnline);
+
         return () => {
+            clearHideTimer();
             window.removeEventListener("offline", handleOffline);
             window.removeEventListener("online", handleOnline);
-            if (onlineTimer !== undefined) {
-                window.clearTimeout(onlineTimer);
-            }
         };
     }, []);
 
     if (!visible) return null;
 
     return (
-        <div className={`ktc-network-banner ${online ? "is-online" : "is-offline"}`} role="status" aria-live="polite">
+        <div
+            className={`ktc-network-banner ${online ? "is-online" : "is-offline"}`}
+            role={online ? "status" : "alert"}
+            aria-live="polite"
+        >
             <span className="ktc-network-dot" aria-hidden="true" />
             <span>
                 {online

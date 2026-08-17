@@ -196,13 +196,8 @@ test('F11 FE 39 browser refresh still uses HttpOnly cookie credentials', () => {
 });
 test('F11 FE 40 frontend coordination itself introduces no migration; 024 belongs to logical-duplicate backend wave', () => {
   const migrationDir = path.resolve(root, '..', 'backend', 'migrations');
-  const names = fs.existsSync(migrationDir) ? fs.readdirSync(migrationDir) : [];
-  // Current production contract intentionally has no runtime migration directory.
-  // If a legacy directory is present in a historical checkout, 024 must not be
-  // introduced by frontend auth coordination.
-  if (names.length > 0) {
-    assert.ok(names.includes('024_logical_duplicate_report_lock_20260813.sql'));
-  }
+  const names = fs.readdirSync(migrationDir);
+  assert.ok(names.includes('024_logical_duplicate_report_lock_20260813.sql'));
   const frontendSource = [coordinator(), api(), authService()].join('\n');
   assert.doesNotMatch(frontendSource, /024_logical_duplicate_report_lock/);
 });

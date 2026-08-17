@@ -21,5 +21,12 @@ backend/exports/
 backend/tmp/
 *.tmp
 KTC_Professional_Test_Tool_v2_FULL/reports/artifacts/
-*.zip
-*.7z
+
+# Release/build artifacts and secrets
+validation-artifacts/
+*.apk
+*.aab
+*.jks
+*.keystore
+*.ipa
+*.mobileprovision
