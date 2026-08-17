@@ -1,4 +1,5 @@
 const db = require("../config/db");
+const AuditService = require("../services/auditService");
 const { query, getConnection, beginTransaction, commit, rollback } = require("./productionTempModelShared");
 const { resolveInitialTrainingSnapshot } = require("../services/trainingSnapshotService");
 const { validateMachineWorkerCapacityLocked } = require("../services/factoryMachineRuleService");
@@ -189,6 +190,7 @@ module.exports = {
         );
         return rows[0] || null;
     },
+
     async createDefects(tempReportId, processId, defects, executor = db) {
         if (!Array.isArray(defects) || defects.length === 0) return;
 
@@ -368,162 +370,80 @@ module.exports = {
             const machineLineId = Number(result.insertId);
             const defects = (Array.isArray(line.defects) ? line.defects : [])
                 .map((item) => ({
-                    defect_type_id: Number(item?.defect_id || item?.defect_type_id) || null,
+                    defect_type_id: Number(item?.defect_type_id) || null,
                     defect_code: String(item?.defect_code || "").trim(),
                     defect_name: String(item?.defect_name || "").trim(),
-                    quantity: Math.max(0, Math.trunc(Number(item?.quantity) || 0))
+                    quantity: Math.trunc(Number(item?.quantity) || 0)
                 }))
-                .filter((item) => item.quantity > 0 && (item.defect_code || item.defect_name));
-            if (defects.length) {
-                const placeholders = defects.map(() => "(?, ?, ?, ?, ?)").join(",");
-                await query(executor, `INSERT INTO production_temp_machine_defects
-                    (machine_line_id, defect_type_id, defect_code, defect_name, quantity)
-                    VALUES ${placeholders}`,
-                    defects.flatMap((item) => [machineLineId, item.defect_type_id, item.defect_code, item.defect_name || null, item.quantity]));
-            }
-        }
-    },
-
-    async getTempMachineLines(tempReportId, executor = db) {
-        const lines = await query(executor, `SELECT id, machine_event_id, machine_id, machine_code, product_standard_id, standard_version_id, machine_standard_id, product_code,
-            machine_time_hours, standard_output, standard_time_seconds, standard_source, exclude_kqd_from_tt,
-            ok_quantity, ng_quantity, maximum_output, counted_output, earned_standard_hours,
-            defects_json, sort_order
-            FROM production_temp_machine_lines WHERE temp_report_id = ? ORDER BY sort_order, id`, [tempReportId]);
-        if (!lines.length) return lines;
-        const ids = lines.map((line) => Number(line.id));
-        const defects = await query(executor, `SELECT machine_line_id, defect_type_id, defect_code, defect_name, quantity
-            FROM production_temp_machine_defects WHERE machine_line_id IN (${ids.map(() => "?").join(",")}) ORDER BY id`, ids);
-        const grouped = new Map();
-        defects.forEach((item) => {
-            const key = Number(item.machine_line_id);
-            if (!grouped.has(key)) grouped.set(key, []);
-            grouped.get(key).push(item);
-        });
-        return lines.map((line) => ({ ...line, defects: grouped.get(Number(line.id)) || (() => { try { return JSON.parse(line.defects_json || "[]"); } catch (_e) { return []; } })() }));
-    },
-
-    async copyMachineLinesToApproved(tempReportId, reportId, executor = db) {
-        const tempLines = await this.getTempMachineLines(tempReportId, executor);
-        for (const line of tempLines) {
-            const result = await query(executor, `INSERT INTO production_report_machine_lines
-                (report_id, machine_event_id, machine_id, machine_code, product_standard_id, standard_version_id, machine_standard_id, product_code,
-                 machine_time_hours, standard_output, standard_time_seconds, standard_source, exclude_kqd_from_tt,
-                 ok_quantity, ng_quantity, maximum_output, counted_output, earned_standard_hours,
-                 defects_json, sort_order)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
-                reportId, line.machine_event_id || null, line.machine_id, line.machine_code, line.product_standard_id, line.standard_version_id, line.machine_standard_id, line.product_code,
-                line.machine_time_hours, line.standard_output, line.standard_time_seconds, line.standard_source, line.exclude_kqd_from_tt,
-                line.ok_quantity, line.ng_quantity, line.maximum_output, line.counted_output,
-                line.earned_standard_hours, JSON.stringify(line.defects || []), line.sort_order
+                .filter((item) => item.quantity > 0);
+            if (!machineLineId || !defects.length) continue;
+            const values = defects.map((item) => [
+                machineLineId,
+                item.defect_type_id,
+                item.defect_code || null,
+                item.defect_name || null,
+                item.quantity
             ]);
-            const approvedLineId = Number(result.insertId);
-            const defects = Array.isArray(line.defects) ? line.defects : [];
-            if (defects.length) {
-                const placeholders = defects.map(() => "(?, ?, ?, ?, ?)").join(",");
-                await query(executor, `INSERT INTO production_report_machine_defects
-                    (machine_line_id, defect_type_id, defect_code, defect_name, quantity)
-                    VALUES ${placeholders}`,
-                    defects.flatMap((item) => [approvedLineId, Number(item.defect_type_id || item.defect_id) || null, String(item.defect_code || ""), String(item.defect_name || "") || null, Math.max(0, Math.trunc(Number(item.quantity) || 0))]));
-            }
+            await query(executor,
+                `INSERT INTO production_temp_machine_defects
+                 (machine_line_id, defect_type_id, defect_code, defect_name, quantity)
+                 VALUES ${values.map(() => "(?, ?, ?, ?, ?)").join(",")}`,
+                values.flat()
+            );
         }
     },
 
-    async createCompleteReport({ data, defects = [], deductions = [], machineLines = [], audit = null }) {
+    async createCompleteReport(data, defects = [], deductions = [], machineLines = [], audit = {}) {
         const connection = await getConnection();
         try {
             await beginTransaction(connection);
 
-            const existing = await this.findByClientRequest(
-                data.worker_id,
-                data.client_request_id,
-                connection
-            );
-            if (existing) {
-                await commit(connection);
-                return {
-                    id: existing.id,
-                    duplicate: true,
-                    duplicate_reason: "request_id",
-                    existing_report: existing
-                };
-            }
+            const logicalDuplicateKey = buildLogicalDuplicateKey({
+                workerId: data.worker_id,
+                processId: data.process_id,
+                workDate: data.work_date,
+                shift: data.shift,
+                operationMode: data.operation_mode ?? data.operationMode,
+                machineNo: data.machine_no,
+                productName: data.product_name,
+                machineLines
+            });
+            data.logical_duplicate_key = logicalDuplicateKey;
 
-            // Logical duplicate concurrency authority. The lock key is independent
-            // from client_request_id so two different requests for the same business
-            // report serialize before the friendly duplicate check. force_create still
-            // acquires the lock but intentionally skips the duplicate rejection because
-            // it represents an explicit separate run confirmed by the worker.
-            await this.lockLogicalDuplicateKey(data.logical_duplicate_key, connection);
+            await this.lockLogicalDuplicateKey(logicalDuplicateKey, connection);
 
-            const similar = await this.findSimilarReport({
+            const existing = await this.findSimilarReport({
                 workerId: data.worker_id,
                 processId: data.process_id,
                 workDate: data.work_date,
                 shift: data.shift,
                 machineNo: data.machine_no,
                 productName: data.product_name,
-                logicalDuplicateKey: data.logical_duplicate_key
+                logicalDuplicateKey
             }, connection);
-
-            if (similar) {
-                if (data.force_create) {
-                    const confirmation = verifyDuplicateConfirmation(data.duplicate_confirmation_token, {
-                        workerId: data.worker_id,
-                        logicalDuplicateKey: data.logical_duplicate_key,
-                        existingReportId: similar.id,
-                        existingReportType: similar.report_type || 'temp',
-                    });
-                    if (!confirmation.valid) {
-                        const confirmationError = new Error("Cần xác nhận báo cáo trùng từ máy chủ trước khi tạo run riêng");
-                        confirmationError.status = 409;
-                        confirmationError.code = "DUPLICATE_CONFIRMATION_REQUIRED";
-                        confirmationError.isPublic = true;
-                        confirmationError.existing_report = similar;
-                        throw confirmationError;
-                    }
-                } else {
-                    const duplicateError = new Error("Đã tồn tại báo cáo cùng công nhân/ngày/ca/máy/sản phẩm");
-                    duplicateError.status = 409;
-                    duplicateError.code = "DUPLICATE_PRODUCTION_REPORT";
-                    duplicateError.isPublic = true;
-                    duplicateError.existing_report = similar;
-                    throw duplicateError;
-                }
-            } else if (data.force_create) {
-                const confirmationError = new Error("Không có báo cáo trùng hiện tại để xác nhận tạo run riêng");
-                confirmationError.status = 409;
-                confirmationError.code = "DUPLICATE_CONFIRMATION_REQUIRED";
-                confirmationError.isPublic = true;
-                throw confirmationError;
+            if (existing) {
+                const error = new Error("Báo cáo trùng với báo cáo đã tồn tại trong cùng ngày/ca");
+                error.status = 409;
+                error.code = "DUPLICATE_REPORT";
+                error.isPublic = true;
+                error.details = existing;
+                throw error;
             }
 
-            if (!data.force_create) {
-                const recent = await this.findRecentIdentical(data, connection);
-                if (recent) {
-                    await commit(connection);
-                    return {
-                        id: recent.id,
-                        duplicate: true,
-                        duplicate_reason: "rapid_repeat",
-                        existing_report: recent
-                    };
-                }
-            }
-
-            // Initial Worker Save is the only authority for the training snapshot.
-            // Ignore any client-supplied training value and read the worker master
-            // on the same DB transaction that persists the report.
-            data.training_percent_snapshot = await resolveInitialTrainingSnapshot({
+            const processRows = await query(connection, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data.process_id)]);
+            const trainingSnapshot = await resolveInitialTrainingSnapshot({
+                executor: connection,
                 workerId: data.worker_id,
-                query: (sql, params = []) => query(connection, sql, params)
+                processId: data.process_id,
+                workDate: data.work_date,
+                trainingPercent: data.training_percent,
             });
+            data.training_percent_snapshot = trainingSnapshot.training_percent;
+            data.standard_version_id = data.standard_version_id || null;
+            data.machine_standard_id = data.machine_standard_id || null;
+            data.exclude_kqd_from_tt_snapshot = data.exclude_kqd_from_tt_snapshot ?? data.exclude_kqd_from_tt ?? null;
 
-            // F05: serialize the maxWorkers check with deterministic row locks on the
-            // selected machines. This closes the check-before-insert race where the
-            // 4th and 5th workers could both observe a free slot and commit.
             if (Array.isArray(machineLines) && machineLines.length) {
-                const processRows = await query(connection, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data.process_id)]);
                 const capacity = await validateMachineWorkerCapacityLocked({
                     executor: connection,
                     processCode: processRows[0]?.process_code,
@@ -552,8 +472,6 @@ module.exports = {
 
             const tempId = await this.create(data, connection);
 
-            // Dùng cùng một connection cho toàn bộ dữ liệu con. Không commit bất kỳ
-            // phần nào nếu NG, thời gian trừ, machine line hoặc audit bị lỗi.
             await this.createDefects(tempId, data.process_id, defects, connection);
             await this.createDeductions(tempId, data.process_id, deductions, connection);
             await this.replaceMachineLines(tempId, machineLines, connection);
@@ -569,67 +487,35 @@ module.exports = {
                 }, connection);
             }
 
-            {
-                await this.logAction({
-                    reportType: "temp",
-                    reportId: tempId,
-                    userId: auditUserId,
-                    action: "CREATE",
-                    note: audit.note || "Công nhân tạo báo cáo",
-                    ipAddress: audit.ipAddress || null,
-                    userAgent: audit.userAgent || null
-                }, connection);
+            await this.logAction({
+                reportType: "temp",
+                reportId: tempId,
+                userId: auditUserId,
+                action: "CREATE",
+                note: audit.note || "Công nhân tạo báo cáo",
+                ipAddress: audit.ipAddress || null,
+                userAgent: audit.userAgent || null
+            }, connection);
 
-                await query(
-                    connection,
-                    `INSERT INTO activity_logs
-                     (user_id, action, entity_type, entity_id, description, metadata_json, ip_address, user_agent)
-                     VALUES (?, 'CREATE_REPORT', 'temp_report', ?, ?, ?, ?, ?)`,
-                    [
-                        auditUserId,
-                        String(tempId),
-                        audit.description || `Tạo báo cáo chờ duyệt #${tempId}`,
-                        JSON.stringify({
-                            report_id: tempId,
-                            worker_id: data.worker_id,
-                            process_id: data.process_id,
-                            work_date: data.work_date,
-                            shift: data.shift,
-                            machine_no: data.machine_no || null,
-                            product_name: data.product_name || null,
-                            tt_ok: Number(data.tt_ok || 0),
-                            tt_ng: Number(data.tt_ng || 0),
-                            client_request_id: data.client_request_id || null
-                        }),
-                        audit.ipAddress || null,
-                        audit.userAgent || null
-                    ]
-                );
-            }
+            await query(
+                connection,
+                `INSERT INTO activity_logs
+                 (user_id, action, entity_type, entity_id, description, metadata_json, ip_address, user_agent)
+                 VALUES (?, 'CREATE_REPORT', 'temp_report', ?, ?, ?, ?, ?)`,
+                [
+                    auditUserId,
+                    String(tempId),
+                    "Công nhân tạo báo cáo chờ duyệt",
+                    JSON.stringify({ processId: data.process_id, workDate: data.work_date, shift: data.shift }),
+                    audit.ipAddress || null,
+                    audit.userAgent || null
+                ]
+            );
 
             await commit(connection);
-            return {
-                id: tempId,
-                duplicate: false,
-                duplicate_reason: null,
-                existing_report: null
-            };
+            return tempId;
         } catch (error) {
             await rollback(connection);
-            if (error.code === "ER_DUP_ENTRY" && data.client_request_id) {
-                const existing = await this.findByClientRequest(
-                    data.worker_id,
-                    data.client_request_id
-                );
-                if (existing) {
-                    return {
-                        id: existing.id,
-                        duplicate: true,
-                        duplicate_reason: "request_id",
-                        existing_report: existing
-                    };
-                }
-            }
             throw error;
         } finally {
             connection.release();
