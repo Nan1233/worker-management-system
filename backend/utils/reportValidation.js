@@ -5,8 +5,28 @@ const ALLOWED_SHIFTS = new Set(["A", "B", "C", "D", "Ca 1", "Ca 2", "Ca 3"]);
 const EPSILON = 0.02;
 const MAX_TOTAL_TIME_HOURS = 12;
 
+const parseHoursValue = (value) => {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : Number.NaN;
+    const normalized = String(value ?? '').trim().toLowerCase().replace(',', '.');
+    if (!normalized) return 0;
+
+    const hourMinuteMatch = normalized.match(/^(\d{1,3})\s*(?:h|g|:)\s*(\d{1,2})$/);
+    if (hourMinuteMatch) {
+        const hours = Number(hourMinuteMatch[1]);
+        const minutes = Number(hourMinuteMatch[2]);
+        if (minutes > 59) return Number.NaN;
+        return hours + minutes / 60;
+    }
+
+    const hourOnlyMatch = normalized.match(/^(\d{1,3})\s*(?:h|g)$/);
+    if (hourOnlyMatch) return Number(hourOnlyMatch[1]);
+
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : Number.NaN;
+};
+
 const finiteNumber = (value, field, errors, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) => {
-    const numberValue = Number(value ?? 0);
+    const numberValue = parseHoursValue(value);
     if (!Number.isFinite(numberValue) || numberValue < min || numberValue > max) {
         errors[field] = `${field} phải là số từ ${min} đến ${max}`;
         return 0;
