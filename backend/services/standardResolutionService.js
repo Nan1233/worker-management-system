@@ -36,8 +36,6 @@ function sameDecimal(a, b, tolerance = 0.000001) {
 }
 
 function createStandardResolver({ query = defaultQuery } = {}) {
-  // Resolver lifetime is request/transaction scoped at call sites. Cache only exact
-  // lookups inside that lifetime; never share historical/master values across requests.
   const productCache = new Map();
   const standardCache = new Map();
 
@@ -52,8 +50,6 @@ function createStandardResolver({ query = defaultQuery } = {}) {
     const cacheKey = `${pid}|${product}|${date}`;
     if (productCache.has(cacheKey)) return productCache.get(cacheKey);
 
-    // Canonical active master. This is intentionally read directly from the DB;
-    // the startup master-data cache is only a performance layer for list endpoints.
     const productRows = await query(
       `SELECT id AS product_standard_id, product_code, standard_output, exclude_kqd_from_tt
        FROM product_standards
@@ -77,11 +73,6 @@ function createStandardResolver({ query = defaultQuery } = {}) {
     );
 
     if (versions.length === 0) {
-      // IMPORTANT: no migration is required for existing installations whose
-      // canonical product_standards table is populated but whose historical
-      // version table has not been backfilled yet. Do NOT invent a version id.
-      // Returning standardVersionId=null makes the downstream snapshot layer
-      // explicitly aware that this is a legacy master resolution.
       const legacyStandardOutput = Number(productRows[0].standard_output);
       if (!Number.isFinite(legacyStandardOutput) || legacyStandardOutput <= 0) {
         throw businessError(
