@@ -12,7 +12,6 @@
     "db:analyze": "node scripts/analyzeTables.js",
     "test": "node --test tests/*.test.js",
     "verify": "npm run check && npm test",
-    "db:migrate": "node scripts/runMigrations.js",
     "backup:db": "node scripts/createDatabaseBackup.js",
     "backup:verify": "node scripts/verifyDatabaseBackup.js",
     "restore:db": "node scripts/restoreDatabaseBackup.js",
@@ -39,7 +38,8 @@
     "restore:rollback-check": "node scripts/checkDisasterRestoreRollback.js",
     "restore:rollback-record": "node scripts/recordDisasterRestoreRollback.js",
     "restore:cleanup-check": "node scripts/checkDisasterRestoreCleanup.js",
-    "db:backfill-training-snapshots": "node scripts/backfillTrainingSnapshotsFromCanonicalData.js"
+    "db:backfill-training-snapshots": "node scripts/backfillTrainingSnapshotsFromCanonicalData.js",
+    "db:verify": "node scripts/verifyDatabaseSchema.js"
   },
   "keywords": [],
   "author": "",

@@ -185,8 +185,7 @@ const runtimeReadiness = {
   databaseLatencyMs: null,
   schemaReady: false,
   schemaStatus: "STARTING",
-  expectedMigration: null,
-  actualMigration: null,
+  databaseSource: "FULL_DATABASE_SNAPSHOT",
   errorCode: null,
   errorMessage: null,
 };
@@ -204,8 +203,7 @@ function readinessHandler(_req, res) {
       databaseLatencyMs: runtimeReadiness.databaseLatencyMs,
       schemaReady: runtimeReadiness.schemaReady,
       schemaStatus: runtimeReadiness.schemaStatus,
-      expectedMigration: runtimeReadiness.expectedMigration,
-      actualMigration: runtimeReadiness.actualMigration,
+      databaseSource: runtimeReadiness.databaseSource,
       errorCode: runtimeReadiness.errorCode,
       appVersion: version.backendVersion,
     });
@@ -219,8 +217,6 @@ function readinessHandler(_req, res) {
     databaseLatencyMs: runtimeReadiness.databaseLatencyMs,
     schemaReady: true,
     schemaStatus: runtimeReadiness.schemaStatus,
-    expectedMigration: runtimeReadiness.expectedMigration,
-    actualMigration: runtimeReadiness.actualMigration,
     startupMs: runtimeReadiness.readyAt && runtimeReadiness.startedAt
       ? runtimeReadiness.readyAt - runtimeReadiness.startedAt
       : null,
@@ -368,8 +364,7 @@ async function initializeRuntime() {
     const diagnostics = toSafeSchemaDiagnostics(schema);
     runtimeReadiness.schemaReady = true;
     runtimeReadiness.schemaStatus = diagnostics.status;
-    runtimeReadiness.expectedMigration = diagnostics.expectedMigration;
-    runtimeReadiness.actualMigration = diagnostics.actualMigration;
+    runtimeReadiness.databaseSource = diagnostics.databaseSource;
     console.log(`Database schema READY: ${schema.expectedLatest?.filename || "none"}`);
 
     await excelExportJobQueue.initialize();
@@ -396,8 +391,7 @@ async function initializeRuntime() {
     runtimeReadiness.database =
       error?.schemaStatus === "DATABASE_UNAVAILABLE" ? "unavailable" : runtimeReadiness.database;
     runtimeReadiness.schemaStatus = error?.schemaStatus || "STARTUP_FAILED";
-    runtimeReadiness.expectedMigration = safeDetails.expectedLatest || null;
-    runtimeReadiness.actualMigration = safeDetails.actualLatest || null;
+    runtimeReadiness.databaseSource = safeDetails.databaseSource || "FULL_DATABASE_SNAPSHOT";
     runtimeReadiness.errorCode = error?.code || "DATABASE_STARTUP_FAILED";
     runtimeReadiness.errorMessage = error?.message || "Runtime initialization failed";
 
@@ -405,8 +399,7 @@ async function initializeRuntime() {
       type: "startup_not_ready",
       code: runtimeReadiness.errorCode,
       schemaStatus: runtimeReadiness.schemaStatus,
-      expectedMigration: runtimeReadiness.expectedMigration,
-      actualMigration: runtimeReadiness.actualMigration,
+      databaseSource: runtimeReadiness.databaseSource,
       message: runtimeReadiness.errorMessage,
     }));
 
@@ -417,7 +410,7 @@ async function initializeRuntime() {
         Number(process.env.STARTUP_FAILURE_EXIT_MS || 20_000)
       );
       startupFailureTimer = setTimeout(() => {
-        console.error(`[KTC] runtime still not ready after startup failure; exiting in ${exitDelayMs}ms policy`);
+        console.error(`[KTC] runtime still not ready after database contract failure; exiting in ${exitDelayMs}ms policy`);
         process.exit(1);
       }, exitDelayMs);
       startupFailureTimer.unref?.();

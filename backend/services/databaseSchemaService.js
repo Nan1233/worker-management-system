@@ -1,156 +1,190 @@
 'use strict';
 
-const {
-  getCanonicalMigrationManifest,
-  getExpectedSchemaMetadata,
-  migrationVersion,
-} = require('./migrationManifestService');
+/**
+ * KTC DATABASE CONTRACT
+ * ---------------------
+ * The production database is restored from the canonical full SQL snapshot.
+ * Runtime never reads or executes migrations and never uses schema_migrations.
+ *
+ * The contract intentionally checks the physical schema + critical columns.
+ * This prevents a half-restored database from being accepted while avoiding
+ * the old "MIGRATIONS_PENDING" startup gate.
+ */
+
+const REQUIRED_TABLES = Object.freeze([
+  'users',
+  'workers',
+  'worker_processes',
+  'manager_processes',
+  'processes',
+  'machines',
+  'product_aliases',
+  'product_standards',
+  'product_standard_versions',
+  'product_standard_variants',
+  'product_machine_standards',
+  'product_machine_standard_variants',
+  'defect_types',
+  'deduction_types',
+  'production_reports_temp',
+  'production_reports',
+  'production_temp_defects',
+  'production_temp_deductions',
+  'production_temp_machine_lines',
+  'production_temp_machine_defects',
+  'production_report_defects',
+  'production_report_deductions',
+  'production_report_machine_lines',
+  'production_report_machine_defects',
+  'production_report_snapshots',
+  'production_report_duplicate_locks',
+  'machine_production_events',
+  'machine_production_event_defects',
+  'excel_export_jobs',
+  'excel_sync_batches',
+  'excel_sync_logs',
+  'google_sheets',
+  'integration_sync_jobs',
+  'notifications',
+  'activity_logs',
+  'report_action_logs',
+  'report_edit_logs',
+  'report_validation_results',
+  'report_versions',
+  'reporting_period_locks',
+  'role_permission_overrides',
+  'user_permission_overrides',
+  'user_sessions',
+  'production_formula_settings',
+  'production_formula_setting_versions',
+  'production_plans',
+  'master_seed_runs',
+  'master_personnel_source',
+  'worker_code_aliases',
+  'master_product_source',
+  'audit_logs'
+]);
+
+const REQUIRED_COLUMNS = Object.freeze({
+  users: ['id', 'username', 'password', 'role', 'status'],
+  workers: ['id', 'user_id', 'worker_code', 'status'],
+  worker_processes: ['worker_id', 'process_id'],
+  processes: ['id', 'process_code', 'process_name', 'status'],
+  machines: ['id', 'process_id', 'machine_code', 'machine_name', 'max_workers_per_machine', 'output_basis', 'status'],
+  product_standards: ['id', 'process_id', 'product_code', 'standard_output', 'status'],
+  product_machine_standards: ['id', 'process_id', 'product_code', 'machine_id', 'standard_output', 'is_active'],
+  defect_types: ['id', 'process_id', 'defect_code', 'defect_name', 'status'],
+  deduction_types: ['id', 'process_id', 'deduction_code', 'deduction_name', 'status'],
+  production_reports_temp: ['id', 'worker_id', 'process_id', 'work_date', 'total_time', 'actual_time', 'deduction_time', 'status'],
+  production_reports: ['id', 'worker_id', 'process_id', 'work_date', 'total_time', 'actual_time', 'deduction_time', 'status'],
+  production_temp_defects: ['id', 'production_temp_id'],
+  production_temp_deductions: ['id', 'production_temp_id'],
+  production_report_defects: ['id', 'report_id'],
+  production_report_deductions: ['id', 'report_id'],
+  user_sessions: ['id', 'user_id', 'refresh_token_hash', 'expires_at'],
+  master_personnel_source: ['id', 'source_sha256', 'process_code', 'source_worker_code', 'source_name'],
+  worker_code_aliases: ['id', 'alias_code', 'worker_id'],
+  master_product_source: ['id', 'source_sha256', 'process_code', 'alias_code', 'product_code']
+});
 
 const SCHEMA_STATUS = Object.freeze({
   READY: 'READY',
-  MIGRATIONS_PENDING: 'MIGRATIONS_PENDING',
-  CHECKSUM_MISMATCH: 'CHECKSUM_MISMATCH',
-  UNEXPECTED_FUTURE_MIGRATION: 'UNEXPECTED_FUTURE_MIGRATION',
-  MIGRATION_STATE_INVALID: 'MIGRATION_STATE_INVALID',
-  DATABASE_UNAVAILABLE: 'DATABASE_UNAVAILABLE',
+  DATABASE_CONTRACT_INVALID: 'DATABASE_CONTRACT_INVALID',
+  DATABASE_UNAVAILABLE: 'DATABASE_UNAVAILABLE'
 });
-
-function summarizeMigration(entry) {
-  return entry ? { version: entry.version, filename: entry.filename, checksum: entry.checksum } : null;
-}
-
-function latestByVersion(entries) {
-  return [...entries]
-    .filter((entry) => Number.isInteger(entry.version))
-    .sort((a, b) => a.version - b.version || a.filename.localeCompare(b.filename))
-    .at(-1) || null;
-}
-
-function analyzeMigrationState(expectedManifest, actualRows) {
-  const expected = expectedManifest.map((entry) => ({ ...entry }));
-  const actual = (actualRows || []).map((row) => ({
-    filename: String(row.migration_id || row.filename || ''),
-    checksum: String(row.checksum || ''),
-    appliedAt: row.applied_at || row.appliedAt || null,
-    version: migrationVersion(row.migration_id || row.filename),
-  }));
-
-  const expectedByFilename = new Map(expected.map((entry) => [entry.filename, entry]));
-  const actualByFilename = new Map();
-  const duplicateActual = [];
-  for (const entry of actual) {
-    if (actualByFilename.has(entry.filename)) duplicateActual.push(entry.filename);
-    actualByFilename.set(entry.filename, entry);
-  }
-
-  const expectedLatest = latestByVersion(expected);
-  const actualLatest = latestByVersion(actual);
-  const unexpected = actual.filter((entry) => !expectedByFilename.has(entry.filename));
-  const future = unexpected.filter((entry) => entry.version != null && expectedLatest && entry.version > expectedLatest.version);
-
-  const base = {
-    ready: false,
-    status: null,
-    expectedLatest: summarizeMigration(expectedLatest),
-    actualLatest: summarizeMigration(actualLatest),
-    missingMigrations: [],
-    checksumMismatches: [],
-    unexpectedMigrations: unexpected.map(summarizeMigration),
-  };
-
-  if (future.length) {
-    return { ...base, status: SCHEMA_STATUS.UNEXPECTED_FUTURE_MIGRATION };
-  }
-
-  if (unexpected.length || duplicateActual.length || actual.some((entry) => entry.version == null)) {
-    return { ...base, status: SCHEMA_STATUS.MIGRATION_STATE_INVALID };
-  }
-
-  const checksumMismatches = [];
-  const missing = [];
-  for (const entry of expected) {
-    const applied = actualByFilename.get(entry.filename);
-    if (!applied) missing.push(entry);
-    else if (!(entry.compatibleChecksums || [entry.checksum]).includes(applied.checksum)) {
-      checksumMismatches.push({
-        filename: entry.filename,
-        version: entry.version,
-        expectedChecksum: entry.checksum,
-        actualChecksum: applied.checksum,
-      });
-    }
-  }
-
-  if (checksumMismatches.length) {
-    return { ...base, status: SCHEMA_STATUS.CHECKSUM_MISMATCH, checksumMismatches };
-  }
-
-  if (missing.length) {
-    const actualVersions = new Set(actual.map((entry) => entry.version));
-    const highestApplied = actualLatest?.version ?? 0;
-    const missingMiddle = missing.some((entry) => entry.version <= highestApplied || actualVersions.has(entry.version));
-    return {
-      ...base,
-      status: missingMiddle ? SCHEMA_STATUS.MIGRATION_STATE_INVALID : SCHEMA_STATUS.MIGRATIONS_PENDING,
-      missingMigrations: missing.map(summarizeMigration),
-    };
-  }
-
-  return { ...base, ready: true, status: SCHEMA_STATUS.READY };
-}
-
-function isMissingMigrationTableError(error) {
-  return error?.code === 'ER_NO_SUCH_TABLE'
-    || error?.errno === 1146
-    || /schema_migrations.*doesn['’]?t exist/i.test(String(error?.message || ''));
-}
 
 function defaultExecutor() {
   return require('../config/db').promise();
 }
 
-async function loadActualMigrationLedger(executor = defaultExecutor()) {
+async function listTables(executor) {
   const [rows] = await executor.query(
-    'SELECT migration_id, checksum, applied_at FROM schema_migrations ORDER BY migration_id',
+    `SELECT TABLE_NAME AS table_name
+       FROM information_schema.tables
+      WHERE table_schema = DATABASE()
+        AND table_type = 'BASE TABLE'`
+  );
+  return rows.map((row) => String(row.table_name));
+}
+
+async function listColumns(executor) {
+  const [rows] = await executor.query(
+    `SELECT TABLE_NAME AS table_name, COLUMN_NAME AS column_name
+       FROM information_schema.columns
+      WHERE table_schema = DATABASE()`
   );
   return rows;
 }
 
-async function verifyDatabaseSchema({ executor = defaultExecutor(), manifest = getCanonicalMigrationManifest() } = {}) {
+async function verifyDatabaseSchema({ executor = defaultExecutor() } = {}) {
   try {
-    const rows = await loadActualMigrationLedger(executor);
-    return analyzeMigrationState(manifest, rows);
-  } catch (error) {
-    if (isMissingMigrationTableError(error)) {
-      const state = analyzeMigrationState(manifest, []);
-      return { ...state, status: SCHEMA_STATUS.MIGRATIONS_PENDING, ledgerMissing: true };
+    const [tableNames, columns] = await Promise.all([
+      listTables(executor),
+      listColumns(executor)
+    ]);
+
+    const tableSet = new Set(tableNames);
+    const missingTables = REQUIRED_TABLES.filter((name) => !tableSet.has(name));
+
+    const columnsByTable = new Map();
+    for (const row of columns) {
+      const table = String(row.table_name);
+      if (!columnsByTable.has(table)) columnsByTable.set(table, new Set());
+      columnsByTable.get(table).add(String(row.column_name));
     }
-    const metadata = getExpectedSchemaMetadata(manifest);
+
+    const missingColumns = [];
+    for (const [table, required] of Object.entries(REQUIRED_COLUMNS)) {
+      const actual = columnsByTable.get(table) || new Set();
+      for (const column of required) {
+        if (!actual.has(column)) {
+          missingColumns.push({ table, column });
+        }
+      }
+    }
+
+    const ready = missingTables.length === 0 && missingColumns.length === 0;
+
+    return {
+      ready,
+      status: ready ? SCHEMA_STATUS.READY : SCHEMA_STATUS.DATABASE_CONTRACT_INVALID,
+      databaseSource: 'FULL_DATABASE_SNAPSHOT',
+      missingTables,
+      missingColumns,
+      expectedMigration: null,
+      actualMigration: null
+    };
+  } catch (error) {
     return {
       ready: false,
       status: SCHEMA_STATUS.DATABASE_UNAVAILABLE,
-      expectedLatest: metadata.expectedMigration
-        ? { version: metadata.expectedSchemaVersion, filename: metadata.expectedMigration, checksum: metadata.expectedChecksum }
-        : null,
-      actualLatest: null,
-      missingMigrations: [],
-      checksumMismatches: [],
-      unexpectedMigrations: [],
+      databaseSource: 'FULL_DATABASE_SNAPSHOT',
+      missingTables: [],
+      missingColumns: [],
+      expectedMigration: null,
+      actualMigration: null,
+      error
     };
   }
 }
 
 function createSchemaNotReadyError(result) {
-  const error = new Error(`Database schema not ready: ${result.status}`);
-  error.code = 'DATABASE_SCHEMA_NOT_READY';
+  const error = new Error(
+    result.status === SCHEMA_STATUS.DATABASE_CONTRACT_INVALID
+      ? 'Database contract không khớp full database chuẩn'
+      : 'Không thể kiểm tra database contract'
+  );
+  error.code = result.status === SCHEMA_STATUS.DATABASE_CONTRACT_INVALID
+    ? 'DATABASE_CONTRACT_INVALID'
+    : 'DATABASE_UNAVAILABLE';
   error.schemaStatus = result.status;
   error.status = 503;
   error.statusCode = 503;
   error.isPublic = false;
   error.details = {
-    expectedLatest: result.expectedLatest?.filename || null,
-    actualLatest: result.actualLatest?.filename || null,
-    missingMigrations: (result.missingMigrations || []).map((item) => item.filename),
+    databaseSource: result.databaseSource,
+    missingTables: result.missingTables || [],
+    missingColumns: result.missingColumns || []
   };
   return error;
 }
@@ -165,19 +199,46 @@ function toSafeSchemaDiagnostics(result) {
   return {
     status: result.status,
     schemaReady: Boolean(result.ready),
-    expectedMigration: result.expectedLatest?.filename || null,
-    actualMigration: result.actualLatest?.filename || null,
-    missingMigrations: (result.missingMigrations || []).map((entry) => entry.filename),
+    databaseSource: result.databaseSource || 'FULL_DATABASE_SNAPSHOT',
+    expectedMigration: null,
+    actualMigration: null,
+    missingTables: result.missingTables || [],
+    missingColumns: result.missingColumns || []
+  };
+}
+
+function isMissingMigrationTableError(error) {
+  return error?.code === 'ER_NO_SUCH_TABLE'
+    || error?.errno === 1146
+    || /schema_migrations/i.test(String(error?.message || ''));
+}
+
+async function loadActualMigrationLedger() {
+  return [];
+}
+
+function analyzeMigrationState() {
+  return {
+    ready: true,
+    status: SCHEMA_STATUS.READY,
+    databaseSource: 'FULL_DATABASE_SNAPSHOT',
+    expectedLatest: null,
+    actualLatest: null,
+    missingMigrations: [],
+    checksumMismatches: [],
+    unexpectedMigrations: []
   };
 }
 
 module.exports = {
   SCHEMA_STATUS,
+  REQUIRED_TABLES,
+  REQUIRED_COLUMNS,
   analyzeMigrationState,
   loadActualMigrationLedger,
   verifyDatabaseSchema,
   assertDatabaseSchemaReady,
   createSchemaNotReadyError,
   toSafeSchemaDiagnostics,
-  isMissingMigrationTableError,
+  isMissingMigrationTableError
 };

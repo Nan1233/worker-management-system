@@ -1,7 +1,7 @@
 -- ============================================================================
--- KTC - FULL DATABASE TỪ ĐẦU - TIDB SAFE - 10/08/2026
+-- KTC - FULL DATABASE TỪ ĐẦU - TIDB SAFE - 17/08/2026
 -- CẢNH BÁO: FILE NÀY XÓA TOÀN BỘ DATABASE worker_management VÀ TẠO LẠI.
--- ĐÃ TÍCH HỢP TRỰC TIẾP SCHEMA CUỐI, MASTER DATA, BOOK2 VÀ TÀI KHOẢN HỆ THỐNG.
+-- ĐÃ TÍCH HỢP SCHEMA VẬT LÝ + MASTER DATA + BOOK2 + MASTER RECONCILIATION; DATABASE LÀ SOURCE OF TRUTH.
 -- KHÔNG CÒN CÁC ALTER TABLE ADD COLUMN IF NOT EXISTS DÙNG CHO NÂNG CẤP DB CŨ.
 -- ============================================================================
 
@@ -10,7 +10,7 @@ CREATE DATABASE worker_management CHARACTER SET utf8mb4;
 USE worker_management;
 
 -- ============================================================================
--- KTC FULL DATABASE WITH DATA - ĐỒNG BỘ VỚI SOURCE CODE 10/08/2026
+-- KTC FULL DATABASE WITH DATA - ĐỒNG BỘ VỚI SOURCE CODE 17/08/2026
 -- Dùng cho TiDB/MySQL compatible.
 -- KHÔNG DROP DATABASE / DROP TABLE / TRUNCATE.
 -- Thứ tự: schema 001-011 -> master seed -> rule 012 -> Book2 013 -> checksum.
@@ -654,7 +654,7 @@ INSERT IGNORE INTO production_formula_settings (scope_code, process_id) VALUES (
 
 -- ==================== 008_client_request_idempotency.sql ====================
 -- Enforce idempotency at the database layer. If duplicate non-empty request IDs
--- already exist, this migration intentionally fails so they can be reviewed
+-- Existing constraints are preserved; no incremental schema update is executed.
 -- instead of silently deleting production data.
 CREATE UNIQUE INDEX uq_prt_worker_client_request
   ON production_reports_temp (worker_id, client_request_id);
@@ -1109,6 +1109,22 @@ UNION ALL
 SELECT 'EP', 'PRESS NO 21', 'Press No 21', 'active'
 UNION ALL
 SELECT 'EP', 'PRESS NO 22', 'Press No 22', 'active'
+UNION ALL
+SELECT 'DO', 'QC', 'QC', 'active'
+UNION ALL
+SELECT 'EP', 'INJ NO 1', 'INJ No 1', 'active'
+UNION ALL
+SELECT 'EP', 'INJ NO 2', 'INJ No 2', 'active'
+UNION ALL
+SELECT 'EP', 'INJ NO 3', 'INJ No 3', 'active'
+UNION ALL
+SELECT 'EP', 'INJ NO 4', 'INJ No 4', 'active'
+UNION ALL
+SELECT 'EP', 'INJ NO 6', 'INJ No 6', 'active'
+UNION ALL
+SELECT 'EP', 'INJ NO 8', 'INJ No 8', 'active'
+UNION ALL
+SELECT 'EP', 'INJ NO 7', 'INJ No 7', 'active'
 ) AS s
 JOIN processes p ON UPPER(TRIM(p.process_code))=UPPER(TRIM(s.process_code))
 ON DUPLICATE KEY UPDATE machine_name=VALUES(machine_name), status='active' ;
@@ -16686,7 +16702,7 @@ UNION ALL SELECT 'Lỗi NG', COUNT(*) FROM defect_types
 UNION ALL SELECT 'Lần seed', COUNT(*) FROM master_seed_runs;
 
 -- ==================== 012_factory_machine_rules_20260810.sql ====================
--- KTC 012 - Quy tắc máy theo thực tế xưởng ngày 10/08/2026.
+-- KTC 012 - Quy tắc máy theo thực tế xưởng ngày 17/08/2026.
 -- An toàn khi chạy lại; không xóa báo cáo sản xuất.
 
 
@@ -19577,27 +19593,82 @@ ON DUPLICATE KEY UPDATE standard_output=VALUES(standard_output),standard_time_se
 SELECT COUNT(*) AS so_bien_the_book2 FROM product_machine_standard_variants v JOIN processes p ON p.id=v.process_id WHERE p.process_code='MAI' AND v.source_name='Book2(3).xlsx';
 SELECT COUNT(*) AS so_dinh_muc_may_dang_dung FROM product_machine_standards pms JOIN processes p ON p.id=pms.process_id WHERE p.process_code='MAI' AND pms.is_active=1 AND pms.source_name='Book2(3).xlsx';
 
--- ==================== ĐỒNG BỘ CHECKSUM MIGRATION ====================
-CREATE TABLE IF NOT EXISTS schema_migrations (
-  migration_id VARCHAR(160) NOT NULL PRIMARY KEY,
-  checksum CHAR(64) NOT NULL,
-  applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+-- ==================== DATABASE SOURCE-OF-TRUTH CONTRACT ====================
+-- Không tạo migration ledger. Database này là full canonical snapshot.
+
+
+-- ============================================================================
+-- MASTER DATA RECONCILIATION SOURCE TABLES
+-- Canonical source: file mẫu.xlsx snapshot SHA-256
+-- 026 is physically embedded in this full database.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS master_personnel_source (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  source_sha256 CHAR(64) NOT NULL,
+  process_code VARCHAR(40) NOT NULL,
+  source_worker_code VARCHAR(120) NOT NULL,
+  source_name VARCHAR(255) NOT NULL,
+  source_row INT NOT NULL,
+  resolution_status VARCHAR(30) NOT NULL DEFAULT 'resolved',
+  canonical_worker_code VARCHAR(120) NULL,
+  notes VARCHAR(500) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_master_personnel_source (source_sha256, process_code, source_worker_code, source_row),
+  KEY idx_master_personnel_source_code (source_worker_code, process_code),
+  KEY idx_master_personnel_resolution (resolution_status)
 );
-INSERT INTO schema_migrations (migration_id, checksum) VALUES
-  ('001_core_master_schema.sql', '1a6d16270203048315a610d4baf57bd3923b625ef495dc73b4043ff60954c9d5'),
-  ('002_production_schema.sql', '7e5a0edfbf89355dd63ce101a756fe2b1a2ad4678fd28215031c7c6bf64c4a5e'),
-  ('003_machine_and_session_schema.sql', '0de9f6d5702ddcb8af16d3f69d7717654aa31c8eccd13961e0891f11f2a1dd78'),
-  ('004_sync_and_export_schema.sql', 'e177e64e251fc261087cb84d5fa6ccb8c5d745c0d942a18e6a25ccc64c441933'),
-  ('005_entry_date_compatibility.sql', 'fa4b48fb87e14744c959d40b3c796ae819f582c83ab53bc862128b54e6093c92'),
-  ('006_extra_data_compatibility.sql', '97d18b6a8581f5ee12c5cadf7c5953c2a7ea3a52a70266f8479c0a989dd73091'),
-  ('007_production_formula_settings.sql', '35e871e6100541abdb316c1b63094bea2e879c70f8c6ff5c1b6ba835b83819e3'),
-  ('008_client_request_idempotency.sql', '17b07211e4ad4a4e3e31f0fc9272b4fe94b66f37fa0c1dc1821a527f53dacca2'),
-  ('009_role_permissions.sql', '1b0081b4e616ab88f9a2e6966b7b5353ecb37b979f71d22158dee2f4e27f9a4d'),
-  ('010_audit_governance_demo.sql', 'ed60a0630dd8de3177a52232fccc67983c36c7e304527ebabf5e63e4cf467ea0'),
-  ('011_master_seed_support.sql', '4bfb0cf4dacc2b045fc366312976c9ada06fb6802e0af9abcbe83a03e00e905d'),
-  ('012_factory_machine_rules_20260810.sql', '14fa966ab8c54d23512e97d6ffc028b8c9ddf31c2923ed2867ba04d7e49b6639'),
-  ('013_book2_machine_product_time_20260810.sql', 'f88429a4e88a51b7bc38e7e455711d55eead6d9332fa5cba3c64949ae7a73de4')
-ON DUPLICATE KEY UPDATE checksum=VALUES(checksum), applied_at=CURRENT_TIMESTAMP;
+
+CREATE TABLE IF NOT EXISTS worker_code_aliases (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  alias_code VARCHAR(120) NOT NULL,
+  worker_id BIGINT NOT NULL,
+  source_process_code VARCHAR(120) NULL,
+  source_name VARCHAR(255) NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_worker_code_alias (alias_code),
+  KEY idx_worker_code_alias_worker (worker_id, status)
+);
+
+CREATE TABLE IF NOT EXISTS master_product_source (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  source_sha256 CHAR(64) NOT NULL,
+  process_code VARCHAR(40) NOT NULL,
+  source_group VARCHAR(60) NOT NULL,
+  alias_code VARCHAR(180) NOT NULL,
+  product_code VARCHAR(180) NOT NULL,
+  source_row INT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_master_product_source (source_sha256, process_code, source_group, alias_code, product_code, source_row),
+  KEY idx_master_product_source_lookup (process_code, product_code)
+);
+
+-- Canonical machine contract from file mẫu.xlsx:
+-- GC 33 / MAI 35 / DO 23 / CAN 3 / EP 29 = 123.
+SELECT
+  p.process_code,
+  COUNT(m.id) AS machine_count
+FROM processes p
+LEFT JOIN machines m
+  ON m.process_id = p.id
+ AND m.status = 'active'
+WHERE p.process_code IN ('GC','MAI','DO','CAN','EP')
+GROUP BY p.process_code
+ORDER BY FIELD(p.process_code,'GC','MAI','DO','CAN','EP');
+
+SELECT
+  CASE
+    WHEN (SELECT COUNT(*) FROM machines m JOIN processes p ON p.id=m.process_id WHERE p.process_code='GC' AND m.status='active')=33
+     AND (SELECT COUNT(*) FROM machines m JOIN processes p ON p.id=m.process_id WHERE p.process_code='MAI' AND m.status='active')=35
+     AND (SELECT COUNT(*) FROM machines m JOIN processes p ON p.id=m.process_id WHERE p.process_code='DO' AND m.status='active')=23
+     AND (SELECT COUNT(*) FROM machines m JOIN processes p ON p.id=m.process_id WHERE p.process_code='CAN' AND m.status='active')=3
+     AND (SELECT COUNT(*) FROM machines m JOIN processes p ON p.id=m.process_id WHERE p.process_code='EP' AND m.status='active')=29
+    THEN 'PASS'
+    ELSE 'FAIL'
+  END AS machine_master_contract;
 
 -- ==================== KIỂM TRA CUỐI ====================
 SELECT 'Công đoạn' AS nhom, COUNT(*) AS so_luong FROM processes
@@ -19611,7 +19682,6 @@ UNION ALL SELECT 'Định mức máy Book2', COUNT(*) FROM product_machine_stand
 UNION ALL SELECT 'Biến thể máy Book2', COUNT(*) FROM product_machine_standard_variants WHERE is_active=1 AND source_name='Book2(3).xlsx'
 UNION ALL SELECT 'Lần seed', COUNT(*) FROM master_seed_runs;
 
-SELECT migration_id, checksum FROM schema_migrations ORDER BY migration_id;
 
 -- ============================================================
 -- TAI KHOAN HE THONG MAC DINH
@@ -19649,9 +19719,6 @@ ORDER BY FIELD(role, 'admin', 'manager', 'lead');
 -- Đã tích hợp trực tiếp vào CREATE TABLE user_sessions cho bản dựng mới.
 -- ============================================================
 
-INSERT INTO schema_migrations (migration_id, checksum)
-VALUES ('014_user_sessions_login_compat_20260810.sql', '9a352cda9d437f9ecc5441ac71f6999fb29d41b1486215f8a14b425b32a6825f')
-ON DUPLICATE KEY UPDATE checksum=VALUES(checksum), applied_at=CURRENT_TIMESTAMP;
 
 SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE
 FROM INFORMATION_SCHEMA.COLUMNS
@@ -19661,9 +19728,9 @@ ORDER BY ORDINAL_POSITION;
 
 -- ============================================================================
 -- 015_latest_excel_source_sync_20260810.sql
--- Đồng bộ 3 file nguồn mới nhất người dùng gửi ngày 10/08/2026.
+-- Đồng bộ 3 file nguồn mới nhất người dùng gửi ngày 17/08/2026.
 -- ============================================================================
--- KTC 015: Đồng bộ nguồn Excel mới nhất 10/08/2026.
+-- KTC 015: Đồng bộ nguồn Excel mới nhất 17/08/2026.
 -- Nguồn:
 --   file mẫu(6).xlsx = trùng file mẫu(5).xlsx
 --   Book1(8).xlsx    = trùng Book1(7).xlsx
@@ -19741,9 +19808,6 @@ UPDATE product_machine_standard_variants
 SET source_name = 'Book2(4).xlsx'
 WHERE source_name = 'Book2(3).xlsx';
 
-INSERT INTO schema_migrations (migration_id, checksum)
-VALUES ('015_latest_excel_source_sync_20260810.sql', 'd1ee61dd4d45de5b41adc4cd06dc330574f3a4c7118d09b6d3997c03da0c9f8f')
-ON DUPLICATE KEY UPDATE checksum=VALUES(checksum), applied_at=CURRENT_TIMESTAMP;
 
 -- ============================================================================
 -- KIỂM TRA CUỐI BẢN RESET 15
@@ -19785,36 +19849,6 @@ WHERE p.process_code='MAI'
 -- ==================== 025_formula_settings_effective_range_20260813.sql ====================
 -- Included in base reset schema above: effective_from/effective_to DATE NULL.
 
--- ==================== FINAL CANONICAL MIGRATION LEDGER 001-025 ====================
--- The reset schema embeds the physical result of migrations through 025.
--- Reconcile the ledger with the exact canonical source checksums so db:schema:verify
--- succeeds immediately after a clean reset. Do not use placeholder/manual checksums.
-INSERT INTO schema_migrations (migration_id, checksum) VALUES
-  ('001_core_master_schema.sql', '1a6d16270203048315a610d4baf57bd3923b625ef495dc73b4043ff60954c9d5'),
-  ('002_production_schema.sql', '7e5a0edfbf89355dd63ce101a756fe2b1a2ad4678fd28215031c7c6bf64c4a5e'),
-  ('003_machine_and_session_schema.sql', '0de9f6d5702ddcb8af16d3f69d7717654aa31c8eccd13961e0891f11f2a1dd78'),
-  ('004_sync_and_export_schema.sql', 'e177e64e251fc261087cb84d5fa6ccb8c5d745c0d942a18e6a25ccc64c441933'),
-  ('005_entry_date_compatibility.sql', 'fa4b48fb87e14744c959d40b3c796ae819f582c83ab53bc862128b54e6093c92'),
-  ('006_extra_data_compatibility.sql', '97d18b6a8581f5ee12c5cadf7c5953c2a7ea3a52a70266f8479c0a989dd73091'),
-  ('007_production_formula_settings.sql', '35e871e6100541abdb316c1b63094bea2e879c70f8c6ff5c1b6ba835b83819e3'),
-  ('008_client_request_idempotency.sql', '17b07211e4ad4a4e3e31f0fc9272b4fe94b66f37fa0c1dc1821a527f53dacca2'),
-  ('009_role_permissions.sql', '1b0081b4e616ab88f9a2e6966b7b5353ecb37b979f71d22158dee2f4e27f9a4d'),
-  ('010_audit_governance_demo.sql', 'ed60a0630dd8de3177a52232fccc67983c36c7e304527ebabf5e63e4cf467ea0'),
-  ('011_master_seed_support.sql', '4bfb0cf4dacc2b045fc366312976c9ada06fb6802e0af9abcbe83a03e00e905d'),
-  ('012_factory_machine_rules_20260810.sql', '14fa966ab8c54d23512e97d6ffc028b8c9ddf31c2923ed2867ba04d7e49b6639'),
-  ('013_book2_machine_product_time_20260810.sql', 'f88429a4e88a51b7bc38e7e455711d55eead6d9332fa5cba3c64949ae7a73de4'),
-  ('014_user_sessions_login_compat_20260810.sql', '9a352cda9d437f9ecc5441ac71f6999fb29d41b1486215f8a14b425b32a6825f'),
-  ('015_latest_excel_source_sync_20260810.sql', 'd1ee61dd4d45de5b41adc4cd06dc330574f3a4c7118d09b6d3997c03da0c9f8f'),
-  ('016_integrity_constraints_20260810.sql', '6b0a7cb9e9016203d1cbb9d952903a6976a64e0c2274ff947ec8f3cf07c32403'),
-  ('017_integration_sync_job_runtime_contract_20260812.sql', '411e053bafd3b388cb9e70ae65b867968f5758d86971c8016003e50f954d6cc5'),
-  ('018_gc_shared_machine_max_workers_20260812.sql', '9ee971a02dae884b85292cb53d18ef84a4857f4ca8fc1a0055f42a6a75a7008d'),
-  ('019_historical_standard_snapshot_20260812.sql', 'ff3a1591f9288910556e74a52dba53620b4ab368fe45874bc8f7826fc15deb33'),
-  ('020_training_percent_snapshot_20260812.sql', 'ba958fc0b8fc069d587ac684285fa6c78283619dc4602c278fb2002b862954b9'),
-  ('021_kqd_policy_snapshot_20260812.sql', '461e39f69b34a9e87df2f9387d6c3db7faa0ecb7852e31d16aef053dc2f4cdf7'),
-  ('022_shared_machine_accounting_20260812.sql', '8f7d148d32dfb7d0dcbafc4c93afa37424f55e536b39c811aeb991ba0bbdad05'),
-  ('023_refresh_session_rotation_20260813.sql', '2c9831b08a21d009888a6bd55710348669caca32936c550660956d38f4b0a2a3'),
-  ('024_logical_duplicate_report_lock_20260813.sql', '60b508fbb7e4b639486151cdcca4d7e36512ce67e018782aa7f5e566fdd7d3d2'),
-  ('025_formula_settings_effective_range_20260813.sql', '56385f116d2936411b8f978fbc122b55b1df0965154a01661a0576a1c0fef4ee')
-ON DUPLICATE KEY UPDATE checksum=checksum;
+-- ==================== FINAL DATABASE CONTRACT ====================
+-- Restore this file as the canonical database.
 
-SELECT migration_id, checksum FROM schema_migrations ORDER BY migration_id;

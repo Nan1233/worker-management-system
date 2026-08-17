@@ -1,6 +1,6 @@
 'use strict';
 const db=require('../config/db');
-const requiredTables=['users','workers','production_reports','production_reports_temp','production_report_defects','production_report_deductions','production_report_machine_lines','machine_production_events','product_standards','product_standard_versions','user_sessions','schema_migrations','production_report_duplicate_locks'];
+const requiredTables=['users','workers','production_reports','production_reports_temp','production_report_defects','production_report_deductions','production_report_machine_lines','machine_production_events','product_standards','product_standard_versions','user_sessions','production_report_duplicate_locks'];
 const requiredColumns=[['production_reports','standard_version_id'],['production_reports','training_percent_snapshot'],['production_reports','exclude_kqd_from_tt_snapshot'],['production_reports','machine_event_id'],['production_reports_temp','logical_duplicate_key'],['user_sessions','family_id'],['user_sessions','consumed_at'],['user_sessions','replaced_by_id'],['user_sessions','reuse_detected_at'],['production_formula_settings','effective_from'],['production_formula_settings','effective_to']];
 const orphanChecks=[
  ['REPORT_WORKER_ORPHAN',`SELECT COUNT(*) n FROM production_reports r LEFT JOIN workers w ON w.id=r.worker_id WHERE w.id IS NULL`],
