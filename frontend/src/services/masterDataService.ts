@@ -72,22 +72,35 @@ export const getProductStandardsByProcess =
         processCode?: string
     ): Promise<ProductStandardOption[]> => {
 
+        const normalizedCode = processCode?.trim();
         const response =
             await api.get(
                 "/product-standards",
                 {
-                    params: processCode
-                        ? { process_code: processCode }
+                    params: normalizedCode
+                        ? { process_code: normalizedCode }
                         : { process_id: processId }
                 }
             );
 
-
         const payload = response.data?.data ?? response.data;
 
-        return Array.isArray(payload)
-            ? payload
-            : [];
+        if (Array.isArray(payload) && payload.length > 0) {
+            return payload;
+        }
+
+        // Some deployed/legacy backends do not resolve process_code consistently.
+        // A valid process id is the canonical FK, so retry by id before exposing
+        // an empty product list to the worker form.
+        if (normalizedCode) {
+            const fallbackResponse = await api.get("/product-standards", {
+                params: { process_id: processId },
+            });
+            const fallbackPayload = fallbackResponse.data?.data ?? fallbackResponse.data;
+            return Array.isArray(fallbackPayload) ? fallbackPayload : [];
+        }
+
+        return [];
 
     };
 export interface ResolvedProductStandard {
