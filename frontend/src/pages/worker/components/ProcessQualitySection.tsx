@@ -1,6 +1,7 @@
 import type { ChangeEvent, FocusEvent, Dispatch, SetStateAction } from "react";
 import type { FormState, NgKey } from "../processPageConfig";
 import AppIcon from "../../../components/common/AppIcon";
+import { calculateNgTotal } from "../processQualityLogic";
 
 interface NgOption {
     key: NgKey;
@@ -35,6 +36,12 @@ export default function ProcessQualitySection({
     onToggleNg,
     onNgValue,
 }: Props) {
+    const derivedNgTotal = usesMultiMachineLines
+        ? Number(form.ttNg || 0)
+        : calculateNgTotal(form, activeNgOptions);
+    const okTotal = Number(form.ttOk || 0);
+    const displayedTotal = Math.max(0, okTotal + derivedNgTotal);
+
     return (
         <section className="worker-form-card worker-quality-section">
             <h2 className="worker-card-title"><span><AppIcon name="sheet" size={20} /></span> Báo cáo Chất lượng</h2>
@@ -60,7 +67,7 @@ export default function ProcessQualitySection({
                     <input
                         id="ttNg"
                         name="ttNg"
-                        value={formatIntegerDisplay(form.ttNg)}
+                        value={formatIntegerDisplay(String(derivedNgTotal))}
                         readOnly
                         disabled={usesMultiMachineLines}
                     />
@@ -70,7 +77,7 @@ export default function ProcessQualitySection({
                     <label htmlFor="totalOutput">{usesMultiMachineLines ? "Sản lượng người" : "Tổng sản lượng"}</label>
                     <input
                         id="totalOutput"
-                        value={formatIntegerDisplay(String((Number(form.ttOk) || 0) + (Number(form.ttNg) || 0)))}
+                        value={formatIntegerDisplay(String(displayedTotal))}
                         readOnly
                         disabled={usesMultiMachineLines}
                         aria-label="Tổng sản lượng bằng TT OK cộng TT NG"
@@ -90,8 +97,8 @@ export default function ProcessQualitySection({
                     <span className="worker-dropdown-title-main">
                         <span>{usesMultiMachineLines ? "Tổng lỗi NG từ các máy" : "Lỗi NG"}</span>
                         <small>
-                            {Number(form.ttNg || 0) > 0
-                                ? `${selectedNg.length} loại · ${formatIntegerDisplay(form.ttNg)} NG`
+                            {derivedNgTotal > 0
+                                ? `${selectedNg.length} loại · ${formatIntegerDisplay(String(derivedNgTotal))} NG`
                                 : "Không có NG"}
                         </small>
                     </span>
