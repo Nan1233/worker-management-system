@@ -1,32 +1,24 @@
-node_modules/
-**/node_modules/
-.env
-.env.*
-!.env.example
-**/.env
-**/.env.*
-!**/.env.example
-release/
-**/release/
-*.exe
-*.msi
-*.blockmap
+# Logs
+logs
 *.log
-.DS_Store
-coverage/
-**/coverage/
-frontend/dist/
-desktop/frontend/dist/
-backend/exports/
-backend/tmp/
-*.tmp
-KTC_Professional_Test_Tool_v2_FULL/reports/artifacts/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Release/build artifacts and secrets
-validation-artifacts/
-*.apk
-*.aab
-*.jks
-*.keystore
-*.ipa
-*.mobileprovision
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
