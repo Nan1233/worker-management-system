@@ -375,8 +375,10 @@ function Login() {
                     </div>
 
                     <div className="login-heading">
-                        <span className="login-status-dot" />
-                        <p>HỆ THỐNG ĐANG HOẠT ĐỘNG</p>
+                        <div className="login-status-pill" role="status" aria-label="Hệ thống đang hoạt động">
+                            <span className="login-status-dot" aria-hidden="true" />
+                            <span className="login-status-text">HỆ THỐNG ĐANG HOẠT ĐỘNG</span>
+                        </div>
                         <h2>
                             {step === "employee-code" && "Nhập mã nhân viên"}
                             {step === "role-choice" && "Bạn muốn đăng nhập với vai trò nào?"}

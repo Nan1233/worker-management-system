@@ -185,63 +185,56 @@
 /* Login heading is a wrapper, not the large heading itself. */
 .login-heading {
   display: grid;
-  grid-template-columns: auto minmax(0,1fr);
-  column-gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
   row-gap: 0;
-  align-items: center;
+  align-items: start;
   margin-bottom: 28px;
+}
+
+.login-status-pill {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  max-width: 100%;
+  padding: 0 13px;
+  border: 1px solid rgba(86,185,139,.20);
+  border-radius: 999px;
+  background: rgba(86,185,139,.08);
+  color: #2f8a69;
+  box-sizing: border-box;
+  white-space: nowrap;
 }
 
 .login-status-dot {
   width: 7px;
   height: 7px;
+  flex: 0 0 7px;
+  display: block;
   border-radius: 50%;
   background: #56b98b;
   box-shadow: 0 0 0 4px rgba(86,185,139,.12);
 }
 
-.login-heading > p {
-  grid-column: 2;
-  justify-self: start;
-  width: max-content;
-  max-width: 100%;
+.login-status-text {
+  display: block;
   margin: 0;
-  padding: 5px 9px;
-  border: 1px solid rgba(86,185,139,.18);
-  border-radius: 999px;
-  background: rgba(86,185,139,.08);
-  color: #2f8a69;
   font-size: 10px;
-  line-height: 1.2;
+  line-height: 1;
   font-weight: 750;
   letter-spacing: .055em;
   text-transform: uppercase;
-  white-space: nowrap;
 }
 
 .login-heading > h2,
 .login-heading > span {
-  grid-column: 1 / -1;
+  grid-column: 1;
 }
 
 .login-heading > h2 {
   margin: 13px 0 0;
-  color: var(--ktc-ink-950);
-  font-size: clamp(28px, 2.3vw, 36px);
-  line-height: 1.13;
-  letter-spacing: -.035em;
-  font-weight: 740;
-}
-
-.login-heading > span {
-  display: block;
-  margin-top: 10px;
-  max-width: 420px;
-  color: var(--ktc-ink-500);
-  font-size: 14px;
-  line-height: 1.55;
-}
-
 .login-form {
   display: grid;
   gap: 16px;
@@ -605,20 +598,23 @@
     font-size: 18px;
   }
   .login-heading {
-    grid-template-columns: auto minmax(0,1fr);
-    column-gap: 7px;
+    grid-template-columns: minmax(0, 1fr);
     margin-bottom: 20px;
+  }
+  .login-status-pill {
+    min-height: 34px;
+    max-width: 100%;
+    padding-inline: 11px;
+    gap: 7px;
   }
   .login-status-dot {
     width: 7px;
     height: 7px;
+    flex-basis: 7px;
   }
-  .login-heading > p {
-    grid-column: 2;
-    padding: 4px 8px;
+  .login-status-text {
     font-size: 9px;
     letter-spacing: .045em;
-    white-space: nowrap;
   }
   .login-heading > h2 {
     margin-top: 12px;
