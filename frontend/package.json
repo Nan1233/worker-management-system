@@ -1,11 +1,11 @@
 {
   "name": "frontend",
   "private": true,
-  "version": "1.8.21",
+  "version": "1.8.22",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run clean && tsc -b && vite build && npm run check:bundle",
+    "build": "npm run clean && tsc -b && vite build && node scripts/forceFrontendVersion.cjs && npm run check:bundle",
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc -b --pretty false",
@@ -25,8 +25,7 @@
     "ios:sync": "npm run ios:prepare && npm run build:native && cap sync ios",
     "ios:open": "npm run ios:prepare && cap open ios",
     "ios:prepare": "npm install --no-save --package-lock=false @capacitor/core@8.5.0 @capacitor/ios@8.5.0 @capacitor/cli@8.5.0",
-    "ios:doctor": "npm run ios:prepare && cap doctor",
-    "ios:doctor:production": "npm run ios:doctor && node scripts/checkIosReleaseContract.cjs",
+    "ios:doctor": "npm run ios:doctor && node scripts/checkIosReleaseContract.cjs",
     "android:release:check": "node scripts/checkAndroidReleaseContract.cjs"
   },
   "dependencies": {
