@@ -36,7 +36,7 @@ async function main() {
   }
   const connection=await db.promise().getConnection();
   const [versionRows]=await db.promise().query('SELECT VERSION() AS db_version, DATABASE() AS current_database');
-  const manifest={format:'KTC_DB_JSONL_GZIP_V1',created_at:new Date().toISOString(),database:process.env.DB_NAME,db_version:String(versionRows[0]?.db_version||''),app_version:String(backendPkg.version||''),database_source:'FULL_DATABASE_SNAPSHOT',tables:{}};
+  const manifest={format:'KTC_DB_JSONL_GZIP_V1',created_at:new Date().toISOString(),database:process.env.DB_NAME,db_version:String(versionRows[0]?.db_version||''),app_version:String(backendPkg.version||''),schema_contract_version:26,tables:{}};
   try {
     await connection.query('SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ').catch(()=>{});
     await connection.beginTransaction();

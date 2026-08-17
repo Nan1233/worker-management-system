@@ -185,7 +185,7 @@ const runtimeReadiness = {
   databaseLatencyMs: null,
   schemaReady: false,
   schemaStatus: "STARTING",
-  databaseSource: "FULL_DATABASE_SNAPSHOT",
+  schemaContractVersion: 26,
   errorCode: null,
   errorMessage: null,
 };
@@ -203,7 +203,7 @@ function readinessHandler(_req, res) {
       databaseLatencyMs: runtimeReadiness.databaseLatencyMs,
       schemaReady: runtimeReadiness.schemaReady,
       schemaStatus: runtimeReadiness.schemaStatus,
-      databaseSource: runtimeReadiness.databaseSource,
+      schemaContractVersion: runtimeReadiness.schemaContractVersion,
       errorCode: runtimeReadiness.errorCode,
       appVersion: version.backendVersion,
     });
@@ -217,6 +217,7 @@ function readinessHandler(_req, res) {
     databaseLatencyMs: runtimeReadiness.databaseLatencyMs,
     schemaReady: true,
     schemaStatus: runtimeReadiness.schemaStatus,
+    schemaContractVersion: runtimeReadiness.schemaContractVersion,
     startupMs: runtimeReadiness.readyAt && runtimeReadiness.startedAt
       ? runtimeReadiness.readyAt - runtimeReadiness.startedAt
       : null,
@@ -364,7 +365,7 @@ async function initializeRuntime() {
     const diagnostics = toSafeSchemaDiagnostics(schema);
     runtimeReadiness.schemaReady = true;
     runtimeReadiness.schemaStatus = diagnostics.status;
-    runtimeReadiness.databaseSource = diagnostics.databaseSource;
+    runtimeReadiness.schemaContractVersion = diagnostics.contractVersion;
     console.log(`Database schema READY: ${schema.expectedLatest?.filename || "none"}`);
 
     await excelExportJobQueue.initialize();
@@ -391,7 +392,7 @@ async function initializeRuntime() {
     runtimeReadiness.database =
       error?.schemaStatus === "DATABASE_UNAVAILABLE" ? "unavailable" : runtimeReadiness.database;
     runtimeReadiness.schemaStatus = error?.schemaStatus || "STARTUP_FAILED";
-    runtimeReadiness.databaseSource = safeDetails.databaseSource || "FULL_DATABASE_SNAPSHOT";
+    runtimeReadiness.schemaContractVersion = safeDetails.contractVersion || 26;
     runtimeReadiness.errorCode = error?.code || "DATABASE_STARTUP_FAILED";
     runtimeReadiness.errorMessage = error?.message || "Runtime initialization failed";
 
@@ -399,7 +400,7 @@ async function initializeRuntime() {
       type: "startup_not_ready",
       code: runtimeReadiness.errorCode,
       schemaStatus: runtimeReadiness.schemaStatus,
-      databaseSource: runtimeReadiness.databaseSource,
+      schemaContractVersion: runtimeReadiness.schemaContractVersion,
       message: runtimeReadiness.errorMessage,
     }));
 
@@ -410,7 +411,7 @@ async function initializeRuntime() {
         Number(process.env.STARTUP_FAILURE_EXIT_MS || 20_000)
       );
       startupFailureTimer = setTimeout(() => {
-        console.error(`[KTC] runtime still not ready after database contract failure; exiting in ${exitDelayMs}ms policy`);
+        console.error(`[KTC] runtime still not ready after startup failure; exiting in ${exitDelayMs}ms policy`);
         process.exit(1);
       }, exitDelayMs);
       startupFailureTimer.unref?.();

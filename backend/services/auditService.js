@@ -8,9 +8,7 @@ const query = (executor, sql, params = []) => executor.promise
 let schemaReadyPromise = null;
 
 async function ensureSchema() {
-  // Schema creation belongs exclusively to canonical migrations/release.
-  // Keep this function for call-site compatibility only; startup/readiness
-  // already fail closed when the migration ledger is not READY.
+  // Canonical DB snapshot owns schema creation; runtime only verifies it.
   if (!schemaReadyPromise) schemaReadyPromise = Promise.resolve(true);
   return schemaReadyPromise;
 }

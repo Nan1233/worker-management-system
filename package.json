@@ -26,7 +26,6 @@
     "verify:excel-contract": "node scripts/excelStabilityContract.cjs",
     "install:clean": "npm ci --prefix backend && npm ci --prefix frontend && npm ci --prefix desktop",
     "verify:release-contract": "node scripts/releaseGateContract.cjs",
-    "release:db": "npm --prefix backend run db:release",
     "restore:db": "npm --prefix backend run restore:db --",
     "restore:dry-run": "npm --prefix backend run restore:dry-run --",
     "restore:cutover-check": "npm --prefix backend run restore:cutover-check --",
@@ -43,6 +42,7 @@
     "verify:release-consistency": "node scripts/releaseConsistencyContract.cjs",
     "test": "npm --prefix backend test && npm --prefix frontend test",
     "verify:repo": "node scripts/checkRepository.cjs",
-    "verify:quality": "npm run verify:repo && npm run verify"
+    "verify:quality": "npm run verify:repo && npm run verify",
+    "db:verify": "npm --prefix backend run db:schema:verify"
   }
 }

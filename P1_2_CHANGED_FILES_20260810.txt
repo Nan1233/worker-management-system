@@ -1,8 +1,0 @@
-frontend/src/services/sessionCache.ts
-frontend/src/utils/authStorage.ts
-frontend/src/services/masterDataCache.ts
-frontend/src/services/workerService.ts
-frontend/src/pages/admin/MasterData.tsx
-frontend/tests/cache-identity-hardening.test.cjs
-P1_2_CACHE_HARDENING_20260810.md
-P1_2_CHANGED_FILES_20260810.txt

@@ -1,6 +1,0 @@
-frontend/src/utils/authStorage.ts
-frontend/src/services/api.ts
-frontend/src/pages/Login.tsx
-frontend/tests/auth-session-hardening.test.cjs
-P1_1_AUTH_SESSION_HARDENING_20260810.md
-P1_1_CHANGED_FILES_20260810.txt

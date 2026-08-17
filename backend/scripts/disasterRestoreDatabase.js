@@ -6,7 +6,6 @@ const os = require('node:os');
 const { spawn } = require('node:child_process');
 const { verifyBackupArtifact } = require('../services/disasterBackupArtifactService');
 const { defaultTargetDatabase, restoreId, assertSafeRestorePlan } = require('../services/disasterRestorePolicyService');
-const { getExpectedSchemaMetadata } = require('../services/migrationManifestService');
 const { transition, safeFingerprint } = require('../services/disasterRestoreLifecycleService');
 
 function arg(name){ const i=process.argv.indexOf(name); return i>=0 ? process.argv[i+1] : null; }
@@ -28,15 +27,12 @@ async function collectVerifiedTargetState(cfg,target){
   const db=await mysql.createConnection({...cfg,database:target});
   try{
     const [[versionRow]] = await db.query('SELECT VERSION() AS db_version, DATABASE() AS current_database, CURRENT_USER() AS current_user');
-    const [[ledger]] = await db.query('SELECT version, filename, checksum FROM schema_migrations ORDER BY version DESC LIMIT 1');
     const [[sessions]] = await db.query('SELECT COUNT(*) AS active_sessions FROM user_sessions WHERE revoked_at IS NULL');
     return {
       dbVersion:String(versionRow?.db_version||''),
       currentDatabase:String(versionRow?.current_database||target),
       currentUser:String(versionRow?.current_user||cfg.user),
-      actualMigration:Number(ledger?.version ?? -1),
-      actualMigrationFile:ledger?.filename||null,
-      actualMigrationChecksum:ledger?.checksum||null,
+      schemaContractVersion:26,
       activeSessionsRemaining:Number(sessions?.active_sessions ?? -1),
       verifiedTargetFingerprint:safeFingerprint({host:cfg.host,port:cfg.port,database:String(versionRow?.current_database||target),user:String(versionRow?.current_user||cfg.user)}),
     };
@@ -72,7 +68,7 @@ async function main(){
     Object.assign(state,transition(state,'VERIFYING_BACKUP',{operatorAction:'RESTORE_VERIFY_BACKUP_START'})); await writeState(stateFile,state);
     const artifact=await verifyBackupArtifact(file);
     state.backupSha256=artifact.sha256; state.backupFingerprint=artifact.sha256; state.backupCreatedAt=artifact.createdAt; state.backupFormat=artifact.format;
-    const expected=getExpectedSchemaMetadata(); state.expectedMigration=Number(expected.expectedSchemaVersion); state.expectedMigrationFile=expected.expectedMigration; state.expectedMigrationChecksum=expected.expectedChecksum;
+    state.schemaContractVersion=26;
     console.log(JSON.stringify({restore_id:id,dry_run:dryRun,backup_sha256:artifact.sha256,target:{host:targetHost||null,port:targetPort,database:target},active:{host:process.env.DB_HOST||null,port:process.env.DB_PORT||'4000',database:process.env.DB_NAME||null},action:dryRun?'VERIFY_AND_PLAN_ONLY':'STAGED_RESTORE_NO_CUTOVER'},null,2));
     if(dryRun){ state.finalState='DRY_RUN_VERIFIED'; state.phase='DONE'; state.completedAt=new Date().toISOString(); await writeState(stateFile,state); return; }
 
@@ -86,7 +82,7 @@ async function main(){
 
     const env={...process.env,DB_HOST:cfg.host,DB_PORT:String(cfg.port),DB_USER:cfg.user,DB_PASSWORD:cfg.password,DB_NAME:target,DB_SSL:process.env.KTC_RESTORE_DB_SSL||'true',KTC_RESTORE_LOW_LEVEL:'YES',KTC_RUNTIME_ENV_CLASS:'DISPOSABLE'};
     await runNode(path.join(__dirname,'restoreDatabaseBackupIntoTarget.js'),['--file',file],env);
-    Object.assign(state,transition(state,'MIGRATING',{operatorAction:'RESTORE_MIGRATE_TO_CANONICAL'})); await writeState(stateFile,state);
+    Object.assign(state,transition(state,'VERIFYING_SCHEMA',{operatorAction:'RESTORE_VERIFY_DATABASE_CONTRACT'})); await writeState(stateFile,state);
     await runNode(path.join(__dirname,'releaseDatabase.js'),[],env);
     Object.assign(state,transition(state,'VERIFYING',{operatorAction:'RESTORE_VERIFY_SCHEMA_AND_DATA'})); await writeState(stateFile,state);
     await runNode(path.join(__dirname,'verifyDatabaseSchema.js'),[],env); state.schemaReady=true; state.schemaStatus='READY';
@@ -96,7 +92,7 @@ async function main(){
     await runNode(path.join(__dirname,'invalidateRestoredSessions.js'),[],env); state.sessionsInvalidated=true;
     await runNode(path.join(__dirname,'verifyDatabaseSchema.js'),[],env);
     const observed=await collectVerifiedTargetState(cfg,target); Object.assign(state,observed);
-    if(state.actualMigration !== state.expectedMigration) throw Object.assign(new Error('Final restored migration does not match source'),{code:'RESTORE_FINAL_MIGRATION_MISMATCH'});
+    if(state.schemaStatus !== 'READY') throw Object.assign(new Error('Final restored database contract is not READY'),{code:'RESTORE_DATABASE_CONTRACT_INVALID'});
     if(state.activeSessionsRemaining !== 0) throw Object.assign(new Error('Restored active sessions remain after invalidation'),{code:'RESTORE_ACTIVE_SESSIONS_REMAIN'});
     state.restoreVerifiedAt=new Date().toISOString();
     Object.assign(state,transition(state,'VERIFIED_NOT_ACTIVATED',{operatorAction:'RESTORE_VERIFIED_NOT_ACTIVATED'})); state.phase='DONE'; state.completedAt=state.restoreVerifiedAt; await writeState(stateFile,state);

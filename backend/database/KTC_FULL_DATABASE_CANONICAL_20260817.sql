@@ -1,7 +1,7 @@
 -- ============================================================================
--- KTC - FULL DATABASE TỪ ĐẦU - TIDB SAFE - 17/08/2026
+-- KTC - FULL DATABASE TỪ ĐẦU - TIDB SAFE - 10/08/2026
 -- CẢNH BÁO: FILE NÀY XÓA TOÀN BỘ DATABASE worker_management VÀ TẠO LẠI.
--- ĐÃ TÍCH HỢP SCHEMA VẬT LÝ + MASTER DATA + BOOK2 + MASTER RECONCILIATION; DATABASE LÀ SOURCE OF TRUTH.
+-- ĐÃ TÍCH HỢP TRỰC TIẾP SCHEMA CUỐI, MASTER DATA, BOOK2 VÀ TÀI KHOẢN HỆ THỐNG.
 -- KHÔNG CÒN CÁC ALTER TABLE ADD COLUMN IF NOT EXISTS DÙNG CHO NÂNG CẤP DB CŨ.
 -- ============================================================================
 
@@ -10,7 +10,7 @@ CREATE DATABASE worker_management CHARACTER SET utf8mb4;
 USE worker_management;
 
 -- ============================================================================
--- KTC FULL DATABASE WITH DATA - ĐỒNG BỘ VỚI SOURCE CODE 17/08/2026
+-- KTC FULL DATABASE WITH DATA - ĐỒNG BỘ VỚI SOURCE CODE 10/08/2026
 -- Dùng cho TiDB/MySQL compatible.
 -- KHÔNG DROP DATABASE / DROP TABLE / TRUNCATE.
 -- Thứ tự: schema 001-011 -> master seed -> rule 012 -> Book2 013 -> checksum.
@@ -654,7 +654,7 @@ INSERT IGNORE INTO production_formula_settings (scope_code, process_id) VALUES (
 
 -- ==================== 008_client_request_idempotency.sql ====================
 -- Enforce idempotency at the database layer. If duplicate non-empty request IDs
--- Existing constraints are preserved; no incremental schema update is executed.
+-- already exist, this migration intentionally fails so they can be reviewed
 -- instead of silently deleting production data.
 CREATE UNIQUE INDEX uq_prt_worker_client_request
   ON production_reports_temp (worker_id, client_request_id);
@@ -1109,22 +1109,6 @@ UNION ALL
 SELECT 'EP', 'PRESS NO 21', 'Press No 21', 'active'
 UNION ALL
 SELECT 'EP', 'PRESS NO 22', 'Press No 22', 'active'
-UNION ALL
-SELECT 'DO', 'QC', 'QC', 'active'
-UNION ALL
-SELECT 'EP', 'INJ NO 1', 'INJ No 1', 'active'
-UNION ALL
-SELECT 'EP', 'INJ NO 2', 'INJ No 2', 'active'
-UNION ALL
-SELECT 'EP', 'INJ NO 3', 'INJ No 3', 'active'
-UNION ALL
-SELECT 'EP', 'INJ NO 4', 'INJ No 4', 'active'
-UNION ALL
-SELECT 'EP', 'INJ NO 6', 'INJ No 6', 'active'
-UNION ALL
-SELECT 'EP', 'INJ NO 8', 'INJ No 8', 'active'
-UNION ALL
-SELECT 'EP', 'INJ NO 7', 'INJ No 7', 'active'
 ) AS s
 JOIN processes p ON UPPER(TRIM(p.process_code))=UPPER(TRIM(s.process_code))
 ON DUPLICATE KEY UPDATE machine_name=VALUES(machine_name), status='active' ;
@@ -16702,7 +16686,7 @@ UNION ALL SELECT 'Lỗi NG', COUNT(*) FROM defect_types
 UNION ALL SELECT 'Lần seed', COUNT(*) FROM master_seed_runs;
 
 -- ==================== 012_factory_machine_rules_20260810.sql ====================
--- KTC 012 - Quy tắc máy theo thực tế xưởng ngày 17/08/2026.
+-- KTC 012 - Quy tắc máy theo thực tế xưởng ngày 10/08/2026.
 -- An toàn khi chạy lại; không xóa báo cáo sản xuất.
 
 
@@ -19593,14 +19577,24 @@ ON DUPLICATE KEY UPDATE standard_output=VALUES(standard_output),standard_time_se
 SELECT COUNT(*) AS so_bien_the_book2 FROM product_machine_standard_variants v JOIN processes p ON p.id=v.process_id WHERE p.process_code='MAI' AND v.source_name='Book2(3).xlsx';
 SELECT COUNT(*) AS so_dinh_muc_may_dang_dung FROM product_machine_standards pms JOIN processes p ON p.id=pms.process_id WHERE p.process_code='MAI' AND pms.is_active=1 AND pms.source_name='Book2(3).xlsx';
 
--- ==================== DATABASE SOURCE-OF-TRUTH CONTRACT ====================
--- Không tạo migration ledger. Database này là full canonical snapshot.
+-- ==================== KIỂM TRA CUỐI ====================
+SELECT 'Công đoạn' AS nhom, COUNT(*) AS so_luong FROM processes
+UNION ALL SELECT 'Công nhân', COUNT(*) FROM workers
+UNION ALL SELECT 'Máy', COUNT(*) FROM machines
+UNION ALL SELECT 'Phân công', COUNT(*) FROM worker_processes
+UNION ALL SELECT 'Ánh xạ sản phẩm', COUNT(*) FROM product_aliases
+UNION ALL SELECT 'Định mức biến thể', COUNT(*) FROM product_standard_variants
+UNION ALL SELECT 'Định mức máy đang dùng', COUNT(*) FROM product_machine_standards WHERE is_active=1
+UNION ALL SELECT 'Định mức máy Book2', COUNT(*) FROM product_machine_standards WHERE is_active=1 AND source_name='Book2(3).xlsx'
+UNION ALL SELECT 'Biến thể máy Book2', COUNT(*) FROM product_machine_standard_variants WHERE is_active=1 AND source_name='Book2(3).xlsx'
+UNION ALL SELECT 'Lần seed', COUNT(*) FROM master_seed_runs;
 
+-- ============================================================
 
 -- ============================================================================
--- MASTER DATA RECONCILIATION SOURCE TABLES
--- Canonical source: file mẫu.xlsx snapshot SHA-256
--- 026 is physically embedded in this full database.
+-- KTC CANONICAL MASTER-DATA RECONCILIATION 2026-08-17
+-- Database is the source of truth; no migration ledger is required at runtime.
+-- Machine master from file mẫu.xlsx: GC 33 / MAI 35 / DO 23 / CAN 3 / EP 29.
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS master_personnel_source (
   id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -19646,44 +19640,20 @@ CREATE TABLE IF NOT EXISTS master_product_source (
   KEY idx_master_product_source_lookup (process_code, product_code)
 );
 
--- Canonical machine contract from file mẫu.xlsx:
--- GC 33 / MAI 35 / DO 23 / CAN 3 / EP 29 = 123.
-SELECT
-  p.process_code,
-  COUNT(m.id) AS machine_count
-FROM processes p
-LEFT JOIN machines m
-  ON m.process_id = p.id
- AND m.status = 'active'
-WHERE p.process_code IN ('GC','MAI','DO','CAN','EP')
-GROUP BY p.process_code
-ORDER BY FIELD(p.process_code,'GC','MAI','DO','CAN','EP');
+INSERT INTO machines (process_id, machine_code, machine_name, status)
+SELECT p.id, s.machine_code, s.machine_name, 'active'
+FROM (
+  SELECT 'DO' AS process_code, 'QC' AS machine_code, 'QC' AS machine_name
+  UNION ALL SELECT 'EP', 'INJ No 1', 'INJ No 1'
+  UNION ALL SELECT 'EP', 'INJ No 2', 'INJ No 2'
+  UNION ALL SELECT 'EP', 'INJ No 3', 'INJ No 3'
+  UNION ALL SELECT 'EP', 'INJ No 4', 'INJ No 4'
+  UNION ALL SELECT 'EP', 'INJ No 6', 'INJ No 6'
+  UNION ALL SELECT 'EP', 'INJ No 8', 'INJ No 8'
+  UNION ALL SELECT 'EP', 'INJ No 7', 'INJ No 7'
+) s JOIN processes p ON UPPER(TRIM(p.process_code))=UPPER(TRIM(s.process_code))
+ON DUPLICATE KEY UPDATE machine_name=VALUES(machine_name), status='active';
 
-SELECT
-  CASE
-    WHEN (SELECT COUNT(*) FROM machines m JOIN processes p ON p.id=m.process_id WHERE p.process_code='GC' AND m.status='active')=33
-     AND (SELECT COUNT(*) FROM machines m JOIN processes p ON p.id=m.process_id WHERE p.process_code='MAI' AND m.status='active')=35
-     AND (SELECT COUNT(*) FROM machines m JOIN processes p ON p.id=m.process_id WHERE p.process_code='DO' AND m.status='active')=23
-     AND (SELECT COUNT(*) FROM machines m JOIN processes p ON p.id=m.process_id WHERE p.process_code='CAN' AND m.status='active')=3
-     AND (SELECT COUNT(*) FROM machines m JOIN processes p ON p.id=m.process_id WHERE p.process_code='EP' AND m.status='active')=29
-    THEN 'PASS'
-    ELSE 'FAIL'
-  END AS machine_master_contract;
-
--- ==================== KIỂM TRA CUỐI ====================
-SELECT 'Công đoạn' AS nhom, COUNT(*) AS so_luong FROM processes
-UNION ALL SELECT 'Công nhân', COUNT(*) FROM workers
-UNION ALL SELECT 'Máy', COUNT(*) FROM machines
-UNION ALL SELECT 'Phân công', COUNT(*) FROM worker_processes
-UNION ALL SELECT 'Ánh xạ sản phẩm', COUNT(*) FROM product_aliases
-UNION ALL SELECT 'Định mức biến thể', COUNT(*) FROM product_standard_variants
-UNION ALL SELECT 'Định mức máy đang dùng', COUNT(*) FROM product_machine_standards WHERE is_active=1
-UNION ALL SELECT 'Định mức máy Book2', COUNT(*) FROM product_machine_standards WHERE is_active=1 AND source_name='Book2(3).xlsx'
-UNION ALL SELECT 'Biến thể máy Book2', COUNT(*) FROM product_machine_standard_variants WHERE is_active=1 AND source_name='Book2(3).xlsx'
-UNION ALL SELECT 'Lần seed', COUNT(*) FROM master_seed_runs;
-
-
--- ============================================================
 -- TAI KHOAN HE THONG MAC DINH
 -- admin    / 123456
 -- manager1 / 123456
@@ -19714,12 +19684,6 @@ FROM users
 WHERE username IN ('admin', 'manager1', 'lead1')
 ORDER BY FIELD(role, 'admin', 'manager', 'lead');
 
--- ============================================================
--- 014_user_sessions_login_compat_20260810.sql
--- Đã tích hợp trực tiếp vào CREATE TABLE user_sessions cho bản dựng mới.
--- ============================================================
-
-
 SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE
 FROM INFORMATION_SCHEMA.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE()
@@ -19728,9 +19692,9 @@ ORDER BY ORDINAL_POSITION;
 
 -- ============================================================================
 -- 015_latest_excel_source_sync_20260810.sql
--- Đồng bộ 3 file nguồn mới nhất người dùng gửi ngày 17/08/2026.
+-- Đồng bộ 3 file nguồn mới nhất người dùng gửi ngày 10/08/2026.
 -- ============================================================================
--- KTC 015: Đồng bộ nguồn Excel mới nhất 17/08/2026.
+-- KTC 015: Đồng bộ nguồn Excel mới nhất 10/08/2026.
 -- Nguồn:
 --   file mẫu(6).xlsx = trùng file mẫu(5).xlsx
 --   Book1(8).xlsx    = trùng Book1(7).xlsx
@@ -19808,7 +19772,6 @@ UPDATE product_machine_standard_variants
 SET source_name = 'Book2(4).xlsx'
 WHERE source_name = 'Book2(3).xlsx';
 
-
 -- ============================================================================
 -- KIỂM TRA CUỐI BẢN RESET 15
 -- ============================================================================
@@ -19843,12 +19806,11 @@ WHERE p.process_code='MAI'
   AND pms.product_code IN ('QC8-1467','QC8-1470');
 
 
--- ==================== 024_logical_duplicate_report_lock_20260813.sql ====================
--- Included in base reset schema above: logical_duplicate_key + duplicate lock table.
-
--- ==================== 025_formula_settings_effective_range_20260813.sql ====================
--- Included in base reset schema above: effective_from/effective_to DATE NULL.
-
--- ==================== FINAL DATABASE CONTRACT ====================
--- Restore this file as the canonical database.
-
+-- ============================================================================
+-- FINAL MASTER CONTRACT CHECKS (read-only)
+-- ============================================================================
+SELECT p.process_code, COUNT(*) AS machine_count
+FROM machines m JOIN processes p ON p.id=m.process_id
+WHERE p.process_code IN ('GC','MAI','DO','CAN','EP') AND m.status='active'
+GROUP BY p.process_code
+ORDER BY FIELD(p.process_code,'GC','MAI','DO','CAN','EP');

@@ -16,8 +16,6 @@
     "backup:verify": "node scripts/verifyDatabaseBackup.js",
     "restore:db": "node scripts/restoreDatabaseBackup.js",
     "db:demo-schema": "node scripts/ensureDemoSchema.js",
-    "db:seed-master": "node scripts/runMasterSeed.js",
-    "db:verify-master": "node scripts/verifyMasterSeed.js",
     "db:integrity": "node scripts/checkDatabaseIntegrity.js",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
     "validate:real-data": "node scripts/validateRealProductionData.js",
@@ -37,9 +35,7 @@
     "restore:cutover-record": "node scripts/recordDisasterRestoreCutover.js",
     "restore:rollback-check": "node scripts/checkDisasterRestoreRollback.js",
     "restore:rollback-record": "node scripts/recordDisasterRestoreRollback.js",
-    "restore:cleanup-check": "node scripts/checkDisasterRestoreCleanup.js",
-    "db:backfill-training-snapshots": "node scripts/backfillTrainingSnapshotsFromCanonicalData.js",
-    "db:verify": "node scripts/verifyDatabaseSchema.js"
+    "restore:cleanup-check": "node scripts/checkDisasterRestoreCleanup.js"
   },
   "keywords": [],
   "author": "",

@@ -1,6 +1,0 @@
-backend/services/processExcelExportService.js
-backend/controllers/companyExcelDataController.js
-backend/tests/production-calculation-contract.test.js
-backend/tests/source-integrity.test.js
-P0_2_EXCEL_CALC_CONTRACT_20260810.md
-P0_2_CHANGED_FILES_20260810.txt
