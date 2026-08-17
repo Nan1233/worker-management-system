@@ -54,7 +54,7 @@ function createStandardResolver({ query = defaultQuery } = {}) {
     if (productCache.has(cacheKey)) return productCache.get(cacheKey);
 
     const productRows = await query(
-      `SELECT id AS product_standard_id, product_code
+      `SELECT id AS product_standard_id, product_code, standard_output, exclude_kqd_from_tt
        FROM product_standards
        WHERE process_id=? AND product_code=? AND status='active'
        LIMIT 2`,
@@ -75,7 +75,31 @@ function createStandardResolver({ query = defaultQuery } = {}) {
       [pid, product, date, date]
     );
     if (versions.length === 0) {
-      throw businessError('HISTORICAL_STANDARD_NOT_FOUND', `Không có định mức lịch sử cho ${product} tại ngày ${date}`, { process_id: pid, product_code: product, work_date: date });
+      // Compatibility path for installations that already have the canonical
+      // product_standards master but have not backfilled product_standard_versions.
+      // Do not fabricate a version id: keep standardVersionId null so downstream
+      // snapshots cannot falsely claim a historical version existed.
+      const legacyStandardOutput = Number(productRows[0].standard_output);
+      if (!Number.isFinite(legacyStandardOutput) || legacyStandardOutput <= 0) {
+        throw businessError('HISTORICAL_STANDARD_NOT_FOUND', `Không có định mức lịch sử cho ${product} tại ngày ${date}`, { process_id: pid, product_code: product, work_date: date });
+      }
+      const resolvedLegacy = {
+        processId: pid,
+        productCode: productRows[0].product_code,
+        productStandardId: Number(productRows[0].product_standard_id),
+        standardVersionId: null,
+        machineStandardId: null,
+        standardOutput: legacyStandardOutput,
+        standardTimeSeconds: null,
+        excludeKqdFromTt: Number(productRows[0].exclude_kqd_from_tt || 0) === 1 ? 1 : 0,
+        effectiveFrom: null,
+        effectiveTo: null,
+        source: 'LEGACY_PRODUCT_STANDARD',
+        workDate: date,
+        historicalVersionAvailable: false
+      };
+      productCache.set(cacheKey, resolvedLegacy);
+      return resolvedLegacy;
     }
     if (versions.length > 1) {
       throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT', `Có nhiều định mức cùng hiệu lực cho ${product} tại ngày ${date}`, { process_id: pid, product_code: product, work_date: date, version_ids: versions.map((row) => Number(row.id)) });

@@ -121,3 +121,33 @@ test('write-side effective-range validator rejects overlap', async () => {
     (error) => error.code === 'STANDARD_EFFECTIVE_RANGE_CONFLICT'
   );
 });
+
+test('legacy active product standard resolves without migration when no historical version is available', async () => {
+  const resolverPath = require.resolve('../services/standardResolutionService');
+  delete require.cache[resolverPath];
+  const { createStandardResolver } = require('../services/standardResolutionService');
+  const calls = [];
+  const query = async (sql, params) => {
+    calls.push({ sql, params });
+    const normalized = String(sql).toLowerCase();
+    if (normalized.includes('from product_standards')) {
+      return [{
+        product_standard_id: 108,
+        product_code: '1080-17',
+        standard_output: '617.1',
+        exclude_kqd_from_tt: 0
+      }];
+    }
+    if (normalized.includes('from product_standard_versions')) return [];
+    return [];
+  };
+  const resolver = createStandardResolver({ query });
+  const resolved = await resolver.resolveProduct({ processId: 2, productCode: '1080-17', workDate: '2026-08-17' });
+  assert.equal(resolved.standardOutput, 617.1);
+  assert.equal(resolved.productStandardId, 108);
+  assert.equal(resolved.standardVersionId, null);
+  assert.equal(resolved.source, 'LEGACY_PRODUCT_STANDARD');
+  assert.equal(resolved.historicalVersionAvailable, false);
+  assert.ok(calls.some((call) => String(call.sql).includes('FROM product_standard_versions')));
+});
+
