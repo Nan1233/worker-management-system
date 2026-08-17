@@ -23,3 +23,16 @@ backend/tmp/
 KTC_Professional_Test_Tool_v2_FULL/reports/artifacts/
 *.zip
 *.7z
+
+# Release/build artifacts and secrets
+validation-artifacts/
+*.apk
+*.aab
+*.jks
+*.keystore
+*.ipa
+*.mobileprovision
+
+# The public Android installer is intentionally the single exception.
+!frontend/public/downloads/
+!frontend/public/downloads/ktc-production-control.apk
