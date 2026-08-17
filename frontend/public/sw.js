@@ -1,4 +1,4 @@
-const BUILD_VERSION = "1.8.20-manager-ui-v2-20260817";
+const BUILD_VERSION = "1.8.21-worker-form-v3-20260817";
 const APP_CACHE = `ktc-${BUILD_VERSION}-app`;
 const STATIC_CACHE = `ktc-${BUILD_VERSION}-static`;
 const APP_SHELL = ["./", "./index.html", "./manifest.webmanifest", "./offline.html"];
@@ -64,14 +64,18 @@ self.addEventListener("fetch", (event) => {
 
   if (url.origin === self.location.origin && ["image", "font"].includes(request.destination)) {
     event.respondWith((async () => {
-      const cached = await caches.match(request);
-      if (cached) return cached;
-      const response = await fetch(request);
-      if (response.ok) {
-        const cache = await caches.open(STATIC_CACHE);
-        await cache.put(request, response.clone());
+      try {
+        const cached = await caches.match(request);
+        if (cached) return cached;
+        const response = await fetch(request);
+        if (response.ok) {
+          const cache = await caches.open(STATIC_CACHE);
+          await cache.put(request, response.clone());
+        }
+        return response;
+      } catch {
+        return (await caches.match(request)) || Response.error();
       }
-      return response;
     })());
   }
 });
