@@ -20,7 +20,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: ${{ matrix.package }}/package-lock.json
-      - run: npm ci --prefix ${{ matrix.package }}
+      - if: matrix.package == 'backend'
+        run: npm install --prefix ${{ matrix.package }}
+      - if: matrix.package != 'backend'
+        run: npm ci --prefix ${{ matrix.package }}
       - run: npm --prefix ${{ matrix.package }} run audit:prod
