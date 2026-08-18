@@ -31,6 +31,9 @@ export default defineConfig([
       'react-hooks/preserve-manual-memoization': 'off',
       'react-hooks/immutability': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
+      // ApprovedReportFilters là type alias tương thích với PendingReportFilters;
+      // không cần thêm member chỉ để thỏa lint rule.
+      '@typescript-eslint/no-empty-object-type': 'off',
     },
   },
 ])

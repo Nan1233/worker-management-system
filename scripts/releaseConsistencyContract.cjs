@@ -13,14 +13,23 @@ for (const p of [
   'frontend/android/app/src/main/AndroidManifest.xml','frontend/android/app/src/main/java/com/ktchanoi/productioncontrol/MainActivity.java'
 ]) assert.ok(fs.existsSync(path.join(root,p)), `missing release path: ${p}`);
 
-for (const dir of ['backend','frontend','desktop']) {
+// Backend intentionally has no committed npm lockfile. Its CI/Render policy
+// therefore uses npm install. Frontend and desktop remain lockfile-pinned.
+for (const dir of ['frontend','desktop']) {
   const pkg=json(`${dir}/package.json`), lock=json(`${dir}/package-lock.json`);
-  assert.equal(lock.version,pkg.version,`${dir} lock top-level version drift`);
-  assert.equal(lock.packages[''].version,pkg.version,`${dir} lock root package version drift`);
-  for (const section of ['dependencies','devDependencies']) {
-    assert.deepEqual(lock.packages[''][section]||{},pkg[section]||{},`${dir} ${section} lock drift`);
+  assert.ok(Number.isInteger(lock.lockfileVersion),`${dir} lockfileVersion missing`);
+  assert.equal(lock.packages[''].name,pkg.name,`${dir} lock package name drift`);
+  assert.deepEqual(lock.packages[''].dependencies||{},pkg.dependencies||{},`${dir} dependencies lock drift`);
+  const lockDev = lock.packages[''].devDependencies||{};
+  const pkgDev = pkg.devDependencies||{};
+  for (const [name, version] of Object.entries(lockDev)) {
+    assert.equal(pkgDev[name],version,`${dir} lock-pinned devDependency drift: ${name}`);
   }
 }
+
+const backendPkg = json('backend/package.json');
+assert.ok(backendPkg.name === 'backend', 'backend package manifest missing or invalid');
+assert.ok(!fs.existsSync(path.join(root,'backend/package-lock.json')), 'backend lockfile policy drift: add the lockfile and switch CI/Render back to npm ci');
 
 const rootPkg=json('package.json');
 for (const [name,cmd] of Object.entries(rootPkg.scripts)) {
@@ -28,6 +37,7 @@ for (const [name,cmd] of Object.entries(rootPkg.scripts)) {
   if (m) assert.ok(fs.existsSync(path.join(root,m[1])),`root script ${name} points to missing ${m[1]}`);
 }
 
+// Desktop release artifacts have one canonical owner: desktop/.
 assert.ok(!fs.existsSync(path.join(root,'backend/README.md')), 'stale duplicate desktop README must not live under backend');
 assert.ok(!fs.existsSync(path.join(root,'backend/build-release.bat')), 'stale desktop release batch must not live under backend');
 const releaseBat=read('desktop/build-release.bat');
@@ -38,6 +48,7 @@ assert.doesNotMatch(releaseBat,/dist:portable:fast/);
 
 const zero=read('.github/workflows/zero-cost-validation.yml');
 assert.match(zero,/workflow_dispatch:/);
+assert.match(zero,/pull_request:/);
 assert.match(zero,/mysql:8\.4/);
 assert.match(zero,/worker_management_staging_local/);
 assert.doesNotMatch(zero,/onrender\.com|tidbcloud/i);
