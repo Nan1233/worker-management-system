@@ -118,6 +118,20 @@ app.use(
 );
 
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || "768kb", strict: true }));
+app.use(express.urlencoded({
+  extended: false,
+  limit: process.env.URLENCODED_BODY_LIMIT || "128kb",
+  parameterLimit: Number(process.env.URLENCODED_PARAMETER_LIMIT || 1000),
+}));
+
+// Reject pathological query strings before they reach controllers/DB builders.
+app.use((req, res, next) => {
+  const maxQueryLength = Number(process.env.MAX_QUERY_STRING_LENGTH || 4096);
+  if (req.originalUrl.split('?')[1]?.length > maxQueryLength) {
+    return res.status(414).json({ success: false, code: 'QUERY_STRING_TOO_LONG', message: 'Query quá dài' });
+  }
+  next();
+});
 
 app.use((req, res, next) => {
   const rawRequestId = String(req.get("X-Request-Id") || "").trim();

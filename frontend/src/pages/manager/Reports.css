@@ -461,3 +461,8 @@
 @media (prefers-reduced-motion: reduce) {
   .management-report-page *, .management-modal * { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+.management-selected-info { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.management-selected-info .management-shortcut-hint { color:var(--ktc-text-muted); font-size:11px; }
+.management-selected-info button { margin-left:auto; }
+@media (max-width:640px){ .management-selected-info .management-shortcut-hint{ width:100%; order:3; } .management-selected-info button{ margin-left:0; } }

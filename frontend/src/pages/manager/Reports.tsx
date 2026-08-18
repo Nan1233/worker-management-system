@@ -136,6 +136,22 @@ function Reports() {
         return () => window.clearTimeout(timer);
     }, [searchKeyword]);
 
+    useEffect(() => {
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape" && !actionLoading) {
+                if (rejectOpen) setRejectOpen(false);
+                else if (selectedIds.length) setSelectedIds([]);
+                return;
+            }
+            if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && canReview && selectedIds.length > 0 && !actionLoading) {
+                event.preventDefault();
+                void handleApproveSelected();
+            }
+        };
+        window.addEventListener("keydown", onKeyDown);
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, [actionLoading, canReview, rejectOpen, selectedIds.length]);
+
 
     // =====================================================
     // TẢI BÁO CÁO CHỜ DUYỆT THEO NGÀY HOẶC TOÀN BỘ
@@ -700,13 +716,14 @@ function Reports() {
 
             {selectedIds.length > 0 && (
                 <div className="management-selected-info">
-                    Đã chọn{" "}
+                    <span aria-live="polite">Đã chọn{" "}
 
                     <strong>
                         {selectedIds.length}
                     </strong>
 
-                    {" "}báo cáo.
+                    {" "}báo cáo.</span>
+                    <span className="management-shortcut-hint">Ctrl/⌘ + Enter: duyệt · Esc: bỏ chọn</span>
 
                     <button
                         type="button"

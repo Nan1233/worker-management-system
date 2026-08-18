@@ -109,15 +109,33 @@ function Dashboard() {
 
     useEffect(() => {
         const controller = new AbortController();
+        const range = getPeriodRange(period);
+        const cacheKey = `ktc:dashboard:${range.from}:${range.to}`;
+        const now = Date.now();
+        const CACHE_TTL_MS = 15_000;
+        const cached = sessionStorage.getItem(cacheKey);
+        if (cached) {
+            try {
+                const parsed = JSON.parse(cached);
+                if (now - Number(parsed?.savedAt || 0) < CACHE_TTL_MS && parsed?.data) {
+                    setSummary({ ...EMPTY_SUMMARY, ...parsed.data });
+                    setLoading(false);
+                    return () => controller.abort();
+                }
+            } catch {
+                sessionStorage.removeItem(cacheKey);
+            }
+        }
         const load = async () => {
             setLoading(true);
             try {
-                const range = getPeriodRange(period);
                 const response = await api.get("/dashboard/summary", {
                     params: range,
                     signal: controller.signal
                 });
-                setSummary({ ...EMPTY_SUMMARY, ...(response.data?.data || {}) });
+                const data = { ...EMPTY_SUMMARY, ...(response.data?.data || {}) };
+                setSummary(data);
+                sessionStorage.setItem(cacheKey, JSON.stringify({ savedAt: Date.now(), data }));
             } catch (error) {
                 if (controller.signal.aborted) return;
                 toast.showToast(getApiError(error, "Không thể tải dữ liệu tổng quan").message, "error");

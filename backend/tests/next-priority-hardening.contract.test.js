@@ -34,3 +34,11 @@ test('worker notification backfill is throttled per user', () => {
   assert.match(s, /WORKER_NOTIFICATION_BACKFILL_TTL_MS/);
   assert.match(s, /completedAt/);
 });
+
+
+test('server limits urlencoded bodies and pathological query strings', () => {
+  const s = read('server.js');
+  assert.match(s, /express\.urlencoded\(\{[\s\S]*parameterLimit/);
+  assert.match(s, /QUERY_STRING_TOO_LONG/);
+  assert.match(s, /MAX_QUERY_STRING_LENGTH/);
+});

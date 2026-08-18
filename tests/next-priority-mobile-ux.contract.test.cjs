@@ -17,3 +17,13 @@ test('worker mobile UI supports keyboard/reduced-motion friendly interaction', (
   assert.match(css, /prefers-reduced-motion/);
   assert.match(css, /overscroll-behavior-y/);
 });
+
+
+test('manager reports exposes keyboard shortcuts and dashboard summary cache', () => {
+  const reports = fs.readFileSync(path.join(root, 'frontend/src/pages/manager/Reports.tsx'), 'utf8');
+  const dashboard = fs.readFileSync(path.join(root, 'frontend/src/pages/manager/Dashboard.tsx'), 'utf8');
+  assert.match(reports, /Ctrl\/⌘ \+ Enter/);
+  assert.match(reports, /event\.key === "Escape"/);
+  assert.match(dashboard, /CACHE_TTL_MS = 15_000/);
+  assert.match(dashboard, /sessionStorage/);
+});
