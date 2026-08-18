@@ -88,7 +88,7 @@ async function claimNextReady() {
 
 async function complete(id, result, metrics) {
   await query(
-    "UPDATE excel_export_jobs SET status='completed',result_json=?,metrics_json=?,finished_at=NOW() WHERE id=?",
+    "UPDATE excel_export_jobs SET status='completed',result_json=?,metrics_json=?,finished_at=NOW() WHERE id=? AND status='running'",
     [JSON.stringify(result || {}), JSON.stringify(metrics || {}), id]
   );
   return get(id);
@@ -98,7 +98,7 @@ async function fail(id, error, retryDelayMs = 30000) {
   const job = await get(id);
   const retry = job && job.attempts < job.maxAttempts;
   await query(
-    'UPDATE excel_export_jobs SET status=?,error_message=?,finished_at=?,next_attempt_at=? WHERE id=?',
+    "UPDATE excel_export_jobs SET status=?,error_message=?,finished_at=?,next_attempt_at=? WHERE id=? AND status='running'",
     [
       retry ? 'queued' : 'failed',
       String(error?.message || error),

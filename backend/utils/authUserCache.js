@@ -3,9 +3,13 @@ const { TtlCache } = require("./cache");
 const authUserCache = new TtlCache({ maxEntries: 1000 });
 const pendingLoads = new Map();
 const invalidationEpochs = new Map();
+const defaultAuthCacheTtl =
+  String(process.env.NODE_ENV || '').toLowerCase() === 'production'
+    ? 15_000
+    : 60_000;
 const AUTH_USER_TTL_MS = Math.max(
   5_000,
-  Number(process.env.AUTH_USER_CACHE_TTL_MS || 60_000),
+  Number(process.env.AUTH_USER_CACHE_TTL_MS || defaultAuthCacheTtl),
 );
 
 function keyFor(userId) {

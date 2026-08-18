@@ -51,7 +51,15 @@ exports.download = async (req,res) => {
   if(!filePath)return res.status(404).json({success:false,code:'EXCEL_FILE_NOT_FOUND',message:'Tác vụ không có file kết quả'});
   try {
     const stat=await fs.stat(filePath);
-    res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    if (!stat.isFile() || stat.size <= 0) {
+      return res.status(404).json({success:false,code:'EXCEL_FILE_INVALID',message:'File kết quả không hợp lệ'});
+    }
+    const extension = path.extname(filePath).toLowerCase();
+    const contentType = extension === '.zip'
+      ? 'application/zip'
+      : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('X-Content-Type-Options','nosniff');
     res.setHeader('Content-Disposition',`attachment; filename*=UTF-8''${encodeURIComponent(job.result?.fileName || path.basename(filePath))}`);
     res.setHeader('Content-Length',String(stat.size));
     res.setHeader('Cache-Control','private, no-store');
