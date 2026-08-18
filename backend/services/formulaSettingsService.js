@@ -28,7 +28,7 @@ const CACHE_TTL_MS = 15_000;
 async function ensureSchema() {
   // Schema ownership belongs exclusively to the canonical database snapshot.
   // Kept as a compatibility no-op for existing callers. Startup/readiness
-  // already fail closed if migration 025 or any required schema is missing.
+  // already fail closed if the canonical schema or any required schema is missing.
 }
 
 function normalizePercent(value, fallback) {

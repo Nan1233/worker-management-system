@@ -1,3 +1,4 @@
+const crypto = require("node:crypto");
 const db = require("../config/db");
 const AuditService = require("../services/auditService");
 const { query, getConnection, beginTransaction, commit, rollback } = require("./productionTempModelShared");
@@ -141,6 +142,34 @@ module.exports = {
         const temp = await this.findSimilarTempReport(input, executor);
         if (temp) return temp;
         return this.findSimilarApprovedReport(input, executor);
+    },
+
+
+    async lockClientRequestId(workerId, clientRequestId, executor = db) {
+        const worker = Number(workerId);
+        const requestId = String(clientRequestId || "").trim();
+        if (!Number.isInteger(worker) || worker <= 0 || !requestId) return;
+
+        const logicalLockKey = crypto
+            .createHash("sha256")
+            .update(`client-request:${worker}:${requestId}`, "utf8")
+            .digest("hex");
+
+        await query(
+            executor,
+            `INSERT INTO production_report_duplicate_locks (logical_key, last_used_at)
+             VALUES (?, NOW())
+             ON DUPLICATE KEY UPDATE last_used_at = last_used_at`,
+            [logicalLockKey]
+        );
+        await query(
+            executor,
+            `SELECT logical_key
+             FROM production_report_duplicate_locks
+             WHERE logical_key = ?
+             FOR UPDATE`,
+            [logicalLockKey]
+        );
     },
 
     async lockLogicalDuplicateKey(logicalDuplicateKey, executor = db) {
@@ -333,12 +362,16 @@ module.exports = {
 
         for (let index = 0; index < Math.min(machineLines.length, 4); index += 1) {
             const line = machineLines[index] || {};
-            const preservedEventId = options.preserveEventLinks
-                ? Number((oldLines || []).find((old) =>
-                    String(old.machine_code || '').trim().toUpperCase() === String(line.machine_code || '').trim().toUpperCase()
-                    && String(old.product_code || '').trim() === String(line.product_code || '').trim()
-                  )?.machine_event_id || 0) || null
-                : null;
+            const requestedEventId = line.machine_event_id || null;
+            const normalizedRequestedEventId = Number(requestedEventId) || null;
+            const preservedEventId = normalizedRequestedEventId || (
+                options.preserveEventLinks
+                    ? Number((oldLines || []).find((old) =>
+                        String(old.machine_code || '').trim().toUpperCase() === String(line.machine_code || '').trim().toUpperCase()
+                        && String(old.product_code || '').trim() === String(line.product_code || '').trim()
+                      )?.machine_event_id || 0) || null
+                    : null
+            );
             const result = await query(executor, `INSERT INTO production_temp_machine_lines
                 (temp_report_id, machine_event_id, machine_id, machine_code, product_standard_id, standard_version_id, machine_standard_id, product_code,
                  machine_time_hours, standard_output, standard_time_seconds, standard_source, exclude_kqd_from_tt,
@@ -394,9 +427,56 @@ module.exports = {
     },
 
     async createCompleteReport(data, defects = [], deductions = [], machineLines = [], audit = {}) {
+        // Keep compatibility with the public facade and direct transaction tests:
+        // both { data, defects, deductions, machineLines, audit } and the raw
+        // report object are accepted at this boundary.
+        if (data && typeof data === "object" && data.data && typeof data.data === "object") {
+            const payload = data;
+            data = payload.data;
+            defects = Array.isArray(payload.defects) ? payload.defects : [];
+            deductions = Array.isArray(payload.deductions) ? payload.deductions : [];
+            machineLines = Array.isArray(payload.machineLines) ? payload.machineLines : [];
+            audit = payload.audit && typeof payload.audit === "object" ? payload.audit : {};
+        }
+
         const connection = await getConnection();
+
         try {
             await beginTransaction(connection);
+
+            const clientRequestId = String(data.client_request_id || "").trim();
+            if (!clientRequestId) {
+                const error = new Error("Thiếu mã yêu cầu gửi báo cáo");
+                error.status = 400;
+                error.code = "CLIENT_REQUEST_ID_REQUIRED";
+                error.isPublic = true;
+                throw error;
+            }
+
+            // Lock idempotency key first, then logical duplicate key. Every
+            // worker submission uses this same lock order to prevent races
+            // where the same request arrives with a different payload.
+            await this.lockClientRequestId(
+                data.worker_id,
+                clientRequestId,
+                connection
+            );
+
+            const previousRequest = await this.findByClientRequest(
+                data.worker_id,
+                clientRequestId,
+                connection
+            );
+
+            if (previousRequest) {
+                await commit(connection);
+                return {
+                    id: Number(previousRequest.id),
+                    duplicate: true,
+                    duplicate_reason: "request_id",
+                    existing_report: previousRequest,
+                };
+            }
 
             const logicalDuplicateKey = buildLogicalDuplicateKey({
                 workerId: data.worker_id,
@@ -421,16 +501,54 @@ module.exports = {
                 productName: data.product_name,
                 logicalDuplicateKey
             }, connection);
+
             if (existing) {
-                const error = new Error("Báo cáo trùng với báo cáo đã tồn tại trong cùng ngày/ca");
+                if (!data.force_create) {
+                    const error = new Error("Báo cáo trùng với báo cáo đã tồn tại trong cùng ngày/ca");
+                    error.status = 409;
+                    error.code = "DUPLICATE_CONFIRMATION_REQUIRED";
+                    error.isPublic = true;
+                    error.existing_report = existing;
+                    error.details = existing;
+                    throw error;
+                }
+
+                const confirmation = verifyDuplicateConfirmation(
+                    data.duplicate_confirmation_token,
+                    {
+                        workerId: data.worker_id,
+                        logicalDuplicateKey,
+                        existingReportId: existing.id,
+                        existingReportType: existing.report_type || "temp",
+                    }
+                );
+
+                if (!confirmation.valid) {
+                    const error = new Error("Xác nhận tạo báo cáo trùng không hợp lệ hoặc đã hết hạn");
+                    error.status = 409;
+                    error.code = "DUPLICATE_CONFIRMATION_REQUIRED";
+                    error.isPublic = true;
+                    error.existing_report = existing;
+                    error.details = { reason: confirmation.reason, existing };
+                    throw error;
+                }
+            } else if (data.force_create) {
+                const error = new Error("Không có báo cáo trùng hợp lệ để xác nhận tạo lần thứ hai");
                 error.status = 409;
-                error.code = "DUPLICATE_REPORT";
+                error.code = "DUPLICATE_CONFIRMATION_REQUIRED";
                 error.isPublic = true;
-                error.details = existing;
                 throw error;
             }
 
-            const processRows = await query(connection, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data.process_id)]);
+            const processRows = await query(
+                connection,
+                `SELECT process_code
+                 FROM processes
+                 WHERE id=?
+                 LIMIT 1`,
+                [Number(data.process_id)]
+            );
+
             const trainingSnapshot = await resolveInitialTrainingSnapshot({
                 executor: connection,
                 workerId: data.worker_id,
@@ -438,10 +556,14 @@ module.exports = {
                 workDate: data.work_date,
                 trainingPercent: data.training_percent,
             });
+
             data.training_percent_snapshot = trainingSnapshot.training_percent;
             data.standard_version_id = data.standard_version_id || null;
             data.machine_standard_id = data.machine_standard_id || null;
-            data.exclude_kqd_from_tt_snapshot = data.exclude_kqd_from_tt_snapshot ?? data.exclude_kqd_from_tt ?? null;
+            data.exclude_kqd_from_tt_snapshot =
+                data.exclude_kqd_from_tt_snapshot ??
+                data.exclude_kqd_from_tt ??
+                null;
 
             if (Array.isArray(machineLines) && machineLines.length) {
                 const capacity = await validateMachineWorkerCapacityLocked({
@@ -453,10 +575,11 @@ module.exports = {
                     workDate: data.work_date,
                     shift: data.shift
                 });
+
                 if (!capacity.valid) {
-                    const error = new Error('Số công nhân trên máy vượt giới hạn trong cùng ngày/ca');
+                    const error = new Error("Số công nhân trên máy vượt giới hạn trong cùng ngày/ca");
                     error.status = 422;
-                    error.code = 'MACHINE_WORKER_LIMIT_EXCEEDED';
+                    error.code = "MACHINE_WORKER_LIMIT_EXCEEDED";
                     error.isPublic = true;
                     error.details = capacity.errors;
                     throw error;
@@ -470,7 +593,31 @@ module.exports = {
                 throw auditError;
             }
 
-            const tempId = await this.create(data, connection);
+            let tempId;
+            try {
+                tempId = await this.create(data, connection);
+            } catch (error) {
+                // The canonical schema intentionally keeps client_request_id
+                // nullable and uses the duplicate-lock table for idempotency.
+                // A concurrent/legacy duplicate is still surfaced safely.
+                if (error?.code === "ER_DUP_ENTRY") {
+                    const existingRequest = await this.findByClientRequest(
+                        data.worker_id,
+                        clientRequestId,
+                        connection
+                    );
+                    if (existingRequest) {
+                        await commit(connection);
+                        return {
+                            id: Number(existingRequest.id),
+                            duplicate: true,
+                            duplicate_reason: "request_id",
+                            existing_report: existingRequest,
+                        };
+                    }
+                }
+                throw error;
+            }
 
             await this.createDefects(tempId, data.process_id, defects, connection);
             await this.createDeductions(tempId, data.process_id, deductions, connection);
@@ -506,14 +653,27 @@ module.exports = {
                     auditUserId,
                     String(tempId),
                     "Công nhân tạo báo cáo chờ duyệt",
-                    JSON.stringify({ processId: data.process_id, workDate: data.work_date, shift: data.shift }),
+                    JSON.stringify({
+                        processId: data.process_id,
+                        workDate: data.work_date,
+                        shift: data.shift,
+                        clientRequestId,
+                        logicalDuplicateKey,
+                    }),
                     audit.ipAddress || null,
                     audit.userAgent || null
                 ]
             );
 
             await commit(connection);
-            return tempId;
+
+            return {
+                id: Number(tempId),
+                duplicate: false,
+                duplicate_reason: null,
+                existing_report: null,
+                logical_duplicate_key: logicalDuplicateKey,
+            };
         } catch (error) {
             await rollback(connection);
             throw error;

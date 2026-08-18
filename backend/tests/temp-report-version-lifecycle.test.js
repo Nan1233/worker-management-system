@@ -29,7 +29,7 @@ test('temp report lifecycle creates immutable versions at create/update/reject/a
 
 test('temp edit audit uses current report_edit_logs JSON schema, not removed legacy columns', () => {
   const update = read('models/productionTempUpdateModel.js');
-  const schema = read('database/KTC_RESET_FULL_DATABASE_LATEST_20260810.sql');
+  const schema = read('database/KTC_FULL_DATABASE_CANONICAL_20260817.sql');
 
   assert.match(schema, /report_edit_logs[\s\S]*user_id[\s\S]*old_data[\s\S]*new_data[\s\S]*changed_fields[\s\S]*note/);
   assert.match(update, /\(report_type, report_id, user_id, old_data, new_data, changed_fields, note\)/);

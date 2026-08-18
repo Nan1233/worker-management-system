@@ -3,7 +3,7 @@ const crypto = require('node:crypto');
 
 const query = (sql, params = []) => db.promise().query(sql, params).then(([rows]) => rows);
 async function ensureTable() {
-  // excel_export_jobs is owned by canonical migration 004/reset schema.
+  // excel_export_jobs is owned by the canonical database snapshot.
   // Runtime request/startup paths must never CREATE/ALTER schema.
 }
 

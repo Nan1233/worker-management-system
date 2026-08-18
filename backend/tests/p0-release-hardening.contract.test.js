@@ -18,17 +18,45 @@ test('P0 approval path keeps transaction + row-lock + optimistic concurrency', (
 });
 
 test('P0 worker submission keeps idempotency and duplicate challenge controls', () => {
-  const source = read('controllers/productionTempWorkerController.js');
-  assert.match(source, /CLIENT_REQUEST_ID_REQUIRED/);
-  assert.match(source, /DUPLICATE_CONFIRMATION_REQUIRED/);
-  assert.match(source, /duplicate_confirmation_token/);
-  assert.match(source, /client_request_id/);
+  const controller = read('controllers/productionTempWorkerController.js');
+  const createModel = read('models/productionTempCreateModel.js');
+  assert.match(controller, /CLIENT_REQUEST_ID_REQUIRED/);
+  assert.match(controller, /DUPLICATE_CONFIRMATION_REQUIRED/);
+  assert.match(controller, /duplicate_confirmation_token/);
+  assert.match(controller, /client_request_id/);
+  assert.match(createModel, /lockClientRequestId/);
+  assert.match(createModel, /findByClientRequest/);
+  assert.match(createModel, /verifyDuplicateConfirmation/);
+  assert.match(createModel, /duplicate_reason: "request_id"/);
 });
 
 test('P0 manager authorization is process-scoped before approval', () => {
   const source = read('models/productionTempApprovalModel.js');
   assert.match(source, /JOIN manager_processes mp ON mp\.process_id = temp\.process_id/);
   assert.match(source, /mp\.manager_id = \?/);
+});
+
+test('P0 schema verifier is bidirectional and reports extra drift', () => {
+  const source = read('services/databaseSchemaService.js');
+  const verifier = read('scripts/verifyDatabaseSchema.js');
+  assert.match(source, /extraTables/);
+  assert.match(source, /extraColumns/);
+  assert.match(source, /extraIndexes/);
+  assert.match(source, /invalidColumns/);
+  assert.match(source, /invalidIndexes/);
+  assert.match(verifier, /Extra tables/);
+  assert.match(verifier, /Extra columns/);
+  assert.match(verifier, /Extra indexes/);
+});
+
+
+test('P0 shared-machine accounting keeps GC 5/6/7/11 at four workers and preserves physical event links', () => {
+  const factory = read('services/factoryMachineRuleService.js');
+  const createModel = read('models/productionTempCreateModel.js');
+  assert.match(factory, /GC_SHARED_MACHINE_NUMBERS/);
+  assert.match(factory, /DEFAULT_SHARED_WORKERS_PER_MACHINE = 4/);
+  assert.match(createModel, /const requestedEventId = line\.machine_event_id \|\| null/);
+  assert.match(createModel, /const normalizedRequestedEventId = Number\(requestedEventId\)/);
 });
 
 test('P0 zero-cost E2E covers the locked business flow', () => {

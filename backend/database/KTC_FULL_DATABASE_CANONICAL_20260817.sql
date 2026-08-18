@@ -1,8 +1,10 @@
 -- ============================================================================
 -- KTC - FULL DATABASE TỪ ĐẦU - TIDB SAFE - 10/08/2026
--- CẢNH BÁO: FILE NÀY XÓA TOÀN BỘ DATABASE worker_management VÀ TẠO LẠI.
+-- SOURCE OF TRUTH: canonical database snapshot for a clean database build.
+-- Script này KHÔNG phải migration và KHÔNG dùng ALTER TABLE để nâng cấp DB cũ.
+-- Khi được chạy như một full rebuild, script sẽ tạo lại worker_management.
 -- ĐÃ TÍCH HỢP TRỰC TIẾP SCHEMA CUỐI, MASTER DATA, BOOK2 VÀ TÀI KHOẢN HỆ THỐNG.
--- KHÔNG CÒN CÁC ALTER TABLE ADD COLUMN IF NOT EXISTS DÙNG CHO NÂNG CẤP DB CŨ.
+-- Runtime production không chạy file này; runtime chỉ VERIFY schema hiện tại.
 -- ============================================================================
 
 DROP DATABASE IF EXISTS worker_management;
@@ -10,10 +12,10 @@ CREATE DATABASE worker_management CHARACTER SET utf8mb4;
 USE worker_management;
 
 -- ============================================================================
--- KTC FULL DATABASE WITH DATA - ĐỒNG BỘ VỚI SOURCE CODE 10/08/2026
+-- KTC FULL DATABASE WITH DATA - CANONICAL SOURCE OF TRUTH
 -- Dùng cho TiDB/MySQL compatible.
--- KHÔNG DROP DATABASE / DROP TABLE / TRUNCATE.
--- Thứ tự: schema 001-011 -> master seed -> rule 012 -> Book2 013 -> checksum.
+-- Không phải migration. Không có ALTER TABLE ADD COLUMN IF NOT EXISTS.
+-- Thứ tự: canonical schema -> master seed/data -> checksum.
 -- ============================================================================
 
 
@@ -654,7 +656,7 @@ INSERT IGNORE INTO production_formula_settings (scope_code, process_id) VALUES (
 
 -- ==================== 008_client_request_idempotency.sql ====================
 -- Enforce idempotency at the database layer. If duplicate non-empty request IDs
--- already exist, this migration intentionally fails so they can be reviewed
+-- already exist, this canonical snapshot intentionally fails so they can be reviewed
 -- instead of silently deleting production data.
 CREATE UNIQUE INDEX uq_prt_worker_client_request
   ON production_reports_temp (worker_id, client_request_id);

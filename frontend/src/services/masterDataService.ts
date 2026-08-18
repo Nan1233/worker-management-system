@@ -48,7 +48,7 @@ export const getProductStandardsByProcess = async (
     const normalizedCode = String(processCode || "").trim().toUpperCase();
     if (normalizedCode) {
         requests.push(
-            api.get("/product-standards", { params: { process_code: normalizedCode } })
+            api.get("/product-standards", { params: { process_code: processCode } })
                 .then((response) => {
                     const payload = response.data?.data ?? response.data;
                     return Array.isArray(payload) ? payload : [];

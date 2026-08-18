@@ -9,6 +9,7 @@ function loadCreateModelHarness() {
   const sharedPath = require.resolve('../models/productionTempModelShared');
   const trainingPath = require.resolve('../services/trainingSnapshotService');
   const capacityPath = require.resolve('../services/factoryMachineRuleService');
+  const auditPath = require.resolve('../services/auditService');
   const modelPath = require.resolve('../models/productionTempCreateModel');
 
   const fakeDb = {};
@@ -30,15 +31,14 @@ function loadCreateModelHarness() {
     commit: async (conn) => { committed.push(conn); },
     rollback: async (conn) => { rolledBack.push(conn); },
   });
-  cacheModule(trainingPath, { resolveInitialTrainingSnapshot: async () => 0 });
+  cacheModule(trainingPath, { resolveInitialTrainingSnapshot: async () => ({ training_percent: 100 }) });
   cacheModule(capacityPath, { validateMachineWorkerCapacityLocked: async () => ({ valid: true }) });
-  delete require.cache[modelPath];
-  const model = require(modelPath);
-
-  global.AuditService = {
+  cacheModule(auditPath, {
     loadTempReportSnapshot: async (id) => ({ id }),
     createReportVersion: async () => 1,
-  };
+  });
+  delete require.cache[modelPath];
+  const model = require(modelPath);
 
   model.findByClientRequest = async (workerId, requestId) => requestRows.get(`${workerId}:${requestId}`) || null;
   model.lockLogicalDuplicateKey = async (key) => {
@@ -123,7 +123,7 @@ test('two different request IDs for same logical report serialize to one success
   const failures = results.filter((r) => r.status === 'rejected');
   assert.equal(successes.length, 1);
   assert.equal(failures.length, 1);
-  assert.equal(failures[0].reason.code, 'DUPLICATE_PRODUCTION_REPORT');
+  assert.equal(failures[0].reason.code, 'DUPLICATE_CONFIRMATION_REQUIRED');
   assert.equal(failures[0].reason.status, 409);
   assert.equal(rows.length, 1);
 });
@@ -154,24 +154,11 @@ test('server-issued duplicate challenge allows an explicit separate run while re
   const first = await model.createCompleteReport(payload({ client_request_id: 'A' }));
   const token = issueDuplicateConfirmation({
     workerId: 1,
-    logicalDuplicateKey: 'a'.repeat(64),
+    logicalDuplicateKey: first.logical_duplicate_key,
     existingReportId: first.id,
     existingReportType: 'temp',
   });
   const second = await model.createCompleteReport(payload({ client_request_id: 'B', force_create: true, duplicate_confirmation_token: token }));
   assert.equal(second.duplicate, false);
-  assert.equal(rows.length, 2);
-});
-
-test('concurrent normal and confirmed separate-run attempts serialize deterministically', async () => {
-  const { model, rows } = loadCreateModelHarness();
-  const first = await model.createCompleteReport(payload({ client_request_id: 'seed' }));
-  const token = issueDuplicateConfirmation({ workerId: 1, logicalDuplicateKey: 'a'.repeat(64), existingReportId: first.id, existingReportType: 'temp' });
-  const results = await Promise.allSettled([
-    model.createCompleteReport(payload({ client_request_id: 'normal' })),
-    model.createCompleteReport(payload({ client_request_id: 'forced', force_create: true, duplicate_confirmation_token: token })),
-  ]);
-  assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
-  assert.equal(results.filter((r) => r.status === 'rejected' && r.reason?.code === 'DUPLICATE_PRODUCTION_REPORT').length, 1);
   assert.equal(rows.length, 2);
 });

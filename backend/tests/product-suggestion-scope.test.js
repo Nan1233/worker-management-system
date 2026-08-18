@@ -19,7 +19,7 @@ test('product suggestions are scoped by process_code and GC work_type', () => {
   assert.match(model, /p\.process_code/);
   assert.match(model, /ps\.work_type/);
   assert.match(domain, /returnedProcessCode === expectedProcessCode/);
-  assert.match(domain, /normalizeMasterText\(product\.work_type\) === expectedWorkType/);
+  assert.match(domain, /normalizeWorkType\(product\.work_type\) === expectedWorkType/);
   assert.match(basic, /productOptions\.find/);
   assert.doesNotMatch(page, /product_code:\s*productOptions\.find/);
 });

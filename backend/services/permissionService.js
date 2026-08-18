@@ -133,7 +133,7 @@ async function setRoleOverride(role, permissionCode, allowed) {
   if (!['manager','lead','worker'].includes(role)) throw Object.assign(new Error('Không cho phép thay đổi quyền mặc định của Admin'),{status:400});
   if (!ALL_CODES.includes(permissionCode)) throw Object.assign(new Error('Mã quyền không hợp lệ'),{status:400});
   if (!CAPABILITIES[role]?.has(permissionCode)) throw Object.assign(new Error('Quyền này không áp dụng cho vai trò đã chọn'),{status:400});
-  if (!(await ensureSchemaAvailable())) throw Object.assign(new Error('Chưa chạy migration phân quyền'),{status:503});
+  if (!(await ensureSchemaAvailable())) throw Object.assign(new Error('Schema phân quyền chưa sẵn sàng'),{status:503});
   if (allowed === null) await db.promise().query('DELETE FROM role_permission_overrides WHERE role=? AND permission_code=?',[role,permissionCode]);
   else await db.promise().query(`INSERT INTO role_permission_overrides(role,permission_code,allowed,updated_at) VALUES(?,?,?,NOW()) ON DUPLICATE KEY UPDATE allowed=VALUES(allowed),updated_at=NOW()`,[role,permissionCode,allowed?1:0]);
   clearPermissionCache();
@@ -142,7 +142,7 @@ async function setRoleOverride(role, permissionCode, allowed) {
 async function setUserOverride(userId, permissionCode, allowed) {
   userId = Number(userId); permissionCode = normalizeCode(permissionCode);
   if (!Number.isInteger(userId) || userId<=0 || !ALL_CODES.includes(permissionCode)) throw Object.assign(new Error('Dữ liệu quyền không hợp lệ'),{status:400});
-  if (!(await ensureSchemaAvailable())) throw Object.assign(new Error('Chưa chạy migration phân quyền'),{status:503});
+  if (!(await ensureSchemaAvailable())) throw Object.assign(new Error('Schema phân quyền chưa sẵn sàng'),{status:503});
   const [[user]] = await db.promise().query('SELECT id,role FROM users WHERE id=? LIMIT 1',[userId]);
   if (!user) throw Object.assign(new Error('Người dùng không tồn tại'),{status:404});
   if (normalizeRole(user.role)==='admin') throw Object.assign(new Error('Admin luôn có toàn quyền'),{status:400});

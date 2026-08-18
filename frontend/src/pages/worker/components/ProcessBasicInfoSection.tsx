@@ -177,6 +177,9 @@ export default function ProcessBasicInfoSection({
                             <div>
                                 <strong>{isCutLongProcess ? "Danh sách máy & sản phẩm" : "Danh sách máy mài & sản phẩm"}</strong>
                                 <small>Mỗi dòng = 1 máy + 1 mã sản phẩm + thời gian + sản lượng</small>
+                                {isCutLongProcess && (
+                                    <small>Shared machine: sản lượng được credit theo báo cáo; physical truth nằm ở production event riêng.</small>
+                                )}
                             </div>
                             <label className="worker-machine-count">
                                 <span>Số máy</span>
