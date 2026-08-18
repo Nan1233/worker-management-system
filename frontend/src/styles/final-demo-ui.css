@@ -1,0 +1,425 @@
+
+/*
+ * KTC Final Demo UI — cohesive visual pass
+ * Purpose: release-level hierarchy, density and responsive polish.
+ * Business logic untouched.
+ */
+:root {
+  --ktc-demo-blue: #245d93;
+  --ktc-demo-blue-dark: #1b4b79;
+  --ktc-demo-blue-soft: #edf5fb;
+  --ktc-demo-bg: #f3f6fa;
+  --ktc-demo-line: #dbe4ed;
+  --ktc-demo-text: #16263a;
+  --ktc-demo-muted: #61748a;
+  --ktc-demo-radius: 16px;
+}
+
+body {
+  background: var(--ktc-demo-bg);
+}
+
+/* ---------- shared surfaces ---------- */
+.management-content {
+  background:
+    radial-gradient(circle at 100% 0, rgba(79,133,177,.045), transparent 34%),
+    var(--ktc-demo-bg);
+}
+
+.management-content > * {
+  max-width: 1500px;
+  margin-inline: auto;
+}
+
+.management-header {
+  background: rgba(255,255,255,.94);
+  border-bottom-color: var(--ktc-demo-line);
+}
+
+.management-header-copy strong {
+  font-size: 18px;
+  font-weight: 760;
+}
+
+.management-role-badge {
+  font-weight: 750;
+}
+
+.management-sidebar {
+  box-shadow: 8px 0 28px rgba(22,38,58,.035);
+}
+
+.management-menu-item {
+  min-height: 46px;
+  border-radius: 10px;
+}
+
+.management-menu-item.active {
+  background: linear-gradient(90deg, #edf5fb, #f6f9fc);
+  color: var(--ktc-demo-blue-dark);
+  font-weight: 750;
+}
+
+.management-menu-item.active::before {
+  width: 4px;
+  background: var(--ktc-demo-blue);
+}
+
+.management-content :where(.management-filter-card,.management-report-card,.dashboard-card,.stats-card,.formula-card,.governance-card,.master-card) {
+  border-color: var(--ktc-demo-line);
+  box-shadow: 0 4px 18px rgba(22,38,58,.045);
+}
+
+/* ---------- buttons / inputs ---------- */
+.management-content :where(button.primary,.primary,.btn-primary) {
+  min-height: 42px;
+  border-radius: 10px;
+  font-weight: 750;
+}
+
+.management-content :where(button,input,select,textarea) {
+  max-width: 100%;
+}
+
+.management-content :where(input,select,textarea) {
+  border-color: #cbd7e3;
+}
+
+.management-content :where(input,select,textarea):focus {
+  border-color: #76a4c9;
+  box-shadow: 0 0 0 3px rgba(36,93,147,.12);
+}
+
+/* ---------- worker shell ---------- */
+.worker-layout {
+  background: var(--ktc-demo-bg);
+}
+
+.worker-topbar {
+  background: rgba(255,255,255,.96);
+  border-bottom-color: var(--ktc-demo-line);
+  box-shadow: 0 2px 14px rgba(22,38,58,.045);
+}
+
+.worker-brand-mark {
+  background: linear-gradient(145deg, var(--ktc-demo-blue), var(--ktc-demo-blue-dark));
+  box-shadow: 0 5px 14px rgba(36,93,147,.18);
+}
+
+.worker-desktop-nav {
+  border-color: var(--ktc-demo-line);
+  box-shadow: 0 2px 8px rgba(22,38,58,.035);
+}
+
+.worker-desktop-nav button.active {
+  background: var(--ktc-demo-blue-soft);
+  border-color: #d5e6f4;
+  color: var(--ktc-demo-blue-dark);
+}
+
+/* ---------- worker process chooser ---------- */
+.select-process-page {
+  min-height: calc(100dvh - var(--worker-topbar-height));
+  padding: clamp(22px, 3vw, 42px) clamp(16px, 3.5vw, 56px) 48px;
+  background:
+    radial-gradient(circle at 80% 0, rgba(91,143,184,.08), transparent 30%),
+    linear-gradient(180deg, #f7f9fc 0%, var(--ktc-demo-bg) 100%);
+}
+
+.select-process-shell {
+  width: min(1480px, 100%);
+}
+
+.select-process-header {
+  align-items: center;
+  margin-bottom: 22px;
+}
+
+.select-process-title-row {
+  align-items: flex-start;
+}
+
+.select-process-back {
+  width: 44px;
+  height: 44px;
+  margin-top: 3px;
+  border-radius: 12px;
+  color: var(--ktc-demo-blue-dark);
+  box-shadow: 0 3px 12px rgba(22,38,58,.06);
+}
+
+.select-process-title-row h1 {
+  font-size: clamp(28px, 3vw, 40px);
+  font-weight: 800;
+  letter-spacing: -.04em;
+}
+
+.select-process-title-row h1::after {
+  content: "Bắt đầu một báo cáo sản xuất";
+  display: block;
+  margin-top: 7px;
+  color: var(--ktc-demo-muted);
+  font-size: 14px;
+  line-height: 1.45;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.select-process-worker {
+  min-height: 52px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(22,38,58,.05);
+}
+
+.history-entry-button {
+  margin-bottom: 22px;
+  border-color: #cbd9e6;
+  background: #fff;
+  box-shadow: 0 3px 12px rgba(22,38,58,.045);
+}
+
+.process-list {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
+  gap: 18px;
+  align-items: stretch;
+}
+
+.worker-process-card {
+  min-height: 132px;
+  padding: 20px;
+  grid-template-columns: 60px minmax(0,1fr) 24px;
+  gap: 16px;
+  border-radius: 18px;
+  border-color: #d5e0ea;
+  box-shadow: 0 5px 18px rgba(22,38,58,.055);
+  text-align: left;
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease, background .16s ease;
+}
+
+.worker-process-card:hover {
+  transform: translateY(-3px);
+  border-color: #9fc0db;
+  box-shadow: 0 14px 30px rgba(22,38,58,.10);
+  background: #fff;
+}
+
+.worker-process-card:focus-visible {
+  outline: none;
+  border-color: #5d8db3;
+  box-shadow: 0 0 0 4px rgba(36,93,147,.13), 0 12px 28px rgba(22,38,58,.08);
+}
+
+.worker-process-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #edf5fb, #e3eff8);
+  color: var(--ktc-demo-blue-dark);
+}
+
+.worker-process-content strong {
+  margin-bottom: 5px;
+  font-size: 17px;
+  font-weight: 780;
+}
+
+.worker-process-content small {
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.worker-process-arrow {
+  color: #7790a8;
+  font-size: 26px;
+}
+
+.process-list > .worker-process-card:only-child {
+  width: min(100%, 720px);
+  min-height: 170px;
+  grid-template-columns: 76px minmax(0,1fr) 28px;
+  margin-inline: 0;
+}
+
+.process-list > .worker-process-card:only-child .worker-process-icon {
+  width: 76px;
+  height: 76px;
+  border-radius: 20px;
+}
+
+.process-list > .worker-process-card:only-child .worker-process-content strong {
+  font-size: 21px;
+}
+
+.process-list > .worker-process-card:only-child .worker-process-content small {
+  max-width: 520px;
+  font-size: 13.5px;
+}
+
+.process-state-box {
+  border-color: #cbd9e6;
+  box-shadow: 0 4px 18px rgba(22,38,58,.04);
+}
+
+/* ---------- worker form ---------- */
+.worker-form-page {
+  background:
+    radial-gradient(circle at 90% 0, rgba(91,143,184,.07), transparent 28%),
+    var(--ktc-demo-bg);
+}
+
+.worker-form-shell {
+  width: min(1180px, 100%);
+}
+
+.worker-form-card {
+  border-color: #d4dfe9;
+  box-shadow: 0 8px 28px rgba(22,38,58,.055);
+}
+
+.worker-card-title {
+  color: var(--ktc-demo-text);
+}
+
+/* ---------- login ---------- */
+.login-panel {
+  background:
+    radial-gradient(circle at 0 0, rgba(91,143,184,.05), transparent 32%),
+    #fff;
+}
+
+.login-card {
+  border-color: #dce5ed;
+  box-shadow: 0 18px 50px rgba(22,38,58,.10);
+}
+
+.login-showcase {
+  background:
+    radial-gradient(circle at 15% 20%, rgba(255,255,255,.10), transparent 28%),
+    linear-gradient(145deg, #204f7b 0%, #2f6795 55%, #4a82aa 100%);
+}
+
+/* ---------- common feedback ---------- */
+:where(.toast,.notification-toast,.app-toast) {
+  border-radius: 12px;
+}
+
+:where(.modal-card,.modal-content,.dialog-card) {
+  border-radius: 18px;
+}
+
+/* ---------- large screens: use available workspace ---------- */
+@media (min-width: 1440px) {
+  .select-process-shell {
+    width: min(1540px, 100%);
+  }
+
+  .process-list {
+    grid-template-columns: repeat(4, minmax(0,1fr));
+  }
+
+  .management-content {
+    padding-inline: clamp(28px, 3vw, 52px);
+  }
+}
+
+/* ---------- tablet ---------- */
+@media (max-width: 1024px) {
+  .select-process-page {
+    padding-inline: 20px;
+  }
+
+  .process-list {
+    grid-template-columns: repeat(2, minmax(0,1fr));
+  }
+}
+
+/* ---------- phone ---------- */
+@media (max-width: 860px) {
+  .select-process-page {
+    padding: 16px 12px 28px;
+  }
+
+  .select-process-header {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .select-process-worker {
+    justify-content: flex-start;
+  }
+
+  .select-process-title-row h1 {
+    font-size: 27px;
+  }
+
+  .select-process-title-row h1::after {
+    font-size: 13px;
+  }
+
+  .history-entry-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .process-list {
+    grid-template-columns: 1fr;
+    gap: 11px;
+  }
+
+  .worker-process-card,
+  .process-list > .worker-process-card:only-child {
+    width: 100%;
+    min-height: 92px;
+    padding: 14px;
+    grid-template-columns: 50px minmax(0,1fr) 20px;
+    gap: 12px;
+    border-radius: 15px;
+  }
+
+  .worker-process-icon,
+  .process-list > .worker-process-card:only-child .worker-process-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 14px;
+  }
+
+  .worker-process-content strong,
+  .process-list > .worker-process-card:only-child .worker-process-content strong {
+    font-size: 15px;
+  }
+
+  .worker-process-content small,
+  .process-list > .worker-process-card:only-child .worker-process-content small {
+    font-size: 11.5px;
+  }
+}
+
+@media (max-width: 430px) {
+  .select-process-title-row {
+    gap: 9px;
+  }
+
+  .select-process-back {
+    width: 40px;
+    height: 40px;
+  }
+
+  .select-process-title-row h1 {
+    font-size: 24px;
+  }
+
+  .select-process-worker {
+    padding: 9px 11px;
+  }
+}
+
+/* ---------- reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+  }
+}
