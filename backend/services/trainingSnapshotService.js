@@ -35,9 +35,11 @@ function getReportTrainingSnapshot(report = {}, { allowLegacyTrainingField = fal
  *  - query(sql, params): legacy/service callers
  *  - executor.query(sql, params): transactional create flow
  *
- * The worker create transaction passes its locked DB connection as `executor`.
- * Keeping the adapter here avoids silently querying the global pool and makes
- * the snapshot part of the same transaction as the report creation.
+ * IMPORTANT: mysql2's callback-style connection.query() does NOT return a
+ * Promise. The transactional create flow passes a mysql2 connection as
+ * `executor`, so use executor.promise().query() when available. This keeps
+ * the snapshot query on the same connection/transaction without triggering
+ * the mysql2 "query that is not a promise" runtime error.
  */
 async function resolveInitialTrainingSnapshot({ workerId, query, executor }) {
   const id = Number(workerId);
@@ -47,10 +49,20 @@ async function resolveInitialTrainingSnapshot({ workerId, query, executor }) {
 
   let runQuery = query;
   if (typeof runQuery !== 'function' && executor && typeof executor.query === 'function') {
-    runQuery = async (sql, params) => {
-      const result = await executor.query(sql, params);
-      return Array.isArray(result) && Array.isArray(result[0]) ? result[0] : result;
-    };
+    if (typeof executor.promise === 'function') {
+      const promiseExecutor = executor.promise();
+      runQuery = async (sql, params) => {
+        const [rows] = await promiseExecutor.query(sql, params);
+        return rows;
+      };
+    } else {
+      runQuery = (sql, params) => new Promise((resolve, reject) => {
+        executor.query(sql, params, (error, rows) => {
+          if (error) return reject(error);
+          resolve(rows);
+        });
+      });
+    }
   }
 
   if (typeof runQuery !== 'function') {
