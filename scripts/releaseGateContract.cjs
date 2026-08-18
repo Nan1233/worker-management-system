@@ -35,7 +35,8 @@ for (const script of [
   assert.equal(typeof packageJson.scripts?.[script], 'string', `Root package phải có script ${script}`);
 }
 
-assert.match(ci, /npm ci --prefix backend/);
+// Backend intentionally has no committed lockfile, so CI/Render use npm install.
+assert.match(ci, /npm install --prefix backend/);
 assert.match(ci, /npm --prefix backend test/);
 assert.match(ci, /npm ci --prefix frontend/);
 assert.match(ci, /npm --prefix frontend run typecheck/);
@@ -43,14 +44,13 @@ assert.match(ci, /npm --prefix frontend test/);
 assert.match(ci, /npm --prefix frontend run build/);
 assert.match(ci, /npm ci --prefix desktop/);
 assert.match(ci, /npm --prefix desktop run smoke:excel/);
-assert.doesNotMatch(ci, /npm install(?:\s|$)/);
 
 for (const pkg of ['backend', 'frontend', 'desktop']) {
   assert.match(audit, new RegExp(pkg));
 }
 assert.match(audit, /audit:prod/);
 
-assert.match(backendRender, /buildCommand: npm ci && npm run verify && npm prune --omit=dev/g);
+assert.match(backendRender, /buildCommand: npm install && npm run verify && npm prune --omit=dev/g);
 assert.match(backendRender, /preDeployCommand: npm run db:schema:verify/);
 assert.match(backendRender, /healthCheckPath: \/api\/health\/ready/);
 assert.match(frontendRender, /buildCommand: npm ci && npm run check/);
