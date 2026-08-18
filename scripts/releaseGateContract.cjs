@@ -5,11 +5,31 @@ const assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
+const packageJson = JSON.parse(read('package.json'));
 const ci = read('.github/workflows/ci.yml');
 const audit = read('.github/workflows/security-audit.yml');
 const backendRender = read('backend/render.yaml');
 const frontendRender = read('frontend/render.yaml');
 const requirementLock = read('docs/KTC_REQUIREMENT_LOCK_WAVE0_20260812.md');
+
+for (const script of [
+  'verify:release-contract',
+  'verify:release-consistency',
+  'verify:excel-contract',
+]) {
+  assert.equal(typeof packageJson.scripts?.[script], 'string', `Root package phải có script ${script}`);
+}
+
+for (const script of [
+  'validate:zero-cost',
+  'validate:zero-cost:seed',
+  'validate:zero-cost:security',
+  'validate:zero-cost:e2e',
+  'validate:zero-cost:perf',
+  'validate:zero-cost:excel',
+]) {
+  assert.equal(typeof packageJson.scripts?.[script], 'string', `Root package phải có script ${script}`);
+}
 
 assert.match(ci, /npm ci --prefix backend/);
 assert.match(ci, /npm --prefix backend test/);
