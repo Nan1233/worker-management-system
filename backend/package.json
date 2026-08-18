@@ -29,7 +29,8 @@
     "audit:rollback-versions": "node scripts/auditRollbackVersions.js",
     "audit:logical-duplicates": "node scripts/auditLogicalDuplicates.js",
     "audit:worker-processes": "node scripts/auditWorkerProcesses.js",
-    "audit:production-indexes": "node scripts/auditProductionIndexes.js"
+    "audit:production-indexes": "node scripts/auditProductionIndexes.js",
+    "db:schema:verify": "node scripts/verifyDatabaseSchema.js"
   },
   "dependencies": {
     "bcrypt": "6.0.0",
