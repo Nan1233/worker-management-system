@@ -9,6 +9,7 @@ const workerNotificationBackfills = new Map();
 const WORKER_NOTIFICATION_BACKFILL_TTL_MS = Math.max(60_000, Number(process.env.WORKER_NOTIFICATION_BACKFILL_TTL_MS || 10 * 60_000));
 
 async function executeWorkerNotificationBackfill(user) {
+ await AuditService.ensureSchema();
  const userId = Number(user?.id || 0);
  const workerId = Number(user?.worker_id || 0);
  if (!userId || !workerId || user?.role !== 'worker') return;
@@ -129,6 +130,7 @@ exports.getObservability = async (_req, res) => {
 };
 exports.getNotifications = async (req,res) => {
  try {
+  await AuditService.ensureSchema();
   // Công nhân có thể đã có báo cáo được xử lý trước khi tính năng thông báo
   // được triển khai. Bù các thông báo còn thiếu trước khi trả lịch sử.
   await backfillWorkerReportNotifications(req.user);
