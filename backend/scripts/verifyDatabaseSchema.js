@@ -11,7 +11,7 @@ async function main() {
   const diagnostics = toSafeSchemaDiagnostics(result);
 
   if (result.ready) {
-    console.log(`Database contract READY (v${diagnostics.contractVersion})`);
+    console.log(`Database runtime contract READY (v${diagnostics.contractVersion}; ${diagnostics.runtimeContract || 'MINIMUM_STRUCTURAL_V1'})`);
     return;
   }
 

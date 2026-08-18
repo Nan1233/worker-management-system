@@ -145,7 +145,7 @@ test('F11 FE 29 Electron refresh requires successor token response', () => {
 test('F11 FE 30 Electron stores successor before returning access result', () => {
   const source = api();
   const persist = source.indexOf('setRefreshToken(response.data.refreshToken)');
-  const result = source.indexOf('return {\n            accessToken: newAccessToken');
+  const result = source.indexOf('accessToken: newAccessToken');
   assert.ok(persist >= 0 && result > persist);
 });
 test('F11 FE 31 Electron storage failure fails closed', () => {

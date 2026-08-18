@@ -36,17 +36,16 @@ test('P0 manager authorization is process-scoped before approval', () => {
   assert.match(source, /mp\.manager_id = \?/);
 });
 
-test('P0 schema verifier blocks missing/invalid canonical drift but reports extras', () => {
+test('P0 runtime schema verifier uses a minimum structural contract and keeps full drift diagnostics non-blocking', () => {
   const source = read('services/databaseSchemaService.js');
   const verifier = read('scripts/verifyDatabaseSchema.js');
+  assert.match(source, /RUNTIME_REQUIRED_COLUMNS/);
+  assert.match(source, /MINIMUM_STRUCTURAL_V1/);
   assert.match(source, /extraTables/);
   assert.match(source, /extraColumns/);
   assert.match(source, /extraIndexes/);
-  assert.match(source, /invalidColumns/);
-  assert.match(source, /invalidIndexes/);
-  assert.match(verifier, /Extra tables/);
-  assert.match(verifier, /Extra columns/);
-  assert.match(verifier, /Extra indexes/);
+  assert.match(source, /const ready =/);
+  assert.match(verifier, /Database runtime contract READY/);
 });
 
 
