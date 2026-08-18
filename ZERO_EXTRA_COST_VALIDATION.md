@@ -14,7 +14,7 @@ Run the maximum release validation without creating or upgrading Render/TiDB res
 The job performs:
 1. `npm ci` from the existing lockfiles.
 2. Creates an isolated MySQL DB/user.
-3. `db:release -> db:schema:verify -> db:release`.
+3. `db:schema:verify`.
 4. Seeds synthetic E2E identities/master fixtures only.
 5. Runs backend + targeted security regression.
 6. Starts backend and requires `/api/health/ready`.

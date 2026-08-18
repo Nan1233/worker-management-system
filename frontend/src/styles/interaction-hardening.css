@@ -82,3 +82,19 @@
 #root .ktc-toast-container:empty {
   display: none !important;
 }
+
+/* Application content stays above decorative layers. */
+#root .worker-main-content,
+#root .management-main,
+#root .management-content,
+#root .worker-form-page {
+  position: relative;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+#root :where(button, a, input, select, textarea, summary, [role="button"], label) {
+ position: relative;
+ z-index: 11;
+ pointer-events: auto;
+}

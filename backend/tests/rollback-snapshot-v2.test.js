@@ -300,10 +300,3 @@ test('rollback scanner taxonomy contains every required legacy risk', () => {
     'ROLLBACK_CHILD_GRAPH_INCOMPLETE'
   ]) assert.match(source, new RegExp(code));
 });
-
-test('rollback scanner package command remains registered; migration 023 belongs only to F11 session rotation', () => {
-  const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8'));
-  assert.equal(pkg.scripts['audit:rollback-versions'], 'node scripts/auditRollbackVersions.js');
-  const migrations = fs.readdirSync(path.join(__dirname, '../migrations'));
-  assert.deepEqual(migrations.filter((name) => /^023_/.test(name)), ['023_refresh_session_rotation_20260813.sql']);
-});

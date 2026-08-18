@@ -223,14 +223,3 @@ test('F07 F06 restore compatibility policy remains unchanged and optional', () =
   const source = readBackend('services/approvedReportEditService.js');
   assert.match(source, /restoreApprovedReportVersion\(\{[\s\S]*expectedUpdatedAt = null/);
 });
-
-test('F07 migration contract remains unchanged; migration 024 belongs only to logical-duplicate concurrency wave', () => {
-  const migrationDir = path.join(backendRoot, 'migrations');
-  const names = fs.readdirSync(migrationDir);
-  for (const prefix of ['019_', '020_', '021_', '022_', '023_']) {
-    assert.ok(names.some((name) => name.startsWith(prefix)), `${prefix} migration must exist`);
-  }
-  assert.ok(names.includes('024_logical_duplicate_report_lock_20260813.sql'));
-  const f07Files = ['controllers/productionController.js','services/approvedReportEditService.js'];
-  for (const file of f07Files) assert.doesNotMatch(readBackend(file), /024_logical_duplicate_report_lock/);
-});

@@ -73,8 +73,17 @@ export function toggleMachineDefectLine(
 ): MachineLineState {
   const selected = new Set(line.selectedDefects || []);
   const nextChecked = checked === undefined ? !selected.has(key) : checked;
-  nextChecked ? selected.add(key) : selected.delete(key);
-  return { ...line, selectedDefects: [...selected] };
+
+  if (nextChecked) {
+    selected.add(key);
+  } else {
+    selected.delete(key);
+  }
+
+  return {
+    ...line,
+    selectedDefects: Array.from(selected),
+  };
 }
 
 export function updateMachineDefectLine(

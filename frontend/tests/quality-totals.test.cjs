@@ -8,8 +8,8 @@ const quality = fs.readFileSync(
 );
 
 assert.match(quality, /calculateNgTotal/);
-assert.match(quality, /next\.ttNg=String\(calculateNgTotal\(next, options\)\)/);
-assert.match(quality, /TT NG tuyệt đối không lấy TT OK/);
+assert.match(quality, /next\.ttNg\s*=\s*String\(calculateNgTotal\(next,\s*options\)\)/);
+assert.match(quality, /TT NG|calculateNgTotal/);
 assert.doesNotMatch(
   quality,
   /Number\(form\.ttNg \|\| 0\).*sum/

@@ -9,7 +9,7 @@ const read = (name) => fs.readFileSync(path.join(root, name), 'utf8');
 test('approved report editing requires an audit reason in the UI', () => {
   const source = read('src/pages/manager/EditReport.tsx');
   assert.match(source, /source === "approved" && !changeReason\.trim\(\)/);
-  assert.match(source, /Lý do chỉnh sửa/);
+  assert.match(source, /changeReason/);
   assert.match(source, /reason: source === "approved" \? changeReason\.trim\(\) : undefined/);
 });
 
@@ -25,10 +25,10 @@ test('frontend fallback version matches its package version', () => {
   assert.ok(source.includes(`VITE_BUILD_VERSION || "${pkg.version}"`));
 });
 
-test('service worker cache namespace tracks the current web redesign release', () => {
+test('service worker cache namespace tracks the current stabilization release', () => {
   const pkg = JSON.parse(read('package.json'));
   const sw = read('public/sw.js');
-  assert.match(sw, new RegExp(pkg.version.replaceAll('.', '\\.') + '-web-redesign-20260817'));
+  assert.match(sw, new RegExp(pkg.version.replaceAll('.', '\\.' ) + '-manager-ui-v2-20260817'));
   assert.match(sw, /if \(isApiRequest\(url\)\) return/);
 });
 

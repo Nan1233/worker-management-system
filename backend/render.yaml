@@ -4,6 +4,7 @@ services:
     runtime: node
     rootDir: backend
     buildCommand: npm install
+    preDeployCommand: npm run db:schema:verify
     startCommand: npm start
     healthCheckPath: /api/health/ready
     autoDeploy: true

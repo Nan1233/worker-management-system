@@ -172,10 +172,3 @@ test('F12 active runtime master numeric write sweep has no second invalid-to-zer
   const runtime = [admin, excelValidation].join('\n');
   assert.doesNotMatch(runtime, /standard_output\s*=\s*Number\([^)]*\)\s*\|\|\s*0/);
 });
-
-test('F12 numeric validation adds no schema migration; migration 024 belongs to logical-duplicate concurrency', () => {
-  const names = fs.readdirSync(path.join(__dirname, '../migrations'));
-  assert.ok(names.includes('024_logical_duplicate_report_lock_20260813.sql'));
-  assert.doesNotMatch(read('services/masterNumericValidationService.js'), /024_logical_duplicate_report_lock/);
-  assert.doesNotMatch(read('services/excelMasterSyncValidationService.js'), /024_logical_duplicate_report_lock/);
-});

@@ -169,11 +169,6 @@ test('F09 export routes still require REPORT_EXPORT functional permission', () =
   assert.match(routes, /export-excel\/process[\s\S]*canExport/);
 });
 
-test('authorization hardening has no authorization-specific migration; migration 023 is F11 session rotation only', () => {
-  const migrationDir = path.join(__dirname, '../migrations');
-  const names = fs.readdirSync(migrationDir);
-  assert.deepEqual(names.filter((name) => /^023_/.test(name)), ['023_refresh_session_rotation_20260813.sql']);
-});
 
 test('company-wide subset contract passes only when manager owns every included process', async () => {
   const all=[1,2,3,4,5,6,7,8,9];
@@ -246,9 +241,4 @@ test('Excel master sync keeps EXCEL_MASTER_SYNC functional permission in additio
   const routes = read('routes/excelMasterSyncRoutes.js');
   assert.match(routes, /permission\('EXCEL_MASTER_SYNC'\)/);
   assert.match(routes, /checkRole\('admin', 'manager'\)/);
-});
-
-test('Excel master sync adds no authorization migration; migration 023 remains F11 session rotation only', () => {
-  const migrationDir = path.join(__dirname, '../migrations');
-  assert.deepEqual(fs.readdirSync(migrationDir).filter((name) => /^023_/.test(name)), ['023_refresh_session_rotation_20260813.sql']);
 });

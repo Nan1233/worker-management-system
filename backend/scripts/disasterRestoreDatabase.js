@@ -83,7 +83,7 @@ async function main(){
     const env={...process.env,DB_HOST:cfg.host,DB_PORT:String(cfg.port),DB_USER:cfg.user,DB_PASSWORD:cfg.password,DB_NAME:target,DB_SSL:process.env.KTC_RESTORE_DB_SSL||'true',KTC_RESTORE_LOW_LEVEL:'YES',KTC_RUNTIME_ENV_CLASS:'DISPOSABLE'};
     await runNode(path.join(__dirname,'restoreDatabaseBackupIntoTarget.js'),['--file',file],env);
     Object.assign(state,transition(state,'VERIFYING_SCHEMA',{operatorAction:'RESTORE_VERIFY_DATABASE_CONTRACT'})); await writeState(stateFile,state);
-    await runNode(path.join(__dirname,'releaseDatabase.js'),[],env);
+    await runNode(path.join(__dirname,'verifyDatabaseSchema.js'),[],env);
     Object.assign(state,transition(state,'VERIFYING',{operatorAction:'RESTORE_VERIFY_SCHEMA_AND_DATA'})); await writeState(stateFile,state);
     await runNode(path.join(__dirname,'verifyDatabaseSchema.js'),[],env); state.schemaReady=true; state.schemaStatus='READY';
     await runNode(path.join(__dirname,'checkDatabaseIntegrity.js'),[],env);

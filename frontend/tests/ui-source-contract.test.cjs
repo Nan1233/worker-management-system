@@ -61,5 +61,7 @@ test('web auth uses HttpOnly-cookie compatible credentialed requests', () => {
 
 test('release polish stylesheet is loaded after responsive safeguards', () => {
   const main = fs.readFileSync(path.join(srcRoot, 'main.tsx'), 'utf8');
-  assert.match(main, /enterprise-responsive\.css";\nimport "\.\/styles\/release-polish\.css"/);
+  const responsiveIndex = main.indexOf('./styles/enterprise-responsive.css');
+  const releaseIndex = main.indexOf('./styles/release-polish.css');
+  assert.ok(responsiveIndex >= 0 && releaseIndex > responsiveIndex, 'release-polish.css must load after enterprise-responsive.css');
 });

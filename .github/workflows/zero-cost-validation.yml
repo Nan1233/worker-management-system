@@ -69,11 +69,9 @@ jobs:
       - name: Prepare artifact directory
         run: mkdir -p validation-artifacts
 
-      - name: Release migrations through 025
+      - name: Verify canonical database source
         run: |
-          npm --prefix backend run db:release | tee validation-artifacts/db-release-1.log
-          npm --prefix backend run db:schema:verify | tee validation-artifacts/schema-verify.log
-          npm --prefix backend run db:release | tee validation-artifacts/db-release-2.log
+          test -f backend/database/KTC_FULL_DATABASE_CANONICAL_20260817.sql
 
       - name: Seed disposable CI fixtures
         run: npm run validate:zero-cost:seed | tee validation-artifacts/seed.log

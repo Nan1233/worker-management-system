@@ -27,7 +27,7 @@ for (const pkg of ['backend', 'frontend', 'desktop']) {
 assert.match(audit, /audit:prod/);
 
 assert.match(backendRender, /buildCommand: npm ci && npm run verify && npm prune --omit=dev/g);
-assert.match(backendRender, /preDeployCommand: npm run db:release/);
+assert.match(backendRender, /preDeployCommand: npm run db:schema:verify/);
 assert.match(backendRender, /healthCheckPath: \/api\/health\/ready/);
 assert.match(frontendRender, /buildCommand: npm ci && npm run check/);
 
