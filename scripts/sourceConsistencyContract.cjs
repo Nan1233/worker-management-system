@@ -3,71 +3,75 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const crypto = require('node:crypto');
 const assert = require('node:assert/strict');
 
 const root = path.resolve(__dirname, '..');
+const frontend = path.join(root, 'frontend');
 
-function walk(dir) {
-  const out = [];
-  if (!fs.existsSync(dir)) return out;
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...walk(full));
-    else out.push(full);
-  }
-  return out;
+function mustExist(relativePath) {
+  const target = path.join(root, relativePath);
+  assert.ok(fs.existsSync(target), `missing canonical path: ${relativePath}`);
 }
 
-function snapshot(relativeDir) {
-  const base = path.join(root, relativeDir);
-  return new Map(
-    walk(base)
-      .map(file => [
-        path.relative(base, file).replaceAll(path.sep, '/'),
-        crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
-      ])
-  );
+function mustNotExist(relativePath) {
+  const target = path.join(root, relativePath);
+  assert.ok(!fs.existsSync(target), `stale duplicate path must not exist: ${relativePath}`);
 }
 
-function assertMirrored(leftDir, rightDir, label) {
-  const left = snapshot(leftDir);
-  const right = snapshot(rightDir);
-  assert.deepEqual(
-    [...left.keys()].sort(),
-    [...right.keys()].sort(),
-    `${label}: file set drift`
-  );
-
-  const drift = [];
-  for (const [file, hash] of left) {
-    if (right.get(file) !== hash) drift.push(file);
-  }
-  assert.deepEqual(drift, [], `${label}: content drift: ${drift.join(', ')}`);
-}
-
-// Render builds the repository root. Desktop/mobile builds use frontend/.
-// They must consume exactly the same application source.
-assertMirrored('src', 'frontend/src', 'root src <-> frontend/src');
-
-// Native projects are generated/maintained in two locations by the current
-// release layout. Until the repository is structurally consolidated, drift
-// between them must be impossible to miss.
-assertMirrored('android', 'frontend/android', 'root android <-> frontend/android');
-
+// Canonical application source is frontend/. Root is orchestration only.
+// This prevents Render, Desktop and Capacitor from consuming different source trees.
 for (const file of [
+  'frontend/package.json',
+  'frontend/package-lock.json',
+  'frontend/index.html',
+  'frontend/vite.config.ts',
+  'frontend/tsconfig.app.json',
+  'frontend/tsconfig.node.json',
+  'frontend/tsconfig.json',
+  'frontend/capacitor.config.ts',
+  'frontend/render.yaml',
+  'frontend/src',
+  'frontend/public',
+  'frontend/android'
+]) mustExist(file);
+
+for (const stale of [
+  'src',
+  'public',
   'index.html',
   'vite.config.ts',
   'tsconfig.app.json',
   'tsconfig.node.json',
-  'capacitor.config.ts'
-]) {
-  const rootFile = fs.readFileSync(path.join(root, file));
-  const frontendFile = fs.readFileSync(path.join(root, 'frontend', file));
-  assert.deepEqual(rootFile, frontendFile, `${file}: root/frontend config drift`);
+  'tsconfig.json',
+  'capacitor.config.ts',
+  'android'
+]) mustNotExist(stale);
+
+
+function assertNoEmptySourceFiles(dir) {
+  const allowed = new Set();
+  const stack = [dir];
+  while (stack.length) {
+    const current = stack.pop();
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const full = path.join(current, entry.name);
+      if (entry.isDirectory()) stack.push(full);
+      else if (/\.(js|cjs|mjs|ts|tsx|css|json)$/i.test(entry.name)) {
+        assert.notEqual(fs.statSync(full).size, 0, `empty source file: ${path.relative(root, full)}`);
+      }
+    }
+  }
 }
+assertNoEmptySourceFiles(frontend);
+
+const rootPkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+assert.match(rootPkg.scripts.build, /^npm --prefix frontend run build$/);
+assert.match(rootPkg.scripts.check, /^npm --prefix frontend run check$/);
+assert.match(rootPkg.scripts['android:sync'], /^npm --prefix frontend run android:sync$/);
+assert.match(rootPkg.scripts['ios:sync'], /^npm --prefix frontend run ios:sync$/);
 
 const render = fs.readFileSync(path.join(root, 'render.yaml'), 'utf8');
-assert.match(render, /buildCommand:\s*npm ci && npm run check/);
+assert.match(render, /buildCommand:\s*npm ci && npm --prefix frontend ci && npm --prefix frontend run check/);
+assert.match(render, /staticPublishPath:\s*\.\/frontend\/dist/);
 
-console.log('[KTC] source consistency contract PASS');
+console.log('[KTC] canonical source contract PASS: frontend/ is the sole web/mobile source tree');

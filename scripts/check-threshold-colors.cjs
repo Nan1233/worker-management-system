@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const file = path.join(__dirname, '..', 'src', 'pages', 'admin', 'FormulaSettings.css');
+const file = path.join(__dirname, '..', 'frontend', 'src', 'pages', 'admin', 'FormulaSettings.css');
 const css = fs.readFileSync(file, 'utf8');
 const required = [
   '.threshold.red', '.threshold.orange', '.threshold.yellow', '.threshold.green', '.threshold.blue',

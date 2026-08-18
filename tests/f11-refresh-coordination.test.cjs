@@ -5,11 +5,11 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
-const api = () => read('src/services/api.ts');
-const coordinator = () => read('src/services/authRefreshCoordinator.ts');
-const storage = () => read('src/utils/authStorage.ts');
-const authService = () => read('src/services/authService.ts');
-const bootstrap = () => read('src/components/AuthBootstrap.tsx');
+const api = () => read('frontend/src/services/api.ts');
+const coordinator = () => read('frontend/src/services/authRefreshCoordinator.ts');
+const storage = () => read('frontend/src/utils/authStorage.ts');
+const authService = () => read('frontend/src/services/authService.ts');
+const bootstrap = () => read('frontend/src/components/AuthBootstrap.tsx');
 const desktop = () => fs.readFileSync(path.join(root, 'desktop', 'electron', 'main.cjs'), 'utf8');
 
 // Same-tab / retry contracts.

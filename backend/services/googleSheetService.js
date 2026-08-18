@@ -270,7 +270,7 @@ exports.syncProductionReport = async (date) => {
   const client = await auth.getClient();
   const sheets = google.sheets({ version: 'v4', auth: client });
   const result = await writeSheetData(sheets, reports, activeTypes);
-  console.log('GOOGLE SHEET DYNAMIC SYNC:', { date, reports: reports.length, ...result });
+  if (process.env.KTC_DEBUG_INTEGRATIONS === 'true') console.log('[KTC] Google Sheet dynamic sync', { date, reports: reports.length, result });
   return { spreadsheetId, url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`, ...result };
 };
 

@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const srcRoot = path.resolve(__dirname, '..', 'src');
+const srcRoot = path.resolve(__dirname, '..', 'frontend', 'src');
 const allowedDecorativeFiles = new Set([
   path.join(srcRoot, 'pages', 'Login.css'),
   path.join(srcRoot, 'styles', 'ktc-professional.css'),

@@ -4,9 +4,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
-const rules = fs.readFileSync(path.join(root, 'src/pages/worker/productSuggestionRules.ts'), 'utf8');
-const page = fs.readFileSync(path.join(root, 'src/pages/worker/ProcessPage.tsx'), 'utf8');
-const basic = fs.readFileSync(path.join(root, 'src/pages/worker/components/ProcessBasicInfoSection.tsx'), 'utf8');
+const rules = fs.readFileSync(path.join(root, 'frontend/src/pages/worker/productSuggestionRules.ts'), 'utf8');
+const page = fs.readFileSync(path.join(root, 'frontend/src/pages/worker/ProcessPage.tsx'), 'utf8');
+const basic = fs.readFileSync(path.join(root, 'frontend/src/pages/worker/components/ProcessBasicInfoSection.tsx'), 'utf8');
 
 test('product suggestions are scoped by operation mode and selected machine', () => {
   assert.ok(rules.includes('getProductMachineHint'));

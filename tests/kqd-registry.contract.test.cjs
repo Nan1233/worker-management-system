@@ -8,8 +8,8 @@ test('Worker KQD preview shares the explicit configured registry and never prefi
   assert.deepEqual(KQD_EXCLUSION_CODES, ['KQD']);
   assert.equal(isKqdDefect('KQD'), true);
   assert.equal(isKqdDefect('KQD_TEST'), false);
-  const config = fs.readFileSync(path.join(__dirname, '../src/pages/worker/processPageConfig.ts'), 'utf8');
-  const utils = fs.readFileSync(path.join(__dirname, '../src/pages/worker/processFormUtils.ts'), 'utf8');
+  const config = fs.readFileSync(path.join(__dirname, '../frontend/src/pages/worker/processPageConfig.ts'), 'utf8');
+  const utils = fs.readFileSync(path.join(__dirname, '../frontend/src/pages/worker/processFormUtils.ts'), 'utf8');
   assert.match(config, /kqdExclusionRegistry\.json/);
   assert.match(config, /new Set\(kqdExclusionRegistry/);
   assert.match(utils, /kqdCodes\.has\(code\)/);
@@ -27,8 +27,8 @@ test('Worker preview 90 OK + 6 normal NG + 4 configured KQD counts 96 while KQD_
 
 
 test('Worker historical KQD preview does not fall back to mutable current product policy', () => {
-  const page = fs.readFileSync(path.join(__dirname, '../src/pages/worker/ProcessPage.tsx'), 'utf8');
-  const basic = fs.readFileSync(path.join(__dirname, '../src/pages/worker/components/ProcessBasicInfoSection.tsx'), 'utf8');
+  const page = fs.readFileSync(path.join(__dirname, '../frontend/src/pages/worker/ProcessPage.tsx'), 'utf8');
+  const basic = fs.readFileSync(path.join(__dirname, '../frontend/src/pages/worker/components/ProcessBasicInfoSection.tsx'), 'utf8');
   assert.match(page, /resolveProductStandard\([\s\S]*form\.workDate/);
   assert.match(page, /resolvedReportKqdPolicy === true/);
   assert.doesNotMatch(page, /resolvedReportKqdPolicy \?\? \(Number\(selectedProduct\?\.exclude_kqd_from_tt/);

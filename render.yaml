@@ -2,8 +2,8 @@ services:
   - type: web
     name: ktc-frontend
     runtime: static
-    buildCommand: npm ci && npm run check
-    staticPublishPath: ./dist
+    buildCommand: npm ci && npm --prefix frontend ci && npm --prefix frontend run check
+    staticPublishPath: ./frontend/dist
     pullRequestPreviewsEnabled: false
     envVars:
       - key: VITE_API_URL

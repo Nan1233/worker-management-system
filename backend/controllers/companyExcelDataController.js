@@ -96,7 +96,7 @@ async function buildCompanyData(yearMonth, actor) {
 
   const formulaSettings = await getSettingsMap(`${yearMonth}-01`);
 
-  console.log('[KTC] Company Excel data loaded', { yearMonth, diagnostics, formulaSettingDates: reportDates.length });
+  if (process.env.KTC_DEBUG_EXPORTS === 'true') console.log('[KTC] Company Excel data loaded', { yearMonth, diagnostics, formulaSettingDates: reportDates.length });
 
   return {
     yearMonth,

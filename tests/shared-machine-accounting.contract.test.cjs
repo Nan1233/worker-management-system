@@ -6,8 +6,8 @@ const root=path.resolve(__dirname,'..');
 const read=(rel)=>fs.readFileSync(path.join(root,rel),'utf8');
 
 test('manager/lead report detail exposes physical-event management without worker physical controls',()=>{
-  const detail=read('src/pages/manager/ReportDetail.tsx');
-  const panel=read('src/pages/manager/MachineEventPanel.tsx');
+  const detail=read('frontend/src/pages/manager/ReportDetail.tsx');
+  const panel=read('frontend/src/pages/manager/MachineEventPanel.tsx');
   assert.match(detail,/MachineEventPanel/);
   assert.match(panel,/Physical machine event/);
   assert.match(panel,/credited output/);
@@ -20,14 +20,14 @@ test('manager/lead report detail exposes physical-event management without worke
 });
 
 test('worker shared-machine wording distinguishes credited output from physical machine truth',()=>{
-  const source=read('src/pages/worker/components/ProcessBasicInfoSection.tsx');
+  const source=read('frontend/src/pages/worker/components/ProcessBasicInfoSection.tsx');
   assert.match(source,/Shared machine:/);
   assert.match(source,/sản lượng được credit/);
   assert.match(source,/production event riêng/);
 });
 
 test('frontend event API separates event physical truth from report service',()=>{
-  const source=read('src/services/productionService.ts');
+  const source=read('frontend/src/services/productionService.ts');
   assert.match(source,/createMachineProductionEvent/);
   assert.match(source,/linkMachineEventParticipants/);
   assert.match(source,/approveMachineProductionEvent/);

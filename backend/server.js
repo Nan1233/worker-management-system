@@ -382,7 +382,7 @@ async function initializeRuntime() {
     const database = await db.testConnection();
     runtimeReadiness.databaseLatencyMs = Date.now() - databaseStartedAt;
     runtimeReadiness.database = "ok";
-    console.log(`Database connected: ${database.host}:${database.port}; SSL=${database.ssl}`);
+    console.log(`[KTC] Database connected; SSL=${database.ssl}`);
 
     const schema = await assertDatabaseSchemaReady();
     const diagnostics = toSafeSchemaDiagnostics(schema);
@@ -458,7 +458,7 @@ async function start() {
 
   server = app.listen(PORT, "0.0.0.0", () => {
     const version = require("./config/version");
-    console.log(`Server running at port ${PORT}`);
+    console.log(`[KTC] Server running; port=${PORT}`);
     console.log(`[KTC] backendVersion=${version.backendVersion} commitSha=${version.commitSha} apiVersion=${version.apiVersion} schemaVersion=${version.schemaVersion}`);
     void initializeRuntime();
   });

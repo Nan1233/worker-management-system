@@ -87,7 +87,7 @@
   min-height: 40px;
   border: 1px solid #d6e1ee;
   border-radius: 9px;
-  background: #fff;
+  background: var(--ktc-surface);
   color: #53667e;
   font-size: 12px;
   font-weight: 750;
@@ -161,7 +161,7 @@
   min-height: 38px !important;
   padding: 6px 9px !important;
   border-radius: 9px !important;
-  background: #fff !important;
+  background: var(--ktc-surface) !important;
 }
 .worker-machine-policy-note {
   margin: -2px 0 12px;
@@ -179,7 +179,7 @@
   padding: 14px;
   border: 1px solid #d8e3ef;
   border-radius: 12px;
-  background: #fff;
+  background: var(--ktc-surface);
 }
 .machine-card-header { margin-bottom: 12px; }
 .machine-card-title-wrap {
@@ -269,7 +269,7 @@
   border: 1px solid #d6e0eb;
   border-radius: 9px;
   padding: 7px 10px;
-  background: #fff;
+  background: var(--ktc-surface);
   color: #22364e;
   font-size: 14px;
   font-weight: 700;

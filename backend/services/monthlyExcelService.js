@@ -173,7 +173,7 @@ const buildMonthlyWorkbookInternal = async (yearMonth) => {
         defectTypes: reports.defectTypes || []
     });
 
-    console.log("MONTHLY EXCEL UPDATED:", result.archivePath);
+    if (process.env.KTC_DEBUG_EXPORTS === "true") console.log("[KTC] Monthly Excel updated", { archivePath: result.archivePath });
     return {
         path: result.archivePath,
         fileName: result.fileName,

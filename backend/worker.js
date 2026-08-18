@@ -21,7 +21,7 @@ async function main() {
   const pollMs = Math.max(Number(process.env.SYNC_WORKER_POLL_MS || 15000), 5000);
   const batchSize = Math.min(50, Math.max(1, Number(process.env.SYNC_WORKER_BATCH || 5)));
 
-  console.log(`Sync worker started; db=${database.host}:${database.port}; poll=${pollMs}ms; batch=${batchSize}`);
+  console.log(`[KTC] Sync worker started; poll=${pollMs}ms; batch=${batchSize}`);
 
   while (!stopping) {
     try {

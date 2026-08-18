@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const read = (file) => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 
-for (const file of ['src/pages/manager/Reports.tsx', 'src/pages/manager/ApprovedReports.tsx']) {
+for (const file of ['frontend/src/pages/manager/Reports.tsx', 'frontend/src/pages/manager/ApprovedReports.tsx']) {
   test(`${file} ignores stale list responses after filter changes`, () => {
     const source = read(file);
     assert.match(source, /reportLoadSeqRef = useRef\(0\)/);

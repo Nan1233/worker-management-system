@@ -3,8 +3,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
-const hook = fs.readFileSync(path.join(root, 'src/pages/worker/useProcessMasterData.ts'), 'utf8');
-const normalizer = fs.readFileSync(path.join(root, 'src/pages/worker/processMasterDataNormalization.ts'), 'utf8');
+const hook = fs.readFileSync(path.join(root, 'frontend/src/pages/worker/useProcessMasterData.ts'), 'utf8');
+const normalizer = fs.readFileSync(path.join(root, 'frontend/src/pages/worker/processMasterDataNormalization.ts'), 'utf8');
 
 assert.match(hook, /normalizeDefectOptions\(defects\.value\)/);
 assert.match(hook, /normalizeDeductionOptions\(deductions\.value\)/);

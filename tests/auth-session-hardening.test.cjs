@@ -7,8 +7,8 @@ const root = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
 test('cross-tab account switch retires stale tab access state without deleting shared refresh session', () => {
-  const storage = read('src/utils/authStorage.ts');
-  const api = read('src/services/api.ts');
+  const storage = read('frontend/src/utils/authStorage.ts');
+  const api = read('frontend/src/services/api.ts');
 
   assert.match(storage, /export function clearCurrentTabAuthSession\(\): void/);
   assert.match(storage, /sessionStorage\.removeItem\(key\)/);
@@ -25,7 +25,7 @@ test('cross-tab account switch retires stale tab access state without deleting s
 });
 
 test('refresh response cannot silently change authenticated user identity', () => {
-  const api = read('src/services/api.ts');
+  const api = read('frontend/src/services/api.ts');
   assert.match(api, /const currentUser = getStoredUser\(\)/);
   assert.match(api, /currentUser\.id !== refreshedUser\.id/);
   assert.match(api, /Phiên làm mới thuộc tài khoản khác/);
@@ -33,14 +33,14 @@ test('refresh response cannot silently change authenticated user identity', () =
 });
 
 test('passive cross-tab redirect does not bump auth epoch back and log out the newly signed-in tab', () => {
-  const login = read('src/pages/Login.tsx');
+  const login = read('frontend/src/pages/Login.tsx');
   assert.match(login, /passiveCrossTabRedirect/);
   assert.match(login, /sessionStorage\.removeItem\(CROSS_TAB_LOGIN_MARKER_KEY\)/);
   assert.match(login, /if \(passiveCrossTabRedirect\)[\s\S]*?clearCurrentTabAuthSession\(\)[\s\S]*?else[\s\S]*?beginLoginTransition\(\)/);
 });
 
 test('login still isolates the new request from previous account tokens', () => {
-  const authService = read('src/services/authService.ts');
+  const authService = read('frontend/src/services/authService.ts');
   assert.match(authService, /const previousRefreshToken = getRefreshToken\(\)/);
   assert.match(authService, /const loginEpoch = beginLoginTransition\(\)/);
   assert.match(authService, /clearAuthSession\(\{ bumpEpoch: false \}\)/);

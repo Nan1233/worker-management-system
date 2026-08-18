@@ -18,7 +18,7 @@ test('GitHub Actions remain disabled by policy', () => {
 });
 
 test('manager selected review has resilient partial loading and retry', () => {
-  const source = read('src/pages/manager/SelectedReportsReview.tsx');
+  const source = read('frontend/src/pages/manager/SelectedReportsReview.tsx');
   assert.match(source, /Promise\.allSettled/);
   assert.match(source, /Tải lại/);
   assert.match(source, /aria-live="assertive"/);
