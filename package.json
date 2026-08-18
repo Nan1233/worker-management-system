@@ -46,7 +46,7 @@
     "audit:excel:roundtrip": "node scripts/excelRoundTripContract.cjs",
     "audit:performance": "node scripts/performanceAudit.cjs",
     "audit:final": "node scripts/finalReleaseAudit.cjs",
-    "quality:final": "npm run audit:final && npm run audit:security && npm run audit:release && npm run audit:excel:stability && npm run audit:performance && npm run perf:benchmark && npm run audit:excel:roundtrip && npm run quality:all",
+    "audit:dependency:contract": "node scripts/dependencyReleaseContract.cjs",
     "audit:security": "node scripts/securityContract.cjs",
     "audit:release": "node scripts/releaseConsistencyContract.cjs",
     "audit:excel:stability": "node scripts/excelStabilityContract.cjs",
@@ -54,7 +54,8 @@
     "ios:release:check": "npm --prefix frontend run ios:release:check",
     "mobile:release:check": "npm run android:release:check && npm run ios:release:check",
     "audit:dependencies": "npm audit --omit=dev --audit-level=high",
-    "audit:dependencies:all": "npm audit --audit-level=high"
+    "audit:dependencies:all": "npm audit --audit-level=high",
+    "quality:final": "npm run audit:final && npm run audit:security && npm run audit:dependency:contract && npm run audit:release && npm run mobile:release:check && npm run audit:excel:stability && npm run audit:performance && npm run perf:benchmark && npm run audit:excel:roundtrip && npm run quality:all"
   },
   "dependencies": {
     "@capacitor/android": "8.5.0",
@@ -78,7 +79,5 @@
     "typescript": "6.0.3",
     "typescript-eslint": "8.63.0",
     "vite": "8.1.4"
-  },
-  "audit:dependency:contract": "node scripts/dependencyReleaseContract.cjs",
-  "quality:final": "npm run audit:final && npm run audit:security && npm run audit:dependency:contract && npm run audit:release && npm run mobile:release:check && npm run audit:excel:stability && npm run audit:performance && npm run perf:benchmark && npm run audit:excel:roundtrip && npm run quality:all"
+  }
 }
