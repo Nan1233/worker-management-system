@@ -19,14 +19,7 @@ for (const dir of ['frontend','desktop']) {
   const pkg=json(`${dir}/package.json`), lock=json(`${dir}/package-lock.json`);
   assert.ok(Number.isInteger(lock.lockfileVersion),`${dir} lockfileVersion missing`);
   assert.equal(lock.packages[''].name,pkg.name,`${dir} lock package name drift`);
-
-  // Runtime dependencies are release-critical and must match exactly.
   assert.deepEqual(lock.packages[''].dependencies||{},pkg.dependencies||{},`${dir} dependencies lock drift`);
-
-  // npm ci validates the resolved dependency graph. The root package-lock
-  // metadata can legitimately lag a newly declared direct devDependency;
-  // require every lock-pinned devDependency to remain declared in package.json
-  // without making this contract fail before npm ci gets to validate the graph.
   const lockDev = lock.packages[''].devDependencies||{};
   const pkgDev = pkg.devDependencies||{};
   for (const [name, version] of Object.entries(lockDev)) {
@@ -44,6 +37,7 @@ for (const [name,cmd] of Object.entries(rootPkg.scripts)) {
   if (m) assert.ok(fs.existsSync(path.join(root,m[1])),`root script ${name} points to missing ${m[1]}`);
 }
 
+// Desktop release artifacts have one canonical owner: desktop/.
 assert.ok(!fs.existsSync(path.join(root,'backend/README.md')), 'stale duplicate desktop README must not live under backend');
 assert.ok(!fs.existsSync(path.join(root,'backend/build-release.bat')), 'stale desktop release batch must not live under backend');
 const releaseBat=read('desktop/build-release.bat');
