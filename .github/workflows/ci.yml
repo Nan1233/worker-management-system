@@ -16,9 +16,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-      - run: npm ci --prefix backend
+      - run: npm install --prefix backend
       - run: npm --prefix backend run check
       - run: npm --prefix backend test
 
