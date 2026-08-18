@@ -15,13 +15,46 @@ const historyModel = require("./productionTempHistoryModel");
  * worker controller, while the split create model currently accepts the
  * individual arguments. Normalize that boundary here so worker submissions
  * cannot accidentally pass { data, defects, ... } as the report itself.
+ *
+ * Worker identity compatibility:
+ * the controller's canonical field is worker_id, while older split-model
+ * code paths may read workerId. Keep both aliases populated at this boundary
+ * so training snapshots, duplicate protection and report creation all use the
+ * same authenticated worker identity.
  */
-const createCompleteReport = async (payload = {}) => {
-    const data = payload?.data ?? payload;
-    const defects = Array.isArray(payload?.defects) ? payload.defects : [];
-    const deductions = Array.isArray(payload?.deductions) ? payload.deductions : [];
-    const machineLines = Array.isArray(payload?.machineLines) ? payload.machineLines : [];
-    const audit = payload?.audit && typeof payload.audit === "object" ? payload.audit : {};
+const createCompleteReport = async (payload = {}, legacyDefects, legacyDeductions, legacyMachineLines, legacyAudit) => {
+    const isWrappedPayload = payload && typeof payload === "object" && payload.data && typeof payload.data === "object";
+    const rawData = isWrappedPayload ? payload.data : payload;
+
+    const data = {
+        ...(rawData || {}),
+        worker_id: rawData?.worker_id ?? rawData?.workerId ?? null,
+        workerId: rawData?.workerId ?? rawData?.worker_id ?? null,
+    };
+
+    const defects = isWrappedPayload
+        ? (Array.isArray(payload.defects) ? payload.defects : [])
+        : (Array.isArray(legacyDefects) ? legacyDefects : (Array.isArray(rawData?.defects) ? rawData.defects : []));
+
+    const deductions = isWrappedPayload
+        ? (Array.isArray(payload.deductions) ? payload.deductions : [])
+        : (Array.isArray(legacyDeductions) ? legacyDeductions : (Array.isArray(rawData?.deductions) ? rawData.deductions : []));
+
+    const machineLines = isWrappedPayload
+        ? (Array.isArray(payload.machineLines) ? payload.machineLines : [])
+        : (Array.isArray(legacyMachineLines) ? legacyMachineLines : (Array.isArray(rawData?.machineLines) ? rawData.machineLines : []));
+
+    const audit = isWrappedPayload
+        ? (payload.audit && typeof payload.audit === "object" ? payload.audit : {})
+        : (legacyAudit && typeof legacyAudit === "object" ? legacyAudit : (rawData?.audit && typeof rawData.audit === "object" ? rawData.audit : {}));
+
+    if (!Number.isInteger(Number(data.worker_id)) || Number(data.worker_id) <= 0) {
+        const error = new Error("Không xác định được nhân viên để chụp % học việc");
+        error.code = "TRAINING_SNAPSHOT_WORKER_REQUIRED";
+        error.status = 422;
+        error.isPublic = true;
+        throw error;
+    }
 
     const result = await createModel.createCompleteReport(
         data,
