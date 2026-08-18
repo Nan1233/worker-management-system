@@ -1,6 +1,6 @@
 {
   "name": "backend",
-  "version": "1.9.10",
+  "version": "1.9.11",
   "description": "KTC internal production reporting API optimized for Render and TiDB",
   "main": "server.js",
   "scripts": {
@@ -9,6 +9,7 @@
     "dev": "nodemon server.js",
     "check": "node --check server.js && node scripts/checkSource.js",
     "db:indexes": "node scripts/ensureIndexes.js",
+    "db:analyze": "node scripts/analyzeTables.js",
     "db:analyze": "node scripts/analyzeTables.js",
     "test": "node --test tests/*.test.js",
     "verify": "npm run check && npm test",
@@ -30,5 +31,21 @@
     "audit:logical-duplicates": "node scripts/auditLogicalDuplicates.js",
     "audit:worker-processes": "node scripts/auditWorkerProcesses.js",
     "audit:production-indexes": "node scripts/auditProductionIndexes.js"
+  },
+  "dependencies": {
+    "bcrypt": "6.0.0",
+    "cors": "2.8.6",
+    "dotenv": "17.4.2",
+    "exceljs": "4.4.0",
+    "express": "5.2.1",
+    "express-rate-limit": "8.6.1",
+    "googleapis": "173.0.0",
+    "helmet": "8.3.0",
+    "ipaddr.js": "1.9.1",
+    "jsonwebtoken": "9.0.3",
+    "mysql2": "3.23.2"
+  },
+  "devDependencies": {
+    "nodemon": "3.1.14"
   }
 }
