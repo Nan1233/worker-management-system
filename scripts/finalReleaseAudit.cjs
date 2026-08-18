@@ -17,6 +17,18 @@ assert.equal(packageJson.version, frontendPackage.version, 'Root/frontend versio
 assert.ok(backendPackage.version, 'Backend version missing');
 assert.ok(fs.existsSync(path.join(root, 'backend', 'templates', 'KTC-Bao-cao-9-cong-doan.xlsx')), 'Canonical Excel template missing');
 assert.ok(!fs.existsSync(path.join(root, '.github', 'workflows')), 'GitHub Actions directory must remain absent/disabled');
+const approvalModel = read('backend/models/productionTempApprovalModel.js');
+assert.ok(fs.existsSync(path.join(root, 'backend', 'services', 'productionApprovalService.js')), 'Approval serialization service missing');
+for (const marker of [
+  'JOIN manager_processes mp ON mp.process_id = temp.process_id',
+  'loadLockedReportingPeriods(connection, rows)',
+  'copyMachineLinesToApproved(item.id, approvedReportId, connection)',
+  'createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, connection)',
+  'await createApprovedReportVersion(',
+  'AuditService.createReportVersion({',
+]) {
+  assert.ok(approvalModel.includes(marker), `Approval release contract missing: ${marker}`);
+}
 
 const forbidden = [];
 const ignored = new Set(['node_modules', '.git', 'dist', 'build', 'coverage', '.gradle', 'validation-artifacts']);
@@ -35,7 +47,7 @@ walk(root);
 assert.deepEqual(forbidden, [], `Temporary/backup source files found: ${forbidden.join(', ')}`);
 
 try {
-  const tracked = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' });
+  const tracked = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   const envTracked = tracked.split(/\r?\n/).filter((x) => /^(\.env|.*\/\.env)$/.test(x));
   assert.deepEqual(envTracked, [], 'A real .env file is tracked in Git');
 } catch (_) {

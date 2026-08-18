@@ -36,6 +36,15 @@ test('P0 manager authorization is process-scoped before approval', () => {
   assert.match(source, /mp\.manager_id = \?/);
 });
 
+test('P0 approval preserves machine graph, historical snapshot and canonical version after approval insert', () => {
+  const source = read('models/productionTempApprovalModel.js');
+  assert.match(source, /copyMachineLinesToApproved\(item\.id, approvedReportId, connection\)/);
+  assert.match(source, /production_report_machine_defects/);
+  assert.match(source, /createLegacyApprovedSnapshot\(item, approvedReportId, reviewerId, connection\)/);
+  assert.match(source, /await createApprovedReportVersion\(/);
+  assert.match(source, /AuditService\.createReportVersion\(\{[\s\S]*reportType:\"temp\"/);
+});
+
 test('P0 runtime schema verifier uses a minimum structural contract and keeps full drift diagnostics non-blocking', () => {
   const source = read('services/databaseSchemaService.js');
   const verifier = read('scripts/verifyDatabaseSchema.js');
