@@ -255,8 +255,8 @@ async function performNetworkRefresh(): Promise<CoordinatedRefreshSuccess> {
     clearLegacyRefreshToken();
 
     return {
-        accessToken: newAccessToken,
-        user: refreshedUser
+            accessToken: newAccessToken,
+            user: refreshedUser
     };
 }
 

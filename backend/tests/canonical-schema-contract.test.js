@@ -52,7 +52,7 @@ test('canonical contract includes precision, nullability and critical indexes', 
   );
 });
 
-test('canonical contract is bidirectional: every DB table/column/index must belong to the source contract', () => {
+test('canonical contract defines a complete minimum runtime shape for every table', () => {
   const schema = getCanonicalSchema();
 
   for (const [table, contract] of Object.entries(schema.tables)) {

@@ -116,15 +116,18 @@ async function verifyDatabaseSchema({ executor = db.promise() } = {}) {
       }
     }
 
+    // The canonical contract is a minimum runtime contract, not a mandate to
+    // delete legacy database objects. Older production databases can legitimately
+    // contain migration-era tables, columns, or indexes after the migration
+    // runtime has been removed. Those extras are reported for observability but
+    // must not prevent the application from becoming READY. Missing/invalid
+    // canonical structures remain blocking because runtime code may depend on them.
     const ready =
       missingTables.length === 0 &&
-      extraTables.length === 0 &&
       missingColumns.length === 0 &&
       invalidColumns.length === 0 &&
-      extraColumns.length === 0 &&
       missingIndexes.length === 0 &&
-      invalidIndexes.length === 0 &&
-      extraIndexes.length === 0;
+      invalidIndexes.length === 0;
 
     return {
       ready,

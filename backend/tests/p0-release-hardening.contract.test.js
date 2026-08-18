@@ -36,7 +36,7 @@ test('P0 manager authorization is process-scoped before approval', () => {
   assert.match(source, /mp\.manager_id = \?/);
 });
 
-test('P0 schema verifier is bidirectional and reports extra drift', () => {
+test('P0 schema verifier blocks missing/invalid canonical drift but reports extras', () => {
   const source = read('services/databaseSchemaService.js');
   const verifier = read('scripts/verifyDatabaseSchema.js');
   assert.match(source, /extraTables/);
