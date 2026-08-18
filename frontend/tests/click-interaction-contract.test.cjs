@@ -17,7 +17,7 @@ test('application content is above decorative layers and native controls remain 
 
 test('service worker click-fix release invalidates stale cache namespace', () => {
   const sw = read('public/sw.js');
-  assert.match(sw, /1\.8\.18-mobile-nav-click-fix-20260817/);
+  assert.match(sw, /1\.8\.22-manager-ui-v2-20260817/);
   assert.match(sw, /self\.skipWaiting\(\)/);
   assert.match(sw, /self\.clients\.claim\(\)/);
 });
