@@ -7,9 +7,49 @@ const query = (executor, sql, params = []) => executor.promise
 
 let schemaReadyPromise = null;
 
-async function ensureSchema() {
-  // Canonical DB snapshot owns schema creation; runtime only verifies it.
-  if (!schemaReadyPromise) schemaReadyPromise = Promise.resolve(true);
+async function ensureSchema(executor = db) {
+  // Existing TiDB deployments may predate the notification link/entity columns.
+  // Repair only the missing additive columns so notification writes remain compatible.
+  if (!schemaReadyPromise) {
+    schemaReadyPromise = (async () => {
+      const [rows] = await query(
+        executor,
+        `SELECT COLUMN_NAME
+           FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'notifications'`,
+      );
+      const columns = new Set(rows.map((row) => String(row.COLUMN_NAME).toLowerCase()));
+      const additions = [
+        ['link_url', 'VARCHAR(1000) NULL AFTER message'],
+        ['entity_type', 'VARCHAR(80) NULL AFTER link_url'],
+        ['entity_id', 'BIGINT NULL AFTER entity_type'],
+      ];
+
+      for (const [column, definition] of additions) {
+        if (columns.has(column)) continue;
+        try {
+          await query(executor, `ALTER TABLE notifications ADD COLUMN ${column} ${definition}`);
+        } catch (error) {
+          if (!/duplicate column|already exists/i.test(String(error?.message || ''))) throw error;
+        }
+      }
+
+      try {
+        await query(
+          executor,
+          'CREATE INDEX idx_notification_entity ON notifications (entity_type, entity_id)',
+        );
+      } catch (error) {
+        if (!/duplicate key name|already exists/i.test(String(error?.message || ''))) throw error;
+      }
+
+      return true;
+    })().catch((error) => {
+      schemaReadyPromise = null;
+      throw error;
+    });
+  }
   return schemaReadyPromise;
 }
 
@@ -84,7 +124,6 @@ async function createReportVersion(
   return versionNo;
 }
 
-
 async function loadTempReportSnapshot(reportId, executor = db) {
   const [reportRows] = await query(
     executor,
@@ -155,6 +194,8 @@ async function notifyUsers(userIds, payload, executor = db) {
     .filter((id) => Number.isInteger(id) && id > 0))];
 
   if (!ids.length) return;
+
+  await ensureSchema(executor);
 
   const values = ids.map(() => '(?,?,?,?,?,?,?)').join(',');
   const params = ids.flatMap((id) => [
