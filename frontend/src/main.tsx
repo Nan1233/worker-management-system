@@ -3,6 +3,8 @@ import ReactDOM from "react-dom/client";
 import { HashRouter } from "react-router-dom";
 
 import App from "./App";
+import "./index.css";
+import "./styles/ktc-professional.css";
 import "./styles/app-shell.css";
 import "./styles/production/production-ui.css";
 import "./styles/enterprise-responsive.css";
@@ -18,6 +20,7 @@ import "./styles/worker-form-redesign.css";
 import "./styles/ktc-web-redesign.css";
 import "./styles/notification-ui-hardening.css";
 import "./styles/final-demo-ui.css";
+import "./styles/demo-ui-overhaul.css";
 import { ToastProvider } from "./components/feedback/ToastProvider";
 import AuthBootstrap from "./components/AuthBootstrap";
 import AppErrorBoundary from "./components/system/AppErrorBoundary";
