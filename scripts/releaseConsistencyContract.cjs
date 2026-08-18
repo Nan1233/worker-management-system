@@ -13,7 +13,9 @@ for (const p of [
   'frontend/android/app/src/main/AndroidManifest.xml','frontend/android/app/src/main/java/com/ktchanoi/productioncontrol/MainActivity.java'
 ]) assert.ok(fs.existsSync(path.join(root,p)), `missing release path: ${p}`);
 
-for (const dir of ['backend','frontend','desktop']) {
+// Backend intentionally has no committed npm lockfile. Its CI/Render policy
+// therefore uses npm install. Frontend and desktop remain lockfile-pinned.
+for (const dir of ['frontend','desktop']) {
   const pkg=json(`${dir}/package.json`), lock=json(`${dir}/package-lock.json`);
   assert.equal(lock.version,pkg.version,`${dir} lock top-level version drift`);
   assert.equal(lock.packages[''].version,pkg.version,`${dir} lock root package version drift`);
@@ -21,6 +23,10 @@ for (const dir of ['backend','frontend','desktop']) {
     assert.deepEqual(lock.packages[''][section]||{},pkg[section]||{},`${dir} ${section} lock drift`);
   }
 }
+
+const backendPkg = json('backend/package.json');
+assert.ok(backendPkg.name === 'backend', 'backend package manifest missing or invalid');
+assert.ok(!fs.existsSync(path.join(root,'backend/package-lock.json')), 'backend lockfile policy drift: add the lockfile and switch CI/Render back to npm ci');
 
 const rootPkg=json('package.json');
 for (const [name,cmd] of Object.entries(rootPkg.scripts)) {
