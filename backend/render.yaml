@@ -2,8 +2,8 @@ services:
   - type: web
     name: worker-management-api
     runtime: node
-    buildCommand: npm ci && npm run verify && npm prune --omit=dev
-    preDeployCommand: npm run db:release
+    rootDir: backend
+    buildCommand: npm install --omit=dev
     startCommand: npm start
     healthCheckPath: /api/health/ready
     autoDeploy: true
@@ -28,7 +28,8 @@ services:
   - type: worker
     name: worker-management-sync
     runtime: node
-    buildCommand: npm ci && npm run verify && npm prune --omit=dev
+    rootDir: backend
+    buildCommand: npm install --omit=dev
     startCommand: npm run worker
     autoDeploy: true
     envVars:
