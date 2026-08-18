@@ -2,6 +2,17 @@ name: KTC Zero Extra Cost Validation
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'desktop/**'
+      - 'scripts/**'
+      - 'shared/**'
+      - '.github/workflows/**'
+      - 'package.json'
+      - 'docs/**'
 
 permissions:
   contents: read
@@ -56,13 +67,12 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: |
-            backend/package-lock.json
             frontend/package-lock.json
             desktop/package-lock.json
 
-      - name: Install pinned dependencies
+      - name: Install dependencies
         run: |
-          npm ci --prefix backend
+          npm install --prefix backend
           npm ci --prefix frontend
           npm ci --prefix desktop
 
@@ -70,8 +80,7 @@ jobs:
         run: mkdir -p validation-artifacts
 
       - name: Verify canonical database source
-        run: |
-          test -f backend/database/KTC_FULL_DATABASE_CANONICAL_20260817.sql
+        run: test -f backend/database/KTC_FULL_DATABASE_CANONICAL_20260817.sql
 
       - name: Seed disposable CI fixtures
         run: npm run validate:zero-cost:seed | tee validation-artifacts/seed.log
@@ -99,6 +108,12 @@ jobs:
 
       - name: Frontend lint typecheck tests build
         run: npm --prefix frontend run check | tee validation-artifacts/frontend-check.log
+
+      - name: Root release contracts
+        run: |
+          npm run verify:release-contract | tee validation-artifacts/release-gate.log
+          npm run verify:release-consistency | tee validation-artifacts/release-consistency.log
+          npm run verify:excel-contract | tee validation-artifacts/excel-contract.log
 
       - name: Critical 23-case E2E
         run: npm run validate:zero-cost:e2e | tee validation-artifacts/critical-e2e.log
