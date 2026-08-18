@@ -38,7 +38,9 @@
     "ios:prepare": "npm install --no-save --package-lock=false @capacitor/core@8.5.0 @capacitor/ios@8.5.0 @capacitor/cli@8.5.0",
     "ios:doctor": "npm run ios:prepare && cap doctor",
     "ios:doctor:production": "npm run ios:doctor && node scripts/checkIosReleaseContract.cjs",
-    "android:release:check": "node scripts/checkAndroidReleaseContract.cjs"
+    "android:release:check": "node scripts/checkAndroidReleaseContract.cjs",
+    "restore:rehearsal": "node backend/scripts/rehearseDatabaseRestore.js",
+    "load:readiness": "node backend/scripts/loadReadiness.js"
   },
   "dependencies": {
     "@capacitor/android": "8.5.0",

@@ -4,9 +4,7 @@ const path = require('node:path');
 const fs = require('node:fs/promises');
 
 const TEMPLATE_CANDIDATES = [
-  path.join(__dirname, '../templates/file mẫu.xlsx'),
-  path.join(__dirname, '../templates/file m#U1eabu.xlsx'),
-  path.join(__dirname, '../templates/file mß║½u.xlsx')
+  path.join(__dirname, '../templates/KTC-Bao-cao-9-cong-doan.xlsx')
 ];
 
 const PROCESS_TEMPLATE_CONTRACTS = Object.freeze({
@@ -26,6 +24,7 @@ function normalizeLabel(value) {
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/đ/gi, 'd')
     .replace(/[\r\n]+/g, ' ')
+    .replace(/[^a-zA-Z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim().toLowerCase();
 }

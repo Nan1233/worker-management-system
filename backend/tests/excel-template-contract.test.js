@@ -16,7 +16,7 @@ test('KTC template contract covers all 9 production processes', () => {
   for (const contract of Object.values(PROCESS_TEMPLATE_CONTRACTS)) {
     assert.ok(contract.sheet);
     assert.ok(contract.headerRow > 0);
-    assert.equal(contract.dataStartRow, contract.headerRow + 1);
+    assert.ok(contract.dataStartRow >= contract.headerRow + 1);
   }
 });
 

@@ -4,7 +4,7 @@ services:
     runtime: node
     rootDir: backend
     buildCommand: npm install && npm run verify && npm prune --omit=dev
-    preDeployCommand: npm run db:schema:verify
+    preDeployCommand: npm run db:schema:verify && npm run p0:runtime:verify
     startCommand: npm start
     healthCheckPath: /api/health/ready
     autoDeploy: true
@@ -23,14 +23,13 @@ services:
         value: "30000"
       - key: INLINE_SYNC_TRIGGER
         value: "false"
-      - key: COMPANY_ALLOWED_IPS
-        value: "113.160.133.126"
 
   - type: worker
     name: worker-management-sync
     runtime: node
     rootDir: backend
     buildCommand: npm install && npm run verify && npm prune --omit=dev
+    preDeployCommand: npm run db:schema:verify && npm run p0:runtime:verify
     startCommand: npm run worker
     autoDeploy: true
     envVars:
