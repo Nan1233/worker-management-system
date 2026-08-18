@@ -466,3 +466,17 @@
 .management-selected-info .management-shortcut-hint { color:var(--ktc-text-muted); font-size:11px; }
 .management-selected-info button { margin-left:auto; }
 @media (max-width:640px){ .management-selected-info .management-shortcut-hint{ width:100%; order:3; } .management-selected-info button{ margin-left:0; } }
+
+/* P1 shared state + control polish */
+.management-search-box input,
+.management-filter-field input,
+.management-filter-field select,
+.management-excel-month-panel input,
+.management-excel-month-panel select { box-sizing: border-box; min-height: 42px; }
+.management-pagination button { min-width: 40px; min-height: 40px; }
+.management-empty { border: 1px dashed var(--ktc-border); border-radius: 12px; background: var(--ktc-surface-subtle); }
+.management-empty::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ktc-brand-300); opacity: .9; }
+@media (max-width: 520px) {
+  .management-pagination { gap: 5px; flex-wrap: wrap; }
+  .management-pagination button { min-width: 42px; min-height: 42px; }
+}
