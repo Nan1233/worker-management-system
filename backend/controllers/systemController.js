@@ -6,6 +6,7 @@ const { createApprovedReportVersion } = require('../services/approvedVersionSnap
 const runtimeMetrics = require('../services/runtimeMetrics');
 
 const workerNotificationBackfills = new Map();
+const WORKER_NOTIFICATION_BACKFILL_TTL_MS = Math.max(60_000, Number(process.env.WORKER_NOTIFICATION_BACKFILL_TTL_MS || 10 * 60_000));
 
 async function executeWorkerNotificationBackfill(user) {
  const userId = Number(user?.id || 0);
@@ -79,8 +80,12 @@ async function backfillWorkerReportNotifications(user) {
  if (!userId || user?.role !== 'worker') return;
 
  const current = workerNotificationBackfills.get(userId);
- if (current) {
-  await current;
+ const now = Date.now();
+ if (current?.promise) {
+  await current.promise;
+  return;
+ }
+ if (current?.completedAt && now - current.completedAt < WORKER_NOTIFICATION_BACKFILL_TTL_MS) {
   return;
  }
 
@@ -93,11 +98,20 @@ async function backfillWorkerReportNotifications(user) {
    });
    throw error;
   })
-  .finally(() => {
+  .then(() => {
+   const completedAt = Date.now();
+   workerNotificationBackfills.set(userId, { completedAt });
+   setTimeout(() => {
+    const current = workerNotificationBackfills.get(userId);
+    if (current?.completedAt === completedAt) workerNotificationBackfills.delete(userId);
+   }, WORKER_NOTIFICATION_BACKFILL_TTL_MS).unref?.();
+  })
+  .catch(() => {
    workerNotificationBackfills.delete(userId);
+   throw new Error('WORKER_NOTIFICATION_BACKFILL_FAILED');
   });
 
- workerNotificationBackfills.set(userId, task);
+ workerNotificationBackfills.set(userId, { promise: task });
  await task;
 }
 
@@ -191,8 +205,15 @@ exports.getActivities = async (req,res) => {
    const like=`%${search}%`;params.push(like,like,like,like,like,like);
   }
 
+  const beforeId = Number(req.query.before_id || 0);
+  if (Number.isInteger(beforeId) && beforeId > 0) {
+   where += ' AND a.id < ?';
+   params.push(beforeId);
+  }
+
   const [rows]=await db.promise().query(
-   `SELECT a.*,u.full_name,u.username,u.role
+   `SELECT a.id,a.user_id,a.action,a.entity_type,a.entity_id,a.description,a.metadata_json,a.ip_address,a.user_agent,a.created_at,
+           u.full_name,u.username,u.role
     FROM activity_logs a
     LEFT JOIN users u ON u.id=a.user_id
     WHERE ${where}

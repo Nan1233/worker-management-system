@@ -80,8 +80,17 @@ app.use(
   helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
     contentSecurityPolicy: isProduction ? undefined : false,
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+    hsts: isProduction ? { maxAge: 15552000, includeSubDomains: true, preload: false } : false,
   }),
 );
+
+// Explicitly deny browser capabilities the API never needs. This is defense-in-depth
+// for pages embedding the API response or accidentally serving an HTML error page.
+app.use((_req, res, next) => {
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+  next();
+});
 
 app.use(
   cors({
@@ -108,7 +117,7 @@ app.use(
   }),
 );
 
-app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || "768kb" }));
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || "768kb", strict: true }));
 
 app.use((req, res, next) => {
   const rawRequestId = String(req.get("X-Request-Id") || "").trim();
@@ -439,6 +448,12 @@ async function start() {
     console.log(`[KTC] backendVersion=${version.backendVersion} commitSha=${version.commitSha} apiVersion=${version.apiVersion} schemaVersion=${version.schemaVersion}`);
     void initializeRuntime();
   });
+
+  // Bound slow-client/resource exhaustion without imposing an application timeout
+  // on long-running Excel jobs, which are handled asynchronously.
+  server.requestTimeout = Math.max(30_000, Number(process.env.HTTP_REQUEST_TIMEOUT_MS || 120_000));
+  server.headersTimeout = Math.max(15_000, Number(process.env.HTTP_HEADERS_TIMEOUT_MS || 30_000));
+  server.keepAliveTimeout = Math.max(5_000, Number(process.env.HTTP_KEEPALIVE_TIMEOUT_MS || 10_000));
 
   return server;
 }

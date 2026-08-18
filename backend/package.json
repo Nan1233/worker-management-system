@@ -31,7 +31,9 @@
     "audit:worker-processes": "node scripts/auditWorkerProcesses.js",
     "audit:production-indexes": "node scripts/auditProductionIndexes.js",
     "db:schema:verify": "node scripts/verifyDatabaseSchema.js",
-    "p0:runtime:verify": "node scripts/verifyP0Runtime.js"
+    "p0:runtime:verify": "node scripts/verifyP0Runtime.js",
+    "quality:next": "node --test tests/next-priority-hardening.contract.test.js ../tests/next-priority-mobile-ux.contract.test.cjs",
+    "perf:readiness": "node scripts/loadReadiness.js"
   },
   "dependencies": {
     "bcrypt": "6.0.0",

@@ -240,3 +240,57 @@
 @media (max-width: 420px) {
   .worker-brand-text strong { max-width: 164px; }
 }
+
+/* Mobile reliability/polish: preserve touch targets and avoid browser gesture conflicts. */
+.worker-mobile-nav,
+.worker-mobile-nav button,
+.worker-hide-keyboard,
+.worker-brand,
+.worker-logout {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.worker-mobile-nav button:active,
+.worker-logout:active,
+.worker-brand:active {
+  transform: translateY(1px);
+}
+
+.worker-mobile-nav button:focus-visible,
+.worker-logout:focus-visible,
+.worker-brand:focus-visible,
+.worker-desktop-nav button:focus-visible,
+.worker-hide-keyboard:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--ktc-brand-500) 55%, transparent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 860px) {
+  .worker-layout {
+    overscroll-behavior-y: none;
+  }
+
+  .worker-main-content {
+    min-width: 0;
+    overflow-x: clip;
+  }
+
+  .worker-mobile-nav {
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
+    height: calc(var(--worker-mobile-nav-height) + env(safe-area-inset-bottom));
+  }
+
+  .worker-mobile-nav button {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .worker-mobile-nav button,
+  .worker-desktop-nav button,
+  .worker-logout,
+  .worker-brand {
+    transition: none;
+  }
+}
