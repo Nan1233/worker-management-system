@@ -31,6 +31,13 @@ assert.ok(backendPkg.name === 'backend', 'backend package manifest missing or in
 assert.ok(!fs.existsSync(path.join(root,'backend/package-lock.json')), 'backend lockfile policy drift: add the lockfile and switch CI/Render back to npm ci');
 
 const rootPkg=json('package.json');
+const rootLock=json('package-lock.json');
+assert.equal(rootLock.lockfileVersion,3,'root lockfileVersion drift');
+assert.equal(rootLock.name,rootPkg.name,'root lock package name drift');
+assert.equal(rootLock.version,rootPkg.version,'root lock version drift');
+assert.equal(rootLock.packages[''].version,rootPkg.version,'root lock root-package version drift');
+assert.deepEqual(rootLock.packages[''].dependencies||{},rootPkg.dependencies||{},'root lock dependency drift');
+assert.deepEqual(rootLock.packages[''].devDependencies||{},rootPkg.devDependencies||{},'root lock devDependency drift');
 for (const [name,cmd] of Object.entries(rootPkg.scripts)) {
   const m=cmd.match(/^node\s+([^\s]+\.(?:c?js|mjs))/);
   if (m) assert.ok(fs.existsSync(path.join(root,m[1])),`root script ${name} points to missing ${m[1]}`);
@@ -69,6 +76,8 @@ const gradle=read('frontend/android/app/build.gradle');
 assert.match(gradle,/applicationId "com\.ktchanoi\.productioncontrol"/);
 
 const frontendPkg=json('frontend/package.json');
+assert.equal(frontendPkg.scripts['ios:doctor'],'npm run ios:prepare && cap doctor','frontend iOS doctor recursion guard drift');
+assert.ok(frontendPkg.scripts['ios:release:check'],'frontend iOS release check missing');
 assert.equal(frontendPkg.scripts['build:native'],'node scripts/buildNative.cjs');
 for (const name of ['android:sync','android:apk:debug','android:aab:release']) assert.match(frontendPkg.scripts[name],/build:native/);
 assert.ok(fs.existsSync(path.join(root,'frontend/scripts/buildNative.cjs')));

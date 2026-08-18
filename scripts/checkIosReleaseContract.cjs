@@ -2,9 +2,17 @@
 'use strict';
 const fs=require('node:fs');
 const path=require('node:path');
-const config=fs.readFileSync(path.resolve(__dirname,'../capacitor.config.ts'),'utf8');
-const readme=fs.readFileSync(path.resolve(__dirname,'../../docs/mobile/ios-android-release.md'),'utf8');
-const required=['com.ktchanoi.productioncontrol','contentInset: "automatic"'];
-for(const value of required) if(!config.includes(value)) throw new Error(`iOS config missing: ${value}`);
-for(const value of ['npm run ios:add','npm run ios:sync','Apple Team','provisioning profile','TestFlight']) if(!readme.toLowerCase().includes(value.toLowerCase())) throw new Error(`iOS release documentation missing: ${value}`);
-console.log('KTC iOS production setup contract OK');
+const root=path.resolve(__dirname,'..');
+const configPath=path.join(root,'frontend','capacitor.config.ts');
+const readmePath=path.join(root,'docs','mobile','ios-android-release.md');
+if(!fs.existsSync(configPath)) throw new Error('frontend/capacitor.config.ts missing');
+if(!fs.existsSync(readmePath)) throw new Error('iOS release documentation missing');
+const config=fs.readFileSync(configPath,'utf8');
+const readme=fs.readFileSync(readmePath,'utf8');
+for(const value of ['com.ktchanoi.productioncontrol','contentInset: "automatic"']) {
+  if(!config.includes(value)) throw new Error(`iOS config missing: ${value}`);
+}
+for(const value of ['ios:add','ios:sync','Apple Team','provisioning profile','TestFlight','macOS','Xcode']) {
+  if(!readme.toLowerCase().includes(value.toLowerCase())) throw new Error(`iOS release documentation missing: ${value}`);
+}
+console.log('KTC iOS production setup contract OK (source/docs validation; native signing requires macOS/Xcode)');

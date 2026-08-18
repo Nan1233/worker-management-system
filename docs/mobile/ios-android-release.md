@@ -29,7 +29,7 @@ sdkmanager --version
 Sync and debug APK:
 
 ```bat
-npm run android:sync
+npm --prefix frontend run android:sync
 cd frontend\android
 gradlew.bat assembleDebug
 ```
@@ -49,8 +49,8 @@ KTC_ANDROID_VERSION_NAME=10.0.0
 Then:
 
 ```bat
-npm run android:release:check
-npm run build:android:aab
+npm --prefix frontend run android:release:check
+npm --prefix frontend run android:aab:release
 ```
 
 The signing variables are read only by Gradle. Do not put them in `.env`, source code or Git.
@@ -68,9 +68,9 @@ On macOS:
 ```bash
 npm install
 npm --prefix frontend install
-npm run ios:add
-npm run ios:sync
-npm run ios:release:check
+npm --prefix frontend run ios:add
+npm --prefix frontend run ios:sync
+npm --prefix frontend run ios:release:check
 ```
 
 Open the generated `frontend/ios` workspace/project in Xcode and configure:
