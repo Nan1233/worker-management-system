@@ -6,8 +6,6 @@ const root = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
 const packageJson = JSON.parse(read('package.json'));
-const ci = read('.github/workflows/ci.yml');
-const audit = read('.github/workflows/security-audit.yml');
 const backendRender = read('backend/render.yaml');
 const frontendRender = read('frontend/render.yaml');
 const requirementLock = read('docs/KTC_REQUIREMENT_LOCK_WAVE0_20260812.md');
@@ -35,20 +33,11 @@ for (const script of [
   assert.equal(typeof packageJson.scripts?.[script], 'string', `Root package phải có script ${script}`);
 }
 
-// Backend intentionally has no committed lockfile, so CI/Render use npm install.
-assert.match(ci, /npm install --prefix backend/);
-assert.match(ci, /npm --prefix backend test/);
-assert.match(ci, /npm ci --prefix frontend/);
-assert.match(ci, /npm --prefix frontend run typecheck/);
-assert.match(ci, /npm --prefix frontend test/);
-assert.match(ci, /npm --prefix frontend run build/);
-assert.match(ci, /npm ci --prefix desktop/);
-assert.match(ci, /npm --prefix desktop run smoke:excel/);
-
-for (const pkg of ['backend', 'frontend', 'desktop']) {
-  assert.match(audit, new RegExp(pkg));
+// KTC intentionally has GitHub Actions disabled. Local release contracts are the source of truth.
+assert.ok(!fs.existsSync(path.join(root, '.github', 'workflows')), 'GitHub Actions must remain disabled');
+for (const script of ['quality:all', 'audit:final', 'audit:performance', 'audit:excel:roundtrip']) {
+  assert.equal(typeof packageJson.scripts?.[script], 'string', `Root package phải có script ${script}`);
 }
-assert.match(audit, /audit:prod/);
 
 assert.match(backendRender, /buildCommand: npm install && npm run verify && npm prune --omit=dev/g);
 assert.match(backendRender, /preDeployCommand: npm run db:schema:verify/);

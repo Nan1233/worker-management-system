@@ -74,6 +74,7 @@ function SelectedReportsReview() {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
+    const [loadAttempt, setLoadAttempt] = useState(0);
     const [rejectOpen, setRejectOpen] = useState(false);
     const [rejectReason, setRejectReason] = useState(REJECT_REASONS[0]);
     const [rejectDetail, setRejectDetail] = useState("");
@@ -107,15 +108,21 @@ function SelectedReportsReview() {
                     return;
                 }
 
-                const data = await Promise.all(
+                const results = await Promise.allSettled(
                     ids.map((id: number) =>
                         source === "approved"
                             ? getReportById(id, "approved")
                             : getTempReportDetail(id)
                     )
                 );
+                const data = results
+                    .filter((result): result is PromiseFulfilledResult<ProductionReport> => result.status === "fulfilled" && Boolean(result.value))
+                    .map(result => result.value);
 
-                setReports(data.filter(Boolean));
+                if (data.length < ids.length) {
+                    setError(`Không tải được ${ids.length - data.length}/${ids.length} báo cáo. Bạn có thể thử tải lại.`);
+                }
+                setReports(data);
             } catch (err) {
                 console.error("LOAD SELECTED REPORTS ERROR:", err);
                 setError("Không thể tải chi tiết các báo cáo đã chọn.");
@@ -125,7 +132,7 @@ function SelectedReportsReview() {
         };
 
         void loadReports();
-    }, [source, storageKey]);
+    }, [source, storageKey, loadAttempt]);
 
     const reportIds = useMemo(
         () => reports
@@ -234,7 +241,14 @@ function SelectedReportsReview() {
                 )}
             </header>
 
-            {error && <div className="selected-review-error">{error}</div>}
+            {error && (
+                <div className="selected-review-error" role="alert" aria-live="assertive">
+                    <span>{error}</span>
+                    <button type="button" disabled={loading} onClick={() => setLoadAttempt(value => value + 1)}>
+                        Tải lại
+                    </button>
+                </div>
+            )}
 
             {loading ? (
                 <div className="selected-review-empty">Đang tải dữ liệu...</div>

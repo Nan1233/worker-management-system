@@ -41,7 +41,12 @@
     "android:release:check": "node scripts/checkAndroidReleaseContract.cjs",
     "restore:rehearsal": "node backend/scripts/rehearseDatabaseRestore.js",
     "load:readiness": "node backend/scripts/loadReadiness.js",
-    "quality:all": "npm --prefix backend run test && npm --prefix frontend run test && node --test tests/*.test.cjs"
+    "quality:all": "npm --prefix backend run test && npm --prefix frontend run test && node --test tests/*.test.cjs",
+    "test:root": "node --test tests/*.test.cjs",
+    "audit:excel:roundtrip": "node scripts/excelRoundTripContract.cjs",
+    "audit:performance": "node scripts/performanceAudit.cjs",
+    "audit:final": "node scripts/finalReleaseAudit.cjs",
+    "quality:final": "npm run audit:final && npm run audit:performance && npm run audit:excel:roundtrip && npm run quality:all"
   },
   "dependencies": {
     "@capacitor/android": "8.5.0",

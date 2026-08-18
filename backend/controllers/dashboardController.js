@@ -2,7 +2,7 @@ const db = require("../config/db");
 const { TtlCache } = require("../utils/cache");
 
 const dashboardCache = new TtlCache({ maxEntries: 250 });
-const DASHBOARD_CACHE_TTL_MS = Number(process.env.DASHBOARD_CACHE_TTL_MS || 30_000);
+const DASHBOARD_CACHE_TTL_MS = Number(process.env.DASHBOARD_CACHE_TTL_MS || 15_000);
 const isIsoDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
 
 function getScopeSql(user, alias = "r") {

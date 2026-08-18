@@ -7,7 +7,6 @@ const json = (p) => JSON.parse(read(p));
 
 for (const p of [
   '.gitignore','backend/.gitignore','frontend/.gitignore','desktop/.gitignore',
-  '.github/workflows/ci.yml','.github/workflows/security-audit.yml','.github/workflows/zero-cost-validation.yml',
   'desktop/assets/offline.html','desktop/assets/icon.ico','desktop/assets/icon.png',
   'shared/excelSyncContract.cjs','shared/kqdPolicy.cjs','shared/kqdExclusionRegistry.json',
   'frontend/android/app/src/main/AndroidManifest.xml','frontend/android/app/src/main/java/com/ktchanoi/productioncontrol/MainActivity.java'
@@ -46,17 +45,11 @@ assert.match(releaseBat,/npm --prefix \.\.\/frontend ci/);
 assert.match(releaseBat,/npm run dist:portable/);
 assert.doesNotMatch(releaseBat,/dist:portable:fast/);
 
-const zero=read('.github/workflows/zero-cost-validation.yml');
-assert.match(zero,/workflow_dispatch:/);
-assert.match(zero,/pull_request:/);
-assert.match(zero,/mysql:8\.4/);
-assert.match(zero,/worker_management_staging_local/);
-assert.doesNotMatch(zero,/onrender\.com|tidbcloud/i);
-assert.doesNotMatch(zero,/TRUNCATE|DELETE\s+FROM/i);
+// GitHub Actions are intentionally disabled; validation runs locally via npm scripts.
+assert.ok(!fs.existsSync(path.join(root,'.github','workflows')), 'GitHub Actions must remain disabled');
 for(const script of ['validate:zero-cost:seed','validate:zero-cost:security','validate:zero-cost:e2e','validate:zero-cost:perf','validate:zero-cost:excel','validate:zero-cost']) {
-  assert.ok(rootPkg.scripts[script],`zero-cost workflow script missing: ${script}`);
+  assert.ok(rootPkg.scripts[script],`zero-cost validation script missing: ${script}`);
 }
-
 const env=read('frontend/src/config/env.ts');
 assert.match(env,/import\.meta\.env\.PROD/);
 assert.match(env,/VITE_API_URL is required for production builds/);
