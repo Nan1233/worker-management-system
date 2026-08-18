@@ -59,39 +59,3 @@
   .selected-reject-actions { flex-direction: column-reverse; }
   .selected-reject-actions > button { width: 100%; }
 }
-
-.selected-review-error {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-}
-.selected-review-error button {
-    min-height: 40px;
-    flex: 0 0 auto;
-    border: 1px solid currentColor;
-    border-radius: 9px;
-    padding: 0 12px;
-    background: transparent;
-    color: inherit;
-    font-weight: 750;
-    cursor: pointer;
-}
-.selected-review-error button:disabled {
-    opacity: .55;
-    cursor: wait;
-}
-@media (max-width: 640px) {
-    .selected-review-error { align-items: stretch; flex-direction: column; }
-    .selected-review-error button { width: 100%; }
-}
-@media (prefers-reduced-motion: reduce) {
-    .selected-review-page *,
-    .selected-review-page *::before,
-    .selected-review-page *::after {
-        scroll-behavior: auto !important;
-        transition-duration: .01ms !important;
-        animation-duration: .01ms !important;
-        animation-iteration-count: 1 !important;
-    }
-}

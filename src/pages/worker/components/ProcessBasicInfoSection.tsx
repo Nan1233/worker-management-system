@@ -63,7 +63,6 @@ export default function ProcessBasicInfoSection({
     getMachineProductAutocompleteOptions,
     productOptions,
     machineAutocompleteOptions,
-    machineOptions,
     loadingMasterData,
     machineCount,
     maxMachineCount,
@@ -83,18 +82,22 @@ export default function ProcessBasicInfoSection({
         setForm((prev) => ({
             ...prev,
             productName: value,
-            standardOutput: selectedProduct
-                ? String(Number(selectedProduct.standard_output))
-                : "",
+            standardOutput: selectedProduct ? String(Number(selectedProduct.standard_output)) : "",
         }));
-        // excludeKqdFromTt: null — chính sách KQD được resolve theo work_date ở ProcessPage.
     };
 
     return (
-        <section className="worker-form-card">
-            <h2 className="worker-card-title"><span><AppIcon name="checklist" size={15} /></span> Thông tin cơ bản</h2>
+        <section className="worker-form-card worker-form-card-basic">
+            <div className="worker-card-heading">
+                <div className="worker-card-step">02</div>
+                <div>
+                    <h2 className="worker-card-title"><span><AppIcon name="checklist" size={15} /></span> Sản phẩm &amp; máy</h2>
+                    <p className="worker-card-subtitle">Chọn đúng dữ liệu trong danh mục. Không nhập mã tự do ngoài danh sách.</p>
+                </div>
+            </div>
+
             <div className="worker-basic-grid">
-                <div className="worker-field-block worker-field-full">
+                <div className="worker-field-block worker-field-full worker-shift-block">
                     <label className="worker-field-label">Ca làm việc <em>*</em></label>
                     <div className="worker-shift-list">
                         {["A", "B", "C", "D"].map((shift) => (
@@ -113,42 +116,55 @@ export default function ProcessBasicInfoSection({
                 </div>
 
                 {isCutLongProcess && (
-                    <div className="worker-field-block worker-field-full multi-machine-controls cut-long-controls">
-                        <label>Loại gia công</label>
-                        <div className="worker-choice-row">
-                            <button type="button" className={operationType === "CUT" ? "active" : ""} onClick={() => setOperationType("CUT")}>Cắt</button>
-                            <button type="button" className={operationType === "LONG" ? "active" : ""} onClick={() => setOperationType("LONG")}>Lồng</button>
+                    <div className="worker-mode-panel worker-field-full">
+                        <div className="worker-mode-group">
+                            <div className="worker-mode-label">Loại gia công</div>
+                            <div className="worker-choice-row">
+                                <button type="button" className={operationType === "CUT" ? "active" : ""} onClick={() => setOperationType("CUT")}>Cắt</button>
+                                <button type="button" className={operationType === "LONG" ? "active" : ""} onClick={() => setOperationType("LONG")}>Lồng</button>
+                            </div>
                         </div>
-                        <label>Hình thức thực hiện</label>
-                        <div className="worker-choice-row">
-                            <button type="button" className={operationMode === "MANUAL" ? "active" : ""} onClick={() => setOperationMode("MANUAL")}>Tay</button>
-                            <button type="button" className={operationMode === "MACHINE" ? "active" : ""} onClick={() => setOperationMode("MACHINE")}>Máy</button>
+                        <div className="worker-mode-group">
+                            <div className="worker-mode-label">Hình thức thực hiện</div>
+                            <div className="worker-choice-row">
+                                <button type="button" className={operationMode === "MANUAL" ? "active" : ""} onClick={() => setOperationMode("MANUAL")}>Tay</button>
+                                <button type="button" className={operationMode === "MACHINE" ? "active" : ""} onClick={() => setOperationMode("MACHINE")}>Máy</button>
+                            </div>
                         </div>
                     </div>
                 )}
 
                 {isInspectionProcess && (
-                    <div className="worker-field-block worker-field-full multi-machine-controls">
-                        <label>Hình thức kiểm tra</label>
-                        <div className="worker-choice-row">
-                            <button type="button" className={operationMode === "MANUAL" ? "active" : ""} onClick={() => setOperationMode("MANUAL")}>Làm tay</button>
-                            <button type="button" className={operationMode === "MACHINE" ? "active" : ""} onClick={() => setOperationMode("MACHINE")}>Làm bằng máy</button>
+                    <div className="worker-mode-panel worker-field-full">
+                        <div className="worker-mode-group">
+                            <div className="worker-mode-label">Hình thức kiểm tra</div>
+                            <div className="worker-choice-row">
+                                <button type="button" className={operationMode === "MANUAL" ? "active" : ""} onClick={() => setOperationMode("MANUAL")}>Tay</button>
+                                <button type="button" className={operationMode === "MACHINE" ? "active" : ""} onClick={() => setOperationMode("MACHINE")}>Máy</button>
+                            </div>
                         </div>
-                        <small>Công đoạn Kiểm chỉ được chọn tối đa 1 máy.</small>
+                        <div className="worker-mode-hint">Làm tay: chỉ chọn mã sản phẩm. Làm máy: chọn máy trước, sau đó chọn mã sản phẩm thuộc máy.</div>
                     </div>
                 )}
 
                 {!usesMultiMachineLines && !usesSingleMachine && (
-                    <div className="worker-field-block worker-field-full">
+                    <div className="worker-selection-card worker-field-full">
+                        <div className="worker-selection-heading">
+                            <div>
+                                <strong>Mã sản phẩm</strong><span className="worker-required">*</span>
+                                <small>Danh sách theo đúng công đoạn đang nhập</small>
+                            </div>
+                            <span className="worker-selection-count">{productAutocompleteOptions.length} mã</span>
+                        </div>
                         <AutocompleteInput
                             id="productName"
-                            label="Sản phẩm"
+                            label="Mã sản phẩm"
                             value={form.productName}
                             options={productAutocompleteOptions}
-                            placeholder="Nhập mã sản phẩm"
+                            placeholder={loadingMasterData ? "Đang tải danh mục sản phẩm…" : "Nhập hoặc chọn mã sản phẩm"}
                             required
                             disabled={loadingMasterData}
-                            emptyMessage="Không tìm thấy sản phẩm"
+                            emptyMessage="Danh mục sản phẩm đang trống. Hệ thống sẽ tự tải lại dữ liệu danh mục."
                             onChange={setProduct}
                             onSelect={(option) => setProduct(option.value)}
                         />
@@ -156,134 +172,168 @@ export default function ProcessBasicInfoSection({
                 )}
 
                 {usesMultiMachineLines ? (
-                    <div className="worker-field-block worker-field-full multi-machine-panel">
-                        <small>Shared machine: sản lượng được credit cho từng công nhân; physical truth của máy được quản lý bằng production event riêng.</small>
-                        <label>Số lượng máy (tối đa {maxMachineCount})</label>
-                        <select value={machineCount} onChange={(event) => resizeMachineLines(Number(event.target.value))}>
-                            {Array.from({ length: maxMachineCount }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count} máy</option>)}
-                        </select>
+                    <div className="worker-machine-workspace worker-field-full">
+                        <div className="worker-selection-heading">
+                            <div>
+                                <strong>{isCutLongProcess ? "Danh sách máy & sản phẩm" : "Danh sách máy mài & sản phẩm"}</strong>
+                                <small>Mỗi dòng = 1 máy + 1 mã sản phẩm + thời gian + sản lượng</small>
+                                {isCutLongProcess && (
+                                    <small>Shared machine: sản lượng được credit theo báo cáo; physical truth nằm ở production event riêng.</small>
+                                )}
+                            </div>
+                            <label className="worker-machine-count">
+                                <span>Số máy</span>
+                                <select value={machineCount} onChange={(event) => resizeMachineLines(Number(event.target.value))}>
+                                    {Array.from({ length: maxMachineCount }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count}</option>)}
+                                </select>
+                            </label>
+                        </div>
+
                         {isCutLongProcess && (
-                            <small>Máy tự động được chạy tối đa 4 máy/người. Nếu chọn máy thường, hệ thống giới hạn 1 máy/người.</small>
+                            <div className="worker-machine-policy-note">Máy tự động có thể chạy tối đa 4 máy/người. Máy thường áp dụng giới hạn theo dữ liệu máy.</div>
                         )}
 
-                        {machineLines.map((line, index) => (
-                            <div className="machine-line" key={index}>
-                                <AutocompleteInput
-                                    id={`machineNo-${index}`}
-                                    label={`Máy ${index + 1}`}
-                                    value={line.machineCode}
-                                    options={machineAutocompleteOptions}
-                                    placeholder="Chọn mã máy"
-                                    required
-                                    disabled={loadingMasterData}
-                                    emptyMessage="Không tìm thấy máy"
-                                    onChange={(value) => {
-                                        updateMachineLine(index, { machineCode: value, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" });
-                                    }}
-                                    onSelect={(option) => {
-                                        updateMachineLine(index, { machineCode: option.value, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" });
-                                    }}
-                                />
-                                <AutocompleteInput
-                                    id={`machineProduct-${index}`}
-                                    label={`Sản phẩm máy ${index + 1}`}
-                                    value={line.productCode}
-                                    options={getMachineProductAutocompleteOptions(line.machineCode)}
-                                    placeholder="Chọn mã sản phẩm"
-                                    required
-                                    disabled={loadingMasterData}
-                                    emptyMessage="Không tìm thấy sản phẩm"
-                                    onChange={(value) => {
-                                        updateMachineLine(index, { productCode: value });
-                                        void refreshMachineLineStandard(index, line.machineCode, value);
-                                    }}
-                                    onSelect={(option) => {
-                                        updateMachineLine(index, { productCode: option.value });
-                                        void refreshMachineLineStandard(index, line.machineCode, option.value);
-                                    }}
-                                />
-
-                                <div className="machine-card-header">
-                                    <div><strong>Máy {index + 1}</strong><span>{line.machineCode || "Chưa chọn máy"}</span></div>
-                                    <span className="machine-card-badge">{line.productCode || "Chưa chọn SP"}</span>
-                                </div>
-                                <div className="machine-section-title">Thời gian chạy máy</div>
-                                <div className="machine-time-row">
-                                    <input type="number" min="0" max="24" inputMode="numeric" placeholder="Giờ" value={line.hours} onChange={(event) => updateMachineLine(index, { hours: event.target.value.replace(/\D/g, "") })} />
-                                    <span>giờ</span>
-                                    <input type="number" min="0" max="59" inputMode="numeric" placeholder="Phút" value={line.minutes} onChange={(event) => {
-                                        const value = event.target.value.replace(/\D/g, "");
-                                        if (value === "" || Number(value) <= 59) updateMachineLine(index, { minutes: value });
-                                    }} />
-                                    <span>phút</span>
-                                </div>
-                                <div className="machine-section-title">{(() => {
-                                    const selected = machineOptions.find((machine) => machine.machine_code.trim().toUpperCase() === line.machineCode.trim().toUpperCase());
-                                    return selected?.output_basis === "MACHINE" ? "Sản lượng theo máy" : "Sản lượng sản phẩm";
-                                })()}</div>
-                                <div className="machine-quantity-row">
-                                    <label>OK<input type="number" min="0" inputMode="numeric" value={line.okQuantity} onChange={(event) => updateMachineLine(index, { okQuantity: event.target.value.replace(/\D/g, "") })} /></label>
-                                    <label>NG<input type="number" min="0" inputMode="numeric" value={line.ngQuantity} readOnly aria-readonly="true" title="Tự động cộng từ chi tiết lỗi NG" /></label>
-                                    <div className="machine-line-total"><span>Tổng</span><strong>{(Number(line.okQuantity) || 0) + (Number(line.ngQuantity) || 0)}</strong></div>
-                                </div>
-                                {(() => {
-                                    const runtimeHours = (Number(line.hours) || 0) + ((Number(line.minutes) || 0) / 60);
-                                    const target = Math.max(0, Number(line.standardOutputPerHour || 0) * runtimeHours);
-                                    const actual = (Number(line.okQuantity) || 0) + (Number(line.ngQuantity) || 0);
-                                    const efficiency = target > 0 ? (actual / target) * 100 : 0;
-                                    return (
-                                        <div className="machine-performance-strip" aria-label={`Năng suất máy ${index + 1}`}>
-                                            <div className="machine-performance-metric"><span>Định mức máy/SP</span><strong>{line.standardLoading ? "Đang tải..." : line.standardOutputPerHour > 0 ? `${line.standardOutputPerHour.toLocaleString("vi-VN", { maximumFractionDigits: 2 })} SP/giờ` : "Chưa có"}</strong></div>
-                                            <div className="machine-performance-metric"><span>Thời gian chuẩn</span><strong>{line.standardTimeSeconds ? `${Number(line.standardTimeSeconds).toLocaleString("vi-VN", { maximumFractionDigits: 2 })} giây/SP` : "Theo định mức SP"}</strong></div>
-                                            <div className="machine-performance-metric machine-target"><span>SL theo TG chạy</span><strong>{target > 0 ? Math.floor(target).toLocaleString("vi-VN") : "—"}</strong></div>
-                                            <div className="machine-performance-metric machine-actual"><span>SL thực tế / Hiệu suất</span><strong>{actual.toLocaleString("vi-VN")} / {target > 0 ? `${efficiency.toFixed(1)}%` : "—"}</strong></div>
+                        <div className="machine-lines-list">
+                            {machineLines.map((line, index) => (
+                                <article className="machine-line" key={index}>
+                                    <div className="machine-card-header">
+                                        <div className="machine-card-title-wrap">
+                                            <span className="machine-card-number">{index + 1}</span>
+                                            <div><strong>Máy {index + 1}</strong><span>{line.machineCode || "Chưa chọn máy"}</span></div>
                                         </div>
-                                    );
-                                })()}
-                                {line.standardError && <small className="worker-machine-total-note">{line.standardError}</small>}
-                                <details className="machine-deduction-box">
-                                    <summary>Chi tiết lỗi NG <strong>{getMachineNgTotal(line)} sản phẩm</strong></summary>
-                                    <div className="machine-deduction-options">
-                                        {activeNgOptions.map((item) => (
-                                            <label key={item.key} className="machine-deduction-option">
-                                                <input type="checkbox" checked={line.selectedDefects.includes(item.key)} onChange={() => toggleMachineDefect(index, item.key)} />
-                                                <span>{item.label}</span>
-                                                {line.selectedDefects.includes(item.key) && (
-                                                    <input className="machine-deduction-minute" inputMode="numeric" placeholder="SL" value={line.defects[item.key] || ""} onChange={(event) => updateMachineDefectValue(index, item.key, event.target.value)} />
-                                                )}
-                                            </label>
-                                        ))}
+                                        <span className="machine-card-badge">{line.productCode || "Chưa chọn SP"}</span>
                                     </div>
-                                </details>
-                            </div>
-                        ))}
+
+                                    <div className="machine-selection-grid">
+                                        <AutocompleteInput
+                                            id={`machineNo-${index}`}
+                                            label="Mã máy"
+                                            value={line.machineCode}
+                                            options={machineAutocompleteOptions}
+                                            placeholder="Chọn mã máy"
+                                            required
+                                            disabled={loadingMasterData}
+                                            emptyMessage="Không tìm thấy máy trong công đoạn"
+                                            onChange={(value) => {
+                                                updateMachineLine(index, { machineCode: value, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" });
+                                            }}
+                                            onSelect={(option) => {
+                                                updateMachineLine(index, { machineCode: option.value, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" });
+                                            }}
+                                        />
+                                        <AutocompleteInput
+                                            id={`machineProduct-${index}`}
+                                            label="Mã sản phẩm"
+                                            value={line.productCode}
+                                            options={getMachineProductAutocompleteOptions(line.machineCode)}
+                                            placeholder={line.machineCode.trim() ? "Chọn mã sản phẩm theo máy" : "Chọn máy trước"}
+                                            required
+                                            disabled={loadingMasterData || !line.machineCode.trim()}
+                                            emptyMessage={line.machineCode.trim() ? "Không có mã sản phẩm phù hợp với máy này" : "Chọn máy trước để xem mã sản phẩm"}
+                                            onChange={(value) => {
+                                                updateMachineLine(index, { productCode: value });
+                                                void refreshMachineLineStandard(index, line.machineCode, value);
+                                            }}
+                                            onSelect={(option) => {
+                                                updateMachineLine(index, { productCode: option.value });
+                                                void refreshMachineLineStandard(index, line.machineCode, option.value);
+                                            }}
+                                        />
+                                    </div>
+
+                                    <div className="machine-data-grid">
+                                        <div>
+                                            <div className="machine-section-title">Thời gian chạy máy</div>
+                                            <div className="machine-time-row">
+                                                <label><span>Giờ</span><input type="number" min="0" max="24" inputMode="numeric" placeholder="0" value={line.hours} onChange={(event) => updateMachineLine(index, { hours: event.target.value.replace(/\D/g, "") })} /></label>
+                                                <label><span>Phút</span><input type="number" min="0" max="59" inputMode="numeric" placeholder="0" value={line.minutes} onChange={(event) => {
+                                                    const value = event.target.value.replace(/\D/g, "");
+                                                    if (value === "" || Number(value) <= 59) updateMachineLine(index, { minutes: value });
+                                                }} /></label>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div className="machine-section-title">Sản lượng</div>
+                                            <div className="machine-quantity-row">
+                                                <label><span>OK</span><input type="number" min="0" inputMode="numeric" value={line.okQuantity} onChange={(event) => updateMachineLine(index, { okQuantity: event.target.value.replace(/\D/g, "") })} /></label>
+                                                <label><span>NG</span><input type="number" min="0" inputMode="numeric" value={line.ngQuantity} readOnly aria-readonly="true" title="Tự động cộng từ chi tiết lỗi NG" /></label>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="machine-performance-strip" aria-label={`Năng suất máy ${index + 1}`}>
+                                        {(() => {
+                                            const runtimeHours = (Number(line.hours) || 0) + ((Number(line.minutes) || 0) / 60);
+                                            const target = Math.max(0, Number(line.standardOutputPerHour || 0) * runtimeHours);
+                                            const actual = (Number(line.okQuantity) || 0) + (Number(line.ngQuantity) || 0);
+                                            const efficiency = target > 0 ? (actual / target) * 100 : 0;
+                                            return <>
+                                                <div className="machine-performance-metric"><span>Định mức</span><strong>{line.standardLoading ? "Đang tải…" : line.standardOutputPerHour > 0 ? `${line.standardOutputPerHour.toLocaleString("vi-VN", { maximumFractionDigits: 2 })} SP/giờ` : "Chưa có"}</strong></div>
+                                                <div className="machine-performance-metric"><span>Thời gian chuẩn</span><strong>{line.standardTimeSeconds ? `${Number(line.standardTimeSeconds).toLocaleString("vi-VN", { maximumFractionDigits: 2 })} giây/SP` : "—"}</strong></div>
+                                                <div className="machine-performance-metric machine-target"><span>SL mục tiêu</span><strong>{target > 0 ? Math.floor(target).toLocaleString("vi-VN") : "—"}</strong></div>
+                                                <div className="machine-performance-metric machine-actual"><span>Thực tế / Hiệu suất</span><strong>{actual.toLocaleString("vi-VN")} / {target > 0 ? `${efficiency.toFixed(1)}%` : "—"}</strong></div>
+                                            </>;
+                                        })()}
+                                    </div>
+
+                                    {line.standardError && <div className="worker-inline-error">{line.standardError}</div>}
+
+                                    <details className="machine-deduction-box">
+                                        <summary>Chi tiết lỗi NG <strong>{getMachineNgTotal(line)} sản phẩm</strong></summary>
+                                        <div className="machine-deduction-options">
+                                            {activeNgOptions.map((item) => (
+                                                <label key={item.key} className="machine-deduction-option">
+                                                    <input type="checkbox" checked={line.selectedDefects.includes(item.key)} onChange={() => toggleMachineDefect(index, item.key)} />
+                                                    <span>{item.label}</span>
+                                                    {line.selectedDefects.includes(item.key) && (
+                                                        <input className="machine-deduction-minute" inputMode="numeric" placeholder="SL" value={line.defects[item.key] || ""} onChange={(event) => updateMachineDefectValue(index, item.key, event.target.value)} />
+                                                    )}
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </details>
+                                </article>
+                            ))}
+                        </div>
                     </div>
                 ) : usesSingleMachine ? (
-                    <div className="worker-field-block worker-field-full single-machine-product-scope">
-                        <AutocompleteInput
-                            id="machineNo"
-                            label="Số máy"
-                            value={form.machineNo}
-                            options={machineAutocompleteOptions}
-                            placeholder="Nhập mã máy"
-                            required
-                            disabled={loadingMasterData}
-                            emptyMessage="Không tìm thấy máy"
-                            onChange={(value) => setForm((prev) => ({ ...prev, machineNo: value, productName: "", standardOutput: "" }))}
-                            onSelect={(option) => setForm((prev) => ({ ...prev, machineNo: option.value, productName: "", standardOutput: "" }))}
-                        />
-                        <AutocompleteInput
-                            id="productName"
-                            label="Sản phẩm"
-                            value={form.productName}
-                            options={productAutocompleteOptions}
-                            placeholder={form.machineNo.trim() ? "Nhập mã sản phẩm" : "Chọn máy trước"}
-                            required
-                            disabled={loadingMasterData || !form.machineNo.trim()}
-                            emptyMessage={form.machineNo.trim() ? "Không có sản phẩm phù hợp với máy đã chọn" : "Vui lòng chọn máy trước"}
-                            onChange={setProduct}
-                            onSelect={(option) => setProduct(option.value)}
-                        />
+                    <div className="worker-machine-single worker-field-full">
+                        <div className="worker-selection-heading">
+                            <div>
+                                <strong>Máy &amp; sản phẩm</strong>
+                                <small>Chọn máy trước → hệ thống chỉ hiển thị mã sản phẩm hợp lệ của máy</small>
+                            </div>
+                        </div>
+                        <div className="worker-single-machine-grid">
+                            <AutocompleteInput
+                                id="machineNo"
+                                label="Mã máy"
+                                value={form.machineNo}
+                                options={machineAutocompleteOptions}
+                                placeholder="Chọn mã máy"
+                                required
+                                disabled={loadingMasterData}
+                                emptyMessage="Không tìm thấy máy trong công đoạn"
+                                onChange={(value) => {
+                                    setForm((prev) => ({ ...prev, machineNo: value, productName: "", standardOutput: "" }));
+                                }}
+                                onSelect={(option) => {
+                                    setForm((prev) => ({ ...prev, machineNo: option.value, productName: "", standardOutput: "" }));
+                                }}
+                            />
+                            <AutocompleteInput
+                                id="productName"
+                                label="Mã sản phẩm"
+                                value={form.productName}
+                                options={productAutocompleteOptions}
+                                placeholder={form.machineNo.trim() ? "Nhập hoặc chọn mã sản phẩm" : "Chọn máy trước"}
+                                required
+                                disabled={loadingMasterData || !form.machineNo.trim()}
+                                emptyMessage={form.machineNo.trim() ? "Không có mã sản phẩm phù hợp với máy này" : "Chọn máy trước để xem mã sản phẩm"}
+                                onChange={setProduct}
+                                onSelect={(option) => setProduct(option.value)}
+                            />
+                        </div>
                     </div>
                 ) : null}
             </div>

@@ -73,8 +73,8 @@ function SelectedReportsReview() {
     const [reports, setReports] = useState<ProductionReport[]>([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
-    const [error, setError] = useState("");
     const [loadAttempt, setLoadAttempt] = useState(0);
+    const [error, setError] = useState("");
     const [rejectOpen, setRejectOpen] = useState(false);
     const [rejectReason, setRejectReason] = useState(REJECT_REASONS[0]);
     const [rejectDetail, setRejectDetail] = useState("");
@@ -115,12 +115,18 @@ function SelectedReportsReview() {
                             : getTempReportDetail(id)
                     )
                 );
+
                 const data = results
-                    .filter((result): result is PromiseFulfilledResult<ProductionReport> => result.status === "fulfilled" && Boolean(result.value))
-                    .map(result => result.value);
+                    .filter(
+                        (result): result is PromiseFulfilledResult<ProductionReport> =>
+                            result.status === "fulfilled" && Boolean(result.value)
+                    )
+                    .map((result) => result.value);
 
                 if (data.length < ids.length) {
-                    setError(`Không tải được ${ids.length - data.length}/${ids.length} báo cáo. Bạn có thể thử tải lại.`);
+                    setError(
+                        `Không tải được ${ids.length - data.length}/${ids.length} báo cáo. Bạn có thể thử tải lại.`
+                    );
                 }
                 setReports(data);
             } catch (err) {
@@ -244,7 +250,7 @@ function SelectedReportsReview() {
             {error && (
                 <div className="selected-review-error" role="alert" aria-live="assertive">
                     <span>{error}</span>
-                    <button type="button" disabled={loading} onClick={() => setLoadAttempt(value => value + 1)}>
+                    <button type="button" onClick={() => setLoadAttempt((value) => value + 1)} disabled={loading}>
                         Tải lại
                     </button>
                 </div>

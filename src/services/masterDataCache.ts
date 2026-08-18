@@ -45,11 +45,12 @@ export const getCachedMachines = (processId: number): Promise<MachineOption[]> =
   );
 
 export const getCachedProductStandards = (processId: number, processCode?: string): Promise<ProductStandardOption[]> => {
-  const code = processCode ? processCode.trim().toUpperCase() : String(processId);
+  const code = processCode ? processCode.trim().toUpperCase() : "NONE";
+  const key = `products:${processId}:${code}`;
   return getSessionCached(
-    epochKey(`products:${code}`),
+    epochKey(key),
     TTL_MS,
-    () => withOfflineSnapshot(`products:${code}`, () => getProductStandardsByProcess(processId, processCode)),
+    () => withOfflineSnapshot(key, () => getProductStandardsByProcess(processId, processCode)),
   );
 };
 
@@ -90,7 +91,7 @@ export function bumpMasterDataEpoch(): number {
 export function clearMasterDataCache(processId?: number): void {
   if (processId !== undefined) {
     clearSessionCache(epochKey(`machines:${processId}`));
-    clearSessionCache(epochKey(`products:${processId}`));
+    clearSessionCache(epochKey(`products:${processId}:NONE`));
     clearSessionCache(epochKey(`defects:${processId}`));
     clearSessionCache(epochKey(`deductions:${processId}`));
     return;

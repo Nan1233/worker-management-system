@@ -32,5 +32,5 @@ test('Worker historical KQD preview does not fall back to mutable current produc
   assert.match(page, /resolveProductStandard\([\s\S]*form\.workDate/);
   assert.match(page, /resolvedReportKqdPolicy === true/);
   assert.doesNotMatch(page, /resolvedReportKqdPolicy \?\? \(Number\(selectedProduct\?\.exclude_kqd_from_tt/);
-  assert.match(basic, /excludeKqdFromTt:\s*null/);
+  assert.doesNotMatch(basic, /exclude_kqd_from_tt/);
 });

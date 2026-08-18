@@ -134,9 +134,7 @@ module.exports = async (req, res, next) => {
         if (!currentUser) {
             console.warn("AUTH_TOKEN_USER_NOT_RESOLVED", {
                 path: req.originalUrl,
-                decodedUserId: decoded?.id ?? null,
-                decodedWorkerId: decoded?.worker_id ?? null,
-                decodedUsername: decodedUsername || null
+                reason: "authenticated user could not be resolved"
             });
 
             return res.status(401).json({
@@ -158,19 +156,12 @@ module.exports = async (req, res, next) => {
             (!currentUser.worker_id || workerStatus !== "active");
 
         if (userInactive || workerInactive) {
-            console.error("AUTH_FORBIDDEN", {
+            console.warn("AUTH_FORBIDDEN", {
                 path: req.originalUrl,
-                database: currentUser.database_name,
-                decodedUserId: decoded?.id ?? null,
-                userId: currentUser.id,
-                username: currentUser.username,
-                roleRaw: currentUser.role,
                 role,
-                userStatusRaw: currentUser.status,
                 userStatus,
-                workerId: currentUser.worker_id,
-                workerStatusRaw: currentUser.worker_status,
-                workerStatus
+                workerStatus: role === "worker" ? workerStatus : undefined,
+                reason: userInactive ? "USER_INACTIVE" : "WORKER_INACTIVE"
             });
 
             return res.status(403).json({

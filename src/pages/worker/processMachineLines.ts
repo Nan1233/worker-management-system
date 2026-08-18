@@ -12,21 +12,22 @@ export function aggregateMachineLines(
   let totalStandardOutput = 0;
 
   const result = lines.reduce((a, l) => {
-    const hours = Math.max(0, Number((l as any).hours) || 0) +
-      Math.max(0, Number((l as any).minutes) || 0) / 60;
-    const ok = Number((l as any).okQuantity) || 0;
-    const ng = Number((l as any).ngQuantity) || 0;
+    const hours = Math.max(0, Number(l.hours) || 0) + Math.max(0, Number(l.minutes) || 0) / 60;
+    const ok = Number(l.okQuantity) || 0;
+    const ng = Number(l.ngQuantity) || 0;
     a.totalMachineHours += hours;
     a.totalOk += ok;
     a.totalNg += ng;
     a.totalCounted += ok + ng;
-    a.totalMaximum += (Number((l as any).standardOutputPerHour) || 0) * hours;
-    totalStandardOutput += Number((l as any).standard_output) || 0;
-    if (!firstProductCode) firstProductCode = String((l as any).product_code || "");
-    for (const key of Array.isArray((l as any).selectedDefects) ? (l as any).selectedDefects : []) {
+    a.totalMaximum += (Number(l.standardOutputPerHour) || 0) * hours;
+    totalStandardOutput += (Number(l.standardOutputPerHour) || 0) * hours;
+    if (!firstProductCode) firstProductCode = String(l.productCode || "");
+
+    for (const key of Array.isArray(l.selectedDefects) ? l.selectedDefects : []) {
       selected.add(String(key));
     }
-    const lineDefects = (l as any).defects || {};
+
+    const lineDefects = l.defects || {};
     for (const option of activeNgOptions) {
       const key = String(option.key || option.code || "");
       if (key) defects[key] = (defects[key] || 0) + (Number(lineDefects[key]) || 0);
@@ -50,7 +51,7 @@ export function aggregateMachineLines(
 }
 
 export const getMachineNgTotal = (line: MachineLineState): number =>
-  Number((line as any).ngQuantity) || 0;
+  Number(line.ngQuantity) || 0;
 
 export function getMaxMachineCount(
   processCodeOrLines: string | MachineLineState[],
@@ -72,8 +73,17 @@ export function toggleMachineDefectLine(
 ): MachineLineState {
   const selected = new Set(line.selectedDefects || []);
   const nextChecked = checked === undefined ? !selected.has(key) : checked;
-  nextChecked ? selected.add(key) : selected.delete(key);
-  return { ...line, selectedDefects: [...selected] };
+
+  if (nextChecked) {
+    selected.add(key);
+  } else {
+    selected.delete(key);
+  }
+
+  return {
+    ...line,
+    selectedDefects: Array.from(selected),
+  };
 }
 
 export function updateMachineDefectLine(

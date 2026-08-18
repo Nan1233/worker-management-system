@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import "./app-error-boundary.css";
 
 interface Props {
     children: ReactNode;
@@ -9,10 +10,25 @@ interface State {
     message: string;
 }
 
+function isStaleSessionCancellation(error: Error | null | undefined): boolean {
+    const message = String(error?.message || "").trim();
+    return (
+        error?.name === "CanceledError" ||
+        message === "Phản hồi thuộc phiên đăng nhập cũ đã bị hủy." ||
+        message === "Kết quả refresh thuộc phiên cũ đã bị bỏ qua."
+    );
+}
+
 export default class AppErrorBoundary extends Component<Props, State> {
     state: State = { hasError: false, message: "" };
 
     static getDerivedStateFromError(error: Error): State {
+        // A request cancelled because another tab/session became authoritative
+        // is a normal auth lifecycle event, not a broken application screen.
+        if (isStaleSessionCancellation(error)) {
+            return { hasError: false, message: "" };
+        }
+
         return {
             hasError: true,
             message: error?.message || "Đã xảy ra lỗi không mong muốn.",
@@ -20,6 +36,7 @@ export default class AppErrorBoundary extends Component<Props, State> {
     }
 
     componentDidCatch(error: Error, info: ErrorInfo): void {
+        if (isStaleSessionCancellation(error)) return;
         console.error("KTC_FRONTEND_UNHANDLED_ERROR", {
             message: error.message,
             stack: error.stack,

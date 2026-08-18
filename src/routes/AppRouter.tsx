@@ -17,6 +17,10 @@ const ManagementDashboard = lazy(() => import("../pages/lead/Dashboard"));
 const PendingReports = lazy(() => import("../pages/lead/PendingReports"));
 const ApprovedReports = lazy(() => import("../pages/lead/ApprovedReports"));
 const ReportDetail = lazy(() => import("../pages/lead/ReportDetail"));
+const ManagerDashboard = lazy(() => import("../pages/manager/Dashboard"));
+const ManagerReports = lazy(() => import("../pages/manager/Reports"));
+const ManagerApprovedReports = lazy(() => import("../pages/manager/ApprovedReports"));
+const ManagerReportDetail = lazy(() => import("../pages/manager/ReportDetail"));
 const EditReport = lazy(() => import("../pages/manager/EditReport"));
 const Statistics = lazy(() => import("../pages/manager/Statistics"));
 const SelectedReportsReview = lazy(() => import("../pages/manager/SelectedReportsReview"));
@@ -52,9 +56,9 @@ export default function AppRouter(){
   </Route>
 
   <Route path="/manager" element={<PrivateRoute allowedRoles={["manager"]}><ManagementLayout role="manager"/></PrivateRoute>}>
-   <Route index element={<P code="DASHBOARD_VIEW"><ManagementDashboard/></P>}/>
-   <Route path="reports" element={<P code="REPORT_PENDING_VIEW"><PendingReports/></P>}/>
-   <Route path="approved" element={<P code="REPORT_APPROVED_VIEW"><ApprovedReports/></P>}/>
+   <Route index element={<P code="DASHBOARD_VIEW"><ManagerDashboard/></P>}/>
+   <Route path="reports" element={<P code="REPORT_PENDING_VIEW"><ManagerReports/></P>}/>
+   <Route path="approved" element={<P code="REPORT_APPROVED_VIEW"><ManagerApprovedReports/></P>}/>
    <Route path="export" element={<Navigate to="/manager/approved" replace/>}/>
    <Route path="workers" element={<P code="USER_VIEW"><Workers/></P>}/>
    <Route path="master" element={<Navigate to="processes" replace/>}/>
@@ -76,8 +80,9 @@ export default function AppRouter(){
   </Route>
 
   {(["admin","manager","lead"] as const).map(role => <Route key={`${role}-review`} path={`/${role}/reports/review`} element={<PrivateRoute allowedRoles={[role]}><P code="REPORT_APPROVE"><SelectedReportsReview/></P></PrivateRoute>}/>)}
-  {(["admin","manager","lead"] as const).map(role => <Route key={`${role}-detail`} path={`/${role}/report/:id`} element={<PrivateRoute allowedRoles={[role]}><P code="REPORT_APPROVED_VIEW"><ReportDetail/></P></PrivateRoute>}/>)}
-  {(["admin","manager"] as const).map(role => <Route key={`${role}-edit`} path={`/${role}/report/:id/edit`} element={<PrivateRoute allowedRoles={[role]}><P code="REPORT_APPROVED_EDIT"><EditReport/></P></PrivateRoute>}/>)}
+  {(["admin","lead"] as const).map(role => <Route key={`${role}-detail`} path={`/${role}/report/:id`} element={<PrivateRoute allowedRoles={[role]}><P code="REPORT_APPROVED_VIEW"><ReportDetail/></P></PrivateRoute>}/>)}
+  <Route path="/manager/report/:id" element={<PrivateRoute allowedRoles={["manager"]}><P code="REPORT_APPROVED_VIEW"><ManagerReportDetail/></P></PrivateRoute>}/>
+  {(["admin","manager"] as const).map(role => <Route key={`${role}-edit`} path={`/${role}/report/:id/edit`} element={<PrivateRoute allowedRoles={[role]}><P code="REPORT_APPROVED_EDIT"><EditReport/></P></PrivateRoute>}/>) }
 
   <Route path="/worker" element={<PrivateRoute allowedRoles={["worker"]}><WorkerLayout/></PrivateRoute>}>
    <Route index element={<P code="WORKER_ENTRY"><SelectProcess/></P>}/>

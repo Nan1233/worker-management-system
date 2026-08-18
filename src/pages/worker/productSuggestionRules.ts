@@ -5,6 +5,29 @@ export type ProductSuggestionMode = "MANUAL" | "MACHINE";
 const normalize = (value: unknown) => String(value ?? "").trim().toUpperCase();
 
 /**
+ * Canonical machine key used only for matching master-data relations.
+ * The DB may contain 1, 01, M1, MAY-1, MÁY 01, etc.; these all refer to
+ * the same machine when the machine is numeric.
+ */
+export const normalizeMachineKey = (value: unknown): string => {
+    const code = normalize(value).replace(/\s+/g, "");
+    if (!code) return "";
+    const numeric = code.match(/^(?:MÁY|MAY|MACHINE|M)[-_]?(\d{1,2})$/i) || code.match(/^(\d{1,2})$/);
+    return numeric ? String(Number(numeric[1])) : code;
+};
+
+/**
+ * Master data can carry Cắt/Lồng in either business-language or canonical
+ * enum form. Normalize the values before applying the process scope.
+ */
+export const normalizeWorkType = (value: unknown): string => {
+    const code = normalize(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (["CUT", "CAT", "CẮT"].includes(code)) return "CUT";
+    if (["LONG", "LNG", "LỒNG"].includes(code)) return "LONG";
+    return code;
+};
+
+/**
  * Some KTC product codes encode a machine target in the final suffix:
  *   C5770-1    -> machine 1
  *   C5770-9    -> machine 9
@@ -24,14 +47,14 @@ export const getProductFamilyCode = (productCode: string): string =>
     normalize(productCode).replace(/-(AUTO|AUTOMATIC|\d+)$/i, "");
 
 const machineNumber = (machineCode: string): string | null => {
-    const code = normalize(machineCode);
-    return /^\d+$/.test(code) ? String(Number(code)) : null;
+    const key = normalizeMachineKey(machineCode);
+    return /^\d+$/.test(key) ? key : null;
 };
 
 const eligibleMachineCodes = (product: ProductStandardOption): string[] =>
     String(product.eligible_machine_codes || "")
         .split(",")
-        .map(normalize)
+        .map(normalizeMachineKey)
         .filter(Boolean);
 
 export const filterProductsForSelection = ({
@@ -52,17 +75,15 @@ export const filterProductsForSelection = ({
     );
 
     if (mode === "MANUAL") {
-        // GC encodes machine variants in product suffixes. Other processes rely
-        // on product_machine_standards and keep their native product codes.
         return useEncodedMachineSuffix
             ? products.filter((product) => !getProductMachineHint(product.product_code))
             : products;
     }
 
-    const selectedMachine = normalize(machineCode);
+    const selectedMachine = normalizeMachineKey(machineCode);
     if (!selectedMachine) return [];
 
-    const machine = (machineOptions || []).find((item) => normalize(item.machine_code) === selectedMachine);
+    const machine = (machineOptions || []).find((item) => normalizeMachineKey(item.machine_code) === selectedMachine);
     const isAutomatic = Number(machine?.is_automatic || 0) === 1;
     const selectedNumber = machineNumber(selectedMachine);
 
@@ -71,20 +92,16 @@ export const filterProductsForSelection = ({
         const mappedMachines = eligibleMachineCodes(product);
         const hasExplicitMapping = Number(product.has_machine_specific_standard || 0) === 1 || mappedMachines.length > 0;
 
-        // Explicit Book2/master mapping is authoritative when it exists.
+        // The product_machine_standards relation is authoritative when it exists.
         if (hasExplicitMapping && !mappedMachines.includes(selectedMachine)) return false;
 
         if (useEncodedMachineSuffix) {
             if (hint?.kind === "AUTO") return isAutomatic;
             if (hint?.kind === "NUMBER") return !isAutomatic && selectedNumber !== null && hint.value === selectedNumber;
 
-            // If this product family has dedicated machine variants, don't also show
-            // the unsuffixed/manual code while the worker is in machine mode.
             if (familyHasMachineVariant.has(getProductFamilyCode(product.product_code))) return false;
         }
 
-        // Products without encoded machine variants remain available when the
-        // master data doesn't provide a stricter machine mapping.
         return true;
     });
 };

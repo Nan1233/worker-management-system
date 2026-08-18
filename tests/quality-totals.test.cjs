@@ -5,8 +5,8 @@ const path = require("node:path");
 const quality = fs.readFileSync(path.join(__dirname, "../src/pages/worker/processQualityLogic.ts"), "utf8");
 assert.match(quality, /calculateNgTotal/);
 assert.match(quality, /applyNgToggleToForm/);
-assert.match(quality, /next\.ttNg=String\(calculateNgTotal\(next, options\)\)/);
-assert.match(quality, /next\.actualOutput=String\(calc\(next\)\)/);
+assert.match(quality, /next\.ttNg\s*=\s*String\(calculateNgTotal\(next,\s*options\)\)/);
+assert.match(quality, /next\.actualOutput\s*=\s*String\(calc\(next\)\)/);
 assert.doesNotMatch(
   quality,
   /next\.ttNg=String\(calc\(next\)\)/

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { MachineOption, ProductStandardOption } from "../../services/masterDataService";
 import { getCachedMachines, getCachedProductStandards, getCachedDefects, getCachedDeductions } from "../../services/masterDataCache";
 import {
@@ -17,8 +17,10 @@ export function useProcessMasterData(processId: number, processCode: string) {
   const [activeNgOptions, setActiveNgOptions] = useState<WorkerMasterOption[]>([]);
   const [activeDeductionOptions, setActiveDeductionOptions] = useState<WorkerMasterOption[]>([]);
   const [loadingMasterData, setLoading] = useState(true);
+  const requestGeneration = useRef(0);
 
   const load = useCallback(async () => {
+    const generation = ++requestGeneration.current;
     setLoading(true);
     try {
       const results = await Promise.allSettled([
@@ -27,6 +29,8 @@ export function useProcessMasterData(processId: number, processCode: string) {
         getCachedDefects(processId),
         getCachedDeductions(processId),
       ]);
+
+      if (generation !== requestGeneration.current) return;
 
       const [machines, products, defects, deductions] = results;
       if (machines.status === "fulfilled") setMachineOptions(machines.value);
@@ -37,7 +41,7 @@ export function useProcessMasterData(processId: number, processCode: string) {
       // A stale/cancelled request must never turn a previously loaded master
       // list into an empty selector.
     } finally {
-      setLoading(false);
+      if (generation === requestGeneration.current) setLoading(false);
     }
   }, [processId, processCode]);
 

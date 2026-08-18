@@ -2,14 +2,12 @@ import { getAccessToken } from "../utils/authStorage";
 import api from "./api";
 import { clearSessionCache, getSessionCached } from "./sessionCache";
 
-
-
-
 import type {
     ProductionDeduction,
     ProductionDefect,
     ProductionReport
 } from "../types/production";
+
 export interface CompanyNetworkAccess {
     allowed: boolean;
     restricted: boolean;
@@ -19,46 +17,18 @@ export interface CompanyNetworkAccess {
     message: string;
 }
 
-export const getCompanyNetworkAccess = async (
-    forceRefresh = false
-): Promise<CompanyNetworkAccess> => {
+export const getCompanyNetworkAccess = async (forceRefresh = false): Promise<CompanyNetworkAccess> => {
     const loader = async () => {
         const res = await api.get("/network/access");
         return res.data?.data || res.data;
     };
-
     if (forceRefresh) return loader();
-
-    return getSessionCached(
-        "network-access",
-        5 * 60 * 1000,
-        loader
-    );
+    return getSessionCached("network-access", 5 * 60 * 1000, loader);
 };
 
-// =====================================================
-// WORKER TẠO BÁO CÁO TEMP
-// =====================================================
-
-export const createTempReport = async(
-
-    data:ProductionReport
-
-)=>{
-
-
-    const res = await api.post(
-
-        "/production-temp",
-
-        data
-
-    );
-
-
+export const createTempReport = async (data: ProductionReport) => {
+    const res = await api.post("/production-temp", data, { timeout: 30_000 });
     return res.data;
-
-
 };
 
 export interface SimilarReportCheckResponse {
@@ -82,113 +52,27 @@ export const checkSimilarTempReport = async (
     return res.data;
 };
 
-
-
-
-
-
-
-// =====================================================
-// MANAGER LẤY NGÀY CÓ BÁO CÁO CHỜ DUYỆT
-// =====================================================
-
-export const getTempDates = async()=>{
-
-
-    const res = await api.get(
-
-        "/production-temp/dates"
-
-    );
-
-
+export const getTempDates = async () => {
+    const res = await api.get("/production-temp/dates");
     return res.data.data || res.data || [];
-
-
 };
 
-
-
-
-
-
-
-// =====================================================
-// MANAGER XEM TEMP THEO NGÀY
-// =====================================================
-
-export const getTempReportsByDate = async(
-
-    date:string
-
-):Promise<ProductionReport[]>=>{
-
-
-    const res = await api.get(
-
-        `/production-temp/by-date?date=${date}`
-
-    );
-
-
+export const getTempReportsByDate = async (date: string): Promise<ProductionReport[]> => {
+    const res = await api.get(`/production-temp/by-date?date=${date}`);
     return res.data.data || res.data || [];
-
-
 };
 
-
-
-
-
-
-
-export const getTempReportById = async (
-    id: number
-): Promise<ProductionReport> => {
-
-    const res = await api.get(
-        `/production-temp/${id}`,
-        {
-            params: {
-                _t: Date.now()
-            }
-        }
-    );
-
+export const getTempReportById = async (id: number): Promise<ProductionReport> => {
+    const res = await api.get(`/production-temp/${id}`, { params: { _t: Date.now() } });
     return res.data.data || res.data;
-
 };
 
+export const getTempReportDetail = async (id: number): Promise<ProductionReport> => getTempReportById(id);
 
-
-// =====================================================
-// WORKER XEM LỊCH SỬ TEMP
-// =====================================================
-
-export const getMyTempReports = async()=>{
-
-
-    const res = await api.get(
-
-        "/production-temp/my"
-
-    );
-
-
+export const getMyTempReports = async () => {
+    const res = await api.get("/production-temp/my");
     return res.data.data || res.data || [];
-
-
 };
-
-
-
-
-
-
-
-// =====================================================
-// MANAGER XEM CHỜ DUYỆT
-// =====================================================
 
 export interface ManagerReportPagination {
     page: number;
@@ -196,13 +80,11 @@ export interface ManagerReportPagination {
     total: number;
     total_pages: number;
 }
-
 export interface ManagerReportPage {
     data: ProductionReport[];
     pagination: ManagerReportPagination;
     processes?: string[];
 }
-
 export interface PendingReportFilters {
     dateFrom?: string;
     dateTo?: string;
@@ -226,12 +108,7 @@ const normalizeManagerReportPage = (payload: any): ManagerReportPage => ({
 });
 
 export const getPendingReports = async (filters: PendingReportFilters = {}): Promise<ManagerReportPage> => {
-    const includeMeta = true;
-    const key = [
-        "manager-pending", filters.dateFrom || "", filters.dateTo || "", filters.shift || "",
-        filters.processId || "", filters.processName || "", filters.search?.trim() || "",
-        filters.page || 1, filters.pageSize || 20
-    ].join(":");
+    const key = ["manager-pending", filters.dateFrom || "", filters.dateTo || "", filters.shift || "", filters.processId || "", filters.processName || "", filters.search?.trim() || "", filters.page || 1, filters.pageSize || 20].join(":");
     return getSessionCached(key, 15_000, async () => {
         const res = await api.get("/production-temp/pending", {
             params: {
@@ -243,7 +120,7 @@ export const getPendingReports = async (filters: PendingReportFilters = {}): Pro
                 search: filters.search?.trim(),
                 page: filters.page || 1,
                 page_size: filters.pageSize || 20,
-                include_meta: includeMeta ? 1 : 0,
+                include_meta: 1,
             },
         });
         return normalizeManagerReportPage(res.data);
@@ -251,14 +128,8 @@ export const getPendingReports = async (filters: PendingReportFilters = {}): Pro
 };
 
 export interface ApprovedReportFilters extends PendingReportFilters {}
-
 export const getApprovedReports = async (filters: ApprovedReportFilters = {}): Promise<ManagerReportPage> => {
-    const includeMeta = true;
-    const key = [
-        "manager-approved", filters.dateFrom || "", filters.dateTo || "", filters.shift || "",
-        filters.processId || "", filters.processName || "", filters.search?.trim() || "",
-        filters.page || 1, filters.pageSize || 20
-    ].join(":");
+    const key = ["manager-approved", filters.dateFrom || "", filters.dateTo || "", filters.shift || "", filters.processId || "", filters.processName || "", filters.search?.trim() || "", filters.page || 1, filters.pageSize || 20].join(":");
     return getSessionCached(key, 15_000, async () => {
         const res = await api.get("/production-temp/approved", {
             params: {
@@ -270,7 +141,7 @@ export const getApprovedReports = async (filters: ApprovedReportFilters = {}): P
                 search: filters.search?.trim(),
                 page: filters.page || 1,
                 page_size: filters.pageSize || 20,
-                include_meta: includeMeta ? 1 : 0,
+                include_meta: 1,
             },
         });
         return normalizeManagerReportPage(res.data);
@@ -284,393 +155,73 @@ export const invalidateManagerReportCaches = () => {
     clearSessionCache("manager-approved");
 };
 
-// =====================================================
-// LẤY BÁO CÁO ĐÃ DUYỆT
-// =====================================================
+export const getReports = async (): Promise<ProductionReport[]> => (await getApprovedReports()).data;
 
-export const getReports = async(): Promise<ProductionReport[]> =>
-    (await getApprovedReports()).data;
-
-
-
-
-
-// =====================================================
-// CHI TIẾT BÁO CÁO
-// =====================================================
-export const getReportById = async(
-    id:number,
-    source?:string | null
-)=>{
-
-
+export const getReportById = async (id: number, source?: string | null) => {
     const normalizedSource = String(source || "").toLowerCase();
-    const isTempReport = normalizedSource === "pending" || normalizedSource === "temp";
-
-    const url = isTempReport
-        ? `/production-temp/${id}`
-        : `/production/${id}`;
-
-
-
-    const res =
-    await api.get(url);
-
-
-
+    const url = normalizedSource === "pending" || normalizedSource === "temp" ? `/production-temp/${id}` : `/production/${id}`;
+    const res = await api.get(url);
     return res.data.data || res.data;
-
-
 };
 
-
-
-
-
-
-
-// =====================================================
-// UPDATE
-// =====================================================
-
-export const updateReport = async (
-    id: number,
-    data: ProductionReport,
-    source: "pending" | "approved" = "approved",
-    expectedUpdatedAt: string | null = null
-) => {
-    const endpoint = source === "pending"
-        ? `/production-temp/${id}`
-        : `/production/${id}`;
-
-    const payload = source === "approved"
-        ? { ...data, expected_updated_at: expectedUpdatedAt || undefined }
-        : data;
+export const updateReport = async (id: number, data: ProductionReport, source: "pending" | "approved" = "approved", expectedUpdatedAt: string | null = null) => {
+    const endpoint = source === "pending" ? `/production-temp/${id}` : `/production/${id}`;
+    const payload = source === "approved" ? { ...data, expected_updated_at: expectedUpdatedAt || undefined } : data;
     const res = await api.put(endpoint, payload);
     return res.data;
 };
 
-
-
-
-
-
-
-// =====================================================
-// DELETE
-// =====================================================
-
-export const deleteReport = async(
-
-    id:number,
-    reason:string
-
-)=>{
-
-
-    const res = await api.delete(
-
-        `/production/${id}`,
-        { data: { reason: String(reason || "").trim() } }
-
-    );
-
-
+export const updateTempReport = async (id: number, data: ProductionReport) => {
+    const res = await api.put(`/production-temp/${id}`, { ...data, expected_updated_at: data.updated_at || undefined });
     return res.data;
-
-
 };
 
-
-
-
-
-
-
-// =====================================================
-// EXPORT EXCEL TEMP / GIA CÔNG
-// =====================================================
-
-export const exportProductionExcel = async(
-
-    date:string
-
-)=>{
-
-
-    const res = await api.get(
-
-        `/reports/export-excel?date=${date}&type=pending`,
-
-        {
-
-            responseType:"blob"
-
-        }
-
-    );
-
-
-
-    downloadExcel(
-
-        res.data,
-
-        `BaoCaoChoDuyet_${date}.xlsx`
-
-    );
-
-
+export const deleteReport = async (id: number, reason: string) => {
+    const res = await api.delete(`/production/${id}`, { data: { reason: String(reason || "").trim() } });
+    return res.data;
 };
 
-
-
-
-
-
-
-// =====================================================
-// LẤY NGÀY ĐÃ DUYỆT
-// =====================================================
-
-export const getApprovedDates = async()=>{
-
-
-    const res = await api.get(
-
-        "/production/dates"
-
-    );
-
-
-    return res.data.data || res.data || [];
-
-
-};
-
-
-
-
-
-
-
-// =====================================================
-// BÁO CÁO ĐÃ DUYỆT THEO NGÀY
-// =====================================================
-
-export const getApprovedReportsByDate = async(
-
-    date:string
-
-):Promise<ProductionReport[]>=>{
-
-
-    return (await getApprovedReports({ dateFrom: date, dateTo: date })).data;
-
-
-};
-
-
-
-
-
-
-
-// =====================================================
-// EXPORT ĐÃ DUYỆT
-// =====================================================
-
-export const exportApprovedExcel = async(
-
-    date:string
-
-)=>{
-
-
-    const res = await api.get(
-
-        `/reports/export-excel?date=${date}&type=approved`,
-
-        {
-
-            responseType:"blob"
-
-        }
-
-    );
-
-
-
-    downloadExcel(
-
-        res.data,
-
-        `BaoCaoDaDuyet_${date}.xlsx`
-
-    );
-
-
-};
-
-
-
-
-
-
-
-// =====================================================
-// DOWNLOAD FILE EXCEL
-// =====================================================
-
-const downloadExcel = (
-
-    data:BlobPart,
-
-    filename:string
-
-)=>{
-
-
-    const blob = new Blob(
-
-        [
-
-            data
-
-        ],
-
-        {
-
-            type:
-
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-
-        }
-
-    );
-
-
-
-    const url =
-
-        window.URL.createObjectURL(blob);
-
-
-
-    const link =
-
-        document.createElement("a");
-
-
-
-    link.href=url;
-
-
-    link.download=filename;
-
-
-
+const downloadExcel = (data: BlobPart, filename: string) => {
+    const blob = new Blob([data], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
     document.body.appendChild(link);
-
-
-
     link.click();
-
-
-
     link.remove();
-
-
-
     window.URL.revokeObjectURL(url);
-
-
 };
-// =====================================================
-// GOOGLE SHEET
-// =====================================================
 
+export const exportProductionExcel = async (date: string) => {
+    const res = await api.get(`/reports/export-excel?date=${date}&type=pending`, { responseType: "blob" });
+    downloadExcel(res.data, `BaoCaoChoDuyet_${date}.xlsx`);
+};
 
-// TẠO GOOGLE SHEET MỚI
+export const getApprovedDates = async () => {
+    const res = await api.get("/production/dates");
+    return res.data.data || res.data || [];
+};
 
-// export const createGoogleSheet = async(
-//     date:string
-// )=>{
+export const getApprovedReportsByDate = async (date: string): Promise<ProductionReport[]> => (await getApprovedReports({ dateFrom: date, dateTo: date })).data;
 
-
-//     const res = await api.post(
-
-//         "/reports/create-sheet",
-
-//         {
-//             date
-//         }
-
-//     );
-
-
-//     return res.data;
-
-
-// };
-
-
-
-
-// CẬP NHẬT GOOGLE SHEET CŨ
-
-// export const updateGoogleSheet = async(
-//     date:string
-// )=>{
-
-
-//     const res = await api.post(
-
-//         "/reports/update-sheet",
-
-//         {
-//             date
-//         }
-
-//     );
-
-
-//     return res.data;
-
-
-// };
-// =====================================================
-// LEAD / MANAGER DUYỆT CÁC BÁO CÁO ĐÃ CHỌN
-// =====================================================
+export const exportApprovedExcel = async (date: string) => {
+    const res = await api.get(`/reports/export-excel?date=${date}&type=approved`, { responseType: "blob" });
+    downloadExcel(res.data, `BaoCaoDaDuyet_${date}.xlsx`);
+};
 
 export type TempReviewTarget = { id: number; expected_updated_at?: string | null };
+const normalizeTempReviewTargets = (items: Array<number | TempReviewTarget>) => items.map((item) => typeof item === "number" ? { id: item, expected_updated_at: null } : { id: Number(item.id), expected_updated_at: item.expected_updated_at || null });
 
-const normalizeTempReviewTargets = (items: Array<number | TempReviewTarget>) =>
-    items.map((item) => typeof item === "number"
-        ? { id: item, expected_updated_at: null }
-        : { id: Number(item.id), expected_updated_at: item.expected_updated_at || null });
-
-export const approveSelectedTempReports = async (
-    items: Array<number | TempReviewTarget>
-) => {
+export const approveSelectedTempReports = async (items: Array<number | TempReviewTarget>) => {
     const targets = normalizeTempReviewTargets(items);
-    const res = await api.post(
-        "/production-temp/approve-selected",
-        { ids: targets.map((item) => item.id), targets }
-    );
-
-
+    const res = await api.post("/production-temp/approve-selected", { ids: targets.map((item) => item.id), targets });
     invalidateManagerReportCaches();
     return res.data;
-
 };
-
 export const rejectSelectedTempReports = async (items: Array<number | TempReviewTarget>, reason: string) => {
     const targets = normalizeTempReviewTargets(items);
-    const res = await api.post(
-        "/production-temp/reject-selected",
-        { ids: targets.map((item) => item.id), targets, reason }
-    );
+    const res = await api.post("/production-temp/reject-selected", { ids: targets.map((item) => item.id), targets, reason });
     invalidateManagerReportCaches();
     invalidatePendingReportCache();
     return res.data;
@@ -682,7 +233,6 @@ export interface MachineProductionEventDefectInput {
     quantity: number;
     responsible_worker_id: number;
 }
-
 export interface MachineProductionEvent {
     id: number;
     process_id: number;
@@ -706,7 +256,6 @@ export interface MachineProductionEvent {
     participants?: Array<{ worker_id: number; machine_line_id?: number; report_id?: number }>;
     [key: string]: unknown;
 }
-
 export interface MachineProductionEventInput {
     process_id: number;
     machine_id?: number | null;
@@ -719,39 +268,28 @@ export interface MachineProductionEventInput {
     defects?: MachineProductionEventDefectInput[];
     temp_machine_line_ids?: number[];
 }
-
 export interface MachineProductionEventUpdate {
     physical_ok_quantity?: number;
     machine_time_hours?: number;
     defects?: MachineProductionEventDefectInput[];
 }
-
 export const createMachineProductionEvent = async (data: MachineProductionEventInput): Promise<MachineProductionEvent> => {
     const res = await api.post("/machine-production-events", data);
     return res.data?.data ?? res.data;
 };
-
 export const getMachineProductionEvent = async (eventId: number): Promise<MachineProductionEvent> => {
     const res = await api.get(`/machine-production-events/${eventId}`);
     return res.data?.data ?? res.data;
 };
-
 export const updateMachineProductionEvent = async (eventId: number, patch: MachineProductionEventUpdate): Promise<MachineProductionEvent> => {
     const res = await api.put(`/machine-production-events/${eventId}`, patch);
     return res.data?.data ?? res.data;
 };
 
-export const linkMachineEventParticipants = async (eventId: number, tempMachineLineIds: number[]) => {
-    const res = await api.post(`/machine-production-events/${eventId}/link-participants`, {
-        temp_machine_line_ids: tempMachineLineIds
-    });
-    return res.data?.data ?? res.data;
-};
-
-export const approveMachineProductionEvent = async (eventId: number): Promise<MachineProductionEvent> => {
-    const res = await api.post(`/machine-production-events/${eventId}/approve`);
-    return res.data?.data ?? res.data;
-};
+export const linkMachineEventParticipants = async (eventId: number, participantIds: number[]) =>
+    (await api.post(`/machine-production-events/${eventId}/participants`, { participant_ids: participantIds })).data;
+export const approveMachineProductionEvent = async (eventId: number) =>
+    (await api.post(`/machine-production-events/${eventId}/approve`)).data;
 
 export interface ReportActionLog {
     id: number;
@@ -764,79 +302,10 @@ export interface ReportActionLog {
     role?: string | null;
     created_at: string;
 }
-
 export const getTempReportActionLogs = async (id: number): Promise<ReportActionLog[]> => {
     const res = await api.get(`/production-temp/${id}/logs`);
     return res.data?.data || [];
 };
-
-
-// // =====================================================
-// // LEAD / MANAGER TỪ CHỐI CÁC BÁO CÁO ĐÃ CHỌN
-// // =====================================================
-
-// export const rejectSelectedTempReports = async (
-
-//     ids: number[],
-
-//     reason: string
-
-// ) => {
-
-
-//     const res = await api.post(
-
-//         "/production-temp/reject-selected",
-
-//         {
-//             ids,
-//             reason
-//         }
-
-//     );
-
-
-//     return res.data;
-
-// };
-
-// =====================================================
-// LẤY CHI TIẾT MỘT BÁO CÁO TEMP
-// =====================================================
-
-// =====================================================
-// LẤY CHI TIẾT MỘT BÁO CÁO TEMP
-// =====================================================
-
-// =====================================================
-// LẤY CHI TIẾT MỘT BÁO CÁO TEMP
-// =====================================================
-
-export const getTempReportDetail = async (
-    id: number
-): Promise<ProductionReport> => {
-
-    return getTempReportById(id);
-
-};
-// =====================================================
-// UPDATE BÁO CÁO TEMP
-// =====================================================
-
-export const updateTempReport = async (
-    id: number,
-    data: ProductionReport
-) => {
-    const res = await api.put(
-        `/production-temp/${id}`,
-        { ...data, expected_updated_at: data.updated_at || undefined }
-    );
-
-    return res.data;
-};
-// =====================================================
-// XUẤT EXCEL CÁC BÁO CÁO ĐÃ DUYỆT ĐƯỢC CHỌN
-// =====================================================
 
 export interface ExcelExportResult {
     success: boolean;
@@ -844,132 +313,42 @@ export interface ExcelExportResult {
     code?: string;
     reason?: string;
     message?: string;
-    files?: Array<{
-        processName?: string;
-        processCode?: string;
-        success?: boolean;
-        error?: string;
-        saved?: boolean;
-        pendingPath?: string | null;
-    }>;
+    files?: Array<{ processName?: string; processCode?: string; success?: boolean; error?: string; saved?: boolean; pendingPath?: string | null }>;
     [key: string]: unknown;
 }
 
-export const exportSelectedApprovedExcel = async (
-    date: string
-): Promise<ExcelExportResult> => {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        throw new Error("Ngày xuất Excel không hợp lệ");
-    }
-
-    const isElectronRuntime =
-        Boolean(window.ktcDesktop?.isDesktop) ||
-        navigator.userAgent.toLowerCase().includes("electron");
-
-    // Khi chạy trong Electron, bắt buộc dùng IPC. Không được âm thầm rơi xuống
-    // API Axios của web vì sẽ tạo thêm POST /reports/export-excel và có thể 401.
+export const exportSelectedApprovedExcel = async (date: string): Promise<ExcelExportResult> => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Ngày xuất Excel không hợp lệ");
+    const isElectronRuntime = Boolean(window.ktcDesktop?.isDesktop) || navigator.userAgent.toLowerCase().includes("electron");
     if (isElectronRuntime) {
-        if (
-            !window.ktcDesktop?.isDesktop ||
-            typeof window.ktcDesktop.syncAllExcel !== "function"
-        ) {
-            throw new Error(
-                "Ứng dụng Desktop chưa tải được mô-đun cập nhật Excel. " +
-                "Hãy đóng ứng dụng và cài lại bản Desktop mới nhất."
-            );
+        if (!window.ktcDesktop?.isDesktop || typeof window.ktcDesktop.syncAllExcel !== "function") {
+            throw new Error("Ứng dụng Desktop chưa tải được mô-đun cập nhật Excel. Hãy đóng ứng dụng và cài lại bản Desktop mới nhất.");
         }
-
         const token = getAccessToken() || "";
-        if (!token) {
-            throw new Error(
-                "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại."
-            );
-        }
-
+        if (!token) throw new Error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
         const result = await window.ktcDesktop.syncAllExcel(token, date) as ExcelExportResult;
-
-        if (result?.skipped) {
-            throw new Error(
-                result.message ||
-                "Đang có một lần cập nhật Excel khác chạy. Yêu cầu đã được xếp hàng."
-            );
-        }
-
+        if (result?.skipped) throw new Error(result.message || "Đang có một lần cập nhật Excel khác chạy. Yêu cầu đã được xếp hàng.");
         if (!result?.success) {
-            const failedFiles = Array.isArray(result?.files)
-                ? result.files
-                    .filter(file => file?.success === false)
-                    .map(file => {
-                        const name =
-                            file.processName ||
-                            file.processCode ||
-                            "File Excel";
-                        return `${name}: ${file.error || "Không xác định được lỗi"}`;
-                    })
-                : [];
-
-            throw new Error(
-                failedFiles.length > 0
-                    ? failedFiles.join("; ")
-                    : result?.message ||
-                      "Không thể cập nhật file Excel tháng."
-            );
+            const failedFiles = Array.isArray(result?.files) ? result.files.filter(file => file?.success === false).map(file => `${file.processName || file.processCode || "File Excel"}: ${file.error || "Không xác định được lỗi"}`) : [];
+            throw new Error(failedFiles.length > 0 ? failedFiles.join("; ") : result?.message || "Không thể cập nhật file Excel tháng.");
         }
-
         return result;
     }
-
-    const startedAt = Date.now();
-    const response = await api.post(
-        "/reports/export-excel",
-        { date },
-        {
-            responseType: "blob",
-            timeout: 180_000
-        }
-    );
-
-    console.info(
-        "[EXPORT EXCEL] completed",
-        { elapsedMs: Date.now() - startedAt, date }
-    );
-
-    const contentDisposition =
-        response.headers["content-disposition"] as string | undefined;
-
+    const response = await api.post("/reports/export-excel", { date }, { responseType: "blob", timeout: 180_000 });
+    const contentDisposition = response.headers["content-disposition"] as string | undefined;
     const [year, month] = date.split("-");
     let fileName = `Bao-cao-san-xuat-${month}-${year}.xlsx`;
-
     if (contentDisposition) {
-        const utf8Match = contentDisposition.match(
-            /filename\*=UTF-8''([^;]+)/i
-        );
-        const normalMatch = contentDisposition.match(
-            /filename="?([^";]+)"?/i
-        );
+        const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+        const normalMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
         const encodedName = utf8Match?.[1] || normalMatch?.[1];
-
         if (encodedName) {
-            try {
-                fileName = decodeURIComponent(encodedName);
-            } catch {
-                fileName = encodedName;
-            }
+            try { fileName = decodeURIComponent(encodedName); } catch { fileName = encodedName; }
         }
     }
-
-    const blob = response.data instanceof Blob
-        ? response.data
-        : new Blob(
-            [response.data],
-            {
-                type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            }
-        );
-
+    const blob = response.data instanceof Blob ? response.data : new Blob([response.data], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const downloadUrl = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
-
     try {
         link.href = downloadUrl;
         link.download = fileName;
@@ -979,40 +358,18 @@ export const exportSelectedApprovedExcel = async (
         link.remove();
         window.URL.revokeObjectURL(downloadUrl);
     }
-
-    return {
-        success: true,
-        message: "Đã tải file Excel theo tháng."
-    };
+    return { success: true, message: "Đã tải file Excel theo tháng." };
 };
 
-export const getDeductionOptionsByProcess = async (
-    processId: number
-): Promise<ProductionDeduction[]> => {
-
-    const res = await api.get(
-        `/processes/${processId}/deductions`
-    );
-
+export const getDeductionOptionsByProcess = async (processId: number): Promise<ProductionDeduction[]> => {
+    const res = await api.get(`/processes/${processId}/deductions`);
     return res.data.data || res.data || [];
-
 };
-
-
-export const getDefectOptionsByProcess = async (
-    processId: number
-): Promise<ProductionDefect[]> => {
-
-    const res = await api.get(
-        `/processes/${processId}/defects`
-    );
-
+export const getDefectOptionsByProcess = async (processId: number): Promise<ProductionDefect[]> => {
+    const res = await api.get(`/processes/${processId}/defects`);
     return res.data.data || res.data || [];
-
 };
-// =====================================================
-// TRẠNG THÁI FILE EXCEL THÁNG - DÙNG CHUNG WEB/MOBILE/DESKTOP
-// =====================================================
+
 export type MonthlyExcelStatus = {
     selectedDate: string;
     yearMonth: string;
@@ -1023,14 +380,7 @@ export type MonthlyExcelStatus = {
     generatedAt: string | null;
     latestUpdatedAt: string | null;
 };
-
-export const getMonthlyExcelStatus = async (
-    date: string
-): Promise<MonthlyExcelStatus> => {
-    const response = await api.get(
-        "/reports/export-excel/status",
-        { params: { date } }
-    );
-
+export const getMonthlyExcelStatus = async (date: string): Promise<MonthlyExcelStatus> => {
+    const response = await api.get("/reports/export-excel/status", { params: { date } });
     return response.data.data;
 };

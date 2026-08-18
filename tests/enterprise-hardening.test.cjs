@@ -15,7 +15,7 @@ test('approved report editing requires an audit reason in the UI', () => {
 
 test('approved report delete API sends an explicit deletion reason', () => {
   const source = read('src/services/productionService.ts');
-  assert.match(source, /deleteReport = async\(/);
+  assert.match(source, /deleteReport\s*=\s*async\s*\(/);
   assert.match(source, /\{ data: \{ reason: String\(reason \|\| ""\)\.trim\(\) \} \}/);
 });
 

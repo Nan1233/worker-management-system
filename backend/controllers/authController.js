@@ -467,7 +467,11 @@ exports.refresh = async (req, res) => {
                     : "Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại"
             });
         }
-        console.error("Lỗi làm mới token:", error?.message || error);
+        console.error("AUTH_REFRESH_ERROR", {
+            code: error?.code || "REFRESH_TOKEN_ERROR",
+            name: error?.name || "Error",
+            message: error?.message || "unknown"
+        });
         return res.status(500).json({ success: false, message: "Không thể làm mới phiên đăng nhập lúc này" });
     }
 };
