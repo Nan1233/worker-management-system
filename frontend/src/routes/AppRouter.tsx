@@ -46,7 +46,7 @@ export default function AppRouter(){
    <Route path="approved" element={<P code="REPORT_APPROVED_VIEW"><ApprovedReports/></P>}/>
    <Route path="export" element={<P code="REPORT_EXPORT"><ReportDownload/></P>}/>
    <Route path="workers" element={<P code="USER_VIEW"><Workers/></P>}/>
-   <Route path="master" element={<Navigate to="master/processes" replace/>}/>
+   <Route path="master" element={<Navigate to="processes" replace/>}/>
    <Route path="master/:resource" element={<P code="MASTER_VIEW"><MasterData/></P>}/>
    <Route path="formulas" element={<P code="FORMULA_VIEW"><FormulaSettings/></P>}/>
    <Route path="governance" element={<P code="GOVERNANCE_VIEW"><Governance/></P>}/>
@@ -61,7 +61,7 @@ export default function AppRouter(){
    <Route path="approved" element={<P code="REPORT_APPROVED_VIEW"><ManagerApprovedReports/></P>}/>
    <Route path="export" element={<Navigate to="/manager/approved" replace/>}/>
    <Route path="workers" element={<P code="USER_VIEW"><Workers/></P>}/>
-   <Route path="master" element={<Navigate to="master/processes" replace/>}/>
+   <Route path="master" element={<Navigate to="processes" replace/>}/>
    <Route path="master/:resource" element={<P code="MASTER_VIEW"><MasterData/></P>}/>
    <Route path="formulas" element={<P code="FORMULA_VIEW"><FormulaSettings/></P>}/>
    <Route path="governance" element={<P code="GOVERNANCE_VIEW"><Governance/></P>}/>
@@ -82,7 +82,7 @@ export default function AppRouter(){
   {(["admin","manager","lead"] as const).map(role => <Route key={`${role}-review`} path={`/${role}/reports/review`} element={<PrivateRoute allowedRoles={[role]}><P code="REPORT_APPROVE"><SelectedReportsReview/></P></PrivateRoute>}/>)}
   {(["admin","lead"] as const).map(role => <Route key={`${role}-detail`} path={`/${role}/report/:id`} element={<PrivateRoute allowedRoles={[role]}><P code="REPORT_APPROVED_VIEW"><ReportDetail/></P></PrivateRoute>}/>)}
   <Route path="/manager/report/:id" element={<PrivateRoute allowedRoles={["manager"]}><P code="REPORT_APPROVED_VIEW"><ManagerReportDetail/></P></PrivateRoute>}/>
-  {(["admin","manager"] as const).map(role => <Route key={`${role}-edit`} path={`/${role}/report/:id/edit`} element={<PrivateRoute allowedRoles={[role]}><P code="REPORT_APPROVED_EDIT"><EditReport/></P></PrivateRoute>/>) }
+  {(["admin","manager"] as const).map(role => <Route key={`${role}-edit`} path={`/${role}/report/:id/edit`} element={<PrivateRoute allowedRoles={[role]}><P code="REPORT_APPROVED_EDIT"><EditReport/></P></PrivateRoute>} />)}
 
   <Route path="/worker" element={<PrivateRoute allowedRoles={["worker"]}><WorkerLayout/></PrivateRoute>}>
    <Route index element={<P code="WORKER_ENTRY"><SelectProcess/></P>}/>
