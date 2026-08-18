@@ -59,6 +59,21 @@ test('P0 shared-machine accounting keeps GC 5/6/7/11 at four workers and preserv
   assert.match(createModel, /const normalizedRequestedEventId = Number\(requestedEventId\)/);
 });
 
+test('P0 business validator enforces 14-day backdate and 12-hour total-time limit', () => {
+  const source = read('utils/reportValidation.js');
+  assert.match(source, /MAX_TOTAL_TIME_HOURS = 12/);
+  assert.match(source, /maxBackDays \?\? 14/);
+  assert.match(source, /parsedDate < oldest/);
+  assert.match(source, /totalTime > MAX_TOTAL_TIME_HOURS/);
+  assert.match(source, /totalTime - \(actualTime \+ deductionTime\)/);
+});
+
+test('P0 business validator rejects future work dates', () => {
+  const source = read('utils/reportValidation.js');
+  assert.match(source, /parsedDate > today/);
+  assert.match(source, /Không được nhập báo cáo cho ngày tương lai/);
+});
+
 test('P0 zero-cost E2E covers the locked business flow', () => {
   const e2e = fs.readFileSync(path.join(root, '..', 'scripts/zero-cost/critical-e2e.cjs'), 'utf8');
   for (const marker of [
