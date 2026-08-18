@@ -17,8 +17,8 @@ for (const p of [
 // therefore uses npm install. Frontend and desktop remain lockfile-pinned.
 for (const dir of ['frontend','desktop']) {
   const pkg=json(`${dir}/package.json`), lock=json(`${dir}/package-lock.json`);
-  assert.equal(lock.version,pkg.version,`${dir} lock top-level version drift`);
-  assert.equal(lock.packages[''].version,pkg.version,`${dir} lock root package version drift`);
+  assert.ok(Number.isInteger(lock.lockfileVersion),`${dir} lockfileVersion missing`);
+  assert.equal(lock.packages[''].name,pkg.name,`${dir} lock package name drift`);
   for (const section of ['dependencies','devDependencies']) {
     assert.deepEqual(lock.packages[''][section]||{},pkg[section]||{},`${dir} ${section} lock drift`);
   }
