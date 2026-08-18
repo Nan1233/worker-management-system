@@ -30,7 +30,8 @@
     "audit:logical-duplicates": "node scripts/auditLogicalDuplicates.js",
     "audit:worker-processes": "node scripts/auditWorkerProcesses.js",
     "audit:production-indexes": "node scripts/auditProductionIndexes.js",
-    "db:schema:verify": "node scripts/verifyDatabaseSchema.js"
+    "db:schema:verify": "node scripts/verifyDatabaseSchema.js",
+    "p0:runtime:verify": "node scripts/verifyP0Runtime.js"
   },
   "dependencies": {
     "bcrypt": "6.0.0",

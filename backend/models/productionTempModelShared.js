@@ -41,7 +41,7 @@ const normalizeIds = (ids) => [
             .map(Number)
             .filter((id) => Number.isInteger(id) && id > 0)
     )
-];
+].sort((a, b) => a - b);
 
 const editableFields = [
     "work_date",
