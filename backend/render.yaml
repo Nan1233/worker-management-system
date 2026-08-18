@@ -3,7 +3,7 @@ services:
     name: worker-management-api
     runtime: node
     rootDir: backend
-    buildCommand: npm install
+    buildCommand: npm install --omit=dev --no-audit --no-fund
     startCommand: npm start
     healthCheckPath: /api/health/ready
     autoDeploy: true
@@ -29,7 +29,7 @@ services:
     name: worker-management-sync
     runtime: node
     rootDir: backend
-    buildCommand: npm install
+    buildCommand: npm install --omit=dev --no-audit --no-fund
     startCommand: npm run worker
     autoDeploy: true
     envVars:
