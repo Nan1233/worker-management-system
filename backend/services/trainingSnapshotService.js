@@ -28,12 +28,36 @@ function getReportTrainingSnapshot(report = {}, { allowLegacyTrainingField = fal
   return null;
 }
 
-async function resolveInitialTrainingSnapshot({ workerId, query }) {
+/**
+ * Resolve the immutable training snapshot for a new report.
+ *
+ * Supported query boundaries:
+ *  - query(sql, params): legacy/service callers
+ *  - executor.query(sql, params): transactional create flow
+ *
+ * The worker create transaction passes its locked DB connection as `executor`.
+ * Keeping the adapter here avoids silently querying the global pool and makes
+ * the snapshot part of the same transaction as the report creation.
+ */
+async function resolveInitialTrainingSnapshot({ workerId, query, executor }) {
   const id = Number(workerId);
-  if (!Number.isInteger(id) || id <= 0 || typeof query !== 'function') {
+  if (!Number.isInteger(id) || id <= 0) {
     throw httpTrainingError('Không xác định được nhân viên để chụp % học việc', 'TRAINING_SNAPSHOT_WORKER_REQUIRED');
   }
-  const rows = await query(
+
+  let runQuery = query;
+  if (typeof runQuery !== 'function' && executor && typeof executor.query === 'function') {
+    runQuery = async (sql, params) => {
+      const result = await executor.query(sql, params);
+      return Array.isArray(result) && Array.isArray(result[0]) ? result[0] : result;
+    };
+  }
+
+  if (typeof runQuery !== 'function') {
+    throw httpTrainingError('Không thể đọc thông tin % học việc', 'TRAINING_SNAPSHOT_QUERY_REQUIRED');
+  }
+
+  const rows = await runQuery(
     `SELECT training_percent FROM workers WHERE id = ? AND status = 'active' LIMIT 1`,
     [id]
   );
