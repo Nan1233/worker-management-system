@@ -49,7 +49,7 @@ async function verifyDatabaseSchema({ executor = db.promise() } = {}) {
     // it must not force production DB rewrites during a demo. This is especially
     // important for existing TiDB databases that contain legacy migration-era
     // objects or harmless type/index drift.
-    const expectedTables = new Set(Object.keys(canonical.tables));
+    const expectedTables = new Set(Object.keys(RUNTIME_REQUIRED_COLUMNS));
     const missingTables = [...expectedTables].filter((table) => !actualTables.has(table));
     const extraTables = [...actualTables].filter((table) => !expectedTables.has(table));
 
@@ -155,7 +155,6 @@ function createSchemaNotReadyError(result) {
     invalidIndexes: result.invalidIndexes || [],
     extraIndexes: result.extraIndexes || [],
     contractVersion: result.contractVersion || CONTRACT_VERSION,
-  runtimeContract: result.runtimeContract || 'MINIMUM_STRUCTURAL_V1',
     runtimeContract: result.runtimeContract || 'MINIMUM_STRUCTURAL_V1',
   };
   return error;

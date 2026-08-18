@@ -8,6 +8,7 @@ import ManagementLayout from "../layouts/ManagementLayout";
 import RouteLoading from "../components/system/RouteLoading";
 
 const Login = lazy(() => import("../pages/Login"));
+const MobileDownload = lazy(() => import("../pages/MobileDownload"));
 const AdminDashboard = lazy(() => import("../pages/admin/Dashboard"));
 const MasterData = lazy(() => import("../pages/admin/MasterData"));
 const FormulaSettings = lazy(() => import("../pages/admin/FormulaSettings"));
@@ -39,6 +40,8 @@ export default function AppRouter(){
  return <Suspense fallback={<RouteLoading/>}><Routes>
   <Route path="/" element={<Navigate to="/login" replace/>}/>
   <Route path="/login" element={<Login/>}/>
+  <Route path="/mobile" element={<MobileDownload/>}/>
+  <Route path="/download" element={<MobileDownload/>}/>
 
   <Route path="/admin" element={<PrivateRoute allowedRoles={["admin"]}><ManagementLayout role="admin"/></PrivateRoute>}>
    <Route index element={<P code="DASHBOARD_VIEW"><AdminDashboard/></P>}/>

@@ -9,7 +9,8 @@ const workerNotificationBackfills = new Map();
 const WORKER_NOTIFICATION_BACKFILL_TTL_MS = Math.max(60_000, Number(process.env.WORKER_NOTIFICATION_BACKFILL_TTL_MS || 10 * 60_000));
 
 async function executeWorkerNotificationBackfill(user) {
- await AuditService.ensureSchema();
+  const notificationSchema = await AuditService.ensureSchema();
+  if (!notificationSchema.extended) return;
  const userId = Number(user?.id || 0);
  const workerId = Number(user?.worker_id || 0);
  if (!userId || !workerId || user?.role !== 'worker') return;
@@ -130,14 +131,17 @@ exports.getObservability = async (_req, res) => {
 };
 exports.getNotifications = async (req,res) => {
  try {
-  await AuditService.ensureSchema();
+  const notificationSchema = await AuditService.ensureSchema();
   // Công nhân có thể đã có báo cáo được xử lý trước khi tính năng thông báo
   // được triển khai. Bù các thông báo còn thiếu trước khi trả lịch sử.
   await backfillWorkerReportNotifications(req.user);
 
+  const linkUrlSelect = notificationSchema.linkUrl ? 'link_url' : 'NULL AS link_url';
+  const entityTypeSelect = notificationSchema.entityType ? 'entity_type' : 'NULL AS entity_type';
+  const entityIdSelect = notificationSchema.entityId ? 'entity_id' : 'NULL AS entity_id';
   const limit = Math.min(Math.max(Number(req.query.limit)||30,1),100);
   const [rows] = await db.promise().query(
-   `SELECT id,user_id,type,title,message,link_url,entity_type,entity_id,is_read,read_at,created_at
+   `SELECT id,user_id,type,title,message,${linkUrlSelect},${entityTypeSelect},${entityIdSelect},is_read,read_at,created_at
     FROM notifications
     WHERE user_id=?
     ORDER BY created_at DESC, id DESC
@@ -173,7 +177,6 @@ exports.markAllNotificationsRead = async (req,res) => {
 };
 exports.getActivities = async (req,res) => {
  try {
-  await AuditService.ensureSchema();
   const limit=Math.min(Math.max(Number(req.query.limit)||80,1),300);
   const params=[]; let where='1=1';
   if(req.user.role==='worker'){
@@ -228,11 +231,10 @@ exports.getActivities = async (req,res) => {
 };
 exports.getReportVersions = async (req,res) => {
  try {
-  await AuditService.ensureSchema();
   const reportId=Number(req.params.id); const type=req.query.type==='temp'?'temp':'approved';
   const table=type==='temp'?'production_reports_temp':'production_reports';
   const [access]=await db.promise().query(
-   `SELECT r.id, r.worker_id FROM ${table} r WHERE r.id=? AND (\n      ?='admin' OR\n      (?='worker' AND r.worker_id=?) OR\n      (? IN ('manager','lead') AND EXISTS (SELECT 1 FROM manager_processes mp WHERE mp.manager_id=? AND mp.process_id=r.process_id))\n    ) LIMIT 1`,
+   `SELECT r.id, r.worker_id FROM ${table} r WHERE r.id=? AND (\n      ?='admin' OR\n      (?'worker' AND r.worker_id=?) OR\n      (? IN ('manager','lead') AND EXISTS (SELECT 1 FROM manager_processes mp WHERE mp.manager_id=? AND mp.process_id=r.process_id))\n    ) LIMIT 1`,
    [reportId,req.user.role,req.user.role,req.user.worker_id||0,req.user.role,req.user.id]
   );
   if(!access.length) return res.status(404).json({success:false,message:'Không tìm thấy báo cáo hoặc bạn không có quyền truy cập'});

@@ -5,6 +5,7 @@ import { HashRouter } from "react-router-dom";
 import App from "./App";
 import "./index.css";
 import "./styles/ktc-professional.css";
+import "./styles/dark-mode-contrast.css";
 import "./styles/app-shell.css";
 import "./styles/production/production-ui.css";
 import "./styles/enterprise-responsive.css";

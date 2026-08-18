@@ -7,9 +7,15 @@ const query = (executor, sql, params = []) => executor.promise
 
 let schemaReadyPromise = null;
 
+/**
+ * Read-only notification schema capability check.
+ *
+ * Production/TiDB schema is managed outside the application runtime. This
+ * function deliberately performs metadata reads only; it never ALTERs or
+ * CREATEs database objects. Callers can therefore run safely against both
+ * the current notification schema and older deployments.
+ */
 async function ensureSchema(executor = db) {
-  // Existing TiDB deployments may predate the notification link/entity columns.
-  // Repair only the missing additive columns so notification writes remain compatible.
   if (!schemaReadyPromise) {
     schemaReadyPromise = (async () => {
       const [rows] = await query(
@@ -20,31 +26,12 @@ async function ensureSchema(executor = db) {
             AND TABLE_NAME = 'notifications'`,
       );
       const columns = new Set(rows.map((row) => String(row.COLUMN_NAME).toLowerCase()));
-      const additions = [
-        ['link_url', 'VARCHAR(1000) NULL AFTER message'],
-        ['entity_type', 'VARCHAR(80) NULL AFTER link_url'],
-        ['entity_id', 'BIGINT NULL AFTER entity_type'],
-      ];
-
-      for (const [column, definition] of additions) {
-        if (columns.has(column)) continue;
-        try {
-          await query(executor, `ALTER TABLE notifications ADD COLUMN ${column} ${definition}`);
-        } catch (error) {
-          if (!/duplicate column|already exists/i.test(String(error?.message || ''))) throw error;
-        }
-      }
-
-      try {
-        await query(
-          executor,
-          'CREATE INDEX idx_notification_entity ON notifications (entity_type, entity_id)',
-        );
-      } catch (error) {
-        if (!/duplicate key name|already exists/i.test(String(error?.message || ''))) throw error;
-      }
-
-      return true;
+      return Object.freeze({
+        linkUrl: columns.has('link_url'),
+        entityType: columns.has('entity_type'),
+        entityId: columns.has('entity_id'),
+        extended: columns.has('link_url') && columns.has('entity_type') && columns.has('entity_id'),
+      });
     })().catch((error) => {
       schemaReadyPromise = null;
       throw error;
@@ -65,7 +52,6 @@ async function logActivity(
   },
   executor = db,
 ) {
-  await ensureSchema();
   await query(
     executor,
     `INSERT INTO activity_logs
@@ -94,8 +80,6 @@ async function createReportVersion(
   },
   executor = db,
 ) {
-  await ensureSchema();
-
   const [rows] = await query(
     executor,
     `SELECT COALESCE(MAX(version_no), 0) + 1 AS next_version
@@ -123,6 +107,7 @@ async function createReportVersion(
 
   return versionNo;
 }
+
 
 async function loadTempReportSnapshot(reportId, executor = db) {
   const [reportRows] = await query(
@@ -195,24 +180,24 @@ async function notifyUsers(userIds, payload, executor = db) {
 
   if (!ids.length) return;
 
-  await ensureSchema(executor);
+  const schema = await ensureSchema(executor);
+  const columns = ['user_id', 'type', 'title', 'message'];
+  if (schema.linkUrl) columns.push('link_url');
+  if (schema.entityType) columns.push('entity_type');
+  if (schema.entityId) columns.push('entity_id');
 
-  const values = ids.map(() => '(?,?,?,?,?,?,?)').join(',');
-  const params = ids.flatMap((id) => [
-    id,
-    payload.type || 'info',
-    payload.title,
-    payload.message,
-    payload.linkUrl || null,
-    payload.entityType || null,
-    payload.entityId || null,
-  ]);
+  const values = ids.map(() => `(${columns.map(() => '?').join(',')})`).join(',');
+  const params = ids.flatMap((id) => {
+    const row = [id, payload.type || 'info', payload.title, payload.message];
+    if (schema.linkUrl) row.push(payload.linkUrl || null);
+    if (schema.entityType) row.push(payload.entityType || null);
+    if (schema.entityId) row.push(payload.entityId || null);
+    return row;
+  });
 
   await query(
     executor,
-    `INSERT INTO notifications
-      (user_id,type,title,message,link_url,entity_type,entity_id)
-     VALUES ${values}`,
+    `INSERT INTO notifications (${columns.join(',')}) VALUES ${values}`,
     params,
   );
 }

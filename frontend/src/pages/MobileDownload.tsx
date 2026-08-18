@@ -26,14 +26,6 @@ export default function MobileDownload() {
     return () => media.removeEventListener?.("change", update);
   }, []);
 
-  useEffect(() => {
-    if (!platform.isAndroid || installed) return;
-    const timer = window.setTimeout(() => {
-      window.location.assign(APK_URL);
-    }, 900);
-    return () => window.clearTimeout(timer);
-  }, [installed, platform.isAndroid]);
-
   return (
     <main className="mobile-download-page">
       <section className="mobile-download-card" aria-labelledby="mobile-download-title">
@@ -47,7 +39,7 @@ export default function MobileDownload() {
         {platform.isAndroid && (
           <div className="mobile-download-panel">
             <h2>Android</h2>
-            <p>Đang mở tải APK… nếu trình duyệt không tự tải, hãy bấm nút bên dưới.</p>
+            <p>Bấm nút bên dưới để tải APK. Hệ thống không tự tải file khi bạn chỉ mở trang hướng dẫn.</p>
             <a className="mobile-download-primary" href={APK_URL} download>
               Tải KTC APK
             </a>
@@ -65,7 +57,7 @@ export default function MobileDownload() {
               <li>Chọn <strong>Thêm vào Màn hình chính</strong>.</li>
               <li>Bật <strong>Mở dưới dạng ứng dụng web</strong> rồi chọn <strong>Thêm</strong>.</li>
             </ol>
-            <a className="mobile-download-primary" href="/login">Mở KTC ngay</a>
+            <a className="mobile-download-primary" href="/#/login">Mở KTC ngay</a>
             <a className="mobile-download-secondary" href={IOS_PROFILE_URL}>
               Tải cấu hình WebClip (tùy chọn)
             </a>
@@ -79,12 +71,12 @@ export default function MobileDownload() {
             <p>Mở liên kết này trên Android hoặc iPhone để nhận đúng hướng dẫn cài đặt.</p>
             <div className="mobile-download-actions">
               <a className="mobile-download-primary" href={APK_URL}>Android APK</a>
-              <a className="mobile-download-secondary" href="/login">Mở KTC Web/PWA</a>
+              <a className="mobile-download-secondary" href="/#/login">Mở KTC Web/PWA</a>
             </div>
           </div>
         )}
 
-        <a className="mobile-download-back" href="/login">← Vào hệ thống KTC</a>
+        <a className="mobile-download-back" href="/#/login">← Vào hệ thống KTC</a>
       </section>
     </main>
   );
