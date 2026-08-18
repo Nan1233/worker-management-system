@@ -47,6 +47,6 @@ test('P0 zero-cost E2E covers the locked business flow', () => {
     'Excel export data',
     'Excel import real-diff',
   ]) {
-    assert.match(e2e, new RegExp(marker.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')));
+    assert.ok(e2e.includes(marker), `Critical E2E thiếu case: ${marker}`);
   }
 });
