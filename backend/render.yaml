@@ -3,7 +3,7 @@ services:
     name: worker-management-api
     runtime: node
     rootDir: backend
-    buildCommand: npm ci && npm run verify && npm prune --omit=dev
+    buildCommand: npm install && npm run verify && npm prune --omit=dev
     preDeployCommand: npm run db:schema:verify
     startCommand: npm start
     healthCheckPath: /api/health/ready
@@ -30,7 +30,7 @@ services:
     name: worker-management-sync
     runtime: node
     rootDir: backend
-    buildCommand: npm ci && npm run verify && npm prune --omit=dev
+    buildCommand: npm install && npm run verify && npm prune --omit=dev
     startCommand: npm run worker
     autoDeploy: true
     envVars:
