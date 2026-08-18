@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { isKqdDefect, KQD_EXCLUSION_CODES } = require('../../shared/kqdPolicy.cjs');
+const { isKqdDefect, KQD_EXCLUSION_CODES } = require('../shared/kqdPolicy.cjs');
 
 test('Worker KQD preview shares the explicit configured registry and never prefix-matches unknown codes', () => {
   assert.deepEqual(KQD_EXCLUSION_CODES, ['KQD']);

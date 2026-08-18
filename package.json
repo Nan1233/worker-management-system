@@ -46,7 +46,11 @@
     "audit:excel:roundtrip": "node scripts/excelRoundTripContract.cjs",
     "audit:performance": "node scripts/performanceAudit.cjs",
     "audit:final": "node scripts/finalReleaseAudit.cjs",
-    "quality:final": "npm run audit:final && npm run audit:performance && npm run audit:excel:roundtrip && npm run quality:all"
+    "quality:final": "npm run audit:final && npm run audit:security && npm run audit:release && npm run audit:excel:stability && npm run audit:performance && npm run perf:benchmark && npm run audit:excel:roundtrip && npm run quality:all",
+    "audit:security": "node scripts/securityContract.cjs",
+    "audit:release": "node scripts/releaseConsistencyContract.cjs",
+    "audit:excel:stability": "node scripts/excelStabilityContract.cjs",
+    "perf:benchmark": "node scripts/performanceBenchmark.cjs"
   },
   "dependencies": {
     "@capacitor/android": "8.5.0",

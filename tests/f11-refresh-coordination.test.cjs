@@ -10,7 +10,7 @@ const coordinator = () => read('src/services/authRefreshCoordinator.ts');
 const storage = () => read('src/utils/authStorage.ts');
 const authService = () => read('src/services/authService.ts');
 const bootstrap = () => read('src/components/AuthBootstrap.tsx');
-const desktop = () => read('../desktop/electron/main.cjs');
+const desktop = () => fs.readFileSync(path.join(root, 'desktop', 'electron', 'main.cjs'), 'utf8');
 
 // Same-tab / retry contracts.
 test('F11 FE 01 same-tab refresh keeps one shared refreshPromise', () => {
@@ -195,7 +195,7 @@ test('F11 FE 39 browser refresh still uses HttpOnly cookie credentials', () => {
   assert.match(api(), /withCredentials: true/);
 });
 test('F11 FE 40 frontend coordination itself does not own database migrations', () => {
-  const canonicalSnapshot = path.resolve(root, '..', 'backend', 'database', 'KTC_FULL_DATABASE_CANONICAL_20260817.sql');
+  const canonicalSnapshot = path.resolve(root, 'backend', 'database', 'KTC_FULL_DATABASE_CANONICAL_20260817.sql');
   assert.ok(fs.existsSync(canonicalSnapshot));
   const frontendSource = [coordinator(), api(), authService()].join('\n');
   assert.doesNotMatch(frontendSource, /024_logical_duplicate_report_lock/);
