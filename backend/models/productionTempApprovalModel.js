@@ -181,8 +181,62 @@ module.exports = {
         await AuditService.logActivity({userId:reviewerId,action:"REPORT_REJECTED",entityType:"temp_report",entityId:row.id,description:`Từ chối báo cáo #${row.id}: ${cleanReason}`,metadata:{reason:cleanReason,worker_id:row.worker_id,process_id:row.process_id}},connection);
         postCommitNotifications.push({userIds:[row.worker_user_id],payload:{type:"report_rejected",title:"Báo cáo đã bị từ chối",message:`Báo cáo ngày ${String(row.work_date).slice(0,10)}, ca ${row.shift || "-"} bị từ chối: ${cleanReason}`,linkUrl:`/worker/history/${row.id}?source=pending`,entityType:"temp_report",entityId:row.id}});
       }
+<<<<<<< Updated upstream
       await commit(connection); for(const notification of postCommitNotifications){try{await AuditService.notifyUsers(notification.userIds,notification.payload);}catch(error){console.warn(`[KTC] Post-commit rejection notification failed: ${error.message}`);}}
       return {count:rows.length,ids:rows.map(r=>r.id)};
     }catch(error){await rollback(connection);throw error;}finally{connection.release();}
+=======
+      for (const row of rows) {
+        const expected = expectedById.get(Number(row.id));
+        if (expected && new Date(expected).getTime() !== new Date(row.updated_at).getTime()) {
+          const error = new Error(`Báo cáo #${row.id} đã thay đổi sau khi bạn mở danh sách. Hãy tải lại trước khi thử lại.`);
+          error.status = 409;
+          error.code = "TEMP_REPORT_VERSION_CONFLICT";
+          throw error;
+        }
+      }
+      for (const row of rows) {
+        await query(
+          connection,
+          `UPDATE production_reports_temp SET status='rejected',review_note=?,reviewed_by=?,updated_at=NOW() WHERE id=?`,
+          [cleanReason,reviewerId,row.id],
+        );
+        const rejectedSnapshot = await AuditService.loadTempReportSnapshot(row.id, connection);
+        if (rejectedSnapshot) {
+          await AuditService.createReportVersion({
+            reportType:"temp",reportId:row.id,snapshot:rejectedSnapshot,
+            reason:`Bị từ chối: ${cleanReason}`,userId:reviewerId,
+          },connection);
+        }
+        await AuditService.logActivity({
+          userId: reviewerId,
+          action: "REPORT_REJECTED",
+          entityType: "temp_report",
+          entityId: row.id,
+          description: `Từ chối báo cáo #${row.id}: ${cleanReason}`,
+          metadata: { reason: cleanReason, worker_id: row.worker_id, process_id: row.process_id },
+        }, connection);
+        postCommitNotifications.push({
+          userIds:[row.worker_user_id],
+          payload:{
+            type:"report_rejected",title:"Báo cáo đã bị từ chối",
+            message:`Báo cáo ngày ${String(row.work_date).slice(0,10)}, ca ${row.shift || "-"} bị từ chối: ${cleanReason}`,
+            linkUrl:`/worker/history/${row.id}?source=pending`,entityType:"temp_report",entityId:row.id,
+          },
+        });
+      }
+      await commit(connection);
+      for (const notification of postCommitNotifications) {
+        try { await AuditService.notifyUsers(notification.userIds,notification.payload); }
+        catch (error) { console.warn(`[KTC] Post-commit rejection notification failed: ${error.message}`); }
+      }
+      return {count:rows.length,ids:rows.map((row)=>row.id)};
+    } catch (error) {
+      await rollback(connection);
+      throw error;
+    } finally {
+      connection.release();
+    }
+>>>>>>> Stashed changes
   },
 };
