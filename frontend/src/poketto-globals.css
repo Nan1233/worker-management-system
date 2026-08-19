@@ -60,6 +60,33 @@
   --sidebar-accent-foreground: 222 47% 11%;
   --sidebar-border: 214 32% 91%;
   --sidebar-ring: 221 83% 53%;
+
+  /* Login compatibility tokens derived from the Poketto palette. */
+  --ktc-bg: hsl(210 20% 98%);
+  --ktc-surface: hsl(0 0% 100%);
+  --ktc-surface-muted: hsl(210 40% 98%);
+  --ktc-ink-950: hsl(222 47% 8%);
+  --ktc-ink-900: hsl(222 47% 11%);
+  --ktc-ink-800: hsl(222 35% 18%);
+  --ktc-ink-700: hsl(222 25% 28%);
+  --ktc-ink-600: hsl(215 20% 36%);
+  --ktc-ink-500: hsl(215 16% 47%);
+  --ktc-ink-400: hsl(215 14% 60%);
+  --ktc-border: hsl(214 32% 91%);
+  --ktc-border-strong: hsl(214 28% 82%);
+  --ktc-brand-50: hsl(221 100% 97%);
+  --ktc-brand-100: hsl(221 90% 94%);
+  --ktc-brand-300: hsl(221 83% 78%);
+  --ktc-brand-400: hsl(221 83% 65%);
+  --ktc-brand-600: hsl(221 83% 53%);
+  --ktc-brand-700: hsl(221 83% 45%);
+  --ktc-brand-800: hsl(221 70% 35%);
+  --ktc-danger-bg: hsl(0 86% 97%);
+  --ktc-danger: hsl(0 72% 48%);
+  --ktc-table-hover: hsl(221 100% 99%);
+  --ktc-focus: 0 0 0 3px hsl(221 83% 53% / .16);
+  --ktc-shadow-xs: 0 1px 2px hsl(222 47% 11% / .04);
+  --ktc-shadow-sm: 0 8px 24px hsl(222 47% 11% / .08);
 }
 
 .dark {
@@ -90,6 +117,32 @@
   --sidebar-accent-foreground: 240 5% 96%;
   --sidebar-border: 240 4% 16%;
   --sidebar-ring: 221 83% 60%;
+
+  --ktc-bg: hsl(224 71% 6%);
+  --ktc-surface: hsl(224 71% 7%);
+  --ktc-surface-muted: hsl(223 47% 11%);
+  --ktc-ink-950: hsl(213 31% 97%);
+  --ktc-ink-900: hsl(213 31% 91%);
+  --ktc-ink-800: hsl(213 25% 84%);
+  --ktc-ink-700: hsl(215 20% 75%);
+  --ktc-ink-600: hsl(215 18% 66%);
+  --ktc-ink-500: hsl(215 16% 57%);
+  --ktc-ink-400: hsl(215 14% 46%);
+  --ktc-border: hsl(216 34% 17%);
+  --ktc-border-strong: hsl(216 30% 27%);
+  --ktc-brand-50: hsl(221 50% 15%);
+  --ktc-brand-100: hsl(221 50% 20%);
+  --ktc-brand-300: hsl(221 70% 45%);
+  --ktc-brand-400: hsl(221 83% 55%);
+  --ktc-brand-600: hsl(221 83% 60%);
+  --ktc-brand-700: hsl(221 83% 68%);
+  --ktc-brand-800: hsl(221 83% 76%);
+  --ktc-danger-bg: hsl(0 45% 15%);
+  --ktc-danger: hsl(0 80% 70%);
+  --ktc-table-hover: hsl(221 50% 10%);
+  --ktc-focus: 0 0 0 3px hsl(221 83% 60% / .22);
+  --ktc-shadow-xs: 0 1px 2px hsl(0 0% 0% / .18);
+  --ktc-shadow-sm: 0 8px 24px hsl(0 0% 0% / .28);
 }
 
 @layer base {
