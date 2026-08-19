@@ -102,7 +102,7 @@ async function copyMachineLinesToApproved(tempReportId, approvedReportId, connec
 
   const approvedIds = [];
   for (const line of tempLines) {
-    const [result] = await query(
+    const result = await query(
       connection,
       `INSERT INTO production_report_machine_lines
        (report_id,machine_event_id,machine_id,machine_code,product_standard_id,standard_version_id,machine_standard_id,product_code,
@@ -339,7 +339,7 @@ module.exports = {
         assertReportingPeriodUnlocked(item, lockedReportingPeriods);
         await validateApprovalSnapshot(item, connection, standardResolver);
 
-        const [insertResult] = await query(
+        const insertResult = await query(
           connection,
           `INSERT INTO production_reports
            (source_temp_id,worker_id,process_id,work_date,entry_date,shift,operation_type,operation_mode,machine_no,
