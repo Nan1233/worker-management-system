@@ -309,7 +309,15 @@ module.exports = {
         params,
       );
       if (rows.length !== reportIds.length) {
-        throw new Error("Có báo cáo không tồn tại, đã xử lý hoặc người phê duyệt không có quyền truy cập");
+        const visibleIds = new Set(rows.map((row) => Number(row.id)));
+        const missingIds = reportIds.filter((id) => !visibleIds.has(Number(id)));
+        const error = new Error(
+          "Danh sách báo cáo đã thay đổi hoặc có báo cáo không còn trong phạm vi phê duyệt. Hãy tải lại danh sách rồi chọn lại."
+        );
+        error.status = 409;
+        error.code = "APPROVAL_SELECTION_STALE";
+        error.details = { requested_ids: reportIds, missing_ids: missingIds };
+        throw error;
       }
 
       for (const row of rows) {
@@ -486,7 +494,15 @@ module.exports = {
         params,
       );
       if (rows.length !== reportIds.length) {
-        throw new Error("Có báo cáo không tồn tại, đã xử lý hoặc người phê duyệt không có quyền truy cập");
+        const visibleIds = new Set(rows.map((row) => Number(row.id)));
+        const missingIds = reportIds.filter((id) => !visibleIds.has(Number(id)));
+        const error = new Error(
+          "Danh sách báo cáo đã thay đổi hoặc có báo cáo không còn trong phạm vi phê duyệt. Hãy tải lại danh sách rồi chọn lại."
+        );
+        error.status = 409;
+        error.code = "APPROVAL_SELECTION_STALE";
+        error.details = { requested_ids: reportIds, missing_ids: missingIds };
+        throw error;
       }
       for (const row of rows) {
         const expected = expectedById.get(Number(row.id));

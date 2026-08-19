@@ -409,6 +409,19 @@ function Reports() {
                 err
             );
 
+            const isStaleSelection =
+                axios.isAxiosError(err) &&
+                err.response?.status === 409 &&
+                err.response?.data?.code === "APPROVAL_SELECTION_STALE";
+
+            if (isStaleSelection) {
+                setSelectedIds([]);
+                sessionStorage.removeItem("selectedPendingReportIds");
+                showToast("Danh sách chờ duyệt đã thay đổi. Đã tải lại, vui lòng chọn lại báo cáo.");
+                await loadReports();
+                return;
+            }
+
             const message =
                 axios.isAxiosError(err)
                     ? err.response?.data?.message ||
