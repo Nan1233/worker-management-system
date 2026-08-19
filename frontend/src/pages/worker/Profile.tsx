@@ -1,36 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
+import { Building2, BriefcaseBusiness, CheckCircle2, Phone, ShieldCheck, UserRound } from "lucide-react";
 import { api } from "../../services/api";
 import { getStoredUser } from "../../utils/authStorage";
+import { WorkerPageFrame } from "../../components/poketto/WorkerPageFrame";
 
-type WorkerProcess = {
-  id: number;
-  code: string;
-  name: string;
-};
-
+type WorkerProcess = { id: number; code: string; name: string };
 type WorkerProfile = {
-  worker_id?: number;
-  user_id?: number;
-  worker_code?: string | null;
-  username?: string;
-  full_name?: string;
-  role?: string;
-  phone?: string | null;
-  department?: string | null;
-  position?: string | null;
-  training_percent?: number | string | null;
-  status?: string;
-  processes?: WorkerProcess[];
-  process_names?: string;
+  worker_id?: number; user_id?: number; worker_code?: string | null; username?: string;
+  full_name?: string; role?: string; phone?: string | null; department?: string | null;
+  position?: string | null; training_percent?: number | string | null; status?: string;
+  processes?: WorkerProcess[]; process_names?: string;
 };
 
 function displayRole(role?: string) {
-  const labels: Record<string, string> = {
-    admin: "Quản trị viên",
-    manager: "Quản lý",
-    lead: "Tổ trưởng",
-    worker: "Nhân viên"
-  };
+  const labels: Record<string, string> = { admin: "Quản trị viên", manager: "Quản lý", lead: "Tổ trưởng", worker: "Nhân viên" };
   return labels[String(role || "").toLowerCase()] || role || "—";
 }
 
@@ -42,44 +25,25 @@ export default function Profile() {
 
   useEffect(() => {
     let active = true;
-
     const load = async () => {
       try {
-        setLoading(true);
-        setError("");
-
+        setLoading(true); setError("");
         if (storedUser?.role === "worker") {
           const response = await api.get("/workers/me");
           if (active) setProfile(response.data?.data || null);
           return;
         }
-
-        if (active) {
-          setProfile({
-            user_id: storedUser?.id,
-            worker_code: storedUser?.worker_code,
-            username: storedUser?.username,
-            full_name: storedUser?.full_name,
-            role: storedUser?.role
-          });
-        }
+        if (active) setProfile({
+          user_id: storedUser?.id, worker_code: storedUser?.worker_code,
+          username: storedUser?.username, full_name: storedUser?.full_name, role: storedUser?.role
+        });
       } catch (requestError) {
         console.error("LOAD PROFILE ERROR:", requestError);
-        if (active) {
-          setProfile({
-            user_id: storedUser?.id,
-            worker_code: storedUser?.worker_code,
-            username: storedUser?.username,
-            full_name: storedUser?.full_name,
-            role: storedUser?.role
-          });
-          setError("Không thể tải đầy đủ hồ sơ từ máy chủ. Đang hiển thị thông tin phiên đăng nhập.");
-        }
+        if (active) setError("Không thể tải thông tin tài khoản.");
       } finally {
         if (active) setLoading(false);
       }
     };
-
     void load();
     return () => { active = false; };
   }, [storedUser]);
@@ -89,48 +53,60 @@ export default function Profile() {
     ? profile.processes.map((item) => item.name || item.code).filter(Boolean).join(", ")
     : profile?.process_names || "—";
 
-  return (
-    <main style={{ maxWidth: 980, margin: "0 auto", padding: "clamp(16px, 3vw, 32px)" }}>
-      <header style={{ marginBottom: 24 }}>
-        <p style={{ margin: 0, color: "var(--ktc-ink-600)", fontSize: 14, fontWeight: 600 }}>TÀI KHOẢN</p>
-        <h1 style={{ margin: "6px 0 8px", fontSize: "clamp(24px, 4vw, 34px)", color: "var(--ktc-ink-950)" }}>Hồ sơ cá nhân</h1>
-        <p style={{ margin: 0, color: "var(--ktc-ink-600)" }}>Thông tin nhận diện và phân công đang áp dụng cho tài khoản của bạn.</p>
-      </header>
+  const fields = [
+    { label: "Mã nhân viên", value: profile?.worker_code || storedUser?.worker_code || "—", icon: UserRound },
+    { label: "Tên đăng nhập", value: profile?.username || storedUser?.username || "—", icon: ShieldCheck },
+    { label: "Bộ phận", value: profile?.department || "—", icon: Building2 },
+    { label: "Vị trí", value: profile?.position || "—", icon: BriefcaseBusiness },
+    { label: "% học việc", value: trainingPercent === null || trainingPercent === undefined || trainingPercent === "" ? "—" : `${Number(trainingPercent)}%`, icon: CheckCircle2 },
+    { label: "Trạng thái", value: profile?.status === "inactive" ? "Ngừng hoạt động" : "Đang hoạt động", icon: CheckCircle2 },
+    { label: "Công đoạn", value: processNames, icon: BriefcaseBusiness },
+    { label: "Số điện thoại", value: profile?.phone || "—", icon: Phone },
+  ];
 
+  return (
+    <WorkerPageFrame
+      eyebrow="Account"
+      title="Hồ sơ cá nhân"
+      description="Thông tin nhận diện và phân công đang áp dụng cho tài khoản của bạn."
+    >
       {error && (
-        <div role="alert" style={{ marginBottom: 16, padding: "12px 14px", border: "1px solid var(--ktc-warning)", borderRadius: 10, background: "var(--ktc-warning-bg)", color: "var(--ktc-warning)" }}>
+        <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
           {error}
         </div>
       )}
 
-      <section style={{ background: "var(--ktc-surface)", border: "1px solid var(--ktc-border)", borderRadius: 16, boxShadow: "var(--ktc-shadow-sm)", overflow: "hidden" }}>
-        <div style={{ padding: "20px clamp(16px, 3vw, 28px)", borderBottom: "1px solid var(--ktc-border)", background: "var(--ktc-surface-subtle)" }}>
-          <strong style={{ display: "block", fontSize: 20, color: "var(--ktc-ink-950)" }}>{profile?.full_name || storedUser?.full_name || "Người dùng"}</strong>
-          <span style={{ display: "block", marginTop: 4, color: "var(--ktc-ink-600)" }}>{displayRole(profile?.role || storedUser?.role)}</span>
+      <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+        <div className="flex items-center gap-4 border-b bg-muted/20 p-5 sm:p-6">
+          <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <UserRound className="size-6" />
+          </div>
+          <div className="min-w-0">
+            <h2 className="truncate text-lg font-semibold">{profile?.full_name || storedUser?.full_name || "Người dùng"}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{displayRole(profile?.role || storedUser?.role)}</p>
+          </div>
         </div>
 
         {loading ? (
-          <div style={{ padding: 28, color: "var(--ktc-ink-600)" }}>Đang tải hồ sơ…</div>
+          <div className="space-y-3 p-5 sm:p-6" aria-busy="true">
+            {[1,2,3,4].map((i) => <div key={i} className="h-14 animate-pulse rounded-lg bg-muted" />)}
+          </div>
         ) : (
-          <dl style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 0, margin: 0 }}>
-            {[
-              ["Mã nhân viên", profile?.worker_code || storedUser?.worker_code || "—"],
-              ["Tên đăng nhập", profile?.username || storedUser?.username || "—"],
-              ["Bộ phận", profile?.department || "—"],
-              ["Vị trí", profile?.position || "—"],
-              ["% học việc", trainingPercent === null || trainingPercent === undefined || trainingPercent === "" ? "—" : `${Number(trainingPercent)}%`],
-              ["Trạng thái", profile?.status === "inactive" ? "Ngừng hoạt động" : "Đang hoạt động"],
-              ["Công đoạn", processNames],
-              ["Số điện thoại", profile?.phone || "—"]
-            ].map(([label, value]) => (
-              <div key={String(label)} style={{ padding: "18px clamp(16px, 3vw, 28px)", borderBottom: "1px solid var(--ktc-divider)" }}>
-                <dt style={{ marginBottom: 6, color: "var(--ktc-ink-600)", fontSize: 13, fontWeight: 600 }}>{label}</dt>
-                <dd style={{ margin: 0, color: "var(--ktc-ink-950)", fontWeight: 600, overflowWrap: "anywhere" }}>{value}</dd>
+          <dl className="grid sm:grid-cols-2">
+            {fields.map(({ label, value, icon: Icon }) => (
+              <div key={label} className="flex min-w-0 gap-3 border-b p-4 last:border-b sm:nth-last-child(-n+2):border-b-0">
+                <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                  <Icon className="size-4" />
+                </span>
+                <div className="min-w-0">
+                  <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+                  <dd className="mt-1 break-words text-sm font-semibold">{value}</dd>
+                </div>
               </div>
             ))}
           </dl>
         )}
-      </section>
-    </main>
+      </div>
+    </WorkerPageFrame>
   );
 }

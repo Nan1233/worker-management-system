@@ -1,0 +1,10 @@
+
+.poketto-admin-page{width:100%;max-width:80rem;margin-inline:auto}
+.poketto-admin-page :is(button,a,[role="button"]):focus-visible{outline:2px solid hsl(var(--ring));outline-offset:2px}
+.poketto-admin-page table{width:100%;min-width:760px}
+.poketto-admin-page .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:var(--radius)}
+.poketto-admin-page .kpi-card{border:1px solid hsl(var(--border));border-radius:var(--radius);background:hsl(var(--card));padding:1rem;box-shadow:0 1px 2px rgb(0 0 0/.04)}
+.poketto-admin-page :is(input,select,textarea){border-radius:calc(var(--radius) - 2px)}
+.poketto-admin-page .sticky-table{max-height:calc(100svh - 15rem);overflow:auto}
+.poketto-admin-page .sticky-table thead{position:sticky;top:0;z-index:5;background:hsl(var(--card))}
+@media(max-width:767px){.poketto-admin-page{font-size:.9375rem}.poketto-admin-page :is(button,a,[role="button"],input,select,textarea){min-height:44px}.poketto-admin-page table{min-width:680px}}

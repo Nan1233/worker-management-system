@@ -1,12 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
-import {
-    approveSelectedTempReports,
-    getReportById,
-    getTempReportDetail,
-    rejectSelectedTempReports
-} from "../../services/productionService";
+import { approveSelectedTempReports, getReportById, getTempReportDetail, rejectSelectedTempReports } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { useToast } from "../../components/feedback/toastContext";
 import { decimalHoursToMinutes, formatMinutes } from "../../utils/timeDisplay";
@@ -207,7 +202,7 @@ function SelectedReportsReview() {
     };
 
     return (
-        <main className="selected-review-page">
+        <main className="selected-review-page poketto-manager-page">
             <header className="selected-review-header">
                 <div>
                     <button

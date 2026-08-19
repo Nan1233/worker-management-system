@@ -182,7 +182,7 @@ function Dashboard() {
 
     if (loading) {
         return (
-            <main className="manager-dashboard">
+            <main className="manager-dashboard poketto-manager-page">
                 <div className="dashboard-skeleton dashboard-skeleton-title" />
                 <div className="dashboard-kpi-grid">
                     {[1, 2, 3, 4].map(item => <div key={item} className="dashboard-skeleton dashboard-skeleton-card" />)}

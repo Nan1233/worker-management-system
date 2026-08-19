@@ -1,0 +1,111 @@
+{
+  "deleted_parallel_template_routes": [],
+  "template_files_present": 13,
+  "route_count": 40,
+  "possible_unused_named_imports": [
+    [
+      "src/components/AuthBootstrap.tsx",
+      "type ReactNode"
+    ],
+    [
+      "src/routes/AppRouter.tsx",
+      "type ReactNode"
+    ],
+    [
+      "src/routes/PermissionRoute.tsx",
+      "type ReactNode"
+    ],
+    [
+      "src/routes/PermissionRoute.tsx",
+      "type PermissionCode"
+    ],
+    [
+      "src/pages/system/SystemCenter.tsx",
+      "type ActivityItem"
+    ],
+    [
+      "src/pages/system/SystemCenter.tsx",
+      "type DeletedReportItem"
+    ],
+    [
+      "src/pages/system/SystemCenter.tsx",
+      "type NotificationItem"
+    ],
+    [
+      "src/pages/system/SystemCenter.tsx",
+      "type ObservabilitySnapshot"
+    ],
+    [
+      "src/pages/system/SystemCenter.tsx",
+      "type ReadinessSnapshot"
+    ],
+    [
+      "src/pages/manager/MachineEventPanel.tsx",
+      "type MachineProductionEvent"
+    ],
+    [
+      "src/pages/manager/MachineEventPanel.tsx",
+      "type MachineProductionEventDefectInput"
+    ],
+    [
+      "src/pages/manager/ReportDetail.tsx",
+      "type ReportActionLog"
+    ],
+    [
+      "src/pages/manager/ReportDetail.tsx",
+      "type ReportVersion"
+    ],
+    [
+      "src/pages/manager/ApprovedReports.tsx",
+      "type DateFilterMode"
+    ],
+    [
+      "src/pages/manager/Reports.tsx",
+      "type DateFilterMode"
+    ],
+    [
+      "src/components/system/OfflineReportSync.tsx",
+      "type OfflineReportQueueItem"
+    ],
+    [
+      "src/components/system/AppErrorBoundary.tsx",
+      "type ErrorInfo"
+    ],
+    [
+      "src/components/system/AppErrorBoundary.tsx",
+      "type ReactNode"
+    ],
+    [
+      "src/components/feedback/ToastProvider.tsx",
+      "type ToastType"
+    ],
+    [
+      "src/components/poketto/ui/button.tsx",
+      "type VariantProps"
+    ],
+    [
+      "src/components/poketto/ui/sheet.tsx",
+      "type VariantProps"
+    ],
+    [
+      "src/components/poketto/ui/sidebar.tsx",
+      "type VariantProps"
+    ],
+    [
+      "src/hooks/usePermissions.ts",
+      "type PermissionCode"
+    ],
+    [
+      "src/services/api.ts",
+      "type CoordinatedRefreshFailure"
+    ],
+    [
+      "src/services/api.ts",
+      "type CoordinatedRefreshSuccess"
+    ],
+    [
+      "src/pages/worker/useProcessMasterData.ts",
+      "type WorkerMasterOption"
+    ]
+  ]
+}

@@ -1,0 +1,15 @@
+
+.poketto-manager-page{width:100%;max-width:80rem;margin-inline:auto}
+.poketto-manager-page :is(button,a,[role="button"]):focus-visible{outline:2px solid hsl(var(--ring));outline-offset:2px}
+.poketto-manager-page table{width:100%;min-width:760px}
+.poketto-manager-page .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:var(--radius)}
+.poketto-manager-page .kpi-card{border:1px solid hsl(var(--border));border-radius:var(--radius);background:hsl(var(--card));padding:1rem;box-shadow:0 1px 2px rgb(0 0 0/.04)}
+.poketto-manager-page :is(input,select,textarea){border-radius:calc(var(--radius) - 2px)}
+@media(max-width:767px){
+ .poketto-manager-page{font-size:.9375rem}
+ .poketto-manager-page :is(button,a,[role="button"]){min-height:44px}
+ .poketto-manager-page :is(input,select,textarea){min-height:44px}
+ .poketto-manager-page table{min-width:680px}
+}
+
+.poketto-manager-page .action-bar{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}.poketto-manager-page .sticky-table{max-height:calc(100svh - 15rem);overflow:auto}.poketto-manager-page .sticky-table thead{position:sticky;top:0;z-index:5;background:hsl(var(--card))}.poketto-manager-page .filter-panel{border:1px solid hsl(var(--border));border-radius:var(--radius);background:hsl(var(--card));padding:1rem}@media(max-width:767px){.poketto-manager-page .action-bar>*{width:100%}.poketto-manager-page .filter-panel{padding:.75rem}}

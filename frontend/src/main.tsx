@@ -1,3 +1,7 @@
+import "./poketto-admin-pages.css";
+import "./poketto-management-pages.css";
+import "./poketto-worker-pages.css";
+import "./poketto-globals.css";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { HashRouter } from "react-router-dom";
@@ -23,6 +27,7 @@ import "./styles/final-demo-ui.css";
 import "./styles/demo-ui-overhaul.css";
 import "./styles/ktc-ui-system.css";
 import "./styles/ktc-design-system-v3.css";
+// Poketto Stack template migration: Worker workspace shell is implemented in WorkerLayout.tsx.
 import { ToastProvider } from "./components/feedback/ToastProvider";
 import AuthBootstrap from "./components/AuthBootstrap";
 import AppErrorBoundary from "./components/system/AppErrorBoundary";

@@ -4,6 +4,7 @@ import "./ProductionDetail.css";
 import { getReportById } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { formatMinutes } from "../../utils/timeDisplay";
+import { WorkerPageFrame } from "../../components/poketto/WorkerPageFrame";
 
 const number = (value?: number | string | null) =>
     new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(Number(value) || 0);
@@ -46,6 +47,7 @@ export default function ProductionDetail() {
     const statusLabel = report.status === "approved" ? "Đã duyệt" : report.status === "rejected" ? "Bị từ chối" : report.status === "need_fix" ? "Cần sửa" : "Chờ duyệt";
 
     return (
+        <WorkerPageFrame eyebrow="Production detail" title="Chi tiết báo cáo" description="Kiểm tra đầy đủ sản lượng, thời gian và lỗi NG.">
         <main className="detail-container">
             <header className="detail-header">
                 <div><h1>Chi tiết báo cáo</h1><p>Kiểm tra đầy đủ sản lượng, thời gian và lỗi NG</p></div>
@@ -131,5 +133,6 @@ export default function ProductionDetail() {
 
             {report.note && <section className="detail-section"><h2>Ghi chú</h2><p className="detail-note">{report.note}</p></section>}
         </main>
+        </WorkerPageFrame>
     );
 }

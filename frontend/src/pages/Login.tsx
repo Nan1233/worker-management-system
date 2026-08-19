@@ -1,29 +1,14 @@
-import {
-    useEffect,
-    useMemo,
-    useRef,
-    useState
-} from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import {
-    useNavigate
-} from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 import axios from "axios";
 
-import {
-    login
-} from "../services/authService";
+import { login } from "../services/authService";
 
-import {
-    beginLoginTransition,
-    finishLoginTransition
-} from "../services/api";
+import { beginLoginTransition, finishLoginTransition } from "../services/api";
 
-import {
-    clearAuthSession,
-    clearCurrentTabAuthSession
-} from "../utils/authStorage";
+import { clearAuthSession, clearCurrentTabAuthSession } from "../utils/authStorage";
 
 import type {
     User,

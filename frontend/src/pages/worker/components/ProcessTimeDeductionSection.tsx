@@ -2,11 +2,7 @@ import type { Dispatch, SetStateAction } from "react";
 import type { DeductionKey, DeductionState, FormState } from "../processPageConfig";
 import { decimalHoursToText } from "../processPageConfig";
 import AppIcon from "../../../components/common/AppIcon";
-import {
-    MAX_TOTAL_WORK_MINUTES,
-    getDeductionMinutes,
-    parseFlexibleTime,
-} from "../processFormUtils";
+import { MAX_TOTAL_WORK_MINUTES, getDeductionMinutes, parseFlexibleTime } from "../processFormUtils";
 
 interface DeductionOption {
     key: DeductionKey;

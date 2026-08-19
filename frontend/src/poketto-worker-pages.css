@@ -1,0 +1,40 @@
+.poketto-worker-surface{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:var(--radius);box-shadow:0 1px 2px rgb(0 0 0/.05)}
+.poketto-worker-process-page{width:100%;max-width:72rem;margin-inline:auto}
+.poketto-worker-process-page .worker-process-card{border:1px solid hsl(var(--border));border-radius:calc(var(--radius) - 2px);background:hsl(var(--card));transition:background-color .15s ease,box-shadow .15s ease,transform .15s ease}
+.poketto-worker-process-page .worker-process-card:hover{background:hsl(var(--accent));box-shadow:0 4px 14px rgb(0 0 0/.06);transform:translateY(-1px)}
+@media (max-width:767px){.poketto-worker-process-page{padding-inline:0}.poketto-worker-process-page .worker-process-card{min-height:64px}}
+
+.poketto-production-page .card,
+.poketto-production-page [class*="card"]{border-color:hsl(var(--border));border-radius:var(--radius);background:hsl(var(--card))}
+.poketto-production-page input,
+.poketto-production-page select,
+.poketto-production-page textarea{border-radius:calc(var(--radius) - 2px)}
+.poketto-production-page button{border-radius:calc(var(--radius) - 2px)}
+@media (max-width:767px){
+  .poketto-production-page{width:100%}
+  .poketto-production-page input,.poketto-production-page select,.poketto-production-page textarea{min-height:44px}
+  .poketto-production-page button{min-height:44px}
+}
+
+/* KTC Worker final polish: touch targets, typography, focus, table overflow, safe-area */
+.poketto-production-page :is(button,a,[role="button"]):focus-visible,
+.poketto-worker-process-page :is(button,a,[role="button"]):focus-visible{
+  outline:2px solid hsl(var(--ring));outline-offset:2px
+}
+.poketto-production-page :is(button,a,[role="button"]){touch-action:manipulation}
+.poketto-production-page table{width:100%;min-width:640px}
+.poketto-production-page .table-responsive{overflow-x:auto;-webkit-overflow-scrolling:touch}
+@media (max-width:767px){
+  .poketto-production-page{font-size:.9375rem}
+  .poketto-production-page h1{font-size:1.25rem;line-height:1.4}
+  .poketto-production-page :is(button,a,[role="button"]){min-height:44px}
+  .poketto-production-page .table-responsive{margin-inline:-.25rem;padding-inline:.25rem}
+}
+@media (prefers-reduced-motion:reduce){
+  .poketto-production-page *{scroll-behavior:auto!important;transition-duration:0.01ms!important;animation-duration:0.01ms!important}
+}
+
+.poketto-lead-page :is(button,a,[role="button"]):focus-visible{outline:2px solid hsl(var(--ring));outline-offset:2px}
+.poketto-lead-page :is(button,a,[role="button"]){touch-action:manipulation}
+.poketto-lead-page table{width:100%;min-width:640px}
+@media (max-width:767px){.poketto-lead-page :is(button,a,[role="button"]){min-height:44px}.poketto-lead-page{font-size:.9375rem}}
