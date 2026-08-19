@@ -65,7 +65,7 @@ async function logActivity(
   },
   executor = db,
 ) {
-  await ensureSchema();
+  await ensureSchema(executor);
   await query(
     executor,
     `INSERT INTO activity_logs

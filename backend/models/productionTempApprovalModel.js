@@ -389,13 +389,21 @@ module.exports = {
           connection,
         );
 
-        await AuditService.logAction({
-          reportType:"temp", reportId:item.id, userId:reviewerId, action:"APPROVE",
-          note:`Duyệt báo cáo thành công #${approvedReportId}`,
+        await AuditService.logActivity({
+          userId: reviewerId,
+          action: "REPORT_APPROVED",
+          entityType: "temp_report",
+          entityId: item.id,
+          description: `Duyệt báo cáo thành công #${approvedReportId}`,
+          metadata: { approved_report_id: approvedReportId },
         }, connection);
-        await AuditService.logAction({
-          reportType:"approved", reportId:approvedReportId, userId:reviewerId, action:"CREATE",
-          note:`Tạo báo cáo đã duyệt từ #${item.id}`,
+        await AuditService.logActivity({
+          userId: reviewerId,
+          action: "REPORT_CREATED",
+          entityType: "approved_report",
+          entityId: approvedReportId,
+          description: `Tạo báo cáo đã duyệt từ #${item.id}`,
+          metadata: { temp_report_id: item.id },
         }, connection);
         await AuditService.logActivity({
           userId:reviewerId,
@@ -526,7 +534,14 @@ module.exports = {
             reason:`Bị từ chối: ${cleanReason}`,userId:reviewerId,
           },connection);
         }
-        await AuditService.logAction({reportType:"temp",reportId:row.id,userId:reviewerId,action:"REJECT",note:cleanReason},connection);
+        await AuditService.logActivity({
+          userId: reviewerId,
+          action: "REPORT_REJECTED",
+          entityType: "temp_report",
+          entityId: row.id,
+          description: `Từ chối báo cáo #${row.id}: ${cleanReason}`,
+          metadata: { reason: cleanReason, worker_id: row.worker_id, process_id: row.process_id },
+        }, connection);
         await AuditService.logActivity({
           userId:reviewerId,action:"REPORT_REJECTED",entityType:"temp_report",entityId:row.id,
           description:`Từ chối báo cáo #${row.id}: ${cleanReason}`,
