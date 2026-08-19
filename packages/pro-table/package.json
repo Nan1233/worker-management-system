@@ -41,7 +41,7 @@
 		"@vitejs/plugin-react-swc": "^3.8.1",
 		"autoprefixer": "^10.4.21",
 		"clsx": "^2.1.1",
-		"globals": "^15.15.0",
+		"globals": "^17.11.0",
 		"postcss": "^8.5.3",
 		"storybook": "^8.6.8",
 		"tailwind-merge": "^2.6.0",
