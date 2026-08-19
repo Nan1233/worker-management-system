@@ -167,3 +167,74 @@
 @media(prefers-reduced-motion:reduce){
  .login-page *{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important}
 }
+
+/* FINAL DESKTOP GEOMETRY OVERRIDE
+   Keep the login composition stable even when legacy global layout rules exist. */
+.login-page{
+  width:min(100%,1500px) !important;
+  min-height:calc(100dvh - 56px) !important;
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) minmax(460px,520px) !important;
+  align-items:stretch !important;
+  justify-content:initial !important;
+  gap:0 !important;
+  margin:28px auto !important;
+  padding:0 !important;
+}
+.login-showcase{
+  width:auto !important;
+  min-width:0 !important;
+  min-height:0 !important;
+  height:auto !important;
+  align-self:stretch !important;
+  border-radius:24px 0 0 24px !important;
+}
+.login-panel{
+  width:auto !important;
+  min-width:0 !important;
+  max-width:none !important;
+  min-height:0 !important;
+  height:auto !important;
+  align-self:stretch !important;
+  border-radius:0 24px 24px 0 !important;
+  padding:48px 44px !important;
+  overflow:auto !important;
+}
+.login-card{
+  width:100% !important;
+  max-width:420px !important;
+  min-width:0 !important;
+}
+.login-heading>h2{
+  white-space:normal !important;
+  word-break:normal !important;
+  overflow-wrap:normal !important;
+  writing-mode:horizontal-tb !important;
+}
+@media(max-width:980px) and (min-width:761px){
+  .login-page{
+    width:calc(100% - 36px) !important;
+    grid-template-columns:minmax(0,1fr) minmax(390px,440px) !important;
+    margin:18px auto !important;
+    min-height:calc(100dvh - 36px) !important;
+  }
+  .login-showcase{padding:32px !important}
+  .login-panel{padding:38px 30px !important}
+}
+@media(max-width:760px){
+  .login-page{
+    width:100% !important;
+    min-height:100dvh !important;
+    margin:0 !important;
+    display:block !important;
+  }
+  .login-showcase{display:none !important}
+  .login-panel{
+    width:100% !important;
+    min-height:100dvh !important;
+    height:auto !important;
+    padding:28px 20px !important;
+    border-radius:0 !important;
+  }
+  .login-card{max-width:520px !important}
+}

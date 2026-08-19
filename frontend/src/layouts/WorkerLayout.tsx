@@ -1,6 +1,3 @@
-import PokettoWorkerTemplateShell from "./PokettoWorkerTemplateShell";
-
-/** KTC Worker now runs inside the real Poketto Stack sidebar/shell components. */
-export default function WorkerLayout() {
-  return <PokettoWorkerTemplateShell />;
-}
+import { Outlet } from "react-router-dom";
+import PokettoRealTemplateShell from "./PokettoRealTemplateShell";
+export default function WorkerLayout(){return <PokettoRealTemplateShell role="worker"><Outlet/></PokettoRealTemplateShell>;}
