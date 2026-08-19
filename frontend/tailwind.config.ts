@@ -3,7 +3,7 @@ import animatePlugin from "tailwindcss-animate";
 
 export default {
 		darkMode: ["class"],
-	content: ["./src/**/*.{ts,tsx}", "./src/poketto-template/**/*.{ts,tsx}"],,
+	content: ["./src/**/*.{ts,tsx}", "./src/poketto-template/**/*.{ts,tsx}"],
 	prefix: "",
 	theme: {
 		container: {

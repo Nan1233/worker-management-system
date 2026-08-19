@@ -3,8 +3,9 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import PrivateRoute from "./PrivateRoute";
 import PermissionRoute from "./PermissionRoute";
 import type { PermissionCode } from "../security/permissions";
-import WorkerLayout from "../layouts/WorkerLayout";
-import ManagementLayout from "../layouts/ManagementLayout";
+import { Outlet } from "react-router-dom";
+import PokettoRealTemplateShell from "../layouts/PokettoRealTemplateShell";
+import PokettoWorkerTemplateShell from "../layouts/PokettoWorkerTemplateShell";
 import RouteLoading from "../components/system/RouteLoading";
 
 const Login = lazy(() => import("../pages/Login"));
@@ -35,12 +36,19 @@ const SystemCenter = lazy(() => import("../pages/system/SystemCenter"));
 
 const P = ({code,children}:{code:PermissionCode;children:ReactNode}) => <PermissionRoute permission={code}>{children}</PermissionRoute>;
 
+function PokettoManagementLayout({role}:{role:"admin"|"manager"|"lead"}){
+  return <PokettoRealTemplateShell role={role}><Outlet /></PokettoRealTemplateShell>;
+}
+function PokettoWorkerLayout(){
+  return <PokettoWorkerTemplateShell />;
+}
+
 export default function AppRouter(){
  return <Suspense fallback={<RouteLoading/>}><Routes>
   <Route path="/" element={<Navigate to="/login" replace/>}/>
   <Route path="/login" element={<Login/>}/>
 
-  <Route path="/admin" element={<PrivateRoute allowedRoles={["admin"]}><ManagementLayout role="admin"/></PrivateRoute>}>
+  <Route path="/admin" element={<PrivateRoute allowedRoles={["admin"]}><PokettoManagementLayout role="admin"/></PrivateRoute>}>
    <Route index element={<P code="DASHBOARD_VIEW"><AdminDashboard/></P>}/>
    <Route path="reports" element={<P code="REPORT_PENDING_VIEW"><PendingReports/></P>}/>
    <Route path="approved" element={<P code="REPORT_APPROVED_VIEW"><ApprovedReports/></P>}/>
@@ -55,7 +63,7 @@ export default function AppRouter(){
    <Route path="system" element={<P code="NOTIFICATION_VIEW"><SystemCenter/></P>}/>
   </Route>
 
-  <Route path="/manager" element={<PrivateRoute allowedRoles={["manager"]}><ManagementLayout role="manager"/></PrivateRoute>}>
+  <Route path="/manager" element={<PrivateRoute allowedRoles={["manager"]}><PokettoManagementLayout role="manager"/></PrivateRoute>}>
    <Route index element={<P code="DASHBOARD_VIEW"><ManagerDashboard/></P>}/>
    <Route path="reports" element={<P code="REPORT_PENDING_VIEW"><ManagerReports/></P>}/>
    <Route path="approved" element={<P code="REPORT_APPROVED_VIEW"><ManagerApprovedReports/></P>}/>
@@ -69,7 +77,7 @@ export default function AppRouter(){
    <Route path="system" element={<P code="NOTIFICATION_VIEW"><SystemCenter/></P>}/>
   </Route>
 
-  <Route path="/lead" element={<PrivateRoute allowedRoles={["lead"]}><ManagementLayout role="lead"/></PrivateRoute>}>
+  <Route path="/lead" element={<PrivateRoute allowedRoles={["lead"]}><PokettoManagementLayout role="lead"/></PrivateRoute>}>
    <Route index element={<P code="DASHBOARD_VIEW"><ManagementDashboard/></P>}/>
    <Route path="reports" element={<P code="REPORT_PENDING_VIEW"><PendingReports/></P>}/>
    <Route path="approved" element={<P code="REPORT_APPROVED_VIEW"><ApprovedReports/></P>}/>
@@ -84,7 +92,7 @@ export default function AppRouter(){
   <Route path="/manager/report/:id" element={<PrivateRoute allowedRoles={["manager"]}><P code="REPORT_APPROVED_VIEW"><ManagerReportDetail/></P></PrivateRoute>}/>
   {(["admin","manager"] as const).map(role => <Route key={`${role}-edit`} path={`/${role}/report/:id/edit`} element={<PrivateRoute allowedRoles={[role]}><P code="REPORT_APPROVED_EDIT"><EditReport/></P></PrivateRoute>} />)}
 
-  <Route path="/worker" element={<PrivateRoute allowedRoles={["worker"]}><WorkerLayout/></PrivateRoute>}>
+  <Route path="/worker" element={<PrivateRoute allowedRoles={["worker"]}><PokettoWorkerLayout/></PrivateRoute>}>
    <Route index element={<P code="WORKER_ENTRY"><SelectProcess/></P>}/>
    <Route path="process/:process" element={<P code="WORKER_ENTRY"><ProcessPage/></P>}/>
    <Route path="history" element={<P code="WORKER_HISTORY"><ProductionHistory/></P>}/>

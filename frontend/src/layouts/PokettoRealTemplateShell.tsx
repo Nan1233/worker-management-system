@@ -26,7 +26,7 @@ import {
   SidebarSeparator,
   SidebarTrigger,
 } from "../poketto-template/ui/sidebar";
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { Button } from "../poketto-template/ui/button";
 import { Separator } from "../poketto-template/ui/separator";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
@@ -37,7 +37,7 @@ import type { User } from "../types/auth";
 import type { PermissionCode } from "../security/permissions";
 
 type Role="worker"|"lead"|"manager"|"admin";
-type Item={label:string;path:string;icon:React.ComponentType<{className?:string}>;permission?:PermissionCode;roles?:Role[]};
+type Item={label:string;path:string;icon:ComponentType<{className?:string}>;permission?:PermissionCode;roles?:Role[]};
 
 const managementItems:Item[]=[
  {label:"Tổng quan",path:"",icon:LayoutDashboard,permission:"DASHBOARD_VIEW"},
@@ -102,7 +102,7 @@ export default function PokettoRealTemplateShell({role,children}:{role:Role;chil
     <div className="hidden min-w-0 items-center gap-1 text-sm md:flex"><span className="truncate text-muted-foreground">KTC</span><ChevronRight className="size-3.5 text-muted-foreground"/><span className="font-medium">{roleLabel[role]}</span></div>
     <div className="ml-auto flex items-center gap-1 sm:gap-2"><span className="hidden rounded-md border bg-muted/40 px-2 py-1 text-xs font-medium sm:inline-flex">{user?.full_name||user?.username||roleLabel[role]}</span>{unreadCount>0&&<Button variant="ghost" size="icon" onClick={()=>nav(`${base}/system`)} aria-label="Thông báo"><Bell className="size-4"/></Button>}</div>
    </header>
-   <main className="min-w-0 flex-1 p-2 sm:p-4"><div className="mx-auto w-full max-w-7xl">{children}</div></main>
+   <main className="min-w-0 flex-1 bg-background"><div className="mx-auto w-full max-w-[1440px] p-4 sm:p-6 lg:p-8">{children}</div></main>
   </SidebarInset>
  </SidebarProvider>;
 }

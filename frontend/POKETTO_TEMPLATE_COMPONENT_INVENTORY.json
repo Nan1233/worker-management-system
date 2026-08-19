@@ -1,0 +1,15 @@
+{
+  "template_ui_components": [
+    "button",
+    "card",
+    "dialog",
+    "input",
+    "scroll-area",
+    "separator",
+    "sheet",
+    "sidebar",
+    "skeleton",
+    "tooltip"
+  ],
+  "note": "No table.tsx primitive exists in the supplied Poketto template; KtcTable was removed rather than inventing a non-template component."
+}
