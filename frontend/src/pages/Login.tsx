@@ -46,13 +46,6 @@ const homeByRole: Record<UserRole, string> = {
     worker: "/worker"
 };
 
-const roleLabel: Record<UserRole, string> = {
-    admin: "Quản trị viên",
-    manager: "Quản lý",
-    lead: "Tổ trưởng",
-    worker: "Công nhân"
-};
-
 const readRememberedAccounts = (): RememberedAccount[] => {
     try {
         const rawValue = localStorage.getItem(REMEMBERED_ACCOUNTS_KEY);

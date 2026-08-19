@@ -1,4 +1,18 @@
-import type { ReactNode } from "react";
+import {
+  BarChart3,
+  Bell,
+  ChevronRight,
+  ClipboardCheck,
+  Database,
+  Factory,
+  FileSpreadsheet,
+  LayoutDashboard,
+  LogOut,
+  Settings2,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Sidebar,
   SidebarContent,
@@ -9,8 +23,10 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
+  SidebarSeparator,
   SidebarTrigger,
 } from "../poketto-template/ui/sidebar";
+import type { ReactNode } from "react";
 import { Button } from "../poketto-template/ui/button";
 import { Separator } from "../poketto-template/ui/separator";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
