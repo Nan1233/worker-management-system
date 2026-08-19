@@ -5,7 +5,15 @@ import type {
 } from "../types/auth";
 import { API_BASE_URL, REQUEST_TIMEOUT_MS } from "../config/env";
 
-import { clearAuthSession, createAuthSessionId, getAccessToken, getAuthEpoch, getRefreshToken, getStoredUser, saveAuthSession } from "../utils/authStorage";
+import {
+    clearAuthSession,
+    createAuthSessionId,
+    getAccessToken,
+    getAuthEpoch,
+    getRefreshToken,
+    getStoredUser,
+    saveAuthSession
+} from "../utils/authStorage";
 
 import type {
     AuthUser

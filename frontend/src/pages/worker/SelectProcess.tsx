@@ -1,12 +1,19 @@
-import { useEffect, useState } from "react";
+import {
+    useEffect,
+    useState
+} from "react";
 
-import { useNavigate } from "react-router-dom";
+import {
+    useNavigate
+} from "react-router-dom";
 
 import axios from "axios";
 
 import { clearAuthSession, getStoredUser } from "../../utils/authStorage";
 
-import { getCurrentWorker } from "../../services/workerService";
+import {
+    getCurrentWorker
+} from "../../services/workerService";
 
 import { prefetchProcessMasterData } from "../../services/masterDataCache";
 
@@ -180,7 +187,7 @@ function SelectProcess() {
 
         return (
 
-            <main className="select-process-page poketto-worker-process-page">
+            <main className="select-process-page">
 
                 <div className="process-state-box">
 
@@ -199,7 +206,7 @@ function SelectProcess() {
 
         return (
 
-            <main className="select-process-page poketto-worker-process-page">
+            <main className="select-process-page">
 
                 <div className="process-state-box">
 
@@ -226,9 +233,9 @@ function SelectProcess() {
 
     return (
 
-        <main className="select-process-page poketto-worker-process-page">
+        <main className="select-process-page">
 
-            <div className="select-process-shell poketto-worker-surface">
+            <div className="select-process-shell">
 
                 <header className="select-process-header">
 
@@ -325,7 +332,7 @@ function SelectProcess() {
                                 <button
                                     key={item.id}
                                     type="button"
-                                    className="worker-process-card poketto-worker-card"
+                                    className="worker-process-card"
                                     onPointerEnter={() => item.dbId && prefetchProcessMasterData(item.dbId)}
                                     onFocus={() => item.dbId && prefetchProcessMasterData(item.dbId)}
                                     onTouchStart={() => item.dbId && prefetchProcessMasterData(item.dbId)}

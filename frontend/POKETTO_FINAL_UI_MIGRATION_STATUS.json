@@ -1,0 +1,205 @@
+{
+  "worker": [
+    {
+      "page": "ProcessPage.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "Production.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "ProductionDetail.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": true
+    },
+    {
+      "page": "ProductionHistory.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "ProductionTemplate.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": true
+    },
+    {
+      "page": "Profile.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": true
+    },
+    {
+      "page": "SelectProcess.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "WorkerHistoryTemplate.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": true
+    },
+    {
+      "page": "WorkerNotificationTemplate.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": true
+    },
+    {
+      "page": "WorkerProfileTemplate.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": true
+    },
+    {
+      "page": "WorkerTemplateHome.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": true
+    }
+  ],
+  "lead": [
+    {
+      "page": "ApprovedReports.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "Dashboard.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "EditReport.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "LeadDashboardTemplate.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "LeadHistoryTemplate.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "LeadNotificationsTemplate.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "LeadReportsTemplate.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "LeadWorkersTemplate.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "PendingReports.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "ReportDetail.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "ReportDownload.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "Statistics.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "Workers.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    }
+  ],
+  "manager": [
+    {
+      "page": "ApprovedReports.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "Dashboard.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "EditReport.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "MachineEventPanel.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "ReportDetail.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "ReportDownload.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "Reports.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "SelectedReportsReview.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "Statistics.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "Workers.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    }
+  ],
+  "admin": [
+    {
+      "page": "Dashboard.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "FormulaSettings.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "Governance.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "MasterData.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    },
+    {
+      "page": "Permissions.tsx",
+      "usesKtcPage": false,
+      "usesWorkerPage": false
+    }
+  ]
+}

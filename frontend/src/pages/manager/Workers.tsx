@@ -1,8 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+    useEffect,
+    useMemo,
+    useState
+} from "react";
 
 import axios from "axios";
 
-import { getAllWorkers, updateWorkerTrainingPercent } from "../../services/workerService";
+import {
+
+    getAllWorkers,
+
+    updateWorkerTrainingPercent
+
+} from "../../services/workerService";
 
 import type {
     WorkerProfile
@@ -381,7 +391,7 @@ function Workers() {
 
     return (
 
-        <section className="management-workers-page poketto-manager-page">
+        <section className="management-workers-page">
 
             <header className="management-workers-header">
 

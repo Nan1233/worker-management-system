@@ -1,12 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+    useEffect,
+    useMemo,
+    useState
+} from "react";
 
-import { useNavigate } from "react-router-dom";
+import {
+    useNavigate
+} from "react-router-dom";
 
 import axios from "axios";
 
 import "./ProductionHistory.css";
 
-import { getMyTempReports } from "../../services/productionService";
+import {
+    getMyTempReports
+} from "../../services/productionService";
 
 import type {
     ProductionReport
@@ -597,7 +605,7 @@ function ProductionHistory() {
 
         return (
 
-            <main className="history-page poketto-production-page">
+            <main className="history-page">
 
                 <div className="history-state-card">
 

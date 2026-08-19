@@ -499,7 +499,7 @@ function Reports() {
 
 
     return (
-        <div className="management-report-page poketto-manager-page">
+        <div className="management-report-page">
             <div className="management-report-header">
                 <div>
                     <h1>

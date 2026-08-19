@@ -1,24 +1,40 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState
+} from "react";
 
 import axios from "axios";
 
 import { clearAuthSession, getStoredUser } from "../../utils/authStorage";
 
-import { useNavigate, useParams } from "react-router-dom";
+import {
+    useNavigate,
+    useParams
+} from "react-router-dom";
 
 
 import "./ProcessPage.css";
 
 
-import { createTempReport, updateTempReport } from "../../services/productionService";
+import {
+    createTempReport,
+    updateTempReport,
+} from "../../services/productionService";
 
-import { getCurrentWorker } from "../../services/workerService";
+import {
+    getCurrentWorker
+} from "../../services/workerService";
 
 
 import type {
     WorkerProfile
 } from "../../types/worker";
-import { resolveProductStandard } from "../../services/masterDataService";
+import {
+    resolveProductStandard
+} from "../../services/masterDataService";
 import type {
     MachineOption,
     ProductStandardOption
@@ -26,7 +42,12 @@ import type {
 
 import { useToast } from "../../components/feedback/toastContext";
 import { getApiError } from "../../utils/apiError";
-import { clearProcessDraft, hasMeaningfulProcessDraft, loadProcessDraft, saveProcessDraft } from "./processDraftStorage";
+import {
+    clearProcessDraft,
+    hasMeaningfulProcessDraft,
+    loadProcessDraft,
+    saveProcessDraft,
+} from "./processDraftStorage";
 import { getCachedResolvedProductStandard } from "../../services/productStandardRequestCache";
 import { createClientRequestId } from "../../utils/workerSubmitGuard";
 import { classifyProcessSubmitResponse } from "../../utils/processSubmitOutcome";
@@ -42,7 +63,19 @@ import type {
 // =====================================================
 
 
-import { KQD_CODES, clampWorkerWorkDate, createEmptyMachineLine, getCurrentLocalDate, getWorkerAllowedWorkDates, getWorkerMaxWorkDate, getWorkerMinWorkDate, initialDeduction, initialForm, processMap, shiftLocalDate } from "./processPageConfig";
+import {
+    KQD_CODES,
+    clampWorkerWorkDate,
+    createEmptyMachineLine,
+    getCurrentLocalDate,
+    getWorkerAllowedWorkDates,
+    getWorkerMaxWorkDate,
+    getWorkerMinWorkDate,
+    initialDeduction,
+    initialForm,
+    processMap,
+    shiftLocalDate,
+} from "./processPageConfig";
 import { processExtraFields } from "./processExtraFields";
 import ProcessExtraFieldsSection from "./components/ProcessExtraFieldsSection";
 import ProcessTimeDeductionSection from "./components/ProcessTimeDeductionSection";
@@ -51,17 +84,54 @@ import ProcessQualitySection from "./components/ProcessQualitySection";
 import ProcessBasicInfoSection from "./components/ProcessBasicInfoSection";
 import ProcessSubmitActions from "./components/ProcessSubmitActions";
 import { filterProductsForSelection, toProductAutocompleteOptions } from "./productSuggestionRules";
-import { filterProductsForProcessScope, getInitialOperationMode, getProcessCapabilities, usesMultiMachineLines as resolveUsesMultiMachineLines, usesSingleMachine as resolveUsesSingleMachine } from "./processPageDomain";
-import { MAX_TOTAL_WORK_MINUTES, calculateActualOutput as calculateActualOutputValue, formatIntegerDisplay, parseFlexibleTime, parseIntegerDisplay } from "./processFormUtils";
-import { aggregateMachineLines, getMachineNgTotal, getMaxMachineCount, toggleMachineDefectLine, updateMachineDefectLine } from "./processMachineLines";
+import {
+    filterProductsForProcessScope,
+    getInitialOperationMode,
+    getProcessCapabilities,
+    usesMultiMachineLines as resolveUsesMultiMachineLines,
+    usesSingleMachine as resolveUsesSingleMachine,
+} from "./processPageDomain";
+import {
+    MAX_TOTAL_WORK_MINUTES,
+    calculateActualOutput as calculateActualOutputValue,
+    formatIntegerDisplay,
+    parseFlexibleTime,
+    parseIntegerDisplay,
+} from "./processFormUtils";
+import {
+    aggregateMachineLines,
+    getMachineNgTotal,
+    getMaxMachineCount,
+    toggleMachineDefectLine,
+    updateMachineDefectLine,
+} from "./processMachineLines";
 import { validateMachineLines } from "./processPageValidation";
-import { calculateDeductionTimeSummary, getProspectiveTotalWorkMinutes, normalizeDeductionInput, normalizeDeductionStoredValue } from "./processDeductionLogic";
-import { applyNgToggleToForm, applyNgValueToForm, applyTtOkToForm, calculateNgTotal, isValidIntegerInput } from "./processQualityLogic";
+import {
+    calculateDeductionTimeSummary,
+    getProspectiveTotalWorkMinutes,
+    normalizeDeductionInput,
+    normalizeDeductionStoredValue,
+} from "./processDeductionLogic";
+import {
+    applyNgToggleToForm,
+    applyNgValueToForm,
+    applyTtOkToForm,
+    calculateNgTotal,
+    isValidIntegerInput,
+} from "./processQualityLogic";
 
-import { resolveWorkDateForShiftChange, validateWorkerWorkDate } from "./processWorkDateLogic";
+import {
+    resolveWorkDateForShiftChange,
+    validateWorkerWorkDate,
+} from "./processWorkDateLogic";
 
-import { clearZeroNumberField, updateTotalTimeField } from "./processInputLogic";
-import { toDuplicatePrompt } from "./processDuplicateReportLogic";
+import {
+    clearZeroNumberField,
+    updateTotalTimeField,
+} from "./processInputLogic";
+import {
+    toDuplicatePrompt,
+} from "./processDuplicateReportLogic";
 import { useDuplicateReportFlow } from "./useDuplicateReportFlow";
 import { buildProductionReportPayload } from "./processReportSubmission";
 import { useProcessMasterData } from "./useProcessMasterData";
