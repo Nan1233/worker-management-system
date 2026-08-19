@@ -5,7 +5,18 @@ import { logout } from "../services/authService";
 import { usePermissions } from "../hooks/usePermissions";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
 import type { PermissionCode } from "../security/permissions";
-import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarInset, SidebarTrigger } from "../components/poketto/ui/sidebar";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarInset,
+  SidebarTrigger,
+} from "../components/poketto/ui/sidebar";
 
 type Item = {
   label: string;

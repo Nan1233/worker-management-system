@@ -126,7 +126,7 @@ export default function MachineEventPanel({ report, line, source, onChanged }: P
     finally { setBusy(false); }
   };
 
-  return <section className="detail-basic-card machine-event-card">
+  return <section className="detail-basic-card machine-event-card poketto-manager-page">
     <h2>Physical machine event · Máy {line.machine_code}</h2>
     <p className="detail-help">Sản lượng công nhân ở dòng máy là <strong>credited output</strong>. Sản lượng vật lý máy được quản lý một lần tại event này.</p>
     {error && <div className="detail-inline-error">{error}</div>}

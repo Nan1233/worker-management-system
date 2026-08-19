@@ -27,7 +27,6 @@ import "./SelectProcess.css";
 import { PROCESS_SELECTIONS } from "./processFormSchemas";
 import { workerCanAccessProcess } from "../../utils/processAccess";
 import AppIcon, { type IconName } from "../../components/common/AppIcon";
-
 const processIconMap: Record<string, IconName> = {
     GC: "cut",
     MAI: "grind",
@@ -187,7 +186,7 @@ function SelectProcess() {
 
         return (
 
-            <main className="select-process-page">
+            <main className="select-process-page poketto-worker-process-page">
 
                 <div className="process-state-box">
 
@@ -206,7 +205,7 @@ function SelectProcess() {
 
         return (
 
-            <main className="select-process-page">
+            <main className="select-process-page poketto-worker-process-page">
 
                 <div className="process-state-box">
 
@@ -233,9 +232,9 @@ function SelectProcess() {
 
     return (
 
-        <main className="select-process-page">
+        <main className="select-process-page poketto-worker-process-page">
 
-            <div className="select-process-shell">
+            <div className="select-process-shell poketto-worker-surface">
 
                 <header className="select-process-header">
 
@@ -332,7 +331,7 @@ function SelectProcess() {
                                 <button
                                     key={item.id}
                                     type="button"
-                                    className="worker-process-card"
+                                    className="worker-process-card poketto-worker-card"
                                     onPointerEnter={() => item.dbId && prefetchProcessMasterData(item.dbId)}
                                     onFocus={() => item.dbId && prefetchProcessMasterData(item.dbId)}
                                     onTouchStart={() => item.dbId && prefetchProcessMasterData(item.dbId)}
@@ -391,3 +390,4 @@ function SelectProcess() {
 
 
 export default SelectProcess;
+

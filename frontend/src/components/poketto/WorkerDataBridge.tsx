@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-
 type Props = {
   title: string;
   description?: string;
@@ -37,3 +36,4 @@ export function WorkerDataBridge({ title, description, loading, error, empty, ch
   }
   return <>{children}</>;
 }
+

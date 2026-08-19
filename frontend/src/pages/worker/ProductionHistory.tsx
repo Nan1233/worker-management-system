@@ -605,7 +605,7 @@ function ProductionHistory() {
 
         return (
 
-            <main className="history-page">
+            <main className="history-page poketto-production-page">
 
                 <div className="history-state-card">
 

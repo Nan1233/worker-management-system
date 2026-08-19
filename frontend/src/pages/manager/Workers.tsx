@@ -391,7 +391,7 @@ function Workers() {
 
     return (
 
-        <section className="management-workers-page">
+        <section className="management-workers-page poketto-manager-page">
 
             <header className="management-workers-header">
 

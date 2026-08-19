@@ -186,7 +186,7 @@ function ReportDetail() {
         }
     };
 
-    if (loading) return <main className="report-detail-page"><div className="detail-state">Đang tải báo cáo...</div></main>;
+    if (loading) return <main className="report-detail-page poketto-manager-page"><div className="detail-state">Đang tải báo cáo...</div></main>;
     if (error && !report) return <main className="report-detail-page"><div className="detail-state detail-state-error">{error}</div><button className="detail-back-button" type="button" onClick={() => navigate(-1)}>Quay lại</button></main>;
     if (!report) return null;
 

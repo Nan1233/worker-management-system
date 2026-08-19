@@ -33,8 +33,3 @@
 @media (prefers-reduced-motion:reduce){
   .poketto-production-page *{scroll-behavior:auto!important;transition-duration:0.01ms!important;animation-duration:0.01ms!important}
 }
-
-.poketto-lead-page :is(button,a,[role="button"]):focus-visible{outline:2px solid hsl(var(--ring));outline-offset:2px}
-.poketto-lead-page :is(button,a,[role="button"]){touch-action:manipulation}
-.poketto-lead-page table{width:100%;min-width:640px}
-@media (max-width:767px){.poketto-lead-page :is(button,a,[role="button"]){min-height:44px}.poketto-lead-page{font-size:.9375rem}}

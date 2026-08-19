@@ -3,7 +3,7 @@ import "./ReportDownload.css";
 
 function ReportDownload() {
     return (
-        <div className="download-page">
+        <div className="download-page poketto-manager-page">
             <div className="download-card">
                 <div className="download-header">
                     <span className="download-header-icon"><AppIcon name="download" size={24} /></span>
