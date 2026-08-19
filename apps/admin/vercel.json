@@ -1,0 +1,12 @@
+{
+	"rewrites": [
+		{
+			"source": "/api/:path(.*)",
+			"destination": "https://poketto-api.afjs.dev/api/:path"
+		},
+		{
+			"source": "/(.*)",
+			"destination": "/"
+		}
+	]
+}

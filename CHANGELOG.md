@@ -1,145 +1,90 @@
-## 2026-08-07 - Split monthly Excel files
-- Desktop monthly Excel export now creates 10 files: one summary workbook plus nine process workbooks.
-- Each process workbook contains only its own process sheet.
-- Preserves All Borders, daily STT reset, freeze panes, process-specific details and final-result Total SP rule.
-- Smoke contract updated to verify all 10 files and their sheet structure.
+# Changelog
 
+## 1.1.0
 
-## 2026-08-07 — Tổng SP lấy kết quả cuối
-- Sửa workbook tháng: `Tổng SP`/`Tổng SP quy đổi` không còn cộng dồn.
-- Dòng `TỔNG CỘNG` của từng công đoạn chỉ lấy SP quy đổi cuối cùng hợp lệ.
-- `TỔNG HỢP THÁNG` dùng cùng quy tắc.
-- Bổ sung smoke test chống regression.
-# Thay đổi
+### &nbsp;&nbsp;&nbsp;Features
 
-- Sửa quyền công đoạn theo từng công nhân.
-- Bổ sung cấu trúc `processes[]` cho hồ sơ công nhân.
-- Chặn tài khoản/công nhân không hoạt động.
-- Bảo vệ API NG và trừ giờ bằng xác thực đầy đủ.
-- Xóa Electron trùng, template ZIP và file rác.
-- Thêm kiểm tra toàn dự án và tên EXE không kèm phiên bản.
+- Add rehype-raw to parse html &nbsp;-&nbsp; by **TinsFox** [<samp>(b6d0c)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/b6d0c8d)
+- Simplify environment variable injection &nbsp;-&nbsp; by **TinsFox** [<samp>(8b9ff)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/8b9ffa0)
+- Table data &nbsp;-&nbsp; by **TinsFox** [<samp>(f9eb5)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/f9eb573)
+- Adjust the layout &nbsp;-&nbsp; by **TinsFox** [<samp>(9b560)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/9b56021)
+- Add view user sheet &nbsp;-&nbsp; by **TinsFox** [<samp>(4afeb)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/4afeb8f)
+- Hide pagination when no data &nbsp;-&nbsp; by **TinsFox** [<samp>(7911c)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/7911c33)
+- Update user api &nbsp;-&nbsp; by **TinsFox** [<samp>(c06ff)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/c06ff83)
+- Use shadcn sidebar component &nbsp;-&nbsp; by **TinsFox** in https://github.com/TinsFox/vite-boilerplate/issues/14 [<samp>(7f1f7)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/7f1f70e)
+- Add document icon &nbsp;-&nbsp; by **TinsFox** [<samp>(479be)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/479be5a)
+- I18n text &nbsp;-&nbsp; by **TinsFox** [<samp>(826cb)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/826cbee)
+- Nav user &nbsp;-&nbsp; by **TinsFox** [<samp>(36a77)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/36a77ae)
+- Layout header &nbsp;-&nbsp; by **TinsFox** [<samp>(6787a)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/6787adf)
+- Fetch nav menu data &nbsp;-&nbsp; by **TinsFox** [<samp>(b1be7)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/b1be784)
+- Table loading state &nbsp;-&nbsp; by **TinsFox** [<samp>(1a57a)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/1a57a44)
+- Sidebar state &nbsp;-&nbsp; by **TinsFox** [<samp>(c259d)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/c259d57)
+- Feedback url &nbsp;-&nbsp; by **TinsFox** [<samp>(e8f5d)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/e8f5d69)
+- External link &nbsp;-&nbsp; by **TinsFox** [<samp>(cc0f2)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/cc0f238)
+- Document icon &nbsp;-&nbsp; by **TinsFox** [<samp>(3bf04)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/3bf044b)
+- Pro table &nbsp;-&nbsp; by **TinsFox** in https://github.com/TinsFox/vite-boilerplate/issues/15 [<samp>(7c138)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/7c13833)
 
-## Cải tiến hồ sơ và quyền công đoạn
+### &nbsp;&nbsp;&nbsp;Bug Fixes
 
-- Tách truy vấn hồ sơ công nhân sang service có thể kiểm thử độc lập.
-- Chỉ tìm worker theo `user_id` của phiên đăng nhập.
-- Chặn tài khoản và hồ sơ worker không hoạt động ngay trong truy vấn.
-- Loại bỏ `GROUP_CONCAT` và truy vấn quyền trùng lặp.
-- Chuẩn hóa `processes[]` và sinh trường CSV tương thích từ cùng một nguồn.
-- Thêm integration test cho hồ sơ công nhân và công đoạn được phân công.
-- Thêm GitHub Actions dùng Node 22 và `npm ci` cho cả ba thành phần.
+- Fixed home page not scrolling &nbsp;-&nbsp; by **TinsFox** [<samp>(e72d7)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/e72d719)
+- Fix search command navigation &nbsp;-&nbsp; by **akazwz** [<samp>(6a051)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/6a0513c)
+- Doc link &nbsp;-&nbsp; by **Loogeek** [<samp>(09e46)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/09e46de)
+- Home page nav wrap &nbsp;-&nbsp; by **TinsFox** [<samp>(0ddf2)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/0ddf282)
+- Use vite load env &nbsp;-&nbsp; by **Daniel** [<samp>(4aa38)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/4aa380c)
+- Headers cannot be set &nbsp;-&nbsp; by **Daniel** and **TinsFox** in https://github.com/TinsFox/vite-boilerplate/issues/12 [<samp>(16b80)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/16b804e)
+- Make main area scrollable &nbsp;-&nbsp; by **TinsFox** [<samp>(780e0)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/780e0bc)
+- Update import statement for LanguageSwitch component &nbsp;-&nbsp; by **TinsFox** [<samp>(eb17a)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/eb17ad7)
+- Fix vitest config &nbsp;-&nbsp; by **TinsFox** [<samp>(7b1b4)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/7b1b466)
+- 401 redirect exception &nbsp;-&nbsp; by **TinsFox** [<samp>(3cbb4)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/3cbb4b3)
+- Fix duplicate dependency issues &nbsp;-&nbsp; by **TinsFox** [<samp>(6cd2c)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/6cd2c27)
+- Update button size &nbsp;-&nbsp; by **TinsFox** [<samp>(6f689)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/6f6899f)
+- Vitepress build &nbsp;-&nbsp; by **TinsFox** [<samp>(4c976)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/4c97674)
+- **eslint**: Restrict react-refresh rule to pages directory only &nbsp;-&nbsp; by **TinsFox** [<samp>(c2406)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/c240686)
 
-## Worker API and release hardening
-- Standardized `/api/workers/:workerId` and training-percent routes on `workers.id`.
-- Reused one worker profile loader for current and management profile endpoints.
-- Made structured `processes[]` authoritative in the frontend, with legacy CSV fallback only when absent.
-- Reduced current worker cache TTL to 60 seconds.
-- Stabilized manager report loading hooks.
-- Added Windows EXE build workflow and worker ID regression tests.
+##### &nbsp;&nbsp;&nbsp;&nbsp;[View changes on GitHub](https://github.com/TinsFox/vite-boilerplate/compare/v1.0.0...1.1.0)
 
-## Excel dùng dữ liệu thật trong DB
+## 1.0.0
 
-- Xuất trực tiếp snapshot từ `production_reports`.
-- Ghép NG, trừ giờ và máy theo đúng `report_id` và type ID.
-- Không dùng `product_standards` hiện tại để ghi đè báo cáo lịch sử.
-- Bỏ fallback 100% học việc, OK + NG thay sản lượng, trạng thái duyệt giả và mã máy/sản phẩm giả.
-- Ô thiếu dữ liệu trong DB được để trống; không tự sinh số liệu.
+### &nbsp;&nbsp;&nbsp;Features
 
-## Database-only Excel export and Render connectivity fix
-- Excel reads approved rows from `production_reports`; NG/trừ giờ/máy are joined by `report_id`.
-- Optional `entry_date` and `extra_data` no longer break older TiDB schemas.
-- Desktop retries Render cold starts and transient HTTP failures with clearer diagnostics.
-- Portable/Setup builds always build and copy `frontend/dist` before packaging.
+- New sidebar &nbsp;-&nbsp; by **TinsFox** [<samp>(90fe0)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/90fe0db)
+- Chart &nbsp;-&nbsp; by **TinsFox** [<samp>(6a078)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/6a07810)
+- Dynamic routing &nbsp;-&nbsp; by **TinsFox** [<samp>(28a06)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/28a0663)
+- Sidebar collapsed &nbsp;-&nbsp; by **TinsFox** [<samp>(0158c)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/0158c6c)
+- Remove sidebar handle &nbsp;-&nbsp; by **TinsFox** [<samp>(9cf2f)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/9cf2fb0)
+- Add docker deployment &nbsp;-&nbsp; by **TinsFox** [<samp>(6906b)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/6906bfa)
+- Editor env &nbsp;-&nbsp; by **TinsFox** [<samp>(af326)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/af32634)
+- Form example &nbsp;-&nbsp; by **TinsFox** [<samp>(622f6)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/622f65e)
+- Table example &nbsp;-&nbsp; by **TinsFox** [<samp>(ed3ee)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/ed3ee33)
+- Update menu icon &nbsp;-&nbsp; by **TinsFox** [<samp>(fb30d)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/fb30d89)
+- Theme &nbsp;-&nbsp; by **TinsFox** [<samp>(e91eb)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/e91eb86)
+- I18n init &nbsp;-&nbsp; by **TinsFox** [<samp>(1516d)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/1516dd7)
+- Sticky setting sidebar-nav &nbsp;-&nbsp; by **TinsFox** [<samp>(0fb79)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/0fb7953)
+- I18n type &nbsp;-&nbsp; by **TinsFox** [<samp>(cf4e1)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/cf4e1a6)
+- Redirect to signin when 401 &nbsp;-&nbsp; by **TinsFox** [<samp>(10af9)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/10af922)
+- Enable mock env &nbsp;-&nbsp; by **TinsFox** [<samp>(470de)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/470dea6)
+- Home animate &nbsp;-&nbsp; by **TinsFox** [<samp>(a28e1)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/a28e102)
+- I18n translation &nbsp;-&nbsp; by **TinsFox** [<samp>(e8b45)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/e8b4502)
+- Manually control the navigation bar to open and close &nbsp;-&nbsp; by **TinsFox** [<samp>(b7797)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/b7797cb)
+- Theme color &nbsp;-&nbsp; by **TinsFox** [<samp>(b432c)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/b432c79)
+- From value &nbsp;-&nbsp; by **TinsFox** [<samp>(c3f69)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/c3f690c)
+- Card list &nbsp;-&nbsp; by **TinsFox** [<samp>(712c9)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/712c90e)
+- Mobile nav &nbsp;-&nbsp; by **TinsFox** [<samp>(9299c)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/9299c91)
+- Sheet &nbsp;-&nbsp; by **TinsFox** [<samp>(45a86)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/45a86cd)
+- Set default theme to `system` &nbsp;-&nbsp; by **TinsFox** [<samp>(0ee52)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/0ee5242)
+- Z-index &nbsp;-&nbsp; by **TinsFox** [<samp>(ce6bd)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/ce6bd56)
+- Card list &nbsp;-&nbsp; by **TinsFox** [<samp>(d0563)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/d0563df)
+- Init storybook &nbsp;-&nbsp; by **TinsFox** [<samp>(04824)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/04824ac)
 
-## Formula settings and achievement colors
-- Added management settings per process for adjusted output, actual time, output/hour, achievement and NG-rate formulas.
-- Added configurable achievement color thresholds shared with monthly Excel export.
-- Adjusted output defaults to worker-entered output multiplied by training percentage.
-- Monthly Excel now shows entered output and adjusted output separately, highlights achievement cells, and inserts one spacer row between report dates.
+### &nbsp;&nbsp;&nbsp;Bug Fixes
 
-## 2026-08-07 - Monthly Excel business rules unified
-- Monthly workbook remains the canonical renderer; it does not use A+B workbooks as templates.
-- Preserve 0% training instead of silently converting it to 100%.
-- Use one adjusted-output rule per configured process; KQD exclusion only affects counted output when configured.
-- Use Total NG / (OK + Total NG) consistently for NG rate.
-- Export report date and entry date in separate columns.
-- Sort consistently by report date, approval/create time, worker, machine, then report ID.
-- Reset STT for every report date, including legacy one-region layout fallback.
-- Rename time columns to Tổng thời gian, Thời gian thực tế, Tổng thời gian trừ.
-- Add realistic shift-C, zero-training, KQD, date-separation and workbook round-trip smoke assertions.
+- Typescript &nbsp;-&nbsp; by **TinsFox** [<samp>(1608c)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/1608c10)
+- Sidebar padding bottom &nbsp;-&nbsp; by **TinsFox** [<samp>(c63bd)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/c63bd89)
+- Adjust sticky div positioning in charts layout &nbsp;-&nbsp; by **TinsFox** [<samp>(10f5d)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/10f5d54)
+- Container overflow &nbsp;-&nbsp; by **TinsFox** [<samp>(1afce)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/1afce6c)
+- Table style &nbsp;-&nbsp; by **TinsFox** [<samp>(65951)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/659511a)
+- Body overflow &nbsp;-&nbsp; by **TinsFox** [<samp>(753d4)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/753d4f2)
+- Fix error import &nbsp;-&nbsp; by **TinsFox** [<samp>(b399a)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/b399a27)
+- Env type &nbsp;-&nbsp; by **TinsFox** [<samp>(a54ac)</samp>](https://github.com/TinsFox/vite-boilerplate/commit/a54ac45)
 
-## 2026-08-07 - Excel integer quantity formatting
-
-- Grouped reports by report date with exactly one blank row between dates.
-- Reset STT to 1 for each report date.
-- Display STT, OK, total NG, defect details, entered product quantity, converted product quantity and IDs as integers.
-- Round calculated converted product quantity to the nearest whole product.
-- Keep deduction hours and working-time values at up to two decimal places.
-- Keep standards and products-per-hour at up to six decimal places.
-- Keep achievement and NG rates as percentages.
-- Extended the Excel integration smoke test to verify number formats and the blank separator row.
-
-## 2026-08-07 - Excel integer quantity test fix
-- Updated source integrity tests to expect integer production quantities.
-- Verified backend test suite: 45/45 passed.
-
-## 2026-08-07 - Excel date separator row
-- Each report date now starts with one separator row; cell A contains the form `work_date`.
-- Report rows no longer repeat the report date.
-- Daily STT resets to 1 immediately after each date row.
-- `Thời gian nhập` is taken from the database `created_at` timestamp and displayed with date and time.
-- Freeze pane now ends at `Tên NV` after removing the repeated report-date column.
-- Smoke/source tests updated for the new layout.
-
-## 2026-08-07 - Excel detail alias test alignment
-
-- Updated `backend/tests/excel-detail-column-robustness.test.js` to validate the current detail resolver architecture.
-- Tests now verify `detailId`, `detailCode`, `detailLabel`, `detailAliases`, `detailValue`, and `detailMap` instead of the removed `detailMapValue` helper.
-- Added coverage for deduction/defect ID, code, label, hours, and quantity field aliases returned by the database.
-- Backend test result: 46/46 passed.
-
-## 2026-08-07 - CI daily grouping/freeze test alignment
-- Added `backend/tests/excel-daily-order-freeze.test.js` to the clean source package.
-- Freeze validation now matches the current layout: STT, Thời gian nhập, Mã NV, Tên NV (`xSplit: 4`, scroll from `E6`).
-- Daily sequence validation now matches the date separator-row implementation and confirms `work_date` is written to column A.
-- Added ordering validation for report date followed by actual input/approval time.
-
-## 2026-08-07 - Excel report-date row width fix
-- Merge cells A:D only on each report-date separator row.
-- Write report date as dd/mm/yyyy text so narrow STT column never displays ###.
-- Keep data-row columns unchanged: A STT, B input time, C worker code, D worker name.
-- Update CI source assertions and Excel smoke expectations.
-## 2026-08-07 - Excel number display fix
-
-- Hide unnecessary trailing decimal zeros (`1.0` -> `1`, `0.0` -> `0`).
-- Keep STT, OK, NG, defect quantities, output and ID as integers.
-- Allow optional decimals only for time, productivity/rate and percentage fields.
-- Add regression tests for Excel number formats.
-
-
-## 2026-08-07 - Dynamic Excel number formatting
-- Whole time and productivity values now use integer number format, preventing Excel 2016 from showing `11.` or `0.`.
-- Decimal formats are used only when the stored value actually has a fractional part.
-- Quantity fields remain integer-only; percentages keep percentage formatting.
-- Added CI coverage for process rows, total rows, summary, reconciliation, and DATA_DB formatting.
-
-## 2026-08-07 - Process-specific form and Excel schema from file-mau.xlsx
-- Tách cấu trúc Excel theo 9 công đoạn; giữ cố định các cột NG/trừ giờ đọc từ file-mau.xlsx.
-- CÁN: NG Chân không/Rách vỡ/Bề mặt/Bavia; trừ giờ Vệ sinh máy cán/Sửa máy/Nghỉ giải lao/5S/Dừng sản xuất/CAN HC.
-- ÉP: NG và trừ giờ riêng theo sheet EP; không dùng chung schema Kiểm 1.
-- XLBV và SX3 có nhóm trường riêng theo sheet mẫu.
-- Form công nhân tải danh mục trừ giờ theo process từ API/DB, không còn dùng danh sách Gia công cho mọi công đoạn.
-- Bổ sung các trường riêng Cán, Kiểm 1 và XLBV theo Form nhập.
-- Cột mẫu được ghép với master DB và chi tiết thực tế để không mất loại mới.
-
-## 2026-08-07 - Frontend deduction key build fix
-- Fixed TypeScript build errors caused by `keyof DeductionState` widening beyond string-safe DOM/payload values.
-- `DeductionKey` now uses `Extract<keyof DeductionState, string>`.
-- Deduction payload codes and form `htmlFor`/`id`/`name` are explicitly converted with `String(...)`.
-- Added source regression test so CI catches this issue before Electron packaging.
-
-## 2026-08-07 - Render startup module fix
-- Restored `backend/services/schemaCompatibilityService.js` required by `processExcelExportService.js`.
-- Added cached TiDB `INFORMATION_SCHEMA.COLUMNS` compatibility checks for optional legacy columns.
-- Added regression tests that fail when any relative backend `require()` points to a missing deploy-source module.
-- Backend tests: 60/60 pass; backend source check passes.
+##### &nbsp;&nbsp;&nbsp;&nbsp;[View changes on GitHub](https://github.com/TinsFox/vite-boilerplate/compare/f2ec02513f5321633e3ffb23ddecc94328cb3b07...1.0.0)
