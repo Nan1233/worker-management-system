@@ -58,7 +58,8 @@
     "audit:dependency:contract": "node scripts/dependencyReleaseContract.cjs",
     "audit:source:consistency": "node scripts/sourceConsistencyContract.cjs",
     "audit:production:runtime": "node scripts/productionRuntimeGate.cjs",
-    "verify": "npm run verify:release-contract && npm run verify:release-consistency && npm run verify:repository"
+    "verify": "npm run verify:release-contract && npm run verify:release-consistency && npm run verify:repository",
+    "demo:render-smoke": "node scripts/renderDemoSmoke.cjs"
   },
   "dependencies": {
     "@capacitor/android": "8.5.0",
