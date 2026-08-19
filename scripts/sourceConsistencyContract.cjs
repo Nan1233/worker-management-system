@@ -71,7 +71,12 @@ assert.match(rootPkg.scripts['android:sync'], /^npm --prefix frontend run androi
 assert.match(rootPkg.scripts['ios:sync'], /^npm --prefix frontend run ios:sync$/);
 
 const render = fs.readFileSync(path.join(root, 'render.yaml'), 'utf8');
-assert.match(render, /buildCommand:\s*npm ci && npm --prefix frontend ci && npm --prefix frontend run check/);
-assert.match(render, /staticPublishPath:\s*\.\/frontend\/dist/);
+assert.match(render, /rootDir:\s*frontend/);
+assert.match(render, /buildCommand:\s*npm ci && npm run build/);
+assert.match(render, /staticPublishPath:\s*\.\/dist/);
+assert.match(render, /name:\s*worker-management-system-2/);
+assert.match(render, /rootDir:\s*backend/);
+assert.match(render, /startCommand:\s*npm start/);
+assert.match(render, /healthCheckPath:\s*\/api\/health\/ready/);
 
 console.log('[KTC] canonical source contract PASS: frontend/ is the sole web/mobile source tree');

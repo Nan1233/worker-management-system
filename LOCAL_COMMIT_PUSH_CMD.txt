@@ -1,0 +1,11 @@
+KTC LOCAL COMMIT / PUSH
+
+1. Replace the local project with this ZIP.
+2. From project root:
+   git status -sb
+   git add -A
+   git commit -m "fix(release): canonicalize Render deployment and source"
+   git pull --rebase origin main
+   git push origin main
+
+No GitHub Actions are required. Do not force-push.

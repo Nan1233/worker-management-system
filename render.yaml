@@ -1,9 +1,11 @@
 services:
+  # KTC frontend — canonical source: frontend/
   - type: web
     name: ktc-frontend
     runtime: static
-    buildCommand: npm ci && npm --prefix frontend ci && npm --prefix frontend run check
-    staticPublishPath: ./frontend/dist
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
     pullRequestPreviewsEnabled: false
     envVars:
       - key: VITE_API_URL
@@ -40,3 +42,12 @@ services:
       - type: rewrite
         source: /*
         destination: /index.html
+
+  # KTC backend — runtime configuration/secrets remain managed by Render.
+  - type: web
+    name: worker-management-system-2
+    runtime: node
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health/ready
