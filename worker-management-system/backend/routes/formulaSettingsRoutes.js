@@ -1,0 +1,12 @@
+const express = require('express');
+const router = express.Router();
+const controller = require('../controllers/formulaSettingsController');
+const verifyToken = require('../middleware/authMiddleware');
+const checkRole = require('../middleware/roleMiddleware');
+const permission = require('../middleware/permissionMiddleware');
+router.use(verifyToken, checkRole('admin','manager','lead'));
+router.get('/', permission('FORMULA_VIEW'), controller.list);
+router.put('/scopes/:scopeCode', permission('FORMULA_EDIT'), controller.updateScope);
+router.delete('/scopes/:scopeCode', permission('FORMULA_EDIT'), controller.resetScope);
+router.put('/products/:id', permission('FORMULA_EDIT'), controller.updateProductRule);
+module.exports = router;

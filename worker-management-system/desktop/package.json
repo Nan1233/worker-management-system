@@ -1,0 +1,97 @@
+{
+  "name": "ktc-production-control-desktop",
+  "version": "1.5.2",
+  "description": "KTC Production Control Desktop - A+B theo tháng, báo cáo theo công đoạn, pending chạy lại từ dữ liệu DB mới nhất",
+  "main": "electron/main.cjs",
+  "author": "KTC",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "frontend:install": "node scripts/run-frontend-command.cjs install",
+    "build:frontend": "npm --prefix ../frontend run build:native && npm run copy:frontend",
+    "start": "npm run build:frontend && electron .",
+    "dist:win": "npm run preflight && npm run build:frontend && npm run smoke:excel && electron-builder --win portable nsis --x64",
+    "dist:portable": "npm run preflight && npm run build:frontend && npm run smoke:excel && electron-builder --win portable --x64",
+    "dist:nsis": "npm run preflight && npm run build:frontend && npm run smoke:excel && electron-builder --win nsis --x64",
+    "check": "node --check electron/main.cjs && node --check electron/platformPaths.cjs && node --check scripts/preflight.cjs && node --check scripts/checkPlatformPaths.cjs && node --check electron/preload.cjs && node --check electron/desktopLog.cjs && node --check electron/excelPaths.cjs && node --check electron/authToken.cjs && node --check electron/companyExcelLocal.cjs && node --check electron/productionCalculationEngine.cjs && node --check electron/excelDualLayout.cjs && node --check electron/monthlyWorkbookLocal.cjs && node --check scripts/smokeExcel.cjs && npm run check:excel-db-sync && npm run check:platform-paths && node --check scripts/fieldReadiness.cjs && node scripts/fieldReadiness.cjs && node scripts/checkPackagedSharedContract.cjs",
+    "copy:frontend": "node scripts/copyFrontend.cjs",
+    "smoke:excel": "node scripts/smokeExcel.cjs",
+    "dist:dir": "npm run preflight && npm run build:frontend && npm run smoke:excel && electron-builder --win dir --x64",
+    "check:excel-db-sync": "node scripts/checkExcelDbSync.cjs",
+    "validate:excel-folder": "node scripts/validateExcelFolder.cjs",
+    "preflight": "node scripts/preflight.cjs",
+    "check:platform-paths": "node scripts/checkPlatformPaths.cjs",
+    "dist:mac": "npm run preflight && npm run build:frontend && npm run smoke:excel && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --universal",
+    "field:readiness": "npm run preflight && node scripts/fieldReadiness.cjs",
+    "audit:prod": "npm audit --omit=dev --audit-level=high",
+    "check:packaged-shared-contract": "node scripts/checkPackagedSharedContract.cjs"
+  },
+  "devDependencies": {
+    "electron": "37.10.3",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "vn.ktc.productioncontrol",
+    "productName": "KTC Production Control",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**/*",
+      "frontend/dist/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "signAndEditExecutable": true
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "KTC Production Control",
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "KTC-Production-Control-Setup.exe"
+    },
+    "portable": {
+      "artifactName": "KTC-Production-Control.exe"
+    },
+    "compression": "maximum",
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "assets/icon.png",
+      "category": "public.app-category.business"
+    },
+    "dmg": {
+      "artifactName": "KTC-Production-Control-${version}-${arch}.dmg"
+    },
+    "extraResources": [
+      {
+        "from": "../shared",
+        "to": "shared",
+        "filter": [
+          "excelSyncContract.cjs",
+          "kqdPolicy.cjs",
+          "kqdExclusionRegistry.json"
+        ]
+      }
+    ]
+  },
+  "dependencies": {
+    "exceljs": "4.4.0",
+    "jszip": "3.10.1"
+  }
+}

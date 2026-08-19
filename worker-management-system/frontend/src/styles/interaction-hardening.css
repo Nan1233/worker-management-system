@@ -1,0 +1,100 @@
+/*
+ * KTC interaction hardening
+ * Purpose: prevent decorative/sticky layers from becoming invisible click shields.
+ * Do not use pointer-events:none on application content.
+ */
+
+#root {
+  position: relative;
+  min-height: 100dvh;
+  isolation: isolate;
+}
+
+#root button,
+#root a,
+#root input,
+#root select,
+#root textarea,
+#root summary,
+#root [role="button"] {
+  pointer-events: auto;
+}
+
+#root .worker-main-content,
+#root .management-main,
+#root .management-content,
+#root .worker-form-page {
+  position: relative;
+  z-index: 0;
+  pointer-events: auto;
+}
+
+/* These are intentionally decorative / non-interactive. */
+#root .ktc-network-banner,
+#root .worker-input-with-unit > span,
+#root .autocomplete-search-icon {
+  pointer-events: none;
+}
+
+/* Sticky context is visual chrome; its actual controls explicitly opt back in. */
+#root .worker-sticky-context {
+  pointer-events: none;
+}
+#root .worker-sticky-context button,
+#root .worker-sticky-context input,
+#root .worker-sticky-context select,
+#root .worker-sticky-context a,
+#root .worker-sticky-context [role="button"] {
+  pointer-events: auto;
+}
+
+/* Never let a transparent page-level pseudo layer intercept interaction. */
+#root .worker-layout::before,
+#root .worker-layout::after,
+#root .management-layout::before,
+#root .management-layout::after {
+  pointer-events: none;
+}
+
+
+/* KTC P0 click safety:
+   A toast host must never own empty-screen pointer events. The legacy selector
+   is intentionally retained so a stale PWA bundle cannot re-create a full-page
+   invisible click shield. */
+#root .toast-container,
+#root .ktc-toast-container {
+  pointer-events: none !important;
+}
+
+#root .toast-container > .toast,
+#root .ktc-toast-container > .toast {
+  pointer-events: auto !important;
+}
+
+/* Full-screen decorative/presentation layers must never become click targets. */
+#root [data-ktc-decorative-layer="true"],
+#root [data-ktc-click-through="true"] {
+  pointer-events: none !important;
+}
+
+/* Do not let an empty overlay host intercept the page. */
+#root .toast-container:empty,
+#root .ktc-toast-container:empty {
+  display: none !important;
+}
+
+/* Application content stays above decorative layers. */
+#root .worker-main-content,
+#root .management-main,
+#root .management-content,
+#root .worker-form-page {
+  position: relative;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+#root :where(button, a, input, select, textarea, summary, [role="button"], label) {
+ position: relative;
+ z-index: 11;
+ pointer-events: auto;
+}

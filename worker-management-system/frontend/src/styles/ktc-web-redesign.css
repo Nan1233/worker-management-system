@@ -1,0 +1,275 @@
+/* KTC Web UI redesign — visual layer only. Business rules remain in existing components. */
+:root {
+  --ktc-ui-blue: #1f5fae;
+  --ktc-ui-blue-dark: #163f78;
+  --ktc-ui-blue-soft: #edf5ff;
+  --ktc-ui-border: #d7e1ec;
+  --ktc-ui-border-strong: #c3d2e2;
+  --ktc-ui-bg: #f4f7fb;
+  --ktc-ui-surface: #ffffff;
+  --ktc-ui-text: #172b45;
+  --ktc-ui-muted: #71839a;
+  --ktc-ui-radius: 14px;
+  --ktc-ui-shadow: 0 6px 22px rgba(24, 55, 91, .07);
+}
+
+html, body, #root { min-height: 100%; }
+body {
+  background: var(--ktc-ui-bg);
+  color: var(--ktc-ui-text);
+}
+
+/* Keep every application page inside the viewport instead of creating
+   accidental full-width/full-height decorative layers. */
+.management-layout,
+.worker-layout {
+  min-width: 0;
+  max-width: 100vw;
+  overflow-x: clip;
+}
+.management-main,
+.worker-main,
+.management-content,
+.worker-content {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Management web: calmer shell, clearer content hierarchy. */
+.management-layout {
+  background: var(--ktc-ui-bg);
+}
+.management-main {
+  background: var(--ktc-ui-bg);
+}
+.management-content {
+  width: min(100%, 1440px);
+  margin-inline: auto;
+  padding: 22px 24px 32px;
+}
+.management-sidebar {
+  background: var(--ktc-surface);
+  border-right: 1px solid var(--ktc-ui-border);
+}
+
+/* Worker form: remove the oversized/lemnhem feeling and use one visual grid. */
+.worker-form-page {
+  --form-max: 1180px;
+  padding: 18px 16px 92px;
+  background: linear-gradient(180deg, #f5f8fc 0%, #eef3f9 100%);
+}
+.worker-form-shell {
+  width: min(100%, var(--form-max));
+}
+.worker-form-card {
+  margin-top: 14px;
+  padding: 20px;
+  border: 1px solid var(--ktc-ui-border);
+  border-radius: var(--ktc-ui-radius);
+  background: var(--ktc-ui-surface);
+  box-shadow: var(--ktc-ui-shadow);
+}
+.worker-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 16px;
+}
+.worker-card-step {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--ktc-ui-blue-soft);
+  color: var(--ktc-ui-blue);
+  font-size: 11px;
+  font-weight: 800;
+}
+.worker-card-title {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  color: var(--ktc-ui-text);
+  font-size: 17px;
+}
+.worker-card-subtitle,
+.worker-mode-hint,
+.worker-machine-policy-note,
+.worker-machine-total-note {
+  display: none !important;
+}
+
+.worker-basic-grid,
+.worker-dynamic-grid {
+  gap: 14px;
+}
+.worker-selection-card,
+.worker-machine-single,
+.worker-machine-workspace {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--ktc-ui-border);
+  border-radius: 12px;
+  background: #fbfdff;
+  box-sizing: border-box;
+}
+.worker-selection-heading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.worker-selection-heading strong {
+  color: var(--ktc-ui-text);
+  font-size: 14px;
+  font-weight: 800;
+}
+.worker-selection-heading small { display: none !important; }
+.worker-selection-count {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: var(--ktc-ui-blue-soft);
+  color: var(--ktc-ui-blue);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.worker-mode-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.worker-mode-group {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--ktc-ui-border);
+  border-radius: 12px;
+  background: #fbfdff;
+}
+.worker-mode-label {
+  margin-bottom: 8px;
+  color: var(--ktc-ui-muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.worker-choice-row button {
+  min-width: 92px;
+  min-height: 38px;
+  border-radius: 9px;
+}
+.worker-choice-row button.active {
+  border-color: #a7c6e8;
+  background: var(--ktc-ui-blue-soft);
+  color: var(--ktc-ui-blue-dark);
+}
+
+.machine-lines-list {
+  display: grid;
+  gap: 12px;
+}
+.machine-line {
+  min-width: 0;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--ktc-ui-border);
+  border-radius: 12px;
+  background: var(--ktc-surface);
+  box-shadow: 0 2px 8px rgba(31, 65, 103, .035);
+}
+.machine-card-header {
+  min-width: 0;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e8eef5;
+}
+.machine-card-title-wrap { min-width: 0; }
+.machine-card-title-wrap > div { min-width: 0; }
+.machine-card-title-wrap > div span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.machine-selection-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, .72fr) minmax(240px, 1.28fr);
+  gap: 12px;
+}
+.machine-data-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.machine-performance-strip {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.machine-performance-metric {
+  min-width: 0;
+  padding: 9px 10px;
+  border-radius: 9px;
+}
+.machine-deduction-options {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.worker-text-input,
+.worker-field-block input:not([type="checkbox"]):not([type="radio"]),
+.worker-field-block select,
+.worker-field-block textarea {
+  border-color: var(--ktc-ui-border-strong);
+  border-radius: 10px;
+}
+.worker-field-block input:focus,
+.worker-field-block select:focus,
+.worker-field-block textarea:focus,
+.worker-text-input:focus {
+  border-color: #79a9d9;
+  box-shadow: 0 0 0 3px rgba(31, 95, 174, .10);
+}
+
+/* Do not allow a legacy toast/decorative host to create a giant white page. */
+#root .toast-container,
+#root .ktc-toast-container {
+  max-width: min(420px, calc(100vw - 24px));
+  pointer-events: none;
+}
+#root .toast-container > *,
+#root .ktc-toast-container > * {
+  pointer-events: auto;
+}
+
+@media (max-width: 900px) {
+  .management-content { padding: 16px; }
+  .worker-form-page { padding-inline: 10px; }
+  .machine-selection-grid,
+  .machine-data-grid,
+  .worker-mode-panel {
+    grid-template-columns: 1fr;
+  }
+  .machine-performance-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .machine-deduction-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 600px) {
+  .management-content { padding: 12px; }
+  .worker-form-page { padding: 10px 8px 82px; }
+  .worker-form-card { padding: 14px; border-radius: 12px; }
+  .worker-selection-card,
+  .worker-machine-single,
+  .worker-machine-workspace,
+  .machine-line { padding: 12px; }
+  .machine-performance-strip,
+  .machine-deduction-options { grid-template-columns: 1fr; }
+  .worker-choice-row button { min-width: 0; flex: 1 1 0; }
+}

@@ -1,0 +1,5 @@
+KTC CLEAN SOURCE 2026-08-17
+
+Database is the source of truth. Runtime does not execute database migrations.
+Restore the approved full database snapshot, then run: npm run db:verify
+Do not run npm run db:migrate; that command has been removed.

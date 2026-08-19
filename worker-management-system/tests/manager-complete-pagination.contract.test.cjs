@@ -1,0 +1,3 @@
+const fs=require("node:fs"),path=require("node:path"),test=require("node:test"),assert=require("node:assert/strict");
+test("manager page loader keeps bounded legacy helper",()=>{const s=fs.readFileSync(path.join(__dirname,"../frontend/src/services/managerReportPageLoader.ts"),"utf8");assert.match(s,/MANAGER_FETCH_PAGE_SIZE = 100/);assert.match(s,/MAX_MANAGER_FETCH_PAGES = 50/);});
+test("production service uses explicit bounded server pagination",()=>{const s=fs.readFileSync(path.join(__dirname,"../frontend/src/services/productionService.ts"),"utf8");assert.match(s,/page:\s*filters\.page \|\| 1/);assert.match(s,/page_size:\s*filters\.pageSize \|\| 20/);assert.match(s,/\/production-temp\/pending/);assert.match(s,/\/production-temp\/approved/);});

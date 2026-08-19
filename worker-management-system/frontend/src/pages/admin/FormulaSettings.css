@@ -1,0 +1,99 @@
+.formula-page{padding:24px;max-width:1480px;margin:0 auto}.formula-header h1{margin:0 0 6px;font-size:28px}.formula-header p,.formula-card-title p{margin:0;color:var(--ktc-text-muted)}.formula-card{margin-top:20px;padding:20px;background:var(--ktc-surface);border:1px solid #e4e7ec;border-radius:16px;box-shadow:0 8px 24px rgba(16,24,40,.05)}.formula-card-title{display:flex;justify-content:space-between;gap:20px;align-items:flex-end;margin-bottom:18px}.formula-card-title h2{margin:0 0 5px;font-size:20px}.formula-card-title>select,.formula-grid select,.formula-filters input,.formula-filters select,.threshold input{height:42px;border:1px solid var(--ktc-border-strong);border-radius:10px;padding:0 12px;background:var(--ktc-surface)}.formula-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.formula-grid label>span,.threshold span{display:block;font-size:13px;font-weight:600;color:#344054;margin-bottom:7px}.formula-grid select{width:100%}.formula-check{height:42px;margin-top:24px;display:flex;align-items:center;gap:10px;padding:0 12px;border:1px solid var(--ktc-border-strong);border-radius:10px;background:#f9fafb}.formula-check span{margin:0!important}.formula-thresholds{margin-top:22px;border-top:1px solid #eaecf0;padding-top:18px}.formula-thresholds h3{margin:0 0 14px}.threshold-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}.threshold{padding:12px;border-radius:12px;border:1px solid #e4e7ec}.threshold input{width:calc(100% - 28px);height:38px}.threshold b{margin-left:7px}.threshold.red{background:var(--ktc-danger-bg)}.threshold.orange{background:var(--ktc-warning-bg)}.threshold.yellow{background:#fff9db}.threshold.green{background:#effbf3}.threshold.blue{background:#eff8ff}.threshold-legend{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px;color:#475467;font-size:13px}.threshold-legend i{width:14px;height:14px;border-radius:4px}.threshold-legend .red{background:#f04438}.threshold-legend .orange{background:#f79009}.threshold-legend .yellow{background:#fdb022}.threshold-legend .green{background:#12b76a}.threshold-legend .blue{background:var(--ktc-brand-500)}.formula-preview{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:18px}.formula-preview div{padding:14px;border-radius:12px;background:var(--ktc-table-head);border:1px solid #e4e7ec}.formula-preview span{display:block;font-size:12px;color:var(--ktc-text-muted);margin-bottom:5px}.formula-preview strong{font-size:18px}.formula-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}.formula-actions button{height:42px;padding:0 18px;border-radius:10px;font-weight:700;cursor:pointer}.formula-actions .primary{border:1px solid var(--ktc-brand-600);background:var(--ktc-brand-600);color:#fff}.formula-actions .secondary{border:1px solid var(--ktc-border-strong);background:var(--ktc-surface);color:#344054}.formula-actions button:disabled{opacity:.55;cursor:not-allowed}.formula-filters{display:flex;gap:10px}.formula-table-wrap{overflow:auto}.formula-table{width:100%;border-collapse:collapse}.formula-table th,.formula-table td{padding:13px 12px;border-bottom:1px solid #eaecf0;text-align:left}.formula-table th{font-size:12px;color:var(--ktc-text-muted);text-transform:uppercase}.formula-table code{white-space:nowrap}.formula-switch input{display:none}.formula-switch span{display:block;width:46px;height:26px;border-radius:20px;background:#d0d5dd;position:relative;cursor:pointer;transition:.2s}.formula-switch span:after{content:"";position:absolute;width:20px;height:20px;left:3px;top:3px;background:var(--ktc-surface);border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.25)}.formula-switch input:checked+span{background:var(--ktc-brand-600)}.formula-switch input:checked+span:after{transform:translateX(20px)}.formula-error,.formula-success{padding:12px;border-radius:10px;margin-top:14px}.formula-error{background:#fef3f2;color:#b42318}.formula-success{background:#ecfdf3;color:#027a48}.formula-empty{padding:30px;text-align:center;color:var(--ktc-text-muted)}@media(max-width:1000px){.formula-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.threshold-grid,.formula-preview{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:700px){.formula-page{padding:14px}.formula-grid,.threshold-grid,.formula-preview{grid-template-columns:1fr}.formula-card-title{align-items:stretch;flex-direction:column}.formula-filters{flex-direction:column}}
+
+.formula-period-card{display:grid;grid-template-columns:minmax(260px,1.4fr) minmax(320px,1fr);gap:18px;align-items:end;padding:16px;margin-bottom:18px;border:1px solid var(--ktc-border);border-radius:12px;background:var(--ktc-surface-subtle)}
+.formula-period-card p{margin:5px 0 0;color:var(--ktc-ink-600);line-height:1.5}.formula-period-card small{grid-column:1/-1;color:var(--ktc-ink-500)}
+.formula-period-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.formula-period-grid label>span{display:block;margin-bottom:7px;color:var(--ktc-ink-700);font-size:13px;font-weight:700}.formula-period-grid input{width:100%;height:42px;border:1px solid var(--ktc-border-strong);border-radius:10px;padding:0 12px;background:var(--ktc-surface);color:var(--ktc-ink-900)}
+.formula-card,.formula-preview div,.formula-check{background:var(--ktc-surface);border-color:var(--ktc-border);color:var(--ktc-ink-900)}
+.formula-card-title p,.formula-preview span,.formula-empty,.threshold-legend{color:var(--ktc-ink-600)}
+.formula-card-title>select,.formula-grid select,.formula-filters input,.formula-filters select,.threshold input{background:var(--ktc-surface);color:var(--ktc-ink-900);border-color:var(--ktc-border-strong)}
+.formula-table th,.formula-table td{border-color:var(--ktc-border)}
+.formula-table th{color:var(--ktc-ink-600)}
+.formula-actions .secondary{background:var(--ktc-surface);color:var(--ktc-ink-800);border-color:var(--ktc-border-strong)}
+@media(max-width:800px){.formula-period-card{grid-template-columns:1fr}.formula-period-grid{grid-template-columns:1fr}}
+
+/* KTC 2026-08-11: keep threshold colour visible inside number controls.
+   The generic form-control rule above used var(--ktc-surface), which made
+   every threshold input look white and visually hid the semantic colour. */
+.threshold {
+  --threshold-card-bg: var(--ktc-surface);
+  --threshold-input-bg: var(--ktc-surface);
+  --threshold-accent: var(--ktc-border-strong);
+  border-color: var(--threshold-accent) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--threshold-accent) 14%, transparent);
+}
+.threshold.red {
+  --threshold-card-bg: #fff0f1;
+  --threshold-input-bg: #fff7f7;
+  --threshold-accent: #f04438;
+  background: var(--threshold-card-bg) !important;
+}
+.threshold.orange {
+  --threshold-card-bg: #fff6e8;
+  --threshold-input-bg: #fffaf2;
+  --threshold-accent: #f79009;
+  background: var(--threshold-card-bg) !important;
+}
+.threshold.yellow {
+  --threshold-card-bg: #fff9db;
+  --threshold-input-bg: #fffceb;
+  --threshold-accent: #fdb022;
+  background: var(--threshold-card-bg) !important;
+}
+.threshold.green {
+  --threshold-card-bg: #effbf3;
+  --threshold-input-bg: #f6fcf8;
+  --threshold-accent: #12b76a;
+  background: var(--threshold-card-bg) !important;
+}
+.threshold.blue {
+  --threshold-card-bg: #eff8ff;
+  --threshold-input-bg: #f6fbff;
+  --threshold-accent: var(--ktc-brand-500);
+  background: var(--threshold-card-bg) !important;
+}
+.threshold input,
+.threshold input:disabled,
+.threshold input:hover,
+.threshold input:focus {
+  background: var(--threshold-input-bg) !important;
+  border-color: color-mix(in srgb, var(--threshold-accent) 68%, var(--ktc-border-strong)) !important;
+  color: var(--ktc-ink-900) !important;
+  -webkit-text-fill-color: var(--ktc-ink-900) !important;
+  opacity: 1;
+}
+.threshold input:hover {
+  border-color: color-mix(in srgb, var(--threshold-accent) 82%, var(--ktc-border-strong)) !important;
+}
+.threshold input:focus {
+  outline: 0;
+  border-color: var(--threshold-accent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--threshold-accent) 16%, transparent) !important;
+}
+
+html[data-theme="dark"] .threshold.red {
+  --threshold-card-bg: #3d2025;
+  --threshold-input-bg: #49262c;
+}
+html[data-theme="dark"] .threshold.orange {
+  --threshold-card-bg: #3b2b18;
+  --threshold-input-bg: #46331d;
+}
+html[data-theme="dark"] .threshold.yellow {
+  --threshold-card-bg: #3a3418;
+  --threshold-input-bg: #453e1d;
+}
+html[data-theme="dark"] .threshold.green {
+  --threshold-card-bg: #17372b;
+  --threshold-input-bg: #1c4435;
+}
+html[data-theme="dark"] .threshold.blue {
+  --threshold-card-bg: #173147;
+  --threshold-input-bg: #1c3b56;
+}
+html[data-theme="dark"] .threshold input,
+html[data-theme="dark"] .threshold input:disabled,
+html[data-theme="dark"] .threshold input:hover,
+html[data-theme="dark"] .threshold input:focus {
+  color: var(--ktc-ink-900) !important;
+  -webkit-text-fill-color: var(--ktc-ink-900) !important;
+}

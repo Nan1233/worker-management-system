@@ -1,0 +1,1 @@
+# KTC final NG + layout fix\n\n- NG display is derived strictly from configured defect buckets.\n- TT NG is never treated as an input defect bucket.\n- Total output = OK + derived NG.\n- Worker form shell is full-width with consistent spacing and no nested outer card indentation.\n

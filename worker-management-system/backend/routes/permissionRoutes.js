@@ -1,0 +1,10 @@
+const router=require('express').Router();
+const auth=require('../middleware/authMiddleware');
+const role=require('../middleware/roleMiddleware');
+const permission=require('../middleware/permissionMiddleware');
+const c=require('../controllers/permissionController');
+router.get('/me',auth,c.me);
+router.get('/matrix',auth,role('admin'),permission('PERMISSION_MANAGE'),c.matrix);
+router.put('/roles/:role/:code',auth,role('admin'),permission('PERMISSION_MANAGE'),c.setRole);
+router.put('/users/:userId/:code',auth,role('admin'),permission('PERMISSION_MANAGE'),c.setUser);
+module.exports=router;

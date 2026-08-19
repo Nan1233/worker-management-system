@@ -1,0 +1,1180 @@
+/* KTC Dark Mode Contrast Hardening — 2026-08-10
+   Visual-only layer. Keeps existing layout/business flow and fixes low-contrast
+   surfaces caused by legacy #fff / rgba(255,255,255,...) declarations. */
+
+html[data-theme="dark"] {
+  /* Deliberately larger luminance steps than the previous palette. */
+  --ktc-bg: #0b1118;
+  --ktc-workspace: #0d151e;
+  --ktc-workspace-subtle: #17222d;
+  --ktc-surface: #141d27;
+  --ktc-surface-subtle: #1c2834;
+  --ktc-surface-muted: #263543;
+  --ktc-surface-hover: #22313f;
+  --ktc-input-bg: #0f1822;
+  --ktc-input-readonly: #1a2530;
+
+  --ktc-border: #344657;
+  --ktc-border-strong: #52687b;
+  --ktc-divider: #2b3b4a;
+
+  --ktc-ink-950: #f7fafc;
+  --ktc-ink-900: #e8eef4;
+  --ktc-ink-800: #d3dde6;
+  --ktc-ink-700: #bbc8d3;
+  --ktc-ink-600: #9eafbd;
+  --ktc-ink-500: #8294a4;
+  --ktc-ink-400: #667887;
+
+  --ktc-text: var(--ktc-ink-900);
+  --ktc-text-muted: var(--ktc-ink-600);
+  --ktc-text-faint: var(--ktc-ink-500);
+
+  /* Keep blue fresh but not neon. */
+  --ktc-brand-50: #172a3a;
+  --ktc-brand-100: #1d3549;
+  --ktc-brand-200: #294963;
+  --ktc-brand-300: #396684;
+  --ktc-brand-400: #4d7f9f;
+  --ktc-brand-500: #6197b9;
+  --ktc-brand-600: #79acd0;
+  --ktc-brand-700: #91bedc;
+  --ktc-brand-800: #add0e6;
+  --ktc-brand-900: #d6e7f2;
+
+  --ktc-success: #7fd3a6;
+  --ktc-success-bg: #143126;
+  --ktc-warning: #e4ba72;
+  --ktc-warning-bg: #382b17;
+  --ktc-danger: #ef9aa1;
+  --ktc-danger-bg: #3a2025;
+  --ktc-info: #8bc1e2;
+
+  --ktc-overlay: rgba(2, 7, 13, .72);
+  --ktc-shadow-xs: 0 1px 2px rgba(0, 0, 0, .30);
+  --ktc-shadow-sm: 0 6px 18px rgba(0, 0, 0, .26);
+  --ktc-shadow-md: 0 18px 44px rgba(0, 0, 0, .34);
+  --ktc-focus: 0 0 0 3px rgba(97, 151, 185, .28);
+
+  color-scheme: dark;
+}
+
+html[data-theme="dark"],
+html[data-theme="dark"] body,
+html[data-theme="dark"] #root {
+  background: var(--ktc-bg) !important;
+  color: var(--ktc-text) !important;
+}
+
+/* ===== Main chrome ===== */
+html[data-theme="dark"] :is(
+  .worker-topbar,
+  .worker-mobile-nav,
+  .management-header,
+  .management-sidebar,
+  .management-sidebar-shell
+) {
+  background: #101923 !important;
+  border-color: var(--ktc-border) !important;
+}
+
+html[data-theme="dark"] .worker-desktop-nav,
+html[data-theme="dark"] .management-role-badge,
+html[data-theme="dark"] .management-date-chip,
+html[data-theme="dark"] .ktc-theme-toggle,
+html[data-theme="dark"] .worker-hide-keyboard,
+html[data-theme="dark"] .management-logout {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border-strong) !important;
+  color: var(--ktc-ink-700) !important;
+}
+
+html[data-theme="dark"] .management-sidebar-shell {
+  /* Sidebar remains darker than content cards so navigation is easy to parse. */
+  background: #101923 !important;
+}
+
+html[data-theme="dark"] .management-user-card {
+  background: #182431 !important;
+  border-color: #344a5e !important;
+}
+
+html[data-theme="dark"] :is(.management-menu-item:hover,.worker-desktop-nav button:hover,.worker-mobile-nav button:hover) {
+  background: var(--ktc-surface-hover) !important;
+  color: var(--ktc-ink-950) !important;
+}
+
+html[data-theme="dark"] :is(.management-menu-item.active,.worker-desktop-nav button.active,.worker-mobile-nav button.active) {
+  background: var(--ktc-brand-100) !important;
+  border-color: var(--ktc-brand-300) !important;
+  color: var(--ktc-brand-900) !important;
+}
+
+/* ===== Surfaces ===== */
+html[data-theme="dark"] :is(
+  .worker-form-card,
+  .worker-quality-card,
+  .machine-line,
+  .process-card,
+  .worker-process-card,
+  .history-card,
+  .history-filter-card,
+  .history-state-card,
+  .dashboard-kpi-card,
+  .dashboard-panel,
+  .dashboard-card,
+  .stats-card,
+  .management-filter-card,
+  .management-report-card,
+  .management-table-container,
+  .report-card,
+  .detail-basic-card,
+  .detail-section,
+  .detail-list-card,
+  .edit-report-card,
+  .formula-card,
+  .governance-card,
+  .governance-panel,
+  .master-card,
+  .permission-card,
+  .system-card,
+  .system-item,
+  .system-monitor-card,
+  .system-monitor-errors,
+  .export-box,
+  .login-card,
+  .login-role-card,
+  .remembered-account,
+  .modal-card
+) {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border) !important;
+  color: var(--ktc-text) !important;
+}
+
+html[data-theme="dark"] :is(
+  .machine-standard-card,
+  .machine-deduction-option,
+  .formula-preview div,
+  .formula-check,
+  .management-empty,
+  .detail-empty-list,
+  .dashboard-empty,
+  .history-empty,
+  .edit-empty,
+  .formula-empty,
+  .system-empty,
+  .empty-state,
+  .empty-row,
+  .process-state-box
+) {
+  background: var(--ktc-surface-subtle) !important;
+  border-color: var(--ktc-border) !important;
+  color: var(--ktc-text-muted) !important;
+}
+
+/* Nested boxes must not disappear into their parent card. */
+html[data-theme="dark"] :is(
+  .machine-deduction-box,
+  .machine-line-total,
+  .detail-list-card,
+  .permission-table-wrap,
+  .master-table-wrap,
+  .formula-table-wrap
+) {
+  border-color: var(--ktc-border-strong) !important;
+}
+
+/* ===== Typography ===== */
+html[data-theme="dark"] :is(h1,h2,h3,h4,h5,h6,strong,.worker-brand-text strong,.management-header-copy strong) {
+  color: var(--ktc-ink-950) !important;
+}
+
+html[data-theme="dark"] :is(p,small,label,.muted,[class*="subtitle"],[class*="description"],.management-header-kicker) {
+  color: var(--ktc-text-muted) !important;
+}
+
+html[data-theme="dark"] :is(.worker-brand-text small,.management-user-copy span,.management-menu-item,.worker-mobile-nav button) {
+  color: var(--ktc-ink-600) !important;
+}
+
+/* ===== Inputs / selects / dates / time ===== */
+html[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]),
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea,
+html[data-theme="dark"] .worker-text-input {
+  background: var(--ktc-input-bg) !important;
+  color: var(--ktc-ink-950) !important;
+  border-color: var(--ktc-border-strong) !important;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ktc-ink-950) 3%, transparent) !important;
+}
+
+html[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):hover,
+html[data-theme="dark"] select:hover,
+html[data-theme="dark"] textarea:hover {
+  border-color: #6d8294 !important;
+}
+
+html[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):focus,
+html[data-theme="dark"] select:focus,
+html[data-theme="dark"] textarea:focus {
+  background: #111d28 !important;
+  border-color: var(--ktc-brand-500) !important;
+  box-shadow: var(--ktc-focus) !important;
+  outline: none !important;
+}
+
+html[data-theme="dark"] :is(input,textarea)::placeholder {
+  color: #8193a2 !important;
+  opacity: 1 !important;
+}
+
+html[data-theme="dark"] :is(input:disabled,input[readonly],select:disabled,textarea:disabled) {
+  background: var(--ktc-input-readonly) !important;
+  border-color: var(--ktc-border) !important;
+  color: #9aaab7 !important;
+  -webkit-text-fill-color: #9aaab7 !important;
+  opacity: 1 !important;
+}
+
+html[data-theme="dark"] option {
+  background: #111b25 !important;
+  color: var(--ktc-ink-950) !important;
+}
+
+html[data-theme="dark"] input[type="date"],
+html[data-theme="dark"] input[type="time"],
+html[data-theme="dark"] input[type="datetime-local"] {
+  color-scheme: dark;
+}
+
+html[data-theme="dark"] ::-webkit-calendar-picker-indicator {
+  opacity: .82;
+  filter: none;
+}
+
+/* Chrome autofill can otherwise become a bright white/blue block. */
+html[data-theme="dark"] input:-webkit-autofill,
+html[data-theme="dark"] input:-webkit-autofill:hover,
+html[data-theme="dark"] input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--ktc-ink-950) !important;
+  -webkit-box-shadow: 0 0 0 1000px var(--ktc-input-bg) inset !important;
+  caret-color: var(--ktc-ink-950);
+}
+
+/* ===== Tables ===== */
+html[data-theme="dark"] table {
+  color: var(--ktc-ink-800) !important;
+}
+
+html[data-theme="dark"] thead th {
+  background: var(--ktc-surface-muted) !important;
+  border-color: var(--ktc-border-strong) !important;
+  color: var(--ktc-ink-700) !important;
+}
+
+html[data-theme="dark"] tbody td {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-divider) !important;
+  color: var(--ktc-ink-800) !important;
+}
+
+html[data-theme="dark"] tbody tr:hover td {
+  background: var(--ktc-surface-hover) !important;
+}
+
+html[data-theme="dark"] .selected-report-row td {
+  background: #173650 !important;
+  box-shadow: inset 3px 0 0 var(--ktc-brand-500);
+}
+
+html[data-theme="dark"] .duplicate-report-row td {
+  background: #41252a !important;
+  box-shadow: inset 3px 0 0 var(--ktc-danger);
+}
+
+/* ===== Buttons ===== */
+html[data-theme="dark"] :is(
+  button.secondary,
+  .btn-secondary,
+  .ktc-btn-secondary,
+  .management-clear-button,
+  .login-back,
+  .worker-reset-button,
+  [class*="secondary-button"]
+) {
+  background: var(--ktc-surface-subtle) !important;
+  border-color: var(--ktc-border-strong) !important;
+  color: var(--ktc-ink-800) !important;
+}
+
+html[data-theme="dark"] :is(
+  button.secondary,
+  .btn-secondary,
+  .ktc-btn-secondary,
+  .management-clear-button,
+  .login-back,
+  .worker-reset-button,
+  [class*="secondary-button"]
+):hover:not(:disabled) {
+  background: var(--ktc-surface-hover) !important;
+  border-color: #6b8092 !important;
+  color: var(--ktc-ink-950) !important;
+}
+
+html[data-theme="dark"] button:disabled {
+  opacity: .58 !important;
+}
+
+/* ===== Status colors: preserve meaning in dark mode ===== */
+html[data-theme="dark"] :is(.status-badge,.management-status,.detail-state,.badge) {
+  background: var(--ktc-surface-subtle) !important;
+  border-color: var(--ktc-border-strong) !important;
+  color: var(--ktc-ink-700) !important;
+}
+
+html[data-theme="dark"] :is(.status-badge.approved,.status-approved,.success,.status.active) {
+  background: var(--ktc-success-bg) !important;
+  border-color: #35664f !important;
+  color: var(--ktc-success) !important;
+}
+html[data-theme="dark"] :is(.status-badge.pending,.status-pending,.warning) {
+  background: var(--ktc-warning-bg) !important;
+  border-color: #6b552f !important;
+  color: var(--ktc-warning) !important;
+}
+html[data-theme="dark"] :is(.status-badge.rejected,.status-rejected,.error,.danger,.status.inactive) {
+  background: var(--ktc-danger-bg) !important;
+  border-color: #744148 !important;
+  color: var(--ktc-danger) !important;
+}
+
+/* ===== Modals / overlays / notifications ===== */
+html[data-theme="dark"] .modal-backdrop {
+  background: var(--ktc-overlay) !important;
+}
+
+html[data-theme="dark"] :is(.toast,[class*="toast-"],.offline-sync) {
+  border-color: var(--ktc-border-strong) !important;
+}
+
+/* Notification badge borders used to be forced white. */
+html[data-theme="dark"] .notification-badge {
+  border-color: #101923 !important;
+}
+
+/* ===== Special worker summary cards ===== */
+html[data-theme="dark"] .worker-quality-card.ok {
+  background: #143126 !important;
+  border-color: #35664f !important;
+}
+html[data-theme="dark"] .worker-quality-card.ng {
+  background: #3a2025 !important;
+  border-color: #744148 !important;
+}
+html[data-theme="dark"] .worker-quality-card.total-output,
+html[data-theme="dark"] .machine-line-total {
+  background: #172d3e !important;
+  border-color: #3b6079 !important;
+}
+
+/* ===== Scrollbars ===== */
+html[data-theme="dark"] * {
+  scrollbar-color: #52687b #111923;
+}
+
+html[data-theme="dark"] *::-webkit-scrollbar-track {
+  background: #111923;
+}
+html[data-theme="dark"] *::-webkit-scrollbar-thumb {
+  background: #52687b;
+  border: 2px solid #111923;
+  border-radius: 999px;
+}
+
+/* ===== Accessibility: never rely on subtle white-on-dark opacity ===== */
+html[data-theme="dark"] :focus-visible {
+  outline-color: var(--ktc-brand-500) !important;
+}
+
+@media (max-width: 820px) {
+  html[data-theme="dark"] .management-sidebar {
+    background: #101923 !important;
+    box-shadow: 0 -10px 28px rgba(0,0,0,.28);
+  }
+  html[data-theme="dark"] .worker-mobile-nav {
+    box-shadow: 0 12px 34px rgba(0,0,0,.34);
+  }
+}
+
+/* ===== Worker production form: high-frequency controls ===== */
+html[data-theme="dark"] :is(
+  .worker-form-page,
+  .worker-quality-section,
+  .worker-sticky-context
+) {
+  background: var(--ktc-bg) !important;
+}
+
+html[data-theme="dark"] :is(
+  .worker-time-item,
+  .machine-performance-metric,
+  .worker-dropdown-box,
+  .worker-action-group,
+  .duplicate-dialog,
+  .worker-network-card
+) {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border-strong) !important;
+  color: var(--ktc-text) !important;
+}
+
+html[data-theme="dark"] :is(
+  .worker-dropdown-title,
+  .worker-dropdown-options,
+  .worker-choice-row button,
+  .worker-dropdown-option,
+  .worker-network-actions button
+) {
+  background: var(--ktc-surface-subtle) !important;
+  border-color: var(--ktc-border) !important;
+  color: var(--ktc-ink-700) !important;
+}
+
+html[data-theme="dark"] :is(
+  .worker-choice-row button:hover,
+  .worker-dropdown-title:hover,
+  .worker-dropdown-option:hover
+) {
+  background: var(--ktc-surface-hover) !important;
+  border-color: var(--ktc-border-strong) !important;
+  color: var(--ktc-ink-950) !important;
+}
+
+html[data-theme="dark"] .worker-choice-row button.active {
+  background: var(--ktc-brand-100) !important;
+  border-color: var(--ktc-brand-400) !important;
+  color: var(--ktc-brand-900) !important;
+}
+
+html[data-theme="dark"] :is(
+  .worker-field-label,
+  .worker-field-block > label,
+  .multi-machine-controls > label,
+  .machine-section-title,
+  .worker-time-item > label,
+  .worker-time-part > span,
+  .worker-quality-card label,
+  .worker-quality-card small,
+  .machine-performance-metric span,
+  .worker-machine-total-note,
+  .worker-time-unit
+) {
+  color: var(--ktc-ink-600) !important;
+}
+
+html[data-theme="dark"] .worker-field-block > small {
+  color: var(--ktc-ink-500) !important;
+}
+
+html[data-theme="dark"] .worker-shift-item input {
+  background: var(--ktc-input-bg) !important;
+  border-color: var(--ktc-border-strong) !important;
+}
+html[data-theme="dark"] .worker-shift-item input:checked {
+  border-color: var(--ktc-brand-600) !important;
+}
+html[data-theme="dark"] .worker-shift-item span {
+  color: var(--ktc-ink-800) !important;
+}
+html[data-theme="dark"] .worker-shift-item:hover span,
+html[data-theme="dark"] .worker-shift-item input:checked + span {
+  color: var(--ktc-brand-900) !important;
+}
+
+html[data-theme="dark"] :is(.worker-time-item > input,.worker-time-split input,.worker-quality-card input) {
+  background: var(--ktc-input-bg) !important;
+  border-color: var(--ktc-border-strong) !important;
+  color: var(--ktc-ink-950) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.025) !important;
+}
+
+html[data-theme="dark"] :is(.worker-time-item > input,.worker-time-split input,.worker-quality-card input):focus {
+  background: #111d28 !important;
+  border-color: var(--ktc-brand-500) !important;
+  box-shadow: var(--ktc-focus) !important;
+}
+
+html[data-theme="dark"] .worker-time-item > input[readonly] {
+  background: var(--ktc-input-readonly) !important;
+  color: #a9b8c4 !important;
+}
+
+html[data-theme="dark"] .multi-machine-controls {
+  border-top-color: var(--ktc-divider) !important;
+}
+
+html[data-theme="dark"] .machine-line {
+  background: #16212c !important;
+  border-color: var(--ktc-border-strong) !important;
+}
+
+html[data-theme="dark"] .machine-performance-metric strong,
+html[data-theme="dark"] .machine-card-header strong {
+  color: var(--ktc-ink-900) !important;
+}
+
+html[data-theme="dark"] .duplicate-dialog-backdrop {
+  background: var(--ktc-overlay) !important;
+}
+
+/* ===== Worker detail/history controls ===== */
+html[data-theme="dark"] :is(
+  .detail-container,
+  .history-page,
+  .select-process-page
+) {
+  background: var(--ktc-bg) !important;
+}
+
+html[data-theme="dark"] :is(
+  .detail-summary > div,
+  .detail-grid > div,
+  .metric-grid > div,
+  .detail-state,
+  .history-count,
+  .history-back-button,
+  .history-clear-button,
+  .pagination button,
+  .select-process-back
+) {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border) !important;
+  color: var(--ktc-ink-800) !important;
+}
+
+html[data-theme="dark"] :is(.detail-summary span,.detail-grid span,.metric-grid span,.detail-list span,.detail-note) {
+  color: var(--ktc-ink-600) !important;
+}
+
+html[data-theme="dark"] .detail-list {
+  border-top-color: var(--ktc-divider) !important;
+}
+html[data-theme="dark"] .detail-list > div {
+  border-bottom-color: var(--ktc-divider) !important;
+}
+
+html[data-theme="dark"] .metric-grid > div.ok {
+  background: var(--ktc-success-bg) !important;
+  border-color: #35664f !important;
+}
+html[data-theme="dark"] .metric-grid > div.ng {
+  background: var(--ktc-warning-bg) !important;
+  border-color: #6b552f !important;
+}
+
+/* ===== Admin legacy white controls ===== */
+html[data-theme="dark"] :is(
+  .master-tabs button,
+  .master-toolbar,
+  .master-pagination button,
+  .actions button,
+  .modal-actions button,
+  .master-heading button,
+  .formula-actions .secondary,
+  .system-center header button,
+  .system-tabs button,
+  .permission-loading
+) {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border-strong) !important;
+  color: var(--ktc-ink-800) !important;
+}
+
+html[data-theme="dark"] :is(.master-tabs button:hover,.master-pagination button:hover,.system-tabs button:hover) {
+  background: var(--ktc-surface-hover) !important;
+  color: var(--ktc-ink-950) !important;
+}
+
+html[data-theme="dark"] :is(.master-tabs button.active,.system-tabs button.active) {
+  background: var(--ktc-brand-100) !important;
+  border-color: var(--ktc-brand-400) !important;
+  color: var(--ktc-brand-900) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="dark"] .module-row td {
+  background: #1b2b38 !important;
+  color: var(--ktc-brand-800) !important;
+}
+
+html[data-theme="dark"] :is(.permission-card-head,.permission-user-grid label) {
+  border-color: var(--ktc-divider) !important;
+}
+
+@media (max-width: 860px) {
+  html[data-theme="dark"] .worker-form-page {
+    background: var(--ktc-bg) !important;
+  }
+  html[data-theme="dark"] .worker-sticky-context {
+    background: rgba(11,17,24,.96) !important;
+    border-bottom-color: var(--ktc-border) !important;
+    box-shadow: 0 8px 20px rgba(0,0,0,.24) !important;
+  }
+}
+
+/* ===== Login page: prevent split-theme white panel in dark mode =====
+   Login.css is loaded with the lazy Login route and contains a hard-coded
+   .login-panel background (#fdfefe). Keep this selector explicit and
+   !important so the right half follows the active application theme. */
+html[data-theme="dark"] .login-page {
+  background: #0b1118 !important;
+}
+
+html[data-theme="dark"] .login-panel {
+  background: #0b1118 !important;
+  color: var(--ktc-text) !important;
+}
+
+html[data-theme="dark"] .login-card {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  overflow: visible !important;
+}
+
+html[data-theme="dark"] .login-heading > h2,
+html[data-theme="dark"] .login-mobile-brand strong,
+html[data-theme="dark"] .remembered-account strong {
+  color: #f7fafc !important;
+}
+
+html[data-theme="dark"] .login-heading > span,
+html[data-theme="dark"] .login-mobile-brand small,
+html[data-theme="dark"] .remembered-account small,
+html[data-theme="dark"] .login-helper,
+html[data-theme="dark"] .login-note {
+  color: #a9b8c5 !important;
+}
+
+html[data-theme="dark"] .remembered-section {
+  border-color: #334657 !important;
+}
+
+html[data-theme="dark"] .remembered-account {
+  background: #182431 !important;
+  border-color: #3b4e60 !important;
+}
+
+html[data-theme="dark"] .remembered-account:hover {
+  background: #1d2c3a !important;
+  border-color: #617789 !important;
+}
+
+html[data-theme="dark"] .login-input-wrap input {
+  background: #0e1822 !important;
+  border-color: #52687b !important;
+  color: #f7fafc !important;
+}
+
+html[data-theme="dark"] .login-input-wrap input:focus {
+  background: #111d28 !important;
+  border-color: #6197b9 !important;
+  box-shadow: 0 0 0 3px rgba(97, 151, 185, .28) !important;
+}
+
+html[data-theme="dark"] .login-input-icon {
+  color: #91bedc !important;
+}
+
+/* Explicit light-mode guard so browser/system dark preferences never leave
+   the login card dark while the application is in light mode. */
+html[data-theme="light"] .login-page,
+html[data-theme="light"] .login-panel {
+  background: #f7f9fb !important;
+}
+
+html[data-theme="light"] .login-card {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  overflow: visible !important;
+  color: #172033 !important;
+}
+
+/* ===== Full dark-mode coverage pass — 2026-08-11 =====
+   Covers lazy-loaded page CSS and legacy component CSS that still hard-code
+   white/light surfaces after the global theme file has loaded. */
+
+/* Generic page canvases */
+html[data-theme="dark"] :is(
+  .detail-container,
+  .edit-report-page,
+  .formula-page,
+  .governance-page,
+  .master-page,
+  .permissions-page,
+  .workers-page,
+  .report-download-page,
+  .selected-review-page,
+  .history-page,
+  .system-center,
+  .management-report-page
+) {
+  background: var(--ktc-bg) !important;
+  color: var(--ktc-text) !important;
+}
+
+/* Worker history / detail / profile-like surfaces */
+html[data-theme="dark"] :is(
+  .history-back-button,
+  .history-count,
+  .history-clear-button,
+  .pagination button,
+  .detail-state,
+  .detail-summary > div,
+  .detail-grid > div,
+  .metric-grid > div,
+  .detail-section
+) {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border) !important;
+  color: var(--ktc-text) !important;
+}
+
+html[data-theme="dark"] :is(
+  .detail-header p,
+  .detail-summary span,
+  .detail-grid span,
+  .metric-grid span,
+  .detail-list span,
+  .empty-row
+) {
+  color: var(--ktc-text-muted) !important;
+}
+
+html[data-theme="dark"] :is(
+  .detail-header h1,
+  .detail-summary strong,
+  .detail-grid strong,
+  .metric-grid strong,
+  .detail-list strong,
+  .detail-section h2,
+  .detail-note
+) {
+  color: var(--ktc-ink-950) !important;
+}
+
+html[data-theme="dark"] .detail-list,
+html[data-theme="dark"] .detail-list > div {
+  border-color: var(--ktc-divider) !important;
+}
+
+html[data-theme="dark"] .metric-grid > div.ok {
+  background: #163126 !important;
+  border-color: #35644d !important;
+}
+
+html[data-theme="dark"] .metric-grid > div.ng {
+  background: #38291d !important;
+  border-color: #71563b !important;
+}
+
+html[data-theme="dark"] .detail-rejection {
+  background: var(--ktc-danger-bg) !important;
+  border-color: #6e3d47 !important;
+  color: #f2aab1 !important;
+}
+
+/* Autocomplete is lazy/component-scoped and previously stayed white. */
+html[data-theme="dark"] .autocomplete-label {
+  color: var(--ktc-text-muted) !important;
+}
+html[data-theme="dark"] .autocomplete-input {
+  background: var(--ktc-input-bg) !important;
+  border-color: var(--ktc-border-strong) !important;
+  color: var(--ktc-ink-950) !important;
+}
+html[data-theme="dark"] .autocomplete-input:disabled {
+  background: var(--ktc-input-readonly) !important;
+  color: var(--ktc-ink-500) !important;
+}
+html[data-theme="dark"] .autocomplete-menu {
+  background: #131f2a !important;
+  border-color: var(--ktc-border-strong) !important;
+  box-shadow: var(--ktc-shadow-md) !important;
+}
+html[data-theme="dark"] .autocomplete-option {
+  color: var(--ktc-ink-800) !important;
+}
+html[data-theme="dark"] .autocomplete-option:hover,
+html[data-theme="dark"] .autocomplete-option.active {
+  background: var(--ktc-surface-hover) !important;
+}
+html[data-theme="dark"] .autocomplete-option-main { color: var(--ktc-ink-950) !important; }
+html[data-theme="dark"] .autocomplete-option-label { color: var(--ktc-ink-700) !important; }
+html[data-theme="dark"] .autocomplete-option-description,
+html[data-theme="dark"] .autocomplete-empty,
+html[data-theme="dark"] .autocomplete-search-icon { color: var(--ktc-ink-500) !important; }
+
+/* Toasts */
+html[data-theme="dark"] .toast {
+  background: #17232e !important;
+  border-top: 1px solid var(--ktc-border) !important;
+  border-right: 1px solid var(--ktc-border) !important;
+  border-bottom: 1px solid var(--ktc-border) !important;
+  box-shadow: var(--ktc-shadow-md) !important;
+}
+html[data-theme="dark"] .toast-success { color: #8bd8ad !important; }
+html[data-theme="dark"] .toast-error { color: #f0a0a6 !important; }
+html[data-theme="dark"] .toast-warning { color: #e8c17e !important; }
+html[data-theme="dark"] .toast-info { color: #91c4e4 !important; }
+
+/* Manager reports / selection / pagination */
+html[data-theme="dark"] :is(
+  .management-report-count,
+  .management-date-presets button,
+  .management-clear-button,
+  .management-pagination button,
+  .management-modal,
+  .selected-review-empty,
+  .selected-table-card,
+  .selected-reject-modal,
+  .selected-reject-modal select,
+  .selected-reject-modal textarea,
+  .selected-reject-actions > button:not(.selected-review-reject)
+) {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border-strong) !important;
+  color: var(--ktc-ink-800) !important;
+}
+
+html[data-theme="dark"] .selected-review-table :is(.sticky-col-1,.sticky-col-2,.sticky-col-3) {
+  background: var(--ktc-surface) !important;
+}
+html[data-theme="dark"] .selected-review-table thead :is(.sticky-col-1,.sticky-col-2,.sticky-col-3) {
+  background: var(--ktc-surface-muted) !important;
+}
+html[data-theme="dark"] :is(.management-date-presets button:hover,.management-clear-button:hover,.management-pagination button:hover) {
+  background: var(--ktc-surface-hover) !important;
+  color: var(--ktc-ink-950) !important;
+}
+
+/* Report detail / edit dialogs and sticky actions */
+html[data-theme="dark"] :is(
+  .detail-sticky-actions,
+  .detail-modal,
+  .detail-modal-actions > button:not(.detail-reject-button),
+  .edit-report-card
+) {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border-strong) !important;
+  color: var(--ktc-text) !important;
+}
+html[data-theme="dark"] .detail-sticky-actions {
+  background: rgba(20,29,39,.97) !important;
+  box-shadow: 0 12px 34px rgba(0,0,0,.34) !important;
+}
+html[data-theme="dark"] .edit-report-card label { color: var(--ktc-ink-700) !important; }
+html[data-theme="dark"] .edit-report-header p { color: var(--ktc-text-muted) !important; }
+html[data-theme="dark"] .edit-detail-section { border-color: var(--ktc-divider) !important; }
+html[data-theme="dark"] .edit-error {
+  background: var(--ktc-danger-bg) !important;
+  border-color: #6e3d47 !important;
+  color: #f0a0a6 !important;
+}
+
+/* Admin formula / governance / master / permissions */
+html[data-theme="dark"] :is(
+  .formula-card,
+  .formula-filters,
+  .formula-actions .secondary,
+  .master-toolbar,
+  .master-tabs button,
+  .system-tabs button,
+  .system-center header button,
+  .ktc-btn-secondary,
+  .governance-panel,
+  .governance-card,
+  .permission-card,
+  .master-card,
+  .modal-card
+) {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border-strong) !important;
+  color: var(--ktc-ink-800) !important;
+}
+html[data-theme="dark"] .formula-check,
+html[data-theme="dark"] .formula-preview div {
+  background: var(--ktc-surface-subtle) !important;
+  border-color: var(--ktc-border) !important;
+}
+html[data-theme="dark"] .formula-thresholds { border-color: var(--ktc-divider) !important; }
+html[data-theme="dark"] .formula-card-title p,
+html[data-theme="dark"] .formula-preview span,
+html[data-theme="dark"] .threshold-legend { color: var(--ktc-text-muted) !important; }
+html[data-theme="dark"] .formula-grid label > span,
+html[data-theme="dark"] .threshold span { color: var(--ktc-ink-700) !important; }
+
+/* Workers management page: cards, toolbars and dialogs use several hard-coded #fff values. */
+html[data-theme="dark"] :is(
+  .workers-toolbar,
+  .workers-filter-card,
+  .workers-table-card,
+  .worker-card,
+  .worker-modal,
+  .worker-edit-modal,
+  .worker-process-modal,
+  .worker-detail-modal
+) {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border) !important;
+  color: var(--ktc-text) !important;
+}
+
+/* Download/export cards */
+html[data-theme="dark"] :is(
+  .report-download-card,
+  .download-card,
+  .export-card,
+  .download-box
+) {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border) !important;
+  color: var(--ktc-text) !important;
+}
+
+/* System center and offline sync */
+html[data-theme="dark"] .offline-sync {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border-strong) !important;
+  box-shadow: var(--ktc-shadow-md) !important;
+}
+html[data-theme="dark"] .offline-sync__item {
+  background: var(--ktc-surface-subtle) !important;
+}
+html[data-theme="dark"] .offline-sync__actions button {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border-strong) !important;
+  color: var(--ktc-ink-800) !important;
+}
+html[data-theme="dark"] .offline-sync__summary,
+html[data-theme="dark"] .offline-sync__summary strong { color: var(--ktc-ink-900) !important; }
+html[data-theme="dark"] .offline-sync__item span,
+html[data-theme="dark"] .offline-sync__item small { color: var(--ktc-ink-600) !important; }
+
+/* Browser-native controls and state clarity */
+html[data-theme="dark"] input[type="date"],
+html[data-theme="dark"] input[type="time"],
+html[data-theme="dark"] input[type="datetime-local"],
+html[data-theme="dark"] input[type="month"] {
+  color-scheme: dark !important;
+}
+html[data-theme="dark"] input:disabled,
+html[data-theme="dark"] select:disabled,
+html[data-theme="dark"] textarea:disabled,
+html[data-theme="dark"] button:disabled {
+  opacity: .62;
+}
+html[data-theme="dark"] input[readonly],
+html[data-theme="dark"] textarea[readonly] {
+  background: var(--ktc-input-readonly) !important;
+  border-color: var(--ktc-border) !important;
+  color: var(--ktc-ink-700) !important;
+}
+html[data-theme="dark"] hr { border-color: var(--ktc-divider) !important; }
+
+/* Notification badge rings must follow dark chrome, not remain bright white. */
+html[data-theme="dark"] :is(
+  .worker-nav-icon .notification-badge,
+  .worker-mobile-nav-icon .notification-badge,
+  .management-menu-icon .notification-badge
+) {
+  border-color: #101923 !important;
+}
+
+/* Mobile chrome: legacy CSS uses nearly opaque white. */
+@media (max-width: 860px) {
+  html[data-theme="dark"] .worker-mobile-nav,
+  html[data-theme="dark"] .management-sidebar {
+    background: rgba(16,25,35,.98) !important;
+    border-color: var(--ktc-border) !important;
+  }
+  html[data-theme="dark"] .worker-hide-keyboard {
+    background: #182431 !important;
+    border-color: var(--ktc-border-strong) !important;
+    color: var(--ktc-ink-800) !important;
+  }
+}
+
+/* ===== Page-specific legacy hard-code cleanup ===== */
+
+/* Worker production form */
+html[data-theme="dark"] :is(
+  .worker-sticky-info,
+  .worker-choice-row button,
+  .machine-performance-metric,
+  .machine-deduction-option,
+  .worker-time-item,
+  .worker-quality-section,
+  .worker-quality-card,
+  .worker-dropdown-box,
+  .worker-dropdown-title,
+  .worker-dropdown-options,
+  .worker-dropdown-option,
+  .worker-reset-button,
+  .duplicate-dialog,
+  .duplicate-dialog-cancel,
+  .worker-network-card,
+  .worker-network-actions button
+) {
+  background: var(--ktc-surface-subtle) !important;
+  border-color: var(--ktc-border) !important;
+  color: var(--ktc-ink-800) !important;
+}
+html[data-theme="dark"] :is(
+  .worker-time-item > input,
+  .worker-time-split input,
+  .worker-quality-card input,
+  .machine-deduction-minute
+) {
+  background: var(--ktc-input-bg) !important;
+  border-color: var(--ktc-border-strong) !important;
+  color: var(--ktc-ink-950) !important;
+  box-shadow: none !important;
+}
+html[data-theme="dark"] :is(.worker-time-item > input:focus,.worker-time-split input:focus,.worker-quality-card input:focus) {
+  background: #111d28 !important;
+  border-color: var(--ktc-brand-500) !important;
+  box-shadow: var(--ktc-focus) !important;
+}
+html[data-theme="dark"] .worker-quality-card.ok {
+  background: #1a2f3e !important;
+  border-color: #476b89 !important;
+}
+html[data-theme="dark"] .worker-quality-card.ng {
+  background: #34252c !important;
+  border-color: #704650 !important;
+}
+html[data-theme="dark"] .worker-quality-card.total-output {
+  background: #1b2935 !important;
+  border-color: #425769 !important;
+}
+html[data-theme="dark"] .worker-dropdown-title:hover,
+html[data-theme="dark"] .worker-dropdown-option:hover,
+html[data-theme="dark"] .worker-reset-button:hover:not(:disabled),
+html[data-theme="dark"] .worker-network-actions button:hover {
+  background: var(--ktc-surface-hover) !important;
+}
+html[data-theme="dark"] .duplicate-dialog h2 { color: var(--ktc-ink-950) !important; }
+html[data-theme="dark"] .duplicate-dialog p { color: var(--ktc-text-muted) !important; }
+html[data-theme="dark"] .worker-network-symbol {
+  background: var(--ktc-danger-bg) !important;
+  color: var(--ktc-danger) !important;
+}
+
+/* Manager workers page */
+html[data-theme="dark"] .management-workers-header h1 { color: var(--ktc-ink-950) !important; }
+html[data-theme="dark"] .management-workers-header p,
+html[data-theme="dark"] .management-workers-count span,
+html[data-theme="dark"] .management-workers-table td::before { color: var(--ktc-text-muted) !important; }
+html[data-theme="dark"] :is(
+  .management-workers-count,
+  .management-workers-toolbar input,
+  .management-workers-table-wrapper,
+  .worker-cancel-training,
+  .management-workers-state
+) {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border) !important;
+  color: var(--ktc-ink-800) !important;
+}
+html[data-theme="dark"] .management-workers-table th {
+  background: var(--ktc-surface-muted) !important;
+  border-color: var(--ktc-border) !important;
+  color: var(--ktc-ink-700) !important;
+}
+html[data-theme="dark"] .management-workers-table td {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-divider) !important;
+  color: var(--ktc-ink-800) !important;
+}
+html[data-theme="dark"] .management-workers-table tbody tr:hover td {
+  background: var(--ktc-surface-hover) !important;
+}
+html[data-theme="dark"] .training-percent-badge {
+  background: var(--ktc-brand-100) !important;
+  color: var(--ktc-brand-900) !important;
+}
+html[data-theme="dark"] .worker-status.active {
+  background: var(--ktc-success-bg) !important;
+  color: var(--ktc-success) !important;
+}
+html[data-theme="dark"] .worker-status.inactive {
+  background: var(--ktc-surface-muted) !important;
+  color: var(--ktc-ink-600) !important;
+}
+html[data-theme="dark"] .management-workers-error {
+  background: var(--ktc-danger-bg) !important;
+  border-color: #6e3d47 !important;
+  color: var(--ktc-danger) !important;
+}
+@media (max-width: 767px) {
+  html[data-theme="dark"] .management-workers-table tr {
+    background: var(--ktc-surface) !important;
+    border-color: var(--ktc-border) !important;
+  }
+}
+
+/* Dashboard */
+html[data-theme="dark"] :is(
+  .dashboard-period-filter,
+  .dashboard-kpi-card,
+  .dashboard-panel,
+  .dashboard-table-card,
+  .dashboard-detail-button
+) {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border) !important;
+  color: var(--ktc-text) !important;
+}
+html[data-theme="dark"] .dashboard-detail-button:hover { background: var(--ktc-surface-hover) !important; }
+html[data-theme="dark"] .dashboard-ng-badge.warning {
+  background: var(--ktc-warning-bg) !important;
+  color: var(--ktc-warning) !important;
+}
+html[data-theme="dark"] .dashboard-ng-badge.critical {
+  background: var(--ktc-danger-bg) !important;
+  color: var(--ktc-danger) !important;
+}
+html[data-theme="dark"] .dashboard-kpi-card.danger .dashboard-kpi-icon {
+  background: var(--ktc-danger-bg) !important;
+  color: var(--ktc-danger) !important;
+}
+
+/* Downloads */
+html[data-theme="dark"] .download-page { background: var(--ktc-bg) !important; }
+html[data-theme="dark"] .download-card,
+html[data-theme="dark"] .export-box {
+  background: var(--ktc-surface) !important;
+  border-color: var(--ktc-border) !important;
+}
+html[data-theme="dark"] :is(.download-header h1,.export-box h3) { color: var(--ktc-ink-950) !important; }
+html[data-theme="dark"] :is(.download-header p,.export-box p) { color: var(--ktc-text-muted) !important; }
+html[data-theme="dark"] .download-header-icon,
+html[data-theme="dark"] .export-box-icon {
+  background: var(--ktc-brand-100) !important;
+  color: var(--ktc-brand-800) !important;
+}
+html[data-theme="dark"] .export-box-icon.success {
+  background: var(--ktc-success-bg) !important;
+  color: var(--ktc-success) !important;
+}
+html[data-theme="dark"] .export-box-icon.warning {
+  background: var(--ktc-warning-bg) !important;
+  color: var(--ktc-warning) !important;
+}

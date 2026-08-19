@@ -1,0 +1,6 @@
+'use strict';
+const {assertRollbackEligibility,calculateRecoveryMetrics}=require('../services/disasterRestoreLifecycleService');
+const {readState}=require('../services/disasterRestoreStateStore');
+function arg(name){const i=process.argv.indexOf(name);return i>=0?process.argv[i+1]:null;}
+async function main(){const {state}=await readState({restoreId:arg('--restore-id'),stateFile:arg('--state-file')}); const result=assertRollbackEligibility(state,{maintenanceMode:process.env.KTC_MAINTENANCE_MODE,workersQuiesced:process.env.KTC_WORKERS_QUIESCED,jobsQuiesced:process.env.KTC_JOBS_QUIESCED,confirm:arg('--confirm'),oldDbExists:String(process.env.KTC_OLD_DB_RETAINED||'').toUpperCase()==='YES',oldTarget:{host:arg('--old-host')||process.env.KTC_ROLLBACK_DB_HOST,port:arg('--old-port')||process.env.KTC_ROLLBACK_DB_PORT||'4000',database:arg('--old-db')||process.env.KTC_ROLLBACK_DB_NAME,user:arg('--old-user')||process.env.KTC_ROLLBACK_DB_USER||''}}); console.log(JSON.stringify({success:true,restore_id:state.restoreId,rollback:'ELIGIBLE_BUT_NOT_PERFORMED',rollback_target:result.rollbackTarget,recovery_metrics:calculateRecoveryMetrics(state),infrastructure_mutation:false},null,2));}
+main().catch(e=>{console.error(`[KTC][F16] Rollback check failed: ${e.code||e.message}${e.details?.failures?` ${e.details.failures.join(',')}`:''}`);process.exitCode=1;});
