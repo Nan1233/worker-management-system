@@ -8,8 +8,6 @@ const query = (executor, sql, params = []) => executor.promise
 let schemaReadyPromise = null;
 
 async function ensureSchema(executor = db) {
-  // Existing TiDB deployments may predate the notification link/entity columns.
-  // Repair only the missing additive columns so notification writes remain compatible.
   if (!schemaReadyPromise) {
     schemaReadyPromise = (async () => {
       const rows = await query(
@@ -94,34 +92,75 @@ async function createReportVersion(
   },
   executor = db,
 ) {
-  await ensureSchema();
+  await ensureSchema(executor);
 
-  const rows = await query(
+  const type = String(reportType || 'approved');
+  const id = Number(reportId);
+  if (!Number.isInteger(id) || id <= 0) throw new Error('Invalid reportId for report version');
+  const snapshotJson = json(snapshot);
+
+  // A temp report may already have a version because a previous review attempt
+  // committed the audit row before a later retry. Treat version creation as
+  // idempotent so Reject/Approve retries never fail on uq_report_version.
+  const existingRows = await query(
     executor,
-    `SELECT COALESCE(MAX(version_no), 0) + 1 AS next_version
+    `SELECT version_no, snapshot_json
        FROM report_versions
-      WHERE report_type=? AND report_id=?`,
-    [reportType, reportId],
+      WHERE report_type=? AND report_id=?
+      ORDER BY version_no DESC
+      LIMIT 1`,
+    [type, id],
   );
+  if (existingRows.length) return Number(existingRows[0].version_no || 1);
 
-  const versionNo = Number(rows[0]?.next_version || 1);
+  // Normal path: allocate the next version. If another transaction wins the
+  // race, re-read and return the committed version instead of surfacing a
+  // duplicate-key error to the reviewer.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const rows = await query(
+      executor,
+      `SELECT version_no
+         FROM report_versions
+        WHERE report_type=? AND report_id=?
+        ORDER BY version_no DESC
+        LIMIT 1
+        FOR UPDATE`,
+      [type, id],
+    );
+    const versionNo = Number(rows[0]?.version_no || 0) + 1;
 
-  await query(
-    executor,
-    `INSERT INTO report_versions
-      (report_type, report_id, version_no, snapshot_json, change_reason, created_by)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [
-      String(reportType || 'approved'),
-      Number(reportId),
-      versionNo,
-      json(snapshot),
-      reason ? String(reason).slice(0, 500) : null,
-      Number(userId) || null,
-    ],
-  );
+    try {
+      await query(
+        executor,
+        `INSERT INTO report_versions
+          (report_type, report_id, version_no, snapshot_json, change_reason, created_by)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          type,
+          id,
+          versionNo,
+          snapshotJson,
+          reason ? String(reason).slice(0, 500) : null,
+          Number(userId) || null,
+        ],
+      );
+      return versionNo;
+    } catch (error) {
+      if (Number(error?.errno) !== 1062 && error?.code !== 'ER_DUP_ENTRY') throw error;
+      const committed = await query(
+        executor,
+        `SELECT version_no
+           FROM report_versions
+          WHERE report_type=? AND report_id=?
+          ORDER BY version_no DESC
+          LIMIT 1`,
+        [type, id],
+      );
+      if (committed.length) return Number(committed[0].version_no || 1);
+    }
+  }
 
-  return versionNo;
+  throw new Error(`Không thể tạo version cho báo cáo ${type}#${id} sau nhiều lần thử`);
 }
 
 async function loadTempReportSnapshot(reportId, executor = db) {
