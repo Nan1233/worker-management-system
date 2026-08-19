@@ -6,6 +6,28 @@ const { createApprovedReportVersion } = require('../services/approvedVersionSnap
 const runtimeMetrics = require('../services/runtimeMetrics');
 
 const workerNotificationBackfills = new Map();
+const unreadNotificationCache = new Map();
+const UNREAD_NOTIFICATION_CACHE_TTL_MS = Math.max(
+  2_000,
+  Number(process.env.UNREAD_NOTIFICATION_CACHE_TTL_MS || 5_000)
+);
+function getCachedUnreadCount(userId) {
+  const entry = unreadNotificationCache.get(Number(userId));
+  if (!entry || entry.expiresAt <= Date.now()) {
+    unreadNotificationCache.delete(Number(userId));
+    return null;
+  }
+  return entry.count;
+}
+function setCachedUnreadCount(userId, count) {
+  unreadNotificationCache.set(Number(userId), {
+    count: Number(count) || 0,
+    expiresAt: Date.now() + UNREAD_NOTIFICATION_CACHE_TTL_MS,
+  });
+}
+function clearUnreadNotificationCache(userId) {
+  unreadNotificationCache.delete(Number(userId));
+}
 const WORKER_NOTIFICATION_BACKFILL_TTL_MS = Math.max(60_000, Number(process.env.WORKER_NOTIFICATION_BACKFILL_TTL_MS || 10 * 60_000));
 
 async function executeWorkerNotificationBackfill(user) {
@@ -154,21 +176,31 @@ exports.getNotifications = async (req,res) => {
 
 exports.getUnreadNotificationCount = async (req,res) => {
  try {
-  // Badge chỉ đếm dữ liệu đã có. Không quét/bù lịch sử ở mỗi chu kỳ polling.
+  // Badge polling is frequent on Worker/PWA. A tiny per-user TTL cache removes
+  // repeated DB COUNT queries while keeping the UI effectively real-time.
+  const userId = Number(req.user.id);
+  const cached = getCachedUnreadCount(userId);
+  if (cached !== null) {
+   res.setHeader('X-KTC-Cache', 'HIT');
+   return res.json({success:true,data:{unreadCount:cached}});
+  }
   const [[count]] = await db.promise().query(
    `SELECT COUNT(*) unread FROM notifications WHERE user_id=? AND is_read=0`,
-   [Number(req.user.id)]
+   [userId]
   );
-  res.json({success:true,data:{unreadCount:Number(count?.unread||0)}});
- } catch(e){ console.error('GET UNREAD NOTIFICATION COUNT ERROR:', e); res.status(500).json({success:false,message:publicMessage(e,'Không thể tải số thông báo chưa đọc')}); }
+  const unreadCount = Number(count?.unread || 0);
+  setCachedUnreadCount(userId, unreadCount);
+  res.setHeader('X-KTC-Cache', 'MISS');
+  return res.json({success:true,data:{unreadCount}});
+ } catch(e){ console.error('GET UNREAD NOTIFICATION COUNT ERROR:', e); return res.status(500).json({success:false,message:publicMessage(e,'Không thể tải số thông báo chưa đọc')}); }
 };
 
 exports.markNotificationRead = async (req,res) => {
- try { await db.promise().query(`UPDATE notifications SET is_read=1, read_at=NOW() WHERE id=? AND user_id=?`,[req.params.id,req.user.id]); res.json({success:true}); }
+ try { await db.promise().query(`UPDATE notifications SET is_read=1, read_at=NOW() WHERE id=? AND user_id=?`,[req.params.id,req.user.id]); clearUnreadNotificationCache(req.user.id); res.json({success:true}); }
  catch(e){ console.error('MARK NOTIFICATION ERROR:', e); res.status(500).json({success:false,message:publicMessage(e,'Không thể cập nhật thông báo')}); }
 };
 exports.markAllNotificationsRead = async (req,res) => {
- try { await db.promise().query(`UPDATE notifications SET is_read=1, read_at=NOW() WHERE user_id=? AND is_read=0`,[req.user.id]); res.json({success:true}); }
+ try { await db.promise().query(`UPDATE notifications SET is_read=1, read_at=NOW() WHERE user_id=? AND is_read=0`,[req.user.id]); clearUnreadNotificationCache(req.user.id); res.json({success:true}); }
  catch(e){ console.error('MARK ALL NOTIFICATIONS ERROR:', e); res.status(500).json({success:false,message:publicMessage(e,'Không thể cập nhật thông báo')}); }
 };
 exports.getActivities = async (req,res) => {

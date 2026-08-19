@@ -1,4 +1,4 @@
-const BUILD_VERSION = "1.8.22-manager-ui-v2-20260817-demo-ui-20260818";
+const BUILD_VERSION = "1.9.14-demo-release-20260819";
 const APP_CACHE = `ktc-${BUILD_VERSION}-app`;
 const STATIC_CACHE = `ktc-${BUILD_VERSION}-static`;
 const APP_SHELL = ["./", "./index.html", "./manifest.webmanifest", "./offline.html"];

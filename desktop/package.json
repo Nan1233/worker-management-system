@@ -1,6 +1,6 @@
 {
   "name": "ktc-production-control-desktop",
-  "version": "1.5.2",
+  "version": "1.9.14",
   "description": "KTC Production Control Desktop - A+B theo tháng, báo cáo theo công đoạn, pending chạy lại từ dữ liệu DB mới nhất",
   "main": "electron/main.cjs",
   "author": "KTC",

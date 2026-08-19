@@ -36,3 +36,9 @@ Requires macOS + Xcode:
 - verify App Store/TestFlight release configuration
 
 A source ZIP cannot truthfully mark these physical-device gates PASS.
+
+## Static release scorecard
+Run:
+`node scripts/demoReleaseScorecard.cjs`
+
+All static quality categories are budgeted at >= 9.0. Physical-device and Render gates remain real-environment gates and are never marked PASS by source inspection alone.
