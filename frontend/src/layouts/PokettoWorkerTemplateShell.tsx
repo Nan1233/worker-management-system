@@ -28,10 +28,10 @@ type Item = {
 
 const items: Item[] = [
   { label: "Trang chủ", path: "/worker", icon: Home, permission: "WORKER_ENTRY", exact: true },
-  { label: "Nhập báo cáo", path: "/worker/production-template", icon: ClipboardPenLine, permission: "WORKER_ENTRY" },
-  { label: "Lịch sử", path: "/worker/history-template", icon: History, permission: "WORKER_HISTORY" },
-  { label: "Thông báo", path: "/worker/notifications-template", icon: Bell, permission: "NOTIFICATION_VIEW" },
-  { label: "Tài khoản", path: "/worker/profile-template", icon: UserRound, permission: "PROFILE_VIEW" },
+  { label: "Sản xuất", path: "/worker", icon: ClipboardPenLine, permission: "WORKER_ENTRY" },
+  { label: "Lịch sử", path: "/worker/history", icon: History, permission: "WORKER_HISTORY" },
+  { label: "Thông báo", path: "/worker/system", icon: Bell, permission: "NOTIFICATION_VIEW" },
+  { label: "Cá nhân", path: "/worker/profile", icon: UserRound, permission: "PROFILE_VIEW" },
 ];
 
 export default function PokettoWorkerTemplateShell() {
@@ -46,7 +46,11 @@ export default function PokettoWorkerTemplateShell() {
   }, [dark]);
 
   const visible = items.filter((item) => can(item.permission));
-  const active = (item: Item) => item.exact ? location.pathname === item.path : location.pathname.startsWith(item.path);
+  const active = (item: Item) => item.exact
+    ? location.pathname === item.path
+    : item.path === "/worker"
+      ? location.pathname === "/worker" || location.pathname.startsWith("/worker/process/")
+      : location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
   const handleLogout = () => { void logout(); navigate("/login", { replace: true }); };
 
   return (
@@ -62,7 +66,7 @@ export default function PokettoWorkerTemplateShell() {
                       <span className="text-sm font-bold">K</span>
                     </div>
                     <div className="grid flex-1 text-left text-sm leading-tight">
-                      <span className="truncate font-semibold">KTC Production</span>
+                      <span className="truncate font-semibold">KTC (HANOI) CO., LTD</span>
                       <span className="truncate text-xs text-muted-foreground">Worker workspace</span>
                     </div>
                   </button>
@@ -78,12 +82,8 @@ export default function PokettoWorkerTemplateShell() {
                 const Icon = item.icon;
                 const isActive = active(item);
                 return (
-                  <SidebarMenuItem key={item.path}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive}
-                      tooltip={item.label}
-                    >
+                  <SidebarMenuItem key={`${item.path}-${item.label}`}>
+                    <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
                       <button type="button" onClick={() => navigate(item.path)} className="relative">
                         <Icon className="size-4" />
                         <span>{item.label}</span>
@@ -140,13 +140,13 @@ export default function PokettoWorkerTemplateShell() {
             </div>
           </main>
 
-          <nav className="fixed inset-x-2 bottom-2 z-40 grid grid-cols-4 rounded-xl border bg-background/95 p-1 shadow-lg backdrop-blur md:hidden">
+          <nav className="fixed inset-x-2 bottom-2 z-40 grid grid-cols-5 rounded-xl border bg-background/95 p-1 shadow-lg backdrop-blur md:hidden">
             {visible.map((item) => {
               const Icon = item.icon;
               const isActive = active(item);
               return (
                 <button
-                  key={item.path}
+                  key={`mobile-${item.path}-${item.label}`}
                   type="button"
                   onClick={() => navigate(item.path)}
                   className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg text-[10px] font-medium transition-colors ${isActive ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}
