@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import "./MobileDownload.css";
-
 const APK_URL = "/downloads/ktc-production-control.apk";
 const IOS_PROFILE_URL = "/KTC-Production-Control.mobileconfig";
 

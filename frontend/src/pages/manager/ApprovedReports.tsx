@@ -27,8 +27,6 @@ import {
     isRetryableManagerReportLoadError,
     waitForManagerReportRetry,
 } from "./managerReportRetry";
-import "./Reports.css";
-
 const getAxiosErrorMessage = async (error: unknown): Promise<string | null> => {
     if (!axios.isAxiosError(error)) return null;
     const responseData = error.response?.data;

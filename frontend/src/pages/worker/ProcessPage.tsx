@@ -16,9 +16,6 @@ import {
 } from "react-router-dom";
 
 
-import "./ProcessPage.css";
-
-
 import {
     createTempReport,
     updateTempReport,

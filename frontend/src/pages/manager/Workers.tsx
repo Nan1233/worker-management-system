@@ -21,9 +21,6 @@ import type {
 import { useToast } from "../../components/feedback/toastContext";
 import { usePermissions } from "../../hooks/usePermissions";
 
-import "./Workers.css";
-
-
 function Workers() {
     const { showToast } = useToast();
     const { can } = usePermissions();

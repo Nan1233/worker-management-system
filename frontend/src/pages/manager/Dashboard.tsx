@@ -7,8 +7,6 @@ import { useToast } from "../../components/feedback/toastContext";
 import { getApiError } from "../../utils/apiError";
 import { getStoredUser } from "../../utils/authStorage";
 import { usePermissions } from "../../hooks/usePermissions";
-import "./Dashboard.css";
-
 const formatNumber = (value: number) =>
     Number(value || 0).toLocaleString("vi-VN", { maximumFractionDigits: 1 });
 

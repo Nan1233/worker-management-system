@@ -1,3 +1,4 @@
-import type { ReactNode } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "../../poketto-template/ui/card";
+﻿import type { ReactNode } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 export function KtcMetricCard({label,value,description,icon}:{label:string;value:ReactNode;description?:string;icon?:ReactNode}){return <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">{label}</CardTitle>{icon}</CardHeader><CardContent><div className="text-2xl font-semibold tracking-tight">{value}</div>{description&&<p className="mt-1 text-xs text-muted-foreground">{description}</p>}</CardContent></Card>}
+

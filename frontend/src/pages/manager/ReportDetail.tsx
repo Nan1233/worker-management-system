@@ -16,8 +16,6 @@ import { getStoredUser } from "../../utils/authStorage";
 import { usePermissions } from "../../hooks/usePermissions";
 import { getReportVersions, restoreApprovedReportVersion, type ReportVersion } from "../../services/systemService";
 import MachineEventPanel from "./MachineEventPanel";
-import "./ReportDetail.css";
-
 const formatDate = (value?: string | null) => {
     if (!value) return "---";
     const raw = value.split("T")[0];

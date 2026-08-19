@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../poketto-template/ui/card";
-import { Separator } from "../../poketto-template/ui/separator";
+﻿import type { ReactNode } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import { Separator } from "./ui/separator";
 
 export type KtcPageProps={title:string;description?:string;eyebrow?:string;actions?:ReactNode;children:ReactNode};
 export function KtcPage({title,description,eyebrow,actions,children}:KtcPageProps){
@@ -15,3 +15,4 @@ export function KtcPage({title,description,eyebrow,actions,children}:KtcPageProp
 export function KtcCard({title,description,actions,children}:{title?:string;description?:string;actions?:ReactNode;children:ReactNode}){
  return <Card>{(title||description||actions)&&<CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0"><div className="min-w-0">{title&&<CardTitle>{title}</CardTitle>}{description&&<CardDescription>{description}</CardDescription>}</div>{actions}</CardHeader>}<CardContent>{children}</CardContent></Card>;
 }
+

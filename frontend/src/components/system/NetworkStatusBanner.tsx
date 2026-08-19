@@ -1,6 +1,4 @@
 import { useEffect, useState } from "react";
-import "./NetworkStatusBanner.css";
-
 const ONLINE_MESSAGE_MS = 3200;
 
 export default function NetworkStatusBanner() {

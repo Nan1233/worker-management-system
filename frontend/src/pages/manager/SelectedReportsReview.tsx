@@ -12,8 +12,6 @@ import { useToast } from "../../components/feedback/toastContext";
 import { decimalHoursToMinutes, formatMinutes } from "../../utils/timeDisplay";
 import { getStoredUser } from "../../utils/authStorage";
 import { usePermissions } from "../../hooks/usePermissions";
-import "./SelectedReportsReview.css";
-
 const REJECT_REASONS = [
     "Báo cáo trùng",
     "Sai sản lượng",

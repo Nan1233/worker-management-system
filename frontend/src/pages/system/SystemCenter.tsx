@@ -17,8 +17,6 @@ import {
 import { publishNotificationCount } from "../../hooks/useNotificationBadge";
 import { getStoredUser } from "../../utils/authStorage";
 import { usePermissions } from "../../hooks/usePermissions";
-import "./SystemCenter.css";
-
 const FIELD_LABELS: Record<string,string> = {
     changed_fields:"Trường thay đổi", deductions_changed:"Thời gian trừ", defects_changed:"NG", machine_lines_changed:"Máy",
     previous_status:"Trạng thái cũ", new_status:"Trạng thái mới", reason:"Lý do", worker_code:"Mã NV", full_name:"Tên NV",

@@ -5,9 +5,6 @@ import {
     useState
 } from "react";
 
-import "./AutocompleteInput.css";
-
-
 export interface AutocompleteOption {
 
     value: string;

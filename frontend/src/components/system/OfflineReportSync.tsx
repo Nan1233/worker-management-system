@@ -9,8 +9,6 @@ import {
     retryBlockedOfflineReport,
     type OfflineReportQueueItem
 } from "../../services/offlineReportQueue";
-import "./OfflineReportSync.css";
-
 function statusText(item: OfflineReportQueueItem): string {
     if (item.status === "blocked") return "Cần kiểm tra";
     if (item.status === "retrying") return "Đang chờ thử lại";

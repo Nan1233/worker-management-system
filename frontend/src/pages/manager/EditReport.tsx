@@ -12,8 +12,6 @@ import type {
     ProductionReport
 } from "../../types/production";
 import { useToast } from "../../components/feedback/toastContext";
-import "./EditReport.css";
-
 const numberValue = (value: unknown) => Number(value ?? 0) || 0;
 
 const mergeDefects = (

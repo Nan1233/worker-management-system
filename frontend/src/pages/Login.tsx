@@ -30,8 +30,6 @@ import type {
     UserRole
 } from "../types/auth";
 
-import "./Login.css";
-
 interface RememberedAccount {
     username: string;
     fullName: string;

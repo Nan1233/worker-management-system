@@ -4,7 +4,6 @@ import api from '../../services/api';
 import { getApiError } from '../../utils/apiError';
 import { getStoredUser } from '../../utils/authStorage';
 import { usePermissions } from '../../hooks/usePermissions';
-import './MasterData.css';
 import { bumpMasterDataEpoch } from "../../services/masterDataCache";
 import { clearSessionCache } from "../../services/sessionCache";
 import { clearPermissionClientCache } from "../../security/permissions";

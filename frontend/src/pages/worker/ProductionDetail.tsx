@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import "./ProductionDetail.css";
 import { getReportById } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { formatMinutes } from "../../utils/timeDisplay";

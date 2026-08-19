@@ -1,6 +1,4 @@
 import AppIcon from "../../components/common/AppIcon";
-import "./ReportDownload.css";
-
 function ReportDownload() {
     return (
         <div className="download-page poketto-manager-page">

@@ -40,9 +40,6 @@ import {
     toggleReportId,
 } from "./managerReportSelection";
 
-import "./Reports.css";
-
-
 const REJECT_REASONS = [
     "Báo cáo trùng",
     "Sai sản lượng",

@@ -10,8 +10,6 @@ import {
 
 import axios from "axios";
 
-import "./ProductionHistory.css";
-
 import {
     getMyTempReports
 } from "../../services/productionService";

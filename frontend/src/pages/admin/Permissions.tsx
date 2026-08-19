@@ -3,8 +3,6 @@ import api from '../../services/api';
 import { useToast } from '../../components/feedback/toastContext';
 import { getApiError } from '../../utils/apiError';
 import { clearPermissionClientCache } from '../../security/permissions';
-import './Permissions.css';
-
 type Perm={code:string;name:string;module:string};
 type RoleRow={role:string;defaults:Record<string,boolean>;capabilities:Record<string,boolean>;overrides:Record<string,boolean>};
 type UserRow={id:number;username:string;full_name:string;role:string;status:string};

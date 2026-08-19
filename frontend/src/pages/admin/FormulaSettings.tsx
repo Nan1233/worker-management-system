@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../../services/api';
 import { getApiError } from '../../utils/apiError';
-import './FormulaSettings.css';
 import { usePermissions } from '../../hooks/usePermissions';
 
 type ProductRule = {
