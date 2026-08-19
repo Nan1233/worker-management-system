@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Bell, ChevronRight, LayoutDashboard, LogOut, Menu, Settings2, Users, ClipboardCheck, BarChart3, Database, ShieldCheck, FileSpreadsheet, Factory } from "lucide-react";
+import { Bell, ChevronRight, LayoutDashboard, LogOut, Settings2, Users, ClipboardCheck, BarChart3, Database, ShieldCheck, FileSpreadsheet, Factory } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarInset,
-  SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarSeparator,
+  SidebarSidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarSeparator,
   SidebarTrigger,
 } from "../poketto-template/ui/sidebar";
 import { Button } from "../poketto-template/ui/button";
