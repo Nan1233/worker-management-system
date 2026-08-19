@@ -6,7 +6,7 @@ function query(executor, sql, params = []) {
 
 async function auditRollbackVersions({ executor = null } = {}) {
   const activeExecutor = executor || require('../config/db');
-  const [rows] = await query(activeExecutor,
+  const rows = await query(activeExecutor,
     `SELECT report_id, version_no, created_at, snapshot_json
      FROM report_versions
      WHERE report_type='approved'

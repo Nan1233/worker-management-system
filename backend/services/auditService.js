@@ -12,7 +12,7 @@ async function ensureSchema(executor = db) {
   // Repair only the missing additive columns so notification writes remain compatible.
   if (!schemaReadyPromise) {
     schemaReadyPromise = (async () => {
-      const [rows] = await query(
+      const rows = await query(
         executor,
         `SELECT COLUMN_NAME
            FROM INFORMATION_SCHEMA.COLUMNS
@@ -96,7 +96,7 @@ async function createReportVersion(
 ) {
   await ensureSchema();
 
-  const [rows] = await query(
+  const rows = await query(
     executor,
     `SELECT COALESCE(MAX(version_no), 0) + 1 AS next_version
        FROM report_versions
@@ -125,7 +125,7 @@ async function createReportVersion(
 }
 
 async function loadTempReportSnapshot(reportId, executor = db) {
-  const [reportRows] = await query(
+  const reportRows = await query(
     executor,
     `SELECT * FROM production_reports_temp WHERE id=? LIMIT 1`,
     [Number(reportId)],
@@ -133,7 +133,7 @@ async function loadTempReportSnapshot(reportId, executor = db) {
   const report = reportRows[0];
   if (!report) return null;
 
-  const [[defects], [deductions], [machineLines]] = await Promise.all([
+  const [defects, deductions, machineLines] = await Promise.all([
     query(
       executor,
       `SELECT d.id,d.defect_type_id,dt.defect_code,dt.defect_name,d.quantity
@@ -161,7 +161,7 @@ async function loadTempReportSnapshot(reportId, executor = db) {
   const machineIds = machineLines.map((line) => Number(line.id)).filter(Boolean);
   let machineDefects = [];
   if (machineIds.length) {
-    const [rows] = await query(
+    const rows = await query(
       executor,
       `SELECT * FROM production_temp_machine_defects
         WHERE machine_line_id IN (${machineIds.map(() => '?').join(',')})
