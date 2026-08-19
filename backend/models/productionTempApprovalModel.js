@@ -21,7 +21,7 @@ const { serializeExtraData } = require("../services/productionApprovalService");
 const { createApprovedReportVersion } = require("../services/approvedVersionSnapshotService");
 const { assertReviewBatchSize } = require("../services/managerReportPaginationService");
 
-const qRows = async (executor, sql, params = []) => (await query(executor, sql, params))[0];
+const qRows = async (executor, sql, params = []) => await query(executor, sql, params);
 
 function workPeriod(value) {
   const text = value instanceof Date
@@ -295,7 +295,7 @@ module.exports = {
       const scopeJoin = isAdmin ? "" : "JOIN manager_processes mp ON mp.process_id = temp.process_id";
       const scopeWhere = isAdmin ? "" : "AND mp.manager_id = ?";
       const params = isAdmin ? reportIds : [...reportIds, reviewerId];
-      const [rows] = await query(
+      const rows = await query(
         connection,
         `SELECT DISTINCT temp.*, w.user_id AS worker_user_id
            FROM production_reports_temp temp
@@ -479,7 +479,7 @@ module.exports = {
       const scopeJoin = isAdmin ? "" : "JOIN manager_processes mp ON mp.process_id=temp.process_id";
       const scopeWhere = isAdmin ? "" : "AND mp.manager_id=?";
       const params = isAdmin ? [...reportIds] : [...reportIds,reviewerId];
-      const [rows] = await query(
+      const rows = await query(
         connection,
         `SELECT DISTINCT temp.id,temp.worker_id,temp.process_id,temp.work_date,temp.shift,temp.updated_at,
                 w.user_id AS worker_user_id
