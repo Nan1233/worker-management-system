@@ -11,12 +11,12 @@
 	"dependencies": {
 		"next": "15.0.3",
 		"react": "19.0.0-rc-66855b96-20241106",
-		"react-dom": "19.0.0-rc-66855b96-20241106"
+		"react-dom": "19.2.8"
 	},
 	"devDependencies": {
 		"@types/node": "^20.17.25",
 		"@types/react": "^18.3.19",
-		"@types/react-dom": "^18.3.5",
+		"@types/react-dom": "^19.2.4",
 		"eslint": "^8.57.1",
 		"eslint-config-next": "15.0.3",
 		"postcss": "^8.5.3",
