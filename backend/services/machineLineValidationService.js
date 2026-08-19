@@ -113,7 +113,7 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
             errors[`machine_lines.${index}.machine_code`] = `Máy ${machineCode} không thuộc công đoạn`;
             continue;
         }
-
+        
 
         let resolvedStandard;
         try {
