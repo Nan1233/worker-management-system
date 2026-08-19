@@ -1,0 +1,1 @@
+import{x as e}from"./api-CKe9Isn1.js";var t=(t,n=`Đã xảy ra lỗi`)=>{if(!e.isAxiosError(t))return{message:t instanceof Error?t.message:n,errors:{}};if(!t.response)return{message:`Không thể kết nối máy chủ. Vui lòng kiểm tra mạng.`,errors:{}};let r=t.response.data;return{message:r?.message||n,errors:r?.errors||{}}};export{t};

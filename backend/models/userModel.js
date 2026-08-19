@@ -11,7 +11,7 @@ const findAll = (callback) => {
     db.query(
 
         `
-        SELECT 
+        SELECT
             id,
             username,
             full_name,
@@ -39,7 +39,7 @@ const findById = (id, callback) => {
     db.query(
 
         `
-        SELECT 
+        SELECT
             id,
             username,
             full_name,

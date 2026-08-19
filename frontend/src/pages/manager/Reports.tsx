@@ -899,7 +899,7 @@ function Reports() {
                                                         "---"}
                                                 </td>
 
-                                              
+
                                                 <td>
                                                     {report.process_name ||
                                                         "---"}

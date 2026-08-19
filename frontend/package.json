@@ -29,7 +29,9 @@
     "android:release:check": "node scripts/checkAndroidReleaseContract.cjs",
     "test": "node --test tests/*.test.cjs",
     "ios:doctor:production": "npm run ios:doctor && node scripts/checkIosReleaseContract.cjs",
-    "ios:release:check": "node scripts/checkIosReleaseContract.cjs"
+    "ios:release:check": "node scripts/checkIosReleaseContract.cjs",
+    "device:android:check": "node scripts/deviceSmoke.cjs android",
+    "device:ios:check": "node scripts/deviceSmoke.cjs ios"
   },
   "dependencies": {
     "@capacitor/android": "8.5.0",

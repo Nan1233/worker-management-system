@@ -1,0 +1,1 @@
+var e=e=>{let t=Number(e??0);return!Number.isFinite(t)||t<=0?0:Math.round(t*60)},t=t=>`${e(t).toLocaleString(`vi-VN`)} phút`,n=t=>(t||[]).reduce((t,n)=>t+e(n.hours),0);export{t as n,n as r,e as t};

@@ -106,6 +106,9 @@ const sendExcelFile = async (res, file) => {
     res.setHeader("Content-Length", String(file.size));
     res.setHeader("Cache-Control", "private, no-store, max-age=0");
     res.setHeader("Pragma", "no-cache");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Content-Security-Policy", "sandbox");
+    res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
     res.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
 
     await pipeline(fsSync.createReadStream(file.filePath), res);

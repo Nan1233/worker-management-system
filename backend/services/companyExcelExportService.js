@@ -515,4 +515,3 @@ async function loadCompanyData(value) {
 }
 
 module.exports = { GROUPS, listCompanyFiles, loadCompanyData, loadCompanyGroupData, buildCompanyWorkbook };
-

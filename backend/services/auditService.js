@@ -210,6 +210,56 @@ async function loadTempReportSnapshot(reportId, executor = db) {
   };
 }
 
+async function logActivities(entries, executor = db) {
+  const items = Array.isArray(entries) ? entries.filter(Boolean) : [];
+  if (!items.length) return;
+  await ensureSchema(executor);
+  const values = items.map(() => '(?,?,?,?,?,?,?,?)').join(',');
+  const params = items.flatMap((entry) => [
+    Number(entry.userId) || null,
+    String(entry.action || 'UNKNOWN').slice(0, 80),
+    entry.entityType ? String(entry.entityType).slice(0, 80) : null,
+    entry.entityId === null || entry.entityId === undefined ? null : String(entry.entityId).slice(0, 100),
+    entry.description ? String(entry.description).slice(0, 500) : null,
+    json(entry.metadata),
+    entry.req?.ip || null,
+    entry.req?.headers?.['user-agent'] || null,
+  ]);
+  await query(
+    executor,
+    `INSERT INTO activity_logs
+      (user_id, action, entity_type, entity_id, description, metadata_json, ip_address, user_agent)
+     VALUES ${values}`,
+    params,
+  );
+}
+
+async function notifyBatch(entries, executor = db) {
+  const items = Array.isArray(entries) ? entries.filter(Boolean) : [];
+  if (!items.length) return;
+  await ensureSchema(executor);
+  const normalized = [];
+  for (const entry of items) {
+    const ids = [...new Set((entry.userIds || [])
+      .map(Number)
+      .filter((id) => Number.isInteger(id) && id > 0))];
+    for (const id of ids) normalized.push({ id, payload: entry.payload || {} });
+  }
+  if (!normalized.length) return;
+  const values = normalized.map(() => '(?,?,?,?,?,?,?)').join(',');
+  const params = normalized.flatMap(({ id, payload }) => [
+    id, payload.type || 'info', payload.title, payload.message,
+    payload.linkUrl || null, payload.entityType || null, payload.entityId || null,
+  ]);
+  await query(
+    executor,
+    `INSERT INTO notifications
+      (user_id,type,title,message,link_url,entity_type,entity_id)
+     VALUES ${values}`,
+    params,
+  );
+}
+
 async function notifyUsers(userIds, payload, executor = db) {
   const ids = [...new Set((userIds || [])
     .map(Number)
@@ -242,7 +292,9 @@ async function notifyUsers(userIds, payload, executor = db) {
 module.exports = {
   ensureSchema,
   logActivity,
+  logActivities,
   createReportVersion,
   loadTempReportSnapshot,
   notifyUsers,
+  notifyBatch,
 };

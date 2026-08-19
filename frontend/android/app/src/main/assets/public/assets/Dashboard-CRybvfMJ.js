@@ -1,0 +1,1 @@
+import{L as e}from"./index-C_qB5BQ1.js";import{t}from"./Dashboard-Csp0GZJR.js";var n=e();function r(){return(0,n.jsx)(t,{})}export{r as default};

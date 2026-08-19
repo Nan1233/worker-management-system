@@ -12,6 +12,7 @@ const server = read('backend/server.js');
 const metrics = read('backend/services/runtimeMetrics.js');
 const auditService = read('backend/services/auditService.js');
 const dashboard = read('backend/controllers/dashboardController.js');
+const approval = read('backend/models/productionTempApprovalModel.js');
 
 assert.match(server, /runtimeMetrics\.recordHttp/, 'HTTP runtime metrics must be recorded');
 assert.match(server, /Server-Timing/, 'Server-Timing must expose request duration');
@@ -21,6 +22,7 @@ assert.match(auditService, /INSERT INTO activity_logs/, 'Activity audit must be 
 assert.match(dashboard, /new TtlCache/, 'Dashboard must use bounded cache');
 assert.match(dashboard, /DASHBOARD_CACHE_TTL_MS/, 'Dashboard cache TTL must be configurable');
 assert.match(dashboard, /Promise\.all/, 'Dashboard aggregate queries should run in parallel');
+assert.match(approval, /AuditService\.logActivities/, 'Approval audit writes must be batched');
 const ttlMatch = dashboard.match(/DASHBOARD_CACHE_TTL_MS\s*=\s*Number\(process\.env\.DASHBOARD_CACHE_TTL_MS\s*\|\|\s*(\d+)/);
 assert.ok(ttlMatch, 'Dashboard cache must have a numeric default TTL');
 assert.ok(Number(ttlMatch[1]) <= 15000, 'Dashboard default cache TTL must be <= 15s');

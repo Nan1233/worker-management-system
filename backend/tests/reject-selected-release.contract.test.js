@@ -1,0 +1,11 @@
+const fs = require("fs");
+const path = require("path");
+const assert = require("assert");
+const model = fs.readFileSync(path.join(__dirname, "..", "models", "productionTempApprovalModel.js"), "utf8");
+assert(model.includes("APPROVAL_SELECTION_STALE"));
+assert(model.includes("TEMP_REPORT_VERSION_CONFLICT"));
+assert(model.includes("AuditService.createReportVersion"));
+assert((model.match(/action: "REPORT_REJECTED"/g) || []).length === 1);
+const audit = fs.readFileSync(path.join(__dirname, "..", "services", "auditService.js"), "utf8");
+assert(audit.includes("notifyBatch"));
+console.log("PASS reject-selected-release.contract");

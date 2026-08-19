@@ -286,6 +286,7 @@ module.exports = {
     const expectedById = new Map(normalizedTargets.map((item) => [Number(item.id), item.expected_updated_at || null]));
     const connection = await getConnection();
     const postCommitNotifications = [];
+    const postCommitActivities = [];
     const approvedIds = [];
     const dates = new Set();
 
@@ -389,30 +390,39 @@ module.exports = {
           connection,
         );
 
-        await AuditService.logActivity({
-          userId: reviewerId,
-          action: "REPORT_APPROVED",
-          entityType: "temp_report",
-          entityId: item.id,
-          description: `Duyệt báo cáo thành công #${approvedReportId}`,
-          metadata: { approved_report_id: approvedReportId },
-        }, connection);
-        await AuditService.logActivity({
-          userId: reviewerId,
-          action: "REPORT_CREATED",
-          entityType: "approved_report",
-          entityId: approvedReportId,
-          description: `Tạo báo cáo đã duyệt từ #${item.id}`,
-          metadata: { temp_report_id: item.id },
-        }, connection);
-        await AuditService.logActivity({
-          userId:reviewerId,
-          action:"REPORT_APPROVED",
-          entityType:"approved_report",
-          entityId:approvedReportId,
-          description:`Duyệt báo cáo #${item.id} thành báo cáo đã duyệt #${approvedReportId}`,
-          metadata:{temp_report_id:item.id,approved_report_id:approvedReportId,worker_id:item.worker_id,process_id:item.process_id,work_date:item.work_date,shift:item.shift},
-        }, connection);
+        postCommitActivities.push(
+          {
+            userId: reviewerId,
+            action: "REPORT_APPROVED",
+            entityType: "temp_report",
+            entityId: item.id,
+            description: `Duyệt báo cáo thành công #${approvedReportId}`,
+            metadata: { approved_report_id: approvedReportId },
+          },
+          {
+            userId: reviewerId,
+            action: "REPORT_CREATED",
+            entityType: "approved_report",
+            entityId: approvedReportId,
+            description: `Tạo báo cáo đã duyệt từ #${item.id}`,
+            metadata: { temp_report_id: item.id },
+          },
+          {
+            userId: reviewerId,
+            action: "REPORT_APPROVED",
+            entityType: "approved_report",
+            entityId: approvedReportId,
+            description: `Duyệt báo cáo #${item.id} thành báo cáo đã duyệt #${approvedReportId}`,
+            metadata: {
+              temp_report_id: item.id,
+              approved_report_id: approvedReportId,
+              worker_id: item.worker_id,
+              process_id: item.process_id,
+              work_date: item.work_date,
+              shift: item.shift,
+            },
+          },
+        );
 
         await query(
           connection,
@@ -446,13 +456,12 @@ module.exports = {
         });
       }
 
+      await AuditService.logActivities(postCommitActivities, connection);
       await commit(connection);
-      for (const notification of postCommitNotifications) {
-        try {
-          await AuditService.notifyUsers(notification.userIds, notification.payload);
-        } catch (error) {
-          console.warn(`[KTC] Post-commit approval notification failed: ${error.message}`);
-        }
+      try {
+        await AuditService.notifyBatch(postCommitNotifications);
+      } catch (error) {
+        console.warn(`[KTC] Post-commit approval notification batch failed: ${error.message}`);
       }
       return {
         count: rows.length,

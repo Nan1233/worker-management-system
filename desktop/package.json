@@ -24,7 +24,9 @@
     "dist:mac": "npm run preflight && npm run build:frontend && npm run smoke:excel && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --universal",
     "field:readiness": "npm run preflight && node scripts/fieldReadiness.cjs",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
-    "check:packaged-shared-contract": "node scripts/checkPackagedSharedContract.cjs"
+    "check:packaged-shared-contract": "node scripts/checkPackagedSharedContract.cjs",
+    "device:smoke": "node scripts/deviceSmoke.cjs",
+    "release:signing-check": "node scripts/checkWindowsSigning.cjs"
   },
   "devDependencies": {
     "electron": "37.10.3",
@@ -52,7 +54,11 @@
         }
       ],
       "icon": "assets/icon.ico",
-      "signAndEditExecutable": true
+      "signAndEditExecutable": true,
+      "signingHashAlgorithms": [
+        "sha256"
+      ],
+      "requestedExecutionLevel": "asInvoker"
     },
     "nsis": {
       "oneClick": false,
