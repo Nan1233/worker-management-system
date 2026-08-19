@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Building2, BriefcaseBusiness, CheckCircle2, Phone, ShieldCheck, UserRound } from "lucide-react";
 import { api } from "../../services/api";
 import { getStoredUser } from "../../utils/authStorage";
-import { WorkerPageFrame } from "../../components/poketto/WorkerPageFrame";
 
 type WorkerProcess = { id: number; code: string; name: string };
 type WorkerProfile = {
@@ -65,11 +64,12 @@ export default function Profile() {
   ];
 
   return (
-    <WorkerPageFrame
-      eyebrow="Account"
-      title="Hồ sơ cá nhân"
-      description="Thông tin nhận diện và phân công đang áp dụng cho tài khoản của bạn."
-    >
+    <section className="ktc-page">
+      <header style={{ marginBottom: 16 }}>
+        <div style={{ color: "var(--ktc-muted)", fontSize: 12 }}>Tài khoản</div>
+        <h1 style={{ margin: "4px 0", fontSize: 22 }}>Hồ sơ cá nhân</h1>
+        <p style={{ margin: 0, color: "var(--ktc-muted)", fontSize: 13 }}>Thông tin nhận diện và phân công đang áp dụng cho tài khoản của bạn.</p>
+      </header>
       {error && (
         <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
           {error}
@@ -107,6 +107,6 @@ export default function Profile() {
           </dl>
         )}
       </div>
-    </WorkerPageFrame>
+    </section>
   );
 }

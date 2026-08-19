@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #f6f8fb;
+  --color-foreground: #1f2937;
+  --color-muted: #f3f4f6;
+  --color-muted-foreground: #6b7280;
+  --color-card: #ffffff;
+  --color-card-foreground: #1f2937;
+  --color-border: #e5e7eb;
+  --color-input: #e5e7eb;
+  --color-primary: #2563eb;
+  --color-primary-foreground: #ffffff;
+  --color-accent: #eff6ff;
+  --color-accent-foreground: #1d4ed8;
+  --color-destructive: #dc2626;
+  --color-destructive-foreground: #ffffff;
+  --color-ring: #2563eb;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+}
+
+
+*, *::before, *::after { box-sizing: border-box; }
+
+:root {
+  --ktc-bg: #f6f8fb;
+  --ktc-surface: #ffffff;
+  --ktc-text: #1f2937;
+  --ktc-muted: #6b7280;
+  --ktc-border: #e5e7eb;
+  --ktc-primary: #2563eb;
+  --ktc-primary-soft: #eff6ff;
+  --ktc-danger: #dc2626;
+  --ktc-success: #15803d;
+}
+
+html, body, #root {
+  width: 100%;
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+}
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  min-height: 100dvh;
+  background: var(--ktc-bg);
+  color: var(--ktc-text);
+  font-family: Arial, "Segoe UI", sans-serif;
+  line-height: 1.45;
+  overflow-x: hidden;
+}
+
+button, input, select, textarea { font: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .6; }
+img, svg { max-width: 100%; }
+a { color: inherit; }
+
+input, select, textarea {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--ktc-border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ktc-text);
+}
+
+input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, .35);
+  outline-offset: 2px;
+}
+
+.ktc-page {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.ktc-card {
+  background: var(--ktc-surface);
+  border: 1px solid var(--ktc-border);
+  border-radius: 8px;
+}
+
+.ktc-button {
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--ktc-border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ktc-text);
+}
+
+.ktc-button-primary {
+  border-color: var(--ktc-primary);
+  background: var(--ktc-primary);
+  color: #fff;
+}
+
+.ktc-error { color: var(--ktc-danger); }
+.ktc-success { color: var(--ktc-success); }
+
+@media (max-width: 700px) {
+  .ktc-page { padding: 14px 12px; }
+}

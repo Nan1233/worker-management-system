@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import { HashRouter } from "react-router-dom";
 
 import App from "./App";
-// Poketto Stack template migration: Worker workspace shell is implemented in WorkerLayout.tsx.
+// KTC Stack template migration: Worker workspace shell is implemented in WorkerLayout.tsx.
 import { ToastProvider } from "./components/feedback/ToastProvider";
 import AuthBootstrap from "./components/AuthBootstrap";
 import AppErrorBoundary from "./components/system/AppErrorBoundary";

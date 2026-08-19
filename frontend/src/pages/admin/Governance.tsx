@@ -140,7 +140,7 @@ export default function Governance() {
   }
 
   return (
-    <main className="governance-page poketto-admin-page">
+    <main className="governance-page admin-page">
       <header className="governance-header">
         <div>
           <p className="governance-kicker">Quản trị dữ liệu</p>

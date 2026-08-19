@@ -205,7 +205,7 @@ function SelectedReportsReview() {
     };
 
     return (
-        <main className="selected-review-page poketto-manager-page">
+        <main className="selected-review-page manager-page">
             <header className="selected-review-header">
                 <div>
                     <button

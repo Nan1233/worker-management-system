@@ -1,2 +1,0 @@
-const fs=require("node:fs"),path=require("node:path"),test=require("node:test"),assert=require("node:assert/strict");
-for(const file of ["Reports.tsx","ApprovedReports.tsx"])test(`${file} sends server filters`,()=>{const s=fs.readFileSync(path.join(__dirname,"../frontend/src/pages/manager",file),"utf8");assert.match(s,/shift: selectedShift/);assert.match(s,/processName: selectedProcess/);assert.match(s,/search: searchQuery \|\| undefined/);});

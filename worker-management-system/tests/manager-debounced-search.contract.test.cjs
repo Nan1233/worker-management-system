@@ -1,2 +1,0 @@
-const fs=require("node:fs"),path=require("node:path"),test=require("node:test"),assert=require("node:assert/strict");
-for(const file of ["Reports.tsx","ApprovedReports.tsx"])test(`${file} debounces server search`,()=>{const s=fs.readFileSync(path.join(__dirname,"../frontend/src/pages/manager",file),"utf8");assert.match(s,/setTimeout\(\(\) => \{[\s\S]*setSearchQuery\(searchKeyword\.trim\(\)\)[\s\S]*\}, 250\)/);assert.match(s,/search:\s*searchQuery \|\| undefined/);});

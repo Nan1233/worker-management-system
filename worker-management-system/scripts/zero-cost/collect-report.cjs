@@ -1,2 +1,0 @@
-#!/usr/bin/env node
-const fs=require('fs'),path=require('path'); const dir=path.resolve(process.env.KTC_VALIDATION_DIR||'validation-artifacts'); fs.mkdirSync(dir,{recursive:true});const files=fs.readdirSync(dir);let md='# KTC Zero-Extra-Cost Validation\n\n';for(const f of files.sort()){const s=fs.statSync(path.join(dir,f));md+=`- ${f} — ${s.size} bytes\n`;}md+=`\nProduction touched: NO\n`;fs.writeFileSync(path.join(dir,'SUMMARY.md'),md);console.log(md);

@@ -109,7 +109,7 @@ export default function FormulaSettings(){
   const previewPerHour=previewAdjusted/8;
   const previewAchievement=previewPerHour/100*100;
 
-  if(loading)return <div className="formula-page poketto-admin-page"><div className="formula-empty">Đang tải cài đặt...</div></div>;
+  if(loading)return <div className="formula-page admin-page"><div className="formula-empty">Đang tải cài đặt...</div></div>;
 
   return <div className="formula-page">
     <header className="formula-header"><div><h1>Cài đặt công thức & ngưỡng màu</h1><p>Quản lý cách tính sản lượng, hiệu suất và màu cảnh báo cho web và Excel.</p></div></header>

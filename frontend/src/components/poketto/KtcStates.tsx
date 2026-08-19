@@ -1,4 +1,0 @@
-import type { ReactNode } from "react";
-export function KtcLoading({label="Đang tải dữ liệu..."}:{label?:string}){return <div className="flex min-h-32 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground" aria-busy="true">{label}</div>}
-export function KtcEmpty({label="Chưa có dữ liệu."}:{label?:string}){return <div className="flex min-h-32 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">{label}</div>}
-export function KtcError({label="Không thể tải dữ liệu.",action}:{label?:string;action?:ReactNode}){return <div role="alert" className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive sm:flex-row sm:items-center sm:justify-between"><span>{label}</span>{action}</div>}

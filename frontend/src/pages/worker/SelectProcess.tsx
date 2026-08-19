@@ -183,7 +183,7 @@ function SelectProcess() {
 
         return (
 
-            <main className="select-process-page poketto-worker-process-page">
+            <main className="select-process-page worker-process-page">
 
                 <div className="process-state-box">
 
@@ -202,7 +202,7 @@ function SelectProcess() {
 
         return (
 
-            <main className="select-process-page poketto-worker-process-page">
+            <main className="select-process-page worker-process-page">
 
                 <div className="process-state-box">
 
@@ -229,9 +229,9 @@ function SelectProcess() {
 
     return (
 
-        <main className="select-process-page poketto-worker-process-page">
+        <main className="select-process-page worker-process-page">
 
-            <div className="select-process-shell poketto-worker-surface">
+            <div className="select-process-shell worker-surface">
 
                 <header className="select-process-header">
 
@@ -328,7 +328,7 @@ function SelectProcess() {
                                 <button
                                     key={item.id}
                                     type="button"
-                                    className="worker-process-card poketto-worker-card"
+                                    className="worker-process-card worker-card"
                                     onPointerEnter={() => item.dbId && prefetchProcessMasterData(item.dbId)}
                                     onFocus={() => item.dbId && prefetchProcessMasterData(item.dbId)}
                                     onTouchStart={() => item.dbId && prefetchProcessMasterData(item.dbId)}

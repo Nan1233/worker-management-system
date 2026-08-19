@@ -15,7 +15,7 @@ export default function Permissions(){
  const modules=useMemo(()=>{const out=new Map<string,Perm[]>(); for(const p of data?.permissions||[]){const arr=out.get(p.module)||[];arr.push(p);out.set(p.module,arr)}return [...out.entries()]},[data]);
  const setRole=async(role:string,code:string,allowed:boolean|null)=>{try{await api.put(`/permissions/roles/${role}/${code}`,{allowed});clearPermissionClientCache();await load();toast.showToast('Đã cập nhật quyền vai trò','success')}catch(e){toast.showToast(getApiError(e,'Không cập nhật được quyền').message,'error')}};
  const setUser=async(code:string,allowed:boolean|null)=>{if(!userId)return;try{await api.put(`/permissions/users/${userId}/${code}`,{allowed});clearPermissionClientCache();await load();toast.showToast('Đã cập nhật quyền riêng người dùng','success')}catch(e){toast.showToast(getApiError(e,'Không cập nhật được quyền').message,'error')}};
- if(loading) return <div className="permission-page poketto-admin-page"><div className="permission-loading">Đang tải cấu hình quyền...</div></div>;
+ if(loading) return <div className="permission-page admin-page"><div className="permission-loading">Đang tải cấu hình quyền...</div></div>;
  if(!data) return <div className="permission-page"><div className="permission-loading">Không có dữ liệu phân quyền.</div></div>;
  const selected=data.users.find(u=>String(u.id)===userId); const uo=userId?data.userOverrides[userId]||{}:{};
  return <section className="permission-page">

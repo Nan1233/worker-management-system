@@ -360,7 +360,7 @@ export default function ApprovedReports() {
     };
 
     return (
-        <div className="management-report-page poketto-manager-page">
+        <div className="management-report-page manager-page">
             <div className="management-report-header">
                 <div>
                     <h1>Báo cáo đã duyệt</h1>

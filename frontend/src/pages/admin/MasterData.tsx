@@ -189,7 +189,7 @@ function MasterData(){
     ? [{key:'username',label:'Tên đăng nhập'},{key:'full_name',label:'Họ tên'},{key:'role',label:'Vai trò'},{key:'worker_code',label:'Mã công nhân'},{key:'process_names',label:'Công đoạn'}]
     : fields.filter(field=>field.key!=='password');
 
-  return <div className="master-page poketto-admin-page">
+  return <div className="master-page admin-page">
     <div className="master-heading"><div><h1>Trung tâm quản lý</h1></div>{canCreate&&<button className="primary" onClick={openCreate}>Thêm mới</button>}</div>
     <div className="master-tabs">{tabs.map(tab=><button key={tab.key} className={resource===tab.key?'active':''} onClick={()=>navigate(`/${currentUser?.role||'manager'}/master/${tab.key}`)}><strong>{tab.label}</strong></button>)}</div>
     <div className="master-toolbar"><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Tìm theo mã, tên, công đoạn..."/><span>{filtered.length} bản ghi</span></div>

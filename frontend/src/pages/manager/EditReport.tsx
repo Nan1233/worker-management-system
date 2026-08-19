@@ -252,7 +252,7 @@ function EditReport() {
     };
 
     if (loading) {
-        return <main className="edit-report-page poketto-manager-page"><div className="edit-report-card">Đang tải báo cáo...</div></main>;
+        return <main className="edit-report-page manager-page"><div className="edit-report-card">Đang tải báo cáo...</div></main>;
     }
     if (!form) {
         return <main className="edit-report-page"><div className="edit-report-card edit-error">{error || "Không tìm thấy báo cáo."}</div></main>;
