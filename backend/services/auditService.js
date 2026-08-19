@@ -1,9 +1,46 @@
 const db = require('../config/db');
 
-const json = (value) => JSON.stringify(value ?? null);
-const query = (executor, sql, params = []) => executor.promise
-  ? executor.promise().query(sql, params)
-  : executor.query(sql, params);
+const toPlainValue = (value, seen = new WeakSet()) => {
+  if (value === null || value === undefined) return value;
+  if (Buffer.isBuffer(value)) return value.toString('utf8');
+  if (typeof value !== 'object') return value;
+  if (seen.has(value)) return null;
+  seen.add(value);
+  if (Array.isArray(value)) return value.map((item) => toPlainValue(item, seen));
+  const output = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (key === '_buf' || key === '_clientEncoding' || key === '_catalogLength' || key === '_catalogStart'
+      || key === '_schemaLength' || key === '_schemaStart' || key === '_tableLength' || key === '_tableStart'
+      || key === '_orgTableLength' || key === '_orgTableStart' || key === '_orgNameLength' || key === '_orgNameStart') continue;
+    output[key] = toPlainValue(item, seen);
+  }
+  return output;
+};
+
+const json = (value) => JSON.stringify(toPlainValue(value) ?? null);
+
+// mysql2/promise returns [rows, fields]. The legacy callback executor returns
+// rows directly. Normalize both shapes so snapshots and MAX(version_no) never
+// accidentally serialize the mysql2 result tuple itself.
+const query = async (executor, sql, params = []) => {
+  if (executor && typeof executor.promise === 'function') {
+    const result = await executor.promise().query(sql, params);
+    return Array.isArray(result) && result.length === 2 && Array.isArray(result[0])
+      ? result[0]
+      : result;
+  }
+
+  if (executor && typeof executor.query === 'function') {
+    return new Promise((resolve, reject) => {
+      executor.query(sql, params, (error, rows) => {
+        if (error) return reject(error);
+        resolve(rows);
+      });
+    });
+  }
+
+  throw new TypeError('Database executor is invalid');
+};
 
 let schemaReadyPromise = null;
 
@@ -98,23 +135,32 @@ async function createReportVersion(
 
   const normalizedType = String(reportType || 'approved');
   const normalizedReportId = Number(reportId);
+  if (!Number.isInteger(normalizedReportId) || normalizedReportId <= 0) {
+    throw new Error('reportId không hợp lệ');
+  }
   const snapshotJson = json(snapshot);
   const changeReason = reason ? String(reason).slice(0, 500) : null;
   const createdBy = Number(userId) || null;
 
-  // report_versions has a unique key on (report_type, report_id, version_no).
-  // MAX()+1 alone is race-prone: two requests can calculate the same version.
-  // Retry with the next available version when TiDB reports a duplicate key.
+  // TiDB/MySQL transactions can use a repeatable-read snapshot. A plain
+  // SELECT MAX() can therefore miss a version committed by another
+  // transaction after this transaction started. SELECT ... FOR UPDATE is a
+  // locking/current read and prevents the stale version=1 retry loop that
+  // previously caused uq_report_version failures during Reject Selected.
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const rows = await query(
       executor,
-      `SELECT COALESCE(MAX(version_no), 0) + 1 AS next_version
+      `SELECT version_no
          FROM report_versions
-        WHERE report_type=? AND report_id=?`,
+        WHERE report_type=? AND report_id=?
+        ORDER BY version_no DESC
+        LIMIT 1
+        FOR UPDATE`,
       [normalizedType, normalizedReportId],
     );
 
-    const versionNo = Number(rows[0]?.next_version || 1);
+    const currentVersion = Number(rows[0]?.version_no || 0);
+    const versionNo = currentVersion + 1;
 
     try {
       await query(
@@ -139,7 +185,8 @@ async function createReportVersion(
         || /duplicate entry|duplicate key|already exists/i.test(message);
 
       if (!duplicateVersion || attempt === 4) throw error;
-      // Another transaction won this version number. Re-read MAX() and retry.
+      // A concurrent writer won the candidate version. Re-run the locking
+      // read on the same connection so the next attempt sees the latest row.
     }
   }
 
