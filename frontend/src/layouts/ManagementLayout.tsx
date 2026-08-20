@@ -1,8 +1,9 @@
 
+import { useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   BarChart3, Bell, ClipboardCheck, Database, FileSpreadsheet, LayoutDashboard,
-  LogOut, Settings2, ShieldCheck, Users,
+  LogOut, MoreHorizontal, Settings2, ShieldCheck, Users,
 } from "lucide-react";
 import { logout } from "../services/authService";
 import { getStoredUser } from "../utils/authStorage";
@@ -13,18 +14,29 @@ import "./ManagementLayout.css";
 
 type ManagementRole = "lead" | "manager" | "admin";
 
-const items: { label: string; path: string; icon: typeof LayoutDashboard; permission?: PermissionCode }[] = [
-  { label: "Tổng quan", path: "", icon: LayoutDashboard, permission: "DASHBOARD_VIEW" },
-  { label: "Chờ duyệt", path: "reports", icon: ClipboardCheck, permission: "REPORT_PENDING_VIEW" },
-  { label: "Đã duyệt", path: "approved", icon: ShieldCheck, permission: "REPORT_APPROVED_VIEW" },
-  { label: "Thống kê", path: "statistics", icon: BarChart3, permission: "STATISTICS_VIEW" },
-  { label: "Nhân sự", path: "workers", icon: Users, permission: "USER_VIEW" },
-  { label: "Xuất báo cáo", path: "export", icon: FileSpreadsheet, permission: "REPORT_EXPORT" },
-  { label: "Dữ liệu chuẩn", path: "master/processes", icon: Database, permission: "MASTER_VIEW" },
-  { label: "Công thức", path: "formulas", icon: Settings2, permission: "FORMULA_VIEW" },
-  { label: "Quản trị dữ liệu", path: "governance", icon: Database, permission: "GOVERNANCE_VIEW" },
-  { label: "Vai trò & quyền", path: "permissions", icon: ShieldCheck, permission: "PERMISSION_MANAGE" },
-  { label: "Hệ thống", path: "system", icon: Bell, permission: "NOTIFICATION_VIEW" },
+type ManagementMenuItem = {
+  label: string;
+  path: string;
+  icon: typeof LayoutDashboard;
+  permission: PermissionCode;
+  roles: ManagementRole[];
+};
+
+const allManagementRoles: ManagementRole[] = ["lead", "manager", "admin"];
+const adminAndManagerRoles: ManagementRole[] = ["manager", "admin"];
+
+const items: ManagementMenuItem[] = [
+  { label: "Tổng quan", path: "", icon: LayoutDashboard, permission: "DASHBOARD_VIEW", roles: allManagementRoles },
+  { label: "Chờ duyệt", path: "reports", icon: ClipboardCheck, permission: "REPORT_PENDING_VIEW", roles: allManagementRoles },
+  { label: "Đã duyệt", path: "approved", icon: ShieldCheck, permission: "REPORT_APPROVED_VIEW", roles: allManagementRoles },
+  { label: "Thống kê", path: "statistics", icon: BarChart3, permission: "STATISTICS_VIEW", roles: allManagementRoles },
+  { label: "Nhân sự", path: "workers", icon: Users, permission: "USER_VIEW", roles: allManagementRoles },
+  { label: "Xuất báo cáo", path: "export", icon: FileSpreadsheet, permission: "REPORT_EXPORT", roles: allManagementRoles },
+  { label: "Dữ liệu chuẩn", path: "master/processes", icon: Database, permission: "MASTER_VIEW", roles: adminAndManagerRoles },
+  { label: "Công thức", path: "formulas", icon: Settings2, permission: "FORMULA_VIEW", roles: adminAndManagerRoles },
+  { label: "Quản trị dữ liệu", path: "governance", icon: Database, permission: "GOVERNANCE_VIEW", roles: adminAndManagerRoles },
+  { label: "Vai trò & quyền", path: "permissions", icon: ShieldCheck, permission: "PERMISSION_MANAGE", roles: ["admin"] },
+  { label: "Hệ thống", path: "system", icon: Bell, permission: "NOTIFICATION_VIEW", roles: allManagementRoles },
 ];
 
 const roleLabel: Record<ManagementRole, string> = {
@@ -40,13 +52,16 @@ export default function ManagementLayout({ role }: { role: ManagementRole }) {
   const { unreadCount } = useNotificationBadge(can("NOTIFICATION_VIEW"));
   const base = `/${role}`;
   const user = getStoredUser();
-  const visible = items.filter((item) => !item.permission || can(item.permission));
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  const visible = items.filter((item) => item.roles.includes(role) && can(item.permission));
+  const mobilePrimaryItems = visible.slice(0, 4);
+  const mobileOverflowItems = visible.slice(4);
 
   const active = (path: string) =>
     path === "" ? location.pathname === base : location.pathname === `${base}/${path}` || location.pathname.startsWith(`${base}/${path}/`);
 
-  const handleLogout = async () => {
-    await logout();
+  const handleLogout = () => {
+    void logout();
     navigate("/login", { replace: true });
   };
 
@@ -81,10 +96,19 @@ export default function ManagementLayout({ role }: { role: ManagementRole }) {
       </section>
 
       <nav className="management-mobile-nav" aria-label="Mobile navigation">
-        {visible.slice(0, 5).map((item) => {
+        {mobileMoreOpen && mobileOverflowItems.length > 0 && (
+          <div id="management-mobile-overflow" className="management-mobile-overflow" aria-label="Các mục điều hướng khác">
+            {mobileOverflowItems.map((item) => {
+              const Icon = item.icon;
+              return <button key={`overflow-${item.path}`} type="button" className={active(item.path) ? "active" : ""} onClick={() => { setMobileMoreOpen(false); navigate(`${base}${item.path ? `/${item.path}` : ""}`); }}><Icon size={18}/><span>{item.label}</span></button>;
+            })}
+          </div>
+        )}
+        {mobilePrimaryItems.map((item) => {
           const Icon = item.icon;
           return <button key={`mobile-${item.path}`} type="button" className={active(item.path) ? "active" : ""} onClick={() => navigate(`${base}${item.path ? `/${item.path}` : ""}`)}><Icon size={18}/><span>{item.label}</span></button>;
         })}
+        {mobileOverflowItems.length > 0 && <button type="button" className={mobileMoreOpen ? "active" : ""} onClick={() => setMobileMoreOpen((open) => !open)} aria-expanded={mobileMoreOpen} aria-controls="management-mobile-overflow"><MoreHorizontal size={18}/><span>Thêm</span></button>}
       </nav>
     </div>
   );

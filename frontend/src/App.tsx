@@ -17,6 +17,10 @@ import "./pages/worker/ProductionHistory.css";
 import "./pages/worker/ProductionDetail.css";
 import "./pages/system/SystemCenter.css";
 import "./reference-ui.css";
+import "./components/feedback/toast.css";
+import "./components/system/NetworkStatusBanner.css";
+import "./components/system/OfflineReportSync.css";
+import "./components/system/app-error-boundary.css";
 
 import DesktopExcelDbSyncNotifier from "./components/DesktopExcelDbSyncNotifier";
 import AppRouter from "./routes/AppRouter";

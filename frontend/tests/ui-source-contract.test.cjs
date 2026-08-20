@@ -59,9 +59,9 @@ test('web auth uses HttpOnly-cookie compatible credentialed requests', () => {
   assert.match(api, /withCredentials:\s*true/);
 });
 
-test('release polish stylesheet is loaded after responsive safeguards', () => {
-  const main = fs.readFileSync(path.join(srcRoot, 'main.tsx'), 'utf8');
-  const responsiveIndex = main.indexOf('./styles/enterprise-responsive.css');
-  const releaseIndex = main.indexOf('./styles/release-polish.css');
-  assert.ok(responsiveIndex >= 0 && releaseIndex > responsiveIndex, 'release-polish.css must load after enterprise-responsive.css');
+test('global feedback and reference styles are loaded by the application shell', () => {
+  const main = fs.readFileSync(path.join(srcRoot, 'App.tsx'), 'utf8');
+  for (const stylesheet of ['./reference-ui.css', './components/feedback/toast.css', './components/system/NetworkStatusBanner.css', './components/system/OfflineReportSync.css', './components/system/app-error-boundary.css']) {
+    assert.ok(main.includes(stylesheet), `${stylesheet} must be loaded by App.tsx`);
+  }
 });

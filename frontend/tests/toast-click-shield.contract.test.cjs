@@ -14,8 +14,9 @@ assert.match(css, /\.ktc-toast-container\s*\{[\s\S]*pointer-events:\s*none\s*!im
 assert.match(css, /\.ktc-toast-container\s*>\s*\.ktc-toast\s*\{[\s\S]*pointer-events:\s*auto;/);
 assert.match(css, /inset:\s*20px\s+20px\s+auto\s+auto;/);
 assert.match(css, /width:\s*min\(380px,\s*calc\(100vw\s*-\s*32px\)\);/);
-assert.match(sw, /1\.8\.22-manager-ui-v2-20260817/);
-assert.match(version, /1\.8\.22/);
+const frontendVersion = version.match(/FRONTEND_VERSION\s*=\s*"([^"]+)"/)?.[1];
+assert.ok(frontendVersion, "frontend version must be declared");
+assert.match(sw, new RegExp(`BUILD_VERSION\\s*=\\s*"${frontendVersion.replace(/\./g, "\\.")}`));
 assert.doesNotMatch(css, /\.toast-container\s*\{/);
 
 console.log("toast click shield contract: PASS");

@@ -1,6 +1,6 @@
 
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Bell, ClipboardPenLine, History, LogOut, UserRound, Home } from "lucide-react";
+import { Bell, ClipboardPenLine, History, LogOut, UserRound } from "lucide-react";
 import { logout } from "../services/authService";
 import { usePermissions } from "../hooks/usePermissions";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
@@ -12,11 +12,9 @@ type Item = {
   path: string;
   icon: typeof Bell;
   permission: PermissionCode;
-  exact?: boolean;
 };
 
 const items: Item[] = [
-  { label: "Trang chủ", path: "/worker", icon: Home, permission: "WORKER_ENTRY", exact: true },
   { label: "Sản xuất", path: "/worker", icon: ClipboardPenLine, permission: "WORKER_ENTRY" },
   { label: "Lịch sử", path: "/worker/history", icon: History, permission: "WORKER_HISTORY" },
   { label: "Thông báo", path: "/worker/system", icon: Bell, permission: "NOTIFICATION_VIEW" },
@@ -31,14 +29,12 @@ export default function WorkerLayout() {
   const visible = items.filter((item) => can(item.permission));
 
   const active = (item: Item) =>
-    item.exact
-      ? location.pathname === item.path
-      : item.path === "/worker"
-        ? location.pathname === "/worker" || location.pathname.startsWith("/worker/process/")
-        : location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
+    item.path === "/worker"
+      ? location.pathname === "/worker" || location.pathname.startsWith("/worker/process/")
+      : location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
 
-  const handleLogout = async () => {
-    await logout();
+  const handleLogout = () => {
+    void logout();
     navigate("/login", { replace: true });
   };
 
@@ -90,7 +86,7 @@ export default function WorkerLayout() {
       </section>
 
       <nav className="worker-mobile-nav" aria-label="Worker mobile navigation">
-        {visible.slice(0, 5).map((item) => {
+        {visible.map((item) => {
           const Icon = item.icon;
           return (
             <button key={`mobile-${item.label}`} type="button" className={active(item) ? "active" : ""} onClick={() => navigate(item.path)}>
