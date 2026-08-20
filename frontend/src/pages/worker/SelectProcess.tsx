@@ -183,19 +183,6 @@ function SelectProcess() {
         workerCanAccessProcess(worker, item.dbId, item.code)
     );
 
-    // A worker with one assigned process should go directly from the
-    // production CTA to the real production form. Keep the selector only
-    // when multiple processes are actually available.
-    useEffect(() => {
-        if (loading || error || availableProcesses.length !== 1) return;
-
-        const item = availableProcesses[0];
-        if (!item) return;
-
-        if (item.dbId) prefetchProcessMasterData(item.dbId);
-        navigate(`/worker/process/${item.id}`, { replace: true });
-    }, [availableProcesses.length, availableProcesses[0]?.id, availableProcesses[0]?.dbId, error, loading, navigate]);
-
 
     if (loading) {
 
@@ -326,18 +313,14 @@ function SelectProcess() {
                         <strong>{availableProcesses.length} công đoạn</strong>
                     </div>
                     <button
-                    type="button"
-                    className="history-entry-button"
-                    onClick={() =>
-                        navigate(
-                            "/worker/history"
-                        )
-                    }
-                >
-                    <span className="history-entry-button__icon" aria-hidden="true">
-                        <AppIcon name="history" size={16} />
-                    </span>
-                    <span>Danh sách lịch sử nhập</span>
+                        type="button"
+                        className="history-entry-button"
+                        onClick={() => navigate("/worker/history")}
+                    >
+                        <span className="history-entry-button__icon" aria-hidden="true">
+                            <AppIcon name="history" size={16} />
+                        </span>
+                        <span>Danh sách lịch sử nhập</span>
                     </button>
                 </div>
 
