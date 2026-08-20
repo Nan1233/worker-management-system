@@ -17,7 +17,12 @@ const {
 const {
   assertApprovedEventForTempLine,
 } = require("../services/machineProductionEventService");
-const { serializeExtraData } = require("../services/productionApprovalService");
+const { serializeExtraData: serializeExtraDataValue } = require("../services/productionApprovalService");
+
+function serializeExtraData(value) {
+  const serialized = JSON.stringify(value);
+  return serialized === undefined ? serializeExtraDataValue(value) : serialized;
+}
 const { createApprovedReportVersion } = require("../services/approvedVersionSnapshotService");
 const { assertReviewBatchSize } = require("../services/managerReportPaginationService");
 

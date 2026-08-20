@@ -45,6 +45,9 @@ const query = async (executor, sql, params = []) => {
 let schemaReadyPromise = null;
 
 async function ensureSchema(executor = db) {
+  // Runtime DDL is reserved for the shared pool fallback. Transaction-scoped
+  // executors must never mutate schema implicitly; migrations own schema state.
+  if (process.env.KTC_RUNTIME_SCHEMA_REPAIR !== '1') return true;
   // Existing TiDB deployments may predate the notification link/entity columns.
   // Repair only the missing additive columns so notification writes remain compatible.
   if (!schemaReadyPromise) {

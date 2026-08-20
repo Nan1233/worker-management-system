@@ -138,6 +138,10 @@ function createFakeDb(initial, options = {}) {
         if (controls.corruptReload && controls.didInsertLine) list[0] = { ...list[0], counted_output: '999999.000000' };
         return [list, []];
       }
+      if (/SELECT version_no FROM report_versions/i.test(q)) {
+        const max = state.versions.filter((x) => Number(x.report_id) === Number(params[1])).reduce((m, x) => Math.max(m, Number(x.version_no)), 0);
+        return [max ? [{ version_no: max }] : [], []];
+      }
       if (/FROM report_versions/i.test(q) && /snapshot_json/i.test(q) && /version_no=\?/i.test(q)) {
         const version = state.versions.find((x) => Number(x.report_id) === Number(params[0]) && Number(x.version_no) === Number(params[1]));
         return [version ? [{ snapshot_json: version.snapshot_json }] : [], []];

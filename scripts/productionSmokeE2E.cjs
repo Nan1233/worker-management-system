@@ -84,6 +84,7 @@ async function main() {
     const manager = new Client(API_BASE_URL);
     const live = await worker.req('GET', '/api/health/live');
     record('API live', live.status === 200 && live.data?.status === 'live', `HTTP ${live.status}`);
+    record('Runtime security headers', Boolean(live.headers?.['x-content-type-options'] || live.headers?.['content-security-policy']), 'security headers observed');
     const ready = await worker.req('GET', '/api/health/ready');
     record('API ready + DB', ready.status === 200 && ready.data?.status === 'ready' && ready.data?.schemaReady === true, `HTTP ${ready.status}, db=${ready.data?.database}`);
 

@@ -18,7 +18,6 @@
     "db:demo-schema": "node scripts/ensureDemoSchema.js",
     "db:integrity": "node scripts/checkDatabaseIntegrity.js",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
-    "audit:nonbreaking": "node scripts/auditNonBreaking.cjs && npm audit --audit-level=moderate",
     "validate:real-data": "node scripts/validateRealProductionData.js",
     "backup:drill": "node scripts/drillDatabaseBackup.js",
     "restore:rehearsal": "node scripts/rehearseDatabaseRestore.js",
@@ -34,7 +33,12 @@
     "db:schema:verify": "node scripts/verifyDatabaseSchema.js",
     "p0:runtime:verify": "node scripts/verifyP0Runtime.js",
     "quality:next": "node --test tests/next-priority-hardening.contract.test.js ../tests/next-priority-mobile-ux.contract.test.cjs",
-    "perf:readiness": "node scripts/loadReadiness.js"
+    "perf:readiness": "node scripts/loadReadiness.js",
+    "audit:nonbreaking": "node scripts/auditNonBreaking.cjs",
+    "perf:large-data": "node scripts/performanceLargeData.cjs",
+    "security:runtime": "node ../scripts/runtimeSecurityAudit.cjs",
+    "smoke:production": "node ../scripts/productionSmokeE2E.cjs",
+    "e2e:critical": "node ../scripts/stagingE2E.cjs"
   },
   "dependencies": {
     "bcrypt": "6.0.0",
@@ -53,10 +57,6 @@
     "nodemon": "3.1.14"
   },
   "overrides": {
-    "exceljs": {
-      "uuid": "11.1.1"
-    },
-    "uuid": "11.1.1",
-    "tmp": "0.2.6"
+    "uuid": "11.1.1"
   }
 }

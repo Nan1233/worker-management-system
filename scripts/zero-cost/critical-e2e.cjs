@@ -8,6 +8,24 @@ const dbCfg={host:process.env.DB_HOST,port:Number(process.env.DB_PORT||3306),use
 function d(days){const x=new Date();x.setUTCDate(x.getUTCDate()+days);return x.toISOString().slice(0,10)}
 function basePayload(p,days=0,extra={}){const proc=fixture.processes[p]; const one=proc.machines[0]; return {process_id:proc.id,work_date:d(days),shift:'A',operation_type:'NORMAL',operation_mode:one?'MACHINE':'MANUAL',machine_no:one?.code||'',product_name:proc.product,training_percent:100,total_time:1,deduction_time:0,actual_time:1,standard_output:100,actual_output:10,tt_ok:10,tt_ng:0,defects:[],deductions:[],client_request_id:crypto.randomUUID(),note:`${runId} ${p}`,...extra};}
 async function tc(n,name,fn){try{const ev=await fn(); const ok=ev.ok!==false; rows.push({n,name,result:ok?'PASS':'FAIL',...ev}); if(!ok)process.exitCode=1;}catch(e){rows.push({n,name,result:'FAIL',evidence:e.message});process.exitCode=1;}}
+async function cleanupRun(db){
+ if(process.env.KTC_E2E_KEEP_DATA==='1') return;
+ const like=`%${runId}%`;
+ const statements=[
+   ['production_reports_temp','note'],
+   ['production_reports','note'],
+   ['machine_production_events','note']
+ ];
+ for(const [table,column] of statements){
+   try{
+     const [tables]=await db.query(`SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=?`,[table]);
+     if(Number(tables[0]?.n||0)>0) await db.query(`DELETE FROM \`${table}\` WHERE \`${column}\` LIKE ?`,[like]);
+   }catch(error){
+     console.warn(`[KTC] E2E cleanup skipped for ${table}: ${error.message}`);
+   }
+ }
+}
+
 async function main(){const db=await mysql.createConnection(dbCfg);
  await tc(1,'Worker login',async()=>{const r=await w.req('POST','/api/auth/login',{username:fixture.worker.code,access_type:'worker'});return {ok:r.status===200,status:r.status,code:r.data?.code||'',evidence:`${r.ms.toFixed(1)}ms`}});
  const oldCookie=w.cookies; await tc(2,'Refresh',async()=>{const r=await w.req('POST','/api/auth/refresh',{});return {ok:r.status===200&&w.cookies!==oldCookie,status:r.status,code:r.data?.code||'',evidence:'successor cookie issued'}});
@@ -31,6 +49,6 @@ async function main(){const db=await mysql.createConnection(dbCfg);
  await tc(21,'Excel export data',async()=>{const r=await m.req('GET',`/api/reports/export-excel/company-data?month=${d(0).slice(0,7)}`);return {ok:r.status===200,status:r.status,code:r.data?.code||'',evidence:'desktop JSON source available'}});
  await tc(22,'Excel import real-diff',async()=>{const unchanged=await m.req('POST','/api/production/excel-sync',{changes:[]}); const changed=approvedId?await m.req('POST','/api/production/excel-sync',{changes:[{id:approvedId,expected_updated_at:(await m.req('GET',`/api/production/${approvedId}`)).data?.data?.updated_at,patch:{note:`${runId} excel-diff`},source:{file:'KTC_E2E.xlsx'}}] }):{status:0,data:{}}; return {ok:[200,204,422].includes(unchanged.status)&&changed.status===200,status:changed.status,code:changed.data?.code||'',evidence:`unchanged=${unchanged.status},changed=${changed.status}`}});
  await tc(23,'Final logout cleanup',async()=>{const a=await w.req('POST','/api/auth/logout',{});const old=w.token;w.token=old;w.cookies='';const b=await w.req('GET','/api/production-temp/my');return {ok:[200,204].includes(a.status)&&[401,403].includes(b.status),status:b.status,evidence:`logout=${a.status},protected=${b.status}`}});
- await db.end(); fs.writeFileSync(path.join(outDir,'critical-e2e.json'),JSON.stringify({runId,rows,artifacts},null,2)); console.table(rows.map(({n,name,result,status,code,recordId})=>({n,name,result,status,code,recordId}))); console.log(`KTC_CRITICAL_E2E=${rows.every(x=>x.result==='PASS')?'PASS':'FAIL'}`);
+ await cleanupRun(db); await db.end(); fs.writeFileSync(path.join(outDir,'critical-e2e.json'),JSON.stringify({runId,rows,artifacts,cleanup:process.env.KTC_E2E_KEEP_DATA==='1'?'kept':'attempted'},null,2)); console.table(rows.map(({n,name,result,status,code,recordId})=>({n,name,result,status,code,recordId}))); console.log(`KTC_CRITICAL_E2E=${rows.every(x=>x.result==='PASS')?'PASS':'FAIL'}`);
 }
 main().catch(e=>{console.error('KTC_CRITICAL_E2E_FATAL',e.stack||e);process.exit(1)});
