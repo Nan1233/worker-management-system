@@ -17,10 +17,10 @@ const toLocalDate = (date: Date): string => {
 };
 
 type PeriodKey = "today" | "yesterday" | "last7" | "thisMonth" | "lastMonth";
-
 type ProcessOption = { id: number; process_code?: string; process_name: string };
 type ProcessSummary = { process_id: number; process_code?: string; process_name: string; report_count: number; ok: number; ng: number };
 type ShiftSummary = { shift: string; report_count: number; ok: number; ng: number };
+type ProductSummary = { product_code: string; quantity: number; ok: number; ng: number; report_count: number };
 
 type DashboardSummary = {
     pending_count: number;
@@ -31,6 +31,7 @@ type DashboardSummary = {
     processes: ProcessOption[];
     process_summary: ProcessSummary[];
     shift_summary: ShiftSummary[];
+    product_summary: ProductSummary[];
 };
 
 const PERIOD_LABELS: Record<PeriodKey, string> = {
@@ -54,7 +55,7 @@ const getPeriodRange = (period: PeriodKey) => {
 
 const EMPTY_SUMMARY: DashboardSummary = {
     pending_count: 0, approved_count: 0, total_ok: 0, total_ng: 0, ng_rate: 0,
-    processes: [], process_summary: [], shift_summary: []
+    processes: [], process_summary: [], shift_summary: [], product_summary: []
 };
 
 function Dashboard() {
@@ -76,7 +77,7 @@ function Dashboard() {
             try {
                 const parsed = JSON.parse(cached);
                 if (Date.now() - Number(parsed?.savedAt || 0) < 15_000 && parsed?.data) {
-                    setSummary({ ...EMPTY_SUMMARY, ...parsed.data });
+                    setSummary({ ...EMPTY_SUMMARY, ...parsed.data, product_summary: parsed.data.product_summary || [] });
                     setLoading(false);
                     return () => controller.abort();
                 }
@@ -86,7 +87,7 @@ function Dashboard() {
             setLoading(true);
             try {
                 const response = await api.get("/dashboard/summary", { params: range, signal: controller.signal });
-                const data = { ...EMPTY_SUMMARY, ...(response.data?.data || {}) };
+                const data = { ...EMPTY_SUMMARY, ...(response.data?.data || {}), product_summary: response.data?.data?.product_summary || [] };
                 setSummary(data);
                 sessionStorage.setItem(cacheKey, JSON.stringify({ savedAt: Date.now(), data }));
             } catch (error) {
@@ -114,6 +115,11 @@ function Dashboard() {
         const ok = Number(item.ok || 0), ng = Number(item.ng || 0), total = ok + ng;
         return { ...item, ok, ng, total, ngRate: total ? (ng / total) * 100 : 0 };
     });
+    const productData = summary.product_summary
+        .map(item => ({ ...item, quantity: Number(item.quantity || 0), ok: Number(item.ok || 0), ng: Number(item.ng || 0), report_count: Number(item.report_count || 0) }))
+        .filter(item => item.product_code && item.quantity > 0)
+        .sort((a, b) => b.quantity - a.quantity || a.product_code.localeCompare(b.product_code, "vi"));
+    const maxProductQuantity = Math.max(1, ...productData.map(item => item.quantity));
     const totalOutput = Number(summary.total_ok || 0) + Number(summary.total_ng || 0);
     const okRate = totalOutput ? (Number(summary.total_ok || 0) / totalOutput) * 100 : 0;
     const maxDaily = Math.max(1, ...shiftData.map(item => item.total));
@@ -184,10 +190,25 @@ function Dashboard() {
                     {processWithData.length === 0 ? <div className="dashboard-empty">Chưa có dữ liệu</div> : <div className="dashboard-process-list">{processWithData.slice(0, 6).map((item, index) => { const total = item.ok + item.ng; const width = Math.max(8, (total / maxProcessOutput) * 100); return <div className="dashboard-process-row" key={item.id}><span className="dashboard-process-index">{index + 1}</span><div className="dashboard-process-name"><strong>{item.name}</strong><small>{item.count} báo cáo</small></div><div className="dashboard-process-bar"><span style={{width:`${width}%`}}/></div><b>{formatNumber(total)}</b><em>NG {item.ng > 0 ? ((item.ng / total) * 100).toLocaleString("vi-VN", {maximumFractionDigits:1}) : "0"}%</em></div>; })}</div>}
                 </article>
 
-                <article className="dashboard-panel dashboard-ng-panel">
-                    <div className="dashboard-panel-heading"><div><span>NG QUALITY</span><h2>Phân bố NG</h2></div></div>
-                    <div className="dashboard-ng-visual"><div className="dashboard-pie"/><div className="dashboard-pie-legend"><span><i/>Sản lượng lỗi</span><span><i/>Theo chi tiết NG</span><span><i/>Cần kiểm tra</span></div></div>
-                    <div className="dashboard-ng-total"><strong>{formatNumber(summary.total_ng)}</strong><span>Sản phẩm NG</span></div>
+                <article className="dashboard-panel dashboard-product-panel">
+                    <div className="dashboard-panel-heading"><div><span>PRODUCTION</span><h2>Sản lượng theo mã SP</h2></div></div>
+                    {productData.length === 0 ? (
+                        <div className="dashboard-empty">Chưa có dữ liệu mã sản phẩm</div>
+                    ) : (
+                        <div className="dashboard-product-list">
+                            {productData.slice(0, 6).map(item => {
+                                const width = Math.max(8, (item.quantity / maxProductQuantity) * 100);
+                                return (
+                                    <div className="dashboard-product-row" key={item.product_code}>
+                                        <div className="dashboard-product-code"><strong>{item.product_code}</strong><small>{item.report_count} báo cáo</small></div>
+                                        <div className="dashboard-product-bar"><span style={{width:`${width}%`}}/></div>
+                                        <b>{formatNumber(item.quantity)}</b>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                    <div className="dashboard-product-total"><span>{productData.length} mã SP có dữ liệu</span><strong>{formatNumber(productData.reduce((sum, item) => sum + item.quantity, 0))}</strong><small>SL ghi nhận</small></div>
                 </article>
             </section>
 
