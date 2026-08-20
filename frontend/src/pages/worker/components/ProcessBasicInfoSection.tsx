@@ -253,10 +253,31 @@ export default function ProcessBasicInfoSection({
                                                         onChange={() => toggleMachineDefect(index, item.key)}
                                                     />
                                                     <span>{item.label}</span>
-                                                    {line.selectedDefects.includes(item.key) && <input className="machine-deduction-minute" inputMode="numeric" placeholder="SL" value={line.defects[item.key] || ""} onChange={(event) => updateMachineDefectValue(index, item.key, event.target.value)} />}
                                                 </label>
                                             ))}
                                         </div>
+
+                                        {line.selectedDefects.length > 0 && (
+                                            <div className="machine-ng-quantities">
+                                                {activeNgOptions
+                                                    .filter((item) => line.selectedDefects.includes(item.key))
+                                                    .map((item) => (
+                                                        <label key={`qty-${item.key}`} className="machine-ng-quantity-row">
+                                                            <span>{item.label}</span>
+                                                            <input
+                                                                className="machine-deduction-minute"
+                                                                type="number"
+                                                                min="0"
+                                                                inputMode="numeric"
+                                                                placeholder="0"
+                                                                aria-label={`Số lượng ${item.label}`}
+                                                                value={line.defects[item.key] || ""}
+                                                                onChange={(event) => updateMachineDefectValue(index, item.key, event.target.value.replace(/\D/g, ""))}
+                                                            />
+                                                        </label>
+                                                    ))}
+                                            </div>
+                                        )}
                                     </details>
                                 </article>
                             ))}
