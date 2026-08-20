@@ -4,6 +4,8 @@
 
 :root {
   --ktc-workspace: #f4f7fb;
+  /* Canonical compatibility aliases: keep legacy components on one token system. */
+  --ktc-bg: #f4f7fb;
   --ktc-workspace-subtle: #f8fafc;
   --ktc-surface: #ffffff;
   --ktc-surface-muted: #f8fafc;

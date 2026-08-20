@@ -248,7 +248,7 @@ async function buildProcessWorkbook(value, processId) {
   const folder = path.join(tempRoot, year, processFolder, month);
   await fs.mkdir(folder, { recursive: true });
 
-  // Process export is template-driven: use backend/templates/file mẫu.xlsx
+  // Process export is template-driven: use backend/templates/ktc-machine-master-source.xlsx
   // and the exact sheet/data block for the selected process. Company A+B
   // export remains a separate flow.
   const result = await buildTemplateDrivenProcessWorkbook(reports, yearMonth, {

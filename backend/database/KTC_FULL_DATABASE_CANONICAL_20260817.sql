@@ -19596,7 +19596,7 @@ UNION ALL SELECT 'Lần seed', COUNT(*) FROM master_seed_runs;
 -- ============================================================================
 -- KTC CANONICAL MASTER-DATA RECONCILIATION 2026-08-17
 -- Database is the source of truth; no migration ledger is required at runtime.
--- Machine master from file mẫu.xlsx: GC 33 / MAI 35 / DO 23 / CAN 3 / EP 29.
+-- Machine master from ktc-machine-master-source.xlsx: GC 33 / MAI 35 / DO 23 / CAN 3 / EP 29.
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS master_personnel_source (
   id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,

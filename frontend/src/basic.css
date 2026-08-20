@@ -24,17 +24,6 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
-:root {
-  --ktc-bg: #f6f8fb;
-  --ktc-surface: #ffffff;
-  --ktc-text: #1f2937;
-  --ktc-muted: #6b7280;
-  --ktc-border: #e5e7eb;
-  --ktc-primary: #2563eb;
-  --ktc-primary-soft: #eff6ff;
-  --ktc-danger: #dc2626;
-  --ktc-success: #15803d;
-}
 
 html, body, #root {
   width: 100%;

@@ -67,3 +67,8 @@ storybook-static
 .env.production
 .dev.vars
 .source
+# Generated Android/Capacitor build artifacts
+frontend/android/.gradle/
+frontend/android/build/
+frontend/android/app/build/
+frontend/android/capacitor-cordova-android-plugins/build/
