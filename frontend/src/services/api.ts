@@ -40,8 +40,6 @@ import type {
     AuthUser
 } from "../utils/authStorage";
 
-import { containsMojibake } from "../utils/encodingGuard";
-
 import {
     coordinateBrowserRefresh,
     type CoordinatedRefreshFailure,
@@ -390,17 +388,6 @@ api.interceptors.request.use(
 
 api.interceptors.response.use(
     (response) => {
-        if (
-            import.meta.env.DEV &&
-            containsMojibake(response.data)
-        ) {
-            console.warn(
-                "[KTC] API response contains possible UTF-8 mojibake. " +
-                "Check backend response encoding/data source.",
-                response.config?.url
-            );
-        }
-
         const requestConfig = response.config as RetryableRequestConfig;
         if (
             requestConfig._authGeneration !== undefined &&
