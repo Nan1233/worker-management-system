@@ -1,4 +1,4 @@
-﻿import {
+import {
     useEffect,
     useState
 } from "react";
@@ -263,9 +263,12 @@ function SelectProcess() {
                         </button>
 
 
-                        <h1>
-                            Chọn mẫu nhập liệu
-                        </h1>
+                        <div className="select-process-heading-copy">
+                            <h1>
+                                Chọn công đoạn sản xuất
+                            </h1>
+                            <p>Chọn đúng công đoạn bạn đang thực hiện để bắt đầu nhập báo cáo.</p>
+                        </div>
 
                     </div>
 
@@ -317,7 +320,12 @@ function SelectProcess() {
                 </header>
 
 
-                <button
+                <div className="select-process-section-intro">
+                    <div>
+                        <span className="select-process-section-kicker">CÔNG ĐOẠN ĐƯỢC PHÂN CÔNG</span>
+                        <strong>{availableProcesses.length} công đoạn</strong>
+                    </div>
+                    <button
                     type="button"
                     className="history-entry-button"
                     onClick={() =>
@@ -330,7 +338,8 @@ function SelectProcess() {
                         <AppIcon name="history" size={16} />
                     </span>
                     <span>Danh sách lịch sử nhập</span>
-                </button>
+                    </button>
+                </div>
 
 
                 <section className="process-list">
@@ -361,13 +370,11 @@ function SelectProcess() {
 
                                     <span className="worker-process-content">
 
-                                        <strong>
-                                            {item.name}
-                                        </strong>
-
-                                        <small>
-                                            {item.description}
-                                        </small>
+                                        <div className="worker-process-name-row">
+                                            <strong>{item.name}</strong>
+                                            <span className="worker-process-code">{item.code}</span>
+                                        </div>
+                                        <small>{item.description}</small>
 
                                     </span>
 
