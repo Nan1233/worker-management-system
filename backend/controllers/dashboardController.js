@@ -55,6 +55,7 @@ exports.getSummary = async (req, res, next) => {
       [processRows],
       [dailyRows],
       [shiftRows],
+      [productRows],
     ] = await Promise.all([
       db.promise().query(
         `SELECT p.id, p.process_code, p.process_name
@@ -111,6 +112,23 @@ exports.getSummary = async (req, res, next) => {
          WHERE r.work_date BETWEEN ? AND ? ${scope.clause}
          GROUP BY COALESCE(NULLIF(TRIM(r.shift),''),'Chưa xác định')
          ORDER BY shift`,
+        [from, to, ...scope.params],
+      ),
+      db.promise().query(
+        `SELECT TRIM(ml.product_code) AS product_code,
+                COALESCE(SUM(ml.counted_output),0) AS quantity,
+                COALESCE(SUM(ml.ok_quantity),0) AS ok,
+                COALESCE(SUM(ml.ng_quantity),0) AS ng,
+                COUNT(DISTINCT r.id) AS report_count
+         FROM production_report_machine_lines ml
+         JOIN production_reports r ON r.id=ml.report_id
+         WHERE r.work_date BETWEEN ? AND ?
+           AND ml.product_code IS NOT NULL
+           AND TRIM(ml.product_code) <> ''
+           ${scope.clause}
+         GROUP BY TRIM(ml.product_code)
+         ORDER BY quantity DESC, product_code ASC
+         LIMIT 8`,
         [from, to, ...scope.params],
       ),
     ]);
@@ -195,6 +213,13 @@ exports.getSummary = async (req, res, next) => {
           report_count: mapNumber(row.report_count),
           ok: mapNumber(row.ok),
           ng: mapNumber(row.ng),
+        })),
+        product_summary: productRows.map((row) => ({
+          product_code: String(row.product_code || "").trim(),
+          quantity: mapNumber(row.quantity),
+          ok: mapNumber(row.ok),
+          ng: mapNumber(row.ng),
+          report_count: mapNumber(row.report_count),
         })),
         machine_performance: {
           machine_count: mapNumber(machineTotals?.machine_count),
