@@ -71,8 +71,6 @@
   .history-filter-field input,.history-filter-field select { min-height: 34px; height: 34px; padding: 0 9px; font-size: 11px; }
   .history-clear-button { grid-column: 1 / -1; min-height: 32px; height: 32px; padding: 0 8px; font-size: 10px; }
   .history-error { padding: 8px 9px; font-size: 10px; }
-
-  /* Mobile: keep the report list as a real table, like the previous readable UI. */
   .report-card { overflow: hidden; border: 1px solid var(--ktc-border); border-radius: 11px; background: var(--ktc-surface); box-shadow: var(--ktc-shadow-xs); }
   .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .history-table { display: table; width: 100%; min-width: 0; table-layout: fixed; font-size: 10.5px; }
@@ -91,6 +89,9 @@
   .history-table .product-cell,
   .history-table .ok-column,
   .history-table .ng-column { display: none; }
+  .history-table thead th:nth-child(5),
+  .history-table thead th:nth-child(6),
+  .history-table thead th:nth-child(7) { display: none; }
   .history-table .status-cell { display: table-cell; width: 66px; text-align: center; }
   .history-table .status-cell span { min-height: 20px; padding: 0 5px; font-size: 8px; white-space: nowrap; }
   .history-table .action-column { display: table-cell; width: 42px; text-align: center; }
@@ -112,7 +113,7 @@
   .history-filter-field input,.history-filter-field select { min-height: 33px; height: 33px; font-size: 10.5px; }
   .history-clear-button { min-height: 30px; height: 30px; font-size: 9.5px; }
   .history-table th { height: 36px; padding: 0 5px; font-size: 8px; }
-  .history-table td { height: 43px; padding: 5px 5px; font-size: 9.5px; }
+  .history-table td { height: 43px; padding: 5px; font-size: 9.5px; }
   .history-table .column-index { width: 28px; min-width: 28px; }
   .history-table .date-cell { width: 86px; font-size: 9.5px; }
   .history-table .shift-cell { width: 40px; }
