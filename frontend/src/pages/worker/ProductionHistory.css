@@ -92,9 +92,9 @@
   .history-table thead th:nth-child(5),
   .history-table thead th:nth-child(6),
   .history-table thead th:nth-child(7) { display: none; }
-  .history-table .status-cell { display: table-cell; width: 78px; min-width: 78px; text-align: center; }
+  .history-table .status-cell { display: table-cell; width: 78px; min-width: 78px; text-align: center; padding-right: 14px; }
   .history-table .status-cell span { min-height: 20px; padding: 0 6px; font-size: 8px; white-space: nowrap; }
-  .history-table .action-column { display: table-cell; width: 46px; min-width: 46px; text-align: center; }
+  .history-table .action-column { display: table-cell; width: 46px; min-width: 46px; text-align: center; padding-left: 14px; }
   .history-table .action-column .detail-btn { min-height: 26px; width: 30px; padding: 0; font-size: 0; border-radius: 7px; }
   .history-table .action-column .detail-btn::after { content: "›"; font-size: 16px; line-height: 1; }
   .history-table td::before { display: none !important; }
@@ -119,9 +119,9 @@
   .history-table .date-cell { width: 82px; font-size: 9.5px; }
   .history-table .shift-cell { width: 40px; }
   .history-table .machine-cell { width: 48px; font-size: 9.5px; }
-  .history-table .status-cell { width: 82px; min-width: 82px; }
+  .history-table .status-cell { width: 82px; min-width: 82px; padding-right: 16px; }
   .history-table .status-cell span { font-size: 7.5px; padding: 0 5px; }
-  .history-table .action-column { width: 42px; min-width: 42px; }
+  .history-table .action-column { width: 42px; min-width: 42px; padding-left: 16px; }
   .history-table .action-column .detail-btn { width: 27px; min-height: 24px; }
   .history-table .action-column .detail-btn::after { font-size: 15px; }
 }
