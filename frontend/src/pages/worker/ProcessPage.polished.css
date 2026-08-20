@@ -192,9 +192,35 @@
 
 @media (max-width: 680px) {
   .worker-dropdown-options {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 5px 6px !important;
+    padding: 6px !important;
   }
   .worker-dropdown-option {
-    min-height: 36px !important;
+    min-height: 32px !important;
+    padding: 5px 6px !important;
+    font-size: 10px !important;
+  }
+  .worker-dropdown-option input[type="checkbox"] {
+    width: 16px !important;
+    height: 16px !important;
+    min-width: 16px !important;
+    max-width: 16px !important;
+    min-height: 16px !important;
+    max-height: 16px !important;
+    flex-basis: 16px !important;
+  }
+  .worker-dropdown-option input[type="checkbox"]:checked::after {
+    width: 16px !important;
+    height: 16px !important;
+    font-size: 11px !important;
+    line-height: 15px !important;
+  }
+  .worker-dropdown-option > span {
+    font-size: 10px !important;
+    line-height: 1.2 !important;
+  }
+  .worker-dropdown-option:nth-child(odd):last-child {
+    grid-column: 1 / -1 !important;
   }
 }
