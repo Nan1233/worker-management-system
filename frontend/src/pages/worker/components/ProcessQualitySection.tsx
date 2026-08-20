@@ -1,4 +1,4 @@
-import type { ChangeEvent, FocusEvent, Dispatch, SetStateAction } from "react";
+import type { ChangeEvent, Dispatch, FocusEvent, SetStateAction } from "react";
 import type { FormState, NgKey } from "../processPageConfig";
 import AppIcon from "../../../components/common/AppIcon";
 
@@ -108,6 +108,8 @@ export default function ProcessQualitySection({
                             <label key={item.key} className="worker-dropdown-option">
                                 <input
                                     type="checkbox"
+                                    className="worker-ng-checkbox"
+                                    style={{ width: 16, height: 16, minWidth: 16, maxWidth: 16, minHeight: 16, maxHeight: 16, flex: "0 0 16px", boxSizing: "border-box", margin: 0, padding: 0 }}
                                     checked={selectedNg.includes(item.key)}
                                     onChange={(event) => {
                                         if (!usesMultiMachineLines) onToggleNg(item.key, event.target.checked);
