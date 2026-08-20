@@ -12,6 +12,15 @@ import {
 import axios from "axios";
 
 import {
+    Eye,
+    EyeOff,
+    Factory,
+    KeyRound,
+    LockKeyhole,
+    UserRound
+} from "lucide-react";
+
+import {
     login
 } from "../services/authService";
 
@@ -332,94 +341,81 @@ function Login() {
 
     return (
         <main className="login-page">
-            <section className="login-showcase">
-                <div className="login-showcase-inner">
-                    <div className="login-company-brand">
-                        <span className="login-brand-mark" aria-hidden="true">
-                            K
-                        </span>
-                        <p className="login-company-name">
-                            KTC (HANOI) CO., LTD
+            <section className="login-visual" aria-label="KTC">
+                <div className="login-visual-content">
+                    <div className="login-company">
+                        <div className="login-company-logo" aria-hidden="true">
+                            <span>KTC</span>
+                        </div>
+                        <div className="login-company-copy">
+                            <strong>KTC (HANOI) CO., LTD.</strong>
+                            <span>WORKER MANAGEMENT SYSTEM</span>
+                        </div>
+                    </div>
+
+                    <div className="login-visual-title">
+                        <span className="login-kicker">PRODUCTION MANAGEMENT</span>
+                        <h1>
+                            Quản lý sản xuất
+                            <br />
+                            <span>đơn giản & chính xác.</span>
+                        </h1>
+                        <p>
+                            Ghi nhận sản lượng, kiểm soát chất lượng và theo dõi
+                            báo cáo trên một hệ thống thống nhất dành cho nhà máy.
                         </p>
                     </div>
 
-                    <p className="login-eyebrow">
-                        PRODUCTION MANAGEMENT SYSTEM
-                    </p>
-
-                    <h1>
-                        Dữ liệu sản xuất
-                        <br />
-                        đúng ngay từ nguồn.
-                    </h1>
-
-                    <p className="login-description">
-                        Ghi nhận sản lượng, kiểm soát chất lượng và theo dõi
-                        trạng thái báo cáo trên một hệ thống thống nhất dành
-                        cho nhà máy.
-                    </p>
-
-                    <div className="login-benefits">
+                    <div className="login-visual-stats" aria-hidden="true">
                         <div>
                             <strong>01</strong>
-                            <span>Nhập báo cáo nhanh tại công đoạn</span>
+                            <span>Nhập báo cáo nhanh</span>
                         </div>
                         <div>
                             <strong>02</strong>
-                            <span>Kiểm duyệt và lưu vết minh bạch</span>
+                            <span>Kiểm duyệt minh bạch</span>
                         </div>
                         <div>
                             <strong>03</strong>
-                            <span>Tự động tổng hợp Excel và Google Sheet</span>
+                            <span>Dữ liệu tập trung</span>
                         </div>
                     </div>
+                </div>
+
+                <div className="login-factory-art" aria-hidden="true">
+                    <Factory size={74} strokeWidth={1.25} />
+                    <Factory size={54} strokeWidth={1.25} />
+                    <Factory size={88} strokeWidth={1.25} />
+                    <Factory size={48} strokeWidth={1.25} />
+                    <div className="login-factory-ground" />
                 </div>
             </section>
 
             <section className="login-panel">
                 <div className="login-card">
-                    <div className="login-mobile-brand">
-                        <span className="login-brand-mark" aria-hidden="true">
-                            K
-                        </span>
+                    <div className="login-card-brand">
+                        <div className="login-card-mark" aria-hidden="true">K</div>
                         <div>
-                            <strong>KTC (HANOI) CO., LTD</strong>
-                            <small>Đăng nhập hệ thống</small>
+                            <strong>KTC (HANOI) CO., LTD.</strong>
+                            <span>Worker Management System</span>
                         </div>
                     </div>
 
                     <div className="login-heading">
-                        <div
-                            className="login-status-pill"
-                            role="status"
-                            aria-label="Hệ thống đang hoạt động"
-                        >
-                            <span
-                                className="login-status-dot"
-                                aria-hidden="true"
-                            />
-                            <span className="login-status-text">
-                                HỆ THỐNG ĐANG HOẠT ĐỘNG
-                            </span>
-                        </div>
-
+                        <span className="login-welcome">WELCOME BACK</span>
                         <h2>
-                            {step === "employee-code" &&
-                                "Nhập mã nhân viên"}
-                            {step === "role-choice" &&
-                                "Bạn muốn đăng nhập với vai trò nào?"}
-                            {step === "management-password" &&
-                                "Xác thực tài khoản quản lý"}
+                            {step === "employee-code" && "Đăng nhập"}
+                            {step === "role-choice" && "Chọn vai trò"}
+                            {step === "management-password" && "Xác thực quản lý"}
                         </h2>
-
-                        <span>
+                        <p>
                             {step === "employee-code" &&
-                                "Chỉ cần nhập mã nhân viên để tiếp tục."}
+                                "Vui lòng nhập thông tin để tiếp tục."}
                             {step === "role-choice" &&
                                 `Tài khoản: ${username.trim()}`}
                             {step === "management-password" &&
                                 `Nhập mật khẩu cho tài khoản ${username.trim()}.`}
-                        </span>
+                        </p>
                     </div>
 
                     {step === "employee-code" &&
@@ -427,11 +423,8 @@ function Login() {
                             <div className="remembered-section">
                                 <div className="remembered-title">
                                     <span>Tài khoản gần đây</span>
-                                    <small>
-                                        Chọn để điền nhanh mã đăng nhập
-                                    </small>
+                                    <small>Chọn để điền nhanh</small>
                                 </div>
-
                                 <div className="remembered-list">
                                     {matchingAccounts
                                         .slice(0, 3)
@@ -442,39 +435,27 @@ function Login() {
                                             >
                                                 <button
                                                     type="button"
-                                                    onClick={() =>
-                                                        selectAccount(account)
-                                                    }
+                                                    onClick={() => selectAccount(account)}
+                                                    aria-label={`Chọn ${account.fullName || account.username}`}
                                                 >
                                                     <span className="remembered-avatar">
-                                                        {(
-                                                            account.fullName ||
-                                                            account.username
-                                                        )
+                                                        {(account.fullName || account.username)
                                                             .charAt(0)
                                                             .toUpperCase()}
                                                     </span>
-
                                                     <span className="remembered-copy">
                                                         <strong>
-                                                            {account.fullName ||
-                                                                account.username}
+                                                            {account.fullName || account.username}
                                                         </strong>
                                                         <small>
-                                                            {account.username} ·{" "}
-                                                            {roleLabel[account.role]}
+                                                            {account.username} · {roleLabel[account.role]}
                                                         </small>
                                                     </span>
                                                 </button>
-
                                                 <button
                                                     type="button"
                                                     className="remove-remembered"
-                                                    onClick={() =>
-                                                        removeAccount(
-                                                            account.username
-                                                        )
-                                                    }
+                                                    onClick={() => removeAccount(account.username)}
                                                     aria-label={`Xóa gợi ý tài khoản ${account.username}`}
                                                 >
                                                     ×
@@ -486,30 +467,18 @@ function Login() {
                         )}
 
                     {step === "employee-code" && (
-                        <form
-                            onSubmit={continueToRoleChoice}
-                            className="login-form"
-                        >
+                        <form onSubmit={continueToRoleChoice} className="login-form">
                             <label>
-                                <span>Mã nhân viên</span>
-
+                                <span>Mã nhân viên / Username</span>
                                 <div className="login-input-wrap">
-                                    <span
-                                        className="login-input-icon"
-                                        aria-hidden="true"
-                                    >
-                                        ♙
-                                    </span>
-
+                                    <UserRound className="login-input-icon" size={17} aria-hidden="true" />
                                     <input
                                         type="text"
                                         inputMode="numeric"
                                         autoComplete="username"
-                                        placeholder="Ví dụ: 0599"
+                                        placeholder="Nhập mã nhân viên"
                                         value={username}
-                                        onChange={event =>
-                                            setUsername(event.target.value)
-                                        }
+                                        onChange={event => setUsername(event.target.value)}
                                         disabled={loading}
                                         autoFocus
                                         maxLength={20}
@@ -517,18 +486,14 @@ function Login() {
                                 </div>
                             </label>
 
-                            {error && (
-                                <div className="login-error" role="alert">
-                                    {error}
-                                </div>
-                            )}
+                            {error && <div className="login-error" role="alert">{error}</div>}
 
                             <button
                                 type="submit"
                                 className="login-submit"
                                 disabled={loading}
                             >
-                                Tiếp tục
+                                {loading ? "Đang xử lý..." : "Sign In"}
                                 <span aria-hidden="true">→</span>
                             </button>
                         </form>
@@ -538,26 +503,17 @@ function Login() {
                         <div className="login-role-choice">
                             <button
                                 type="button"
-                                className="login-role-card login-role-worker"
+                                className="login-role-card"
                                 disabled={loading}
-                                onClick={() =>
-                                    void completeLogin("worker")
-                                }
+                                onClick={() => void completeLogin("worker")}
                             >
-                                <span
-                                    className="login-role-icon"
-                                    aria-hidden="true"
-                                >
-                                    ♙
+                                <span className="login-role-icon" aria-hidden="true">
+                                    <UserRound size={18} />
                                 </span>
-
                                 <span>
                                     <strong>Công nhân</strong>
-                                    <small>
-                                        Vào ngay, không cần mật khẩu
-                                    </small>
+                                    <small>Đăng nhập bằng mã nhân viên</small>
                                 </span>
-
                                 <b aria-hidden="true">→</b>
                             </button>
 
@@ -570,39 +526,21 @@ function Login() {
                                     setStep("management-password");
                                 }}
                             >
-                                <span
-                                    className="login-role-icon"
-                                    aria-hidden="true"
-                                >
-                                    ◆
+                                <span className="login-role-icon" aria-hidden="true">
+                                    <KeyRound size={18} />
                                 </span>
-
                                 <span>
                                     <strong>Quản lý</strong>
-                                    <small>
-                                        Quản lý, tổ trưởng hoặc quản trị viên
-                                    </small>
+                                    <small>Quản lý, tổ trưởng hoặc quản trị viên</small>
                                 </span>
-
                                 <b aria-hidden="true">→</b>
                             </button>
 
-                            {error && (
-                                <div className="login-error" role="alert">
-                                    {error}
-                                </div>
-                            )}
+                            {error && <div className="login-error" role="alert">{error}</div>}
 
                             {loading && (
-                                <div
-                                    className="login-loading-line"
-                                    role="status"
-                                    aria-live="polite"
-                                >
-                                    <span
-                                        className="login-spinner"
-                                        aria-hidden="true"
-                                    />
+                                <div className="login-loading-line" role="status" aria-live="polite">
+                                    <span className="login-spinner" aria-hidden="true" />
                                     Đang đăng nhập...
                                 </div>
                             )}
@@ -619,51 +557,28 @@ function Login() {
                     )}
 
                     {step === "management-password" && (
-                        <form
-                            onSubmit={submitManagementPassword}
-                            className="login-form"
-                        >
+                        <form onSubmit={submitManagementPassword} className="login-form">
                             <label>
-                                <span>Mật khẩu quản lý</span>
-
+                                <span>Mật khẩu / PIN</span>
                                 <div className="login-input-wrap">
-                                    <span
-                                        className="login-input-icon"
-                                        aria-hidden="true"
-                                    >
-                                        ●
-                                    </span>
-
+                                    <LockKeyhole className="login-input-icon" size={17} aria-hidden="true" />
                                     <input
-                                        type={
-                                            showPassword
-                                                ? "text"
-                                                : "password"
-                                        }
+                                        type={showPassword ? "text" : "password"}
                                         autoComplete="current-password"
                                         placeholder="Nhập mật khẩu"
                                         value={password}
-                                        onChange={event =>
-                                            setPassword(event.target.value)
-                                        }
+                                        onChange={event => setPassword(event.target.value)}
                                         disabled={loading}
                                         autoFocus
                                     />
-
                                     <button
                                         type="button"
                                         className="password-toggle"
-                                        onClick={() =>
-                                            setShowPassword(current => !current)
-                                        }
+                                        onClick={() => setShowPassword(current => !current)}
                                         disabled={loading}
-                                        aria-label={
-                                            showPassword
-                                                ? "Ẩn mật khẩu"
-                                                : "Hiện mật khẩu"
-                                        }
+                                        aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
                                     >
-                                        {showPassword ? "Ẩn" : "Hiện"}
+                                        {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                                     </button>
                                 </div>
                             </label>
@@ -672,40 +587,23 @@ function Login() {
                                 <input
                                     type="checkbox"
                                     checked={rememberAccount}
-                                    onChange={event =>
-                                        setRememberAccount(
-                                            event.target.checked
-                                        )
-                                    }
+                                    onChange={event => setRememberAccount(event.target.checked)}
                                     disabled={loading}
                                 />
-                                <span>
-                                    Ghi nhớ mã nhân viên trên thiết bị
-                                </span>
+                                <span>Remember me</span>
                             </label>
 
-                            {error && (
-                                <div className="login-error" role="alert">
-                                    {error}
-                                </div>
-                            )}
+                            {error && <div className="login-error" role="alert">{error}</div>}
 
-                            <button
-                                type="submit"
-                                className="login-submit"
-                                disabled={loading}
-                            >
+                            <button type="submit" className="login-submit" disabled={loading}>
                                 {loading ? (
                                     <>
-                                        <span
-                                            className="login-spinner"
-                                            aria-hidden="true"
-                                        />
+                                        <span className="login-spinner" aria-hidden="true" />
                                         Đang đăng nhập...
                                     </>
                                 ) : (
                                     <>
-                                        Đăng nhập quản lý
+                                        Sign In
                                         <span aria-hidden="true">→</span>
                                     </>
                                 )}
@@ -727,9 +625,17 @@ function Login() {
                     )}
 
                     <p className="login-security-note">
-                        Công nhân đăng nhập bằng mã nhân viên. Tài khoản quản lý
-                        vẫn được bảo vệ bằng mật khẩu.
+                        <LockKeyhole size={14} aria-hidden="true" />
+                        <span>
+                            Công nhân đăng nhập bằng mã nhân viên. Tài khoản quản lý
+                            vẫn được bảo vệ bằng mật khẩu.
+                        </span>
                     </p>
+
+                    <div className="login-footer">
+                        <span>© KTC (HANOI) CO., LTD.</span>
+                        <span>All rights reserved.</span>
+                    </div>
                 </div>
             </section>
         </main>
