@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Building2, BriefcaseBusiness, CheckCircle2, Phone, ShieldCheck, UserRound } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Building2, BriefcaseBusiness, CheckCircle2, LogOut, Phone, ShieldCheck, UserRound } from "lucide-react";
 import { api } from "../../services/api";
+import { logout } from "../../services/authService";
 import { getStoredUser } from "../../utils/authStorage";
 
 type WorkerProcess = { id: number; code: string; name: string };
@@ -17,10 +19,12 @@ function displayRole(role?: string) {
 }
 
 export default function Profile() {
+  const navigate = useNavigate();
   const storedUser = useMemo(() => getStoredUser(), []);
   const [profile, setProfile] = useState<WorkerProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -46,6 +50,16 @@ export default function Profile() {
     void load();
     return () => { active = false; };
   }, [storedUser]);
+
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      navigate("/login", { replace: true });
+    }
+  };
 
   const trainingPercent = profile?.training_percent;
   const processNames = profile?.processes?.length
@@ -107,6 +121,17 @@ export default function Profile() {
           </dl>
         )}
       </div>
+
+      <button
+        type="button"
+        onClick={() => void handleLogout()}
+        disabled={loggingOut}
+        aria-label="Đăng xuất tài khoản"
+        className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-3.5 text-sm font-semibold text-red-600 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <LogOut className="size-4" />
+        <span>{loggingOut ? "Đang đăng xuất…" : "Đăng xuất"}</span>
+      </button>
     </section>
   );
 }
