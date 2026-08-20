@@ -15,14 +15,7 @@
 .worker-brand strong, .worker-brand small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .worker-brand strong { font-size: 12px; }
 .worker-brand small { margin-top: 2px; color: var(--ktc-muted); font-size: 11px; }
-.worker-home-nav {
-  display: flex; align-items: center; gap: 10px; width: 100%;
-  min-height: 42px; margin-top: 18px; padding: 0 10px;
-  border: 0; border-radius: 6px; background: transparent;
-  color: var(--ktc-muted); text-align: left; cursor: pointer;
-}
-.worker-home-nav:hover { background: var(--ktc-primary-soft); color: var(--ktc-primary); }
-.worker-nav { display: grid; gap: 4px; margin-top: 4px; }
+.worker-nav { display: grid; gap: 4px; margin-top: 20px; }
 .worker-nav button, .worker-logout {
   position: relative; display: flex; align-items: center; gap: 10px; width: 100%;
   min-height: 42px; padding: 0 10px; border: 0; border-radius: 6px;
