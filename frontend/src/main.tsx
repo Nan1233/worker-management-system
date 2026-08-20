@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { HashRouter } from "react-router-dom";
 
 import App from "./App";
+import "./pages/worker/ProcessPage.compact.css";
 // KTC Stack template migration: Worker workspace shell is implemented in WorkerLayout.tsx.
 import { ToastProvider } from "./components/feedback/ToastProvider";
 import AuthBootstrap from "./components/AuthBootstrap";
