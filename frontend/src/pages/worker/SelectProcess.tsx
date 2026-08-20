@@ -179,6 +179,24 @@ function SelectProcess() {
     }, [navigate]);
 
 
+    const availableProcesses = allProcesses.filter((item) =>
+        workerCanAccessProcess(worker, item.dbId, item.code)
+    );
+
+    // A worker with one assigned process should go directly from the
+    // production CTA to the real production form. Keep the selector only
+    // when multiple processes are actually available.
+    useEffect(() => {
+        if (loading || error || availableProcesses.length !== 1) return;
+
+        const item = availableProcesses[0];
+        if (!item) return;
+
+        if (item.dbId) prefetchProcessMasterData(item.dbId);
+        navigate(`/worker/process/${item.id}`, { replace: true });
+    }, [availableProcesses.length, availableProcesses[0]?.id, availableProcesses[0]?.dbId, error, loading, navigate]);
+
+
     if (loading) {
 
         return (
@@ -223,10 +241,6 @@ function SelectProcess() {
     }
 
 
-    const availableProcesses = allProcesses.filter((item) =>
-        workerCanAccessProcess(worker, item.dbId, item.code)
-    );
-
     return (
 
         <main className="select-process-page worker-process-page">
@@ -258,47 +272,47 @@ function SelectProcess() {
 
                     <div className="select-process-worker">
 
-    <strong>
+                        <strong>
 
-        {
-            worker?.full_name
-            ||
-            "Công nhân"
-        }
+                            {
+                                worker?.full_name
+                                ||
+                                "Công nhân"
+                            }
 
-    </strong>
-
-
-    <span>
-
-        MNV:
-        {" "}
-
-        {
-            worker?.worker_code
-            ||
-            "---"
-        }
-
-    </span>
+                        </strong>
 
 
-    <span className="select-process-training">
+                        <span>
 
-        Học việc:
-        {" "}
+                            MNV:
+                            {" "}
 
-        {
-            worker?.training_percent
-            ??
-            100
-        }
+                            {
+                                worker?.worker_code
+                                ||
+                                "---"
+                            }
 
-        %
+                        </span>
 
-    </span>
 
-</div>
+                        <span className="select-process-training">
+
+                            Học việc:
+                            {" "}
+
+                            {
+                                worker?.training_percent
+                                ??
+                                100
+                            }
+
+                            %
+
+                        </span>
+
+                    </div>
 
                 </header>
 
@@ -311,7 +325,7 @@ function SelectProcess() {
                             "/worker/history"
                         )
                     }
->
+                >
                     <span className="history-entry-button__icon" aria-hidden="true">
                         <AppIcon name="history" size={16} />
                     </span>
