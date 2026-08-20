@@ -27,7 +27,15 @@ export default function ProcessWorkerHeader({
     onDateChange,
 }: Props) {
     return (
-        <div className="worker-sticky-context">
+        <div
+            className="worker-sticky-context"
+            style={{
+                position: "sticky",
+                top: "58px",
+                zIndex: 35,
+                background: "#f3f7fc",
+            }}
+        >
             <header className="worker-form-header">
                 <div
                     className="worker-form-title-row"
