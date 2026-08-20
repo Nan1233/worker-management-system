@@ -27,6 +27,7 @@ const SelectedReportsReview = lazy(() => import("../pages/manager/SelectedReport
 const ReportDownload = lazy(() => import("../pages/manager/ReportDownload"));
 const Workers = lazy(() => import("../pages/manager/Workers"));
 const SelectProcess = lazy(() => import("../pages/worker/SelectProcess"));
+const WorkerHome = lazy(() => import("../pages/worker/WorkerHome"));
 const ProcessPage = lazy(() => import("../pages/worker/ProcessPage"));
 const ProductionHistory = lazy(() => import("../pages/worker/ProductionHistory"));
 const ProductionDetail = lazy(() => import("../pages/worker/ProductionDetail"));
@@ -85,7 +86,8 @@ export default function AppRouter(){
   {(["admin","manager"] as const).map(role => <Route key={`${role}-edit`} path={`/${role}/report/:id/edit`} element={<PrivateRoute allowedRoles={[role]}><P code="REPORT_APPROVED_EDIT"><EditReport/></P></PrivateRoute>} />)}
 
   <Route path="/worker" element={<PrivateRoute allowedRoles={["worker"]}><WorkerLayout/></PrivateRoute>}>
-   <Route index element={<P code="WORKER_ENTRY"><SelectProcess/></P>}/>
+   <Route index element={<P code="WORKER_ENTRY"><WorkerHome/></P>}/>
+   <Route path="process/select" element={<P code="WORKER_ENTRY"><SelectProcess/></P>}/>
    <Route path="process/:process" element={<P code="WORKER_ENTRY"><ProcessPage/></P>}/>
    <Route path="history" element={<P code="WORKER_HISTORY"><ProductionHistory/></P>}/>
    <Route path="history/:id" element={<P code="WORKER_HISTORY"><ProductionDetail/></P>}/>
