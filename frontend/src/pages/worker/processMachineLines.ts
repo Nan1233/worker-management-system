@@ -73,16 +73,22 @@ export function toggleMachineDefectLine(
 ): MachineLineState {
   const selected = new Set(line.selectedDefects || []);
   const nextChecked = checked === undefined ? !selected.has(key) : checked;
+  const defects = { ...(line.defects || {}) };
 
   if (nextChecked) {
     selected.add(key);
   } else {
     selected.delete(key);
+    delete defects[key];
   }
+
+  const ngQuantity = Object.values(defects).reduce((sum, value) => sum + Math.max(0, Math.trunc(Number(value) || 0)), 0);
 
   return {
     ...line,
     selectedDefects: Array.from(selected),
+    defects,
+    ngQuantity: String(ngQuantity),
   };
 }
 
@@ -91,5 +97,12 @@ export function updateMachineDefectLine(
   key: string,
   value: string,
 ): MachineLineState {
-  return { ...line, defects: { ...line.defects, [key]: value } };
+  const defects = { ...(line.defects || {}), [key]: value.replace(/\D/g, "") };
+  const ngQuantity = Object.values(defects).reduce((sum, current) => sum + Math.max(0, Math.trunc(Number(current) || 0)), 0);
+
+  return {
+    ...line,
+    defects,
+    ngQuantity: String(ngQuantity),
+  };
 }
