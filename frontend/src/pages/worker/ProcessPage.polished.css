@@ -1,0 +1,297 @@
+/* Page 04 final visual layer. No business logic changes. */
+
+.worker-form-page {
+  --page-bg: #f3f7fc;
+  --surface: #ffffff;
+  --line: #dce6f0;
+  --line-strong: #c7d7e8;
+  --text: #183654;
+  --muted: #72869b;
+  --blue: #1768c8;
+  --blue-soft: #edf5ff;
+  padding: 16px 14px 34px;
+  background: var(--page-bg);
+}
+
+.worker-form-shell {
+  width: min(100%, 940px);
+  margin: 0 auto;
+}
+
+.worker-sticky-context {
+  margin: 0 0 12px;
+  padding: 0 0 10px;
+  background: rgba(243,247,252,.96);
+}
+
+.worker-form-header { margin: 0 0 8px; }
+.worker-form-title-row { gap: 9px; }
+.worker-form-title-row h1 {
+  font-size: clamp(21px, 2.4vw, 28px);
+  letter-spacing: -.025em;
+}
+.worker-form-back {
+  width: 38px;
+  height: 38px;
+  flex-basis: 38px;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(24,61,96,.06);
+}
+
+.worker-sticky-info {
+  min-height: 50px;
+  padding: 7px 10px;
+  border-radius: 11px;
+  box-shadow: 0 3px 10px rgba(24,61,96,.04);
+}
+.worker-sticky-person strong { font-size: 13px; }
+.worker-sticky-meta { gap: 6px; }
+.worker-sticky-training,
+.worker-sticky-date-select {
+  min-height: 32px;
+  border-radius: 8px;
+  font-size: 10.5px;
+}
+.worker-sticky-date-select { min-width: 200px; }
+
+/* Remove explanatory copy; keep actual labels, values and units. */
+.worker-card-subtitle,
+.multi-machine-controls > small,
+.worker-offline-banner {
+  display: none !important;
+}
+
+.worker-form-card {
+  margin-top: 10px;
+  padding: 15px;
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(24,61,96,.045);
+}
+.worker-card-heading {
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 11px;
+}
+.worker-card-step {
+  width: 26px;
+  height: 26px;
+  flex-basis: 26px;
+  border-radius: 7px;
+  font-size: 10px;
+}
+.worker-card-heading .worker-card-title {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+/* Compact, clean shift selector — no oversized or distorted radios. */
+.worker-shift-list {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 18px;
+  padding: 2px 0;
+}
+.worker-shift-item {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+}
+.worker-shift-item input {
+  appearance: none;
+  width: 17px !important;
+  height: 17px !important;
+  min-width: 17px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 2px solid #b8c9dc !important;
+  border-radius: 50% !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+.worker-shift-item input:checked {
+  border: 5px solid var(--blue) !important;
+  box-shadow: none !important;
+}
+.worker-shift-item span {
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 750;
+  color: #405873;
+}
+
+.worker-choice-row { gap: 6px; }
+.worker-choice-row button {
+  min-width: 78px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+}
+
+/* Use the available width instead of leaving a large empty right side. */
+.multi-machine-panel {
+  width: 100%;
+}
+.multi-machine-controls {
+  grid-template-columns: minmax(0,1fr) auto;
+  align-items: end;
+  gap: 8px 12px;
+  padding: 0;
+}
+.multi-machine-controls > label {
+  margin: 0;
+}
+.multi-machine-controls > select {
+  min-width: 86px;
+  width: 86px;
+  min-height: 36px;
+}
+
+/* Machine cards become a real responsive grid. */
+.multi-machine-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.multi-machine-panel > .machine-line {
+  margin-top: 0;
+  min-width: 0;
+}
+.machine-line {
+  padding: 11px;
+  border-radius: 10px;
+  background: #f8fbfe;
+  box-shadow: none;
+}
+.machine-card-header {
+  margin-bottom: 9px;
+}
+.machine-card-header strong { font-size: 12.5px; }
+.machine-card-badge {
+  padding: 4px 7px;
+  font-size: 9px;
+}
+.machine-section-title {
+  margin: 6px 0 5px;
+  font-size: 10.5px;
+}
+.machine-line .worker-field-block { gap: 5px; }
+.machine-line .worker-field-block > label { font-size: 10.5px; }
+.machine-line .worker-field-block > small { font-size: 9px; }
+.machine-line input:not([type=checkbox]):not([type=radio]),
+.machine-line select {
+  min-height: 39px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+.machine-time-row,
+.machine-quantity-row {
+  gap: 7px;
+  margin-top: 6px;
+}
+.machine-performance-strip {
+  gap: 5px;
+  margin-top: 7px;
+}
+.machine-performance-metric {
+  padding: 7px;
+  border-radius: 7px;
+}
+.machine-performance-metric span { font-size: 8px; }
+.machine-performance-metric strong { font-size: 10.5px; }
+.machine-line-total { display: none; }
+.machine-deduction-box {
+  margin-top: 8px;
+  padding-top: 8px;
+}
+.machine-deduction-options { gap: 5px; }
+.machine-deduction-option {
+  min-height: 32px;
+  padding: 5px 6px;
+  font-size: 9.5px;
+}
+.machine-deduction-minute { min-height: 26px; }
+
+/* Time and quality: compact dashboard-like blocks. */
+.worker-time-grid {
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 8px;
+}
+.worker-time-item {
+  padding: 9px;
+  border-radius: 9px;
+}
+.worker-time-item > label { font-size: 10px; margin-bottom: 5px; }
+.worker-time-item > input,
+.worker-time-split input {
+  min-height: 40px;
+  font-size: 14px !important;
+  border-radius: 8px;
+}
+.worker-time-item > small { display: none; }
+.worker-time-part > span { font-size: 9px; }
+
+.worker-quality-summary {
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 8px;
+  margin-bottom: 9px;
+}
+.worker-quality-card {
+  padding: 9px;
+  border-radius: 9px;
+}
+.worker-quality-card label { font-size: 9.5px; }
+.worker-quality-card small { display: none; }
+.worker-quality-card input {
+  min-height: 42px;
+  margin-top: 5px;
+  font-size: 17px;
+  border-radius: 8px;
+}
+.worker-dropdown-box { margin-top: 8px; }
+.worker-dropdown-title { min-height: 40px; font-size: 11px; }
+
+/* Final action area: clear CTA, no loose text. */
+.worker-form-actions {
+  align-items: center;
+  margin-top: 10px;
+  padding: 7px;
+  border-radius: 10px;
+}
+.worker-submit-button {
+  min-height: 44px;
+  border-radius: 8px;
+}
+
+@media (max-width: 900px) {
+  .worker-form-shell { width: 100%; }
+  .multi-machine-panel { grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+
+@media (max-width: 680px) {
+  .worker-form-page { padding: 10px 8px 28px; }
+  .worker-form-shell { width: 100%; }
+  .worker-sticky-info { flex-direction: row; align-items: center; }
+  .worker-sticky-date-select { min-width: 0; }
+  .multi-machine-panel { grid-template-columns: 1fr; }
+  .worker-time-grid,
+  .worker-quality-summary { grid-template-columns: repeat(3, minmax(0,1fr)); }
+}
+
+@media (max-width: 500px) {
+  .worker-form-title-row h1 { font-size: 20px; }
+  .worker-sticky-info { align-items: flex-start; flex-direction: column; }
+  .worker-sticky-meta { width: 100%; }
+  .worker-sticky-training,
+  .worker-sticky-date-select { width: auto; flex: 1 1 0; }
+  .worker-shift-list { gap: 13px; }
+  .worker-shift-item span { font-size: 11px; }
+  .worker-choice-row button { min-width: 0; flex: 1 1 0; }
+  .worker-time-grid,
+  .worker-quality-summary { grid-template-columns: 1fr; }
+  .worker-form-actions { position: sticky; bottom: 6px; }
+}
