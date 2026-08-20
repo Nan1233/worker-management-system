@@ -33,6 +33,7 @@ interface Props {
     getMachineProductAutocompleteOptions: (machineCode: string) => AutocompleteOption[];
     productOptions: ProductStandardOption[];
     machineAutocompleteOptions: AutocompleteOption[];
+    machineOptions?: unknown;
     loadingMasterData: boolean;
     machineCount: number;
     maxMachineCount: number;
