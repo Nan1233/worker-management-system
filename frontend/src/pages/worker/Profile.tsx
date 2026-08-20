@@ -79,42 +79,43 @@ export default function Profile() {
 
   return (
     <section className="ktc-page">
-      <header style={{ marginBottom: 16 }}>
-        <div style={{ color: "var(--ktc-muted)", fontSize: 12 }}>Tài khoản</div>
-        <h1 style={{ margin: "4px 0", fontSize: 22 }}>Hồ sơ cá nhân</h1>
-        <p style={{ margin: 0, color: "var(--ktc-muted)", fontSize: 13 }}>Thông tin nhận diện và phân công đang áp dụng cho tài khoản của bạn.</p>
+      <header className="mb-3 sm:mb-4">
+        <div className="text-[11px] text-muted-foreground sm:text-xs">Tài khoản</div>
+        <h1 className="my-1 text-[20px] font-medium leading-tight sm:text-[22px]">Hồ sơ cá nhân</h1>
+        <p className="max-w-[34rem] text-[12px] leading-[1.45] text-muted-foreground sm:text-[13px]">Thông tin nhận diện và phân công đang áp dụng cho tài khoản của bạn.</p>
       </header>
+
       {error && (
-        <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+        <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-[13px] text-destructive sm:p-4 sm:text-sm">
           {error}
         </div>
       )}
 
       <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
-        <div className="flex items-center gap-4 border-b bg-muted/20 p-5 sm:p-6">
-          <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <UserRound className="size-6" />
+        <div className="flex items-center gap-3 border-b bg-muted/20 px-4 py-4 sm:gap-4 sm:p-5 sm:pb-6">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary sm:size-12">
+            <UserRound className="size-5 sm:size-6" />
           </div>
           <div className="min-w-0">
-            <h2 className="truncate text-lg font-semibold">{profile?.full_name || storedUser?.full_name || "Người dùng"}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">{displayRole(profile?.role || storedUser?.role)}</p>
+            <h2 className="truncate text-[16px] font-semibold leading-tight sm:text-lg">{profile?.full_name || storedUser?.full_name || "Người dùng"}</h2>
+            <p className="mt-1 text-[12px] text-muted-foreground sm:text-sm">{displayRole(profile?.role || storedUser?.role)}</p>
           </div>
         </div>
 
         {loading ? (
-          <div className="space-y-3 p-5 sm:p-6" aria-busy="true">
-            {[1,2,3,4].map((i) => <div key={i} className="h-14 animate-pulse rounded-lg bg-muted" />)}
+          <div className="space-y-2 p-4 sm:space-y-3 sm:p-5 sm:pt-6" aria-busy="true">
+            {[1,2,3,4].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-muted sm:h-14" />)}
           </div>
         ) : (
           <dl className="grid sm:grid-cols-2">
             {fields.map(({ label, value, icon: Icon }) => (
-              <div key={label} className="flex min-w-0 gap-3 border-b p-4 last:border-b sm:nth-last-child(-n+2):border-b-0">
-                <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                  <Icon className="size-4" />
+              <div key={label} className="flex min-w-0 gap-2.5 border-b px-3 py-3 sm:gap-3 sm:p-4 last:border-b sm:nth-last-child(-n+2):border-b-0">
+                <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground sm:size-8">
+                  <Icon className="size-3.5 sm:size-4" />
                 </span>
                 <div className="min-w-0">
-                  <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
-                  <dd className="mt-1 break-words text-sm font-semibold">{value}</dd>
+                  <dt className="text-[11px] font-medium leading-tight text-muted-foreground sm:text-xs">{label}</dt>
+                  <dd className="mt-0.5 break-words text-[13px] font-semibold leading-snug sm:mt-1 sm:text-sm">{value}</dd>
                 </div>
               </div>
             ))}
@@ -127,7 +128,7 @@ export default function Profile() {
         onClick={() => void handleLogout()}
         disabled={loggingOut}
         aria-label="Đăng xuất tài khoản"
-        className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-3.5 text-sm font-semibold text-red-600 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-3 text-[13px] font-semibold text-red-600 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 sm:mt-4 sm:py-3.5 sm:text-sm"
       >
         <LogOut className="size-4" />
         <span>{loggingOut ? "Đang đăng xuất…" : "Đăng xuất"}</span>
