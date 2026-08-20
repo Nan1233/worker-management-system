@@ -77,8 +77,8 @@
   .history-table thead { display: table-header-group; }
   .history-table tbody { display: table-row-group; }
   .history-table tr { display: table-row; }
-  .history-table th { display: table-cell; height: 38px; padding: 0 7px; font-size: 8.5px; font-weight: 750; letter-spacing: .02em; color: var(--ktc-ink-500); background: var(--ktc-surface-muted); }
-  .history-table td { display: table-cell; height: 45px; padding: 6px 7px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .history-table th { display: table-cell; height: 38px; padding: 0 8px; font-size: 8.5px; font-weight: 750; letter-spacing: .01em; color: var(--ktc-ink-500); background: var(--ktc-surface-muted); }
+  .history-table td { display: table-cell; height: 45px; padding: 6px 8px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .history-table tbody tr { border-bottom: 1px solid var(--ktc-border); }
   .history-table tbody tr:last-child { border-bottom: 0; }
   .history-table .column-index { display: table-cell; width: 32px; min-width: 32px; text-align: center; }
@@ -92,9 +92,9 @@
   .history-table thead th:nth-child(5),
   .history-table thead th:nth-child(6),
   .history-table thead th:nth-child(7) { display: none; }
-  .history-table .status-cell { display: table-cell; width: 66px; text-align: center; }
-  .history-table .status-cell span { min-height: 20px; padding: 0 5px; font-size: 8px; white-space: nowrap; }
-  .history-table .action-column { display: table-cell; width: 42px; text-align: center; }
+  .history-table .status-cell { display: table-cell; width: 78px; min-width: 78px; text-align: center; }
+  .history-table .status-cell span { min-height: 20px; padding: 0 6px; font-size: 8px; white-space: nowrap; }
+  .history-table .action-column { display: table-cell; width: 46px; min-width: 46px; text-align: center; }
   .history-table .action-column .detail-btn { min-height: 26px; width: 30px; padding: 0; font-size: 0; border-radius: 7px; }
   .history-table .action-column .detail-btn::after { content: "›"; font-size: 16px; line-height: 1; }
   .history-table td::before { display: none !important; }
@@ -112,15 +112,16 @@
   .history-filter-grid { gap: 5px; }
   .history-filter-field input,.history-filter-field select { min-height: 33px; height: 33px; font-size: 10.5px; }
   .history-clear-button { min-height: 30px; height: 30px; font-size: 9.5px; }
-  .history-table th { height: 36px; padding: 0 5px; font-size: 8px; }
-  .history-table td { height: 43px; padding: 5px; font-size: 9.5px; }
-  .history-table .column-index { width: 28px; min-width: 28px; }
-  .history-table .date-cell { width: 86px; font-size: 9.5px; }
+  .history-table { min-width: 350px; width: 350px; }
+  .history-table th { height: 36px; padding: 0 6px; font-size: 8px; }
+  .history-table td { height: 43px; padding: 5px 6px; font-size: 9.5px; }
+  .history-table .column-index { width: 30px; min-width: 30px; }
+  .history-table .date-cell { width: 82px; font-size: 9.5px; }
   .history-table .shift-cell { width: 40px; }
-  .history-table .machine-cell { font-size: 9.5px; }
-  .history-table .status-cell { width: 58px; }
-  .history-table .status-cell span { font-size: 7.5px; padding: 0 4px; }
-  .history-table .action-column { width: 36px; }
+  .history-table .machine-cell { width: 48px; font-size: 9.5px; }
+  .history-table .status-cell { width: 82px; min-width: 82px; }
+  .history-table .status-cell span { font-size: 7.5px; padding: 0 5px; }
+  .history-table .action-column { width: 42px; min-width: 42px; }
   .history-table .action-column .detail-btn { width: 27px; min-height: 24px; }
   .history-table .action-column .detail-btn::after { font-size: 15px; }
 }
