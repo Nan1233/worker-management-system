@@ -50,47 +50,48 @@
 .pagination button:disabled { opacity: .42; cursor: default; }
 
 @media (max-width: 760px) {
-  .history-page { padding: 14px 10px 88px; }
+  .history-page { padding: 10px 8px 78px; }
   .history-shell { width: 100%; }
-  .history-header { align-items: center; gap: 8px; margin-bottom: 10px; }
-  .history-title-group { gap: 8px; }
-  .history-title-group h1 { font-size: 20px; line-height: 1.15; }
+  .history-header { align-items: center; gap: 7px; margin-bottom: 8px; }
+  .history-title-group { gap: 7px; }
+  .history-title-group h1 { font-size: 19px; line-height: 1.12; font-weight: 600; }
   .history-title-group p { display: none; }
-  .history-back-button { width: 34px; height: 34px; border-radius: 9px; font-size: 18px; }
-  .history-count { padding: 5px 8px; border-radius: 8px; }
-  .history-count strong { font-size: 15px; }
-  .history-count span { font-size: 9px; }
-  .history-filter-card { padding: 9px; margin-bottom: 10px; border-radius: 12px; }
-  .history-search-box { margin-bottom: 8px; }
-  .history-search-box input { min-height: 38px; font-size: 12px; }
-  .history-filter-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; }
+  .history-back-button { width: 32px; height: 32px; border-radius: 8px; font-size: 16px; }
+  .history-count { padding: 4px 7px; border-radius: 8px; gap: 3px; }
+  .history-count strong { font-size: 14px; }
+  .history-count span { font-size: 8.5px; }
+  .history-filter-card { padding: 8px; margin-bottom: 8px; border-radius: 10px; }
+  .history-search-box { margin-bottom: 6px; }
+  .history-search-box > span { left: 10px; font-size: 14px; }
+  .history-search-box input { min-height: 36px; padding-left: 30px; font-size: 12px; }
+  .history-filter-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; }
   .history-filter-field:first-child { grid-column: 1 / -1; }
-  .history-filter-field { gap: 4px; }
-  .history-filter-field > span { font-size: 9.5px; }
-  .history-filter-field input,.history-filter-field select { min-height: 36px; font-size: 11px; }
-  .history-clear-button { grid-column: 1 / -1; min-height: 36px; font-size: 10.5px; }
-  .history-error { padding: 9px 10px; font-size: 10.5px; }
+  .history-filter-field { gap: 3px; }
+  .history-filter-field > span { font-size: 9px; }
+  .history-filter-field input,.history-filter-field select { min-height: 34px; height: 34px; padding: 0 9px; font-size: 11px; }
+  .history-clear-button { grid-column: 1 / -1; min-height: 32px; height: 32px; padding: 0 8px; font-size: 10px; }
+  .history-error { padding: 8px 9px; font-size: 10px; }
   .report-card { background: transparent; border: 0; box-shadow: none; overflow: visible; }
   .table-container { overflow: visible; }
   .history-table,
   .history-table tbody,
   .history-table tr,
   .history-table td { display: block; width: 100%; }
-  .history-table { min-width: 0; font-size: 11px; }
+  .history-table { min-width: 0; font-size: 10.5px; }
   .history-table thead { display: none; }
-  .history-table tbody { display: grid; gap: 8px; }
-  .history-table tr { position: relative; display: grid; grid-template-columns: minmax(0,1fr) auto; grid-template-areas: "date status" "product action" "machine shift" "ok ng"; gap: 5px 10px; padding: 10px 11px; border: 1px solid var(--ktc-border); border-radius: 11px; background: var(--ktc-surface); box-shadow: var(--ktc-shadow-xs); }
+  .history-table tbody { display: grid; gap: 6px; }
+  .history-table tr { position: relative; display: grid; grid-template-columns: minmax(0,1fr) auto; grid-template-areas: "date status" "product action" "machine shift" "ok ng"; gap: 4px 8px; padding: 8px 9px; border: 1px solid var(--ktc-border); border-radius: 9px; background: var(--ktc-surface); box-shadow: var(--ktc-shadow-xs); }
   .history-table td { width: auto; max-width: none; height: auto; min-height: 0; padding: 0; white-space: normal; overflow: visible; text-overflow: clip; text-align: left; }
-  .history-table td::before { display: block; margin-bottom: 2px; color: var(--ktc-ink-400); font-size: 8.5px; font-weight: 650; line-height: 1.1; }
+  .history-table td::before { display: block; margin-bottom: 1px; color: var(--ktc-ink-400); font-size: 8px; font-weight: 650; line-height: 1.05; }
   .history-table .column-index { display: none; }
-  .history-table .date-cell { grid-area: date; font-size: 11px; font-weight: 750; }
+  .history-table .date-cell { grid-area: date; font-size: 10.5px; font-weight: 700; }
   .history-table .date-cell::before { content: "Ngày"; }
   .history-table .shift-cell { grid-area: shift; text-align: right; }
   .history-table .shift-cell::before { content: "Ca"; }
-  .history-table .shift-badge { min-width: 24px; height: 22px; font-size: 9px; }
-  .history-table .machine-cell { grid-area: machine; font-size: 10.5px; }
+  .history-table .shift-badge { min-width: 23px; height: 21px; font-size: 9px; }
+  .history-table .machine-cell { grid-area: machine; font-size: 10px; }
   .history-table .machine-cell::before { content: "Máy"; }
-  .history-table .product-cell { grid-area: product; min-width: 0; font-size: 11px; font-weight: 700; }
+  .history-table .product-cell { grid-area: product; min-width: 0; font-size: 10.5px; font-weight: 700; }
   .history-table .product-cell::before { content: "Sản phẩm"; }
   .history-table .numeric-column { text-align: left; }
   .history-table .ok-column { grid-area: ok; }
@@ -99,19 +100,30 @@
   .history-table .ng-column::before { content: "NG"; }
   .history-table .status-cell { grid-area: status; text-align: right; }
   .history-table .status-cell::before { display: none; }
-  .status-cell span { min-height: 22px; padding: 0 7px; font-size: 9px; }
+  .status-cell span { min-height: 20px; padding: 0 6px; font-size: 8.5px; }
   .history-table .action-column { grid-area: action; text-align: right; align-self: end; }
   .history-table .action-column::before { display: none; }
-  .detail-btn { min-height: 28px; padding: 0 8px; font-size: 10px; }
-  .pagination { margin-top: 10px; }
-  .pagination button { min-width: 32px; height: 32px; font-size: 10px; }
+  .detail-btn { min-height: 26px; padding: 0 7px; font-size: 9.5px; }
+  .pagination { margin-top: 8px; gap: 4px; }
+  .pagination button { min-width: 30px; height: 30px; font-size: 10px; }
 }
 
 @media (max-width: 420px) {
-  .history-page { padding-left: 8px; padding-right: 8px; }
+  .history-page { padding: 8px 7px 76px; }
   .history-title-group h1 { font-size: 18px; }
+  .history-count { padding: 3px 6px; }
+  .history-count strong { font-size: 13px; }
   .history-count span { display: none; }
-  .history-filter-grid { gap: 6px; }
-  .history-table tr { grid-template-columns: minmax(0,1fr) auto; padding: 9px; }
-  .history-table .machine-cell,.history-table .product-cell { font-size: 10px; }
+  .history-filter-card { padding: 7px; }
+  .history-filter-grid { gap: 5px; }
+  .history-filter-field input,.history-filter-field select { min-height: 33px; height: 33px; font-size: 10.5px; }
+  .history-clear-button { min-height: 30px; height: 30px; font-size: 9.5px; }
+  .history-table tbody { gap: 5px; }
+  .history-table tr { gap: 3px 7px; padding: 7px 8px; }
+  .history-table td::before { font-size: 7.5px; }
+  .history-table .date-cell { font-size: 10px; }
+  .history-table .machine-cell,.history-table .product-cell { font-size: 9.5px; }
+  .history-table .shift-badge { min-width: 22px; height: 20px; font-size: 8.5px; }
+  .status-cell span { min-height: 19px; font-size: 8px; }
+  .detail-btn { min-height: 25px; font-size: 9px; }
 }
