@@ -1,6 +1,5 @@
-
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Bell, ClipboardPenLine, History, LogOut, UserRound } from "lucide-react";
+import { Bell, ClipboardPenLine, History, Home, LogOut, UserRound } from "lucide-react";
 import { logout } from "../services/authService";
 import { usePermissions } from "../hooks/usePermissions";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
@@ -27,6 +26,7 @@ export default function WorkerLayout() {
   const { can } = usePermissions();
   const { unreadCount } = useNotificationBadge(can("NOTIFICATION_VIEW"));
   const visible = items.filter((item) => can(item.permission));
+  const isProcessSelection = location.pathname === "/worker/process/select";
 
   const active = (item: Item) =>
     item.path === "/worker"
@@ -49,6 +49,17 @@ export default function WorkerLayout() {
           </span>
         </button>
 
+        {isProcessSelection && (
+          <button
+            className="worker-home-nav"
+            type="button"
+            onClick={() => navigate("/worker")}
+          >
+            <Home size={18} />
+            <span>Home</span>
+          </button>
+        )}
+
         <nav className="worker-nav" aria-label="Worker navigation">
           {visible.map((item) => {
             const Icon = item.icon;
@@ -60,7 +71,9 @@ export default function WorkerLayout() {
                 onClick={() => navigate(item.path)}
               >
                 <Icon size={18} />
-                <span>{item.label}</span>
+                <span>
+                  {isProcessSelection && item.path === "/worker" ? "Báo cáo" : item.label}
+                </span>
                 {item.icon === Bell && unreadCount > 0 && (
                   <b className="worker-badge">{unreadCount > 99 ? "99+" : unreadCount}</b>
                 )}
@@ -91,7 +104,7 @@ export default function WorkerLayout() {
           return (
             <button key={`mobile-${item.label}`} type="button" className={active(item) ? "active" : ""} onClick={() => navigate(item.path)}>
               <Icon size={19} />
-              <span>{item.label}</span>
+              <span>{isProcessSelection && item.path === "/worker" ? "Báo cáo" : item.label}</span>
               {item.icon === Bell && unreadCount > 0 && <b className="worker-badge">{unreadCount > 99 ? "99+" : unreadCount}</b>}
             </button>
           );
