@@ -97,7 +97,7 @@ function SelectProcess() {
                     if (user.role !== "worker") {
 
                         setError(
-                            "ThÃ´ng tin tÃ i khoáº£n khÃ´ng há»£p lá»‡"
+                            "Thông tin tài khoản không hợp lệ"
                         );
 
                         return;
@@ -158,9 +158,9 @@ function SelectProcess() {
 
                                 ||
 
-                                "KhÃ´ng thá»ƒ táº£i thÃ´ng tin nhÃ¢n viÃªn"
+                                "Không thể tải thông tin nhân viên"
 
-                            : "KhÃ´ng thá»ƒ táº£i thÃ´ng tin nhÃ¢n viÃªn"
+                            : "Không thể tải thông tin nhân viên"
 
                     );
 
@@ -187,7 +187,7 @@ function SelectProcess() {
 
                 <div className="process-state-box">
 
-                    Äang táº£i thÃ´ng tin...
+                    Đang tải thông tin...
 
                 </div>
 
@@ -207,7 +207,7 @@ function SelectProcess() {
                 <div className="process-state-box">
 
                     <h2>
-                        KhÃ´ng thá»ƒ má»Ÿ trang
+                        Không thể mở trang
                     </h2>
 
                     <p>
@@ -243,14 +243,14 @@ function SelectProcess() {
                             onClick={() =>
                                 navigate(-1)
                             }
-                            aria-label="Quay láº¡i"
+                            aria-label="Quay lại"
                         >
-                            â†
+                            ←
                         </button>
 
 
                         <h1>
-                            Chá»n máº«u nháº­p liá»‡u
+                            Chọn mẫu nhập liệu
                         </h1>
 
                     </div>
@@ -263,7 +263,7 @@ function SelectProcess() {
         {
             worker?.full_name
             ||
-            "CÃ´ng nhÃ¢n"
+            "Công nhân"
         }
 
     </strong>
@@ -285,7 +285,7 @@ function SelectProcess() {
 
     <span className="select-process-training">
 
-        Há»c viá»‡c:
+        Học việc:
         {" "}
 
         {
@@ -315,7 +315,7 @@ function SelectProcess() {
                     <span className="history-entry-button__icon" aria-hidden="true">
                         <AppIcon name="history" size={16} />
                     </span>
-                    <span>Danh sÃ¡ch lá»‹ch sá»­ nháº­p</span>
+                    <span>Danh sách lịch sử nhập</span>
                 </button>
 
 
@@ -360,7 +360,7 @@ function SelectProcess() {
 
                                     <span className="worker-process-arrow">
 
-                                        â€º
+                                        ›
 
                                     </span>
 
@@ -369,8 +369,8 @@ function SelectProcess() {
                             )
                         ) : (
                             <div className="process-state-box">
-                                <h2>ChÆ°a Ä‘Æ°á»£c phÃ¢n cÃ´ng cÃ´ng Ä‘oáº¡n</h2>
-                                <p>Vui lÃ²ng liÃªn há»‡ quáº£n lÃ½ Ä‘á»ƒ Ä‘Æ°á»£c gÃ¡n Ä‘Ãºng cÃ´ng Ä‘oáº¡n trÆ°á»›c khi nháº­p bÃ¡o cÃ¡o.</p>
+                                <h2>Chưa được phân công công đoạn</h2>
+                                <p>Vui lòng liên hệ quản lý để được gán đúng công đoạn trước khi nhập báo cáo.</p>
                             </div>
                         )
                     }

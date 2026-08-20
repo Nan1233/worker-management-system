@@ -1,0 +1,2 @@
+worker-management-system/backend/templates/template_legacy_001.xlsx  <=  original filename removed only because Windows Explorer path limit prevented extraction
+worker-management-system/backend/templates/template_legacy_002.xlsx  <=  original filename removed only because Windows Explorer path limit prevented extraction
