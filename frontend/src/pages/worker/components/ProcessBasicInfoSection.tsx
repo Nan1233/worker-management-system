@@ -102,13 +102,7 @@ export default function ProcessBasicInfoSection({
                     <div className="worker-shift-list">
                         {["A", "B", "C", "D"].map((shift) => (
                             <label key={shift} className="worker-shift-item">
-                                <input
-                                    type="radio"
-                                    name="shift"
-                                    value={shift}
-                                    checked={form.shift === shift}
-                                    onChange={onFormChange}
-                                />
+                                <input type="radio" name="shift" value={shift} checked={form.shift === shift} onChange={onFormChange} />
                                 <span>{shift}</span>
                             </label>
                         ))}
@@ -177,9 +171,7 @@ export default function ProcessBasicInfoSection({
                             <div>
                                 <strong>{isCutLongProcess ? "Danh sách máy & sản phẩm" : "Danh sách máy mài & sản phẩm"}</strong>
                                 <small>Mỗi dòng = 1 máy + 1 mã sản phẩm + thời gian + sản lượng</small>
-                                {isCutLongProcess && (
-                                    <small>Shared machine: sản lượng được credit theo báo cáo; physical truth nằm ở production event riêng.</small>
-                                )}
+                                {isCutLongProcess && <small>Shared machine: sản lượng được credit theo báo cáo; physical truth nằm ở production event riêng.</small>}
                             </div>
                             <label className="worker-machine-count">
                                 <span>Số máy</span>
@@ -189,9 +181,7 @@ export default function ProcessBasicInfoSection({
                             </label>
                         </div>
 
-                        {isCutLongProcess && (
-                            <div className="worker-machine-policy-note">Máy tự động có thể chạy tối đa 4 máy/người. Máy thường áp dụng giới hạn theo dữ liệu máy.</div>
-                        )}
+                        {isCutLongProcess && <div className="worker-machine-policy-note">Máy tự động có thể chạy tối đa 4 máy/người. Máy thường áp dụng giới hạn theo dữ liệu máy.</div>}
 
                         <div className="machine-lines-list">
                             {machineLines.map((line, index) => (
@@ -214,12 +204,8 @@ export default function ProcessBasicInfoSection({
                                             required
                                             disabled={loadingMasterData}
                                             emptyMessage="Không tìm thấy máy trong công đoạn"
-                                            onChange={(value) => {
-                                                updateMachineLine(index, { machineCode: value, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" });
-                                            }}
-                                            onSelect={(option) => {
-                                                updateMachineLine(index, { machineCode: option.value, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" });
-                                            }}
+                                            onChange={(value) => updateMachineLine(index, { machineCode: value, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" })}
+                                            onSelect={(option) => updateMachineLine(index, { machineCode: option.value, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" })}
                                         />
                                         <AutocompleteInput
                                             id={`machineProduct-${index}`}
@@ -230,14 +216,8 @@ export default function ProcessBasicInfoSection({
                                             required
                                             disabled={loadingMasterData || !line.machineCode.trim()}
                                             emptyMessage={line.machineCode.trim() ? "Không có mã sản phẩm phù hợp với máy này" : "Chọn máy trước để xem mã sản phẩm"}
-                                            onChange={(value) => {
-                                                updateMachineLine(index, { productCode: value });
-                                                void refreshMachineLineStandard(index, line.machineCode, value);
-                                            }}
-                                            onSelect={(option) => {
-                                                updateMachineLine(index, { productCode: option.value });
-                                                void refreshMachineLineStandard(index, line.machineCode, option.value);
-                                            }}
+                                            onChange={(value) => { updateMachineLine(index, { productCode: value }); void refreshMachineLineStandard(index, line.machineCode, value); }}
+                                            onSelect={(option) => { updateMachineLine(index, { productCode: option.value }); void refreshMachineLineStandard(index, line.machineCode, option.value); }}
                                         />
                                     </div>
 
@@ -246,34 +226,16 @@ export default function ProcessBasicInfoSection({
                                             <div className="machine-section-title">Thời gian chạy máy</div>
                                             <div className="machine-time-row">
                                                 <label><span>Giờ</span><input type="number" min="0" max="24" inputMode="numeric" placeholder="0" value={line.hours} onChange={(event) => updateMachineLine(index, { hours: event.target.value.replace(/\D/g, "") })} /></label>
-                                                <label><span>Phút</span><input type="number" min="0" max="59" inputMode="numeric" placeholder="0" value={line.minutes} onChange={(event) => {
-                                                    const value = event.target.value.replace(/\D/g, "");
-                                                    if (value === "" || Number(value) <= 59) updateMachineLine(index, { minutes: value });
-                                                }} /></label>
+                                                <label><span>Phút</span><input type="number" min="0" max="59" inputMode="numeric" placeholder="0" value={line.minutes} onChange={(event) => { const value = event.target.value.replace(/\D/g, ""); if (value === "" || Number(value) <= 59) updateMachineLine(index, { minutes: value }); }} /></label>
                                             </div>
                                         </div>
                                         <div>
                                             <div className="machine-section-title">Sản lượng</div>
                                             <div className="machine-quantity-row">
                                                 <label><span>OK</span><input type="number" min="0" inputMode="numeric" value={line.okQuantity} onChange={(event) => updateMachineLine(index, { okQuantity: event.target.value.replace(/\D/g, "") })} /></label>
-                                                <label><span>NG</span><input type="number" min="0" inputMode="numeric" value={line.ngQuantity} readOnly aria-readonly="true" title="Tự động cộng từ chi tiết lỗi NG" /></label>
+                                                <label><span>NG</span><input type="number" min="0" inputMode="numeric" value={line.ngQuantity} onChange={(event) => updateMachineLine(index, { ngQuantity: event.target.value.replace(/\D/g, "") })} /></label>
                                             </div>
                                         </div>
-                                    </div>
-
-                                    <div className="machine-performance-strip" aria-label={`Năng suất máy ${index + 1}`}>
-                                        {(() => {
-                                            const runtimeHours = (Number(line.hours) || 0) + ((Number(line.minutes) || 0) / 60);
-                                            const target = Math.max(0, Number(line.standardOutputPerHour || 0) * runtimeHours);
-                                            const actual = (Number(line.okQuantity) || 0) + (Number(line.ngQuantity) || 0);
-                                            const efficiency = target > 0 ? (actual / target) * 100 : 0;
-                                            return <>
-                                                <div className="machine-performance-metric"><span>Định mức</span><strong>{line.standardLoading ? "Đang tải…" : line.standardOutputPerHour > 0 ? `${line.standardOutputPerHour.toLocaleString("vi-VN", { maximumFractionDigits: 2 })} SP/giờ` : "Chưa có"}</strong></div>
-                                                <div className="machine-performance-metric"><span>Thời gian chuẩn</span><strong>{line.standardTimeSeconds ? `${Number(line.standardTimeSeconds).toLocaleString("vi-VN", { maximumFractionDigits: 2 })} giây/SP` : "—"}</strong></div>
-                                                <div className="machine-performance-metric machine-target"><span>SL mục tiêu</span><strong>{target > 0 ? Math.floor(target).toLocaleString("vi-VN") : "—"}</strong></div>
-                                                <div className="machine-performance-metric machine-actual"><span>Thực tế / Hiệu suất</span><strong>{actual.toLocaleString("vi-VN")} / {target > 0 ? `${efficiency.toFixed(1)}%` : "—"}</strong></div>
-                                            </>;
-                                        })()}
                                     </div>
 
                                     {line.standardError && <div className="worker-inline-error">{line.standardError}</div>}
@@ -285,9 +247,7 @@ export default function ProcessBasicInfoSection({
                                                 <label key={item.key} className="machine-deduction-option">
                                                     <input type="checkbox" checked={line.selectedDefects.includes(item.key)} onChange={() => toggleMachineDefect(index, item.key)} />
                                                     <span>{item.label}</span>
-                                                    {line.selectedDefects.includes(item.key) && (
-                                                        <input className="machine-deduction-minute" inputMode="numeric" placeholder="SL" value={line.defects[item.key] || ""} onChange={(event) => updateMachineDefectValue(index, item.key, event.target.value)} />
-                                                    )}
+                                                    {line.selectedDefects.includes(item.key) && <input className="machine-deduction-minute" inputMode="numeric" placeholder="SL" value={line.defects[item.key] || ""} onChange={(event) => updateMachineDefectValue(index, item.key, event.target.value)} />}
                                                 </label>
                                             ))}
                                         </div>
@@ -314,12 +274,8 @@ export default function ProcessBasicInfoSection({
                                 required
                                 disabled={loadingMasterData}
                                 emptyMessage="Không tìm thấy máy trong công đoạn"
-                                onChange={(value) => {
-                                    setForm((prev) => ({ ...prev, machineNo: value, productName: "", standardOutput: "" }));
-                                }}
-                                onSelect={(option) => {
-                                    setForm((prev) => ({ ...prev, machineNo: option.value, productName: "", standardOutput: "" }));
-                                }}
+                                onChange={(value) => setForm((prev) => ({ ...prev, machineNo: value, productName: "", standardOutput: "" }))}
+                                onSelect={(option) => setForm((prev) => ({ ...prev, machineNo: option.value, productName: "", standardOutput: "" }))}
                             />
                             <AutocompleteInput
                                 id="productName"
