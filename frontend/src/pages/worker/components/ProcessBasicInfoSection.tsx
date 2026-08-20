@@ -1,7 +1,7 @@
 import type { ChangeEvent, Dispatch, SetStateAction } from "react";
 import AutocompleteInput from "../../../components/common/AutocompleteInput";
 import type { AutocompleteOption } from "../../../components/common/AutocompleteInput";
-import type { MachineOption, ProductStandardOption } from "../../../services/masterDataService";
+import type { ProductStandardOption } from "../../../services/masterDataService";
 import AppIcon from "../../../components/common/AppIcon";
 import type {
     FormState,
