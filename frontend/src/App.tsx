@@ -16,6 +16,7 @@ import "./pages/worker/ProcessPage.css";
 import "./pages/worker/ProductionHistory.css";
 import "./pages/worker/ProductionDetail.css";
 import "./pages/system/SystemCenter.css";
+import "./reference-ui.css";
 
 import DesktopExcelDbSyncNotifier from "./components/DesktopExcelDbSyncNotifier";
 import AppRouter from "./routes/AppRouter";

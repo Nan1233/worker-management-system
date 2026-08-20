@@ -1,4 +1,4 @@
-const BUILD_VERSION = "1.9.14-demo-release-20260819";
+const BUILD_VERSION = "1.9.14-css-reference-20260819-01";
 const APP_CACHE = `ktc-${BUILD_VERSION}-app`;
 const STATIC_CACHE = `ktc-${BUILD_VERSION}-static`;
 const APP_SHELL = ["./", "./index.html", "./manifest.webmanifest", "./offline.html"];
