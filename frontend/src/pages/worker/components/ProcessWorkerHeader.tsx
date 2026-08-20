@@ -29,9 +29,22 @@ export default function ProcessWorkerHeader({
     return (
         <div className="worker-sticky-context">
             <header className="worker-form-header">
-                <div className="worker-form-title-row">
+                <div
+                    className="worker-form-title-row"
+                    style={{ minWidth: 0, width: "100%", overflow: "hidden" }}
+                >
                     <button type="button" className="worker-form-back" onClick={onBack} aria-label="Quay lại">←</button>
-                    <h1>{processTitle}</h1>
+                    <h1
+                        style={{
+                            minWidth: 0,
+                            flex: "1 1 auto",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                        }}
+                    >
+                        {processTitle}
+                    </h1>
                 </div>
             </header>
 
