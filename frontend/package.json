@@ -28,6 +28,10 @@
     "ios:doctor": "npm run ios:prepare && cap doctor",
     "android:release:check": "node scripts/checkAndroidReleaseContract.cjs",
     "test": "node --test tests/*.test.cjs",
+    "e2e": "playwright test",
+    "e2e:critical": "playwright test tests/e2e/critical-flow.spec.ts",
+    "visual:regression": "playwright test tests/e2e/visual-regression.spec.ts",
+    "visual:update": "playwright test tests/e2e/visual-regression.spec.ts --update-snapshots",
     "ios:doctor:production": "npm run ios:doctor && node scripts/checkIosReleaseContract.cjs",
     "ios:release:check": "node scripts/checkIosReleaseContract.cjs",
     "device:android:check": "node scripts/deviceSmoke.cjs android",
@@ -45,6 +49,7 @@
   "devDependencies": {
     "@capacitor/cli": "8.5.0",
     "@eslint/js": "10.0.1",
+    "@playwright/test": "1.62.1",
     "@tailwindcss/postcss": "^4.1.11",
     "@types/node": "24.13.3",
     "@types/react": "^19.2.17",
