@@ -233,7 +233,7 @@ export default function ProcessBasicInfoSection({
                                             <div className="machine-section-title">Sản lượng</div>
                                             <div className="machine-quantity-row">
                                                 <label><span>OK</span><input type="number" min="0" inputMode="numeric" value={line.okQuantity} onChange={(event) => updateMachineLine(index, { okQuantity: event.target.value.replace(/\D/g, "") })} /></label>
-                                                <label><span>NG</span><input type="number" min="0" inputMode="numeric" value={line.ngQuantity} onChange={(event) => updateMachineLine(index, { ngQuantity: event.target.value.replace(/\D/g, "") })} /></label>
+                                                <label><span>NG</span><input type="number" min="0" inputMode="numeric" value={line.ngQuantity} readOnly aria-readonly="true" title="Tự động tính từ chi tiết lỗi NG" /></label>
                                             </div>
                                         </div>
                                     </div>
