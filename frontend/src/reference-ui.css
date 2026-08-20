@@ -247,3 +247,89 @@ button { font-family:inherit; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
+
+
+/* Shared KTC UI primitives — pages should compose these instead of inventing variants. */
+.ktc-ui-card {
+  background: var(--ktc-surface);
+  border: 1px solid var(--ktc-border);
+  border-radius: 10px;
+  box-shadow: var(--ktc-shadow-xs);
+}
+
+.ktc-ui-button {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--ktc-border);
+  border-radius: 9px;
+  background: var(--ktc-surface);
+  color: var(--ktc-text);
+  font-size: 13px;
+  font-weight: 650;
+  transition: background .16s ease, border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.ktc-ui-button:hover:not(:disabled) {
+  border-color: var(--ktc-border-strong);
+  background: var(--ktc-surface-subtle);
+}
+
+.ktc-ui-button:focus-visible,
+.ktc-ui-input:focus-visible {
+  outline: none;
+  box-shadow: var(--ktc-focus);
+}
+
+.ktc-ui-button:active:not(:disabled) { transform: translateY(1px); }
+.ktc-ui-button-primary { border-color: var(--ktc-primary); background: var(--ktc-primary); color: #fff; }
+.ktc-ui-button-primary:hover:not(:disabled) { background: var(--ktc-brand-700); border-color: var(--ktc-brand-700); }
+.ktc-ui-button-danger { border-color: var(--ktc-danger); background: var(--ktc-danger); color: #fff; }
+.ktc-ui-button-danger:hover:not(:disabled) { background: #b93843; border-color: #b93843; }
+.ktc-ui-button-ghost { border-color: transparent; background: transparent; color: var(--ktc-primary); }
+
+.ktc-ui-badge {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+.ktc-ui-badge-neutral { background: var(--ktc-surface-muted); border-color: var(--ktc-border); color: var(--ktc-text-muted); }
+.ktc-ui-badge-primary { background: var(--ktc-primary-soft); border-color: var(--ktc-brand-100); color: var(--ktc-brand-700); }
+.ktc-ui-badge-success { background: var(--ktc-success-bg); color: var(--ktc-success); }
+.ktc-ui-badge-warning { background: var(--ktc-warning-bg); color: var(--ktc-warning); }
+.ktc-ui-badge-danger { background: var(--ktc-danger-bg); color: var(--ktc-danger); }
+
+.ktc-ui-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.ktc-ui-page-header h1 { margin: 0; color: var(--ktc-ink-950); font-size: 25px; letter-spacing: -.025em; }
+.ktc-ui-page-header p { margin: 5px 0 0; color: var(--ktc-text-muted); font-size: 13px; }
+.ktc-ui-page-header-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.ktc-ui-field { display: grid; gap: 6px; }
+.ktc-ui-field-label { color: var(--ktc-ink-800); font-size: 12px; font-weight: 700; }
+.ktc-ui-field-control { position: relative; display: flex; align-items: center; }
+.ktc-ui-input { min-height: 40px; border: 1px solid var(--ktc-border); border-radius: 8px; background: var(--ktc-surface); color: var(--ktc-text); }
+.ktc-ui-field-hint, .ktc-ui-field-error { font-size: 11px; }
+.ktc-ui-field-hint { color: var(--ktc-text-muted); }
+.ktc-ui-field-error { color: var(--ktc-danger); font-weight: 650; }
+
+@media (max-width: 700px) {
+  .ktc-ui-page-header { flex-direction: column; }
+  .ktc-ui-page-header-actions { width: 100%; }
+  .ktc-ui-button { min-height: 42px; }
+}
