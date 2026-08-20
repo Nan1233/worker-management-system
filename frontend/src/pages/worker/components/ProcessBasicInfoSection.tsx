@@ -33,7 +33,6 @@ interface Props {
     getMachineProductAutocompleteOptions: (machineCode: string) => AutocompleteOption[];
     productOptions: ProductStandardOption[];
     machineAutocompleteOptions: AutocompleteOption[];
-    machineOptions: MachineOption[];
     loadingMasterData: boolean;
     machineCount: number;
     maxMachineCount: number;
@@ -245,7 +244,13 @@ export default function ProcessBasicInfoSection({
                                         <div className="machine-deduction-options">
                                             {activeNgOptions.map((item) => (
                                                 <label key={item.key} className="machine-deduction-option">
-                                                    <input type="checkbox" checked={line.selectedDefects.includes(item.key)} onChange={() => toggleMachineDefect(index, item.key)} />
+                                                    <input
+                                                        type="checkbox"
+                                                        className="machine-ng-checkbox"
+                                                        style={{ width: 16, height: 16, minWidth: 16, maxWidth: 16, minHeight: 16, maxHeight: 16, flex: "0 0 16px", boxSizing: "border-box", margin: 0, padding: 0 }}
+                                                        checked={line.selectedDefects.includes(item.key)}
+                                                        onChange={() => toggleMachineDefect(index, item.key)}
+                                                    />
                                                     <span>{item.label}</span>
                                                     {line.selectedDefects.includes(item.key) && <input className="machine-deduction-minute" inputMode="numeric" placeholder="SL" value={line.defects[item.key] || ""} onChange={(event) => updateMachineDefectValue(index, item.key, event.target.value)} />}
                                                 </label>
