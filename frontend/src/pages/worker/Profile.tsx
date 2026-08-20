@@ -54,11 +54,7 @@ export default function Profile() {
   const handleLogout = async () => {
     if (loggingOut) return;
     setLoggingOut(true);
-    try {
-      await logout();
-    } finally {
-      navigate("/login", { replace: true });
-    }
+    try { await logout(); } finally { navigate("/login", { replace: true }); }
   };
 
   const trainingPercent = profile?.training_percent;
@@ -79,43 +75,41 @@ export default function Profile() {
 
   return (
     <section className="ktc-page">
-      <header className="mb-2.5 sm:mb-4">
-        <div className="text-[10px] text-muted-foreground sm:text-xs">Tài khoản</div>
-        <h1 className="my-0.5 text-[18px] font-medium leading-tight sm:my-1 sm:text-[22px]">Hồ sơ cá nhân</h1>
-        <p className="max-w-[34rem] text-[11px] leading-[1.35] text-muted-foreground sm:text-[13px] sm:leading-[1.45]">Thông tin nhận diện và phân công đang áp dụng cho tài khoản của bạn.</p>
+      <header className="mb-3 sm:mb-4">
+        <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground sm:text-xs">Tài khoản</div>
+        <h1 className="my-1 text-[20px] font-semibold leading-tight text-foreground sm:text-[22px]">Hồ sơ cá nhân</h1>
+        <p className="max-w-[34rem] text-[11px] leading-[1.4] text-muted-foreground sm:text-[13px]">Thông tin nhận diện và phân công đang áp dụng cho tài khoản của bạn.</p>
       </header>
 
-      {error && (
-        <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-2.5 text-[12px] text-destructive sm:rounded-xl sm:p-4 sm:text-sm">
-          {error}
-        </div>
-      )}
+      {error && <div role="alert" className="mb-3 rounded-lg border border-destructive/30 bg-destructive/5 p-2.5 text-[12px] text-destructive">{error}</div>}
 
-      <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
-        <div className="flex items-center gap-2.5 border-b bg-muted/20 px-3 py-2.5 sm:gap-4 sm:p-5 sm:pb-6">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary sm:size-12">
-            <UserRound className="size-4 sm:size-6" />
+      <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+        <div className="flex items-center gap-3 border-b border-border/60 bg-muted/20 px-3 py-3 sm:gap-4 sm:px-5 sm:py-4">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary sm:size-11">
+            <UserRound className="size-[18px] sm:size-5" />
           </div>
           <div className="min-w-0">
-            <h2 className="truncate text-[14px] font-semibold leading-tight sm:text-lg">{profile?.full_name || storedUser?.full_name || "Người dùng"}</h2>
-            <p className="mt-0.5 text-[11px] text-muted-foreground sm:mt-1 sm:text-sm">{displayRole(profile?.role || storedUser?.role)}</p>
+            <h2 className="truncate text-[14px] font-semibold leading-tight sm:text-base">{profile?.full_name || storedUser?.full_name || "Người dùng"}</h2>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">{displayRole(profile?.role || storedUser?.role)}</p>
           </div>
         </div>
 
         {loading ? (
-          <div className="space-y-1.5 p-3 sm:space-y-3 sm:p-5 sm:pt-6" aria-busy="true">
-            {[1,2,3,4].map((i) => <div key={i} className="h-10 animate-pulse rounded-lg bg-muted sm:h-14" />)}
+          <div className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-2 sm:gap-3 sm:p-4" aria-busy="true">
+            {[1,2,3,4].map((i) => <div key={i} className="h-12 animate-pulse rounded-xl bg-muted" />)}
           </div>
         ) : (
-          <dl className="grid sm:grid-cols-2">
+          <dl className="grid grid-cols-2 gap-2 p-2.5 sm:grid-cols-2 sm:gap-3 sm:p-4">
             {fields.map(({ label, value, icon: Icon }) => (
-              <div key={label} className="flex min-w-0 gap-2 border-b px-2.5 py-2 sm:gap-3 sm:p-4 last:border-b sm:nth-last-child(-n+2):border-b-0">
-                <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground sm:size-8">
-                  <Icon className="size-[13px] sm:size-4" />
-                </span>
-                <div className="min-w-0">
-                  <dt className="text-[10px] font-medium leading-tight text-muted-foreground sm:text-xs">{label}</dt>
-                  <dd className="mt-0.5 break-words text-[12px] font-semibold leading-tight sm:mt-1 sm:text-sm">{value}</dd>
+              <div key={label} className="min-w-0 rounded-xl border border-border/60 bg-background/70 p-2.5 sm:p-3">
+                <div className="flex min-w-0 items-start gap-2">
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted/70 text-muted-foreground">
+                    <Icon className="size-[13px]" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <dt className="text-[9px] font-medium leading-tight text-muted-foreground sm:text-[10px]">{label}</dt>
+                    <dd className="mt-1 break-words text-[11px] font-semibold leading-tight text-foreground sm:text-xs">{value}</dd>
+                  </div>
                 </div>
               </div>
             ))}
@@ -128,9 +122,9 @@ export default function Profile() {
         onClick={() => void handleLogout()}
         disabled={loggingOut}
         aria-label="Đăng xuất tài khoản"
-        className="mt-2.5 flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 text-[11px] font-semibold text-red-600 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 sm:mt-4 sm:h-auto sm:rounded-xl sm:py-3.5 sm:text-sm"
+        className="mt-3 flex h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 text-[11px] font-semibold text-red-600 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 sm:mt-4 sm:h-10"
       >
-        <LogOut className="size-3.5 sm:size-4" />
+        <LogOut className="size-3.5" />
         <span>{loggingOut ? "Đang đăng xuất…" : "Đăng xuất"}</span>
       </button>
     </section>
