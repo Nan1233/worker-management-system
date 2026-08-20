@@ -111,7 +111,7 @@ export default function Profile() {
             {fields.map(({ label, value, icon: Icon }) => (
               <div key={label} className="flex min-w-0 gap-2 border-b px-2.5 py-2 sm:gap-3 sm:p-4 last:border-b sm:nth-last-child(-n+2):border-b-0">
                 <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground sm:size-8">
-                  <Icon className="size-3.25 sm:size-4" />
+                  <Icon className="size-[13px] sm:size-4" />
                 </span>
                 <div className="min-w-0">
                   <dt className="text-[10px] font-medium leading-tight text-muted-foreground sm:text-xs">{label}</dt>
