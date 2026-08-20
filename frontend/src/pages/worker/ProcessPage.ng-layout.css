@@ -1,4 +1,4 @@
-/* KTC worker NG layout: quantity is entered below the defect option, never inline. */
+/* KTC worker NG layout: checkbox list stays two-column; selected quantities are entered below it. */
 .machine-deduction-options {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
@@ -8,13 +8,13 @@
 }
 
 .machine-deduction-option {
-  display: grid !important;
-  grid-template-columns: 18px minmax(0, 1fr) !important;
-  grid-template-rows: auto auto !important;
+  display: flex !important;
+  flex-direction: row !important;
   align-items: center !important;
+  min-width: 0 !important;
   min-height: 36px !important;
   padding: 7px 8px !important;
-  gap: 6px 7px !important;
+  gap: 7px !important;
   box-sizing: border-box !important;
   border: 1px solid #dce6f0 !important;
   border-radius: 8px !important;
@@ -25,14 +25,13 @@
 }
 
 .machine-deduction-option > input[type="checkbox"] {
-  grid-column: 1 !important;
-  grid-row: 1 !important;
   appearance: none !important;
   -webkit-appearance: none !important;
   width: 17px !important;
   height: 17px !important;
   min-width: 17px !important;
   min-height: 17px !important;
+  flex: 0 0 17px !important;
   margin: 0 !important;
   padding: 0 !important;
   border: 1.5px solid #b8c9dc !important;
@@ -58,9 +57,8 @@
 }
 
 .machine-deduction-option > span {
-  grid-column: 2 !important;
-  grid-row: 1 !important;
   min-width: 0 !important;
+  flex: 1 1 auto !important;
   color: #405873 !important;
   font-size: 10px !important;
   font-weight: 600 !important;
@@ -68,33 +66,52 @@
   overflow-wrap: anywhere !important;
 }
 
-/* Selected defect quantity: a separate full-width field under the option. */
-.machine-deduction-option > .machine-deduction-minute {
-  grid-column: 1 / -1 !important;
-  grid-row: 2 !important;
+/* Reference layout: selected NG quantities are separate full-width rows below the checkbox grid. */
+.machine-ng-quantities {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  gap: 7px !important;
+  margin-top: 8px !important;
+}
+
+.machine-ng-quantity-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 1fr) !important;
+  align-items: center !important;
+  gap: 10px !important;
+  width: 100% !important;
+  min-height: 42px !important;
+  box-sizing: border-box !important;
+}
+
+.machine-ng-quantity-row > span {
+  min-width: 0 !important;
+  color: #405873 !important;
+  font-size: 11px !important;
+  font-weight: 650 !important;
+}
+
+.machine-ng-quantity-row > .machine-deduction-minute {
   display: block !important;
   width: 100% !important;
   min-width: 0 !important;
-  min-height: 34px !important;
+  min-height: 40px !important;
   box-sizing: border-box !important;
   margin: 0 !important;
-  padding: 6px 9px !important;
+  padding: 7px 10px !important;
   border: 1px solid #cbdbea !important;
   border-radius: 8px !important;
   background: #fff !important;
   color: #183654 !important;
-  font-size: 12px !important;
+  font-size: 14px !important;
   font-weight: 600 !important;
   outline: none !important;
 }
 
-.machine-deduction-option > .machine-deduction-minute:focus {
+.machine-ng-quantity-row > .machine-deduction-minute:focus {
   border-color: #1768c8 !important;
   box-shadow: 0 0 0 2px rgba(23, 104, 200, .10) !important;
-}
-
-.machine-deduction-option:has(.machine-deduction-minute) {
-  align-content: start !important;
 }
 
 @media (max-width: 680px) {
@@ -104,7 +121,6 @@
   }
 
   .machine-deduction-option {
-    grid-template-columns: 17px minmax(0, 1fr) !important;
     min-height: 34px !important;
     padding: 6px 7px !important;
     gap: 6px !important;
@@ -116,15 +132,31 @@
     height: 16px !important;
     min-width: 16px !important;
     min-height: 16px !important;
+    flex-basis: 16px !important;
   }
 
   .machine-deduction-option > span {
     font-size: 10px !important;
   }
 
-  .machine-deduction-option > .machine-deduction-minute {
-    min-height: 32px !important;
-    padding: 5px 8px !important;
-    font-size: 12px !important;
+  .machine-ng-quantities {
+    gap: 6px !important;
+    margin-top: 8px !important;
+  }
+
+  .machine-ng-quantity-row {
+    grid-template-columns: minmax(0, 1fr) minmax(100px, 1fr) !important;
+    gap: 8px !important;
+    min-height: 40px !important;
+  }
+
+  .machine-ng-quantity-row > span {
+    font-size: 10px !important;
+  }
+
+  .machine-ng-quantity-row > .machine-deduction-minute {
+    min-height: 38px !important;
+    padding: 6px 9px !important;
+    font-size: 13px !important;
   }
 }
