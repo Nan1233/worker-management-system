@@ -42,7 +42,6 @@ function Reports() {
     const [selectedProcess, setSelectedProcess] = useState("");
     const [selectedShift, setSelectedShift] = useState("");
     const [statusFilter] = useState("Chờ duyệt");
-    const [tab, setTab] = useState<"all" | "overdue">("all");
     const [reports, setReports] = useState<ProductionReport[]>([]);
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [selectedDetail, setSelectedDetail] = useState<ProductionReport | null>(null);
@@ -60,7 +59,7 @@ function Reports() {
     const [rejectDetail, setRejectDetail] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
-    const [overdueCount, setOverdueCount] = useState(0);
+    const [todayCount, setTodayCount] = useState(0);
     const [totalPages, setTotalPages] = useState(1);
     const seq = useRef(0);
     const lock = useRef(false);
@@ -75,20 +74,26 @@ function Reports() {
         try {
             setLoading(true);
             setError("");
-            const result = await getPendingReports({ dateFrom: date || undefined, dateTo: date || undefined, processName: selectedProcess || undefined, shift: selectedShift || undefined, search: searchQuery || undefined, page: currentPage, pageSize: 8 });
+            const filters = { processName: selectedProcess || undefined, shift: selectedShift || undefined, search: searchQuery || undefined };
+            const result = await getPendingReports({ dateFrom: date || undefined, dateTo: date || undefined, ...filters, page: currentPage, pageSize: 8 });
             if (request !== seq.current) return;
             setReports(result.data);
             setTotalCount(result.pagination.total);
             setTotalPages(result.pagination.total_pages);
-            setOverdueCount(Number(result.previous_count || 0));
+
+            const todayResult = date === getToday()
+                ? result
+                : await getPendingReports({ dateFrom: getToday(), dateTo: getToday(), ...filters, page: 1, pageSize: 1 });
+            if (request !== seq.current) return;
+            setTodayCount(todayResult.pagination.total);
             setSelectedIds(previous => reconcileSelectedReportIds(previous, result.data));
         } catch (err: unknown) {
             if (request !== seq.current) return;
             setError(axios.isAxiosError(err) ? err.response?.data?.message || "Không thể tải báo cáo chờ duyệt" : "Không thể tải báo cáo chờ duyệt");
             setReports([]);
             setTotalCount(0);
+            setTodayCount(0);
             setTotalPages(1);
-            setOverdueCount(0);
             setSelectedIds([]);
         } finally {
             if (request === seq.current) setLoading(false);
@@ -106,8 +111,7 @@ function Reports() {
 
     const processes = useMemo(() => Array.from(new Set(reports.map(report => report.process_name).filter(Boolean) as string[])).sort(), [reports]);
     const shifts = useMemo(() => Array.from(new Set(reports.map(report => report.shift).filter(Boolean))).sort(), [reports]);
-    const overdueOnPage = useMemo(() => reports.filter(report => String(report.work_date || "").slice(0, 10) < getToday()), [reports]);
-    const visibleReports = tab === "overdue" ? overdueOnPage : reports;
+    const visibleReports = reports;
     const pageIds = useMemo(() => getValidReportIds(visibleReports), [visibleReports]);
     const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
     const targets = useMemo(() => reports.filter(report => selectedSet.has(Number(report.id))).map(report => ({ id: Number(report.id), expected_updated_at: report.updated_at || null })), [reports, selectedSet]);
@@ -251,12 +255,12 @@ function Reports() {
                 <label><span>Trạng thái</span><select value={statusFilter} aria-label="Trạng thái" disabled><option value="Chờ duyệt">Chờ duyệt</option></select></label>
                 <button className="pending-refresh" type="button" onClick={() => void loadReports()}>⟳ <span>Làm mới</span></button>
             </section>
-            <section className="pending-kpis"><div className="pending-kpi kpi-blue"><span>Tổng số báo cáo</span><strong>{totalCount}</strong><small>Báo cáo</small></div><div className="pending-kpi kpi-slate"><span>Quá hạn duyệt</span><strong>{overdueCount}</strong><small>Báo cáo</small></div><div className="pending-kpi kpi-green"><span>Đã duyệt hôm nay</span><strong>—</strong><small>Báo cáo</small></div></section>
+            <section className="pending-kpis"><div className="pending-kpi kpi-blue"><span>Tổng số báo cáo</span><strong>{totalCount}</strong><small>Báo cáo</small></div><div className="pending-kpi kpi-green"><span>Tổng hôm nay</span><strong>{todayCount}</strong><small>Báo cáo</small></div></section>
             {error && <div className="management-error">{error}</div>}
 
             <section className={`pending-workspace ${selectedDetail ? "detail-open" : "list-only"}`}>
                 <div className="pending-list-card">
-                    <div className="pending-list-tabs"><button type="button" className={`pending-list-tab ${tab === "all" ? "active" : ""}`} onClick={() => setTab("all")}>Danh sách báo cáo ({totalCount})</button><button type="button" className={`pending-list-tab ${tab === "overdue" ? "active" : ""}`} onClick={() => setTab("overdue")}>Báo cáo quá hạn ({overdueCount}) <span className="tab-badge">{overdueCount}</span></button></div>
+                    <div className="pending-list-tabs"><button type="button" className="pending-list-tab active">Danh sách báo cáo ({totalCount})</button></div>
                     {selectedIds.length > 0 && <div className="management-selected-info"><strong>Đã chọn {selectedIds.length} báo cáo.</strong><button type="button" onClick={() => setSelectedIds([])}>Bỏ chọn</button></div>}
                     {loading ? <div className="management-empty">Đang tải...</div> : !visibleReports.length ? <div className="pending-overdue-empty">Không có báo cáo phù hợp</div> : <div className="pending-table-wrap"><table className="pending-reference-table"><thead><tr><th className="select-col"><input type="checkbox" checked={allSelected} ref={element => { if (element) element.indeterminate = someSelected; }} onChange={togglePage} /></th><th>STT</th><th>Mã báo cáo</th><th>Công nhân</th><th>Công đoạn</th><th>Ca</th><th>Thời gian</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>{visibleReports.map((report, index) => { const id = Number(report.id); const selected = selectedSet.has(id); const active = Number(selectedDetail?.id) === id; return <tr key={report.id ?? index} className={`${selected ? "is-selected" : ""} ${active ? "pending-row-active" : ""}`}><td className="select-col"><input type="checkbox" checked={selected} disabled={!id || actionLoading} onChange={() => toggleOne(id)} /></td><td>{(currentPage - 1) * 8 + index + 1}</td><td className="report-code">{reportCode(report, index)}</td><td><div className="worker-cell">{text(report.full_name)}<small>({text(report.worker_code)})</small></div></td><td>{text(report.process_name)}</td><td><span className="shift-chip">{text(report.shift)}</span></td><td><div className="date-cell"><strong>{formatDate(report.work_date)}</strong><small>{timeRange(report)}</small></div></td><td><span className="status-pill status-orange">Chờ duyệt</span></td><td className="actions-cell"><button type="button" className="icon-action view" title="Xem chi tiết" onClick={() => void openDetail(report)}>◉</button></td></tr>; })}</tbody></table></div>}
                     <footer className="pending-table-footer"><span>Hiển thị {visibleReports.length ? (currentPage - 1) * 8 + 1 : 0} đến {Math.min(currentPage * 8, totalCount)} của {totalCount} báo cáo</span><nav className="pending-pagination"><button disabled={currentPage === 1} onClick={() => setCurrentPage(page => Math.max(1, page - 1))}>‹</button>{Array.from({ length: Math.min(totalPages, 4) }, (_, index) => index + 1).map(page => <button key={page} className={currentPage === page ? "active" : ""} onClick={() => setCurrentPage(page)}>{page}</button>)}{totalPages > 4 && <button disabled>…</button>}<button disabled={currentPage === totalPages} onClick={() => setCurrentPage(page => Math.min(totalPages, page + 1))}>›</button></nav></footer>
