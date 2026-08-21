@@ -81,7 +81,8 @@ function SelectedReportsReview() {
     const { can } = usePermissions();
 
     const basePath = role === "lead" ? "/lead" : role === "admin" ? "/admin" : "/manager";
-    const canEdit = source === "pending" ? can("REPORT_PENDING_EDIT") : can("REPORT_APPROVED_EDIT");
+    // Tổ trưởng (lead) tuyệt đối không được sửa, kể cả khi permission DB bị cấp nhầm.
+    const canEdit = role !== "lead" && (source === "pending" ? can("REPORT_PENDING_EDIT") : can("REPORT_APPROVED_EDIT"));
     const canReview = can("REPORT_APPROVE");
     const storageKey = source === "approved"
         ? "selectedApprovedReportIds"
