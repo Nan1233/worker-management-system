@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
-  BarChart3, Bell, ChevronDown, ClipboardCheck, Database, FileSpreadsheet, LayoutDashboard,
+  Bell, ChevronDown, ClipboardCheck, Database, FileSpreadsheet, LayoutDashboard,
   LogOut, MoreHorizontal, Settings2, ShieldCheck, Users,
 } from "lucide-react";
 import { logout } from "../services/authService";
@@ -28,7 +28,6 @@ const items: ManagementMenuItem[] = [
   { label: "Tổng quan", path: "", icon: LayoutDashboard, permission: "DASHBOARD_VIEW", roles: allManagementRoles },
   { label: "Chờ duyệt", path: "reports", icon: ClipboardCheck, permission: "REPORT_PENDING_VIEW", roles: allManagementRoles },
   { label: "Đã duyệt", path: "approved", icon: ShieldCheck, permission: "REPORT_APPROVED_VIEW", roles: allManagementRoles },
-  { label: "Thống kê", path: "statistics", icon: BarChart3, permission: "STATISTICS_VIEW", roles: allManagementRoles },
   { label: "Nhân sự", path: "workers", icon: Users, permission: "USER_VIEW", roles: allManagementRoles },
   { label: "Xuất báo cáo", path: "export", icon: FileSpreadsheet, permission: "REPORT_EXPORT", roles: allManagementRoles },
   { label: "Dữ liệu chuẩn", path: "master/processes", icon: Database, permission: "MASTER_VIEW", roles: adminAndManagerRoles },
