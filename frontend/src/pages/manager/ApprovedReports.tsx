@@ -16,6 +16,32 @@ const formatDate = (value?: string | null) => {
 };
 const text = (value: unknown, fallback = "---") => value === null || value === undefined || value === "" ? fallback : String(value);
 const number = (value: unknown) => Number(value || 0).toLocaleString("vi-VN", { maximumFractionDigits: 2 });
+const toDate = (value: string) => new Date(`${value}T00:00:00`);
+const dateString = (value: Date) => {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+};
+const rangeFor = (value: string, type: "year" | "month" | "week" | "day") => {
+    const base = toDate(value);
+    const start = new Date(base);
+    const end = new Date(base);
+    if (type === "year") {
+        start.setMonth(0, 1);
+        end.setMonth(11, 31);
+    } else if (type === "month") {
+        start.setDate(1);
+        end.setMonth(end.getMonth() + 1, 0);
+    } else if (type === "week") {
+        const mondayOffset = (start.getDay() + 6) % 7;
+        start.setDate(start.getDate() - mondayOffset);
+        end.setTime(start.getTime());
+        end.setDate(start.getDate() + 6);
+    }
+    return { dateFrom: dateString(start), dateTo: dateString(end) };
+};
+
 const timeRange = (report: ProductionReport) => {
     const extra = report.extra_data || {};
     const start = extra.start_time;
@@ -28,6 +54,7 @@ export default function ApprovedReports() {
     const canEdit = can("REPORT_APPROVED_EDIT");
     const { showToast } = useToast();
     const [date, setDate] = useState(getToday());
+    const [dateRange, setDateRange] = useState<{ dateFrom: string; dateTo: string } | null>(null);
     const [searchKeyword, setSearchKeyword] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedProcess, setSelectedProcess] = useState("");
@@ -46,8 +73,11 @@ export default function ApprovedReports() {
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
     const [pages, setPages] = useState(1);
+    const [yearCount, setYearCount] = useState(0);
+    const [monthCount, setMonthCount] = useState(0);
+    const [weekCount, setWeekCount] = useState(0);
+    const [dayCount, setDayCount] = useState(0);
     const seq = useRef(0);
-    const [reload, setReload] = useState(0);
 
     useEffect(() => {
         const timer = window.setTimeout(() => setSearchQuery(searchKeyword.trim()), 250);
@@ -59,23 +89,43 @@ export default function ApprovedReports() {
         try {
             setLoading(true);
             setError("");
-            const result = await getApprovedReports({ dateFrom: date || undefined, dateTo: date || undefined, processName: selectedProcess || undefined, shift: selectedShift || undefined, search: searchQuery || undefined, page, pageSize: 8 });
+            const filters = { processName: selectedProcess || undefined, shift: selectedShift || undefined, search: searchQuery || undefined };
+            const listRange = dateRange || { dateFrom: date, dateTo: date };
+            const result = await getApprovedReports({ ...listRange, ...filters, page, pageSize: 8 });
             if (current !== seq.current) return;
             setReports(result.data);
             setTotal(result.pagination.total);
             setPages(result.pagination.total_pages);
+
+            const ranges = {
+                year: rangeFor(date, "year"),
+                month: rangeFor(date, "month"),
+                week: rangeFor(date, "week"),
+                day: rangeFor(date, "day"),
+            };
+            const [yearResult, monthResult, weekResult, dayResult] = await Promise.all([
+                getApprovedReports({ ...ranges.year, ...filters, page: 1, pageSize: 1 }),
+                getApprovedReports({ ...ranges.month, ...filters, page: 1, pageSize: 1 }),
+                getApprovedReports({ ...ranges.week, ...filters, page: 1, pageSize: 1 }),
+                getApprovedReports({ ...ranges.day, ...filters, page: 1, pageSize: 1 }),
+            ]);
+            if (current !== seq.current) return;
+            setYearCount(yearResult.pagination.total);
+            setMonthCount(monthResult.pagination.total);
+            setWeekCount(weekResult.pagination.total);
+            setDayCount(dayResult.pagination.total);
             setSelectedIds(previous => reconcileSelectedReportIds(previous, result.data));
         } catch (err: unknown) {
             if (current !== seq.current) return;
             setError(axios.isAxiosError(err) ? err.response?.data?.message || "Không thể tải báo cáo đã duyệt" : "Không thể tải báo cáo đã duyệt");
-            setReports([]); setTotal(0); setPages(1); setSelectedIds([]);
+            setReports([]); setTotal(0); setYearCount(0); setMonthCount(0); setWeekCount(0); setDayCount(0); setPages(1); setSelectedIds([]);
         } finally {
             if (current === seq.current) setLoading(false);
         }
-    }, [date, selectedProcess, selectedShift, searchQuery, page]);
+    }, [date, dateRange, selectedProcess, selectedShift, searchQuery, page]);
 
-    useEffect(() => { void loadReports(); }, [loadReports, reload]);
-    useEffect(() => { setPage(1); setSelectedIds([]); setSelectedDetail(null); setEditing(false); }, [date, selectedProcess, selectedShift, searchQuery]);
+    useEffect(() => { void loadReports(); }, [loadReports]);
+    useEffect(() => { setPage(1); setSelectedIds([]); setSelectedDetail(null); setEditing(false); }, [date, dateRange, selectedProcess, selectedShift, searchQuery]);
 
     const processes = useMemo(() => Array.from(new Set(reports.map(r => r.process_name).filter(Boolean) as string[])).sort(), [reports]);
     const shifts = useMemo(() => Array.from(new Set(reports.map(r => r.shift).filter(Boolean))).sort(), [reports]);
@@ -125,6 +175,10 @@ export default function ApprovedReports() {
 
     const toggleAll = () => setSelectedIds(previous => toggleCurrentPageIds(previous, ids, allSelected));
     const toggleOne = (id: number) => setSelectedIds(previous => toggleReportId(previous, id));
+    const selectDay = () => { setDate(getToday()); setDateRange(null); };
+    const selectMonth = () => { setDateRange(rangeFor(date, "month")); };
+    const selectYear = () => { setDateRange(rangeFor(date, "year")); };
+
     const detail = editing && editDraft ? editDraft : selectedDetail;
     const ok = Number(detail?.tt_ok || 0), ng = Number(detail?.tt_ng || 0), totalOutput = Number(detail?.actual_output || ok + ng), rate = totalOutput > 0 ? ok / totalOutput * 100 : 0;
 
@@ -134,17 +188,17 @@ export default function ApprovedReports() {
 
             <section className="pending-filter-card">
                 <div className="pending-search"><span>⌕</span><input value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)} placeholder="Tìm kiếm mã báo cáo, công nhân..." /></div>
-                <label><span>Ngày báo cáo</span><input type="date" value={date} onChange={e => setDate(e.target.value)} /></label>
+                <label><span>Ngày báo cáo</span><input type="date" value={date} onChange={e => { setDate(e.target.value); setDateRange(null); }} /></label>
+                <div className="pending-quick-filters"><span>Chọn nhanh</span><button type="button" className={!dateRange ? "active" : ""} onClick={selectDay}>Hôm nay</button><button type="button" className={dateRange?.dateFrom === rangeFor(date, "month").dateFrom && dateRange?.dateTo === rangeFor(date, "month").dateTo ? "active" : ""} onClick={selectMonth}>Cả tháng</button><button type="button" className={dateRange?.dateFrom === rangeFor(date, "year").dateFrom && dateRange?.dateTo === rangeFor(date, "year").dateTo ? "active" : ""} onClick={selectYear}>Cả năm</button></div>
                 <label><span>Công đoạn</span><select value={selectedProcess} onChange={e => setSelectedProcess(e.target.value)}><option value="">Tất cả</option>{processes.map(p => <option key={p} value={p}>{p}</option>)}</select></label>
                 <label><span>Ca làm việc</span><select value={selectedShift} onChange={e => setSelectedShift(e.target.value)}><option value="">Tất cả</option>{shifts.map(s => <option key={s} value={s}>{s}</option>)}</select></label>
-                <label><span>Trạng thái</span><select value="Đã duyệt" disabled><option>Đã duyệt</option></select></label>
-                <button className="pending-refresh" type="button" onClick={() => setReload(v => v + 1)}>⟳ <span>Làm mới</span></button>
             </section>
 
             <section className="pending-kpis">
-                <div className="pending-kpi kpi-blue"><span>Tổng số báo cáo</span><strong>{total}</strong><small>Báo cáo</small></div>
-                <div className="pending-kpi kpi-green"><span>Đã duyệt hôm nay</span><strong>{reports.filter(r => String(r.approved_at || "").slice(0,10) === getToday()).length}</strong><small>Báo cáo</small></div>
-                <div className="pending-kpi kpi-slate"><span>Đang hiển thị</span><strong>{reports.length}</strong><small>Báo cáo</small></div>
+                <div className="pending-kpi kpi-blue"><span>Trong năm</span><strong>{yearCount}</strong><small>Báo cáo đã duyệt</small></div>
+                <div className="pending-kpi kpi-green"><span>Trong tháng</span><strong>{monthCount}</strong><small>Báo cáo đã duyệt</small></div>
+                <div className="pending-kpi kpi-slate"><span>Trong tuần</span><strong>{weekCount}</strong><small>Báo cáo đã duyệt</small></div>
+                <div className="pending-kpi kpi-orange"><span>Trong ngày</span><strong>{dayCount}</strong><small>Báo cáo đã duyệt</small></div>
             </section>
 
             {error && <div className="management-error">{error}</div>}
