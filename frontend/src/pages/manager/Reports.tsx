@@ -30,6 +30,31 @@ const formatDate = (value?: string | null) => {
     return year && month && day ? `${day}/${month}/${year}` : raw;
 };
 const number = (value: unknown) => Number(value || 0).toLocaleString("vi-VN", { maximumFractionDigits: 2 });
+const toDate = (value: string) => new Date(`${value}T00:00:00`);
+const dateString = (value: Date) => {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+};
+const rangeFor = (value: string, type: "year" | "month" | "week" | "day") => {
+    const base = toDate(value);
+    const start = new Date(base);
+    const end = new Date(base);
+    if (type === "year") {
+        start.setMonth(0, 1);
+        end.setMonth(11, 31);
+    } else if (type === "month") {
+        start.setDate(1);
+        end.setMonth(end.getMonth() + 1, 0);
+    } else if (type === "week") {
+        const mondayOffset = (start.getDay() + 6) % 7;
+        start.setDate(start.getDate() - mondayOffset);
+        end.setTime(start.getTime());
+        end.setDate(start.getDate() + 6);
+    }
+    return { dateFrom: dateString(start), dateTo: dateString(end) };
+};
 
 function Reports() {
     const { can } = usePermissions();
@@ -37,6 +62,7 @@ function Reports() {
     const canEdit = can("REPORT_APPROVED_EDIT");
     const { showToast } = useToast();
     const [date, setDate] = useState(getToday());
+    const [dateRange, setDateRange] = useState<{ dateFrom: string; dateTo: string } | null>(null);
     const [searchKeyword, setSearchKeyword] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedProcess, setSelectedProcess] = useState("");
@@ -59,7 +85,10 @@ function Reports() {
     const [rejectDetail, setRejectDetail] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
-    const [todayCount, setTodayCount] = useState(0);
+    const [yearCount, setYearCount] = useState(0);
+    const [monthCount, setMonthCount] = useState(0);
+    const [weekCount, setWeekCount] = useState(0);
+    const [dayCount, setDayCount] = useState(0);
     const [totalPages, setTotalPages] = useState(1);
     const seq = useRef(0);
     const lock = useRef(false);
@@ -75,30 +104,46 @@ function Reports() {
             setLoading(true);
             setError("");
             const filters = { processName: selectedProcess || undefined, shift: selectedShift || undefined, search: searchQuery || undefined };
-            const result = await getPendingReports({ dateFrom: date || undefined, dateTo: date || undefined, ...filters, page: currentPage, pageSize: 8 });
+            const listRange = dateRange || { dateFrom: date, dateTo: date };
+            const result = await getPendingReports({ ...listRange, ...filters, page: currentPage, pageSize: 8 });
             if (request !== seq.current) return;
             setReports(result.data);
             setTotalCount(result.pagination.total);
             setTotalPages(result.pagination.total_pages);
 
-            const todayResult = date === getToday()
-                ? result
-                : await getPendingReports({ dateFrom: getToday(), dateTo: getToday(), ...filters, page: 1, pageSize: 1 });
+            const ranges = {
+                year: rangeFor(date, "year"),
+                month: rangeFor(date, "month"),
+                week: rangeFor(date, "week"),
+                day: rangeFor(date, "day"),
+            };
+            const [yearResult, monthResult, weekResult, dayResult] = await Promise.all([
+                getPendingReports({ ...ranges.year, ...filters, page: 1, pageSize: 1 }),
+                getPendingReports({ ...ranges.month, ...filters, page: 1, pageSize: 1 }),
+                getPendingReports({ ...ranges.week, ...filters, page: 1, pageSize: 1 }),
+                getPendingReports({ ...ranges.day, ...filters, page: 1, pageSize: 1 }),
+            ]);
             if (request !== seq.current) return;
-            setTodayCount(todayResult.pagination.total);
+            setYearCount(yearResult.pagination.total);
+            setMonthCount(monthResult.pagination.total);
+            setWeekCount(weekResult.pagination.total);
+            setDayCount(dayResult.pagination.total);
             setSelectedIds(previous => reconcileSelectedReportIds(previous, result.data));
         } catch (err: unknown) {
             if (request !== seq.current) return;
             setError(axios.isAxiosError(err) ? err.response?.data?.message || "Không thể tải báo cáo chờ duyệt" : "Không thể tải báo cáo chờ duyệt");
             setReports([]);
             setTotalCount(0);
-            setTodayCount(0);
+            setYearCount(0);
+            setMonthCount(0);
+            setWeekCount(0);
+            setDayCount(0);
             setTotalPages(1);
             setSelectedIds([]);
         } finally {
             if (request === seq.current) setLoading(false);
         }
-    }, [date, selectedProcess, selectedShift, searchQuery, currentPage]);
+    }, [date, dateRange, selectedProcess, selectedShift, searchQuery, currentPage]);
 
     useEffect(() => { void loadReports(); }, [loadReports]);
     useEffect(() => {
@@ -107,7 +152,7 @@ function Reports() {
         setSelectedDetail(null);
         setEditDraft(null);
         setEditingDetail(false);
-    }, [date, selectedProcess, selectedShift, searchQuery]);
+    }, [date, dateRange, selectedProcess, selectedShift, searchQuery]);
 
     const processes = useMemo(() => Array.from(new Set(reports.map(report => report.process_name).filter(Boolean) as string[])).sort(), [reports]);
     const shifts = useMemo(() => Array.from(new Set(reports.map(report => report.shift).filter(Boolean))).sort(), [reports]);
@@ -244,18 +289,28 @@ function Reports() {
     const detailNg = Number(detail?.tt_ng || 0);
     const detailRate = detailTotal > 0 ? (detailOk / detailTotal) * 100 : 0;
 
+    const selectDay = () => { setDate(getToday()); setDateRange(null); };
+    const selectMonth = () => { const range = rangeFor(date, "month"); setDateRange(range); };
+    const selectYear = () => { const range = rangeFor(date, "year"); setDateRange(range); };
+
     return (
         <div className="management-report-page manager-page pending-reference-page">
             <header className="pending-page-title"><div><h1>Chờ duyệt báo cáo</h1><p>Xem chi tiết và duyệt các báo cáo sản xuất từ công nhân.</p></div></header>
             <section className="pending-filter-card">
                 <div className="pending-search"><span>⌕</span><input value={searchKeyword} onChange={event => setSearchKeyword(event.target.value)} placeholder="Tìm kiếm mã báo cáo, công nhân..." /></div>
-                <label><span>Ngày báo cáo</span><input type="date" value={date} onChange={event => setDate(event.target.value)} /></label>
+                <label><span>Ngày báo cáo</span><input type="date" value={date} onChange={event => { setDate(event.target.value); setDateRange(null); }} /></label>
+                <div className="pending-quick-filters"><span>Chọn nhanh</span><button type="button" className={!dateRange ? "active" : ""} onClick={selectDay}>Hôm nay</button><button type="button" className={dateRange?.dateFrom === rangeFor(date, "month").dateFrom && dateRange?.dateTo === rangeFor(date, "month").dateTo ? "active" : ""} onClick={selectMonth}>Cả tháng</button><button type="button" className={dateRange?.dateFrom === rangeFor(date, "year").dateFrom && dateRange?.dateTo === rangeFor(date, "year").dateTo ? "active" : ""} onClick={selectYear}>Cả năm</button></div>
                 <label><span>Công đoạn</span><select value={selectedProcess} onChange={event => setSelectedProcess(event.target.value)}><option value="">Tất cả</option>{processes.map(process => <option key={process} value={process}>{process}</option>)}</select></label>
                 <label><span>Ca làm việc</span><select value={selectedShift} onChange={event => setSelectedShift(event.target.value)}><option value="">Tất cả</option>{shifts.map(shift => <option key={shift} value={shift}>{shift}</option>)}</select></label>
                 <label><span>Trạng thái</span><select value={statusFilter} aria-label="Trạng thái" disabled><option value="Chờ duyệt">Chờ duyệt</option></select></label>
                 <button className="pending-refresh" type="button" onClick={() => void loadReports()}>⟳ <span>Làm mới</span></button>
             </section>
-            <section className="pending-kpis"><div className="pending-kpi kpi-blue"><span>Tổng số báo cáo</span><strong>{totalCount}</strong><small>Báo cáo</small></div><div className="pending-kpi kpi-green"><span>Tổng hôm nay</span><strong>{todayCount}</strong><small>Báo cáo</small></div></section>
+            <section className="pending-kpis">
+                <div className="pending-kpi kpi-blue"><span>Trong năm</span><strong>{yearCount}</strong><small>Báo cáo chờ duyệt</small></div>
+                <div className="pending-kpi kpi-green"><span>Trong tháng</span><strong>{monthCount}</strong><small>Báo cáo chờ duyệt</small></div>
+                <div className="pending-kpi kpi-slate"><span>Trong tuần</span><strong>{weekCount}</strong><small>Báo cáo chờ duyệt</small></div>
+                <div className="pending-kpi kpi-orange"><span>Trong ngày</span><strong>{dayCount}</strong><small>Báo cáo chờ duyệt</small></div>
+            </section>
             {error && <div className="management-error">{error}</div>}
 
             <section className={`pending-workspace ${selectedDetail ? "detail-open" : "list-only"}`}>
