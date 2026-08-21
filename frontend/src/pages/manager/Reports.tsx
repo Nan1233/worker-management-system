@@ -79,7 +79,6 @@ function Reports() {
     const toggleOne=(id:number)=>setSelectedIds(p=>toggleReportId(p,id));
     const viewOne=(id:number)=>{sessionStorage.setItem("selectedPendingReportIds",JSON.stringify([id]));navigate(`${basePath}/reports/review`);};
     const viewSelected=()=>{if(!selectedIds.length){showToast("Vui lòng chọn ít nhất một báo cáo");return;}sessionStorage.setItem("selectedPendingReportIds",JSON.stringify(selectedIds));navigate(`${basePath}/reports/review`);};
-    const clearFilters=()=>{setSearchKeyword("");setSelectedProcess("");setDateMode("today");setSelectedMonth("");setDateFrom(getToday());setDateTo(getToday());};
 
     const approveTargets=async(ids:number[],items:{id:number;expected_updated_at:string|null}[])=>{
         if(lock.current||actionLoading)return; if(!ids.length)return showToast("Vui lòng chọn ít nhất một báo cáo");
