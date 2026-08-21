@@ -67,7 +67,6 @@ function Reports() {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedProcess, setSelectedProcess] = useState("");
     const [selectedShift, setSelectedShift] = useState("");
-    const [statusFilter] = useState("Chờ duyệt");
     const [reports, setReports] = useState<ProductionReport[]>([]);
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [selectedDetail, setSelectedDetail] = useState<ProductionReport | null>(null);
@@ -302,7 +301,6 @@ function Reports() {
                 <div className="pending-quick-filters"><span>Chọn nhanh</span><button type="button" className={!dateRange ? "active" : ""} onClick={selectDay}>Hôm nay</button><button type="button" className={dateRange?.dateFrom === rangeFor(date, "month").dateFrom && dateRange?.dateTo === rangeFor(date, "month").dateTo ? "active" : ""} onClick={selectMonth}>Cả tháng</button><button type="button" className={dateRange?.dateFrom === rangeFor(date, "year").dateFrom && dateRange?.dateTo === rangeFor(date, "year").dateTo ? "active" : ""} onClick={selectYear}>Cả năm</button></div>
                 <label><span>Công đoạn</span><select value={selectedProcess} onChange={event => setSelectedProcess(event.target.value)}><option value="">Tất cả</option>{processes.map(process => <option key={process} value={process}>{process}</option>)}</select></label>
                 <label><span>Ca làm việc</span><select value={selectedShift} onChange={event => setSelectedShift(event.target.value)}><option value="">Tất cả</option>{shifts.map(shift => <option key={shift} value={shift}>{shift}</option>)}</select></label>
-                <label><span>Trạng thái</span><select value={statusFilter} aria-label="Trạng thái" disabled><option value="Chờ duyệt">Chờ duyệt</option></select></label>
                 <button className="pending-refresh" type="button" onClick={() => void loadReports()}>⟳ <span>Làm mới</span></button>
             </section>
             <section className="pending-kpis">
