@@ -28,7 +28,6 @@ function Reports() {
     const user = getStoredUser();
     const basePath = user?.role === "admin" ? "/admin" : user?.role === "lead" ? "/lead" : "/manager";
     const [dateMode,setDateMode] = useState<DateFilterMode>("today");
-    const [selectedMonth,setSelectedMonth] = useState("");
     const [dateFrom,setDateFrom] = useState(getToday());
     const [dateTo,setDateTo] = useState(getToday());
     const [reports,setReports] = useState<ProductionReport[]>([]);
@@ -49,7 +48,7 @@ function Reports() {
     const lock = useRef(false);
 
     useEffect(() => { const t=window.setTimeout(()=>setSearchQuery(searchKeyword.trim()),250); return ()=>window.clearTimeout(t); },[searchKeyword]);
-    const range = useMemo(()=>getDateRangeForMode(dateMode,selectedMonth,dateFrom,dateTo),[dateMode,selectedMonth,dateFrom,dateTo]);
+    const range = useMemo(()=>getDateRangeForMode(dateMode,"",dateFrom,dateTo),[dateMode,dateFrom,dateTo]);
     const loadReports = useCallback(async()=>{
         const n=++seq.current; const current=()=>seq.current===n;
         try{
@@ -63,7 +62,7 @@ function Reports() {
         }finally{if(current())setLoading(false);}
     },[range.dateFrom,range.dateTo,selectedProcess,searchQuery,currentPage]);
     useEffect(()=>{void loadReports();},[loadReports]);
-    useEffect(()=>{setCurrentPage(1);setSelectedIds([]);},[selectedProcess,dateMode,selectedMonth,dateFrom,dateTo,searchQuery]);
+    useEffect(()=>{setCurrentPage(1);setSelectedIds([]);},[selectedProcess,dateMode,dateFrom,dateTo,searchQuery]);
 
     const processes=useMemo(()=>Array.from(new Set(reports.map(r=>r.process_name).filter(Boolean) as string[])).sort(),[reports]);
     const duplicateCounts=useMemo(()=>{const m=new Map<string,number>();reports.forEach(r=>m.set(duplicateKey(r),(m.get(duplicateKey(r))??0)+1));return m;},[reports]);
