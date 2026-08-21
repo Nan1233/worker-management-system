@@ -232,7 +232,7 @@ function Reports() {
 
             {error && <div className="management-error">{error}</div>}
 
-            <section className="pending-workspace">
+            <section className={`pending-workspace ${selectedDetail ? "detail-open" : "list-only"}`}>
                 <div className="pending-list-card">
                     <div className="pending-list-tabs">
                         <button type="button" className={`pending-list-tab ${tab === "all" ? "active" : ""}`} onClick={() => setTab("all")}>Danh sách báo cáo ({totalCount})</button>
@@ -283,57 +283,55 @@ function Reports() {
                     </footer>
                 </div>
 
-                <aside className="pending-detail-card">
-                    {!selectedDetail ? <div className="pending-detail-empty">Chọn một báo cáo trong danh sách để xem chi tiết.</div> : <>
-                        <header className="pending-detail-head">
-                            <div className="pending-detail-title"><h2>Chi tiết báo cáo</h2><span className="pending-detail-status">Chờ duyệt</span></div>
-                            <span className="pending-detail-code">Mã báo cáo: {reportCode(selectedDetail, 0)}</span>
-                            <button type="button" className="pending-detail-close" aria-label="Đóng chi tiết" onClick={() => setSelectedDetail(null)}>×</button>
-                        </header>
-                        {detailLoading ? <div className="pending-detail-loading">Đang tải chi tiết...</div> : <>
-                            <div className="pending-detail-body">
-                                <section className="pending-detail-section">
-                                    <h3>Thông tin chung</h3>
-                                    <div className="pending-detail-grid">
-                                        <div className="pending-detail-field"><span>Công nhân</span><strong>{text(selectedDetail.full_name)} ({text(selectedDetail.worker_code)})</strong></div>
-                                        <div className="pending-detail-field"><span>Ngày báo cáo</span><strong>{formatDate(selectedDetail.work_date)}</strong></div>
-                                        <div className="pending-detail-field"><span>Công đoạn</span><strong>{text(selectedDetail.process_name)}</strong></div>
-                                        <div className="pending-detail-field"><span>Thời gian làm việc</span><strong>{timeRange(selectedDetail)} ({number(selectedDetail.total_time)}h)</strong></div>
-                                        <div className="pending-detail-field"><span>Máy móc</span><strong>{text(selectedDetail.machine_no)}</strong></div>
-                                        <div className="pending-detail-field"><span>Sản phẩm</span><strong>{text(selectedDetail.product_name)}</strong></div>
-                                        <div className="pending-detail-field"><span>Ca làm việc</span><strong>{text(selectedDetail.shift)}</strong></div>
-                                        <div className="pending-detail-field"><span>Học việc</span><strong>{number(selectedDetail.training_percent ?? 100)}%</strong></div>
-                                    </div>
-                                </section>
+                {selectedDetail && <aside className="pending-detail-card">
+                    <header className="pending-detail-head">
+                        <div className="pending-detail-title"><h2>Chi tiết báo cáo</h2><span className="pending-detail-status">Chờ duyệt</span></div>
+                        <span className="pending-detail-code">Mã báo cáo: {reportCode(selectedDetail, 0)}</span>
+                        <button type="button" className="pending-detail-close" aria-label="Đóng chi tiết" onClick={() => setSelectedDetail(null)}>×</button>
+                    </header>
+                    {detailLoading ? <div className="pending-detail-loading">Đang tải chi tiết...</div> : <>
+                        <div className="pending-detail-body">
+                            <section className="pending-detail-section">
+                                <h3>Thông tin chung</h3>
+                                <div className="pending-detail-grid">
+                                    <div className="pending-detail-field"><span>Công nhân</span><strong>{text(selectedDetail.full_name)} ({text(selectedDetail.worker_code)})</strong></div>
+                                    <div className="pending-detail-field"><span>Ngày báo cáo</span><strong>{formatDate(selectedDetail.work_date)}</strong></div>
+                                    <div className="pending-detail-field"><span>Công đoạn</span><strong>{text(selectedDetail.process_name)}</strong></div>
+                                    <div className="pending-detail-field"><span>Thời gian làm việc</span><strong>{timeRange(selectedDetail)} ({number(selectedDetail.total_time)}h)</strong></div>
+                                    <div className="pending-detail-field"><span>Máy móc</span><strong>{text(selectedDetail.machine_no)}</strong></div>
+                                    <div className="pending-detail-field"><span>Sản phẩm</span><strong>{text(selectedDetail.product_name)}</strong></div>
+                                    <div className="pending-detail-field"><span>Ca làm việc</span><strong>{text(selectedDetail.shift)}</strong></div>
+                                    <div className="pending-detail-field"><span>Học việc</span><strong>{number(selectedDetail.training_percent ?? 100)}%</strong></div>
+                                </div>
+                            </section>
 
-                                <section className="pending-detail-section">
-                                    <h3>Kết quả sản xuất</h3>
-                                    <div className="pending-result-grid">
-                                        <div className="pending-result-item"><span>Sản lượng OK</span><strong>{number(detailOk)}</strong></div>
-                                        <div className="pending-result-item ng"><span>Sản lượng NG</span><strong>{number(detailNg)}</strong></div>
-                                        <div className="pending-result-item total"><span>Tổng sản lượng</span><strong>{number(detailTotal)}</strong></div>
-                                        <div className="pending-result-item rate"><span>Tỷ lệ OK</span><strong>{detailRate.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}%</strong></div>
-                                    </div>
-                                </section>
+                            <section className="pending-detail-section">
+                                <h3>Kết quả sản xuất</h3>
+                                <div className="pending-result-grid">
+                                    <div className="pending-result-item"><span>Sản lượng OK</span><strong>{number(detailOk)}</strong></div>
+                                    <div className="pending-result-item ng"><span>Sản lượng NG</span><strong>{number(detailNg)}</strong></div>
+                                    <div className="pending-result-item total"><span>Tổng sản lượng</span><strong>{number(detailTotal)}</strong></div>
+                                    <div className="pending-result-item rate"><span>Tỷ lệ OK</span><strong>{detailRate.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}%</strong></div>
+                                </div>
+                            </section>
 
-                                <section className="pending-detail-section">
-                                    <h3>Thông tin chi tiết</h3>
-                                    <div className="pending-detail-info-grid">
-                                        <div><div className="pending-detail-field"><span>Trừ giờ</span><strong>{number(selectedDetail.deduction_time)} giờ</strong></div>{detailDeductions.length > 0 && <div className="pending-defect-list">{detailDeductions.map(item => <span className="pending-defect" key={item.id || item.deduction_code}>{item.deduction_name}: {number(item.hours)}h</span>)}</div>}</div>
-                                        <div><div className="pending-detail-field"><span>Lý do NG</span><strong>{detailDefects.length ? detailDefects.map(item => `${item.defect_name}: ${number(item.quantity)}`).join(", ") : "---"}</strong></div></div>
-                                    </div>
-                                    <div className="pending-detail-field" style={{ marginTop: 12 }}><span>Ghi chú</span><strong>{text(selectedDetail.note)}</strong></div>
-                                </section>
+                            <section className="pending-detail-section">
+                                <h3>Thông tin chi tiết</h3>
+                                <div className="pending-detail-info-grid">
+                                    <div><div className="pending-detail-field"><span>Trừ giờ</span><strong>{number(selectedDetail.deduction_time)} giờ</strong></div>{detailDeductions.length > 0 && <div className="pending-defect-list">{detailDeductions.map(item => <span className="pending-defect" key={item.id || item.deduction_code}>{item.deduction_name}: {number(item.hours)}h</span>)}</div>}</div>
+                                    <div><div className="pending-detail-field"><span>Lý do NG</span><strong>{detailDefects.length ? detailDefects.map(item => `${item.defect_name}: ${number(item.quantity)}`).join(", ") : "---"}</strong></div></div>
+                                </div>
+                                <div className="pending-detail-field" style={{ marginTop: 12 }}><span>Ghi chú</span><strong>{text(selectedDetail.note)}</strong></div>
+                            </section>
 
-                                <section className="pending-detail-section">
-                                    <h3>Lịch sử duyệt</h3>
-                                    <div className="pending-history-empty">◷ &nbsp; Chưa có lịch sử duyệt</div>
-                                </section>
-                            </div>
-                            {canReview && <div className="pending-detail-actions"><button type="button" className="pending-detail-reject" onClick={() => { setSelectedIds([Number(selectedDetail.id)]); setRejectOpen(true); }}>× &nbsp; Từ chối</button><button type="button" className="pending-detail-approve" onClick={() => void approveOne(selectedDetail)}>✓ &nbsp; Duyệt báo cáo</button></div>}
-                        </>}
+                            <section className="pending-detail-section">
+                                <h3>Lịch sử duyệt</h3>
+                                <div className="pending-history-empty">◷ &nbsp; Chưa có lịch sử duyệt</div>
+                            </section>
+                        </div>
+                        {canReview && <div className="pending-detail-actions"><button type="button" className="pending-detail-reject" onClick={() => { setSelectedIds([Number(selectedDetail.id)]); setRejectOpen(true); }}>× &nbsp; Từ chối</button><button type="button" className="pending-detail-approve" onClick={() => void approveOne(selectedDetail)}>✓ &nbsp; Duyệt báo cáo</button></div>}
                     </>}
-                </aside>
+                </aside>}
             </section>
 
             {selectedIds.length > 1 && <div className="pending-bulk-actions"><button type="button" onClick={() => void approveSelected()} className="approve">Duyệt {selectedIds.length} báo cáo</button></div>}
