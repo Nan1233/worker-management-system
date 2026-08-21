@@ -1,7 +1,7 @@
 /* Chờ duyệt — split list/detail reference layout */
 .pending-reference-page{min-width:0;color:#17345b}
 .pending-reference-page .pending-page-title{margin-bottom:18px}
-.pending-filter-card{grid-template-columns:minmax(260px,1.75fr) minmax(150px,.85fr) minmax(150px,.9fr) minmax(150px,.9fr) auto}
+.pending-filter-card{grid-template-columns:minmax(250px,1.65fr) minmax(145px,.8fr) minmax(140px,.9fr) minmax(130px,.85fr) minmax(130px,.85fr) auto}
 .pending-filter-card .pending-search{min-width:0}
 .pending-filter-card label>span{font-size:10px}
 .pending-filter-card input,.pending-filter-card select{height:40px}
@@ -12,16 +12,18 @@
 .pending-list-tab.active{color:#1769d2}
 .pending-list-tab.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:#1769d2;border-radius:2px 2px 0 0}
 .pending-list-tab .tab-badge{display:inline-flex;min-width:18px;height:18px;align-items:center;justify-content:center;margin-left:5px;padding:0 5px;border-radius:999px;background:#ef4d57;color:#fff;font-size:9px;font-weight:800}
-.pending-list-card .pending-reference-table{min-width:720px}
+.pending-list-card .pending-reference-table{min-width:850px}
 .pending-list-card .pending-reference-table th:nth-child(2),.pending-list-card .pending-reference-table td:nth-child(2){display:none}
 .pending-list-card .pending-reference-table th:nth-child(3),.pending-list-card .pending-reference-table td:nth-child(3){width:125px}
 .pending-list-card .pending-reference-table th:nth-child(4),.pending-list-card .pending-reference-table td:nth-child(4){width:175px}
 .pending-list-card .pending-reference-table th:nth-child(5),.pending-list-card .pending-reference-table td:nth-child(5){width:105px}
-.pending-list-card .pending-reference-table th:nth-child(6),.pending-list-card .pending-reference-table td:nth-child(6){width:90px}
-.pending-list-card .pending-reference-table th:nth-child(7),.pending-list-card .pending-reference-table td:nth-child(7){width:115px}
-.pending-list-card .pending-reference-table th:nth-child(8),.pending-list-card .pending-reference-table td:nth-child(8){width:78px}
+.pending-list-card .pending-reference-table th:nth-child(6),.pending-list-card .pending-reference-table td:nth-child(6){width:75px}
+.pending-list-card .pending-reference-table th:nth-child(7),.pending-list-card .pending-reference-table td:nth-child(7){width:125px}
+.pending-list-card .pending-reference-table th:nth-child(8),.pending-list-card .pending-reference-table td:nth-child(8){width:100px}
+.pending-list-card .pending-reference-table th:nth-child(9),.pending-list-card .pending-reference-table td:nth-child(9){width:72px}
 .pending-list-card .pending-table-footer{padding:12px 14px}
 .pending-row-active td{background:#f4f8ff!important}
+.shift-chip{display:inline-flex;align-items:center;justify-content:center;min-height:22px;padding:0 7px;border-radius:6px;background:#eaf3ff;color:#1769d2;font-size:9px;font-weight:750}
 .pending-detail-card{display:flex;flex-direction:column;min-height:100%}
 .pending-detail-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border-bottom:1px solid #e5ebf3}
 .pending-detail-title{display:flex;align-items:center;gap:9px;min-width:0}
@@ -47,8 +49,7 @@
 .pending-result-item.total strong{color:#29466f}
 .pending-result-item.rate strong{color:#1769d2}
 .pending-detail-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 22px}
-.pending-detail-note{padding:10px 12px;border:1px solid #dfe7f1;border-radius:8px;background:#fbfcfe;color:#536b8b;font-size:10px;line-height:1.55}
-.pending-defect-list{display:flex;flex-wrap:wrap;gap:6px}
+.pending-defect-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .pending-defect{padding:5px 8px;border-radius:7px;background:#fff1f2;color:#c63e4a;font-size:9px;font-weight:700}
 .pending-history-empty{min-height:58px;display:grid;place-items:center;border:1px dashed #c9d8e9;border-radius:8px;color:#8092ab;font-size:10px}
 .pending-detail-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px 16px;border-top:1px solid #e5ebf3;margin-top:auto}
