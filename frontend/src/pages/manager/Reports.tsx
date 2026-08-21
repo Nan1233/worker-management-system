@@ -290,7 +290,19 @@ function Reports() {
 
     const selectDay = () => { setDate(getToday()); setDateRange(null); };
     const selectMonth = () => { const range = rangeFor(date, "month"); setDateRange(range); };
+    const selectWeek = () => { const range = rangeFor(date, "week"); setDateRange(range); };
     const selectYear = () => { const range = rangeFor(date, "year"); setDateRange(range); };
+    const rangeIsActive = (type: "year" | "month" | "week" | "day") => {
+        const range = rangeFor(date, type);
+        const current = dateRange || { dateFrom: date, dateTo: date };
+        return current.dateFrom === range.dateFrom && current.dateTo === range.dateTo;
+    };
+    const handlePeriodKeyDown = (event: React.KeyboardEvent<HTMLDivElement>, action: () => void) => {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            action();
+        }
+    };
 
     return (
         <div className="management-report-page manager-page pending-reference-page">
@@ -300,14 +312,14 @@ function Reports() {
                 <label><span>Ngày báo cáo</span><input type="date" value={date} onChange={event => { setDate(event.target.value); setDateRange(null); }} /></label>
                 <div className="pending-quick-filters"><span>Chọn nhanh</span><button type="button" className={!dateRange ? "active" : ""} onClick={selectDay}>Hôm nay</button><button type="button" className={dateRange?.dateFrom === rangeFor(date, "month").dateFrom && dateRange?.dateTo === rangeFor(date, "month").dateTo ? "active" : ""} onClick={selectMonth}>Cả tháng</button><button type="button" className={dateRange?.dateFrom === rangeFor(date, "year").dateFrom && dateRange?.dateTo === rangeFor(date, "year").dateTo ? "active" : ""} onClick={selectYear}>Cả năm</button></div>
                 <label><span>Công đoạn</span><select value={selectedProcess} onChange={event => setSelectedProcess(event.target.value)}><option value="">Tất cả</option>{processes.map(process => <option key={process} value={process}>{process}</option>)}</select></label>
-                <label><span>Ca làm việc</span><select value={selectedShift} onChange={event => setSelectedShift(event.target.value)}><option value="">Tất cả</option>{shifts.map(shift => <option key={shift} value={shift}>{shift}</option>)}</select></label>
+                <label><span>Ca làm việc</span><select value={selectedShift} onChange={event => setSelectedShift(event.target.value)}><option value="">Tất cả</option>{shifts.map(shift => <option key={shift}>{shift}</option>)}</select></label>
                 <button className="pending-refresh" type="button" onClick={() => void loadReports()}>⟳ <span>Làm mới</span></button>
             </section>
             <section className="pending-kpis">
-                <div className="pending-kpi kpi-blue"><span>Trong năm</span><strong>{yearCount}</strong><small>Báo cáo chờ duyệt</small></div>
-                <div className="pending-kpi kpi-green"><span>Trong tháng</span><strong>{monthCount}</strong><small>Báo cáo chờ duyệt</small></div>
-                <div className="pending-kpi kpi-slate"><span>Trong tuần</span><strong>{weekCount}</strong><small>Báo cáo chờ duyệt</small></div>
-                <div className="pending-kpi kpi-orange"><span>Trong ngày</span><strong>{dayCount}</strong><small>Báo cáo chờ duyệt</small></div>
+                <div role="button" tabIndex={0} className={`pending-kpi kpi-blue ${rangeIsActive("year") ? "is-active" : ""}`} onClick={selectYear} onKeyDown={event => handlePeriodKeyDown(event, selectYear)}><span>Trong năm</span><strong>{yearCount}</strong><small>Báo cáo chờ duyệt · Bấm để xem</small></div>
+                <div role="button" tabIndex={0} className={`pending-kpi kpi-green ${rangeIsActive("month") ? "is-active" : ""}`} onClick={selectMonth} onKeyDown={event => handlePeriodKeyDown(event, selectMonth)}><span>Trong tháng</span><strong>{monthCount}</strong><small>Báo cáo chờ duyệt · Bấm để xem</small></div>
+                <div role="button" tabIndex={0} className={`pending-kpi kpi-slate ${rangeIsActive("week") ? "is-active" : ""}`} onClick={selectWeek} onKeyDown={event => handlePeriodKeyDown(event, selectWeek)}><span>Trong tuần</span><strong>{weekCount}</strong><small>Báo cáo chờ duyệt · Bấm để xem</small></div>
+                <div role="button" tabIndex={0} className={`pending-kpi kpi-orange ${rangeIsActive("day") ? "is-active" : ""}`} onClick={selectDay} onKeyDown={event => handlePeriodKeyDown(event, selectDay)}><span>Trong ngày</span><strong>{dayCount}</strong><small>Báo cáo chờ duyệt · Bấm để xem</small></div>
             </section>
             {error && <div className="management-error">{error}</div>}
 
