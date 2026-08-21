@@ -351,11 +351,38 @@ export const exportSelectedApprovedExcel = async (date: string): Promise<ExcelEx
     const blob = response.data instanceof Blob ? response.data : new Blob([response.data], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const downloadUrl = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.href = downloadUrl;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(downloadUrl);
-    return { success: true };
+    try {
+        link.href = downloadUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+    } finally {
+        link.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+    }
+    return { success: true, message: "Đã tải file Excel theo tháng." };
+};
+
+export const getDeductionOptionsByProcess = async (processId: number): Promise<ProductionDeduction[]> => {
+    const res = await api.get(`/processes/${processId}/deductions`);
+    return res.data.data || res.data || [];
+};
+export const getDefectOptionsByProcess = async (processId: number): Promise<ProductionDefect[]> => {
+    const res = await api.get(`/processes/${processId}/defects`);
+    return res.data.data || res.data || [];
+};
+
+export type MonthlyExcelStatus = {
+    selectedDate: string;
+    yearMonth: string;
+    ready: boolean;
+    fileName: string;
+    size: number;
+    reportCount: number;
+    generatedAt: string | null;
+    latestUpdatedAt: string | null;
+};
+export const getMonthlyExcelStatus = async (date: string): Promise<MonthlyExcelStatus> => {
+    const response = await api.get("/reports/export-excel/status", { params: { date } });
+    return response.data.data;
 };
