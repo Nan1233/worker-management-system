@@ -10,6 +10,7 @@ const checkRole = require(
     "../middleware/roleMiddleware"
 );
 const permission = require("../middleware/permissionMiddleware");
+const notifyWorkerOnTempEdit = require("../middleware/notifyWorkerOnTempEdit");
 
 const controller = require(
     "../controllers/productionTempController"
@@ -208,6 +209,7 @@ router.put(
     ),
     validate({ id:{in:"params",required:true,type:"positiveInt"} }),
     permission("REPORT_PENDING_EDIT", "WORKER_ENTRY"),
+    notifyWorkerOnTempEdit,
     controller.updateTempReport
 );
 
