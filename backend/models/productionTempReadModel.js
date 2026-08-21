@@ -56,6 +56,43 @@ async function getPreviousPendingCount(managerId, isAdmin) {
     return Number(rows?.[0]?.total || 0);
 }
 
+async function getTempMachineLines(tempReportId) {
+    const lines = await query(
+        db,
+        `SELECT *
+         FROM production_temp_machine_lines
+         WHERE temp_report_id = ?
+         ORDER BY sort_order ASC, id ASC`,
+        [Number(tempReportId)]
+    );
+
+    if (!lines.length) return [];
+
+    const ids = lines.map((line) => Number(line.id)).filter(Boolean);
+    if (!ids.length) return lines;
+
+    const defects = await query(
+        db,
+        `SELECT *
+         FROM production_temp_machine_defects
+         WHERE machine_line_id IN (${ids.map(() => "?").join(",")})
+         ORDER BY machine_line_id ASC, id ASC`,
+        ids
+    );
+
+    const byLine = new Map();
+    for (const defect of defects) {
+        const key = Number(defect.machine_line_id);
+        if (!byLine.has(key)) byLine.set(key, []);
+        byLine.get(key).push(defect);
+    }
+
+    return lines.map((line) => ({
+        ...line,
+        defects: byLine.get(Number(line.id)) || []
+    }));
+}
+
 module.exports = {
     async getPending(managerId, filters = {}, isAdmin = false) {
         const { page = 1, page_size: pageSize = 20, offset = 0 } = filters.pagination || {};
@@ -308,7 +345,7 @@ module.exports = {
                  ORDER BY COALESCE(dt.sort_order, 999999), d.id`,
                 [id]
             ),
-            this.getTempMachineLines(id)
+            getTempMachineLines(id)
         ]);
 
         return { ...rows[0], defects: mergeDefects(rows[0], defects), deductions: normalizeDeductions(deductions), machine_lines: machineLines };
