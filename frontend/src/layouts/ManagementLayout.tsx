@@ -1,8 +1,7 @@
-
 import { useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
-  BarChart3, Bell, ClipboardCheck, Database, FileSpreadsheet, LayoutDashboard,
+  BarChart3, Bell, ChevronDown, ClipboardCheck, Database, FileSpreadsheet, LayoutDashboard,
   LogOut, MoreHorizontal, Settings2, ShieldCheck, Users,
 } from "lucide-react";
 import { logout } from "../services/authService";
@@ -65,6 +64,9 @@ export default function ManagementLayout({ role }: { role: ManagementRole }) {
     navigate("/login", { replace: true });
   };
 
+  const displayName = user?.full_name || user?.username || roleLabel[role];
+  const avatarText = displayName.trim().charAt(0).toUpperCase() || "K";
+
   return (
     <div className="management-layout">
       <aside className="management-sidebar">
@@ -89,8 +91,18 @@ export default function ManagementLayout({ role }: { role: ManagementRole }) {
 
       <section className="management-main">
         <header className="management-header">
-          <div><strong>KTC Production Control</strong><span>{roleLabel[role]}</span></div>
-          <div className="management-user">{user?.full_name || user?.username || roleLabel[role]}</div>
+          <div className="management-header-title"><strong>KTC Production Control</strong><span>{roleLabel[role]}</span></div>
+          <div className="management-header-actions">
+            <button className="management-notification" type="button" aria-label="Thông báo" onClick={() => navigate(`${base}/system`)}>
+              <Bell size={19} />
+              {unreadCount > 0 && <b>{unreadCount > 9 ? "9+" : unreadCount}</b>}
+            </button>
+            <button className="management-user" type="button" aria-label="Tài khoản người dùng">
+              <span className="management-user-avatar">{avatarText}</span>
+              <span className="management-user-copy"><strong>{displayName}</strong><small>{roleLabel[role]}</small></span>
+              <ChevronDown size={16} />
+            </button>
+          </div>
         </header>
         <main className="management-content"><Outlet /></main>
       </section>
