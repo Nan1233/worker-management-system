@@ -11,6 +11,10 @@
 .pending-quick-filters button:hover{background:#edf5ff;color:#1769d2}
 .pending-quick-filters button.active{border-color:#bcd5f3;background:#eaf3ff;color:#1769d2}
 .pending-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
+.pending-kpi{cursor:pointer;user-select:none;transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease}
+.pending-kpi:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(35,76,125,.09)}
+.pending-kpi:focus-visible{outline:2px solid #1769d2;outline-offset:2px}
+.pending-kpi.is-active{border-color:#1769d2;box-shadow:0 0 0 2px rgba(23,105,210,.08),0 6px 16px rgba(35,76,125,.08)}
 .pending-kpi small{font-size:9px}
 .pending-kpi.kpi-slate{background:#f7f9fc}
 .pending-kpi.kpi-orange{background:#fff8ef}
