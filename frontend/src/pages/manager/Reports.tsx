@@ -12,12 +12,13 @@ import { getManagerReportRowNumber } from "./managerReportPagination";
 import { getValidReportIds, reconcileSelectedReportIds, toggleCurrentPageIds, toggleReportId } from "./managerReportSelection";
 
 const REJECT_REASONS = ["Báo cáo trùng", "Sai sản lượng", "Sai thời gian", "Sai máy hoặc sản phẩm", "Thiếu dữ liệu", "Lý do khác"];
-type Extra = Record<string, string | number | boolean | null | undefined>;
 const text = (v: unknown, fallback = "---") => v === undefined || v === null || v === "" ? fallback : String(v);
 const reportCode = (r: ProductionReport, i: number) => `PR${String(r.work_date || "REPORT").slice(0,10).replace(/-/g,"")}-${r.worker_code || String(r.id || i + 1).padStart(4,"0")}`;
-const teamName = (r: ProductionReport) => { const x = (r.extra_data || {}) as Extra; return text(x.team_name ?? x.team ?? x.group_name ?? x.group ?? "Tổ 1", "Tổ 1"); };
-const timeRange = (r: ProductionReport) => { const x = (r.extra_data || {}) as Extra; return x.start_time && x.end_time ? `${x.start_time} - ${x.end_time}` : "07:30 - 15:30"; };
-const statusOf = (r: ProductionReport) => r.status === "need_fix" ? "Chờ duyệt lại" : "Chờ duyệt lần đầu";
+const timeRange = (r: ProductionReport) => {
+    const x = (r.extra_data || {}) as Record<string, unknown>;
+    return x.start_time && x.end_time ? `${x.start_time} - ${x.end_time}` : "07:30 - 15:30";
+};
+const statusOf = (_r: ProductionReport) => "Chờ duyệt";
 
 function Reports() {
     const { can } = usePermissions();
@@ -41,8 +42,6 @@ function Reports() {
     const [searchKeyword,setSearchKeyword] = useState("");
     const [searchQuery,setSearchQuery] = useState("");
     const [selectedProcess,setSelectedProcess] = useState("");
-    const [selectedStatus,setSelectedStatus] = useState("");
-    const [selectedTeam,setSelectedTeam] = useState("");
     const [currentPage,setCurrentPage] = useState(1);
     const [totalCount,setTotalCount] = useState(0);
     const [totalPages,setTotalPages] = useState(1);
@@ -64,26 +63,23 @@ function Reports() {
         }finally{if(current())setLoading(false);}
     },[range.dateFrom,range.dateTo,selectedProcess,searchQuery,currentPage]);
     useEffect(()=>{void loadReports();},[loadReports]);
-    useEffect(()=>{setCurrentPage(1);setSelectedIds([]);},[selectedProcess,selectedStatus,selectedTeam,dateMode,selectedMonth,dateFrom,dateTo,searchQuery]);
+    useEffect(()=>{setCurrentPage(1);setSelectedIds([]);},[selectedProcess,dateMode,selectedMonth,dateFrom,dateTo,searchQuery]);
 
     const processes=useMemo(()=>Array.from(new Set(reports.map(r=>r.process_name).filter(Boolean) as string[])).sort(),[reports]);
-    const teams=useMemo(()=>Array.from(new Set(reports.map(teamName))).sort(),[reports]);
     const duplicateCounts=useMemo(()=>{const m=new Map<string,number>();reports.forEach(r=>m.set(duplicateKey(r),(m.get(duplicateKey(r))??0)+1));return m;},[reports]);
-    const visibleReports=useMemo(()=>reports.filter(r=>(!selectedStatus||statusOf(r)===selectedStatus)&&(!selectedTeam||teamName(r)===selectedTeam)),[reports,selectedStatus,selectedTeam]);
+    const visibleReports=reports;
     const pageIds=useMemo(()=>getValidReportIds(visibleReports),[visibleReports]);
     const selectedSet=useMemo(()=>new Set(selectedIds),[selectedIds]);
     const targets=useMemo(()=>reports.filter(r=>selectedSet.has(Number(r.id))).map(r=>({id:Number(r.id),expected_updated_at:r.updated_at||null})),[reports,selectedSet]);
     const allSelected=pageIds.length>0&&pageIds.every(id=>selectedSet.has(id));
     const someSelected=pageIds.some(id=>selectedSet.has(id))&&!allSelected;
-    const firstCount=reports.filter(r=>r.status!=="need_fix").length;
-    const reviewCount=reports.filter(r=>r.status==="need_fix").length;
     const overdueCount=reports.filter(r=>String(r.work_date||"").slice(0,10)<getToday()).length;
 
     const togglePage=()=>setSelectedIds(p=>toggleCurrentPageIds(p,pageIds,allSelected));
     const toggleOne=(id:number)=>setSelectedIds(p=>toggleReportId(p,id));
     const viewOne=(id:number)=>{sessionStorage.setItem("selectedPendingReportIds",JSON.stringify([id]));navigate(`${basePath}/reports/review`);};
     const viewSelected=()=>{if(!selectedIds.length){showToast("Vui lòng chọn ít nhất một báo cáo");return;}sessionStorage.setItem("selectedPendingReportIds",JSON.stringify(selectedIds));navigate(`${basePath}/reports/review`);};
-    const clearFilters=()=>{setSearchKeyword("");setSelectedProcess("");setSelectedStatus("");setSelectedTeam("");setDateMode("today");setSelectedMonth("");setDateFrom(getToday());setDateTo(getToday());};
+    const clearFilters=()=>{setSearchKeyword("");setSelectedProcess("");setDateMode("today");setSelectedMonth("");setDateFrom(getToday());setDateTo(getToday());};
 
     const approveTargets=async(ids:number[],items:{id:number;expected_updated_at:string|null}[])=>{
         if(lock.current||actionLoading)return; if(!ids.length)return showToast("Vui lòng chọn ít nhất một báo cáo");
@@ -107,21 +103,22 @@ function Reports() {
 
     return <div className="management-report-page manager-page pending-reference-page">
         <header className="pending-page-title"><div><h1>Chờ duyệt</h1><p>Danh sách báo cáo sản xuất chờ duyệt</p></div></header>
-        <nav className="pending-tabs"><button className={!selectedStatus?"active":""} type="button" onClick={clearFilters}>Tất cả</button><button className={selectedStatus==="Chờ duyệt lần đầu"?"active":""} type="button" onClick={()=>setSelectedStatus("Chờ duyệt lần đầu")}>Chờ duyệt lần đầu</button><button className={selectedStatus==="Chờ duyệt lại"?"active":""} type="button" onClick={()=>setSelectedStatus("Chờ duyệt lại")}>Chờ duyệt lại</button></nav>
+        <nav className="pending-tabs" aria-hidden="true"></nav>
         <section className="pending-filter-card">
             <div className="pending-search"><span>⌕</span><input value={searchKeyword} onChange={e=>setSearchKeyword(e.target.value)} placeholder="Tìm kiếm theo mã báo cáo, công nhân..."/></div>
             <label><span>Ngày báo cáo</span><input type="date" value={dateFrom} onChange={e=>{setDateFrom(e.target.value);setDateTo(e.target.value);setDateMode("range");}}/></label>
             <label><span>Quy trình</span><select value={selectedProcess} onChange={e=>setSelectedProcess(e.target.value)}><option value="">Tất cả</option>{processes.map(p=><option key={p}>{p}</option>)}</select></label>
-            <label><span>Tổ/Nhóm</span><select value={selectedTeam} onChange={e=>setSelectedTeam(e.target.value)}><option value="">Tất cả</option>{teams.map(t=><option key={t}>{t}</option>)}</select></label>
-            <label><span>Trạng thái</span><select value={selectedStatus} onChange={e=>setSelectedStatus(e.target.value)}><option value="">Tất cả</option><option value="Chờ duyệt lần đầu">Chờ duyệt lần đầu</option><option value="Chờ duyệt lại">Chờ duyệt lại</option></select></label>
+            <label><span>Trạng thái</span><select value="Chờ duyệt" aria-label="Trạng thái"><option value="Chờ duyệt">Chờ duyệt</option></select></label>
             <button className="pending-refresh" type="button" onClick={()=>void loadReports()}>⟳ <span>Làm mới</span></button>
         </section>
         <section className="pending-kpis">
-            <div className="pending-kpi kpi-blue"><span>Tổng số báo cáo</span><strong>{totalCount}</strong><small>Báo cáo</small></div><div className="pending-kpi kpi-orange"><span>Chờ duyệt lần đầu</span><strong>{firstCount}</strong><small>Báo cáo</small></div><div className="pending-kpi kpi-red"><span>Chờ duyệt lại</span><strong>{reviewCount}</strong><small>Báo cáo</small></div><div className="pending-kpi kpi-slate"><span>Quá hạn duyệt</span><strong>{overdueCount}</strong><small>Báo cáo</small></div><div className="pending-kpi kpi-green"><span>Đã duyệt hôm nay</span><strong>—</strong><small>Báo cáo</small></div>
+            <div className="pending-kpi kpi-blue"><span>Tổng số báo cáo</span><strong>{totalCount}</strong><small>Báo cáo</small></div>
+            <div className="pending-kpi kpi-slate"><span>Quá hạn duyệt</span><strong>{overdueCount}</strong><small>Báo cáo</small></div>
+            <div className="pending-kpi kpi-green"><span>Đã duyệt hôm nay</span><strong>—</strong><small>Báo cáo</small></div>
         </section>
         {error&&<div className="management-error">{error}</div>}{selectedIds.length>0&&<div className="management-selected-info"><strong>Đã chọn {selectedIds.length} báo cáo.</strong><button type="button" onClick={()=>setSelectedIds([])}>Bỏ chọn</button></div>}
         <section className="pending-table-card">
-            {loading?<div className="management-empty">Đang tải...</div>:!visibleReports.length?<div className="management-empty">Không có báo cáo phù hợp</div>:<div className="pending-table-wrap"><table className="pending-reference-table"><thead><tr><th className="select-col"><input type="checkbox" checked={allSelected} ref={el=>{if(el)el.indeterminate=someSelected;}} onChange={togglePage}/></th><th>STT</th><th>Mã báo cáo</th><th>Công nhân</th><th>Quy trình</th><th>Tổ/Nhóm</th><th>Ngày báo cáo</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>{visibleReports.map((r,i)=>{const id=Number(r.id);const selected=selectedSet.has(id);const duplicate=(duplicateCounts.get(duplicateKey(r))??0)>1;const status=statusOf(r);return <tr key={r.id??i} className={`${selected?"is-selected":""} ${duplicate?"is-duplicate":""}`}><td className="select-col"><input type="checkbox" checked={selected} disabled={!id||actionLoading} onChange={()=>toggleOne(id)}/></td><td>{getManagerReportRowNumber(currentPage,i)}</td><td className="report-code">{reportCode(r,i)}</td><td><div className="worker-cell">{text(r.full_name)}<small>({text(r.worker_code)})</small></div></td><td>{text(r.process_name)}</td><td>{teamName(r)}</td><td><div className="date-cell">{String(r.work_date||"").slice(0,10)}<small>{timeRange(r)}</small></div></td><td><span className={`status-pill ${status==="Chờ duyệt lại"?"status-red":"status-orange"}`}>{status}</span></td><td className="actions-cell"><button type="button" className="icon-action view" title="Xem chi tiết" onClick={()=>viewOne(id)}>◉</button>{canReview&&<button type="button" className="icon-action approve" title="Duyệt" onClick={()=>void approveOne(r)}>✓</button>}</td></tr>;})}</tbody></table></div>}
+            {loading?<div className="management-empty">Đang tải...</div>:!visibleReports.length?<div className="management-empty">Không có báo cáo phù hợp</div>:<div className="pending-table-wrap"><table className="pending-reference-table"><thead><tr><th className="select-col"><input type="checkbox" checked={allSelected} ref={el=>{if(el)el.indeterminate=someSelected;}} onChange={togglePage}/></th><th>STT</th><th>Mã báo cáo</th><th>Công nhân</th><th>Quy trình</th><th>Ngày báo cáo</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>{visibleReports.map((r,i)=>{const id=Number(r.id);const selected=selectedSet.has(id);const duplicate=(duplicateCounts.get(duplicateKey(r))??0)>1;const status=statusOf(r);return <tr key={r.id??i} className={`${selected?"is-selected":""} ${duplicate?"is-duplicate":""}`}><td className="select-col"><input type="checkbox" checked={selected} disabled={!id||actionLoading} onChange={()=>toggleOne(id)}/></td><td>{getManagerReportRowNumber(currentPage,i)}</td><td className="report-code">{reportCode(r,i)}</td><td><div className="worker-cell">{text(r.full_name)}<small>({text(r.worker_code)})</small></div></td><td>{text(r.process_name)}</td><td><div className="date-cell">{String(r.work_date||"").slice(0,10)}<small>{timeRange(r)}</small></div></td><td><span className="status-pill status-orange">{status}</span></td><td className="actions-cell"><button type="button" className="icon-action view" title="Xem chi tiết" onClick={()=>viewOne(id)}>◉</button>{canReview&&<button type="button" className="icon-action approve" title="Duyệt" onClick={()=>void approveOne(r)}>✓</button>}</td></tr>;})}</tbody></table></div>}
             <footer className="pending-table-footer"><span>Hiển thị {visibleReports.length?((currentPage-1)*8+1):0} đến {Math.min(currentPage*8,totalCount)} của {totalCount} báo cáo</span><nav className="pending-pagination"><button disabled={currentPage===1} onClick={()=>setCurrentPage(p=>Math.max(1,p-1))}>‹</button>{Array.from({length:Math.min(totalPages,4)},(_,i)=>i+1).map(p=><button key={p} className={currentPage===p?"active":""} onClick={()=>setCurrentPage(p)}>{p}</button>)}{totalPages>4&&<button disabled>…</button>}<button disabled={currentPage===totalPages} onClick={()=>setCurrentPage(p=>Math.min(totalPages,p+1))}>›</button></nav></footer>
         </section>
         {selectedIds.length>0&&<div className="pending-bulk-actions"><button type="button" onClick={viewSelected}>Xem chi tiết</button>{canReview&&<><button type="button" className="reject" onClick={()=>setRejectOpen(true)}>Từ chối</button><button type="button" className="approve" onClick={()=>void approveSelected()}>{actionLoading?"Đang xử lý...":"Duyệt"}</button></>}</div>}
