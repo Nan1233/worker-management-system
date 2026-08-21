@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
-import { getApprovedReports, getReportById, updateReport, exportSelectedApprovedExcel } from "../../services/productionService";
+import { getApprovedReports, getReportById, updateReport } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { useToast } from "../../components/feedback/toastContext";
 import { usePermissions } from "../../hooks/usePermissions";
@@ -26,7 +26,6 @@ const timeRange = (report: ProductionReport) => {
 export default function ApprovedReports() {
     const { can } = usePermissions();
     const canEdit = can("REPORT_APPROVED_EDIT");
-    const canExport = can("REPORT_EXPORT");
     const { showToast } = useToast();
     const [date, setDate] = useState(getToday());
     const [searchKeyword, setSearchKeyword] = useState("");
@@ -216,7 +215,6 @@ export default function ApprovedReports() {
             </section>
 
             {selectedIds.length > 0 && <div className="pending-bulk-actions"><span>Đã chọn {selectedIds.length} báo cáo</span><button className="approve" type="button" onClick={() => { const first = reports.find(r => selectedIds.includes(Number(r.id))); if (first) void openDetail(first); }}>Xem chi tiết</button></div>}
-            {canExport && <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}><button className="management-clear-button" type="button" onClick={() => void exportSelectedApprovedExcel(`${date}-01`)}>Xuất Excel</button></div>}
         </div>
     );
 }
