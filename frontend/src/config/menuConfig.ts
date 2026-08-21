@@ -17,8 +17,7 @@ const managementMenu: MenuItem[] = [
     { label: "Báo cáo chờ duyệt", icon: "list", path: "/manager/reports" },
     { label: "Báo cáo đã duyệt", icon: "approved", path: "/manager/approved" },
     { label: "Tải báo cáo", icon: "download", path: "/manager/export" },
-    { label: "Thống kê", icon: "statistics", path: "/manager/statistics" },
-    { label: "Nhân viên", icon: "workers", path: "/manager/workers" },
+    { label: "Nhân sự", icon: "workers", path: "/manager/workers" },
     { label: "Quản trị dữ liệu", icon: "settings", path: "/manager/governance" },
 ];
 
