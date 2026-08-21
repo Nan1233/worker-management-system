@@ -6,6 +6,8 @@
 .pending-filter-card label>span{font-size:10px}
 .pending-filter-card input,.pending-filter-card select{height:40px}
 .pending-workspace{display:grid;grid-template-columns:minmax(0,1.02fr) minmax(420px,.98fr);gap:12px;align-items:stretch}
+.pending-workspace.list-only{display:block}
+.pending-workspace.list-only .pending-list-card{width:100%}
 .pending-list-card,.pending-detail-card{border:1px solid #dbe6f2;border-radius:12px;background:#fff;box-shadow:0 4px 14px rgba(35,76,125,.055);overflow:hidden;min-width:0}
 .pending-list-tabs{height:50px;display:flex;align-items:flex-end;border-bottom:1px solid #e4ebf4;padding:0 14px;background:#fff}
 .pending-list-tab{position:relative;height:50px;padding:0 14px;border:0;background:transparent;color:#627895;font-size:12px;font-weight:700;cursor:pointer}
