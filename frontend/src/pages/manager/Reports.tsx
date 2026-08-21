@@ -1,167 +1,89 @@
-import {
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState
-} from "react";
-
-import {
-    useNavigate
-} from "react-router-dom";
-
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
-
-import {
-    approveSelectedTempReports,
-    getPendingReports,
-    rejectSelectedTempReports
-} from "../../services/productionService";
-
-import type {
-    ProductionReport
-} from "../../types/production";
-
+import { approveSelectedTempReports, getPendingReports, rejectSelectedTempReports } from "../../services/productionService";
+import type { ProductionReport } from "../../types/production";
 import { useToast } from "../../components/feedback/toastContext";
 import { getStoredUser } from "../../utils/authStorage";
 import { usePermissions } from "../../hooks/usePermissions";
-
-import {
-    getDateRangeForMode,
-    getToday,
-    type DateFilterMode,
-} from "./managerReportDateLogic";
+import { getDateRangeForMode, getToday, type DateFilterMode } from "./managerReportDateLogic";
 import { getManagerReportDuplicateKey as duplicateKey } from "./managerReportSearchLogic";
 import { getManagerReportRowNumber } from "./managerReportPagination";
-import {
-    getValidReportIds,
-    reconcileSelectedReportIds,
-    toggleCurrentPageIds,
-    toggleReportId,
-} from "./managerReportSelection";
+import { getValidReportIds, reconcileSelectedReportIds, toggleCurrentPageIds, toggleReportId } from "./managerReportSelection";
 
-const REJECT_REASONS = [
-    "Báo cáo trùng",
-    "Sai sản lượng",
-    "Sai thời gian",
-    "Sai máy hoặc sản phẩm",
-    "Thiếu dữ liệu",
-    "Lý do khác"
-];
+const REJECT_REASONS = ["Báo cáo trùng", "Sai sản lượng", "Sai thời gian", "Sai máy hoặc sản phẩm", "Thiếu dữ liệu", "Lý do khác"];
+
+type Extra = Record<string, string | number | boolean | null | undefined>;
+
+function text(v: unknown, fallback = "---") {
+    return v === undefined || v === null || v === "" ? fallback : String(v);
+}
+
+function reportCode(report: ProductionReport, index: number) {
+    const date = String(report.work_date || "").slice(0, 10).replace(/-/g, "");
+    const worker = report.worker_code || String(report.id || index + 1).padStart(4, "0");
+    return `PR${date || "REPORT"}-${worker}`;
+}
+
+function teamName(report: ProductionReport) {
+    const extra = (report.extra_data || {}) as Extra;
+    return text(extra.team_name ?? extra.team ?? extra.group_name ?? extra.group ?? "Tổ 1", "Tổ 1");
+}
+
+function timeRange(report: ProductionReport) {
+    const extra = (report.extra_data || {}) as Extra;
+    const start = extra.start_time ?? extra.startTime ?? extra.from_time ?? extra.fromTime;
+    const end = extra.end_time ?? extra.endTime ?? extra.to_time ?? extra.toTime;
+    return start && end ? `${start} - ${end}` : "07:30 - 15:30";
+}
+
+function statusOf(report: ProductionReport) {
+    if (report.status === "need_fix") return "Chờ duyệt lại";
+    return "Chờ duyệt lần đầu";
+}
 
 function Reports() {
     const { can } = usePermissions();
     const canReview = can("REPORT_APPROVE");
-
     const { showToast } = useToast();
     const navigate = useNavigate();
-
     const currentUser = getStoredUser();
-
-    const basePath =
-        currentUser?.role === "admin"
-            ? "/admin"
-            : currentUser?.role === "lead"
-                ? "/lead"
-                : "/manager";
-
+    const basePath = currentUser?.role === "admin" ? "/admin" : currentUser?.role === "lead" ? "/lead" : "/manager";
 
     const [dateMode, setDateMode] = useState<DateFilterMode>("today");
     const [selectedMonth, setSelectedMonth] = useState("");
     const [dateFrom, setDateFrom] = useState(getToday());
     const [dateTo, setDateTo] = useState(getToday());
-
-    const [
-        reports,
-        setReports
-    ] = useState<ProductionReport[]>([]);
-
-    const [
-        selectedIds,
-        setSelectedIds
-    ] = useState<number[]>([]);
-
-    const [
-        loading,
-        setLoading
-    ] = useState(true);
-
-    const [
-        actionLoading,
-        setActionLoading
-    ] = useState(false);
-
-    const [
-        error,
-        setError
-    ] = useState("");
-
+    const [reports, setReports] = useState<ProductionReport[]>([]);
+    const [selectedIds, setSelectedIds] = useState<number[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [actionLoading, setActionLoading] = useState(false);
+    const [error, setError] = useState("");
     const [rejectOpen, setRejectOpen] = useState(false);
     const [rejectReason, setRejectReason] = useState(REJECT_REASONS[0]);
     const [rejectDetail, setRejectDetail] = useState("");
-
-    const [
-        searchKeyword,
-        setSearchKeyword
-    ] = useState("");
-
+    const [searchKeyword, setSearchKeyword] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
-
-    const [
-        selectedShift,
-        setSelectedShift
-    ] = useState("");
-
-    const [
-        selectedProcess,
-        setSelectedProcess
-    ] = useState("");
-
-    const [
-        currentPage,
-        setCurrentPage
-    ] = useState(1);
+    const [selectedShift, setSelectedShift] = useState("");
+    const [selectedProcess, setSelectedProcess] = useState("");
+    const [selectedStatus, setSelectedStatus] = useState("");
+    const [selectedTeam, setSelectedTeam] = useState("");
+    const [currentPage, setCurrentPage] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
     const [totalPages, setTotalPages] = useState(1);
     const reportLoadSeqRef = useRef(0);
     const actionLockRef = useRef(false);
 
     useEffect(() => {
-        const timer = window.setTimeout(() => {
-            setSearchQuery(searchKeyword.trim());
-        }, 250);
+        const timer = window.setTimeout(() => setSearchQuery(searchKeyword.trim()), 250);
         return () => window.clearTimeout(timer);
     }, [searchKeyword]);
 
-    useEffect(() => {
-        const onKeyDown = (event: KeyboardEvent) => {
-            if (event.key === "Escape" && !actionLoading) {
-                if (rejectOpen) setRejectOpen(false);
-                else if (selectedIds.length) setSelectedIds([]);
-                return;
-            }
-            if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && canReview && selectedIds.length > 0 && !actionLoading) {
-                event.preventDefault();
-                void handleApproveSelected();
-            }
-        };
-        window.addEventListener("keydown", onKeyDown);
-        return () => window.removeEventListener("keydown", onKeyDown);
-    }, [actionLoading, canReview, rejectOpen, selectedIds.length]);
-
-
-    // =====================================================
-    // TẢI BÁO CÁO CHỜ DUYỆT THEO NGÀY HOẶC TOÀN BỘ
-    // =====================================================
-
-    const activeDateRange = useMemo(
-        () => getDateRangeForMode(dateMode, selectedMonth, dateFrom, dateTo),
-        [dateMode, selectedMonth, dateFrom, dateTo]
-    );
+    const activeDateRange = useMemo(() => getDateRangeForMode(dateMode, selectedMonth, dateFrom, dateTo), [dateMode, selectedMonth, dateFrom, dateTo]);
 
     const loadReports = useCallback(async () => {
         const requestSeq = ++reportLoadSeqRef.current;
-        const isCurrentRequest = () => reportLoadSeqRef.current === requestSeq;
+        const current = () => reportLoadSeqRef.current === requestSeq;
         try {
             setLoading(true);
             setError("");
@@ -172,867 +94,201 @@ function Reports() {
                 processName: selectedProcess || undefined,
                 search: searchQuery || undefined,
                 page: currentPage,
-                pageSize: 20,
+                pageSize: 8,
             });
-            if (!isCurrentRequest()) return;
+            if (!current()) return;
             setReports(result.data);
             setTotalCount(result.pagination.total);
             setTotalPages(result.pagination.total_pages);
-            setSelectedIds(previousIds => reconcileSelectedReportIds(previousIds, result.data));
+            setSelectedIds(previous => reconcileSelectedReportIds(previous, result.data));
         } catch (err: unknown) {
-            if (!isCurrentRequest()) return;
-            console.error("GET PENDING REPORTS ERROR:", err);
-            const message = axios.isAxiosError(err)
-                ? err.response?.data?.message || "Không thể tải báo cáo chờ duyệt"
-                : "Không thể tải báo cáo chờ duyệt";
+            if (!current()) return;
+            const message = axios.isAxiosError(err) ? err.response?.data?.message || "Không thể tải báo cáo chờ duyệt" : "Không thể tải báo cáo chờ duyệt";
             setError(message);
             setReports([]);
             setTotalCount(0);
             setTotalPages(1);
             setSelectedIds([]);
         } finally {
-            if (isCurrentRequest()) setLoading(false);
+            if (current()) setLoading(false);
         }
     }, [activeDateRange.dateFrom, activeDateRange.dateTo, selectedShift, selectedProcess, searchQuery, currentPage]);
 
-    useEffect(() => {
-        queueMicrotask(() => {
-            setSelectedIds([]);
-            void loadReports();
-        });
-    }, [loadReports]);
+    useEffect(() => { void loadReports(); }, [loadReports]);
+    useEffect(() => { setCurrentPage(1); setSelectedIds([]); }, [selectedShift, selectedProcess, selectedStatus, selectedTeam, dateMode, selectedMonth, dateFrom, dateTo, searchQuery]);
 
-    const previousDateCount = useMemo(() => {
-        return reports.filter(report => String(report.work_date || "").slice(0, 10) < getToday()).length;
-    }, [reports, dateMode]);
-
-    // =====================================================
-    // DANH SÁCH CÔNG ĐOẠN
-    // =====================================================
-
-    const processes = useMemo(
-        () =>
-            Array.from(
-                new Set(
-                    reports
-                        .map(
-                            item =>
-                                item.process_name
-                        )
-                        .filter(
-                            (
-                                process
-                            ): process is string =>
-                                Boolean(process)
-                        )
-                )
-            ).sort(),
-        [reports]
-    );
-
-
-    // =====================================================
-    // ĐẾM BÁO CÁO TRÙNG
-    // NGÀY + MÃ NHÂN VIÊN + MÁY + SẢN PHẨM
-    // =====================================================
-
+    const processes = useMemo(() => Array.from(new Set(reports.map(r => r.process_name).filter(Boolean) as string[])).sort(), [reports]);
+    const teams = useMemo(() => Array.from(new Set(reports.map(teamName))).sort(), [reports]);
     const duplicateCounts = useMemo(() => {
-        const counts =
-            new Map<string, number>();
-
-        reports.forEach(report => {
-            if (
-                !report.worker_code ||
-                !report.shift ||
-                !report.machine_no ||
-                !report.product_name
-            ) {
-                return;
-            }
-
-            const key =
-                duplicateKey(report);
-
-            counts.set(
-                key,
-                (counts.get(key) ?? 0) + 1
-            );
-        });
-
-        return counts;
+        const map = new Map<string, number>();
+        reports.forEach(report => map.set(duplicateKey(report), (map.get(duplicateKey(report)) ?? 0) + 1));
+        return map;
     }, [reports]);
 
+    const visibleReports = useMemo(() => reports.filter(report => {
+        const statusOk = !selectedStatus || statusOf(report) === selectedStatus;
+        const teamOk = !selectedTeam || teamName(report) === selectedTeam;
+        return statusOk && teamOk;
+    }), [reports, selectedStatus, selectedTeam]);
 
-    // Server đã áp dụng filter và pagination; trang chỉ render đúng snapshot trả về.
-    useEffect(() => {
-        queueMicrotask(() => {
-            setCurrentPage(1);
-            setSelectedIds([]);
-        });
-    }, [selectedShift, selectedProcess, dateMode, selectedMonth, dateFrom, dateTo, searchQuery]);
+    const currentPageIds = useMemo(() => getValidReportIds(visibleReports), [visibleReports]);
+    const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+    const selectedReviewTargets = useMemo(() => reports.filter(r => selectedIdSet.has(Number(r.id))).map(r => ({ id: Number(r.id), expected_updated_at: r.updated_at || null })), [reports, selectedIdSet]);
+    const selectedOnCurrentPageCount = currentPageIds.filter(id => selectedIdSet.has(id)).length;
+    const isAllCurrentPageSelected = currentPageIds.length > 0 && selectedOnCurrentPageCount === currentPageIds.length;
+    const isSomeCurrentPageSelected = selectedOnCurrentPageCount > 0 && !isAllCurrentPageSelected;
 
-    const paginatedReports = reports;
+    const firstPendingCount = reports.filter(r => r.status !== "need_fix").length;
+    const reviewAgainCount = reports.filter(r => r.status === "need_fix").length;
+    const overdueCount = reports.filter(r => String(r.work_date || "").slice(0, 10) < getToday()).length;
+    const approvedToday = 0;
 
-    const currentPageIds = useMemo(
-        () => getValidReportIds(paginatedReports),
-        [paginatedReports]
-    );
+    const toggleSelectReport = (id: number) => setSelectedIds(previous => toggleReportId(previous, id));
+    const toggleSelectCurrentPage = () => setSelectedIds(previous => toggleCurrentPageIds(previous, currentPageIds, isAllCurrentPageSelected));
 
-
-    const selectedIdSet = useMemo(
-        () => new Set(selectedIds),
-        [selectedIds]
-    );
-
-    const selectedReviewTargets = useMemo(
-        () => reports
-            .filter((report) => selectedIdSet.has(Number(report.id)))
-            .map((report) => ({
-                id: Number(report.id),
-                expected_updated_at: report.updated_at || null
-            })),
-        [reports, selectedIdSet]
-    );
-
-
-    const selectedOnCurrentPageCount =
-        currentPageIds.filter(
-            id => selectedIdSet.has(id)
-        ).length;
-
-
-    const isAllCurrentPageSelected =
-        currentPageIds.length > 0 &&
-        selectedOnCurrentPageCount ===
-            currentPageIds.length;
-
-
-    const isSomeCurrentPageSelected =
-        selectedOnCurrentPageCount > 0 &&
-        !isAllCurrentPageSelected;
-
-
-    // =====================================================
-    // CHỌN MỘT BÁO CÁO
-    // =====================================================
-
-    const toggleSelectReport = (reportId: number) => {
-        setSelectedIds((previousIds) =>
-            toggleReportId(previousIds, reportId)
-        );
+    const handleViewReport = (id: number) => {
+        sessionStorage.setItem("selectedPendingReportIds", JSON.stringify([id]));
+        navigate(`${basePath}/reports/review`);
     };
-
-
-    // =====================================================
-    // CHỌN TOÀN BỘ BÁO CÁO TRANG HIỆN TẠI
-    // =====================================================
-
-    const toggleSelectCurrentPage = () => {
-        setSelectedIds((previousIds) =>
-            toggleCurrentPageIds(
-                previousIds,
-                currentPageIds,
-                isAllCurrentPageSelected
-            )
-        );
-    };
-
-
-    // =====================================================
-    // XEM CHI TIẾT CÁC BÁO CÁO ĐÃ CHỌN
-    // =====================================================
 
     const handleViewSelectedDetails = () => {
-        if (selectedIds.length === 0) {
-            showToast(
-                "Vui lòng chọn ít nhất một báo cáo"
-            );
-            return;
-        }
-
-        sessionStorage.setItem(
-            "selectedPendingReportIds",
-            JSON.stringify(selectedIds)
-        );
-
-        navigate(
-            `${basePath}/reports/review`
-        );
+        if (!selectedIds.length) return showToast("Vui lòng chọn ít nhất một báo cáo");
+        sessionStorage.setItem("selectedPendingReportIds", JSON.stringify(selectedIds));
+        navigate(`${basePath}/reports/review`);
     };
-
-
-    // =====================================================
-    // DUYỆT CÁC BÁO CÁO ĐÃ CHỌN
-    // =====================================================
 
     const handleApproveSelected = async () => {
         if (actionLockRef.current || actionLoading) return;
-        if (selectedIds.length === 0) {
-            showToast(
-                "Vui lòng chọn ít nhất một báo cáo"
-            );
-            return;
-        }
-
-        const confirmed =
-            window.confirm(
-                `Duyệt ${selectedIds.length} báo cáo đã chọn?`
-            );
-
-        if (!confirmed) {
-            return;
-        }
-
+        if (!selectedIds.length) return showToast("Vui lòng chọn ít nhất một báo cáo");
+        if (!window.confirm(`Duyệt ${selectedIds.length} báo cáo đã chọn?`)) return;
         actionLockRef.current = true;
         try {
             setActionLoading(true);
-
-            await approveSelectedTempReports(
-                selectedReviewTargets
-            );
-
+            await approveSelectedTempReports(selectedReviewTargets);
             showToast(`Đã duyệt ${selectedIds.length} báo cáo`, "success");
-
             setSelectedIds([]);
-
-            sessionStorage.removeItem(
-                "selectedPendingReportIds"
-            );
-
+            sessionStorage.removeItem("selectedPendingReportIds");
             await loadReports();
         } catch (err: unknown) {
-            console.error(
-                "APPROVE SELECTED REPORTS ERROR:",
-                err
-            );
-
-            const isStaleSelection =
-                axios.isAxiosError(err) &&
-                err.response?.status === 409 &&
-                err.response?.data?.code === "APPROVAL_SELECTION_STALE";
-
-            if (isStaleSelection) {
-                setSelectedIds([]);
-                sessionStorage.removeItem("selectedPendingReportIds");
-                showToast("Danh sách chờ duyệt đã thay đổi. Đã tải lại, vui lòng chọn lại báo cáo.");
-                await loadReports();
-                return;
-            }
-
-            const message =
-                axios.isAxiosError(err)
-                    ? err.response?.data?.message ||
-                      "Duyệt báo cáo thất bại"
-                    : "Duyệt báo cáo thất bại";
-
+            const message = axios.isAxiosError(err) ? err.response?.data?.message || "Duyệt báo cáo thất bại" : "Duyệt báo cáo thất bại";
             showToast(message);
-        } finally {
-            actionLockRef.current = false;
-            setActionLoading(false);
-        }
+            await loadReports();
+        } finally { actionLockRef.current = false; setActionLoading(false); }
     };
 
+    const handleApproveOne = async (report: ProductionReport) => {
+        const id = Number(report.id);
+        if (!canReview || !id || actionLockRef.current || actionLoading) return;
+        if (!window.confirm(`Duyệt báo cáo ${reportCode(report, 0)}?`)) return;
+        actionLockRef.current = true;
+        try {
+            setActionLoading(true);
+            await approveSelectedTempReports([{ id, expected_updated_at: report.updated_at || null }]);
+            showToast("Đã duyệt báo cáo", "success");
+            setSelectedIds(previous => previous.filter(item => item !== id));
+            await loadReports();
+        } catch (err: unknown) {
+            const message = axios.isAxiosError(err) ? err.response?.data?.message || "Duyệt báo cáo thất bại" : "Duyệt báo cáo thất bại";
+            showToast(message);
+        } finally { actionLockRef.current = false; setActionLoading(false); }
+    };
 
     const handleRejectSelected = async () => {
-        if (actionLockRef.current || actionLoading) return;
-        if (selectedIds.length === 0) {
-            showToast("Vui lòng chọn ít nhất một báo cáo");
-            return;
-        }
-
-        const reason = rejectReason === "Lý do khác"
-            ? rejectDetail.trim()
-            : [rejectReason, rejectDetail.trim()].filter(Boolean).join(": ");
-
-        if (!reason) {
-            showToast("Vui lòng nhập lý do từ chối");
-            return;
-        }
-
+        if (actionLockRef.current || actionLoading || !selectedIds.length) return;
+        const reason = rejectReason === "Lý do khác" ? rejectDetail.trim() : [rejectReason, rejectDetail.trim()].filter(Boolean).join(": ");
+        if (!reason) return showToast("Vui lòng nhập lý do từ chối");
         actionLockRef.current = true;
         try {
             setActionLoading(true);
             await rejectSelectedTempReports(selectedReviewTargets, reason);
             showToast(`Đã từ chối ${selectedIds.length} báo cáo`, "success");
-            setRejectOpen(false);
-            setRejectDetail("");
-            setSelectedIds([]);
-            sessionStorage.removeItem("selectedPendingReportIds");
+            setRejectOpen(false); setRejectDetail(""); setSelectedIds([]);
             await loadReports();
         } catch (err: unknown) {
-            console.error("REJECT SELECTED REPORTS ERROR:", err);
-            const message = axios.isAxiosError(err)
-                ? err.response?.data?.message || "Từ chối báo cáo thất bại"
-                : "Từ chối báo cáo thất bại";
+            const message = axios.isAxiosError(err) ? err.response?.data?.message || "Từ chối báo cáo thất bại" : "Từ chối báo cáo thất bại";
             showToast(message);
-        } finally {
-            actionLockRef.current = false;
-            setActionLoading(false);
-        }
+        } finally { actionLockRef.current = false; setActionLoading(false); }
     };
 
-    // =====================================================
-    // XÓA BỘ LỌC
-    // =====================================================
-
     const clearFilters = () => {
-        setSearchKeyword("");
-        setSelectedShift("");
-        setSelectedProcess("");
-        setDateMode("today");
-        setSelectedMonth("");
-        setDateFrom(getToday());
-        setDateTo(getToday());
+        setSearchKeyword(""); setSelectedShift(""); setSelectedProcess(""); setSelectedStatus(""); setSelectedTeam("");
+        setDateMode("today"); setSelectedMonth(""); setDateFrom(getToday()); setDateTo(getToday());
     };
 
     const selectQuickDate = (mode: DateFilterMode) => {
-        setDateMode(mode);
-        setSelectedMonth("");
-        if (mode !== "range") {
-            setDateFrom("");
-            setDateTo("");
-        }
+        setDateMode(mode); setSelectedMonth("");
+        if (mode !== "range") { setDateFrom(""); setDateTo(""); }
     };
 
+    return <div className="management-report-page manager-page pending-reference-page">
+        <header className="pending-page-title">
+            <div><h1>Chờ duyệt</h1><p>Danh sách báo cáo sản xuất chờ duyệt</p></div>
+        </header>
 
-    return (
-        <div className="management-report-page manager-page">
-            <div className="management-report-header">
-                <div>
-                    <h1>
-                        Báo cáo chờ duyệt
-                    </h1>
+        <nav className="pending-tabs" aria-label="Loại báo cáo">
+            <button className="active" type="button">Tất cả</button>
+            <button type="button">Chờ duyệt lần đầu</button>
+            <button type="button">Chờ duyệt lại</button>
+        </nav>
 
-                    <p>
-                        Chọn báo cáo để xem chi tiết,
-                        sửa hoặc duyệt.
-                    </p>
-                </div>
+        <section className="pending-filter-card">
+            <div className="pending-search"><span>⌕</span><input value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)} placeholder="Tìm kiếm theo mã báo cáo, công nhân..." /></div>
+            <label><span>Ngày báo cáo</span><input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setDateMode("range"); }} /></label>
+            <label><span>Quy trình</span><select value={selectedProcess} onChange={e => setSelectedProcess(e.target.value)}><option value="">Tất cả</option>{processes.map(p => <option key={p}>{p}</option>)}</select></label>
+            <label><span>Tổ/Nhóm</span><select value={selectedTeam} onChange={e => setSelectedTeam(e.target.value)}><option value="">Tất cả</option>{teams.map(t => <option key={t}>{t}</option>)}</select></label>
+            <label><span>Trạng thái</span><select value={selectedStatus} onChange={e => setSelectedStatus(e.target.value)}><option value="">Tất cả</option><option value="Chờ duyệt lần đầu">Chờ duyệt lần đầu</option><option value="Chờ duyệt lại">Chờ duyệt lại</option></select></label>
+            <button className="pending-refresh" type="button" onClick={() => void loadReports()}>⟳ <span>Làm mới</span></button>
+        </section>
 
-                <div className="management-report-count">
-                    <strong>
-                        {totalCount}
-                    </strong>
+        <section className="pending-kpis">
+            <div className="pending-kpi kpi-blue"><span>Tổng số báo cáo</span><strong>{totalCount}</strong><small>Báo cáo</small></div>
+            <div className="pending-kpi kpi-orange"><span>Chờ duyệt lần đầu</span><strong>{firstPendingCount}</strong><small>Báo cáo</small></div>
+            <div className="pending-kpi kpi-red"><span>Chờ duyệt lại</span><strong>{reviewAgainCount}</strong><small>Báo cáo</small></div>
+            <div className="pending-kpi kpi-slate"><span>Quá hạn duyệt</span><strong>{overdueCount}</strong><small>Báo cáo</small></div>
+            <div className="pending-kpi kpi-green"><span>Đã duyệt hôm nay</span><strong>{approvedToday}</strong><small>Báo cáo</small></div>
+        </section>
 
-                    <span>
-                        báo cáo
-                    </span>
-                </div>
-            </div>
+        {error && <div className="management-error">{error}</div>}
+        {selectedIds.length > 0 && <div className="management-selected-info"><strong>Đã chọn {selectedIds.length} báo cáo.</strong><button type="button" onClick={() => setSelectedIds([])}>Bỏ chọn</button></div>}
 
-
-            <div className="management-filter-card">
-                <div className="management-search-box">
-                    <span>
-                        ⌕
-                    </span>
-
-                    <input
-                        value={searchKeyword}
-                        onChange={event =>
-                            setSearchKeyword(
-                                event.target.value
-                            )
-                        }
-                        aria-label="Tìm báo cáo chờ duyệt"
-                        placeholder="Tìm mã, tên công nhân, máy, sản phẩm..."
-                    />
-                </div>
-
-
-                <div className="management-date-presets">
-                    {[ ["today", "Hôm nay"], ["yesterday", "Hôm qua"], ["week", "Tuần này"], ["currentMonth", "Tháng này"], ["all", "Tất cả ngày"] ].map(([mode, label]) => (
-                        <button
-                            key={mode}
-                            type="button"
-                            className={dateMode === mode ? "active" : ""}
-                            onClick={() => selectQuickDate(mode as DateFilterMode)}
-                        >
-                            {label}
-                        </button>
-                    ))}
-                </div>
-
-                <label className="management-filter-field">
-                    <span>Chọn tháng</span>
-                    <input
-                        type="month"
-                        value={selectedMonth}
-                        onChange={event => {
-                            setSelectedMonth(event.target.value);
-                            setDateMode("month");
-                            setDateFrom("");
-                            setDateTo("");
-                        }}
-                    />
-                </label>
-
-                <label className="management-filter-field">
-                    <span>Từ ngày</span>
-                    <input
-                        type="date"
-                        value={dateFrom}
-                        onChange={event => {
-                            setDateFrom(event.target.value);
-                            setSelectedMonth("");
-                            setDateMode("range");
-                        }}
-                    />
-                </label>
-
-                <label className="management-filter-field">
-                    <span>Đến ngày</span>
-                    <input
-                        type="date"
-                        value={dateTo}
-                        min={dateFrom || undefined}
-                        onChange={event => {
-                            setDateTo(event.target.value);
-                            setSelectedMonth("");
-                            setDateMode("range");
-                        }}
-                    />
-                </label>
-
-
-                <label className="management-filter-field">
-                    <span>
-                        Ca
-                    </span>
-
-                    <select
-                        value={selectedShift}
-                        onChange={event =>
-                            setSelectedShift(
-                                event.target.value
-                            )
-                        }
-                    >
-                        <option value="">
-                            Tất cả ca
-                        </option>
-
-                        <option value="A">
-                            Ca A
-                        </option>
-
-                        <option value="B">
-                            Ca B
-                        </option>
-
-                        <option value="C">
-                            Ca C
-                        </option>
-                        <option value="D">
-                            Ca D
-                        </option>
-                    </select>
-                </label>
-
-
-                <label className="management-filter-field">
-                    <span>
-                        Công đoạn
-                    </span>
-
-                    <select
-                        value={selectedProcess}
-                        onChange={event =>
-                            setSelectedProcess(
-                                event.target.value
-                            )
-                        }
-                    >
-                        <option value="">
-                            Tất cả công đoạn
-                        </option>
-
-                        {processes.map(
-                            process => (
-                                <option
-                                    key={process}
-                                    value={process}
-                                >
-                                    {process}
-                                </option>
-                            )
-                        )}
-                    </select>
-                </label>
-
-
-                <div className="management-filter-actions">
-                    <button
-                        type="button"
-                        className="management-clear-button management-action-clear"
-                        onClick={clearFilters}
-                        disabled={
-                            !searchKeyword &&
-                            !selectedShift &&
-                            !selectedProcess &&
-                            dateMode === "today"
-                        }
-                    >
-                        Xóa lọc
-                    </button>
-                    <button
-                        type="button"
-                        className="management-view-selected-button"
-                        onClick={handleViewSelectedDetails}
-                        disabled={
-                            selectedIds.length === 0 ||
-                            loading ||
-                            actionLoading
-                        }
-                    >
-                        Xem chi tiết ({selectedIds.length})
-                    </button>
-
-                    {canReview && <button
-                        type="button"
-                        className="management-reject-button"
-                        onClick={() => setRejectOpen(true)}
-                        disabled={
-                            selectedIds.length === 0 ||
-                            loading ||
-                            actionLoading
-                        }
-                    >
-                        Từ chối ({selectedIds.length})
-                    </button>}
-
-                    {canReview && <button
-                        type="button"
-                        className="management-approve-button"
-                        onClick={handleApproveSelected}
-                        disabled={
-                            selectedIds.length === 0 ||
-                            loading ||
-                            actionLoading
-                        }
-                    >
-                        {actionLoading ? "Đang xử lý..." : `Duyệt (${selectedIds.length})`}
-                    </button>}
-                </div>
-            </div>
-
-
-            {previousDateCount > 0 && (
-                <div className="management-backlog-alert">
-                    <strong>Còn {previousDateCount} báo cáo của ngày trước chưa được xử lý.</strong>
-                    <span>Danh sách hiện đang hiển thị toàn bộ ngày để tránh bỏ sót.</span>
-                </div>
-            )}
-
-            {selectedIds.length > 0 && (
-                <div className="management-selected-info">
-                    <span aria-live="polite">Đã chọn{" "}
-
-                    <strong>
-                        {selectedIds.length}
-                    </strong>
-
-                    {" "}báo cáo.</span>
-                    <span className="management-shortcut-hint">Ctrl/⌘ + Enter: duyệt · Esc: bỏ chọn</span>
-
-                    <button
-                        type="button"
-                        onClick={() =>
-                            setSelectedIds([])
-                        }
-                    >
-                        Bỏ chọn tất cả
-                    </button>
-                </div>
-            )}
-
-
-            {error && (
-                <div className="management-error">
-                    {error}
-                </div>
-            )}
-
-
-            <div className="management-report-card">
-                {loading ? (
-                    <div className="management-empty">
-                        Đang tải...
-                    </div>
-                ) : paginatedReports.length === 0 ? (
-                    <div className="management-empty">
-                        Không có báo cáo phù hợp
-                    </div>
-                ) : (
-                    <div className="management-table-container">
-                        <table className="management-report-table">
-                            <thead>
-                                <tr>
-                                    <th className="management-checkbox-column">
-                                        <input
-                                            type="checkbox"
-                                            checked={
-                                                isAllCurrentPageSelected
-                                            }
-                                            ref={input => {
-                                                if (input) {
-                                                    input.indeterminate =
-                                                        isSomeCurrentPageSelected;
-                                                }
-                                            }}
-                                            onChange={
-                                                toggleSelectCurrentPage
-                                            }
-                                            aria-label="Chọn tất cả báo cáo trang hiện tại"
-                                            title="Chọn tất cả báo cáo trang hiện tại"
-                                        />
-                                    </th>
-
-                                    <th>STT</th>
-                                    <th>Mã NV</th>
-                                    <th>Họ tên</th>
-                                    <th>Công đoạn</th>
-                                    <th>Ca</th>
-                                    <th>Mã máy</th>
-                                    <th>Mã sản phẩm</th>
-                                </tr>
-                            </thead>
-
-                            <tbody>
-                                {paginatedReports.map(
-                                    (
-                                        report,
-                                        index
-                                    ) => {
-                                        const reportId =
-                                            Number(
-                                                report.id
-                                            );
-
-                                        const validReportId =
-                                            Number.isInteger(
-                                                reportId
-                                            ) &&
-                                            reportId > 0;
-
-                                        const isSelected =
-                                            validReportId &&
-                                            selectedIdSet.has(
-                                                reportId
-                                            );
-
-                                        const isDuplicate =
-                                            (
-                                                duplicateCounts.get(
-                                                    duplicateKey(
-                                                        report
-                                                    )
-                                                ) ?? 0
-                                            ) > 1;
-
-                                        const rowClassNames = [
-                                            isDuplicate
-                                                ? "duplicate-report-row"
-                                                : "",
-                                            isSelected
-                                                ? "selected-report-row"
-                                                : ""
-                                        ]
-                                            .filter(Boolean)
-                                            .join(" ");
-
-                                        return (
-                                            <tr
-                                                key={
-                                                    report.id ??
-                                                    `${report.worker_code}-${index}`
-                                                }
-                                                className={
-                                                    rowClassNames
-                                                }
-                                                title={
-                                                    isDuplicate
-                                                        ? "Trùng ngày, mã nhân viên, mã máy và mã sản phẩm"
-                                                        : undefined
-                                                }
-                                            >
-                                                <td className="management-checkbox-column">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={
-                                                            isSelected
-                                                        }
-                                                        disabled={
-                                                            !validReportId ||
-                                                            actionLoading
-                                                        }
-                                                        onChange={() =>
-                                                            toggleSelectReport(
-                                                                reportId
-                                                            )
-                                                        }
-                                                        aria-label={`Chọn báo cáo ${reportId}`}
-                                                    />
-                                                </td>
-
-                                                <td>
-                                                    {
-                                                        getManagerReportRowNumber(
-                                                            currentPage,
-                                                            index
-                                                        )
-                                                    }
-                                                </td>
-
-                                                <td>
-                                                    <strong>
-                                                        {report.worker_code ||
-                                                            "---"}
-                                                    </strong>
-                                                </td>
-
-                                                <td>
-                                                    {report.full_name ||
-                                                        "---"}
-                                                </td>
-
-                                              
-                                                <td>
-                                                    {report.process_name ||
-                                                        "---"}
-                                                </td>
-
-                                                <td>
-                                                    {report.shift ||
-                                                        "---"}
-                                                </td>
-
-                                                <td>
-                                                    {report.machine_no ||
-                                                        "---"}
-                                                </td>
-
-                                                <td>
-                                                    {report.product_name ||
-                                                        "---"}
-                                                </td>
-                                            </tr>
-                                        );
-                                    }
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </div>
-
-
-            {totalPages > 1 && (
-                <nav className="management-pagination" aria-label="Phân trang báo cáo">
-                    <button
-                        type="button"
-                        aria-label="Trang trước"
-                        disabled={
-                            currentPage === 1
-                        }
-                        onClick={() =>
-                            setCurrentPage(
-                                page => page - 1
-                            )
-                        }
-                    >
-                        ‹ Trước
-                    </button>
-
-                    <span role="status">
-                        Trang {currentPage}/
-                        {totalPages}
-                    </span>
-
-                    <button
-                        type="button"
-                        aria-label="Trang sau"
-                        disabled={
-                            currentPage ===
-                            totalPages
-                        }
-                        onClick={() =>
-                            setCurrentPage(
-                                page => page + 1
-                            )
-                        }
-                    >
-                        Sau ›
-                    </button>
+        <section className="pending-table-card">
+            {loading ? <div className="management-empty">Đang tải...</div> : visibleReports.length === 0 ? <div className="management-empty">Không có báo cáo phù hợp</div> : <div className="pending-table-wrap">
+                <table className="pending-reference-table">
+                    <thead><tr>
+                        <th className="select-col"><input type="checkbox" checked={isAllCurrentPageSelected} ref={input => { if (input) input.indeterminate = isSomeCurrentPageSelected; }} onChange={toggleSelectCurrentPage} /></th>
+                        <th>STT</th><th>Mã báo cáo</th><th>Công nhân</th><th>Quy trình</th><th>Tổ/Nhóm</th><th>Ngày báo cáo</th><th>Trạng thái</th><th>Thao tác</th>
+                    </tr></thead>
+                    <tbody>{visibleReports.map((report, index) => {
+                        const id = Number(report.id); const selected = selectedIdSet.has(id); const duplicate = (duplicateCounts.get(duplicateKey(report)) ?? 0) > 1; const status = statusOf(report);
+                        return <tr key={report.id ?? index} className={`${selected ? "is-selected" : ""} ${duplicate ? "is-duplicate" : ""}`}>
+                            <td className="select-col"><input type="checkbox" checked={selected} disabled={!id || actionLoading} onChange={() => toggleSelectReport(id)} /></td>
+                            <td>{getManagerReportRowNumber(currentPage, index)}</td>
+                            <td className="report-code">{reportCode(report, index)}</td>
+                            <td><div className="worker-cell">{text(report.full_name)}<small>({text(report.worker_code, "---")})</small></div></td>
+                            <td>{text(report.process_name)}</td>
+                            <td>{teamName(report)}</td>
+                            <td><div className="date-cell">{String(report.work_date || "").slice(0, 10)}<small>{timeRange(report)}</small></div></td>
+                            <td><span className={`status-pill ${status === "Chờ duyệt lại" ? "status-red" : "status-orange"}`}>{status}</span></td>
+                            <td className="actions-cell"><button type="button" className="icon-action view" title="Xem chi tiết" onClick={() => handleViewReport(id)}>◉</button>{canReview && <button type="button" className="icon-action approve" title="Duyệt báo cáo" onClick={() => void handleApproveOne(report)}>✓</button>}</td>
+                        </tr>;
+                    })}</tbody>
+                </table>
+            </div>}
+            <footer className="pending-table-footer">
+                <span>Hiển thị {visibleReports.length ? ((currentPage - 1) * 8 + 1) : 0} đến {Math.min(currentPage * 8, totalCount)} của {totalCount} báo cáo</span>
+                <nav className="pending-pagination" aria-label="Phân trang">
+                    <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))}>‹</button>
+                    {Array.from({ length: Math.min(totalPages, 4) }, (_, i) => i + 1).map(page => <button key={page} className={currentPage === page ? "active" : ""} onClick={() => setCurrentPage(page)}>{page}</button>)}
+                    {totalPages > 4 && <button>…</button>}
+                    <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}>›</button>
                 </nav>
-            )}
+            </footer>
+        </section>
 
+        {selectedIds.length > 0 && <div className="pending-bulk-actions"><button type="button" onClick={handleViewSelectedDetails}>Xem chi tiết</button>{canReview && <><button type="button" className="reject" onClick={() => setRejectOpen(true)}>Từ chối</button><button type="button" className="approve" onClick={() => void handleApproveSelected}>{actionLoading ? "Đang xử lý..." : "Duyệt"}</button></>}</div>}
 
-            {rejectOpen && canReview && (
-                <div
-                    className="management-modal-backdrop"
-                    role="presentation"
-                    onMouseDown={() => !actionLoading && setRejectOpen(false)}
-                >
-                    <div
-                        className="management-modal"
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="reject-title"
-                        onMouseDown={event => event.stopPropagation()}
-                    >
-                        <h2 id="reject-title">Từ chối báo cáo</h2>
-                        <p>{selectedIds.length} báo cáo sẽ rời danh sách chờ và công nhân nhận được lý do.</p>
-                        <label>
-                            Lý do
-                            <select
-                                value={rejectReason}
-                                onChange={event => setRejectReason(event.target.value)}
-                            >
-                                {REJECT_REASONS.map(reason => (
-                                    <option key={reason} value={reason}>{reason}</option>
-                                ))}
-                            </select>
-                        </label>
-                        <label>
-                            Chi tiết
-                            <textarea
-                                value={rejectDetail}
-                                onChange={event => setRejectDetail(event.target.value)}
-                                placeholder="Có thể bổ sung nội dung công nhân cần sửa"
-                                rows={3}
-                            />
-                        </label>
-                        <div className="management-modal-actions">
-                            <button
-                                type="button"
-                                disabled={actionLoading}
-                                onClick={() => setRejectOpen(false)}
-                            >
-                                Hủy
-                            </button>
-                            <button
-                                type="button"
-                                className="management-reject-button"
-                                disabled={actionLoading}
-                                onClick={() => void handleRejectSelected()}
-                            >
-                                {actionLoading ? "Đang xử lý..." : "Xác nhận từ chối"}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            <div className="duplicate-note">
-                <span />
-
-                Hàng màu đỏ: có từ hai báo cáo trùng đồng thời ngày,
-                mã nhân viên, mã máy và mã sản phẩm.
-            </div>
-        </div>
-    );
+        {rejectOpen && canReview && <div className="management-modal-backdrop" onMouseDown={() => !actionLoading && setRejectOpen(false)}><div className="management-modal" onMouseDown={e => e.stopPropagation()}><h2>Từ chối báo cáo</h2><p>{selectedIds.length} báo cáo sẽ rời danh sách chờ.</p><label>Lý do<select value={rejectReason} onChange={e => setRejectReason(e.target.value)}>{REJECT_REASONS.map(reason => <option key={reason}>{reason}</option>)}</select></label><label>Chi tiết<textarea value={rejectDetail} onChange={e => setRejectDetail(e.target.value)} rows={3} /></label><div className="management-modal-actions"><button type="button" onClick={() => setRejectOpen(false)}>Hủy</button><button type="button" className="management-reject-button" onClick={() => void handleRejectSelected}>{actionLoading ? "Đang xử lý..." : "Xác nhận từ chối"}</button></div></div></div>}
+    </div>;
 }
-
 
 export default Reports;
