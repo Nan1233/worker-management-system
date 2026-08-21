@@ -15,318 +15,69 @@
   border-right: 1px solid #dfe7f0;
   box-shadow: 1px 0 8px rgba(18,40,70,.025);
 }
+.management-brand { display:flex; align-items:center; gap:10px; width:100%; padding:8px 8px 16px; border:0; border-bottom:1px solid #edf1f5; background:transparent; text-align:left; color:#162033; }
+.management-brand-mark { display:grid; place-items:center; width:36px; height:36px; flex:0 0 36px; border-radius:8px; background:linear-gradient(145deg,#287dd8,#1769d2); color:#fff; font-size:18px; font-weight:800; box-shadow:0 6px 14px rgba(23,105,210,.16); }
+.management-brand strong,.management-brand small { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.management-brand strong { font-size:12px; color:#162f50; }
+.management-brand small { margin-top:3px; color:#718096; font-size:10px; }
+.management-menu { display:grid; gap:3px; margin-top:17px; overflow-y:auto; }
+.management-menu::before { content:"WORKSPACE"; display:block; padding:5px 10px 8px; color:#9aa8b9; font-size:9px; font-weight:800; letter-spacing:.12em; }
+.management-menu button { position:relative; display:flex; align-items:center; gap:11px; width:100%; min-height:41px; padding:0 10px; border:1px solid transparent; border-radius:9px; background:transparent; color:#66758a; text-align:left; font-size:12px; font-weight:600; }
+.management-menu button:hover { background:#f5f9ff; color:#1769d2; border-color:#e2ecf8; }
+.management-menu button.active { background:linear-gradient(90deg,#e8f2ff,#f3f8ff); color:#1769d2; border-color:#d7e7fb; font-weight:750; box-shadow:inset 3px 0 0 #1769d2; }
+.management-menu button svg { flex:0 0 auto; }
+.management-badge { margin-left:auto; min-width:20px; padding:1px 5px; border-radius:10px; background:#e14e59; color:#fff; font-size:10px; text-align:center; }
+.management-logout { display:flex; align-items:center; gap:9px; min-height:42px; margin-top:auto; padding:0 10px; border:1px solid #dfe7f0; border-radius:9px; background:#fff; color:#66758a; font-size:12px; }
+.management-logout:hover { background:#f8fbff; border-color:#cbd8e8; }
+.management-main { min-width:0; min-height:100dvh; margin-left:230px; background:#f4f7fb; }
+.management-header { position:sticky; top:0; z-index:40; min-height:118px; padding:13px 20px 10px; display:flex; align-items:center; justify-content:space-between; gap:16px; background:#fff; border-bottom:1px solid #dfe7f0; box-shadow:none; backdrop-filter:none; }
+.management-header-title { display:flex; align-items:center; gap:9px; }
+.management-header-title strong { color:#172f50; font-size:15px; }
+.management-header-title span { display:inline-flex; align-items:center; min-height:24px; padding:0 9px; border-radius:999px; background:#eef5ff; color:#527397; font-size:10px; font-weight:750; }
+.management-header-actions { display:flex; align-items:center; gap:10px; }
+.management-notification { position:relative; width:38px; height:38px; display:grid; place-items:center; border:0; border-radius:50%; background:transparent; color:#526b86; cursor:pointer; }
+.management-notification:hover { background:#f2f7fc; color:#1769d2; }
+.management-notification b { position:absolute; top:1px; right:1px; min-width:15px; height:15px; display:grid; place-items:center; border-radius:999px; background:#e05b63; color:#fff; font-size:8px; border:2px solid #fff; }
+.management-user { position:relative; width:194px; max-width:194px; min-height:94px; padding:10px 12px 26px !important; display:flex; align-items:flex-start; gap:8px; border:1px solid #dfe7f0 !important; border-radius:11px !important; background:#fff !important; color:#5c6b80; box-shadow:0 3px 12px rgba(20,55,90,.035); cursor:pointer; text-align:left; }
+.management-user:hover { background:#fbfdff !important; }
+.management-user-avatar { display:none !important; }
+.management-user-copy { min-width:0; width:100%; display:flex; flex-direction:column; gap:3px; }
+.management-user-copy strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#17304f; font-size:12px; font-weight:800; }
+.management-user-copy small { color:#74879e; font-size:9px; }
+.management-user > svg { position:absolute; left:12px; bottom:9px; color:#7186a0; }
+.management-content { min-width:0; padding:20px 20px 30px; }
+.management-mobile-nav { display:none; }
 
-.management-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 8px 16px;
-  border: 0;
-  border-bottom: 1px solid #edf1f5;
-  background: transparent;
-  text-align: left;
-  color: #162033;
-}
+/* This block intentionally has higher specificity than reference-ui.css, which is imported globally after page CSS. */
+.management-layout .management-sidebar { width:230px !important; }
+.management-layout .management-main { margin-left:230px !important; }
+.management-layout .management-header { min-height:118px !important; padding:13px 20px 10px !important; }
+.management-layout .management-content { padding:20px 20px 30px !important; }
+.management-layout .management-user { width:194px !important; max-width:194px !important; min-height:94px !important; }
 
-.management-brand-mark {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
-  border-radius: 8px;
-  background: linear-gradient(145deg,#287dd8,#1769d2);
-  color: #fff;
-  font-size: 18px;
-  font-weight: 800;
-  box-shadow: 0 6px 14px rgba(23,105,210,.16);
-}
-
-.management-brand strong,
-.management-brand small {
-  display: block;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.management-brand strong { font-size: 12px; color: #162f50; }
-.management-brand small { margin-top: 3px; color: #718096; font-size: 10px; }
-
-.management-menu {
-  display: grid;
-  gap: 3px;
-  margin-top: 17px;
-  overflow-y: auto;
-}
-
-.management-menu::before {
-  content: "WORKSPACE";
-  display: block;
-  padding: 5px 10px 8px;
-  color: #9aa8b9;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: .12em;
+@media (max-width:1180px) and (min-width:801px) {
+  .management-layout .management-sidebar { width:230px !important; }
+  .management-layout .management-main { margin-left:230px !important; }
+  .management-layout .management-header { padding-inline:18px !important; }
+  .management-layout .management-content { padding:18px !important; }
 }
 
-.management-menu button {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  width: 100%;
-  min-height: 41px;
-  padding: 0 10px;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  background: transparent;
-  color: #66758a;
-  text-align: left;
-  font-size: 12px;
-  font-weight: 600;
-}
-.management-menu button:hover {
-  background: #f5f9ff;
-  color: #1769d2;
-  border-color: #e2ecf8;
-}
-.management-menu button.active {
-  background: linear-gradient(90deg,#e8f2ff,#f3f8ff);
-  color: #1769d2;
-  border-color: #d7e7fb;
-  font-weight: 750;
-  box-shadow: inset 3px 0 0 #1769d2;
-}
-.management-menu button svg { flex: 0 0 auto; }
-
-.management-badge {
-  margin-left: auto;
-  min-width: 20px;
-  padding: 1px 5px;
-  border-radius: 10px;
-  background: #e14e59;
-  color: #fff;
-  font-size: 10px;
-  text-align: center;
-}
-
-.management-logout {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-height: 42px;
-  margin-top: auto;
-  padding: 0 10px;
-  border: 1px solid #dfe7f0;
-  border-radius: 9px;
-  background: #fff;
-  color: #66758a;
-  font-size: 12px;
-}
-.management-logout:hover { background: #f8fbff; border-color: #cbd8e8; }
-
-.management-main {
-  min-width: 0;
-  min-height: 100dvh;
-  margin-left: 230px;
-  background: #f4f7fb;
-}
-
-.management-header {
-  position: sticky;
-  top: 0;
-  z-index: 40;
-  min-height: 118px;
-  padding: 13px 20px 10px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  background: #fff;
-  border-bottom: 1px solid #dfe7f0;
-  box-shadow: none;
-  backdrop-filter: none;
-}
-
-.management-header-title {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-.management-header-title strong { color: #172f50; font-size: 15px; }
-.management-header-title span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 0 9px;
-  border-radius: 999px;
-  background: #eef5ff;
-  color: #527397;
-  font-size: 10px;
-  font-weight: 750;
-}
-
-.management-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.management-notification {
-  position: relative;
-  width: 38px;
-  height: 38px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: #526b86;
-  cursor: pointer;
-}
-.management-notification:hover { background: #f2f7fc; color: #1769d2; }
-.management-notification b {
-  position: absolute;
-  top: 1px;
-  right: 1px;
-  min-width: 15px;
-  height: 15px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  background: #e05b63;
-  color: #fff;
-  font-size: 8px;
-  border: 2px solid #fff;
-}
-
-/* The account control is intentionally the compact reference-style card. */
-.management-user {
-  position: relative;
-  width: 194px;
-  max-width: 194px;
-  min-height: 94px;
-  padding: 10px 12px 26px !important;
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  border: 1px solid #dfe7f0 !important;
-  border-radius: 11px !important;
-  background: #fff !important;
-  color: #5c6b80;
-  box-shadow: 0 3px 12px rgba(20,55,90,.035);
-  cursor: pointer;
-  text-align: left;
-}
-.management-user:hover { background: #fbfdff !important; }
-.management-user-avatar { display: none !important; }
-.management-user-copy {
-  min-width: 0;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.management-user-copy strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: #17304f;
-  font-size: 12px;
-  font-weight: 800;
-}
-.management-user-copy small { color: #74879e; font-size: 9px; }
-.management-user > svg {
-  position: absolute;
-  left: 12px;
-  bottom: 9px;
-  color: #7186a0;
-}
-
-.management-content {
-  min-width: 0;
-  padding: 20px 20px 30px;
-}
-.management-mobile-nav { display: none; }
-
-@media (max-width: 1180px) and (min-width: 801px) {
-  .management-sidebar { width: 230px; }
-  .management-main { margin-left: 230px; }
-  .management-header { padding-inline: 18px; }
-  .management-content { padding: 18px; }
-}
-
-@media (max-width: 800px) {
-  .management-sidebar { display: none; }
-  .management-main { margin-left: 0; padding-bottom: 72px; }
-  .management-header { min-height: 58px; padding: 8px 12px; }
-  .management-header-title strong { font-size: 13px; }
-  .management-header-title span { font-size: 9px; }
-  .management-header-actions { gap: 4px; }
-  .management-notification { width: 34px; height: 34px; }
-  .management-user {
-    width: 40px;
-    max-width: 40px;
-    min-height: 40px;
-    padding: 3px !important;
-    border: 0 !important;
-    box-shadow: none;
-    background: transparent !important;
-  }
-  .management-user-copy { display: none; }
-  .management-user > svg { position: static; display: none; }
-  .management-user-avatar {
-    display: grid !important;
-    width: 34px;
-    height: 34px;
-    flex: 0 0 34px;
-    place-items: center;
-    border-radius: 50%;
-    background: #edf4ff;
-    color: #1769d2;
-    font-size: 14px;
-    font-weight: 800;
-  }
-  .management-content { padding: 10px 9px 16px; }
-  .management-mobile-nav {
-    position: fixed;
-    inset: auto 0 0 0;
-    z-index: 100;
-    display: grid;
-    grid-template-columns: repeat(5,minmax(0,1fr));
-    min-height: 64px;
-    padding: 5px max(6px,env(safe-area-inset-left)) max(5px,env(safe-area-inset-bottom));
-    background: #fff;
-    border-top: 1px solid #dfe7f0;
-    box-shadow: 0 -4px 16px rgba(20,40,70,.06);
-  }
-  .management-mobile-nav button {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    min-width: 0;
-    border: 0;
-    background: transparent;
-    color: #718096;
-    font-size: 8.5px;
-    border-radius: 9px;
-  }
-  .management-mobile-nav button.active { color: #1769d2; background: #eaf3ff; }
-  .management-mobile-overflow {
-    position: absolute;
-    right: 8px;
-    bottom: calc(100% + 8px);
-    width: min(260px,calc(100vw - 16px));
-    display: grid;
-    gap: 4px;
-    padding: 8px;
-    border: 1px solid #dfe7f0;
-    border-radius: 12px;
-    background: #fff;
-    box-shadow: 0 10px 28px rgba(16,34,58,.16);
-  }
-  .management-mobile-overflow button { min-height: 44px; flex-direction: row; justify-content: flex-start; padding: 0 10px; font-size: 12px; }
+@media (max-width:800px) {
+  .management-sidebar { display:none; }
+  .management-main { margin-left:0; padding-bottom:72px; }
+  .management-header { min-height:58px; padding:8px 12px; }
+  .management-header-title strong { font-size:13px; }
+  .management-header-title span { font-size:9px; }
+  .management-header-actions { gap:4px; }
+  .management-notification { width:34px; height:34px; }
+  .management-user { width:40px !important; max-width:40px !important; min-height:40px !important; padding:3px !important; border:0 !important; box-shadow:none; background:transparent !important; }
+  .management-user-copy { display:none; }
+  .management-user > svg { position:static; display:none; }
+  .management-user-avatar { display:grid !important; width:34px; height:34px; flex:0 0 34px; place-items:center; border-radius:50%; background:#edf4ff; color:#1769d2; font-size:14px; font-weight:800; }
+  .management-content { padding:10px 9px 16px; }
+  .management-mobile-nav { position:fixed; inset:auto 0 0 0; z-index:100; display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); min-height:64px; padding:5px max(6px,env(safe-area-inset-left)) max(5px,env(safe-area-inset-bottom)); background:#fff; border-top:1px solid #dfe7f0; box-shadow:0 -4px 16px rgba(20,40,70,.06); }
+  .management-mobile-nav button { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; min-width:0; border:0; background:transparent; color:#718096; font-size:8.5px; border-radius:9px; }
+  .management-mobile-nav button.active { color:#1769d2; background:#eaf3ff; }
+  .management-mobile-overflow { position:absolute; right:8px; bottom:calc(100% + 8px); width:min(260px,calc(100vw - 16px)); display:grid; gap:4px; padding:8px; border:1px solid #dfe7f0; border-radius:12px; background:#fff; box-shadow:0 10px 28px rgba(16,34,58,.16); }
+  .management-mobile-overflow button { min-height:44px; flex-direction:row; justify-content:flex-start; padding:0 10px; font-size:12px; }
 }
