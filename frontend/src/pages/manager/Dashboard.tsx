@@ -15,7 +15,6 @@ import api from "../../services/api";
 import { useToast } from "../../components/feedback/toastContext";
 import { getApiError } from "../../utils/apiError";
 import { getStoredUser } from "../../utils/authStorage";
-import { usePermissions } from "../../hooks/usePermissions";
 import "./Dashboard.css";
 
 type PeriodKey = "today" | "yesterday" | "last7" | "thisMonth" | "lastMonth";
@@ -94,7 +93,6 @@ function shortDate(value: string) {
 export default function Dashboard() {
   const navigate = useNavigate();
   const toast = useToast();
-  const { can } = usePermissions();
   const user = useMemo(() => getStoredUser(), []);
   const [period, setPeriod] = useState<PeriodKey>("today");
   const [summary, setSummary] = useState<DashboardSummary>(EMPTY);
