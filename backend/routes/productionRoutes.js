@@ -31,6 +31,7 @@ const checkRole =
     require("../middleware/roleMiddleware");
 const permission = require("../middleware/permissionMiddleware");
 const { expensiveUserLimiter } = require("../middleware/rateLimiters");
+const notifyWorkerOnApprovedEdit = require("../middleware/notifyWorkerOnApprovedEdit");
 
 const { syncExcelEdits } = require("../controllers/excelEditSyncController");
 
@@ -166,6 +167,7 @@ router.put(
 
     checkRole("admin", "manager"),
     permission("REPORT_APPROVED_EDIT"),
+    notifyWorkerOnApprovedEdit,
 
     updateReport
 
