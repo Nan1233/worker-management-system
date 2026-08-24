@@ -8,7 +8,6 @@ import "./pages/worker/ProcessPage.polished.css";
 import "./pages/worker/ProcessPage.ng-layout.css";
 import "./pages/manager/ApprovedReportsOrder.css";
 import "./pages/manager/ReportsPeriodFix.css";
-// KTC Stack template migration: Worker workspace shell is implemented in WorkerLayout.tsx.
 import { ToastProvider } from "./components/feedback/ToastProvider";
 import AuthBootstrap from "./components/AuthBootstrap";
 import AppErrorBoundary from "./components/system/AppErrorBoundary";
@@ -17,6 +16,7 @@ import ExcelWorkflowTools from "./components/system/ExcelWorkflowTools";
 import "./ui-polish.css";
 import "./ui-polish-v2.css";
 import "./ui-polish-v3.css";
+import "./ui-polish-v4.css";
 import { FRONTEND_VERSION, FRONTEND_COMMIT_SHA } from "./config/version";
 
 const initialTheme = localStorage.getItem("ktcTheme");
