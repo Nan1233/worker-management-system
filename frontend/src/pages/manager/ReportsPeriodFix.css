@@ -44,12 +44,12 @@
 .pending-reference-page .pending-quick-filters button:nth-of-type(3) { order: 3 !important; }
 .pending-reference-page .pending-quick-filters button:nth-of-type(4) { order: 4 !important; }
 
-/* Đã duyệt DOM order is Hôm nay, Cả tháng, Tuần này, Cả năm.
-   Only the Đã duyệt page is reordered here. */
-.pending-reference-page:has(h1:first-child) .pending-quick-filters button:nth-of-type(2) { order: 3 !important; }
-.pending-reference-page:has(h1:first-child) .pending-quick-filters button:nth-of-type(3) { order: 2 !important; }
+/* Đã duyệt is uniquely identified by its management-report-table.
+   Its DOM order is Hôm nay, Cả tháng, Tuần này, Cả năm. */
+.pending-reference-page:has(.management-report-table) .pending-quick-filters button:nth-of-type(2) { order: 3 !important; }
+.pending-reference-page:has(.management-report-table) .pending-quick-filters button:nth-of-type(3) { order: 2 !important; }
 
-/* Canonical labels for Chờ duyệt. */
+/* Canonical visible labels. */
 .pending-reference-page .pending-quick-filters button:nth-of-type(1)::after,
 .pending-reference-page .pending-quick-filters button:nth-of-type(2)::after,
 .pending-reference-page .pending-quick-filters button:nth-of-type(3)::after,
@@ -61,14 +61,16 @@
   line-height: 1 !important;
   white-space: nowrap !important;
 }
+
+/* Chờ duyệt labels. */
 .pending-reference-page .pending-quick-filters button:nth-of-type(1)::after { content: "Hôm nay" !important; }
 .pending-reference-page .pending-quick-filters button:nth-of-type(2)::after { content: "Tuần này" !important; }
 .pending-reference-page .pending-quick-filters button:nth-of-type(3)::after { content: "Tháng này" !important; }
 .pending-reference-page .pending-quick-filters button:nth-of-type(4)::after { content: "Năm này" !important; }
 
-/* Canonical labels for Đã duyệt: its second/third DOM buttons are month/week. */
-.pending-reference-page:has(h1:first-child) .pending-quick-filters button:nth-of-type(2)::after { content: "Tháng này" !important; }
-.pending-reference-page:has(h1:first-child) .pending-quick-filters button:nth-of-type(3)::after { content: "Tuần này" !important; }
+/* Đã duyệt labels: second/third DOM buttons are month/week. */
+.pending-reference-page:has(.management-report-table) .pending-quick-filters button:nth-of-type(2)::after { content: "Tháng này" !important; }
+.pending-reference-page:has(.management-report-table) .pending-quick-filters button:nth-of-type(3)::after { content: "Tuần này" !important; }
 
 /* Active/focus styling remains on the real React buttons. */
 .pending-reference-page .pending-quick-filters button.active,
