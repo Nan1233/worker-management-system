@@ -11,6 +11,7 @@ const Login = lazy(() => import("../pages/Login"));
 const AdminDashboard = lazy(() => import("../pages/admin/Dashboard"));
 const MasterData = lazy(() => import("../pages/admin/MasterData"));
 const Permissions = lazy(() => import("../pages/admin/Permissions"));
+const ManagementProfile = lazy(() => import("../pages/management/Profile"));
 const ManagementDashboard = lazy(() => import("../pages/lead/Dashboard"));
 const PendingReports = lazy(() => import("../pages/lead/PendingReports"));
 const ApprovedReports = lazy(() => import("../pages/lead/ApprovedReports"));
@@ -50,6 +51,7 @@ export default function AppRouter(){
    <Route path="statistics" element={<P code="STATISTICS_VIEW"><Statistics/></P>}/>
    <Route path="permissions" element={<P code="PERMISSION_MANAGE"><Permissions/></P>}/>
    <Route path="system" element={<P code="AUDIT_VIEW"><SystemCenter/></P>}/>
+   <Route path="profile" element={<P code="PROFILE_VIEW"><ManagementProfile/></P>}/>
   </Route>
 
   <Route path="/manager" element={<PrivateRoute allowedRoles={["manager"]}><ManagementLayout role="manager"/></PrivateRoute>}>
@@ -62,6 +64,7 @@ export default function AppRouter(){
    <Route path="master/:resource" element={<P code="MASTER_VIEW"><MasterData/></P>}/>
    <Route path="statistics" element={<P code="STATISTICS_VIEW"><Statistics/></P>}/>
    <Route path="system" element={<P code="AUDIT_VIEW"><SystemCenter/></P>}/>
+   <Route path="profile" element={<P code="PROFILE_VIEW"><ManagementProfile/></P>}/>
   </Route>
 
   <Route path="/lead" element={<PrivateRoute allowedRoles={["lead"]}><ManagementLayout role="lead"/></PrivateRoute>}>
@@ -72,6 +75,7 @@ export default function AppRouter(){
    <Route path="workers" element={<P code="USER_VIEW"><Workers/></P>}/>
    <Route path="statistics" element={<P code="STATISTICS_VIEW"><Statistics/></P>}/>
    <Route path="system" element={<P code="NOTIFICATION_VIEW"><SystemCenter/></P>}/>
+   <Route path="profile" element={<P code="PROFILE_VIEW"><ManagementProfile/></P>}/>
   </Route>
 
   {(["admin","manager","lead"] as const).map(role => <Route key={`${role}-review`} path={`/${role}/reports/review`} element={<PrivateRoute allowedRoles={[role]}><P code="REPORT_APPROVE"><SelectedReportsReview/></P></PrivateRoute>}/>)}
