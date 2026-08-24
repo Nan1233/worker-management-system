@@ -34,8 +34,7 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
  const base=`/${role}`,user=getStoredUser();
  const [mobileMoreOpen,setMobileMoreOpen]=useState(false);
  const visible=items.filter(item=>item.roles.includes(role)&&can(item.permission));
- const profileItem:ManagementMenuItem={label:"Cá nhân",path:"profile",icon:UserRound,permission:"PROFILE_VIEW",roles:allManagementRoles};
- const mobilePrimaryItems=visible.slice(0,4),mobileOverflowItems=visible.slice(4);
+ const mobilePrimaryItems=visible.slice(0,2),mobileOverflowItems=visible.slice(2);
  const active=(path:string)=>path===""?location.pathname===base:location.pathname===`${base}/${path}`||location.pathname.startsWith(`${base}/${path}/`);
  const displayName=user?.full_name||user?.username||roleLabel[role];
  const avatarText=displayName.trim().charAt(0).toUpperCase()||"K";
@@ -60,7 +59,7 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
   <nav className="management-mobile-nav" aria-label="Mobile navigation">
    {mobileMoreOpen&&mobileOverflowItems.length>0&&<div id="management-mobile-overflow" className="management-mobile-overflow" aria-label="Các mục điều hướng khác">{mobileOverflowItems.map(item=>{const Icon=item.icon;return <button key={`overflow-${item.path}`} type="button" className={active(item.path)?"active":""} onClick={()=>{setMobileMoreOpen(false);navigate(`${base}${item.path?`/${item.path}`:""}`);}}><Icon size={18}/><span>{item.label}</span></button>;})}</div>}
    {mobilePrimaryItems.map(item=>{const Icon=item.icon;return <button key={`mobile-${item.path}`} type="button" className={active(item.path)?"active":""} onClick={()=>navigate(`${base}${item.path?`/${item.path}`:""}`)}><Icon size={18}/><span>{item.label}</span></button>;})}
-   <button type="button" className={active("system")?"active":""} onClick={()=>navigate(`${base}/system")}><Bell size={18}/><span>Thông báo</span>{unreadCount>0&&<b className="management-badge">{unreadCount>99?"99+":unreadCount}</b>}</button>
+   <button type="button" className={active("system")?"active":""} onClick={()=>navigate(`${base}/system`)}><Bell size={18}/><span>Thông báo</span>{unreadCount>0&&<b className="management-badge">{unreadCount>99?"99+":unreadCount}</b>}</button>
    <button type="button" className={active("profile")?"active":""} onClick={()=>navigate(`${base}/profile`)}><UserRound size={18}/><span>Cá nhân</span></button>
    {mobileOverflowItems.length>0&&<button type="button" className={mobileMoreOpen?"active":""} onClick={()=>setMobileMoreOpen(open=>!open)} aria-expanded={mobileMoreOpen} aria-controls="management-mobile-overflow"><MoreHorizontal size={18}/><span>Thêm</span></button>}
   </nav>
