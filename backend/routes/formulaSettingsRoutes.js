@@ -1,12 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const controller = require('../controllers/formulaSettingsController');
-const verifyToken = require('../middleware/authMiddleware');
-const checkRole = require('../middleware/roleMiddleware');
-const permission = require('../middleware/permissionMiddleware');
-router.use(verifyToken, checkRole('admin','manager','lead'));
-router.get('/', permission('FORMULA_VIEW'), controller.list);
-router.put('/scopes/:scopeCode', permission('FORMULA_EDIT'), controller.updateScope);
-router.delete('/scopes/:scopeCode', permission('FORMULA_EDIT'), controller.resetScope);
-router.put('/products/:id', permission('FORMULA_EDIT'), controller.updateProductRule);
+
+// Công thức không còn là chức năng quản lý công khai của hệ thống.
+// Giữ mount cũ để deployment không lỗi import, nhưng mọi endpoint đều bị vô hiệu hóa.
+router.use((_req, res) => {
+  res.status(404).json({
+    success: false,
+    code: 'FORMULA_FEATURE_REMOVED',
+    message: 'Chức năng công thức đã được loại bỏ khỏi hệ thống',
+  });
+});
+
 module.exports = router;
