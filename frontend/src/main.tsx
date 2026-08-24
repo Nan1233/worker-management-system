@@ -13,6 +13,7 @@ import { ToastProvider } from "./components/feedback/ToastProvider";
 import AuthBootstrap from "./components/AuthBootstrap";
 import AppErrorBoundary from "./components/system/AppErrorBoundary";
 import OfflineReportSync from "./components/system/OfflineReportSync";
+import ExcelWorkflowTools from "./components/system/ExcelWorkflowTools";
 import { FRONTEND_VERSION, FRONTEND_COMMIT_SHA } from "./config/version";
 
 const initialTheme = localStorage.getItem("ktcTheme");
@@ -41,6 +42,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                         <App />
                     </HashRouter>
                 </AuthBootstrap>
+                <ExcelWorkflowTools />
             </ToastProvider>
         </AppErrorBoundary>
     </React.StrictMode>
