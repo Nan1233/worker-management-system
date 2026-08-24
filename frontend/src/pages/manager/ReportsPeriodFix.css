@@ -30,7 +30,7 @@
   text-overflow: clip !important;
 }
 
-/* Never manufacture another label with CSS. */
+/* React already renders the labels. Never create a second label with CSS. */
 .pending-reference-page .pending-quick-filters::before,
 .pending-reference-page .pending-quick-filters::after,
 .pending-reference-page .pending-quick-filters button::before,
@@ -47,29 +47,29 @@
   display: none !important;
 }
 
-/* Chờ duyệt DOM is already canonical: Hôm nay → Tuần này → Tháng này → Năm này. */
-.pending-reference-page:has(.pending-refresh) .pending-quick-filters button:nth-of-type(1) { order: 1 !important; }
-.pending-reference-page:has(.pending-refresh) .pending-quick-filters button:nth-of-type(2) { order: 2 !important; }
-.pending-reference-page:has(.pending-refresh) .pending-quick-filters button:nth-of-type(3) { order: 3 !important; }
-.pending-reference-page:has(.pending-refresh) .pending-quick-filters button:nth-of-type(4) { order: 4 !important; }
+/* Chờ duyệt: DOM is already Hôm nay → Tuần này → Tháng này → Năm này. */
+.pending-reference-page:not(:has(.management-report-table)) .pending-quick-filters button:nth-of-type(1) { order: 1 !important; }
+.pending-reference-page:not(:has(.management-report-table)) .pending-quick-filters button:nth-of-type(2) { order: 2 !important; }
+.pending-reference-page:not(:has(.management-report-table)) .pending-quick-filters button:nth-of-type(3) { order: 3 !important; }
+.pending-reference-page:not(:has(.management-report-table)) .pending-quick-filters button:nth-of-type(4) { order: 4 !important; }
 
-/* Đã duyệt DOM is Hôm nay → Cả tháng → Tuần này → Cả năm.
-   Reorder the existing React buttons without changing their labels. */
-.pending-reference-page:not(:has(.pending-refresh)) .pending-quick-filters button:nth-of-type(1) { order: 1 !important; }
-.pending-reference-page:not(:has(.pending-refresh)) .pending-quick-filters button:nth-of-type(2) { order: 3 !important; }
-.pending-reference-page:not(:has(.pending-refresh)) .pending-quick-filters button:nth-of-type(3) { order: 2 !important; }
-.pending-reference-page:not(:has(.pending-refresh)) .pending-quick-filters button:nth-of-type(4) { order: 4 !important; }
+/* Đã duyệt: DOM is Hôm nay → Cả tháng → Tuần này → Cả năm.
+   Reorder the existing React buttons only: Hôm nay → Tuần này → Cả tháng → Cả năm. */
+.pending-reference-page:has(.management-report-table) .pending-quick-filters button:nth-of-type(1) { order: 1 !important; }
+.pending-reference-page:has(.management-report-table) .pending-quick-filters button:nth-of-type(2) { order: 3 !important; }
+.pending-reference-page:has(.management-report-table) .pending-quick-filters button:nth-of-type(3) { order: 2 !important; }
+.pending-reference-page:has(.management-report-table) .pending-quick-filters button:nth-of-type(4) { order: 4 !important; }
 
-/* KPI order follows the same four periods. */
-.pending-reference-page:has(.pending-refresh) .pending-kpis .pending-kpi:nth-child(1) { order: 1 !important; }
-.pending-reference-page:has(.pending-refresh) .pending-kpis .pending-kpi:nth-child(2) { order: 2 !important; }
-.pending-reference-page:has(.pending-refresh) .pending-kpis .pending-kpi:nth-child(3) { order: 3 !important; }
-.pending-reference-page:has(.pending-refresh) .pending-kpis .pending-kpi:nth-child(4) { order: 4 !important; }
+/* KPI order: Hôm nay → Tuần này → Tháng này → Năm này. */
+.pending-reference-page:not(:has(.management-report-table)) .pending-kpis .pending-kpi:nth-child(1) { order: 1 !important; }
+.pending-reference-page:not(:has(.management-report-table)) .pending-kpis .pending-kpi:nth-child(2) { order: 2 !important; }
+.pending-reference-page:not(:has(.management-report-table)) .pending-kpis .pending-kpi:nth-child(3) { order: 3 !important; }
+.pending-reference-page:not(:has(.management-report-table)) .pending-kpis .pending-kpi:nth-child(4) { order: 4 !important; }
 
-.pending-reference-page:not(:has(.pending-refresh)) .pending-kpis .pending-kpi:nth-child(1) { order: 4 !important; }
-.pending-reference-page:not(:has(.pending-refresh)) .pending-kpis .pending-kpi:nth-child(2) { order: 3 !important; }
-.pending-reference-page:not(:has(.pending-refresh)) .pending-kpis .pending-kpi:nth-child(3) { order: 2 !important; }
-.pending-reference-page:not(:has(.pending-refresh)) .pending-kpis .pending-kpi:nth-child(4) { order: 1 !important; }
+.pending-reference-page:has(.management-report-table) .pending-kpis .pending-kpi:nth-child(1) { order: 4 !important; }
+.pending-reference-page:has(.management-report-table) .pending-kpis .pending-kpi:nth-child(2) { order: 3 !important; }
+.pending-reference-page:has(.management-report-table) .pending-kpis .pending-kpi:nth-child(3) { order: 2 !important; }
+.pending-reference-page:has(.management-report-table) .pending-kpis .pending-kpi:nth-child(4) { order: 1 !important; }
 
 .pending-reference-page .pending-kpis .pending-kpi > span {
   font-size: 13px !important;
