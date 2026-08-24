@@ -8,6 +8,7 @@ import "./ExcelWorkflowTools.css";
 const DEFAULT_LABEL = "Documents\\KTC\\Bao cao san xuat";
 
 type Summary = {
+    pending_count?: number;
     approved_count?: number;
     total_ok?: number;
     total_ng?: number;
@@ -15,6 +16,7 @@ type Summary = {
     process_summary?: Array<{ process_id: number; process_name: string; report_count: number; ok: number; ng: number }>;
     shift_summary?: Array<{ shift: string; report_count: number; ok: number; ng: number }>;
     daily_summary?: Array<{ work_date: string; report_count: number; ok: number; ng: number }>;
+    product_summary?: Array<{ product_code: string; quantity: number; ok: number; ng: number; report_count: number }>;
     worker_performance?: { actual_worker_hours: number; earned_standard_hours: number; efficiency_percent: number };
     machine_performance?: { machine_count: number; machine_line_count: number; total_machine_hours: number };
     machine_summary?: Array<{ machine_id: number; machine_code?: string; run_count: number; machine_hours: number; maximum_output: number; counted_output: number; ok: number; ng: number; efficiency_percent: number }>;
@@ -44,6 +46,7 @@ function buildWorkbook(summary: Summary, from: string, to: string) {
     const processRows = (summary.process_summary || []).map((row) => [row.process_name, row.report_count, row.ok, row.ng, row.ok + row.ng, row.ok + row.ng ? row.ok / (row.ok + row.ng) * 100 : 0]);
     const shiftRows = (summary.shift_summary || []).map((row) => [row.shift, row.report_count, row.ok, row.ng, row.ok + row.ng, row.ok + row.ng ? row.ok / (row.ok + row.ng) * 100 : 0]);
     const dayRows = (summary.daily_summary || []).filter((row) => row.ok + row.ng > 0).map((row) => [dateLabel(row.work_date), row.report_count, row.ok, row.ng, row.ok + row.ng, row.ok + row.ng ? row.ok / (row.ok + row.ng) * 100 : 0]);
+    const productRows = (summary.product_summary || []).map((row) => [row.product_code, row.report_count, row.quantity, row.ok, row.ng]);
     const machineRows = (summary.machine_summary || []).map((row) => [row.machine_code || row.machine_id, row.run_count, row.machine_hours, row.maximum_output, row.counted_output, row.ok, row.ng, row.efficiency_percent]);
     const performance = summary.worker_performance || { actual_worker_hours: 0, earned_standard_hours: 0, efficiency_percent: 0 };
     const machinePerformance = summary.machine_performance || { machine_count: 0, machine_line_count: 0, total_machine_hours: 0 };
@@ -52,10 +55,11 @@ function buildWorkbook(summary: Summary, from: string, to: string) {
 <Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
 <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office"><Author>KTC Production Control</Author><Title>Thống kê sản xuất KTC</Title></DocumentProperties>
 <Styles><Style ss:ID="Header"><Font ss:Bold="1"/><Interior ss:Color="#EAF2FF" ss:Pattern="Solid"/></Style></Styles>
-${sheet("Tổng hợp", ["Chỉ tiêu", "Giá trị"], [["Từ ngày", dateLabel(from)], ["Đến ngày", dateLabel(to)], ["Tổng báo cáo đã duyệt", Number(summary.approved_count || 0)], ["Tổng OK", Number(summary.total_ok || 0)], ["Tổng NG", Number(summary.total_ng || 0)], ["Tỷ lệ NG (%)", Number(summary.ng_rate || 0)], ["Số máy hoạt động", Number(machinePerformance.machine_count || 0)], ["Số máy/dây chuyền", Number(machinePerformance.machine_line_count || 0)], ["Tổng giờ máy", Number(machinePerformance.total_machine_hours || 0)], ["Giờ công nhân thực tế", Number(performance.actual_worker_hours || 0)], ["Giờ chuẩn", Number(performance.earned_standard_hours || 0)], ["Hiệu suất giờ công (%)", Number(performance.efficiency_percent || 0)]])}
+${sheet("Tổng hợp", ["Chỉ tiêu", "Giá trị"], [["Từ ngày", dateLabel(from)], ["Đến ngày", dateLabel(to)], ["Báo cáo chờ duyệt", Number(summary.pending_count || 0)], ["Tổng báo cáo đã duyệt", Number(summary.approved_count || 0)], ["Tổng OK", Number(summary.total_ok || 0)], ["Tổng NG", Number(summary.total_ng || 0)], ["Tỷ lệ NG (%)", Number(summary.ng_rate || 0)], ["Số máy hoạt động", Number(machinePerformance.machine_count || 0)], ["Số máy/dây chuyền", Number(machinePerformance.machine_line_count || 0)], ["Tổng giờ máy", Number(machinePerformance.total_machine_hours || 0)], ["Giờ công nhân thực tế", Number(performance.actual_worker_hours || 0)], ["Giờ chuẩn", Number(performance.earned_standard_hours || 0)], ["Hiệu suất giờ công (%)", Number(performance.efficiency_percent || 0)]])}
 ${sheet("Theo ngày", ["Ngày", "Số báo cáo", "OK", "NG", "Tổng sản lượng", "Tỷ lệ OK (%)"], dayRows)}
 ${sheet("Công đoạn", ["Công đoạn", "Số báo cáo", "OK", "NG", "Tổng sản lượng", "Tỷ lệ OK (%)"], processRows)}
 ${sheet("Theo ca", ["Ca", "Số báo cáo", "OK", "NG", "Tổng sản lượng", "Tỷ lệ OK (%)"], shiftRows)}
+${sheet("Sản phẩm", ["Mã sản phẩm", "Số báo cáo", "Sản lượng", "OK", "NG"], productRows)}
 ${sheet("Chi tiết máy", ["Máy", "Số lần chạy", "Giờ máy", "Sản lượng tối đa", "Sản lượng tính", "OK", "NG", "Hiệu suất (%)"], machineRows)}
 ${sheet("Giờ làm việc", ["Chỉ tiêu", "Giá trị"], [["Tổng giờ công nhân thực tế", Number(performance.actual_worker_hours || 0)], ["Tổng giờ chuẩn", Number(performance.earned_standard_hours || 0)], ["Hiệu suất giờ công (%)", Number(performance.efficiency_percent || 0)]])}
 </Workbook>`;
