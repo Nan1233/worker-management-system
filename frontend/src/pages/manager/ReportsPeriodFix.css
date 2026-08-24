@@ -1,22 +1,12 @@
-/* KTC FINAL period-filter normalization — applies to both Chờ duyệt and Đã duyệt. */
+/* Canonical period controls for both report screens.
+   React owns all visible labels. CSS only controls layout/order. */
+
 .pending-reference-page .pending-quick-filters {
   display: flex !important;
   flex-wrap: nowrap !important;
   align-items: center !important;
-  gap: 2px !important;
-  overflow: hidden !important;
+  gap: 5px !important;
   white-space: nowrap !important;
-}
-
-/* The quick-filter group itself must never manufacture an extra label. */
-.pending-reference-page .pending-quick-filters::before,
-.pending-reference-page .pending-quick-filters::after,
-.pending-reference-page .pending-quick-filters > span::before,
-.pending-reference-page .pending-quick-filters > span::after,
-.pending-reference-page .pending-quick-filters button::before,
-.pending-reference-page .pending-quick-filters button::after {
-  content: none !important;
-  display: none !important;
 }
 
 .pending-reference-page .pending-quick-filters > span {
@@ -24,58 +14,65 @@
 }
 
 .pending-reference-page .pending-quick-filters button {
-  position: relative !important;
-  flex: 1 1 0 !important;
-  min-width: 0 !important;
-  order: initial !important;
-  height: 32px !important;
-  padding: 0 5px !important;
-  margin: 0 !important;
-  font-size: 0 !important;
-  line-height: 1 !important;
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: clip !important;
-}
-
-/* Chờ duyệt DOM order: Hôm nay, Tuần này, Tháng này, Năm này. */
-.pending-reference-page .pending-quick-filters button:nth-of-type(1) { order: 1 !important; }
-.pending-reference-page .pending-quick-filters button:nth-of-type(2) { order: 2 !important; }
-.pending-reference-page .pending-quick-filters button:nth-of-type(3) { order: 3 !important; }
-.pending-reference-page .pending-quick-filters button:nth-of-type(4) { order: 4 !important; }
-
-/* Đã duyệt is uniquely identified by its management-report-table.
-   Its DOM order is Hôm nay, Cả tháng, Tuần này, Cả năm. */
-.pending-reference-page:has(.management-report-table) .pending-quick-filters button:nth-of-type(2) { order: 3 !important; }
-.pending-reference-page:has(.management-report-table) .pending-quick-filters button:nth-of-type(3) { order: 2 !important; }
-
-/* Canonical visible labels. */
-.pending-reference-page .pending-quick-filters button:nth-of-type(1)::after,
-.pending-reference-page .pending-quick-filters button:nth-of-type(2)::after,
-.pending-reference-page .pending-quick-filters button:nth-of-type(3)::after,
-.pending-reference-page .pending-quick-filters button:nth-of-type(4)::after {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
+  flex: 0 0 auto !important;
+  min-width: 0 !important;
+  height: 30px !important;
+  padding: 0 9px !important;
+  margin: 0 !important;
+  order: initial !important;
   font-size: 13px !important;
   line-height: 1 !important;
   white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
 }
 
-/* Chờ duyệt labels. */
-.pending-reference-page .pending-quick-filters button:nth-of-type(1)::after { content: "Hôm nay" !important; }
-.pending-reference-page .pending-quick-filters button:nth-of-type(2)::after { content: "Tuần này" !important; }
-.pending-reference-page .pending-quick-filters button:nth-of-type(3)::after { content: "Tháng này" !important; }
-.pending-reference-page .pending-quick-filters button:nth-of-type(4)::after { content: "Năm này" !important; }
+/* Never manufacture another label with CSS. */
+.pending-reference-page .pending-quick-filters::before,
+.pending-reference-page .pending-quick-filters::after,
+.pending-reference-page .pending-quick-filters button::before,
+.pending-reference-page .pending-quick-filters button::after,
+.pending-reference-page .pending-kpi::before,
+.pending-reference-page .pending-kpi::after,
+.pending-reference-page .pending-kpi > span::before,
+.pending-reference-page .pending-kpi > span::after,
+.pending-reference-page .pending-kpi > strong::before,
+.pending-reference-page .pending-kpi > strong::after,
+.pending-reference-page .pending-kpi > small::before,
+.pending-reference-page .pending-kpi > small::after {
+  content: none !important;
+  display: none !important;
+}
 
-/* Đã duyệt labels: second/third DOM buttons are month/week. */
-.pending-reference-page:has(.management-report-table) .pending-quick-filters button:nth-of-type(2)::after { content: "Tháng này" !important; }
-.pending-reference-page:has(.management-report-table) .pending-quick-filters button:nth-of-type(3)::after { content: "Tuần này" !important; }
+/* Chờ duyệt DOM is already canonical: Hôm nay → Tuần này → Tháng này → Năm này. */
+.pending-reference-page:has(.pending-refresh) .pending-quick-filters button:nth-of-type(1) { order: 1 !important; }
+.pending-reference-page:has(.pending-refresh) .pending-quick-filters button:nth-of-type(2) { order: 2 !important; }
+.pending-reference-page:has(.pending-refresh) .pending-quick-filters button:nth-of-type(3) { order: 3 !important; }
+.pending-reference-page:has(.pending-refresh) .pending-quick-filters button:nth-of-type(4) { order: 4 !important; }
 
-/* Active/focus styling remains on the real React buttons. */
-.pending-reference-page .pending-quick-filters button.active,
-.pending-reference-page .pending-quick-filters button:focus {
-  color: #1769d2 !important;
+/* Đã duyệt DOM is Hôm nay → Cả tháng → Tuần này → Cả năm.
+   Reorder the existing React buttons without changing their labels. */
+.pending-reference-page:not(:has(.pending-refresh)) .pending-quick-filters button:nth-of-type(1) { order: 1 !important; }
+.pending-reference-page:not(:has(.pending-refresh)) .pending-quick-filters button:nth-of-type(2) { order: 3 !important; }
+.pending-reference-page:not(:has(.pending-refresh)) .pending-quick-filters button:nth-of-type(3) { order: 2 !important; }
+.pending-reference-page:not(:has(.pending-refresh)) .pending-quick-filters button:nth-of-type(4) { order: 4 !important; }
+
+/* KPI order follows the same four periods. */
+.pending-reference-page:has(.pending-refresh) .pending-kpis .pending-kpi:nth-child(1) { order: 1 !important; }
+.pending-reference-page:has(.pending-refresh) .pending-kpis .pending-kpi:nth-child(2) { order: 2 !important; }
+.pending-reference-page:has(.pending-refresh) .pending-kpis .pending-kpi:nth-child(3) { order: 3 !important; }
+.pending-reference-page:has(.pending-refresh) .pending-kpis .pending-kpi:nth-child(4) { order: 4 !important; }
+
+.pending-reference-page:not(:has(.pending-refresh)) .pending-kpis .pending-kpi:nth-child(1) { order: 4 !important; }
+.pending-reference-page:not(:has(.pending-refresh)) .pending-kpis .pending-kpi:nth-child(2) { order: 3 !important; }
+.pending-reference-page:not(:has(.pending-refresh)) .pending-kpis .pending-kpi:nth-child(3) { order: 2 !important; }
+.pending-reference-page:not(:has(.pending-refresh)) .pending-kpis .pending-kpi:nth-child(4) { order: 1 !important; }
+
+.pending-reference-page .pending-kpis .pending-kpi > span {
+  font-size: 13px !important;
 }
 
 @media (max-width: 720px) {
