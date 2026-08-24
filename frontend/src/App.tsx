@@ -17,6 +17,7 @@ import "./pages/worker/SelectProcess.css";
 import "./pages/worker/ProcessPage.css";
 import "./pages/worker/ProductionHistory.css";
 import "./pages/worker/ProductionDetail.css";
+import "./pages/worker/WorkerVietnameseAccessibility.css";
 import "./pages/system/SystemCenter.css";
 import "./components/feedback/toast.css";
 import "./components/system/NetworkStatusBanner.css";
