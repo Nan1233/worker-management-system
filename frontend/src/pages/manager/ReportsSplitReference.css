@@ -93,3 +93,35 @@
 @media(max-width:1180px){.pending-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.pending-filter-card{grid-template-columns:1.5fr 1fr 1fr}.pending-filter-card .pending-search{grid-column:span 3}.pending-quick-filters{grid-column:span 3}.pending-refresh{justify-self:end}}
 @media(max-width:720px){.pending-kpis{grid-template-columns:1fr 1fr}.pending-filter-card{grid-template-columns:1fr 1fr}.pending-filter-card .pending-search{grid-column:span 2}.pending-quick-filters{grid-column:span 2}.pending-quick-filters{overflow-x:auto}.pending-quick-filters button{flex:0 0 auto}.pending-workspace{gap:10px}.pending-list-tabs{padding:0 8px}.pending-list-tab{padding:0 9px;font-size:11px}.pending-detail-grid,.pending-detail-info-grid,.pending-edit-grid{grid-template-columns:1fr}.pending-result-grid{grid-template-columns:1fr 1fr}.pending-result-item:nth-child(2){border-right:0}.pending-result-item:nth-child(-n+2){border-bottom:1px solid #dfe7f1}.pending-result-item:nth-child(3){border-right:1px solid #dfe7f1}.pending-detail-actions{grid-template-columns:1fr}.pending-list-card .pending-table-wrap{overflow-x:auto}.pending-bulk-actions{gap:6px;padding:0 4px}.pending-bulk-actions button{height:30px;padding:0 10px;font-size:9px}}
 @media(max-width:520px){.pending-kpis{grid-template-columns:1fr}.pending-filter-card{grid-template-columns:1fr}.pending-filter-card .pending-search{grid-column:1}.pending-quick-filters{grid-column:1}.pending-refresh{justify-self:stretch}.pending-detail-head{padding:12px}.pending-detail-body{padding:12px}.pending-detail-code{display:none}.pending-bulk-actions{justify-content:stretch}.pending-bulk-actions>span{margin-right:auto}.pending-bulk-actions button{padding:0 8px}}
+
+/* Readability: report content never renders below 13px. */
+.pending-reference-page,
+.pending-reference-page input,
+.pending-reference-page select,
+.pending-reference-page button,
+.pending-reference-page table,
+.pending-reference-page .management-empty,
+.pending-reference-page .management-error{font-size:13px}
+.pending-reference-page .pending-filter-card label>span,
+.pending-reference-page .pending-quick-filters>span,
+.pending-reference-page .pending-quick-filters button,
+.pending-reference-page .pending-kpi small,
+.pending-reference-page .pending-list-tab,
+.pending-reference-page .pending-list-tab .tab-badge,
+.pending-reference-page .shift-chip,
+.pending-reference-page .pending-detail-status,
+.pending-reference-page .pending-detail-code,
+.pending-reference-page .pending-detail-section h3,
+.pending-reference-page .pending-detail-field,
+.pending-reference-page .pending-result-item span,
+.pending-reference-page .pending-defect,
+.pending-reference-page .pending-history-empty,
+.pending-reference-page .pending-edit-grid label,
+.pending-reference-page .pending-edit-grid input,
+.pending-reference-page .pending-edit-grid select,
+.pending-reference-page .pending-detail-actions button,
+.pending-reference-page .pending-bulk-actions,
+.pending-reference-page .pending-bulk-actions>span,
+.pending-reference-page .pending-bulk-actions button{font-size:13px}
+.pending-reference-page .pending-detail-title h2{font-size:16px}
+.pending-reference-page .pending-result-item strong{font-size:18px}
