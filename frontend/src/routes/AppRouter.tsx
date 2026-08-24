@@ -10,7 +10,6 @@ import RouteLoading from "../components/system/RouteLoading";
 const Login = lazy(() => import("../pages/Login"));
 const AdminDashboard = lazy(() => import("../pages/admin/Dashboard"));
 const MasterData = lazy(() => import("../pages/admin/MasterData"));
-const FormulaSettings = lazy(() => import("../pages/admin/FormulaSettings"));
 const Governance = lazy(() => import("../pages/admin/Governance"));
 const Permissions = lazy(() => import("../pages/admin/Permissions"));
 const ManagementDashboard = lazy(() => import("../pages/lead/Dashboard"));
@@ -49,7 +48,6 @@ export default function AppRouter(){
    <Route path="workers" element={<P code="USER_VIEW"><Workers/></P>}/>
    <Route path="master" element={<Navigate to="machines" replace/>}/>
    <Route path="master/:resource" element={<P code="MASTER_VIEW"><MasterData/></P>}/>
-   <Route path="formulas" element={<P code="FORMULA_VIEW"><FormulaSettings/></P>}/>
    <Route path="governance" element={<P code="GOVERNANCE_VIEW"><Governance/></P>}/>
    <Route path="statistics" element={<P code="STATISTICS_VIEW"><Statistics/></P>}/>
    <Route path="permissions" element={<P code="PERMISSION_MANAGE"><Permissions/></P>}/>
@@ -64,7 +62,6 @@ export default function AppRouter(){
    <Route path="workers" element={<P code="USER_VIEW"><Workers/></P>}/>
    <Route path="master" element={<Navigate to="machines" replace/>}/>
    <Route path="master/:resource" element={<P code="MASTER_VIEW"><MasterData/></P>}/>
-   <Route path="formulas" element={<P code="FORMULA_VIEW"><FormulaSettings/></P>}/>
    <Route path="governance" element={<P code="GOVERNANCE_VIEW"><Governance/></P>}/>
    <Route path="statistics" element={<P code="STATISTICS_VIEW"><Statistics/></P>}/>
    <Route path="system" element={<P code="AUDIT_VIEW"><SystemCenter/></P>}/>
