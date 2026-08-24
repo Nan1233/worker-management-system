@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BarChart3, Bell, Boxes, ClipboardCheck, Cog, FileWarning, History, LayoutDashboard, MoreHorizontal, ShieldCheck, Timer, UserRound, Users } from "lucide-react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { getStoredUser } from "../utils/authStorage";
@@ -21,7 +21,7 @@ const items:ManagementMenuItem[]=[
  {label:"Máy móc",path:"master/machines",icon:Cog,permission:"MASTER_VIEW",roles:adminAndManagerRoles},
  {label:"Sản phẩm",path:"master/standards",icon:Boxes,permission:"MASTER_VIEW",roles:adminAndManagerRoles},
  {label:"Trừ giờ",path:"master/deductions",icon:Timer,permission:"MASTER_VIEW",roles:adminAndManagerRoles},
- {label:"Lỗi",path:"master/defects",icon:FileWarning,permission:"MASTER_VIEW",roles:adminAndManagerRoles},
+ {label:"Lỗi",path:"master/defects",icon:FileWarning,permission:"MASTER_VIEW",roles:["admin"]},
  {label:"Nhật ký hoạt động",path:"system",icon:History,permission:"AUDIT_VIEW",roles:adminAndManagerRoles},
  {label:"Vai trò & quyền",path:"permissions",icon:ShieldCheck,permission:"PERMISSION_MANAGE",roles:["admin"]},
 ];
@@ -38,7 +38,12 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
  const active=(path:string)=>path===""?location.pathname===base:location.pathname===`${base}/${path}`||location.pathname.startsWith(`${base}/${path}/`);
  const displayName=user?.full_name||user?.username||roleLabel[role];
  const avatarText=displayName.trim().charAt(0).toUpperCase()||"K";
- return <div className="management-layout">
+ useEffect(()=>{
+  if(role!=="manager")return;
+  const forbiddenMasterPath=/^\/manager\/master\/(users|processes|defects)(?:\/|$)/.test(location.pathname);
+  if(forbiddenMasterPath)navigate(`${base}/master/machines`,{replace:true});
+ },[role,location.pathname,navigate,base]);
+ return <div className="management-layout" data-management-role={role}>
   <aside className="management-sidebar">
    <button className="management-brand" type="button" onClick={()=>navigate(base)}><span className="management-brand-mark">K</span><span><strong>KTC (HANOI) CO., LTD</strong><small>{roleLabel[role]}</small></span></button>
    <nav className="management-menu" aria-label="Management navigation">
