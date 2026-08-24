@@ -1,15 +1,12 @@
-/* KTC period filters — single source of truth.
-   React renders the labels. This file ONLY handles fit/layout.
-   Never use generated ::before/::after labels or flex reordering here. */
-.pending-reference-page .pending-quick-filters{display:flex!important;align-items:center!important;justify-content:stretch!important;flex-wrap:nowrap!important;gap:3px!important;min-width:0!important;width:100%!important;overflow:hidden!important;white-space:nowrap!important}
+/* Final period-filter layout.
+   React owns labels and order. CSS only controls fit. */
+.pending-reference-page .pending-quick-filters{display:flex!important;align-items:center!important;justify-content:stretch!important;flex-wrap:nowrap!important;gap:1px!important;min-width:0!important;width:100%!important;height:40px!important;padding:4px 2px!important;overflow:hidden!important;white-space:nowrap!important;box-sizing:border-box!important}
 .pending-reference-page .pending-quick-filters>span{display:none!important}
-.pending-reference-page .pending-quick-filters>button{position:static!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;flex:1 1 0!important;min-width:0!important;width:auto!important;height:30px!important;margin:0!important;padding:0 4px!important;border-radius:6px!important;font-size:12px!important;line-height:1!important;font-weight:750!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;order:0!important;transform:none!important}
-/* Text comes only from React. */
+.pending-reference-page .pending-quick-filters>button{position:static!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;flex:1 1 0!important;min-width:0!important;width:0!important;height:30px!important;margin:0!important;padding:0 2px!important;border-radius:6px!important;font-size:13px!important;line-height:1!important;font-weight:700!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:clip!important;order:initial!important;transform:none!important}
 .pending-reference-page .pending-quick-filters::before,.pending-reference-page .pending-quick-filters::after,.pending-reference-page .pending-quick-filters>button::before,.pending-reference-page .pending-quick-filters>button::after,.pending-reference-page .pending-quick-filters>button>span::before,.pending-reference-page .pending-quick-filters>button>span::after{content:none!important;display:none!important}
-/* Preserve DOM order; do not reorder labels with CSS. */
-.pending-reference-page .pending-quick-filters>button:nth-of-type(1){order:1!important}.pending-reference-page .pending-quick-filters>button:nth-of-type(2){order:2!important}.pending-reference-page .pending-quick-filters>button:nth-of-type(3){order:3!important}.pending-reference-page .pending-quick-filters>button:nth-of-type(4){order:4!important}
-@media (min-width:1281px){.pending-reference-page .pending-quick-filters{gap:2px!important}.pending-reference-page .pending-quick-filters>button{padding-left:3px!important;padding-right:3px!important;font-size:11px!important}}
-@media (max-width:720px){.pending-reference-page .pending-quick-filters{overflow:hidden!important}.pending-reference-page .pending-quick-filters>button{flex:1 1 0!important;min-width:0!important;font-size:11px!important;padding-left:2px!important;padding-right:2px!important}}
-/* KPI labels: React text only. */
+.pending-reference-page .pending-quick-filters>button:nth-of-type(1),.pending-reference-page .pending-quick-filters>button:nth-of-type(2),.pending-reference-page .pending-quick-filters>button:nth-of-type(3),.pending-reference-page .pending-quick-filters>button:nth-of-type(4){order:initial!important}
+.pending-reference-page .pending-quick-filters>button.active{border-color:#bcd5f3!important;background:#eaf3ff!important;color:#1769d2!important}
 .pending-reference-page .pending-kpi::before,.pending-reference-page .pending-kpi::after,.pending-reference-page .pending-kpi>span::before,.pending-reference-page .pending-kpi>span::after,.pending-reference-page .pending-kpi>strong::before,.pending-reference-page .pending-kpi>strong::after,.pending-reference-page .pending-kpi>small::before,.pending-reference-page .pending-kpi>small::after{content:none!important;display:none!important}
-.pending-reference-page .pending-kpi>span{font-size:13px!important}
+.pending-reference-page .pending-kpi>span,.pending-reference-page .pending-kpi>small{font-size:13px!important}
+.pending-reference-page .pending-kpi>strong{font-size:18px!important}
+@media(max-width:720px){.pending-reference-page .pending-quick-filters{overflow:hidden!important;gap:0!important;padding-left:1px!important;padding-right:1px!important}.pending-reference-page .pending-quick-filters>button{flex:1 1 0!important;min-width:0!important;width:0!important;padding-left:1px!important;padding-right:1px!important;font-size:12px!important}}
