@@ -2,41 +2,23 @@
    Applies only to Worker screens. Business logic and routes are untouched.
    Minimum readable UI text is 13px; headings remain larger. */
 
-.worker-layout {
-  font-size: 13px;
-}
+.worker-layout { font-size: 13px; }
 
-/* The reference navigation section label must also be Vietnamese. */
 .worker-nav::before {
   content: "KHU VỰC LÀM VIỆC";
   font-size: 13px;
   letter-spacing: .06em;
 }
 
-/* Desktop + mobile navigation */
 .worker-nav button,
 .worker-logout,
-.worker-mobile-nav button {
-  font-size: 13px;
-}
+.worker-mobile-nav button { font-size: 13px; }
 
-.worker-brand strong {
-  font-size: 13px;
-}
+.worker-brand strong,
+.worker-brand small,
+.worker-header span { font-size: 13px; }
+.worker-header strong { font-size: 17px; }
 
-.worker-brand small {
-  font-size: 13px;
-}
-
-.worker-header strong {
-  font-size: 17px;
-}
-
-.worker-header span {
-  font-size: 13px;
-}
-
-/* Worker page body: prevent tiny supporting text. */
 .worker-content p,
 .worker-content label,
 .worker-content small,
@@ -50,28 +32,21 @@
 .worker-content option,
 .worker-content summary,
 .worker-content dt,
-.worker-content dd {
-  font-size: 13px;
-}
+.worker-content dd { font-size: 13px; }
 
-/* Preserve visual hierarchy for headings. */
 .worker-content h1 { font-size: 24px; }
 .worker-content h2 { font-size: 20px; }
 .worker-content h3 { font-size: 17px; }
 .worker-content h4 { font-size: 15px; }
 
-/* Keep icon-only controls compact; their text size is irrelevant but should not affect layout. */
 .worker-content button:has(svg:only-child),
-.worker-mobile-nav button svg {
-  font-size: 13px;
-}
+.worker-mobile-nav button svg { font-size: 13px; }
 
-/* Mobile: readable labels and touch targets without changing the reference layout. */
 @media (max-width: 800px) {
   .worker-header strong { font-size: 16px; }
   .worker-header span { font-size: 13px; }
-  .worker-mobile-nav button { font-size: 13px; }
-  .worker-mobile-nav button span { font-size: 13px; }
+  .worker-mobile-nav button,
+  .worker-mobile-nav button span,
   .worker-content { font-size: 13px; }
 }
 
@@ -82,7 +57,7 @@
   .worker-mobile-nav button span { font-size: 13px; }
 }
 
-/* Worker Home had a separate compact stylesheet, so normalize its visible text too. */
+/* Worker Home: normalize compact reference text. */
 .worker-home-page .worker-home-brand small,
 .worker-home-page .worker-home-eyebrow,
 .worker-home-page .worker-home-identity span,
@@ -95,9 +70,7 @@
 .worker-home-page .worker-home-report-date small,
 .worker-home-page .worker-home-report-main strong,
 .worker-home-page .worker-home-report-main small,
-.worker-home-page .worker-home-empty span {
-  font-size: 13px !important;
-}
+.worker-home-page .worker-home-empty span { font-size: 13px !important; }
 
 .worker-home-page .worker-home-status {
   font-size: 13px !important;
@@ -105,50 +78,39 @@
   padding-inline: 9px;
 }
 
-/* The source uses English status labels; render the KTC Worker UI in Vietnamese. */
 .worker-home-page .worker-home-status.approved,
 .worker-home-page .worker-home-status.pending,
 .worker-home-page .worker-home-status.rejected,
-.worker-home-page .worker-home-status.need-fix {
-  font-size: 0 !important;
+.worker-home-page .worker-home-status.need-fix { font-size: 0 !important; }
+
+.worker-home-page .worker-home-status.approved::after { content: "Đã duyệt"; font-size: 13px; }
+.worker-home-page .worker-home-status.pending::after { content: "Chờ duyệt"; font-size: 13px; }
+.worker-home-page .worker-home-status.rejected::after { content: "Từ chối"; font-size: 13px; }
+.worker-home-page .worker-home-status.need-fix::after { content: "Cần sửa"; font-size: 13px; }
+
+.worker-home-page .worker-home-identity span:last-child { font-size: 0 !important; }
+.worker-home-page .worker-home-identity span:last-child::after { content: "Công đoạn: "; font-size: 13px; }
+.worker-home-page .worker-home-brand small { font-size: 0 !important; }
+.worker-home-page .worker-home-brand small::after { content: "Công nhân"; font-size: 13px; }
+
+/* ================================================================
+   KTC GLOBAL READABILITY RULE
+   All application screens use a minimum visible text size of 13px.
+   Legacy 8–12px component rules are raised to 13px while larger
+   headings remain larger. SVG graphics/icons are excluded.
+   ================================================================ */
+body :where(p, span, small, label, th, td, button, input, select, textarea,
+  option, a, li, dt, dd, legend, summary, caption, figcaption, h1, h2, h3, h4, h5, h6) {
+  font-size: max(13px, 1em) !important;
 }
 
-.worker-home-page .worker-home-status.approved::after {
-  content: "Đã duyệt";
-  font-size: 13px;
+body :where(h1) { font-size: max(24px, 1em) !important; }
+body :where(h2) { font-size: max(20px, 1em) !important; }
+body :where(h3) { font-size: max(17px, 1em) !important; }
+body :where(h4) { font-size: max(15px, 1em) !important; }
+
+body :where(input, select, textarea, button) {
+  font-size: max(13px, 1em) !important;
 }
 
-.worker-home-page .worker-home-status.pending::after {
-  content: "Chờ duyệt";
-  font-size: 13px;
-}
-
-.worker-home-page .worker-home-status.rejected::after {
-  content: "Từ chối";
-  font-size: 13px;
-}
-
-.worker-home-page .worker-home-status.need-fix::after {
-  content: "Cần sửa";
-  font-size: 13px;
-}
-
-/* Worker Home identity must not expose the English Process label. */
-.worker-home-page .worker-home-identity span:last-child {
-  font-size: 0 !important;
-}
-
-.worker-home-page .worker-home-identity span:last-child::after {
-  content: "Công đoạn: ";
-  font-size: 13px;
-}
-
-/* Worker Home brand role. */
-.worker-home-page .worker-home-brand small {
-  font-size: 0 !important;
-}
-
-.worker-home-page .worker-home-brand small::after {
-  content: "Công nhân";
-  font-size: 13px;
-}
+body :where(svg, svg *) { font-size: inherit !important; }
