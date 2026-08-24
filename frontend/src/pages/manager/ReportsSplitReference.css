@@ -1,8 +1,8 @@
 /* Chờ duyệt — split list/detail reference layout */
 .pending-reference-page{min-width:0;color:#17345b}
 .pending-reference-page .pending-page-title{margin-bottom:18px}
-/* Report filters stay compact so period controls have enough room on one row. */
-.pending-filter-card{grid-template-columns:minmax(220px,1.45fr) minmax(140px,.8fr) minmax(250px,1.15fr) minmax(112px,.65fr) minmax(112px,.65fr) minmax(105px,.55fr)}
+/* Compact report filters: search/date fields use only the width their content needs. */
+.pending-filter-card{grid-template-columns:minmax(190px,1.15fr) minmax(125px,.62fr) minmax(250px,1.15fr) minmax(105px,.55fr) minmax(105px,.55fr) minmax(98px,.48fr)}
 .pending-filter-card .pending-search{min-width:0}
 .pending-filter-card label>span{font-size:10px}
 .pending-filter-card input,.pending-filter-card select{height:40px}
