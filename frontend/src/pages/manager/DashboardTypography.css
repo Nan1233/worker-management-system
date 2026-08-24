@@ -1,0 +1,8 @@
+/* Dashboard typography standard: all visible text is 13px. Icons keep their own SVG size. */
+.manager-dashboard,
+.manager-dashboard * {
+  font-size: 13px !important;
+}
+.manager-dashboard svg {
+  font-size: initial !important;
+}
