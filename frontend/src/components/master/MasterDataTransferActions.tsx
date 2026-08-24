@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { Download, FileSpreadsheet, RefreshCw, Upload } from "lucide-react";
+import { Download, RefreshCw, Upload } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import api from "../../services/api";
 import { usePermissions } from "../../hooks/usePermissions";
