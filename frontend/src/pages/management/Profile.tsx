@@ -1,5 +1,7 @@
-import { useMemo } from "react";
-import { BriefcaseBusiness, ShieldCheck, UserRound } from "lucide-react";
+import { useMemo, useState } from "react";
+import { BriefcaseBusiness, BadgeCheck, LogOut, ShieldCheck, UserRound } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { logout } from "../../services/authService";
 import { getStoredUser } from "../../utils/authStorage";
 
 const roleLabels: Record<string, string> = {
@@ -9,19 +11,31 @@ const roleLabels: Record<string, string> = {
 };
 
 export default function ManagementProfile() {
+  const navigate = useNavigate();
   const user = useMemo(() => getStoredUser(), []);
+  const [loggingOut, setLoggingOut] = useState(false);
   const role = String(user?.role || "").toLowerCase();
   const roleLabel = roleLabels[role] || user?.role || "—";
   const displayName = user?.full_name || user?.username || "Người dùng";
   const initial = displayName.trim().charAt(0).toUpperCase() || "K";
 
   const fields = [
+    { label: "Mã tài khoản", value: user?.id ? String(user.id) : "—", icon: UserRound },
     { label: "Tên đăng nhập", value: user?.username || "—", icon: ShieldCheck },
     { label: "Vai trò", value: roleLabel, icon: BriefcaseBusiness },
     { label: "Mã nhân viên", value: user?.worker_code || "—", icon: UserRound },
-    { label: "ID tài khoản", value: String(user?.id || "—"), icon: ShieldCheck },
-    { label: "Trạng thái", value: "Đang hoạt động", icon: ShieldCheck },
+    { label: "Trạng thái", value: "Đang hoạt động", icon: BadgeCheck },
   ];
+
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      navigate("/login", { replace: true });
+    }
+  };
 
   return (
     <section className="ktc-page">
@@ -33,7 +47,7 @@ export default function ManagementProfile() {
 
       <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
         <div className="flex items-center gap-3 border-b border-border/60 bg-muted/20 px-3 py-3 sm:gap-4 sm:px-5 sm:py-4">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground sm:size-11">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary sm:size-11">
             <span className="text-sm font-bold sm:text-base">{initial}</span>
           </div>
           <div className="min-w-0">
@@ -58,6 +72,16 @@ export default function ManagementProfile() {
           ))}
         </dl>
       </div>
+
+      <button
+        type="button"
+        onClick={() => void handleLogout()}
+        disabled={loggingOut}
+        className="mt-3 flex h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 text-[11px] font-semibold text-red-600 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 sm:mt-4 sm:h-10"
+      >
+        <LogOut className="size-3.5" />
+        <span>{loggingOut ? "Đang đăng xuất…" : "Đăng xuất"}</span>
+      </button>
     </section>
   );
 }
