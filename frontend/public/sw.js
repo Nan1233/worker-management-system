@@ -1,4 +1,4 @@
-const BUILD_VERSION = "1.9.16-force-refresh-20260824-02";
+const BUILD_VERSION = "1.9.17-period-filter-fix-20260824-03";
 const APP_CACHE = `ktc-${BUILD_VERSION}-app`;
 const STATIC_CACHE = `ktc-${BUILD_VERSION}-static`;
 const APP_SHELL = ["./", "./index.html", "./manifest.webmanifest", "./offline.html"];
