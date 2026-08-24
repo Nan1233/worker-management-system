@@ -1,16 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  ArrowUpRight,
-  CalendarDays,
-  CheckCircle2,
-  Clock3,
-  Factory,
-  Network,
-  TrendingUp,
-  Users,
-  XCircle,
-} from "lucide-react";
+import { ArrowUpRight, CalendarDays, CheckCircle2, Clock3, Factory, Network, TrendingUp, Users, XCircle } from "lucide-react";
 import api from "../../services/api";
 import { useToast } from "../../components/feedback/toastContext";
 import { getApiError } from "../../utils/apiError";
@@ -21,228 +11,38 @@ type PeriodKey = "today" | "yesterday" | "last7" | "thisMonth" | "lastMonth";
 type ProcessOption = { id: number; process_code?: string; process_name: string };
 type ProcessSummary = { process_id: number; process_code?: string; process_name: string; report_count: number; ok: number; ng: number };
 type DailySummary = { work_date: string; report_count: number; ok: number; ng: number };
-type DashboardSummary = {
-  pending_count: number;
-  approved_count: number;
-  total_ok: number;
-  total_ng: number;
-  ng_rate: number;
-  processes: ProcessOption[];
-  process_summary: ProcessSummary[];
-  daily_summary?: DailySummary[];
-};
+type DashboardSummary = { pending_count: number; approved_count: number; total_ok: number; total_ng: number; ng_rate: number; processes: ProcessOption[]; process_summary: ProcessSummary[]; daily_summary?: DailySummary[] };
 
-const PERIOD_LABELS: Record<PeriodKey, string> = {
-  today: "Hôm nay",
-  yesterday: "Hôm qua",
-  last7: "7 ngày gần nhất",
-  thisMonth: "Tháng này",
-  lastMonth: "Tháng trước",
-};
-
-const EMPTY: DashboardSummary = {
-  pending_count: 0,
-  approved_count: 0,
-  total_ok: 0,
-  total_ng: 0,
-  ng_rate: 0,
-  processes: [],
-  process_summary: [],
-  daily_summary: [],
-};
-
+const PERIOD_LABELS: Record<PeriodKey, string> = { today: "Hôm nay", yesterday: "Hôm qua", last7: "7 ngày gần nhất", thisMonth: "Tháng này", lastMonth: "Tháng trước" };
+const EMPTY: DashboardSummary = { pending_count: 0, approved_count: 0, total_ok: 0, total_ng: 0, ng_rate: 0, processes: [], process_summary: [], daily_summary: [] };
 const number = (value: number) => Number(value || 0).toLocaleString("vi-VN", { maximumFractionDigits: 1 });
 const percent = (value: number) => Number(value || 0).toLocaleString("vi-VN", { maximumFractionDigits: 1 });
-
-function localDate(date: Date) {
-  const offset = date.getTimezoneOffset();
-  return new Date(date.getTime() - offset * 60000).toISOString().split("T")[0];
-}
-
-function rangeFor(period: PeriodKey) {
-  const now = new Date();
-  const start = new Date(now);
-  const end = new Date(now);
-  if (period === "yesterday") {
-    start.setDate(start.getDate() - 1);
-    end.setDate(end.getDate() - 1);
-  } else if (period === "last7") {
-    start.setDate(start.getDate() - 6);
-  } else if (period === "thisMonth") {
-    start.setDate(1);
-  } else if (period === "lastMonth") {
-    start.setMonth(start.getMonth() - 1, 1);
-    end.setDate(0);
-  }
-  return { from: localDate(start), to: localDate(end) };
-}
-
-function points(values: number[], max: number) {
-  return values.map((value, index) => {
-    const x = values.length === 1 ? 50 : 4 + (index * 92) / Math.max(1, values.length - 1);
-    const y = 88 - (Number(value || 0) / Math.max(1, max)) * 72;
-    return `${x},${y}`;
-  }).join(" ");
-}
-
-function shortDate(value: string) {
-  const parts = String(value || "").split("-");
-  return parts.length === 3 ? `${parts[2]}/${parts[1]}` : value;
-}
+function localDate(date: Date) { const offset = date.getTimezoneOffset(); return new Date(date.getTime() - offset * 60000).toISOString().split("T")[0]; }
+function rangeFor(period: PeriodKey) { const now = new Date(); const start = new Date(now); const end = new Date(now); if (period === "yesterday") { start.setDate(start.getDate() - 1); end.setDate(end.getDate() - 1); } else if (period === "last7") start.setDate(start.getDate() - 6); else if (period === "thisMonth") start.setDate(1); else if (period === "lastMonth") { start.setMonth(start.getMonth() - 1, 1); end.setDate(0); } return { from: localDate(start), to: localDate(end) }; }
+function points(values: number[], max: number) { return values.map((value, index) => { const x = values.length === 1 ? 50 : 4 + (index * 92) / Math.max(1, values.length - 1); const y = 88 - (Number(value || 0) / Math.max(1, max)) * 72; return `${x},${y}`; }).join(" "); }
+function shortDate(value: string) { const parts = String(value || "").split("-"); return parts.length === 3 ? `${parts[2]}/${parts[1]}` : value; }
 
 export default function Dashboard() {
-  const navigate = useNavigate();
-  const toast = useToast();
-  const user = useMemo(() => getStoredUser(), []);
-  const [period, setPeriod] = useState<PeriodKey>("today");
-  const [summary, setSummary] = useState<DashboardSummary>(EMPTY);
-  const [loading, setLoading] = useState(true);
-
-  const basePath = user?.role === "admin" ? "/admin" : user?.role === "lead" ? "/lead" : "/manager";
-  const displayName = user?.full_name || user?.username || "Quản lý";
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const range = rangeFor(period);
-    const key = `ktc:dashboard:${range.from}:${range.to}`;
-    const cached = sessionStorage.getItem(key);
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        if (Date.now() - Number(parsed?.savedAt || 0) < 15000 && parsed?.data) {
-          setSummary({ ...EMPTY, ...parsed.data });
-          setLoading(false);
-          return () => controller.abort();
-        }
-      } catch {
-        sessionStorage.removeItem(key);
-      }
-    }
-
-    const load = async () => {
-      setLoading(true);
-      try {
-        const response = await api.get("/dashboard/summary", { params: range, signal: controller.signal });
-        const data = { ...EMPTY, ...(response.data?.data || {}) };
-        setSummary(data);
-        sessionStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), data }));
-      } catch (error) {
-        if (!controller.signal.aborted) toast.showToast(getApiError(error, "Không thể tải dữ liệu tổng quan").message, "error");
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
-      }
-    };
-    void load();
-    return () => controller.abort();
-  }, [period, toast]);
-
-  const processRows = useMemo(() => {
-    const map = new Map(summary.process_summary.map((row) => [Number(row.process_id), row]));
-    return summary.processes.map((process) => {
-      const row = map.get(Number(process.id));
-      return {
-        id: Number(process.id),
-        name: process.process_name,
-        ok: Number(row?.ok || 0),
-        ng: Number(row?.ng || 0),
-        reports: Number(row?.report_count || 0),
-      };
-    }).sort((a, b) => b.ok + b.ng - (a.ok + a.ng) || a.name.localeCompare(b.name, "vi"));
-  }, [summary]);
-
-  const activeProcesses = processRows.filter((row) => row.ok + row.ng > 0);
-  const daily = useMemo(() => (summary.daily_summary || []).filter((row) => row.ok + row.ng > 0), [summary.daily_summary]);
-  const total = Number(summary.total_ok || 0) + Number(summary.total_ng || 0);
-  const okRate = total ? Number(summary.total_ok || 0) / total * 100 : 0;
-  const maxDaily = Math.max(1, ...daily.map((row) => Number(row.ok || 0) + Number(row.ng || 0)));
-  const dailyTotalPoints = points(daily.map((row) => Number(row.ok || 0) + Number(row.ng || 0)), maxDaily);
-  const dailyOkPoints = points(daily.map((row) => Number(row.ok || 0)), maxDaily);
-  const dailyNgPoints = points(daily.map((row) => Number(row.ng || 0)), maxDaily);
-
-  const ngRows = activeProcesses.filter((row) => row.ng > 0).slice(0, 4);
-  const ngTotal = ngRows.reduce((sum, row) => sum + row.ng, 0);
-  let cursor = 0;
-  const pieColors = ["#2877d6", "#36ad6d", "#f2ad28", "#e94251"];
-  const pieStops = ngRows.map((row, index) => {
-    const start = cursor;
-    cursor += ngTotal ? row.ng / ngTotal * 100 : 0;
-    return `${pieColors[index]} ${start}% ${cursor}%`;
-  });
-  const pieBackground = pieStops.length ? `conic-gradient(${pieStops.join(",")})` : "#edf2f7";
-
-  if (loading) {
-    return <main className="manager-dashboard dashboard-loading"><div className="dashboard-loading-heading"/><div className="dashboard-kpi-grid">{Array.from({ length: 6 }, (_, i) => <div className="dashboard-loading-card" key={i}/>)}</div></main>;
-  }
-
-  return (
-    <main className="manager-dashboard">
-      <header className="manager-dashboard-header">
-        <div className="dashboard-title-block">
-          <p className="dashboard-greeting">Xin chào, {displayName} <span aria-hidden="true">👋</span></p>
-          <h1>KTC Production Dashboard</h1>
-        </div>
-        <label className="dashboard-period-filter">
-          <span>Khoảng thời gian</span>
-          <div className="dashboard-period-control">
-            <CalendarDays size={17}/>
-            <select value={period} onChange={(event) => setPeriod(event.target.value as PeriodKey)}>
-              {Object.entries(PERIOD_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}
-            </select>
-          </div>
-        </label>
-      </header>
-
-      <section className="dashboard-kpi-grid">
-        <article className="dashboard-kpi-card primary"><div className="dashboard-kpi-icon"><Factory size={20}/></div><span>Tổng sản lượng</span><strong>{number(total)}</strong><small>Trong khoảng đã chọn</small></article>
-        <article className="dashboard-kpi-card success"><div className="dashboard-kpi-icon"><CheckCircle2 size={20}/></div><span>OK</span><strong>{number(summary.total_ok)}</strong><small>{percent(okRate)}% tổng sản lượng</small></article>
-        <article className="dashboard-kpi-card danger"><div className="dashboard-kpi-icon"><XCircle size={20}/></div><span>NG</span><strong>{number(summary.total_ng)}</strong><small>{percent(summary.ng_rate)}% tổng sản lượng</small></article>
-        <article className="dashboard-kpi-card info"><div className="dashboard-kpi-icon"><TrendingUp size={20}/></div><span>Tỷ lệ OK</span><strong>{percent(okRate)}%</strong><small>Chất lượng sản xuất</small></article>
-        <article className="dashboard-kpi-card neutral"><div className="dashboard-kpi-icon"><Network size={20}/></div><span>Công đoạn</span><strong>{processRows.length}</strong><small>{activeProcesses.length} đang hoạt động</small></article>
-        <article className="dashboard-kpi-card warning"><div className="dashboard-kpi-icon"><Clock3 size={20}/></div><span>Chờ phê duyệt</span><strong>{number(summary.pending_count)}</strong><small>{number(summary.approved_count)} báo cáo đã duyệt</small></article>
-      </section>
-
-      <section className="dashboard-grid">
-        <article className="dashboard-panel dashboard-shift-panel">
-          <div className="dashboard-panel-heading"><div><span>PHÂN TÍCH SẢN XUẤT</span><h2>Sản lượng theo ca</h2></div><div className="dashboard-legend"><span><i className="blue"/>Sản lượng</span><span><i className="green"/>OK</span><span><i className="red"/>NG</span></div></div>
-          {daily.length === 0 ? <div className="dashboard-chart-empty">Chưa có dữ liệu trong khoảng thời gian này</div> : <div className="dashboard-line-chart">
-            <div className="dashboard-line-axis"><span>{number(maxDaily)}</span><span>{number(maxDaily * .75)}</span><span>{number(maxDaily * .5)}</span><span>{number(maxDaily * .25)}</span><span>0</span></div>
-            <div className="dashboard-line-grid"><i/><i/><i/><i/><i/></div>
-            <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-              <polyline className="chart-line-total" points={dailyTotalPoints}/><polyline className="chart-line-ok" points={dailyOkPoints}/><polyline className="chart-line-ng" points={dailyNgPoints}/>
-              {daily.map((row, index) => { const x = daily.length === 1 ? 50 : 4 + index * 92 / Math.max(1, daily.length - 1); const y = 88 - ((row.ok + row.ng) / maxDaily) * 72; return <circle className="chart-dot-total" key={row.work_date} cx={x} cy={y} r="1.55"/>; })}
-            </svg>
-            <div className="dashboard-line-labels">{daily.map((row) => <span key={row.work_date}>{shortDate(row.work_date)}</span>)}</div>
-          </div>}
-        </article>
-
-        <article className="dashboard-panel dashboard-quality-panel">
-          <div className="dashboard-panel-heading"><div><span>CHẤT LƯỢNG</span><h2>Tỷ lệ OK / NG</h2></div></div>
-          <div className="dashboard-donut-wrap"><div className="dashboard-donut" style={{background: `conic-gradient(#2eaa69 0 ${okRate}%, #e94251 ${okRate}% 100%)`}}><div><strong>{percent(okRate)}%</strong><span>OK</span></div></div></div>
-          <div className="dashboard-quality-stats"><div><i className="green"/><span>OK</span><b>{number(summary.total_ok)}</b></div><div><i className="red"/><span>NG</span><b>{number(summary.total_ng)}</b></div></div>
-        </article>
-
-        <article className="dashboard-panel dashboard-process-panel">
-          <div className="dashboard-panel-heading"><div><span>HIỆU SUẤT CÔNG ĐOẠN</span><h2>Sản lượng theo công đoạn</h2></div><button type="button" onClick={() => navigate(`${basePath}/reports`)}>Xem báo cáo <ArrowUpRight size={13}/></button></div>
-          <div className="dashboard-process-chart">
-            {activeProcesses.slice(0, 9).map((row) => { const value = row.ok + row.ng; const max = Math.max(1, ...activeProcesses.map((item) => item.ok + item.ng)); return <div className="dashboard-process-column" key={row.id}><span>{number(value)}</span><div><b style={{height: `${Math.max(7, value / max * 100)}%`}}/></div><strong>{row.name}</strong></div>; })}
-            {!activeProcesses.length && <div className="dashboard-chart-empty">Chưa có dữ liệu</div>}
-          </div>
-        </article>
-
-        <article className="dashboard-panel dashboard-ng-panel">
-          <div className="dashboard-panel-heading"><div><span>NG QUALITY</span><h2>Phân bố NG</h2></div></div>
-          <div className="dashboard-ng-visual"><div className="dashboard-pie" style={{background: pieBackground}}/><div className="dashboard-pie-legend">{ngRows.length ? ngRows.map((row, index) => <span key={row.id}><i style={{background: pieColors[index]}}/><b>{row.name}</b><em>{ngTotal ? Math.round(row.ng / ngTotal * 100) : 0}% ({number(row.ng)})</em></span>) : <span className="dashboard-ng-empty">Chưa có sản phẩm NG</span>}</div></div>
-          <div className="dashboard-ng-total"><strong>{number(summary.total_ng)}</strong><span>Tổng sản phẩm NG</span></div>
-        </article>
-      </section>
-
-      <section className="dashboard-panel dashboard-activity-panel">
-        <div className="dashboard-panel-heading"><div><span>ACTIVITY</span><h2>Hoạt động gần đây</h2></div><button type="button" onClick={() => navigate(`${basePath}/reports`)}>Xem tất cả <ArrowUpRight size={13}/></button></div>
-        <div className="dashboard-activity-grid">
-          {activeProcesses.slice(0, 3).map((row, index) => <article className="dashboard-activity-card" key={row.id}><span className={`activity-icon ${index === 0 ? "success" : index === 1 ? "info" : "warning"}`}>{index === 0 ? <CheckCircle2 size={17}/> : index === 1 ? <Users size={17}/> : <Clock3 size={17}/>}</span><div><strong>{index === 0 ? "Đã ghi nhận sản lượng" : index === 1 ? "Tạo báo cáo sản xuất" : "Chờ phê duyệt"} · {row.name}</strong><small>{number(row.reports)} báo cáo · OK {number(row.ok)} · NG {number(row.ng)}</small></div><time>{index === 0 ? "5 phút trước" : index === 1 ? "15 phút trước" : "35 phút trước"}</time></article>)}
-          {!activeProcesses.length && <div className="dashboard-chart-empty">Chưa có hoạt động gần đây</div>}
-        </div>
-      </section>
-    </main>
-  );
+  const navigate = useNavigate(); const toast = useToast(); const user = useMemo(() => getStoredUser(), []);
+  const [period, setPeriod] = useState<PeriodKey>("today"); const [summary, setSummary] = useState<DashboardSummary>(EMPTY); const [loading, setLoading] = useState(true);
+  const basePath = user?.role === "admin" ? "/admin" : user?.role === "lead" ? "/lead" : "/manager"; const displayName = user?.full_name || user?.username || "Quản lý";
+  useEffect(() => { const controller = new AbortController(); const range = rangeFor(period); const key = `ktc:dashboard:${range.from}:${range.to}`; const cached = sessionStorage.getItem(key); if (cached) { try { const parsed = JSON.parse(cached); if (Date.now() - Number(parsed?.savedAt || 0) < 15000 && parsed?.data) { setSummary({ ...EMPTY, ...parsed.data }); setLoading(false); return () => controller.abort(); } } catch { sessionStorage.removeItem(key); } } const load = async () => { setLoading(true); try { const response = await api.get("/dashboard/summary", { params: range, signal: controller.signal }); const data = { ...EMPTY, ...(response.data?.data || {}) }; setSummary(data); sessionStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), data })); } catch (error) { if (!controller.signal.aborted) toast.showToast(getApiError(error, "Không thể tải dữ liệu tổng quan").message, "error"); } finally { if (!controller.signal.aborted) setLoading(false); } }; void load(); return () => controller.abort(); }, [period, toast]);
+  const processRows = useMemo(() => { const map = new Map(summary.process_summary.map((row) => [Number(row.process_id), row])); return summary.processes.map((process) => { const row = map.get(Number(process.id)); return { id: Number(process.id), name: process.process_name, ok: Number(row?.ok || 0), ng: Number(row?.ng || 0), reports: Number(row?.report_count || 0) }; }).sort((a, b) => b.ok + b.ng - (a.ok + a.ng) || a.name.localeCompare(b.name, "vi")); }, [summary]);
+  const activeProcesses = processRows.filter((row) => row.ok + row.ng > 0); const daily = useMemo(() => (summary.daily_summary || []).filter((row) => row.ok + row.ng > 0), [summary.daily_summary]); const total = Number(summary.total_ok || 0) + Number(summary.total_ng || 0); const okRate = total ? Number(summary.total_ok || 0) / total * 100 : 0;
+  const maxOkDaily = Math.max(1, ...daily.map((row) => Number(row.ok || 0))); const maxNgDaily = Math.max(1, ...daily.map((row) => Number(row.ng || 0))); const dailyOkPoints = points(daily.map((row) => Number(row.ok || 0)), maxOkDaily); const dailyNgPoints = points(daily.map((row) => Number(row.ng || 0)), maxNgDaily);
+  const ngRows = activeProcesses.filter((row) => row.ng > 0).slice(0, 4); const ngTotal = ngRows.reduce((sum, row) => sum + row.ng, 0); let cursor = 0; const pieColors = ["#2877d6", "#36ad6d", "#f2ad28", "#e94251"]; const pieStops = ngRows.map((row, index) => { const start = cursor; cursor += ngTotal ? row.ng / ngTotal * 100 : 0; return `${pieColors[index]} ${start}% ${cursor}%`; }); const pieBackground = pieStops.length ? `conic-gradient(${pieStops.join(",")})` : "#edf2f7";
+  if (loading) return <main className="manager-dashboard dashboard-loading"><div className="dashboard-loading-heading"/><div className="dashboard-kpi-grid">{Array.from({ length: 6 }, (_, i) => <div className="dashboard-loading-card" key={i}/>)}</div></main>;
+  return <main className="manager-dashboard">
+    <header className="manager-dashboard-header"><div className="dashboard-title-block"><p className="dashboard-greeting">Xin chào, {displayName} <span aria-hidden="true">👋</span></p><h1>KTC Production Dashboard</h1></div><label className="dashboard-period-filter"><span>Khoảng thời gian</span><div className="dashboard-period-control"><CalendarDays size={17}/><select value={period} onChange={(event) => setPeriod(event.target.value as PeriodKey)}>{Object.entries(PERIOD_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></div></label></header>
+    <section className="dashboard-kpi-grid">
+      <article className="dashboard-kpi-card primary"><div className="dashboard-kpi-icon"><Factory size={20}/></div><span>Tổng sản lượng</span><strong>{number(total)}</strong><small>Trong khoảng đã chọn</small></article><article className="dashboard-kpi-card success"><div className="dashboard-kpi-icon"><CheckCircle2 size={20}/></div><span>OK</span><strong>{number(summary.total_ok)}</strong><small>{percent(okRate)}% tổng sản lượng</small></article><article className="dashboard-kpi-card danger"><div className="dashboard-kpi-icon"><XCircle size={20}/></div><span>NG</span><strong>{number(summary.total_ng)}</strong><small>{percent(summary.ng_rate)}% tổng sản lượng</small></article><article className="dashboard-kpi-card info"><div className="dashboard-kpi-icon"><TrendingUp size={20}/></div><span>Tỷ lệ OK</span><strong>{percent(okRate)}%</strong><small>Chất lượng sản xuất</small></article><article className="dashboard-kpi-card neutral"><div className="dashboard-kpi-icon"><Network size={20}/></div><span>Công đoạn</span><strong>{processRows.length}</strong><small>{activeProcesses.length} đang hoạt động</small></article><article className="dashboard-kpi-card warning"><div className="dashboard-kpi-icon"><Clock3 size={20}/></div><span>Chờ phê duyệt</span><strong>{number(summary.pending_count)}</strong><small>{number(summary.approved_count)} báo cáo đã duyệt</small></article>
+    </section>
+    <section className="dashboard-grid">
+      <article className="dashboard-panel dashboard-shift-panel"><div className="dashboard-panel-heading"><div><span>PHÂN TÍCH SẢN XUẤT</span><h2>Sản lượng theo ngày</h2></div><div className="dashboard-legend"><span><i className="green"/>OK</span><span><i className="red"/>NG</span></div></div>{daily.length === 0 ? <div className="dashboard-chart-empty">Chưa có dữ liệu trong khoảng thời gian này</div> : <div className="dashboard-line-chart"><div className="dashboard-line-axis"><span>{number(maxOkDaily)}</span><span>{number(maxOkDaily * .75)}</span><span>{number(maxOkDaily * .5)}</span><span>{number(maxOkDaily * .25)}</span><span>0</span></div><div className="dashboard-line-axis-right"><span>{number(maxNgDaily)}</span><span>{number(maxNgDaily * .75)}</span><span>{number(maxNgDaily * .5)}</span><span>{number(maxNgDaily * .25)}</span><span>0</span></div><div className="dashboard-line-grid"><i/><i/><i/><i/><i/></div><svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polyline className="chart-line-ok" points={dailyOkPoints}/><polyline className="chart-line-ng" points={dailyNgPoints}/>{daily.map((row, index) => { const x = daily.length === 1 ? 50 : 4 + index * 92 / Math.max(1, daily.length - 1); const okY = 88 - (Number(row.ok || 0) / maxOkDaily) * 72; const ngY = 88 - (Number(row.ng || 0) / maxNgDaily) * 72; return <g key={row.work_date}><circle className="chart-dot-ok" cx={x} cy={okY} r="1.45"/><circle className="chart-dot-ng" cx={x} cy={ngY} r="1.45"/></g>; })}</svg><div className="dashboard-line-labels">{daily.map((row) => <span key={row.work_date}>{shortDate(row.work_date)}</span>)}</div></div>}</article>
+      <article className="dashboard-panel dashboard-quality-panel"><div className="dashboard-panel-heading"><div><span>CHẤT LƯỢNG</span><h2>Tỷ lệ OK / NG</h2></div></div><div className="dashboard-donut-wrap"><div className="dashboard-donut" style={{background: `conic-gradient(#2eaa69 0 ${okRate}%, #e94251 ${okRate}% 100%)`}}><div><strong>{percent(okRate)}%</strong><span>OK</span></div></div></div><div className="dashboard-quality-stats"><div><i className="green"/><span>OK</span><b>{number(summary.total_ok)}</b></div><div><i className="red"/><span>NG</span><b>{number(summary.total_ng)}</b></div></div></article>
+      <article className="dashboard-panel dashboard-process-panel"><div className="dashboard-panel-heading"><div><span>HIỆU SUẤT CÔNG ĐOẠN</span><h2>Sản lượng theo công đoạn</h2></div><button type="button" onClick={() => navigate(`${basePath}/reports`)}>Xem báo cáo <ArrowUpRight size={13}/></button></div><div className="dashboard-process-chart">{activeProcesses.slice(0, 9).map((row) => { const value = row.ok + row.ng; const max = Math.max(1, ...activeProcesses.map((item) => item.ok + item.ng)); return <div className="dashboard-process-column" key={row.id}><span>{number(value)}</span><div><b style={{height: `${Math.max(7, value / max * 100)}%`}}/></div><strong>{row.name}</strong></div>; })}{!activeProcesses.length && <div className="dashboard-chart-empty">Chưa có dữ liệu</div>}</div></article>
+      <article className="dashboard-panel dashboard-ng-panel"><div className="dashboard-panel-heading"><div><span>NG QUALITY</span><h2>Phân bố NG</h2></div></div><div className="dashboard-ng-visual"><div className="dashboard-pie" style={{background: pieBackground}}/><div className="dashboard-pie-legend">{ngRows.length ? ngRows.map((row, index) => <span key={row.id}><i style={{background: pieColors[index]}}/><b>{row.name}</b><em>{ngTotal ? Math.round(row.ng / ngTotal * 100) : 0}% ({number(row.ng)})</em></span>) : <span className="dashboard-ng-empty">Chưa có sản phẩm NG</span>}</div></div><div className="dashboard-ng-total"><strong>{number(summary.total_ng)}</strong><span>Tổng sản phẩm NG</span></div></article>
+    </section>
+    <section className="dashboard-panel dashboard-activity-panel"><div className="dashboard-panel-heading"><div><span>ACTIVITY</span><h2>Hoạt động gần đây</h2></div><button type="button" onClick={() => navigate(`${basePath}/reports`)}>Xem tất cả <ArrowUpRight size={13}/></button></div><div className="dashboard-activity-grid">{activeProcesses.slice(0, 3).map((row, index) => <article className="dashboard-activity-card" key={row.id}><span className={`activity-icon ${index === 0 ? "success" : index === 1 ? "info" : "warning"}`}>{index === 0 ? <CheckCircle2 size={17}/> : index === 1 ? <Users size={17}/> : <Clock3 size={17}/>}</span><div><strong>{index === 0 ? "Đã ghi nhận sản lượng" : index === 1 ? "Tạo báo cáo sản xuất" : "Chờ phê duyệt"} · {row.name}</strong><small>{number(row.reports)} báo cáo · OK {number(row.ok)} · NG {number(row.ng)}</small></div><time>{index === 0 ? "5 phút trước" : index === 1 ? "15 phút trước" : "35 phút trước"}</time></article>)}{!activeProcesses.length && <div className="dashboard-chart-empty">Chưa có hoạt động gần đây</div>}</div></section>
+  </main>;
 }
