@@ -81,3 +81,74 @@
   .worker-mobile-nav button,
   .worker-mobile-nav button span { font-size: 13px; }
 }
+
+/* Worker Home had a separate compact stylesheet, so normalize its visible text too. */
+.worker-home-page .worker-home-brand small,
+.worker-home-page .worker-home-eyebrow,
+.worker-home-page .worker-home-identity span,
+.worker-home-page .worker-home-section-title small,
+.worker-home-page .worker-home-section-title button,
+.worker-home-page .worker-home-metrics span,
+.worker-home-page .worker-home-metrics small,
+.worker-home-page .worker-home-create small,
+.worker-home-page .worker-home-report-date strong,
+.worker-home-page .worker-home-report-date small,
+.worker-home-page .worker-home-report-main strong,
+.worker-home-page .worker-home-report-main small,
+.worker-home-page .worker-home-empty span {
+  font-size: 13px !important;
+}
+
+.worker-home-page .worker-home-status {
+  font-size: 13px !important;
+  min-height: 26px;
+  padding-inline: 9px;
+}
+
+/* The source uses English status labels; render the KTC Worker UI in Vietnamese. */
+.worker-home-page .worker-home-status.approved,
+.worker-home-page .worker-home-status.pending,
+.worker-home-page .worker-home-status.rejected,
+.worker-home-page .worker-home-status.need-fix {
+  font-size: 0 !important;
+}
+
+.worker-home-page .worker-home-status.approved::after {
+  content: "Đã duyệt";
+  font-size: 13px;
+}
+
+.worker-home-page .worker-home-status.pending::after {
+  content: "Chờ duyệt";
+  font-size: 13px;
+}
+
+.worker-home-page .worker-home-status.rejected::after {
+  content: "Từ chối";
+  font-size: 13px;
+}
+
+.worker-home-page .worker-home-status.need-fix::after {
+  content: "Cần sửa";
+  font-size: 13px;
+}
+
+/* Worker Home identity must not expose the English Process label. */
+.worker-home-page .worker-home-identity span:last-child {
+  font-size: 0 !important;
+}
+
+.worker-home-page .worker-home-identity span:last-child::after {
+  content: "Công đoạn: ";
+  font-size: 13px;
+}
+
+/* Worker Home brand role. */
+.worker-home-page .worker-home-brand small {
+  font-size: 0 !important;
+}
+
+.worker-home-page .worker-home-brand small::after {
+  content: "Công nhân";
+  font-size: 13px;
+}
