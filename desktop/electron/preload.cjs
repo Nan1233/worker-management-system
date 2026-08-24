@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('ktcDesktop', {
   getExportRoot: () => ipcRenderer.invoke('ktc-get-export-root'),
   chooseExportRoot: () => ipcRenderer.invoke('ktc-choose-export-root'),
   resetExportRoot: () => ipcRenderer.invoke('ktc-reset-export-root'),
+  saveStatisticsExcel: (content, fileName, year) => ipcRenderer.invoke('ktc-save-statistics-excel', { content, fileName, year }),
   openLogFolder: () => ipcRenderer.invoke('ktc-open-log-folder'),
   onSyncResult: (callback) => {
     const handler = (_event, value) => callback(value);
