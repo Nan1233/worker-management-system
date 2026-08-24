@@ -14,6 +14,7 @@ import AuthBootstrap from "./components/AuthBootstrap";
 import AppErrorBoundary from "./components/system/AppErrorBoundary";
 import OfflineReportSync from "./components/system/OfflineReportSync";
 import ExcelWorkflowTools from "./components/system/ExcelWorkflowTools";
+import "./ui-polish.css";
 import { FRONTEND_VERSION, FRONTEND_COMMIT_SHA } from "./config/version";
 
 const initialTheme = localStorage.getItem("ktcTheme");
