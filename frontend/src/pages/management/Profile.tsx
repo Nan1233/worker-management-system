@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { BriefcaseBusiness, Building2, ShieldCheck, UserRound } from "lucide-react";
+import { BriefcaseBusiness, ShieldCheck, UserRound } from "lucide-react";
 import { getStoredUser } from "../../utils/authStorage";
 
 const roleLabels: Record<string, string> = {
@@ -19,8 +19,7 @@ export default function ManagementProfile() {
     { label: "Tên đăng nhập", value: user?.username || "—", icon: ShieldCheck },
     { label: "Vai trò", value: roleLabel, icon: BriefcaseBusiness },
     { label: "Mã nhân viên", value: user?.worker_code || "—", icon: UserRound },
-    { label: "Bộ phận", value: user?.department || "—", icon: Building2 },
-    { label: "Số điện thoại", value: user?.phone || "—", icon: UserRound },
+    { label: "ID tài khoản", value: String(user?.id || "—"), icon: ShieldCheck },
     { label: "Trạng thái", value: "Đang hoạt động", icon: ShieldCheck },
   ];
 
