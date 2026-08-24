@@ -131,7 +131,7 @@ export default function ExcelWorkflowTools() {
         if (busy) return;
         setBusy(true);
         try {
-            const dateInput = document.querySelector<HTMLInputElement>(".pending-filter-card input[type=date]");
+            const dateInput = document.querySelector<HTMLInputElement>("main input[type=date]");
             const date = /^\d{4}-\d{2}-\d{2}$/.test(dateInput?.value || "") ? dateInput!.value : today();
             const result = await exportSelectedApprovedExcel(date);
             showToast(result.message || "Đã cập nhật Excel báo cáo đã duyệt", "success");
@@ -146,7 +146,7 @@ export default function ExcelWorkflowTools() {
         if (busy) return;
         setBusy(true);
         try {
-            const inputs = Array.from(document.querySelectorAll<HTMLInputElement>(".statistics-filter-card input[type=date]"));
+            const inputs = Array.from(document.querySelectorAll<HTMLInputElement>("main input[type=date]"));
             const from = inputs[0]?.value || today();
             const to = inputs[1]?.value || from;
             const response = await api.get("/dashboard/summary", { params: { from, to } });
