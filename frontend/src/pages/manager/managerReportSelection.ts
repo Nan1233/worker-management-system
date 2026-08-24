@@ -41,7 +41,9 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
         .find(node => node.querySelector("span")?.textContent?.trim() === "Trong tuần");
       if (weekKpi instanceof HTMLElement) weekKpi.click();
     });
-    quickFilters.appendChild(button);
+    const firstPeriodButton = quickFilters.querySelector("button");
+    if (firstPeriodButton) quickFilters.insertBefore(button, firstPeriodButton.nextElementSibling);
+    else quickFilters.appendChild(button);
   };
 
   const observer = new MutationObserver(installWeekQuickFilter);
