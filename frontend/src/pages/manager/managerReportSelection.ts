@@ -22,31 +22,3 @@ export function toggleCurrentPageIds(previous: number[], pageIds: number[], allS
   }
   return [...new Set([...previous, ...page])];
 }
-
-// Reports.tsx already exposes a functional "Trong tuần" KPI. Keep the quick-period
-// controls compact without duplicating date-range logic in the JSX.
-if (typeof window !== "undefined" && typeof document !== "undefined") {
-  const installWeekQuickFilter = () => {
-    const title = document.querySelector(".pending-page-title h1");
-    const quickFilters = document.querySelector(".pending-quick-filters");
-    if (!(title instanceof HTMLElement) || title.textContent?.trim() !== "Chờ duyệt báo cáo" || !(quickFilters instanceof HTMLElement)) return;
-    if (quickFilters.querySelector("[data-pending-week-filter]")) return;
-
-    const button = document.createElement("button");
-    button.type = "button";
-    button.dataset.pendingWeekFilter = "true";
-    button.textContent = "Tuần này";
-    button.addEventListener("click", () => {
-      const weekKpi = Array.from(document.querySelectorAll(".pending-kpi"))
-        .find(node => node.querySelector("span")?.textContent?.trim() === "Trong tuần");
-      if (weekKpi instanceof HTMLElement) weekKpi.click();
-    });
-    const firstPeriodButton = quickFilters.querySelector("button");
-    if (firstPeriodButton) quickFilters.insertBefore(button, firstPeriodButton.nextElementSibling);
-    else quickFilters.appendChild(button);
-  };
-
-  const observer = new MutationObserver(installWeekQuickFilter);
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-  installWeekQuickFilter();
-}
