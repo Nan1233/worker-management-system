@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BarChart3, Bell, Boxes, ChevronDown, ClipboardCheck, Cog, FileWarning, History, LayoutDashboard, LogOut, MoreHorizontal, Settings2, ShieldCheck, Timer, Users } from "lucide-react";
+import { BarChart3, Bell, Boxes, ChevronDown, ClipboardCheck, Cog, FileWarning, History, LayoutDashboard, LogOut, MoreHorizontal, ShieldCheck, Timer, Users } from "lucide-react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { logout } from "../services/authService";
 import { getStoredUser } from "../utils/authStorage";
@@ -23,7 +23,6 @@ const items:ManagementMenuItem[]=[
  {label:"Sản phẩm",path:"master/standards",icon:Boxes,permission:"MASTER_VIEW",roles:adminAndManagerRoles},
  {label:"Trừ giờ",path:"master/deductions",icon:Timer,permission:"MASTER_VIEW",roles:adminAndManagerRoles},
  {label:"Lỗi",path:"master/defects",icon:FileWarning,permission:"MASTER_VIEW",roles:adminAndManagerRoles},
- {label:"Công thức",path:"formulas",icon:Settings2,permission:"FORMULA_VIEW",roles:adminAndManagerRoles},
  {label:"Nhật ký hoạt động",path:"system",icon:History,permission:"AUDIT_VIEW",roles:adminAndManagerRoles},
  {label:"Quản trị dữ liệu",path:"governance",icon:ShieldCheck,permission:"GOVERNANCE_VIEW",roles:adminAndManagerRoles},
  {label:"Vai trò & quyền",path:"permissions",icon:ShieldCheck,permission:"PERMISSION_MANAGE",roles:["admin"]},
