@@ -6,7 +6,7 @@
 .pending-filter-card label>span{font-size:10px}
 .pending-filter-card input,.pending-filter-card select{height:40px}
 .pending-quick-filters{height:40px;display:flex;align-items:center;gap:5px;padding:4px 5px;border:1px solid #d7e3ef;border-radius:8px;background:#f8fbff;white-space:nowrap;min-width:0}
-.pending-quick-filters>span{color:#7185a4;font-size:9px;font-weight:700;margin:0 2px 0 3px}
+.pending-quick-filters>span{display:none!important}
 .pending-quick-filters button{height:30px;padding:0 9px;border:1px solid transparent;border-radius:6px;background:transparent;color:#627895;font-size:9px;font-weight:750;cursor:pointer}
 .pending-quick-filters button:hover{background:#edf5ff;color:#1769d2}
 .pending-quick-filters button.active{border-color:#bcd5f3;background:#eaf3ff;color:#1769d2}
