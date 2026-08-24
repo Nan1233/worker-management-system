@@ -37,7 +37,6 @@
   transform:none!important;
   box-sizing:border-box!important;
 }
-/* React owns the labels. Never generate a second label with CSS. */
 .pending-reference-page .pending-quick-filters::before,
 .pending-reference-page .pending-quick-filters::after,
 .pending-reference-page .pending-quick-filters>button::before,
@@ -67,16 +66,15 @@
  .pending-reference-page .pending-quick-filters>button{width:100%!important;min-width:0!important;padding-left:1px!important;padding-right:1px!important;font-size:13px!important;overflow:visible!important}
 }
 
-/* ===== Final manager report UI alignment =====
-   Approved must visually follow the same table treatment as Chờ duyệt. */
+/* ===== Final manager report UI alignment ===== */
+.pending-reference-page:has(.pending-reference-table th.management-checkbox-column) > .pending-page-title{display:none!important}
 
-/* The approved page has management-checkbox-column in its table header;
-   pending uses select-col. This keeps the title on Chờ duyệt untouched. */
-.pending-reference-page:has(.pending-reference-table th.management-checkbox-column) > .pending-page-title{
-  display:none!important;
-}
+/* When there are no approved reports, hide the table header completely.
+   The empty state is the only content shown below the list tab. */
+.pending-reference-page:has(.pending-reference-table tbody .management-empty) .pending-reference-table thead{display:none!important}
+.pending-reference-page:has(.pending-reference-table tbody .management-empty) .pending-reference-table{border-collapse:separate!important}
 
-/* Approved table: restore the report-code column hidden by the shared reference CSS. */
+/* Approved table: restore the report-code column hidden by shared reference CSS. */
 .pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-reference-table th:nth-child(2),
 .pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-reference-table td:nth-child(2){
   display:table-cell!important;
@@ -84,9 +82,6 @@
   min-width:145px!important;
   max-width:145px!important;
 }
-
-/* Keep the approved table compact and in the same visual order as Chờ duyệt:
-   checkbox -> mã -> công nhân -> công đoạn -> ca -> thời gian -> trạng thái -> thao tác. */
 .pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-reference-table{
   min-width:100%!important;
   width:100%!important;
@@ -113,13 +108,19 @@
 .pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-reference-table th:nth-child(8),
 .pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-reference-table td:nth-child(8){width:78px!important}
 
-/* Light checkbox treatment — no black native square. */
+/* Checkbox: fixed square, light, never stretched by table-cell styles. */
 .pending-reference-page input[type="checkbox"]{
   appearance:none!important;
   -webkit-appearance:none!important;
+  display:inline-block!important;
+  flex:0 0 17px!important;
   width:17px!important;
-  height:17px!important;
   min-width:17px!important;
+  max-width:17px!important;
+  height:17px!important;
+  min-height:17px!important;
+  max-height:17px!important;
+  aspect-ratio:1 / 1!important;
   margin:0!important;
   padding:0!important;
   border:1px solid #b9cde3!important;
@@ -130,6 +131,7 @@
   cursor:pointer!important;
   outline:none!important;
   box-sizing:border-box!important;
+  align-self:center!important;
 }
 .pending-reference-page input[type="checkbox"]:checked{
   border-color:#8eb8e9!important;
@@ -143,13 +145,8 @@
   border-color:#8eb8e9!important;
   background-color:#f4f9ff!important;
 }
-.pending-reference-page input[type="checkbox"]:focus-visible{
-  box-shadow:0 0 0 3px rgba(23,105,210,.12)!important;
-}
-.pending-reference-page input[type="checkbox"]:disabled{
-  opacity:.55!important;
-  cursor:not-allowed!important;
-}
+.pending-reference-page input[type="checkbox"]:focus-visible{box-shadow:0 0 0 3px rgba(23,105,210,.12)!important}
+.pending-reference-page input[type="checkbox"]:disabled{opacity:.55!important;cursor:not-allowed!important}
 
 /* Approved row action = same light outlined view button as Chờ duyệt. */
 .pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-detail-edit{
@@ -169,12 +166,7 @@
   box-shadow:none!important;
   cursor:pointer!important;
 }
-.pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-detail-edit:hover{
-  border-color:#1769d2!important;
-  background:#f1f7ff!important;
-}
-
-/* Keep the approved status pill consistent with the reference table. */
+.pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-detail-edit:hover{border-color:#1769d2!important;background:#f1f7ff!important}
 .pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-detail-status{
   display:inline-flex!important;
   align-items:center!important;
@@ -187,11 +179,6 @@
   font-size:12px!important;
   font-weight:800!important;
 }
-
 @media(max-width:900px){
-  .pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-reference-table{
-    min-width:900px!important;
-    width:max-content!important;
-    table-layout:auto!important;
-  }
+  .pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-reference-table{min-width:900px!important;width:max-content!important;table-layout:auto!important}
 }
