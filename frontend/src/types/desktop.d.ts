@@ -13,6 +13,9 @@ declare global {
             configureAutoSync: (token: string) => Promise<unknown>;
             openExportFolder: (date?: string) => Promise<string>;
             getExportFolder: (date?: string) => Promise<string>;
+            getExportRoot: () => Promise<string>;
+            chooseExportRoot: () => Promise<{ canceled: boolean; exportRoot: string }>;
+            resetExportRoot: () => Promise<string>;
             openLogFolder: () => Promise<string>;
             onSyncResult: (callback: (result: DesktopExcelSyncResult) => void) => () => void;
             onExcelDbSyncResult: (callback: (result: DesktopExcelDbSyncResult) => void) => () => void;
@@ -45,8 +48,6 @@ declare global {
         failed: number;
         changedMonths?: string[];
     }
-
-
 
     interface DesktopReportImportPreview extends DesktopExcelDbSyncPreview {
         canceled?: boolean;
