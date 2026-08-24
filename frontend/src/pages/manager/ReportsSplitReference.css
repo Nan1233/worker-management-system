@@ -127,3 +127,22 @@
 .pending-reference-page .pending-bulk-actions button{font-size:13px}
 .pending-reference-page .pending-detail-title h2{font-size:16px}
 .pending-reference-page .pending-result-item strong{font-size:18px}
+
+/* FINAL: disable legacy pseudo labels that duplicate the real React labels. */
+.pending-reference-page .pending-quick-filters button::before,
+.pending-reference-page .pending-quick-filters button::after,
+.pending-reference-page .pending-kpi::before,
+.pending-reference-page .pending-kpi::after,
+.pending-reference-page .pending-kpi span::before,
+.pending-reference-page .pending-kpi span::after,
+.pending-reference-page .pending-kpi small::before,
+.pending-reference-page .pending-kpi small::after{content:none!important;display:none!important}
+.pending-reference-page .pending-quick-filters{gap:8px}
+.pending-reference-page .pending-quick-filters button{display:inline-flex!important;align-items:center;justify-content:center;line-height:1;position:relative}
+.pending-reference-page .pending-kpi{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:3px}
+.pending-reference-page .pending-kpi>span,
+.pending-reference-page .pending-kpi>strong,
+.pending-reference-page .pending-kpi>small{position:static!important;display:block!important;float:none!important;transform:none!important;white-space:nowrap}
+.pending-reference-page .pending-kpi>span{line-height:1.2}
+.pending-reference-page .pending-kpi>strong{line-height:1.2}
+.pending-reference-page .pending-kpi>small{line-height:1.2}
