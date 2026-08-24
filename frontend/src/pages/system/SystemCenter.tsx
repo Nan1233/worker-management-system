@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Download, Edit3, Filter, History, Plus, Search, Trash2, UserRound, X } from "lucide-react";
+import { Activity, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Download, Edit3, History, Plus, Search, Trash2, UserRound, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getActivities, getNotifications, markAllNotificationsRead, markNotificationRead, type ActivityItem, type NotificationItem } from "../../services/systemService";
 import { publishNotificationCount } from "../../hooks/useNotificationBadge";
