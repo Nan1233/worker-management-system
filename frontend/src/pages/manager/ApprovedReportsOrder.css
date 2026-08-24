@@ -1,20 +1,36 @@
-/* Approved reports: period controls are ordered day -> week -> month -> year. */
-.pending-reference-page .pending-kpis .pending-kpi:nth-child(4){order:1}
-.pending-reference-page .pending-kpis .pending-kpi:nth-child(3){order:2}
-.pending-reference-page .pending-kpis .pending-kpi:nth-child(2){order:3}
-.pending-reference-page .pending-kpis .pending-kpi:nth-child(1){order:4}
+/* KTC period controls — canonical order, no duplicated labels. */
+.pending-reference-page .pending-quick-filters{
+  display:flex!important;
+  flex-wrap:nowrap!important;
+}
 
-.pending-reference-page .pending-kpis .pending-kpi:nth-child(4)>span{font-size:0}
-.pending-reference-page .pending-kpis .pending-kpi:nth-child(4)>span::after{content:"Hôm nay";font-size:13px}
-.pending-reference-page .pending-kpis .pending-kpi:nth-child(3)>span{font-size:0}
-.pending-reference-page .pending-kpis .pending-kpi:nth-child(3)>span::after{content:"Tuần này";font-size:13px}
-.pending-reference-page .pending-kpis .pending-kpi:nth-child(2)>span{font-size:0}
-.pending-reference-page .pending-kpis .pending-kpi:nth-child(2)>span::after{content:"Trong tháng";font-size:13px}
-.pending-reference-page .pending-kpis .pending-kpi:nth-child(1)>span{font-size:0}
-.pending-reference-page .pending-kpis .pending-kpi:nth-child(1)>span::after{content:"Trong năm";font-size:13px}
+/* Quick filters: Hôm nay -> Tuần này -> Tháng này -> Năm này. */
+.pending-reference-page .pending-quick-filters button:nth-of-type(1){order:1!important}
+.pending-reference-page .pending-quick-filters button:nth-of-type(2){order:2!important}
+.pending-reference-page .pending-quick-filters button:nth-of-type(3){order:3!important}
+.pending-reference-page .pending-quick-filters button:nth-of-type(4){order:4!important}
 
-/* Quick buttons: Hôm nay -> Tuần này -> Cả tháng -> Cả năm. */
-.pending-reference-page .pending-quick-filters button:nth-of-type(1){order:1}
-.pending-reference-page .pending-quick-filters button:nth-of-type(2){order:3}
-.pending-reference-page .pending-quick-filters button:nth-of-type(3){order:2}
-.pending-reference-page .pending-quick-filters button:nth-of-type(4){order:4}
+/* Never generate a second copy of a quick-filter label. */
+.pending-reference-page .pending-quick-filters button::before,
+.pending-reference-page .pending-quick-filters button::after{
+  content:none!important;
+  display:none!important;
+}
+
+/* Keep KPI labels as rendered by React; do not replace them with CSS text. */
+.pending-reference-page .pending-kpis .pending-kpi,
+.pending-reference-page .pending-kpis .pending-kpi>span,
+.pending-reference-page .pending-kpis .pending-kpi>strong,
+.pending-reference-page .pending-kpis .pending-kpi>small{
+  order:initial!important;
+}
+
+.pending-reference-page .pending-kpis .pending-kpi>span::before,
+.pending-reference-page .pending-kpis .pending-kpi>span::after,
+.pending-reference-page .pending-kpis .pending-kpi>strong::before,
+.pending-reference-page .pending-kpis .pending-kpi>strong::after,
+.pending-reference-page .pending-kpis .pending-kpi>small::before,
+.pending-reference-page .pending-kpis .pending-kpi>small::after{
+  content:none!important;
+  display:none!important;
+}
