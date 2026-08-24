@@ -11,119 +11,26 @@ const RESOURCE_CONFIG = {
   deductions: { table:'deduction_types', sheet:'TruGio', columns:['id','process_id','process_code','process_name','deduction_code','deduction_name','sort_order','status'] },
   users: { table:'users', sheet:'CongNhan', columns:['id','username','full_name','role','worker_code','phone','department','position','training_percent','status','process_codes'] },
 };
-
-function config(resource) { return RESOURCE_CONFIG[resource] || null; }
-function publicError(message,status=400){ return Object.assign(new Error(message),{status,isPublic:true}); }
-function assertResourceAllowed(req,resource){
-  if(!config(resource)) throw publicError('Danh mục dữ liệu không tồn tại',404);
-  if(resource==='processes' && req.user?.role!=='admin') throw publicError('Chỉ quản trị viên được nhập công đoạn',403);
-}
-function value(row,key){ return row[key]===undefined||row[key]===null?'':row[key]; }
-function toBoolNumber(value){ return Number(value)?1:0; }
+function config(resource){return RESOURCE_CONFIG[resource]||null;}
+function publicError(message,status=400){return Object.assign(new Error(message),{status,isPublic:true});}
+function assertResourceAllowed(req,resource){if(!config(resource))throw publicError('Danh mục dữ liệu không tồn tại',404);if(resource==='processes'&&req.user?.role!=='admin')throw publicError('Chỉ quản trị viên được nhập công đoạn',403);}
+function value(row,key){return row[key]===undefined||row[key]===null?'':row[key];}
+function toBoolNumber(v){return Number(v)?1:0;}
 
 async function fetchRows(req,resource){
   const scope=await getActorProcessScope(req.user);
   if(resource==='users'){
-    const [rows]=await db.promise().query(`SELECT u.id,u.username,u.full_name,u.role,w.worker_code,w.phone,w.department,w.position,w.training_percent,u.status,GROUP_CONCAT(DISTINCT p.process_code ORDER BY p.process_code SEPARATOR ', ') process_codes FROM users u LEFT JOIN workers w ON w.user_id=u.id LEFT JOIN worker_processes wp ON wp.worker_id=w.id LEFT JOIN processes p ON p.id=wp.process_id WHERE u.role IN ('worker','lead','manager') GROUP BY u.id,u.username,u.full_name,u.role,w.worker_code,w.phone,w.department,w.position,w.training_percent,u.status ORDER BY u.full_name,u.username`);
+    const scoped=scopeSql(scope,'p.id',[]);
+    const [rows]=await db.promise().query(`SELECT u.id,u.username,u.full_name,u.role,w.worker_code,w.phone,w.department,w.position,w.training_percent,u.status,GROUP_CONCAT(DISTINCT p.process_code ORDER BY p.process_code SEPARATOR ', ') process_codes FROM users u LEFT JOIN workers w ON w.user_id=u.id LEFT JOIN worker_processes wp ON wp.worker_id=w.id LEFT JOIN processes p ON p.id=wp.process_id WHERE u.role IN ('worker','lead','manager') ${scoped.clause} GROUP BY u.id,u.username,u.full_name,u.role,w.worker_code,w.phone,w.department,w.position,w.training_percent,u.status ORDER BY u.full_name,u.username`,scoped.params);
     return rows;
   }
-  if(resource==='processes'){
-    const scoped=scopeSql(scope,'t.id',[]);
-    const [rows]=await db.promise().query(`SELECT t.* FROM processes t WHERE 1=1 ${scoped.clause} ORDER BY t.process_name`,scoped.params); return rows;
-  }
-  const scoped=scopeSql(scope,'t.process_id',[]);
-  const [rows]=await db.promise().query(`SELECT t.*,p.process_code,p.process_name FROM ${config(resource).table} t LEFT JOIN processes p ON p.id=t.process_id WHERE 1=1 ${scoped.clause} ORDER BY t.id`,scoped.params);
-  return rows;
+  if(resource==='processes'){const scoped=scopeSql(scope,'t.id',[]);const [rows]=await db.promise().query(`SELECT t.* FROM processes t WHERE 1=1 ${scoped.clause} ORDER BY t.process_name`,scoped.params);return rows;}
+  const scoped=scopeSql(scope,'t.process_id',[]);const [rows]=await db.promise().query(`SELECT t.*,p.process_code,p.process_name FROM ${config(resource).table} t LEFT JOIN processes p ON p.id=t.process_id WHERE 1=1 ${scoped.clause} ORDER BY t.id`,scoped.params);return rows;
 }
 
-exports.export=async(req,res,next)=>{
-  try{
-    const resource=String(req.params.resource||''); assertResourceAllowed(req,resource);
-    const cfg=config(resource), rows=await fetchRows(req,resource), workbook=new ExcelJS.Workbook();
-    workbook.creator='KTC Production Control'; workbook.created=new Date();
-    const sheet=workbook.addWorksheet(cfg.sheet);
-    sheet.columns=cfg.columns.map(key=>({header:key,key,width:Math.max(14,Math.min(34,key.length+8))}));
-    for(const row of rows) sheet.addRow(Object.fromEntries(cfg.columns.map(key=>[key,value(row,key)])));
-    sheet.getRow(1).font={bold:true}; sheet.views=[{state:'frozen',ySplit:1}];
-    const readme=workbook.addWorksheet('README');
-    readme.addRows([['KTC Production Control - Dữ liệu chuẩn'],['Nguồn','Database hệ thống'],['Danh mục',resource],['Thời điểm xuất',new Date().toLocaleString('vi-VN')],['Hướng dẫn','Không đổi tên cột. Chỉnh dữ liệu rồi dùng Nhập dữ liệu để cập nhật Database.']]);
-    readme.getColumn(1).width=24; readme.getColumn(2).width=90;
-    const buffer=await workbook.xlsx.writeBuffer();
-    res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition',`attachment; filename="KTC_MasterData_${resource}_${new Date().toISOString().slice(0,10)}.xlsx"`);
-    res.setHeader('Cache-Control','no-store'); return res.send(Buffer.from(buffer));
-  }catch(error){ if(error.status) return res.status(error.status).json({success:false,message:error.message}); next(error); }
-};
+exports.export=async(req,res,next)=>{try{const resource=String(req.params.resource||'');assertResourceAllowed(req,resource);const cfg=config(resource),rows=await fetchRows(req,resource),workbook=new ExcelJS.Workbook();workbook.creator='KTC Production Control';workbook.created=new Date();const sheet=workbook.addWorksheet(cfg.sheet);sheet.columns=cfg.columns.map(key=>({header:key,key,width:Math.max(14,Math.min(34,key.length+8))}));for(const row of rows)sheet.addRow(Object.fromEntries(cfg.columns.map(key=>[key,value(row,key)])));sheet.getRow(1).font={bold:true};sheet.views=[{state:'frozen',ySplit:1}];const readme=workbook.addWorksheet('README');readme.addRows([['KTC Production Control - Dữ liệu chuẩn'],['Nguồn','Database hệ thống'],['Danh mục',resource],['Thời điểm xuất',new Date().toLocaleString('vi-VN')],['Hướng dẫn','Không đổi tên cột. Chỉnh dữ liệu rồi dùng Nhập dữ liệu để cập nhật Database.']]);readme.getColumn(1).width=24;readme.getColumn(2).width=90;const buffer=await workbook.xlsx.writeBuffer();res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');res.setHeader('Content-Disposition',`attachment; filename="KTC_MasterData_${resource}_${new Date().toISOString().slice(0,10)}.xlsx"`);res.setHeader('Cache-Control','no-store');return res.send(Buffer.from(buffer));}catch(error){if(error.status)return res.status(error.status).json({success:false,message:error.message});next(error);}};
 
-async function processIdFromRow(conn,row){
-  const id=Number(value(row,'process_id')); if(Number.isInteger(id)&&id>0) return id;
-  const code=String(value(row,'process_code')).trim(); if(!code) throw publicError('Thiếu process_id hoặc process_code');
-  const [rows]=await conn.query('SELECT id FROM processes WHERE process_code=? LIMIT 1',[code]);
-  if(!rows.length) throw publicError(`Không tìm thấy công đoạn: ${code}`); return Number(rows[0].id);
-}
-
-async function upsertMaster(conn,resource,row){
-  const table=config(resource).table;
-  if(resource==='processes'){
-    const id=Number(value(row,'id')), payload={process_code:String(value(row,'process_code')).trim(),process_name:String(value(row,'process_name')).trim(),description:String(value(row,'description')).trim(),status:String(value(row,'status')||'active')};
-    if(!payload.process_code||!payload.process_name) throw publicError('Công đoạn thiếu mã hoặc tên');
-    if(id){await conn.query(`UPDATE ${table} SET ? WHERE id=?`,[payload,id]);return id;}
-    const [r]=await conn.query(`INSERT INTO ${table} SET ?`,payload);return r.insertId;
-  }
-  const processId=await processIdFromRow(conn,row), id=Number(value(row,'id')); let payload;
-  if(resource==='machines') payload={process_id:processId,machine_code:String(value(row,'machine_code')).trim(),machine_name:String(value(row,'machine_name')).trim(),status:String(value(row,'status')||'active')};
-  if(resource==='standards') payload={process_id:processId,work_type:String(value(row,'work_type')||'standard'),product_code:String(value(row,'product_code')).trim(),standard_output:Number(value(row,'standard_output')),exclude_kqd_from_tt:toBoolNumber(value(row,'exclude_kqd_from_tt')),status:String(value(row,'status')||'active')};
-  if(resource==='defects') payload={process_id:processId,defect_code:String(value(row,'defect_code')).trim(),defect_name:String(value(row,'defect_name')).trim(),sort_order:Number(value(row,'sort_order')||0),status:String(value(row,'status')||'active')};
-  if(resource==='deductions') payload={process_id:processId,deduction_code:String(value(row,'deduction_code')).trim(),deduction_name:String(value(row,'deduction_name')).trim(),sort_order:Number(value(row,'sort_order')||0),status:String(value(row,'status')||'active')};
-  if(!payload) throw publicError('Dòng dữ liệu không hợp lệ');
-  if(id){await conn.query(`UPDATE ${table} SET ? WHERE id=?`,[payload,id]);return id;}
-  const [r]=await conn.query(`INSERT INTO ${table} SET ?`,payload);return r.insertId;
-}
-
-async function upsertUser(conn,row){
-  const id=Number(value(row,'id')), username=String(value(row,'username')).trim(), fullName=String(value(row,'full_name')).trim(), role=String(value(row,'role')||'worker').trim();
-  if(!username||!fullName||!['worker','lead','manager'].includes(role)) throw publicError('Người dùng thiếu username, họ tên hoặc vai trò không hợp lệ');
-  let userId=id;
-  if(userId) await conn.query('UPDATE users SET username=?,full_name=?,role=?,status=? WHERE id=?',[username,fullName,role,String(value(row,'status')||'active'),userId]);
-  else{
-    const password=String(value(row,'password')||''); if(password.length<6) throw publicError(`Tài khoản mới ${username} phải có cột password tối thiểu 6 ký tự`);
-    const hash=await bcrypt.hash(password,10); const [r]=await conn.query('INSERT INTO users (username,password,full_name,role,status) VALUES (?,?,?,?,?)',[username,hash,fullName,role,String(value(row,'status')||'active')]); userId=r.insertId;
-  }
-  if(role!=='worker') return userId;
-  const [workers]=await conn.query('SELECT id FROM workers WHERE user_id=? LIMIT 1',[userId]); let workerId=workers[0]?.id;
-  const workerPayload={user_id:userId,worker_code:String(value(row,'worker_code')).trim(),phone:String(value(row,'phone')).trim(),department:String(value(row,'department')).trim(),position:String(value(row,'position')).trim(),training_percent:Number(value(row,'training_percent')||0)};
-  if(workerId) await conn.query('UPDATE workers SET ? WHERE id=?',[workerPayload,workerId]); else { const [r]=await conn.query('INSERT INTO workers SET ?',workerPayload); workerId=r.insertId; }
-  await conn.query('DELETE FROM worker_processes WHERE worker_id=?',[workerId]);
-  for(const code of String(value(row,'process_codes')).split(',').map(v=>v.trim()).filter(Boolean)){ const [p]=await conn.query('SELECT id FROM processes WHERE process_code=? LIMIT 1',[code]); if(!p.length) throw publicError(`Không tìm thấy công đoạn: ${code}`); await conn.query('INSERT IGNORE INTO worker_processes(worker_id,process_id) VALUES(?,?)',[workerId,p[0].id]); }
-  return userId;
-}
-
-exports.import=async(req,res,next)=>{
-  try{
-    const resource=String(req.params.resource||''); assertResourceAllowed(req,resource);
-    const raw=String(req.body?.file_base64||'').replace(/^data:.*;base64,/,''); if(!raw) throw publicError('Thiếu file Excel');
-    const workbook=new ExcelJS.Workbook(); await workbook.xlsx.load(Buffer.from(raw,'base64')); const sheet=workbook.worksheets[0]; if(!sheet) throw publicError('File Excel không có sheet dữ liệu');
-    const headers=sheet.getRow(1).values.slice(1).map(v=>String(v||'').trim()); if(!headers.length) throw publicError('Sheet Excel không có tiêu đề cột');
-    const rows=[]; sheet.eachRow((r,i)=>{if(i===1)return;const obj={};headers.forEach((h,index)=>obj[h]=r.getCell(index+1).value?.result??r.getCell(index+1).value??'');if(Object.values(obj).some(v=>String(v).trim()!==''))rows.push(obj);});
-    if(!rows.length) throw publicError('Không có dòng dữ liệu để nhập');
-    const conn=await db.promise().getConnection(); let imported=0;
-    try{
-      await conn.beginTransaction();
-      for(const row of rows){
-        if(resource==='users'){
-          const processCodes=String(value(row,'process_codes')).split(',').map(v=>v.trim()).filter(Boolean);
-          for(const code of processCodes){const [p]=await conn.query('SELECT id FROM processes WHERE process_code=? LIMIT 1',[code]);if(!p.length)throw publicError(`Không tìm thấy công đoạn: ${code}`);await assertProcessScope(req.user,p[0].id,{executor:conn,action:'MASTER_IMPORT'});}
-          await upsertUser(conn,row);
-        }else{
-          const processId=resource==='processes'?null:await processIdFromRow(conn,row);
-          if(processId) await assertProcessScope(req.user,processId,{executor:conn,action:'MASTER_IMPORT'});
-          if(resource==='processes'&&req.user?.role!=='admin') throw publicError('Chỉ quản trị viên được nhập công đoạn',403);
-          await upsertMaster(conn,resource,row);
-        }
-        imported++;
-      }
-      await conn.commit();
-    }catch(error){await conn.rollback();throw error;}finally{conn.release();}
-    return res.json({success:true,message:`Đã nhập ${imported} dòng dữ liệu`,data:{imported}});
-  }catch(error){const status=error.status||error.statusCode||400;if(status<500)return res.status(status).json({success:false,message:error.message});next(error);}
-};
+async function processIdFromRow(conn,row){const id=Number(value(row,'process_id'));if(Number.isInteger(id)&&id>0)return id;const code=String(value(row,'process_code')).trim();if(!code)throw publicError('Thiếu process_id hoặc process_code');const [rows]=await conn.query('SELECT id FROM processes WHERE process_code=? LIMIT 1',[code]);if(!rows.length)throw publicError(`Không tìm thấy công đoạn: ${code}`);return Number(rows[0].id);}
+async function upsertMaster(conn,resource,row){const table=config(resource).table;if(resource==='processes'){const id=Number(value(row,'id')),payload={process_code:String(value(row,'process_code')).trim(),process_name:String(value(row,'process_name')).trim(),description:String(value(row,'description')).trim(),status:String(value(row,'status')||'active')};if(!payload.process_code||!payload.process_name)throw publicError('Công đoạn thiếu mã hoặc tên');if(id){await conn.query(`UPDATE ${table} SET ? WHERE id=?`,[payload,id]);return id;}const [r]=await conn.query(`INSERT INTO ${table} SET ?`,payload);return r.insertId;}const processId=await processIdFromRow(conn,row),id=Number(value(row,'id'));let payload;if(resource==='machines')payload={process_id:processId,machine_code:String(value(row,'machine_code')).trim(),machine_name:String(value(row,'machine_name')).trim(),status:String(value(row,'status')||'active')};if(resource==='standards')payload={process_id:processId,work_type:String(value(row,'work_type')||'standard'),product_code:String(value(row,'product_code')).trim(),standard_output:Number(value(row,'standard_output')),exclude_kqd_from_tt:toBoolNumber(value(row,'exclude_kqd_from_tt')),status:String(value(row,'status')||'active')};if(resource==='defects')payload={process_id:processId,defect_code:String(value(row,'defect_code')).trim(),defect_name:String(value(row,'defect_name')).trim(),sort_order:Number(value(row,'sort_order')||0),status:String(value(row,'status')||'active')};if(resource==='deductions')payload={process_id:processId,deduction_code:String(value(row,'deduction_code')).trim(),deduction_name:String(value(row,'deduction_name')).trim(),sort_order:Number(value(row,'sort_order')||0),status:String(value(row,'status')||'active')};if(!payload)throw publicError('Dòng dữ liệu không hợp lệ');if(id){await conn.query(`UPDATE ${table} SET ? WHERE id=?`,[payload,id]);return id;}const [r]=await conn.query(`INSERT INTO ${table} SET ?`,payload);return r.insertId;}
+async function upsertUser(conn,row){const id=Number(value(row,'id')),username=String(value(row,'username')).trim(),fullName=String(value(row,'full_name')).trim(),role=String(value(row,'role')||'worker').trim();if(!username||!fullName||!['worker','lead','manager'].includes(role))throw publicError('Người dùng thiếu username, họ tên hoặc vai trò không hợp lệ');let userId=id;if(userId)await conn.query('UPDATE users SET username=?,full_name=?,role=?,status=? WHERE id=?',[username,fullName,role,String(value(row,'status')||'active'),userId]);else{const password=String(value(row,'password')||'');if(password.length<6)throw publicError(`Tài khoản mới ${username} phải có cột password tối thiểu 6 ký tự`);const hash=await bcrypt.hash(password,10);const [r]=await conn.query('INSERT INTO users (username,password,full_name,role,status) VALUES (?,?,?,?,?)',[username,hash,fullName,role,String(value(row,'status')||'active')]);userId=r.insertId;}if(role!=='worker')return userId;const [workers]=await conn.query('SELECT id FROM workers WHERE user_id=? LIMIT 1',[userId]);let workerId=workers[0]?.id;const workerPayload={user_id:userId,worker_code:String(value(row,'worker_code')).trim(),phone:String(value(row,'phone')).trim(),department:String(value(row,'department')).trim(),position:String(value(row,'position')).trim(),training_percent:Number(value(row,'training_percent')||0)};if(workerId)await conn.query('UPDATE workers SET ? WHERE id=?',[workerPayload,workerId]);else{const [r]=await conn.query('INSERT INTO workers SET ?',workerPayload);workerId=r.insertId;}await conn.query('DELETE FROM worker_processes WHERE worker_id=?',[workerId]);for(const code of String(value(row,'process_codes')).split(',').map(v=>v.trim()).filter(Boolean)){const [p]=await conn.query('SELECT id FROM processes WHERE process_code=? LIMIT 1',[code]);if(!p.length)throw publicError(`Không tìm thấy công đoạn: ${code}`);await conn.query('INSERT IGNORE INTO worker_processes(worker_id,process_id) VALUES(?,?)',[workerId,p[0].id]);}return userId;}
+exports.import=async(req,res,next)=>{try{const resource=String(req.params.resource||'');assertResourceAllowed(req,resource);const raw=String(req.body?.file_base64||'').replace(/^data:.*;base64,/,'');if(!raw)throw publicError('Thiếu file Excel');const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(Buffer.from(raw,'base64'));const sheet=workbook.worksheets[0];if(!sheet)throw publicError('File Excel không có sheet dữ liệu');const headers=sheet.getRow(1).values.slice(1).map(v=>String(v||'').trim());if(!headers.length)throw publicError('Sheet Excel không có tiêu đề cột');const rows=[];sheet.eachRow((r,i)=>{if(i===1)return;const obj={};headers.forEach((h,index)=>obj[h]=r.getCell(index+1).value?.result??r.getCell(index+1).value??'');if(Object.values(obj).some(v=>String(v).trim()!==''))rows.push(obj);});if(!rows.length)throw publicError('Không có dòng dữ liệu để nhập');const conn=await db.promise().getConnection();try{await conn.beginTransaction();for(const row of rows){if(resource==='users'){const processCodes=String(value(row,'process_codes')).split(',').map(v=>v.trim()).filter(Boolean);for(const code of processCodes){const [p]=await conn.query('SELECT id FROM processes WHERE process_code=? LIMIT 1',[code]);if(!p.length)throw publicError(`Không tìm thấy công đoạn: ${code}`);await assertProcessScope(req.user,p[0].id,{executor:conn,action:'MASTER_IMPORT'});}await upsertUser(conn,row);}else{const processId=resource==='processes'?null:await processIdFromRow(conn,row);if(processId)await assertProcessScope(req.user,processId,{executor:conn,action:'MASTER_IMPORT'});if(resource==='processes'&&req.user?.role!=='admin')throw publicError('Chỉ quản trị viên được nhập công đoạn',403);await upsertMaster(conn,resource,row);}}await conn.commit();}catch(error){await conn.rollback();throw error;}finally{conn.release();}return res.json({success:true,message:`Đã nhập ${rows.length} dòng dữ liệu`,data:{imported:rows.length}});}catch(error){const status=error.status||error.statusCode||400;if(status<500)return res.status(status).json({success:false,message:error.message});next(error);}};
