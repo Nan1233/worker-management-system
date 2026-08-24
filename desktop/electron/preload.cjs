@@ -11,6 +11,9 @@ contextBridge.exposeInMainWorld('ktcDesktop', {
   configureAutoSync: (token) => ipcRenderer.invoke('ktc-configure-auto-sync', token),
   openExportFolder: (date) => ipcRenderer.invoke('ktc-open-export-folder', date),
   getExportFolder: (date) => ipcRenderer.invoke('ktc-get-export-folder', date),
+  getExportRoot: () => ipcRenderer.invoke('ktc-get-export-root'),
+  chooseExportRoot: () => ipcRenderer.invoke('ktc-choose-export-root'),
+  resetExportRoot: () => ipcRenderer.invoke('ktc-reset-export-root'),
   openLogFolder: () => ipcRenderer.invoke('ktc-open-log-folder'),
   onSyncResult: (callback) => {
     const handler = (_event, value) => callback(value);
