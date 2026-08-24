@@ -38,20 +38,18 @@
   text-overflow: clip !important;
 }
 
-/* One canonical order for BOTH pages: Hôm nay → Tuần này → Tháng này → Năm này. */
+/* Chờ duyệt DOM order: Hôm nay, Tuần này, Tháng này, Năm này. */
 .pending-reference-page .pending-quick-filters button:nth-of-type(1) { order: 1 !important; }
 .pending-reference-page .pending-quick-filters button:nth-of-type(2) { order: 2 !important; }
 .pending-reference-page .pending-quick-filters button:nth-of-type(3) { order: 3 !important; }
 .pending-reference-page .pending-quick-filters button:nth-of-type(4) { order: 4 !important; }
 
-/* Đã duyệt currently renders Hôm nay, Cả tháng, Tuần này, Cả năm.
-   Reorder those four DOM buttons without touching its data/filter logic. */
-.pending-reference-page .pending-quick-filters button:nth-of-type(1) { order: 1 !important; }
-.pending-reference-page .pending-quick-filters button:nth-of-type(2) { order: 3 !important; }
-.pending-reference-page .pending-quick-filters button:nth-of-type(3) { order: 2 !important; }
-.pending-reference-page .pending-quick-filters button:nth-of-type(4) { order: 4 !important; }
+/* Đã duyệt DOM order is Hôm nay, Cả tháng, Tuần này, Cả năm.
+   Only the Đã duyệt page is reordered here. */
+.pending-reference-page:has(h1:first-child) .pending-quick-filters button:nth-of-type(2) { order: 3 !important; }
+.pending-reference-page:has(h1:first-child) .pending-quick-filters button:nth-of-type(3) { order: 2 !important; }
 
-/* Canonical visible labels. */
+/* Canonical labels for Chờ duyệt. */
 .pending-reference-page .pending-quick-filters button:nth-of-type(1)::after,
 .pending-reference-page .pending-quick-filters button:nth-of-type(2)::after,
 .pending-reference-page .pending-quick-filters button:nth-of-type(3)::after,
@@ -59,16 +57,18 @@
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  content: "" !important;
   font-size: 13px !important;
   line-height: 1 !important;
   white-space: nowrap !important;
 }
-
 .pending-reference-page .pending-quick-filters button:nth-of-type(1)::after { content: "Hôm nay" !important; }
-.pending-reference-page .pending-quick-filters button:nth-of-type(2)::after { content: "Tháng này" !important; }
-.pending-reference-page .pending-quick-filters button:nth-of-type(3)::after { content: "Tuần này" !important; }
+.pending-reference-page .pending-quick-filters button:nth-of-type(2)::after { content: "Tuần này" !important; }
+.pending-reference-page .pending-quick-filters button:nth-of-type(3)::after { content: "Tháng này" !important; }
 .pending-reference-page .pending-quick-filters button:nth-of-type(4)::after { content: "Năm này" !important; }
+
+/* Canonical labels for Đã duyệt: its second/third DOM buttons are month/week. */
+.pending-reference-page:has(h1:first-child) .pending-quick-filters button:nth-of-type(2)::after { content: "Tháng này" !important; }
+.pending-reference-page:has(h1:first-child) .pending-quick-filters button:nth-of-type(3)::after { content: "Tuần này" !important; }
 
 /* Active/focus styling remains on the real React buttons. */
 .pending-reference-page .pending-quick-filters button.active,
@@ -76,8 +76,6 @@
   color: #1769d2 !important;
 }
 
-/* Keep the four controls usable on narrow screens instead of creating a
-   second visual row or a duplicate pseudo-label. */
 @media (max-width: 720px) {
   .pending-reference-page .pending-quick-filters {
     overflow-x: auto !important;
