@@ -1,0 +1,83 @@
+/* KTC Worker UI — readability + Vietnamese presentation overrides.
+   Applies only to Worker screens. Business logic and routes are untouched.
+   Minimum readable UI text is 13px; headings remain larger. */
+
+.worker-layout {
+  font-size: 13px;
+}
+
+/* The reference navigation section label must also be Vietnamese. */
+.worker-nav::before {
+  content: "KHU VỰC LÀM VIỆC";
+  font-size: 13px;
+  letter-spacing: .06em;
+}
+
+/* Desktop + mobile navigation */
+.worker-nav button,
+.worker-logout,
+.worker-mobile-nav button {
+  font-size: 13px;
+}
+
+.worker-brand strong {
+  font-size: 13px;
+}
+
+.worker-brand small {
+  font-size: 13px;
+}
+
+.worker-header strong {
+  font-size: 17px;
+}
+
+.worker-header span {
+  font-size: 13px;
+}
+
+/* Worker page body: prevent tiny supporting text. */
+.worker-content p,
+.worker-content label,
+.worker-content small,
+.worker-content span,
+.worker-content th,
+.worker-content td,
+.worker-content button,
+.worker-content input,
+.worker-content select,
+.worker-content textarea,
+.worker-content option,
+.worker-content summary,
+.worker-content dt,
+.worker-content dd {
+  font-size: 13px;
+}
+
+/* Preserve visual hierarchy for headings. */
+.worker-content h1 { font-size: 24px; }
+.worker-content h2 { font-size: 20px; }
+.worker-content h3 { font-size: 17px; }
+.worker-content h4 { font-size: 15px; }
+
+/* Keep icon-only controls compact; their text size is irrelevant but should not affect layout. */
+.worker-content button:has(svg:only-child),
+.worker-mobile-nav button svg {
+  font-size: 13px;
+}
+
+/* Mobile: readable labels and touch targets without changing the reference layout. */
+@media (max-width: 800px) {
+  .worker-header strong { font-size: 16px; }
+  .worker-header span { font-size: 13px; }
+  .worker-mobile-nav button { font-size: 13px; }
+  .worker-mobile-nav button span { font-size: 13px; }
+  .worker-content { font-size: 13px; }
+}
+
+@media (max-width: 380px) {
+  .worker-header strong { font-size: 15px; }
+  .worker-header span { font-size: 13px; }
+  .worker-mobile-nav button,
+  .worker-mobile-nav button span { font-size: 13px; }
+}
