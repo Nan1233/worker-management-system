@@ -1,114 +1,68 @@
-/* Chờ duyệt: one canonical four-button period filter.
-   React owns labels and click handlers. CSS only controls layout. */
+/* KTC - Chờ duyệt: canonical period filter. */
 .pending-reference-page .pending-quick-filters {
-  display: grid !important;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-  align-items: center !important;
-  width: 100% !important;
-  min-width: 0 !important;
-  height: 40px !important;
-  gap: 2px !important;
-  padding: 4px 3px !important;
-  overflow: hidden !important;
-  white-space: nowrap !important;
-  box-sizing: border-box !important;
+  display:grid!important;
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  align-items:center!important;
+  width:100%!important;
+  min-width:0!important;
+  height:40px!important;
+  gap:2px!important;
+  padding:4px 3px!important;
+  overflow:hidden!important;
+  white-space:nowrap!important;
+  box-sizing:border-box!important;
 }
-
-.pending-reference-page .pending-quick-filters > span {
-  display: none !important;
+.pending-reference-page .pending-quick-filters>span{display:none!important}
+.pending-reference-page .pending-quick-filters>button{
+  display:flex!important;
+  position:static!important;
+  order:initial!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:100%!important;
+  min-width:0!important;
+  height:30px!important;
+  margin:0!important;
+  padding:0 4px!important;
+  border:1px solid transparent!important;
+  border-radius:6px!important;
+  background:transparent!important;
+  color:#627895!important;
+  font-size:13px!important;
+  line-height:1!important;
+  font-weight:700!important;
+  white-space:nowrap!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  transform:none!important;
+  box-sizing:border-box!important;
 }
-
-.pending-reference-page .pending-quick-filters > button {
-  position: static !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 100% !important;
-  min-width: 0 !important;
-  height: 30px !important;
-  margin: 0 !important;
-  padding: 0 4px !important;
-  border: 1px solid transparent !important;
-  border-radius: 6px !important;
-  background: transparent !important;
-  color: #627895 !important;
-  font-size: 13px !important;
-  line-height: 1 !important;
-  font-weight: 700 !important;
-  white-space: nowrap !important;
-  overflow: visible !important;
-  text-overflow: clip !important;
-  order: initial !important;
-  transform: none !important;
-  box-sizing: border-box !important;
-}
-
-.pending-reference-page .pending-quick-filters > button.active {
-  border-color: #bcd5f3 !important;
-  background: #eaf3ff !important;
-  color: #1769d2 !important;
-}
-
+/* React owns the labels. Never generate a second label with CSS. */
 .pending-reference-page .pending-quick-filters::before,
 .pending-reference-page .pending-quick-filters::after,
-.pending-reference-page .pending-quick-filters > button::before,
-.pending-reference-page .pending-quick-filters > button::after,
-.pending-reference-page .pending-quick-filters > button > span::before,
-.pending-reference-page .pending-quick-filters > button > span::after {
-  content: none !important;
-  display: none !important;
+.pending-reference-page .pending-quick-filters>button::before,
+.pending-reference-page .pending-quick-filters>button::after,
+.pending-reference-page .pending-quick-filters>button>span::before,
+.pending-reference-page .pending-quick-filters>button>span::after{
+  content:none!important;
+  display:none!important;
 }
-
-/* KPI order: Hôm nay → Tuần này → Tháng này → Năm này. */
-.pending-reference-page .pending-kpis > .pending-kpi {
-  order: initial !important;
-}
-
+.pending-reference-page .pending-quick-filters>button.active{border-color:#bcd5f3!important;background:#eaf3ff!important;color:#1769d2!important}
+.pending-reference-page .pending-kpis>.pending-kpi{order:initial!important}
 .pending-reference-page .pending-kpi::before,
 .pending-reference-page .pending-kpi::after,
-.pending-reference-page .pending-kpi > span::before,
-.pending-reference-page .pending-kpi > span::after,
-.pending-reference-page .pending-kpi > strong::before,
-.pending-reference-page .pending-kpi > strong::after,
-.pending-reference-page .pending-kpi > small::before,
-.pending-reference-page .pending-kpi > small::after {
-  content: none !important;
-  display: none !important;
-}
-
-.pending-reference-page .pending-kpi > span,
-.pending-reference-page .pending-kpi > strong,
-.pending-reference-page .pending-kpi > small {
-  position: static !important;
-  display: block !important;
-  float: none !important;
-  transform: none !important;
-  white-space: nowrap !important;
-}
-
-.pending-reference-page .pending-kpi > span,
-.pending-reference-page .pending-kpi > small {
-  font-size: 13px !important;
-}
-
-.pending-reference-page .pending-kpi > strong {
-  font-size: 18px !important;
-}
-
-@media (max-width: 720px) {
-  .pending-reference-page .pending-quick-filters {
-    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-    gap: 1px !important;
-    padding-left: 1px !important;
-    padding-right: 1px !important;
-  }
-
-  .pending-reference-page .pending-quick-filters > button {
-    width: 100% !important;
-    min-width: 0 !important;
-    padding-left: 1px !important;
-    padding-right: 1px !important;
-    font-size: 12px !important;
-    overflow: visible !important;
-  }
+.pending-reference-page .pending-kpi>span::before,
+.pending-reference-page .pending-kpi>span::after,
+.pending-reference-page .pending-kpi>strong::before,
+.pending-reference-page .pending-kpi>strong::after,
+.pending-reference-page .pending-kpi>small::before,
+.pending-reference-page .pending-kpi>small::after{content:none!important;display:none!important}
+.pending-reference-page .pending-kpi>span,
+.pending-reference-page .pending-kpi>strong,
+.pending-reference-page .pending-kpi>small{position:static!important;display:block!important;float:none!important;transform:none!important;white-space:nowrap}
+.pending-reference-page .pending-kpi>span,.pending-reference-page .pending-kpi>small{font-size:13px!important}
+.pending-reference-page .pending-kpi>strong{font-size:18px!important}
+@media(max-width:720px){
+ .pending-reference-page .pending-quick-filters{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:1px!important;padding-left:1px!important;padding-right:1px!important}
+ .pending-reference-page .pending-quick-filters>button{width:100%!important;min-width:0!important;padding-left:1px!important;padding-right:1px!important;font-size:13px!important;overflow:visible!important}
 }
