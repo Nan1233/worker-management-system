@@ -6,6 +6,7 @@ import { getStoredUser } from "../utils/authStorage";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
 import { usePermissions } from "../hooks/usePermissions";
 import type { PermissionCode } from "../security/permissions";
+import MasterDataTransferActions from "../components/master/MasterDataTransferActions";
 import "./ManagementLayout.css";
 
 type ManagementRole = "lead" | "manager" | "admin";
@@ -49,7 +50,7 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
   </aside>
   <section className="management-main">
    <header className="management-header"><div className="management-header-title"><strong>KTC Production Control</strong><span>{roleLabel[role]}</span></div><div className="management-header-actions"><button className="management-notification" type="button" aria-label="Thông báo" onClick={()=>navigate(`${base}/system`)}><Bell size={19}/>{unreadCount>0&&<b>{unreadCount>9?"9+":unreadCount}</b>}</button><button className="management-user" type="button" aria-label="Tài khoản người dùng"><span className="management-user-avatar">{avatarText}</span><span className="management-user-copy"><strong>{displayName}</strong><small>{roleLabel[role]}</small></span><ChevronDown size={16}/></button></div></header>
-   <main className="management-content"><Outlet/></main>
+   <main className="management-content"><MasterDataTransferActions/><Outlet/></main>
   </section>
   <nav className="management-mobile-nav" aria-label="Mobile navigation">
    {mobileMoreOpen&&mobileOverflowItems.length>0&&<div id="management-mobile-overflow" className="management-mobile-overflow" aria-label="Các mục điều hướng khác">{mobileOverflowItems.map(item=>{const Icon=item.icon;return <button key={`overflow-${item.path}`} type="button" className={active(item.path)?"active":""} onClick={()=>{setMobileMoreOpen(false);navigate(`${base}${item.path?`/${item.path}`:""}`);}}><Icon size={18}/><span>{item.label}</span></button>;})}</div>}
