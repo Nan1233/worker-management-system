@@ -6,6 +6,7 @@ import "./pages/admin/Governance.css";
 import "./pages/admin/Permissions.css";
 import "./pages/admin/FormulaSettings.css";
 import "./pages/manager/Dashboard.css";
+import "./pages/manager/DashboardTypography.css";
 import "./pages/manager/Reports.css";
 import "./pages/manager/ReportsReference.css";
 import "./pages/manager/ReportDetail.css";
