@@ -190,16 +190,16 @@ export default function ApprovedReports() {
             <section className="pending-filter-card">
                 <div className="pending-search"><span>⌕</span><input value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)} placeholder="Tìm kiếm mã báo cáo, công nhân..." /></div>
                 <label><span>Ngày báo cáo</span><input type="date" value={date} onChange={e => { setDate(e.target.value); setDateRange(null); }} /></label>
-                <div className="pending-quick-filters"><span>Chọn nhanh</span><button type="button" className={!dateRange ? "active" : ""} onClick={selectDay}>Hôm nay</button><button type="button" className={dateRange?.dateFrom === rangeFor(date, "month").dateFrom && dateRange?.dateTo === rangeFor(date, "month").dateTo ? "active" : ""} onClick={selectMonth}>Cả tháng</button><button type="button" className={dateRange?.dateFrom === rangeFor(date, "week").dateFrom && dateRange?.dateTo === rangeFor(date, "week").dateTo ? "active" : ""} onClick={selectWeek}>Tuần này</button><button type="button" className={dateRange?.dateFrom === rangeFor(date, "year").dateFrom && dateRange?.dateTo === rangeFor(date, "year").dateTo ? "active" : ""} onClick={selectYear}>Cả năm</button></div>
+                <div className="pending-quick-filters"><span>Chọn nhanh</span><button type="button" className={!dateRange ? "active" : ""} onClick={selectDay}>Hôm nay</button><button type="button" className={dateRange?.dateFrom === rangeFor(date, "week").dateFrom && dateRange?.dateTo === rangeFor(date, "week").dateTo ? "active" : ""} onClick={selectWeek}>Tuần này</button><button type="button" className={dateRange?.dateFrom === rangeFor(date, "month").dateFrom && dateRange?.dateTo === rangeFor(date, "month").dateTo ? "active" : ""} onClick={selectMonth}>Tháng này</button><button type="button" className={dateRange?.dateFrom === rangeFor(date, "year").dateFrom && dateRange?.dateTo === rangeFor(date, "year").dateTo ? "active" : ""} onClick={selectYear}>Năm này</button></div>
                 <label><span>Công đoạn</span><select value={selectedProcess} onChange={e => setSelectedProcess(e.target.value)}><option value="">Tất cả</option>{processes.map(p => <option key={p} value={p}>{p}</option>)}</select></label>
                 <label><span>Ca làm việc</span><select value={selectedShift} onChange={e => setSelectedShift(e.target.value)}><option value="">Tất cả</option>{shifts.map(s => <option key={s} value={s}>{s}</option>)}</select></label>
             </section>
 
             <section className="pending-kpis">
-                <div className="pending-kpi kpi-blue"><span>Trong năm</span><strong>{yearCount}</strong><small>Báo cáo đã duyệt</small></div>
-                <div className="pending-kpi kpi-green"><span>Trong tháng</span><strong>{monthCount}</strong><small>Báo cáo đã duyệt</small></div>
-                <div className="pending-kpi kpi-slate"><span>Trong tuần</span><strong>{weekCount}</strong><small>Báo cáo đã duyệt</small></div>
                 <div className="pending-kpi kpi-orange"><span>Trong ngày</span><strong>{dayCount}</strong><small>Báo cáo đã duyệt</small></div>
+                <div className="pending-kpi kpi-slate"><span>Trong tuần</span><strong>{weekCount}</strong><small>Báo cáo đã duyệt</small></div>
+                <div className="pending-kpi kpi-green"><span>Trong tháng</span><strong>{monthCount}</strong><small>Báo cáo đã duyệt</small></div>
+                <div className="pending-kpi kpi-blue"><span>Trong năm</span><strong>{yearCount}</strong><small>Báo cáo đã duyệt</small></div>
             </section>
 
             {error && <div className="management-error">{error}</div>}
