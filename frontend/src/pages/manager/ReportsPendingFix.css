@@ -19,6 +19,11 @@
   display: none !important;
 }
 
+/* Remove the legacy duplicate "Tuần này" button still present in the deployed DOM. */
+.pending-reference-page .pending-quick-filters > button[data-pending-week-filter="true"] {
+  display: none !important;
+}
+
 .pending-reference-page .pending-quick-filters > button {
   display: flex !important;
   position: static !important;
@@ -111,5 +116,9 @@
     padding-right: 1px !important;
     font-size: 13px !important;
     overflow: visible !important;
+  }
+
+  .pending-reference-page .pending-quick-filters > button[data-pending-week-filter="true"] {
+    display: none !important;
   }
 }
