@@ -16,6 +16,7 @@ declare global {
             getExportRoot: () => Promise<string>;
             chooseExportRoot: () => Promise<{ canceled: boolean; exportRoot: string }>;
             resetExportRoot: () => Promise<string>;
+            saveStatisticsExcel: (content: string, fileName: string, year: string) => Promise<{ success: boolean; filePath: string; exportRoot: string }>;
             openLogFolder: () => Promise<string>;
             onSyncResult: (callback: (result: DesktopExcelSyncResult) => void) => () => void;
             onExcelDbSyncResult: (callback: (result: DesktopExcelDbSyncResult) => void) => () => void;
