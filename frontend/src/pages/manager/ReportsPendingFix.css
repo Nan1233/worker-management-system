@@ -1,167 +1,72 @@
 /* KTC report period controls — single source of truth.
-   React owns the four labels. CSS only controls layout.
-   No horizontal scrolling and no generated duplicate labels. */
+   Pending and approved screens use the same four periods.
+   No horizontal scrolling and no duplicated labels. */
 
 .pending-reference-page .pending-quick-filters {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: stretch !important;
-  flex-wrap: nowrap !important;
-  width: 100% !important;
-  min-width: 0 !important;
-  height: 40px !important;
-  gap: 1px !important;
-  padding: 4px 2px !important;
-  overflow: hidden !important;
-  white-space: nowrap !important;
-  box-sizing: border-box !important;
+  display:flex!important;align-items:center!important;justify-content:stretch!important;flex-wrap:nowrap!important;
+  width:100%!important;min-width:0!important;height:40px!important;gap:1px!important;padding:4px 2px!important;
+  overflow:hidden!important;white-space:nowrap!important;box-sizing:border-box!important;
 }
-
-.pending-reference-page .pending-quick-filters > span {
-  display: none !important;
+.pending-reference-page .pending-quick-filters>span{display:none!important}
+.pending-reference-page .pending-quick-filters>button{
+  position:static!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;
+  flex:1 1 0!important;width:0!important;min-width:0!important;height:30px!important;margin:0!important;padding:0 2px!important;
+  border:1px solid transparent!important;border-radius:6px!important;background:transparent!important;color:#627895!important;
+  font-size:13px!important;line-height:1!important;font-weight:700!important;white-space:nowrap!important;
+  overflow:hidden!important;text-overflow:clip!important;order:initial!important;transform:none!important;
 }
-
-.pending-reference-page .pending-quick-filters > button {
-  position: static !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  flex: 1 1 0 !important;
-  width: 0 !important;
-  min-width: 0 !important;
-  height: 30px !important;
-  margin: 0 !important;
-  padding: 0 2px !important;
-  border: 1px solid transparent !important;
-  border-radius: 6px !important;
-  background: transparent !important;
-  color: #627895 !important;
-  font-size: 13px !important;
-  line-height: 1 !important;
-  font-weight: 700 !important;
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: clip !important;
-  order: initial !important;
-  transform: none !important;
-}
-
-.pending-reference-page .pending-quick-filters > button.active {
-  border-color: #bcd5f3 !important;
-  background: #eaf3ff !important;
-  color: #1769d2 !important;
-}
-
-/* Never create a second label through CSS. */
+.pending-reference-page .pending-quick-filters>button.active{border-color:#bcd5f3!important;background:#eaf3ff!important;color:#1769d2!important}
 .pending-reference-page .pending-quick-filters::before,
 .pending-reference-page .pending-quick-filters::after,
-.pending-reference-page .pending-quick-filters > button::before,
-.pending-reference-page .pending-quick-filters > button::after,
-.pending-reference-page .pending-quick-filters > button > span::before,
-.pending-reference-page .pending-quick-filters > button > span::after {
-  content: none !important;
-  display: none !important;
+.pending-reference-page .pending-quick-filters>button::before,
+.pending-reference-page .pending-quick-filters>button::after,
+.pending-reference-page .pending-quick-filters>button>span::before,
+.pending-reference-page .pending-quick-filters>button>span::after{content:none!important;display:none!important}
+
+/* Pending DOM is already canonical: Hôm nay → Tuần này → Tháng này → Năm này. */
+.pending-reference-page:not(:has(.management-report-table)) .pending-quick-filters>button:nth-of-type(1),
+.pending-reference-page:not(:has(.management-report-table)) .pending-quick-filters>button:nth-of-type(2),
+.pending-reference-page:not(:has(.management-report-table)) .pending-quick-filters>button:nth-of-type(3),
+.pending-reference-page:not(:has(.management-report-table)) .pending-quick-filters>button:nth-of-type(4){order:initial!important}
+
+/* Approved React DOM is Hôm nay → Cả tháng → Tuần này → Cả năm.
+   Reorder the real buttons so their click handlers stay correct, then only
+   replace the two legacy visible labels. */
+.pending-reference-page:has(.management-report-table) .pending-quick-filters>button:nth-of-type(1){order:1!important}
+.pending-reference-page:has(.management-report-table) .pending-quick-filters>button:nth-of-type(2){order:3!important}
+.pending-reference-page:has(.management-report-table) .pending-quick-filters>button:nth-of-type(3){order:2!important}
+.pending-reference-page:has(.management-report-table) .pending-quick-filters>button:nth-of-type(4){order:4!important}
+
+.pending-reference-page:has(.management-report-table) .pending-quick-filters>button{font-size:0!important}
+.pending-reference-page:has(.management-report-table) .pending-quick-filters>button::before{
+  display:inline!important;font-size:13px!important;line-height:1!important;content:none!important
 }
+.pending-reference-page:has(.management-report-table) .pending-quick-filters>button:nth-of-type(1)::before{content:"Hôm nay"!important}
+.pending-reference-page:has(.management-report-table) .pending-quick-filters>button:nth-of-type(2)::before{content:"Tháng này"!important}
+.pending-reference-page:has(.management-report-table) .pending-quick-filters>button:nth-of-type(3)::before{content:"Tuần này"!important}
+.pending-reference-page:has(.management-report-table) .pending-quick-filters>button:nth-of-type(4)::before{content:"Năm này"!important}
 
-/* The DOM order is the canonical order: Hôm nay → Tuần này → Tháng này → Năm này. */
-.pending-reference-page .pending-quick-filters > button:nth-of-type(1),
-.pending-reference-page .pending-quick-filters > button:nth-of-type(2),
-.pending-reference-page .pending-quick-filters > button:nth-of-type(3),
-.pending-reference-page .pending-quick-filters > button:nth-of-type(4) {
-  order: initial !important;
-}
+/* KPI order: Hôm nay → Tuần này → Tháng này → Năm này. */
+.pending-reference-page:not(:has(.management-report-table)) .pending-kpis>.pending-kpi:nth-child(1){order:1!important}
+.pending-reference-page:not(:has(.management-report-table)) .pending-kpis>.pending-kpi:nth-child(2){order:2!important}
+.pending-reference-page:not(:has(.management-report-table)) .pending-kpis>.pending-kpi:nth-child(3){order:3!important}
+.pending-reference-page:not(:has(.management-report-table)) .pending-kpis>.pending-kpi:nth-child(4){order:4!important}
+.pending-reference-page:has(.management-report-table) .pending-kpis>.pending-kpi:nth-child(1){order:4!important}
+.pending-reference-page:has(.management-report-table) .pending-kpis>.pending-kpi:nth-child(2){order:3!important}
+.pending-reference-page:has(.management-report-table) .pending-kpis>.pending-kpi:nth-child(3){order:2!important}
+.pending-reference-page:has(.management-report-table) .pending-kpis>.pending-kpi:nth-child(4){order:1!important}
 
-/* Approved page currently has legacy labels/order in React.
-   Visually normalize it without touching the pending page. */
-.pending-reference-page:has(.management-report-table) .pending-quick-filters > button {
-  font-size: 0 !important;
-}
+.pending-reference-page .pending-kpi::before,.pending-reference-page .pending-kpi::after,
+.pending-reference-page .pending-kpi>span::before,.pending-reference-page .pending-kpi>span::after,
+.pending-reference-page .pending-kpi>strong::before,.pending-reference-page .pending-kpi>strong::after,
+.pending-reference-page .pending-kpi>small::before,.pending-reference-page .pending-kpi>small::after{content:none!important;display:none!important}
+.pending-reference-page .pending-kpi>span,.pending-reference-page .pending-kpi>strong,.pending-reference-page .pending-kpi>small{position:static!important;display:block!important;float:none!important;transform:none!important;white-space:nowrap!important}
+.pending-reference-page .pending-kpi>span,.pending-reference-page .pending-kpi>small{font-size:13px!important}
+.pending-reference-page .pending-kpi>strong{font-size:18px!important}
 
-.pending-reference-page:has(.management-report-table) .pending-quick-filters > button::before {
-  display: inline !important;
-  content: none !important;
-  font-size: 13px !important;
-  line-height: 1 !important;
-}
-
-.pending-reference-page:has(.management-report-table) .pending-quick-filters > button:nth-of-type(1)::before {
-  content: "Hôm nay" !important;
-}
-.pending-reference-page:has(.management-report-table) .pending-quick-filters > button:nth-of-type(2)::before {
-  content: "Tuần này" !important;
-}
-.pending-reference-page:has(.management-report-table) .pending-quick-filters > button:nth-of-type(3)::before {
-  content: "Tháng này" !important;
-}
-.pending-reference-page:has(.management-report-table) .pending-quick-filters > button:nth-of-type(4)::before {
-  content: "Năm này" !important;
-}
-
-/* KPI order is also canonical: Hôm nay → Tuần này → Tháng này → Năm này. */
-.pending-reference-page:not(:has(.management-report-table)) .pending-kpis > .pending-kpi:nth-child(1) { order: 1 !important; }
-.pending-reference-page:not(:has(.management-report-table)) .pending-kpis > .pending-kpi:nth-child(2) { order: 2 !important; }
-.pending-reference-page:not(:has(.management-report-table)) .pending-kpis > .pending-kpi:nth-child(3) { order: 3 !important; }
-.pending-reference-page:not(:has(.management-report-table)) .pending-kpis > .pending-kpi:nth-child(4) { order: 4 !important; }
-
-.pending-reference-page:has(.management-report-table) .pending-kpis > .pending-kpi:nth-child(1) { order: 4 !important; }
-.pending-reference-page:has(.management-report-table) .pending-kpis > .pending-kpi:nth-child(2) { order: 3 !important; }
-.pending-reference-page:has(.management-report-table) .pending-kpis > .pending-kpi:nth-child(3) { order: 2 !important; }
-.pending-reference-page:has(.management-report-table) .pending-kpis > .pending-kpi:nth-child(4) { order: 1 !important; }
-
-/* KPI labels: React text only. */
-.pending-reference-page .pending-kpi::before,
-.pending-reference-page .pending-kpi::after,
-.pending-reference-page .pending-kpi > span::before,
-.pending-reference-page .pending-kpi > span::after,
-.pending-reference-page .pending-kpi > strong::before,
-.pending-reference-page .pending-kpi > strong::after,
-.pending-reference-page .pending-kpi > small::before,
-.pending-reference-page .pending-kpi > small::after {
-  content: none !important;
-  display: none !important;
-}
-
-.pending-reference-page .pending-kpi > span,
-.pending-reference-page .pending-kpi > strong,
-.pending-reference-page .pending-kpi > small {
-  position: static !important;
-  display: block !important;
-  float: none !important;
-  transform: none !important;
-  white-space: nowrap !important;
-}
-
-.pending-reference-page .pending-kpi > span,
-.pending-reference-page .pending-kpi > small {
-  font-size: 13px !important;
-}
-
-.pending-reference-page .pending-kpi > strong {
-  font-size: 18px !important;
-}
-
-@media (max-width: 720px) {
-  .pending-reference-page .pending-quick-filters {
-    overflow: hidden !important;
-    gap: 0 !important;
-    padding-left: 1px !important;
-    padding-right: 1px !important;
-  }
-
-  .pending-reference-page .pending-quick-filters > button {
-    flex: 1 1 0 !important;
-    width: 0 !important;
-    min-width: 0 !important;
-    padding-left: 1px !important;
-    padding-right: 1px !important;
-    font-size: 12px !important;
-  }
-
-  .pending-reference-page:has(.management-report-table) .pending-quick-filters > button {
-    font-size: 0 !important;
-  }
-
-  .pending-reference-page:has(.management-report-table) .pending-quick-filters > button::before {
-    font-size: 12px !important;
-  }
+@media(max-width:720px){
+  .pending-reference-page .pending-quick-filters{overflow:hidden!important;gap:0!important;padding-left:1px!important;padding-right:1px!important}
+  .pending-reference-page .pending-quick-filters>button{flex:1 1 0!important;width:0!important;min-width:0!important;padding-left:1px!important;padding-right:1px!important;font-size:12px!important}
+  .pending-reference-page:has(.management-report-table) .pending-quick-filters>button{font-size:0!important}
+  .pending-reference-page:has(.management-report-table) .pending-quick-filters>button::before{font-size:12px!important}
 }
