@@ -1,10 +1,13 @@
 const express=require('express');
 const router=express.Router();
 const controller=require('../controllers/adminMasterController');
+const transferController=require('../controllers/masterDataTransferController');
 const verifyToken=require('../middleware/authMiddleware');
 const checkRole=require('../middleware/roleMiddleware');
 const permission=require('../middleware/permissionMiddleware');
 router.use(verifyToken,checkRole('admin','manager','lead'));
+router.get('/transfer/export/:resource',permission('MASTER_VIEW'),transferController.export);
+router.post('/transfer/import/:resource',permission('MASTER_EDIT'),transferController.import);
 router.get('/:resource',permission('MASTER_VIEW'),controller.list);
 router.post('/:resource',permission('MASTER_EDIT'),controller.create);
 router.put('/:resource/:id',permission('MASTER_EDIT'),controller.update);
