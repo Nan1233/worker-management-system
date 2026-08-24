@@ -14,7 +14,7 @@ type Item = {
 };
 
 const items: Item[] = [
-  { label: "Home", path: "/worker", icon: Home },
+  { label: "Trang chủ", path: "/worker", icon: Home },
   { label: "Báo cáo", path: "/worker/process/select", icon: ClipboardPenLine, permission: "WORKER_ENTRY" },
   { label: "Lịch sử", path: "/worker/history", icon: History, permission: "WORKER_HISTORY" },
   { label: "Thông báo", path: "/worker/system", icon: Bell, permission: "NOTIFICATION_VIEW" },
@@ -29,7 +29,7 @@ export default function WorkerLayout() {
   const visible = items.filter((item) => !item.permission || can(item.permission));
 
   const active = (item: Item) => {
-    if (item.label === "Home") return location.pathname === "/worker";
+    if (item.path === "/worker") return location.pathname === "/worker";
     if (item.label === "Báo cáo") return location.pathname.startsWith("/worker/process/");
     return location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
   };
@@ -46,11 +46,11 @@ export default function WorkerLayout() {
           <span className="worker-brand-mark">K</span>
           <span>
             <strong>KTC (HANOI) CO., LTD</strong>
-            <small>Worker</small>
+            <small>Công nhân</small>
           </span>
         </button>
 
-        <nav className="worker-nav" aria-label="Worker navigation">
+        <nav className="worker-nav" aria-label="Điều hướng công nhân">
           {visible.map((item) => {
             const Icon = item.icon;
             return (
@@ -79,14 +79,14 @@ export default function WorkerLayout() {
       <section className="worker-main">
         <header className="worker-header">
           <div>
-            <strong>KTC Production Control</strong>
+            <strong>Quản lý sản xuất KTC</strong>
             <span>Công nhân · Sản xuất</span>
           </div>
         </header>
         <main className="worker-content"><Outlet /></main>
       </section>
 
-      <nav className="worker-mobile-nav" aria-label="Worker mobile navigation">
+      <nav className="worker-mobile-nav" aria-label="Điều hướng trên điện thoại">
         {visible.map((item) => {
           const Icon = item.icon;
           return (
