@@ -1,7 +1,6 @@
 /* Chờ duyệt — split list/detail reference layout */
 .pending-reference-page{min-width:0;color:#17345b}
 .pending-reference-page .pending-page-title{margin-bottom:18px}
-/* Compact report filters: search/date fields use only the width their content needs. */
 .pending-filter-card{grid-template-columns:minmax(190px,1.15fr) minmax(125px,.62fr) minmax(250px,1.15fr) minmax(105px,.55fr) minmax(105px,.55fr) minmax(98px,.48fr)}
 .pending-filter-card .pending-search{min-width:0}
 .pending-filter-card label>span{font-size:10px}
@@ -11,6 +10,8 @@
 .pending-quick-filters button{height:30px;padding:0 9px;border:1px solid transparent;border-radius:6px;background:transparent;color:#627895;font-size:9px;font-weight:750;cursor:pointer;white-space:nowrap;flex:0 0 auto}
 .pending-quick-filters button:hover{background:#edf5ff;color:#1769d2}
 .pending-quick-filters button.active{border-color:#bcd5f3;background:#eaf3ff;color:#1769d2}
+.pending-quick-filters button:focus{border-color:#bcd5f3;background:#eaf3ff;color:#1769d2;outline:none;box-shadow:0 0 0 2px rgba(23,105,210,.10)}
+.pending-quick-filters button:nth-of-type(3):focus{border-color:#1769d2;background:#e5f0ff;color:#1769d2;box-shadow:0 0 0 2px rgba(23,105,210,.12)}
 .pending-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
 .pending-kpi{cursor:pointer;user-select:none;transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease}
 .pending-kpi:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(35,76,125,.09)}
