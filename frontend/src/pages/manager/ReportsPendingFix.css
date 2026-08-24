@@ -1,0 +1,103 @@
+/* Chờ duyệt ONLY — hard override for the quick-period controls.
+   Do not style .approved-reference-page or any non-pending page here. */
+.pending-reference-page .pending-quick-filters,
+.pending-reference-page .pending-quick-filters::before,
+.pending-reference-page .pending-quick-filters::after {
+  display:flex !important;
+  flex-wrap:nowrap !important;
+  overflow-x:auto !important;
+  gap:8px !important;
+  white-space:nowrap !important;
+  content:none !important;
+}
+
+.pending-reference-page .pending-quick-filters > span {
+  display:none !important;
+}
+
+.pending-reference-page .pending-quick-filters > button {
+  position:static !important;
+  display:inline-flex !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  flex:0 0 auto !important;
+  order:initial !important;
+  width:auto !important;
+  min-width:0 !important;
+  height:30px !important;
+  margin:0 !important;
+  padding:0 9px !important;
+  border:1px solid transparent !important;
+  border-radius:6px !important;
+  background:transparent !important;
+  color:#627895 !important;
+  font-size:13px !important;
+  line-height:1 !important;
+  font-weight:750 !important;
+  white-space:nowrap !important;
+  transform:none !important;
+}
+
+/* Kill every possible legacy generated label on the pending filter.
+   The four labels must come only from Reports.tsx. */
+.pending-reference-page .pending-quick-filters::before,
+.pending-reference-page .pending-quick-filters::after,
+.pending-reference-page .pending-quick-filters > button::before,
+.pending-reference-page .pending-quick-filters > button::after,
+.pending-reference-page .pending-quick-filters > button > span::before,
+.pending-reference-page .pending-quick-filters > button > span::after {
+  content:none !important;
+  display:none !important;
+  visibility:hidden !important;
+}
+
+.pending-reference-page .pending-quick-filters > button:nth-child(1),
+.pending-reference-page .pending-quick-filters > button:nth-child(2),
+.pending-reference-page .pending-quick-filters > button:nth-child(3),
+.pending-reference-page .pending-quick-filters > button:nth-child(4) {
+  display:inline-flex !important;
+  order:initial !important;
+}
+
+.pending-reference-page .pending-quick-filters > button.active {
+  border-color:#bcd5f3 !important;
+  background:#eaf3ff !important;
+  color:#1769d2 !important;
+}
+
+/* Chờ duyệt KPI labels: use only the React-rendered text. */
+.pending-reference-page .pending-kpi::before,
+.pending-reference-page .pending-kpi::after,
+.pending-reference-page .pending-kpi > span::before,
+.pending-reference-page .pending-kpi > span::after,
+.pending-reference-page .pending-kpi > strong::before,
+.pending-reference-page .pending-kpi > strong::after,
+.pending-reference-page .pending-kpi > small::before,
+.pending-reference-page .pending-kpi > small::after {
+  content:none !important;
+  display:none !important;
+  visibility:hidden !important;
+}
+
+.pending-reference-page .pending-kpi {
+  order:initial !important;
+}
+
+.pending-reference-page .pending-kpi > span,
+.pending-reference-page .pending-kpi > strong,
+.pending-reference-page .pending-kpi > small {
+  position:static !important;
+  display:block !important;
+  float:none !important;
+  transform:none !important;
+  white-space:nowrap !important;
+}
+
+.pending-reference-page .pending-kpi > span,
+.pending-reference-page .pending-kpi > small {
+  font-size:13px !important;
+}
+
+.pending-reference-page .pending-kpi > strong {
+  font-size:18px !important;
+}
