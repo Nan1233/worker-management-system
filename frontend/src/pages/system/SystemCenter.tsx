@@ -1,238 +1,90 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Activity, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Download, Edit3, Filter, History, Plus, Search, Trash2, UserRound, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import {
-    getActivities,
-    getDeletedReports,
-    getNotifications,
-    markAllNotificationsRead,
-    markNotificationRead,
-    type ActivityItem,
-    type DeletedReportItem,
-    type NotificationItem,
-    getObservability,
-    getReadiness,
-    type ObservabilitySnapshot,
-    type ReadinessSnapshot
-} from "../../services/systemService";
+import { getActivities, getNotifications, markAllNotificationsRead, markNotificationRead, type ActivityItem, type NotificationItem } from "../../services/systemService";
 import { publishNotificationCount } from "../../hooks/useNotificationBadge";
 import { getStoredUser } from "../../utils/authStorage";
 import { usePermissions } from "../../hooks/usePermissions";
-const FIELD_LABELS: Record<string,string> = {
-    changed_fields:"Trường thay đổi", deductions_changed:"Thời gian trừ", defects_changed:"NG", machine_lines_changed:"Máy",
-    previous_status:"Trạng thái cũ", new_status:"Trạng thái mới", reason:"Lý do", worker_code:"Mã NV", full_name:"Tên NV",
-    work_date:"Ngày báo cáo", entry_date:"Ngày nhập", shift:"Ca", machine_no:"Máy", product_code:"Mã SP", product_name:"Sản phẩm",
-    ok_quantity:"OK", tt_ok:"SL OK", tt_ng:"SL NG", ng_quantity:"NG", actual_output:"SP quy đổi", total_time:"Tổng TG", deduction_time:"TG trừ", training_percent:"% học việc", actual_time:"TG thực tế", source_file:"File nguồn", source_sheet:"Sheet", process_code:"Công đoạn"
+import "./SystemCenter.css";
+
+const actionLabel: Record<string,string> = {
+  CREATE:"Thêm mới", CREATED:"Thêm mới", INSERT:"Thêm mới", ADD:"Thêm mới",
+  UPDATE:"Cập nhật", UPDATED:"Cập nhật", EDIT:"Cập nhật",
+  DELETE:"Xóa", DELETED:"Xóa", REMOVE:"Xóa",
+  APPROVE:"Duyệt", APPROVED:"Duyệt", REJECT:"Từ chối", REJECTED:"Từ chối",
+  LOGIN:"Đăng nhập", LOGOUT:"Đăng xuất"
 };
-const labelFor = (key:string) => FIELD_LABELS[key] || key.replace(/_/g," ");
-const displayValue = (value:unknown):string => {
-    if (value === null || value === undefined || value === "") return "—";
-    if (typeof value === "boolean") return value ? "Có" : "Không";
-    if (Array.isArray(value)) return value.map(item => typeof item === "object" ? JSON.stringify(item) : String(item)).join(", ");
-    if (typeof value === "object") return JSON.stringify(value);
-    return String(value);
-};
-const parseMetadata = (value:unknown):Record<string,unknown>|null => {
-    if (!value) return null;
-    let parsed:unknown=value;
-    if (typeof parsed === "string") { try { parsed=JSON.parse(parsed); } catch { return { value:String(value) }; } }
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string,unknown> : { value:parsed };
-};
-function ActivityMetadata({value}:{value:unknown}) {
-    const data=parseMetadata(value);
-    if (!data) return null;
-    const oldData=parseMetadata(data.old_data);
-    const newData=parseMetadata(data.new_data);
-    const changed=Array.isArray(data.changed_fields) ? data.changed_fields.map(String) : [];
-    const changedMap=data.changed_fields && typeof data.changed_fields === "object" && !Array.isArray(data.changed_fields)
-        ? data.changed_fields as Record<string, { before?: unknown; after?: unknown }>
-        : null;
-    if (oldData && newData && changed.length) {
-        return <details className="system-change-details"><summary>Xem thay đổi trước → sau</summary><div className="system-diff-table">
-            <div className="system-diff-head"><span>Trường</span><span>Trước</span><span>Sau</span></div>
-            {changed.map(key=><div className="system-diff-row" key={key}><strong>{labelFor(key)}</strong><span>{displayValue(oldData[key])}</span><span className="after">{displayValue(newData[key])}</span></div>)}
-        </div></details>;
-    }
-    if (changedMap && Object.keys(changedMap).length) {
-        return <details className="system-change-details"><summary>Xem thay đổi trước → sau</summary><div className="system-diff-table">
-            <div className="system-diff-head"><span>Trường</span><span>Trước</span><span>Sau</span></div>
-            {Object.entries(changedMap).map(([key,diff])=><div className="system-diff-row" key={key}><strong>{labelFor(key)}</strong><span>{displayValue(diff?.before)}</span><span className="after">{displayValue(diff?.after)}</span></div>)}
-        </div></details>;
-    }
-    const entries=Object.entries(data).filter(([,v])=>v!==null&&v!==undefined&&v!==false&&v!=="");
-    if (!entries.length) return null;
-    return <details className="system-change-details"><summary>Xem dữ liệu thay đổi</summary><div className="system-meta-grid">
-        {entries.map(([key,val])=><div key={key}><span>{labelFor(key)}</span><strong>{displayValue(val)}</strong></div>)}
-    </div></details>;
+const actionTone: Record<string,string> = { CREATE:"add",CREATED:"add",INSERT:"add",ADD:"add",UPDATE:"update",UPDATED:"update",EDIT:"update",DELETE:"delete",DELETED:"delete",REMOVE:"delete",APPROVE:"approve",APPROVED:"approve",REJECT:"reject",REJECTED:"reject",LOGIN:"login",LOGOUT:"logout" };
+const entityLabel: Record<string,string> = { production_report:"Báo cáo sản xuất", report:"Báo cáo sản xuất", worker:"Công nhân", user:"Người dùng", machine:"Máy móc", product:"Sản phẩm", process:"Quy trình", formula_setting:"Công thức", deduction:"Trừ giờ", defect:"Lỗi", system:"Hệ thống" };
+const roleLabel: Record<string,string> = { admin:"Quản trị viên", manager:"Quản lý", lead:"Tổ trưởng", worker:"Công nhân" };
+const actionIcon = (action:string) => { const tone=actionTone[action]||"update"; if(tone==="add")return <Plus size={15}/>; if(tone==="delete")return <Trash2 size={15}/>; if(tone==="approve")return <CheckCircle2 size={15}/>; return <Edit3 size={15}/>; };
+const dateText = (value:unknown) => value ? new Date(String(value)).toLocaleString("vi-VN",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit"}) : "—";
+const shortDate = (value:unknown) => value ? new Date(String(value)).toLocaleDateString("vi-VN") : "—";
+
+function valueText(value:unknown):string { if(value===null||value===undefined||value==="")return "—"; if(typeof value === "object") return JSON.stringify(value); return String(value); }
+function ActivityDetail({item,onClose}:{item:ActivityItem;onClose:()=>void}) {
+  const row=item as ActivityItem & Record<string,unknown>;
+  let metadata:Record<string,unknown>={};
+  try { const parsed=typeof row.metadata_json === "string" ? JSON.parse(row.metadata_json) : row.metadata_json; if(parsed&&typeof parsed === "object"&&!Array.isArray(parsed))metadata=parsed as Record<string,unknown>; } catch { /* ignore malformed metadata */ }
+  return <div className="audit-modal-backdrop" onMouseDown={onClose}><aside className="audit-modal" onMouseDown={e=>e.stopPropagation()}><header><div><span>CHI TIẾT HOẠT ĐỘNG</span><h2>{row.description||actionLabel[row.action]||row.action}</h2></div><button type="button" onClick={onClose} aria-label="Đóng"><X size={19}/></button></header><div className="audit-detail-grid"><div><span>Thời gian</span><strong>{dateText(row.created_at)}</strong></div><div><span>Người thực hiện</span><strong>{valueText(row.full_name||row.username)}</strong></div><div><span>Vai trò</span><strong>{roleLabel[String(row.role||"")]||valueText(row.role)}</strong></div><div><span>Hành động</span><strong>{actionLabel[row.action]||row.action}</strong></div><div><span>Chức năng</span><strong>{entityLabel[String(row.entity_type||"")]||valueText(row.entity_type)}</strong></div><div><span>ID đối tượng</span><strong>{valueText(row.entity_id)}</strong></div><div><span>IP thiết bị</span><strong>{valueText(row.ip_address)}</strong></div><div><span>Nội dung</span><strong>{valueText(row.description)}</strong></div></div>{Object.keys(metadata).length>0&&<div className="audit-detail-meta"><h3>Dữ liệu chi tiết</h3>{Object.entries(metadata).map(([key,val])=><div key={key}><span>{key.replace(/_/g," ")}</span><strong>{valueText(val)}</strong></div>)}</div>}</aside></div>;
 }
 
 export default function SystemCenter() {
-    const [tab, setTab] = useState<"notifications" | "activities" | "deleted" | "monitoring">("notifications");
-    const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-    const [activities, setActivities] = useState<ActivityItem[]>([]);
-    const [deletedReports, setDeletedReports] = useState<DeletedReportItem[]>([]);
-    const [observability, setObservability] = useState<ObservabilitySnapshot | null>(null);
-    const [readiness, setReadiness] = useState<ReadinessSnapshot | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const [error, setError] = useState("");
-    const [activitySearch, setActivitySearch] = useState("");
-    const [activityAction, setActivityAction] = useState("");
-    const [activityFrom, setActivityFrom] = useState("");
-    const [activityTo, setActivityTo] = useState("");
-    const navigate = useNavigate();
-    const currentUser = getStoredUser();
-    const isWorker = currentUser?.role === "worker";
-    const { can } = usePermissions();
-    const canAudit = !isWorker && can("AUDIT_VIEW");
-    const canMonitor = !isWorker && can("SYSTEM_HEALTH_VIEW");
+  const navigate=useNavigate();
+  const currentUser=getStoredUser();
+  const {can}=usePermissions();
+  const isWorker=currentUser?.role==="worker";
+  const canAudit=!isWorker&&can("AUDIT_VIEW");
+  const [activities,setActivities]=useState<ActivityItem[]>([]);
+  const [notifications,setNotifications]=useState<NotificationItem[]>([]);
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState("");
+  const [search,setSearch]=useState("");
+  const [action,setAction]=useState("");
+  const [role,setRole]=useState("");
+  const [entity,setEntity]=useState("");
+  const [from,setFrom]=useState("");
+  const [to,setTo]=useState("");
+  const [page,setPage]=useState(1);
+  const [selected,setSelected]=useState<ActivityItem|null>(null);
+  const pageSize=10;
 
-    const load = useCallback(async (silent = false) => {
-        if (silent) setRefreshing(true); else setLoading(true);
-        setError("");
-        const [notificationResult, activityResult, deletedResult, monitoringResult, readinessResult] = await Promise.allSettled([
-            getNotifications(),
-            canAudit ? getActivities({
-                search: activitySearch,
-                action: activityAction,
-                from: activityFrom,
-                to: activityTo,
-                limit: 150
-            }) : Promise.resolve([] as ActivityItem[]),
-            canAudit ? getDeletedReports() : Promise.resolve([] as DeletedReportItem[]),
-            canMonitor ? getObservability() : Promise.resolve(null),
-            canMonitor ? getReadiness() : Promise.resolve(null)
-        ]);
+  const load=useCallback(async()=>{
+    setLoading(true);setError("");
+    try {
+      const [activityResult,notificationResult]=await Promise.allSettled([
+        canAudit ? getActivities({search,action,from,to,limit:150}) : Promise.resolve([] as ActivityItem[]),
+        getNotifications()
+      ]);
+      if(activityResult.status==="fulfilled")setActivities(activityResult.value||[]); else setError("Không tải được nhật ký hoạt động.");
+      if(notificationResult.status==="fulfilled"){setNotifications(notificationResult.value.data||[]);publishNotificationCount(notificationResult.value.unread||0);}
+      setPage(1);
+    } finally { setLoading(false); }
+  },[canAudit,search,action,from,to]);
+  useEffect(()=>{void load();},[load]);
 
-        if (notificationResult.status === "fulfilled") {
-            setNotifications(notificationResult.value.data || []);
-            publishNotificationCount(notificationResult.value.unread || 0);
-        } else {
-            setError(notificationResult.reason?.response?.data?.message || "Không tải được thông báo");
-        }
-        if (activityResult.status === "fulfilled") setActivities(activityResult.value || []);
-        else setError(current => current || activityResult.reason?.response?.data?.message || "Không tải được lịch sử hoạt động");
-        if (deletedResult.status === "fulfilled") setDeletedReports(deletedResult.value || []);
-        else setError(current => current || deletedResult.reason?.response?.data?.message || "Không tải được dữ liệu đã xóa");
-        if (monitoringResult.status === "fulfilled") setObservability(monitoringResult.value);
-        if (readinessResult.status === "fulfilled") setReadiness(readinessResult.value);
-        setLoading(false);
-        setRefreshing(false);
-    }, [canAudit, canMonitor, activitySearch, activityAction, activityFrom, activityTo]);
+  const roles=useMemo(()=>Array.from(new Set(activities.map(x=>String((x as any).role||"")).filter(Boolean))),[activities]);
+  const entities=useMemo(()=>Array.from(new Set(activities.map(x=>String((x as any).entity_type||"")).filter(Boolean))),[activities]);
+  const filtered=useMemo(()=>activities.filter(item=>{
+    const row=item as ActivityItem & Record<string,unknown>;
+    const text=`${row.full_name||""} ${row.username||""} ${row.description||""} ${row.action||""} ${row.entity_type||""}`.toLowerCase();
+    return (!role||String(row.role||"")===role)&&(!entity||String(row.entity_type||"")===entity)&&text.includes(search.toLowerCase());
+  }),[activities,role,entity,search]);
+  const totalPages=Math.max(1,Math.ceil(filtered.length/pageSize));
+  const currentRows=filtered.slice((page-1)*pageSize,page*pageSize);
+  const countBy=(names:string[])=>activities.filter(x=>names.includes(String(x.action||"").toUpperCase())).length;
+  const exportCsv=()=>{const header=["Thời gian","Người dùng","Vai trò","Hành động","Chức năng","Nội dung","IP thiết bị"];const rows=filtered.map(x=>{const r=x as any;return [dateText(r.created_at),r.full_name||r.username||"",roleLabel[r.role]||r.role||"",actionLabel[r.action]||r.action||"",entityLabel[r.entity_type]||r.entity_type||"",r.description||"",r.ip_address||""];});const csv=[header,...rows].map(r=>r.map((v:string)=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`KTC_NhatKyHoatDong_${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(url);};
+  const openNotification=async(item:NotificationItem)=>{if(!item.is_read){await markNotificationRead(item.id);setNotifications(v=>v.map(x=>x.id===item.id?{...x,is_read:1}:x));}if(item.link_url)navigate(item.link_url);};
+  const unread=notifications.filter(x=>!x.is_read).length;
 
-    useEffect(() => {
-        void load(false);
-        const timer = window.setInterval(() => void load(true), 30_000);
-        const onVisible = () => { if (document.visibilityState === "visible") void load(true); };
-        document.addEventListener("visibilitychange", onVisible);
-        return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
-    }, [load]);
+  if(isWorker) return <section className="system-center"><header className="audit-page-header"><div><span className="audit-eyebrow">TRUNG TÂM THÔNG BÁO</span><h1>Thông báo của tôi</h1><p>Theo dõi trạng thái duyệt và phản hồi báo cáo.</p></div><button className="audit-secondary" onClick={async()=>{await markAllNotificationsRead();setNotifications(v=>v.map(x=>({...x,is_read:1})));publishNotificationCount(0);}}>Đánh dấu đã đọc</button></header><div className="audit-notification-list">{notifications.length?notifications.map(item=><button key={item.id} className={!item.is_read?"unread":""} onClick={()=>void openNotification(item)}><span className="audit-notification-dot"/><div><strong>{item.title}</strong><p>{item.message}</p><small>{dateText(item.created_at)}</small></div></button>):<div className="audit-empty">Chưa có thông báo</div>}</div></section>;
 
-    const actionOptions = useMemo(
-        () => Array.from(new Set(activities.map(item => item.action).filter(Boolean))).sort(),
-        [activities]
-    );
-
-    const open = async (item: NotificationItem) => {
-        if (!item.is_read) {
-            await markNotificationRead(item.id);
-            setNotifications(current => {
-                const next = current.map(value => value.id === item.id ? { ...value, is_read: 1 } : value);
-                publishNotificationCount(next.filter(value => !value.is_read).length);
-                return next;
-            });
-        }
-        if (item.link_url) navigate(item.link_url);
-    };
-
-    const markAllRead = async () => {
-        await markAllNotificationsRead();
-        publishNotificationCount(0);
-        setNotifications(current => current.map(item => ({ ...item, is_read: 1 })));
-    };
-
-    return (
-        <section className="system-center">
-            <header>
-                <div>
-                    <h1>{isWorker ? "Thông báo của tôi" : "Trung tâm hệ thống"}</h1>
-                    <p>{isWorker ? "Theo dõi trạng thái duyệt và phản hồi báo cáo" : "Theo dõi ai đã thêm, sửa, xóa, cập nhật dữ liệu và thông báo hệ thống"} {refreshing ? "· đang cập nhật" : ""}</p>
-                </div>
-                <button type="button" onClick={() => void markAllRead()}>Đánh dấu đã đọc</button>
-            </header>
-
-            <div className="system-tabs">
-                <button className={tab === "notifications" ? "active" : ""} onClick={() => setTab("notifications")}>Thông báo ({notifications.filter(item => !item.is_read).length})</button>
-                {canAudit && <button className={tab === "activities" ? "active" : ""} onClick={() => setTab("activities")}>Nhật ký thay đổi</button>}
-                {canAudit && <button className={tab === "deleted" ? "active" : ""} onClick={() => setTab("deleted")}>Dữ liệu đã xóa ({deletedReports.length})</button>}
-                {canMonitor && <button className={tab === "monitoring" ? "active" : ""} onClick={() => setTab("monitoring")}>Giám sát</button>}
-            </div>
-
-            {tab === "activities" && canAudit && (
-                <div className="system-audit-filters">
-                    <input value={activitySearch} onChange={event => setActivitySearch(event.target.value)} placeholder="Tìm người, thao tác, dữ liệu..." />
-                    <select value={activityAction} onChange={event => setActivityAction(event.target.value)}>
-                        <option value="">Tất cả hành động</option>
-                        {actionOptions.map(action => <option key={action} value={action}>{action}</option>)}
-                    </select>
-                    <label><span>Từ ngày</span><input type="date" value={activityFrom} onChange={event => setActivityFrom(event.target.value)} /></label>
-                    <label><span>Đến ngày</span><input type="date" min={activityFrom || undefined} value={activityTo} onChange={event => setActivityTo(event.target.value)} /></label>
-                    <button type="button" onClick={() => void load(false)}>Lọc / tải lại</button>
-                </div>
-            )}
-
-            {error && <div className="system-error">{error}<button type="button" onClick={() => void load(false)}>Thử lại</button></div>}
-
-            {loading ? <div className="system-empty">Đang tải...</div> : tab === "notifications" ? (
-                <div className="system-list">
-                    {notifications.length ? notifications.map(item => (
-                        <button key={item.id} className={`system-item ${!item.is_read ? "unread" : ""}`} onClick={() => void open(item)}>
-                            <span className="dot" /><div><strong>{item.title}</strong><p>{item.message}</p><small>{new Date(item.created_at).toLocaleString("vi-VN")}</small></div>
-                        </button>
-                    )) : <div className="system-empty">Chưa có thông báo</div>}
-                </div>
-            ) : tab === "activities" ? (
-                <div className="system-list">
-                    {activities.length ? activities.map(item => {
-                        return <article key={item.id} className="system-item system-activity-item">
-                            <span className="activity-icon">•</span>
-                            <div className="system-activity-content">
-                                <div className="system-activity-title"><strong>{item.description || item.action}</strong><code>{item.action}</code></div>
-                                <p><b>{item.full_name || item.username || "Hệ thống"}</b>{item.role ? ` · ${item.role}` : ""} · {item.entity_type || "system"} {item.entity_id ? `#${item.entity_id}` : ""}</p>
-                                <small>{new Date(item.created_at).toLocaleString("vi-VN")}{item.ip_address ? ` · IP ${item.ip_address}` : ""}</small>
-                                <ActivityMetadata value={item.metadata_json} />
-                            </div>
-                        </article>;
-                    }) : <div className="system-empty">Chưa có hoạt động</div>}
-                </div>
-            ) : tab === "deleted" ? (
-                <div className="system-list">
-                    {deletedReports.length ? deletedReports.map(item => (
-                        <article key={item.id} className="system-item system-deleted-item">
-                            <span className="activity-icon">×</span>
-                            <div className="system-activity-content">
-                                <strong>#{item.id} · {item.worker_code || "---"} · {item.full_name || "---"}</strong>
-                                <p>{item.process_name || item.process_code || "---"} · {String(item.work_date || "").slice(0,10)} · {item.product_name || "---"}</p>
-                                <small>{item.review_note || "Đã xóa"}</small>
-                            </div>
-                            <button type="button" className="system-open-deleted" onClick={() => navigate(`/${currentUser?.role || "manager"}/report/${item.id}?source=approved`)}>Xem phiên bản / khôi phục</button>
-                        </article>
-                    )) : <div className="system-empty">Chưa có báo cáo đã xóa</div>}
-                </div>
-            ) : (
-                <div className="system-monitor-grid">
-                    <article className={`system-health-banner ${readiness?.status === "ok" ? "ok" : "critical"}`}>
-                        <div><span>Tình trạng hệ thống</span><strong>{readiness?.status === "ok" ? "Sẵn sàng phục vụ" : "Chưa sẵn sàng"}</strong></div>
-                        <small>{readiness?.status === "ok" ? "API và database đang phản hồi bình thường." : "Không nên nhập/duyệt dữ liệu mới cho tới khi database hoạt động lại."}</small>
-                    </article>
-                    <article className={`system-monitor-card ${observability?.database.status === "ok" ? "ok" : "critical"}`}><span>Database</span><strong>{observability?.database.status === "ok" ? "Hoạt động" : "Không khả dụng"}</strong><small>{observability?.database.latencyMs ?? "-"} ms</small></article>
-                    <article className="system-monitor-card"><span>API requests</span><strong>{observability?.http.requests ?? 0}</strong><small>TB {observability?.http.averageDurationMs ?? 0} ms</small></article>
-                    <article className="system-monitor-card"><span>Lỗi 5xx</span><strong>{observability?.http.errors5xx ?? 0}</strong><small>4xx: {observability?.http.errors4xx ?? 0}</small></article>
-                    <article className="system-monitor-card"><span>RAM</span><strong>{observability?.memory.rssMb ?? 0} MB</strong><small>Heap {observability?.memory.heapUsedMb ?? 0}/{observability?.memory.heapTotalMb ?? 0} MB</small></article>
-                    <article className="system-monitor-card"><span>Request chậm</span><strong>{observability?.http.slowRequests ?? 0}</strong><small>Max {observability?.http.maxDurationMs ?? 0} ms</small></article>
-                    <article className="system-monitor-card"><span>Uptime</span><strong>{Math.floor((observability?.uptimeSeconds ?? 0)/3600)} giờ</strong><small>Từ {observability?.startedAt ? new Date(observability.startedAt).toLocaleString("vi-VN") : "-"}</small></article>
-                    <div className="system-monitor-errors"><h3>Lỗi server gần nhất</h3>{observability?.recentErrors?.length ? observability.recentErrors.map((item,index)=><div key={`${item.requestId}-${index}`}><code>{item.status}</code><span>{item.method} {item.path}</span><small>{item.requestId || "-"}</small></div>) : <p>Chưa ghi nhận lỗi 5xx trong tiến trình hiện tại.</p>}</div>
-                </div>
-            )}
-        </section>
-    );
+  return <section className="system-center audit-page">
+    <header className="audit-page-header"><div><span className="audit-eyebrow">SYSTEM ACTIVITY</span><h1><History size={26}/> Nhật ký hoạt động</h1><p>Theo dõi các hoạt động trên hệ thống của quản lý và công nhân.</p></div><div className="audit-header-actions"><span className="audit-unread">Thông báo <b>{unread}</b></span><button className="audit-secondary" onClick={()=>void load()}><Activity size={16}/> Làm mới</button></div></header>
+    <section className="audit-filter-card"><div className="audit-filter-date"><CalendarDays size={16}/><input type="date" value={from} onChange={e=>{setFrom(e.target.value);setPage(1)}}/><span>–</span><input type="date" min={from||undefined} value={to} onChange={e=>{setTo(e.target.value);setPage(1)}}/></div><label className="audit-select"><UserRound size={15}/><select value={role} onChange={e=>{setRole(e.target.value);setPage(1)}}><option value="">Tất cả người dùng</option>{roles.map(x=><option key={x} value={x}>{roleLabel[x]||x}</option>)}</select></label><label className="audit-select"><Filter size={15}/><select value={action} onChange={e=>{setAction(e.target.value);setPage(1)}}><option value="">Tất cả hành động</option>{Object.entries(actionLabel).filter(([k])=>k===k.toUpperCase()).slice(0,20).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label><label className="audit-select"><Filter size={15}/><select value={entity} onChange={e=>{setEntity(e.target.value);setPage(1)}}><option value="">Tất cả chức năng</option>{entities.map(x=><option key={x} value={x}>{entityLabel[x]||x}</option>)}</select></label><label className="audit-search"><Search size={16}/><input value={search} onChange={e=>{setSearch(e.target.value);setPage(1)}} placeholder="Tìm kiếm nội dung..."/></label><button className="audit-export" type="button" onClick={exportCsv}><Download size={16}/> Xuất Excel</button></section>
+    <section className="audit-stat-grid"><article><span className="audit-stat-icon blue"><Activity size={20}/></span><div><small>Tổng hoạt động</small><strong>{filtered.length.toLocaleString("vi-VN")}</strong><em>Hoạt động</em></div></article><article><span className="audit-stat-icon green"><UserRound size={20}/></span><div><small>Người dùng</small><strong>{new Set(activities.map(x=>(x as any).user_id||(x as any).username||(x as any).full_name)).size}</strong><em>Đã thực hiện</em></div></article><article><span className="audit-stat-icon orange"><Plus size={20}/></span><div><small>Thêm mới</small><strong>{countBy(["CREATE","CREATED","INSERT","ADD"])}</strong><em>Hoạt động</em></div></article><article><span className="audit-stat-icon purple"><Edit3 size={20}/></span><div><small>Cập nhật</small><strong>{countBy(["UPDATE","UPDATED","EDIT"])}</strong><em>Hoạt động</em></div></article><article><span className="audit-stat-icon red"><Trash2 size={20}/></span><div><small>Xóa</small><strong>{countBy(["DELETE","DELETED","REMOVE"])}</strong><em>Hoạt động</em></div></article></section>
+    {error&&<div className="audit-error">{error}<button onClick={()=>void load()}>Thử lại</button></div>}
+    <section className="audit-table-card"><div className="audit-table-wrap"><table><thead><tr><th>Thời gian</th><th>Người dùng</th><th>Vai trò</th><th>Hành động</th><th>Chức năng</th><th>Nội dung</th><th>IP thiết bị</th><th></th></tr></thead><tbody>{loading?<tr><td colSpan={8} className="audit-empty">Đang tải nhật ký...</td></tr>:currentRows.length?currentRows.map(item=>{const row=item as ActivityItem & Record<string,unknown>;const act=String(row.action||"");return <tr key={String(row.id)}><td className="nowrap">{dateText(row.created_at)}</td><td><strong>{valueText(row.full_name||row.username)}</strong></td><td><span className={`audit-role ${String(row.role||"")}`}>{roleLabel[String(row.role||"")]||valueText(row.role)}</span></td><td><span className={`audit-action ${actionTone[act]||"update"}`}>{actionIcon(act)} {actionLabel[act]||act}</span></td><td>{entityLabel[String(row.entity_type||"")]||valueText(row.entity_type)}</td><td className="audit-content">{valueText(row.description)}</td><td className="nowrap">{valueText(row.ip_address)}</td><td><button className="audit-detail-btn" onClick={()=>setSelected(item)}>Chi tiết</button></td></tr>;}):<tr><td colSpan={8} className="audit-empty">Không có hoạt động phù hợp.</td></tr>}</tbody></table></div><footer className="audit-table-footer"><span>Hiển thị {filtered.length?((page-1)*pageSize+1):0} đến {Math.min(page*pageSize,filtered.length)} của {filtered.length.toLocaleString("vi-VN")} hoạt động</span><div><select value={pageSize} disabled><option>10 / trang</option></select><button disabled={page<=1} onClick={()=>setPage(p=>p-1)}><ChevronLeft size={16}/></button>{Array.from({length:Math.min(totalPages,5)},(_,i)=>i+1).map(p=><button key={p} className={p===page?"active":""} onClick={()=>setPage(p)}>{p}</button>)}{totalPages>5&&<span>…</span>}<button disabled={page>=totalPages} onClick={()=>setPage(p=>p+1)}><ChevronRight size={16}/></button></div></footer></section>
+    {selected&&<ActivityDetail item={selected} onClose={()=>setSelected(null)}/>} 
+  </section>;
 }
