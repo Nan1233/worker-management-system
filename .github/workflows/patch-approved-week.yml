@@ -29,13 +29,13 @@ jobs:
               raise SystemExit('quick filter block not found')
           s = s.replace(old, new, 1)
           p.write_text(s, encoding='utf-8')
-      - name: Commit patch and remove one-time workflow
+      - name: Commit patch and remove one-time files
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          rm -f .github/workflows/patch-approved-week.yml
-          git add frontend/src/pages/manager/ApprovedReports.tsx .github/workflows/patch-approved-week.yml
+          rm -f .github/workflows/patch-approved-week.yml .github/patch-approved-week-trigger
+          git add frontend/src/pages/manager/ApprovedReports.tsx .github/workflows/patch-approved-week.yml .github/patch-approved-week-trigger
           git diff --cached --quiet && exit 0
           git commit -m "feat(manager): add week quick filter to approved reports"
           git push
