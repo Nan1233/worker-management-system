@@ -109,13 +109,7 @@ function Reports() {
             setReports(result.data);
             setTotalCount(result.pagination.total);
             setTotalPages(result.pagination.total_pages);
-
-            const ranges = {
-                year: rangeFor(date, "year"),
-                month: rangeFor(date, "month"),
-                week: rangeFor(date, "week"),
-                day: rangeFor(date, "day"),
-            };
+            const ranges = { year: rangeFor(date, "year"), month: rangeFor(date, "month"), week: rangeFor(date, "week"), day: rangeFor(date, "day") };
             const [yearResult, monthResult, weekResult, dayResult] = await Promise.all([
                 getPendingReports({ ...ranges.year, ...filters, page: 1, pageSize: 1 }),
                 getPendingReports({ ...ranges.month, ...filters, page: 1, pageSize: 1 }),
@@ -131,27 +125,14 @@ function Reports() {
         } catch (err: unknown) {
             if (request !== seq.current) return;
             setError(axios.isAxiosError(err) ? err.response?.data?.message || "Không thể tải báo cáo chờ duyệt" : "Không thể tải báo cáo chờ duyệt");
-            setReports([]);
-            setTotalCount(0);
-            setYearCount(0);
-            setMonthCount(0);
-            setWeekCount(0);
-            setDayCount(0);
-            setTotalPages(1);
-            setSelectedIds([]);
+            setReports([]); setTotalCount(0); setYearCount(0); setMonthCount(0); setWeekCount(0); setDayCount(0); setTotalPages(1); setSelectedIds([]);
         } finally {
             if (request === seq.current) setLoading(false);
         }
     }, [date, dateRange, selectedProcess, selectedShift, searchQuery, currentPage]);
 
     useEffect(() => { void loadReports(); }, [loadReports]);
-    useEffect(() => {
-        setCurrentPage(1);
-        setSelectedIds([]);
-        setSelectedDetail(null);
-        setEditDraft(null);
-        setEditingDetail(false);
-    }, [date, dateRange, selectedProcess, selectedShift, searchQuery]);
+    useEffect(() => { setCurrentPage(1); setSelectedIds([]); setSelectedDetail(null); setEditDraft(null); setEditingDetail(false); }, [date, dateRange, selectedProcess, selectedShift, searchQuery]);
 
     const processes = useMemo(() => Array.from(new Set(reports.map(report => report.process_name).filter(Boolean) as string[])).sort(), [reports]);
     const shifts = useMemo(() => Array.from(new Set(reports.map(report => report.shift).filter(Boolean))).sort(), [reports]);
@@ -165,121 +146,57 @@ function Reports() {
     const openDetail = async (report: ProductionReport) => {
         const id = Number(report.id);
         if (!id) return;
-        setSelectedDetail(report);
-        setEditDraft(null);
-        setEditingDetail(false);
-        setDetailLoading(true);
-        try {
-            const detail = await getTempReportDetail(id);
-            setSelectedDetail(detail);
-        } catch (err) {
-            showToast(axios.isAxiosError(err) ? err.response?.data?.message || "Không thể tải chi tiết báo cáo" : "Không thể tải chi tiết báo cáo");
-        } finally {
-            setDetailLoading(false);
-        }
+        setSelectedDetail(report); setEditDraft(null); setEditingDetail(false); setDetailLoading(true);
+        try { setSelectedDetail(await getTempReportDetail(id)); }
+        catch (err) { showToast(axios.isAxiosError(err) ? err.response?.data?.message || "Không thể tải chi tiết báo cáo" : "Không thể tải chi tiết báo cáo"); }
+        finally { setDetailLoading(false); }
     };
-
     const startInlineEdit = () => {
         if (!selectedDetail || !canEdit) return;
         const actual = Math.max(0, Number(selectedDetail.actual_time) || 0);
         const hours = Math.floor(actual);
         const minutes = Math.round((actual - hours) * 60);
-        setEditDraft({ ...selectedDetail });
-        setEditHours(String(hours));
-        setEditMinutes(String(Math.min(59, minutes)));
-        setEditingDetail(true);
+        setEditDraft({ ...selectedDetail }); setEditHours(String(hours)); setEditMinutes(String(Math.min(59, minutes))); setEditingDetail(true);
     };
-
-    const cancelInlineEdit = () => {
-        setEditDraft(null);
-        setEditingDetail(false);
-    };
-
-    const updateEditField = (field: keyof ProductionReport, value: string | number) => {
-        setEditDraft(current => current ? { ...current, [field]: value } : current);
-    };
-
+    const cancelInlineEdit = () => { setEditDraft(null); setEditingDetail(false); };
+    const updateEditField = (field: keyof ProductionReport, value: string | number) => setEditDraft(current => current ? { ...current, [field]: value } : current);
     const saveInlineEdit = async () => {
         if (!editDraft || !editDraft.id || editSaving) return;
         const actualHours = Math.max(0, Number(editHours) || 0);
         const actualMinutes = Math.min(59, Math.max(0, Number(editMinutes) || 0));
         const actualTime = actualHours + actualMinutes / 60;
         const deductionTime = Number(editDraft.deduction_time) || 0;
-        const nextDraft: ProductionReport = {
-            ...editDraft,
-            work_date: String(editDraft.work_date || "").slice(0, 10),
-            actual_time: actualTime,
-            total_time: actualTime + deductionTime,
-            tt_ok: Math.max(0, Number(editDraft.tt_ok) || 0),
-            tt_ng: Math.max(0, Number(editDraft.tt_ng) || 0),
-            actual_output: Math.max(0, Number(editDraft.tt_ok) || 0) + Math.max(0, Number(editDraft.tt_ng) || 0),
-        };
+        const nextDraft: ProductionReport = { ...editDraft, work_date: String(editDraft.work_date || "").slice(0, 10), actual_time: actualTime, total_time: actualTime + deductionTime, tt_ok: Math.max(0, Number(editDraft.tt_ok) || 0), tt_ng: Math.max(0, Number(editDraft.tt_ng) || 0), actual_output: Math.max(0, Number(editDraft.tt_ok) || 0) + Math.max(0, Number(editDraft.tt_ng) || 0) };
         try {
             setEditSaving(true);
             const result = await updateReport(Number(editDraft.id), nextDraft, "pending");
             const updated = result?.data || result?.report || result;
             const merged = { ...nextDraft, ...(updated && typeof updated === "object" ? updated : {}) } as ProductionReport;
-            setSelectedDetail(merged);
-            setReports(current => current.map(item => Number(item.id) === Number(merged.id) ? { ...item, ...merged } : item));
-            setEditDraft(null);
-            setEditingDetail(false);
-            showToast("Đã cập nhật báo cáo", "success");
-            await loadReports();
-        } catch (err: unknown) {
-            showToast(axios.isAxiosError(err) ? err.response?.data?.message || "Không thể cập nhật báo cáo" : "Không thể cập nhật báo cáo");
-        } finally {
-            setEditSaving(false);
-        }
+            setSelectedDetail(merged); setReports(current => current.map(item => Number(item.id) === Number(merged.id) ? { ...item, ...merged } : item)); setEditDraft(null); setEditingDetail(false); showToast("Đã cập nhật báo cáo", "success"); await loadReports();
+        } catch (err: unknown) { showToast(axios.isAxiosError(err) ? err.response?.data?.message || "Không thể cập nhật báo cáo" : "Không thể cập nhật báo cáo"); }
+        finally { setEditSaving(false); }
     };
-
     const togglePage = () => setSelectedIds(previous => toggleCurrentPageIds(previous, pageIds, allSelected));
     const toggleOne = (id: number) => setSelectedIds(previous => toggleReportId(previous, id));
-
     const approveTargets = async (ids: number[], items: { id: number; expected_updated_at: string | null }[]) => {
         if (lock.current || actionLoading || !ids.length || !canReview) return;
         if (!window.confirm(`Duyệt ${ids.length} báo cáo đã chọn?`)) return;
-        lock.current = true;
-        setActionLoading(true);
-        try {
-            await approveSelectedTempReports(items);
-            showToast(`Đã duyệt ${ids.length} báo cáo`, "success");
-            setSelectedIds(previous => previous.filter(id => !ids.includes(id)));
-            if (selectedDetail && ids.includes(Number(selectedDetail.id))) setSelectedDetail(null);
-            await loadReports();
-        } catch (err: unknown) {
-            showToast(axios.isAxiosError(err) ? err.response?.data?.message || "Duyệt báo cáo thất bại" : "Duyệt báo cáo thất bại");
-        } finally {
-            lock.current = false;
-            setActionLoading(false);
-        }
+        lock.current = true; setActionLoading(true);
+        try { await approveSelectedTempReports(items); showToast(`Đã duyệt ${ids.length} báo cáo`, "success"); setSelectedIds(previous => previous.filter(id => !ids.includes(id))); if (selectedDetail && ids.includes(Number(selectedDetail.id))) setSelectedDetail(null); await loadReports(); }
+        catch (err: unknown) { showToast(axios.isAxiosError(err) ? err.response?.data?.message || "Duyệt báo cáo thất bại" : "Duyệt báo cáo thất bại"); }
+        finally { lock.current = false; setActionLoading(false); }
     };
-
     const approveSelected = () => approveTargets(selectedIds, targets);
     const approveOne = (report: ProductionReport) => approveTargets([Number(report.id)], [{ id: Number(report.id), expected_updated_at: report.updated_at || null }]);
-
     const rejectSelected = async () => {
         if (lock.current || actionLoading || !selectedIds.length || !canReview) return;
         const reason = rejectReason === "Lý do khác" ? rejectDetail.trim() : [rejectReason, rejectDetail.trim()].filter(Boolean).join(": ");
         if (!reason) return showToast("Vui lòng nhập lý do từ chối");
-        lock.current = true;
-        setActionLoading(true);
-        try {
-            await rejectSelectedTempReports(targets, reason);
-            showToast(`Đã từ chối ${selectedIds.length} báo cáo`, "success");
-            setRejectOpen(false);
-            setRejectDetail("");
-            setSelectedIds([]);
-            setSelectedDetail(null);
-            setEditingDetail(false);
-            await loadReports();
-        } catch (err: unknown) {
-            showToast(axios.isAxiosError(err) ? err.response?.data?.message || "Từ chối báo cáo thất bại" : "Từ chối báo cáo thất bại");
-        } finally {
-            lock.current = false;
-            setActionLoading(false);
-        }
+        lock.current = true; setActionLoading(true);
+        try { await rejectSelectedTempReports(targets, reason); showToast(`Đã từ chối ${selectedIds.length} báo cáo`, "success"); setRejectOpen(false); setRejectDetail(""); setSelectedIds([]); setSelectedDetail(null); setEditingDetail(false); await loadReports(); }
+        catch (err: unknown) { showToast(axios.isAxiosError(err) ? err.response?.data?.message || "Từ chối báo cáo thất bại" : "Từ chối báo cáo thất bại"); }
+        finally { lock.current = false; setActionLoading(false); }
     };
-
     const detail = editingDetail && editDraft ? editDraft : selectedDetail;
     const detailDefects = (detail?.defects || []).filter(item => Number(item.quantity) > 0);
     const detailDeductions = (detail?.deductions || []).filter(item => Number(item.hours) > 0);
@@ -287,22 +204,12 @@ function Reports() {
     const detailOk = Number(detail?.tt_ok || 0);
     const detailNg = Number(detail?.tt_ng || 0);
     const detailRate = detailTotal > 0 ? (detailOk / detailTotal) * 100 : 0;
-
     const selectDay = () => { setDate(getToday()); setDateRange(null); };
-    const selectMonth = () => { const range = rangeFor(date, "month"); setDateRange(range); };
-    const selectWeek = () => { const range = rangeFor(date, "week"); setDateRange(range); };
-    const selectYear = () => { const range = rangeFor(date, "year"); setDateRange(range); };
-    const rangeIsActive = (type: "year" | "month" | "week" | "day") => {
-        const range = rangeFor(date, type);
-        const current = dateRange || { dateFrom: date, dateTo: date };
-        return current.dateFrom === range.dateFrom && current.dateTo === range.dateTo;
-    };
-    const handlePeriodKeyDown = (event: React.KeyboardEvent<HTMLDivElement>, action: () => void) => {
-        if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            action();
-        }
-    };
+    const selectMonth = () => setDateRange(rangeFor(date, "month"));
+    const selectWeek = () => setDateRange(rangeFor(date, "week"));
+    const selectYear = () => setDateRange(rangeFor(date, "year"));
+    const rangeIsActive = (type: "year" | "month" | "week" | "day") => { const range = rangeFor(date, type); const current = dateRange || { dateFrom: date, dateTo: date }; return current.dateFrom === range.dateFrom && current.dateTo === range.dateTo; };
+    const handlePeriodKeyDown = (event: React.KeyboardEvent<HTMLDivElement>, action: () => void) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); action(); } };
 
     return (
         <div className="management-report-page manager-page pending-reference-page">
@@ -310,19 +217,18 @@ function Reports() {
             <section className="pending-filter-card">
                 <div className="pending-search"><span>⌕</span><input value={searchKeyword} onChange={event => setSearchKeyword(event.target.value)} placeholder="Tìm kiếm mã báo cáo, công nhân..." /></div>
                 <label><span>Ngày báo cáo</span><input type="date" value={date} onChange={event => { setDate(event.target.value); setDateRange(null); }} /></label>
-                <div className="pending-quick-filters"><span>Chọn nhanh</span><button type="button" className={!dateRange ? "active" : ""} onClick={selectDay}>Hôm nay</button><button type="button" className={dateRange?.dateFrom === rangeFor(date, "month").dateFrom && dateRange?.dateTo === rangeFor(date, "month").dateTo ? "active" : ""} onClick={selectMonth}>Cả tháng</button><button type="button" className={dateRange?.dateFrom === rangeFor(date, "year").dateFrom && dateRange?.dateTo === rangeFor(date, "year").dateTo ? "active" : ""} onClick={selectYear}>Cả năm</button></div>
+                <div className="pending-quick-filters"><span>Chọn nhanh</span><button type="button" className={rangeIsActive("day") ? "active" : ""} onClick={selectDay}>Hôm nay</button><button type="button" className={rangeIsActive("week") ? "active" : ""} onClick={selectWeek}>Tuần này</button><button type="button" className={rangeIsActive("month") ? "active" : ""} onClick={selectMonth}>Tháng này</button><button type="button" className={rangeIsActive("year") ? "active" : ""} onClick={selectYear}>Năm này</button></div>
                 <label><span>Công đoạn</span><select value={selectedProcess} onChange={event => setSelectedProcess(event.target.value)}><option value="">Tất cả</option>{processes.map(process => <option key={process} value={process}>{process}</option>)}</select></label>
                 <label><span>Ca làm việc</span><select value={selectedShift} onChange={event => setSelectedShift(event.target.value)}><option value="">Tất cả</option>{shifts.map(shift => <option key={shift}>{shift}</option>)}</select></label>
                 <button className="pending-refresh" type="button" onClick={() => void loadReports()}>⟳ <span>Làm mới</span></button>
             </section>
             <section className="pending-kpis">
-                <div role="button" tabIndex={0} className={`pending-kpi kpi-blue ${rangeIsActive("year") ? "is-active" : ""}`} onClick={selectYear} onKeyDown={event => handlePeriodKeyDown(event, selectYear)}><span>Trong năm</span><strong>{yearCount}</strong><small>Báo cáo chờ duyệt · Bấm để xem</small></div>
-                <div role="button" tabIndex={0} className={`pending-kpi kpi-green ${rangeIsActive("month") ? "is-active" : ""}`} onClick={selectMonth} onKeyDown={event => handlePeriodKeyDown(event, selectMonth)}><span>Trong tháng</span><strong>{monthCount}</strong><small>Báo cáo chờ duyệt · Bấm để xem</small></div>
-                <div role="button" tabIndex={0} className={`pending-kpi kpi-slate ${rangeIsActive("week") ? "is-active" : ""}`} onClick={selectWeek} onKeyDown={event => handlePeriodKeyDown(event, selectWeek)}><span>Trong tuần</span><strong>{weekCount}</strong><small>Báo cáo chờ duyệt · Bấm để xem</small></div>
-                <div role="button" tabIndex={0} className={`pending-kpi kpi-orange ${rangeIsActive("day") ? "is-active" : ""}`} onClick={selectDay} onKeyDown={event => handlePeriodKeyDown(event, selectDay)}><span>Trong ngày</span><strong>{dayCount}</strong><small>Báo cáo chờ duyệt · Bấm để xem</small></div>
+                <div role="button" tabIndex={0} className={`pending-kpi kpi-orange ${rangeIsActive("day") ? "is-active" : ""}`} onClick={selectDay} onKeyDown={event => handlePeriodKeyDown(event, selectDay)}><span>Hôm nay</span><strong>{dayCount}</strong><small>Báo cáo chờ duyệt · Bấm để xem</small></div>
+                <div role="button" tabIndex={0} className={`pending-kpi kpi-slate ${rangeIsActive("week") ? "is-active" : ""}`} onClick={selectWeek} onKeyDown={event => handlePeriodKeyDown(event, selectWeek)}><span>Tuần này</span><strong>{weekCount}</strong><small>Báo cáo chờ duyệt · Bấm để xem</small></div>
+                <div role="button" tabIndex={0} className={`pending-kpi kpi-green ${rangeIsActive("month") ? "is-active" : ""}`} onClick={selectMonth} onKeyDown={event => handlePeriodKeyDown(event, selectMonth)}><span>Tháng này</span><strong>{monthCount}</strong><small>Báo cáo chờ duyệt · Bấm để xem</small></div>
+                <div role="button" tabIndex={0} className={`pending-kpi kpi-blue ${rangeIsActive("year") ? "is-active" : ""}`} onClick={selectYear} onKeyDown={event => handlePeriodKeyDown(event, selectYear)}><span>Năm này</span><strong>{yearCount}</strong><small>Báo cáo chờ duyệt · Bấm để xem</small></div>
             </section>
             {error && <div className="management-error">{error}</div>}
-
             <section className={`pending-workspace ${selectedDetail ? "detail-open" : "list-only"}`}>
                 <div className="pending-list-card">
                     <div className="pending-list-tabs"><button type="button" className="pending-list-tab active">Danh sách báo cáo ({totalCount})</button></div>
@@ -330,40 +236,33 @@ function Reports() {
                     {loading ? <div className="management-empty">Đang tải...</div> : !visibleReports.length ? <div className="pending-overdue-empty">Không có báo cáo phù hợp</div> : <div className="pending-table-wrap"><table className="pending-reference-table"><thead><tr><th className="select-col"><input type="checkbox" checked={allSelected} ref={element => { if (element) element.indeterminate = someSelected; }} onChange={togglePage} /></th><th>STT</th><th>Mã báo cáo</th><th>Công nhân</th><th>Công đoạn</th><th>Ca</th><th>Thời gian</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>{visibleReports.map((report, index) => { const id = Number(report.id); const selected = selectedSet.has(id); const active = Number(selectedDetail?.id) === id; return <tr key={report.id ?? index} className={`${selected ? "is-selected" : ""} ${active ? "pending-row-active" : ""}`}><td className="select-col"><input type="checkbox" checked={selected} disabled={!id || actionLoading} onChange={() => toggleOne(id)} /></td><td>{(currentPage - 1) * 8 + index + 1}</td><td className="report-code">{reportCode(report, index)}</td><td><div className="worker-cell">{text(report.full_name)}<small>({text(report.worker_code)})</small></div></td><td>{text(report.process_name)}</td><td><span className="shift-chip">{text(report.shift)}</span></td><td><div className="date-cell"><strong>{formatDate(report.work_date)}</strong><small>{timeRange(report)}</small></div></td><td><span className="status-pill status-orange">Chờ duyệt</span></td><td className="actions-cell"><button type="button" className="icon-action view" title="Xem chi tiết" onClick={() => void openDetail(report)}>◉</button></td></tr>; })}</tbody></table></div>}
                     <footer className="pending-table-footer"><span>Hiển thị {visibleReports.length ? (currentPage - 1) * 8 + 1 : 0} đến {Math.min(currentPage * 8, totalCount)} của {totalCount} báo cáo</span><nav className="pending-pagination"><button disabled={currentPage === 1} onClick={() => setCurrentPage(page => Math.max(1, page - 1))}>‹</button>{Array.from({ length: Math.min(totalPages, 4) }, (_, index) => index + 1).map(page => <button key={page} className={currentPage === page ? "active" : ""} onClick={() => setCurrentPage(page)}>{page}</button>)}{totalPages > 4 && <button disabled>…</button>}<button disabled={currentPage === totalPages} onClick={() => setCurrentPage(page => Math.min(totalPages, page + 1))}>›</button></nav></footer>
                 </div>
-
                 {selectedDetail && <aside className={`pending-detail-card ${editingDetail ? "is-editing" : ""}`}>
                     <header className="pending-detail-head"><div className="pending-detail-title"><h2>{editingDetail ? "Sửa báo cáo" : "Chi tiết báo cáo"}</h2><span className="pending-detail-status">Chờ duyệt</span></div><span className="pending-detail-code">Mã báo cáo: {reportCode(selectedDetail, 0)}</span><button type="button" className="pending-detail-close" aria-label="Đóng chi tiết" onClick={() => { if (!editSaving) { setSelectedDetail(null); cancelInlineEdit(); } }}>×</button></header>
                     {detailLoading ? <div className="pending-detail-loading">Đang tải chi tiết...</div> : detail ? <>
                         <div className="pending-detail-body">
-                            <section className="pending-detail-section">
-                                <h3>Thông tin chung</h3>
-                                {editingDetail ? <div className="pending-edit-grid">
-                                    <label><span>Ngày báo cáo</span><input type="date" value={String(detail.work_date || "").slice(0, 10)} onChange={e => updateEditField("work_date", e.target.value)} /></label>
-                                    <label><span>Ca làm việc</span><select value={detail.shift || ""} onChange={e => updateEditField("shift", e.target.value)}><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select></label>
-                                    <label><span>Máy móc</span><input value={detail.machine_no || ""} onChange={e => updateEditField("machine_no", e.target.value)} /></label>
-                                    <label><span>Sản phẩm</span><input value={detail.product_name || ""} onChange={e => updateEditField("product_name", e.target.value)} /></label>
-                                    <label><span>Giờ làm thực tế</span><input type="number" min="0" max="24" step="1" value={editHours} onChange={e => setEditHours(e.target.value.replace(/\D/g, ""))} /></label>
-                                    <label><span>Phút làm thực tế</span><input type="number" min="0" max="59" step="1" value={editMinutes} onChange={e => setEditMinutes(e.target.value.replace(/\D/g, ""))} /></label>
-                                    <label><span>TT OK</span><input type="number" min="0" step="1" value={Number(detail.tt_ok || 0)} onChange={e => updateEditField("tt_ok", Math.max(0, Number(e.target.value) || 0))} /></label>
-                                    <label><span>Ghi chú</span><input value={detail.note || ""} onChange={e => updateEditField("note", e.target.value)} /></label>
-                                </div> : <div className="pending-detail-grid">
-                                    <div className="pending-detail-field"><span>Công nhân</span><strong>{text(detail.full_name)} ({text(detail.worker_code)})</strong></div><div className="pending-detail-field"><span>Ngày báo cáo</span><strong>{formatDate(detail.work_date)}</strong></div>
-                                    <div className="pending-detail-field"><span>Công đoạn</span><strong>{text(detail.process_name)}</strong></div><div className="pending-detail-field"><span>Thời gian làm việc</span><strong>{timeRange(detail)} ({number(detail.total_time)}h)</strong></div>
-                                    <div className="pending-detail-field"><span>Máy móc</span><strong>{text(detail.machine_no)}</strong></div><div className="pending-detail-field"><span>Sản phẩm</span><strong>{text(detail.product_name)}</strong></div>
-                                    <div className="pending-detail-field"><span>Ca làm việc</span><strong>{text(detail.shift)}</strong></div><div className="pending-detail-field"><span>Học việc</span><strong>{number(detail.training_percent ?? 100)}%</strong></div>
-                                </div>}
-                            </section>
+                            <section className="pending-detail-section"><h3>Thông tin chung</h3>{editingDetail ? <div className="pending-edit-grid">
+                                <label><span>Ngày báo cáo</span><input type="date" value={String(detail.work_date || "").slice(0, 10)} onChange={e => updateEditField("work_date", e.target.value)} /></label>
+                                <label><span>Ca làm việc</span><select value={detail.shift || ""} onChange={e => updateEditField("shift", e.target.value)}><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select></label>
+                                <label><span>Máy móc</span><input value={detail.machine_no || ""} onChange={e => updateEditField("machine_no", e.target.value)} /></label>
+                                <label><span>Sản phẩm</span><input value={detail.product_name || ""} onChange={e => updateEditField("product_name", e.target.value)} /></label>
+                                <label><span>Giờ làm thực tế</span><input type="number" min="0" max="24" step="1" value={editHours} onChange={e => setEditHours(e.target.value.replace(/\D/g, ""))} /></label>
+                                <label><span>Phút làm thực tế</span><input type="number" min="0" max="59" step="1" value={editMinutes} onChange={e => setEditMinutes(e.target.value.replace(/\D/g, ""))} /></label>
+                                <label><span>TT OK</span><input type="number" min="0" step="1" value={Number(detail.tt_ok || 0)} onChange={e => updateEditField("tt_ok", Math.max(0, Number(e.target.value) || 0))} /></label>
+                                <label><span>Ghi chú</span><input value={detail.note || ""} onChange={e => updateEditField("note", e.target.value)} /></label>
+                            </div> : <div className="pending-detail-grid">
+                                <div className="pending-detail-field"><span>Công nhân</span><strong>{text(detail.full_name)} ({text(detail.worker_code)})</strong></div><div className="pending-detail-field"><span>Ngày báo cáo</span><strong>{formatDate(detail.work_date)}</strong></div>
+                                <div className="pending-detail-field"><span>Công đoạn</span><strong>{text(detail.process_name)}</strong></div><div className="pending-detail-field"><span>Thời gian làm việc</span><strong>{timeRange(detail)} ({number(detail.total_time)}h)</strong></div>
+                                <div className="pending-detail-field"><span>Máy móc</span><strong>{text(detail.machine_no)}</strong></div><div className="pending-detail-field"><span>Sản phẩm</span><strong>{text(detail.product_name)}</strong></div>
+                                <div className="pending-detail-field"><span>Ca làm việc</span><strong>{text(detail.shift)}</strong></div><div className="pending-detail-field"><span>Học việc</span><strong>{number(detail.training_percent ?? 100)}%</strong></div>
+                            </div>}</section>
                             <section className="pending-detail-section"><h3>Kết quả sản xuất</h3><div className="pending-result-grid"><div className="pending-result-item"><span>Sản lượng OK</span><strong>{number(detailOk)}</strong></div><div className="pending-result-item ng"><span>Sản lượng NG</span><strong>{number(detailNg)}</strong></div><div className="pending-result-item total"><span>Tổng sản lượng</span><strong>{number(detailTotal)}</strong></div><div className="pending-result-item rate"><span>Tỷ lệ OK</span><strong>{detailRate.toLocaleString("vi-VN", { maximumFractionDigits: 2 })}%</strong></div></div></section>
                             <section className="pending-detail-section"><h3>Thông tin chi tiết</h3><div className="pending-detail-info-grid"><div><div className="pending-detail-field"><span>Trừ giờ</span><strong>{number(detail.deduction_time)} giờ</strong></div>{detailDeductions.length > 0 && <div className="pending-defect-list">{detailDeductions.map(item => <span className="pending-defect" key={item.id || item.deduction_code}>{item.deduction_name}: {number(item.hours)}h</span>)}</div>}</div><div><div className="pending-detail-field"><span>Lý do NG</span><strong>{detailDefects.length ? detailDefects.map(item => `${item.defect_name}: ${number(item.quantity)}`).join(", ") : "---"}</strong></div></div></div><div className="pending-detail-field" style={{ marginTop: 12 }}><span>Ghi chú</span><strong>{text(detail.note)}</strong></div></section>
                             <section className="pending-detail-section"><h3>Lịch sử duyệt</h3><div className="pending-history-empty">◷ &nbsp; Chưa có lịch sử duyệt</div></section>
                         </div>
-                        {canReview && <div className="pending-detail-actions">
-                            {editingDetail ? <><button type="button" className="pending-detail-cancel" disabled={editSaving} onClick={cancelInlineEdit}>Hủy sửa</button><button type="button" className="pending-detail-save" disabled={editSaving} onClick={() => void saveInlineEdit()}>{editSaving ? "Đang lưu..." : "Lưu thay đổi"}</button></> : <>{canEdit && <button type="button" className="pending-detail-edit" onClick={startInlineEdit}>✎ &nbsp; Sửa báo cáo</button>}<button type="button" className="pending-detail-reject" onClick={() => { setSelectedIds([Number(selectedDetail.id)]); setRejectOpen(true); }}>× &nbsp; Từ chối</button><button type="button" className="pending-detail-approve" onClick={() => void approveOne(selectedDetail)}>✓ &nbsp; Duyệt báo cáo</button></>}
-                        </div>}
+                        {canReview && <div className="pending-detail-actions">{editingDetail ? <><button type="button" className="pending-detail-cancel" disabled={editSaving} onClick={cancelInlineEdit}>Hủy sửa</button><button type="button" className="pending-detail-save" disabled={editSaving} onClick={() => void saveInlineEdit()}>{editSaving ? "Đang lưu..." : "Lưu thay đổi"}</button></> : <>{canEdit && <button type="button" className="pending-detail-edit" onClick={startInlineEdit}>✎ &nbsp; Sửa báo cáo</button>}<button type="button" className="pending-detail-reject" onClick={() => { setSelectedIds([Number(selectedDetail.id)]); setRejectOpen(true); }}>× &nbsp; Từ chối</button><button type="button" className="pending-detail-approve" onClick={() => void approveOne(selectedDetail)}>✓ &nbsp; Duyệt báo cáo</button></>}</div>}
                     </> : <div className="pending-detail-empty">Không có dữ liệu báo cáo.</div>}
                 </aside>}
             </section>
-
             {canReview && selectedIds.length > 0 && <div className="pending-bulk-actions"><span>Đã chọn {selectedIds.length} báo cáo</span><button type="button" className="reject" disabled={actionLoading} onClick={() => setRejectOpen(true)}>Từ chối {selectedIds.length} báo cáo</button><button type="button" className="approve" disabled={actionLoading} onClick={() => void approveSelected()}>Duyệt {selectedIds.length} báo cáo</button></div>}
             {rejectOpen && canReview && <div className="management-modal-backdrop" onMouseDown={() => !actionLoading && setRejectOpen(false)}><div className="management-modal" onMouseDown={event => event.stopPropagation()}><h2>Từ chối báo cáo</h2><p>{selectedIds.length} báo cáo sẽ được trả lại cho công nhân kèm lý do.</p><label>Lý do<select value={rejectReason} onChange={event => setRejectReason(event.target.value)}>{REJECT_REASONS.map(reason => <option key={reason}>{reason}</option>)}</select></label><label>Chi tiết<textarea value={rejectDetail} onChange={event => setRejectDetail(event.target.value)} rows={3} /></label><div className="management-modal-actions"><button type="button" onClick={() => setRejectOpen(false)}>Hủy</button><button type="button" className="management-reject-button" onClick={() => void rejectSelected()}>{actionLoading ? "Đang xử lý..." : "Xác nhận từ chối"}</button></div></div></div>}
         </div>
