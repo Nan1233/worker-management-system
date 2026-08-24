@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BarChart3, Bell, ChevronDown, ClipboardCheck, Database, LayoutDashboard, LogOut, MoreHorizontal, Settings2, ShieldCheck, Users } from "lucide-react";
+import { BarChart3, Bell, Boxes, ChevronDown, ClipboardCheck, Cog, FileWarning, History, LayoutDashboard, LogOut, MoreHorizontal, Settings2, ShieldCheck, Timer, Users } from "lucide-react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { logout } from "../services/authService";
 import { getStoredUser } from "../utils/authStorage";
@@ -18,11 +18,14 @@ const items:ManagementMenuItem[]=[
  {label:"Đã duyệt",path:"approved",icon:ShieldCheck,permission:"REPORT_APPROVED_VIEW",roles:allManagementRoles},
  {label:"Thống kê",path:"statistics",icon:BarChart3,permission:"STATISTICS_VIEW",roles:allManagementRoles},
  {label:"Nhân sự",path:"workers",icon:Users,permission:"USER_VIEW",roles:allManagementRoles},
- {label:"Dữ liệu chuẩn",path:"data-standard",icon:Database,permission:"MASTER_VIEW",roles:adminAndManagerRoles},
+ {label:"Máy móc",path:"master/machines",icon:Cog,permission:"MASTER_VIEW",roles:adminAndManagerRoles},
+ {label:"Sản phẩm",path:"master/standards",icon:Boxes,permission:"MASTER_VIEW",roles:adminAndManagerRoles},
+ {label:"Trừ giờ",path:"master/deductions",icon:Timer,permission:"MASTER_VIEW",roles:adminAndManagerRoles},
+ {label:"Lỗi",path:"master/defects",icon:FileWarning,permission:"MASTER_VIEW",roles:adminAndManagerRoles},
  {label:"Công thức",path:"formulas",icon:Settings2,permission:"FORMULA_VIEW",roles:adminAndManagerRoles},
- {label:"Quản trị dữ liệu",path:"governance",icon:Database,permission:"GOVERNANCE_VIEW",roles:adminAndManagerRoles},
+ {label:"Nhật ký hoạt động",path:"system",icon:History,permission:"AUDIT_VIEW",roles:adminAndManagerRoles},
+ {label:"Quản trị dữ liệu",path:"governance",icon:ShieldCheck,permission:"GOVERNANCE_VIEW",roles:adminAndManagerRoles},
  {label:"Vai trò & quyền",path:"permissions",icon:ShieldCheck,permission:"PERMISSION_MANAGE",roles:["admin"]},
- {label:"Hệ thống",path:"system",icon:Bell,permission:"NOTIFICATION_VIEW",roles:allManagementRoles},
 ];
 const roleLabel:Record<ManagementRole,string>={lead:"Tổ trưởng",manager:"Quản lý",admin:"Quản trị viên"};
 
@@ -41,7 +44,7 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
  return <div className="management-layout">
   <aside className="management-sidebar">
    <button className="management-brand" type="button" onClick={()=>navigate(base)}><span className="management-brand-mark">K</span><span><strong>KTC (HANOI) CO., LTD</strong><small>{roleLabel[role]}</small></span></button>
-   <nav className="management-menu" aria-label="Management navigation">{visible.map(item=>{const Icon=item.icon;return <button key={item.path||"home"} type="button" className={active(item.path)?"active":""} onClick={()=>navigate(`${base}${item.path?`/${item.path}`:""}`)}><Icon size={18}/><span>{item.label}</span>{item.label==="Hệ thống"&&unreadCount>0&&<b className="management-badge">{unreadCount>99?"99+":unreadCount}</b>}</button>;})}</nav>
+   <nav className="management-menu" aria-label="Management navigation">{visible.map(item=>{const Icon=item.icon;return <button key={item.path||"home"} type="button" className={active(item.path)?"active":""} onClick={()=>navigate(`${base}${item.path?`/${item.path}`:""}`)}><Icon size={18}/><span>{item.label}</span>{item.path==="system"&&unreadCount>0&&<b className="management-badge">{unreadCount>99?"99+":unreadCount}</b>}</button>;})}</nav>
    <button className="management-logout" type="button" onClick={()=>void handleLogout()}><LogOut size={18}/><span>Đăng xuất</span></button>
   </aside>
   <section className="management-main">
