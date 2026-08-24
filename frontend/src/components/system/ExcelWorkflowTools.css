@@ -1,0 +1,91 @@
+.ktc-excel-workflow-tools {
+    position: fixed;
+    top: 64px;
+    right: 20px;
+    z-index: 1200;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    max-width: min(620px, calc(100vw - 32px));
+    font-size: 13px;
+}
+
+.ktc-excel-workflow-row,
+.ktc-excel-path-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 36px;
+    padding: 5px 7px;
+    background: var(--ktc-surface, #fff);
+    border: 1px solid var(--ktc-border, #dfe7f0);
+    border-radius: 9px;
+    box-shadow: 0 4px 14px rgba(16, 35, 64, .08);
+}
+
+.ktc-excel-primary,
+.ktc-excel-path-row button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 28px;
+    border: 1px solid var(--ktc-border, #dfe7f0);
+    border-radius: 7px;
+    padding: 0 10px;
+    background: #fff;
+    color: var(--ktc-text, #162033);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.ktc-excel-primary {
+    background: var(--ktc-primary, #1769d2);
+    border-color: var(--ktc-primary, #1769d2);
+    color: #fff;
+}
+
+.ktc-excel-primary:disabled,
+.ktc-excel-path-row button:disabled {
+    opacity: .55;
+    cursor: not-allowed;
+}
+
+.ktc-excel-path-row {
+    max-width: 100%;
+    color: var(--ktc-text-muted, #66758a);
+}
+
+.ktc-excel-path-row > span {
+    max-width: 340px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ktc-excel-path-row button {
+    flex: 0 0 auto;
+    background: var(--ktc-surface, #fff);
+    color: var(--ktc-primary, #1769d2);
+}
+
+@media (max-width: 900px) {
+    .ktc-excel-workflow-tools {
+        top: 58px;
+        right: 10px;
+        left: 10px;
+        align-items: stretch;
+        max-width: none;
+    }
+
+    .ktc-excel-workflow-row,
+    .ktc-excel-path-row {
+        justify-content: flex-end;
+    }
+
+    .ktc-excel-path-row > span {
+        max-width: 42vw;
+    }
+}
