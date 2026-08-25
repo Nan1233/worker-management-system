@@ -44,6 +44,16 @@ const SAMPLE_FORM_FIELDS: Record<string, ExtraFieldDefinition[]> = {
     ],
 };
 
+/**
+ * Các trường này do Quản lý/Tổ trưởng kiểm soát, không phải dữ liệu công nhân
+ * tự nhập. Vì vậy tuyệt đối không hiển thị trong form Worker ở bất kỳ công đoạn nào.
+ * Dữ liệu quản lý vẫn có thể được lưu/xử lý ở backend và dùng cho báo cáo.
+ */
+const MANAGER_CONTROLLED_WORKER_HIDDEN_KEYS = new Set([
+    "actual_output",
+    "productivity_percent",
+]);
+
 const toDefinition = (field: ReturnType<typeof getExtraFields>[number]): ExtraFieldDefinition => ({
     key: field.key,
     label: field.label,
@@ -56,11 +66,18 @@ const toDefinition = (field: ReturnType<typeof getExtraFields>[number]): ExtraFi
 /**
  * Tương thích với ProcessPage hiện tại. Nguồn tiêu đề là schema + các
  * trường đặc thù được đối chiếu từ workbook mẫu.
+ *
+ * actual_output (Thực tích) và productivity_percent (% Năng suất) được
+ * lọc khỏi giao diện Worker ở tất cả công đoạn vì đây là dữ liệu do
+ * Quản lý/Tổ trưởng kiểm soát.
  */
 export const processExtraFields: Record<string, ExtraFieldDefinition[]> = Object.fromEntries(
     slugs.map((slug) => {
-        const schemaFields = getExtraFields(slug).map(toDefinition);
-        const sampleFields = SAMPLE_FORM_FIELDS[slug] || [];
+        const schemaFields = getExtraFields(slug)
+            .map(toDefinition)
+            .filter((field) => !MANAGER_CONTROLLED_WORKER_HIDDEN_KEYS.has(field.key));
+        const sampleFields = (SAMPLE_FORM_FIELDS[slug] || [])
+            .filter((field) => !MANAGER_CONTROLLED_WORKER_HIDDEN_KEYS.has(field.key));
         const merged = [...schemaFields];
         sampleFields.forEach((field) => {
             if (!merged.some((item) => item.key === field.key)) merged.push(field);
