@@ -1,4 +1,4 @@
-/* KTC — equal-width time fields. Visual-only override. */
+/* KTC — align the actual input controls on the same horizontal line. */
 
 .worker-time-grid {
   display: grid !important;
@@ -40,6 +40,15 @@
   box-sizing: border-box !important;
 }
 
+/*
+ * The first field has an extra "Giờ / Phút" helper row.
+ * Push the two computed inputs down by exactly that row height so that
+ * all three actual input boxes start on the same horizontal baseline.
+ */
+.worker-time-item.worker-time-computed > input {
+  margin-top: 20px !important;
+}
+
 @media (max-width: 680px) {
   .worker-time-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
@@ -54,5 +63,9 @@
   .worker-time-item:first-child,
   .worker-time-item.worker-time-computed:last-child {
     grid-column: auto !important;
+  }
+
+  .worker-time-item.worker-time-computed > input {
+    margin-top: 20px !important;
   }
 }
