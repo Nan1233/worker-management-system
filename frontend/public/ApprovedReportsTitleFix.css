@@ -1,0 +1,22 @@
+/* Approved reports: keep the page title visible after the shared pending-page UI fix. */
+.pending-reference-page > .pending-page-title {
+  display: flex !important;
+}
+
+.pending-reference-page > .pending-page-title h1 {
+  display: block !important;
+  visibility: visible !important;
+  margin: 0 !important;
+  color: #17345b !important;
+  font-size: clamp(24px, 2.1vw, 32px) !important;
+  line-height: 1.2 !important;
+  font-weight: 800 !important;
+}
+
+.pending-reference-page > .pending-page-title p {
+  display: block !important;
+  visibility: visible !important;
+  margin: 6px 0 0 !important;
+  color: #7185a4 !important;
+  font-size: 13px !important;
+}
