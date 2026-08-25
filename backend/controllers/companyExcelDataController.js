@@ -3,18 +3,28 @@ const { loadProcessMonthReports } = require('../services/processExcelExportServi
 const db = require('../config/db');
 const { getSettingsMap } = require('../services/formulaSettingsService');
 const { calculateProductionMetrics } = require('../domain/productionCalculationEngine.cjs');
-const { assertProcessesScope } = require('../services/processAuthorizationService');
+const { getActorProcessScope } = require('../services/processAuthorizationService');
 
 const PROCESS_CODES = ['CAN','EP','XLBV','GC','MAI','DO','K1','K2','SX3'];
 const query = (sql, params = []) => db.promise().query(sql, params).then(([rows]) => rows);
-const inFlightByMonth = new Map();
-const cacheByMonth = new Map();
+const inFlightByScope = new Map();
+const cacheByScope = new Map();
 const CACHE_TTL_MS = Math.max(0, Math.min(10_000, Number(process.env.COMPANY_DATA_CACHE_TTL_MS || 5_000)));
-const MAX_CACHE_ENTRIES = 1;
+const MAX_CACHE_ENTRIES = 8;
+
+function normalizeRole(actor) {
+  return String(actor?.role || '').trim().toLowerCase();
+}
+
+function scopeCacheKey(yearMonth, actor, scope) {
+  if (!actor || scope.type === 'ALL') return `${yearMonth}:ALL`;
+  const ids = [...scope.processIds].sort((a, b) => a - b).join(',');
+  return `${yearMonth}:LIMITED:${Number(actor?.id) || 'unknown'}:${ids}`;
+}
 
 async function buildCompanyData(yearMonth, actor) {
   const placeholders = PROCESS_CODES.map(() => '?').join(',');
-  const processes = await query(
+  const allProcesses = await query(
     `SELECT id, process_code, process_name
      FROM processes
      WHERE UPPER(process_code) IN (${placeholders})
@@ -22,12 +32,22 @@ async function buildCompanyData(yearMonth, actor) {
     PROCESS_CODES
   );
 
-  const companyProcessIds = processes.map((row) => Number(row.id));
-  if (actor) await assertProcessesScope(actor, companyProcessIds, { action:'COMPANY_EXPORT' });
-  await assertReportVolume({
-    yearMonth,
-    processIds: companyProcessIds
-  });
+  // Export data is scope-aware: Admin receives the full company payload;
+  // Manager/Lead receive only the processes assigned in manager_processes.
+  // This avoids a 403 during Desktop startup while never leaking another
+  // manager's production data into the workbook payload.
+  const scope = actor ? await getActorProcessScope(actor) : { type: 'ALL', processIds: null };
+  const processes = scope.type === 'ALL'
+    ? allProcesses
+    : allProcesses.filter((row) => scope.processIds.has(Number(row.id)));
+
+  const processIds = processes.map((row) => Number(row.id));
+  if (processIds.length) {
+    await assertReportVolume({
+      yearMonth,
+      processIds
+    });
+  }
 
   const processData = Object.fromEntries(PROCESS_CODES.map((code) => [code, {
     processId: null,
@@ -96,7 +116,13 @@ async function buildCompanyData(yearMonth, actor) {
 
   const formulaSettings = await getSettingsMap(`${yearMonth}-01`);
 
-  if (process.env.KTC_DEBUG_EXPORTS === 'true') console.log('[KTC] Company Excel data loaded', { yearMonth, diagnostics, formulaSettingDates: reportDates.length });
+  if (process.env.KTC_DEBUG_EXPORTS === 'true') console.log('[KTC] Company Excel data loaded', {
+    yearMonth,
+    scope: scope.type,
+    processIds,
+    diagnostics,
+    formulaSettingDates: reportDates.length
+  });
 
   return {
     yearMonth,
@@ -114,39 +140,38 @@ async function buildCompanyData(yearMonth, actor) {
     ],
     processes: processData,
     formulaSettings,
-    diagnostics
+    diagnostics,
+    exportScope: scope.type
   };
 }
 
-async function assertCompanyDataScope(actor) {
-  if (!actor) return;
-  const placeholders = PROCESS_CODES.map(() => '?').join(',');
-  const processes = await query(`SELECT id FROM processes WHERE UPPER(process_code) IN (${placeholders}) ORDER BY id`, PROCESS_CODES);
-  await assertProcessesScope(actor, processes.map((row) => Number(row.id)), { action:'COMPANY_EXPORT' });
-}
-
 async function getCompanyData(yearMonth, actor) {
-  await assertCompanyDataScope(actor);
-  const cached = cacheByMonth.get(yearMonth);
+  const scope = actor
+    ? await getActorProcessScope(actor)
+    : { type: 'ALL', processIds: null };
+  const key = scopeCacheKey(yearMonth, actor, scope);
+
+  const cached = cacheByScope.get(key);
   if (cached && Date.now() - cached.createdAt < CACHE_TTL_MS) return cached.data;
 
-  const running = inFlightByMonth.get(yearMonth);
+  const running = inFlightByScope.get(key);
   if (running) return running;
 
   const task = buildCompanyData(yearMonth, actor)
     .then((data) => {
       if (CACHE_TTL_MS > 0) {
-        cacheByMonth.clear();
-        cacheByMonth.set(yearMonth, { createdAt: Date.now(), data });
-        while (cacheByMonth.size > MAX_CACHE_ENTRIES) {
-          cacheByMonth.delete(cacheByMonth.keys().next().value);
+        cacheByScope.set(key, { createdAt: Date.now(), data });
+        while (cacheByScope.size > MAX_CACHE_ENTRIES) {
+          const oldestKey = cacheByScope.keys().next().value;
+          if (oldestKey === undefined) break;
+          cacheByScope.delete(oldestKey);
         }
       }
       return data;
     })
-    .finally(() => inFlightByMonth.delete(yearMonth));
+    .finally(() => inFlightByScope.delete(key));
 
-  inFlightByMonth.set(yearMonth, task);
+  inFlightByScope.set(key, task);
   return task;
 }
 
@@ -163,6 +188,7 @@ exports.get = async (req, res) => {
     console.error('[KTC] COMPANY_DATA_FAILED', {
       requestId: req.requestId || req.id || null,
       selectedDate,
+      role: normalizeRole(req.user),
       code: error.code || null,
       message: error.message,
       stack: process.env.NODE_ENV === 'production' ? undefined : error.stack
@@ -177,6 +203,6 @@ exports.get = async (req, res) => {
 
 exports._buildCompanyData = buildCompanyData;
 exports._clearCompanyDataCache = () => {
-  cacheByMonth.clear();
-  inFlightByMonth.clear();
+  cacheByScope.clear();
+  inFlightByScope.clear();
 };
