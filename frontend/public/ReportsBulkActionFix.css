@@ -1,32 +1,61 @@
-/* Final override: separate bulk report actions in Chờ duyệt. */
-.pending-reference-page .pending-bulk-actions{
+/* Fix cụm thao tác khi chọn báo cáo trong trang Chờ duyệt. */
+.pending-reference-page .management-selected-info{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:24px!important;
+  width:100%!important;
+  box-sizing:border-box!important;
+}
+
+.pending-reference-page .management-selected-actions{
   display:flex!important;
   align-items:center!important;
   justify-content:flex-end!important;
-  gap:18px!important;
-  flex-wrap:wrap!important;
+  gap:12px!important;
+  flex:0 0 auto!important;
   white-space:nowrap!important;
 }
-.pending-reference-page .pending-bulk-actions > *{
-  margin:0!important;
-  flex:0 0 auto!important;
-}
-.pending-reference-page .pending-bulk-actions button{
+
+.pending-reference-page .management-selected-actions button{
+  position:static!important;
   display:inline-flex!important;
   align-items:center!important;
   justify-content:center!important;
+  width:auto!important;
+  min-width:88px!important;
+  height:36px!important;
   margin:0!important;
-  padding-left:14px!important;
-  padding-right:14px!important;
-  min-width:72px!important;
+  padding:0 16px!important;
+  box-sizing:border-box!important;
+  white-space:nowrap!important;
+  flex:0 0 auto!important;
+  border-radius:7px!important;
 }
-.pending-reference-page .pending-bulk-actions > span{
-  margin-right:4px!important;
+
+.pending-reference-page .management-selected-actions .selected-reject-action{
+  margin-left:4px!important;
 }
+
+.pending-reference-page .management-selected-actions .selected-approve-action{
+  margin-left:4px!important;
+}
+
 @media(max-width:720px){
-  .pending-reference-page .pending-bulk-actions{
-    gap:10px!important;
-    justify-content:flex-start!important;
+  .pending-reference-page .management-selected-info{
+    align-items:flex-start!important;
+    flex-direction:column!important;
+    gap:12px!important;
   }
-  .pending-reference-page .pending-bulk-actions > span{margin-right:auto!important;}
+
+  .pending-reference-page .management-selected-actions{
+    width:100%!important;
+    justify-content:flex-start!important;
+    gap:10px!important;
+    flex-wrap:wrap!important;
+  }
+
+  .pending-reference-page .management-selected-actions button{
+    min-width:84px!important;
+  }
 }
