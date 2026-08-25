@@ -17,20 +17,134 @@ export type ProcessDraft = {
 
 const keyFor = (process: string) => `ktc:process-draft:${process}`;
 
+const FORM_LABELS: Record<string, string> = {
+  workerCode: "Mã công nhân",
+  workerName: "Công nhân",
+  trainingPercent: "Đào tạo",
+  workDate: "Ngày sản xuất",
+  shift: "Ca làm việc",
+  productName: "Mã sản phẩm",
+  machineNo: "Mã máy",
+  standardOutput: "Định mức",
+  actualOutput: "Sản lượng thực tế",
+  totalTime: "Tổng thời gian",
+  actualTime: "Thời gian thực tế",
+  actualHours: "Giờ thực tế",
+  actualMinutes: "Phút thực tế",
+  deductionTime: "Thời gian trừ",
+  ttOk: "TT OK",
+  ttNg: "TT NG",
+};
+
+const humanizeKey = (key: string) =>
+  FORM_LABELS[key]
+  || key.replace(/([A-Z])/g, " $1").replace(/^./, (char) => char.toUpperCase());
+
+const valueText = (value: unknown) => {
+  if (value === null || value === undefined || value === "") return "—";
+  if (typeof value === "boolean") return value ? "Có" : "Không";
+  if (Array.isArray(value)) return value.length ? value.join(", ") : "—";
+  return String(value);
+};
+
+function buildDraftResumeMessage(draft: ProcessDraft): string {
+  const f = draft.form || {};
+  const lines: string[] = [
+    "KTC – BÁO CÁO ĐANG LÀM DỞ",
+    "",
+    `Công đoạn: ${draft.process}`,
+    `Lưu lần cuối: ${new Date(draft.savedAt).toLocaleString("vi-VN")}`,
+    "",
+    "THÔNG TIN BÁO CÁO",
+  ];
+
+  Object.entries(f).forEach(([key, value]) => {
+    if (value !== "" && value !== null && value !== undefined) {
+      lines.push(`• ${humanizeKey(key)}: ${valueText(value)}`);
+    }
+  });
+
+  lines.push("", `Hình thức: ${draft.operationMode === "MACHINE" ? "Làm máy" : "Làm tay"}`);
+  if (draft.operationType) {
+    lines.push(`Loại gia công: ${draft.operationType === "CUT" ? "Cắt" : "Lồng"}`);
+  }
+
+  lines.push("", "THÔNG TIN MÁY / SẢN PHẨM");
+  if (draft.machineLines?.length) {
+    draft.machineLines.forEach((line: MachineLineState, index) => {
+      lines.push(`Máy ${index + 1}:`);
+      lines.push(`  • Mã máy: ${valueText(line.machineCode)}`);
+      lines.push(`  • Mã sản phẩm: ${valueText(line.productCode)}`);
+      lines.push(`  • Giờ chạy: ${valueText(line.hours)}`);
+      lines.push(`  • Phút chạy: ${valueText(line.minutes)}`);
+      lines.push(`  • OK: ${valueText(line.okQuantity)}`);
+      lines.push(`  • NG: ${valueText(line.ngQuantity)}`);
+      lines.push(`  • Định mức/giờ: ${valueText(line.standardOutputPerHour)}`);
+      lines.push(`  • Thời gian định mức: ${valueText(line.standardTimeSeconds)}`);
+      if (line.selectedDefects?.length) lines.push(`  • Lỗi NG đã chọn: ${line.selectedDefects.join(", ")}`);
+      const defects = Object.entries(line.defects || {}).filter(([, value]) => value !== "" && value !== "0" && value !== 0);
+      defects.forEach(([key, value]) => lines.push(`  • NG ${key}: ${valueText(value)}`));
+    });
+  } else {
+    lines.push("• Chưa có dữ liệu máy");
+  }
+
+  lines.push("", "TRỪ GIỜ");
+  const deductions = Object.entries(draft.deductions || {}).filter(([, value]) => value !== "" && value !== null && value !== undefined && value !== 0 && value !== "0");
+  if (deductions.length) {
+    deductions.forEach(([key, value]) => lines.push(`• ${humanizeKey(key)}: ${valueText(value)}`));
+  } else {
+    lines.push("• Không có");
+  }
+
+  lines.push("", "LỖI NG ĐÃ CHỌN");
+  lines.push(draft.selectedNg?.length ? `• ${draft.selectedNg.join(", ")}` : "• Không có");
+
+  lines.push("", "THÔNG TIN BỔ SUNG");
+  const extra = Object.entries(draft.extraData || {}).filter(([, value]) => value !== "" && value !== null && value !== undefined);
+  if (extra.length) {
+    extra.forEach(([key, value]) => lines.push(`• ${humanizeKey(key)}: ${valueText(value)}`));
+  } else {
+    lines.push("• Không có");
+  }
+
+  lines.push(
+    "",
+    "Bạn có muốn làm tiếp báo cáo này không?",
+    "Chọn OK để khôi phục TOÀN BỘ dữ liệu trên.",
+    "Chọn Hủy để bỏ báo cáo đang làm dở và nhập báo cáo mới.",
+  );
+
+  return lines.join("\n");
+}
+
 export function loadProcessDraft(process: string): ProcessDraft | null {
   try {
     const raw = localStorage.getItem(keyFor(process));
     if (!raw) return null;
     const value = JSON.parse(raw) as ProcessDraft;
-    return value?.version === 1 && value.process === process ? value : null;
-  } catch { return null; }
+    if (value?.version !== 1 || value.process !== process || !hasMeaningfulProcessDraft(value)) return null;
+
+    const shouldResume = window.confirm(buildDraftResumeMessage(value));
+    if (!shouldResume) {
+      localStorage.removeItem(keyFor(process));
+      return null;
+    }
+
+    return value;
+  } catch {
+    return null;
+  }
 }
+
 export function saveProcessDraft(draft: ProcessDraft): void {
   try { localStorage.setItem(keyFor(draft.process), JSON.stringify(draft)); } catch { /* storage unavailable */ }
 }
+
 export function clearProcessDraft(process: string): void {
   try { localStorage.removeItem(keyFor(process)); } catch { /* noop */ }
 }
+
 export function hasMeaningfulProcessDraft(draft: ProcessDraft): boolean {
   const f = draft.form || {};
   return Boolean(
