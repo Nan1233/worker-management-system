@@ -2,26 +2,16 @@ const express = require("express");
 
 const router = express.Router();
 
-const authMiddleware = require(
-    "../middleware/authMiddleware"
-);
-
-const checkRole = require(
-    "../middleware/roleMiddleware"
-);
+const authMiddleware = require("../middleware/authMiddleware");
+const checkRole = require("../middleware/roleMiddleware");
 const permission = require("../middleware/permissionMiddleware");
 const notifyWorkerOnTempEdit = require("../middleware/notifyWorkerOnTempEdit");
-
-const controller = require(
-    "../controllers/productionTempController"
-);
+const controller = require("../controllers/productionTempController");
 const validate = require("../middleware/validateRequest");
 const { workerReportLimiter } = require("../middleware/rateLimiters");
-
-
-// =====================================================
-// WORKER TẠO BÁO CÁO CHỜ DUYỆT
-// =====================================================
+const db = require("../config/db");
+const AuditService = require("../services/auditService");
+const ProductionTemp = require("../models/productionTempModel");
 
 router.post(
     "/",
@@ -42,11 +32,6 @@ router.post(
     controller.checkSimilarReport
 );
 
-
-// =====================================================
-// WORKER XEM BÁO CÁO CỦA MÌNH
-// =====================================================
-
 router.get(
     "/my",
     authMiddleware,
@@ -55,106 +40,51 @@ router.get(
     controller.getMyTempReports
 );
 
-
-// =====================================================
-// LEAD / MANAGER / ADMIN XEM BÁO CÁO CHỜ DUYỆT
-// =====================================================
-
 router.get(
     "/pending",
     authMiddleware,
-    checkRole(
-        "admin",
-        "manager",
-        "lead"
-    ),
+    checkRole("admin", "manager", "lead"),
     permission("REPORT_PENDING_VIEW"),
     controller.getPendingReports
 );
 
-
-// =====================================================
-// LEAD / MANAGER / ADMIN XEM BÁO CÁO ĐÃ DUYỆT
-// =====================================================
-
 router.get(
     "/approved",
     authMiddleware,
-    checkRole(
-        "admin",
-        "manager",
-        "lead"
-    ),
+    checkRole("admin", "manager", "lead"),
     permission("REPORT_APPROVED_VIEW"),
     controller.getApprovedReports
 );
 
-
-// =====================================================
-// LẤY DANH SÁCH NGÀY CÓ BÁO CÁO CHỜ DUYỆT
-// =====================================================
-
 router.get(
     "/dates",
     authMiddleware,
-    checkRole(
-        "admin",
-        "manager",
-        "lead"
-    ),
+    checkRole("admin", "manager", "lead"),
     permission("REPORT_PENDING_VIEW"),
     controller.getTempDates
 );
 
-
-// =====================================================
-// LẤY BÁO CÁO CHỜ DUYỆT THEO NGÀY
-// =====================================================
-
 router.get(
     "/by-date",
     authMiddleware,
-    checkRole(
-        "admin",
-        "manager",
-        "lead"
-    ),
+    checkRole("admin", "manager", "lead"),
     permission("REPORT_PENDING_VIEW"),
     controller.getTempReportsByDate
 );
 
-
-// =====================================================
-// DUYỆT CÁC BÁO CÁO ĐÃ CHỌN
-// =====================================================
-
 router.post(
     "/approve-selected",
     authMiddleware,
-    checkRole(
-        "admin",
-        "manager",
-        "lead"
-    ),
+    checkRole("admin", "manager", "lead"),
     validate({ ids:{required:true,type:"array",itemType:"positiveInt",minItems:1,maxItems:100,unique:true} }),
     permission("REPORT_APPROVE"),
     controller.approveSelectedReports
 );
 
-
-// =====================================================
-// GIỮ ROUTE CŨ ĐỂ TRÁNH LỖI CODE CŨ
-// Có thể xóa sau khi toàn bộ frontend dùng approve-selected
-// =====================================================
-
 router.post(
     "/reject-selected",
     authMiddleware,
-    checkRole(
-        "admin",
-        "manager",
-        "lead"
-    ),
+    checkRole("admin", "manager", "lead"),
     validate({
         ids:{required:true,type:"array",itemType:"positiveInt",minItems:1,maxItems:100,unique:true},
         reason:{required:true,type:"string",minLength:2,maxLength:500}
@@ -163,73 +93,92 @@ router.post(
     controller.rejectSelectedReports
 );
 
-
 router.post(
     "/approve",
     authMiddleware,
-    checkRole(
-        "admin",
-        "manager",
-        "lead"
-    ),
+    checkRole("admin", "manager", "lead"),
     permission("REPORT_APPROVE"),
     controller.approveSelectedReports
 );
 
+// Tổ trưởng/Quản lý đề xuất công nhân sửa báo cáo; không sửa trực tiếp dữ liệu.
+router.post(
+    "/:id/request-edit",
+    authMiddleware,
+    checkRole("admin", "manager", "lead"),
+    permission("REPORT_APPROVE"),
+    async (req, res) => {
+        try {
+            const reportId = Number(req.params.id);
+            const reason = String(req.body?.reason || "").trim();
+            if (!Number.isInteger(reportId) || reportId <= 0) {
+                return res.status(400).json({ success: false, message: "ID báo cáo không hợp lệ" });
+            }
+            if (reason.length < 2 || reason.length > 1000) {
+                return res.status(400).json({ success: false, message: "Nội dung đề xuất sửa phải từ 2 đến 1000 ký tự" });
+            }
 
-// =====================================================
-// XEM NHẬT KÝ THAO TÁC CỦA BÁO CÁO
-// =====================================================
+            const report = await ProductionTemp.getDetail(reportId);
+            if (!report) return res.status(404).json({ success: false, message: "Không tìm thấy báo cáo" });
+
+            if (req.user?.role !== "admin") {
+                const canManage = await ProductionTemp.canManageReport(reportId, req.user.id, false);
+                if (!canManage) return res.status(403).json({ success: false, message: "Báo cáo ngoài phạm vi phụ trách" });
+            }
+
+            const [workers] = await db.promise().query(
+                `SELECT w.user_id AS worker_user_id
+                   FROM production_reports_temp prt
+                   JOIN workers w ON w.id = prt.worker_id
+                  WHERE prt.id = ?
+                  LIMIT 1`,
+                [reportId]
+            );
+            const workerUserId = Number(workers?.[0]?.worker_user_id || 0);
+            if (!workerUserId) return res.status(422).json({ success: false, message: "Không xác định được tài khoản công nhân của báo cáo" });
+
+            const workDate = String(report.work_date || "").slice(0, 10);
+            await AuditService.notifyUsers([workerUserId], {
+                type: "report_edit_request",
+                title: "Yêu cầu sửa báo cáo",
+                message: `Báo cáo ngày ${workDate || "-"}, ca ${report.shift || "-"} có đề xuất sửa: ${reason}`,
+                linkUrl: `/worker/history/${reportId}?source=pending",
+                entityType: "temp_report",
+                entityId: reportId,
+            });
+
+            return res.status(200).json({ success: true, message: "Đã gửi đề xuất sửa cho công nhân" });
+        } catch (error) {
+            console.error("REQUEST REPORT EDIT ERROR:", error);
+            return res.status(error.status || 500).json({ success: false, message: error.message || "Không thể gửi đề xuất sửa" });
+        }
+    }
+);
 
 router.get(
     "/:id/logs",
     authMiddleware,
-    checkRole(
-        "admin",
-        "manager",
-        "lead"
-    ),
+    checkRole("admin", "manager", "lead"),
     permission("AUDIT_VIEW"),
     controller.getReportActionLogs
 );
 
-
-// =====================================================
-// MANAGER / ADMIN SỬA BÁO CÁO CHỜ DUYỆT
-// Lead chỉ được xem và duyệt, không được sửa
-// =====================================================
-
 router.put(
     "/:id",
     authMiddleware,
-    checkRole(
-        "admin",
-        "manager",
-        "worker"
-    ),
+    checkRole("admin", "manager", "worker"),
     validate({ id:{in:"params",required:true,type:"positiveInt"} }),
     permission("REPORT_PENDING_EDIT", "WORKER_ENTRY"),
     notifyWorkerOnTempEdit,
     controller.updateTempReport
 );
 
-
-// =====================================================
-// XEM CHI TIẾT BÁO CÁO CHỜ DUYỆT
-// =====================================================
-
 router.get(
     "/:id",
     authMiddleware,
-    checkRole(
-        "admin",
-        "manager",
-        "lead",
-        "worker"
-    ),
+    checkRole("admin", "manager", "lead", "worker"),
     permission("REPORT_PENDING_VIEW", "WORKER_HISTORY"),
     controller.getTempReportDetail
 );
-
 
 module.exports = router;
