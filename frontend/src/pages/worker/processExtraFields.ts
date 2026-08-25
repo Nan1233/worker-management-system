@@ -1,101 +1,75 @@
 export type ExtraFieldDefinition = {
-    key: string;
-    label: string;
-    type: "text" | "number" | "date";
-    required?: boolean;
-    placeholder?: string;
-    unit?: string;
+  key: string;
+  label: string;
+  type: "text" | "number" | "date";
+  required?: boolean;
+  placeholder?: string;
+  unit?: string;
 };
 
-const slugs = ["cat-long", "mai", "do", "kiem-1", "kiem-2", "can", "ep", "bavia", "sx3"];
+const slugs = ["cat-long", "mai", "do", "kiem-1", "kiem-2", "can", "ep", "bavia", "sx3"] as const;
 
 /**
- * Chỉ các trường THỰC SỰ là thông tin riêng của công đoạn được hiển thị ở
- * "Thông tin riêng công đoạn".
+ * NGUYÊN TẮC:
+ *
+ * Đây là nguồn cấu hình DUY NHẤT cho section "Thông tin riêng công đoạn".
  *
  * Không đưa vào đây:
- * - OK/NG và chi tiết NG -> Báo cáo chất lượng
- * - Thời gian làm việc -> Hiệu suất & Thời gian
- * - Tất cả thời gian/loại trừ -> Chi tiết trừ giờ
- * - Thực tích / % năng suất -> do Quản lý/Tổ trưởng kiểm soát
+ * - Máy / sản phẩm / ngày / ca / mã công nhân -> section thông tin chung
+ * - Thời gian làm việc / thực tích / % năng suất -> section hiệu suất
+ * - OK / NG / chi tiết lỗi -> section báo cáo chất lượng
+ * - Trừ giờ -> section chi tiết trừ giờ
+ *
+ * Những field bên dưới đã được đối chiếu và phân loại theo file mẫu KTC.
  */
-const PROCESS_SPECIFIC_FIELDS: Record<string, ExtraFieldDefinition[]> = {
-    "cat-long": [],
+export const PROCESS_SPECIFIC_FIELDS: Record<string, ExtraFieldDefinition[]> = {
+  // File mẫu không có trường "thông tin riêng" độc lập cho Cắt/Lồng.
+  "cat-long": [],
 
-    mai: [],
+  // SLOK, SLNG và KQD/Xô cs/... là báo cáo chất lượng, không phải extra field.
+  mai: [],
 
-    do: [],
+  // Các chỉ tiêu Đo nằm ở phần thời gian/chất lượng.
+  do: [],
 
-    "kiem-1": [
-        { key: "training_percent", label: "% học việc", type: "number", unit: "%" },
-        { key: "press_date", label: "Ngày tháng Ép", type: "date" },
-        { key: "press_box_shift", label: "Ca / thùng Ép", type: "text" },
-    ],
+  // Kiểm 1 có một số thông tin nghiệp vụ riêng cần giữ.
+  "kiem-1": [
+    { key: "training_percent", label: "% học việc", type: "number", unit: "%" },
+    { key: "press_date", label: "Ngày tháng Ép", type: "date" },
+    { key: "press_box_shift", label: "Ca / thùng Ép", type: "text" },
+  ],
 
-    "kiem-2": [
-        { key: "training_percent", label: "% học việc", type: "number", unit: "%" },
-    ],
+  // Kiểm 2 chỉ có % học việc là thông tin riêng Worker nhập.
+  "kiem-2": [
+    { key: "training_percent", label: "% học việc", type: "number", unit: "%" },
+  ],
 
-    can: [
-        { key: "material_code", label: "Mã nguyên liệu", type: "text", required: true },
-    ],
+  // Cán: Mã nguyên liệu là thông tin riêng; thời gian/trừ giờ/NG tách riêng.
+  can: [
+    { key: "material_code", label: "Mã nguyên liệu", type: "text", required: true },
+  ],
 
-    ep: [
-        { key: "press_box_shift", label: "Ca / thùng Ép", type: "text" },
-        { key: "handler", label: "Người xử lý ép/bavia", type: "text" },
-    ],
+  // Ép: ca/thùng và người xử lý là thông tin nghiệp vụ riêng.
+  ep: [
+    { key: "press_box_shift", label: "Ca / thùng Ép", type: "text" },
+    { key: "handler", label: "Người xử lý ép/bavia", type: "text" },
+  ],
 
-    bavia: [],
+  // XLBV: các trường cũ "thực tích/thời gian/công việc/thiếu SL" đã được tách.
+  bavia: [],
 
-    sx3: [
-        { key: "stop_reason", label: "Lý do dừng máy", type: "text" },
-    ],
+  // SX3: lý do dừng là thông tin giải thích, không phải bản thân thời gian trừ.
+  sx3: [
+    { key: "stop_reason", label: "Lý do dừng máy", type: "text" },
+  ],
 };
 
-/**
- * Các field tuyệt đối không được render trong "Thông tin riêng".
- * Danh sách này giúp tránh việc schema form mở rộng về sau rồi vô tình
- * đưa thời gian, NG hoặc chỉ tiêu quản lý trở lại khu vực này.
- */
-const NON_EXTRA_FIELD_KEYS = new Set([
-    // Quality / NG
-    "tt_ok",
-    "tt_ng",
-    "defects",
-    "selectedDefects",
-
-    // Worker performance values controlled by Lead/Manager
-    "actual_output",
-    "productivity_percent",
-
-    // Time / deduction values
-    "total_time",
-    "actual_time",
-    "rolling_hours",
-    "work_minutes",
-    "assembly_minutes",
-    "vsk_hours",
-    "five_s_overtime_hours",
-    "mold_warmup_hours",
-    "mold_repair_hours",
-    "machine_repair_hours",
-    "machine_stop_hours",
-    "late_early_hours",
-    "stop_operation_hours",
-    "stop_operation_minutes",
-    "shortage_hours",
-    "deduction_work",
-    "deductions",
-]);
-
-export const processExtraFields: Record<string, ExtraFieldDefinition[]> = Object.fromEntries(
-    slugs.map((slug) => {
-        const fields = (PROCESS_SPECIFIC_FIELDS[slug] || []).filter(
-            (field) => !NON_EXTRA_FIELD_KEYS.has(field.key)
-        );
-        return [slug, fields];
-    })
-);
-
+/** Trả về đúng cấu hình extra field của công đoạn, không có fallback thứ hai. */
 export const getProcessExtraFields = (slug: string): ExtraFieldDefinition[] =>
-    processExtraFields[slug] || [];
+  PROCESS_SPECIFIC_FIELDS[slug] || [];
+
+/**
+ * Giữ API cũ cho các component đang đọc trực tiếp processExtraFields.
+ * Cả hai đều trỏ tới cùng một nguồn cấu hình, không có bản sao dữ liệu.
+ */
+export const processExtraFields: Record<string, ExtraFieldDefinition[]> = PROCESS_SPECIFIC_FIELDS;
