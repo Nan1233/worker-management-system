@@ -73,10 +73,23 @@ async function getEffectivePermissions(user) {
     for (const row of roleRows[0] || []) { const code = normalizeCode(row.permission_code); if (!ALL_CODES.includes(code)) continue; Number(row.allowed) ? result.add(code) : result.delete(code); }
     for (const row of userRows[0] || []) { const code = normalizeCode(row.permission_code); if (!ALL_CODES.includes(code)) continue; Number(row.allowed) ? result.add(code) : result.delete(code); }
   }
+  // Tổ trưởng luôn được phép đề xuất sửa báo cáo. Đây là quyền nghiệp vụ bắt buộc,
+  // không cho override phân quyền làm mất quyền tạo đề xuất.
+  if (role === 'lead') {
+    result.add('REPORT_PENDING_VIEW');
+    result.add('REPORT_APPROVE');
+  }
   if (userId) cache.set(userId,{ role, permissions:[...result], expiresAt:Date.now()+CACHE_TTL_MS });
   return result;
 }
-async function hasPermission(user, code) { if (normalizeRole(user?.role) === 'admin') return true; const set = await getEffectivePermissions(user); return set.has(normalizeCode(code)); }
+async function hasPermission(user, code) {
+  const role = normalizeRole(user?.role);
+  const normalized = normalizeCode(code);
+  if (role === 'admin') return true;
+  if (role === 'lead' && normalized === 'REPORT_APPROVE') return true;
+  const set = await getEffectivePermissions(user);
+  return set.has(normalized);
+}
 async function getAdminMatrix() {
   const roles = ['admin','manager','lead','worker']; const roleOverrides = {}; const userOverrides = {};
   if (await ensureSchemaAvailable()) {
