@@ -1,4 +1,4 @@
-/* KTC worker NG layout: checkbox list stays two-column; selected quantities are entered below it. */
+/* KTC worker NG layout: machine NG detail follows the same visual language as the worker NG section. */
 .machine-deduction-options {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
@@ -66,30 +66,87 @@
   overflow-wrap: anywhere !important;
 }
 
-/* Reference layout: selected NG quantities are separate full-width rows below the checkbox grid. */
-.machine-ng-quantities {
-  display: flex !important;
-  flex-direction: column !important;
-  width: 100% !important;
-  gap: 7px !important;
+/* Machine NG header: same compact control treatment as the worker "Lỗi NG" dropdown. */
+.machine-deduction-box {
   margin-top: 8px !important;
+  border: 1px solid #d8e3ee !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+  overflow: hidden !important;
+}
+
+.machine-deduction-box > summary {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  min-height: 39px !important;
+  box-sizing: border-box !important;
+  padding: 0 9px !important;
+  list-style: none !important;
+  cursor: pointer !important;
+  color: #405873 !important;
+  font-size: 11px !important;
+  font-weight: 650 !important;
+}
+
+.machine-deduction-box > summary::-webkit-details-marker {
+  display: none !important;
+}
+
+.machine-deduction-box > summary::after {
+  content: "▼";
+  margin-left: auto;
+  color: #405873;
+  font-size: 10px;
+  transition: transform .16s ease;
+}
+
+.machine-deduction-box[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+.machine-deduction-box > summary strong {
+  color: #71849a !important;
+  font-size: 10px !important;
+  font-weight: 500 !important;
+}
+
+.machine-deduction-options {
+  padding: 6px !important;
+  border-top: 1px solid #e4ebf2 !important;
+  background: #fbfdff !important;
+}
+
+/* Selected NG quantities: match the worker dynamic NG fields (label above, input below, two columns). */
+.machine-ng-quantities {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  padding: 7px 6px 6px !important;
+  border-top: 1px solid #e4ebf2 !important;
+  background: #fff !important;
 }
 
 .machine-ng-quantity-row {
   display: grid !important;
-  grid-template-columns: minmax(0, 1fr) minmax(120px, 1fr) !important;
-  align-items: center !important;
-  gap: 10px !important;
+  grid-template-columns: 1fr !important;
+  align-items: stretch !important;
+  gap: 5px !important;
   width: 100% !important;
-  min-height: 42px !important;
+  min-height: 0 !important;
   box-sizing: border-box !important;
 }
 
 .machine-ng-quantity-row > span {
   min-width: 0 !important;
-  color: #405873 !important;
-  font-size: 11px !important;
+  color: #526a83 !important;
+  font-size: 10px !important;
   font-weight: 650 !important;
+  line-height: 1.25 !important;
 }
 
 .machine-ng-quantity-row > .machine-deduction-minute {
@@ -140,14 +197,8 @@
   }
 
   .machine-ng-quantities {
-    gap: 6px !important;
-    margin-top: 8px !important;
-  }
-
-  .machine-ng-quantity-row {
-    grid-template-columns: minmax(0, 1fr) minmax(100px, 1fr) !important;
-    gap: 8px !important;
-    min-height: 40px !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 7px !important;
   }
 
   .machine-ng-quantity-row > span {
@@ -158,5 +209,12 @@
     min-height: 38px !important;
     padding: 6px 9px !important;
     font-size: 13px !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .machine-deduction-options,
+  .machine-ng-quantities {
+    grid-template-columns: 1fr !important;
   }
 }
