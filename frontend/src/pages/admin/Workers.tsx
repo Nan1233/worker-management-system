@@ -120,7 +120,6 @@ export default function AdminWorkers() {
 
   const remove = async (person:Person) => {
     if (!canEdit) return;
-    if (person.role === "manager" && managers.filter(item => item.status === "active").length <= 1) { showToast("Không thể vô hiệu hóa quản lý duy nhất của hệ thống", "error"); return; }
     if (!window.confirm(`Vô hiệu hóa tài khoản ${person.full_name}? Lịch sử dữ liệu sẽ được giữ nguyên.`)) return;
     try { await api.put(`/users/${person.id}`, { status: "inactive" }); showToast("Đã vô hiệu hóa tài khoản", "success"); await load(); }
     catch (error:any) { showToast(error?.response?.data?.message || "Không thể cập nhật tài khoản", "error"); }
@@ -190,16 +189,12 @@ function Modal({ form, setForm, processes, processCapacity, saving, onClose, onS
     if (form.role === "worker") return true;
     const capacity = processCapacity.find(item => item.id === process.id);
     if (!capacity) return false;
-    const selected = selectedIds.includes(process.id);
-    if (selected) return true;
+    if (selectedIds.includes(process.id)) return true;
     if (form.role === "manager") return capacity.managerCount < 1;
     return capacity.leadCount < 3;
   };
 
-  const toggleProcess = (processId:number, checked:boolean) => setForm({
-    ...form,
-    process_ids: checked ? [...form.process_ids, processId] : form.process_ids.filter(id => id !== processId)
-  });
+  const toggleProcess = (processId:number, checked:boolean) => setForm({ ...form, process_ids: checked ? [...form.process_ids, processId] : form.process_ids.filter(id => id !== processId) });
 
   return <div className="admin-modal-backdrop"><div className="admin-modal"><div className="admin-modal-head"><div><span>QUẢN TRỊ TÀI KHOẢN</span><h2>{isEditing ? "Chỉnh sửa" : "Tạo"} {roleText(form.role)}</h2><p>{form.role === "manager" ? "Admin không giới hạn tổng số quản lý; mỗi công đoạn tối đa 1 quản lý." : form.role === "lead" ? "Admin không giới hạn tổng số tổ trưởng; mỗi công đoạn tối đa 3 tổ trưởng." : "Thông tin tài khoản được lưu trực tiếp vào hệ thống."}</p></div><button onClick={onClose}><X size={18}/></button></div><div className="admin-modal-grid"><label>Vai trò<select value={form.role} disabled={isEditing} onChange={event => { const role = event.target.value as Role; setForm({...form, role, position: role === "worker" ? "Công nhân" : role === "lead" ? "Tổ trưởng" : "Quản lý", process_ids:[]}); }}><option value="manager">Quản lý</option><option value="lead">Tổ trưởng</option><option value="worker">Công nhân</option></select></label><label>Trạng thái<select value={form.status} onChange={event => setForm({...form, status:event.target.value as "active"|"inactive"})}><option value="active">Đang hoạt động</option><option value="inactive">Ngừng hoạt động</option></select></label><label>Họ và tên<input value={form.full_name} onChange={event => setForm({...form, full_name:event.target.value})}/></label><label>Tên đăng nhập<input value={form.username} onChange={event => setForm({...form, username:event.target.value})}/></label><label>Mật khẩu{form.id && <small> (để trống nếu không đổi)</small>}<input type="password" value={form.password} onChange={event => setForm({...form, password:event.target.value})} placeholder="Tối thiểu 6 ký tự"/></label>{form.role === "worker" && <><label>Mã công nhân<input value={form.worker_code} onChange={event => setForm({...form, worker_code:event.target.value})}/></label><label>Số điện thoại<input value={form.phone} onChange={event => setForm({...form, phone:event.target.value})}/></label><label>% học việc<input type="number" min="0" max="100" value={form.training_percent} onChange={event => setForm({...form, training_percent:event.target.value})}/></label></>}<label>Bộ phận / đơn vị<input value={form.department} onChange={event => setForm({...form, department:event.target.value})}/></label><label>Chức danh<input value={form.position} onChange={event => setForm({...form, position:event.target.value})}/></label><div className="admin-process-select"><span>Công đoạn phụ trách</span><div>{processes.map(process => { const capacity = processCapacity.find(item => item.id === process.id); const selected = selectedIds.includes(process.id); const full = form.role === "manager" ? (capacity?.managerCount || 0) >= 1 : form.role === "lead" ? (capacity?.leadCount || 0) >= 3 : false; const disabled = !canAssignProcess(process); return <label key={process.id} title={form.role === "manager" ? `Quản lý: ${capacity?.managerCount || 0}/1` : form.role === "lead" ? `Tổ trưởng: ${capacity?.leadCount || 0}/3` : "Không giới hạn"}><input type="checkbox" checked={selected} disabled={disabled} onChange={event => toggleProcess(process.id, event.target.checked)}/><span>{process.process_name}{form.role !== "worker" && <small> ({form.role === "manager" ? `${capacity?.managerCount || 0}/1` : `${capacity?.leadCount || 0}/3`}{full && !selected ? " · đủ" : ""})</small>}</span></label>; })}</div></div></div><div className="admin-modal-actions"><button onClick={onClose}>Hủy</button><button className="admin-btn primary" disabled={saving} onClick={onSave}>{saving ? "Đang lưu..." : "Lưu tài khoản"}</button></div></div></div>;
 }
