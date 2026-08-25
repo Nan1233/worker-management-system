@@ -1,0 +1,32 @@
+/* Final override: separate bulk report actions in Chờ duyệt. */
+.pending-reference-page .pending-bulk-actions{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:18px!important;
+  flex-wrap:wrap!important;
+  white-space:nowrap!important;
+}
+.pending-reference-page .pending-bulk-actions > *{
+  margin:0!important;
+  flex:0 0 auto!important;
+}
+.pending-reference-page .pending-bulk-actions button{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  margin:0!important;
+  padding-left:14px!important;
+  padding-right:14px!important;
+  min-width:72px!important;
+}
+.pending-reference-page .pending-bulk-actions > span{
+  margin-right:4px!important;
+}
+@media(max-width:720px){
+  .pending-reference-page .pending-bulk-actions{
+    gap:10px!important;
+    justify-content:flex-start!important;
+  }
+  .pending-reference-page .pending-bulk-actions > span{margin-right:auto!important;}
+}
