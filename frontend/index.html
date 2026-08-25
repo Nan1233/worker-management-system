@@ -15,6 +15,16 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      document.addEventListener('focusin', function (event) {
+        const target = event.target;
+        if (target instanceof HTMLInputElement && target.type === 'number') {
+          window.setTimeout(function () {
+            try { target.select(); } catch (_) {}
+          }, 0);
+        }
+      });
+    </script>
     <script type="module" src="/src/main.tsx"></script>
     <link rel="stylesheet" href="/ReportsPendingFix.css" />
     <link rel="stylesheet" href="/admin-process-ui-fix.css" />
