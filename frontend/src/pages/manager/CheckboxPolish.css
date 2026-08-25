@@ -1,0 +1,53 @@
+/* Checkbox normalization: prevent form-field rules from stretching native checkboxes. */
+.personnel-page .modal-processes > div > label {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 7px !important;
+  width: auto !important;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid #d7e2ef;
+  border-radius: 8px;
+  background: #fff;
+  color: #536987;
+  font-size: 13px !important;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.personnel-page .modal-processes > div > label:hover {
+  border-color: #a9c8ee;
+  background: #f7fbff;
+}
+
+.personnel-page .modal-processes > div > label input[type="checkbox"] {
+  width: 17px !important;
+  min-width: 17px !important;
+  max-width: 17px !important;
+  height: 17px !important;
+  min-height: 17px !important;
+  max-height: 17px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 1px solid #b9cce3 !important;
+  border-radius: 4px !important;
+  accent-color: #176fe8;
+  flex: 0 0 17px !important;
+  appearance: auto !important;
+  cursor: pointer;
+}
+
+/* Keep report-selection checkboxes compact and consistent on every management report page. */
+.management-report-table input[type="checkbox"] {
+  width: 17px !important;
+  min-width: 17px !important;
+  max-width: 17px !important;
+  height: 17px !important;
+  min-height: 17px !important;
+  max-height: 17px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  accent-color: #176fe8;
+  appearance: auto;
+}
