@@ -1,4 +1,0 @@
-.admin-modal-grid > label:first-child{display:none}
-
-/* Worker accounts use worker-code authentication, so no password field is shown. */
-.admin-modal:has(.admin-modal-grid > label:first-child select option[value="worker"]:checked) .admin-modal-grid > label:has(input[type="password"]){display:none}
