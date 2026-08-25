@@ -1,7 +1,7 @@
 /*
  * KTC template master data extracted directly from file mẫu(5).xlsx.
  * Source: Form nhập + process-specific input sheets.
- * DO NOT hand-edit labels without updating the workbook source.
+ * SX3 is intentionally excluded from the worker production-process master.
  */
 module.exports = {
   "GC": {"id":1,"name":"Cắt/Lồng","deductions":["Thiếu sản lượng","Bật máy, xét máy","Chuyển mã","Chỉnh máy","Chờ chỉnh máy","Mất điện","Mất khí","Chờ hàng","bảo dưỡng máy","Nghỉ giải lao","Giao ca","Dừng máy đi hỗ trợ","Giặt cs/cân cs, tuốt-tái pp, GL","5s","Học việc, đào tạo","Đi muộn về sớm"],"defects":["KQD","Vỡ / cao su","K xước / cong gãy","Cao su xoay","Cắt /  không đứt","bavia","CSH","ppcm","KT lớn","KT nhỏ","LCS","cắt lẹm","rách nvl","Chân ngắn dài","sót via","fure trục"]},
@@ -11,6 +11,5 @@ module.exports = {
   "DO": {"id":60001,"name":"Đo","deductions":["Thiếu sản lượng","Chỉnh máy","Mất điện","Ko có KHSX","Chờ chỉnh máy","Nghỉ giải lao","Giao ca","Dừng máy đi hỗ trợ","5s/lấy bụi","Rải hàng, mài, cv khác","Lưu DL","KS DF, KS đầu giờ","Thổi bụi","Khác,đẩy hàng xuất,","Đi muộn về sớm","kiểm kho","Học việc, đào tạo"],"defects":["Lớn","Nhỏ","Fure / cao su","Fur / trục","Lẫn hàng"]},
   "CAN": {"id":60002,"name":"Cán","deductions":["Vệ sinh máy cán","Sửa máy","Nghỉ giải lao","5S","Dừng sản xuất","CAN HC"],"defects":["Chân không","Rách vỡ","Bề mặt","Bavia"]},
   "EP": {"id":60003,"name":"Ép","deductions":["Vệ sinh khuôn","Thay khuôn","5s + giao ca","Hâm khuôn","Sửa khuôn","SUA MAY","Nghỉ giải lao","DUNG MAY"],"defects":["Chân không","Rách vỡ","TNL","Dính via","Di vật","dính khuôn","Tạp chất"]},
-  "XLBV": {"id":60004,"name":"XLBV","deductions":[],"defects":["CHÂN KHÔNG","RÁCH VỠ","XLBV","BẨN KHUÔN","TNL","DỊ VẬT","KHOAN KO HẾT","BIẾN DẠNG","HỞ SẮT","xước trục","CHỜ XL LAI BV","KHÁC MÀU","BẨN","KO QUA ZICK"]},
-  "SX3": {"id":60005,"name":"SX3","deductions":[],"defects_machine":["Kẹt Bushing","Kẹt Tray Roller","Kẹt Slitring 1","Kẹt slitring 2","Kẹt washer","Thả bushing sai vị trí","Tay gắp gear sai","Kẹt Gear trên tay gắp","Tay gắp làm vỡ Gear","Rơi Gear","Tray Gear + Tray Roller lên quá hành trình","Bowl gỡ lò xo bị kẹt","Rơi đạn","Lỗi Xilanh 14 or 15","Lỗi Xilanh 16","Lỗi Xilanh 21","Lỗi Xilanh 42","Lỗi SS Washer","PUSH - NG Xilanh5","Lỗi vị trí Robot 3","Robot 6 Alam","Robot 8 Alam","Robot 9 Alam","Robot 10 Alam","Lỗi khác"],"defects_ng_part":["Thiếu Slitring 1","Khe hở Slitring 1 lớn","Lắp 2 Slitring 1","Thiếu Washer","Thiếu Slitring &  Washer","Lắp 2 Slitring & 2 Washer","Cao su lệch vị trí or đảo","Cao su bị rách, xước","Thiếu Slitring 2","Khe hở Slitring 2 lớn","Lắp 2 Slitring 2","Bushing xước, biến dạng, GÃY","Thiếu Bushing","Lắp 2 Bushing","Ngược Bushing","Thiếu Slitring 2 & Bushing","Slitring 2 không vào vấu","Lắp 2  lò xo","Thiếu Gear","Gear lắp quá tiêu chuẩn QAFC","Lực p/hủy Gear ngoài t/chuẩn","Gear dính bẩn","Lắp 2 Gear","Mẻ Gear","Thiếu Gear & Lò xo","Slitring mắc vào lò xo","Cong, Xước trục roller or Trục roller biến dạng","BẨN SLITRING","Bushing có vết bẩn","kẹt bushing","RP"]}
+  "XLBV": {"id":60004,"name":"XLBV","deductions":[],"defects":["CHÂN KHÔNG","RÁCH VỠ","XLBV","BẨN KHUÔN","TNL","DỊ VẬT","KHOAN KO HẾT","BIẾN DẠNG","HỞ SẮT","xước trục","CHỜ XL LAI BV","KHÁC MÀU","BẨN","KO QUA ZICK"]}
 };
