@@ -17,6 +17,7 @@ import OfflineReportSync from "./components/system/OfflineReportSync";
 import ExcelWorkflowTools from "./components/system/ExcelWorkflowTools";
 import "./ui-polish.css";
 import "./admin-worker-password-override.css";
+import "./config/workerAccountPolicy";
 import { FRONTEND_VERSION, FRONTEND_COMMIT_SHA } from "./config/version";
 
 // KTC currently uses a single enterprise-light visual system.
