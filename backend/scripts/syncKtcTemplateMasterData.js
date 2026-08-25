@@ -29,23 +29,14 @@ async function syncType(db, table, processId, names, codePrefix) {
     const matches = byName.get(item.normalized) || [];
     const keep = matches[0];
     if (keep) {
-      await db.execute(
-        `UPDATE ${table} SET sort_order = ?, status = 'active' WHERE id = ?`,
-        [item.sortOrder, keep.id],
-      );
+      await db.execute(`UPDATE ${table} SET sort_order = ?, status = 'active' WHERE id = ?`, [item.sortOrder, keep.id]);
       for (const duplicate of matches.slice(1)) {
         await db.execute(`UPDATE ${table} SET status = 'inactive' WHERE id = ?`, [duplicate.id]);
       }
     } else if (table === 'defect_types') {
-      await db.execute(
-        `INSERT INTO defect_types(process_id, defect_code, defect_name, sort_order, status) VALUES(?,?,?,?, 'active')`,
-        [processId, item.code, item.name, item.sortOrder],
-      );
+      await db.execute(`INSERT INTO defect_types(process_id, defect_code, defect_name, sort_order, status) VALUES(?,?,?,?, 'active')`, [processId, item.code, item.name, item.sortOrder]);
     } else {
-      await db.execute(
-        `INSERT INTO deduction_types(process_id, deduction_code, deduction_name, sort_order, status) VALUES(?,?,?,?, 'active')`,
-        [processId, item.code, item.name, item.sortOrder],
-      );
+      await db.execute(`INSERT INTO deduction_types(process_id, deduction_code, deduction_name, sort_order, status) VALUES(?,?,?,?, 'active')`, [processId, item.code, item.name, item.sortOrder]);
     }
   }
 
@@ -57,6 +48,12 @@ async function syncType(db, table, processId, names, codePrefix) {
   }
 }
 
+async function deactivateProcess(db, processId) {
+  await db.execute(`UPDATE processes SET status = 'inactive' WHERE id = ?`, [processId]);
+  await db.execute(`UPDATE defect_types SET status = 'inactive' WHERE process_id = ?`, [processId]);
+  await db.execute(`UPDATE deduction_types SET status = 'inactive' WHERE process_id = ?`, [processId]);
+}
+
 async function main() {
   if (process.env.KTC_ALLOW_TEMPLATE_MASTER_SYNC !== '1') {
     throw new Error('Set KTC_ALLOW_TEMPLATE_MASTER_SYNC=1 to run the Excel master sync.');
@@ -64,14 +61,12 @@ async function main() {
 
   const db = await mysql.createConnection(cfg);
   try {
+    // SX3 is intentionally excluded from the KTC worker production master.
+    await deactivateProcess(db, 60005);
+
     for (const [processCode, config] of Object.entries(template)) {
       await db.execute(`UPDATE processes SET status = 'active' WHERE id = ?`, [config.id]);
-
-      const defects = processCode === 'SX3'
-        ? [...config.defects_machine, ...config.defects_ng_part]
-        : (config.defects || []);
-
-      await syncType(db, 'defect_types', config.id, defects, `DEF_${processCode}`);
+      await syncType(db, 'defect_types', config.id, config.defects || [], `DEF_${processCode}`);
       await syncType(db, 'deduction_types', config.id, config.deductions || [], `DED_${processCode}`);
     }
   } finally {
@@ -80,9 +75,9 @@ async function main() {
 
   console.log('KTC_TEMPLATE_MASTER_SYNC_OK');
   for (const [code, config] of Object.entries(template)) {
-    const defects = code === 'SX3' ? config.defects_machine.length + config.defects_ng_part.length : config.defects.length;
-    console.log(`${code}: defects=${defects}, deductions=${config.deductions.length}`);
+    console.log(`${code}: defects=${(config.defects || []).length}, deductions=${(config.deductions || []).length}`);
   }
+  console.log('SX3: inactive/excluded');
 }
 
 main().catch((error) => {
