@@ -1,5 +1,3 @@
-import { getExtraFields } from "./processFormSchemas";
-
 export type ExtraFieldDefinition = {
     key: string;
     label: string;
@@ -11,46 +9,71 @@ export type ExtraFieldDefinition = {
 
 const slugs = ["cat-long", "mai", "do", "kiem-1", "kiem-2", "can", "ep", "bavia", "sx3"];
 
-const SAMPLE_FORM_FIELDS: Record<string, ExtraFieldDefinition[]> = {
-    "cat-long": [
-        { key: "kqd_dap_lai", label: "KQD dập lại", type: "number" },
-        { key: "kqd_tuot", label: "KQD tuốt", type: "number" },
-    ],
-    mai: [
-        { key: "productivity_percent", label: "% Năng suất", type: "number", unit: "%" },
-        { key: "slok", label: "SLOK", type: "number" },
-        { key: "slng", label: "SLNG", type: "number" },
-        { key: "kqd", label: "KQD", type: "number" },
-        { key: "xo_cs", label: "Xô cs", type: "number" },
-        { key: "ppcm_power_loss", label: "PPCM mất điện", type: "number" },
-        { key: "fallen_goods", label: "Hàng rơi", type: "number" },
-        { key: "k_coleet", label: "K- coleet", type: "number" },
-        { key: "thieu_lan_csh", label: "Thiếu - lẫn csCSH", type: "number" },
-        { key: "loi_cao_su_mai", label: "Lỗi cao su", type: "number" },
-    ],
+/**
+ * Chỉ các trường THỰC SỰ là thông tin riêng của công đoạn được hiển thị ở
+ * "Thông tin riêng công đoạn".
+ *
+ * Không đưa vào đây:
+ * - OK/NG và chi tiết NG -> Báo cáo chất lượng
+ * - Thời gian làm việc -> Hiệu suất & Thời gian
+ * - Tất cả thời gian/loại trừ -> Chi tiết trừ giờ
+ * - Thực tích / % năng suất -> do Quản lý/Tổ trưởng kiểm soát
+ */
+const PROCESS_SPECIFIC_FIELDS: Record<string, ExtraFieldDefinition[]> = {
+    "cat-long": [],
+
+    mai: [],
+
+    do: [],
+
     "kiem-1": [
-        { key: "actual_output", label: "Thực tích", type: "number" },
+        { key: "training_percent", label: "% học việc", type: "number", unit: "%" },
+        { key: "press_date", label: "Ngày tháng Ép", type: "date" },
+        { key: "press_box_shift", label: "Ca / thùng Ép", type: "text" },
     ],
+
     "kiem-2": [
-        { key: "actual_output", label: "Thực tích", type: "number" },
+        { key: "training_percent", label: "% học việc", type: "number", unit: "%" },
     ],
+
+    can: [
+        { key: "material_code", label: "Mã nguyên liệu", type: "text", required: true },
+    ],
+
+    ep: [
+        { key: "press_box_shift", label: "Ca / thùng Ép", type: "text" },
+        { key: "handler", label: "Người xử lý ép/bavia", type: "text" },
+    ],
+
+    bavia: [],
+
     sx3: [
         { key: "stop_reason", label: "Lý do dừng máy", type: "text" },
     ],
 };
 
-/** Các trường do Quản lý/Tổ trưởng kiểm soát, Worker không được nhập. */
-const MANAGER_CONTROLLED_WORKER_HIDDEN_KEYS = new Set([
+/**
+ * Các field tuyệt đối không được render trong "Thông tin riêng".
+ * Danh sách này giúp tránh việc schema form mở rộng về sau rồi vô tình
+ * đưa thời gian, NG hoặc chỉ tiêu quản lý trở lại khu vực này.
+ */
+const NON_EXTRA_FIELD_KEYS = new Set([
+    // Quality / NG
+    "tt_ok",
+    "tt_ng",
+    "defects",
+    "selectedDefects",
+
+    // Worker performance values controlled by Lead/Manager
     "actual_output",
     "productivity_percent",
-]);
 
-/**
- * Các trường là THỜI LƯỢNG TRỪ theo từng công đoạn.
- * Chúng không được render ở "Thông tin riêng công đoạn" mà được bổ sung
- * vào danh sách của ProcessTimeDeductionSection.
- */
-const PROCESS_DEDUCTION_FIELD_KEYS = new Set([
+    // Time / deduction values
+    "total_time",
+    "actual_time",
+    "rolling_hours",
+    "work_minutes",
+    "assembly_minutes",
     "vsk_hours",
     "five_s_overtime_hours",
     "mold_warmup_hours",
@@ -59,36 +82,20 @@ const PROCESS_DEDUCTION_FIELD_KEYS = new Set([
     "machine_stop_hours",
     "late_early_hours",
     "stop_operation_hours",
-    "shortage_hours",
     "stop_operation_minutes",
+    "shortage_hours",
+    "deduction_work",
+    "deductions",
 ]);
-
-const toDefinition = (field: ReturnType<typeof getExtraFields>[number]): ExtraFieldDefinition => ({
-    key: field.key,
-    label: field.label,
-    type: field.kind === "text" ? "text" : field.kind === "date" ? "date" : "number",
-    required: field.required,
-    placeholder: field.placeholder,
-    unit: field.unit,
-});
 
 export const processExtraFields: Record<string, ExtraFieldDefinition[]> = Object.fromEntries(
     slugs.map((slug) => {
-        const schemaFields = getExtraFields(slug)
-            .map(toDefinition)
-            .filter((field) =>
-                !MANAGER_CONTROLLED_WORKER_HIDDEN_KEYS.has(field.key)
-                && !PROCESS_DEDUCTION_FIELD_KEYS.has(field.key)
-            );
-        const sampleFields = (SAMPLE_FORM_FIELDS[slug] || [])
-            .filter((field) =>
-                !MANAGER_CONTROLLED_WORKER_HIDDEN_KEYS.has(field.key)
-                && !PROCESS_DEDUCTION_FIELD_KEYS.has(field.key)
-            );
-        const merged = [...schemaFields];
-        sampleFields.forEach((field) => {
-            if (!merged.some((item) => item.key === field.key)) merged.push(field);
-        });
-        return [slug, merged];
+        const fields = (PROCESS_SPECIFIC_FIELDS[slug] || []).filter(
+            (field) => !NON_EXTRA_FIELD_KEYS.has(field.key)
+        );
+        return [slug, fields];
     })
 );
+
+export const getProcessExtraFields = (slug: string): ExtraFieldDefinition[] =>
+    processExtraFields[slug] || [];
