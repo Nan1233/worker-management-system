@@ -26,16 +26,13 @@ const unwrap = (res: any) => res?.data?.data ?? res?.data ?? [];
 export const getReportEditProposals = async (): Promise<ReportEditProposal[]> =>
   unwrap(await api.get("/production-temp/edit-proposals"));
 
-export const createReportEditProposal = async (data: {
-  report_id: number;
-  reason: string;
-  proposed_data: Record<string, any>;
-}) => unwrap(await api.post("/production-temp/edit-proposals", data));
+export const createReportEditProposal = async (data: { report_id:number; reason:string; proposed_data:Record<string,any> }) =>
+  unwrap(await api.post("/production-temp/edit-proposals", data));
 
-export const updateReportEditProposal = async (
-  id: number,
-  data: { reason: string; proposed_data: Record<string, any> }
-) => unwrap(await api.put(`/production-temp/edit-proposals/${id}`, data));
+export const updateReportEditProposal = async (id:number, data:{reason:string; proposed_data:Record<string,any>}) =>
+  unwrap(await api.put(`/production-temp/edit-proposals/${id}`, data));
 
-export const deleteReportEditProposal = async (id: number) =>
-  api.delete(`/production-temp/edit-proposals/${id}`);
+export const reviewReportEditProposal = async (id:number, data:{decision:"approve"|"reject"; status_after?:"pending"|"approved"; reason?:string; proposed_data?:Record<string,any>}) =>
+  unwrap(await api.post(`/production-temp/edit-proposals/${id}/review`, data));
+
+export const deleteReportEditProposal = async (id:number) => api.delete(`/production-temp/edit-proposals/${id}`);
