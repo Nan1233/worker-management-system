@@ -195,3 +195,33 @@
   .machine-deduction-option > span { font-size: 9px !important; line-height: 1.15 !important; }
   .machine-deduction-minute { min-height: 25px !important; font-size: 9px !important; padding: 2px 4px !important; }
 }
+
+/* Machine OK / NG: match the quality-summary palette used by the worker report. */
+.machine-quantity-row > label:first-child > span {
+  color: #0057b8 !important;
+  font-weight: 700 !important;
+}
+.machine-quantity-row > label:first-child > input {
+  color: #0057b8 !important;
+  background: #f5f9ff !important;
+  border-color: #cfe0f2 !important;
+  font-weight: 700 !important;
+}
+.machine-quantity-row > label:first-child > input:focus {
+  border-color: #8db8e8 !important;
+  box-shadow: 0 0 0 2px rgba(0,87,184,.08) !important;
+}
+.machine-quantity-row > label:nth-child(2) > span {
+  color: #e11d48 !important;
+  font-weight: 700 !important;
+}
+.machine-quantity-row > label:nth-child(2) > input {
+  color: #e11d48 !important;
+  background: #fff6f8 !important;
+  border-color: #f1c7d0 !important;
+  font-weight: 700 !important;
+}
+.machine-quantity-row > label:nth-child(2) > input:focus {
+  border-color: #e99aaa !important;
+  box-shadow: 0 0 0 2px rgba(225,29,72,.07) !important;
+}
