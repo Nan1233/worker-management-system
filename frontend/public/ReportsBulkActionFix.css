@@ -1,9 +1,9 @@
-/* Fix cụm thao tác khi chọn báo cáo trong trang Chờ duyệt. */
+/* Cụm thao tác khi chọn báo cáo trong trang Chờ duyệt. */
 .pending-reference-page .management-selected-info{
   display:flex!important;
   align-items:center!important;
   justify-content:space-between!important;
-  gap:24px!important;
+  gap:20px!important;
   width:100%!important;
   box-sizing:border-box!important;
 }
@@ -12,7 +12,7 @@
   display:flex!important;
   align-items:center!important;
   justify-content:flex-end!important;
-  gap:12px!important;
+  gap:10px!important;
   flex:0 0 auto!important;
   white-space:nowrap!important;
 }
@@ -23,22 +23,58 @@
   align-items:center!important;
   justify-content:center!important;
   width:auto!important;
-  min-width:88px!important;
-  height:36px!important;
+  min-width:0!important;
+  height:34px!important;
   margin:0!important;
-  padding:0 16px!important;
+  padding:0 12px!important;
   box-sizing:border-box!important;
   white-space:nowrap!important;
   flex:0 0 auto!important;
   border-radius:7px!important;
+  font-size:13px!important;
+  font-weight:600!important;
+  line-height:1!important;
+  cursor:pointer!important;
 }
 
+/* Bỏ chọn: xanh dương, không dùng nền xám mặc định. */
+.pending-reference-page .management-selected-actions button:first-child{
+  color:#1769d1!important;
+  background:#eaf3ff!important;
+  border:1px solid #b9d6ff!important;
+}
+
+.pending-reference-page .management-selected-actions button:first-child:hover{
+  background:#dcecff!important;
+}
+
+/* Từ chối: đỏ. */
 .pending-reference-page .management-selected-actions .selected-reject-action{
-  margin-left:4px!important;
+  color:#fff!important;
+  background:#dc3545!important;
+  border:1px solid #dc3545!important;
 }
 
+.pending-reference-page .management-selected-actions .selected-reject-action:hover:not(:disabled){
+  background:#c82333!important;
+  border-color:#c82333!important;
+}
+
+/* Duyệt: xanh lá. */
 .pending-reference-page .management-selected-actions .selected-approve-action{
-  margin-left:4px!important;
+  color:#fff!important;
+  background:#16a34a!important;
+  border:1px solid #16a34a!important;
+}
+
+.pending-reference-page .management-selected-actions .selected-approve-action:hover:not(:disabled){
+  background:#15803d!important;
+  border-color:#15803d!important;
+}
+
+.pending-reference-page .management-selected-actions button:disabled{
+  opacity:.55!important;
+  cursor:not-allowed!important;
 }
 
 @media(max-width:720px){
@@ -51,11 +87,12 @@
   .pending-reference-page .management-selected-actions{
     width:100%!important;
     justify-content:flex-start!important;
-    gap:10px!important;
+    gap:8px!important;
     flex-wrap:wrap!important;
   }
 
   .pending-reference-page .management-selected-actions button{
-    min-width:84px!important;
+    height:34px!important;
+    padding:0 11px!important;
   }
 }
