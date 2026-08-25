@@ -1,0 +1,58 @@
+/* KTC — equal-width time fields. Visual-only override. */
+
+.worker-time-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  align-items: stretch !important;
+}
+
+.worker-time-item {
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.worker-time-item > input,
+.worker-time-split,
+.worker-time-parts {
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.worker-time-split,
+.worker-time-parts {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+
+.worker-time-part {
+  min-width: 0 !important;
+  width: 100% !important;
+}
+
+.worker-time-part input,
+.worker-time-item > input {
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+@media (max-width: 680px) {
+  .worker-time-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 500px) {
+  .worker-time-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .worker-time-item:first-child,
+  .worker-time-item.worker-time-computed:last-child {
+    grid-column: auto !important;
+  }
+}
