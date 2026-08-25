@@ -14,6 +14,7 @@ import "./pages/manager/EditReport.css";
 import "./pages/manager/ReportDownload.css";
 import "./pages/manager/SelectedReportsReview.css";
 import "./pages/manager/Workers.css";
+import "./pages/manager/CheckboxPolish.css";
 import "./pages/worker/SelectProcess.css";
 import "./pages/worker/ProcessPage.css";
 import "./pages/worker/ProductionHistory.css";
