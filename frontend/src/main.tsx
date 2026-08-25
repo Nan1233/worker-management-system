@@ -16,10 +16,11 @@ import ExcelWorkflowTools from "./components/system/ExcelWorkflowTools";
 import "./ui-polish.css";
 import { FRONTEND_VERSION, FRONTEND_COMMIT_SHA } from "./config/version";
 
-const initialTheme = localStorage.getItem("ktcTheme");
-const resolvedTheme = initialTheme === "dark" || initialTheme === "light"
-    ? initialTheme
-    : window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+// KTC currently uses a single enterprise-light visual system.
+// Do not inherit the OS/browser dark-mode preference: several native controls
+// (checkboxes/selects) otherwise become dark even when the application UI is light.
+const resolvedTheme = "light";
+localStorage.setItem("ktcTheme", resolvedTheme);
 document.documentElement.dataset.theme = resolvedTheme;
 document.documentElement.style.colorScheme = resolvedTheme;
 
