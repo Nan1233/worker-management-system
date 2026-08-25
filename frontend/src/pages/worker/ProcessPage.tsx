@@ -151,6 +151,8 @@ function ProcessPage() {
     const masterDataRequestSeqRef = useRef(0);
     const machineStandardRequestSeqRef = useRef<Record<number, number>>({});
     const isRestoringDraftRef = useRef(false);
+    const draftSaveTimerRef = useRef<number | null>(null);
+    const resetVersionRef = useRef(0);
 
     const navigate =
         useNavigate();
@@ -641,6 +643,7 @@ useEffect(() => {
     useEffect(() => {
         if (loadingWorker || loadingMasterData || submitting) return;
 
+        const resetVersion = resetVersionRef.current;
         const snapshot = {
             version: 1 as const,
             savedAt: Date.now(),
@@ -657,14 +660,20 @@ useEffect(() => {
         };
 
         const timer = window.setTimeout(() => {
+            if (resetVersionRef.current !== resetVersion) return;
             if (hasMeaningfulProcessDraft(snapshot)) {
                 saveProcessDraft(snapshot);
             } else {
                 clearProcessDraft(process);
             }
+            draftSaveTimerRef.current = null;
         }, 700);
+        draftSaveTimerRef.current = timer;
 
-        return () => window.clearTimeout(timer);
+        return () => {
+            window.clearTimeout(timer);
+            if (draftSaveTimerRef.current === timer) draftSaveTimerRef.current = null;
+        };
     }, [
         process,
         form,
@@ -1582,9 +1591,25 @@ window.setTimeout(() => {
             return;
         }
 
+        // Invalidate any pending draft autosave before clearing the form.
+        resetVersionRef.current += 1;
+        isRestoringDraftRef.current = false;
+        if (draftSaveTimerRef.current !== null) {
+            window.clearTimeout(draftSaveTimerRef.current);
+            draftSaveTimerRef.current = null;
+        }
+        clearProcessDraft(process);
+
         setForm((prev) => ({
 
             ...initialForm,
+            // Explicitly clear every time field so a reset can never retain
+            // the previous working/deduction/total time values.
+            actualHours: "",
+            actualMinutes: "",
+            actualTime: "",
+            deductionTime: "",
+            totalTime: "",
 
             workDate:
                 getCurrentLocalDate(),
@@ -1631,8 +1656,6 @@ window.setTimeout(() => {
         setShowNg(
             false
         );
-
-        clearProcessDraft(process);
 
     };
         return (
