@@ -5,6 +5,7 @@ export type WorkerMasterOption = {
   code: string;
   label: string;
   key: string;
+  process_id?: number;
   defect_type_id?: number;
   deduction_type_id?: number;
   defect_code?: string;
@@ -15,6 +16,8 @@ export type WorkerMasterOption = {
 
 type RawOption = {
   id?: number | string | null;
+  process_id?: number | string | null;
+  processId?: number | string | null;
   defect_type_id?: number | string | null;
   defect_code?: string | null;
   defect_name?: string | null;
@@ -34,8 +37,22 @@ const same = (a: unknown, b: unknown): boolean => {
   return Boolean(left && right && left === right);
 };
 
-export function normalizeDefectOptions(rows: RawOption[] | null | undefined): WorkerMasterOption[] {
+/**
+ * Master lỗi luôn thuộc về một công đoạn.
+ * Nếu API trả process_id/processId thì chỉ nhận đúng process đang mở.
+ * API cũ có thể không trả trường này vì đã filter theo process ở backend,
+ * nên trong trường hợp đó giữ nguyên toàn bộ rows đã được API scope sẵn.
+ */
+export function normalizeDefectOptions(
+  rows: RawOption[] | null | undefined,
+  processId?: number,
+): WorkerMasterOption[] {
   return (rows ?? [])
+    .filter((row) => {
+      if (processId == null) return true;
+      const rowProcessId = Number(row.process_id ?? row.processId ?? 0);
+      return !rowProcessId || rowProcessId === Number(processId);
+    })
     .map((row, index) => {
       const id = Number(row.id ?? row.defect_type_id ?? 0) || undefined;
       const code = clean(row.defect_code ?? row.code);
@@ -49,6 +66,7 @@ export function normalizeDefectOptions(rows: RawOption[] | null | undefined): Wo
 
       return {
         id,
+        process_id: processId,
         defect_type_id: id,
         code: canonicalCode,
         label,
@@ -69,8 +87,20 @@ export function normalizeDefectOptions(rows: RawOption[] | null | undefined): Wo
     .filter((option) => Boolean(option.key));
 }
 
-export function normalizeDeductionOptions(rows: RawOption[] | null | undefined): WorkerMasterOption[] {
+/**
+ * Master trừ giờ cũng thuộc về một công đoạn.
+ * Không cho một loại trừ giờ của công đoạn khác lọt vào selector hiện tại.
+ */
+export function normalizeDeductionOptions(
+  rows: RawOption[] | null | undefined,
+  processId?: number,
+): WorkerMasterOption[] {
   return (rows ?? [])
+    .filter((row) => {
+      if (processId == null) return true;
+      const rowProcessId = Number(row.process_id ?? row.processId ?? 0);
+      return !rowProcessId || rowProcessId === Number(processId);
+    })
     .map((row, index) => {
       const id = Number(row.id ?? row.deduction_type_id ?? 0) || undefined;
       const code = clean(row.deduction_code ?? row.code);
@@ -86,6 +116,7 @@ export function normalizeDeductionOptions(rows: RawOption[] | null | undefined):
 
       return {
         id,
+        process_id: processId,
         deduction_type_id: id,
         code: canonicalCode,
         label,
