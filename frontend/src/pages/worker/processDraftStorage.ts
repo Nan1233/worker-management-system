@@ -82,7 +82,7 @@ function buildDraftResumeMessage(draft: ProcessDraft): string {
       lines.push(`  • Định mức/giờ: ${valueText(line.standardOutputPerHour)}`);
       lines.push(`  • Thời gian định mức: ${valueText(line.standardTimeSeconds)}`);
       if (line.selectedDefects?.length) lines.push(`  • Lỗi NG đã chọn: ${line.selectedDefects.join(", ")}`);
-      const defects = Object.entries(line.defects || {}).filter(([, value]) => value !== "" && value !== "0" && value !== 0);
+      const defects = Object.entries(line.defects || {}).filter(([, value]) => value !== "" && value !== "0");
       defects.forEach(([key, value]) => lines.push(`  • NG ${key}: ${valueText(value)}`));
     });
   } else {
@@ -90,7 +90,7 @@ function buildDraftResumeMessage(draft: ProcessDraft): string {
   }
 
   lines.push("", "TRỪ GIỜ");
-  const deductions = Object.entries(draft.deductions || {}).filter(([, value]) => value !== "" && value !== null && value !== undefined && value !== 0 && value !== "0");
+  const deductions = Object.entries(draft.deductions || {}).filter(([, value]) => value !== "" && value !== null && value !== undefined && value !== "0");
   if (deductions.length) {
     deductions.forEach(([key, value]) => lines.push(`• ${humanizeKey(key)}: ${valueText(value)}`));
   } else {
@@ -103,7 +103,7 @@ function buildDraftResumeMessage(draft: ProcessDraft): string {
   lines.push("", "THÔNG TIN BỔ SUNG");
   const extra = Object.entries(draft.extraData || {}).filter(([, value]) => value !== "" && value !== null && value !== undefined);
   if (extra.length) {
-    extra.forEach(([key, value]) => lines.push(`• ${humanizeKey(key)}: ${valueText(value)}`));
+    extra.forEach(([key, value]) => lines.push(`• ${humanizeKey(key)}: ${value}`));
   } else {
     lines.push("• Không có");
   }
