@@ -11,6 +11,46 @@ import {
   CONNECTION_RESTORED_EVENT,
 } from "../../services/authRuntimeEvents";
 
+/**
+ * Các khoản thời lượng đặc thù của từng công đoạn nhưng bản chất vẫn là
+ * THỜI GIAN TRỪ. Chúng được đưa vào cùng selector Trừ giờ để tổng thời gian
+ * và payload deductions dùng chung một cơ chế.
+ *
+ * Giá trị UI của deduction luôn là phút; backend chuyển/ghi nhận theo giờ.
+ */
+const PROCESS_SPECIFIC_DEDUCTION_OPTIONS: Record<string, WorkerMasterOption[]> = {
+  K1: [
+    { code: "LATE_EARLY", label: "Đi muộn / về sớm", key: "late_early_hours", deduction_code: "LATE_EARLY", deduction_name: "Đi muộn / về sớm" },
+  ],
+  CAN: [
+    { code: "VSK", label: "VSK", key: "vsk_hours", deduction_code: "VSK", deduction_name: "VSK" },
+    { code: "FIVE_S_OVERTIME", label: "5S + gia ca", key: "five_s_overtime_hours", deduction_code: "FIVE_S_OVERTIME", deduction_name: "5S + gia ca" },
+    { code: "MOLD_WARMUP", label: "Hâm khuôn", key: "mold_warmup_hours", deduction_code: "MOLD_WARMUP", deduction_name: "Hâm khuôn" },
+    { code: "MOLD_REPAIR", label: "Sửa khuôn", key: "mold_repair_hours", deduction_code: "MOLD_REPAIR", deduction_name: "Sửa khuôn" },
+    { code: "MACHINE_REPAIR", label: "Sửa máy", key: "machine_repair_hours", deduction_code: "MACHINE_REPAIR", deduction_name: "Sửa máy" },
+    { code: "MACHINE_STOP", label: "Dừng máy", key: "machine_stop_hours", deduction_code: "MACHINE_STOP", deduction_name: "Dừng máy" },
+  ],
+  XLBV: [
+    { code: "STOP_OPERATION", label: "Dừng thao tác", key: "stop_operation_hours", deduction_code: "STOP_OPERATION", deduction_name: "Dừng thao tác" },
+    { code: "SHORTAGE", label: "Thiếu sản lượng", key: "shortage_hours", deduction_code: "SHORTAGE", deduction_name: "Thiếu sản lượng" },
+  ],
+  SX3: [
+    { code: "MACHINE_STOP", label: "Dừng máy", key: "stop_operation_minutes", deduction_code: "MACHINE_STOP", deduction_name: "Dừng máy" },
+  ],
+};
+
+const mergeDeductionOptions = (base: WorkerMasterOption[], processCode: string): WorkerMasterOption[] => {
+  const merged = [...base];
+  const existingKeys = new Set(merged.map((item) => String(item.key || "").trim()));
+  for (const item of PROCESS_SPECIFIC_DEDUCTION_OPTIONS[processCode] || []) {
+    if (!existingKeys.has(item.key)) {
+      merged.push(item);
+      existingKeys.add(item.key);
+    }
+  }
+  return merged;
+};
+
 export function useProcessMasterData(processId: number, processCode: string) {
   const [machineOptions, setMachineOptions] = useState<MachineOption[]>([]);
   const [productOptions, setProductOptions] = useState<ProductStandardOption[]>([]);
@@ -36,7 +76,10 @@ export function useProcessMasterData(processId: number, processCode: string) {
       if (machines.status === "fulfilled") setMachineOptions(machines.value);
       if (products.status === "fulfilled") setProductOptions(products.value);
       if (defects.status === "fulfilled") setActiveNgOptions(normalizeDefectOptions(defects.value));
-      if (deductions.status === "fulfilled") setActiveDeductionOptions(normalizeDeductionOptions(deductions.value));
+      if (deductions.status === "fulfilled") {
+        const normalized = normalizeDeductionOptions(deductions.value);
+        setActiveDeductionOptions(mergeDeductionOptions(normalized, String(processCode || "").trim().toUpperCase()));
+      }
 
       // A stale/cancelled request must never turn a previously loaded master
       // list into an empty selector.
