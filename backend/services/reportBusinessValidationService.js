@@ -35,60 +35,44 @@ const validateMasterData = async ({
     const defectIds = uniquePositiveIds(defects, "defect_type_id");
     const deductionIds = uniquePositiveIds(deductions, "deduction_type_id");
 
-    // Các kiểm tra độc lập được chạy song song. So sánh trực tiếp mã danh mục
-    // để TiDB dùng được index, tránh UPPER(TRIM(column)) làm full scan.
     const [assignments, machines, products, validDefectRows, validDeductionRows] = await Promise.all([
         query(
-            `SELECT 1
-             FROM worker_processes
-             WHERE worker_id = ? AND process_id = ?
-             LIMIT 1`,
+            `SELECT 1 FROM worker_processes WHERE worker_id = ? AND process_id = ? LIMIT 1`,
             [workerId, processId]
         ),
         normalizedMachineNo
             ? query(
                 `SELECT id, machine_code, COALESCE(is_automatic, 0) AS is_automatic
                  FROM machines
-                 WHERE process_id = ?
-                   AND status = 'active'
-                   AND machine_code = ?
-                 LIMIT 1`,
+                 WHERE process_id = ? AND status = 'active' AND machine_code = ? LIMIT 1`,
                 [processId, normalizedMachineNo]
             )
             : Promise.resolve([]),
         normalizedProductName
             ? query(
-                `SELECT ps.id, ps.product_code,
-                        ps.standard_output,
+                `SELECT ps.id, ps.product_code, ps.standard_output,
                         COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
                         p.process_code,
                         EXISTS(SELECT 1 FROM product_machine_standards pms WHERE pms.process_id=ps.process_id AND pms.product_code=ps.product_code AND pms.is_active=1) AS has_machine_specific_standard
                  FROM product_standards ps
                  JOIN processes p ON p.id=ps.process_id
-                 WHERE ps.process_id = ?
-                   AND ps.status = 'active'
-                   AND ps.product_code = ?
-                 LIMIT 1`,
+                 WHERE ps.process_id = ? AND ps.status = 'active' AND ps.product_code = ? LIMIT 1`,
                 [processId, normalizedProductName]
             )
             : Promise.resolve([]),
         defectIds.length
             ? query(
                 `SELECT DISTINCT id, defect_code, defect_name
-                 FROM defect_types
-                 WHERE process_id = ?
-                   AND status = 'active'
-                   AND id IN (${defectIds.map(() => "?").join(",")})`,
+                 FROM defect_types WHERE process_id = ? AND status = 'active'
+                 AND id IN (${defectIds.map(() => "?").join(",")})`,
                 [processId, ...defectIds]
             )
             : Promise.resolve([]),
         deductionIds.length
             ? query(
-                `SELECT DISTINCT id
-                 FROM deduction_types
-                 WHERE process_id = ?
-                   AND status = 'active'
-                   AND id IN (${deductionIds.map(() => "?").join(",")})`,
+                `SELECT DISTINCT id FROM deduction_types
+                 WHERE process_id = ? AND status = 'active'
+                 AND id IN (${deductionIds.map(() => "?").join(",")})`,
                 [processId, ...deductionIds]
             )
             : Promise.resolve([])
@@ -101,15 +85,11 @@ const validateMasterData = async ({
         defect_name: canonicalDefectsById.get(Number(item?.defect_type_id))?.defect_name || null
     }));
 
-    if (!assignments.length) {
-        errors.process_id = "Công nhân chưa được phân công công đoạn này";
-    }
+    if (!assignments.length) errors.process_id = "Công nhân chưa được phân công công đoạn này";
 
     let machineCode = null;
     if (!normalizedMachineNo) {
-        if (!allowEmptyMachine) {
-            errors.machine_no = "Vui lòng chọn máy trong danh mục";
-        }
+        if (!allowEmptyMachine) errors.machine_no = "Vui lòng chọn máy trong danh mục";
     } else if (!machines.length) {
         errors.machine_no = "Máy không tồn tại hoặc không thuộc công đoạn đã chọn";
     } else {
@@ -128,12 +108,14 @@ const validateMasterData = async ({
         errors.product_name = "Sản phẩm không tồn tại hoặc không thuộc công đoạn đã chọn";
     } else {
         productCode = products[0].product_code;
+        const normalizedOperationMode = String(operationMode || (normalizedMachineNo ? "MACHINE" : "MANUAL")).toUpperCase();
         const resolvedStandard = await resolveStandard({
             processId,
             productCode,
-            machineId: machines[0]?.id || null,
-            machineCode: machines[0]?.machine_code || null,
-            workDate
+            machineId: normalizedOperationMode === "MACHINE" ? (machines[0]?.id || null) : null,
+            machineCode: normalizedOperationMode === "MACHINE" ? (machines[0]?.machine_code || null) : null,
+            workDate,
+            operationMode: normalizedOperationMode
         });
         standardOutput = Number(resolvedStandard.standardOutput);
         excludeKqdFromTt = Number(resolvedStandard.excludeKqdFromTt || 0) === 1 ? 1 : 0;
@@ -146,10 +128,9 @@ const validateMasterData = async ({
             productCode,
             machineCode: machineCode || normalizedMachineNo,
             isAutomatic: machines[0]?.is_automatic || 0,
-            operationMode: operationMode || (normalizedMachineNo ? "MACHINE" : "MANUAL")
+            operationMode: normalizedOperationMode
         });
         if (encodedScopeError) errors.product_name = encodedScopeError;
-
 
         if (ttOk !== undefined && actualOutput !== undefined) {
             const { calculateActualOutput } = require("../utils/outputCalculation");
@@ -167,7 +148,6 @@ const validateMasterData = async ({
     if (defectIds.length && validDefectRows.length !== defectIds.length) {
         errors.defects = "Có loại lỗi không tồn tại hoặc không thuộc công đoạn đã chọn";
     }
-
     if (deductionIds.length && validDeductionRows.length !== deductionIds.length) {
         errors.deductions = "Có loại thời gian trừ không tồn tại hoặc không thuộc công đoạn đã chọn";
     }
