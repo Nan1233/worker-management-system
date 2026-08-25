@@ -5,95 +5,69 @@ import PermissionRoute from "./PermissionRoute";
 import type { PermissionCode } from "../security/permissions";
 import WorkerLayout from "../layouts/WorkerLayout";
 import ManagementLayout from "../layouts/ManagementLayout";
+import AdminLayout from "../layouts/AdminLayout";
 import RouteLoading from "../components/system/RouteLoading";
 
-const Login = lazy(() => import("../pages/Login"));
-const AdminDashboard = lazy(() => import("../pages/admin/Dashboard"));
-const MasterData = lazy(() => import("../pages/admin/MasterData"));
-const Permissions = lazy(() => import("../pages/admin/Permissions"));
-const ManagementProfile = lazy(() => import("../pages/management/Profile"));
-const ManagementDashboard = lazy(() => import("../pages/lead/Dashboard"));
-const PendingReports = lazy(() => import("../pages/lead/PendingReports"));
-const ApprovedReports = lazy(() => import("../pages/lead/ApprovedReports"));
-const ReportDetail = lazy(() => import("../pages/lead/ReportDetail"));
-const ManagerDashboard = lazy(() => import("../pages/manager/Dashboard"));
-const ManagerReports = lazy(() => import("../pages/manager/Reports"));
-const ManagerApprovedReports = lazy(() => import("../pages/manager/ApprovedReports"));
-const ManagerReportDetail = lazy(() => import("../pages/manager/ReportDetail"));
-const EditReport = lazy(() => import("../pages/manager/EditReport"));
-const Statistics = lazy(() => import("../pages/manager/Statistics"));
-const SelectedReportsReview = lazy(() => import("../pages/manager/SelectedReportsReview"));
-const ReportDownload = lazy(() => import("../pages/manager/ReportDownload"));
-const Workers = lazy(() => import("../pages/manager/Workers"));
-const SelectProcess = lazy(() => import("../pages/worker/SelectProcess"));
-const WorkerHome = lazy(() => import("../pages/worker/WorkerHome"));
-const ProcessPage = lazy(() => import("../pages/worker/ProcessPage"));
-const ProductionHistory = lazy(() => import("../pages/worker/ProductionHistory"));
-const ProductionDetail = lazy(() => import("../pages/worker/ProductionDetail"));
-const Profile = lazy(() => import("../pages/worker/Profile"));
-const SystemCenter = lazy(() => import("../pages/system/SystemCenter"));
+const Login=lazy(()=>import("../pages/Login"));
+const AdminDashboard=lazy(()=>import("../pages/admin/Dashboard"));
+const MasterData=lazy(()=>import("../pages/admin/MasterData"));
+const Permissions=lazy(()=>import("../pages/admin/Permissions"));
+const ManagementProfile=lazy(()=>import("../pages/management/Profile"));
+const ManagementDashboard=lazy(()=>import("../pages/lead/Dashboard"));
+const PendingReports=lazy(()=>import("../pages/lead/PendingReports"));
+const ApprovedReports=lazy(()=>import("../pages/lead/ApprovedReports"));
+const ReportDetail=lazy(()=>import("../pages/lead/ReportDetail"));
+const ManagerDashboard=lazy(()=>import("../pages/manager/Dashboard"));
+const ManagerReports=lazy(()=>import("../pages/manager/Reports"));
+const ManagerApprovedReports=lazy(()=>import("../pages/manager/ApprovedReports"));
+const ManagerReportDetail=lazy(()=>import("../pages/manager/ReportDetail"));
+const EditReport=lazy(()=>import("../pages/manager/EditReport"));
+const Statistics=lazy(()=>import("../pages/manager/Statistics"));
+const SelectedReportsReview=lazy(()=>import("../pages/manager/SelectedReportsReview"));
+const ReportDownload=lazy(()=>import("../pages/manager/ReportDownload"));
+const Workers=lazy(()=>import("../pages/manager/Workers"));
+const SelectProcess=lazy(()=>import("../pages/worker/SelectProcess"));
+const WorkerHome=lazy(()=>import("../pages/worker/WorkerHome"));
+const ProcessPage=lazy(()=>import("../pages/worker/ProcessPage"));
+const ProductionHistory=lazy(()=>import("../pages/worker/ProductionHistory"));
+const ProductionDetail=lazy(()=>import("../pages/worker/ProductionDetail"));
+const Profile=lazy(()=>import("../pages/worker/Profile"));
+const SystemCenter=lazy(()=>import("../pages/system/SystemCenter"));
 
-const P = ({code,children}:{code:PermissionCode;children:ReactNode}) => <PermissionRoute permission={code}>{children}</PermissionRoute>;
+const P=({code,children}:{code:PermissionCode;children:ReactNode})=><PermissionRoute permission={code}>{children}</PermissionRoute>;
 
-export default function AppRouter(){
- return <Suspense fallback={<RouteLoading/>}><Routes>
-  <Route path="/" element={<Navigate to="/login" replace/>}/>
-  <Route path="/login" element={<Login/>}/>
+export default function AppRouter(){return <Suspense fallback={<RouteLoading/>}><Routes>
+ <Route path="/" element={<Navigate to="/login" replace/>}/><Route path="/login" element={<Login/>}/>
 
-  {/* Admin is the system-wide management role. It must use the same unrestricted
-      management/report screens as Manager, not the process-scoped Lead screens. */}
-  <Route path="/admin" element={<PrivateRoute allowedRoles={["admin"]}><ManagementLayout role="admin"/></PrivateRoute>}>
-   <Route index element={<P code="DASHBOARD_VIEW"><AdminDashboard/></P>}/>
-   <Route path="reports" element={<P code="REPORT_PENDING_VIEW"><ManagerReports/></P>}/>
-   <Route path="approved" element={<P code="REPORT_APPROVED_VIEW"><ManagerApprovedReports/></P>}/>
-   <Route path="export" element={<P code="REPORT_EXPORT"><ReportDownload/></P>}/>
-   <Route path="workers" element={<P code="USER_VIEW"><Workers/></P>}/>
-   <Route path="master" element={<Navigate to="machines" replace/>}/>
-   <Route path="master/:resource" element={<P code="MASTER_VIEW"><MasterData/></P>}/>
-   <Route path="statistics" element={<P code="STATISTICS_VIEW"><Statistics/></P>}/>
-   <Route path="permissions" element={<P code="PERMISSION_MANAGE"><Permissions/></P>}/>
-   <Route path="system" element={<P code="AUDIT_VIEW"><SystemCenter/></P>}/>
-   <Route path="profile" element={<P code="PROFILE_VIEW"><ManagementProfile/></P>}/>
-  </Route>
+ <Route path="/admin" element={<PrivateRoute allowedRoles={["admin"]}><AdminLayout/></PrivateRoute>}>
+  <Route index element={<P code="DASHBOARD_VIEW"><AdminDashboard/></P>}/>
+  <Route path="reports" element={<P code="REPORT_PENDING_VIEW"><ManagerReports/></P>}/>
+  <Route path="approved" element={<P code="REPORT_APPROVED_VIEW"><ManagerApprovedReports/></P>}/>
+  <Route path="export" element={<P code="REPORT_EXPORT"><ReportDownload/></P>}/>
+  <Route path="workers" element={<P code="USER_VIEW"><Workers/></P>}/>
+  <Route path="master" element={<Navigate to="machines" replace/>}/>
+  <Route path="master/:resource" element={<P code="MASTER_VIEW"><MasterData/></P>}/>
+  <Route path="statistics" element={<P code="STATISTICS_VIEW"><Statistics/></P>}/>
+  <Route path="permissions" element={<P code="PERMISSION_MANAGE"><Permissions/></P>}/>
+  <Route path="system" element={<P code="AUDIT_VIEW"><SystemCenter/></P>}/>
+  <Route path="profile" element={<P code="PROFILE_VIEW"><ManagementProfile/></P>}/>
+ </Route>
 
-  <Route path="/manager" element={<PrivateRoute allowedRoles={["manager"]}><ManagementLayout role="manager"/></PrivateRoute>}>
-   <Route index element={<P code="DASHBOARD_VIEW"><ManagerDashboard/></P>}/>
-   <Route path="reports" element={<P code="REPORT_PENDING_VIEW"><ManagerReports/></P>}/>
-   <Route path="approved" element={<P code="REPORT_APPROVED_VIEW"><ManagerApprovedReports/></P>}/>
-   <Route path="export" element={<Navigate to="/manager/master/machines" replace/>}/>
-   <Route path="workers" element={<P code="USER_VIEW"><Workers/></P>}/>
-   <Route path="master" element={<Navigate to="machines" replace/>}/>
-   <Route path="master/:resource" element={<P code="MASTER_VIEW"><MasterData/></P>}/>
-   <Route path="statistics" element={<P code="STATISTICS_VIEW"><Statistics/></P>}/>
-   <Route path="system" element={<P code="AUDIT_VIEW"><SystemCenter/></P>}/>
-   <Route path="profile" element={<P code="PROFILE_VIEW"><ManagementProfile/></P>}/>
-  </Route>
+ <Route path="/manager" element={<PrivateRoute allowedRoles={["manager"]}><ManagementLayout role="manager"/></PrivateRoute>}>
+  <Route index element={<P code="DASHBOARD_VIEW"><ManagerDashboard/></P>}/><Route path="reports" element={<P code="REPORT_PENDING_VIEW"><ManagerReports/></P>}/><Route path="approved" element={<P code="REPORT_APPROVED_VIEW"><ManagerApprovedReports/></P>}/><Route path="export" element={<Navigate to="/manager/master/machines" replace/>}/><Route path="workers" element={<P code="USER_VIEW"><Workers/></P>}/><Route path="master" element={<Navigate to="machines" replace/>}/><Route path="master/:resource" element={<P code="MASTER_VIEW"><MasterData/></P>}/><Route path="statistics" element={<P code="STATISTICS_VIEW"><Statistics/></P>}/><Route path="system" element={<P code="AUDIT_VIEW"><SystemCenter/></P>}/><Route path="profile" element={<P code="PROFILE_VIEW"><ManagementProfile/></P>}/>
+ </Route>
 
-  <Route path="/lead" element={<PrivateRoute allowedRoles={["lead"]}><ManagementLayout role="lead"/></PrivateRoute>}>
-   <Route index element={<P code="DASHBOARD_VIEW"><ManagementDashboard/></P>}/>
-   <Route path="reports" element={<P code="REPORT_PENDING_VIEW"><PendingReports/></P>}/>
-   <Route path="approved" element={<P code="REPORT_APPROVED_VIEW"><ApprovedReports/></P>}/>
-   <Route path="export" element={<Navigate to="/lead/approved" replace/>}/>
-   <Route path="workers" element={<P code="USER_VIEW"><Workers/></P>}/>
-   <Route path="statistics" element={<P code="STATISTICS_VIEW"><Statistics/></P>}/>
-   <Route path="system" element={<P code="NOTIFICATION_VIEW"><SystemCenter/></P>}/>
-   <Route path="profile" element={<P code="PROFILE_VIEW"><ManagementProfile/></P>}/>
-  </Route>
+ <Route path="/lead" element={<PrivateRoute allowedRoles={["lead"]}><ManagementLayout role="lead"/></PrivateRoute>}>
+  <Route index element={<P code="DASHBOARD_VIEW"><ManagementDashboard/></P>}/><Route path="reports" element={<P code="REPORT_PENDING_VIEW"><PendingReports/></P>}/><Route path="approved" element={<P code="REPORT_APPROVED_VIEW"><ApprovedReports/></P>}/><Route path="export" element={<Navigate to="/lead/approved" replace/>}/><Route path="workers" element={<P code="USER_VIEW"><Workers/></P>}/><Route path="statistics" element={<P code="STATISTICS_VIEW"><Statistics/></P>}/><Route path="system" element={<P code="NOTIFICATION_VIEW"><SystemCenter/></P>}/><Route path="profile" element={<P code="PROFILE_VIEW"><ManagementProfile/></P>}/>
+ </Route>
 
-  {(["admin","manager","lead"] as const).map(role => <Route key={`${role}-review`} path={`/${role}/reports/review`} element={<PrivateRoute allowedRoles={[role]}><P code="REPORT_APPROVE"><SelectedReportsReview/></P></PrivateRoute>}/>)}
-  {(["lead"] as const).map(role => <Route key={`${role}-detail`} path={`/${role}/report/:id`} element={<PrivateRoute allowedRoles={[role]}><P code="REPORT_APPROVED_VIEW"><ReportDetail/></P></PrivateRoute>}/>)}
-  {(["admin","manager"] as const).map(role => <Route key={`${role}-detail`} path={`/${role}/report/:id`} element={<PrivateRoute allowedRoles={[role]}><P code="REPORT_APPROVED_VIEW"><ManagerReportDetail/></P></PrivateRoute>}/>)}
-  {(["admin","manager"] as const).map(role => <Route key={`${role}-edit`} path={`/${role}/report/:id/edit`} element={<PrivateRoute allowedRoles={[role]}><P code="REPORT_APPROVED_EDIT"><EditReport/></P></PrivateRoute>} />)}
+ {(["admin","manager","lead"] as const).map(role=><Route key={`${role}-review`} path={`/${role}/reports/review`} element={<PrivateRoute allowedRoles={[role]}><P code="REPORT_APPROVE"><SelectedReportsReview/></P></PrivateRoute>}/>)}
+ {(["lead"] as const).map(role=><Route key={`${role}-detail`} path={`/${role}/report/:id`} element={<PrivateRoute allowedRoles={[role]}><P code="REPORT_APPROVED_VIEW"><ReportDetail/></P></PrivateRoute>}/>)}
+ {(["admin","manager"] as const).map(role=><Route key={`${role}-detail`} path={`/${role}/report/:id`} element={<PrivateRoute allowedRoles={[role]}><P code="REPORT_APPROVED_VIEW"><ManagerReportDetail/></P></PrivateRoute>}/>)}
+ {(["admin","manager"] as const).map(role=><Route key={`${role}-edit`} path={`/${role}/report/:id/edit`} element={<PrivateRoute allowedRoles={[role]}><P code="REPORT_APPROVED_EDIT"><EditReport/></P></PrivateRoute>}/>) }
 
-  <Route path="/worker" element={<PrivateRoute allowedRoles={["worker"]}><WorkerLayout/></PrivateRoute>}>
-   <Route index element={<P code="WORKER_ENTRY"><WorkerHome/></P>}/>
-   <Route path="process/select" element={<P code="WORKER_ENTRY"><SelectProcess/></P>}/>
-   <Route path="process/:process" element={<P code="WORKER_ENTRY"><ProcessPage/></P>}/>
-   <Route path="history" element={<P code="WORKER_HISTORY"><ProductionHistory/></P>}/>
-   <Route path="history/:id" element={<P code="WORKER_HISTORY"><ProductionDetail/></P>}/>
-   <Route path="system" element={<P code="NOTIFICATION_VIEW"><SystemCenter/></P>}/>
-   <Route path="profile" element={<P code="PROFILE_VIEW"><Profile/></P>}/>
-  </Route>
-  <Route path="*" element={<Navigate to="/login" replace/>}/>
- </Routes></Suspense>;
-}
+ <Route path="/worker" element={<PrivateRoute allowedRoles={["worker"]}><WorkerLayout/></PrivateRoute>}>
+  <Route index element={<P code="WORKER_ENTRY"><WorkerHome/></P>}/><Route path="process/select" element={<P code="WORKER_ENTRY"><SelectProcess/></P>}/><Route path="process/:process" element={<P code="WORKER_ENTRY"><ProcessPage/></P>}/><Route path="history" element={<P code="WORKER_HISTORY"><ProductionHistory/></P>}/><Route path="history/:id" element={<P code="WORKER_HISTORY"><ProductionDetail/></P>}/><Route path="system" element={<P code="NOTIFICATION_VIEW"><SystemCenter/></P>}/><Route path="profile" element={<P code="PROFILE_VIEW"><Profile/></P>}/>
+ </Route>
+ <Route path="*" element={<Navigate to="/login" replace/>}/>
+</Routes></Suspense>}
