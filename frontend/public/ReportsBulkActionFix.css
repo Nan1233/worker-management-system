@@ -37,7 +37,6 @@
   cursor:pointer!important;
 }
 
-/* Bỏ chọn: xanh dương, không dùng nền xám mặc định. */
 .pending-reference-page .management-selected-actions button:first-child{
   color:#1769d1!important;
   background:#eaf3ff!important;
@@ -48,7 +47,6 @@
   background:#dcecff!important;
 }
 
-/* Từ chối: đỏ. */
 .pending-reference-page .management-selected-actions .selected-reject-action{
   color:#fff!important;
   background:#dc3545!important;
@@ -60,7 +58,6 @@
   border-color:#c82333!important;
 }
 
-/* Duyệt: xanh lá. */
 .pending-reference-page .management-selected-actions .selected-approve-action{
   color:#fff!important;
   background:#16a34a!important;
@@ -75,111 +72,6 @@
 .pending-reference-page .management-selected-actions button:disabled{
   opacity:.55!important;
   cursor:not-allowed!important;
-}
-
-/* Popup Đề xuất sửa: hiển thị giữa màn hình, không đẩy nội dung trang xuống. */
-.pending-reference-page .pending-modal-backdrop{
-  position:fixed!important;
-  inset:0!important;
-  z-index:2000!important;
-  display:flex!important;
-  align-items:center!important;
-  justify-content:center!important;
-  padding:20px!important;
-  box-sizing:border-box!important;
-  background:rgba(15,35,60,.48)!important;
-  backdrop-filter:blur(2px)!important;
-}
-
-.pending-reference-page .pending-modal{
-  position:relative!important;
-  width:min(520px,calc(100vw - 40px))!important;
-  max-height:calc(100vh - 40px)!important;
-  overflow:auto!important;
-  margin:0!important;
-  padding:22px 22px 18px!important;
-  box-sizing:border-box!important;
-  border:1px solid #d9e4f0!important;
-  border-radius:14px!important;
-  background:#fff!important;
-  box-shadow:0 18px 50px rgba(24,55,90,.22)!important;
-}
-
-/* Dùng nút Hủy hiện có làm nút X ở góc phải; vẫn đóng popup khi bấm. */
-.pending-reference-page .pending-modal:has(#proposal-title) .pending-modal-actions > button:first-child{
-  position:absolute!important;
-  top:12px!important;
-  right:12px!important;
-  width:34px!important;
-  height:34px!important;
-  min-width:34px!important;
-  margin:0!important;
-  padding:0!important;
-  border:0!important;
-  border-radius:8px!important;
-  background:#f3f6fa!important;
-  color:transparent!important;
-  font-size:0!important;
-  line-height:1!important;
-}
-
-.pending-reference-page .pending-modal:has(#proposal-title) .pending-modal-actions > button:first-child::before{
-  content:"×"!important;
-  color:#6f83a1!important;
-  font-size:24px!important;
-  font-weight:400!important;
-  line-height:1!important;
-}
-
-.pending-reference-page .pending-modal:has(#proposal-title) .pending-modal-actions > button:first-child:hover{
-  background:#e9eef5!important;
-}
-
-.pending-reference-page .pending-modal:has(#proposal-title) h2{
-  padding-right:44px!important;
-  margin:0 0 8px!important;
-  color:#17365f!important;
-  font-size:19px!important;
-  line-height:1.3!important;
-}
-
-.pending-reference-page .pending-modal:has(#proposal-title) .pending-modal-description{
-  margin:0 0 18px!important;
-  color:#7185a4!important;
-  font-size:13px!important;
-  line-height:1.5!important;
-}
-
-.pending-reference-page .pending-modal:has(#proposal-title) textarea{
-  width:100%!important;
-  min-height:120px!important;
-  box-sizing:border-box!important;
-  resize:vertical!important;
-  border:1px solid #d4e0ed!important;
-  border-radius:8px!important;
-  padding:10px 12px!important;
-  color:#29466f!important;
-  background:#fff!important;
-  font-size:13px!important;
-  line-height:1.5!important;
-}
-
-.pending-reference-page .pending-modal:has(#proposal-title) .pending-modal-actions{
-  display:flex!important;
-  justify-content:flex-end!important;
-  gap:10px!important;
-  margin-top:16px!important;
-}
-
-.pending-reference-page .pending-modal:has(#proposal-title) .pending-modal-actions .primary{
-  height:36px!important;
-  padding:0 16px!important;
-  border:1px solid #1769d2!important;
-  border-radius:7px!important;
-  background:#1769d2!important;
-  color:#fff!important;
-  font-size:13px!important;
-  font-weight:700!important;
 }
 
 @media(max-width:720px){
@@ -200,14 +92,81 @@
     height:34px!important;
     padding:0 11px!important;
   }
+}
 
-  .pending-reference-page .pending-modal-backdrop{
-    padding:12px!important;
+/* Form sửa báo cáo của tổ trưởng hiển thị như một cửa sổ riêng. */
+.pending-reference-page:has(.pending-detail-card.is-editing)::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:9000;
+  background:rgba(15,31,55,.42);
+  backdrop-filter:blur(1.5px);
+}
+
+.pending-reference-page .pending-detail-card.is-editing{
+  position:fixed!important;
+  z-index:9001!important;
+  top:50%!important;
+  left:50%!important;
+  width:min(860px,calc(100vw - 40px))!important;
+  max-height:calc(100vh - 48px)!important;
+  min-height:0!important;
+  transform:translate(-50%,-50%)!important;
+  border-radius:14px!important;
+  box-shadow:0 24px 70px rgba(20,42,72,.28)!important;
+  overflow:hidden!important;
+}
+
+.pending-reference-page .pending-detail-card.is-editing .pending-detail-body{
+  max-height:calc(100vh - 160px)!important;
+  overflow-y:auto!important;
+}
+
+.pending-reference-page .pending-detail-card.is-editing .pending-edit-grid{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px 16px;
+}
+
+.pending-reference-page .pending-detail-card.is-editing .pending-edit-note{
+  grid-column:1 / -1;
+}
+
+.pending-reference-page .pending-detail-card.is-editing .pending-edit-note textarea{
+  width:100%;
+  min-height:76px;
+  resize:vertical;
+  border:1px solid #d4e0ed;
+  border-radius:7px;
+  padding:9px;
+  background:#fff;
+  color:#29466f;
+  font-size:13px;
+  outline:none;
+  box-sizing:border-box;
+  font-family:inherit;
+}
+
+.pending-reference-page .pending-detail-card.is-editing .pending-edit-note textarea:focus{
+  border-color:#1769d2;
+  box-shadow:0 0 0 2px rgba(23,105,210,.08);
+}
+
+@media(max-width:720px){
+  .pending-reference-page .pending-detail-card.is-editing{
+    width:calc(100vw - 20px)!important;
+    max-height:calc(100vh - 20px)!important;
   }
 
-  .pending-reference-page .pending-modal{
-    width:min(520px,calc(100vw - 24px))!important;
-    max-height:calc(100vh - 24px)!important;
-    padding:20px 16px 16px!important;
+  .pending-reference-page .pending-detail-card.is-editing .pending-detail-body{
+    max-height:calc(100vh - 140px)!important;
+  }
+
+  .pending-reference-page .pending-detail-card.is-editing .pending-edit-grid{
+    grid-template-columns:1fr;
+  }
+
+  .pending-reference-page .pending-detail-card.is-editing .pending-detail-actions{
+    gap:8px!important;
   }
 }
