@@ -83,7 +83,7 @@
 .pending-edit-grid input:focus,.pending-edit-grid select:focus{border-color:#1769d2;box-shadow:0 0 0 2px rgba(23,105,210,.08)}
 .pending-detail-edit{border:1px solid #1769d2;background:#fff;color:#1769d2}
 .pending-detail-cancel{border:1px solid #d7e1ec;background:#fff;color:#627895}
-.pending-detail-save{border:1px solid #16895f;background:#16895f;color:#fff;box-shadow:0 5px 12px rgba(22,137,95,.15)}
+.pending-detail-save{border:1px solid #16895f;background:#16895f;color:#fff;box-shadow:0 5px 12px rgba(22,137,210,.15)}
 .pending-detail-actions:has(.pending-detail-cancel){grid-template-columns:1fr 1fr}
 .pending-detail-actions button:disabled{opacity:.55;cursor:not-allowed}
 .pending-bulk-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:8px;padding:0 0 2px;font-size:11px}
@@ -146,3 +146,21 @@
 .pending-reference-page .pending-kpi>span{line-height:1.2}
 .pending-reference-page .pending-kpi>strong{line-height:1.2}
 .pending-reference-page .pending-kpi>small{line-height:1.2}
+
+/* Form sửa báo cáo: hai khoản trừ / hai lỗi NG trên cùng một hàng. */
+.pending-reference-page .pending-form-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:7px;margin:0;min-width:0}
+.pending-reference-page .pending-form-row label{min-width:0;display:flex;flex-direction:column;gap:4px}
+.pending-reference-page .pending-form-row label>span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pending-reference-page .pending-form-row .pending-detail-remove{height:36px;padding:0 8px;border:1px solid #f1a5ac;border-radius:7px;background:#fff;color:#df414d;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+.pending-reference-page .pending-form-row .pending-edit-number-with-unit{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px}
+.pending-reference-page .pending-form-row .pending-edit-number-with-unit input{height:36px;min-width:0;border:1px solid #d4e0ed;border-radius:7px;padding:0 9px;background:#fff;color:#29466f;font-size:13px;outline:none}
+.pending-reference-page .pending-form-row .pending-edit-number-with-unit small{font-size:13px;color:#7185a4;white-space:nowrap}
+.pending-reference-page .pending-detail-section:has(.pending-form-row){display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px 12px}
+.pending-reference-page .pending-detail-section:has(.pending-form-row)>h3,
+.pending-reference-page .pending-detail-section:has(.pending-form-row)>.pending-form-summary,
+.pending-reference-page .pending-detail-section:has(.pending-form-row)>.pending-detail-add-row{grid-column:1 / -1}
+.pending-reference-page .pending-detail-section:has(.pending-form-row)>h3{margin-bottom:0}
+.pending-reference-page .pending-form-summary{margin:0}
+.pending-reference-page .pending-detail-add-row{min-width:0}
+.pending-reference-page .pending-detail-add-row select{width:100%;height:36px;border:1px solid #d4e0ed;border-radius:7px;padding:0 9px;background:#fff;color:#29466f;font-size:13px}
+@media(max-width:720px){.pending-reference-page .pending-detail-section:has(.pending-form-row){grid-template-columns:1fr}}
