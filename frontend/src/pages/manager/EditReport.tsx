@@ -12,78 +12,63 @@ import type {
     ProductionReport
 } from "../../types/production";
 import { useToast } from "../../components/feedback/toastContext";
+
 const numberValue = (value: unknown) => Number(value ?? 0) || 0;
 
-const mergeDefects = (
-    options: ProductionDefect[],
-    saved: ProductionDefect[]
-): ProductionDefect[] => {
+const mergeDefects = (options: ProductionDefect[], saved: ProductionDefect[]): ProductionDefect[] => {
     const savedById = new Map(
         saved
-            .filter((item) => Number(item.defect_type_id) > 0)
-            .map((item) => [Number(item.defect_type_id), item])
+            .filter((item) => Number(item.defect_type_id || item.id) > 0)
+            .map((item) => [Number(item.defect_type_id || item.id), item])
     );
     const savedByName = new Map(
         saved.map((item) => [String(item.defect_name || "").trim().toLowerCase(), item])
     );
 
-    const merged: ProductionDefect[] = options.map((option) => {
-        const current = savedById.get(Number(option.id || option.defect_type_id))
-            || savedByName.get(String(option.defect_name || "").trim().toLowerCase());
-        return {
-            ...option,
-            defect_type_id: Number(option.defect_type_id || option.id),
-            id: current?.id,
-            quantity: numberValue(current?.quantity)
-        };
-    });
-
-    for (const current of saved) {
-        const exists = merged.some((item) =>
-            Number(item.defect_type_id) === Number(current.defect_type_id)
-            || String(item.defect_name || "").trim().toLowerCase()
-                === String(current.defect_name || "").trim().toLowerCase()
-        );
-        if (!exists) merged.push({ ...current, quantity: numberValue(current.quantity) });
-    }
-
-    return merged;
+    return saved
+        .filter((item) => numberValue(item.quantity) > 0)
+        .map((item) => {
+            const current = savedById.get(Number(item.defect_type_id || item.id))
+                || savedByName.get(String(item.defect_name || "").trim().toLowerCase());
+            const option = options.find((candidate) =>
+                Number(candidate.defect_type_id || candidate.id) === Number(item.defect_type_id || item.id)
+                || String(candidate.defect_name || "").trim().toLowerCase() === String(item.defect_name || "").trim().toLowerCase()
+            );
+            return {
+                ...(option || item),
+                ...current,
+                defect_type_id: Number(option?.defect_type_id || option?.id || item.defect_type_id || item.id),
+                quantity: numberValue(item.quantity)
+            };
+        });
 };
 
-const mergeDeductions = (
-    options: ProductionDeduction[],
-    saved: ProductionDeduction[]
-): ProductionDeduction[] => {
+const mergeDeductions = (options: ProductionDeduction[], saved: ProductionDeduction[]): ProductionDeduction[] => {
     const savedById = new Map(
         saved
-            .filter((item) => Number(item.deduction_type_id) > 0)
-            .map((item) => [Number(item.deduction_type_id), item])
+            .filter((item) => Number(item.deduction_type_id || item.id) > 0)
+            .map((item) => [Number(item.deduction_type_id || item.id), item])
     );
     const savedByName = new Map(
         saved.map((item) => [String(item.deduction_name || "").trim().toLowerCase(), item])
     );
 
-    const merged: ProductionDeduction[] = options.map((option) => {
-        const current = savedById.get(Number(option.id || option.deduction_type_id))
-            || savedByName.get(String(option.deduction_name || "").trim().toLowerCase());
-        return {
-            ...option,
-            deduction_type_id: Number(option.deduction_type_id || option.id),
-            id: current?.id,
-            hours: numberValue(current?.hours)
-        };
-    });
-
-    for (const current of saved) {
-        const exists = merged.some((item) =>
-            Number(item.deduction_type_id) === Number(current.deduction_type_id)
-            || String(item.deduction_name || "").trim().toLowerCase()
-                === String(current.deduction_name || "").trim().toLowerCase()
-        );
-        if (!exists) merged.push({ ...current, hours: numberValue(current.hours) });
-    }
-
-    return merged;
+    return saved
+        .filter((item) => numberValue(item.hours) > 0)
+        .map((item) => {
+            const current = savedById.get(Number(item.deduction_type_id || item.id))
+                || savedByName.get(String(item.deduction_name || "").trim().toLowerCase());
+            const option = options.find((candidate) =>
+                Number(candidate.deduction_type_id || candidate.id) === Number(item.deduction_type_id || item.id)
+                || String(candidate.deduction_name || "").trim().toLowerCase() === String(item.deduction_name || "").trim().toLowerCase()
+            );
+            return {
+                ...(option || item),
+                ...current,
+                deduction_type_id: Number(option?.deduction_type_id || option?.id || item.deduction_type_id || item.id),
+                hours: numberValue(item.hours)
+            };
+        });
 };
 
 function EditReport() {
@@ -95,6 +80,8 @@ function EditReport() {
     const reportId = Number(id);
 
     const [form, setForm] = useState<ProductionReport | null>(null);
+    const [defectOptions, setDefectOptions] = useState<ProductionDefect[]>([]);
+    const [deductionOptions, setDeductionOptions] = useState<ProductionDeduction[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
@@ -117,10 +104,13 @@ function EditReport() {
                 const data = await getReportById(reportId, source);
                 originalUpdatedAtRef.current = source === "approved" ? (data.updated_at || null) : null;
                 const processId = Number(data.process_id);
-                const [defectOptions, deductionOptions] = await Promise.all([
+                const [loadedDefectOptions, loadedDeductionOptions] = await Promise.all([
                     processId > 0 ? getDefectOptionsByProcess(processId) : Promise.resolve([]),
                     processId > 0 ? getDeductionOptionsByProcess(processId) : Promise.resolve([])
                 ]);
+
+                setDefectOptions(loadedDefectOptions);
+                setDeductionOptions(loadedDeductionOptions);
 
                 const savedActualTime = numberValue(data.actual_time);
                 const savedHours = Math.floor(savedActualTime);
@@ -131,8 +121,8 @@ function EditReport() {
                 setForm({
                     ...data,
                     work_date: String(data.work_date || "").slice(0, 10),
-                    defects: mergeDefects(defectOptions, data.defects || []),
-                    deductions: mergeDeductions(deductionOptions, data.deductions || [])
+                    defects: mergeDefects(loadedDefectOptions, data.defects || []),
+                    deductions: mergeDeductions(loadedDeductionOptions, data.deductions || [])
                 });
             } catch (err) {
                 console.error("LOAD REPORT ERROR:", err);
@@ -153,6 +143,16 @@ function EditReport() {
         [form?.deductions]
     );
 
+    const availableDefectOptions = useMemo(() => {
+        const used = new Set((form?.defects || []).map((item) => Number(item.defect_type_id || item.id)));
+        return defectOptions.filter((item) => !used.has(Number(item.defect_type_id || item.id)));
+    }, [defectOptions, form?.defects]);
+
+    const availableDeductionOptions = useMemo(() => {
+        const used = new Set((form?.deductions || []).map((item) => Number(item.deduction_type_id || item.id)));
+        return deductionOptions.filter((item) => !used.has(Number(item.deduction_type_id || item.id)));
+    }, [deductionOptions, form?.deductions]);
+
     const setField = (field: keyof ProductionReport, value: string | number) => {
         setForm((current) => current ? { ...current, [field]: value } : current);
     };
@@ -161,7 +161,7 @@ function EditReport() {
         setForm((current) => {
             if (!current) return current;
             const defects = [...(current.defects || [])];
-            defects[index] = { ...defects[index], quantity };
+            defects[index] = { ...defects[index], quantity: Math.max(0, quantity) };
             const ttNg = defects.reduce((sum, item) => sum + numberValue(item.quantity), 0);
             return {
                 ...current,
@@ -170,6 +170,29 @@ function EditReport() {
                 actual_output: numberValue(current.tt_ok) + ttNg
             };
         });
+    };
+
+    const removeDefect = (index: number) => {
+        setForm((current) => {
+            if (!current) return current;
+            const defects = (current.defects || []).filter((_, itemIndex) => itemIndex !== index);
+            const ttNg = defects.reduce((sum, item) => sum + numberValue(item.quantity), 0);
+            return { ...current, defects, tt_ng: ttNg, actual_output: numberValue(current.tt_ok) + ttNg };
+        });
+    };
+
+    const addDefect = (typeId: number) => {
+        if (!typeId) return;
+        const option = defectOptions.find((item) => Number(item.defect_type_id || item.id) === typeId);
+        if (!option) return;
+        setForm((current) => current ? {
+            ...current,
+            defects: [...(current.defects || []), {
+                ...option,
+                defect_type_id: Number(option.defect_type_id || option.id),
+                quantity: 0
+            }]
+        } : current);
     };
 
     const updateDeduction = (index: number, minutes: number) => {
@@ -187,6 +210,30 @@ function EditReport() {
                 total_time: actualTime + deductionTime
             };
         });
+    };
+
+    const removeDeduction = (index: number) => {
+        setForm((current) => {
+            if (!current) return current;
+            const deductions = (current.deductions || []).filter((_, itemIndex) => itemIndex !== index);
+            const deductionTime = deductions.reduce((sum, item) => sum + numberValue(item.hours), 0);
+            const actualTime = Math.max(0, Number(actualHours) || 0) + Math.min(59, Math.max(0, Number(actualMinutes) || 0)) / 60;
+            return { ...current, deductions, deduction_time: deductionTime, total_time: actualTime + deductionTime };
+        });
+    };
+
+    const addDeduction = (typeId: number) => {
+        if (!typeId) return;
+        const option = deductionOptions.find((item) => Number(item.deduction_type_id || item.id) === typeId);
+        if (!option) return;
+        setForm((current) => current ? {
+            ...current,
+            deductions: [...(current.deductions || []), {
+                ...option,
+                deduction_type_id: Number(option.deduction_type_id || option.id),
+                hours: 0
+            }]
+        } : current);
     };
 
     const handleSave = async (event: React.FormEvent) => {
@@ -216,18 +263,22 @@ function EditReport() {
                 deduction_time: deductionTotal,
                 tt_ng: defectTotal,
                 actual_output: numberValue(form.tt_ok) + defectTotal,
-                defects: (form.defects || []).map((item) => ({
-                    defect_type_id: Number(item.defect_type_id || item.id),
-                    defect_code: item.defect_code,
-                    defect_name: item.defect_name,
-                    quantity: numberValue(item.quantity)
-                })),
-                deductions: (form.deductions || []).map((item) => ({
-                    deduction_type_id: Number(item.deduction_type_id || item.id),
-                    deduction_code: item.deduction_code,
-                    deduction_name: item.deduction_name,
-                    hours: numberValue(item.hours)
-                }))
+                defects: (form.defects || [])
+                    .filter((item) => numberValue(item.quantity) > 0)
+                    .map((item) => ({
+                        defect_type_id: Number(item.defect_type_id || item.id),
+                        defect_code: item.defect_code,
+                        defect_name: item.defect_name,
+                        quantity: numberValue(item.quantity)
+                    })),
+                deductions: (form.deductions || [])
+                    .filter((item) => numberValue(item.hours) > 0)
+                    .map((item) => ({
+                        deduction_type_id: Number(item.deduction_type_id || item.id),
+                        deduction_code: item.deduction_code,
+                        deduction_name: item.deduction_name,
+                        hours: numberValue(item.hours)
+                    }))
             };
 
             const result = await updateReport(reportId, payload, source, originalUpdatedAtRef.current);
@@ -292,13 +343,11 @@ function EditReport() {
 
                 <section className="edit-detail-section">
                     <h2>Chi tiết thời gian trừ <span>{Math.round(deductionTotal * 60)} phút ({deductionTotal.toFixed(3)} giờ)</span></h2>
-                    {(form.deductions || []).length === 0 ? (
-                        <p className="edit-empty">Công đoạn này chưa có danh mục thời gian trừ.</p>
-                    ) : (
-                        <div className="edit-detail-grid">
-                            {(form.deductions || []).map((item, index) => (
-                                <label key={`${item.deduction_type_id || item.id || index}-${item.deduction_name}`}>
-                                    {item.deduction_name || item.deduction_code || "Khấu trừ"}
+                    <div className="edit-detail-grid">
+                        {(form.deductions || []).map((item, index) => (
+                            <div className="edit-detail-item" key={`${item.deduction_type_id || item.id || index}-${item.deduction_name}`}>
+                                <label>
+                                    {item.deduction_name || item.deduction_code || "Khoản trừ"}
                                     <input
                                         type="number"
                                         min="0"
@@ -308,19 +357,33 @@ function EditReport() {
                                         onChange={(e) => updateDeduction(index, numberValue(e.target.value))}
                                     />
                                 </label>
-                            ))}
+                                <button type="button" className="edit-detail-remove" onClick={() => removeDeduction(index)} title="Xóa khoản trừ">Xóa</button>
+                            </div>
+                        ))}
+                    </div>
+                    {availableDeductionOptions.length > 0 && (
+                        <div className="edit-detail-add">
+                            <select defaultValue="" onChange={(e) => { addDeduction(Number(e.target.value)); e.currentTarget.value = ""; }}>
+                                <option value="">+ Thêm khoản trừ</option>
+                                {availableDeductionOptions.map((item) => (
+                                    <option key={Number(item.deduction_type_id || item.id)} value={Number(item.deduction_type_id || item.id)}>
+                                        {item.deduction_name || item.deduction_code || "Khoản trừ"}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
+                    )}
+                    {(form.deductions || []).length === 0 && availableDeductionOptions.length === 0 && (
+                        <p className="edit-empty">Công đoạn này chưa có danh mục thời gian trừ.</p>
                     )}
                 </section>
 
                 <section className="edit-detail-section">
                     <h2>Chi tiết lỗi NG <span>{defectTotal}</span></h2>
-                    {(form.defects || []).length === 0 ? (
-                        <p className="edit-empty">Công đoạn này chưa có danh mục lỗi NG.</p>
-                    ) : (
-                        <div className="edit-detail-grid">
-                            {(form.defects || []).map((item, index) => (
-                                <label key={`${item.defect_type_id || item.id || index}-${item.defect_name}`}>
+                    <div className="edit-detail-grid">
+                        {(form.defects || []).map((item, index) => (
+                            <div className="edit-detail-item" key={`${item.defect_type_id || item.id || index}-${item.defect_name}`}>
+                                <label>
                                     {item.defect_name || item.defect_code || "Lỗi NG"}
                                     <input
                                         type="number"
@@ -330,8 +393,24 @@ function EditReport() {
                                         onChange={(e) => updateDefect(index, numberValue(e.target.value))}
                                     />
                                 </label>
-                            ))}
+                                <button type="button" className="edit-detail-remove" onClick={() => removeDefect(index)} title="Xóa lỗi NG">Xóa</button>
+                            </div>
+                        ))}
+                    </div>
+                    {availableDefectOptions.length > 0 && (
+                        <div className="edit-detail-add">
+                            <select defaultValue="" onChange={(e) => { addDefect(Number(e.target.value)); e.currentTarget.value = ""; }}>
+                                <option value="">+ Thêm lỗi NG</option>
+                                {availableDefectOptions.map((item) => (
+                                    <option key={Number(item.defect_type_id || item.id)} value={Number(item.defect_type_id || item.id)}>
+                                        {item.defect_name || item.defect_code || "Lỗi NG"}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
+                    )}
+                    {(form.defects || []).length === 0 && availableDefectOptions.length === 0 && (
+                        <p className="edit-empty">Công đoạn này chưa có danh mục lỗi NG.</p>
                     )}
                 </section>
 
