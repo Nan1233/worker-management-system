@@ -30,6 +30,8 @@ export const workerCanAccessProcess = (
   processId: number,
   processCode?: string
 ): boolean => {
+  // SX3 is intentionally removed from the KTC worker process list.
+  if (Number(processId) === 60005 || String(processCode ?? "").trim().toUpperCase() === "SX3") return false;
   if (!worker || worker.status !== "active") return false;
   const ids = getWorkerProcessIds(worker);
   const codes = getWorkerProcessCodes(worker);
