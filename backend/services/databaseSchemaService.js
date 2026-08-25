@@ -174,6 +174,7 @@ function toSafeSchemaDiagnostics(result) {
     runtimeContract: result.runtimeContract || 'MINIMUM_STRUCTURAL_V1',
     missingTables: result.missingTables || [],
     invalidColumns: result.invalidColumns || [],
+    missingColumns: result.missingColumns || [],
     extraTables: result.extraTables || [],
     extraColumns: result.extraColumns || [],
     missingIndexes: result.missingIndexes || [],
