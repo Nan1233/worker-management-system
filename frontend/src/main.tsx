@@ -6,6 +6,7 @@ import App from "./App";
 import "./pages/worker/ProcessPage.compact.css";
 import "./pages/worker/ProcessPage.polished.css";
 import "./pages/worker/ProcessPage.ng-layout.css";
+import "./pages/worker/ProcessPage.time-layout.css";
 import "./pages/manager/ApprovedReportsOrder.css";
 import "./pages/manager/ReportsPeriodFix.css";
 import { ToastProvider } from "./components/feedback/ToastProvider";
