@@ -23,7 +23,7 @@ const RUNTIME_REQUIRED_COLUMNS = Object.freeze({
   product_standards: ['id', 'process_id', 'product_code', 'standard_output', 'status'],
   defect_types: ['id', 'process_id', 'defect_code', 'defect_name', 'status'],
   deduction_types: ['id', 'process_id', 'deduction_code', 'deduction_name', 'status'],
-  production_reports_temp: ['id', 'worker_id', 'process_id', 'work_date', 'status'],
+  production_reports_temp: ['id', 'worker_id', 'process_id', 'work_date', 'status', 'updated_by'],
   production_reports: ['id', 'worker_id', 'process_id', 'work_date', 'status'],
 });
 
@@ -155,7 +155,6 @@ function createSchemaNotReadyError(result) {
     invalidIndexes: result.invalidIndexes || [],
     extraIndexes: result.extraIndexes || [],
     contractVersion: result.contractVersion || CONTRACT_VERSION,
-  runtimeContract: result.runtimeContract || 'MINIMUM_STRUCTURAL_V1',
     runtimeContract: result.runtimeContract || 'MINIMUM_STRUCTURAL_V1',
   };
   return error;
@@ -174,9 +173,8 @@ function toSafeSchemaDiagnostics(result) {
     contractVersion: result.contractVersion || CONTRACT_VERSION,
     runtimeContract: result.runtimeContract || 'MINIMUM_STRUCTURAL_V1',
     missingTables: result.missingTables || [],
-    extraTables: result.extraTables || [],
-    missingColumns: result.missingColumns || [],
     invalidColumns: result.invalidColumns || [],
+    extraTables: result.extraTables || [],
     extraColumns: result.extraColumns || [],
     missingIndexes: result.missingIndexes || [],
     invalidIndexes: result.invalidIndexes || [],
