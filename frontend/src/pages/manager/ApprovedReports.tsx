@@ -192,7 +192,7 @@ export default function ApprovedReports() {
                 <label><span>Ngày báo cáo</span><input type="date" value={date} onChange={e => { setDate(e.target.value); setDateRange(null); }} /></label>
                 <div className="pending-quick-filters"><span>Chọn nhanh</span><button type="button" className={!dateRange ? "active" : ""} onClick={selectDay}>Hôm nay</button><button type="button" className={dateRange?.dateFrom === rangeFor(date, "week").dateFrom && dateRange?.dateTo === rangeFor(date, "week").dateTo ? "active" : ""} onClick={selectWeek}>Tuần này</button><button type="button" className={dateRange?.dateFrom === rangeFor(date, "month").dateFrom && dateRange?.dateTo === rangeFor(date, "month").dateTo ? "active" : ""} onClick={selectMonth}>Tháng này</button><button type="button" className={dateRange?.dateFrom === rangeFor(date, "year").dateFrom && dateRange?.dateTo === rangeFor(date, "year").dateTo ? "active" : ""} onClick={selectYear}>Năm này</button></div>
                 <label><span>Công đoạn</span><select value={selectedProcess} onChange={e => setSelectedProcess(e.target.value)}><option value="">Tất cả</option>{processes.map(p => <option key={p} value={p}>{p}</option>)}</select></label>
-                <label><span>Ca làm việc</span><select value={selectedShift} onChange={e => setSelectedShift(e.target.value)}><option value="">Tất cả</option>{shifts.map(s => <option key={s} value={s}>{s}</option>)}</select></label>
+                <label><span>Ca làm việc</span><select value={selectedShift} onChange={e => setSelectedShift(e.target.value)}><option value="">Tất cả</option>{shifts.map(s => <option key={s} value={s}>{s}</option>)}</label>
             </section>
 
             <section className="pending-kpis">
@@ -210,18 +210,18 @@ export default function ApprovedReports() {
                     {selectedIds.length > 0 && <div className="management-selected-info">Đã chọn {selectedIds.length} báo cáo.<button type="button" onClick={() => setSelectedIds([])}>Bỏ chọn</button></div>}
                     <div className="pending-table-wrap" style={{ overflowX: "auto" }}>
                         <table className="management-report-table pending-reference-table">
-                            {!loading && <thead><tr><th className="management-checkbox-column"><input type="checkbox" checked={allSelected} style={{ accentColor: "#1769d2" }} onChange={toggleAll} /></th><th>Mã báo cáo</th><th>Công nhân</th><th>Công đoạn</th><th>Ca</th><th>Thời gian</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>}
+                            {!loading && <thead><tr><th className="management-checkbox-column"><input type="checkbox" checked={allSelected} style={{ accentColor: "#1769d2" }} onChange={toggleAll} /></th><th>Mã báo cáo</th><th>Công nhân</th><th>Công đoạn</th><th>Ca</th><th>Thời gian</th><th>Trạng thái</th></tr></thead>}
                             <tbody>
-                                {loading ? <tr><td colSpan={8}><div className="pending-detail-loading">Đang tải dữ liệu...</div></td></tr> : reports.length === 0 ? <tr><td colSpan={8}><div className="management-empty">Không có báo cáo đã duyệt.</div></td></tr> : reports.map((report, index) => {
+                                {loading ? <tr><td colSpan={7}><div className="pending-detail-loading">Đang tải dữ liệu...</div></td></tr> : reports.length === 0 ? <tr><td colSpan={7}><div className="management-empty">Không có báo cáo đã duyệt.</div></td></tr> : reports.map((report, index) => {
                                     const id = Number(report.id); const selected = selectedSet.has(id); const code = `PR${String(report.work_date || "REPORT").slice(0,10).replace(/-/g, "")}-${report.worker_code || String(id || index + 1).padStart(4, "0")}`;
-                                    return <tr key={id || index} className={selectedDetail?.id === report.id ? "pending-row-active" : ""}>
-                                        <td className="management-checkbox-column"><input type="checkbox" checked={selected} style={{ accentColor: "#1769d2" }} onChange={() => toggleOne(id)} /></td>
+                                    const openRow = () => { if (!selectedDetail || Number(selectedDetail.id) !== id) void openDetail(report); };
+                                    return <tr key={id || index} className={selectedDetail?.id === report.id ? "pending-row-active" : ""} onClick={openRow} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openRow(); } }} tabIndex={0} style={{ cursor: "pointer" }}>
+                                        <td className="management-checkbox-column" onClick={e => e.stopPropagation()}><input type="checkbox" checked={selected} style={{ accentColor: "#1769d2" }} onChange={() => toggleOne(id)} /></td>
                                         <td><strong style={{ color: "#1769d2" }}>{code}</strong></td>
                                         <td><strong>{text(report.full_name, "Công nhân")}</strong><small style={{ display: "block", color: "#7185a4" }}>({text(report.worker_code)})</small></td>
                                         <td>{text(report.process_name)}</td><td><span className="shift-chip">{text(report.shift)}</span></td>
                                         <td><strong>{formatDate(report.work_date)}</strong><small style={{ display: "block", color: "#7185a4" }}>{timeRange(report)}</small></td>
                                         <td><span className="pending-detail-status">Đã duyệt</span></td>
-                                        <td><button className="pending-detail-edit" type="button" title="Xem chi tiết" onClick={() => void openDetail(report)}>◉</button></td>
                                     </tr>;
                                 })}
                             </tbody>
