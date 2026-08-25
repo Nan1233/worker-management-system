@@ -150,6 +150,7 @@ function ProcessPage() {
     const workerInfoRequestSeqRef = useRef(0);
     const masterDataRequestSeqRef = useRef(0);
     const machineStandardRequestSeqRef = useRef<Record<number, number>>({});
+    const isRestoringDraftRef = useRef(false);
 
     const navigate =
         useNavigate();
@@ -286,6 +287,7 @@ const machineAutocompleteOptions =
     const getMachineProductAutocompleteOptions = useCallback((machineCode: string): AutocompleteOption[] =>
         toProductAutocompleteOptions(getMachineProductOptionsForLine({ machineCode } as MachineLineState)), [getMachineProductOptionsForLine]);
     useEffect(() => {
+        if (isRestoringDraftRef.current) return;
         if (!isCutLongProcess) return;
         setForm((current) => current.productName ? { ...current, productName: "", standardOutput: "" } : current);
         setMachineLines((current) => current.map((line) => line.productCode
@@ -294,6 +296,7 @@ const machineAutocompleteOptions =
     }, [operationType, isCutLongProcess]);
 
     useEffect(() => {
+        if (isRestoringDraftRef.current) return;
         if (!isCutLongProcess && !isInspectionProcess) return;
         setForm((current) => ({ ...current, productName: "", standardOutput: "", machineNo: "" }));
         setMachineLines([createEmptyMachineLine()]);
@@ -301,6 +304,7 @@ const machineAutocompleteOptions =
     }, [operationMode, isCutLongProcess, isInspectionProcess]);
 
     useEffect(() => {
+        if (isRestoringDraftRef.current) return;
         setExtraData({});
         setMachineLines([createEmptyMachineLine()]);
         setMachineCount(1);
@@ -607,6 +611,8 @@ useEffect(() => {
         const draft = loadProcessDraft(process);
         if (!draft) return;
 
+        isRestoringDraftRef.current = true;
+
         setForm((current) => ({
             ...current,
             ...draft.form,
@@ -626,6 +632,10 @@ useEffect(() => {
         setOperationType(draft.operationType);
         setOperationMode(draft.operationMode);
         setExtraData(draft.extraData || {});
+
+        window.setTimeout(() => {
+            isRestoringDraftRef.current = false;
+        }, 0);
     }, [process]);
 
     useEffect(() => {
