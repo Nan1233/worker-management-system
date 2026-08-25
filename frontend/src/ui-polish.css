@@ -1,12 +1,7 @@
-/* Restored from commit 82d66e13, with worker action override corrected below. */
+/* This file is intentionally kept as the app-wide polish layer. Worker-specific layout rules live in the worker CSS files imported by main.tsx. */
 html,body,#root{max-width:100%;min-width:0}body{font-size:13px;overflow-x:hidden}
 
-/* Preserve the existing application polish rules from the current main build. */
-@media(max-width:520px){.manager-dashboard .dashboard-panel{padding:12px!important}.dashboard-kpi-grid{gap:7px!important}.manager-dashboard .dashboard-kpi-card{height:82px!important;min-height:82px!important;padding:10px!important}.manager-dashboard .dashboard-kpi-card>strong{font-size:17px!important}.statistics-filter-card{padding:9px!important}.worker-form-page{padding-inline:6px!important}.detail-basic-grid,.detail-summary-row{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
-@media(max-width:430px){.management-report-header h1{font-size:18px!important}.management-report-count strong{font-size:16px!important}.worker-form-page{padding-inline:5px!important}.worker-form-card{padding:10px!important}.worker-form-title-row h1{font-size:18px!important}.worker-sticky-meta{grid-template-columns:1fr!important}.machine-selection-grid,.machine-data-grid{grid-template-columns:1fr!important}.worker-action-buttons{width:100%;display:grid!important;grid-template-columns:1fr 1.3fr!important}.worker-reset-button,.worker-floating-save{width:100%!important;min-width:0!important}.detail-basic-grid,.detail-summary-row{grid-template-columns:1fr!important}.dashboard-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
-@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important}}
-
-/* The report action bar is intentionally part of the form flow: it is visible only when the user reaches the end of the page. */
+/* Worker report actions: keep them in normal flow so they are reached at the end of the form. */
 .worker-action-group{position:static!important;left:auto!important;right:auto!important;bottom:auto!important;transform:none!important;width:auto!important;margin:10px 0 2px!important;z-index:80!important}
 @media(max-width:520px){.worker-action-group{margin:10px 0 2px!important;width:auto!important}}
 @media(max-width:430px){.worker-action-group{margin:10px 0 2px!important;width:auto!important}}
