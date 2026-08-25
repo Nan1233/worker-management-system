@@ -7,71 +7,165 @@ import { usePermissions } from "../../hooks/usePermissions";
 import "./Workers.css";
 
 type Role = "manager" | "lead" | "worker";
+type Tab = "overview" | Role | "activity";
 type Person = { id:number; username:string; full_name:string; role:Role; status:string; worker_code?:string|null; phone?:string|null; department?:string|null; position?:string|null; training_percent?:number; process_ids?:string|null; process_names?:string|null; created_at?:string };
 type Process = { id:number; process_name:string; process_code?:string };
 type FormState = { id?:number; role:Role; username:string; password:string; full_name:string; worker_code:string; phone:string; department:string; position:string; training_percent:string; process_ids:number[]; status:"active"|"inactive" };
-const emptyForm:FormState={role:"worker",username:"",password:"",full_name:"",worker_code:"",phone:"",department:"Sản xuất",position:"Công nhân",training_percent:"100",process_ids:[],status:"active"};
-const roleText=(r:string)=>r==="manager"?"Quản lý":r==="lead"?"Tổ trưởng":"Công nhân";
-const statusText=(s:string)=>s==="active"?"Đang hoạt động":"Ngừng hoạt động";
-const processIds=(v?:string|null)=>String(v||"").split(",").map(Number).filter(n=>Number.isInteger(n)&&n>0);
 
-export default function AdminWorkers(){
- const {can}=usePermissions(); const {showToast}=useToast(); const canCreate=can("USER_CREATE"),canEdit=can("USER_EDIT");
- const [people,setPeople]=useState<Person[]>([]),[processes,setProcesses]=useState<Process[]>([]),[activities,setActivities]=useState<ActivityItem[]>([]);
- const [loading,setLoading]=useState(true),[activityLoading,setActivityLoading]=useState(false),[tab,setTab]=useState<"overview"|Role|"activity">("overview"),[keyword,setKeyword]=useState("");
- const [modal,setModal]=useState<FormState|null>(null),[saving,setSaving]=useState(false),[transferBusy,setTransferBusy]=useState(false),[transferMessage,setTransferMessage]=useState("");
- const fileInputRef=useRef<HTMLInputElement>(null);
- const load=async()=>{setLoading(true);try{const [u,p]=await Promise.all([api.get("/users"),api.get("/users/options/processes")]);setPeople(u.data?.data||[]);setProcesses(p.data?.data||[]);}catch{showToast("Không thể tải dữ liệu tài khoản","error");}finally{setLoading(false);}};
- const loadActivities=async()=>{setActivityLoading(true);try{setActivities(await getActivities({limit:100}));}catch{showToast("Không thể tải nhật ký hoạt động","error");}finally{setActivityLoading(false);}};
- useEffect(()=>{void load();},[]); useEffect(()=>{if(tab==="activity")void loadActivities();},[tab]);
- const managers=useMemo(()=>people.filter(p=>p.role==="manager"),[people]);
- const leads=useMemo(()=>people.filter(p=>p.role==="lead"),[people]);
- const workers=useMemo(()=>people.filter(p=>p.role==="worker"),[people]);
- const active=useMemo(()=>people.filter(p=>p.status==="active"),[people]);
- const filtered=useMemo(()=>{const q=keyword.trim().toLowerCase();let rows=tab==="manager"?managers:tab==="lead"?leads:tab==="worker"?workers:people;return q?rows.filter(p=>[p.username,p.full_name,p.worker_code,p.phone,p.department,p.position,p.process_names].join(" ").toLowerCase().includes(q)):rows;},[keyword,tab,people,managers,leads,workers]);
- const leadGroups=useMemo(()=>processes.map(p=>{const assigned=leads.filter(l=>processIds(l.process_ids).includes(p.id));return {p,total:assigned.length,active:assigned.filter(x=>x.status==="active").length};}),[processes,leads]);
- const create=(role:Role)=>setModal({...emptyForm,role,position:role==="worker"?"Công nhân":role==="lead"?"Tổ trưởng":"Quản lý"});
- const edit=(p:Person)=>setModal({id:p.id,role:p.role,username:p.username||"",password:"",full_name:p.full_name||"",worker_code:p.worker_code||"",phone:p.phone||"",department:p.department||"Sản xuất",position:p.position||roleText(p.role),training_percent:String(p.training_percent??100),process_ids:processIds(p.process_ids),status:p.status==="inactive"?"inactive":"active"});
- const save=async()=>{
-  if(!modal)return;
-  if(modal.role==="lead"&&modal.status==="active"){
-   const conflicts=modal.process_ids.map(processId=>{
-    const process=processes.find(x=>x.id===processId);
-    const count=leads.filter(l=>l.status==="active"&&l.id!==modal.id&&processIds(l.process_ids).includes(processId)).length;
-    return count>=3?process?.process_name||`Công đoạn ${processId}`:null;
-   }).filter(Boolean) as string[];
-   if(conflicts.length){showToast(`Mỗi công đoạn tối đa 3 tổ trưởng. Đã đủ tại: ${conflicts.join(", ")}.`,"error");return;}
-  }
-  setSaving(true);
-  try{
-   const body:any={username:modal.username,full_name:modal.full_name,status:modal.status,process_ids:modal.process_ids,role:modal.role,department:modal.department,position:modal.position};
-   if(modal.password)body.password=modal.password;
-   if(modal.role==="worker"){body.training_percent=Number(modal.training_percent);body.worker_code=modal.worker_code;body.phone=modal.phone;}
-   if(modal.id)await api.put(`/users/${modal.id}`,body);else{body.password=modal.password;await api.post("/users",body);}
-   showToast(modal.id?"Đã cập nhật tài khoản":"Đã tạo tài khoản","success");setModal(null);await load();
-  }catch(e:any){showToast(e?.response?.data?.message||"Không thể lưu tài khoản","error");}finally{setSaving(false);}
- };
- const remove=async(p:Person)=>{if(!canEdit)return;if(!window.confirm(`Vô hiệu hóa tài khoản ${p.full_name}? Lịch sử dữ liệu sẽ được giữ nguyên.`))return;try{await api.put(`/users/${p.id}`,{status:"inactive"});showToast("Đã vô hiệu hóa tài khoản","success");await load();}catch(e:any){showToast(e?.response?.data?.message||"Không thể cập nhật tài khoản","error");}};
- const exportExcel=async()=>{setTransferBusy(true);setTransferMessage("");try{const response=await api.get("/users/export/excel",{responseType:"blob"});const blob=new Blob([response.data],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`KTC_TaiKhoanNhanSu_${new Date().toISOString().slice(0,10)}.xlsx`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);setTransferMessage("Đã xuất danh sách tài khoản.");}catch(e:any){setTransferMessage(e?.response?.data?.message||"Không thể xuất Excel.");}finally{setTransferBusy(false);}};
- const handleImport=async(file:File|null)=>{if(!file)return;if(!/\.xlsx$/i.test(file.name)){setTransferMessage("Chỉ hỗ trợ file Excel .xlsx.");return;}setTransferBusy(true);setTransferMessage("");try{const base64=await new Promise<string>((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result||""));r.onerror=()=>reject(r.error);r.readAsDataURL(file);});const response=await api.post("/users/import/excel",{file_base64:base64});setTransferMessage(response.data?.message||"Đã nhập Excel.");await load();}catch(e:any){setTransferMessage(e?.response?.data?.message||"Không thể nhập Excel.");}finally{setTransferBusy(false);if(fileInputRef.current)fileInputRef.current.value="";}};
- return <section className="admin-personnel-page">
-  <header className="admin-personnel-header"><div><div className="admin-eyebrow">QUẢN TRỊ TOÀN HỆ THỐNG</div><h1>Tài khoản & nhân sự</h1><p>Quản trị toàn bộ tài khoản quản lý, tổ trưởng và công nhân; không áp dụng giới hạn 3 tổ trưởng cho Admin.</p></div><div className="admin-personnel-actions">{canCreate&&<><button className="admin-btn primary" onClick={()=>create("manager")}><Plus size={16}/> Tạo quản lý</button><button className="admin-btn secondary" onClick={()=>create("lead")}><Plus size={16}/> Tạo tổ trưởng</button><button className="admin-btn secondary" onClick={()=>create("worker")}><Plus size={16}/> Tạo công nhân</button></>}</div></header>
-  <div className="admin-personnel-tabs">{[["overview","Tổng quan"],["manager","Quản lý"],["lead","Tổ trưởng"],["worker","Công nhân"],["activity","Nhật ký hoạt động"]].map(([k,t])=><button key={k} className={tab===k?"active":""} onClick={()=>setTab(k as typeof tab)}>{t}</button>)}</div>
-  <div className="admin-personnel-toolbar"><div className="admin-search"><Search size={17}/><input value={keyword} onChange={e=>setKeyword(e.target.value)} placeholder="Tìm tên, tài khoản, mã công nhân, công đoạn..."/></div><div className="admin-transfer"><button className="admin-btn secondary" disabled={transferBusy} onClick={()=>void exportExcel()}><Download size={15}/> Xuất Excel</button><button className="admin-btn primary" disabled={transferBusy||!canCreate} onClick={()=>fileInputRef.current?.click()}><Upload size={15}/> Nhập Excel</button><input ref={fileInputRef} type="file" accept=".xlsx" hidden onChange={e=>void handleImport(e.target.files?.[0]||null)}/></div></div>
-  {transferMessage&&<div className={`admin-transfer-message ${transferMessage.toLowerCase().includes("không")?"error":"success"}`}><FileSpreadsheet size={15}/>{transferMessage}</div>}
-  {loading?<div className="admin-state">Đang tải dữ liệu tài khoản...</div>:tab==="overview"?<>
-   <section className="admin-kpis"><Kpi icon={<Users/>} label="Tổng tài khoản" value={people.length} note={`${active.length} đang hoạt động`}/><Kpi icon={<ShieldCheck/>} label="Quản lý" value={managers.length} note="Admin quản trị không giới hạn số lượng"/><Kpi icon={<Users/>} label="Tổ trưởng" value={leads.length} note="Không giới hạn toàn hệ thống; tối đa 3 / công đoạn"}/><Kpi icon={<UserRound/>} label="Công nhân" value={workers.length} note={`${workers.filter(x=>x.status==="active").length} đang hoạt động`}/><div className="admin-health"><div><span className="health-dot"/> Hệ thống nhân sự</div><strong>{active.length}/{people.length}</strong><small>tài khoản đang hoạt động</small></div></section>
-   <div className="admin-overview-grid"><section className="admin-card"><CardTitle title="Quản trị theo vai trò" sub="Admin có toàn quyền tạo, sửa và vô hiệu hóa tài khoản theo phân quyền"/><div className="role-overview">{([...["manager","Quản lý",managers],...["lead","Tổ trưởng",leads],...["worker","Công nhân",workers]] as any[]).map(([r,label,rows])=><button key={r} onClick={()=>setTab(r)}><span className={`role-icon ${r}`}><UserRound size={17}/></span><div><b>{label}</b><small>{rows.filter((x:Person)=>x.status==="active").length} hoạt động · {rows.length} tổng</small></div><strong>{rows.length}</strong></button>)}</div></section>
-   <section className="admin-card"><CardTitle title="Tổ trưởng theo công đoạn" sub="Quy tắc: mỗi công đoạn tối đa 3 tổ trưởng đang hoạt động"/><div className="process-list">{leadGroups.map(x=><div key={x.p.id}><div><b>{x.p.process_name}</b><span>{x.active}/3 tổ trưởng · {x.total} đã gán</span></div><div className="bar"><i style={{width:`${Math.min(100,x.active/3*100)}%`}}/></div>)}{!leadGroups.length&&<div className="admin-empty">Chưa có dữ liệu công đoạn.</div>}</div></section>
-   <section className="admin-card wide"><CardTitle title="Tài khoản cập nhật gần đây" sub="Các tài khoản mới nhất trong hệ thống"/><AccountTable rows={[...people].sort((a,b)=>String(b.created_at||"").localeCompare(String(a.created_at||""))).slice(0,8)} canEdit={canEdit} onEdit={edit} onDelete={remove}/></section></div>
-  </>:tab==="activity"?<section className="admin-card"><CardTitle title="Nhật ký hoạt động tài khoản" sub="Theo dõi đăng nhập và đăng xuất của tài khoản nhân sự"/>{activityLoading?<div className="admin-state compact">Đang tải nhật ký...</div>:<Activity rows={activities}/>}</section>:<section className="admin-card"><CardTitle title={`${roleText(tab)} (${filtered.length})`} sub={`Danh sách toàn bộ tài khoản ${roleText(tab).toLowerCase()} trong hệ thống`}/><AccountTable rows={filtered} canEdit={canEdit} onEdit={edit} onDelete={remove}/></section>}
-  {modal&&<Modal form={modal} setForm={setModal} processes={processes} leads={leads} saving={saving} onClose={()=>setModal(null)} onSave={()=>void save()}/>}</section>;
+const emptyForm: FormState = { role:"worker", username:"", password:"", full_name:"", worker_code:"", phone:"", department:"Sản xuất", position:"Công nhân", training_percent:"100", process_ids:[], status:"active" };
+const roleText = (role:string) => role === "manager" ? "Quản lý" : role === "lead" ? "Tổ trưởng" : "Công nhân";
+const statusText = (status:string) => status === "active" ? "Đang hoạt động" : "Ngừng hoạt động";
+const processIds = (value?:string|null) => String(value || "").split(",").map(Number).filter(n => Number.isInteger(n) && n > 0);
+
+export default function AdminWorkers() {
+  const { can } = usePermissions();
+  const { showToast } = useToast();
+  const canCreate = can("USER_CREATE");
+  const canEdit = can("USER_EDIT");
+  const [people, setPeople] = useState<Person[]>([]);
+  const [processes, setProcesses] = useState<Process[]>([]);
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [tab, setTab] = useState<Tab>("overview");
+  const [keyword, setKeyword] = useState("");
+  const [modal, setModal] = useState<FormState | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [transferBusy, setTransferBusy] = useState(false);
+  const [transferMessage, setTransferMessage] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [usersResponse, processResponse] = await Promise.all([api.get("/users"), api.get("/users/options/processes")]);
+      setPeople(usersResponse.data?.data || []);
+      setProcesses(processResponse.data?.data || []);
+    } catch {
+      showToast("Không thể tải dữ liệu tài khoản", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadActivities = async () => {
+    setActivityLoading(true);
+    try {
+      setActivities(await getActivities({ limit: 100 }));
+    } catch {
+      showToast("Không thể tải nhật ký hoạt động", "error");
+    } finally {
+      setActivityLoading(false);
+    }
+  };
+
+  useEffect(() => { void load(); }, []);
+  useEffect(() => { if (tab === "activity") void loadActivities(); }, [tab]);
+
+  const managers = useMemo(() => people.filter(p => p.role === "manager"), [people]);
+  const leads = useMemo(() => people.filter(p => p.role === "lead"), [people]);
+  const workers = useMemo(() => people.filter(p => p.role === "worker"), [people]);
+  const active = useMemo(() => people.filter(p => p.status === "active"), [people]);
+
+  const filtered = useMemo(() => {
+    const q = keyword.trim().toLowerCase();
+    const rows = tab === "manager" ? managers : tab === "lead" ? leads : tab === "worker" ? workers : people;
+    if (!q) return rows;
+    return rows.filter(p => [p.username, p.full_name, p.worker_code, p.phone, p.department, p.position, p.process_names].join(" ").toLowerCase().includes(q));
+  }, [keyword, tab, people, managers, leads, workers]);
+
+  const workerGroups = useMemo(() => processes.map(process => {
+    const assigned = workers.filter(worker => processIds(worker.process_ids).includes(process.id));
+    return { process, total: assigned.length, active: assigned.filter(worker => worker.status === "active").length };
+  }), [processes, workers]);
+
+  const create = (role:Role) => setModal({ ...emptyForm, role, position: role === "worker" ? "Công nhân" : role === "lead" ? "Tổ trưởng" : "Quản lý" });
+
+  const edit = (person:Person) => setModal({
+    id: person.id, role: person.role, username: person.username || "", password: "", full_name: person.full_name || "",
+    worker_code: person.worker_code || "", phone: person.phone || "", department: person.department || "Sản xuất",
+    position: person.position || roleText(person.role), training_percent: String(person.training_percent ?? 100),
+    process_ids: processIds(person.process_ids), status: person.status === "inactive" ? "inactive" : "active"
+  });
+
+  const save = async () => {
+    if (!modal) return;
+    setSaving(true);
+    try {
+      const body:any = { username: modal.username, full_name: modal.full_name, status: modal.status, process_ids: modal.process_ids, role: modal.role, department: modal.department, position: modal.position };
+      if (modal.password) body.password = modal.password;
+      if (modal.role === "worker") { body.training_percent = Number(modal.training_percent); body.worker_code = modal.worker_code; body.phone = modal.phone; }
+      if (modal.id) await api.put(`/users/${modal.id}`, body);
+      else await api.post("/users", { ...body, password: modal.password });
+      showToast(modal.id ? "Đã cập nhật tài khoản" : "Đã tạo tài khoản", "success");
+      setModal(null);
+      await load();
+    } catch (error:any) {
+      showToast(error?.response?.data?.message || "Không thể lưu tài khoản", "error");
+    } finally { setSaving(false); }
+  };
+
+  const remove = async (person:Person) => {
+    if (!canEdit) return;
+    if (person.role === "manager" && managers.filter(item => item.status === "active").length <= 1) { showToast("Không thể vô hiệu hóa quản lý duy nhất của hệ thống", "error"); return; }
+    if (!window.confirm(`Vô hiệu hóa tài khoản ${person.full_name}? Lịch sử dữ liệu sẽ được giữ nguyên.`)) return;
+    try { await api.put(`/users/${person.id}`, { status: "inactive" }); showToast("Đã vô hiệu hóa tài khoản", "success"); await load(); }
+    catch (error:any) { showToast(error?.response?.data?.message || "Không thể cập nhật tài khoản", "error"); }
+  };
+
+  const exportExcel = async () => {
+    setTransferBusy(true); setTransferMessage("");
+    try {
+      const response = await api.get("/users/export/excel", { responseType: "blob" });
+      const blob = new Blob([response.data], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob); const anchor = document.createElement("a");
+      anchor.href = url; anchor.download = `KTC_TaiKhoanNhanSu_${new Date().toISOString().slice(0,10)}.xlsx`;
+      document.body.appendChild(anchor); anchor.click(); anchor.remove(); URL.revokeObjectURL(url); setTransferMessage("Đã xuất danh sách tài khoản.");
+    } catch (error:any) { setTransferMessage(error?.response?.data?.message || "Không thể xuất Excel."); }
+    finally { setTransferBusy(false); }
+  };
+
+  const handleImport = async (file:File | null) => {
+    if (!file) return;
+    if (!/\.xlsx$/i.test(file.name)) { setTransferMessage("Chỉ hỗ trợ file Excel .xlsx."); return; }
+    setTransferBusy(true); setTransferMessage("");
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result || "")); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); });
+      const response = await api.post("/users/import/excel", { file_base64: base64 });
+      setTransferMessage(response.data?.message || "Đã nhập Excel."); await load();
+    } catch (error:any) { setTransferMessage(error?.response?.data?.message || "Không thể nhập Excel."); }
+    finally { setTransferBusy(false); if (fileInputRef.current) fileInputRef.current.value = ""; }
+  };
+
+  return (
+    <section className="admin-personnel-page">
+      <header className="admin-personnel-header">
+        <div><div className="admin-eyebrow">QUẢN TRỊ TÀI KHOẢN</div><h1>Tài khoản & nhân sự</h1><p>Quản lý tập trung toàn bộ tài khoản quản lý, tổ trưởng và công nhân trong hệ thống.</p></div>
+        <div className="admin-personnel-actions">{canCreate && <><button className="admin-btn primary" onClick={() => create("manager")}><Plus size={16}/> Tạo quản lý</button><button className="admin-btn secondary" onClick={() => create("lead")}><Plus size={16}/> Tạo tổ trưởng</button><button className="admin-btn secondary" onClick={() => create("worker")}><Plus size={16}/> Tạo công nhân</button></>}</div>
+      </header>
+      <div className="admin-personnel-tabs">{[["overview","Tổng quan"],["manager","Quản lý"],["lead","Tổ trưởng"],["worker","Công nhân"],["activity","Nhật ký hoạt động"]].map(([key,label]) => <button key={key} className={tab === key ? "active" : ""} onClick={() => setTab(key as Tab)}>{label}</button>)}</div>
+      <div className="admin-personnel-toolbar"><div className="admin-search"><Search size={17}/><input value={keyword} onChange={event => setKeyword(event.target.value)} placeholder="Tìm tên, tài khoản, mã công nhân, công đoạn..."/></div><div className="admin-transfer"><button className="admin-btn secondary" disabled={transferBusy} onClick={() => void exportExcel()}><Download size={15}/> Xuất Excel</button><button className="admin-btn primary" disabled={transferBusy || !canCreate} onClick={() => fileInputRef.current?.click()}><Upload size={15}/> Nhập Excel</button><input ref={fileInputRef} type="file" accept=".xlsx" hidden onChange={event => void handleImport(event.target.files?.[0] || null)}/></div></div>
+      {transferMessage && <div className={`admin-transfer-message ${transferMessage.toLowerCase().includes("không") ? "error" : "success"}`}><FileSpreadsheet size={15}/>{transferMessage}</div>}
+      {loading ? <div className="admin-state">Đang tải dữ liệu tài khoản...</div> : tab === "overview" ? <Overview people={people} managers={managers} leads={leads} workers={workers} active={active} workerGroups={workerGroups} canEdit={canEdit} onEdit={edit} onDelete={remove} onTab={setTab}/> : tab === "activity" ? <section className="admin-card"><CardTitle title="Nhật ký hoạt động tài khoản" sub="Theo dõi đăng nhập và đăng xuất của tài khoản nhân sự"/>{activityLoading ? <div className="admin-state compact">Đang tải nhật ký...</div> : <Activity rows={activities}/>}</section> : <section className="admin-card"><CardTitle title={`${roleText(tab)} (${filtered.length})`} sub={`Danh sách toàn bộ tài khoản ${roleText(tab).toLowerCase()} trong hệ thống`}/><AccountTable rows={filtered} canEdit={canEdit} onEdit={edit} onDelete={remove}/></section>}
+      {modal && <Modal form={modal} setForm={setModal} processes={processes} saving={saving} onClose={() => setModal(null)} onSave={() => void save()}/>} 
+    </section>
+  );
 }
-function Kpi({icon,label,value,note}:{icon:ReactNode;label:string;value:number;note:string}){return <div className="admin-kpi"><span>{icon}</span><small>{label}</small><strong>{value}</strong><em>{note}</em></div>}
-function CardTitle({title,sub}:{title:string;sub:string}){return <div className="admin-card-title"><div><h2>{title}</h2><p>{sub}</p></div></div>}
-function AccountTable({rows,canEdit,onEdit,onDelete}:{rows:Person[];canEdit:boolean;onEdit:(p:Person)=>void;onDelete:(p:Person)=>void}){return <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Tài khoản</th><th>Họ và tên</th><th>Vai trò</th><th>Công đoạn / bộ phận</th><th>Trạng thái</th><th>Ngày tạo</th><th/></tr></thead><tbody>{rows.length?rows.map(p=><tr key={p.id}><td><strong>{p.username}</strong>{p.worker_code&&<small>{p.worker_code}</small>}</td><td>{p.full_name||"—"}</td><td><span className={`role-badge ${p.role}`}>{roleText(p.role)}</span></td><td><strong className="process-cell">{p.process_names||p.department||"Chưa gán"}</strong></td><td><span className={`status-badge ${p.status}`}>{statusText(p.status)}</span></td><td>{p.created_at?new Date(p.created_at).toLocaleDateString("vi-VN"):"—"}</td><td>{canEdit&&<div className="admin-row-actions"><button title="Sửa" onClick={()=>onEdit(p)}><Pencil size={14}/></button><button className="danger" title="Vô hiệu hóa" onClick={()=>void onDelete(p)} disabled={p.status!=="active"}><Trash2 size={14}/></button></div>}</td></tr>):<tr><td colSpan={7} className="admin-empty">Không có tài khoản phù hợp.</td></tr>}</tbody></table></div>}
-function Activity({rows}:{rows:ActivityItem[]}){const filtered=rows.filter(r=>["LOGIN","LOGOUT"].includes(String(r.action||"").toUpperCase()));return <div className="admin-activity">{filtered.length?filtered.map((r,i)=><div key={`${r.id||i}-${r.created_at}`}><span className={`activity-icon ${String(r.action).toUpperCase()==="LOGIN"?"login":"logout"}`}><History size={14}/></span><div><strong>{r.full_name||r.username||"Tài khoản"}</strong><p>{String(r.action).toUpperCase()==="LOGIN"?"Đăng nhập hệ thống":"Đăng xuất khỏi hệ thống"}</p></div><time>{r.created_at?new Date(r.created_at).toLocaleString("vi-VN"):"—"}</time></div>):<div className="admin-empty">Chưa có hoạt động đăng nhập/đăng xuất.</div>}</div>}
-function Modal({form,setForm,processes,leads,saving,onClose,onSave}:{form:FormState;setForm:(f:FormState)=>void;processes:Process[];leads:Person[];saving:boolean;onClose:()=>void;onSave:()=>void}){
- const leadCounts=useMemo(()=>new Map(processes.map(p=>[p.id,leads.filter(l=>l.status==="active"&&l.id!==form.id&&processIds(l.process_ids).includes(p.id)).length]),[processes,leads,form.id]);
- return <div className="admin-modal-backdrop"><div className="admin-modal"><div className="admin-modal-head"><div><span>QUẢN TRỊ TOÀN HỆ THỐNG</span><h2>{form.id?"Chỉnh sửa":"Tạo"} {roleText(form.role)}</h2><p>{form.role==="lead"?"Admin không bị giới hạn tổng số tổ trưởng. Mỗi công đoạn tối đa 3 tổ trưởng đang hoạt động.":"Admin có quyền quản trị tài khoản theo phân quyền hệ thống."}</p></div><button onClick={onClose}><X size={18}/></button></div><div className="admin-modal-grid"><label>Vai trò<select value={form.role} onChange={e=>{const role=e.target.value as Role;setForm({...form,role,position:role==="worker"?"Công nhân":role==="lead"?"Tổ trưởng":"Quản lý"})}}><option value="manager">Quản lý</option><option value="lead">Tổ trưởng</option><option value="worker">Công nhân</option></select></label><label>Trạng thái<select value={form.status} onChange={e=>setForm({...form,status:e.target.value as "active"|"inactive"})}><option value="active">Đang hoạt động</option><option value="inactive">Ngừng hoạt động</option></select></label><label>Họ và tên<input value={form.full_name} onChange={e=>setForm({...form,full_name:e.target.value})}/></label><label>Tên đăng nhập<input value={form.username} onChange={e=>setForm({...form,username:e.target.value})}/></label><label>Mật khẩu{form.id&&<small> (để trống nếu không đổi)</small>}<input type="password" value={form.password} onChange={e=>setForm({...form,password:e.target.value})} placeholder="Tối thiểu 6 ký tự"/></label>{form.role==="worker"&&<><label>Mã công nhân<input value={form.worker_code} onChange={e=>setForm({...form,worker_code:e.target.value})}/></label><label>Số điện thoại<input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/></label><label>% học việc<input type="number" min="0" max="100" value={form.training_percent} onChange={e=>setForm({...form,training_percent:e.target.value})}/></label></>}<label>Bộ phận / đơn vị<input value={form.department} onChange={e=>setForm({...form,department:e.target.value})}/></label><label>Chức danh<input value={form.position} onChange={e=>setForm({...form,position:e.target.value})}/></label><div className="admin-process-select"><span>Công đoạn phụ trách</span><div>{processes.map(p=>{const count=leadCounts.get(p.id)||0;const full=form.role==="lead"&&form.status==="active"&&count>=3&&!form.process_ids.includes(p.id);return <label key={p.id} title={form.role==="lead"?`${count}/3 tổ trưởng đang hoạt động`:undefined}><input type="checkbox" disabled={full} checked={form.process_ids.includes(p.id)} onChange={e=>setForm({...form,process_ids:e.target.checked?[...form.process_ids,p.id]:form.process_ids.filter(id=>id!==p.id)})}/>{p.process_name}{form.role==="lead"&&<small>{count}/3</small>}</label>})}</div></div></div><div className="admin-modal-actions"><button onClick={onClose}>Hủy</button><button className="admin-btn primary" disabled={saving} onClick={onSave}>{saving?"Đang lưu...":"Lưu tài khoản"}</button></div></div></div>;
+
+function Overview({ people, managers, leads, workers, active, workerGroups, canEdit, onEdit, onDelete, onTab }: { people:Person[]; managers:Person[]; leads:Person[]; workers:Person[]; active:Person[]; workerGroups:{process:Process;total:number;active:number}[]; canEdit:boolean; onEdit:(p:Person)=>void; onDelete:(p:Person)=>void; onTab:(tab:Tab)=>void }) {
+  const roleRows = [{ key:"manager" as const, label:"Quản lý", rows:managers }, { key:"lead" as const, label:"Tổ trưởng", rows:leads }, { key:"worker" as const, label:"Công nhân", rows:workers }];
+  return <>
+    <section className="admin-kpis"><Kpi icon={<Users/>} label="Tổng tài khoản" value={people.length} note={`${active.length} đang hoạt động`}/><Kpi icon={<ShieldCheck/>} label="Quản lý" value={managers.length} note="Tài khoản cấp hệ thống"/><Kpi icon={<Users/>} label="Tổ trưởng" value={leads.length} note={`${leads.filter(x => x.status === "active").length} đang hoạt động`}/><Kpi icon={<UserRound/>} label="Công nhân" value={workers.length} note={`${workers.filter(x => x.status === "active").length} đang hoạt động`}/><div className="admin-health"><div><span className="health-dot"/> Hệ thống nhân sự</div><strong>{active.length}/{people.length}</strong><small>tài khoản đang hoạt động</small></div></section>
+    <div className="admin-overview-grid">
+      <section className="admin-card"><CardTitle title="Phân bổ tài khoản" sub="Tổng quan theo vai trò và trạng thái"/><div className="role-overview">{roleRows.map(item => <button key={item.key} onClick={() => onTab(item.key)}><span className={`role-icon ${item.key}`}><UserRound size={17}/></span><div><b>{item.label}</b><small>{item.rows.filter(x => x.status === "active").length} hoạt động · {item.rows.length} tổng</small></div><strong>{item.rows.length}</strong></button>)}</div></section>
+      <section className="admin-card"><CardTitle title="Công nhân theo công đoạn" sub="Phân bổ nhân sự đang được gán công đoạn"/><div className="process-list">{workerGroups.map(item => <div key={item.process.id}><div><b>{item.process.process_name}</b><span>{item.active}/{item.total} hoạt động</span></div><div className="bar"><i style={{ width: `${item.total ? Math.min(100, item.active / item.total * 100) : 0}%` }}/></div></div>)}{workerGroups.length === 0 && <div className="admin-empty">Chưa có dữ liệu công đoạn.</div>}</div></section>
+      <section className="admin-card wide"><CardTitle title="Tài khoản cập nhật gần đây" sub="Các tài khoản mới nhất trong hệ thống"/><AccountTable rows={[...people].sort((a,b) => String(b.created_at || "").localeCompare(String(a.created_at || ""))).slice(0,8)} canEdit={canEdit} onEdit={onEdit} onDelete={onDelete}/></section>
+    </div>
+  </>;
 }
+
+function Kpi({ icon, label, value, note }: { icon:ReactNode; label:string; value:number; note:string }) { return <div className="admin-kpi"><span>{icon}</span><small>{label}</small><strong>{value}</strong><em>{note}</em></div>; }
+function CardTitle({ title, sub }: { title:string; sub:string }) { return <div className="admin-card-title"><div><h2>{title}</h2><p>{sub}</p></div></div>; }
+function AccountTable({ rows, canEdit, onEdit, onDelete }: { rows:Person[]; canEdit:boolean; onEdit:(p:Person)=>void; onDelete:(p:Person)=>void }) { return <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Tài khoản</th><th>Họ và tên</th><th>Vai trò</th><th>Công đoạn / bộ phận</th><th>Trạng thái</th><th>Ngày tạo</th><th/></tr></thead><tbody>{rows.length ? rows.map(person => <tr key={person.id}><td><strong>{person.username}</strong>{person.worker_code && <small>{person.worker_code}</small>}</td><td>{person.full_name || "—"}</td><td><span className={`role-badge ${person.role}`}>{roleText(person.role)}</span></td><td><strong className="process-cell">{person.process_names || person.department || "Chưa gán"}</strong></td><td><span className={`status-badge ${person.status}`}>{statusText(person.status)}</span></td><td>{person.created_at ? new Date(person.created_at).toLocaleDateString("vi-VN") : "—"}</td><td>{canEdit && <div className="admin-row-actions"><button title="Sửa" onClick={() => onEdit(person)}><Pencil size={14}/></button><button className="danger" title="Vô hiệu hóa" onClick={() => void onDelete(person)} disabled={person.status !== "active"}><Trash2 size={14}/></button></div>}</td></tr>) : <tr><td colSpan={7} className="admin-empty">Không có tài khoản phù hợp.</td></tr>}</tbody></table></div>; }
+function Activity({ rows }: { rows:ActivityItem[] }) { const filtered = rows.filter(row => ["LOGIN","LOGOUT"].includes(String(row.action || "").toUpperCase())); return <div className="admin-activity">{filtered.length ? filtered.map((row,index) => <div key={`${row.id || index}-${row.created_at}`}><span className={`activity-icon ${String(row.action).toUpperCase() === "LOGIN" ? "login" : "logout"}`}><History size={14}/></span><div><strong>{row.full_name || row.username || "Tài khoản"}</strong><p>{String(row.action).toUpperCase() === "LOGIN" ? "Đăng nhập hệ thống" : "Đăng xuất khỏi hệ thống"}</p></div><time>{row.created_at ? new Date(row.created_at).toLocaleString("vi-VN") : "—"}</time></div>) : <div className="admin-empty">Chưa có hoạt động đăng nhập/đăng xuất.</div>}</div>; }
+function Modal({ form, setForm, processes, saving, onClose, onSave }: { form:FormState; setForm:(f:FormState)=>void; processes:Process[]; saving:boolean; onClose:()=>void; onSave:()=>void }) { return <div className="admin-modal-backdrop"><div className="admin-modal"><div className="admin-modal-head"><div><span>QUẢN TRỊ TÀI KHOẢN</span><h2>{form.id ? "Chỉnh sửa" : "Tạo"} {roleText(form.role)}</h2><p>Thông tin tài khoản được lưu trực tiếp vào hệ thống.</p></div><button onClick={onClose}><X size={18}/></button></div><div className="admin-modal-grid"><label>Vai trò<select value={form.role} onChange={event => { const role = event.target.value as Role; setForm({...form, role, position: role === "worker" ? "Công nhân" : role === "lead" ? "Tổ trưởng" : "Quản lý"}); }}><option value="manager">Quản lý</option><option value="lead">Tổ trưởng</option><option value="worker">Công nhân</option></select></label><label>Trạng thái<select value={form.status} onChange={event => setForm({...form, status:event.target.value as "active"|"inactive"})}><option value="active">Đang hoạt động</option><option value="inactive">Ngừng hoạt động</option></select></label><label>Họ và tên<input value={form.full_name} onChange={event => setForm({...form, full_name:event.target.value})}/></label><label>Tên đăng nhập<input value={form.username} onChange={event => setForm({...form, username:event.target.value})}/></label><label>Mật khẩu{form.id && <small> (để trống nếu không đổi)</small>}<input type="password" value={form.password} onChange={event => setForm({...form, password:event.target.value})} placeholder="Tối thiểu 6 ký tự"/></label>{form.role === "worker" && <><label>Mã công nhân<input value={form.worker_code} onChange={event => setForm({...form, worker_code:event.target.value})}/></label><label>Số điện thoại<input value={form.phone} onChange={event => setForm({...form, phone:event.target.value})}/></label><label>% học việc<input type="number" min="0" max="100" value={form.training_percent} onChange={event => setForm({...form, training_percent:event.target.value})}/></label></>}<label>Bộ phận / đơn vị<input value={form.department} onChange={event => setForm({...form, department:event.target.value})}/></label><label>Chức danh<input value={form.position} onChange={event => setForm({...form, position:event.target.value})}/></label><div className="admin-process-select"><span>Công đoạn phụ trách</span><div>{processes.map(process => <label key={process.id}><input type="checkbox" checked={form.process_ids.includes(process.id)} onChange={event => setForm({...form, process_ids:event.target.checked ? [...form.process_ids, process.id] : form.process_ids.filter(id => id !== process.id)})}/>{process.process_name}</label>)}</div></div></div><div className="admin-modal-actions"><button onClick={onClose}>Hủy</button><button className="admin-btn primary" disabled={saving} onClick={onSave}>{saving ? "Đang lưu..." : "Lưu tài khoản"}</button></div></div></div>; }
