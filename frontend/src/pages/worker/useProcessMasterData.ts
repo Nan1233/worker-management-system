@@ -75,9 +75,11 @@ export function useProcessMasterData(processId: number, processCode: string) {
       const [machines, products, defects, deductions] = results;
       if (machines.status === "fulfilled") setMachineOptions(machines.value);
       if (products.status === "fulfilled") setProductOptions(products.value);
-      if (defects.status === "fulfilled") setActiveNgOptions(normalizeDefectOptions(defects.value));
+      if (defects.status === "fulfilled") {
+        setActiveNgOptions(normalizeDefectOptions(defects.value, processId));
+      }
       if (deductions.status === "fulfilled") {
-        const normalized = normalizeDeductionOptions(deductions.value);
+        const normalized = normalizeDeductionOptions(deductions.value, processId);
         setActiveDeductionOptions(mergeDeductionOptions(normalized, String(processCode || "").trim().toUpperCase()));
       }
 
