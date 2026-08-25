@@ -15,17 +15,19 @@ const normalizeLeadingZeros = (input: HTMLInputElement) => {
 
 export const installReportNumberInputFix = () => {
     const focusHandler = (event: FocusEvent) => {
-        if (!isReportNumberInput(event.target)) return;
+        const target = event.target;
+        if (!isReportNumberInput(target)) return;
         // Selecting the old value prevents typing a replacement such as 20
         // from becoming 020 when the existing value is 0.
         window.requestAnimationFrame(() => {
-            if (document.activeElement === event.target) event.target.select();
+            if (document.activeElement === target) target.select();
         });
     };
 
     const inputHandler = (event: Event) => {
-        if (!isReportNumberInput(event.target)) return;
-        normalizeLeadingZeros(event.target);
+        const target = event.target;
+        if (!isReportNumberInput(target)) return;
+        normalizeLeadingZeros(target);
     };
 
     document.addEventListener("focusin", focusHandler);
