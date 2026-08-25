@@ -1,0 +1,19 @@
+/* Worker report actions stay in document flow. They appear at the end of the form
+   and are not fixed/sticky to the viewport while the user scrolls. */
+.worker-action-group{
+  position:static!important;
+  inset:auto!important;
+  left:auto!important;
+  right:auto!important;
+  top:auto!important;
+  bottom:auto!important;
+  transform:none!important;
+  width:auto!important;
+  max-width:none!important;
+  margin:10px 0 2px!important;
+  z-index:80!important;
+}
+
+@media(max-width:760px){
+  .worker-action-group{margin:10px 0 2px!important;width:auto!important}
+}
