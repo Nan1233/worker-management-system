@@ -58,7 +58,7 @@ router.post(
 
 router.post("/approve", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), controller.approveSelectedReports);
 
-// Tổ trưởng/Quản lý đề xuất công nhân sửa báo cáo; không sửa trực tiếp dữ liệu.
+// Tổ trưởng/Quản lý đề xuất sửa báo cáo; không sửa trực tiếp dữ liệu.
 router.post(
     "/:id/request-edit",
     authMiddleware,
@@ -109,12 +109,14 @@ router.post(
 
 router.get("/:id/logs", authMiddleware, checkRole("admin", "manager", "lead"), permission("AUDIT_VIEW"), controller.getReportActionLogs);
 
+// Quản lý và tổ trưởng được phép sửa báo cáo đang chờ duyệt.
+// Báo cáo đã duyệt vẫn bị khóa đối với quản lý/tổ trưởng; chỉ Admin mới sửa được.
 router.put(
     "/:id",
     authMiddleware,
-    checkRole("admin", "manager", "worker"),
+    checkRole("admin", "manager", "lead", "worker"),
     validate({ id:{in:"params",required:true,type:"positiveInt"} }),
-    permission("REPORT_PENDING_EDIT", "WORKER_ENTRY"),
+    permission("REPORT_PENDING_EDIT", "REPORT_APPROVE", "WORKER_ENTRY"),
     notifyWorkerOnTempEdit,
     controller.updateTempReport
 );
