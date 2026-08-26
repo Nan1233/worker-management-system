@@ -88,7 +88,6 @@ export default function WorkerHome() {
     return { total, ok, ng, time };
   }, [todayReports]);
 
-  const processLabel = worker?.processes?.map((item) => item.name).filter(Boolean).join(", ") || worker?.process_names || "Chưa phân công";
   const trainingPercent = Number(worker?.training_percent ?? 0);
   const displayReports = todayReports.length ? todayReports : reports.slice(0, 4);
 
@@ -120,7 +119,6 @@ export default function WorkerHome() {
             <h1>Xin chào, <strong>{worker?.full_name || "Nguyễn Văn An"}</strong></h1>
             <div className="worker-home-identity">
               <span>KTC-{worker?.worker_code || "00125"}</span>
-              <span>Process: {processLabel}</span>
               <span className="worker-home-training">Học việc: {formatPercent(trainingPercent)}</span>
             </div>
           </div>
