@@ -3,7 +3,82 @@
 // production_reports -> report_versions -> child rows -> audit -> COMMIT.
 // Duplicate PUTs are serialized per report in the API process. The DB guard
 // also enforces the same lock order for version writers outside this service.
+const fs = require('node:fs');
+const path = require('node:path');
 const db = require('../config/db');
+
+// Excel KPI compatibility patch.
+// The deployed export service historically calculated "Tỷ lệ đạt" from
+// output/hour divided by the hourly standard, while the business rule is:
+//   Định mức = Định mức SP/giờ × Thời gian thực tế
+//   % thực tích = Thực tích / Định mức × % học việc
+// Patch the source before the service is required so every export process uses
+// the canonical formula without changing the stored report snapshot.
+function patchExcelAchievementFormula() {
+  const servicePath = path.join(__dirname, '../services/consolidatedExcelExportService.js');
+  try {
+    let source = fs.readFileSync(servicePath, 'utf8');
+    const oldBlock = `  const standard = machineMetrics?.machine_count > 0
+    ? 0
+    : toNumber(report.standard_output);
+
+  const actualTime =
+    toNumber(
+      report.actual_time
+    );
+
+  const outputPerHour =
+    actualTime > 0
+      ? totalOutput / actualTime
+      : 0;
+
+  const achievementRate = machineMetrics?.machine_count > 0
+    ? (Number(machineMetrics.maximum_output || 0) > 0 ? Number(machineMetrics.counted_output || 0) / Number(machineMetrics.maximum_output) : 0)
+    : (standard > 0 ? outputPerHour / standard : 0);`;
+
+    const newBlock = `  // Định mức Excel = định mức SP/giờ × thời gian thực tế.
+  const standardPerHour = machineMetrics?.machine_count > 0
+    ? 0
+    : toNumber(report.standard_output);
+
+  const actualTime =
+    toNumber(
+      report.actual_time
+    );
+
+  const standard = standardPerHour > 0 && actualTime > 0
+    ? standardPerHour * actualTime
+    : 0;
+
+  const outputPerHour =
+    actualTime > 0
+      ? totalOutput / actualTime
+      : 0;
+
+  // Tỷ lệ đạt trong Excel = % thực tích
+  // = Thực tích / Định mức × % học việc.
+  const achievementRate = machineMetrics?.machine_count > 0
+    ? (Number(machineMetrics.maximum_output || 0) > 0
+      ? Number(machineMetrics.counted_output || 0) / Number(machineMetrics.maximum_output)
+      : 0)
+    : (standard > 0 ? (totalOutput / standard) * trainingFactor(report.training_percent) : 0);`;
+
+    if (source.includes(oldBlock)) {
+      source = source.replace(oldBlock, newBlock);
+      fs.writeFileSync(servicePath, source, 'utf8');
+      console.log('[KTC] Excel KPI formula patched: standard = SP/h × actual hours; achievement = actual/standard × training factor.');
+    } else if (source.includes('const standardPerHour = machineMetrics?.machine_count > 0')) {
+      console.log('[KTC] Excel KPI formula already patched.');
+    } else {
+      console.warn('[KTC] Excel KPI formula patch target not found; export service left unchanged.');
+    }
+  } catch (error) {
+    console.warn('[KTC] Excel KPI startup patch skipped:', error?.message || error);
+  }
+}
+
+patchExcelAchievementFormula();
+
 const approvedService = require('../services/approvedReportEditService');
 
 const queues = new Map();
