@@ -106,7 +106,7 @@
 .pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-reference-table th:nth-child(7),
 .pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-reference-table td:nth-child(7){width:115px!important}
 .pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-reference-table th:nth-child(8),
-.pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-reference-page .pending-reference-table td:nth-child(8){width:78px!important}
+.pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-reference-table td:nth-child(8){width:78px!important}
 
 /* Checkbox: fixed square, light, never stretched by table-cell styles. */
 .pending-reference-page input[type="checkbox"]{
