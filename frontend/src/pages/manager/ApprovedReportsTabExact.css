@@ -1,0 +1,61 @@
+/* Đã duyệt: tab Danh sách báo cáo khớp trực tiếp với tab của Chờ duyệt. */
+.pending-reference-page div:has(> table:has(tbody td[colspan="13"])) > div:first-child{
+  position:relative!important;
+  height:50px!important;
+  min-height:50px!important;
+  display:flex!important;
+  align-items:center!important;
+  padding:0 14px!important;
+  box-sizing:border-box!important;
+  border-bottom:1px solid #e4ebf4!important;
+  background:#fff!important;
+  color:#1769d2!important;
+  font-size:13px!important;
+  font-weight:700!important;
+  line-height:1!important;
+  letter-spacing:0!important;
+  font-family:inherit!important;
+}
+.pending-reference-page div:has(> table:has(tbody td[colspan="13"])) > div:first-child::after{
+  content:""!important;
+  position:absolute!important;
+  left:14px!important;
+  right:auto!important;
+  bottom:-1px!important;
+  width:165px!important;
+  height:2px!important;
+  background:#1769d2!important;
+  border-radius:2px 2px 0 0!important;
+}
+/* Trạng thái rỗng: vùng trắng sạch, không viền nét đứt. */
+.pending-reference-page table:has(tbody td[colspan="13"]){
+  width:100%!important;
+  min-width:100%!important;
+  border:0!important;
+  border-collapse:collapse!important;
+}
+.pending-reference-page table:has(tbody td[colspan="13"]) tbody,
+.pending-reference-page table:has(tbody td[colspan="13"]) tbody tr,
+.pending-reference-page table:has(tbody td[colspan="13"]) tbody td{
+  border:0!important;
+  outline:0!important;
+  background:#fff!important;
+}
+.pending-reference-page table:has(tbody td[colspan="13"]) tbody tr{
+  height:180px!important;
+}
+.pending-reference-page table:has(tbody td[colspan="13"]) tbody td{
+  height:180px!important;
+  padding:0 16px!important;
+  text-align:center!important;
+  vertical-align:middle!important;
+  color:#7185a4!important;
+  font-size:13px!important;
+}
+.pending-reference-page table:has(tbody td[colspan="13"]) tbody td::before{
+  content:""!important;
+  display:block!important;
+  width:0!important;
+  height:0!important;
+  margin:0!important;
+}
