@@ -1,225 +1,209 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 import { getApprovedReports, getReportById, updateReport } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
 import { useToast } from "../../components/feedback/toastContext";
 import { usePermissions } from "../../hooks/usePermissions";
 import { getToday } from "./managerReportDateLogic";
-import { getValidReportIds, reconcileSelectedReportIds, toggleCurrentPageIds, toggleReportId } from "./managerReportSelection";
 import "./Reports.css";
 import "./ReportsSplitReference.css";
 
-const formatDate = (value?: string | null) => {
-    if (!value) return "---";
-    const [y, m, d] = String(value).slice(0, 10).split("-");
-    return y && m && d ? `${d}/${m}/${y}` : String(value);
-};
 const text = (value: unknown, fallback = "---") => value === null || value === undefined || value === "" ? fallback : String(value);
-const number = (value: unknown) => Number(value || 0).toLocaleString("vi-VN", { maximumFractionDigits: 2 });
-const toDate = (value: string) => new Date(`${value}T00:00:00`);
-const dateString = (value: Date) => {
-    const year = value.getFullYear();
-    const month = String(value.getMonth() + 1).padStart(2, "0");
-    const day = String(value.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-};
-const rangeFor = (value: string, type: "year" | "month" | "week" | "day") => {
-    const base = toDate(value);
-    const start = new Date(base);
-    const end = new Date(base);
-    if (type === "year") {
-        start.setMonth(0, 1);
-        end.setMonth(11, 31);
-    } else if (type === "month") {
-        start.setDate(1);
-        end.setMonth(end.getMonth() + 1, 0);
-    } else if (type === "week") {
-        const mondayOffset = (start.getDay() + 6) % 7;
-        start.setDate(start.getDate() - mondayOffset);
-        end.setTime(start.getTime());
-        end.setDate(start.getDate() + 6);
-    }
+const num = (value: unknown) => Number(value || 0);
+const number = (value: unknown) => num(value).toLocaleString("vi-VN", { maximumFractionDigits: 2 });
+const formatDate = (value?: string | null) => { if (!value) return "---"; const [y, m, d] = String(value).slice(0, 10).split("-"); return y && m && d ? `${d}/${m}/${y}` : String(value); };
+const reportCode = (r: ProductionReport, index = 0) => `PR${String(r.work_date || "REPORT").slice(0, 10).replace(/-/g, "")}-${r.worker_code || String(r.id || index + 1).padStart(4, "0")}`;
+const timeRange = (r: ProductionReport) => { const e = r.extra_data || {}; return e.start_time && e.end_time ? `${e.start_time} - ${e.end_time}` : ""; };
+const dateOf = (v: string) => new Date(`${v}T00:00:00`);
+const dateString = (v: Date) => `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, "0")}-${String(v.getDate()).padStart(2, "0")}`;
+const rangeFor = (value: string, type: "year" | "month" | "week") => {
+    const start = dateOf(value); const end = new Date(start);
+    if (type === "year") { start.setMonth(0, 1); end.setMonth(11, 31); }
+    else if (type === "month") { start.setDate(1); end.setMonth(end.getMonth() + 1, 0); }
+    else { const offset = (start.getDay() + 6) % 7; start.setDate(start.getDate() - offset); end.setTime(start.getTime()); end.setDate(start.getDate() + 6); }
     return { dateFrom: dateString(start), dateTo: dateString(end) };
 };
 
-const timeRange = (report: ProductionReport) => {
-    const extra = report.extra_data || {};
-    const start = extra.start_time;
-    const end = extra.end_time;
-    return start && end ? `${start} - ${end}` : "07:30 - 15:30";
-};
+const cellStyle: React.CSSProperties = { padding: "8px 10px", borderRight: "1px solid #e3e9f2", borderBottom: "1px solid #e3e9f2", whiteSpace: "nowrap", verticalAlign: "middle", fontSize: 13 };
+const inputStyle: React.CSSProperties = { width: "100%", minWidth: 72, boxSizing: "border-box", border: "1px solid #cbd5e1", borderRadius: 4, padding: "5px 6px", fontSize: 13, background: "#fff", outline: "none" };
+const readonlyStyle: React.CSSProperties = { ...cellStyle, background: "#fff" };
 
 export default function ApprovedReports() {
+    const navigate = useNavigate();
     const { can } = usePermissions();
     const canEdit = can("REPORT_APPROVED_EDIT");
     const { showToast } = useToast();
     const [date, setDate] = useState(getToday());
     const [dateRange, setDateRange] = useState<{ dateFrom: string; dateTo: string } | null>(null);
-    const [searchKeyword, setSearchKeyword] = useState("");
-    const [searchQuery, setSearchQuery] = useState("");
-    const [selectedProcess, setSelectedProcess] = useState("");
-    const [selectedShift, setSelectedShift] = useState("");
+    const [search, setSearch] = useState("");
+    const [process, setProcess] = useState("");
+    const [shift, setShift] = useState("");
     const [reports, setReports] = useState<ProductionReport[]>([]);
-    const [selectedIds, setSelectedIds] = useState<number[]>([]);
-    const [selectedDetail, setSelectedDetail] = useState<ProductionReport | null>(null);
-    const [editDraft, setEditDraft] = useState<ProductionReport | null>(null);
-    const [editHours, setEditHours] = useState("");
-    const [editMinutes, setEditMinutes] = useState("");
-    const [editing, setEditing] = useState(false);
+    const [drafts, setDrafts] = useState<Record<number, ProductionReport>>({});
+    const [savingId, setSavingId] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
-    const [detailLoading, setDetailLoading] = useState(false);
-    const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
     const [pages, setPages] = useState(1);
-    const [yearCount, setYearCount] = useState(0);
-    const [monthCount, setMonthCount] = useState(0);
-    const [weekCount, setWeekCount] = useState(0);
-    const [dayCount, setDayCount] = useState(0);
-    const seq = useRef(0);
-
-    useEffect(() => {
-        const timer = window.setTimeout(() => setSearchQuery(searchKeyword.trim()), 250);
-        return () => window.clearTimeout(timer);
-    }, [searchKeyword]);
+    const [selectedDetail, setSelectedDetail] = useState<ProductionReport | null>(null);
+    const [detailLoading, setDetailLoading] = useState(false);
+    const [counts, setCounts] = useState({ day: 0, week: 0, month: 0, year: 0 });
 
     const loadReports = useCallback(async () => {
-        const current = ++seq.current;
         try {
-            setLoading(true);
-            setError("");
-            const filters = { processName: selectedProcess || undefined, shift: selectedShift || undefined, search: searchQuery || undefined };
-            const listRange = dateRange || { dateFrom: date, dateTo: date };
-            const result = await getApprovedReports({ ...listRange, ...filters, page, pageSize: 8 });
-            if (current !== seq.current) return;
-            setReports(result.data);
-            setTotal(result.pagination.total);
-            setPages(result.pagination.total_pages);
-
-            const ranges = { year: rangeFor(date, "year"), month: rangeFor(date, "month"), week: rangeFor(date, "week"), day: rangeFor(date, "day") };
-            const [yearResult, monthResult, weekResult, dayResult] = await Promise.all([
-                getApprovedReports({ ...ranges.year, ...filters, page: 1, pageSize: 1 }),
-                getApprovedReports({ ...ranges.month, ...filters, page: 1, pageSize: 1 }),
-                getApprovedReports({ ...ranges.week, ...filters, page: 1, pageSize: 1 }),
-                getApprovedReports({ ...ranges.day, ...filters, page: 1, pageSize: 1 }),
-            ]);
-            if (current !== seq.current) return;
-            setYearCount(yearResult.pagination.total); setMonthCount(monthResult.pagination.total); setWeekCount(weekResult.pagination.total); setDayCount(dayResult.pagination.total);
-            setSelectedIds(previous => reconcileSelectedReportIds(previous, result.data));
+            setLoading(true); setError("");
+            const range = dateRange || { dateFrom: date, dateTo: date };
+            const filters = { ...range, processName: process || undefined, shift: shift || undefined, search: search.trim() || undefined, page, pageSize: 20 };
+            const result = await getApprovedReports(filters);
+            setReports(result.data || []); setTotal(result.pagination.total); setPages(result.pagination.total_pages);
+            const ranges = { day: { dateFrom: date, dateTo: date }, week: rangeFor(date, "week"), month: rangeFor(date, "month"), year: rangeFor(date, "year") };
+            const [day, week, month, year] = await Promise.all(Object.values(ranges).map(r => getApprovedReports({ ...r, processName: process || undefined, shift: shift || undefined, search: search.trim() || undefined, page: 1, pageSize: 1 })));
+            setCounts({ day: day.pagination.total, week: week.pagination.total, month: month.pagination.total, year: year.pagination.total });
         } catch (err: unknown) {
-            if (current !== seq.current) return;
             setError(axios.isAxiosError(err) ? err.response?.data?.message || "Không thể tải báo cáo đã duyệt" : "Không thể tải báo cáo đã duyệt");
-            setReports([]); setTotal(0); setYearCount(0); setMonthCount(0); setWeekCount(0); setDayCount(0); setPages(1); setSelectedIds([]);
-        } finally { if (current === seq.current) setLoading(false); }
-    }, [date, dateRange, selectedProcess, selectedShift, searchQuery, page]);
+            setReports([]); setTotal(0); setPages(1); setCounts({ day: 0, week: 0, month: 0, year: 0 });
+        } finally { setLoading(false); }
+    }, [date, dateRange, process, shift, search, page]);
 
     useEffect(() => { void loadReports(); }, [loadReports]);
-    useEffect(() => { setPage(1); setSelectedIds([]); setSelectedDetail(null); setEditing(false); }, [date, dateRange, selectedProcess, selectedShift, searchQuery]);
+    useEffect(() => { setPage(1); setSelectedDetail(null); setDrafts({}); }, [date, dateRange, process, shift, search]);
 
     const processes = useMemo(() => Array.from(new Set(reports.map(r => r.process_name).filter(Boolean) as string[])).sort(), [reports]);
     const shifts = useMemo(() => Array.from(new Set(reports.map(r => r.shift).filter(Boolean))).sort(), [reports]);
-    const ids = useMemo(() => getValidReportIds(reports), [reports]);
-    const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
-    const allSelected = ids.length > 0 && ids.every(id => selectedSet.has(id));
+
+    const beginEdit = (report: ProductionReport) => {
+        if (!canEdit || !report.id) return;
+        setDrafts(current => ({ ...current, [Number(report.id)]: { ...report } }));
+    };
+    const updateDraft = (id: number, field: keyof ProductionReport, value: string | number) => {
+        setDrafts(current => ({ ...current, [id]: { ...current[id], [field]: value } }));
+    };
+    const saveRow = async (id: number) => {
+        const draft = drafts[id];
+        const original = reports.find(r => Number(r.id) === id);
+        if (!draft || !original || savingId) return;
+        try {
+            setSavingId(id);
+            const actual = Math.max(0, num(draft.actual_time));
+            const deduction = Math.max(0, num(draft.deduction_time));
+            const ok = Math.max(0, num(draft.tt_ok));
+            const ng = Math.max(0, num(draft.tt_ng));
+            const next: ProductionReport = { ...draft, actual_time: actual, deduction_time: deduction, total_time: actual + deduction, tt_ok: ok, tt_ng: ng, actual_output: ok + ng };
+            const result = await updateReport(id, next, "approved", original.updated_at || null);
+            const updated = (result?.data || result?.report || result) as ProductionReport;
+            const merged = { ...next, ...(updated && typeof updated === "object" ? updated : {}) } as ProductionReport;
+            setReports(current => current.map(r => Number(r.id) === id ? merged : r));
+            setDrafts(current => { const copy = { ...current }; delete copy[id]; return copy; });
+            showToast("Đã lưu báo cáo", "success");
+        } catch (err: unknown) {
+            showToast(axios.isAxiosError(err) ? err.response?.data?.message || "Không thể lưu báo cáo" : "Không thể lưu báo cáo");
+        } finally { setSavingId(null); }
+    };
+    const cancelRow = (id: number) => setDrafts(current => { const copy = { ...current }; delete copy[id]; return copy; });
 
     const openDetail = async (report: ProductionReport) => {
         if (!report.id) return;
-        setSelectedDetail(report); setEditDraft(null); setEditing(false); setDetailLoading(true);
-        try {
-            const detail = await getReportById(Number(report.id), "approved");
-            setSelectedDetail(detail);
-        } catch (err) {
-            showToast(axios.isAxiosError(err) ? err.response?.data?.message || "Không thể tải chi tiết báo cáo" : "Không thể tải chi tiết báo cáo");
-        } finally { setDetailLoading(false); }
+        setSelectedDetail(report); setDetailLoading(true);
+        try { setSelectedDetail(await getReportById(Number(report.id), "approved")); }
+        catch (err: unknown) { showToast(axios.isAxiosError(err) ? err.response?.data?.message || "Không thể tải chi tiết báo cáo" : "Không thể tải chi tiết báo cáo"); }
+        finally { setDetailLoading(false); }
     };
 
-    const startEdit = () => {
-        if (!selectedDetail || !canEdit) return;
-        const actual = Math.max(0, Number(selectedDetail.actual_time) || 0);
-        const h = Math.floor(actual); const m = Math.min(59, Math.round((actual - h) * 60));
-        setEditDraft({ ...selectedDetail }); setEditHours(String(h)); setEditMinutes(String(m)); setEditing(true);
-    };
-    const cancelEdit = () => { setEditDraft(null); setEditing(false); };
-    const updateField = (field: keyof ProductionReport, value: string | number) => setEditDraft(current => current ? { ...current, [field]: value } : current);
-
-    const saveEdit = async () => {
-        if (!editDraft?.id || saving) return;
-        const hours = Math.max(0, Number(editHours) || 0); const minutes = Math.min(59, Math.max(0, Number(editMinutes) || 0)); const actual = hours + minutes / 60;
-        const next: ProductionReport = { ...editDraft, actual_time: actual, total_time: actual + (Number(editDraft.deduction_time) || 0), tt_ok: Math.max(0, Number(editDraft.tt_ok) || 0), tt_ng: Math.max(0, Number(editDraft.tt_ng) || 0), actual_output: Math.max(0, Number(editDraft.tt_ok) || 0) + Math.max(0, Number(editDraft.tt_ng) || 0) };
-        try {
-            setSaving(true);
-            const result = await updateReport(Number(next.id), next, "approved", selectedDetail?.updated_at || null);
-            const updated = (result?.data || result?.report || result) as ProductionReport;
-            const merged = { ...next, ...(updated && typeof updated === "object" ? updated : {}) } as ProductionReport;
-            setSelectedDetail(merged); setReports(current => current.map(r => Number(r.id) === Number(merged.id) ? { ...r, ...merged } : r));
-            setEditDraft(null); setEditing(false); showToast("Đã cập nhật báo cáo", "success"); await loadReports();
-        } catch (err: unknown) {
-            showToast(axios.isAxiosError(err) ? err.response?.data?.message || "Không thể cập nhật báo cáo" : "Không thể cập nhật báo cáo");
-        } finally { setSaving(false); }
-    };
-
-    const toggleAll = () => setSelectedIds(previous => toggleCurrentPageIds(previous, ids, allSelected));
-    const toggleOne = (id: number) => setSelectedIds(previous => toggleReportId(previous, id));
-    const selectDay = () => { setDate(getToday()); setDateRange(null); };
-    const selectMonth = () => { setDateRange(rangeFor(date, "month")); };
-    const selectWeek = () => { setDateRange(rangeFor(date, "week")); };
-    const selectYear = () => { setDateRange(rangeFor(date, "year")); };
-
-    const detail = editing && editDraft ? editDraft : selectedDetail;
-    const ok = Number(detail?.tt_ok || 0), ng = Number(detail?.tt_ng || 0), totalOutput = Number(detail?.actual_output || ok + ng), rate = totalOutput > 0 ? ok / totalOutput * 100 : 0;
+    const renderEditableNumber = (draft: ProductionReport, field: keyof ProductionReport, width = 82) => (
+        <input type="number" min="0" step="0.01" value={String(draft[field] ?? 0)} onChange={e => updateDraft(Number(draft.id), field, Number(e.target.value))} style={{ ...inputStyle, width }} />
+    );
 
     return (
-        <div className="management-report-page manager-page pending-reference-page">
-            <header className="pending-page-title"><div><h1>Đã duyệt báo cáo</h1><p>Xem lại các báo cáo sản xuất đã được duyệt.</p></div></header>
-            <section className="pending-filter-card">
-                <div className="pending-search"><span>⌕</span><input value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)} placeholder="Tìm kiếm mã báo cáo, công nhân..." /></div>
-                <label><span>Ngày báo cáo</span><input type="date" value={date} onChange={e => { setDate(e.target.value); setDateRange(null); }} /></label>
-                <div className="pending-quick-filters"><span>Chọn nhanh</span><button type="button" className={!dateRange ? "active" : ""} onClick={selectDay}>Hôm nay</button><button type="button" className={dateRange?.dateFrom === rangeFor(date, "week").dateFrom && dateRange?.dateTo === rangeFor(date, "week").dateTo ? "active" : ""} onClick={selectWeek}>Tuần này</button><button type="button" className={dateRange?.dateFrom === rangeFor(date, "month").dateFrom && dateRange?.dateTo === rangeFor(date, "month").dateTo ? "active" : ""} onClick={selectMonth}>Tháng này</button><button type="button" className={dateRange?.dateFrom === rangeFor(date, "year").dateFrom && dateRange?.dateTo === rangeFor(date, "year").dateTo ? "active" : ""} onClick={selectYear}>Năm này</button></div>
-                <label><span>Công đoạn</span><select value={selectedProcess} onChange={e => setSelectedProcess(e.target.value)}><option value="">Tất cả</option>{processes.map(p => <option key={p} value={p}>{p}</option>)}</select></label>
-                <label><span>Ca làm việc</span><select value={selectedShift} onChange={e => setSelectedShift(e.target.value)}><option value="">Tất cả</option>{shifts.map(s => <option key={s} value={s}>{s}</option>)}</select></label>
-            </section>
-            <section className="pending-kpis">
-                <div className="pending-kpi kpi-orange"><span>Trong ngày</span><strong>{dayCount}</strong><small>Báo cáo đã duyệt</small></div><div className="pending-kpi kpi-slate"><span>Trong tuần</span><strong>{weekCount}</strong><small>Báo cáo đã duyệt</small></div><div className="pending-kpi kpi-green"><span>Trong tháng</span><strong>{monthCount}</strong><small>Báo cáo đã duyệt</small></div><div className="pending-kpi kpi-blue"><span>Trong năm</span><strong>{yearCount}</strong><small>Báo cáo đã duyệt</small></div>
-            </section>
-            {error && <div className="management-error">{error}</div>}
-            <section className={`pending-workspace ${selectedDetail ? "detail-open" : "list-only"}`}>
-                <div className="pending-list-card">
-                    <div className="pending-list-tabs"><button className="pending-list-tab active" type="button">Danh sách báo cáo ({total})</button></div>
-                    {selectedIds.length > 0 && <div className="management-selected-info">Đã chọn {selectedIds.length} báo cáo.<button type="button" onClick={() => setSelectedIds([])}>Bỏ chọn</button></div>}
-                    <div className="pending-table-wrap" style={{ overflowX: "auto" }}>
-                        <table className="management-report-table pending-reference-table">
-                            {!loading && <thead><tr><th className="management-checkbox-column"><input type="checkbox" checked={allSelected} style={{ accentColor: "#1769d2" }} onChange={toggleAll} /></th><th>Mã báo cáo</th><th>Công nhân</th><th>Công đoạn</th><th>Ca</th><th>Thời gian</th><th>Trạng thái</th></tr></thead>}
-                            <tbody>
-                                {loading ? <tr><td colSpan={7}><div className="pending-detail-loading">Đang tải dữ liệu...</div></td></tr> : reports.length === 0 ? <tr><td colSpan={7}><div className="management-empty">Không có báo cáo đã duyệt.</div></td></tr> : reports.map((report, index) => {
-                                    const id = Number(report.id); const selected = selectedSet.has(id); const code = `PR${String(report.work_date || "REPORT").slice(0,10).replace(/-/g, "")}-${report.worker_code || String(id || index + 1).padStart(4, "0")}`;
-                                    const openRow = () => { if (!selectedDetail || Number(selectedDetail.id) !== id) void openDetail(report); };
-                                    return <tr key={id || index} className={selectedDetail?.id === report.id ? "pending-row-active" : ""} onClick={openRow} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openRow(); } }} tabIndex={0} style={{ cursor: "pointer" }}>
-                                        <td className="management-checkbox-column" onClick={e => e.stopPropagation()}><input type="checkbox" checked={selected} style={{ accentColor: "#1769d2" }} onChange={() => toggleOne(id)} /></td>
-                                        <td><strong style={{ color: "#1769d2" }}>{code}</strong></td><td><strong>{text(report.full_name, "Công nhân")}</strong><small style={{ display: "block", color: "#7185a4" }}>({text(report.worker_code)})</small></td><td>{text(report.process_name)}</td><td><span className="shift-chip">{text(report.shift)}</span></td><td><strong>{formatDate(report.work_date)}</strong><small style={{ display: "block", color: "#7185a4" }}>{timeRange(report)}</small></td><td><span className="pending-detail-status">Đã duyệt</span></td>
-                                    </tr>;
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                    <div className="pending-table-footer" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><span>Hiển thị {reports.length ? (page - 1) * 8 + 1 : 0} đến {(page - 1) * 8 + reports.length} của {total} báo cáo</span><div className="management-pagination" style={{ margin: 0 }}><button disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>‹</button><button className="active" disabled>{page}</button><button disabled={page >= pages} onClick={() => setPage(p => Math.min(pages, p + 1))}>›</button></div></div>
+        <div className="management-report-page manager-page" style={{ minWidth: 0 }}>
+            <header className="pending-page-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+                <div><h1>Quản lý báo cáo đã duyệt</h1><p>Bảng dữ liệu dạng Excel · cuộn ngang để xem đầy đủ cột · Tab để chuyển ô · sửa trực tiếp rồi lưu.</p></div>
+                <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                    <button type="button" className="pending-detail-edit" onClick={() => navigate("/manager/reports")} title="Mở danh sách báo cáo chờ duyệt để tiếp nhận báo cáo mới">＋ Thêm báo cáo</button>
+                    <button type="button" className="pending-detail-cancel" onClick={() => void loadReports()}>↻ Làm mới</button>
                 </div>
-                {selectedDetail && <aside className="pending-detail-card">
-                    <div className="pending-detail-head"><div className="pending-detail-title"><h2>Chi tiết báo cáo</h2><span className="pending-detail-status">Đã duyệt</span></div><span className="pending-detail-code">Mã báo cáo: {`PR${String(selectedDetail.work_date || "REPORT").slice(0,10).replace(/-/g, "")}-${selectedDetail.worker_code || selectedDetail.id}`}</span><button className="pending-detail-close" onClick={() => { setSelectedDetail(null); setEditing(false); }}>×</button></div>
-                    {detailLoading ? <div className="pending-detail-loading">Đang tải chi tiết...</div> : <>
-                        <div className="pending-detail-body">
-                            {!detail ? null : editing ? <section className="pending-detail-section"><h3>Chỉnh sửa báo cáo</h3><div className="pending-edit-grid"><label>Công đoạn<input value={text(editDraft?.process_name)} disabled /></label><label>Công nhân<input value={text(editDraft?.full_name)} disabled /></label><label>Ngày báo cáo<input type="date" value={String(editDraft?.work_date || "").slice(0,10)} onChange={e => updateField("work_date", e.target.value)} /></label><label>Ca làm việc<input value={text(editDraft?.shift, "")} onChange={e => updateField("shift", e.target.value)} /></label><label>Máy móc<input value={text(editDraft?.machine_no, "")} onChange={e => updateField("machine_no", e.target.value)} /></label><label>Sản phẩm<input value={text(editDraft?.product_name, "")} onChange={e => updateField("product_name", e.target.value)} /></label><label>Giờ làm<input type="number" min="0" value={editHours} onChange={e => setEditHours(e.target.value)} /></label><label>Phút làm<input type="number" min="0" max="59" value={editMinutes} onChange={e => setEditMinutes(e.target.value)} /></label><label>Sản lượng OK<input type="number" min="0" value={String(editDraft?.tt_ok ?? 0)} onChange={e => updateField("tt_ok", Number(e.target.value))} /></label><label>Sản lượng NG<input type="number" min="0" value={String(editDraft?.tt_ng ?? 0)} onChange={e => updateField("tt_ng", Number(e.target.value))} /></label><label style={{ gridColumn: "1 / -1" }}>Ghi chú<textarea value={text(editDraft?.note, "")} onChange={e => updateField("note", e.target.value)} /></label></div></section> : <>
-                                <section className="pending-detail-section"><h3>Thông tin chung</h3><div className="pending-detail-grid"><div className="pending-detail-field"><span>Công nhân</span><strong>{text(detail.full_name)} ({text(detail.worker_code)})</strong></div><div className="pending-detail-field"><span>Ngày báo cáo</span><strong>{formatDate(detail.work_date)}</strong></div><div className="pending-detail-field"><span>Công đoạn</span><strong>{text(detail.process_name)}</strong></div><div className="pending-detail-field"><span>Thời gian làm việc</span><strong>{timeRange(detail)} ({number(detail.actual_time)}h)</strong></div><div className="pending-detail-field"><span>Máy móc</span><strong>{text(detail.machine_no)}</strong></div><div className="pending-detail-field"><span>Sản phẩm</span><strong>{text(detail.product_name)}</strong></div><div className="pending-detail-field"><span>Ca làm việc</span><strong>{text(detail.shift)}</strong></div><div className="pending-detail-field"><span>Định mức</span><strong>{number(detail.standard_output)}</strong></div></div></section>
-                                <section className="pending-detail-section"><h3>Kết quả sản xuất</h3><div className="pending-result-grid"><div className="pending-result-item"><span>Sản lượng OK</span><strong>{number(ok)}</strong></div><div className="pending-result-item ng"><span>Sản lượng NG</span><strong>{number(ng)}</strong></div><div className="pending-result-item total"><span>Tổng sản lượng</span><strong>{number(totalOutput)}</strong></div><div className="pending-result-item rate"><span>Tỷ lệ OK</span><strong>{rate.toFixed(2)}%</strong></div></div></section>
-                                <section className="pending-detail-section"><h3>Thông tin chi tiết</h3><div className="pending-detail-info-grid"><div className="pending-detail-field"><span>Lý do NG</span><strong>{detail.defects?.filter(d => Number(d.quantity) > 0).map(d => `${d.defect_name} (${d.quantity})`).join(", ") || "Không có"}</strong></div><div className="pending-detail-field"><span>Ghi chú</span><strong>{text(detail.note, "Không có ghi chú")}</strong></div></div></section>
-                                <section className="pending-detail-section"><h3>Lịch sử</h3><div className="pending-history-empty">Báo cáo đã được duyệt{detail.approved_at ? ` lúc ${new Date(detail.approved_at).toLocaleString("vi-VN")}` : ""}.</div></section>
-                            </>}
-                        </div>
-                        <div className="pending-detail-actions">{editing ? <><button className="pending-detail-cancel" type="button" onClick={cancelEdit} disabled={saving}>Hủy</button><button className="pending-detail-save" type="button" onClick={() => void saveEdit()} disabled={saving}>{saving ? "Đang lưu..." : "Lưu thay đổi"}</button></> : canEdit ? <button className="pending-detail-edit" type="button" onClick={startEdit}>✎ Sửa báo cáo</button> : <span style={{ color: "#7185a4", fontSize: 10 }}>Tổ trưởng chỉ có quyền xem báo cáo đã duyệt.</span>}</div>
-                    </>}
-                </aside>}
+            </header>
+
+            <section className="pending-filter-card">
+                <div className="pending-search"><span>⌕</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Tìm mã CN, họ tên, máy, sản phẩm..." /></div>
+                <label><span>Ngày</span><input type="date" value={date} onChange={e => { setDate(e.target.value); setDateRange(null); }} /></label>
+                <label><span>Công đoạn</span><select value={process} onChange={e => setProcess(e.target.value)}><option value="">Tất cả</option>{processes.map(p => <option key={p} value={p}>{p}</option>)}</select></label>
+                <label><span>Ca</span><select value={shift} onChange={e => setShift(e.target.value)}><option value="">Tất cả</option>{shifts.map(s => <option key={s} value={s}>{s}</option>)}</select></label>
+                <div className="pending-quick-filters"><span>Chọn nhanh</span><button type="button" className={!dateRange ? "active" : ""} onClick={() => setDateRange(null)}>Hôm nay</button><button type="button" onClick={() => setDateRange(rangeFor(date, "week"))}>Tuần này</button><button type="button" onClick={() => setDateRange(rangeFor(date, "month"))}>Tháng này</button><button type="button" onClick={() => setDateRange(rangeFor(date, "year"))}>Năm này</button></div>
             </section>
-            {selectedIds.length > 0 && <div className="pending-bulk-actions"><span>Đã chọn {selectedIds.length} báo cáo</span><button className="approve" type="button" onClick={() => { const first = reports.find(r => selectedIds.includes(Number(r.id))); if (first) void openDetail(first); }}>Xem chi tiết</button></div>}
+
+            <section className="pending-kpis">
+                <div className="pending-kpi kpi-orange"><span>Trong ngày</span><strong>{counts.day}</strong><small>Báo cáo đã duyệt</small></div>
+                <div className="pending-kpi kpi-slate"><span>Trong tuần</span><strong>{counts.week}</strong><small>Báo cáo đã duyệt</small></div>
+                <div className="pending-kpi kpi-green"><span>Trong tháng</span><strong>{counts.month}</strong><small>Báo cáo đã duyệt</small></div>
+                <div className="pending-kpi kpi-blue"><span>Trong năm</span><strong>{counts.year}</strong><small>Báo cáo đã duyệt</small></div>
+            </section>
+
+            {error && <div className="management-error">{error}</div>}
+
+            <section className="pending-list-card" style={{ width: "100%", overflow: "hidden" }}>
+                <div className="pending-list-tabs" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <button className="pending-list-tab active" type="button">Danh sách báo cáo ({total})</button>
+                    <span style={{ fontSize: 12, color: "#7185a4" }}>{canEdit ? "Chế độ sửa: nhấp đúp ô hoặc nút Sửa · Tab chuyển ô · Lưu để ghi dữ liệu" : "Chỉ xem"}</span>
+                </div>
+                <div className="pending-table-wrap" style={{ overflow: "auto", maxWidth: "100%", maxHeight: "calc(100vh - 390px)", border: "1px solid #dbe3ee", background: "#fff" }}>
+                    <table className="management-report-table" style={{ borderCollapse: "separate", borderSpacing: 0, minWidth: 2050, width: "max-content" }}>
+                        <thead style={{ position: "sticky", top: 0, zIndex: 4 }}>
+                            <tr style={{ background: "#eef4fb" }}>
+                                <th style={{ ...cellStyle, position: "sticky", left: 0, zIndex: 5, background: "#eef4fb" }}>STT</th>
+                                <th style={cellStyle}>Ngày</th><th style={cellStyle}>Mã CN</th><th style={cellStyle}>Họ tên</th><th style={cellStyle}>Ca</th><th style={cellStyle}>Máy</th><th style={cellStyle}>Sản phẩm</th><th style={cellStyle}>% HV</th><th style={cellStyle}>TT giờ</th><th style={cellStyle}>Trừ giờ</th><th style={cellStyle}>Tổng giờ</th><th style={cellStyle}>Định mức/h</th><th style={cellStyle}>TT định mức</th><th style={cellStyle}>TT OK</th><th style={cellStyle}>NG</th><th style={cellStyle}>% năng suất</th><th style={cellStyle}>% đạt</th><th style={cellStyle}>% PP</th><th style={{ ...cellStyle, minWidth: 220 }}>Ghi chú</th><th style={cellStyle}>Trạng thái</th><th style={{ ...cellStyle, position: "sticky", right: 0, zIndex: 5, background: "#eef4fb" }}>Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {loading ? <tr><td colSpan={21} style={{ ...cellStyle, textAlign: "center", padding: 28 }}>Đang tải dữ liệu...</td></tr> : reports.length === 0 ? <tr><td colSpan={21} style={{ ...cellStyle, textAlign: "center", padding: 28 }}>Không có báo cáo đã duyệt trong khoảng thời gian đã chọn.</td></tr> : reports.map((report, index) => {
+                                const id = Number(report.id); const draft = drafts[id]; const row = draft || report; const isEditing = Boolean(draft); const ok = num(row.tt_ok); const ng = num(row.tt_ng); const output = Math.max(0, num(row.actual_output) || ok + ng); const target = Math.max(0, num(row.target_output) || num(row.standard_output) * num(row.actual_time)); const productivity = target > 0 ? output / target * 100 : num((row as any).efficiency_percent); const achieved = output > 0 ? ok / output * 100 : 0; const pp = num((row as any).pp_percent ?? (row as any).ppg_percent);
+                                return (
+                                    <tr key={id || index} onDoubleClick={() => beginEdit(report)} style={{ background: index % 2 ? "#fbfdff" : "#fff" }}>
+                                        <td style={{ ...cellStyle, position: "sticky", left: 0, zIndex: 2, background: index % 2 ? "#fbfdff" : "#fff", textAlign: "center", fontWeight: 600 }}>{(page - 1) * 20 + index + 1}</td>
+                                        <td style={readonlyStyle}>{isEditing ? <input type="date" value={String(row.work_date || "").slice(0,10)} onChange={e => updateDraft(id, "work_date", e.target.value)} style={inputStyle} /> : formatDate(row.work_date)}</td>
+                                        <td style={{ ...readonlyStyle, fontWeight: 600 }}>{report.worker_code || "---"}</td>
+                                        <td style={readonlyStyle}>{text(report.full_name)}</td>
+                                        <td style={readonlyStyle}>{text(row.shift)}</td>
+                                        <td style={readonlyStyle}>{isEditing ? <input value={text(row.machine_no, "")} onChange={e => updateDraft(id, "machine_no", e.target.value)} style={{ ...inputStyle, width: 90 }} /> : text(row.machine_no)}</td>
+                                        <td style={{ ...readonlyStyle, minWidth: 150 }}>{isEditing ? <input value={text(row.product_name, "")} onChange={e => updateDraft(id, "product_name", e.target.value)} style={{ ...inputStyle, width: 145 }} /> : text(row.product_name)}</td>
+                                        <td style={readonlyStyle}>{number(row.training_percent)}%</td>
+                                        <td style={readonlyStyle}>{isEditing ? renderEditableNumber(row, "actual_time", 70) : number(row.actual_time)}</td>
+                                        <td style={readonlyStyle}>{isEditing ? renderEditableNumber(row, "deduction_time", 70) : number(row.deduction_time)}</td>
+                                        <td style={{ ...readonlyStyle, fontWeight: 600 }}>{number(num(row.actual_time) + num(row.deduction_time))}</td>
+                                        <td style={readonlyStyle}>{number(row.standard_output)}</td>
+                                        <td style={readonlyStyle}>{number(target)}</td>
+                                        <td style={readonlyStyle}>{isEditing ? renderEditableNumber(row, "tt_ok", 76) : number(ok)}</td>
+                                        <td style={readonlyStyle}>{isEditing ? renderEditableNumber(row, "tt_ng", 76) : number(ng)}</td>
+                                        <td style={{ ...readonlyStyle, fontWeight: 600 }}>{number(productivity)}%</td>
+                                        <td style={{ ...readonlyStyle, fontWeight: 600 }}>{number(achieved)}%</td>
+                                        <td style={readonlyStyle}>{pp ? `${number(pp)}%` : "---"}</td>
+                                        <td style={{ ...readonlyStyle, minWidth: 220 }}>{isEditing ? <input value={text(row.note, "")} onChange={e => updateDraft(id, "note", e.target.value)} style={{ ...inputStyle, minWidth: 210 }} /> : text(row.note, "")}</td>
+                                        <td style={readonlyStyle}><span className="pending-detail-status">Đã duyệt</span></td>
+                                        <td style={{ ...cellStyle, position: "sticky", right: 0, zIndex: 2, background: index % 2 ? "#fbfdff" : "#fff" }} onClick={e => e.stopPropagation()}>
+                                            {isEditing ? <div style={{ display: "flex", gap: 5 }}><button type="button" className="pending-detail-save" disabled={savingId === id} onClick={() => void saveRow(id)}>{savingId === id ? "Lưu..." : "Lưu"}</button><button type="button" className="pending-detail-cancel" disabled={savingId === id} onClick={() => cancelRow(id)}>Hủy</button></div> : <div style={{ display: "flex", gap: 5 }}><button type="button" className="pending-detail-edit" onClick={() => beginEdit(report)}>Sửa</button><button type="button" className="pending-detail-cancel" onClick={() => void openDetail(report)}>Xem</button></div>}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+                <div className="pending-table-footer" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span>Hiển thị {reports.length ? (page - 1) * 20 + 1 : 0} đến {(page - 1) * 20 + reports.length} của {total} báo cáo</span>
+                    <div className="management-pagination" style={{ margin: 0 }}><button disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>‹</button><button className="active" disabled>{page} / {pages}</button><button disabled={page >= pages} onClick={() => setPage(p => Math.min(pages, p + 1))}>›</button></div>
+                </div>
+            </section>
+
+            {selectedDetail && <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.35)", zIndex: 50, display: "flex", justifyContent: "flex-end" }} onClick={() => setSelectedDetail(null)}>
+                <aside style={{ width: "min(560px, 92vw)", height: "100%", background: "#fff", overflow: "auto", padding: 24, boxShadow: "-10px 0 30px rgba(15,23,42,.15)" }} onClick={e => e.stopPropagation()}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}><div><h2 style={{ margin: 0 }}>Chi tiết báo cáo</h2><span style={{ color: "#1769d2", fontSize: 13 }}>{reportCode(selectedDetail)}</span></div><button type="button" onClick={() => setSelectedDetail(null)} style={{ border: 0, background: "transparent", fontSize: 28, cursor: "pointer" }}>×</button></div>
+                    {detailLoading ? <div>Đang tải chi tiết...</div> : <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                        {[['Công nhân', `${text(selectedDetail.full_name)} (${text(selectedDetail.worker_code)})`], ['Ngày', formatDate(selectedDetail.work_date)], ['Công đoạn', text(selectedDetail.process_name)], ['Ca', text(selectedDetail.shift)], ['Máy', text(selectedDetail.machine_no)], ['Sản phẩm', text(selectedDetail.product_name)], ['TT giờ', `${number(selectedDetail.actual_time)}h`], ['Trừ giờ', `${number(selectedDetail.deduction_time)}h`], ['Tổng giờ', `${number(selectedDetail.total_time)}h`], ['Định mức/h', number(selectedDetail.standard_output)], ['TT OK', number(selectedDetail.tt_ok)], ['NG', number(selectedDetail.tt_ng)], ['Tổng sản lượng', number(selectedDetail.actual_output)], ['% HV', `${number(selectedDetail.training_percent)}%`]].map(([label, value]) => <div key={label} style={{ padding: 12, background: "#f7f9fc", borderRadius: 8 }}><div style={{ color: "#7185a4", fontSize: 12 }}>{label}</div><strong>{value}</strong></div>)}
+                        <div style={{ gridColumn: "1 / -1", padding: 12, background: "#f7f9fc", borderRadius: 8 }}><div style={{ color: "#7185a4", fontSize: 12 }}>Ghi chú</div><strong>{text(selectedDetail.note, "Không có")}</strong></div>
+                    </div>}
+                </aside>
+            </div>}
         </div>
     );
 }
