@@ -1,0 +1,70 @@
+name: Enhance manager Excel UX
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch Excel-like UX
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p=Path('frontend/src/pages/manager/ManagerReportGrid.tsx')
+          s=p.read_text(encoding='utf-8')
+
+          old='const cancel=(id:number)=>{setEditing(null);setSelectedId(null);setDirty(false);setDrafts(p=>{const x={...p};delete x[id];return x})};const requestLeave='
+          new='''const cancel=(id:number)=>{setEditing(null);setSelectedId(null);setDirty(false);setDrafts(p=>{const x={...p};delete x[id];return x})};const excelKey=(id:number)=>(e:React.KeyboardEvent<HTMLInputElement>)=>{if(e.key==='Escape'){e.preventDefault();cancel(id);return}if(e.key==='Enter'||(e.ctrlKey&&e.key.toLowerCase()==='s')){e.preventDefault();const r=rows.find(x=>Number(x.id)===id);if(r)void save(r)}};const requestLeave='''
+          if old not in s: raise SystemExit('cancel anchor missing')
+          s=s.replace(old,new,1)
+
+          old='const input=(id:number,k:keyof ProductionReport,v:unknown,type="text")=><input className="manager-excel-cell-input" type={type} min={type==="number"?0:undefined} step={type==="number"?"0.01":undefined} value={v==null?"":typeof v==="string"||typeof v==="number"?v:String(v)} onChange={e=>field(id,k,type==="number"?n(e.target.value):e.target.value)} onClick={e=>e.stopPropagation()}/>;'
+          new='''const unique=(xs:string[])=>Array.from(new Set(xs.map(x=>x.trim()).filter(Boolean))).slice(0,80);const shiftHints=unique(rows.map(x=>String(x.shift||''))),machineHints=unique(rows.map(x=>String(x.machine_no||''))),productHints=unique(rows.map(x=>String(x.product_name||'')));const hintFor=(k:keyof ProductionReport)=>k==='shift'?'Nhập ca, ví dụ: Ca 1':k==='machine_no'?'Gõ mã máy để chọn gợi ý':k==='product_name'?'Gõ tên/mã sản phẩm để chọn gợi ý':k==='actual_time'?'Nhập TT giờ (0–12h)':k==='actual_output'?'Nhập tổng sản lượng TT':k==='tt_ok'?'Nhập số lượng OK':k==='note'?'Nhập ghi chú nếu có':'Nhập dữ liệu';const listFor=(k:keyof ProductionReport)=>k==='shift'?'manager-shift-hints':k==='machine_no'?'manager-machine-hints':k==='product_name'?'manager-product-hints':undefined;const input=(id:number,k:keyof ProductionReport,v:unknown,type="text")=><input className="manager-excel-cell-input" type={type} min={type==="number"?0:undefined} max={k==='actual_time'?12:undefined} step={type==="number"?"0.01":undefined} value={v==null?"":typeof v==="string"||typeof v==="number"?v:String(v)} placeholder={hintFor(k)} title={hintFor(k)} list={listFor(k)} aria-label={hintFor(k)} onChange={e=>field(id,k,type==="number"?n(e.target.value):e.target.value)} onKeyDown={excelKey(id)} onClick={e=>e.stopPropagation()}/>;'''
+          if old not in s: raise SystemExit('input anchor missing')
+          s=s.replace(old,new,1)
+
+          old='<div className="manager-excel-toolbar"><button type="button" onClick={toolbarAdd} disabled={saving}>＋ Thêm</button><button type="button" onClick={toolbarEdit} disabled={saving||editing!==null}>Sửa</button><button type="button" className="primary" onClick={()=>void toolbarSave()} disabled={saving||editing===null||!dirty}>{saving?"Đang lưu...":"Lưu"}</button><button type="button" onClick={toolbarCancel} disabled={saving||editing===null}>Hủy</button><button type="button" className="danger" onClick={()=>void toolbarDelete()} disabled={saving||selectedId===null}>Xóa</button><button type="button" onClick={()=>requestLeave(()=>void load())} disabled={loading||saving}>↻ Làm mới</button></div></header>'
+          new='''<div className="manager-excel-toolbar" role="toolbar" aria-label="Thanh công cụ quản lý báo cáo"><button type="button" className="tool-add" title="Thêm báo cáo mới" aria-label="Thêm báo cáo mới" onClick={toolbarAdd} disabled={saving}>＋ <span>Thêm</span></button><button type="button" className="tool-edit" title="Chọn một dòng rồi sửa" aria-label="Sửa báo cáo đã chọn" onClick={toolbarEdit} disabled={saving||editing!==null}>✎ <span>Sửa</span></button><button type="button" className="tool-save primary" title="Lưu thay đổi · Enter hoặc Ctrl+S" aria-label="Lưu thay đổi" onClick={()=>void toolbarSave()} disabled={saving||editing===null||!dirty}>{saving?'⏳ Đang lưu...':'✓ Lưu'}</button><button type="button" className="tool-cancel" title="Hủy thay đổi · Esc" aria-label="Hủy thay đổi" onClick={toolbarCancel} disabled={saving||editing===null}>↶ <span>Hủy</span></button><button type="button" className="tool-delete danger" title="Xóa báo cáo đã chọn" aria-label="Xóa báo cáo đã chọn" onClick={()=>void toolbarDelete()} disabled={saving||selectedId===null}>🗑 <span>Xóa</span></button><button type="button" className="tool-refresh" title="Tải lại dữ liệu" aria-label="Tải lại dữ liệu" onClick={()=>requestLeave(()=>void load())} disabled={loading||saving}>↻ <span>Làm mới</span></button></div><div className="manager-excel-help"><span><b>Cách dùng:</b> chọn dòng → <b>Sửa</b> → nhập trực tiếp như Excel.</span><span><kbd>Tab</kbd> ô tiếp theo · <kbd>Enter</kbd> lưu · <kbd>Esc</kbd> hủy · <kbd>Ctrl+S</kbd> lưu nhanh.</span></div></header><datalist id="manager-shift-hints">{shiftHints.map(x=><option key={x} value={x}/>)}</datalist><datalist id="manager-machine-hints">{machineHints.map(x=><option key={x} value={x}/>)}</datalist><datalist id="manager-product-hints">{productHints.map(x=><option key={x} value={x}/>)}</datalist>'''
+          if old not in s: raise SystemExit('toolbar anchor missing')
+          s=s.replace(old,new,1)
+
+          s=s.replace('className={is?"editing":""} onClick={()=>selectRow(original)}','className={`${is?"editing":""}${selectedId===id?" selected":""}`} onClick={()=>selectRow(original)}',1)
+
+          old='<input className="manager-excel-cell-input" type="number" min="0" step="0.01" value={n(findDeduction(r,o)?.hours)} onChange={e=>setDrafts(p=>({...p,[id]:{...p[id],deductions:putDeduction(p[id],o,n(e.target.value))}}))} onClick={e=>e.stopPropagation()}/>'
+          new='<input className="manager-excel-cell-input" type="number" min="0" max="12" step="0.01" value={n(findDeduction(r,o)?.hours)} placeholder="0" title={`Nhập ${o.label} (giờ)`} aria-label={`Nhập ${o.label} (giờ)`} onChange={e=>{setDirty(true);setDrafts(p=>({...p,[id]:{...p[id],deductions:putDeduction(p[id],o,n(e.target.value))}}))}} onKeyDown={excelKey(id)} onClick={e=>e.stopPropagation()}/>'
+          if old in s: s=s.replace(old,new,1)
+
+          old='<input className="manager-excel-cell-input" type="number" min="0" step="1" value={n(findDefect(r,o)?.quantity)} onChange={e=>setDrafts(p=>({...p,[id]:{...p[id],defects:putDefect(p[id],o,n(e.target.value))}}))} onClick={e=>e.stopPropagation()}/>'
+          new='<input className="manager-excel-cell-input" type="number" min="0" step="1" value={n(findDefect(r,o)?.quantity)} placeholder="0" title={`Nhập ${o.label} (SL)`} aria-label={`Nhập ${o.label} (SL)`} onChange={e=>{setDirty(true);setDrafts(p=>({...p,[id]:{...p[id],defects:putDefect(p[id],o,n(e.target.value))}}))}} onKeyDown={excelKey(id)} onClick={e=>e.stopPropagation()}/>'
+          if old in s: s=s.replace(old,new,1)
+
+          p.write_text(s,encoding='utf-8')
+
+          css=Path('frontend/src/pages/manager/ManagerExcelReports.css')
+          c=css.read_text(encoding='utf-8')
+          c += '''\n/* Excel-like manager toolbar and guided entry */\n.manager-excel-head{align-items:flex-start}.manager-excel-toolbar{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}.manager-excel-toolbar button{height:36px;min-width:88px;border:1px solid #cbd5e1;background:#fff;color:#24324a;border-radius:7px;padding:0 12px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 1px 1px rgba(15,23,42,.04);transition:background .12s,border-color .12s,box-shadow .12s,transform .05s}.manager-excel-toolbar button:hover:not(:disabled){box-shadow:0 2px 7px rgba(15,23,42,.10);border-color:#94a3b8}.manager-excel-toolbar button:active:not(:disabled){transform:translateY(1px)}.manager-excel-toolbar button:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}.manager-excel-toolbar .tool-add{color:#155eef;border-color:#b8cff8}.manager-excel-toolbar .tool-edit{color:#155eef;background:#eef5ff;border-color:#b9d0fa}.manager-excel-toolbar .tool-save{background:#16803c!important;color:#fff!important;border-color:#16803c!important;min-width:82px}.manager-excel-toolbar .tool-cancel{color:#475569}.manager-excel-toolbar .tool-delete{color:#b42318;background:#fff7f6;border-color:#f1b5ae}.manager-excel-toolbar .tool-refresh{color:#334155}.manager-excel-help{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:-4px 0 12px;padding:8px 11px;border:1px solid #dbe5f1;border-radius:7px;background:#f8fbff;color:#5b6b83;font-size:12px}.manager-excel-help kbd{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:21px;margin:0 2px;padding:0 5px;border:1px solid #cbd5e1;border-bottom-width:2px;border-radius:4px;background:#fff;color:#334155;font-family:inherit;font-size:11px;font-weight:700}.manager-excel-cell-input{background:#fffef7!important;border-color:#9fb8dc!important;box-shadow:inset 0 0 0 1px rgba(37,99,235,.04)}.manager-excel-cell-input:focus{outline:2px solid #2f80ed!important;outline-offset:-1px;background:#fff!important;box-shadow:0 0 0 2px rgba(47,128,237,.14)!important}.manager-excel-cell-input::placeholder{color:#94a3b8;font-size:10px}.manager-excel-table tbody tr.selected td{background:#eaf2ff}.manager-excel-table tbody tr.selected td.sticky{background:#eaf2ff}.manager-excel-table tbody tr.editing td{background:#fffaf0}.manager-excel-table tbody tr.editing td.sticky{background:#fffaf0}.manager-excel-table td.editable-cell{background:#f8fbff}.manager-excel-table td.calculated-cell{background:#f6f8fb;color:#334155;font-weight:600}.manager-excel-table .invalid-cell{background:#fff0f0!important;color:#b42318!important;font-weight:800}.manager-excel-table td .manager-excel-cell-input{width:100%;min-width:64px;box-sizing:border-box;height:28px;padding:0 5px}.manager-excel-table td.wide .manager-excel-cell-input{min-width:170px}.manager-excel-table td:last-child{padding:4px 8px}.manager-excel-table td:last-child button{border:1px solid #cbd5e1;background:#fff;border-radius:5px;padding:5px 8px;margin-right:4px;font-size:11px;font-weight:700;cursor:pointer}.manager-excel-table td:last-child button:first-child{background:#16803c;color:#fff;border-color:#16803c}.manager-excel-table td:last-child button:disabled{opacity:.5;cursor:not-allowed}\n'''
+          css.write_text(c,encoding='utf-8')
+          PY
+
+      - name: Verify and commit
+        shell: bash
+        run: |
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/src/pages/manager/ManagerReportGrid.tsx frontend/src/pages/manager/ManagerExcelReports.css
+          git commit -m "feat: improve manager report Excel editing UX"
+          git push
+          rm -f .github/workflows/enhance-manager-excel-ux.yml
+          git add .github/workflows/enhance-manager-excel-ux.yml
+          git commit -m "chore: remove one-time Excel UX workflow"
+          git push
