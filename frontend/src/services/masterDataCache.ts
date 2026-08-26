@@ -38,24 +38,21 @@ async function withOfflineSnapshot<T>(name: string, loader: () => Promise<T>): P
 }
 
 /**
- * The manager Excel grid uses native <datalist> inputs. Keep those hints
- * independent from the currently loaded report page: suggestions must come
- * from master data for the selected process, not only from the 20 visible
- * reports. This is intentionally best-effort and never affects report data.
+ * Manager Excel suggestions must come from master data for the selected
+ * process, not only from the currently visible/paginated reports.
  */
 function syncManagerMasterDataHints(machines: MachineOption[], products: ProductStandardOption[]): void {
   if (typeof document === "undefined") return;
 
   const machineList = document.getElementById("manager-machine-hints");
   if (machineList) {
+    machineList.replaceChildren();
     const values = Array.from(new Set(
       machines
         .map((item) => String(item?.machine_code || "").trim())
         .filter(Boolean),
     ));
-    const existing = new Set(Array.from(machineList.querySelectorAll("option")).map((item) => item.value.trim()));
     for (const value of values) {
-      if (existing.has(value)) continue;
       const option = document.createElement("option");
       option.value = value;
       machineList.appendChild(option);
@@ -64,14 +61,13 @@ function syncManagerMasterDataHints(machines: MachineOption[], products: Product
 
   const productList = document.getElementById("manager-product-hints");
   if (productList) {
+    productList.replaceChildren();
     const values = Array.from(new Set(
       products
         .map((item) => String(item?.product_code || "").trim())
         .filter(Boolean),
     ));
-    const existing = new Set(Array.from(productList.querySelectorAll("option")).map((item) => item.value.trim()));
     for (const value of values) {
-      if (existing.has(value)) continue;
       const option = document.createElement("option");
       option.value = value;
       productList.appendChild(option);
@@ -113,7 +109,7 @@ export const getCachedDefects = (processId: number): Promise<DefectOptions> =>
     epochKey(`defects:${processId}`),
     TTL_MS,
     () => withOfflineSnapshot(`defects:${processId}`, () => getDefectOptionsByProcess(processId)),
-  ).then(async (value) => {
+  ).then((value) => {
     void syncManagerHintsForProcess(processId);
     return value;
   });
