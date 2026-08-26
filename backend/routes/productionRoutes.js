@@ -6,6 +6,7 @@ const checkRole = require("../middleware/roleMiddleware");
 const permission = require("../middleware/permissionMiddleware");
 const { expensiveUserLimiter } = require("../middleware/rateLimiters");
 const notifyWorkerOnApprovedEdit = require("../middleware/notifyWorkerOnApprovedEdit");
+const approvedReportEditLock = require("../middleware/approvedReportEditLock");
 const { restoreApprovedReportVersion } = require("../services/approvedReportEditService");
 const { publicMessage } = require("../utils/httpError");
 
@@ -87,6 +88,7 @@ router.put(
   verifyToken,
   checkRole("admin","manager","lead"),
   ensureApprovedEditReason,
+  approvedReportEditLock,
   notifyWorkerOnApprovedEdit,
   updateReport
 );
