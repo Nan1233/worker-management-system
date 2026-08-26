@@ -139,6 +139,7 @@ module.exports = {
                  JOIN processes p ON pr.process_id = p.id
                  WHERE ${where}`, params),
             query(db, `SELECT pr.id, pr.work_date, pr.shift, pr.machine_no, pr.product_name,
+                        pr.training_percent_snapshot AS training_percent,
                         w.worker_code, u.full_name, p.process_name
                  FROM production_reports pr
                  JOIN workers w ON pr.worker_id = w.id
