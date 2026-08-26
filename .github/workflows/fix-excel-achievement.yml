@@ -1,0 +1,90 @@
+name: Fix Excel achievement formula
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch consolidated Excel formula
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('backend/services/consolidatedExcelExportService.js')
+          text = path.read_text(encoding='utf-8')
+
+          old = '''  const standard = machineMetrics?.machine_count > 0
+    ? 0
+    : toNumber(report.standard_output);
+
+  const actualTime =
+    toNumber(
+      report.actual_time
+    );
+
+  const outputPerHour =
+    actualTime > 0
+      ? totalOutput / actualTime
+      : 0;
+
+  const achievementRate = machineMetrics?.machine_count > 0
+    ? (Number(machineMetrics.maximum_output || 0) > 0 ? Number(machineMetrics.counted_output || 0) / Number(machineMetrics.maximum_output) : 0)
+    : (standard > 0 ? outputPerHour / standard : 0);
+'''
+
+          new = '''  // Định mức trong Excel là định mức theo tổng thời gian thực tế:
+  // Định mức = Định mức SP/giờ × số giờ thực tế.
+  const standardPerHour = machineMetrics?.machine_count > 0
+    ? 0
+    : toNumber(report.standard_output);
+
+  const actualTime =
+    toNumber(
+      report.actual_time
+    );
+
+  const standard = standardPerHour > 0 && actualTime > 0
+    ? standardPerHour * actualTime
+    : 0;
+
+  const outputPerHour =
+    actualTime > 0
+      ? totalOutput / actualTime
+      : 0;
+
+  // % thực tích = Thực tích / Định mức × % học việc.
+  // Đây là chỉ số được xuất ở cột "Tỷ lệ đạt" trong mẫu Excel.
+  const achievementRate = machineMetrics?.machine_count > 0
+    ? (Number(machineMetrics.maximum_output || 0) > 0
+      ? Number(machineMetrics.counted_output || 0) / Number(machineMetrics.maximum_output)
+      : 0)
+    : (standard > 0 ? (totalOutput / standard) * trainingFactor(report.training_percent) : 0);
+'''
+
+          if old not in text:
+              raise SystemExit('Target Excel formula block not found; aborting without changes')
+          text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/services/consolidatedExcelExportService.js
+          git diff --cached --quiet || git commit -m "fix: correct Excel achievement rate and standard output"
+          rm -f .github/workflows/fix-excel-achievement.yml
+          git add .github/workflows/fix-excel-achievement.yml
+          git commit -m "chore: remove temporary Excel fix workflow"
+          git push origin HEAD:main
