@@ -158,7 +158,12 @@ router.post(
 // =====================================
 // UPDATE
 // =====================================
-
+// Manager/Admin đã được giới hạn bởi roleMiddleware ở đây và bởi
+// assertProcessScope() + business validation trong updateApprovedReport().
+// Không đặt permissionMiddleware ở route này nữa vì quyền sửa báo cáo đã duyệt
+// là quyền nghiệp vụ bắt buộc của Manager; permission override không được phép
+// biến một Manager đang phụ trách công đoạn thành trạng thái "được sửa UI nhưng
+// luôn bị 403 khi lưu".
 router.put(
 
     "/:id",
@@ -166,7 +171,6 @@ router.put(
     verifyToken,
 
     checkRole("admin", "manager"),
-    permission("REPORT_APPROVED_EDIT"),
     notifyWorkerOnApprovedEdit,
 
     updateReport
