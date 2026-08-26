@@ -87,9 +87,33 @@ const validateMasterData = async ({
 
     if (!assignments.length) errors.process_id = "Công nhân chưa được phân công công đoạn này";
 
+    // Legacy approved reports may legitimately have no machine value because
+    // machine master-data enforcement was introduced after those reports were
+    // created. Do not block an edit to such an existing approved report merely
+    // because the old row has machine_no = NULL/empty. New reports still require
+    // a machine unless the caller explicitly sets allowEmptyMachine.
+    let legacyApprovedWithoutMachine = false;
+    if (!normalizedMachineNo && !allowEmptyMachine && Number(workerId) > 0 && Number(processId) > 0 && workDate && normalizedProductName) {
+        const legacyRows = await query(
+            `SELECT id
+               FROM production_reports
+              WHERE worker_id = ?
+                AND process_id = ?
+                AND work_date = ?
+                AND product_name = ?
+                AND status = 'approved'
+                AND (machine_no IS NULL OR TRIM(machine_no) = '')
+              LIMIT 1`,
+            [workerId, processId, String(workDate).slice(0, 10), normalizedProductName]
+        );
+        legacyApprovedWithoutMachine = legacyRows.length > 0;
+    }
+
     let machineCode = null;
     if (!normalizedMachineNo) {
-        if (!allowEmptyMachine) errors.machine_no = "Vui lòng chọn máy trong danh mục";
+        if (!allowEmptyMachine && !legacyApprovedWithoutMachine) {
+            errors.machine_no = "Vui lòng chọn máy trong danh mục";
+        }
     } else if (!machines.length) {
         errors.machine_no = "Máy không tồn tại hoặc không thuộc công đoạn đã chọn";
     } else {
@@ -130,7 +154,7 @@ const validateMasterData = async ({
             isAutomatic: machines[0]?.is_automatic || 0,
             operationMode: normalizedOperationMode
         });
-        if (encodedScopeError) errors.product_name = encodedScopeError;
+        if (encodedScopeError && !legacyApprovedWithoutMachine) errors.product_name = encodedScopeError;
 
         if (ttOk !== undefined && actualOutput !== undefined) {
             const { calculateActualOutput } = require("../utils/outputCalculation");
