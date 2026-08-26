@@ -6,19 +6,43 @@ const verifyToken=require('../middleware/authMiddleware');
 const checkRole=require('../middleware/roleMiddleware');
 const permission=require('../middleware/permissionMiddleware');
 router.use(verifyToken,checkRole('admin','manager','lead'));
+
+const MANAGER_MASTER_RESOURCES=['machines','standards','deductions'];
+const SUPPORTING_READ_RESOURCES=['processes'];
+
 const managerResourceScope=(req,res,next)=>{
-  if(req.user?.role==='manager'&&!['machines','standards','deductions'].includes(String(req.params.resource||''))){
-    return res.status(403).json({success:false,code:'MASTER_RESOURCE_FORBIDDEN',message:'Quản lý chỉ được quản lý Máy móc, Sản phẩm và Trừ giờ; Nhân sự được quản lý tại màn hình Nhân sự theo công đoạn phụ trách'});
+  const resource=String(req.params.resource||'');
+  const role=req.user?.role;
+
+  // Manager/Lead đang dùng giao diện Manager cần đọc danh mục công đoạn
+  // để các màn hình Máy móc/Sản phẩm/Trừ giờ nạp bộ lọc và dữ liệu liên quan.
+  // Đây chỉ là quyền READ hỗ trợ, không mở quyền tạo/sửa/xóa.
+  if((role==='manager'||role==='lead')&&req.method==='GET'&&SUPPORTING_READ_RESOURCES.includes(resource)){
+    return next();
+  }
+
+  if(role==='manager'&&!MANAGER_MASTER_RESOURCES.includes(resource)){
+    return res.status(403).json({
+      success:false,
+      code:'MASTER_RESOURCE_FORBIDDEN',
+      message:'Quản lý chỉ được quản lý Máy móc, Sản phẩm và Trừ giờ; Nhân sự được quản lý tại màn hình Nhân sự theo công đoạn phụ trách'
+    });
   }
   return next();
 };
-// Lead đang tạm sử dụng giao diện Manager. Trong thời gian này, Lead phải truy cập
-// được 3 master resource mà Manager được phép xem, kể cả khi quyền Lead có override.
+
+// Lead đang tạm sử dụng giao diện Manager. Trong thời gian này, Lead được
+// đọc 3 master resource của Manager, kể cả khi quyền Lead có override.
+// Quyền ghi vẫn phải qua MASTER_EDIT như bình thường.
 const temporaryLeadManagerMasterView=(req,res,next)=>{
   const resource=String(req.params.resource||'');
-  if(req.user?.role==='lead'&&req.method==='GET'&&['machines','standards','deductions'].includes(resource)) return next();
+  if(req.user?.role==='lead'&&req.method==='GET'&&[
+    ...MANAGER_MASTER_RESOURCES,
+    ...SUPPORTING_READ_RESOURCES
+  ].includes(resource)) return next();
   return permission('MASTER_VIEW')(req,res,next);
 };
+
 router.get('/transfer/export/:resource',permission('MASTER_VIEW'),managerResourceScope,transferController.export);
 router.post('/transfer/import/:resource',permission('MASTER_EDIT'),managerResourceScope,transferController.import);
 router.get('/:resource',temporaryLeadManagerMasterView,managerResourceScope,controller.list);
