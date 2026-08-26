@@ -4,7 +4,7 @@
   "description": "KTC internal production reporting API optimized for Render and TiDB",
   "main": "server.js",
   "scripts": {
-    "start": "node --expose-gc server.js",
+    "start": "node --require ./scripts/approvedReportConcurrencyPatch.cjs --expose-gc server.js",
     "worker": "node worker.js",
     "dev": "nodemon server.js",
     "check": "node --check server.js && node scripts/checkSource.js",
