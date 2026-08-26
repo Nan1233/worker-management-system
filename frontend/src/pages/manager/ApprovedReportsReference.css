@@ -68,7 +68,6 @@
 }
 .pending-reference-page aside[style*="width:430px"]>div:first-child button:hover{background:#f3f7fb!important;color:#17365f!important}
 
-/* Mã báo cáo đang là span thứ hai trong header. */
 .pending-reference-page aside[style*="width:430px"]>div:first-child>span{
   margin-left:auto!important;
   color:#7185a4!important;
@@ -109,79 +108,30 @@
   align-items:baseline!important;
   font-size:13px!important;
 }
-.pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="grid-template-columns"]>div>div{
-  color:#7185a4!important;
-  margin:0!important;
-}
-.pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="grid-template-columns"]>div>strong{
-  color:#29466f!important;
-  font-weight:650!important;
-  min-width:0!important;
-  word-break:break-word!important;
-}
+.pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="grid-template-columns"]>div>div{color:#7185a4!important;margin:0!important}
+.pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="grid-template-columns"]>div>strong{color:#29466f!important;font-weight:650!important;min-width:0!important;word-break:break-word!important}
 
-.pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="repeat(4,1fr)"]{
-  display:grid!important;
-  grid-template-columns:repeat(4,1fr)!important;
-  border:1px solid #dfe7f1!important;
-  border-radius:9px!important;
-  overflow:hidden!important;
-}
-.pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="repeat(4,1fr)"]>div{
-  min-height:72px!important;
-  display:grid!important;
-  place-items:center!important;
-  align-content:center!important;
-  gap:6px!important;
-  border-right:1px solid #dfe7f1!important;
-  text-align:center!important;
-  padding:8px 7px!important;
-  box-sizing:border-box!important;
-}
+.pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="repeat(4,1fr)"]{display:grid!important;grid-template-columns:repeat(4,1fr)!important;border:1px solid #dfe7f1!important;border-radius:9px!important;overflow:hidden!important}
+.pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="repeat(4,1fr)"]>div{min-height:72px!important;display:grid!important;place-items:center!important;align-content:center!important;gap:6px!important;border-right:1px solid #dfe7f1!important;text-align:center!important;padding:8px 7px!important;box-sizing:border-box!important}
 .pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="repeat(4,1fr)"]>div:last-child{border-right:0!important}
-.pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="repeat(4,1fr)"]>div>div{
-  font-size:13px!important;
-  color:#7185a4!important;
-}
-.pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="repeat(4,1fr)"] strong{
-  display:block!important;
-  margin:0!important;
-  font-size:18px!important;
-  font-weight:800!important;
-}
+.pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="repeat(4,1fr)"]>div>div{font-size:13px!important;color:#7185a4!important}
+.pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="repeat(4,1fr)"] strong{display:block!important;margin:0!important;font-size:18px!important;font-weight:800!important}
 .pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="repeat(4,1fr)"]>div:nth-child(1) strong{color:#16895f!important}
 .pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="repeat(4,1fr)"]>div:nth-child(2) strong{color:#e34a55!important}
 .pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="repeat(4,1fr)"]>div:nth-child(3) strong{color:#29466f!important}
 .pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="repeat(4,1fr)"]>div:nth-child(4) strong{color:#1769d2!important}
 
-.pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="flex-wrap:wrap"]{
-  display:flex!important;
-  flex-wrap:wrap!important;
-  gap:6px!important;
-  margin-top:8px!important;
-}
-.pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="flex-wrap:wrap"]>span{
-  display:inline-flex!important;
-  align-items:center!important;
-  min-height:26px!important;
-  box-sizing:border-box!important;
-  padding:5px 8px!important;
-  border-radius:7px!important;
-  background:#fff1f2!important;
-  color:#c63e4a!important;
-  font-size:13px!important;
-  font-weight:700!important;
-}
+.pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="flex-wrap:wrap"]{display:flex!important;flex-wrap:wrap!important;gap:6px!important;margin-top:8px!important}
+.pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="flex-wrap:wrap"]>span{display:inline-flex!important;align-items:center!important;min-height:26px!important;box-sizing:border-box!important;padding:5px 8px!important;border-radius:7px!important;background:#fff1f2!important;color:#c63e4a!important;font-size:13px!important;font-weight:700!important}
+.pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="color:#7890ad"]{min-height:58px!important;display:grid!important;place-items:center!important;border:1px dashed #c9d8e9!important;border-radius:8px!important;color:#8092ab!important;font-size:13px!important}
 
-.pending-reference-page aside[style*="width:430px"]>div:nth-child(2)>div[style*="color:#7890ad"]{
-  min-height:58px!important;
-  display:grid!important;
-  place-items:center!important;
-  border:1px dashed #c9d8e9!important;
-  border-radius:8px!important;
-  color:#8092ab!important;
-  font-size:13px!important;
-}
+/* Danh sách rỗng của Đã duyệt phải giống hệt trạng thái rỗng của Chờ duyệt:
+   không hiện header cột, không có khung nét đứt và giữ một vùng trắng cao, sạch. */
+table:has(tbody td[colspan="13"]) thead{display:none!important}
+table:has(tbody td[colspan="13"]){min-width:100%!important;width:100%!important}
+table:has(tbody td[colspan="13"]) tbody tr{height:180px!important;background:#fff!important}
+table:has(tbody td[colspan="13"]) tbody td{height:180px!important;padding:0 16px!important;border:0!important;background:#fff!important;color:#7890ad!important;text-align:center!important;vertical-align:middle!important;font-size:13px!important}
+table:has(tbody td[colspan="13"]) tbody td::before{content:"";display:inline-block;width:7px;height:7px;margin:0 0 11px 0;border-radius:50%;background:#9bc8f5;vertical-align:middle}
 
 @media(max-width:1280px){
   .pending-reference-page aside[style*="width:430px"]{width:100%!important;flex-basis:auto!important}
