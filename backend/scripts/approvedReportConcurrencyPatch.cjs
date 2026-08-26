@@ -1,50 +1,11 @@
-// Runtime hardening for approved-report edits.
-// The edit service historically acquired production_reports FOR UPDATE before
-// doing validation/version work. That keeps the row locked for the whole
-// transaction and can produce ER_LOCK_WAIT_TIMEOUT under concurrent requests.
-//
-// We keep the existing transaction/audit/version logic, but make the initial
-// read non-locking and retry the whole transaction for transient InnoDB/TiDB
-// lock conflicts. The actual UPDATE remains the write boundary, and the API
-// already requires expected_updated_at for optimistic concurrency.
-const db = require('../config/db');
+// Approved-report concurrency hardening.
+// Keep the database row lock in the service and serialize edits/restores per
+// report inside the API process. This gives every writer the same lock order:
+// production_reports -> report_versions -> children -> audit -> COMMIT.
+// It also prevents duplicate PUTs from fighting over report_versions.
 const approvedService = require('../services/approvedReportEditService');
 
-const originalPromise = db.promise.bind(db);
-const promisePoolCache = new WeakMap();
-
-function patchPromisePool(promisePool) {
-  if (!promisePool || promisePoolCache.has(promisePool)) return promisePool;
-
-  const originalGetConnection = promisePool.getConnection.bind(promisePool);
-  promisePool.getConnection = async function patchedGetConnection(...args) {
-    const connection = await originalGetConnection(...args);
-    if (!connection || connection.__ktcApprovedReportConcurrencyPatched) return connection;
-
-    const originalQuery = connection.query.bind(connection);
-    connection.query = async function patchedQuery(sql, ...queryArgs) {
-      let nextSql = sql;
-      if (
-        typeof sql === 'string'
-        && /SELECT\s+\*\s+FROM\s+production_reports\s+WHERE\s+id=\?\s+FOR\s+UPDATE\s*$/i.test(sql)
-        && new Error().stack?.includes('approvedReportEditService.js')
-      ) {
-        nextSql = sql.replace(/\s+FOR\s+UPDATE\s*$/i, '');
-      }
-      return originalQuery(nextSql, ...queryArgs);
-    };
-
-    connection.__ktcApprovedReportConcurrencyPatched = true;
-    return connection;
-  };
-
-  promisePoolCache.set(promisePool, true);
-  return promisePool;
-}
-
-db.promise = function patchedPromise() {
-  return patchPromisePool(originalPromise());
-};
+const queues = new Map();
 
 function isRetryableLockError(error) {
   return Number(error?.errno) === 1205
@@ -57,33 +18,69 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function wrapTransactionalOperation(name) {
+function reportKey(args) {
+  const input = args?.[0] || {};
+  const id = Number(input.reportId);
+  return Number.isInteger(id) && id > 0 ? String(id) : null;
+}
+
+async function enqueue(key, operation) {
+  if (!key) return operation();
+
+  const previous = queues.get(key) || Promise.resolve();
+  let release;
+  const current = new Promise((resolve) => { release = resolve; });
+  queues.set(key, current);
+
+  await previous.catch(() => {});
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (queues.get(key) === current) queues.delete(key);
+  }
+}
+
+function withDefaultReason(args, fallback) {
+  const input = { ...(args?.[0] || {}) };
+  if (!String(input.reason || '').trim()) input.reason = fallback;
+  return [input, ...args.slice(1)];
+}
+
+function wrapTransactionalOperation(name, fallbackReason) {
   const original = approvedService[name];
   if (typeof original !== 'function' || original.__ktcConcurrencyWrapped) return;
 
-  const wrapped = async function concurrencySafeOperation(...args) {
-    const maxAttempts = 4;
-    const delays = [300, 700, 1400];
-    let lastError;
+  const wrapped = async function concurrencySafeOperation(...rawArgs) {
+    const args = withDefaultReason(rawArgs, fallbackReason);
+    const key = reportKey(args);
 
-    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-      try {
-        return await original(...args);
-      } catch (error) {
-        lastError = error;
-        if (!isRetryableLockError(error) || attempt >= maxAttempts) throw error;
-        await sleep(delays[attempt - 1]);
+    return enqueue(key, async () => {
+      const delays = [250, 600, 1200];
+      let lastError;
+
+      for (let attempt = 1; attempt <= 4; attempt += 1) {
+        try {
+          // Important: retry the COMPLETE transaction, never an individual SQL
+          // statement. The service owns BEGIN/ROLLBACK/COMMIT and releases its
+          // connection in finally.
+          return await original(...args);
+        } catch (error) {
+          lastError = error;
+          if (!isRetryableLockError(error) || attempt >= 4) throw error;
+          await sleep(delays[attempt - 1]);
+        }
       }
-    }
 
-    throw lastError;
+      throw lastError;
+    });
   };
 
   Object.defineProperty(wrapped, '__ktcConcurrencyWrapped', { value: true });
   approvedService[name] = wrapped;
 }
 
-wrapTransactionalOperation('updateApprovedReport');
-wrapTransactionalOperation('restoreApprovedReportVersion');
+wrapTransactionalOperation('updateApprovedReport', 'Cập nhật báo cáo đã duyệt');
+wrapTransactionalOperation('restoreApprovedReportVersion', 'Khôi phục phiên bản báo cáo');
 
-console.log('[KTC] Approved-report concurrency hardening loaded: non-locking initial read + transaction retry.');
+console.log('[KTC] Approved-report concurrency hardening loaded: per-report queue + transaction retry.');
