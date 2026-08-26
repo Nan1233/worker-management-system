@@ -1,104 +1,10 @@
 name: One-time Excel report UX fix
 
 on:
-  push:
-    branches: [main]
-
-permissions:
-  contents: write
+  workflow_dispatch:
 
 jobs:
-  fix:
-    if: ${{ !contains(github.event.head_commit.message, 'fix: excel report toolbar and unsaved guard') }}
+  disabled:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Patch report grid UX
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('frontend/src/pages/manager/ApprovedReports.tsx')
-          s = p.read_text(encoding='utf-8')
-          def rep(old, new):
-              global s
-              if old not in s: raise SystemExit(f'Missing expected text: {old[:140]}')
-              s = s.replace(old, new, 1)
-          rep('    const [activeEditRow, setActiveEditRow] = useState<number | null>(null);', '    const [activeEditRow, setActiveEditRow] = useState<number | null>(null);\n    const [dirty, setDirty] = useState(false);\n    const [unsavedPrompt, setUnsavedPrompt] = useState(false);\n    const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);\n    const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);')
-          rep('            setDrafts({}); setSelected(new Set());', '            setDrafts({}); setSelected(new Set()); setDirty(false);')
-          rep('    const setDraft = (id: number, field: keyof ProductionReport, value: unknown) => setDrafts(cur => ({ ...cur, [id]: { ...cur[id], [field]: value } }));', '    const setDraft = (id: number, field: keyof ProductionReport, value: unknown) => { setDirty(true); setDrafts(cur => ({ ...cur, [id]: { ...cur[id], [field]: value } })); };')
-          rep('        const row: any = { ...(cur[id] as any) };', '        setDirty(true);\n        const row: any = { ...(cur[id] as any) };')
-          rep('    const startEdit = () => { if (!canEdit) return; setDrafts(Object.fromEntries(reports.map(r => [Number(r.id), { ...r }]))); setActiveEditRow(null); setEditing(true); };', '    const startEdit = () => { if (!canEdit) return; setDrafts(Object.fromEntries(reports.map(r => [Number(r.id), { ...r }]))); setActiveEditRow(null); setDirty(false); setEditing(true); };')
-          rep('    const cancelEdit = () => { setDrafts({}); setActiveEditRow(null); setEditing(false); };', '    const cancelEdit = () => { setDrafts({}); setActiveEditRow(null); setDirty(false); setEditing(false); };')
-          rep('    const toggleAll = () => setSelected(selected.size === rows.length ? new Set() : new Set(rows.map(r => Number(r.id)).filter(Boolean)));', '''    const toggleAll = () => setSelected(selected.size === rows.length ? new Set() : new Set(rows.map(r => Number(r.id)).filter(Boolean)));
-
-    const requestLeave = (action: () => void) => {
-        if (!dirty || saving) { action(); return; }
-        setPendingAction(() => action); setPendingNavigation(null); setUnsavedPrompt(true);
-    };
-
-    useEffect(() => {
-        const handleBeforeUnload = (event: BeforeUnloadEvent) => { if (!dirty) return; event.preventDefault(); event.returnValue = ""; };
-        const handleDocumentClick = (event: MouseEvent) => {
-            if (!dirty || saving) return;
-            const target = event.target as HTMLElement | null;
-            const anchor = target?.closest("a[href]") as HTMLAnchorElement | null;
-            if (!anchor || anchor.target === "_blank" || anchor.hasAttribute("download")) return;
-            const url = new URL(anchor.href, window.location.href);
-            if (url.origin !== window.location.origin || url.href === window.location.href) return;
-            event.preventDefault(); event.stopPropagation();
-            setPendingAction(null); setPendingNavigation(url.href); setUnsavedPrompt(true);
-        };
-        window.addEventListener("beforeunload", handleBeforeUnload);
-        document.addEventListener("click", handleDocumentClick, true);
-        return () => { window.removeEventListener("beforeunload", handleBeforeUnload); document.removeEventListener("click", handleDocumentClick, true); };
-    }, [dirty, saving]);
-
-    const continueAfterPrompt = async (saveFirst: boolean) => {
-        if (saveFirst) { const ok = await saveAll(); if (!ok) return; }
-        else { setDirty(false); setDrafts({}); setEditing(false); setActiveEditRow(null); }
-        const navigation = pendingNavigation; const action = pendingAction;
-        setUnsavedPrompt(false); setPendingNavigation(null); setPendingAction(null);
-        if (navigation) window.location.assign(navigation); else if (action) action();
-    };''')
-          rep('    const save = async () => {\n        if (!canEdit || saving) return;', '    const save = async (): Promise<boolean> => {\n        if (!canEdit || saving) return false;')
-          rep('            invalidateManagerReportCaches(); setDrafts({}); setEditing(false); setActiveEditRow(null); showToast("Đã lưu toàn bộ thay đổi", "success");\n        } catch (e: unknown) { showToast(axios.isAxiosError(e) ? e.response?.data?.message || "Không thể lưu thay đổi" : "Không thể lưu thay đổi"); }', '            invalidateManagerReportCaches(); setDrafts({}); setDirty(false); setEditing(false); setActiveEditRow(null); showToast("Đã lưu toàn bộ thay đổi", "success"); return true;\n        } catch (e: unknown) { showToast(axios.isAxiosError(e) ? e.response?.data?.message || "Không thể lưu thay đổi" : "Không thể lưu thay đổi"); return false; }')
-          rep('        setReports(cur => [blank, ...cur]); setDrafts(cur => ({ ...cur, [tempId]: blank })); setSelected(new Set([tempId])); setActiveEditRow(tempId); setEditing(true);', '        setReports(cur => [blank, ...cur]); setDrafts(cur => ({ ...cur, [tempId]: blank })); setSelected(new Set([tempId])); setActiveEditRow(tempId); setDirty(true); setEditing(true);')
-          rep('    const saveNew = async () => {', '    const saveNew = async (): Promise<boolean> => {')
-          rep('                if (!d?.worker_id || !d?.process_id || !d?.work_date || !d?.shift || !d?.product_name) { showToast("Báo cáo mới cần công nhân, công đoạn, ngày, ca và sản phẩm"); return; }', '                if (!d?.worker_id || !d?.process_id || !d?.work_date || !d?.shift || !d?.product_name) { showToast("Báo cáo mới cần công nhân, công đoạn, ngày, ca và sản phẩm"); return false; }')
-          rep('            invalidateManagerReportCaches(); await load(); setEditing(false); setDrafts({}); setActiveEditRow(null); showToast("Đã thêm báo cáo", "success");\n        } catch (e: unknown) { showToast(axios.isAxiosError(e) ? e.response?.data?.message || "Không thể thêm báo cáo" : "Không thể thêm báo cáo"); }', '            invalidateManagerReportCaches(); await load(); setEditing(false); setDrafts({}); setDirty(false); setActiveEditRow(null); showToast("Đã thêm báo cáo", "success"); return true;\n        } catch (e: unknown) { showToast(axios.isAxiosError(e) ? e.response?.data?.message || "Không thể thêm báo cáo" : "Không thể thêm báo cáo"); return false; }')
-          rep('    const saveAll = async () => { if (rows.some(r => Number(r.id) < 0)) await saveNew(); else await save(); };', '    const saveAll = async (): Promise<boolean> => rows.some(r => Number(r.id) < 0) ? await saveNew() : await save();')
-          rep('        <header className="pending-page-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>\n            <div><h1>Quản lý báo cáo</h1><p>Chỉ báo cáo đã duyệt · bảng liền mạch như Excel · chọn dòng, Sửa, nhập trực tiếp, Tab chuyển ô.</p></div>\n            <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>\n                {canEdit && <><button type="button" style={button} onClick={add}>＋ Thêm</button><button type="button" style={button} onClick={startEdit}>Sửa</button><button type="button" style={{ ...button, background: "#1769d2", color: "#fff", borderColor: "#1769d2" }} disabled={!editing || saving} onClick={() => void saveAll()}>{saving ? "Đang lưu..." : "Lưu"}</button><button type="button" style={button} disabled={!editing || saving} onClick={cancelEdit}>Hủy</button><button type="button" style={{ ...button, color: "#b42318" }} disabled={selected.size === 0 || saving} onClick={() => void remove()}>Xóa</button></>}\n                <button type="button" style={button} onClick={() => void load()}>↻ Làm mới</button>\n            </div>\n        </header>', '        <header className="pending-page-title">\n            <div><h1>Quản lý báo cáo</h1><p>Chỉ báo cáo đã duyệt · bảng liền mạch như Excel · Enter xuống hàng · Tab chuyển ô.</p></div>\n        </header>')
-          rep('        <section className="pending-list-card" style={{ width: "100%", overflow: "hidden" }}>\n            <div className="pending-list-tabs" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><strong>{total} báo cáo đã duyệt</strong><span style={{ fontSize: 12, color: "#7185a4" }}>Chọn dòng · Sửa · Lưu · Xóa · Tab như Excel</span></div>', '''        <section className="pending-list-card" style={{ width: "100%", overflow: "hidden" }}>
-            <div className="pending-list-tabs" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><strong>{total} báo cáo đã duyệt</strong><span style={{ fontSize: 12, color: dirty ? "#b54708" : "#7185a4", fontWeight: dirty ? 700 : 400 }}>{dirty ? "● Chưa lưu thay đổi" : "Sẵn sàng chỉnh sửa"}</span></div>
-            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 12px", borderBottom: "1px solid #dbe3ee", background: "#f8fafc", position: "sticky", top: 0, zIndex: 3 }}>
-                {canEdit && <>
-                    <button type="button" style={button} onClick={add} disabled={saving}>＋ Thêm</button>
-                    <button type="button" style={button} onClick={startEdit} disabled={saving || editing}>Sửa</button>
-                    <button type="button" style={{ ...button, background: "#1769d2", color: "#fff", borderColor: "#1769d2" }} disabled={!editing || !dirty || saving} onClick={() => void saveAll()}>{saving ? "Đang lưu..." : "Lưu"}</button>
-                    <button type="button" style={button} disabled={!editing || saving} onClick={cancelEdit}>Hủy</button>
-                    <button type="button" style={{ ...button, color: "#b42318", borderColor: "#efc5c1" }} disabled={selected.size === 0 || saving} onClick={() => void remove()}>Xóa</button>
-                </>}
-                <button type="button" style={{ ...button, marginLeft: "auto" }} disabled={saving} onClick={() => requestLeave(() => void load())}>↻ Làm mới</button>
-            </div>''')
-          rep('            <div className="pending-table-footer"', '''            {unsavedPrompt && <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(15, 23, 42, .35)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-                <div style={{ width: "min(440px, 100%)", background: "#fff", borderRadius: 10, boxShadow: "0 20px 60px rgba(15,23,42,.2)", padding: 22 }}>
-                    <div style={{ fontSize: 17, fontWeight: 700, color: "#172b4d", marginBottom: 8 }}>Bạn có thay đổi chưa lưu</div>
-                    <div style={{ fontSize: 13, lineHeight: 1.6, color: "#5b6b83", marginBottom: 18 }}>Nếu rời khỏi trang bây giờ, các thay đổi bạn vừa nhập sẽ không còn. Bạn muốn làm gì?</div>
-                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
-                        <button type="button" style={button} onClick={() => { setUnsavedPrompt(false); setPendingAction(null); setPendingNavigation(null); }}>Ở lại</button>
-                        <button type="button" style={{ ...button, color: "#b42318", borderColor: "#efc5c1" }} onClick={() => void continueAfterPrompt(false)}>Không lưu</button>
-                        <button type="button" style={{ ...button, background: "#1769d2", color: "#fff", borderColor: "#1769d2" }} onClick={() => void continueAfterPrompt(true)}>Lưu và tiếp tục</button>
-                    </div>
-                </div>
-            </div>}
-            <div className="pending-table-footer"''')
-          p.write_text(s, encoding='utf-8')
-          PY
-      - name: Commit and remove one-time workflow
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          rm -f .github/workflows/one-time-report-grid.yml
-          git add frontend/src/pages/manager/ApprovedReports.tsx .github/workflows/one-time-report-grid.yml
-          git commit -m "fix: excel report toolbar and unsaved guard"
-          git push
+      - run: echo "One-time report UX patch has already been applied to main."
