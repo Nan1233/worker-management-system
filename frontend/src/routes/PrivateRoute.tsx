@@ -1,4 +1,4 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import type { User } from "../types/auth";
 import RouteLoading from "../components/system/RouteLoading";
 import { isLoginTransitionActive } from "../services/api";
@@ -19,12 +19,11 @@ const homeByRole: Record<Role, string> = {
 };
 
 const PrivateRoute = ({ children, allowedRoles }: PrivateRouteProps) => {
+    const location = useLocation();
     const token = getAccessToken();
     const storedUser = getStoredUser() || recoverUserFromAccessToken();
 
     if (!token || !storedUser) {
-        // Không redirect trong lúc login đang commit session. Điều này tránh
-        // route bảo vệ tự đá người dùng về login giữa hai bước lưu token/user.
         if (isLoginTransitionActive()) {
             return <RouteLoading />;
         }
@@ -32,6 +31,13 @@ const PrivateRoute = ({ children, allowedRoles }: PrivateRouteProps) => {
     }
 
     const user = storedUser as User;
+
+    // Tạm thời Tổ trưởng dùng toàn bộ giao diện /manager.
+    // Giữ /lead/reports, /lead/approved... cho bộ giao diện Tổ trưởng riêng về sau;
+    // chỉ trang gốc /lead được chuyển sang giao diện dùng chung hiện tại.
+    if (user.role === "lead" && location.pathname === "/lead") {
+        return <Navigate to="/manager" replace />;
+    }
 
     if (!allowedRoles.includes(user.role)) {
         return (
