@@ -41,7 +41,7 @@ exports.getReportDates=async (req,res)=>{
     return res.json(rows);
   } catch (error) {
     if (error?.code === 'PROCESS_SCOPE_FORBIDDEN') return res.status(403).json({success:false,code:error.code,message:error.message});
-    return safeDbError(res,error,'Không thể tải dữ liệu báo cáo');
+    return safeDbError(res,error,'Không thể tải ngày báo cáo');
   }
 };
 
@@ -75,8 +75,6 @@ exports.getReportById = async (req, res) => {
             return res.status(400).json({ success: false, message: "ID báo cáo không hợp lệ" });
         }
 
-        // Load the first matching row. The previous destructuring treated the row
-        // object as an array and therefore always produced undefined -> 404.
         const [minimalRows] = await db.promise().query(
             'SELECT id, worker_id, process_id FROM production_reports WHERE id=? LIMIT 1',
             [reportId]
@@ -163,7 +161,7 @@ exports.updateReport = async (req, res) => {
             return res.status(428).json({ success: false, code: 'REPORT_VERSION_TOKEN_REQUIRED', message: 'Báo cáo cần được tải lại trước khi lưu thay đổi.' });
         }
         const { expected_updated_at: _expectedUpdatedAt, ...patch } = body;
-        const result = await updateApprovedReport({ reportId, patch, reason: body.reason, userId: req.user.id, actor: req.user, req, expectedUpdatedAt, source: 'web' });
+        const result = await updateApprovedReport({ reportId, patch, reason: String(body.reason || 'Cập nhật báo cáo').trim() || 'Cập nhật báo cáo', userId: req.user.id, actor: req.user, req, expectedUpdatedAt, source: 'web' });
         if (envEnabled('ENABLE_SERVER_HEAVY_EXCEL') && envEnabled('ENABLE_EXCEL_EXPORT_WORKER')) {
             await require('../services/excelExportJobQueue').enqueueMonthlyDates([result.before.work_date, result.report.work_date], req.user?.id);
         }
@@ -197,17 +195,4 @@ exports.deleteReport = async (req,res) => {
       return res.json({success:true,message:'Đã xóa báo cáo. Dữ liệu vẫn được giữ trong lịch sử để có thể khôi phục.',version:versionNo});
     }catch(e){await connection.rollback().catch(()=>{});console.error('DELETE REPORT ERROR:',e);return res.status(e.status||500).json({success:false,code:e.code,message:publicMessage(e,'Không thể xóa báo cáo')});}
     finally{connection.release();}
-};
-
-exports.restoreReportVersion = async (req,res) => {
-    const reportId = Number(req.params.id);
-    const versionNo = Number(req.params.versionNo);
-    try {
-      const result = await restoreApprovedReportVersion({reportId,versionNo,reason:req.body?.reason,userId:req.user.id,actor:req.user,req,expectedUpdatedAt:req.body?.expected_updated_at||null});
-      if (envEnabled('ENABLE_SERVER_HEAVY_EXCEL') && envEnabled('ENABLE_EXCEL_EXPORT_WORKER')) await require('../services/excelExportJobQueue').enqueueMonthlyDates([result.before?.work_date,result.report?.work_date].filter(Boolean),req.user?.id);
-      return res.json({success:true,message:`Đã khôi phục báo cáo về nội dung phiên bản ${versionNo}`,version:result.version,restored_from_version:versionNo,data:result.report});
-    } catch (e) {
-      console.error('RESTORE REPORT VERSION ERROR:', e);
-      return res.status(e.status || 500).json({success:false,code:e.code,message:publicMessage(e,'Không thể khôi phục phiên bản báo cáo'),errors:e.details});
-    }
 };
