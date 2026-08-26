@@ -11,6 +11,7 @@ const { restoreApprovedReportVersion } = require("../services/approvedReportEdit
 const { publicMessage } = require("../utils/httpError");
 
 router.get("/dates",verifyToken,checkRole("admin","manager","lead"),permission("REPORT_APPROVED_VIEW"),getReportDates);
+router.get("/by-date",verifyToken,checkRole("admin","manager","lead"),permission("REPORT_APPROVED_VIEW"),getAllReports);
 router.get("/by-date",verifyToken,checkRole("admin","manager","lead"),permission("REPORT_APPROVED_VIEW"),getReportsByDate);
 router.get("/",verifyToken,checkRole("admin","manager","lead"),permission("REPORT_APPROVED_VIEW"),getAllReports);
 
@@ -72,7 +73,7 @@ const restoreVersion = async (req, res) => {
   }
 };
 
-router.post("/:id/versions/:versionNo/restore",verifyToken,checkRole("admin","manager"),permission("REPORT_APPROVED_EDIT"),restoreVersion);
+router.post("/:id/versions/:versionNo/restore",verifyToken,checkRole("admin","manager"),permission("REPORT_APPROVED_EDIT"),approvedReportEditLock,restoreVersion);
 
 // Lý do chỉnh sửa không còn là dữ liệu bắt buộc từ người dùng.
 // Gán giá trị audit mặc định trước mọi middleware tiếp theo để backend
