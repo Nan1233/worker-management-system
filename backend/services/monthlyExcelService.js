@@ -1,9 +1,7 @@
 const db = require("../config/db");
 const { calculateReportPerformance } = require("./machinePerformanceService");
-const {
-    buildMonthlyTemplateWorkbook,
-    getMonthlyTarget
-} = require("./consolidatedExcelExportService");
+const { buildCommonProcessMonthlyWorkbook } = require("./commonProcessMonthlyExcelService");
+const { getMonthlyTarget } = require("./consolidatedExcelExportService");
 
 const query = (sql, params = []) => new Promise((resolve, reject) => {
     db.query(sql, params, (error, rows) => error ? reject(error) : resolve(rows));
@@ -74,9 +72,6 @@ const loadMonthReports = async (yearMonth) => {
     }
 
     const reportIds = reports.map((report) => Number(report.id));
-    // Lấy danh mục cho toàn bộ công đoạn đang hoạt động, không chỉ các công
-    // đoạn có báo cáo trong tháng. Nhờ đó workbook luôn có cột NG/trừ giờ
-    // đúng theo master data của từng công đoạn.
     const activeProcesses = await query(
         `SELECT id FROM processes WHERE LOWER(COALESCE(status, 'active')) IN ('active', 'enabled', '1') ORDER BY id`
     );
@@ -160,20 +155,12 @@ const loadMonthReports = async (yearMonth) => {
 
 const buildMonthlyWorkbookInternal = async (yearMonth) => {
     const reports = await loadMonthReports(yearMonth);
-    const latestUpdatedAt = reports.reduce((latest, report) => {
-        const value = report.updated_at || report.approved_at || report.created_at;
-        if (!value) return latest;
-        const iso = new Date(value).toISOString();
-        return !latest || iso > latest ? iso : latest;
-    }, null);
-
-    const result = await buildMonthlyTemplateWorkbook(reports, yearMonth, {
-        latestUpdatedAt,
+    const result = await buildCommonProcessMonthlyWorkbook(reports, yearMonth, {
         deductionTypes: reports.deductionTypes || [],
         defectTypes: reports.defectTypes || []
     });
 
-    if (process.env.KTC_DEBUG_EXPORTS === "true") console.log("[KTC] Monthly Excel updated", { archivePath: result.archivePath });
+    if (process.env.KTC_DEBUG_EXPORTS === "true") console.log("[KTC] Monthly Excel updated", { archivePath: result.archivePath, layout: result.layout });
     return {
         path: result.archivePath,
         fileName: result.fileName,
@@ -193,15 +180,13 @@ const buildMonthlyWorkbook = async (value) => {
 };
 
 const scheduleMonthlyRebuild = (dates, requestedBy = null) => {
-    // Không dựng Excel trong tiến trình web. Chỉ ghi job bền vững vào DB;
-    // excelExportJobQueue sẽ chạy tuần tự trong worker thread và retry khi lỗi.
     const queue = require('./excelExportJobQueue');
     return queue.enqueueMonthlyDates(dates, requestedBy);
 };
 
 const getMonthlyFile = (dateOrMonth) => {
     const yearMonth = normalizeYearMonth(dateOrMonth);
-    return getMonthlyTarget(yearMonth);
+    return getMonthlyTarget(yearMonth, { stageFolder: 'BC công đoạn' });
 };
 
 module.exports = {
