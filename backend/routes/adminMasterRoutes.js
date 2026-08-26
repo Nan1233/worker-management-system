@@ -12,9 +12,16 @@ const managerResourceScope=(req,res,next)=>{
   }
   return next();
 };
+// Lead đang tạm sử dụng giao diện Manager. Trong thời gian này, Lead phải truy cập
+// được 3 master resource mà Manager được phép xem, kể cả khi quyền Lead có override.
+const temporaryLeadManagerMasterView=(req,res,next)=>{
+  const resource=String(req.params.resource||'');
+  if(req.user?.role==='lead'&&req.method==='GET'&&['machines','standards','deductions'].includes(resource)) return next();
+  return permission('MASTER_VIEW')(req,res,next);
+};
 router.get('/transfer/export/:resource',permission('MASTER_VIEW'),managerResourceScope,transferController.export);
 router.post('/transfer/import/:resource',permission('MASTER_EDIT'),managerResourceScope,transferController.import);
-router.get('/:resource',permission('MASTER_VIEW'),managerResourceScope,controller.list);
+router.get('/:resource',temporaryLeadManagerMasterView,managerResourceScope,controller.list);
 router.post('/:resource',permission('MASTER_EDIT'),managerResourceScope,controller.create);
 router.put('/:resource/:id',permission('MASTER_EDIT'),managerResourceScope,controller.update);
 router.delete('/:resource/:id',permission('MASTER_EDIT'),managerResourceScope,controller.remove);
