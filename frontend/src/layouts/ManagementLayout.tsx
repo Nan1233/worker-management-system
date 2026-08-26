@@ -15,6 +15,7 @@ const adminAndManagerRoles:ManagementRole[]=["manager","admin"];
 const items:ManagementMenuItem[]=[
  {label:"Tổng quan",path:"",icon:LayoutDashboard,permission:"DASHBOARD_VIEW",roles:allManagementRoles},
  {label:"Chờ duyệt",path:"reports",icon:ClipboardCheck,permission:"REPORT_PENDING_VIEW",roles:allManagementRoles},
+ {label:"Quản lý báo cáo",path:"report-management",icon:BarChart3,permission:"REPORT_PENDING_VIEW",roles:["manager"]},
  {label:"Đề xuất sửa",path:"edit-proposals",icon:FileWarning,permission:"REPORT_APPROVE",roles:["lead","manager"]},
  {label:"Đã duyệt",path:"approved",icon:ShieldCheck,permission:"REPORT_APPROVED_VIEW",roles:allManagementRoles},
  {label:"Thống kê",path:"statistics",icon:BarChart3,permission:"STATISTICS_VIEW",roles:allManagementRoles},
