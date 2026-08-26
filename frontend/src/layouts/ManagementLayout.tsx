@@ -4,6 +4,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { getStoredUser } from "../utils/authStorage";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
 import { usePermissions } from "../hooks/usePermissions";
+import { defaultPermissionsForRole } from "../security/permissions";
 import type { PermissionCode } from "../security/permissions";
 import MasterDataTransferActions from "../components/master/MasterDataTransferActions";
 import "./ManagementLayout.css";
@@ -33,7 +34,12 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
  const {unreadCount}=useNotificationBadge(can("NOTIFICATION_VIEW"));
  const base=`/${role}`,user=getStoredUser();
  const [mobileMoreOpen,setMobileMoreOpen]=useState(false);
- const visible=items.filter(item=>item.roles.includes(role)&&can(item.permission));
+ // Tạm thời tài khoản Lead đang chạy giao diện /manager.
+ // Khi ở /manager, dùng bộ quyền hiển thị của Manager để navbar không bị mất các mục master.
+ // Trang /lead vẫn giữ nguyên logic quyền Lead.
+ const temporaryManagerView=role==="manager" && String(user?.role||"").toLowerCase()==="lead";
+ const managerPermissions=defaultPermissionsForRole("manager");
+ const visible=items.filter(item=>item.roles.includes(role)&&(temporaryManagerView?managerPermissions.has(item.permission):can(item.permission)));
  const mobilePrimaryItems=visible.slice(0,2),mobileOverflowItems=visible.slice(2);
  const active=(path:string)=>path===""?location.pathname===base:location.pathname===`${base}/${path}`||location.pathname.startsWith(`${base}/${path}/`);
  const displayName=user?.full_name||user?.username||roleLabel[role];
