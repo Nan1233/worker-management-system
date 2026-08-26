@@ -1,0 +1,67 @@
+name: One-time report grid fix
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: ${{ !contains(github.event.head_commit.message, 'fix: excel report row navigation') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch report grid
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('frontend/src/pages/manager/ApprovedReports.tsx')
+          s = p.read_text(encoding='utf-8')
+          replacements = [
+            ('import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";',
+             'import { useCallback, useEffect, useMemo, useState, type CSSProperties, type KeyboardEvent } from "react";'),
+            ('const input: CSSProperties = { width: "100%", minWidth: 70, boxSizing: "border-box", border: "1px solid #9fb7d4", borderRadius: 3, padding: "5px 6px", fontSize: 13, background: "#fff", outline: "none" };',
+             'const input: CSSProperties = { width: "100%", minWidth: 70, boxSizing: "border-box", border: "1px solid transparent", borderRadius: 0, padding: "5px 6px", fontSize: 13, background: "transparent", outline: "none" };'),
+            ('    const [defects, setDefects] = useState<ProductionDefect[]>([]);',
+             '    const [defects, setDefects] = useState<ProductionDefect[]>([]);\n    const [activeEditRow, setActiveEditRow] = useState<number | null>(null);'),
+            ('    const toggleAll = () => setSelected(selected.size === rows.length ? new Set() : new Set(rows.map(r => Number(r.id)).filter(Boolean)));',
+             '''    const toggleAll = () => setSelected(selected.size === rows.length ? new Set() : new Set(rows.map(r => Number(r.id)).filter(Boolean)));\n\n    const handleEnter = (event: KeyboardEvent<HTMLInputElement>) => {\n        if (event.key !== "Enter") return;\n        event.preventDefault();\n        const currentCell = event.currentTarget.closest("td");\n        const currentRow = currentCell?.parentElement;\n        const nextRow = currentRow?.nextElementSibling as HTMLTableRowElement | null;\n        if (!currentCell || !currentRow || !nextRow) return;\n        const cellIndex = Array.from(currentRow.children).indexOf(currentCell);\n        if (cellIndex < 0) return;\n        const nextInput = nextRow.children[cellIndex]?.querySelector<HTMLInputElement>('input:not([type="checkbox"])');\n        if (nextInput) {\n            nextInput.focus();\n        }\n    };'''),
+            ('    const startEdit = () => { if (!canEdit) return; setDrafts(Object.fromEntries(reports.map(r => [Number(r.id), { ...r }]))); setEditing(true); };',
+             '    const startEdit = () => { if (!canEdit) return; setDrafts(Object.fromEntries(reports.map(r => [Number(r.id), { ...r }]))); setActiveEditRow(null); setEditing(true); };'),
+            ('    const cancelEdit = () => { setDrafts({}); setEditing(false); };',
+             '    const cancelEdit = () => { setDrafts({}); setActiveEditRow(null); setEditing(false); };'),
+            ('                        const editText = (field: keyof ProductionReport, width = 110) => <input value={txt(r[field], "")} onChange={e => setDraft(id, field, e.target.value)} style={{ ...input, width }} />;',
+             '                        const editText = (field: keyof ProductionReport, width = 110) => <input value={txt(r[field], "")} onFocus={() => setActiveEditRow(id)} onKeyDown={handleEnter} onChange={e => setDraft(id, field, e.target.value)} style={{ ...input, width }} />;'),
+            ('                        const editNum = (field: keyof ProductionReport, width = 78) => <input type="number" min="0" step="0.01" value={String(r[field] ?? 0)} onChange={e => setDraft(id, field, Number(e.target.value))} style={{ ...input, width }} />;',
+             '                        const editNum = (field: keyof ProductionReport, width = 78) => <input type="number" min="0" step="0.01" value={String(r[field] ?? 0)} onFocus={() => setActiveEditRow(id)} onKeyDown={handleEnter} onChange={e => setDraft(id, field, Number(e.target.value))} style={{ ...input, width }} />;'),
+            ('                        return <tr key={`${id}-${index}`} style={{ background: bg }}>',
+             '                        const rowBg = activeEditRow === id ? "#eaf3ff" : bg;\n                        return <tr key={`${id}-${index}`} style={{ background: rowBg }} className={activeEditRow === id ? "excel-active-report-row" : undefined}>'),
+            ('                            <td style={{ ...cell, position: "sticky", left: 0, zIndex: 2, background: bg, textAlign: "center" }}><input type="checkbox" checked={selected.has(id)} onChange={() => toggle(id)} /></td>',
+             '                            <td style={{ ...cell, position: "sticky", left: 0, zIndex: 2, background: rowBg, textAlign: "center" }}><input type="checkbox" checked={selected.has(id)} onChange={() => toggle(id)} /></td>'),
+            ('                            <td style={cell}>{editing ? <input type="date" value={String(r.work_date || "").slice(0,10)} onChange={e => setDraft(id, "work_date", e.target.value)} style={{ ...input, width: 105 }} /> : dateText(r.work_date)}</td>',
+             '                            <td style={cell}>{editing ? <input type="date" value={String(r.work_date || "").slice(0,10)} onFocus={() => setActiveEditRow(id)} onKeyDown={handleEnter} onChange={e => setDraft(id, "work_date", e.target.value)} style={{ ...input, width: 105 }} /> : dateText(r.work_date)}</td>'),
+            ('                            {allDeductionNames.map(name => <td key={`d-${name}`} style={cell}>{editing ? <input type="number" min="0" step="0.01" value={valueFor(r, name, "deduction")} onChange={e => setDetailValue(id, "deduction", name, Number(e.target.value))} style={{ ...input, width: 72 }} /> : fmt(valueFor(r, name, "deduction"))}</td>)}',
+             '                            {allDeductionNames.map(name => <td key={`d-${name}`} style={cell}>{editing ? <input type="number" min="0" step="0.01" value={valueFor(r, name, "deduction")} onFocus={() => setActiveEditRow(id)} onKeyDown={handleEnter} onChange={e => setDetailValue(id, "deduction", name, Number(e.target.value))} style={{ ...input, width: 72 }} /> : fmt(valueFor(r, name, "deduction"))}</td>)}'),
+            ('                            {allDefectNames.map(name => <td key={`n-${name}`} style={cell}>{editing ? <input type="number" min="0" step="1" value={valueFor(r, name, "defect")} onChange={e => setDetailValue(id, "defect", name, Number(e.target.value))} style={{ ...input, width: 68 }} /> : fmt(valueFor(r, name, "defect"))}</td>)}',
+             '                            {allDefectNames.map(name => <td key={`n-${name}`} style={cell}>{editing ? <input type="number" min="0" step="1" value={valueFor(r, name, "defect")} onFocus={() => setActiveEditRow(id)} onKeyDown={handleEnter} onChange={e => setDetailValue(id, "defect", name, Number(e.target.value))} style={{ ...input, width: 68 }} /> : fmt(valueFor(r, name, "defect"))}</td>)}'),
+            ('<th style={{ ...cell, minWidth: 220 }}>Ghi chú</th><th style={cell}>Trạng thái</th>',
+             '<th style={{ ...cell, minWidth: 220 }}>Ghi chú</th>'),
+            ('<td style={{ ...cell, minWidth: 220 }}>{editing ? editText("note", 210) : txt(r.note, "")}</td><td style={cell}><span className="pending-detail-status">Đã duyệt</span></td>',
+             '<td style={{ ...cell, minWidth: 220 }}>{editing ? editText("note", 210) : txt(r.note, "")}</td>'),
+          ]
+          for old, new in replacements:
+              if old not in s:
+                  raise SystemExit(f'Missing expected text: {old[:100]}')
+              s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Commit and remove one-time workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/one-time-report-grid.yml
+          git add frontend/src/pages/manager/ApprovedReports.tsx .github/workflows/one-time-report-grid.yml
+          git commit -m "fix: excel report row navigation"
+          git push
