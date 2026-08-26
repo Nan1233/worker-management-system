@@ -17,7 +17,7 @@ const items: Item[] = [
   { label: "Trang chủ", path: "/worker", icon: Home },
   { label: "Báo cáo", path: "/worker/process/select", icon: ClipboardPenLine, permission: "WORKER_ENTRY" },
   { label: "Lịch sử", path: "/worker/history", icon: History, permission: "WORKER_HISTORY" },
-  { label: "Thông báo", path: "/worker/system", icon: Bell, permission: "NOTIFICATION_VIEW" },
+  { label: "Thông báo", path: "/worker/notifications", icon: Bell, permission: "NOTIFICATION_VIEW" },
   { label: "Cá nhân", path: "/worker/profile", icon: UserRound, permission: "PROFILE_VIEW" },
 ];
 
