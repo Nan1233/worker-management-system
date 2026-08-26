@@ -1,0 +1,35 @@
+/* Fix: filter label and search input were overlapping on the approved-reports page. */
+.pending-reference-page .pending-filter-card label {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  gap: 5px !important;
+  min-width: 0 !important;
+  position: relative !important;
+}
+
+.pending-reference-page .pending-filter-card label > span {
+  position: static !important;
+  display: block !important;
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1.2 !important;
+  white-space: nowrap !important;
+  transform: none !important;
+}
+
+.pending-reference-page .pending-filter-card label > input,
+.pending-reference-page .pending-filter-card label > select {
+  position: relative !important;
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+}
+
+.pending-reference-page .pending-filter-card .pending-search input {
+  padding-left: 12px !important;
+}
