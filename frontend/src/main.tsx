@@ -10,6 +10,7 @@ import "./pages/worker/ProcessPage.time-layout.css";
 import "./pages/worker/ProcessPage.actions-flow.css";
 import "./pages/manager/ApprovedReportsOrder.css";
 import "./pages/manager/ApprovedReportsReference.css";
+import "./pages/manager/ApprovedReportsPendingStyle.css";
 import "./pages/manager/ReportsPeriodFix.css";
 import { ToastProvider } from "./components/feedback/ToastProvider";
 import AuthBootstrap from "./components/AuthBootstrap";
