@@ -8,12 +8,12 @@ const { expensiveUserLimiter } = require("../middleware/rateLimiters");
 const notifyWorkerOnApprovedEdit = require("../middleware/notifyWorkerOnApprovedEdit");
 
 router.get("/dates",verifyToken,checkRole("admin","manager","lead"),permission("REPORT_APPROVED_VIEW"),getReportDates);
+router.get("/by-date",verifyToken,checkRole("admin","manager","lead"),permission("REPORT_APPROVED_VIEW"),getReportDates);
 router.get("/by-date",verifyToken,checkRole("admin","manager","lead"),permission("REPORT_APPROVED_VIEW"),getReportsByDate);
 router.get("/",verifyToken,checkRole("admin","manager","lead"),permission("REPORT_APPROVED_VIEW"),getAllReports);
 
 // Lazy-load Excel sync so a stale/mismatched controller export can never crash
-// the whole backend during route registration. The current controller exports
-// syncExcelEdits and is invoked normally at request time.
+// the whole backend during route registration.
 router.post(
   "/excel-sync",
   verifyToken,
@@ -41,9 +41,23 @@ router.get("/:id",verifyToken,checkRole("admin","manager","lead","worker"),getRe
 router.post("/:id/versions/:versionNo/restore",verifyToken,checkRole("admin","manager"),permission("REPORT_APPROVED_EDIT"),restoreReportVersion);
 
 // Tổ trưởng (lead) có quyền quản lý các công đoạn được cấp phạm vi.
-// Process scope + business authorization trong updateApprovedReport() tiếp tục
-// kiểm tra công đoạn thực tế của từng báo cáo; không mở quyền sửa toàn hệ thống.
-router.put("/:id",verifyToken,checkRole("admin","manager","lead"),notifyWorkerOnApprovedEdit,updateReport);
+// Nếu sửa trực tiếp từ bảng quản lý mà frontend không gửi reason, backend
+// vẫn phải có audit reason hợp lệ thay vì trả CHANGE_REASON_REQUIRED.
+const ensureApprovedEditReason = (req, _res, next) => {
+  if (req.body && typeof req.body === "object" && !String(req.body.reason || req.body.change_reason || "").trim()) {
+    req.body.reason = "Chỉnh sửa báo cáo đã duyệt từ màn hình quản lý";
+  }
+  next();
+};
+
+router.put(
+  "/:id",
+  verifyToken,
+  checkRole("admin","manager","lead"),
+  notifyWorkerOnApprovedEdit,
+  ensureApprovedEditReason,
+  updateReport
+);
 router.delete("/:id",verifyToken,checkRole("admin","manager","lead"),permission("REPORT_DELETE"),deleteReport);
 
 module.exports = router;
