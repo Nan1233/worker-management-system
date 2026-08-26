@@ -57,28 +57,20 @@ async function getPreviousPendingCount(managerId, isAdmin) {
 }
 
 async function getTempMachineLines(tempReportId) {
-    const lines = await query(
-        db,
-        `SELECT *
+    const lines = await query(db, `SELECT *
          FROM production_temp_machine_lines
          WHERE temp_report_id = ?
-         ORDER BY sort_order ASC, id ASC`,
-        [Number(tempReportId)]
-    );
+         ORDER BY sort_order ASC, id ASC`, [Number(tempReportId)]);
 
     if (!lines.length) return [];
 
     const ids = lines.map((line) => Number(line.id)).filter(Boolean);
     if (!ids.length) return lines;
 
-    const defects = await query(
-        db,
-        `SELECT *
+    const defects = await query(db, `SELECT *
          FROM production_temp_machine_defects
          WHERE machine_line_id IN (${ids.map(() => "?").join(",")})
-         ORDER BY machine_line_id ASC, id ASC`,
-        ids
-    );
+         ORDER BY machine_line_id ASC, id ASC`, ids);
 
     const byLine = new Map();
     for (const defect of defects) {
@@ -87,10 +79,7 @@ async function getTempMachineLines(tempReportId) {
         byLine.get(key).push(defect);
     }
 
-    return lines.map((line) => ({
-        ...line,
-        defects: byLine.get(Number(line.id)) || []
-    }));
+    return lines.map((line) => ({ ...line, defects: byLine.get(Number(line.id)) || [] }));
 }
 
 module.exports = {
@@ -105,8 +94,7 @@ module.exports = {
                  JOIN users u ON w.user_id = u.id
                  JOIN processes p ON pr.process_id = p.id
                  WHERE ${where}`, params),
-            query(db, `SELECT
-                    pr.id, pr.work_date, pr.shift, pr.machine_no, pr.product_name,
+            query(db, `SELECT pr.id, pr.work_date, pr.shift, pr.machine_no, pr.product_name,
                     pr.updated_at, w.worker_code, u.full_name, p.process_name
                  FROM production_reports_temp pr
                  JOIN workers w ON pr.worker_id = w.id
@@ -119,12 +107,7 @@ module.exports = {
             getPreviousPendingCount(managerId, isAdmin)
         ]);
         const total = Number(countRows?.[0]?.total || 0);
-        return {
-            items,
-            pagination: paginationMeta({ page, pageSize, total }),
-            processes,
-            previous_count: previousCount
-        };
+        return { items, pagination: paginationMeta({ page, pageSize, total }), processes, previous_count: previousCount };
     },
 
     async getApproved(managerId, filters = {}, isAdmin = false) {
@@ -144,7 +127,7 @@ module.exports = {
                         w.worker_code, u.full_name, p.process_name
                  FROM production_reports pr
                  JOIN workers w ON pr.worker_id = w.id
-                 JOIN users u ON w.user_id = w.id
+                 JOIN users u ON w.user_id = u.id
                  JOIN processes p ON pr.process_id = p.id
                  WHERE ${where}
                  ORDER BY pr.approved_at DESC, pr.id DESC
@@ -157,39 +140,24 @@ module.exports = {
 
     async getDates(managerId = null) {
         if (managerId) {
-            return query(db, `
-                SELECT DISTINCT DATE(pr.work_date) AS date
+            return query(db, `SELECT DISTINCT DATE(pr.work_date) AS date
                 FROM production_reports_temp pr
                 JOIN manager_processes mp ON mp.process_id = pr.process_id
                 WHERE mp.manager_id = ?
                   AND pr.status IN ('pending', 'need_fix')
-                ORDER BY date DESC
-            `, [managerId]);
+                ORDER BY date DESC`, [managerId]);
         }
-
-        return query(db, `
-            SELECT DISTINCT DATE(work_date) AS date
+        return query(db, `SELECT DISTINCT DATE(work_date) AS date
             FROM production_reports_temp
             WHERE status IN ('pending', 'need_fix')
-            ORDER BY date DESC
-        `);
+            ORDER BY date DESC`);
     },
 
     async getByDate(date, managerId = null) {
         const params = [date];
         let scope = "";
-
-        if (managerId) {
-            scope = " AND mp.manager_id = ?";
-            params.push(managerId);
-        }
-
-        return query(db, `
-            SELECT
-                pr.*,
-                w.worker_code,
-                u.full_name,
-                p.process_name,
+        if (managerId) { scope = " AND mp.manager_id = ?"; params.push(managerId); }
+        return query(db, `SELECT pr.*, w.worker_code, u.full_name, p.process_name,
                 CASE WHEN dup.duplicate_count > 1 THEN 1 ELSE 0 END AS is_duplicate,
                 COALESCE(dup.duplicate_count, 1) AS duplicate_count
             FROM production_reports_temp pr
@@ -202,8 +170,7 @@ module.exports = {
                 FROM production_reports_temp
                 WHERE status IN ('pending', 'need_fix')
                 GROUP BY worker_id, work_date, shift, machine_no, product_name
-            ) dup
-                ON dup.worker_id = pr.worker_id
+            ) dup ON dup.worker_id = pr.worker_id
                 AND dup.work_date = pr.work_date
                 AND dup.shift = pr.shift
                 AND COALESCE(dup.machine_no, '') = COALESCE(pr.machine_no, '')
@@ -211,8 +178,7 @@ module.exports = {
             WHERE pr.work_date = ?
               AND pr.status IN ('pending', 'need_fix')
               ${scope}
-            ORDER BY pr.created_at ASC
-        `, params);
+            ORDER BY pr.created_at ASC`, params);
     },
 
     async getDetail(id) {
@@ -223,11 +189,8 @@ module.exports = {
              JOIN users u ON w.user_id = u.id
              JOIN processes p ON pr.process_id = p.id
              LEFT JOIN users reviewer ON reviewer.id = pr.reviewed_by
-             WHERE pr.id = ?
-             LIMIT 1`, [id]);
-
+             WHERE pr.id = ? LIMIT 1`, [id]);
         if (!rows[0]) return null;
-
         const [defects, deductions, machineLines] = await Promise.all([
             query(db, `SELECT d.id, d.defect_type_id, dt.defect_code, dt.defect_name, d.quantity
                  FROM production_temp_defects d
@@ -241,7 +204,6 @@ module.exports = {
                  ORDER BY COALESCE(dt.sort_order, 999999), d.id`, [id]),
             getTempMachineLines(id)
         ]);
-
         return { ...rows[0], defects: mergeDefects(rows[0], defects), deductions: normalizeDeductions(deductions), machine_lines: machineLines };
     },
 
