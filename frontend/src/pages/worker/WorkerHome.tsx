@@ -12,6 +12,7 @@ import { usePermissions } from "../../hooks/usePermissions";
 import "./WorkerHome.css";
 
 const formatNumber = (value: unknown) => new Intl.NumberFormat("vi-VN").format(Number(value ?? 0));
+const formatPercent = (value: unknown) => `${Math.max(0, Math.min(100, Number(value ?? 0))).toLocaleString("vi-VN", { maximumFractionDigits: 0 })}%`;
 const formatDate = (value?: string) => {
   if (!value) return "--/--/----";
   const [year, month, day] = value.split("T")[0].split("-");
@@ -88,6 +89,7 @@ export default function WorkerHome() {
   }, [todayReports]);
 
   const processLabel = worker?.processes?.map((item) => item.name).filter(Boolean).join(", ") || worker?.process_names || "Chưa phân công";
+  const trainingPercent = Number(worker?.training_percent ?? 0);
   const displayReports = todayReports.length ? todayReports : reports.slice(0, 4);
 
   if (loading) {
@@ -119,6 +121,7 @@ export default function WorkerHome() {
             <div className="worker-home-identity">
               <span>KTC-{worker?.worker_code || "00125"}</span>
               <span>Process: {processLabel}</span>
+              <span className="worker-home-training">Học việc: {formatPercent(trainingPercent)}</span>
             </div>
           </div>
           <div className="worker-home-avatar" aria-hidden="true">{(worker?.full_name || "N").slice(0, 1).toUpperCase()}</div>
