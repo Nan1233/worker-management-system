@@ -1,14 +1,14 @@
 // Approved-report concurrency hardening.
-// All approved-report writers must acquire locks in the same order:
+// All approved-report writers use the same lock order:
 // production_reports -> report_versions -> child rows -> audit -> COMMIT.
-// The per-report queue prevents duplicate PUTs from competing in one API
-// process, while the DB lock-order guard also protects callers outside the
-// approved-report edit service.
+// Duplicate PUTs are serialized per report in the API process. The DB guard
+// also enforces the same lock order for version writers outside this service.
 const db = require('../config/db');
 const approvedService = require('../services/approvedReportEditService');
 
 const queues = new Map();
 const patchedPools = new WeakSet();
+const originalPromise = db.promise.bind(db);
 
 function isRetryableLockError(error) {
   return Number(error?.errno) === 1205
@@ -46,15 +46,12 @@ async function enqueue(key, operation) {
 
 function withDefaultReason(args, fallback) {
   const input = { ...(args?.[0] || {}) };
-  // The UI no longer needs a separate reason field for ordinary approved edits.
-  // Keep an auditable default for old callers that still omit it.
   if (!String(input.reason || '').trim()) input.reason = fallback;
   return [input, ...args.slice(1)];
 }
 
-function patchVersionLockOrder() {
-  const promisePool = db.promise();
-  if (!promisePool || patchedPools.has(promisePool)) return;
+function patchPromisePool(promisePool) {
+  if (!promisePool || patchedPools.has(promisePool)) return promisePool;
   patchedPools.add(promisePool);
 
   const originalGetConnection = promisePool.getConnection.bind(promisePool);
@@ -69,13 +66,11 @@ function patchVersionLockOrder() {
       if (isVersionLock && Array.isArray(params) && params.length >= 2) {
         const reportId = Number(params[1]);
         if (Number.isInteger(reportId) && reportId > 0) {
-          // Use the same connection so the lock participates in the caller's
-          // transaction. If the report is already locked by this transaction,
-          // this is a harmless re-entrant lock acquisition.
-          await originalQuery(
-            'SELECT id FROM production_reports WHERE id=? FOR UPDATE',
-            [reportId],
-          );
+          // Acquire the parent report lock first on the SAME transaction.
+          // approvedReportEditService already owns this lock, so this is
+          // re-entrant for that path; other version writers now get the same
+          // deterministic lock order and cannot deadlock report/version rows.
+          await originalQuery('SELECT id FROM production_reports WHERE id=? FOR UPDATE', [reportId]);
         }
       }
       return originalQuery(sql, params, ...rest);
@@ -84,7 +79,13 @@ function patchVersionLockOrder() {
     connection.__ktcApprovedVersionLockOrderPatched = true;
     return connection;
   };
+
+  return promisePool;
 }
+
+db.promise = function patchedPromise() {
+  return patchPromisePool(originalPromise());
+};
 
 function wrapTransactionalOperation(name, fallbackReason) {
   const original = approvedService[name];
@@ -100,7 +101,6 @@ function wrapTransactionalOperation(name, fallbackReason) {
 
       for (let attempt = 1; attempt <= 4; attempt += 1) {
         try {
-          // Retry the COMPLETE transaction, never an individual SQL statement.
           return await original(...args);
         } catch (error) {
           lastError = error;
@@ -117,7 +117,6 @@ function wrapTransactionalOperation(name, fallbackReason) {
   approvedService[name] = wrapped;
 }
 
-patchVersionLockOrder();
 wrapTransactionalOperation('updateApprovedReport', 'Cập nhật báo cáo đã duyệt');
 wrapTransactionalOperation('restoreApprovedReportVersion', 'Khôi phục phiên bản báo cáo');
 
