@@ -1,0 +1,57 @@
+/* Đã duyệt: đồng bộ vùng danh sách với layout Chờ duyệt, không đổi logic/dữ liệu. */
+/* Selector 13 cột là cấu trúc riêng của màn Đã duyệt hiện tại. */
+body:has(table thead th:nth-child(13)) table tbody td[colspan="13"] {
+  height: 150px !important;
+  min-height: 150px !important;
+  padding: 0 16px !important;
+  box-sizing: border-box !important;
+  background: #f7faff !important;
+  border: 1px dashed #c9d8e9 !important;
+  border-radius: 10px !important;
+  color: #8092ab !important;
+  font-size: 13px !important;
+  vertical-align: middle !important;
+}
+
+body:has(table thead th:nth-child(13)) table tbody td[colspan="13"]::before {
+  content: "";
+  display: block;
+  width: 7px;
+  height: 7px;
+  margin: 0 auto 10px;
+  border-radius: 50%;
+  background: #9fc9f7;
+}
+
+body:has(table thead th:nth-child(13)) table tbody tr:has(td[colspan="13"]) {
+  height: 150px !important;
+}
+
+body:has(table thead th:nth-child(13)) table thead tr {
+  background: #f3f7fb !important;
+}
+
+body:has(table thead th:nth-child(13)) table thead th {
+  color: #315779 !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  height: 44px !important;
+  box-sizing: border-box !important;
+}
+
+body:has(table thead th:nth-child(13)) table tbody tr:not(:has(td[colspan="13"])):hover {
+  background: #f4f8ff !important;
+}
+
+/* Footer/pagination giữ đúng nhịp của card Chờ duyệt. */
+body:has(table thead th:nth-child(13)) table + div {
+  min-height: 52px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 720px) {
+  body:has(table thead th:nth-child(13)) table tbody td[colspan="13"] {
+    height: 140px !important;
+    min-height: 140px !important;
+  }
+}
