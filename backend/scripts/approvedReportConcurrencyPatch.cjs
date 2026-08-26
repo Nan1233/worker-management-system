@@ -1,11 +1,14 @@
 // Approved-report concurrency hardening.
-// Keep the database row lock in the service and serialize edits/restores per
-// report inside the API process. This gives every writer the same lock order:
-// production_reports -> report_versions -> children -> audit -> COMMIT.
-// It also prevents duplicate PUTs from fighting over report_versions.
+// All approved-report writers must acquire locks in the same order:
+// production_reports -> report_versions -> child rows -> audit -> COMMIT.
+// The per-report queue prevents duplicate PUTs from competing in one API
+// process, while the DB lock-order guard also protects callers outside the
+// approved-report edit service.
+const db = require('../config/db');
 const approvedService = require('../services/approvedReportEditService');
 
 const queues = new Map();
+const patchedPools = new WeakSet();
 
 function isRetryableLockError(error) {
   return Number(error?.errno) === 1205
@@ -43,8 +46,44 @@ async function enqueue(key, operation) {
 
 function withDefaultReason(args, fallback) {
   const input = { ...(args?.[0] || {}) };
+  // The UI no longer needs a separate reason field for ordinary approved edits.
+  // Keep an auditable default for old callers that still omit it.
   if (!String(input.reason || '').trim()) input.reason = fallback;
   return [input, ...args.slice(1)];
+}
+
+function patchVersionLockOrder() {
+  const promisePool = db.promise();
+  if (!promisePool || patchedPools.has(promisePool)) return;
+  patchedPools.add(promisePool);
+
+  const originalGetConnection = promisePool.getConnection.bind(promisePool);
+  promisePool.getConnection = async (...args) => {
+    const connection = await originalGetConnection(...args);
+    if (!connection || connection.__ktcApprovedVersionLockOrderPatched) return connection;
+
+    const originalQuery = connection.query.bind(connection);
+    connection.query = async (sql, params = [], ...rest) => {
+      const text = String(sql || '');
+      const isVersionLock = /SELECT\s+version_no\s+FROM\s+report_versions[\s\S]*FOR\s+UPDATE/i.test(text);
+      if (isVersionLock && Array.isArray(params) && params.length >= 2) {
+        const reportId = Number(params[1]);
+        if (Number.isInteger(reportId) && reportId > 0) {
+          // Use the same connection so the lock participates in the caller's
+          // transaction. If the report is already locked by this transaction,
+          // this is a harmless re-entrant lock acquisition.
+          await originalQuery(
+            'SELECT id FROM production_reports WHERE id=? FOR UPDATE',
+            [reportId],
+          );
+        }
+      }
+      return originalQuery(sql, params, ...rest);
+    };
+
+    connection.__ktcApprovedVersionLockOrderPatched = true;
+    return connection;
+  };
 }
 
 function wrapTransactionalOperation(name, fallbackReason) {
@@ -61,9 +100,7 @@ function wrapTransactionalOperation(name, fallbackReason) {
 
       for (let attempt = 1; attempt <= 4; attempt += 1) {
         try {
-          // Important: retry the COMPLETE transaction, never an individual SQL
-          // statement. The service owns BEGIN/ROLLBACK/COMMIT and releases its
-          // connection in finally.
+          // Retry the COMPLETE transaction, never an individual SQL statement.
           return await original(...args);
         } catch (error) {
           lastError = error;
@@ -80,7 +117,8 @@ function wrapTransactionalOperation(name, fallbackReason) {
   approvedService[name] = wrapped;
 }
 
+patchVersionLockOrder();
 wrapTransactionalOperation('updateApprovedReport', 'Cập nhật báo cáo đã duyệt');
 wrapTransactionalOperation('restoreApprovedReportVersion', 'Khôi phục phiên bản báo cáo');
 
-console.log('[KTC] Approved-report concurrency hardening loaded: per-report queue + transaction retry.');
+console.log('[KTC] Approved-report concurrency hardening loaded: per-report queue + DB lock-order guard + transaction retry.');
