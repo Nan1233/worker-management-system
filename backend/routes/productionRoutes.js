@@ -39,13 +39,12 @@ router.post(
 router.get("/:id",verifyToken,checkRole("admin","manager","lead","worker"),getReportById);
 router.post("/:id/versions/:versionNo/restore",verifyToken,checkRole("admin","manager"),permission("REPORT_APPROVED_EDIT"),restoreReportVersion);
 
-// Tổ trưởng (lead) có quyền quản lý các công đoạn được cấp phạm vi.
-// Nếu sửa trực tiếp từ bảng quản lý mà frontend không gửi reason, backend
-// vẫn phải có audit reason hợp lệ thay vì trả CHANGE_REASON_REQUIRED.
+// Lý do chỉnh sửa không còn là dữ liệu bắt buộc từ người dùng.
+// Gán giá trị audit mặc định trước mọi middleware tiếp theo để backend
+// không bao giờ trả CHANGE_REASON_REQUIRED cho thao tác sửa trên bảng.
 const ensureApprovedEditReason = (req, _res, next) => {
-  if (req.body && typeof req.body === "object" && !String(req.body.reason || req.body.change_reason || "").trim()) {
-    req.body.reason = "Chỉnh sửa báo cáo đã duyệt từ màn hình quản lý";
-  }
+  if (!req.body || typeof req.body !== "object") req.body = {};
+  req.body.reason = String(req.body.reason || req.body.change_reason || "").trim() || "Cập nhật báo cáo đã duyệt";
   next();
 };
 
@@ -53,8 +52,8 @@ router.put(
   "/:id",
   verifyToken,
   checkRole("admin","manager","lead"),
-  notifyWorkerOnApprovedEdit,
   ensureApprovedEditReason,
+  notifyWorkerOnApprovedEdit,
   updateReport
 );
 router.delete("/:id",verifyToken,checkRole("admin","manager","lead"),permission("REPORT_DELETE"),deleteReport);
