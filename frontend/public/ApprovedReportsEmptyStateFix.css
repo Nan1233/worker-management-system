@@ -1,0 +1,38 @@
+/* Approved reports: keep the empty-state cell as a real table cell.
+   The shared .management-empty rule used display:grid, which breaks colspan and
+   collapses the message into the first 48px column when the table header is hidden. */
+.pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-reference-table tbody .management-empty {
+  display: table-cell !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 150px !important;
+  min-height: 0 !important;
+  padding: 44px 20px !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  box-sizing: border-box !important;
+}
+
+.pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-table-wrap {
+  width: 100%;
+}
+
+.pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-reference-table {
+  width: 100% !important;
+  min-width: 100% !important;
+  table-layout: fixed !important;
+}
+
+@media (max-width: 900px) {
+  .pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-reference-table {
+    width: max-content !important;
+    min-width: 900px !important;
+    table-layout: auto !important;
+  }
+
+  .pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-table-wrap {
+    overflow-x: auto !important;
+  }
+}
