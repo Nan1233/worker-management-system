@@ -43,12 +43,23 @@ const DEFAULTS = {
   worker: new Set(CAPABILITIES.worker)
 };
 
+// Quyền nghiệp vụ bắt buộc của Manager đối với báo cáo đã duyệt.
+// Không cho permission override vô tình tắt quyền này, vì route PUT /production/:id
+// dùng REPORT_APPROVED_EDIT để cho Manager chỉnh sửa báo cáo đã duyệt.
+const MANDATORY_ROLE_PERMISSIONS = {
+  manager: new Set(['REPORT_APPROVED_EDIT'])
+};
+
 let schemaAvailable;
 let cache = new Map();
 const CACHE_TTL_MS = 60_000;
 function normalizeRole(value) { return String(value || '').trim().toLowerCase(); }
 function normalizeCode(value) { return String(value || '').trim().toUpperCase(); }
 function defaultSet(role) { return new Set(DEFAULTS[normalizeRole(role)] || []); }
+function applyMandatoryRolePermissions(role, permissions) {
+  for (const code of MANDATORY_ROLE_PERMISSIONS[normalizeRole(role)] || []) permissions.add(code);
+  return permissions;
+}
 async function ensureSchemaAvailable() {
   if (schemaAvailable !== undefined) return schemaAvailable;
   try {
@@ -70,9 +81,19 @@ async function getEffectivePermissions(user) {
       db.promise().query('SELECT permission_code,allowed FROM role_permission_overrides WHERE role=?',[role]),
       userId ? db.promise().query('SELECT permission_code,allowed FROM user_permission_overrides WHERE user_id=?',[userId]) : Promise.resolve([[]])
     ]);
-    for (const row of roleRows[0] || []) { const code = normalizeCode(row.permission_code); if (!ALL_CODES.includes(code)) continue; Number(row.allowed) ? result.add(code) : result.delete(code); }
-    for (const row of userRows[0] || []) { const code = normalizeCode(row.permission_code); if (!ALL_CODES.includes(code)) continue; Number(row.allowed) ? result.add(code) : result.delete(code); }
+    for (const row of roleRows[0] || []) {
+      const code = normalizeCode(row.permission_code);
+      if (!ALL_CODES.includes(code)) continue;
+      Number(row.allowed) ? result.add(code) : result.delete(code);
+    }
+    for (const row of userRows[0] || []) {
+      const code = normalizeCode(row.permission_code);
+      if (!ALL_CODES.includes(code)) continue;
+      Number(row.allowed) ? result.add(code) : result.delete(code);
+    }
   }
+  // Các quyền nghiệp vụ bắt buộc không được phép bị override.
+  applyMandatoryRolePermissions(role, result);
   // Tổ trưởng luôn được phép đề xuất sửa báo cáo. Đây là quyền nghiệp vụ bắt buộc,
   // không cho override phân quyền làm mất quyền tạo đề xuất.
   if (role === 'lead') {
@@ -86,6 +107,7 @@ async function hasPermission(user, code) {
   const role = normalizeRole(user?.role);
   const normalized = normalizeCode(code);
   if (role === 'admin') return true;
+  if (role === 'manager' && normalized === 'REPORT_APPROVED_EDIT') return true;
   if (role === 'lead' && normalized === 'REPORT_APPROVE') return true;
   const set = await getEffectivePermissions(user);
   return set.has(normalized);
@@ -105,6 +127,7 @@ async function setRoleOverride(role, permissionCode, allowed) {
   if (!['manager','lead','worker'].includes(role)) throw Object.assign(new Error('Không cho phép thay đổi quyền mặc định của Admin'),{status:400});
   if (!ALL_CODES.includes(permissionCode)) throw Object.assign(new Error('Mã quyền không hợp lệ'),{status:400});
   if (!CAPABILITIES[role]?.has(permissionCode)) throw Object.assign(new Error('Quyền này không áp dụng cho vai trò đã chọn'),{status:400});
+  if (MANDATORY_ROLE_PERMISSIONS[role]?.has(permissionCode)) throw Object.assign(new Error('Quyền nghiệp vụ bắt buộc, không thể tắt'),{status:400});
   if (!(await ensureSchemaAvailable())) throw Object.assign(new Error('Schema phân quyền chưa sẵn sàng'),{status:503});
   if (allowed === null) await db.promise().query('DELETE FROM role_permission_overrides WHERE role=? AND permission_code=?',[role,permissionCode]);
   else await db.promise().query(`INSERT INTO role_permission_overrides(role,permission_code,allowed,updated_at) VALUES(?,?,?,NOW()) ON DUPLICATE KEY UPDATE allowed=VALUES(allowed),updated_at=NOW()`,[role,permissionCode,allowed?1:0]);
@@ -116,10 +139,12 @@ async function setUserOverride(userId, permissionCode, allowed) {
   if (!(await ensureSchemaAvailable())) throw Object.assign(new Error('Schema phân quyền chưa sẵn sàng'),{status:503});
   const [[user]] = await db.promise().query('SELECT id,role FROM users WHERE id=? LIMIT 1',[userId]);
   if (!user) throw Object.assign(new Error('Người dùng không tồn tại'),{status:404});
-  if (normalizeRole(user.role)==='admin') throw Object.assign(new Error('Admin luôn có toàn quyền'),{status:400});
-  if (!CAPABILITIES[normalizeRole(user.role)]?.has(permissionCode)) throw Object.assign(new Error('Quyền này không áp dụng cho vai trò của người dùng'),{status:400});
+  const userRole = normalizeRole(user.role);
+  if (userRole==='admin') throw Object.assign(new Error('Admin luôn có toàn quyền'),{status:400});
+  if (!CAPABILITIES[userRole]?.has(permissionCode)) throw Object.assign(new Error('Quyền này không áp dụng cho vai trò của người dùng'),{status:400});
+  if (MANDATORY_ROLE_PERMISSIONS[userRole]?.has(permissionCode)) throw Object.assign(new Error('Quyền nghiệp vụ bắt buộc, không thể tắt'),{status:400});
   if (allowed === null) await db.promise().query('DELETE FROM user_permission_overrides WHERE user_id=? AND permission_code=?',[userId,permissionCode]);
   else await db.promise().query(`INSERT INTO user_permission_overrides(user_id,permission_code,allowed,updated_at) VALUES(?,?,?,NOW()) ON DUPLICATE KEY UPDATE allowed=VALUES(allowed),updated_at=NOW()`,[userId,permissionCode,allowed?1:0]);
   clearPermissionCache(userId);
 }
-module.exports = { PERMISSIONS, ALL_CODES, CAPABILITIES, DEFAULTS, getEffectivePermissions, hasPermission, getAdminMatrix, setRoleOverride, setUserOverride, clearPermissionCache };
+module.exports = { PERMISSIONS, ALL_CODES, CAPABILITIES, DEFAULTS, MANDATORY_ROLE_PERMISSIONS, getEffectivePermissions, hasPermission, getAdminMatrix, setRoleOverride, setUserOverride, clearPermissionCache };
