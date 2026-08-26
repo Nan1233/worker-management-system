@@ -53,6 +53,10 @@ export default function ApprovedReports() {
     const [selected, setSelected] = useState<Set<number>>(new Set());
     const [editing, setEditing] = useState(false);
     const [activeEditRow, setActiveEditRow] = useState<number | null>(null);
+    const [dirty, setDirty] = useState(false);
+    const [unsavedPrompt, setUnsavedPrompt] = useState(false);
+    const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
+    const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
@@ -75,7 +79,7 @@ export default function ApprovedReports() {
             ]);
             setDeductions(ded.flat().filter((x, i, a) => a.findIndex(y => String(y.id || y.deduction_code || y.deduction_name) === String(x.id || x.deduction_code || x.deduction_name)) === i));
             setDefects(def.flat().filter((x, i, a) => a.findIndex(y => String(y.id || y.defect_code || y.defect_name) === String(x.id || x.defect_code || x.defect_name)) === i));
-            setDrafts({}); setSelected(new Set());
+            setDrafts({}); setSelected(new Set()); setDirty(false);
         } catch (e: unknown) {
             setError(axios.isAxiosError(e) ? e.response?.data?.message || "Không thể tải báo cáo đã duyệt" : "Không thể tải báo cáo đã duyệt");
             setReports([]); setTotal(0); setPages(1);
@@ -96,8 +100,9 @@ export default function ApprovedReports() {
         const found = Array.isArray(list) ? list.find((x: any) => x.deduction_name === name || x.defect_name === name) : null;
         return n(found?.[kind === "deduction" ? "hours" : "quantity"]);
     };
-    const setDraft = (id: number, field: keyof ProductionReport, value: unknown) => setDrafts(cur => ({ ...cur, [id]: { ...cur[id], [field]: value } }));
+    const setDraft = (id: number, field: keyof ProductionReport, value: unknown) => { setDirty(true); setDrafts(cur => ({ ...cur, [id]: { ...cur[id], [field]: value } })); };
     const setDetailValue = (id: number, kind: "deduction" | "defect", name: string, value: number) => setDrafts(cur => {
+        setDirty(true);
         const row: any = { ...(cur[id] as any) };
         const key = kind === "deduction" ? "deductions" : "defects";
         const valueKey = kind === "deduction" ? "hours" : "quantity";
@@ -110,8 +115,9 @@ export default function ApprovedReports() {
         row[key] = list;
         return { ...cur, [id]: row as ProductionReport };
     });
-    const startEdit = () => { if (!canEdit) return; setDrafts(Object.fromEntries(reports.map(r => [Number(r.id), { ...r }]))); setActiveEditRow(null); setEditing(true); };
-    const cancelEdit = () => { setDrafts({}); setActiveEditRow(null); setEditing(false); };
+
+    const startEdit = () => { if (!canEdit) return; setDrafts(Object.fromEntries(reports.map(r => [Number(r.id), { ...r }]))); setActiveEditRow(null); setDirty(false); setEditing(true); };
+    const cancelEdit = () => { setDrafts({}); setActiveEditRow(null); setDirty(false); setEditing(false); };
     const toggle = (id: number) => setSelected(cur => { const next = new Set(cur); next.has(id) ? next.delete(id) : next.add(id); return next; });
     const toggleAll = () => setSelected(selected.size === rows.length ? new Set() : new Set(rows.map(r => Number(r.id)).filter(Boolean)));
 
@@ -128,8 +134,15 @@ export default function ApprovedReports() {
         if (nextInput) nextInput.focus();
     };
 
-    const save = async () => {
-        if (!canEdit || saving) return;
+    const requestLeave = (action: () => void) => {
+        if (!dirty || saving) { action(); return; }
+        setPendingAction(() => action);
+        setPendingNavigation(null);
+        setUnsavedPrompt(true);
+    };
+
+    const save = async (): Promise<boolean> => {
+        if (!canEdit || saving) return false;
         try {
             setSaving(true);
             for (const r of rows) {
@@ -141,8 +154,8 @@ export default function ApprovedReports() {
                 const updated = (result?.data || result?.report || result) as ProductionReport;
                 setReports(cur => cur.map(x => Number(x.id) === Number(r.id) ? ({ ...next, ...(updated || {}) }) : x));
             }
-            invalidateManagerReportCaches(); setDrafts({}); setEditing(false); setActiveEditRow(null); showToast("Đã lưu toàn bộ thay đổi", "success");
-        } catch (e: unknown) { showToast(axios.isAxiosError(e) ? e.response?.data?.message || "Không thể lưu thay đổi" : "Không thể lưu thay đổi"); }
+            invalidateManagerReportCaches(); setDrafts({}); setDirty(false); setEditing(false); setActiveEditRow(null); showToast("Đã lưu toàn bộ thay đổi", "success"); return true;
+        } catch (e: unknown) { showToast(axios.isAxiosError(e) ? e.response?.data?.message || "Không thể lưu thay đổi" : "Không thể lưu thay đổi"); return false; }
         finally { setSaving(false); }
     };
 
@@ -152,7 +165,7 @@ export default function ApprovedReports() {
         if (!base) { showToast("Hãy chọn công đoạn/có ít nhất một báo cáo mẫu trước khi thêm"); return; }
         const tempId = -Date.now();
         const blank = { ...base, id: tempId, work_date: date, worker_code: "", full_name: "", shift: shift || base.shift || "", machine_no: "", product_name: "", actual_time: 0, deduction_time: 0, total_time: 0, standard_output: 0, actual_output: 0, tt_ok: 0, tt_ng: 0, note: "", process_id: Number(base.process_id) } as ProductionReport;
-        setReports(cur => [blank, ...cur]); setDrafts(cur => ({ ...cur, [tempId]: blank })); setSelected(new Set([tempId])); setActiveEditRow(tempId); setEditing(true);
+        setReports(cur => [blank, ...cur]); setDrafts(cur => ({ ...cur, [tempId]: blank })); setSelected(new Set([tempId])); setActiveEditRow(tempId); setDirty(true); setEditing(true);
     };
 
     const remove = async () => {
@@ -162,12 +175,12 @@ export default function ApprovedReports() {
             setSaving(true);
             const ids = Array.from(selected).filter(id => id > 0);
             for (const id of ids) await deleteReport(id, "Quản lý xóa báo cáo đã duyệt");
-            setReports(cur => cur.filter(r => !selected.has(Number(r.id)))); setSelected(new Set()); invalidateManagerReportCaches(); showToast("Đã xóa báo cáo", "success");
+            setReports(cur => cur.filter(r => !selected.has(Number(r.id)))); setSelected(new Set()); setDirty(false); invalidateManagerReportCaches(); showToast("Đã xóa báo cáo", "success");
         } catch (e: unknown) { showToast(axios.isAxiosError(e) ? e.response?.data?.message || "Không thể xóa báo cáo" : "Không thể xóa báo cáo"); }
         finally { setSaving(false); }
     };
 
-    const saveNew = async () => {
+    const saveNew = async (): Promise<boolean> => {
         const newRows = rows.filter(r => Number(r.id) < 0);
         if (!newRows.length) return save();
         try {
@@ -175,38 +188,92 @@ export default function ApprovedReports() {
             const createdIds: Array<{ id: number; expected_updated_at?: string | null }> = [];
             for (const r of newRows) {
                 const d = drafts[Number(r.id)] as any;
-                if (!d?.worker_id || !d?.process_id || !d?.work_date || !d?.shift || !d?.product_name) { showToast("Báo cáo mới cần công nhân, công đoạn, ngày, ca và sản phẩm"); return; }
+                if (!d?.worker_id || !d?.process_id || !d?.work_date || !d?.shift || !d?.product_name) { showToast("Báo cáo mới cần công nhân, công đoạn, ngày, ca và sản phẩm"); return false; }
                 const result = await createTempReport({ ...d, id: undefined, total_time: n(d.actual_time) + n(d.deduction_time), actual_output: n(d.tt_ok) + n(d.tt_ng) } as ProductionReport);
                 const id = Number(result?.data?.id || result?.id);
                 if (id) createdIds.push({ id, expected_updated_at: result?.data?.updated_at || result?.updated_at || null });
             }
             if (createdIds.length) await approveSelectedTempReports(createdIds);
-            invalidateManagerReportCaches(); await load(); setEditing(false); setDrafts({}); setActiveEditRow(null); showToast("Đã thêm báo cáo", "success");
-        } catch (e: unknown) { showToast(axios.isAxiosError(e) ? e.response?.data?.message || "Không thể thêm báo cáo" : "Không thể thêm báo cáo"); }
+            invalidateManagerReportCaches(); await load(); setEditing(false); setDrafts({}); setDirty(false); setActiveEditRow(null); showToast("Đã thêm báo cáo", "success"); return true;
+        } catch (e: unknown) { showToast(axios.isAxiosError(e) ? e.response?.data?.message || "Không thể thêm báo cáo" : "Không thể thêm báo cáo"); return false; }
         finally { setSaving(false); }
     };
-    const saveAll = async () => { if (rows.some(r => Number(r.id) < 0)) await saveNew(); else await save(); };
+    const saveAll = async (): Promise<boolean> => rows.some(r => Number(r.id) < 0) ? await saveNew() : await save();
+
+    useEffect(() => {
+        const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+            if (!dirty) return;
+            event.preventDefault();
+            event.returnValue = "";
+        };
+        const handleDocumentClick = (event: MouseEvent) => {
+            if (!dirty || saving) return;
+            const target = event.target as HTMLElement | null;
+            const anchor = target?.closest("a[href]") as HTMLAnchorElement | null;
+            if (!anchor || anchor.target === "_blank" || anchor.hasAttribute("download")) return;
+            const url = new URL(anchor.href, window.location.href);
+            if (url.origin !== window.location.origin || url.href === window.location.href) return;
+            event.preventDefault();
+            event.stopPropagation();
+            setPendingAction(null);
+            setPendingNavigation(url.href);
+            setUnsavedPrompt(true);
+        };
+        window.addEventListener("beforeunload", handleBeforeUnload);
+        document.addEventListener("click", handleDocumentClick, true);
+        return () => {
+            window.removeEventListener("beforeunload", handleBeforeUnload);
+            document.removeEventListener("click", handleDocumentClick, true);
+        };
+    }, [dirty, saving]);
+
+    const continueAfterPrompt = async (saveFirst: boolean) => {
+        if (saveFirst) {
+            const ok = await saveAll();
+            if (!ok) return;
+        } else {
+            setDirty(false);
+            setDrafts({});
+            setEditing(false);
+            setActiveEditRow(null);
+        }
+        const navigation = pendingNavigation;
+        const action = pendingAction;
+        setUnsavedPrompt(false);
+        setPendingNavigation(null);
+        setPendingAction(null);
+        if (navigation) window.location.assign(navigation);
+        else if (action) action();
+    };
+
+    const guarded = (action: () => void) => requestLeave(action);
 
     return <div className="management-report-page manager-page" style={{ minWidth: 0 }}>
-        <header className="pending-page-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
-            <div><h1>Quản lý báo cáo</h1><p>Chỉ báo cáo đã duyệt · bảng liền mạch như Excel · chọn dòng, Sửa, nhập trực tiếp, Tab chuyển ô.</p></div>
-            <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
-                {canEdit && <><button type="button" style={button} onClick={add}>＋ Thêm</button><button type="button" style={button} onClick={startEdit}>Sửa</button><button type="button" style={{ ...button, background: "#1769d2", color: "#fff", borderColor: "#1769d2" }} disabled={!editing || saving} onClick={() => void saveAll()}>{saving ? "Đang lưu..." : "Lưu"}</button><button type="button" style={button} disabled={!editing || saving} onClick={cancelEdit}>Hủy</button><button type="button" style={{ ...button, color: "#b42318" }} disabled={selected.size === 0 || saving} onClick={() => void remove()}>Xóa</button></>}
-                <button type="button" style={button} onClick={() => void load()}>↻ Làm mới</button>
-            </div>
+        <header className="pending-page-title">
+            <div><h1>Quản lý báo cáo</h1><p>Chỉ báo cáo đã duyệt · bảng liền mạch như Excel · Enter xuống hàng · Tab chuyển ô.</p></div>
         </header>
 
         <section className="pending-filter-card">
-            <div className="pending-search"><span>⌕</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Mã CN, họ tên, máy, sản phẩm..." /></div>
-            <label><span>Ngày</span><input type="date" value={date} onChange={e => { setDate(e.target.value); setRange(null); }} /></label>
-            <label><span>Công đoạn</span><select value={process} onChange={e => setProcess(e.target.value)}><option value="">Tất cả</option>{processes.map(p => <option key={p}>{p}</option>)}</select></label>
-            <label><span>Ca</span><select value={shift} onChange={e => setShift(e.target.value)}><option value="">Tất cả</option>{shifts.map(s => <option key={s}>{s}</option>)}</select></label>
-            <div className="pending-quick-filters"><span>Chọn nhanh</span><button type="button" className={!range ? "active" : ""} onClick={() => setRange(null)}>Hôm nay</button><button type="button" onClick={() => setRange(rangeFor(date, "week"))}>Tuần này</button><button type="button" onClick={() => setRange(rangeFor(date, "month"))}>Tháng này</button><button type="button" onClick={() => setRange(rangeFor(date, "year"))}>Năm này</button></div>
+            <div className="pending-search"><span>⌕</span><input value={search} onChange={e => guarded(() => setSearch(e.target.value))} placeholder="Mã CN, họ tên, máy, sản phẩm..." /></div>
+            <label><span>Ngày</span><input type="date" value={date} onChange={e => guarded(() => { setDate(e.target.value); setRange(null); })} /></label>
+            <label><span>Công đoạn</span><select value={process} onChange={e => guarded(() => setProcess(e.target.value))}><option value="">Tất cả</option>{processes.map(p => <option key={p}>{p}</option>)}</select></label>
+            <label><span>Ca</span><select value={shift} onChange={e => guarded(() => setShift(e.target.value))}><option value="">Tất cả</option>{shifts.map(s => <option key={s}>{s}</option>)}</select></label>
+            <div className="pending-quick-filters"><span>Chọn nhanh</span><button type="button" className={!range ? "active" : ""} onClick={() => guarded(() => setRange(null))}>Hôm nay</button><button type="button" onClick={() => guarded(() => setRange(rangeFor(date, "week")))}>Tuần này</button><button type="button" onClick={() => guarded(() => setRange(rangeFor(date, "month")))}>Tháng này</button><button type="button" onClick={() => guarded(() => setRange(rangeFor(date, "year")))}>Năm này</button></div>
         </section>
 
         {error && <div className="management-error">{error}</div>}
         <section className="pending-list-card" style={{ width: "100%", overflow: "hidden" }}>
-            <div className="pending-list-tabs" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><strong>{total} báo cáo đã duyệt</strong><span style={{ fontSize: 12, color: "#7185a4" }}>Chọn dòng · Sửa · Lưu · Xóa · Tab như Excel</span></div>
+            <div className="pending-list-tabs" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><strong>{total} báo cáo đã duyệt</strong><span style={{ fontSize: 12, color: dirty ? "#b54708" : "#7185a4", fontWeight: dirty ? 700 : 400 }}>{dirty ? "● Chưa lưu thay đổi" : "Sẵn sàng chỉnh sửa"}</span></div>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 12px", borderBottom: "1px solid #dbe3ee", background: "#f8fafc", position: "sticky", top: 0, zIndex: 3 }}>
+                {canEdit && <>
+                    <button type="button" style={button} onClick={add} disabled={saving}>＋ Thêm</button>
+                    <button type="button" style={button} onClick={startEdit} disabled={saving || editing}>Sửa</button>
+                    <button type="button" style={{ ...button, background: "#1769d2", color: "#fff", borderColor: "#1769d2" }} disabled={!editing || !dirty || saving} onClick={() => void saveAll()}>{saving ? "Đang lưu..." : "Lưu"}</button>
+                    <button type="button" style={button} disabled={!editing || saving} onClick={cancelEdit}>Hủy</button>
+                    <button type="button" style={{ ...button, color: "#b42318", borderColor: "#efc5c1" }} disabled={selected.size === 0 || saving} onClick={() => void remove()}>Xóa</button>
+                </>}
+                <button type="button" style={{ ...button, marginLeft: "auto" }} disabled={saving} onClick={() => guarded(() => void load())}>↻ Làm mới</button>
+            </div>
             <div className="pending-table-wrap" style={{ overflow: "auto", maxWidth: "100%", maxHeight: "calc(100vh - 330px)", border: "1px solid #dbe3ee", background: "#fff" }}>
                 <table style={{ borderCollapse: "separate", borderSpacing: 0, minWidth: 2600, width: "max-content" }}>
                     <thead style={{ position: "sticky", top: 0, zIndex: 4 }}><tr style={{ background: "#eef4fb" }}>
@@ -232,6 +299,17 @@ export default function ApprovedReports() {
                     })}</tbody>
                 </table>
             </div>
+            {unsavedPrompt && <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(15, 23, 42, .35)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+                <div style={{ width: "min(440px, 100%)", background: "#fff", borderRadius: 10, boxShadow: "0 20px 60px rgba(15,23,42,.2)", padding: 22 }}>
+                    <div style={{ fontSize: 17, fontWeight: 700, color: "#172b4d", marginBottom: 8 }}>Bạn có thay đổi chưa lưu</div>
+                    <div style={{ fontSize: 13, lineHeight: 1.6, color: "#5b6b83", marginBottom: 18 }}>Nếu rời khỏi trang bây giờ, các thay đổi bạn vừa nhập sẽ không còn. Bạn muốn làm gì?</div>
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+                        <button type="button" style={button} onClick={() => { setUnsavedPrompt(false); setPendingAction(null); setPendingNavigation(null); }}>Ở lại</button>
+                        <button type="button" style={{ ...button, color: "#b42318", borderColor: "#efc5c1" }} onClick={() => void continueAfterPrompt(false)}>Không lưu</button>
+                        <button type="button" style={{ ...button, background: "#1769d2", color: "#fff", borderColor: "#1769d2" }} onClick={() => void continueAfterPrompt(true)}>Lưu và tiếp tục</button>
+                    </div>
+                </div>
+            </div>}
             <div className="pending-table-footer" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><span>Hiển thị {rows.length ? (page - 1) * 20 + 1 : 0} đến {(page - 1) * 20 + rows.length} của {total}</span><div className="management-pagination" style={{ margin: 0 }}><button disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>‹</button><button className="active" disabled>{page} / {pages}</button><button disabled={page >= pages} onClick={() => setPage(p => Math.min(pages, p + 1))}>›</button></div></div>
         </section>
     </div>;
