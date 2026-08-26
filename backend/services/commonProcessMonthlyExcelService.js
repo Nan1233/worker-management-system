@@ -79,7 +79,7 @@ function setHeader(sheet, rowNumber, styles, deductions, defects) {
   const headers = [
     'STT', 'Mã CN', 'Họ tên', 'Số máy', 'Ca', '% học việc', 'Tổng thời gian', 'Thời gian thực tế', 'Số lần CM', 'Tổng TG trừ giờ', 'Thiếu sản lượng',
     ...Array.from({ length: MAX_DEDUCTIONS }, (_, i) => deductions[i]?.name || ''),
-    'SP', 'Định mức', 'TT', 'Tỷ lệ đạt', 'Ngày', 'SLSP/h', 'OK', 'Tổng NG', 'Tỷ lệ NG',
+    'SP', 'Định mức', 'TT', '% thực tích', 'Ngày', 'SLSP/h', 'OK', 'Tổng NG', 'Tỷ lệ NG',
     ...Array.from({ length: MAX_DEFECTS }, (_, i) => defects[i]?.name || ''), 'OK', 'NG'
   ];
   headers.forEach((value, index) => {
@@ -107,13 +107,30 @@ function detailValue(items, id, name, key) {
 function writeReportRow(sheet, rowNumber, report, deductionTypes, defectTypes, dataStyles, index) {
   copyTemplateStyles(sheet, 6, rowNumber, dataStyles);
   const row = sheet.getRow(rowNumber);
-  const totalTime = num(report.total_time), actualTime = num(report.actual_time || report.total_time), deductionTime = num(report.deduction_time);
-  const standard = num(report.standard_output), actual = num(report.actual_output), ok = num(report.tt_ok), ng = num(report.tt_ng);
-  const achievement = standard > 0 ? actual / standard : 0, outputPerHour = actualTime > 0 ? actual / actualTime : 0, ngRate = actual > 0 ? ng / actual : 0;
-  const deductions = Array.isArray(report.deductions) ? report.deductions : [], defects = Array.isArray(report.defects) ? report.defects : [];
+  const totalTime = num(report.total_time);
+  const actualTime = num(report.actual_time || report.total_time);
+  const deductionTime = num(report.deduction_time);
+
+  // Business rule for Excel:
+  //   Định mức = Định mức SP/h × số giờ thực tế
+  //   % thực tích = TT / Định mức × % học việc
+  // The training percentage is the immutable snapshot captured at report time.
+  const standardRate = num(report.standard_output);
+  const actual = num(report.actual_output || (num(report.tt_ok) + num(report.tt_ng)));
+  const trainingPercent = Math.min(100, Math.max(0, num(report.training_percent ?? report.training_percent_snapshot)));
+  const trainingFactor = trainingPercent / 100;
+  const standard = standardRate * actualTime;
+  const achievement = standard > 0 ? (actual / standard) * trainingFactor : 0;
+  const outputPerHour = actualTime > 0 ? actual / actualTime : 0;
+  const ok = num(report.tt_ok);
+  const ng = num(report.tt_ng);
+  const ngRate = actual > 0 ? ng / actual : 0;
+  const deductions = Array.isArray(report.deductions) ? report.deductions : [];
+  const defects = Array.isArray(report.defects) ? report.defects : [];
+
   const values = [
     index + 1, report.worker_code ?? '', report.full_name ?? report.worker_name ?? '', report.machine_no ?? '', report.shift ?? '',
-    report.training_percent ?? report.training_percent_snapshot ?? null, totalTime, actualTime,
+    trainingFactor, totalTime, actualTime,
     detailValue(deductions, null, 'Chuyển mã', 'hours'), deductionTime, Math.max(0, standard - actual),
     ...deductionTypes.slice(0, MAX_DEDUCTIONS).map((t) => detailValue(deductions, t.id, t.name, 'hours')),
     report.product_name ?? '', standard, actual, achievement,
@@ -121,9 +138,17 @@ function writeReportRow(sheet, rowNumber, report, deductionTypes, defectTypes, d
     outputPerHour, ok, ng, ngRate,
     ...defectTypes.slice(0, MAX_DEFECTS).map((t) => detailValue(defects, t.id, t.name, 'quantity')), ok, ng
   ];
+
   for (let c = 1; c <= LAST_COLUMN; c += 1) row.getCell(c).value = values[c - 1] ?? null;
-  row.getCell(6).numFmt = '0%'; row.getCell(28).numFmt = '0.00'; row.getCell(29).numFmt = '0.00'; row.getCell(30).numFmt = '0%'; row.getCell(31).numFmt = 'dd/mm/yyyy'; row.getCell(32).numFmt = '0.00'; row.getCell(35).numFmt = '0%';
-  row.getCell(30).font = { ...(row.getCell(30).font || {}), bold: true }; row.getCell(35).font = { ...(row.getCell(35).font || {}), bold: true };
+  row.getCell(6).numFmt = '0%';
+  row.getCell(28).numFmt = '0.00';
+  row.getCell(29).numFmt = '0.00';
+  row.getCell(30).numFmt = '0.00%';
+  row.getCell(31).numFmt = 'dd/mm/yyyy';
+  row.getCell(32).numFmt = '0.00';
+  row.getCell(35).numFmt = '0%';
+  row.getCell(30).font = { ...(row.getCell(30).font || {}), bold: true };
+  row.getCell(35).font = { ...(row.getCell(35).font || {}), bold: true };
 }
 function prepareSheet(sheet) {
   const headerStyles = captureRowStyles(sheet, 3), dataStyles = captureRowStyles(sheet, Math.min(6, sheet.rowCount)), dateStyles = captureRowStyles(sheet, 1);
