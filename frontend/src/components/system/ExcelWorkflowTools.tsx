@@ -105,7 +105,8 @@ export default function ExcelWorkflowTools() {
         window.ktcDesktop.getExportRoot().then(setExportRoot).catch(() => setExportRoot(DEFAULT_LABEL));
     }, [active, desktop]);
 
-    if (!active) return null;
+    // Excel workflow controls are desktop/Electron-only. The normal web app must stay clean.
+    if (!active || !desktop) return null;
 
     const chooseFolder = async () => {
         if (!desktop || !window.ktcDesktop?.chooseExportRoot) return;
@@ -177,12 +178,12 @@ export default function ExcelWorkflowTools() {
                 {isApprovedRoute(hash) && <button type="button" className="ktc-excel-primary" onClick={updateApprovedExcel} disabled={busy}><RefreshCw size={15} /> {busy ? "Đang cập nhật..." : "Cập nhật Excel"}</button>}
                 {isStatisticsRoute(hash) && <button type="button" className="ktc-excel-primary" onClick={exportStatistics} disabled={busy}><Download size={15} /> {busy ? "Đang xuất..." : "Xuất toàn bộ Excel"}</button>}
             </div>
-            {desktop && <div className="ktc-excel-path-row">
+            <div className="ktc-excel-path-row">
                 <FolderOpen size={14} />
                 <span title={exportRoot || DEFAULT_LABEL}>{exportRoot || DEFAULT_LABEL}</span>
                 <button type="button" onClick={chooseFolder}>Chọn thư mục</button>
                 <button type="button" onClick={resetFolder} title={DEFAULT_LABEL}><RotateCcw size={13} /> Mặc định</button>
-            </div>}
+            </div>
         </div>
     );
 }
