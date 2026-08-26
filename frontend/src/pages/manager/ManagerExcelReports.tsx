@@ -16,12 +16,46 @@ const dateFmt = (v?: string) => v ? `${String(v).slice(8, 10)}/${String(v).slice
 const rate = (r: ProductionReport) => n(r.target_output) ? n(r.actual_output) / n(r.target_output) * 100 : 0;
 const ngRate = (r: ProductionReport) => n(r.actual_output) ? n(r.tt_ng) / n(r.actual_output) * 100 : 0;
 
+type DatePreset = "today" | "yesterday" | "week" | "last-week" | "month" | "last-month" | "custom";
+
+const parseDate = (value: string) => {
+  const [y, m, d] = value.split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+};
+const isoDate = (date: Date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+const monthStart = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1);
+const monthEnd = (date: Date) => new Date(date.getFullYear(), date.getMonth() + 1, 0);
+const weekStart = (date: Date) => {
+  const result = new Date(date);
+  const day = result.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  result.setDate(result.getDate() + diff);
+  return result;
+};
+const weekEnd = (date: Date) => {
+  const result = weekStart(date);
+  result.setDate(result.getDate() + 6);
+  return result;
+};
+const initialMonthRange = () => {
+  const today = parseDate(getToday());
+  return { from: isoDate(monthStart(today)), to: isoDate(monthEnd(today)) };
+};
+
 export default function ManagerExcelReports() {
   const { showToast } = useToast();
   const approvedView = window.location.pathname.endsWith("/approved");
+  const initialRange = initialMonthRange();
   const [process, setProcess] = useState("Tất cả");
   const [status, setStatus] = useState<"all" | "pending" | "approved">(approvedView ? "approved" : "all");
-  const [date, setDate] = useState(getToday());
+  const [preset, setPreset] = useState<DatePreset>("month");
+  const [dateFrom, setDateFrom] = useState(initialRange.from);
+  const [dateTo, setDateTo] = useState(initialRange.to);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [reports, setReports] = useState<ProductionReport[]>([]);
@@ -34,10 +68,32 @@ export default function ManagerExcelReports() {
   const [total, setTotal] = useState(0);
   const pageSize = 20;
 
+  const applyPreset = (next: DatePreset) => {
+    const today = parseDate(getToday());
+    let from = today;
+    let to = today;
+    if (next === "yesterday") {
+      from = new Date(today); from.setDate(from.getDate() - 1); to = new Date(from);
+    } else if (next === "week") {
+      from = weekStart(today); to = weekEnd(today);
+    } else if (next === "last-week") {
+      to = weekStart(today); to.setDate(to.getDate() - 1); from = new Date(to); from.setDate(from.getDate() - 6);
+    } else if (next === "month") {
+      from = monthStart(today); to = monthEnd(today);
+    } else if (next === "last-month") {
+      from = new Date(today.getFullYear(), today.getMonth() - 1, 1); to = new Date(today.getFullYear(), today.getMonth(), 0);
+    } else if (next === "custom") {
+      setPreset("custom"); return;
+    }
+    setPreset(next);
+    setDateFrom(isoDate(from));
+    setDateTo(isoDate(to));
+  };
+
   const load = async () => {
     try {
       setLoading(true);
-      const filters = { dateFrom: date, dateTo: date, processName: process === "Tất cả" ? undefined : process, search: search.trim() || undefined, page, pageSize };
+      const filters = { dateFrom, dateTo, processName: process === "Tất cả" ? undefined : process, search: search.trim() || undefined, page, pageSize };
       const result = status === "approved" ? await getApprovedReports(filters) : await getPendingReports(filters);
       let rows = result.data || [];
       if (status === "all") {
@@ -57,8 +113,8 @@ export default function ManagerExcelReports() {
       setReports([]);
     } finally { setLoading(false); }
   };
-  useEffect(() => { void load(); }, [process, status, date, search, page]);
-  useEffect(() => { setPage(1); setSelected([]); }, [process, status, date, search]);
+  useEffect(() => { void load(); }, [process, status, dateFrom, dateTo, search, page]);
+  useEffect(() => { setPage(1); setSelected([]); }, [process, status, dateFrom, dateTo, search]);
 
   const rows = useMemo(() => reports.map(r => details[Number(r.id)] ? { ...r, ...details[Number(r.id)] } : r), [reports, details]);
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
@@ -92,7 +148,14 @@ export default function ManagerExcelReports() {
   return <div className="manager-excel-page">
     <header className="manager-excel-head"><div><h1>{title}</h1><p>{subtitle}</p></div><div className="manager-excel-head-actions"><button type="button" onClick={() => void load()}>↻ Làm mới</button>{selected.length > 0 && status !== "approved" && <button className="primary" type="button" onClick={() => void approve()}>✓ Duyệt {selected.length}</button>}</div></header>
     <div className="manager-excel-tabs">{PROCESSES.map(p => <button key={p} className={process === p ? "active" : ""} onClick={() => setProcess(p)}>{p}</button>)}</div>
-    <section className="manager-excel-filters"><label>Ngày<input type="date" value={date} onChange={e => setDate(e.target.value)} /></label>{!approvedView && <label>Trạng thái<select value={status} onChange={e => setStatus(e.target.value as typeof status)}><option value="all">Tất cả</option><option value="pending">Chờ duyệt</option><option value="approved">Đã duyệt</option></select></label>}<label className="search">Tìm kiếm<input value={search} onChange={e => setSearch(e.target.value)} placeholder="Mã CN, họ tên, máy, sản phẩm..." /></label></section>
+    <section className="manager-excel-filters">
+      <label>Khoảng thời gian<select value={preset} onChange={e => applyPreset(e.target.value as DatePreset)}><option value="today">Hôm nay</option><option value="yesterday">Hôm qua</option><option value="week">Tuần này</option><option value="last-week">Tuần trước</option><option value="month">Tháng này</option><option value="last-month">Tháng trước</option><option value="custom">Tùy chọn khoảng ngày</option></select></label>
+      <label>Từ ngày<input type="date" value={dateFrom} onChange={e => { setPreset("custom"); setDateFrom(e.target.value); }} /></label>
+      <label>Đến ngày<input type="date" value={dateTo} min={dateFrom} onChange={e => { setPreset("custom"); setDateTo(e.target.value); }} /></label>
+      {!approvedView && <label>Trạng thái<select value={status} onChange={e => setStatus(e.target.value as typeof status)}><option value="all">Tất cả</option><option value="pending">Chờ duyệt</option><option value="approved">Đã duyệt</option></select></label>}
+      <label className="search">Tìm kiếm<input value={search} onChange={e => setSearch(e.target.value)} placeholder="Mã CN, họ tên, máy, sản phẩm..." /></label>
+      <button className="filter-reset" type="button" onClick={() => { setProcess("Tất cả"); setStatus(approvedView ? "approved" : "all"); applyPreset("month"); setSearch(""); }}>Đặt lại</button>
+    </section>
     <section className="manager-excel-table-card"><div className="manager-excel-table-wrap"><table className="manager-excel-table"><thead><tr><th className="sticky select"><input type="checkbox" checked={rows.length > 0 && rows.every(r => selected.includes(Number(r.id)))} onChange={e => setSelected(e.target.checked ? rows.map(r => Number(r.id)).filter(Boolean) : [])} /></th><th className="sticky date">Ngày</th><th className="sticky code">Mã CN</th><th className="sticky name">Họ tên</th><th>Công đoạn</th><th>Ca</th><th>Máy</th><th>Sản phẩm</th><th>% HV</th><th>Tổng giờ</th><th>Trừ giờ</th><th>TT giờ</th><th>Định mức</th><th>Thực tế</th><th>OK</th><th>NG</th><th>% đạt</th><th>% NG</th>{DEFECT_FIELDS.map(([, label]) => <th key={label}>{label}</th>)}<th>Trừ giờ chi tiết</th><th>Lỗi chi tiết</th><th>Ghi chú</th><th>Trạng thái</th><th className="action">Thao tác</th></tr></thead><tbody>{loading ? <tr><td colSpan={28} className="empty">Đang tải dữ liệu...</td></tr> : !rows.length ? <tr><td colSpan={28} className="empty">Không có báo cáo phù hợp.</td></tr> : rows.map((r, i) => {
       const id = Number(r.id); const isEdit = editing === id; const d = isEdit ? draft || r : r; const detailsRow = d.deductions || []; const defects = d.defects || [];
       return <tr key={`${id}-${i}`} className={`${selected.includes(id) ? "selected" : ""} ${isEdit ? "editing" : ""}`} onClick={() => { if (!isEdit) setSelected(v => v.includes(id) ? v : [...v, id]); }}>
