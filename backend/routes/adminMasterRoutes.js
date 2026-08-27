@@ -18,7 +18,6 @@ const SUPPORTING_READ_RESOURCES=['processes'];
 const MANAGEMENT_ROLES=['admin','manager','lead'];
 const normalizedRole=(req)=>String(req.user?.role||'').trim().toLowerCase();
 const isManagementRole=(req)=>MANAGEMENT_ROLES.includes(normalizedRole(req));
-const isLeadManagerMasterResource=(req)=>normalizedRole(req)==='lead'&&MANAGER_MASTER_RESOURCES.includes(String(req.params.resource||''));
 
 const managerMasterAccess=(req,res,next)=>{
   const role=normalizedRole(req);
@@ -52,14 +51,25 @@ const managerResourceScope=(req,res,next)=>{
   return next();
 };
 
+// adminMasterController still contains a legacy Lead guard that only lists
+// three resources. For the defects resource, execute the controller with the
+// same workspace role semantics as Manager. Process scope remains tied to the
+// authenticated user's id, so this does not widen Lead's process scope.
+const runAsManagerForLeadDefects=(handler)=>(req,res,next)=>{
+  if(normalizedRole(req)!=='lead'||String(req.params.resource||'')!=='defects') return handler(req,res,next);
+  const originalRole=req.user?.role;
+  req.user.role='manager';
+  return Promise.resolve(handler(req,res,next)).finally(()=>{ req.user.role=originalRole; });
+};
+
 // These routes intentionally use managerMasterAccess instead of the generic
 // permission middleware. Lead/manager access is defined by workspace role here.
 router.get('/transfer/export/:resource',managerMasterAccess,managerResourceScope,transferController.export);
 router.post('/transfer/import/:resource',managerMasterAccess,managerResourceScope,transferController.import);
-router.get('/:resource',managerMasterAccess,managerResourceScope,controller.list);
-router.post('/:resource',managerMasterAccess,managerResourceScope,controller.create);
-router.put('/:resource/:id',managerMasterAccess,managerResourceScope,controller.update);
-router.delete('/:resource/:id',managerMasterAccess,managerResourceScope,controller.remove);
+router.get('/:resource',managerMasterAccess,managerResourceScope,runAsManagerForLeadDefects(controller.list));
+router.post('/:resource',managerMasterAccess,managerResourceScope,runAsManagerForLeadDefects(controller.create));
+router.put('/:resource/:id',managerMasterAccess,managerResourceScope,runAsManagerForLeadDefects(controller.update));
+router.delete('/:resource/:id',managerMasterAccess,managerResourceScope,runAsManagerForLeadDefects(controller.remove));
 
 // Worker-specific master operations retain the normal permission guard.
 router.put('/workers/:id/profile',checkRole('admin','manager','lead'),permission('MASTER_EDIT'),controller.updateWorker);
