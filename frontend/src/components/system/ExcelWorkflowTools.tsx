@@ -18,8 +18,9 @@ function isApprovedRoute(hash: string) {
 export default function ExcelWorkflowTools() {
     const { showToast } = useToast();
     const [hash, setHash] = useState(window.location.hash);
-    const [footer, setFooter] = useState<HTMLElement | null>(null);
+    const [target, setTarget] = useState<HTMLElement | null>(null);
     const [busy, setBusy] = useState(false);
+    const desktop = Boolean(window.ktcDesktop?.isDesktop);
 
     useEffect(() => {
         const onHash = () => setHash(window.location.hash);
@@ -31,23 +32,21 @@ export default function ExcelWorkflowTools() {
         };
     }, []);
 
-    const desktop = Boolean(window.ktcDesktop?.isDesktop);
-
     useEffect(() => {
         if (!desktop || !isApprovedRoute(hash)) {
-            setFooter(null);
+            setTarget(null);
             return;
         }
-        const findFooter = () => {
-            const target = document.querySelector<HTMLElement>(".pending-table-footer");
-            setFooter(target);
+        const findTarget = () => {
+            const footer = document.querySelector<HTMLElement>(".pending-table-footer");
+            setTarget(footer?.querySelector<HTMLElement>("div") || null);
         };
-        findFooter();
-        const timer = window.setInterval(findFooter, 300);
+        findTarget();
+        const timer = window.setInterval(findTarget, 300);
         return () => window.clearInterval(timer);
     }, [desktop, hash]);
 
-    if (!desktop || !isApprovedRoute(hash) || !footer) return null;
+    if (!desktop || !isApprovedRoute(hash) || !target) return null;
 
     const updateApprovedExcel = async () => {
         if (busy) return;
@@ -65,16 +64,9 @@ export default function ExcelWorkflowTools() {
     };
 
     return createPortal(
-        <button
-            type="button"
-            className="ktc-excel-footer-action"
-            onClick={updateApprovedExcel}
-            disabled={busy}
-            aria-label="Cập nhật Excel báo cáo đã duyệt"
-        >
-            <RefreshCw size={15} />
-            {busy ? "Đang cập nhật..." : "Cập nhật Excel"}
+        <button type="button" className="ktc-excel-footer-action" onClick={updateApprovedExcel} disabled={busy} aria-label="Cập nhật Excel báo cáo đã duyệt">
+            <RefreshCw size={15} /> {busy ? "Đang cập nhật..." : "Cập nhật Excel"}
         </button>,
-        footer
+        target
     );
 }
