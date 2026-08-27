@@ -13,16 +13,17 @@ type ManagementRole = "lead" | "manager" | "admin";
 type ManagementMenuItem = { label:string; path:string; icon:typeof LayoutDashboard; permission:PermissionCode; roles:ManagementRole[] };
 const allManagementRoles:ManagementRole[]=["lead","manager","admin"];
 const adminAndManagerRoles:ManagementRole[]=["manager","admin"];
+const managerMasterRoles:ManagementRole[]=["lead","manager","admin"];
 const items:ManagementMenuItem[]=[
  {label:"Tổng quan",path:"",icon:LayoutDashboard,permission:"DASHBOARD_VIEW",roles:allManagementRoles},
  {label:"Chờ duyệt",path:"reports",icon:ClipboardCheck,permission:"REPORT_PENDING_VIEW",roles:allManagementRoles},
  {label:"Đã duyệt",path:"approved",icon:ShieldCheck,permission:"REPORT_APPROVED_VIEW",roles:allManagementRoles},
  {label:"Thống kê",path:"statistics",icon:BarChart3,permission:"STATISTICS_VIEW",roles:allManagementRoles},
  {label:"Nhân sự",path:"workers",icon:Users,permission:"USER_VIEW",roles:allManagementRoles},
- {label:"Máy móc",path:"master/machines",icon:Cog,permission:"MASTER_VIEW",roles:adminAndManagerRoles},
- {label:"Sản phẩm",path:"master/standards",icon:Boxes,permission:"MASTER_VIEW",roles:adminAndManagerRoles},
- {label:"Trừ giờ",path:"master/deductions",icon:Timer,permission:"MASTER_VIEW",roles:adminAndManagerRoles},
- {label:"Lỗi",path:"master/defects",icon:FileWarning,permission:"MASTER_VIEW",roles:["admin"]},
+ {label:"Máy móc",path:"master/machines",icon:Cog,permission:"MASTER_VIEW",roles:managerMasterRoles},
+ {label:"Sản phẩm & định mức",path:"master/standards",icon:Boxes,permission:"MASTER_VIEW",roles:managerMasterRoles},
+ {label:"Lỗi NG",path:"master/defects",icon:FileWarning,permission:"MASTER_VIEW",roles:managerMasterRoles},
+ {label:"Trừ giờ",path:"master/deductions",icon:Timer,permission:"MASTER_VIEW",roles:managerMasterRoles},
  {label:"Nhật ký hoạt động",path:"system",icon:History,permission:"AUDIT_VIEW",roles:adminAndManagerRoles},
  {label:"Vai trò & quyền",path:"permissions",icon:ShieldCheck,permission:"PERMISSION_MANAGE",roles:["admin"]},
 ];
@@ -34,9 +35,6 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
  const {unreadCount}=useNotificationBadge(can("NOTIFICATION_VIEW"));
  const base=`/${role}`,user=getStoredUser();
  const [mobileMoreOpen,setMobileMoreOpen]=useState(false);
- // Tạm thời tài khoản Lead đang chạy giao diện /manager.
- // Khi ở /manager, dùng bộ quyền hiển thị của Manager để navbar không bị mất các mục master.
- // Trang /lead vẫn giữ nguyên logic quyền Lead.
  const temporaryManagerView=role==="manager" && String(user?.role||"").toLowerCase()==="lead";
  const managerPermissions=defaultPermissionsForRole("manager");
  const visible=items.filter(item=>item.roles.includes(role)&&(temporaryManagerView?managerPermissions.has(item.permission):can(item.permission)));
@@ -46,7 +44,7 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
  const avatarText=displayName.trim().charAt(0).toUpperCase()||"K";
  useEffect(()=>{
   if(role!=="manager")return;
-  const forbiddenMasterPath=/^\/manager\/master\/(users|processes|defects)(?:\/|$)/.test(location.pathname);
+  const forbiddenMasterPath=/^\/manager\/master\/(users|processes)(?:\/|$)/.test(location.pathname);
   if(forbiddenMasterPath)navigate(`${base}/master/machines`,{replace:true});
  },[role,location.pathname,navigate,base]);
  return <div className="management-layout" data-management-role={role}>
