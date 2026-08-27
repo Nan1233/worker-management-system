@@ -2,13 +2,36 @@
     display: none !important;
 }
 
+/* Desktop EXE: the Excel action lives in the approved-report table footer. */
+.pending-table-footer {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+}
+
+.pending-table-footer .ktc-excel-footer-action {
+    order: 3;
+    flex: 0 0 auto;
+}
+
+.pending-table-footer > span {
+    order: 1;
+}
+
+.pending-table-footer > div {
+    order: 2;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
 .ktc-excel-footer-action {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
     height: 36px;
-    margin-right: 2px;
+    margin: 0;
     padding: 0 12px;
     border: 1px solid #bfe0d0;
     border-radius: 8px;
@@ -30,4 +53,15 @@
 .ktc-excel-footer-action:disabled {
     opacity: .65;
     cursor: not-allowed;
+}
+
+@media (max-width: 720px) {
+    .pending-table-footer {
+        flex-wrap: wrap;
+    }
+
+    .pending-table-footer .ktc-excel-footer-action {
+        order: 4;
+        margin-left: auto;
+    }
 }
