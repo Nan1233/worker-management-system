@@ -1,23 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import MasterData from './MasterData';
-import { getStoredUser, setStoredUser, type AuthUser } from '../../utils/authStorage';
+import { getStoredUser } from '../../utils/authStorage';
 
-/** Compatibility adapter for Lead accounts that currently use the /manager workspace. */
+/** Lead uses the Manager workspace. Never mutate the stored Lead role. */
 export default function LeadManagerMasterData(){
-  const originalUser = useMemo<AuthUser|null>(()=>getStoredUser(),[]);
   const [ready,setReady]=useState(false);
-
-  useEffect(()=>{
-    if(!originalUser){ setReady(true); return; }
-    if(originalUser.role!=='lead'){ setReady(true); return; }
-
-    const managerViewUser:AuthUser={...originalUser,role:'manager'};
-    setStoredUser(managerViewUser);
-    setReady(true);
-
-    return ()=>{ setStoredUser(originalUser); };
-  },[originalUser]);
-
+  useEffect(()=>{ void getStoredUser(); setReady(true); },[]);
   if(!ready) return <div className="route-loading">Đang mở dữ liệu quản lý...</div>;
   return <MasterData/>;
 }
