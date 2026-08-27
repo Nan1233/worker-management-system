@@ -7,6 +7,7 @@ import { usePermissions } from "../hooks/usePermissions";
 import { defaultPermissionsForRole } from "../security/permissions";
 import type { PermissionCode } from "../security/permissions";
 import MasterDataTransferActions from "../components/master/MasterDataTransferActions";
+import ExcelWorkflowTools from "../components/system/ExcelWorkflowTools";
 import "./ManagementLayout.css";
 
 type ManagementRole = "lead" | "manager" | "admin";
@@ -61,7 +62,9 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
     <div className="management-header-title"><strong>KTC Production Control</strong><span>{roleLabel[role]}</span></div>
     <div className="management-header-actions">
      <button className="management-notification" type="button" aria-label="Thông báo" onClick={()=>navigate(`${base}/notifications`)}><Bell size={19}/>{unreadCount>0&&<b>{unreadCount>9?"9+":unreadCount}</b>}</button>
-     <button className="management-user" type="button" aria-label="Mở trang cá nhân" onClick={()=>navigate(`${base}/profile`)}><span className="management-user-avatar">{avatarText}</span><span className="management-user-copy"><strong>{displayName}</strong><small>{roleLabel[role]}</small></span></button><button type="button" className="management-header-logout" aria-label="Đăng xuất" onClick={logout}><LogOut size={18}/><span>Đăng xuất</span></button>
+     <button className="management-user" type="button" aria-label="Mở trang cá nhân" onClick={()=>navigate(`${base}/profile`)}><span className="management-user-avatar">{avatarText}</span><span className="management-user-copy"><strong>{displayName}</strong><small>{roleLabel[role]}</small></span></button>
+     <ExcelWorkflowTools />
+     <button type="button" className="management-header-logout" aria-label="Đăng xuất" onClick={logout}><LogOut size={18}/><span>Đăng xuất</span></button>
     </div>
    </header>
    <main className="management-content"><MasterDataTransferActions/><Outlet/></main>
