@@ -8,6 +8,7 @@ import { defaultPermissionsForRole } from "../security/permissions";
 import type { PermissionCode } from "../security/permissions";
 import MasterDataTransferActions from "../components/master/MasterDataTransferActions";
 import "./ManagementLayout.css";
+import "../styles/HideManagementPageDescriptions.css";
 
 type ManagementRole = "lead" | "manager" | "admin";
 type ManagementMenuItem = { label:string; path:string; icon:typeof LayoutDashboard; permission:PermissionCode; roles:ManagementRole[] };
