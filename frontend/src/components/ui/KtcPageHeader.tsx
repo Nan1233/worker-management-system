@@ -6,12 +6,11 @@ type KtcPageHeaderProps = {
   actions?: ReactNode;
 };
 
-export function KtcPageHeader({ title, description, actions }: KtcPageHeaderProps) {
+export function KtcPageHeader({ title, actions }: KtcPageHeaderProps) {
   return (
     <header className="ktc-ui-page-header">
       <div>
         <h1>{title}</h1>
-        {description ? <p>{description}</p> : null}
       </div>
       {actions ? <div className="ktc-ui-page-header-actions">{actions}</div> : null}
     </header>
