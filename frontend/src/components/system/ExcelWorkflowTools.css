@@ -1,11 +1,11 @@
 .ktc-excel-workflow-tools {
-    position: fixed !important;
-    top: 91px !important;
-    right: 16px !important;
-    z-index: 1100;
-    display: flex;
+    position: static !important;
+    display: inline-flex;
     align-items: center;
-    pointer-events: none;
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 0;
+    pointer-events: auto;
 }
 
 .ktc-excel-primary {
@@ -22,7 +22,7 @@
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
-    box-shadow: 0 3px 10px rgba(16, 35, 64, .12);
+    box-shadow: none;
     pointer-events: auto;
     white-space: nowrap;
 }
@@ -38,8 +38,8 @@
 
 @media (max-width: 900px) {
     .ktc-excel-workflow-tools {
-        top: 88px !important;
-        right: 10px !important;
+        position: static !important;
+        margin: 0;
     }
 
     .ktc-excel-primary {
