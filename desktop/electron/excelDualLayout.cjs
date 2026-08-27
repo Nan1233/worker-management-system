@@ -43,22 +43,25 @@ function assertDate(date) {
   }
 }
 
-// A+B chỉ thuộc cấu trúc Năm -> Tháng.
-async function getCompanyMonthTarget({ root, date, fileName }) {
+// Tất cả Excel sản xuất dùng một cấu trúc thống nhất:
+// Bao cao san xuat -> Năm -> Tháng -> Bộ phận -> file Excel.
+// Không tạo file ở Năm -> Bộ phận hoặc các thư mục ngẫu nhiên khác.
+async function getCompanyMonthTarget({ root, date, fileName, groupCode, groupTitle }) {
   assertDate(date);
   const [year, month] = date.split('-');
-  const folder = path.join(root, year, month);
+  const processFolder = normalizeProcessFolder({ groupCode, groupTitle });
+  const folder = path.join(root, year, month, processFolder);
   const normalizedFileName = safeFile(fileName, `A+B ${month}-${year}.xlsx`);
   await fs.mkdir(folder, { recursive: true });
   return {
-    layout: 'YEAR_MONTH_COMPANY_FILE',
+    layout: 'YEAR_MONTH_DEPARTMENT_COMPANY_FILE',
     folder,
     filePath: path.join(folder, normalizedFileName),
-    fileName: normalizedFileName
+    fileName: normalizedFileName,
+    processFolder
   };
 }
 
-// Báo cáo công đoạn chỉ thuộc cấu trúc Năm -> Công đoạn -> file tháng.
 async function getProcessMonthTarget({ root, date, processCode, processName, fileName }) {
   assertDate(date);
   const [year, month] = date.split('-');
@@ -67,10 +70,10 @@ async function getProcessMonthTarget({ root, date, processCode, processName, fil
     fileName || processReportFileName({ processCode, processName, month, year }),
     `Bao-cao-${processFolder}-${month}-${year}.xlsx`
   );
-  const folder = path.join(root, year, processFolder);
+  const folder = path.join(root, year, month, processFolder);
   await fs.mkdir(folder, { recursive: true });
   return {
-    layout: 'YEAR_PROCESS_MONTH_FILE',
+    layout: 'YEAR_MONTH_DEPARTMENT_PROCESS_FILE',
     folder,
     filePath: path.join(folder, normalizedFileName),
     fileName: normalizedFileName,
