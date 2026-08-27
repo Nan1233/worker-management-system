@@ -9,14 +9,14 @@ router.use(verifyToken,checkRole('admin','manager','lead'));
 
 const MANAGER_MASTER_RESOURCES=['machines','standards','deductions'];
 const SUPPORTING_READ_RESOURCES=['processes'];
+const normalizedRole=(req)=>String(req.user?.role||'').trim().toLowerCase();
 
 const managerResourceScope=(req,res,next)=>{
   const resource=String(req.params.resource||'');
-  const role=req.user?.role;
+  const role=normalizedRole(req);
 
   // Manager/Lead đang dùng giao diện Manager cần đọc danh mục công đoạn
   // để các màn hình Máy móc/Sản phẩm/Trừ giờ nạp bộ lọc và dữ liệu liên quan.
-  // Đây chỉ là quyền READ hỗ trợ, không mở quyền tạo/sửa/xóa.
   if((role==='manager'||role==='lead')&&req.method==='GET'&&SUPPORTING_READ_RESOURCES.includes(resource)){
     return next();
   }
@@ -36,7 +36,8 @@ const managerResourceScope=(req,res,next)=>{
 // Quyền ghi vẫn phải qua MASTER_EDIT như bình thường.
 const temporaryLeadManagerMasterView=(req,res,next)=>{
   const resource=String(req.params.resource||'');
-  if(req.user?.role==='lead'&&req.method==='GET'&&[
+  const role=normalizedRole(req);
+  if(role==='lead'&&req.method==='GET'&&[
     ...MANAGER_MASTER_RESOURCES,
     ...SUPPORTING_READ_RESOURCES
   ].includes(resource)) return next();
