@@ -49,9 +49,21 @@ function assertDate(date) {
 async function getCompanyMonthTarget({ root, date, fileName, groupCode, groupTitle }) {
   assertDate(date);
   const [year, month] = date.split('-');
-  const processFolder = normalizeProcessFolder({ groupCode, groupTitle });
-  const folder = path.join(root, year, month, processFolder);
   const normalizedFileName = safeFile(fileName, `A+B ${month}-${year}.xlsx`);
+
+  // main.cjs ở các bản hiện tại chỉ truyền fileName. Suy ra đúng bộ phận
+  // từ tên workbook để tuyệt đối không rơi về Năm\Bộ phận hoặc thư mục khác.
+  let processFolder = normalizeProcessFolder({ groupCode, groupTitle });
+  if (!groupCode && !groupTitle) {
+    const compact = normalizedFileName
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase();
+    if (compact.includes('GIA CONG')) processFolder = 'Gia công';
+    else if (compact.includes('MAI - DO') || compact.includes('MAI - DO')) processFolder = 'Mài - Đo';
+  }
+
+  const folder = path.join(root, year, month, processFolder);
   await fs.mkdir(folder, { recursive: true });
   return {
     layout: 'YEAR_MONTH_DEPARTMENT_COMPANY_FILE',
