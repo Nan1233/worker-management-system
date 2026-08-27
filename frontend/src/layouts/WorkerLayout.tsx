@@ -97,6 +97,10 @@ export default function WorkerLayout() {
             </button>
           );
         })}
+        <button type="button" className="worker-mobile-logout" onClick={() => void handleLogout()}>
+          <LogOut size={19} />
+          <span>Đăng xuất</span>
+        </button>
       </nav>
     </div>
   );
