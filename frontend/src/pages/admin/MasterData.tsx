@@ -15,10 +15,10 @@ type ProcessOption={id:number;process_code:string;process_name:string};
 const allTabs:{key:Resource;label:string;description:string;roles:string[]}[]=[
 {key:'users',label:'Người dùng',description:'Tài khoản, hồ sơ công nhân và phân công công đoạn',roles:['lead','manager','admin']},
 {key:'processes',label:'Công đoạn',description:'Gia công (Cắt/Lồng) và các công đoạn sản xuất',roles:['manager','admin']},
-{key:'machines',label:'Máy',description:'Máy theo từng công đoạn',roles:['manager','admin']},
-{key:'standards',label:'Sản phẩm & định mức',description:'Mã sản phẩm và sản lượng chuẩn',roles:['manager','admin']},
+{key:'machines',label:'Máy',description:'Máy theo từng công đoạn',roles:['lead','manager','admin']},
+{key:'standards',label:'Sản phẩm & định mức',description:'Mã sản phẩm và sản lượng chuẩn',roles:['lead','manager','admin']},
 {key:'defects',label:'Loại lỗi',description:'Danh mục NG lấy trực tiếp theo công đoạn',roles:['manager','admin']},
-{key:'deductions',label:'Trừ giờ',description:'Lý do và thứ tự hiển thị',roles:['manager','admin']}];
+{key:'deductions',label:'Trừ giờ',description:'Lý do và thứ tự hiển thị',roles:['lead','manager','admin']}];
 const baseFields:Record<Exclude<Resource,'users'>,Field[]>={
 processes:[{key:'process_code',label:'Mã công đoạn',required:true},{key:'process_name',label:'Tên công đoạn',required:true},{key:'description',label:'Mô tả'}],
 machines:[{key:'process_id',label:'Công đoạn',type:'select',required:true},{key:'machine_code',label:'Mã máy',required:true},{key:'machine_name',label:'Tên máy',required:true}],
