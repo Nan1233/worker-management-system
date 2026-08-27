@@ -1,50 +1,63 @@
 .ktc-excel-workflow-tools {
-    position: static !important;
-    display: inline-flex;
-    align-items: center;
-    flex: 0 0 auto;
-    margin: 0;
-    padding: 0;
-    pointer-events: auto;
+    display: contents;
 }
 
-.ktc-excel-primary {
+.ktc-excel-footer-action {
+    position: absolute;
+    right: 126px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
     height: 36px;
-    border: 1px solid var(--ktc-primary, #1769d2);
-    border-radius: 8px;
     padding: 0 12px;
-    background: var(--ktc-primary, #1769d2);
-    color: #fff;
+    border: 1px solid #b9d9c7;
+    border-radius: 8px;
+    background: #fff;
+    color: #159266;
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
-    box-shadow: none;
-    pointer-events: auto;
     white-space: nowrap;
 }
 
-.ktc-excel-primary:hover:not(:disabled) {
-    filter: brightness(.96);
+.ktc-excel-footer-action:hover:not(:disabled) {
+    background: #f1fbf5;
+    border-color: #159266;
 }
 
-.ktc-excel-primary:disabled {
+.ktc-excel-footer-action:disabled {
     opacity: .65;
     cursor: not-allowed;
 }
 
-@media (max-width: 900px) {
-    .ktc-excel-workflow-tools {
-        position: static !important;
-        margin: 0;
-    }
+.pending-table-footer {
+    position: relative;
+    min-height: 58px;
+}
 
-    .ktc-excel-primary {
+@media (max-width: 900px) {
+    .ktc-excel-footer-action {
+        right: 96px;
         height: 34px;
         padding: 0 10px;
         font-size: 12px;
+    }
+}
+
+@media (max-width: 560px) {
+    .ktc-excel-footer-action {
+        position: static;
+        transform: none;
+        margin-left: auto;
+        order: 2;
+    }
+
+    .pending-table-footer {
+        display: flex;
+        flex-wrap: wrap;
     }
 }
