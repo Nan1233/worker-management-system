@@ -22,12 +22,13 @@ export function isElectronRuntime(): boolean {
 }
 
 /**
- * Web auth data is intentionally session-scoped. A long-lived refresh session
- * is restored from the backend HttpOnly cookie after browser restart.
- * Electron keeps the previous local-storage behavior as a native fallback.
+ * Keep the web access token/user in localStorage so the PWA/browser can be
+ * reopened without forcing the user through the login screen every time.
+ * Refresh credentials remain HttpOnly on the web; Electron uses localStorage
+ * for its native fallback as before.
  */
 function authStorage(): Storage {
-    return isElectronRuntime() ? localStorage : sessionStorage;
+    return localStorage;
 }
 
 function readAuthValue(key: string, legacyKey?: string): string | null {
@@ -35,15 +36,13 @@ function readAuthValue(key: string, legacyKey?: string): string | null {
     const current = store.getItem(key) || (legacyKey ? store.getItem(legacyKey) : null);
     if (current) return current;
 
-    // One-release migration from the old web implementation that persisted
-    // access/user data in localStorage. Electron already uses localStorage.
     if (!isElectronRuntime()) {
-        const legacy = localStorage.getItem(key) || (legacyKey ? localStorage.getItem(legacyKey) : null);
+        const legacy = sessionStorage.getItem(key) || (legacyKey ? sessionStorage.getItem(legacyKey) : null);
         if (legacy) {
             store.setItem(key, legacy);
             if (legacyKey) store.setItem(legacyKey, legacy);
-            localStorage.removeItem(key);
-            if (legacyKey) localStorage.removeItem(legacyKey);
+            sessionStorage.removeItem(key);
+            if (legacyKey) sessionStorage.removeItem(legacyKey);
             return legacy;
         }
     }
@@ -91,19 +90,10 @@ export function setAccessToken(token: string): void {
     const store = authStorage();
     store.setItem(ACCESS_TOKEN_KEY, token);
     store.setItem(LEGACY_TOKEN_KEY, token);
-
-    if (!isElectronRuntime()) {
-        localStorage.removeItem(ACCESS_TOKEN_KEY);
-        localStorage.removeItem(LEGACY_TOKEN_KEY);
-    }
+    sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+    sessionStorage.removeItem(LEGACY_TOKEN_KEY);
 }
 
-/**
- * Web uses an HttpOnly cookie, so this function normally returns null there.
- * It can still return a legacy localStorage token during a one-release
- * migration, allowing the next refresh request to move that session to a
- * secure cookie. Electron intentionally retains the body-token fallback.
- */
 export function hasRefreshSessionHint(): boolean {
     return localStorage.getItem(REFRESH_SESSION_HINT_KEY) === "1";
 }
@@ -120,7 +110,6 @@ export function getRefreshToken(): string | null {
     if (isElectronRuntime()) {
         return localStorage.getItem(REFRESH_TOKEN_KEY);
     }
-    // Web uses an HttpOnly cookie and never exposes the refresh token to JS.
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     sessionStorage.removeItem(REFRESH_TOKEN_KEY);
     return null;
@@ -131,7 +120,6 @@ export function setRefreshToken(token: string): void {
         localStorage.setItem(REFRESH_TOKEN_KEY, token);
         return;
     }
-    // Normal web sessions never persist a JS-readable refresh token.
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     sessionStorage.removeItem(REFRESH_TOKEN_KEY);
 }
@@ -216,7 +204,7 @@ export function setStoredUser(user: AuthUser): void {
             worker_code: user.worker_code?.trim() || null
         })
     );
-    if (!isElectronRuntime()) localStorage.removeItem(USER_KEY);
+    sessionStorage.removeItem(USER_KEY);
     setSessionCacheScope(cacheScopeForUser(user));
 }
 
@@ -233,15 +221,6 @@ export function saveAuthSession(data: {
     markRefreshSessionAvailable();
 }
 
-
-/**
- * Clears only authentication state owned by the current browser tab.
- *
- * Web refresh cookies and the auth epoch live outside sessionStorage and are
- * intentionally preserved here. This is used when another tab switches
- * accounts: the stale tab must stop using its old access token immediately,
- * without deleting the new account's shared HttpOnly refresh session.
- */
 export function clearCurrentTabAuthSession(): void {
     clearSessionCache();
     setSessionCacheScope("anonymous");
@@ -259,10 +238,6 @@ export function clearCurrentTabAuthSession(): void {
         sessionStorage.removeItem(key);
     }
 
-    // Old web builds may have left access/user values in localStorage. They
-    // are not used for current web sessions and must not resurrect a stale
-    // account after a cross-tab switch. Never remove refresh/session-hint
-    // keys here because those belong to the newly active shared web session.
     if (!isElectronRuntime()) {
         for (const key of [
             "auth",
