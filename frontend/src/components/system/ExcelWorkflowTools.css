@@ -1,63 +1,33 @@
 .ktc-excel-workflow-tools {
-    display: contents;
+    display: none !important;
 }
 
 .ktc-excel-footer-action {
-    position: absolute;
-    right: 126px;
-    top: 50%;
-    transform: translateY(-50%);
-    z-index: 2;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
     height: 36px;
+    margin-right: 2px;
     padding: 0 12px;
-    border: 1px solid #b9d9c7;
+    border: 1px solid #bfe0d0;
     border-radius: 8px;
     background: #fff;
     color: #159266;
     font-size: 13px;
     font-weight: 600;
+    line-height: 1;
     cursor: pointer;
     white-space: nowrap;
+    box-shadow: none;
 }
 
 .ktc-excel-footer-action:hover:not(:disabled) {
-    background: #f1fbf5;
-    border-color: #159266;
+    background: #f2fbf6;
+    border-color: #8ecaae;
 }
 
 .ktc-excel-footer-action:disabled {
     opacity: .65;
     cursor: not-allowed;
-}
-
-.pending-table-footer {
-    position: relative;
-    min-height: 58px;
-}
-
-@media (max-width: 900px) {
-    .ktc-excel-footer-action {
-        right: 96px;
-        height: 34px;
-        padding: 0 10px;
-        font-size: 12px;
-    }
-}
-
-@media (max-width: 560px) {
-    .ktc-excel-footer-action {
-        position: static;
-        transform: none;
-        margin-left: auto;
-        order: 2;
-    }
-
-    .pending-table-footer {
-        display: flex;
-        flex-wrap: wrap;
-    }
 }
