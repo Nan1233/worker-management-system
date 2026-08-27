@@ -1,38 +1,71 @@
-/* Approved reports: keep the empty-state cell as a real table cell.
-   The shared .management-empty rule used display:grid, which breaks colspan and
-   collapses the message into the first 48px column when the table header is hidden. */
-.pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-reference-table tbody .management-empty {
-  display: table-cell !important;
+/* Approved reports — robust empty state.
+   Do NOT let the shared table empty-cell styles participate in layout.
+   When there are no approved reports, the table itself is hidden and the
+   wrapper renders a normal block-level empty state. This avoids colspan,
+   table-cell/grid and first-column width interactions. */
+
+.pending-reference-page:has(.pending-reference-table th.management-checkbox-column)
+  .pending-table-wrap:has(.pending-reference-table tbody .management-empty) {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   width: 100% !important;
   min-width: 0 !important;
+  min-height: 150px !important;
   height: 150px !important;
-  min-height: 0 !important;
-  padding: 44px 20px !important;
-  text-align: center !important;
-  vertical-align: middle !important;
-  white-space: normal !important;
-  overflow: visible !important;
+  overflow: hidden !important;
   box-sizing: border-box !important;
+  background: #fff !important;
 }
 
-.pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-table-wrap {
-  width: 100%;
+.pending-reference-page:has(.pending-reference-table th.management-checkbox-column)
+  .pending-table-wrap:has(.pending-reference-table tbody .management-empty)
+  .pending-reference-table {
+  display: none !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  height: 0 !important;
+  table-layout: auto !important;
 }
 
-.pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-reference-table {
+.pending-reference-page:has(.pending-reference-table th.management-checkbox-column)
+  .pending-table-wrap:has(.pending-reference-table tbody .management-empty)::after {
+  content: "Không có báo cáo đã duyệt.";
+  display: block !important;
   width: 100% !important;
-  min-width: 100% !important;
-  table-layout: fixed !important;
+  margin: 0 !important;
+  padding: 44px 20px !important;
+  box-sizing: border-box !important;
+  text-align: center !important;
+  color: #7185a4 !important;
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+  font-weight: 500 !important;
+}
+
+/* Keep the hidden legacy cell harmless if another stylesheet targets it. */
+.pending-reference-page:has(.pending-reference-table th.management-checkbox-column)
+  .pending-table-wrap:has(.pending-reference-table tbody .management-empty)
+  .pending-table-wrap .management-empty,
+.pending-reference-page:has(.pending-reference-table th.management-checkbox-column)
+  .pending-table-wrap:has(.pending-reference-table tbody .management-empty)
+  .management-empty {
+  display: none !important;
+}
+
+/* Normal populated approved-report table remains unchanged. */
+.pending-reference-page:has(.pending-reference-table th.management-checkbox-column)
+  .pending-table-wrap:not(:has(.management-empty)) {
+  width: 100% !important;
 }
 
 @media (max-width: 900px) {
-  .pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-reference-table {
-    width: max-content !important;
-    min-width: 900px !important;
-    table-layout: auto !important;
-  }
-
-  .pending-reference-page:has(.pending-reference-table th.management-checkbox-column) .pending-table-wrap {
-    overflow-x: auto !important;
+  .pending-reference-page:has(.pending-reference-table th.management-checkbox-column)
+    .pending-table-wrap:has(.pending-reference-table tbody .management-empty) {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 150px !important;
+    min-height: 150px !important;
+    overflow: hidden !important;
   }
 }
