@@ -1,0 +1,4 @@
+/* KTC demo cleanup: page subtitles are redundant with the navigation/page title. */
+.management-content .pending-reference-page > .pending-page-title > div {
+  display: none !important;
+}
