@@ -10,30 +10,46 @@ export default function LeadManagerMasterData(){
 
   useEffect(()=>{ setReady(true); },[]);
 
-  // Compatibility guard: older MasterData bundles may not contain the NG tab.
-  // Keep the tab inside the existing .master-tabs row and always navigate within /manager.
+  // The shared MasterData component can mount asynchronously because it is lazy-loaded.
+  // Keep the NG tab visible for the Manager workspace even when an older cached bundle
+  // does not contain it yet. Observe the tab row until MasterData has mounted.
   useEffect(()=>{
     if(!ready || !location.pathname.startsWith('/manager/master/')) return;
-    const timer=window.setTimeout(()=>{
+
+    let disposed=false;
+    const injectNgTab=()=>{
+      if(disposed) return true;
       const tabs=document.querySelector('.master-tabs');
-      if(!tabs) return;
+      if(!tabs) return false;
+
       const buttons=Array.from(tabs.querySelectorAll('button')) as HTMLButtonElement[];
-      const existing=buttons.find(button=>button.textContent?.trim()==='Lỗi NG');
-      if(existing){
-        existing.onclick=()=>navigate('/manager/master/defects');
-        existing.classList.toggle('active',location.pathname==='/manager/master/defects');
-        return;
+      let ngButton=buttons.find(button=>button.textContent?.trim()==='Lỗi NG');
+
+      if(!ngButton){
+        ngButton=document.createElement('button');
+        ngButton.type='button';
+        ngButton.textContent='Lỗi NG';
+        const deductions=buttons.find(button=>button.textContent?.trim()==='Trừ giờ');
+        if(deductions) tabs.insertBefore(ngButton,deductions);
+        else tabs.appendChild(ngButton);
       }
-      const defectsButton=document.createElement('button');
-      defectsButton.type='button';
-      defectsButton.textContent='Lỗi NG';
-      defectsButton.className=location.pathname==='/manager/master/defects'?'active':'';
-      defectsButton.onclick=()=>navigate('/manager/master/defects');
-      const deductions=buttons.find(button=>button.textContent?.trim()==='Trừ giờ');
-      if(deductions) tabs.insertBefore(defectsButton,deductions);
-      else tabs.appendChild(defectsButton);
-    },0);
-    return ()=>window.clearTimeout(timer);
+
+      ngButton.classList.toggle('active',location.pathname==='/manager/master/defects');
+      ngButton.onclick=()=>navigate('/manager/master/defects');
+      return true;
+    };
+
+    // Try immediately, then observe because MasterData is lazy-loaded.
+    injectNgTab();
+    const observer=new MutationObserver(()=>injectNgTab());
+    observer.observe(document.body,{childList:true,subtree:true});
+    const timer=window.setTimeout(()=>injectNgTab(),1000);
+
+    return ()=>{
+      disposed=true;
+      observer.disconnect();
+      window.clearTimeout(timer);
+    };
   },[ready,location.pathname,navigate]);
 
   if(!ready) return <div className="route-loading">Đang mở dữ liệu quản lý...</div>;
