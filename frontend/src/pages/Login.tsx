@@ -101,11 +101,6 @@ const saveRememberedAccount = (user: User): RememberedAccount[] => {
     return next;
 };
 
-/**
- * Worker master-data trước đây có thể chứa mã dạng 599 trong khi
- * người dùng nhập 0599 theo file mẫu. Chỉ chuẩn hóa mã worker thuần số;
- * tài khoản quản lý vẫn gửi nguyên username.
- */
 const normalizeWorkerLoginCode = (value: string): string => {
     const trimmed = value.trim();
     if (!/^\d+$/.test(trimmed)) return trimmed;
@@ -198,10 +193,6 @@ function Login() {
                     ? normalizeWorkerLoginCode(rawUsername)
                     : rawUsername;
 
-            /*
-             * authService là canonical API layer. Chấp nhận cả hai shape
-             * {user} và {data:{user}} để Login không phụ thuộc Axios wrapper.
-             */
             const result = await login(
                 loginUsername,
                 accessType,
@@ -344,8 +335,8 @@ function Login() {
                     </div>
 
                     <div className="login-factory-copy" aria-hidden="true">
-                        <span>PRODUCTION</span>
-                        <strong>WORKER MANAGEMENT</strong>
+                        <span>SẢN XUẤT</span>
+                        <strong>QUẢN LÝ CÔNG NHÂN</strong>
                         <small>KTC (HANOI) CO., LTD.</small>
                     </div>
                 </div>
@@ -359,7 +350,7 @@ function Login() {
                         </span>
                         <div>
                             <strong>KTC (HANOI) CO., LTD</strong>
-                            <small>Đăng nhập hệ thống</small>
+                            <small>Đăng nhập</small>
                         </div>
                     </div>
 
@@ -367,22 +358,17 @@ function Login() {
                         <div className="login-welcome-mark" aria-hidden="true">KTC</div>
 
                         <h2>
-                            {step === "employee-code" &&
-                                "Welcome back"}
-                            {step === "role-choice" &&
-                                "Bạn muốn đăng nhập với vai trò nào?"}
-                            {step === "management-password" &&
-                                "Xác thực tài khoản quản lý"}
+                            {step === "employee-code" && "Đăng nhập"}
+                            {step === "role-choice" && "Chọn vai trò đăng nhập"}
+                            {step === "management-password" && "Xác thực tài khoản quản lý"}
                         </h2>
 
-                        <span>
-                            {step === "employee-code" &&
-                                "Please sign in to continue"}
-                            {step === "role-choice" &&
-                                `Tài khoản: ${username.trim()}`}
-                            {step === "management-password" &&
-                                `Nhập mật khẩu cho tài khoản ${username.trim()}.`}
-                        </span>
+                        {step !== "employee-code" && (
+                            <span>
+                                {step === "role-choice" && `Tài khoản: ${username.trim()}`}
+                                {step === "management-password" && `Tài khoản: ${username.trim()}`}
+                            </span>
+                        )}
                     </div>
 
                     {step === "employee-code" &&
@@ -390,9 +376,6 @@ function Login() {
                             <div className="remembered-section">
                                 <div className="remembered-title">
                                     <span>Tài khoản gần đây</span>
-                                    <small>
-                                        Chọn để điền nhanh mã đăng nhập
-                                    </small>
                                 </div>
 
                                 <div className="remembered-list">
@@ -454,7 +437,7 @@ function Login() {
                             className="login-form"
                         >
                             <label>
-                                <span>Worker Code / Username</span>
+                                <span>Mã nhân viên</span>
 
                                 <div className="login-input-wrap">
                                     <span
@@ -466,9 +449,9 @@ function Login() {
 
                                     <input
                                         type="text"
-                                        inputMode="numeric"
+                                        inputMode="text"
                                         autoComplete="username"
-                                        placeholder="Enter worker code"
+                                        placeholder="Nhập mã nhân viên"
                                         value={username}
                                         onChange={event =>
                                             setUsername(event.target.value)
@@ -491,7 +474,7 @@ function Login() {
                                 className="login-submit"
                                 disabled={loading}
                             >
-                                Sign In
+                                Tiếp tục
                                 <span aria-hidden="true">→</span>
                             </button>
                         </form>
@@ -516,9 +499,6 @@ function Login() {
 
                                 <span>
                                     <strong>Công nhân</strong>
-                                    <small>
-                                        Vào ngay, không cần mật khẩu
-                                    </small>
                                 </span>
 
                                 <b aria-hidden="true">→</b>
@@ -542,9 +522,6 @@ function Login() {
 
                                 <span>
                                     <strong>Quản lý</strong>
-                                    <small>
-                                        Quản lý, tổ trưởng hoặc quản trị viên
-                                    </small>
                                 </span>
 
                                 <b aria-hidden="true">→</b>
@@ -668,7 +645,7 @@ function Login() {
                                     </>
                                 ) : (
                                     <>
-                                        Đăng nhập quản lý
+                                        Đăng nhập
                                         <span aria-hidden="true">→</span>
                                     </>
                                 )}
@@ -688,11 +665,6 @@ function Login() {
                             </button>
                         </form>
                     )}
-
-                    <p className="login-security-note">
-                        Công nhân đăng nhập bằng mã nhân viên. Tài khoản quản lý
-                        vẫn được bảo vệ bằng mật khẩu.
-                    </p>
                 </div>
             </section>
         </main>
