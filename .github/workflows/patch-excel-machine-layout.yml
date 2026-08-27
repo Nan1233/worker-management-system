@@ -1,0 +1,106 @@
+name: Patch Excel machine row layout
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: "!contains(github.event.head_commit.message, 'chore: fix Excel machine rows')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch Excel exporter
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('desktop/electron/monthlyWorkbookLocal.cjs')
+          text = path.read_text(encoding='utf-8')
+
+          old_column = "    { key: 'operationMode', header: 'Chế độ', group: 'general', width: 11 },\n"
+          if old_column not in text:
+              raise SystemExit('Expected operationMode Excel column was not found')
+          text = text.replace(old_column, '', 1)
+
+          marker = "function renderProcessSheet(workbook, code, processConfig, processData, yearMonth, formulaSettings) {"
+          helper = r'''function expandReportsByMachine(reports) {
+  return [...(reports || [])].flatMap((report) => {
+    const lines = Array.isArray(report?.machineLines)
+      ? report.machineLines.filter(Boolean)
+      : [];
+
+    // Manual/tay report: one row, Máy intentionally blank.
+    if (!lines.length) {
+      return [{
+        ...report,
+        machineLines: [],
+        machine_no: null,
+        operation_mode: 'MANUAL'
+      }];
+    }
+
+    // Machine report: one Excel row per physical machine.
+    return lines.map((line, index) => {
+      const machineCode = String(line?.machine_code || line?.machine_no || line?.machine_name || '').trim() || null;
+      const productCode = String(line?.product_code || report?.product_name || '').trim() || null;
+      const machineTime = Number(line?.machine_time_hours);
+      const ok = Number(line?.ok_quantity);
+      const ng = Number(line?.ng_quantity);
+      const counted = Number(line?.counted_output);
+      const standard = Number(line?.standard_output);
+      const has = (value) => Number.isFinite(value);
+
+      return {
+        ...report,
+        operation_mode: 'MACHINE',
+        machine_no: machineCode,
+        product_name: productCode,
+        machineLines: [line],
+        actual_time: has(machineTime) ? machineTime : report?.actual_time,
+        total_time: has(machineTime) ? machineTime : report?.total_time,
+        tt_ok: has(ok) ? ok : report?.tt_ok,
+        tt_ng: has(ng) ? ng : report?.tt_ng,
+        actual_output: has(counted) ? counted : report?.actual_output,
+        standard_output: has(standard) ? standard : report?.standard_output,
+        // Report-level deductions belong to the report, not to every machine row.
+        // Keep them on the first machine row to avoid double-counting totals.
+        deductions: index === 0 ? (report?.deductions || []) : [],
+        // Prefer machine-line defects when available; otherwise keep report defects once.
+        defects: Array.isArray(line?.defects)
+          ? line.defects
+          : (index === 0 ? (report?.defects || []) : [])
+      };
+    });
+  });
+}
+
+'''
+          if marker not in text:
+              raise SystemExit('renderProcessSheet marker not found')
+          if 'function expandReportsByMachine(reports)' not in text:
+              text = text.replace(marker, helper + marker, 1)
+
+          old_reports = "  const reports = sortReports(processData?.reports);"
+          new_reports = "  const reports = sortReports(expandReportsByMachine(processData?.reports));"
+          if old_reports not in text:
+              raise SystemExit('renderProcessSheet reports line not found')
+          text = text.replace(old_reports, new_reports, 1)
+
+          path.write_text(text, encoding='utf-8', newline='')
+
+      - name: Validate JavaScript
+        run: node --check desktop/electron/monthlyWorkbookLocal.cjs
+
+      - name: Commit patch and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add desktop/electron/monthlyWorkbookLocal.cjs
+          git rm .github/workflows/patch-excel-machine-layout.yml
+          git commit -m "chore: fix Excel machine rows"
+          git push
