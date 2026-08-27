@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Bell, Boxes, ClipboardCheck, Cog, FileWarning, History, LayoutDashboard, MoreHorizontal, ShieldCheck, Timer, UserRound, Users, BarChart3 } from "lucide-react";
+import { Bell, Boxes, ClipboardCheck, Cog, FileWarning, History, LayoutDashboard, MoreHorizontal, ShieldCheck, Timer, UserRound, Users, BarChart3, LogOut } from "lucide-react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { getStoredUser } from "../utils/authStorage";
+import { getStoredUser, clearAuthSession } from "../utils/authStorage";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
 import { usePermissions } from "../hooks/usePermissions";
 import { defaultPermissionsForRole } from "../security/permissions";
@@ -42,6 +42,7 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
  const active=(path:string)=>path===""?location.pathname===base:location.pathname===`${base}/${path}`||location.pathname.startsWith(`${base}/${path}/`);
  const displayName=user?.full_name||user?.username||roleLabel[role];
  const avatarText=displayName.trim().charAt(0).toUpperCase()||"K";
+ const logout=()=>{clearAuthSession();navigate("/login",{replace:true});};
  useEffect(()=>{
   if(role!=="manager")return;
   const forbiddenMasterPath=/^\/manager\/master\/(users|processes)(?:\/|$)/.test(location.pathname);
@@ -52,7 +53,7 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
    <button className="management-brand" type="button" onClick={()=>navigate(base)}><span className="management-brand-mark">K</span><span><strong>KTC (HANOI) CO., LTD</strong><small>{roleLabel[role]}</small></span></button>
    <nav className="management-menu" aria-label="Management navigation">
     {visible.map(item=>{const Icon=item.icon;return <button key={item.path||"home"} type="button" className={active(item.path)?"active":""} onClick={()=>navigate(`${base}${item.path?`/${item.path}`:""}`)}><Icon size={18}/><span>{item.label}</span></button>;})}
-    <button type="button" className={active("profile")?"active":""} onClick={()=>navigate(`${base}/profile`)}><UserRound size={18}/><span>Cá nhân</span></button>
+    <button type="button" className={active("profile")?"active":""} onClick={()=>navigate(`${base}/profile`)}><UserRound size={18}/><span>Cá nhân</span></button><button type="button" className="management-logout" onClick={logout}><LogOut size={18}/><span>Đăng xuất</span></button>
    </nav>
   </aside>
   <section className="management-main">
@@ -60,7 +61,7 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
     <div className="management-header-title"><strong>KTC Production Control</strong><span>{roleLabel[role]}</span></div>
     <div className="management-header-actions">
      <button className="management-notification" type="button" aria-label="Thông báo" onClick={()=>navigate(`${base}/notifications`)}><Bell size={19}/>{unreadCount>0&&<b>{unreadCount>9?"9+":unreadCount}</b>}</button>
-     <button className="management-user" type="button" aria-label="Mở trang cá nhân" onClick={()=>navigate(`${base}/profile`)}><span className="management-user-avatar">{avatarText}</span><span className="management-user-copy"><strong>{displayName}</strong><small>{roleLabel[role]}</small></span></button>
+     <button className="management-user" type="button" aria-label="Mở trang cá nhân" onClick={()=>navigate(`${base}/profile`)}><span className="management-user-avatar">{avatarText}</span><span className="management-user-copy"><strong>{displayName}</strong><small>{roleLabel[role]}</small></span></button><button type="button" className="management-header-logout" aria-label="Đăng xuất" onClick={logout}><LogOut size={18}/><span>Đăng xuất</span></button>
     </div>
    </header>
    <main className="management-content"><MasterDataTransferActions/><Outlet/></main>
@@ -69,7 +70,7 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
    {mobileMoreOpen&&mobileOverflowItems.length>0&&<div id="management-mobile-overflow" className="management-mobile-overflow" aria-label="Các mục điều hướng khác">{mobileOverflowItems.map(item=>{const Icon=item.icon;return <button key={`overflow-${item.path}`} type="button" className={active(item.path)?"active":""} onClick={()=>{setMobileMoreOpen(false);navigate(`${base}${item.path?`/${item.path}`:""}`);}}><Icon size={18}/><span>{item.label}</span></button>;})}</div>}
    {mobilePrimaryItems.map(item=>{const Icon=item.icon;return <button key={`mobile-${item.path}`} type="button" className={active(item.path)?"active":""} onClick={()=>navigate(`${base}${item.path?`/${item.path}`:""}`)}><Icon size={18}/><span>{item.label}</span></button>;})}
    <button type="button" className={location.pathname===`${base}/notifications`||location.pathname.startsWith(`${base}/notifications/`)?"active":""} onClick={()=>navigate(`${base}/notifications`)}><Bell size={18}/><span>Thông báo</span>{unreadCount>0&&<b className="management-badge">{unreadCount>99?"99+":unreadCount}</b>}</button>
-   <button type="button" className={active("profile")?"active":""} onClick={()=>navigate(`${base}/profile`)}><UserRound size={18}/><span>Cá nhân</span></button>
+   <button type="button" className={active("profile")?"active":""} onClick={()=>navigate(`${base}/profile`)}><UserRound size={18}/><span>Cá nhân</span></button><button type="button" className="management-mobile-logout" onClick={logout}><LogOut size={18}/><span>Đăng xuất</span></button>
    {mobileOverflowItems.length>0&&<button type="button" className={mobileMoreOpen?"active":""} onClick={()=>setMobileMoreOpen(open=>!open)} aria-expanded={mobileMoreOpen} aria-controls="management-mobile-overflow"><MoreHorizontal size={18}/><span>Thêm</span></button>}
   </nav>
  </div>;
