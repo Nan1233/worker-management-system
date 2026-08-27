@@ -39,7 +39,7 @@ export default function ExcelWorkflowTools() {
         }
         const findTarget = () => {
             const footer = document.querySelector<HTMLElement>(".pending-table-footer");
-            setTarget(footer?.querySelector<HTMLElement>("div") || null);
+            setTarget(footer);
         };
         findTarget();
         const timer = window.setInterval(findTarget, 300);
