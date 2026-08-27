@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Download, FolderOpen, RefreshCw, RotateCcw } from "lucide-react";
+import { Download, RefreshCw } from "lucide-react";
 import { useToast } from "../feedback/toastContext";
 import api from "../../services/api";
 import { exportSelectedApprovedExcel } from "../../services/productionService";
@@ -87,7 +87,6 @@ function isStatisticsRoute(hash: string) {
 export default function ExcelWorkflowTools() {
     const { showToast } = useToast();
     const [hash, setHash] = useState(window.location.hash);
-    const [exportRoot, setExportRoot] = useState("");
     const [busy, setBusy] = useState(false);
 
     useEffect(() => {
@@ -100,37 +99,7 @@ export default function ExcelWorkflowTools() {
     const desktop = Boolean(window.ktcDesktop?.isDesktop);
     const active = useMemo(() => isApprovedRoute(hash) || isStatisticsRoute(hash), [hash]);
 
-    useEffect(() => {
-        if (!active || !desktop || !window.ktcDesktop?.getExportRoot) return;
-        window.ktcDesktop.getExportRoot().then(setExportRoot).catch(() => setExportRoot(DEFAULT_LABEL));
-    }, [active, desktop]);
-
-    // Excel workflow controls are desktop/Electron-only. The normal web app must stay clean.
     if (!active || !desktop) return null;
-
-    const chooseFolder = async () => {
-        if (!desktop || !window.ktcDesktop?.chooseExportRoot) return;
-        try {
-            const result = await window.ktcDesktop.chooseExportRoot();
-            if (!result.canceled) {
-                setExportRoot(result.exportRoot);
-                showToast("Đã đổi đường dẫn lưu Excel", "success");
-            }
-        } catch (error) {
-            showToast(error instanceof Error ? error.message : "Không thể chọn thư mục", "error");
-        }
-    };
-
-    const resetFolder = async () => {
-        if (!desktop || !window.ktcDesktop?.resetExportRoot) return;
-        try {
-            const root = await window.ktcDesktop.resetExportRoot();
-            setExportRoot(root);
-            showToast("Đã đưa về Documents\\KTC\\Bao cao san xuat", "success");
-        } catch (error) {
-            showToast(error instanceof Error ? error.message : "Không thể đặt lại đường dẫn", "error");
-        }
-    };
 
     const updateApprovedExcel = async () => {
         if (busy) return;
@@ -173,17 +142,9 @@ export default function ExcelWorkflowTools() {
     };
 
     return (
-        <div className="ktc-excel-workflow-tools">
-            <div className="ktc-excel-workflow-row">
-                {isApprovedRoute(hash) && <button type="button" className="ktc-excel-primary" onClick={updateApprovedExcel} disabled={busy}><RefreshCw size={15} /> {busy ? "Đang cập nhật..." : "Cập nhật Excel"}</button>}
-                {isStatisticsRoute(hash) && <button type="button" className="ktc-excel-primary" onClick={exportStatistics} disabled={busy}><Download size={15} /> {busy ? "Đang xuất..." : "Xuất toàn bộ Excel"}</button>}
-            </div>
-            <div className="ktc-excel-path-row">
-                <FolderOpen size={14} />
-                <span title={exportRoot || DEFAULT_LABEL}>{exportRoot || DEFAULT_LABEL}</span>
-                <button type="button" onClick={chooseFolder}>Chọn thư mục</button>
-                <button type="button" onClick={resetFolder} title={DEFAULT_LABEL}><RotateCcw size={13} /> Mặc định</button>
-            </div>
+        <div className="ktc-excel-workflow-tools" aria-label="Công cụ Excel">
+            {isApprovedRoute(hash) && <button type="button" className="ktc-excel-primary" onClick={updateApprovedExcel} disabled={busy}><RefreshCw size={15} /> {busy ? "Đang cập nhật..." : "Cập nhật Excel"}</button>}
+            {isStatisticsRoute(hash) && <button type="button" className="ktc-excel-primary" onClick={exportStatistics} disabled={busy}><Download size={15} /> {busy ? "Đang xuất..." : "Xuất toàn bộ Excel"}</button>}
         </div>
     );
 }
