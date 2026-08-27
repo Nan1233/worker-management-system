@@ -13,6 +13,7 @@ const TABLES = {
 };
 
 const PROCESS_BOUND_RESOURCES = new Set(['defects','deductions','machines','standards']);
+const LEAD_MANAGER_MASTER_RESOURCES = new Set(['machines','standards','deductions']);
 
 function authErrorResponse(res, error) {
   if (error?.status === 403 || error?.statusCode === 403) {
@@ -46,11 +47,10 @@ async function assertCanManageWorker(actor, workerId, executor, { requireAllAssi
   return true;
 }
 
-
-
 function requireMasterPermission(req, res) {
-  if (req.user?.role === 'lead' && req.params.resource !== 'machines') {
-    res.status(403).json({ success:false, message:'Tổ trưởng chỉ được cấu hình công thức tại màn hình Công thức' });
+  // Tổ trưởng dùng đúng 3 nhóm master như Quản lý.
+  if (req.user?.role === 'lead' && !LEAD_MANAGER_MASTER_RESOURCES.has(String(req.params.resource || ''))) {
+    res.status(403).json({ success:false, code:'MASTER_RESOURCE_FORBIDDEN', message:'Tổ trưởng chỉ được quản lý Máy móc, Sản phẩm và Trừ giờ' });
     return false;
   }
   return true;
