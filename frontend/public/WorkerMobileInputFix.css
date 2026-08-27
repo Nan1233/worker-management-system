@@ -1,0 +1,10 @@
+/* KTC worker mobile input stability.
+   Keep controls readable enough to prevent iOS Safari focus auto-zoom.
+   This is visual-only; it does not change report business rules. */
+@media (max-width: 680px) {
+  .worker-form-page input:not([type="checkbox"]):not([type="radio"]),
+  .worker-form-page select,
+  .worker-form-page textarea {
+    font-size: 16px !important;
+  }
+}
