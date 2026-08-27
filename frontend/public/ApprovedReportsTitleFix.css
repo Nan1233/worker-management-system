@@ -26,6 +26,17 @@
   font-size: 13px !important;
 }
 
-/* Do not add an approved-only table width/layout here.
-   Chờ duyệt and Đã duyệt must share exactly the same table sizing,
-   spacing, borders, typography and responsive behavior. */
+/* Đã duyệt: không cần cột Xem/kính lúp.
+   Chỉ áp dụng cho bảng có header checkbox/view column riêng của Đã duyệt,
+   không tác động tới bảng Chờ duyệt. Click cả hàng để mở chi tiết. */
+.pending-reference-page .pending-reference-table:has(thead th.management-checkbox-column) thead th.management-checkbox-column,
+.pending-reference-page .pending-reference-table:has(thead th.management-checkbox-column) tbody td:first-child {
+  display: none !important;
+}
+
+/* Giữ các cột còn lại dùng chung kích thước/phông/màu với Chờ duyệt. */
+.pending-reference-page .pending-reference-table:has(thead th.management-checkbox-column) {
+  width: 100% !important;
+  min-width: 0 !important;
+  table-layout: auto !important;
+}
