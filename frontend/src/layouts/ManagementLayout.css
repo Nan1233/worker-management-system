@@ -30,7 +30,7 @@
 .management-main { min-width: 0; min-height: 100dvh; margin-left: 230px; }
 .management-header {
   position: sticky; top: 0; z-index: 40; min-height: 58px; padding: 10px 20px;
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 16px;
   background: #fff; border-bottom: 1px solid var(--ktc-border);
 }
 .management-header-title { min-width: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -39,7 +39,8 @@
   display: inline-flex; align-items: center; min-height: 22px; padding: 0 8px;
   border-radius: 999px; background: var(--ktc-primary-soft); color: var(--ktc-primary); font-size: 9px; font-weight: 700;
 }
-.management-header-actions { display: flex; align-items: center; gap: 6px; }
+.management-header-excel { display: flex; align-items: center; justify-content: center; min-width: 0; }
+.management-header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; min-width: 0; }
 .management-notification {
   position: relative; width: 34px; height: 34px; display: grid; place-items: center;
   border: 0; border-radius: 8px; background: transparent; color: var(--ktc-text);
@@ -67,10 +68,11 @@
 @media (max-width: 800px) {
   .management-sidebar { display: none; }
   .management-main { margin-left: 0; padding-bottom: 70px; }
-  .management-header { min-height: 58px; padding: 9px 12px; }
+  .management-header { min-height: 58px; padding: 9px 12px; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
   .management-header-title { gap: 6px; }
   .management-header-title strong { font-size: 14px; line-height: 1.2; }
   .management-header-title span { font-size: 8px; padding-inline: 7px; }
+  .management-header-excel { display: none; }
   .management-user { width: 40px; height: 40px; padding: 3px; }
   .management-user-copy { display: none; }
   .management-user-avatar { width: 34px; height: 34px; flex-basis: 34px; }
