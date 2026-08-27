@@ -4,6 +4,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { getStoredUser } from "../utils/authStorage";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
 import { usePermissions } from "../hooks/usePermissions";
+import { defaultPermissionsForRole } from "../security/permissions";
 import type { PermissionCode } from "../security/permissions";
 import MasterDataTransferActions from "../components/master/MasterDataTransferActions";
 import "./ManagementLayout.css";
@@ -33,24 +34,21 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
  const {unreadCount}=useNotificationBadge(can("NOTIFICATION_VIEW"));
  const base=`/${role}`,user=getStoredUser();
  const [mobileMoreOpen,setMobileMoreOpen]=useState(false);
- // Một số luồng cũ vẫn render Lead dưới base /manager. Menu phải luôn dựa
- // trên vai trò thật của tài khoản, không dựa vào base URL, để Lead không
- // nhìn thấy hoặc truy cập nhầm các màn hình master chỉ dành cho Manager/Admin.
- const actualRole=(String(user?.role||role).toLowerCase() as ManagementRole);
- const visible=items.filter(item=>item.roles.includes(actualRole)&&can(item.permission));
+ // Tạm thời tài khoản Lead đang chạy giao diện /manager.
+ // Khi ở /manager, dùng bộ quyền hiển thị của Manager để navbar không bị mất các mục master.
+ // Trang /lead vẫn giữ nguyên logic quyền Lead.
+ const temporaryManagerView=role==="manager" && String(user?.role||"").toLowerCase()==="lead";
+ const managerPermissions=defaultPermissionsForRole("manager");
+ const visible=items.filter(item=>item.roles.includes(role)&&(temporaryManagerView?managerPermissions.has(item.permission):can(item.permission)));
  const mobilePrimaryItems=visible.slice(0,2),mobileOverflowItems=visible.slice(2);
  const active=(path:string)=>path===""?location.pathname===base:location.pathname===`${base}/${path}`||location.pathname.startsWith(`${base}/${path}/`);
  const displayName=user?.full_name||user?.username||roleLabel[role];
  const avatarText=displayName.trim().charAt(0).toUpperCase()||"K";
  useEffect(()=>{
-  // Không cho tài khoản Lead/không phải Manager mở trực tiếp các route master
-  // nằm dưới /manager. Chuyển về dashboard thay vì để wildcard /login xử lý,
-  // tránh cảm giác bị văng tài khoản.
-  if(actualRole!=="manager" && actualRole!=="admin"){
-   const forbiddenMasterPath=/^\/manager\/master\//.test(location.pathname);
-   if(forbiddenMasterPath) navigate(base,{replace:true});
-  }
- },[actualRole,location.pathname,navigate,base]);
+  if(role!=="manager")return;
+  const forbiddenMasterPath=/^\/manager\/master\/(users|processes|defects)(?:\/|$)/.test(location.pathname);
+  if(forbiddenMasterPath)navigate(`${base}/master/machines`,{replace:true});
+ },[role,location.pathname,navigate,base]);
  return <div className="management-layout" data-management-role={role}>
   <aside className="management-sidebar">
    <button className="management-brand" type="button" onClick={()=>navigate(base)}><span className="management-brand-mark">K</span><span><strong>KTC (HANOI) CO., LTD</strong><small>{roleLabel[role]}</small></span></button>
