@@ -33,7 +33,8 @@ const ALL_CODES = PERMISSIONS.map((item) => item.code);
 const CAPABILITIES = {
   admin: new Set(ALL_CODES),
   manager: new Set(ALL_CODES.filter((code) => !['PERIOD_UNLOCK','PERMISSION_MANAGE','WORKER_ENTRY','WORKER_HISTORY'].includes(code))),
-  lead: new Set(['DASHBOARD_VIEW','REPORT_PENDING_VIEW','REPORT_APPROVE','REPORT_APPROVED_VIEW','REPORT_EXPORT','USER_VIEW','MASTER_VIEW','STATISTICS_VIEW','NOTIFICATION_VIEW','AUDIT_VIEW','SYSTEM_HEALTH_VIEW','PROFILE_VIEW']),
+  // Tổ trưởng được dùng các chức năng master giống Quản lý: xem + thêm + sửa + xóa Máy móc, Sản phẩm, Trừ giờ.
+  lead: new Set(['DASHBOARD_VIEW','REPORT_PENDING_VIEW','REPORT_APPROVE','REPORT_APPROVED_VIEW','REPORT_EXPORT','USER_VIEW','MASTER_VIEW','MASTER_EDIT','STATISTICS_VIEW','NOTIFICATION_VIEW','AUDIT_VIEW','SYSTEM_HEALTH_VIEW','PROFILE_VIEW']),
   worker: new Set(['NOTIFICATION_VIEW','WORKER_ENTRY','WORKER_HISTORY','PROFILE_VIEW'])
 };
 const DEFAULTS = {
@@ -43,11 +44,10 @@ const DEFAULTS = {
   worker: new Set(CAPABILITIES.worker)
 };
 
-// Quyền nghiệp vụ bắt buộc của Manager đối với báo cáo đã duyệt.
-// Không cho permission override vô tình tắt quyền này, vì route PUT /production/:id
-// dùng REPORT_APPROVED_EDIT để cho Manager chỉnh sửa báo cáo đã duyệt.
 const MANDATORY_ROLE_PERMISSIONS = {
-  manager: new Set(['REPORT_APPROVED_EDIT'])
+  manager: new Set(['REPORT_APPROVED_EDIT']),
+  // Tạm thời/hiện hành: Lead có đầy đủ quyền master như Manager.
+  lead: new Set(['MASTER_VIEW','MASTER_EDIT'])
 };
 
 let schemaAvailable;
@@ -92,10 +92,7 @@ async function getEffectivePermissions(user) {
       Number(row.allowed) ? result.add(code) : result.delete(code);
     }
   }
-  // Các quyền nghiệp vụ bắt buộc không được phép bị override.
   applyMandatoryRolePermissions(role, result);
-  // Tổ trưởng luôn được phép đề xuất sửa báo cáo. Đây là quyền nghiệp vụ bắt buộc,
-  // không cho override phân quyền làm mất quyền tạo đề xuất.
   if (role === 'lead') {
     result.add('REPORT_PENDING_VIEW');
     result.add('REPORT_APPROVE');
@@ -108,7 +105,7 @@ async function hasPermission(user, code) {
   const normalized = normalizeCode(code);
   if (role === 'admin') return true;
   if (role === 'manager' && normalized === 'REPORT_APPROVED_EDIT') return true;
-  if (role === 'lead' && normalized === 'REPORT_APPROVE') return true;
+  if (role === 'lead' && ['REPORT_APPROVE','MASTER_VIEW','MASTER_EDIT'].includes(normalized)) return true;
   const set = await getEffectivePermissions(user);
   return set.has(normalized);
 }
