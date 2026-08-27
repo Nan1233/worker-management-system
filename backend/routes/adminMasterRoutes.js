@@ -10,6 +10,7 @@ router.use(verifyToken,checkRole('admin','manager','lead'));
 const MANAGER_MASTER_RESOURCES=['machines','standards','deductions'];
 const SUPPORTING_READ_RESOURCES=['processes'];
 const normalizedRole=(req)=>String(req.user?.role||'').trim().toLowerCase();
+const isLeadManagerMasterResource=(req)=>normalizedRole(req)==='lead'&&MANAGER_MASTER_RESOURCES.includes(String(req.params.resource||''));
 
 const managerResourceScope=(req,res,next)=>{
   const resource=String(req.params.resource||'');
@@ -31,25 +32,21 @@ const managerResourceScope=(req,res,next)=>{
   return next();
 };
 
-// Lead đang tạm sử dụng giao diện Manager. Trong thời gian này, Lead được
-// đọc 3 master resource của Manager, kể cả khi quyền Lead có override.
-// Quyền ghi vẫn phải qua MASTER_EDIT như bình thường.
-const temporaryLeadManagerMasterView=(req,res,next)=>{
-  const resource=String(req.params.resource||'');
-  const role=normalizedRole(req);
-  if(role==='lead'&&req.method==='GET'&&[
-    ...MANAGER_MASTER_RESOURCES,
-    ...SUPPORTING_READ_RESOURCES
-  ].includes(resource)) return next();
-  return permission('MASTER_VIEW')(req,res,next);
+// Lead đang tạm sử dụng giao diện Manager nên được toàn quyền thao tác
+// Máy móc, Sản phẩm/định mức và Trừ giờ giống Manager: xem, thêm, sửa, xóa.
+// Bypass permission riêng cho 3 resource này để không bị user override cũ
+// hoặc cache quyền chặn nhầm. Các resource khác vẫn dùng permission bình thường.
+const temporaryLeadManagerMasterAccess=(req,res,next)=>{
+  if(isLeadManagerMasterResource(req)) return next();
+  return permission(req.method==='GET'?'MASTER_VIEW':'MASTER_EDIT')(req,res,next);
 };
 
-router.get('/transfer/export/:resource',permission('MASTER_VIEW'),managerResourceScope,transferController.export);
-router.post('/transfer/import/:resource',permission('MASTER_EDIT'),managerResourceScope,transferController.import);
-router.get('/:resource',temporaryLeadManagerMasterView,managerResourceScope,controller.list);
-router.post('/:resource',permission('MASTER_EDIT'),managerResourceScope,controller.create);
-router.put('/:resource/:id',permission('MASTER_EDIT'),managerResourceScope,controller.update);
-router.delete('/:resource/:id',permission('MASTER_EDIT'),managerResourceScope,controller.remove);
+router.get('/transfer/export/:resource',temporaryLeadManagerMasterAccess,managerResourceScope,transferController.export);
+router.post('/transfer/import/:resource',temporaryLeadManagerMasterAccess,managerResourceScope,transferController.import);
+router.get('/:resource',temporaryLeadManagerMasterAccess,managerResourceScope,controller.list);
+router.post('/:resource',temporaryLeadManagerMasterAccess,managerResourceScope,controller.create);
+router.put('/:resource/:id',temporaryLeadManagerMasterAccess,managerResourceScope,controller.update);
+router.delete('/:resource/:id',temporaryLeadManagerMasterAccess,managerResourceScope,controller.remove);
 router.put('/workers/:id/profile',permission('MASTER_EDIT'),controller.updateWorker);
 router.put('/workers/:id/processes',permission('MASTER_EDIT'),controller.setWorkerProcesses);
 module.exports=router;
