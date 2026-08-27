@@ -1,11 +1,15 @@
-/* Approved reports: keep the page title visible after the shared pending-page UI fix. */
+/* Approved reports: title visibility only. Keep the actual list/filter/table styling shared
+   with Chờ duyệt via ReportsSplitReference.css + ReportsPendingFix.css. */
 .pending-reference-page > .pending-page-title {
   display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
 .pending-reference-page > .pending-page-title h1 {
   display: block !important;
   visibility: visible !important;
+  opacity: 1 !important;
   margin: 0 !important;
   color: #17345b !important;
   font-size: clamp(24px, 2.1vw, 32px) !important;
@@ -13,74 +17,15 @@
   font-weight: 800 !important;
 }
 
-.pending-reference-page > .pending-page-title p {
+.pending-reference-page > .pending-page-title > div {
   display: block !important;
   visibility: visible !important;
-  margin: 6px 0 0 !important;
-  color: #7185a4 !important;
+  opacity: 1 !important;
+  margin-top: 5px !important;
+  color: #6f89a8 !important;
   font-size: 13px !important;
 }
 
-/* FINAL APPROVED REPORTS TABLE FIX
-   The list has 14 source columns; column 2 (report code) is intentionally hidden.
-   Explicit widths prevent the KPI columns from collapsing into tiny slivers. */
-.pending-reference-page .pending-list-card .pending-table-wrap {
-  width: 100% !important;
-  max-width: 100% !important;
-  overflow-x: auto !important;
-  overflow-y: hidden !important;
-  -webkit-overflow-scrolling: touch;
-}
-
-.pending-reference-page .pending-list-card .pending-reference-table {
-  width: 1450px !important;
-  min-width: 1450px !important;
-  max-width: none !important;
-  table-layout: fixed !important;
-}
-
-.pending-reference-page .pending-list-card .pending-reference-table th,
-.pending-reference-page .pending-list-card .pending-reference-table td {
-  box-sizing: border-box !important;
-  padding: 10px 12px !important;
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  vertical-align: middle !important;
-}
-
-.pending-reference-page .pending-list-card .pending-reference-table th:nth-child(1),
-.pending-reference-page .pending-list-card .pending-reference-table td:nth-child(1) { width: 64px !important; min-width: 64px !important; }
-.pending-reference-page .pending-list-card .pending-reference-table th:nth-child(2),
-.pending-reference-page .pending-list-card .pending-reference-table td:nth-child(2) { display: none !important; }
-.pending-reference-page .pending-list-card .pending-reference-table th:nth-child(3),
-.pending-reference-page .pending-list-card .pending-reference-table td:nth-child(3) { width: 190px !important; min-width: 190px !important; }
-.pending-reference-page .pending-list-card .pending-reference-table th:nth-child(4),
-.pending-reference-page .pending-list-card .pending-reference-table td:nth-child(4) { width: 155px !important; min-width: 155px !important; }
-.pending-reference-page .pending-list-card .pending-reference-table th:nth-child(5),
-.pending-reference-page .pending-list-card .pending-reference-table td:nth-child(5) { width: 75px !important; min-width: 75px !important; }
-.pending-reference-page .pending-list-card .pending-reference-table th:nth-child(6),
-.pending-reference-page .pending-list-card .pending-reference-table td:nth-child(6) { width: 105px !important; min-width: 105px !important; }
-.pending-reference-page .pending-list-card .pending-reference-table th:nth-child(7),
-.pending-reference-page .pending-list-card .pending-reference-table td:nth-child(7) { width: 105px !important; min-width: 105px !important; }
-.pending-reference-page .pending-list-card .pending-reference-table th:nth-child(8),
-.pending-reference-page .pending-list-card .pending-reference-table td:nth-child(8) { width: 90px !important; min-width: 90px !important; }
-.pending-reference-page .pending-list-card .pending-reference-table th:nth-child(9),
-.pending-reference-page .pending-list-card .pending-reference-table td:nth-child(9) { width: 90px !important; min-width: 90px !important; }
-.pending-reference-page .pending-list-card .pending-reference-table th:nth-child(10),
-.pending-reference-page .pending-list-card .pending-reference-table td:nth-child(10) { width: 85px !important; min-width: 85px !important; }
-.pending-reference-page .pending-list-card .pending-reference-table th:nth-child(11),
-.pending-reference-page .pending-list-card .pending-reference-table td:nth-child(11) { width: 115px !important; min-width: 115px !important; }
-.pending-reference-page .pending-list-card .pending-reference-table th:nth-child(12),
-.pending-reference-page .pending-list-card .pending-reference-table td:nth-child(12) { width: 100px !important; min-width: 100px !important; }
-.pending-reference-page .pending-list-card .pending-reference-table th:nth-child(13),
-.pending-reference-page .pending-list-card .pending-reference-table td:nth-child(13) { width: 95px !important; min-width: 95px !important; }
-.pending-reference-page .pending-list-card .pending-reference-table th:nth-child(14),
-.pending-reference-page .pending-list-card .pending-reference-table td:nth-child(14) { width: 110px !important; min-width: 110px !important; }
-
-@media (max-width: 720px) {
-  .pending-reference-page .pending-list-card .pending-reference-table {
-    width: 1380px !important;
-    min-width: 1380px !important;
-  }
-}
+/* Do not add an approved-only table width/layout here.
+   Chờ duyệt and Đã duyệt must share exactly the same table sizing,
+   spacing, borders, typography and responsive behavior. */
