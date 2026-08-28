@@ -94,7 +94,10 @@ const enforceDailyWorkerHours = async (data) => {
             lockConnection: connection
         };
     } catch (error) {
-        if (!locked) connection.release();
+        if (locked) {
+            await connection.query("SELECT RELEASE_LOCK(?) AS released", [lockName]).catch(() => {});
+        }
+        connection.release();
         throw error;
     }
 };
