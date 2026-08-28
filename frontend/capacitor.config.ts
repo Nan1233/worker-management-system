@@ -5,6 +5,7 @@ const config: CapacitorConfig = {
   appName: "KTC Production Control",
   webDir: "dist",
   server: {
+    url: "https://worker-management-system-3-dzox.onrender.com",
     androidScheme: "https",
   },
   android: {
