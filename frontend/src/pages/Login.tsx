@@ -82,7 +82,12 @@ function Login() {
         setAccessType(type);
         setPassword("");
         setError("");
-        setStep(type === "worker" ? "employee-code" : "management-password");
+        // Worker uses the employee code already entered; do not show the code form again.
+        if (type === "worker") {
+            void completeLogin("worker");
+            return;
+        }
+        setStep("management-password");
     };
 
     const completeLogin = async (type: AccessType) => {
@@ -138,6 +143,7 @@ function Login() {
             } else {
                 setError(err instanceof Error ? err.message : "Không thể đăng nhập. Vui lòng thử lại.");
             }
+            setStep(type === "management" ? "management-password" : "role-choice");
         } finally {
             setLoading(false);
         }
@@ -232,13 +238,13 @@ function Login() {
                     <div className="login-role-choice">
                         <button type="button" className="login-role-card" onClick={() => chooseRole("worker")} disabled={loading}>
                             <span className="login-role-icon" aria-hidden="true">♙</span>
-                            <span className="login-role-copy"><strong>Công nhân</strong><small>Đăng nhập bằng mã nhân viên</small></span>
+                            <span className="login-role-copy"><strong>Công nhân</strong><small>Đăng nhập bằng mã nhân viên đã nhập</small></span>
                             <b aria-hidden="true">›</b>
                         </button>
 
                         <button type="button" className="login-role-card" onClick={() => chooseRole("management")} disabled={loading}>
                             <span className="login-role-icon" aria-hidden="true">♙</span>
-                            <span className="login-role-copy"><strong>Quản lý</strong><small>Đăng nhập bằng mã nhân viên và mật khẩu</small></span>
+                            <span className="login-role-copy"><strong>Quản lý</strong><small>Dùng mã nhân viên và nhập mật khẩu</small></span>
                             <b aria-hidden="true">›</b>
                         </button>
 
