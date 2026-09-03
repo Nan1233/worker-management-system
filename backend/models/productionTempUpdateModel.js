@@ -3,9 +3,105 @@ const { recalculateReportOutput } = require("../services/kqdReportCalculationSer
 const { query, getConnection, beginTransaction, commit, rollback, normalizeIds, editableFields } = require("./productionTempModelShared");
 const { validateMachineWorkerCapacityLocked } = require("../services/factoryMachineRuleService");
 
+const DAILY_HOURS_LIMIT = 12;
+
+/**
+ * Keep the 12h/day rule consistent for edits as well as new submissions.
+ * actual_time is counted production time; deduction/support hours are excluded.
+ * The advisory lock uses the same worker/date key as the create path so a
+ * submission and an edit cannot pass the daily-hours check concurrently.
+ */
+const lockAndCheckDailyHours = async (connection, { workerId, workDate, incomingActualHours, excludeTempReportId = null }) => {
+    const worker = Number(workerId);
+    const date = String(workDate || "").slice(0, 10);
+    const incoming = Number(incomingActualHours) || 0;
+
+    if (!Number.isInteger(worker) || worker <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return null;
+    }
+
+    const lockName = `ktc:worker-daily-hours:${worker}:${date}`;
+    const [lockRows] = await connection.query("SELECT GET_LOCK(?, 10) AS acquired", [lockName]);
+    const locked = Number(lockRows?.[0]?.acquired) === 1;
+
+    if (!locked) {
+        const error = new Error("Không thể kiểm tra tổng giờ trong ngày, vui lòng gửi lại sau.");
+        error.status = 503;
+        error.code = "DAILY_HOURS_LOCK_TIMEOUT";
+        error.isPublic = true;
+        throw error;
+    }
+
+    try {
+        const tempExcludeSql = excludeTempReportId ? "AND id <> ?" : "";
+        const tempParams = excludeTempReportId
+            ? [worker, date, excludeTempReportId]
+            : [worker, date];
+
+        const [approvedRows] = await connection.query(
+            `SELECT COALESCE(SUM(COALESCE(actual_time, 0)), 0) AS counted_hours
+             FROM production_reports
+             WHERE worker_id = ?
+               AND work_date = ?
+               AND status <> 'deleted'`,
+            [worker, date]
+        );
+
+        const [tempRows] = await connection.query(
+            `SELECT COALESCE(SUM(COALESCE(actual_time, 0)), 0) AS counted_hours
+             FROM production_reports_temp
+             WHERE worker_id = ?
+               AND work_date = ?
+               ${tempExcludeSql}
+               AND status IN ('pending', 'need_fix')`,
+            tempParams
+        );
+
+        const existingHours =
+            Number(approvedRows?.[0]?.counted_hours || 0) +
+            Number(tempRows?.[0]?.counted_hours || 0);
+        const projectedHours = existingHours + incoming;
+
+        if (projectedHours > DAILY_HOURS_LIMIT + 0.000001) {
+            const remainingHours = Math.max(0, DAILY_HOURS_LIMIT - existingHours);
+            const error = new Error(
+                `Tổng giờ làm được tính trong ngày không được vượt quá 12 giờ. ` +
+                `Hiện đã có ${existingHours.toFixed(2)} giờ, báo cáo này thêm ${incoming.toFixed(2)} giờ, ` +
+                `chỉ còn ${remainingHours.toFixed(2)} giờ.`
+            );
+            error.status = 422;
+            error.code = "DAILY_WORKING_HOURS_LIMIT_EXCEEDED";
+            error.isPublic = true;
+            error.details = {
+                worker_id: worker,
+                work_date: date,
+                existing_hours: Number(existingHours.toFixed(4)),
+                incoming_hours: Number(incoming.toFixed(4)),
+                projected_hours: Number(projectedHours.toFixed(4)),
+                limit_hours: DAILY_HOURS_LIMIT,
+                remaining_hours: Number(remainingHours.toFixed(4)),
+                counted_field: "actual_time",
+                excluded_from_daily_limit: "deduction_time / support hours"
+            };
+            throw error;
+        }
+
+        return { lockName, existingHours, incomingActualHours: incoming, projectedHours };
+    } catch (error) {
+        await connection.query("SELECT RELEASE_LOCK(?) AS released", [lockName]).catch(() => {});
+        throw error;
+    }
+};
+
+const releaseDailyHoursLock = async (connection, state) => {
+    if (!connection || !state?.lockName) return;
+    await connection.query("SELECT RELEASE_LOCK(?) AS released", [state.lockName]).catch(() => {});
+};
+
 module.exports = {
     async updateReport(id, data, changedBy, reason = null, options = {}) {
         const connection = await getConnection();
+        let dailyHoursState = null;
 
         try {
             await beginTransaction(connection);
@@ -313,6 +409,23 @@ module.exports = {
                 }
             }
 
+            // Re-check the worker/day total using the final actual_time that will
+            // be stored. The current temp row is excluded so an edit replaces its
+            // previous counted time rather than adding the old value again.
+            const nextWorkDate = Object.prototype.hasOwnProperty.call(data, "work_date")
+                ? String(data.work_date || "").slice(0, 10)
+                : String(current.work_date || "").slice(0, 10);
+            const nextActualTime = Object.prototype.hasOwnProperty.call(data, "actual_time")
+                ? Math.max(0, Number(data.actual_time) || 0)
+                : Math.max(0, Number(current.actual_time) || 0);
+
+            dailyHoursState = await lockAndCheckDailyHours(connection, {
+                workerId: current.worker_id,
+                workDate: nextWorkDate,
+                incomingActualHours: nextActualTime,
+                excludeTempReportId: id
+            });
+
             const changes = editableFields
                 .filter(field =>
                     Object.prototype.hasOwnProperty.call(
@@ -444,7 +557,6 @@ module.exports = {
             }
 
             if (hasMachineLines) {
-                const nextWorkDate = Object.prototype.hasOwnProperty.call(data, 'work_date') ? data.work_date : current.work_date;
                 const nextShift = Object.prototype.hasOwnProperty.call(data, 'shift') ? data.shift : current.shift;
                 const processRows = await query(connection, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(current.process_id)]);
                 const lockedCapacity = await validateMachineWorkerCapacityLocked({
@@ -590,6 +702,7 @@ module.exports = {
             await rollback(connection);
             throw error;
         } finally {
+            await releaseDailyHoursLock(connection, dailyHoursState);
             connection.release();
         }
     }
