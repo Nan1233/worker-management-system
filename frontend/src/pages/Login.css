@@ -1,42 +1,50 @@
-/* KTC LOGIN — clean white / pale-blue redesign */
+/* KTC LOGIN — approved clean white / pale-blue design */
 .login-page,.login-page *,.login-page *::before,.login-page *::after{box-sizing:border-box}
-.login-page{min-height:100dvh;width:100%;display:grid;grid-template-columns:minmax(0,1fr) minmax(460px,560px);position:relative;overflow:hidden;padding:24px;background:radial-gradient(circle at 8% 12%,rgba(214,232,255,.72),transparent 25%),radial-gradient(circle at 92% 86%,rgba(220,237,255,.78),transparent 27%),#fff;color:#18243a;font-family:Inter,"Be Vietnam Pro","Segoe UI Variable","Segoe UI",system-ui,sans-serif}
-.login-page::before{content:"";position:absolute;inset:24px;border:1px solid #e3ebf5;border-radius:24px;background:linear-gradient(135deg,rgba(247,251,255,.94),rgba(255,255,255,.98));pointer-events:none}
-.login-page::after{content:"";position:absolute;left:24px;top:24px;bottom:24px;width:40%;border-radius:24px 0 0 24px;background:radial-gradient(circle at 20% 24%,rgba(198,222,252,.48),transparent 22%),linear-gradient(135deg,rgba(235,244,255,.76),rgba(255,255,255,.15));pointer-events:none}
-.login-showcase{display:block;position:relative;z-index:2;min-width:0;min-height:calc(100dvh - 48px);padding:clamp(70px,9vh,112px) clamp(42px,6vw,90px) 48px;overflow:hidden;border-radius:24px 0 0 24px;background:transparent}
-.login-showcase-inner{position:relative;height:100%;min-height:calc(100dvh - 48px);display:flex;align-items:center}
-.login-company-brand{position:relative;z-index:5;display:grid;justify-items:start;gap:16px;max-width:470px}
-.login-company-brand .login-brand-mark{width:260px;height:82px;background-image:url("/ktc-hanoi-logo.jpg");background-repeat:no-repeat;background-position:left center;background-size:contain}
-.login-company-brand .login-brand-mark::before,.login-company-brand .login-brand-mark::after{display:none}
-.login-company-name{margin:0;color:#4d7fb8;font-size:clamp(28px,3vw,40px);line-height:1.12;font-weight:750;letter-spacing:-.035em}
-.login-company-name::after{content:"";display:block;width:64px;height:3px;margin-top:16px;border-radius:999px;background:#b9d6f6}
-.login-company-brand h1{margin:4px 0 0;color:#5e7fa3;font-size:21px;line-height:1.35;font-weight:600}
-.login-tagline{margin:0;color:#8097b2;font-size:14px;line-height:1.8;font-weight:450}
-.login-factory-photo,.login-benefits{display:none!important}
-.login-panel{position:relative;z-index:3;min-height:calc(100dvh - 48px);display:grid;place-items:center;padding:42px 34px;overflow:auto}
-.login-card{width:min(100%,500px);padding:54px 48px 38px;border:1px solid #e1eaf5;border-radius:22px;background:rgba(255,255,255,.97);box-shadow:0 18px 48px rgba(105,145,190,.10);backdrop-filter:blur(8px)}
-.login-mobile-brand{display:none}
-.login-heading{display:grid;justify-items:center;text-align:center;margin-bottom:34px}
-.login-welcome-mark{width:74px;height:74px;margin-bottom:18px;border-radius:50%;background:#eef6ff;position:relative}
-.login-welcome-mark::before{content:"";position:absolute;width:24px;height:24px;left:50%;top:17px;transform:translateX(-50%);border:2px solid #5f91c9;border-radius:50%}
-.login-welcome-mark::after{content:"";position:absolute;width:36px;height:20px;left:50%;bottom:13px;transform:translateX(-50%);border:2px solid #5f91c9;border-radius:20px 20px 10px 10px}
-.login-heading>h2{margin:0;color:#24364f;font-size:30px;line-height:1.2;letter-spacing:-.035em;font-weight:750}
-.login-heading>span{margin-top:8px;color:#7b90aa;font-size:14px;line-height:1.5}
-.login-heading::after{content:"";width:38px;height:3px;margin-top:17px;border-radius:999px;background:#b8d5f5}
-.login-role-choice{display:grid;gap:12px}
-.login-role-card{min-height:88px;grid-template-columns:58px minmax(0,1fr) 22px;gap:14px;padding:12px 15px;border:1px solid #e1eaf5;border-radius:15px;background:#fff;box-shadow:none;color:#36587f}
-.login-role-card:hover:not(:disabled){border-color:#b8d6f5;background:#f8fbff;box-shadow:0 7px 20px rgba(100,145,195,.08);transform:translateY(-1px)}
-.login-role-worker{border-color:#c7ddf6}
-.login-role-icon{width:58px;height:58px;border-radius:16px;background:#eef6ff;color:#5d8fc8;font-size:24px}
-.login-role-card strong{color:#294768;font-size:16px}.login-role-card small{color:#8297af}.login-role-card b{color:#76a3d3;font-size:29px}
-.login-security-note{display:none!important}
-.login-form{display:grid;gap:17px}.login-form label{color:#4e6683;font-size:13px;font-weight:650}
-.login-input-wrap input{min-height:56px;padding:12px 48px;border:1px solid #d8e4f1;border-radius:12px;background:#fff;color:#294768;font-size:15px;box-shadow:none}
-.login-input-wrap input:focus{border-color:#91bce7;box-shadow:0 0 0 4px rgba(145,188,231,.14)}
-.login-input-wrap input::placeholder{color:#a1b2c6}.login-input-icon{color:#7f9bb8}
-.login-submit{min-height:56px;margin-top:3px;border-radius:12px;background:linear-gradient(180deg,#72a9e4 0%,#5f98d4 100%);color:#fff;font-size:15px;box-shadow:0 8px 20px rgba(94,151,211,.18)}
-.login-submit:hover:not(:disabled){background:linear-gradient(180deg,#689fd9 0%,#578fc9 100%)}
-.login-back{color:#7092b5;background:transparent}.login-error{border-color:#f0c7cb;background:#fff7f7;color:#b44b53}.remember-checkbox{color:#7890a9!important}
-.login-card::after{content:"KTC (HANOI) CO., LTD  •  Production Management System";display:block;margin-top:30px;padding-top:20px;border-top:1px solid #edf2f7;color:#9aabbd;text-align:center;font-size:11px;line-height:1.6}
-@media (max-width:900px){.login-page{display:block;padding:0;background:radial-gradient(circle at 50% 0%,rgba(213,232,255,.65),transparent 30%),#fff}.login-page::before,.login-page::after{display:none}.login-showcase{min-height:auto;height:auto;padding:42px 24px 8px;border-radius:0}.login-showcase-inner{min-height:auto;display:block}.login-company-brand{display:none}.login-panel{min-height:calc(100dvh - 50px);padding:18px 18px 30px;align-items:start}.login-card{width:min(100%,460px);padding:24px 22px 26px;border:0;border-radius:20px;box-shadow:none;background:rgba(255,255,255,.96)}.login-mobile-brand{display:grid;place-items:center;margin-bottom:18px}.login-mobile-brand .login-brand-mark{width:210px;height:68px;background-image:url("/ktc-hanoi-logo.jpg");background-repeat:no-repeat;background-position:center;background-size:contain}.login-mobile-brand .login-brand-mark::before,.login-mobile-brand .login-brand-mark::after{display:none}.login-welcome-mark{width:62px;height:62px;margin-bottom:14px}.login-heading>h2{font-size:26px}.login-heading>span{font-size:13px}.login-heading{margin-bottom:27px}.login-card::after{margin-top:25px;padding-top:17px;font-size:10px}}
-@media (max-width:430px){.login-panel{padding:10px 12px 24px}.login-card{padding:18px 14px 22px}.login-mobile-brand .login-brand-mark{width:180px;height:58px}.login-heading>h2{font-size:24px}.login-input-wrap input,.login-submit{min-height:54px}}
+.login-page{min-height:100dvh;width:100%;position:relative;display:grid;place-items:center;overflow:hidden;padding:40px;background:#fff;color:#17315b;font-family:Inter,"Be Vietnam Pro","Segoe UI Variable","Segoe UI",system-ui,sans-serif}
+.login-page::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 42%,rgba(223,237,253,.76),transparent 48%),linear-gradient(180deg,#fff 0%,#fbfdff 100%);pointer-events:none}
+.login-decoration{position:absolute;pointer-events:none;border:1.5px solid rgba(137,187,241,.42);z-index:1}
+.login-decoration-top{width:150px;height:150px;right:13%;top:-58px;transform:rotate(45deg);border-color:transparent transparent rgba(137,187,241,.28) rgba(137,187,241,.28)}
+.login-decoration-left{width:270px;height:270px;left:-185px;top:21%;border-radius:58px;transform:rotate(45deg);background:rgba(218,234,252,.34);border-color:transparent}
+.login-decoration-bottom{width:270px;height:270px;right:-185px;bottom:-180px;border-radius:58px;transform:rotate(45deg);background:rgba(218,234,252,.36);border-color:transparent}
+.login-dots{position:absolute;width:92px;height:92px;opacity:.72;background-image:radial-gradient(circle,rgba(130,180,239,.5) 2px,transparent 2.5px);background-size:22px 22px;z-index:1}
+.login-dots-top{right:15%;top:9%}.login-dots-bottom{left:4%;bottom:9%}
+.login-card{position:relative;z-index:3;width:min(560px,calc(100vw - 48px));min-height:620px;padding:68px 52px 42px;border:1px solid #e4edf7;border-radius:20px;background:rgba(255,255,255,.98);box-shadow:0 18px 55px rgba(93,143,195,.13);display:flex;flex-direction:column}
+.login-brand{display:flex;justify-content:center;align-items:center;margin-bottom:24px}
+.login-logo{display:block;width:250px;height:80px;object-fit:contain;object-position:center}
+.login-heading{text-align:center;margin:0 0 40px}
+.login-heading h1{margin:0;color:#19345d;font-size:36px;line-height:1.18;letter-spacing:-.035em;font-weight:760}
+.login-heading p{margin:10px 0 0;color:#7891b1;font-size:17px;line-height:1.5;font-weight:450}
+.login-form{display:flex;flex-direction:column;gap:17px}
+.login-field{display:flex;flex-direction:column;gap:9px}
+.login-field label,.login-form>.login-field>label{color:#123d87;font-size:14px;font-weight:700;line-height:1.3}
+.login-input-wrap{position:relative;display:flex;align-items:center}
+.login-input-wrap input{width:100%;height:62px;padding:0 50px;border:2px solid #d5e6fb;border-radius:13px;background:#fff;color:#254b78;font-size:16px;outline:none;transition:border-color .18s ease,box-shadow .18s ease}
+.login-input-wrap input:focus{border-color:#9bc5f1;box-shadow:0 0 0 4px rgba(155,197,241,.14)}
+.login-input-wrap input::placeholder{color:#8ca2be}
+.login-input-icon{position:absolute;left:19px;z-index:2;color:#6687ae;font-size:21px;line-height:1;pointer-events:none}
+.password-toggle{position:absolute;right:14px;z-index:2;border:0;background:transparent;color:#6f8fb4;font-size:12px;font-weight:700;padding:8px;cursor:pointer}
+.remember-checkbox{display:flex;align-items:center;gap:8px;color:#7891ad!important;font-size:12px!important;font-weight:500!important;cursor:pointer;margin-top:-2px}
+.remember-checkbox input{width:15px;height:15px;accent-color:#91bdf0}
+.login-submit{width:100%;height:62px;margin-top:6px;border:0;border-radius:13px;background:linear-gradient(180deg,#d2e4fc 0%,#c5dcf8 100%);color:#0d408e;font-size:17px;font-weight:750;letter-spacing:.01em;cursor:pointer;box-shadow:0 8px 20px rgba(116,164,218,.13);transition:transform .18s ease,box-shadow .18s ease,background .18s ease}
+.login-submit:hover:not(:disabled){transform:translateY(-1px);background:linear-gradient(180deg,#c9e0fc 0%,#bcd6f6 100%);box-shadow:0 11px 24px rgba(116,164,218,.18)}
+.login-submit:active:not(:disabled){transform:translateY(0)}
+.login-submit:disabled{opacity:.75;cursor:not-allowed}
+.login-submit>span:last-child{margin-left:8px;font-size:24px;font-weight:500;vertical-align:-1px}
+.login-spinner{display:inline-block;width:16px;height:16px;margin-right:7px;border:2px solid rgba(13,64,142,.25);border-top-color:#0d408e;border-radius:50%;animation:ktc-spin .7s linear infinite;vertical-align:-3px}
+@keyframes ktc-spin{to{transform:rotate(360deg)}}
+.login-access-switch{border:0;background:transparent;color:#7c9abd;font-size:12px;font-weight:600;cursor:pointer;padding:1px 4px;margin-top:0}
+.login-access-switch:hover{text-decoration:underline;color:#5e83ae}
+.login-error{padding:11px 13px;border:1px solid #f0c7cb;border-radius:10px;background:#fff7f7;color:#b44b53;font-size:13px;line-height:1.4}
+.login-footer{margin-top:auto;padding-top:34px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:5px;color:#7b96b8;font-size:13px;line-height:1.45}
+.login-footer strong{color:#154291;font-size:14px;font-weight:750}.login-footer i{display:block;width:48px;height:2px;border-radius:999px;background:#8dbcf0;margin:8px 0 5px}.login-footer span:last-child{color:#89a0bc;font-size:12px}
+.login-showcase,.login-mobile-brand,.login-factory-photo,.login-benefits{display:none!important}
+@media (max-width:900px){
+ .login-page{padding:20px 14px;place-items:center;background:#fff}
+ .login-page::before{background:radial-gradient(circle at 50% 0%,rgba(222,237,254,.8),transparent 38%),#fff}
+ .login-decoration-top{width:105px;height:105px;right:-35px;top:-35px}.login-decoration-left{width:170px;height:170px;left:-120px;top:25%;border-radius:38px}.login-decoration-bottom{width:175px;height:175px;right:-120px;bottom:-115px;border-radius:38px}.login-dots{width:65px;height:65px;background-size:16px 16px}.login-dots-top{right:4%;top:7%}.login-dots-bottom{left:3%;bottom:6%}
+ .login-card{width:min(100%,460px);min-height:0;padding:42px 30px 30px;border-radius:20px;box-shadow:0 14px 42px rgba(93,143,195,.11)}
+ .login-brand{margin-bottom:18px}.login-logo{width:225px;height:72px}.login-heading{margin-bottom:30px}.login-heading h1{font-size:30px}.login-heading p{font-size:15px;margin-top:8px}.login-input-wrap input,.login-submit{height:58px}.login-footer{padding-top:30px;font-size:12px}
+}
+@media (max-width:430px){
+ .login-page{padding:14px 10px}.login-card{width:100%;padding:34px 20px 26px;border-radius:18px}.login-logo{width:200px;height:64px}.login-brand{margin-bottom:15px}.login-heading{margin-bottom:27px}.login-heading h1{font-size:27px}.login-heading p{font-size:14px}.login-field{gap:8px}.login-field label,.login-form>.login-field>label{font-size:13px}.login-input-wrap input{height:56px;font-size:15px}.login-submit{height:56px;font-size:16px}.login-footer{padding-top:28px}.login-decoration-left{left:-145px}.login-decoration-bottom{right:-140px}
+}
