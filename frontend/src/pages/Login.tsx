@@ -6,8 +6,8 @@ import { beginLoginTransition, finishLoginTransition } from "../services/api";
 import { clearAuthSession, clearCurrentTabAuthSession } from "../utils/authStorage";
 import type { User, UserRole } from "../types/auth";
 
+type LoginStep = "employee-code" | "role-choice" | "management-password";
 type AccessType = "worker" | "management";
-type LoginStep = "role-choice" | "login-form";
 
 interface LoginResultShape {
     user?: User;
@@ -36,7 +36,7 @@ function Login() {
     const initializedRef = useRef(false);
     const [username, setUsername] = useState(() => localStorage.getItem(REMEMBERED_CODE_KEY) || "");
     const [password, setPassword] = useState("");
-    const [step, setStep] = useState<LoginStep>("role-choice");
+    const [step, setStep] = useState<LoginStep>("employee-code");
     const [accessType, setAccessType] = useState<AccessType | null>(null);
     const [rememberAccount, setRememberAccount] = useState(true);
     const [showPassword, setShowPassword] = useState(false);
@@ -66,16 +66,37 @@ function Login() {
         }
     }, []);
 
+    const continueWithCode = (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        const code = username.trim();
+        if (!code) {
+            setError("Vui lòng nhập mã nhân viên.");
+            return;
+        }
+        setError("");
+        setAccessType(null);
+        setStep("role-choice");
+    };
+
+    const chooseRole = (type: AccessType) => {
+        setAccessType(type);
+        setPassword("");
+        setError("");
+        setStep(type === "worker" ? "employee-code" : "management-password");
+    };
+
     const completeLogin = async (type: AccessType) => {
         const rawUsername = username.trim();
 
         if (!rawUsername) {
             setError("Vui lòng nhập mã nhân viên.");
+            setStep("employee-code");
             return;
         }
 
         if (type === "management" && !password) {
             setError("Vui lòng nhập mật khẩu quản lý.");
+            setStep("management-password");
             return;
         }
 
@@ -83,10 +104,7 @@ function Login() {
         setLoading(true);
 
         try {
-            const loginUsername = type === "worker"
-                ? normalizeWorkerLoginCode(rawUsername)
-                : rawUsername;
-
+            const loginUsername = type === "worker" ? normalizeWorkerLoginCode(rawUsername) : rawUsername;
             const result = await login(loginUsername, type, password) as unknown as LoginResultShape;
             const user = result?.user || result?.data?.user;
 
@@ -125,31 +143,29 @@ function Login() {
         }
     };
 
-    const chooseAccessType = (type: AccessType) => {
-        setAccessType(type);
-        setUsername(type === "worker" ? (localStorage.getItem(REMEMBERED_CODE_KEY) || "") : "");
-        setPassword("");
-        setError("");
-        setShowPassword(false);
-        setStep("login-form");
+    const submitWorkerLogin = (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        void completeLogin("worker");
     };
 
-    const resetToRoleChoice = () => {
-        setUsername("");
+    const submitManagementLogin = (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        void completeLogin("management");
+    };
+
+    const backToCode = () => {
         setPassword("");
         setError("");
-        setShowPassword(false);
+        setAccessType(null);
+        setStep("employee-code");
+    };
+
+    const backToRoleChoice = () => {
+        setPassword("");
+        setError("");
         setAccessType(null);
         setStep("role-choice");
     };
-
-    const submit = (event: React.FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        if (!accessType) return;
-        void completeLogin(accessType);
-    };
-
-    const isWorker = accessType === "worker";
 
     return (
         <main className="login-page">
@@ -165,46 +181,18 @@ function Login() {
                 </div>
 
                 <header className="login-heading">
-                    <h1>{step === "role-choice" ? "Chào mừng bạn!" : isWorker ? "Đăng nhập công nhân" : "Đăng nhập quản lý"}</h1>
-                    <p>{step === "role-choice" ? "Vui lòng chọn vai trò để tiếp tục" : "Đăng nhập để tiếp tục công việc"}</p>
+                    <h1>{step === "role-choice" ? "Chọn vai trò" : step === "management-password" ? "Đăng nhập quản lý" : "Chào mừng bạn!"}</h1>
+                    <p>
+                        {step === "employee-code" && "Nhập mã nhân viên để tiếp tục"}
+                        {step === "role-choice" && <>Mã nhân viên: <strong>{username.trim()}</strong><br />Chọn loại tài khoản để tiếp tục</>}
+                        {step === "management-password" && <>Mã nhân viên: <strong>{username.trim()}</strong></>}
+                    </p>
                 </header>
 
-                {step === "role-choice" && (
-                    <div className="login-role-choice" aria-label="Chọn vai trò đăng nhập">
-                        <button
-                            type="button"
-                            className="login-role-card login-role-worker"
-                            onClick={() => chooseAccessType("worker")}
-                            disabled={loading}
-                        >
-                            <span className="login-role-icon" aria-hidden="true">♙</span>
-                            <span className="login-role-copy">
-                                <strong>Công nhân</strong>
-                                <small>Đăng nhập bằng mã công nhân</small>
-                            </span>
-                            <span className="login-role-arrow" aria-hidden="true">→</span>
-                        </button>
-
-                        <button
-                            type="button"
-                            className="login-role-card login-role-management"
-                            onClick={() => chooseAccessType("management")}
-                            disabled={loading}
-                        >
-                            <span className="login-role-icon" aria-hidden="true">♙</span>
-                            <span className="login-role-copy">
-                                <strong>Quản lý</strong>
-                                <small>Đăng nhập bằng mã nhân viên và mật khẩu</small>
-                            </span>
-                            <span className="login-role-arrow" aria-hidden="true">→</span>
-                        </button>
-                    </div>
-                )}
-
-                {step === "login-form" && accessType && (
-                    <form className="login-form" onSubmit={submit}>
+                {step === "employee-code" && (
+                    <form className="login-form" onSubmit={continueWithCode}>
                         <div className="login-field">
-                            <label htmlFor="login-username">{isWorker ? "Mã công nhân" : "Mã nhân viên"}</label>
+                            <label htmlFor="login-username">Mã nhân viên</label>
                             <div className="login-input-wrap">
                                 <span className="login-input-icon" aria-hidden="true">♙</span>
                                 <input
@@ -212,7 +200,7 @@ function Login() {
                                     type="text"
                                     inputMode="text"
                                     autoComplete="username"
-                                    placeholder={isWorker ? "Nhập mã công nhân" : "Nhập mã nhân viên"}
+                                    placeholder="Nhập mã nhân viên"
                                     value={username}
                                     onChange={(event) => setUsername(event.target.value)}
                                     disabled={loading}
@@ -221,33 +209,6 @@ function Login() {
                                 />
                             </div>
                         </div>
-
-                        {!isWorker && (
-                            <div className="login-field">
-                                <label htmlFor="login-password">Mật khẩu quản lý</label>
-                                <div className="login-input-wrap">
-                                    <span className="login-input-icon" aria-hidden="true">●</span>
-                                    <input
-                                        id="login-password"
-                                        type={showPassword ? "text" : "password"}
-                                        autoComplete="current-password"
-                                        placeholder="Nhập mật khẩu"
-                                        value={password}
-                                        onChange={(event) => setPassword(event.target.value)}
-                                        disabled={loading}
-                                    />
-                                    <button
-                                        type="button"
-                                        className="password-toggle"
-                                        onClick={() => setShowPassword((current) => !current)}
-                                        disabled={loading}
-                                        aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
-                                    >
-                                        {showPassword ? "Ẩn" : "Hiện"}
-                                    </button>
-                                </div>
-                            </div>
-                        )}
 
                         <label className="remember-checkbox">
                             <input
@@ -262,16 +223,75 @@ function Login() {
                         {error && <div className="login-error" role="alert">{error}</div>}
 
                         <button type="submit" className="login-submit" disabled={loading}>
-                            {loading ? (
-                                <><span className="login-spinner" /> Đang đăng nhập...</>
-                            ) : (
-                                <>Đăng nhập <span aria-hidden="true">→</span></>
-                            )}
+                            Tiếp tục <span aria-hidden="true">→</span>
+                        </button>
+                    </form>
+                )}
+
+                {step === "role-choice" && (
+                    <div className="login-role-choice">
+                        <button type="button" className="login-role-card" onClick={() => chooseRole("worker")} disabled={loading}>
+                            <span className="login-role-icon" aria-hidden="true">♙</span>
+                            <span className="login-role-copy"><strong>Công nhân</strong><small>Đăng nhập bằng mã nhân viên</small></span>
+                            <b aria-hidden="true">›</b>
                         </button>
 
-                        <button type="button" className="login-back" onClick={resetToRoleChoice} disabled={loading}>
-                            ← Chọn lại vai trò
+                        <button type="button" className="login-role-card" onClick={() => chooseRole("management")} disabled={loading}>
+                            <span className="login-role-icon" aria-hidden="true">♙</span>
+                            <span className="login-role-copy"><strong>Quản lý</strong><small>Đăng nhập bằng mã nhân viên và mật khẩu</small></span>
+                            <b aria-hidden="true">›</b>
                         </button>
+
+                        {error && <div className="login-error" role="alert">{error}</div>}
+                        <button type="button" className="login-back" onClick={backToCode} disabled={loading}>← Nhập lại mã nhân viên</button>
+                    </div>
+                )}
+
+                {step === "management-password" && (
+                    <form className="login-form" onSubmit={submitManagementLogin}>
+                        <div className="login-field">
+                            <label htmlFor="login-password">Mật khẩu quản lý</label>
+                            <div className="login-input-wrap">
+                                <span className="login-input-icon" aria-hidden="true">●</span>
+                                <input
+                                    id="login-password"
+                                    type={showPassword ? "text" : "password"}
+                                    autoComplete="current-password"
+                                    placeholder="Nhập mật khẩu"
+                                    value={password}
+                                    onChange={(event) => setPassword(event.target.value)}
+                                    disabled={loading}
+                                    autoFocus
+                                />
+                                <button
+                                    type="button"
+                                    className="password-toggle"
+                                    onClick={() => setShowPassword((current) => !current)}
+                                    disabled={loading}
+                                    aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                                >
+                                    {showPassword ? "Ẩn" : "Hiện"}
+                                </button>
+                            </div>
+                        </div>
+
+                        <label className="remember-checkbox">
+                            <input
+                                type="checkbox"
+                                checked={rememberAccount}
+                                onChange={(event) => setRememberAccount(event.target.checked)}
+                                disabled={loading}
+                            />
+                            <span>Ghi nhớ mã nhân viên trên thiết bị</span>
+                        </label>
+
+                        {error && <div className="login-error" role="alert">{error}</div>}
+
+                        <button type="submit" className="login-submit" disabled={loading}>
+                            {loading ? <><span className="login-spinner" /> Đang đăng nhập...</> : <>Đăng nhập <span aria-hidden="true">→</span></>}
+                        </button>
+
+                        <button type="button" className="login-back" onClick={backToRoleChoice} disabled={loading}>← Chọn lại vai trò</button>
                     </form>
                 )}
 
