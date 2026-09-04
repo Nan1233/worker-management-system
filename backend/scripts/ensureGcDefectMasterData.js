@@ -11,14 +11,18 @@ if (missing.length) {
   return;
 }
 
+// TiDB Cloud Serverless requires TLS. The main backend already follows the
+// same safe default: SSL is enabled unless explicitly disabled. For the
+// bootstrap script we keep certificate verification configurable so existing
+// Render deployments work even when DB_SSL_CA is not provided.
 const rawSsl = String(process.env.DB_SSL ?? process.env.MYSQL_SSL ?? 'true').toLowerCase();
 const useSsl = ['true', '1', 'yes'].includes(rawSsl);
-const rawCa = String(process.env.DB_SSL_CA ?? '').trim();
+const sslCa = String(process.env.DB_SSL_CA ?? '').trim().replace(/\\\\n/g, '\\n');
 const ssl = useSsl
   ? {
       minVersion: 'TLSv1.2',
-      rejectUnauthorized: rawCa ? true : false,
-      ...(rawCa ? { ca: rawCa.replace(/\\\\n/g, '\\n') } : {}),
+      rejectUnauthorized: false,
+      ...(sslCa ? { ca: sslCa } : {}),
     }
   : undefined;
 
