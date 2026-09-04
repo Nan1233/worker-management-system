@@ -21,12 +21,14 @@ const readIncomingTimes = (): TimeDetails => {
     const actualHours = Number(document.querySelector<HTMLInputElement>('[data-worker-time-part="actual-hours"]')?.value || 0);
     const actualMinutes = Number(document.querySelector<HTMLInputElement>('[data-worker-time-part="actual-minutes"]')?.value || 0);
     const deductionValue = document.querySelector<HTMLInputElement>('[data-worker-time-value="deduction"]')?.value || "0";
-    const totalValue = document.querySelector<HTMLInputElement>('[data-worker-time-value="total"]')?.value || "";
 
     const actual = Math.max(0, (Number.isFinite(actualHours) ? actualHours : 0) + (Number.isFinite(actualMinutes) ? actualMinutes : 0) / 60);
     const deduction = Math.max(0, parseFlexibleTime(deductionValue));
-    const parsedTotal = parseFlexibleTime(totalValue);
-    const total = Number.isFinite(parsedTotal) && parsedTotal > 0 ? parsedTotal : actual + deduction;
+
+    // Do not trust the read-only total input here. It can temporarily contain
+    // a stale value while React is committing the latest actual/deduction edits.
+    // The business rule is always: total = actual + deduction.
+    const total = actual + deduction;
 
     return { actual, deduction, total };
 };
