@@ -1,6 +1,6 @@
-.pending-reference-page .pending-reference-table tbody tr.pending-row-active > td{background:#eaf3ff!important;color:#173f70;box-shadow:inset 0 2px 0 #2f7fe5,inset 0 -2px 0 #2f7fe5}
-.pending-reference-page .pending-reference-table tbody tr.pending-row-active > td:first-child{box-shadow:inset 4px 0 0 #1769d2,inset 0 2px 0 #2f7fe5,inset 0 -2px 0 #2f7fe5}
-.pending-reference-page .pending-reference-table tbody tr.pending-row-active > td:last-child{box-shadow:inset -2px 0 0 #2f7fe5,inset 0 2px 0 #2f7fe5,inset 0 -2px 0 #2f7fe5}
+.pending-reference-page .pending-reference-table tbody tr.pending-row-active > td{background:#f4f8fe!important;color:#173f70;box-shadow:inset 0 1px 0 rgba(47,127,229,.35),inset 0 -1px 0 rgba(47,127,229,.35)}
+.pending-reference-page .pending-reference-table tbody tr.pending-row-active > td:first-child{box-shadow:inset 3px 0 0 rgba(47,127,229,.65),inset 0 1px 0 rgba(47,127,229,.35),inset 0 -1px 0 rgba(47,127,229,.35);border-radius:7px 0 0 7px}
+.pending-reference-page .pending-reference-table tbody tr.pending-row-active > td:last-child{box-shadow:inset -1px 0 0 rgba(47,127,229,.35),inset 0 1px 0 rgba(47,127,229,.35),inset 0 -1px 0 rgba(47,127,229,.35);border-radius:0 7px 7px 0}
 .pending-reference-page .pending-reference-table tbody tr.pending-row-active .report-code{color:#1769d2}
-.pending-reference-page .pending-reference-table tbody tr.pending-row-active .shift-chip{background:#dbeaff;color:#145fb9}
-.pending-reference-page .pending-reference-table tbody tr.pending-row-active .status-pill{box-shadow:0 0 0 2px rgba(23,105,210,.12)}
+.pending-reference-page .pending-reference-table tbody tr.pending-row-active .shift-chip{background:#e7f0fc;color:#145fb9}
+.pending-reference-page .pending-reference-table tbody tr.pending-row-active .status-pill{box-shadow:0 0 0 1px rgba(23,105,210,.08)}
