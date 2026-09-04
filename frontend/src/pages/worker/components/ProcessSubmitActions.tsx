@@ -33,9 +33,16 @@ const readIncomingTimes = (): TimeDetails => {
 
 const readWorkDate = (): string => document.querySelector<HTMLInputElement>("#workerWorkDate")?.value || "";
 
+const formatWorkDate = (workDate: string): string => {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(workDate);
+    if (!match) return workDate;
+    return `${match[3]}/${match[2]}/${match[1]}`;
+};
+
 export default function ProcessSubmitActions({ duplicatePrompt, canUpdateExisting, submitting, loadingWorker, onCancelDuplicate, onUpdateExisting, onCreateDuplicate, onReset, onSubmit }: Props) {
     const [dailyHoursPrompt, setDailyHoursPrompt] = useState<number | null>(null);
     const [dailyTimeDetails, setDailyTimeDetails] = useState<TimeDetails | null>(null);
+    const [dailyWorkDate, setDailyWorkDate] = useState("");
     const [loadingDailyHours, setLoadingDailyHours] = useState(false);
     const [dailyHoursError, setDailyHoursError] = useState("");
 
@@ -48,7 +55,10 @@ export default function ProcessSubmitActions({ duplicatePrompt, canUpdateExistin
 
         setLoadingDailyHours(true);
         setDailyHoursError("");
+        setDailyWorkDate(workDate);
         try {
+            // Tổng giờ phải được tính theo work_date của chính báo cáo,
+            // không phải theo ngày hệ thống/ngày người dùng bấm "Nộp dữ liệu".
             const summary = await getMyDailyWorkingHours(workDate);
             const rawExistingHours = Number(summary.counted_hours || 0);
             const existingMinutes = Number.isFinite(rawExistingHours) ? Math.max(0, Math.round(rawExistingHours * 60)) : 0;
@@ -57,7 +67,7 @@ export default function ProcessSubmitActions({ duplicatePrompt, canUpdateExistin
             setDailyHoursPrompt(promptTotalMinutes);
         } catch (error) {
             console.error("GET DAILY HOURS BEFORE SUBMIT ERROR:", error);
-            setDailyHoursError("Không lấy được tổng giờ hôm nay. Bạn vẫn có thể tiếp tục gửi để hệ thống kiểm tra lại.");
+            setDailyHoursError(`Không lấy được tổng giờ của ngày ${formatWorkDate(workDate)} trong báo cáo. Bạn vẫn có thể tiếp tục gửi để hệ thống kiểm tra lại.`);
             setDailyTimeDetails(incoming);
             setDailyHoursPrompt(incoming.totalMinutes);
             onSubmit();
@@ -66,7 +76,7 @@ export default function ProcessSubmitActions({ duplicatePrompt, canUpdateExistin
         }
     };
 
-    const closeSubmitPrompt = () => { setDailyHoursPrompt(null); setDailyTimeDetails(null); };
+    const closeSubmitPrompt = () => { setDailyHoursPrompt(null); setDailyTimeDetails(null); setDailyWorkDate(""); };
     const confirmSubmit = () => { closeSubmitPrompt(); onSubmit(); };
 
     return (
@@ -86,9 +96,10 @@ export default function ProcessSubmitActions({ duplicatePrompt, canUpdateExistin
             {dailyHoursPrompt !== null && dailyTimeDetails !== null && <div className="duplicate-dialog-backdrop" role="presentation">
                 <div className="duplicate-dialog" role="dialog" aria-modal="true" aria-labelledby="daily-hours-dialog-title">
                     <h2 id="daily-hours-dialog-title">Xác nhận nộp báo cáo</h2>
+                    <p><strong>Ngày trong báo cáo:</strong> {formatWorkDate(dailyWorkDate)}</p>
                     <p><strong>Thời gian thực tế:</strong> {formatDurationMinutes(dailyTimeDetails.actualMinutes)}</p>
                     <p><strong>Thời gian trừ:</strong> {formatDurationMinutes(dailyTimeDetails.deductionMinutes)}</p>
-                    <p><strong>Tổng thời gian hôm nay sau khi nộp:</strong> {formatDurationMinutes(dailyTimeDetails.totalMinutes)}</p>
+                    <p><strong>Tổng thời gian ngày {formatWorkDate(dailyWorkDate)} sau khi nộp:</strong> {formatDurationMinutes(dailyTimeDetails.totalMinutes)}</p>
                     <p>Thời gian được tính theo <strong>thực tế + thời gian trừ</strong>.</p>
                     <p>Bạn có chắc chắn muốn nộp báo cáo này không?</p>
                     <div className="duplicate-dialog-actions">
