@@ -15,7 +15,6 @@ router.get('/', permission('USER_VIEW'), controller.getAllUsers);
 router.get('/options/processes', permission('USER_VIEW','MASTER_VIEW'), controller.getProcessOptions);
 router.get('/:id', permission('USER_VIEW'), controller.getUserById);
 
-// Công nhân hiện đăng nhập bằng mã công nhân, không cần nhập mật khẩu.
 const ensureWorkerTechnicalPassword = (req, _res, next) => {
   if (String(req.body?.role || '').trim() === 'worker' && !String(req.body?.password || '')) {
     req.body.password = crypto.randomBytes(32).toString('hex');
@@ -23,7 +22,6 @@ const ensureWorkerTechnicalPassword = (req, _res, next) => {
   next();
 };
 
-// Tổ trưởng mới dùng mật khẩu mặc định của hệ thống nếu không nhập mật khẩu riêng.
 const ensureLeadDefaultPassword = (req, _res, next) => {
   if (String(req.body?.role || '').trim() === 'lead' && !String(req.body?.password || '')) {
     req.body.password = process.env.KTC_DEFAULT_LEAD_PASSWORD || '123456';
@@ -33,5 +31,6 @@ const ensureLeadDefaultPassword = (req, _res, next) => {
 
 router.post('/', permission('USER_CREATE'), ensureWorkerTechnicalPassword, ensureLeadDefaultPassword, processAssignmentCapacity, controller.createUser);
 router.post('/:id/promote-lead', permission('USER_EDIT'), promotionController.promoteWorkerToLead);
+router.post('/:id/promote-manager', permission('USER_EDIT'), promotionController.promoteWorkerToManager);
 router.put('/:id', permission('USER_EDIT'), processAssignmentCapacity, controller.updateUser);
 module.exports = router;
