@@ -1,0 +1,21 @@
+/* Pending report detail: size the detail card to its content instead of stretching it to the list height. */
+.pending-reference-page .pending-detail-card {
+  min-height: 0 !important;
+  height: fit-content !important;
+  align-self: start !important;
+}
+
+.pending-reference-page .pending-detail-body {
+  overflow: visible !important;
+}
+
+.pending-reference-page .pending-detail-loading,
+.pending-reference-page .pending-detail-empty {
+  min-height: 180px !important;
+}
+
+@media (max-width: 1280px) {
+  .pending-reference-page .pending-detail-card {
+    min-height: 0 !important;
+  }
+}
