@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { getMyDailyWorkingHours } from "../../../services/productionService";
-import { parseFlexibleTime } from "../processFormUtils";
+import { formatDurationMinutes, parseTimeToMinutes } from "../processFormUtils";
 
 interface DuplicatePrompt { reportId: number; }
 interface Props {
@@ -15,41 +15,23 @@ interface Props {
     onSubmit: () => void;
 }
 
-type TimeDetails = { actual: number; deduction: number; total: number };
+type TimeDetails = { actualMinutes: number; deductionMinutes: number; totalMinutes: number };
 
 const readIncomingTimes = (): TimeDetails => {
     const actualHours = Number(document.querySelector<HTMLInputElement>('[data-worker-time-part="actual-hours"]')?.value || 0);
-    const actualMinutes = Number(document.querySelector<HTMLInputElement>('[data-worker-time-part="actual-minutes"]')?.value || 0);
+    const actualMinutesPart = Number(document.querySelector<HTMLInputElement>('[data-worker-time-part="actual-minutes"]')?.value || 0);
     const deductionValue = document.querySelector<HTMLInputElement>('[data-worker-time-value="deduction"]')?.value || "0";
 
-    const safeActualHours = Number.isFinite(actualHours) ? Math.max(0, actualHours) : 0;
-    const safeActualMinutes = Number.isFinite(actualMinutes) ? Math.max(0, actualMinutes) : 0;
-    const actual = safeActualHours + safeActualMinutes / 60;
+    const safeHours = Number.isFinite(actualHours) ? Math.max(0, actualHours) : 0;
+    const safeMinutes = Number.isFinite(actualMinutesPart) ? Math.max(0, Math.min(59, actualMinutesPart)) : 0;
+    const actualMinutes = safeHours * 60 + safeMinutes;
+    const deductionMinutes = parseTimeToMinutes(deductionValue);
+    const totalMinutes = actualMinutes + deductionMinutes;
 
-    // parseFlexibleTime intentionally returns NaN for malformed input. The
-    // confirmation dialog must never expose NaN, so invalid/empty deduction
-    // input is treated as 0 here. The backend remains the final validator.
-    const parsedDeduction = parseFlexibleTime(deductionValue);
-    const deduction = Number.isFinite(parsedDeduction) ? Math.max(0, parsedDeduction) : 0;
-
-    // Do not trust the read-only total input here. It can temporarily contain
-    // a stale value while React is committing the latest actual/deduction edits.
-    // The business rule is always: total = actual + deduction.
-    const total = actual + deduction;
-
-    return { actual, deduction, total };
+    return { actualMinutes, deductionMinutes, totalMinutes };
 };
 
 const readWorkDate = (): string => document.querySelector<HTMLInputElement>("#workerWorkDate")?.value || "";
-
-const formatHours = (hours: number): string => {
-    const safeHours = Number.isFinite(hours) ? Math.max(0, hours) : 0;
-    const totalMinutes = Math.max(0, Math.round(safeHours * 60));
-    const wholeHours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    if (minutes === 0) return `${wholeHours} giờ`;
-    return `${wholeHours} giờ ${minutes} phút`;
-};
 
 export default function ProcessSubmitActions({ duplicatePrompt, canUpdateExisting, submitting, loadingWorker, onCancelDuplicate, onUpdateExisting, onCreateDuplicate, onReset, onSubmit }: Props) {
     const [dailyHoursPrompt, setDailyHoursPrompt] = useState<number | null>(null);
@@ -68,16 +50,16 @@ export default function ProcessSubmitActions({ duplicatePrompt, canUpdateExistin
         setDailyHoursError("");
         try {
             const summary = await getMyDailyWorkingHours(workDate);
-            const rawExistingTotal = Number(summary.counted_hours || 0);
-            const existingTotal = Number.isFinite(rawExistingTotal) ? Math.max(0, rawExistingTotal) : 0;
-            const promptTotal = existingTotal + incoming.total;
-            setDailyTimeDetails({ actual: incoming.actual, deduction: incoming.deduction, total: promptTotal });
-            setDailyHoursPrompt(promptTotal);
+            const rawExistingHours = Number(summary.counted_hours || 0);
+            const existingMinutes = Number.isFinite(rawExistingHours) ? Math.max(0, Math.round(rawExistingHours * 60)) : 0;
+            const promptTotalMinutes = existingMinutes + incoming.totalMinutes;
+            setDailyTimeDetails({ ...incoming, totalMinutes: promptTotalMinutes });
+            setDailyHoursPrompt(promptTotalMinutes);
         } catch (error) {
             console.error("GET DAILY HOURS BEFORE SUBMIT ERROR:", error);
             setDailyHoursError("Không lấy được tổng giờ hôm nay. Bạn vẫn có thể tiếp tục gửi để hệ thống kiểm tra lại.");
             setDailyTimeDetails(incoming);
-            setDailyHoursPrompt(incoming.total);
+            setDailyHoursPrompt(incoming.totalMinutes);
             onSubmit();
         } finally {
             setLoadingDailyHours(false);
@@ -104,9 +86,9 @@ export default function ProcessSubmitActions({ duplicatePrompt, canUpdateExistin
             {dailyHoursPrompt !== null && dailyTimeDetails !== null && <div className="duplicate-dialog-backdrop" role="presentation">
                 <div className="duplicate-dialog" role="dialog" aria-modal="true" aria-labelledby="daily-hours-dialog-title">
                     <h2 id="daily-hours-dialog-title">Xác nhận nộp báo cáo</h2>
-                    <p><strong>Thời gian thực tế:</strong> {formatHours(dailyTimeDetails.actual)}</p>
-                    <p><strong>Thời gian trừ:</strong> {formatHours(dailyTimeDetails.deduction)}</p>
-                    <p><strong>Tổng thời gian hôm nay sau khi nộp:</strong> {formatHours(dailyTimeDetails.total)}</p>
+                    <p><strong>Thời gian thực tế:</strong> {formatDurationMinutes(dailyTimeDetails.actualMinutes)}</p>
+                    <p><strong>Thời gian trừ:</strong> {formatDurationMinutes(dailyTimeDetails.deductionMinutes)}</p>
+                    <p><strong>Tổng thời gian hôm nay sau khi nộp:</strong> {formatDurationMinutes(dailyTimeDetails.totalMinutes)}</p>
                     <p>Thời gian được tính theo <strong>thực tế + thời gian trừ</strong>.</p>
                     <p>Bạn có chắc chắn muốn nộp báo cáo này không?</p>
                     <div className="duplicate-dialog-actions">
