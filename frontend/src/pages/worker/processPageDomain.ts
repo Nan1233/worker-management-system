@@ -16,8 +16,8 @@ export const normalizeMasterText = (value: unknown) => codeOf(value);
  * KTC worker form policy:
  * - GC: Cắt/Lồng, each mode can be Tay or Máy; machine mode supports multiple machines.
  * - MAI: machine workflow, supports multiple machines.
+ * - DO/EP/CAN: machine-only workflows; each supports multiple machines from master Máy.
  * - K1/K2: worker may do Tay or exactly one Máy.
- * - DO/EP/CAN: exactly one Máy.
  * - XLBV/SX3: manual-only in the worker report form.
  */
 export function getProcessCapabilities(process: string): ProcessCapabilities {
@@ -49,7 +49,7 @@ export function getInitialOperationMode(c: ProcessCapabilities): OperationMode {
 }
 
 export function resolveUsesMultiMachineLines(c: ProcessCapabilities, mode: OperationMode): boolean {
-  return (c.processCode === "GC" || c.processCode === "MAI") && mode === "MACHINE";
+  return ["GC", "MAI", "DO", "EP", "CAN"].includes(c.processCode) && mode === "MACHINE";
 }
 
 export function resolveUsesSingleMachine(c: ProcessCapabilities, mode: OperationMode): boolean {
