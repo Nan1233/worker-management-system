@@ -2,6 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const router = express.Router();
 const controller = require('../controllers/userController');
+const controllerExtras = require('../controllers/userControllerExtras');
 const promotionController = require('../controllers/workerPromotionController');
 const permanentDeletionController = require('../controllers/permanentUserDeletionController');
 const verifyToken = require('../middleware/authMiddleware');
@@ -11,8 +12,8 @@ const processAssignmentCapacity = require('../middleware/processAssignmentCapaci
 const db = require('../config/db');
 
 router.use(verifyToken, checkRole('admin','manager','lead'));
-router.get('/export/excel', permission('USER_VIEW'), controller.exportUsersExcel);
-router.post('/import/excel', permission('USER_CREATE','USER_EDIT'), controller.importUsersExcel);
+router.get('/export/excel', permission('USER_VIEW'), controllerExtras.exportUsersExcel);
+router.post('/import/excel', permission('USER_CREATE','USER_EDIT'), controllerExtras.importUsersExcel);
 router.get('/', permission('USER_VIEW'), controller.getAllUsers);
 router.get('/options/processes', permission('USER_VIEW','MASTER_VIEW'), controller.getProcessOptions);
 router.get('/:id', permission('USER_VIEW'), controller.getUserById);
@@ -53,5 +54,5 @@ router.post('/', permission('USER_CREATE'), ensureWorkerTechnicalPassword, ensur
 router.post('/:id/promote-lead', permission('USER_EDIT'), promotionController.promoteWorkerToLead);
 router.post('/:id/promote-manager', permission('USER_EDIT'), promotionController.promoteWorkerToManager);
 router.delete('/:id/permanent', permission('USER_EDIT'), permanentDeletionController.deleteLeadPermanently);
-router.put('/:id', permission('USER_EDIT'), permanentDeleteLeadFromLegacyRemove, processAssignmentCapacity, controller.updateUser);
+router.put('/:id', permission('USER_EDIT'), permanentDeleteLeadFromLegacyRemove, processAssignmentCapacity, controllerExtras.updateUser);
 module.exports = router;
