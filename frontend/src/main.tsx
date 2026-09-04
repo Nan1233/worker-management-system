@@ -23,6 +23,7 @@ import "./ui-polish.css";
 import "./admin-worker-password-override.css";
 import "./config/workerAccountPolicy";
 import "./utils/reportNumberInputFix";
+import "./utils/personnelCapacityPolicy";
 import { FRONTEND_VERSION, FRONTEND_COMMIT_SHA } from "./config/version";
 
 // KTC currently uses a single enterprise-light visual system.
