@@ -6,8 +6,6 @@ const { revokeAllUserFamilies } = require('../services/refreshSessionService');
 
 const DEFAULT_LEAD_PASSWORD = process.env.KTC_DEFAULT_LEAD_PASSWORD || '123456';
 const DEFAULT_MANAGER_PASSWORD = process.env.KTC_DEFAULT_MANAGER_PASSWORD || '123456';
-const MAX_LEADS_PER_PROCESS = 3;
-const MAX_MANAGERS_PER_PROCESS = 1;
 
 async function loadWorkerTarget(connection, targetId) {
   const [targets] = await connection.query(
@@ -54,18 +52,6 @@ exports.promoteWorkerToLead = async (req, res) => {
     if (!assignments.length) return res.status(400).json({ success:false, message:'Công nhân chưa được phân công công đoạn nên chưa thể nâng lên tổ trưởng' });
 
     await connection.beginTransaction();
-    for (const assignment of assignments) {
-      const [rows] = await connection.query(
-        `SELECT COUNT(*) AS total FROM manager_processes mp JOIN users u ON u.id=mp.manager_id
-         WHERE mp.process_id=? AND u.role='lead' AND u.status='active' AND mp.manager_id<>?`,
-        [assignment.process_id, targetId]
-      );
-      if (Number(rows[0]?.total || 0) >= MAX_LEADS_PER_PROCESS) {
-        await connection.rollback();
-        return res.status(409).json({ success:false, message:`Công đoạn ${assignment.process_name} đã đủ ${MAX_LEADS_PER_PROCESS} tổ trưởng đang hoạt động` });
-      }
-    }
-
     const passwordHash = await bcrypt.hash(DEFAULT_LEAD_PASSWORD, 10);
     await connection.query('UPDATE users SET role=\'lead\', password=?, status=\'active\' WHERE id=?', [passwordHash, targetId]);
     await connection.query('UPDATE workers SET position=\'Tổ trưởng\' WHERE id=?', [target.worker_id]);
@@ -100,18 +86,6 @@ exports.promoteWorkerToManager = async (req, res) => {
     if (!assignments.length) return res.status(400).json({ success:false, message:'Công nhân chưa được phân công công đoạn nên chưa thể nâng lên Quản lý' });
 
     await connection.beginTransaction();
-    for (const assignment of assignments) {
-      const [rows] = await connection.query(
-        `SELECT COUNT(*) AS total FROM manager_processes mp JOIN users u ON u.id=mp.manager_id
-         WHERE mp.process_id=? AND u.role='manager' AND u.status='active' AND mp.manager_id<>?`,
-        [assignment.process_id, targetId]
-      );
-      if (Number(rows[0]?.total || 0) >= MAX_MANAGERS_PER_PROCESS) {
-        await connection.rollback();
-        return res.status(409).json({ success:false, message:`Công đoạn ${assignment.process_name} đã có Quản lý đang hoạt động` });
-      }
-    }
-
     const passwordHash = await bcrypt.hash(DEFAULT_MANAGER_PASSWORD, 10);
     await connection.query('UPDATE users SET role=\'manager\', password=?, status=\'active\' WHERE id=?', [passwordHash, targetId]);
     await connection.query('UPDATE workers SET position=\'Quản lý\' WHERE id=?', [target.worker_id]);
