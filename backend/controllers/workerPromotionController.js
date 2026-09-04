@@ -67,7 +67,8 @@ exports.promoteWorkerToLead = async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(DEFAULT_LEAD_PASSWORD, 10);
-    await connection.query('UPDATE users SET role=\'lead\', password=?, status=\'active\', position=\'Tổ trưởng\' WHERE id=?', [passwordHash, targetId]);
+    await connection.query('UPDATE users SET role=\'lead\', password=?, status=\'active\' WHERE id=?', [passwordHash, targetId]);
+    await connection.query('UPDATE workers SET position=\'Tổ trưởng\' WHERE id=?', [target.worker_id]);
     await connection.query('DELETE FROM worker_processes WHERE worker_id=?', [target.worker_id]);
     for (const assignment of assignments) {
       await connection.query(`INSERT INTO manager_processes (manager_id,process_id) VALUES (?,?) ON DUPLICATE KEY UPDATE manager_id=VALUES(manager_id), process_id=VALUES(process_id)`, [targetId, assignment.process_id]);
@@ -112,7 +113,8 @@ exports.promoteWorkerToManager = async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(DEFAULT_MANAGER_PASSWORD, 10);
-    await connection.query('UPDATE users SET role=\'manager\', password=?, status=\'active\', position=\'Quản lý\' WHERE id=?', [passwordHash, targetId]);
+    await connection.query('UPDATE users SET role=\'manager\', password=?, status=\'active\' WHERE id=?', [passwordHash, targetId]);
+    await connection.query('UPDATE workers SET position=\'Quản lý\' WHERE id=?', [target.worker_id]);
     await connection.query('DELETE FROM worker_processes WHERE worker_id=?', [target.worker_id]);
     for (const assignment of assignments) {
       await connection.query(`INSERT INTO manager_processes (manager_id,process_id) VALUES (?,?) ON DUPLICATE KEY UPDATE manager_id=VALUES(manager_id), process_id=VALUES(process_id)`, [targetId, assignment.process_id]);
