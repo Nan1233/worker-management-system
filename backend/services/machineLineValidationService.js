@@ -61,17 +61,30 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
             .filter((item) => item.quantity > 0);
         const normalizedDefects = [];
         for (const item of rawDefects) {
-            const rows = item.defect_id
-                ? await query(
+            let rows = [];
+            if (item.defect_id) {
+                rows = await query(
                     `SELECT id, defect_code, defect_name FROM defect_types WHERE process_id=? AND status='active' AND id=? LIMIT 2`,
                     [processId, item.defect_id]
-                  )
-                : await query(
-                    `SELECT id, defect_code, defect_name FROM defect_types WHERE process_id=? AND status='active' AND defect_code=? LIMIT 2`,
+                );
+            }
+            if (rows.length !== 1 && item.defect_code) {
+                rows = await query(
+                    `SELECT id, defect_code, defect_name FROM defect_types WHERE process_id=? AND status='active' AND UPPER(TRIM(defect_code))=UPPER(TRIM(?)) LIMIT 2`,
                     [processId, item.defect_code]
-                  );
+                );
+            }
+            // Worker master-data fallbacks can carry a generated code such as
+            // CUT_04. If the DB uses the real master code but the same defect
+            // name, resolve by the scoped name before rejecting the report.
+            if (rows.length !== 1 && item.defect_name) {
+                rows = await query(
+                    `SELECT id, defect_code, defect_name FROM defect_types WHERE process_id=? AND status='active' AND UPPER(TRIM(defect_name))=UPPER(TRIM(?)) LIMIT 2`,
+                    [processId, item.defect_name]
+                );
+            }
             if (rows.length !== 1) {
-                errors[`machine_lines.${index}.defects`] = `Loại NG ${item.defect_code || item.defect_id || ''} không tồn tại hoặc không duy nhất trong công đoạn`;
+                errors[`machine_lines.${index}.defects`] = `Loại NG ${item.defect_code || item.defect_name || item.defect_id || ''} không tồn tại hoặc không duy nhất trong công đoạn`;
                 continue;
             }
             normalizedDefects.push({
@@ -113,7 +126,6 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
             errors[`machine_lines.${index}.machine_code`] = `Máy ${machineCode} không thuộc công đoạn`;
             continue;
         }
-        
 
         let resolvedStandard;
         try {
