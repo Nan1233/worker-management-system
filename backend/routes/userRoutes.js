@@ -24,6 +24,14 @@ const ensureWorkerTechnicalPassword = (req, _res, next) => {
   next();
 };
 
-router.post('/', permission('USER_CREATE'), ensureWorkerTechnicalPassword, processAssignmentCapacity, controller.createUser);
+// Tổ trưởng mới dùng mật khẩu mặc định của hệ thống khi không nhập mật khẩu riêng.
+const ensureLeadDefaultPassword = (req, _res, next) => {
+  if (String(req.body?.role || '').trim() === 'lead' && !String(req.body?.password || '')) {
+    req.body.password = process.env.KTC_DEFAULT_LEAD_PASSWORD || '123456';
+  }
+  next();
+};
+
+router.post('/', permission('USER_CREATE'), ensureWorkerTechnicalPassword, ensureLeadDefaultPassword, processAssignmentCapacity, controller.createUser);
 router.put('/:id', permission('USER_EDIT'), processAssignmentCapacity, controller.updateUser);
 module.exports = router;
