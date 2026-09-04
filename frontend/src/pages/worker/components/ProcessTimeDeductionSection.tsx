@@ -34,16 +34,6 @@ export default function ProcessTimeDeductionSection({ form, setForm, deductions,
     const actualMinutes = Math.max(0, (Number(form.actualHours) || 0) * 60 + (Number(form.actualMinutes) || 0));
     const totalDurationMinutes = actualMinutes + deductionMinutes;
 
-    const updateActualTime = (hours: number, minutes: number) => {
-        const actualTotalMinutes = Math.max(0, hours * 60 + minutes);
-        const totalMinutes = actualTotalMinutes + deductionMinutes;
-        setForm((prev) => ({
-            ...prev,
-            actualTime: String(actualTotalMinutes / 60),
-            totalTime: String(totalMinutes / 60),
-        }));
-    };
-
     const handleHoursChange = (rawValue: string) => {
         const value = rawValue.replace(/\D/g, "");
         if (value !== "" && Number(value) > 12) { onWarning("Thời gian tối đa là 12 giờ"); return; }
