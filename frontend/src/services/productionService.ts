@@ -13,6 +13,8 @@ export const getTempReportsByDate=async(date:string):Promise<ProductionReport[]>
 export const getTempReportById=async(id:number):Promise<ProductionReport>=>{const res=await api.get(`/production-temp/${id}`,{params:{_t:Date.now()}});return res.data.data||res.data;};
 export const getTempReportDetail=async(id:number):Promise<ProductionReport>=>getTempReportById(id);
 export const getMyTempReports=async()=>{const res=await api.get("/production-temp/my");return res.data.data||res.data||[];};
+export interface DailyWorkingHours{work_date:string;counted_hours:number;limit_hours:number;}
+export const getMyDailyWorkingHours=async(date:string):Promise<DailyWorkingHours>=>{const res=await api.get("/production-temp/daily-hours",{params:{date}});return res.data?.data||res.data;};
 export interface ManagerReportPagination{page:number;page_size:number;total:number;total_pages:number;}
 export interface ManagerReportPage{data:ProductionReport[];pagination:ManagerReportPagination;processes?:string[];previous_count?:number;}
 export interface PendingReportFilters{dateFrom?:string;dateTo?:string;shift?:string;processId?:number|string;processName?:string;search?:string;page?:number;pageSize?:number;}
@@ -32,7 +34,7 @@ export const createApprovedReportFromExcel=async(data:ProductionReport)=>{const 
 const downloadExcel=(data:BlobPart,filename:string)=>{const blob=new Blob([data],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});const url=window.URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download=filename;document.body.appendChild(link);link.click();link.remove();window.URL.revokeObjectURL(url);};
 export const exportProductionExcel=async(date:string)=>{const res=await api.get(`/reports/export-excel?date=${date}&type=pending`,{responseType:"blob"});downloadExcel(res.data,`BaoCaoChoDuyet_${date}.xlsx`);};
 export const getApprovedDates=async()=>{const res=await api.get("/production/dates");return res.data.data||res.data||[];};
-export const getApprovedReportsByDate=async(date:string):Promise<ProductionReport[]>=>((await getApprovedReports({dateFrom:date,dateTo:date})).data);
+export const getApprovedReportsByDate=async(date:string):Promise<ProductionReport[]>=>(await getApprovedReports({dateFrom:date,dateTo:date})).data;
 export const exportApprovedExcel=async(date:string)=>{const res=await api.get(`/reports/export-excel?date=${date}&type=approved`,{responseType:"blob"});downloadExcel(res.data,`BaoCaoDaDuyet_${date}.xlsx`);};
 export type TempReviewTarget={id:number;expected_updated_at?:string|null};
 const normalizeTempReviewTargets=(items:Array<number|TempReviewTarget>)=>items.map(item=>typeof item==="number"?{id:item,expected_updated_at:null}:{id:Number(item.id),expected_updated_at:item.expected_updated_at||null});
