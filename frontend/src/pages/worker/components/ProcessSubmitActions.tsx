@@ -2,10 +2,7 @@ import { useState } from "react";
 import { getMyDailyWorkingHours } from "../../../services/productionService";
 import { parseFlexibleTime } from "../processFormUtils";
 
-interface DuplicatePrompt {
-    reportId: number;
-}
-
+interface DuplicatePrompt { reportId: number; }
 interface Props {
     duplicatePrompt: DuplicatePrompt | null;
     canUpdateExisting: boolean;
@@ -18,34 +15,23 @@ interface Props {
     onSubmit: () => void;
 }
 
-const readIncomingTimes = (): { actual: number; deduction: number; total: number } => {
-    const totalInput = document.querySelector<HTMLInputElement>(
-        ".worker-time-computed input[readonly]"
-    );
-    const computedInputs = document.querySelectorAll<HTMLInputElement>(
-        ".worker-time-computed input[readonly]"
-    );
+type TimeDetails = { actual: number; deduction: number; total: number };
 
-    const actualInputs = document.querySelectorAll<HTMLInputElement>(
-        ".worker-time-parts input"
-    );
-    const actual = actualInputs.length >= 2
-        ? Math.max(0, (Number(actualInputs[0].value) || 0) + (Number(actualInputs[1].value) || 0) / 60)
-        : 0;
+const readIncomingTimes = (): TimeDetails => {
+    const actualHours = Number(document.querySelector<HTMLInputElement>('[data-worker-time-part="actual-hours"]')?.value || 0);
+    const actualMinutes = Number(document.querySelector<HTMLInputElement>('[data-worker-time-part="actual-minutes"]')?.value || 0);
+    const deductionValue = document.querySelector<HTMLInputElement>('[data-worker-time-value="deduction"]')?.value || "0";
+    const totalValue = document.querySelector<HTMLInputElement>('[data-worker-time-value="total"]')?.value || "";
 
-    const deduction = computedInputs.length >= 1
-        ? Math.max(0, parseFlexibleTime(computedInputs[0].value || ""))
-        : 0;
-
-    const total = totalInput
-        ? Math.max(0, parseFlexibleTime(totalInput.value || ""))
-        : actual + deduction;
+    const actual = Math.max(0, (Number.isFinite(actualHours) ? actualHours : 0) + (Number.isFinite(actualMinutes) ? actualMinutes : 0) / 60);
+    const deduction = Math.max(0, parseFlexibleTime(deductionValue));
+    const parsedTotal = parseFlexibleTime(totalValue);
+    const total = Number.isFinite(parsedTotal) && parsedTotal > 0 ? parsedTotal : actual + deduction;
 
     return { actual, deduction, total };
 };
 
-const readWorkDate = (): string =>
-    document.querySelector<HTMLInputElement>("#workerWorkDate")?.value || "";
+const readWorkDate = (): string => document.querySelector<HTMLInputElement>("#workerWorkDate")?.value || "";
 
 const formatHours = (hours: number): string => {
     const totalMinutes = Math.max(0, Math.round(hours * 60));
@@ -55,32 +41,18 @@ const formatHours = (hours: number): string => {
     return `${wholeHours} giờ ${minutes} phút`;
 };
 
-export default function ProcessSubmitActions({
-    duplicatePrompt,
-    canUpdateExisting,
-    submitting,
-    loadingWorker,
-    onCancelDuplicate,
-    onUpdateExisting,
-    onCreateDuplicate,
-    onReset,
-    onSubmit,
-}: Props) {
+export default function ProcessSubmitActions({ duplicatePrompt, canUpdateExisting, submitting, loadingWorker, onCancelDuplicate, onUpdateExisting, onCreateDuplicate, onReset, onSubmit }: Props) {
     const [dailyHoursPrompt, setDailyHoursPrompt] = useState<number | null>(null);
-    const [dailyTimeDetails, setDailyTimeDetails] = useState<{ actual: number; deduction: number; total: number } | null>(null);
+    const [dailyTimeDetails, setDailyTimeDetails] = useState<TimeDetails | null>(null);
     const [loadingDailyHours, setLoadingDailyHours] = useState(false);
     const [dailyHoursError, setDailyHoursError] = useState("");
 
     const handleSubmitClick = async () => {
         if (submitting || loadingDailyHours) return;
-
         const workDate = readWorkDate();
         const incoming = readIncomingTimes();
 
-        if (!workDate) {
-            onSubmit();
-            return;
-        }
+        if (!workDate) { onSubmit(); return; }
 
         setLoadingDailyHours(true);
         setDailyHoursError("");
@@ -88,11 +60,7 @@ export default function ProcessSubmitActions({
             const summary = await getMyDailyWorkingHours(workDate);
             const existingTotal = Math.max(0, Number(summary.counted_hours || 0));
             const promptTotal = existingTotal + incoming.total;
-            setDailyTimeDetails({
-                actual: incoming.actual,
-                deduction: incoming.deduction,
-                total: promptTotal,
-            });
+            setDailyTimeDetails({ actual: incoming.actual, deduction: incoming.deduction, total: promptTotal });
             setDailyHoursPrompt(promptTotal);
         } catch (error) {
             console.error("GET DAILY HOURS BEFORE SUBMIT ERROR:", error);
@@ -105,53 +73,37 @@ export default function ProcessSubmitActions({
         }
     };
 
-    const confirmSubmit = () => {
-        setDailyHoursPrompt(null);
-        setDailyTimeDetails(null);
-        onSubmit();
-    };
+    const closeSubmitPrompt = () => { setDailyHoursPrompt(null); setDailyTimeDetails(null); };
+    const confirmSubmit = () => { closeSubmitPrompt(); onSubmit(); };
 
     return (
         <>
-            {duplicatePrompt && (
-                <div className="duplicate-dialog-backdrop" role="presentation">
-                    <div className="duplicate-dialog" role="dialog" aria-modal="true" aria-labelledby="duplicate-dialog-title">
-                        <h2 id="duplicate-dialog-title">Phát hiện báo cáo tương tự</h2>
-                        <p>
-                            Đã tồn tại báo cáo cùng nhân viên, ngày, ca, máy và sản phẩm.
-                            Bạn muốn chỉnh sửa báo cáo cũ hay vẫn tạo báo cáo mới?
-                        </p>
-                        <div className="duplicate-dialog-actions">
-                            <button type="button" className="duplicate-dialog-cancel" onClick={onCancelDuplicate}>Hủy</button>
-                            {canUpdateExisting && <button type="button" className="duplicate-dialog-edit" onClick={onUpdateExisting} disabled={submitting}>Chỉnh sửa báo cáo cũ</button>}
-                            <button type="button" className="duplicate-dialog-create" onClick={onCreateDuplicate} disabled={submitting}>Vẫn tạo báo cáo mới</button>
-                        </div>
+            {duplicatePrompt && <div className="duplicate-dialog-backdrop" role="presentation">
+                <div className="duplicate-dialog" role="dialog" aria-modal="true" aria-labelledby="duplicate-dialog-title">
+                    <h2 id="duplicate-dialog-title">Phát hiện báo cáo tương tự</h2>
+                    <p>Đã tồn tại báo cáo cùng nhân viên, ngày, ca, máy và sản phẩm. Bạn muốn chỉnh sửa báo cáo cũ hay vẫn tạo báo cáo mới?</p>
+                    <div className="duplicate-dialog-actions">
+                        <button type="button" className="duplicate-dialog-cancel" onClick={onCancelDuplicate}>Hủy</button>
+                        {canUpdateExisting && <button type="button" className="duplicate-dialog-edit" onClick={onUpdateExisting} disabled={submitting}>Chỉnh sửa báo cáo cũ</button>}
+                        <button type="button" className="duplicate-dialog-create" onClick={onCreateDuplicate} disabled={submitting}>Vẫn tạo báo cáo mới</button>
                     </div>
                 </div>
-            )}
+            </div>}
 
-            {dailyHoursPrompt !== null && dailyTimeDetails !== null && (
-                <div className="duplicate-dialog-backdrop" role="presentation">
-                    <div className="duplicate-dialog" role="dialog" aria-modal="true" aria-labelledby="daily-hours-dialog-title">
-                        <h2 id="daily-hours-dialog-title">Xác nhận nộp báo cáo</h2>
-                        <p>
-                            <strong>Thời gian làm việc thực tế:</strong> {formatHours(dailyTimeDetails.actual)}
-                        </p>
-                        <p>
-                            <strong>Thời gian trừ:</strong> {formatHours(dailyTimeDetails.deduction)}
-                        </p>
-                        <p>
-                            <strong>Tổng thời gian làm việc hôm nay:</strong> {formatHours(dailyHoursPrompt)}
-                        </p>
-                        <p>Thời gian được tính theo <strong>thực tế + thời gian trừ</strong>.</p>
-                        <p>Bạn có chắc chắn muốn nộp báo cáo này không?</p>
-                        <div className="duplicate-dialog-actions">
-                            <button type="button" className="duplicate-dialog-cancel" onClick={() => { setDailyHoursPrompt(null); setDailyTimeDetails(null); }} disabled={submitting}>Hủy</button>
-                            <button type="button" className="duplicate-dialog-create" onClick={confirmSubmit} disabled={submitting}>Xác nhận nộp</button>
-                        </div>
+            {dailyHoursPrompt !== null && dailyTimeDetails !== null && <div className="duplicate-dialog-backdrop" role="presentation">
+                <div className="duplicate-dialog" role="dialog" aria-modal="true" aria-labelledby="daily-hours-dialog-title">
+                    <h2 id="daily-hours-dialog-title">Xác nhận nộp báo cáo</h2>
+                    <p><strong>Thời gian thực tế:</strong> {formatHours(dailyTimeDetails.actual)}</p>
+                    <p><strong>Thời gian trừ:</strong> {formatHours(dailyTimeDetails.deduction)}</p>
+                    <p><strong>Tổng thời gian hôm nay sau khi nộp:</strong> {formatHours(dailyTimeDetails.total)}</p>
+                    <p>Thời gian được tính theo <strong>thực tế + thời gian trừ</strong>.</p>
+                    <p>Bạn có chắc chắn muốn nộp báo cáo này không?</p>
+                    <div className="duplicate-dialog-actions">
+                        <button type="button" className="duplicate-dialog-cancel" onClick={closeSubmitPrompt} disabled={submitting}>Hủy</button>
+                        <button type="button" className="duplicate-dialog-create" onClick={confirmSubmit} disabled={submitting}>Xác nhận nộp</button>
                     </div>
                 </div>
-            )}
+            </div>}
 
             <div className="worker-action-group" aria-busy={submitting || loadingDailyHours}>
                 <div className="worker-action-copy">
