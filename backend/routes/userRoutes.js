@@ -12,8 +12,24 @@ const processAssignmentCapacity = require('../middleware/processAssignmentCapaci
 const db = require('../config/db');
 
 router.use(verifyToken, checkRole('admin','manager','lead'));
-router.get('/export/excel', permission('USER_VIEW'), controllerExtras.exportUsersExcel);
-router.post('/import/excel', permission('USER_CREATE','USER_EDIT'), controllerExtras.importUsersExcel);
+
+// Resolve legacy handlers lazily. This keeps Express from receiving an undefined
+// handler during module initialization if an older controller bundle is present
+// on the deployment instance while retaining the current handler when available.
+const runUserHandler = (name) => (req, res, next) => {
+  const handler = controllerExtras?.[name] || controller?.[name];
+  if (typeof handler !== 'function') {
+    return res.status(500).json({
+      success: false,
+      code: 'USER_HANDLER_MISSING',
+      message: `Thiếu bộ xử lý ${name} của quản lý người dùng`,
+    });
+  }
+  return handler(req, res, next);
+};
+
+router.get('/export/excel', permission('USER_VIEW'), runUserHandler('exportUsersExcel'));
+router.post('/import/excel', permission('USER_CREATE','USER_EDIT'), runUserHandler('importUsersExcel'));
 router.get('/', permission('USER_VIEW'), controller.getAllUsers);
 router.get('/options/processes', permission('USER_VIEW','MASTER_VIEW'), controller.getProcessOptions);
 router.get('/:id', permission('USER_VIEW'), controller.getUserById);
@@ -54,5 +70,5 @@ router.post('/', permission('USER_CREATE'), ensureWorkerTechnicalPassword, ensur
 router.post('/:id/promote-lead', permission('USER_EDIT'), promotionController.promoteWorkerToLead);
 router.post('/:id/promote-manager', permission('USER_EDIT'), promotionController.promoteWorkerToManager);
 router.delete('/:id/permanent', permission('USER_EDIT'), permanentDeletionController.deleteLeadPermanently);
-router.put('/:id', permission('USER_EDIT'), permanentDeleteLeadFromLegacyRemove, processAssignmentCapacity, controllerExtras.updateUser);
+router.put('/:id', permission('USER_EDIT'), permanentDeleteLeadFromLegacyRemove, processAssignmentCapacity, runUserHandler('updateUser'));
 module.exports = router;
