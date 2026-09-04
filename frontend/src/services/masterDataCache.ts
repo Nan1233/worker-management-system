@@ -5,7 +5,9 @@ import { isOfflineLikeError, readOfflineSnapshot, writeOfflineSnapshot } from ".
 import { getSessionCached, clearSessionCache } from "./sessionCache";
 
 const TTL_MS = 30 * 60 * 1000;
-const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch";
+// Bump this namespace whenever the worker master contract changes so a browser
+// cannot keep an older NG list after a Render deployment.
+const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v2";
 
 type DefectOptions = Awaited<ReturnType<typeof getDefectOptionsByProcess>>;
 type DeductionOptions = Awaited<ReturnType<typeof getDeductionOptionsByProcess>>;
