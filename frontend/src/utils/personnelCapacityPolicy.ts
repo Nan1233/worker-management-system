@@ -1,4 +1,5 @@
 import api from "../services/api";
+import { getStoredUser } from "./authStorage";
 
 type TextNode = Text;
 
@@ -38,14 +39,30 @@ let managerCountPromise: Promise<void> | null = null;
 let managerCountRoute = "";
 let managerCountFetchedAt = 0;
 
+function isManagerWorkersRoute(): boolean {
+  return /#\/manager\/workers(?:\/|$)/i.test(window.location.hash);
+}
+
+function getManagerCountFallback(): number | null {
+  const user = getStoredUser();
+  return String(user?.role || "").toLowerCase() === "manager" ? 1 : null;
+}
+
+function setManagerCount(countElement: HTMLElement, value: number): void {
+  if (!Number.isFinite(value) || value < 0) return;
+  countElement.textContent = String(Math.floor(value));
+}
+
 async function patchManagerCount(): Promise<void> {
+  if (!isManagerWorkersRoute()) return;
+
   const label = Array.from(document.querySelectorAll("span")).find(
     (element) => element.textContent?.trim() === "Tài khoản quản lý",
   );
   if (!label) return;
 
   const card = label.parentElement;
-  const count = card?.querySelector("b");
+  const count = card?.querySelector("b") as HTMLElement | null;
   if (!count) return;
 
   const route = window.location.hash;
@@ -61,12 +78,25 @@ async function patchManagerCount(): Promise<void> {
       .get("/users")
       .then((response) => {
         const managerCount = Number(response.data?.manager_count);
-        if (Number.isFinite(managerCount)) {
-          count.textContent = String(managerCount);
+        if (Number.isFinite(managerCount) && managerCount > 0) {
+          setManagerCount(count, managerCount);
+          managerCountFetchedAt = Date.now();
+          return;
+        }
+
+        const fallback = getManagerCountFallback();
+        if (fallback !== null) {
+          setManagerCount(count, fallback);
           managerCountFetchedAt = Date.now();
         }
       })
-      .catch(() => undefined)
+      .catch(() => {
+        const fallback = getManagerCountFallback();
+        if (fallback !== null) {
+          setManagerCount(count, fallback);
+          managerCountFetchedAt = Date.now();
+        }
+      })
       .finally(() => {
         managerCountPromise = null;
       });
@@ -76,7 +106,13 @@ async function patchManagerCount(): Promise<void> {
 
 if (document.body) {
   patchDocument(document.body);
-  window.setTimeout(() => void patchManagerCount(), 300);
+  window.setTimeout(() => void patchManagerCount(), 500);
+  window.addEventListener("hashchange", () => {
+    managerCountRoute = "";
+    managerCountFetchedAt = 0;
+    managerCountPromise = null;
+    window.setTimeout(() => void patchManagerCount(), 300);
+  });
 
   const observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
