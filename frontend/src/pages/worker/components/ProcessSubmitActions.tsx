@@ -18,12 +18,23 @@ interface Props {
     onSubmit: () => void;
 }
 
-const readIncomingActualHours = (): number => {
-    const actualHours = document.querySelector<HTMLInputElement>('input[name="actualHours"]')?.value;
-    const actualMinutes = document.querySelector<HTMLInputElement>('input[name="actualMinutes"]')?.value;
-    if (actualHours !== undefined || actualMinutes !== undefined) {
-        const hours = Number(actualHours || 0);
-        const minutes = Number(actualMinutes || 0);
+const readIncomingTotalHours = (): number => {
+    // The time inputs are controlled React inputs and intentionally do not use
+    // fixed `name` attributes. Read the visible worker time section instead.
+    const totalInput = document.querySelector<HTMLInputElement>(
+        ".worker-time-computed input[readonly]"
+    );
+    if (totalInput) {
+        const total = parseFlexibleTime(totalInput.value || "");
+        if (Number.isFinite(total) && total >= 0) return total;
+    }
+
+    const timeInputs = document.querySelectorAll<HTMLInputElement>(
+        ".worker-time-parts input"
+    );
+    if (timeInputs.length >= 2) {
+        const hours = Number(timeInputs[0].value || 0);
+        const minutes = Number(timeInputs[1].value || 0);
         return Math.max(0, hours + minutes / 60);
     }
 
@@ -61,7 +72,7 @@ export default function ProcessSubmitActions({
         if (submitting || loadingDailyHours) return;
 
         const workDate = readWorkDate();
-        const incomingHours = readIncomingActualHours();
+        const incomingHours = readIncomingTotalHours();
 
         if (!workDate) {
             onSubmit();
@@ -114,7 +125,7 @@ export default function ProcessSubmitActions({
                         <p>
                             Tổng thời gian làm việc hôm nay của bạn sẽ là <strong>{formatHours(dailyHoursPrompt)}</strong>.
                         </p>
-                        <p>Thời gian này được tính theo giờ làm thực tế và không tính giờ hỗ trợ/thời gian trừ.</p>
+                        <p>Thời gian được tính theo <strong>thực tế + thời gian trừ</strong>.</p>
                         <p>Bạn có chắc chắn muốn nộp báo cáo này không?</p>
                         <div className="duplicate-dialog-actions">
                             <button type="button" className="duplicate-dialog-cancel" onClick={() => setDailyHoursPrompt(null)} disabled={submitting}>Hủy</button>
