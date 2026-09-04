@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const router = express.Router();
 const controller = require('../controllers/userController');
 const promotionController = require('../controllers/workerPromotionController');
+const permanentDeletionController = require('../controllers/permanentUserDeletionController');
 const verifyToken = require('../middleware/authMiddleware');
 const checkRole = require('../middleware/roleMiddleware');
 const permission = require('../middleware/permissionMiddleware');
@@ -32,5 +33,6 @@ const ensureLeadDefaultPassword = (req, _res, next) => {
 router.post('/', permission('USER_CREATE'), ensureWorkerTechnicalPassword, ensureLeadDefaultPassword, processAssignmentCapacity, controller.createUser);
 router.post('/:id/promote-lead', permission('USER_EDIT'), promotionController.promoteWorkerToLead);
 router.post('/:id/promote-manager', permission('USER_EDIT'), promotionController.promoteWorkerToManager);
+router.delete('/:id/permanent', permission('USER_EDIT'), permanentDeletionController.deleteLeadPermanently);
 router.put('/:id', permission('USER_EDIT'), processAssignmentCapacity, controller.updateUser);
 module.exports = router;
