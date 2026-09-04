@@ -19,23 +19,31 @@ interface Props {
 }
 
 const readIncomingTotalHours = (): number => {
-    // The time inputs are controlled React inputs and intentionally do not use
-    // fixed `name` attributes. Read the visible worker time section instead.
-    const totalInput = document.querySelector<HTMLInputElement>(
-        ".worker-time-computed input[readonly]"
+    // The time section contains two readonly computed inputs:
+    // 1) deduction time, 2) total time. The previous selector matched the
+    // first one, so a report with 10h actual / 0h deduction was displayed as 0h.
+    const computedInputs = Array.from(
+        document.querySelectorAll<HTMLInputElement>(
+            ".worker-time-grid .worker-time-computed input[readonly]"
+        )
     );
+    const totalInput = computedInputs[computedInputs.length - 1];
     if (totalInput) {
         const total = parseFlexibleTime(totalInput.value || "");
         if (Number.isFinite(total) && total >= 0) return total;
     }
 
+    // Fallback to the actual-time inputs. This also keeps the confirmation
+    // correct if the time component is rendered differently in a future UI.
     const timeInputs = document.querySelectorAll<HTMLInputElement>(
         ".worker-time-parts input"
     );
     if (timeInputs.length >= 2) {
         const hours = Number(timeInputs[0].value || 0);
         const minutes = Number(timeInputs[1].value || 0);
-        return Math.max(0, hours + minutes / 60);
+        if (Number.isFinite(hours) && Number.isFinite(minutes)) {
+            return Math.max(0, hours + minutes / 60);
+        }
     }
 
     const actualTime = document.querySelector<HTMLInputElement>('input[name="actualTime"]')?.value || "";
