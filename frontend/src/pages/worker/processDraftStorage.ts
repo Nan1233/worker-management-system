@@ -1,11 +1,11 @@
 import { getStoredUser } from "../../utils/authStorage";
+import { createEmptyMachineLine } from "./processPageConfig";
 import type { DeductionState, FormState, MachineLineState, NgKey, DeductionKey, OperationMode, OperationType } from "./processPageConfig";
 
 export type ProcessDraft = {
   version: 1 | 2;
   savedAt: number;
   process: string;
-  /** Identity of the worker who owns this local draft. */
   ownerWorkerId?: number | null;
   ownerWorkerCode?: string | null;
   form: FormState;
@@ -19,11 +19,6 @@ export type ProcessDraft = {
   extraData: Record<string,string>;
 };
 
-/**
- * Drafts are private to the currently authenticated worker.
- * The old implementation keyed only by process (`ktc:process-draft:${process}`),
- * which allowed worker B to restore worker A's unfinished report on the same device.
- */
 const getCurrentWorkerIdentity = () => {
   const user = getStoredUser();
   const workerId = Number(user?.worker_id);
@@ -87,9 +82,7 @@ function buildDraftResumeMessage(draft: ProcessDraft): string {
   ];
 
   Object.entries(f).forEach(([key, value]) => {
-    if (value !== "" && value !== null && value !== undefined) {
-      lines.push(`• ${humanizeKey(key)}: ${valueText(value)}`);
-    }
+    lines.push(`• ${humanizeKey(key)}: ${valueText(value)}`);
   });
 
   lines.push("", `Hình thức: ${draft.operationMode === "MACHINE" ? "Làm máy" : "Làm tay"}`);
@@ -110,8 +103,9 @@ function buildDraftResumeMessage(draft: ProcessDraft): string {
       lines.push(`  • Định mức/giờ: ${valueText(line.standardOutputPerHour)}`);
       lines.push(`  • Thời gian định mức: ${valueText(line.standardTimeSeconds)}`);
       if (line.selectedDefects?.length) lines.push(`  • Lỗi NG đã chọn: ${line.selectedDefects.join(", ")}`);
-      const defects = Object.entries(line.defects || {}).filter(([, value]) => value !== "" && value !== "0");
-      defects.forEach(([key, value]) => lines.push(`  • NG ${key}: ${valueText(value)}`));
+      Object.entries(line.defects || {})
+        .filter(([, value]) => value !== "" && value !== "0")
+        .forEach(([key, value]) => lines.push(`  • NG ${key}: ${valueText(value)}`));
     });
   } else {
     lines.push("• Chưa có dữ liệu máy");
@@ -146,26 +140,62 @@ function buildDraftResumeMessage(draft: ProcessDraft): string {
   return lines.join("\n");
 }
 
+function normalizeDraftForResume(draft: ProcessDraft): ProcessDraft {
+  const form = { ...(draft.form || {}) } as FormState;
+  const sourceLines = Array.isArray(draft.machineLines) ? draft.machineLines : [];
+  const lineCount = Math.max(1, Number(draft.machineCount) || 1, sourceLines.length);
+  const machineLines = Array.from({ length: lineCount }, (_, index) => ({
+    ...createEmptyMachineLine(),
+    ...(sourceLines[index] || {}),
+  }));
+
+  // Giữ nguyên dữ liệu đã nhập theo từng máy. Nếu draft cũ chỉ lưu dữ liệu
+  // máy/sản phẩm/thời gian ở form chính thì đồng bộ sang dòng máy đầu tiên.
+  if (form.machineNo || form.productName || form.actualHours || form.actualMinutes) {
+    const first = machineLines[0];
+    machineLines[0] = {
+      ...first,
+      machineCode: first.machineCode || form.machineNo || "",
+      productCode: first.productCode || form.productName || "",
+      hours: first.hours || form.actualHours || "",
+      minutes: first.minutes || form.actualMinutes || "",
+      standardOutputPerHour: first.standardOutputPerHour || Number(form.standardOutput || 0) || 0,
+      okQuantity: first.okQuantity || form.ttOk || "",
+      ngQuantity: first.ngQuantity || form.ttNg || "",
+    };
+  }
+
+  return {
+    ...draft,
+    form,
+    machineLines,
+    machineCount: lineCount,
+    selectedDeduction: Array.isArray(draft.selectedDeduction) ? draft.selectedDeduction : [],
+    selectedNg: Array.isArray(draft.selectedNg) ? draft.selectedNg : [],
+    extraData: draft.extraData || {},
+    deductions: draft.deductions || ({} as DeductionState),
+  };
+}
+
 export function loadProcessDraft(process: string): ProcessDraft | null {
   try {
     const { workerId, workerCode } = getCurrentWorkerIdentity();
-    // No authenticated worker => never restore a worker draft.
     if (workerId == null && !workerCode) return null;
 
     const raw = localStorage.getItem(keyFor(process, workerId, workerCode));
     if (!raw) return null;
 
-    const value = JSON.parse(raw) as ProcessDraft;
+    const parsed = JSON.parse(raw) as ProcessDraft;
     if (
-      value?.version !== 2 ||
-      value.process !== process ||
-      !hasMeaningfulProcessDraft(value)
+      parsed?.version !== 2 ||
+      parsed.process !== process ||
+      !hasMeaningfulProcessDraft(parsed)
     ) return null;
 
-    // Defense in depth: verify the draft owner against the current auth user.
-    if (value.ownerWorkerId != null && workerId != null && Number(value.ownerWorkerId) !== workerId) return null;
-    if (value.ownerWorkerCode && workerCode && String(value.ownerWorkerCode).trim() !== workerCode) return null;
+    if (parsed.ownerWorkerId != null && workerId != null && Number(parsed.ownerWorkerId) !== workerId) return null;
+    if (parsed.ownerWorkerCode && workerCode && String(parsed.ownerWorkerCode).trim() !== workerCode) return null;
 
+    const value = normalizeDraftForResume(parsed);
     const shouldResume = window.confirm(buildDraftResumeMessage(value));
     if (!shouldResume) {
       localStorage.removeItem(keyFor(process, workerId, workerCode));
@@ -181,14 +211,16 @@ export function loadProcessDraft(process: string): ProcessDraft | null {
 export function saveProcessDraft(draft: ProcessDraft): void {
   try {
     const { workerId, workerCode } = getCurrentWorkerIdentity();
-    // Never persist an unscoped draft. This prevents accidental cross-user data.
     if (workerId == null && !workerCode) return;
 
+    const sourceLines = Array.isArray(draft.machineLines) ? draft.machineLines : [];
     const ownedDraft: ProcessDraft = {
       ...draft,
       version: 2,
       ownerWorkerId: workerId,
       ownerWorkerCode: workerCode,
+      machineLines: sourceLines.map((line) => ({ ...createEmptyMachineLine(), ...line })),
+      machineCount: Math.max(1, Number(draft.machineCount) || 1, sourceLines.length),
     };
     localStorage.setItem(keyFor(draft.process, workerId, workerCode), JSON.stringify(ownedDraft));
   } catch { /* storage unavailable */ }
@@ -205,9 +237,9 @@ export function clearProcessDraft(process: string): void {
 export function hasMeaningfulProcessDraft(draft: ProcessDraft): boolean {
   const f = draft.form || {};
   return Boolean(
-    f.productName || f.machineNo || f.ttOk || f.ttNg || f.totalTime || f.actualTime ||
-    draft.machineLines.some(l => l.machineCode || l.productCode || l.okQuantity || l.ngQuantity) ||
-    draft.selectedDeduction.length || draft.selectedNg.length ||
+    f.productName || f.machineNo || f.ttOk || f.ttNg || f.totalTime || f.actualTime || f.actualHours || f.actualMinutes ||
+    draft.machineLines?.some(l => l.machineCode || l.productCode || l.hours || l.minutes || l.okQuantity || l.ngQuantity) ||
+    draft.selectedDeduction?.length || draft.selectedNg?.length ||
     Object.values(draft.extraData || {}).some(Boolean)
   );
 }
