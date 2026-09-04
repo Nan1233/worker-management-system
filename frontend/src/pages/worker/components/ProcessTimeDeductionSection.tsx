@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { DeductionKey, DeductionState, FormState } from "../processPageConfig";
 import AppIcon from "../../../components/common/AppIcon";
-import { MAX_TOTAL_WORK_MINUTES, getDeductionMinutes, parseFlexibleTime } from "../processFormUtils";
+import { MAX_TOTAL_WORK_MINUTES, getDeductionMinutes } from "../processFormUtils";
 
 interface DeductionOption { key: DeductionKey; label: string; }
 interface Props {
@@ -28,9 +28,21 @@ function formatDurationMinutes(totalMinutes: number): string {
 }
 
 export default function ProcessTimeDeductionSection({ form, setForm, deductions, activeDeductionOptions, selectedDeduction, showDeduction, setShowDeduction, onToggleDeduction, onUpdateDeduction, onNormalizeDeduction, onWarning }: Props) {
+    // Canonical calculation unit: whole minutes. Decimal hours are retained only
+    // in form.actualTime/totalTime for compatibility with the existing API.
     const deductionMinutes = getDeductionMinutes(deductions);
-    const actualMinutes = (Number(form.actualHours) || 0) * 60 + (Number(form.actualMinutes) || 0);
+    const actualMinutes = Math.max(0, (Number(form.actualHours) || 0) * 60 + (Number(form.actualMinutes) || 0));
     const totalDurationMinutes = actualMinutes + deductionMinutes;
+
+    const updateActualTime = (hours: number, minutes: number) => {
+        const actualTotalMinutes = Math.max(0, hours * 60 + minutes);
+        const totalMinutes = actualTotalMinutes + deductionMinutes;
+        setForm((prev) => ({
+            ...prev,
+            actualTime: String(actualTotalMinutes / 60),
+            totalTime: String(totalMinutes / 60),
+        }));
+    };
 
     const handleHoursChange = (rawValue: string) => {
         const value = rawValue.replace(/\D/g, "");
@@ -40,9 +52,15 @@ export default function ProcessTimeDeductionSection({ form, setForm, deductions,
         if (hours * 60 + currentMinutes + deductionMinutes > MAX_TOTAL_WORK_MINUTES) { onWarning("Không thể chọn số giờ này vì tổng thời gian sẽ vượt quá 12 giờ"); return; }
         setForm((prev) => {
             const minutes = hours === 12 ? 0 : Math.min(59, Number(prev.actualMinutes) || 0);
-            const actualTime = hours + minutes / 60;
-            const deductionTime = parseFlexibleTime(prev.deductionTime);
-            return { ...prev, actualHours: value, actualMinutes: hours === 12 ? "0" : prev.actualMinutes, actualTime: String(actualTime), totalTime: String(actualTime + (Number.isFinite(deductionTime) ? deductionTime : 0)) };
+            const actualTotalMinutes = hours * 60 + minutes;
+            const totalMinutes = actualTotalMinutes + deductionMinutes;
+            return {
+                ...prev,
+                actualHours: value,
+                actualMinutes: hours === 12 ? "0" : prev.actualMinutes,
+                actualTime: String(actualTotalMinutes / 60),
+                totalTime: String(totalMinutes / 60),
+            };
         });
     };
 
@@ -54,9 +72,14 @@ export default function ProcessTimeDeductionSection({ form, setForm, deductions,
         if (hours === 12 && minutes > 0) { onWarning("Đã đủ 12 giờ nên số phút phải bằng 0"); return; }
         if (hours * 60 + minutes + deductionMinutes > MAX_TOTAL_WORK_MINUTES) { onWarning("Không thể tăng số phút vì tổng thời gian sẽ vượt quá 12 giờ"); return; }
         setForm((prev) => {
-            const actualTime = hours + minutes / 60;
-            const deductionTime = parseFlexibleTime(prev.deductionTime);
-            return { ...prev, actualMinutes: value, actualTime: String(actualTime), totalTime: String(actualTime + (Number.isFinite(deductionTime) ? deductionTime : 0)) };
+            const actualTotalMinutes = hours * 60 + minutes;
+            const totalMinutes = actualTotalMinutes + deductionMinutes;
+            return {
+                ...prev,
+                actualMinutes: value,
+                actualTime: String(actualTotalMinutes / 60),
+                totalTime: String(totalMinutes / 60),
+            };
         });
     };
 
