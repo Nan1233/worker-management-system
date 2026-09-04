@@ -3,22 +3,35 @@
 
 const mysql = require('mysql2/promise');
 
+const required = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
+const missing = required.filter((name) => !process.env[name]);
+if (missing.length) {
+  console.error(`GC_XOAY_MASTER_FAILED: Missing database environment: ${missing.join(', ')}`);
+  process.exitCode = 1;
+  return;
+}
+
+const rawSsl = String(process.env.DB_SSL ?? process.env.MYSQL_SSL ?? 'true').toLowerCase();
+const useSsl = ['true', '1', 'yes'].includes(rawSsl);
+const rawCa = String(process.env.DB_SSL_CA ?? '').trim();
+const ssl = useSsl
+  ? {
+      minVersion: 'TLSv1.2',
+      rejectUnauthorized: rawCa ? true : false,
+      ...(rawCa ? { ca: rawCa.replace(/\\\\n/g, '\\n') } : {}),
+    }
+  : undefined;
+
 const cfg = {
-  host: process.env.DB_HOST || '127.0.0.1',
-  port: Number(process.env.DB_PORT || 3306),
+  host: process.env.DB_HOST,
+  port: Number(process.env.DB_PORT || 4000),
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  ssl: process.env.DB_SSL === 'true' || process.env.DB_SSL === '1'
-    ? { rejectUnauthorized: false }
-    : undefined,
+  ssl,
 };
 
 async function main() {
-  if (!cfg.user || !cfg.password || !cfg.database) {
-    throw new Error('Database environment is not configured.');
-  }
-
   const db = await mysql.createConnection(cfg);
   try {
     await db.beginTransaction();
@@ -32,16 +45,12 @@ async function main() {
         LIMIT 1`,
     );
 
-    if (!processes.length) {
-      throw new Error('GC process master was not found.');
-    }
+    if (!processes.length) throw new Error('GC process master was not found.');
 
     const processId = Number(processes[0].id);
 
-    // Match by code first, then by the canonical Vietnamese name so an older
-    // master row can be normalized without creating a duplicate NG option.
     const [rows] = await db.execute(
-      `SELECT id, defect_code, defect_name, status
+      `SELECT id
          FROM defect_types
         WHERE process_id = ?
           AND (UPPER(TRIM(defect_code)) = 'XOAY'
@@ -54,21 +63,17 @@ async function main() {
     if (rows.length) {
       await db.execute(
         `UPDATE defect_types
-            SET defect_code = 'XOAY',
-                defect_name = 'Cao su xoay',
-                status = 'active'
+            SET defect_code = 'XOAY', defect_name = 'Cao su xoay', status = 'active'
           WHERE id = ?`,
         [rows[0].id],
       );
     } else {
       const [maxRows] = await db.execute(
         `SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_sort_order
-           FROM defect_types
-          WHERE process_id = ?`,
+           FROM defect_types WHERE process_id = ?`,
         [processId],
       );
       const nextSortOrder = Number(maxRows[0]?.next_sort_order || 1);
-
       await db.execute(
         `INSERT INTO defect_types
           (process_id, defect_code, defect_name, sort_order, status)
@@ -77,19 +82,16 @@ async function main() {
       );
     }
 
-    // If duplicate historical XOAY rows exist, keep one canonical active row
-    // and deactivate the rest. This keeps the master deterministic for the FE.
     const [xoayRows] = await db.execute(
-      `SELECT id
-         FROM defect_types
-        WHERE process_id = ?
-          AND UPPER(TRIM(defect_code)) = 'XOAY'
+      `SELECT id FROM defect_types
+        WHERE process_id = ? AND UPPER(TRIM(defect_code)) = 'XOAY'
         ORDER BY id`,
       [processId],
     );
     for (const [index, row] of xoayRows.entries()) {
-      if (index === 0) continue;
-      await db.execute(`UPDATE defect_types SET status = 'inactive' WHERE id = ?`, [row.id]);
+      if (index > 0) {
+        await db.execute(`UPDATE defect_types SET status = 'inactive' WHERE id = ?`, [row.id]);
+      }
     }
 
     await db.commit();
