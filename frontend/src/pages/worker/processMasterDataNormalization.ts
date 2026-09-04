@@ -36,13 +36,6 @@ const same = (a: unknown, b: unknown): boolean => {
   return Boolean(left && right && left === right);
 };
 
-const normalizeDefectName = (value: unknown): string => clean(value)
-  .normalize("NFD")
-  .replace(/[\u0300-\u036f]/g, "")
-  .toUpperCase()
-  .replace(/Đ/g, "D")
-  .replace(/[^A-Z0-9]+/g, "");
-
 const normalizeRows = (rows: RawOption[], processId?: number): WorkerMasterOption[] => rows
   .map((row, index) => {
     const id = Number(row.id ?? row.defect_type_id ?? 0) || undefined;
