@@ -36,18 +36,46 @@ function AutocompleteInput({
     const [open, setOpen] = useState(false);
     const [activeIndex, setActiveIndex] = useState(-1);
 
+    // Công đoạn Gia công dùng chung danh mục máy cho cả Cắt/Lồng:
+    // - Máy Cắt: C1, C11, ...
+    // - Máy Lồng: 1, 11, ...
+    // Chỉ áp dụng khi form đang có bộ chọn "Loại gia công".
+    const readMachineOperationType = () => id.startsWith("machineNo")
+        ? Array.from(document.querySelectorAll(".worker-mode-panel .worker-mode-group:first-child .worker-choice-row button"))
+            .find((button) => button.classList.contains("active"))
+            ?.textContent?.trim().toUpperCase() || ""
+        : "";
+    const [machineOperationType, setMachineOperationType] = useState(readMachineOperationType);
+
+    useEffect(() => {
+        if (!id.startsWith("machineNo")) return;
+        const refresh = () => setMachineOperationType(readMachineOperationType());
+        refresh();
+        const observer = new MutationObserver(refresh);
+        observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["class"] });
+        return () => observer.disconnect();
+    }, [id]);
+
     const filteredOptions = useMemo(() => {
         const keyword = value.trim().toLowerCase();
+        let scopedOptions = options;
+
+        if (machineOperationType === "CẮT") {
+            scopedOptions = options.filter((option) => /^C\d+$/i.test(String(option.value).trim()));
+        } else if (machineOperationType === "LỒNG") {
+            scopedOptions = options.filter((option) => /^\d+$/.test(String(option.value).trim()));
+        }
+
         const result = keyword
-            ? options.filter((option) =>
+            ? scopedOptions.filter((option) =>
                 [option.value, option.label ?? "", option.description ?? ""]
                     .join(" ")
                     .toLowerCase()
                     .includes(keyword)
             )
-            : options;
+            : scopedOptions;
         return result.slice(0, 50);
-    }, [options, value]);
+    }, [options, value, machineOperationType]);
 
     useEffect(() => {
         const handleOutside = (event: MouseEvent | TouchEvent) => {
@@ -65,7 +93,7 @@ function AutocompleteInput({
         };
     }, []);
 
-    useEffect(() => setActiveIndex(-1), [value]);
+    useEffect(() => setActiveIndex(-1), [value, machineOperationType]);
 
     const selectOption = (option: AutocompleteOption) => {
         onSelect(option);
