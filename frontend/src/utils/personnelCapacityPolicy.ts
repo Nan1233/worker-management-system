@@ -1,3 +1,5 @@
+import api from "../services/api";
+
 type TextNode = Text;
 
 function normalizeCapacityText(value: string): string {
@@ -24,17 +26,12 @@ function normalizeCapacityText(value: string): string {
     "Không giới hạn số lượng tổ trưởng theo công đoạn.",
   );
 
-  // Các KPI cũ hiển thị dạng "3 / 3" hoặc "3/3". Giờ chỉ hiển thị số lượng thực tế.
   next = next.replace(/(Tổ trưởng của bạn\s*\(\d+)\s*\/\s*3(\))/g, "$1$2");
   next = next.replace(/(Tổ trưởng\s*\(\d+)\s*\/\s*3(\))/g, "$1$2");
   next = next.replace(/(\d+)\s*\/\s*3\b/g, "$1");
-
-  // Bỏ nhãn cũ "Đã tạo tối đa" khỏi thẻ thống kê.
   next = next.replace(/Đã tạo tối đa/gi, "");
 
-  // React có thể render literal "/ 3" thành một text node riêng trong KPI.
   if (/^\s*\/\s*3\s*$/.test(next)) return "";
-
   return next;
 }
 
@@ -55,8 +52,46 @@ function patchDocument(root: Node): void {
   nodes.forEach(patchTextNode);
 }
 
+let managerCountPromise: Promise<void> | null = null;
+let managerCountRoute = "";
+
+async function patchManagerCount(): Promise<void> {
+  const label = Array.from(document.querySelectorAll("span")).find(
+    (element) => element.textContent?.trim() === "Tài khoản quản lý",
+  );
+  if (!label) return;
+
+  const card = label.parentElement;
+  const count = card?.querySelector("b");
+  if (!count) return;
+
+  const route = window.location.hash;
+  if (route !== managerCountRoute) {
+    managerCountRoute = route;
+    managerCountPromise = null;
+  }
+
+  if (!managerCountPromise) {
+    managerCountPromise = api
+      .get("/users")
+      .then((response) => {
+        const managerCount = Number(response.data?.manager_count);
+        if (Number.isFinite(managerCount)) {
+          count.textContent = String(managerCount);
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        managerCountPromise = null;
+      });
+  }
+
+  await managerCountPromise;
+}
+
 if (document.body) {
   patchDocument(document.body);
+  window.setTimeout(() => void patchManagerCount(), 300);
 
   const observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
@@ -69,6 +104,7 @@ if (document.body) {
         else if (node.nodeType === Node.ELEMENT_NODE) patchDocument(node);
       });
     }
+    void patchManagerCount();
   });
 
   observer.observe(document.body, {
