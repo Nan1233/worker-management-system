@@ -18,36 +18,30 @@ interface Props {
     onSubmit: () => void;
 }
 
-const readIncomingTotalHours = (): number => {
-    // The time section contains two readonly computed inputs:
-    // 1) deduction time, 2) total time. The previous selector matched the
-    // first one, so a report with 10h actual / 0h deduction was displayed as 0h.
-    const computedInputs = Array.from(
-        document.querySelectorAll<HTMLInputElement>(
-            ".worker-time-grid .worker-time-computed input[readonly]"
-        )
+const readIncomingTimes = (): { actual: number; deduction: number; total: number } => {
+    const totalInput = document.querySelector<HTMLInputElement>(
+        ".worker-time-computed input[readonly]"
     );
-    const totalInput = computedInputs[computedInputs.length - 1];
-    if (totalInput) {
-        const total = parseFlexibleTime(totalInput.value || "");
-        if (Number.isFinite(total) && total >= 0) return total;
-    }
+    const computedInputs = document.querySelectorAll<HTMLInputElement>(
+        ".worker-time-computed input[readonly]"
+    );
 
-    // Fallback to the actual-time inputs. This also keeps the confirmation
-    // correct if the time component is rendered differently in a future UI.
-    const timeInputs = document.querySelectorAll<HTMLInputElement>(
+    const actualInputs = document.querySelectorAll<HTMLInputElement>(
         ".worker-time-parts input"
     );
-    if (timeInputs.length >= 2) {
-        const hours = Number(timeInputs[0].value || 0);
-        const minutes = Number(timeInputs[1].value || 0);
-        if (Number.isFinite(hours) && Number.isFinite(minutes)) {
-            return Math.max(0, hours + minutes / 60);
-        }
-    }
+    const actual = actualInputs.length >= 2
+        ? Math.max(0, (Number(actualInputs[0].value) || 0) + (Number(actualInputs[1].value) || 0) / 60)
+        : 0;
 
-    const actualTime = document.querySelector<HTMLInputElement>('input[name="actualTime"]')?.value || "";
-    return Math.max(0, parseFlexibleTime(actualTime));
+    const deduction = computedInputs.length >= 1
+        ? Math.max(0, parseFlexibleTime(computedInputs[0].value || ""))
+        : 0;
+
+    const total = totalInput
+        ? Math.max(0, parseFlexibleTime(totalInput.value || ""))
+        : actual + deduction;
+
+    return { actual, deduction, total };
 };
 
 const readWorkDate = (): string =>
@@ -73,6 +67,7 @@ export default function ProcessSubmitActions({
     onSubmit,
 }: Props) {
     const [dailyHoursPrompt, setDailyHoursPrompt] = useState<number | null>(null);
+    const [dailyTimeDetails, setDailyTimeDetails] = useState<{ actual: number; deduction: number; total: number } | null>(null);
     const [loadingDailyHours, setLoadingDailyHours] = useState(false);
     const [dailyHoursError, setDailyHoursError] = useState("");
 
@@ -80,7 +75,7 @@ export default function ProcessSubmitActions({
         if (submitting || loadingDailyHours) return;
 
         const workDate = readWorkDate();
-        const incomingHours = readIncomingTotalHours();
+        const incoming = readIncomingTimes();
 
         if (!workDate) {
             onSubmit();
@@ -91,11 +86,19 @@ export default function ProcessSubmitActions({
         setDailyHoursError("");
         try {
             const summary = await getMyDailyWorkingHours(workDate);
-            setDailyHoursPrompt(Math.max(0, Number(summary.counted_hours || 0) + incomingHours));
+            const existingTotal = Math.max(0, Number(summary.counted_hours || 0));
+            const promptTotal = existingTotal + incoming.total;
+            setDailyTimeDetails({
+                actual: incoming.actual,
+                deduction: incoming.deduction,
+                total: promptTotal,
+            });
+            setDailyHoursPrompt(promptTotal);
         } catch (error) {
             console.error("GET DAILY HOURS BEFORE SUBMIT ERROR:", error);
             setDailyHoursError("Không lấy được tổng giờ hôm nay. Bạn vẫn có thể tiếp tục gửi để hệ thống kiểm tra lại.");
-            setDailyHoursPrompt(null);
+            setDailyTimeDetails(incoming);
+            setDailyHoursPrompt(incoming.total);
             onSubmit();
         } finally {
             setLoadingDailyHours(false);
@@ -104,6 +107,7 @@ export default function ProcessSubmitActions({
 
     const confirmSubmit = () => {
         setDailyHoursPrompt(null);
+        setDailyTimeDetails(null);
         onSubmit();
     };
 
@@ -126,17 +130,23 @@ export default function ProcessSubmitActions({
                 </div>
             )}
 
-            {dailyHoursPrompt !== null && (
+            {dailyHoursPrompt !== null && dailyTimeDetails !== null && (
                 <div className="duplicate-dialog-backdrop" role="presentation">
                     <div className="duplicate-dialog" role="dialog" aria-modal="true" aria-labelledby="daily-hours-dialog-title">
                         <h2 id="daily-hours-dialog-title">Xác nhận nộp báo cáo</h2>
                         <p>
-                            Tổng thời gian làm việc hôm nay của bạn sẽ là <strong>{formatHours(dailyHoursPrompt)}</strong>.
+                            <strong>Thời gian làm việc thực tế:</strong> {formatHours(dailyTimeDetails.actual)}
+                        </p>
+                        <p>
+                            <strong>Thời gian trừ:</strong> {formatHours(dailyTimeDetails.deduction)}
+                        </p>
+                        <p>
+                            <strong>Tổng thời gian làm việc hôm nay:</strong> {formatHours(dailyHoursPrompt)}
                         </p>
                         <p>Thời gian được tính theo <strong>thực tế + thời gian trừ</strong>.</p>
                         <p>Bạn có chắc chắn muốn nộp báo cáo này không?</p>
                         <div className="duplicate-dialog-actions">
-                            <button type="button" className="duplicate-dialog-cancel" onClick={() => setDailyHoursPrompt(null)} disabled={submitting}>Hủy</button>
+                            <button type="button" className="duplicate-dialog-cancel" onClick={() => { setDailyHoursPrompt(null); setDailyTimeDetails(null); }} disabled={submitting}>Hủy</button>
                             <button type="button" className="duplicate-dialog-create" onClick={confirmSubmit} disabled={submitting}>Xác nhận nộp</button>
                         </div>
                     </div>
