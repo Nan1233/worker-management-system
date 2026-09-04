@@ -2,7 +2,7 @@ import { getStoredUser } from "../../utils/authStorage";
 import type { DeductionState, FormState, MachineLineState, NgKey, DeductionKey, OperationMode, OperationType } from "./processPageConfig";
 
 export type ProcessDraft = {
-  version: 2;
+  version: 1 | 2;
   savedAt: number;
   process: string;
   /** Identity of the worker who owns this local draft. */
@@ -21,12 +21,8 @@ export type ProcessDraft = {
 
 /**
  * Drafts are private to the currently authenticated worker.
- *
- * IMPORTANT: the previous implementation keyed only by process, e.g.
- * `ktc:process-draft:mai`. That meant worker B could restore worker A's
- * unfinished report on the same browser/device. Include the authenticated
- * worker identity in the key and in the stored payload so drafts can never
- * cross worker boundaries.
+ * The old implementation keyed only by process (`ktc:process-draft:${process}`),
+ * which allowed worker B to restore worker A's unfinished report on the same device.
  */
 const getCurrentWorkerIdentity = () => {
   const user = getStoredUser();
