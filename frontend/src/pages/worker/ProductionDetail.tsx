@@ -33,11 +33,48 @@ export default function ProductionDetail() {
         let active = true;
         const load = async () => {
             try {
-                if (!id) return;
-                const data = await getReportById(Number(id), source);
+                if (!id) {
+                    if (active) setError("ID báo cáo không hợp lệ.");
+                    return;
+                }
+
+                const reportId = Number(id);
+                if (!Number.isInteger(reportId) || reportId <= 0) {
+                    if (active) setError("ID báo cáo không hợp lệ.");
+                    return;
+                }
+
+                // Worker history can contain both pending/temp and approved reports.
+                // The list normally supplies ?source=..., but older cached rows may not.
+                // Try the requested source first, then the other storage as a safe fallback.
+                const normalizedSource = String(source || "").toLowerCase();
+                const candidates: Array<"pending" | "approved"> = normalizedSource === "pending" || normalizedSource === "temp"
+                    ? ["pending", "approved"]
+                    : normalizedSource === "approved"
+                        ? ["approved", "pending"]
+                        : ["pending", "approved"];
+
+                let lastError: unknown = null;
+                let data: ProductionReport | null = null;
+                for (const candidate of candidates) {
+                    try {
+                        data = await getReportById(reportId, candidate);
+                        if (data) break;
+                    } catch (err) {
+                        lastError = err;
+                        const status = (err as any)?.response?.status;
+                        if (status !== 404) throw err;
+                    }
+                }
+
+                if (!data) {
+                    const message = (lastError as any)?.response?.data?.message;
+                    throw new Error(message || "Không tìm thấy báo cáo.");
+                }
+
                 if (active) setReport(data);
             } catch (err: any) {
-                if (active) setError(err?.response?.data?.message || "Không thể tải chi tiết báo cáo.");
+                if (active) setError(err?.response?.data?.message || err?.message || "Không thể tải chi tiết báo cáo.");
             } finally {
                 if (active) setLoading(false);
             }
