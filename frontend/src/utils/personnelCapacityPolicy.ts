@@ -23,10 +23,16 @@ function normalizeCapacityText(value: string): string {
     /Mỗi công đoạn đã đủ 3 tổ trưởng\.?/gi,
     "Không giới hạn số lượng tổ trưởng theo công đoạn.",
   );
-  next = next.replace(/(Tổ trưởng của bạn \(\d+)\/3(\))/g, "$1$2");
-  next = next.replace(/(Tổ trưởng \(\d+)\/3(\))/g, "$1$2");
 
-  // React may render the literal "/ 3" as a separate text node in the KPI.
+  // Các KPI cũ hiển thị dạng "3 / 3" hoặc "3/3". Giờ chỉ hiển thị số lượng thực tế.
+  next = next.replace(/(Tổ trưởng của bạn\s*\(\d+)\s*\/\s*3(\))/g, "$1$2");
+  next = next.replace(/(Tổ trưởng\s*\(\d+)\s*\/\s*3(\))/g, "$1$2");
+  next = next.replace(/(\d+)\s*\/\s*3\b/g, "$1");
+
+  // Bỏ nhãn cũ "Đã tạo tối đa" khỏi thẻ thống kê.
+  next = next.replace(/Đã tạo tối đa/gi, "");
+
+  // React có thể render literal "/ 3" thành một text node riêng trong KPI.
   if (/^\s*\/\s*3\s*$/.test(next)) return "";
 
   return next;
