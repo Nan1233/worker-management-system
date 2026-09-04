@@ -18,6 +18,7 @@ interface AutocompleteInputProps {
     emptyMessage?: string;
     onChange: (value: string) => void;
     onSelect: (option: AutocompleteOption) => void;
+    selectOnly?: boolean;
 }
 
 function AutocompleteInput({
@@ -31,10 +32,18 @@ function AutocompleteInput({
     emptyMessage = "Không tìm thấy dữ liệu",
     onChange,
     onSelect,
+    selectOnly = false,
 }: AutocompleteInputProps) {
     const wrapperRef = useRef<HTMLDivElement | null>(null);
     const [open, setOpen] = useState(false);
     const [activeIndex, setActiveIndex] = useState(-1);
+    const [typedValue, setTypedValue] = useState(value);
+
+    useEffect(() => {
+        setTypedValue(value);
+    }, [value]);
+
+    const displayValue = selectOnly ? typedValue : value;
 
     // Công đoạn Gia công dùng chung danh mục máy cho cả Cắt/Lồng:
     // - Máy Cắt: C1, C11, ...
@@ -57,7 +66,7 @@ function AutocompleteInput({
     }, [id]);
 
     const filteredOptions = useMemo(() => {
-        const keyword = value.trim().toLowerCase();
+        const keyword = displayValue.trim().toLowerCase();
         let scopedOptions = options;
 
         if (machineOperationType === "CẮT") {
@@ -75,7 +84,7 @@ function AutocompleteInput({
             )
             : scopedOptions;
         return result.slice(0, 50);
-    }, [options, value, machineOperationType]);
+    }, [options, displayValue, machineOperationType]);
 
     useEffect(() => {
         const handleOutside = (event: MouseEvent | TouchEvent) => {
@@ -93,9 +102,10 @@ function AutocompleteInput({
         };
     }, []);
 
-    useEffect(() => setActiveIndex(-1), [value, machineOperationType]);
+    useEffect(() => setActiveIndex(-1), [displayValue, machineOperationType]);
 
     const selectOption = (option: AutocompleteOption) => {
+        setTypedValue(option.value);
         onSelect(option);
         setOpen(false);
         setActiveIndex(-1);
@@ -128,14 +138,19 @@ function AutocompleteInput({
                 <input
                     id={id}
                     className="autocomplete-input"
-                    value={value}
+                    value={displayValue}
                     placeholder={placeholder}
                     disabled={disabled}
                     autoComplete="off"
                     onFocus={() => setOpen(true)}
                     onClick={() => setOpen(true)}
                     onChange={(event) => {
-                        onChange(event.target.value);
+                        const nextValue = event.target.value;
+                        if (selectOnly) {
+                            setTypedValue(nextValue);
+                        } else {
+                            onChange(nextValue);
+                        }
                         setOpen(true);
                     }}
                     onKeyDown={handleKeyDown}
