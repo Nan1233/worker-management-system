@@ -79,7 +79,7 @@ function setHeader(sheet, rowNumber, styles, deductions, defects) {
   const headers = [
     'STT', 'Mã CN', 'Họ tên', 'Số máy', 'Ca', '% học việc', 'Tổng thời gian', 'Thời gian thực tế', 'Số lần CM', 'Tổng TG trừ giờ', 'Thiếu sản lượng',
     ...Array.from({ length: MAX_DEDUCTIONS }, (_, i) => deductions[i]?.name || ''),
-    'SP', 'Định mức', 'TT', '% thực tích', 'Ngày', 'SLSP/h', 'OK', 'Tổng NG', 'Tỷ lệ NG',
+    'SP', 'Định mức', 'TT', '% định mức', 'Ngày', 'Định mức/h', 'OK', 'Tổng NG', '% NG',
     ...Array.from({ length: MAX_DEFECTS }, (_, i) => defects[i]?.name || ''), 'OK', 'NG'
   ];
   headers.forEach((value, index) => {
@@ -113,7 +113,7 @@ function writeReportRow(sheet, rowNumber, report, deductionTypes, defectTypes, d
 
   // Business rule for Excel:
   //   Định mức = Định mức SP/h × số giờ thực tế
-  //   % thực tích = TT / Định mức × % học việc
+  //   % định mức = TT / Định mức × % học việc
   // The training percentage is the immutable snapshot captured at report time.
   const standardRate = num(report.standard_output);
   const actual = num(report.actual_output || (num(report.tt_ok) + num(report.tt_ng)));
@@ -135,7 +135,7 @@ function writeReportRow(sheet, rowNumber, report, deductionTypes, defectTypes, d
     ...deductionTypes.slice(0, MAX_DEDUCTIONS).map((t) => detailValue(deductions, t.id, t.name, 'hours')),
     report.product_name ?? '', standard, actual, achievement,
     dateKey(report.work_date) ? new Date(`${dateKey(report.work_date)}T00:00:00`) : null,
-    outputPerHour, ok, ng, ngRate,
+    standardRate, ok, ng, ngRate,
     ...defectTypes.slice(0, MAX_DEFECTS).map((t) => detailValue(defects, t.id, t.name, 'quantity')), ok, ng
   ];
 
