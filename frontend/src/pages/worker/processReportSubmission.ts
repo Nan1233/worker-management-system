@@ -50,8 +50,8 @@ export function buildProductionReportPayload(args: {
     standard_source:l.standardSource,
     defects:(l.selectedDefects||[]).map(key=>({
       defect_type_id:Number(args.activeNgOptions.find(o=>o.key===key)?.id || 0)||undefined,
-      defect_code:String(args.activeNgOptions.find(o=>o.key===key)?.code || key),
-      defect_name:String(args.activeNgOptions.find(o=>o.key===key)?.label || key),
+      defect_code:String(args.activeNgOptions.find(o=>o.key===key)?.code || ""),
+      defect_name:String(args.activeNgOptions.find(o=>o.key===key)?.label || ""),
       quantity:num(l.defects[key])
     })).filter(x=>x.quantity>0)
   }));
@@ -59,13 +59,9 @@ export function buildProductionReportPayload(args: {
     key:String(o.key||""),
     id:Number(o.id||o.defect_type_id||0)||undefined,
     code:String(o.code||""),
-    label:String(o.label||o.defect_name||o.key||"")
+    label:String(o.label||o.defect_name||"")
   })).filter(o=>o.key).map(o=>({defect_type_id:o.id,defect_code:o.code,defect_name:o.label,quantity:num(args.form[o.key])})).filter(x=>x.quantity>0);
 
-  // DeductionState stores each selected deduction in MINUTES.
-  // The API contract stores deduction detail `hours` in HOURS.
-  // Keep this conversion at the payload boundary so the UI can continue
-  // working with integer minutes (e.g. 10 + 10 = 20 minutes = 0.3333 hours).
   const deductions=args.activeDeductionOptions.map(o=>({
     deduction_type_id:Number(o.id||o.deduction_type_id||0)||undefined,
     deduction_code:String(o.code||""),
