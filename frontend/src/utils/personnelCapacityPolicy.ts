@@ -26,6 +26,9 @@ function normalizeCapacityText(value: string): string {
   next = next.replace(/(Tổ trưởng của bạn \(\d+)\/3(\))/g, "$1$2");
   next = next.replace(/(Tổ trưởng \(\d+)\/3(\))/g, "$1$2");
 
+  // React may render the literal "/ 3" as a separate text node in the KPI.
+  if (/^\s*\/\s*3\s*$/.test(next)) return "";
+
   return next;
 }
 
@@ -46,19 +49,25 @@ function patchDocument(root: Node): void {
   nodes.forEach(patchTextNode);
 }
 
-patchDocument(document.body);
+if (document.body) {
+  patchDocument(document.body);
 
-const observer = new MutationObserver((mutations) => {
-  for (const mutation of mutations) {
-    if (mutation.type === "characterData") {
-      patchTextNode(mutation.target as TextNode);
-      continue;
+  const observer = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      if (mutation.type === "characterData") {
+        patchTextNode(mutation.target as TextNode);
+        continue;
+      }
+      mutation.addedNodes.forEach((node) => {
+        if (node.nodeType === Node.TEXT_NODE) patchTextNode(node as TextNode);
+        else if (node.nodeType === Node.ELEMENT_NODE) patchDocument(node);
+      });
     }
-    mutation.addedNodes.forEach((node) => {
-      if (node.nodeType === Node.TEXT_NODE) patchTextNode(node as TextNode);
-      else if (node.nodeType === Node.ELEMENT_NODE) patchDocument(node);
-    });
-  }
-});
+  });
 
-observer.observe(document.body, { childList: true, characterData: true, subtree: true });
+  observer.observe(document.body, {
+    childList: true,
+    characterData: true,
+    subtree: true,
+  });
+}
