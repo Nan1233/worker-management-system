@@ -28,11 +28,6 @@ export const getMachinesByProcess = async (processId: number): Promise<MachineOp
     return Array.isArray(payload) ? payload : [];
 };
 
-/**
- * Read process-id master data as the canonical source and supplement it with
- * process-code data when available. Some deployments have complete rows under
- * process_id but an incomplete/empty process_code lookup.
- */
 export const getProductStandardsByProcess = async (
     processId: number,
     processCode?: string,
@@ -89,19 +84,40 @@ export interface ResolvedProductStandard {
     exclude_kqd_from_tt?: number;
 }
 
+const processProductCache = new Map<number, { expiresAt: number; codes: Set<string> }>();
+
+const hasExactProcessProduct = async (processId: number, productCode: string): Promise<boolean> => {
+    const normalized = String(productCode || "").trim().toUpperCase();
+    if (!normalized) return false;
+
+    const cached = processProductCache.get(Number(processId));
+    if (cached && cached.expiresAt > Date.now()) {
+        return cached.codes.has(normalized);
+    }
+
+    const response = await api.get("/product-standards", {
+        params: { process_id: processId },
+    });
+    const payload = response.data?.data ?? response.data;
+    const rows = Array.isArray(payload) ? payload as ProductStandardOption[] : [];
+    const codes = new Set(
+        rows
+            .map((row) => String(row?.product_code || "").trim().toUpperCase())
+            .filter(Boolean),
+    );
+    processProductCache.set(Number(processId), {
+        expiresAt: Date.now() + 30_000,
+        codes,
+    });
+    return codes.has(normalized);
+};
+
 /**
  * Resolve a machine-specific standard when a machine is selected.
- *
- * IMPORTANT: the worker form can know the product before the machine. In that
- * state we must not call /product-standards/resolve with machine_code="".
- * That endpoint is intentionally strict about historical/machine standards,
- * and calling it too early caused a stream of 422 responses while the user was
- * still filling the form.
- *
- * When machineCode is empty, read the process product master instead. This
- * branch is only used for product-level metadata (for example KQD policy);
- * actual machine-line output is still resolved through this function after a
- * real machine is selected.
+ * Do not call the strict historical resolver while the worker is still typing
+ * a partial product code (for example 8 -> 82 -> 823). The strict resolver
+ * correctly returns 422 for those values, but those requests are only UI noise.
+ * The product must first exist exactly in process master data.
  */
 export const resolveProductStandard = async (
     processId: number,
@@ -111,6 +127,14 @@ export const resolveProductStandard = async (
 ): Promise<ResolvedProductStandard> => {
     const normalizedMachine = String(machineCode || "").trim();
     const normalizedProduct = String(productCode || "").trim();
+
+    if (!normalizedProduct) {
+        throw new Error("Thiếu mã sản phẩm để tra định mức");
+    }
+
+    if (!(await hasExactProcessProduct(processId, normalizedProduct))) {
+        throw new Error(`Đang nhập mã sản phẩm: ${normalizedProduct}`);
+    }
 
     if (!normalizedMachine) {
         const response = await api.get("/product-standards", {
