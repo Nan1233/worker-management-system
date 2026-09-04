@@ -9,6 +9,8 @@ const notifyWorkerOnApprovedEdit = require("../middleware/notifyWorkerOnApproved
 const approvedReportEditLock = require("../middleware/approvedReportEditLock");
 const { restoreApprovedReportVersion } = require("../services/approvedReportEditService");
 const { publicMessage } = require("../utils/httpError");
+const db = require("../config/db");
+const ProductionTemp = require("../models/productionTempModel");
 
 router.get("/dates",verifyToken,checkRole("admin","manager","lead"),permission("REPORT_APPROVED_VIEW"),getReportDates);
 router.get("/by-date",verifyToken,checkRole("admin","manager","lead"),permission("REPORT_APPROVED_VIEW"),getReportsByDate);
@@ -39,7 +41,34 @@ router.post(
   }
 );
 
-router.get("/:id",verifyToken,checkRole("admin","manager","lead","worker"),getReportById);
+// Worker history can contain a pending/need-fix report that still lives in
+// production_reports_temp. Older clients may call /production/:id without the
+// source query parameter, so transparently fall back to the temp report for
+// the logged-in worker when the approved report does not exist.
+router.get("/:id",verifyToken,checkRole("admin","manager","lead","worker"),async (req,res,next) => {
+  const reportId = Number(req.params.id);
+  if (!Number.isInteger(reportId) || reportId <= 0) return res.status(400).json({success:false,message:"ID báo cáo không hợp lệ"});
+
+  if (String(req.user?.role || "").toLowerCase() !== "worker") {
+    return getReportById(req,res,next);
+  }
+
+  try {
+    const [approvedRows] = await db.promise().query("SELECT id FROM production_reports WHERE id=? LIMIT 1",[reportId]);
+    if (approvedRows?.length) return getReportById(req,res,next);
+
+    const tempReport = await ProductionTemp.getDetail(reportId);
+    if (!tempReport) return res.status(404).json({success:false,message:"Không tìm thấy báo cáo"});
+    if (Number(tempReport.worker_id) !== Number(req.user?.worker_id)) {
+      return res.status(403).json({success:false,message:"Bạn không có quyền xem báo cáo này"});
+    }
+
+    return res.json({success:true,data:tempReport});
+  } catch (error) {
+    console.error("GET WORKER REPORT DETAIL FALLBACK ERROR:",error);
+    return res.status(error.status || 500).json({success:false,message:publicMessage(error,"Không thể lấy chi tiết báo cáo")});
+  }
+});
 
 // Restore endpoint is implemented here because productionController no longer
 // exports a restoreReportVersion handler. Keep the service as the single source
