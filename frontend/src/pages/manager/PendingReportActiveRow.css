@@ -1,6 +1,6 @@
-.pending-reference-page .pending-reference-table tbody tr.pending-row-active > td{background:#eaf3ff!important;color:#173f70;font-weight:650;box-shadow:inset 0 2px 0 #2f7fe5,inset 0 -2px 0 #2f7fe5}
+.pending-reference-page .pending-reference-table tbody tr.pending-row-active > td{background:#eaf3ff!important;color:#173f70;box-shadow:inset 0 2px 0 #2f7fe5,inset 0 -2px 0 #2f7fe5}
 .pending-reference-page .pending-reference-table tbody tr.pending-row-active > td:first-child{box-shadow:inset 4px 0 0 #1769d2,inset 0 2px 0 #2f7fe5,inset 0 -2px 0 #2f7fe5}
 .pending-reference-page .pending-reference-table tbody tr.pending-row-active > td:last-child{box-shadow:inset -2px 0 0 #2f7fe5,inset 0 2px 0 #2f7fe5,inset 0 -2px 0 #2f7fe5}
-.pending-reference-page .pending-reference-table tbody tr.pending-row-active .report-code{color:#1769d2;font-weight:800}
-.pending-reference-page .pending-reference-table tbody tr.pending-row-active .shift-chip{background:#dbeaff;color:#145fb9;font-weight:800}
+.pending-reference-page .pending-reference-table tbody tr.pending-row-active .report-code{color:#1769d2}
+.pending-reference-page .pending-reference-table tbody tr.pending-row-active .shift-chip{background:#dbeaff;color:#145fb9}
 .pending-reference-page .pending-reference-table tbody tr.pending-row-active .status-pill{box-shadow:0 0 0 2px rgba(23,105,210,.12)}
