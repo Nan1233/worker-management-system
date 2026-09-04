@@ -7,6 +7,13 @@ const defaultQuery = (sql, params = []) => {
 };
 
 const normalizeCode = (value) => String(value || "").trim();
+const normalizeDefectName = (value) => String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/Đ/g, "D")
+    .replace(/[^A-Z0-9]+/g, "")
+    .trim();
 const { validateEncodedGcMachineProduct } = require("../utils/productMachineEligibility");
 const { createStandardResolver } = require("./standardResolutionService");
 const { calculateProductionOutput } = require("../../shared/kqdPolicy.cjs");
@@ -74,14 +81,29 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
                     [processId, item.defect_code]
                 );
             }
-            // Worker master-data fallbacks can carry a generated code such as
-            // CUT_04. If the DB uses the real master code but the same defect
-            // name, resolve by the scoped name before rejecting the report.
+            // Worker master-data fallbacks may generate a display code such as
+            // CUT_04. Never persist/reject that synthetic code when the active
+            // process master contains the same defect under a real code/name.
             if (rows.length !== 1 && item.defect_name) {
                 rows = await query(
                     `SELECT id, defect_code, defect_name FROM defect_types WHERE process_id=? AND status='active' AND UPPER(TRIM(defect_name))=UPPER(TRIM(?)) LIMIT 2`,
                     [processId, item.defect_name]
                 );
+            }
+            // Last fallback is accent/punctuation-insensitive name matching.
+            // This handles harmless master-data differences such as spacing,
+            // punctuation or Vietnamese diacritics while still requiring a
+            // unique active defect inside the same process.
+            if (rows.length !== 1 && item.defect_name) {
+                const candidates = await query(
+                    `SELECT id, defect_code, defect_name FROM defect_types WHERE process_id=? AND status='active'`,
+                    [processId]
+                );
+                const normalizedName = normalizeDefectName(item.defect_name);
+                const matches = candidates.filter((candidate) =>
+                    normalizeDefectName(candidate.defect_name) === normalizedName
+                );
+                rows = matches.length === 1 ? matches : [];
             }
             if (rows.length !== 1) {
                 errors[`machine_lines.${index}.defects`] = `Loại NG ${item.defect_code || item.defect_name || item.defect_id || ''} không tồn tại hoặc không duy nhất trong công đoạn`;
@@ -171,7 +193,6 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
             defects: normalizedDefects,
             excludeKqdFromTt: Boolean(excludeKqdFromTt)
         });
-        const excludedKqdQuantity = outputMetrics.excludedKqd;
         const countedOutput = outputMetrics.actualOutput;
         const earnedStandardHours = standardOutput > 0 ? countedOutput / standardOutput : 0;
         if (okQuantity > maximumOkOutput + 0.0001) {
