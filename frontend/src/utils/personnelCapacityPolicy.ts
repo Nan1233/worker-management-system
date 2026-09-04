@@ -4,33 +4,15 @@ type TextNode = Text;
 
 function normalizeCapacityText(value: string): string {
   let next = value;
-
-  next = next.replace(
-    /Mỗi tài khoản quản lý được tạo tối đa 3 tổ trưởng\.?/gi,
-    "Không giới hạn số lượng tổ trưởng.",
-  );
-  next = next.replace(
-    /Mỗi công đoạn chỉ có tối đa 1 Quản lý\.?/gi,
-    "Không giới hạn số lượng Quản lý theo công đoạn.",
-  );
-  next = next.replace(
-    /Mỗi công đoạn tối đa 1 Quản lý\.?/gi,
-    "Không giới hạn số lượng Quản lý theo công đoạn.",
-  );
-  next = next.replace(
-    /Mỗi công đoạn tối đa 3 tổ trưởng\.?/gi,
-    "Không giới hạn số lượng tổ trưởng theo công đoạn.",
-  );
-  next = next.replace(
-    /Mỗi công đoạn đã đủ 3 tổ trưởng\.?/gi,
-    "Không giới hạn số lượng tổ trưởng theo công đoạn.",
-  );
-
+  next = next.replace(/Mỗi tài khoản quản lý được tạo tối đa 3 tổ trưởng\.?/gi, "Không giới hạn số lượng tổ trưởng.");
+  next = next.replace(/Mỗi công đoạn chỉ có tối đa 1 Quản lý\.?/gi, "Không giới hạn số lượng Quản lý theo công đoạn.");
+  next = next.replace(/Mỗi công đoạn tối đa 1 Quản lý\.?/gi, "Không giới hạn số lượng Quản lý theo công đoạn.");
+  next = next.replace(/Mỗi công đoạn tối đa 3 tổ trưởng\.?/gi, "Không giới hạn số lượng tổ trưởng theo công đoạn.");
+  next = next.replace(/Mỗi công đoạn đã đủ 3 tổ trưởng\.?/gi, "Không giới hạn số lượng tổ trưởng theo công đoạn.");
   next = next.replace(/(Tổ trưởng của bạn\s*\(\d+)\s*\/\s*3(\))/g, "$1$2");
   next = next.replace(/(Tổ trưởng\s*\(\d+)\s*\/\s*3(\))/g, "$1$2");
   next = next.replace(/(\d+)\s*\/\s*3\b/g, "$1");
   next = next.replace(/Đã tạo tối đa/gi, "");
-
   if (/^\s*\/\s*3\s*$/.test(next)) return "";
   return next;
 }
@@ -54,6 +36,7 @@ function patchDocument(root: Node): void {
 
 let managerCountPromise: Promise<void> | null = null;
 let managerCountRoute = "";
+let managerCountFetchedAt = 0;
 
 async function patchManagerCount(): Promise<void> {
   const label = Array.from(document.querySelectorAll("span")).find(
@@ -69,8 +52,10 @@ async function patchManagerCount(): Promise<void> {
   if (route !== managerCountRoute) {
     managerCountRoute = route;
     managerCountPromise = null;
+    managerCountFetchedAt = 0;
   }
 
+  if (Date.now() - managerCountFetchedAt < 15000) return;
   if (!managerCountPromise) {
     managerCountPromise = api
       .get("/users")
@@ -78,6 +63,7 @@ async function patchManagerCount(): Promise<void> {
         const managerCount = Number(response.data?.manager_count);
         if (Number.isFinite(managerCount)) {
           count.textContent = String(managerCount);
+          managerCountFetchedAt = Date.now();
         }
       })
       .catch(() => undefined)
@@ -85,7 +71,6 @@ async function patchManagerCount(): Promise<void> {
         managerCountPromise = null;
       });
   }
-
   await managerCountPromise;
 }
 
@@ -106,10 +91,5 @@ if (document.body) {
     }
     void patchManagerCount();
   });
-
-  observer.observe(document.body, {
-    childList: true,
-    characterData: true,
-    subtree: true,
-  });
+  observer.observe(document.body, { childList: true, characterData: true, subtree: true });
 }
