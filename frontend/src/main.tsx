@@ -17,6 +17,7 @@ import "./pages/manager/ApprovedReportsSearchFix.css";
 import "./pages/manager/WorkersSearchFix.css";
 import "./pages/manager/ReportsDetailCompact.css";
 import "./pages/manager/PendingReportActiveRow.css";
+import "./pages/manager/PendingReportDetailFocus";
 import { ToastProvider } from "./components/feedback/ToastProvider";
 import AuthBootstrap from "./components/AuthBootstrap";
 import AppErrorBoundary from "./components/system/AppErrorBoundary";
