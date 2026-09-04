@@ -24,6 +24,22 @@
           }, 0);
         }
       });
+
+      // Chuẩn hóa ô "Giờ" của thời gian chạy máy: 010 -> 10, 001 -> 1.
+      // Chỉ áp dụng cho ô giờ trong .machine-time-row, không ảnh hưởng ô phút/sản lượng.
+      document.addEventListener('input', function (event) {
+        const target = event.target;
+        if (!(target instanceof HTMLInputElement) || target.type !== 'number') return;
+
+        const row = target.closest('.machine-time-row');
+        if (!row || row.querySelector('label:first-child input') !== target) return;
+
+        const normalized = target.value.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+        if (normalized === target.value) return;
+
+        target.value = normalized;
+        target.dispatchEvent(new Event('input', { bubbles: true }));
+      });
     </script>
     <script src="/DisableMobileZoom.js"></script>
     <script type="module" src="/src/main.tsx"></script>
