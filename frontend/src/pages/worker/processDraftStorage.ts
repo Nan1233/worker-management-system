@@ -1,9 +1,13 @@
+import { getStoredUser } from "../../utils/authStorage";
 import type { DeductionState, FormState, MachineLineState, NgKey, DeductionKey, OperationMode, OperationType } from "./processPageConfig";
 
 export type ProcessDraft = {
-  version: 1;
+  version: 2;
   savedAt: number;
   process: string;
+  /** Identity of the worker who owns this local draft. */
+  ownerWorkerId?: number | null;
+  ownerWorkerCode?: string | null;
   form: FormState;
   deductions: DeductionState;
   selectedDeduction: DeductionKey[];
@@ -15,7 +19,35 @@ export type ProcessDraft = {
   extraData: Record<string,string>;
 };
 
-const keyFor = (process: string) => `ktc:process-draft:${process}`;
+/**
+ * Drafts are private to the currently authenticated worker.
+ *
+ * IMPORTANT: the previous implementation keyed only by process, e.g.
+ * `ktc:process-draft:mai`. That meant worker B could restore worker A's
+ * unfinished report on the same browser/device. Include the authenticated
+ * worker identity in the key and in the stored payload so drafts can never
+ * cross worker boundaries.
+ */
+const getCurrentWorkerIdentity = () => {
+  const user = getStoredUser();
+  const workerId = Number(user?.worker_id);
+  const workerCode = String(user?.worker_code || "").trim();
+  return {
+    workerId: Number.isInteger(workerId) && workerId > 0 ? workerId : null,
+    workerCode: workerCode || null,
+  };
+};
+
+const encodeKeyPart = (value: string | number) => encodeURIComponent(String(value));
+
+const keyFor = (process: string, workerId: number | null, workerCode: string | null) => {
+  const identity = workerId != null
+    ? `id-${workerId}`
+    : workerCode
+      ? `code-${encodeKeyPart(workerCode)}`
+      : "anonymous";
+  return `ktc:process-draft:v2:${identity}:${encodeKeyPart(process)}`;
+};
 
 const FORM_LABELS: Record<string, string> = {
   workerCode: "Mã công nhân",
@@ -120,14 +152,27 @@ function buildDraftResumeMessage(draft: ProcessDraft): string {
 
 export function loadProcessDraft(process: string): ProcessDraft | null {
   try {
-    const raw = localStorage.getItem(keyFor(process));
+    const { workerId, workerCode } = getCurrentWorkerIdentity();
+    // No authenticated worker => never restore a worker draft.
+    if (workerId == null && !workerCode) return null;
+
+    const raw = localStorage.getItem(keyFor(process, workerId, workerCode));
     if (!raw) return null;
+
     const value = JSON.parse(raw) as ProcessDraft;
-    if (value?.version !== 1 || value.process !== process || !hasMeaningfulProcessDraft(value)) return null;
+    if (
+      value?.version !== 2 ||
+      value.process !== process ||
+      !hasMeaningfulProcessDraft(value)
+    ) return null;
+
+    // Defense in depth: verify the draft owner against the current auth user.
+    if (value.ownerWorkerId != null && workerId != null && Number(value.ownerWorkerId) !== workerId) return null;
+    if (value.ownerWorkerCode && workerCode && String(value.ownerWorkerCode).trim() !== workerCode) return null;
 
     const shouldResume = window.confirm(buildDraftResumeMessage(value));
     if (!shouldResume) {
-      localStorage.removeItem(keyFor(process));
+      localStorage.removeItem(keyFor(process, workerId, workerCode));
       return null;
     }
 
@@ -138,11 +183,27 @@ export function loadProcessDraft(process: string): ProcessDraft | null {
 }
 
 export function saveProcessDraft(draft: ProcessDraft): void {
-  try { localStorage.setItem(keyFor(draft.process), JSON.stringify(draft)); } catch { /* storage unavailable */ }
+  try {
+    const { workerId, workerCode } = getCurrentWorkerIdentity();
+    // Never persist an unscoped draft. This prevents accidental cross-user data.
+    if (workerId == null && !workerCode) return;
+
+    const ownedDraft: ProcessDraft = {
+      ...draft,
+      version: 2,
+      ownerWorkerId: workerId,
+      ownerWorkerCode: workerCode,
+    };
+    localStorage.setItem(keyFor(draft.process, workerId, workerCode), JSON.stringify(ownedDraft));
+  } catch { /* storage unavailable */ }
 }
 
 export function clearProcessDraft(process: string): void {
-  try { localStorage.removeItem(keyFor(process)); } catch { /* noop */ }
+  try {
+    const { workerId, workerCode } = getCurrentWorkerIdentity();
+    if (workerId == null && !workerCode) return;
+    localStorage.removeItem(keyFor(process, workerId, workerCode));
+  } catch { /* noop */ }
 }
 
 export function hasMeaningfulProcessDraft(draft: ProcessDraft): boolean {
