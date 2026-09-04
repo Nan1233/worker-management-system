@@ -22,8 +22,15 @@ const readIncomingTimes = (): TimeDetails => {
     const actualMinutes = Number(document.querySelector<HTMLInputElement>('[data-worker-time-part="actual-minutes"]')?.value || 0);
     const deductionValue = document.querySelector<HTMLInputElement>('[data-worker-time-value="deduction"]')?.value || "0";
 
-    const actual = Math.max(0, (Number.isFinite(actualHours) ? actualHours : 0) + (Number.isFinite(actualMinutes) ? actualMinutes : 0) / 60);
-    const deduction = Math.max(0, parseFlexibleTime(deductionValue));
+    const safeActualHours = Number.isFinite(actualHours) ? Math.max(0, actualHours) : 0;
+    const safeActualMinutes = Number.isFinite(actualMinutes) ? Math.max(0, actualMinutes) : 0;
+    const actual = safeActualHours + safeActualMinutes / 60;
+
+    // parseFlexibleTime intentionally returns NaN for malformed input. The
+    // confirmation dialog must never expose NaN, so invalid/empty deduction
+    // input is treated as 0 here. The backend remains the final validator.
+    const parsedDeduction = parseFlexibleTime(deductionValue);
+    const deduction = Number.isFinite(parsedDeduction) ? Math.max(0, parsedDeduction) : 0;
 
     // Do not trust the read-only total input here. It can temporarily contain
     // a stale value while React is committing the latest actual/deduction edits.
@@ -36,7 +43,8 @@ const readIncomingTimes = (): TimeDetails => {
 const readWorkDate = (): string => document.querySelector<HTMLInputElement>("#workerWorkDate")?.value || "";
 
 const formatHours = (hours: number): string => {
-    const totalMinutes = Math.max(0, Math.round(hours * 60));
+    const safeHours = Number.isFinite(hours) ? Math.max(0, hours) : 0;
+    const totalMinutes = Math.max(0, Math.round(safeHours * 60));
     const wholeHours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
     if (minutes === 0) return `${wholeHours} giờ`;
@@ -60,7 +68,8 @@ export default function ProcessSubmitActions({ duplicatePrompt, canUpdateExistin
         setDailyHoursError("");
         try {
             const summary = await getMyDailyWorkingHours(workDate);
-            const existingTotal = Math.max(0, Number(summary.counted_hours || 0));
+            const rawExistingTotal = Number(summary.counted_hours || 0);
+            const existingTotal = Number.isFinite(rawExistingTotal) ? Math.max(0, rawExistingTotal) : 0;
             const promptTotal = existingTotal + incoming.total;
             setDailyTimeDetails({ actual: incoming.actual, deduction: incoming.deduction, total: promptTotal });
             setDailyHoursPrompt(promptTotal);
