@@ -147,7 +147,12 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
                 `Chưa có định mức hợp lệ cho ${productCode} trên máy ${machines[0].machine_code}`;
             continue;
         }
+
+        // Định mức là mốc chuẩn cho sản lượng OK. Cho phép sản lượng OK cao hơn
+        // định mức nhưng tối đa 200%. NG không bị giới hạn bởi định mức vì số NG
+        // chỉ biết chính xác sau khi công nhân khai báo chi tiết lỗi.
         const maximumOutput = standardOutput * machineTimeHours;
+        const maximumOkOutput = maximumOutput * 2;
         const excludeKqdFromTt = Number(resolvedStandard.excludeKqdFromTt || 0) === 1 ? 1 : 0;
         const outputMetrics = calculateProductionOutput({
             ok: okQuantity,
@@ -157,9 +162,9 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
         const excludedKqdQuantity = outputMetrics.excludedKqd;
         const countedOutput = outputMetrics.actualOutput;
         const earnedStandardHours = standardOutput > 0 ? countedOutput / standardOutput : 0;
-        if (okQuantity + ngQuantity > maximumOutput + 0.0001) {
+        if (okQuantity > maximumOkOutput + 0.0001) {
             errors[`machine_lines.${index}.output`] =
-                `Máy ${machines[0].machine_code}: OK + NG không được vượt ${Math.floor(maximumOutput).toLocaleString("vi-VN")} sản phẩm`;
+                `Máy ${machines[0].machine_code}: OK không được vượt 200% định mức (${Math.floor(maximumOkOutput).toLocaleString("vi-VN")} sản phẩm)`;
             continue;
         }
 
