@@ -13,6 +13,10 @@ exports.promoteWorkerToLead = async (req, res) => {
     const targetId = Number(req.params.id);
     if (!Number.isInteger(targetId) || targetId <= 0) return res.status(400).json({ success:false, message:'ID người dùng không hợp lệ' });
 
+    if (!['admin', 'manager'].includes(String(req.user?.role || '').toLowerCase())) {
+      return res.status(403).json({ success:false, message:'Chỉ Admin hoặc Quản lý mới có quyền nâng công nhân lên tổ trưởng' });
+    }
+
     const [targets] = await connection.query(
       `SELECT u.id,u.role,u.status,u.full_name,u.username,w.id AS worker_id,w.worker_code
        FROM users u LEFT JOIN workers w ON w.user_id=u.id WHERE u.id=? LIMIT 1`, [targetId]
