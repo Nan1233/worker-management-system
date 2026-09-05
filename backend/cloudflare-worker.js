@@ -21,6 +21,19 @@ if (typeof env.TIDB_DATABASE_URL === "string" && env.TIDB_DATABASE_URL) {
   }
 }
 
+// The Cloudflare frontend has a fixed Worker origin. Add it here as a
+// Cloudflare-only fallback so CORS does not depend on the dashboard variable
+// being present or correctly formatted. Existing configured origins are kept.
+const cloudflareFrontendOrigin = "https://ktc-frontend.nan978971.workers.dev";
+const configuredCorsOrigins = String(process.env.CORS_ORIGINS || "")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
+if (!configuredCorsOrigins.includes(cloudflareFrontendOrigin)) {
+  configuredCorsOrigins.push(cloudflareFrontendOrigin);
+}
+process.env.CORS_ORIGINS = configuredCorsOrigins.join(",");
+
 // Wrangler deploys with NODE_ENV=production. Do not assign to NODE_ENV here:
 // Wrangler statically defines it during bundling.
 process.env.PORT = process.env.PORT || "3000";
