@@ -4,9 +4,10 @@ const path = require("path");
 
 const router = express.Router();
 
+// Cloudflare Workers does not provide CommonJS __dirname.  The Worker root
+// is the backend directory, so resolve the bundled mobile profile from cwd.
 const IOS_PROFILE_PATH = path.resolve(
-  __dirname,
-  "..",
+  process.cwd(),
   "mobile",
   "ios",
   "KTC-Production-Control.mobileconfig",
