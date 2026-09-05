@@ -6,8 +6,6 @@ const permission = require('../middleware/permissionMiddleware');
 const { expensiveUserLimiter } = require('../middleware/rateLimiters');
 const { exportRequestGuard } = require('../middleware/exportRequestGuard');
 const validate = require('../middleware/validateRequest');
-const companyExcelDataController = require('../controllers/companyExcelDataController');
-const desktopExcelExportController = require('../controllers/desktopExcelExportController');
 const { anyEnvEnabled } = require('../utils/featureFlags');
 
 const roles = checkRole('admin', 'manager', 'lead');
@@ -52,12 +50,14 @@ router.get('/export-excel/company-status', authMiddleware, roles, canExport, (re
   serverHeavyExcel: false
 }));
 
-router.get('/export-excel/company-data', authMiddleware, roles, canExport, companyExcelDataController.get);
-router.get('/export-excel/processes', authMiddleware, roles, canExport, desktopExcelExportController.listProcesses);
+// Excel-heavy controllers are intentionally lazy-loaded. This keeps the
+// Cloudflare Worker bundle from evaluating Node filesystem/template code at
+// startup. The Desktop/Render deployment keeps the same runtime behavior.
+router.get('/export-excel/company-data', authMiddleware, roles, canExport,
+  lazyController('../controllers/companyExcelDataController', 'get'));
+router.get('/export-excel/processes', authMiddleware, roles, canExport,
+  lazyController('../controllers/desktopExcelExportController', 'listProcesses'));
 
-// Guard duplicate/concurrent Excel POST requests before the expensive rate limiter.
-// A retry storm for the same target becomes a controlled 409 instead of consuming
-// the user's 429 budget.
 router.post('/export-excel', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'} }), lazyController('../controllers/reportExportController', 'exportGiaCongExcel'));
 router.post('/export-excel/process', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'}, processId:{required:true,type:'number'} }), lazyController('../controllers/desktopExcelExportController', 'exportProcess'));
 router.get('/export-excel/company-files', authMiddleware, roles, canExport, lazyController('../controllers/desktopExcelExportController', 'listCompanyFiles'));
