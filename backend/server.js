@@ -52,6 +52,7 @@ const { resolveTrustProxySetting } = require("./services/proxyTrustPolicy");
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const isProduction = process.env.NODE_ENV === "production";
+const isCloudflareWorker = process.env.KTC_CLOUDFLARE_WORKER === "true";
 
 function parseCorsOrigins() {
   const configured = String(process.env.CORS_ORIGINS || "")
@@ -61,8 +62,8 @@ function parseCorsOrigins() {
 
   return new Set([
     "http://localhost:5173",
-    "https://localhost", // Capacitor Android native WebView
-    "capacitor://localhost", // Reserved for Capacitor native clients
+    "https://localhost",
+    "capacitor://localhost",
     "https://worker-management-system-3-dzox.onrender.com",
     ...configured,
   ]);
@@ -70,8 +71,6 @@ function parseCorsOrigins() {
 
 const allowedOrigins = parseCorsOrigins();
 
-// Trust proxy chỉ bật khi deployment được nhận diện/cấu hình rõ ràng.
-// Mặc định local/unknown deployment không tin X-Forwarded-For do client tự gửi.
 app.set("trust proxy", resolveTrustProxySetting(process.env));
 app.disable("x-powered-by");
 app.set("etag", "weak");
@@ -85,8 +84,6 @@ app.use(
   }),
 );
 
-// Explicitly deny browser capabilities the API never needs. This is defense-in-depth
-// for pages embedding the API response or accidentally serving an HTML error page.
 app.use((_req, res, next) => {
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
   next();
@@ -95,7 +92,6 @@ app.use((_req, res, next) => {
 app.use(
   cors({
     origin(origin, callback) {
-      // Native Electron, curl and server-to-server calls may not send Origin.
       if (!origin || allowedOrigins.has(origin)) return callback(null, true);
       const error = new Error("Nguồn truy cập không được phép bởi CORS");
       error.status = 403;
@@ -105,13 +101,13 @@ app.use(
     },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
-    "Content-Type",
-    "Authorization",
-    "Idempotency-Key",
-    "X-Cron-Secret",
-    "X-Request-Id",
-    "X-Frontend-Version",
-],
+      "Content-Type",
+      "Authorization",
+      "Idempotency-Key",
+      "X-Cron-Secret",
+      "X-Request-Id",
+      "X-Frontend-Version",
+    ],
     credentials: true,
     maxAge: 86_400,
   }),
@@ -124,7 +120,6 @@ app.use(express.urlencoded({
   parameterLimit: Number(process.env.URLENCODED_PARAMETER_LIMIT || 1000),
 }));
 
-// Reject pathological query strings before they reach controllers/DB builders.
 app.use((req, res, next) => {
   const maxQueryLength = Number(process.env.MAX_QUERY_STRING_LENGTH || 4096);
   if (req.originalUrl.split('?')[1]?.length > maxQueryLength) {
@@ -179,13 +174,9 @@ app.use((req, res, next) => {
 
 app.use("/api", globalApiLimiter);
 app.use("/api", (req, res, next) => {
-  // Authenticated production data must not be cached by shared proxies.
   res.setHeader("Cache-Control", "private, no-store");
   next();
 });
-
-// Ghi lại mọi thao tác tạo/sửa/xóa sau khi request hoàn tất thành công.
-// Middleware đặt trước routes để có thể quan sát req.user do auth middleware gắn ở downstream.
 app.use("/api", require("./middleware/activityAuditMiddleware"));
 
 app.get("/api/health/live", (_req, res) => {
@@ -249,11 +240,8 @@ function readinessHandler(_req, res) {
 }
 
 app.get("/api/health/ready", readinessHandler);
-
-// Backward-compatible deployment health endpoint: same cached readiness semantics.
 app.get("/api/health", readinessHandler);
 
-// F16 disaster-restore maintenance gate: health stays readable, all API writes are quiesced.
 app.use("/api", (req, res, next) => {
   if (String(process.env.KTC_MAINTENANCE_MODE || "").toUpperCase() !== "RESTORE") return next();
   if (["GET", "HEAD", "OPTIONS"].includes(String(req.method || "").toUpperCase())) return next();
@@ -272,7 +260,6 @@ app.use("/api/workers", workerRoutes);
 app.use("/api/production", productionRoutes);
 app.use("/api/production-temp", productionTempRoutes);
 app.use("/api/manager", managerRoutes);
-
 app.use("/api/reports", reportExportRoutes);
 console.log("[KTC] Company Excel API v3 mounted at /api/reports/export-excel/company-*");
 app.use("/api/sync-jobs", syncJobRoutes);
@@ -344,8 +331,6 @@ async function warmFrequentlyUsedMasterData() {
       "SELECT id FROM processes WHERE status = 'active' ORDER BY id LIMIT 20"
     );
 
-    // Nạp tuần tự để chỉ tái sử dụng một vài kết nối TiDB thay vì mở nhiều
-    // TLS session đồng thời ngay sau khi Render khởi động.
     for (const row of processRows) {
       const processId = Number(row.id);
       await getOrLoadMasterData(`machines:${processId}`, TTL.machines, () => machineModel.findByProcess(processId));
@@ -391,7 +376,12 @@ async function initializeRuntime() {
     runtimeReadiness.schemaContractVersion = diagnostics.contractVersion;
     console.log(`Database schema READY: ${schema.expectedLatest?.filename || "none"}`);
 
-    await excelExportJobQueue.initialize();
+    // The Excel queue is intentionally owned by the Node/Render worker. The
+    // Cloudflare deployment only serves HTTP/API traffic so it cannot create a
+    // second long-lived background processor.
+    if (!isCloudflareWorker) {
+      await excelExportJobQueue.initialize();
+    }
 
     runtimeReadiness.ready = true;
     runtimeReadiness.readyAt = Date.now();
@@ -404,10 +394,12 @@ async function initializeRuntime() {
 
     console.log(`[KTC] runtime READY in ${runtimeReadiness.readyAt - runtimeReadiness.startedAt}ms`);
 
-    startDatabaseKeepAlive();
-    void warmFrequentlyUsedMasterData();
-    void logProductionIndexAudit(db);
-    startProductionIndexAuditScheduler(db);
+    if (!isCloudflareWorker) {
+      startDatabaseKeepAlive();
+      void warmFrequentlyUsedMasterData();
+      void logProductionIndexAudit(db);
+      startProductionIndexAuditScheduler(db);
+    }
   } catch (error) {
     const safeDetails = error?.details || {};
     runtimeReadiness.ready = false;
@@ -427,7 +419,6 @@ async function initializeRuntime() {
       message: runtimeReadiness.errorMessage,
     }));
 
-    // Fail the instance instead of leaving Render waiting forever.
     if (!startupFailureTimer) {
       const exitDelayMs = Math.max(
         5_000,
@@ -444,7 +435,6 @@ async function initializeRuntime() {
 
 async function start() {
   try {
-    // Environment validation is synchronous and must pass before exposing the port.
     validateEnvironment(process.env, { production: isProduction });
   } catch (error) {
     console.error(JSON.stringify({
@@ -463,8 +453,6 @@ async function start() {
     void initializeRuntime();
   });
 
-  // Bound slow-client/resource exhaustion without imposing an application timeout
-  // on long-running Excel jobs, which are handled asynchronously.
   server.requestTimeout = Math.max(30_000, Number(process.env.HTTP_REQUEST_TIMEOUT_MS || 120_000));
   server.headersTimeout = Math.max(15_000, Number(process.env.HTTP_HEADERS_TIMEOUT_MS || 30_000));
   server.keepAliveTimeout = Math.max(5_000, Number(process.env.HTTP_KEEPALIVE_TIMEOUT_MS || 10_000));
@@ -496,4 +484,3 @@ if (require.main === module) {
 }
 
 module.exports = { app, start };
-
