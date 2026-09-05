@@ -25,6 +25,6 @@ process.env.PORT = process.env.PORT || "3000";
 process.env.KTC_CLOUDFLARE_WORKER = "true";
 
 const { start } = require("./server.js");
-await start();
+const server = await start();
 
-export default httpServerHandler({ port: 3000 });
+export default httpServerHandler(server);
