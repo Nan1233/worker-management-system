@@ -4,7 +4,7 @@ const path = require('node:path');
 const fs = require('node:fs/promises');
 
 const TEMPLATE_CANDIDATES = [
-  path.join(__dirname, '../templates/KTC-Bao-cao-9-cong-doan.xlsx')
+  path.join(process.cwd(), 'templates/KTC-Bao-cao-9-cong-doan.xlsx')
 ];
 
 const PROCESS_TEMPLATE_CONTRACTS = Object.freeze({
