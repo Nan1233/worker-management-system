@@ -1,7 +1,7 @@
 import { httpServerHandler } from "cloudflare:node";
 import { env } from "cloudflare:workers";
 import { createRequire } from "node:module";
-import { connect as connectTiDB } from "https://esm.sh/@tidbcloud/serverless";
+import { connect as connectTiDB } from "@tidbcloud/serverless";
 
 // Bridge the existing CommonJS/Express application into the Cloudflare Worker
 // runtime without changing the Render startup path.
