@@ -1,7 +1,6 @@
 import { httpServerHandler } from "cloudflare:node";
 import { env } from "cloudflare:workers";
 import { connect as connectTiDB } from "@tidbcloud/serverless";
-import serverModule from "./server.js";
 
 globalThis.__KTC_CLOUDFLARE_ENV = env;
 globalThis.__KTC_TIDB_CONNECT = connectTiDB;
@@ -25,7 +24,7 @@ process.env.NODE_ENV = process.env.NODE_ENV || "production";
 process.env.PORT = process.env.PORT || "3000";
 process.env.KTC_CLOUDFLARE_WORKER = "true";
 
-const { start } = serverModule;
+const { start } = require("./server.js");
 await start();
 
 export default httpServerHandler({ port: 3000 });
