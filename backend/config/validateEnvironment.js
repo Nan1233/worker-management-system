@@ -3,6 +3,13 @@ function clean(value) {
 }
 
 function validateEnvironment(env = process.env, { production = env.NODE_ENV === 'production' } = {}) {
+  // Cloudflare Workers uses TiDB's HTTPS serverless driver and does not need
+  // the legacy DB_HOST/DB_USER/DB_PASSWORD production checks used by Render.
+  // Keep the strict validation for every normal Node/Render deployment.
+  if (globalThis.__KTC_CLOUDFLARE_WORKER === true) {
+    return { valid: true, missing: [] };
+  }
+
   if (!production) return { valid: true, missing: [] };
 
   const required = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME', 'JWT_SECRET'];
