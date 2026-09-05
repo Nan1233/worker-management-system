@@ -43,6 +43,7 @@
     "e2e:critical": "node ../scripts/stagingE2E.cjs"
   },
   "dependencies": {
+    "@tidbcloud/serverless": "0.3.0",
     "bcrypt": "6.0.0",
     "cors": "2.8.6",
     "dotenv": "17.4.2",
