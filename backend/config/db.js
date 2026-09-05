@@ -4,8 +4,8 @@ const dotenv = require("dotenv");
 
 dotenv.config();
 
-const hyperdrive = globalThis.__KTC_HYPERDRIVE;
-const isCloudflareWorker = Boolean(globalThis.__KTC_CLOUDFLARE_ENV || hyperdrive);
+const isCloudflareWorker = Boolean(globalThis.__KTC_CLOUDFLARE_ENV);
+const tidbConnect = globalThis.__KTC_TIDB_CONNECT;
 
 const requiredVariables = ["DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME"];
 
@@ -39,46 +39,170 @@ const ssl = useSsl
     }
   : undefined;
 
-function createCloudflareConnection() {
-  if (!hyperdrive) {
-    throw new Error("Cloudflare Worker thiếu binding HYPERDRIVE");
+function getTiDBDatabaseUrl() {
+  const url = String(process.env.TIDB_DATABASE_URL || "").trim();
+  if (!url) {
+    throw new Error("Cloudflare Worker thiếu secret TIDB_DATABASE_URL");
+  }
+  return url;
+}
+
+function assertCloudflareDriver() {
+  if (!tidbConnect) {
+    throw new Error("Cloudflare Worker chưa nạp được TiDB Serverless Driver");
+  }
+}
+
+function normalizeExecuteResult(result) {
+  // TiDB Serverless Driver with fullResult=true returns an object containing
+  // rows for SELECT-like statements and rowsAffected/lastInsertId for writes.
+  if (result && typeof result === "object" && !Array.isArray(result)) {
+    if (Array.isArray(result.rows)) {
+      return [result.rows, result.fields || []];
+    }
+
+    return [
+      {
+        affectedRows: Number(result.rowsAffected ?? 0),
+        insertId: Number(result.lastInsertId ?? 0),
+        changedRows: Number(result.rowsAffected ?? 0),
+        warningStatus: 0,
+      },
+      result.fields || [],
+    ];
   }
 
-  return mysqlPromise.createConnection({
-    host: hyperdrive.host,
-    port: hyperdrive.port,
-    user: hyperdrive.user,
-    password: hyperdrive.password,
-    database: hyperdrive.database,
-    disableEval: true,
+  return [Array.isArray(result) ? result : [], []];
+}
+
+function splitQueryArgs(args) {
+  let callback = null;
+  const values = [...args];
+  if (typeof values[values.length - 1] === "function") callback = values.pop();
+
+  let sql = values[0];
+  let params = values[1];
+  if (sql && typeof sql === "object") {
+    params = sql.values ?? sql.params ?? params;
+    sql = sql.sql;
+  }
+
+  return {
+    sql: String(sql ?? ""),
+    params: Array.isArray(params) ? params : params == null ? [] : [params],
+    callback,
+  };
+}
+
+function createCloudflareConnection() {
+  assertCloudflareDriver();
+
+  const conn = tidbConnect({
+    url: getTiDBDatabaseUrl(),
   });
+
+  let transaction = null;
+  let closed = false;
+
+  async function executeRaw(sql, params = []) {
+    if (closed) throw new Error("Database connection đã được đóng");
+    const client = transaction || conn;
+    return client.execute(sql, params, { fullResult: true });
+  }
+
+  async function queryPromise(...args) {
+    const { sql, params } = splitQueryArgs(args);
+    if (!sql) throw new Error("SQL query rỗng");
+    return normalizeExecuteResult(await executeRaw(sql, params));
+  }
+
+  async function executePromise(...args) {
+    const { sql, params } = splitQueryArgs(args);
+    if (!sql) throw new Error("SQL execute rỗng");
+    return normalizeExecuteResult(await executeRaw(sql, params));
+  }
+
+  function callbackOrPromise(operation, args) {
+    const { callback } = splitQueryArgs(args);
+    const promise = operation(...args);
+    if (!callback) return promise;
+    promise.then(
+      ([result, fields]) => callback(null, result, fields),
+      (error) => callback(error),
+    );
+    return undefined;
+  }
+
+  return {
+    query(...args) {
+      return callbackOrPromise(queryPromise, args);
+    },
+    execute(...args) {
+      return callbackOrPromise(executePromise, args);
+    },
+    async beginTransaction(callback) {
+      const promise = (async () => {
+        if (transaction) throw new Error("Transaction đã được mở trên connection này");
+        transaction = await conn.begin();
+      })();
+      if (typeof callback === "function") {
+        promise.then(() => callback(null), callback);
+        return undefined;
+      }
+      return promise;
+    },
+    async commit(callback) {
+      const promise = (async () => {
+        if (!transaction) throw new Error("Không có transaction đang mở");
+        const current = transaction;
+        transaction = null;
+        await current.commit();
+      })();
+      if (typeof callback === "function") {
+        promise.then(() => callback(null), callback);
+        return undefined;
+      }
+      return promise;
+    },
+    async rollback(callback) {
+      const promise = (async () => {
+        if (!transaction) return;
+        const current = transaction;
+        transaction = null;
+        await current.rollback();
+      })();
+      if (typeof callback === "function") {
+        promise.then(() => callback(null), callback);
+        return undefined;
+      }
+      return promise;
+    },
+    async release() {
+      closed = true;
+      transaction = null;
+    },
+    async end() {
+      closed = true;
+      transaction = null;
+    },
+  };
 }
 
 function createCloudflareDbFacade() {
-  const getConnection = async () => {
-    const connection = await createCloudflareConnection();
-    // Existing KTC code calls release() on pooled connections. For a
-    // per-request Hyperdrive connection, release means closing that session.
-    connection.release = connection.end.bind(connection);
-    return connection;
-  };
+  const getConnection = async () => createCloudflareConnection();
 
   const promiseApi = {
-    query: async (...args) => {
-      const connection = await getConnection();
-      try {
-        return await connection.query(...args);
-      } finally {
-        await connection.end();
-      }
+    query: (...args) => {
+      const { sql, params } = splitQueryArgs(args);
+      return createCloudflareConnection().then((connection) =>
+        connection.query(sql, params).finally(() => connection.release()),
+      );
     },
-    execute: async (...args) => {
-      const connection = await getConnection();
-      try {
-        return await connection.execute(...args);
-      } finally {
-        await connection.end();
-      }
+    execute: (...args) => {
+      const { sql, params } = splitQueryArgs(args);
+      return createCloudflareConnection().then((connection) =>
+        connection.execute(sql, params).finally(() => connection.release()),
+      );
     },
     getConnection,
     end: async () => {},
@@ -86,14 +210,37 @@ function createCloudflareDbFacade() {
 
   return {
     promise: () => promiseApi,
-    query: (...args) => promiseApi.query(...args),
-    execute: (...args) => promiseApi.execute(...args),
+    query(...args) {
+      return callbackOrPromiseFacade(promiseApi.query, args);
+    },
+    execute(...args) {
+      return callbackOrPromiseFacade(promiseApi.execute, args);
+    },
+    getConnection(callback) {
+      const promise = getConnection();
+      if (typeof callback === "function") {
+        promise.then((connection) => callback(null, connection), callback);
+        return undefined;
+      }
+      return promise;
+    },
   };
 }
 
-// Cloudflare Workers cannot keep a traditional Node TCP pool alive between
-// requests. Hyperdrive owns the upstream connection pool, so create a fresh
-// mysql2/promise connection per operation while preserving transaction APIs.
+function callbackOrPromiseFacade(operation, args) {
+  const { callback } = splitQueryArgs(args);
+  const promise = operation(...args);
+  if (!callback) return promise;
+  promise.then(
+    ([result, fields]) => callback(null, result, fields),
+    (error) => callback(error),
+  );
+  return undefined;
+}
+
+// Cloudflare Workers use TiDB Cloud Serverless Driver over HTTPS. This avoids
+// long-lived TCP connections and Hyperdrive while preserving the mysql2-like
+// query/transaction API expected by the existing KTC models.
 if (isCloudflareWorker) {
   const cloudflareDb = createCloudflareDbFacade();
 
