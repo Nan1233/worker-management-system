@@ -36,6 +36,12 @@ export default function ProcessWorkerHeader({
                 background: "#f3f7fc",
             }}
         >
+            <style>{`
+                @media (max-width: 500px) {
+                    .worker-sticky-training-label { display: none; }
+                    .worker-sticky-training { white-space: nowrap; }
+                }
+            `}</style>
             <header className="worker-form-header">
                 <div
                     className="worker-form-title-row"
