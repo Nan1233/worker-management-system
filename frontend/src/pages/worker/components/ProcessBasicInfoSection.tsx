@@ -1,4 +1,4 @@
-import type { ChangeEvent, Dispatch, SetStateAction } from "react";
+import { useState, type ChangeEvent, type Dispatch, type SetStateAction } from "react";
 import AutocompleteInput from "../../../components/common/AutocompleteInput";
 import type { AutocompleteOption } from "../../../components/common/AutocompleteInput";
 import type { ProductStandardOption } from "../../../services/masterDataService";
@@ -33,7 +33,6 @@ interface Props {
     getMachineProductAutocompleteOptions: (machineCode: string) => AutocompleteOption[];
     productOptions: ProductStandardOption[];
     machineAutocompleteOptions: AutocompleteOption[];
-    machineOptions?: unknown;
     loadingMasterData: boolean;
     machineCount: number;
     maxMachineCount: number;
@@ -75,6 +74,10 @@ export default function ProcessBasicInfoSection({
     toggleMachineDefect,
     updateMachineDefectValue,
 }: Props) {
+    const [longExecutionMode, setLongExecutionMode] = useState<"MANUAL" | "MACHINE" | "AIR">(
+        operationMode === "MACHINE" ? "MACHINE" : "MANUAL",
+    );
+
     const setProduct = (value: string) => {
         const selectedProduct = productOptions.find(
             (item) => item.product_code.trim().toLowerCase() === value.trim().toLowerCase(),
@@ -84,6 +87,24 @@ export default function ProcessBasicInfoSection({
             productName: value,
             standardOutput: selectedProduct ? String(Number(selectedProduct.standard_output)) : "",
         }));
+    };
+
+    const handleOperationTypeChange = (nextType: OperationType) => {
+        setOperationType(nextType);
+        if (nextType === "CUT") {
+            setOperationMode("MACHINE");
+            setLongExecutionMode("MACHINE");
+            return;
+        }
+
+        setOperationMode("MANUAL");
+        setLongExecutionMode("MANUAL");
+    };
+
+    const handleLongExecutionModeChange = (mode: "MANUAL" | "MACHINE" | "AIR") => {
+        setLongExecutionMode(mode);
+        // Backend hiện dùng MANUAL/MACHINE. Lồng khí dùng nhánh MACHINE để giữ nguyên contract hiện tại.
+        setOperationMode(mode === "MANUAL" ? "MANUAL" : "MACHINE");
     };
 
     return (
@@ -114,16 +135,24 @@ export default function ProcessBasicInfoSection({
                         <div className="worker-mode-group">
                             <div className="worker-mode-label">Loại gia công</div>
                             <div className="worker-choice-row">
-                                <button type="button" className={operationType === "CUT" ? "active" : ""} onClick={() => setOperationType("CUT")}>Cắt</button>
-                                <button type="button" className={operationType === "LONG" ? "active" : ""} onClick={() => setOperationType("LONG")}>Lồng</button>
+                                <button type="button" className={operationType === "CUT" ? "active" : ""} onClick={() => handleOperationTypeChange("CUT")}>Cắt</button>
+                                <button type="button" className={operationType === "LONG" ? "active" : ""} onClick={() => handleOperationTypeChange("LONG")}>Lồng</button>
                             </div>
                         </div>
-                        <div className="worker-mode-group">
+                        <div className="worker-mode-group worker-execution-mode-group">
                             <div className="worker-mode-label">Hình thức thực hiện</div>
-                            <div className="worker-choice-row">
-                                <button type="button" className={operationMode === "MANUAL" ? "active" : ""} onClick={() => setOperationMode("MANUAL")}>Tay</button>
-                                <button type="button" className={operationMode === "MACHINE" ? "active" : ""} onClick={() => setOperationMode("MACHINE")}>Máy</button>
-                            </div>
+                            {operationType === "CUT" ? (
+                                <div className="worker-choice-row">
+                                    <button type="button" className={operationMode === "MACHINE" ? "active" : ""} onClick={() => setOperationMode("MACHINE")}>Cắt tự động</button>
+                                    <button type="button" className={operationMode === "MANUAL" ? "active" : ""} onClick={() => setOperationMode("MANUAL")}>Cắt không tự động</button>
+                                </div>
+                            ) : (
+                                <div className="worker-choice-row">
+                                    <button type="button" className={longExecutionMode === "MANUAL" ? "active" : ""} onClick={() => handleLongExecutionModeChange("MANUAL")}>Lồng tay</button>
+                                    <button type="button" className={longExecutionMode === "MACHINE" ? "active" : ""} onClick={() => handleLongExecutionModeChange("MACHINE")}>Lồng máy</button>
+                                    <button type="button" className={longExecutionMode === "AIR" ? "active" : ""} onClick={() => handleLongExecutionModeChange("AIR")}>Lồng khí</button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
