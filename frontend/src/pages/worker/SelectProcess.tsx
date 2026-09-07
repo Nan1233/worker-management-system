@@ -34,7 +34,7 @@ const processIconMap: Record<string, IconName> = {
     EP: "press",
     XLBV: "deburr",
     SX3: "assembly",
-    CVK: "support",
+    CVK: "process",
 };
 
 const allProcesses = [
