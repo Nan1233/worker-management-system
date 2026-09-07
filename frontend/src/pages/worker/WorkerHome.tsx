@@ -98,7 +98,7 @@ export default function WorkerHome() {
             <p>Chúc bạn một ngày làm việc hiệu quả!</p>
             <div className="worker-home-identity">
               <span>KTC-{worker?.worker_code || "--"}</span>
-              <span className="worker-home-training">Học việc: {formatPercent(trainingPercent)}</span>
+              <span className="worker-home-training">HV: {formatPercent(trainingPercent)}</span>
             </div>
           </div>
         </section>
