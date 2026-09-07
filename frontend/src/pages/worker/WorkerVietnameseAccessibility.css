@@ -10,20 +10,12 @@
 .worker-layout button,
 .worker-layout input,
 .worker-layout select,
-.worker-layout textarea {
-  font-family: inherit;
-}
+.worker-layout textarea { font-family: inherit; }
 
-.worker-nav::before {
-  content: "KHU VỰC LÀM VIỆC";
-  font-size: 13px;
-  letter-spacing: .06em;
-}
-
+.worker-nav::before { content: "KHU VỰC LÀM VIỆC"; font-size: 13px; letter-spacing: .06em; }
 .worker-nav button,
 .worker-logout,
 .worker-mobile-nav button { font-size: 13px; }
-
 .worker-brand strong,
 .worker-brand small { font-size: 13px; }
 
@@ -32,34 +24,26 @@
   .worker-mobile-nav button span { font-size: 13px; }
 }
 
-/* Do not apply the old global 13px minimum to Worker Home. */
 body :where(.worker-home-page) :where(p, span, small, label, th, td, button, input, select, textarea,
   option, a, li, dt, dd, legend, summary, caption, figcaption, h1, h2, h3, h4, h5, h6) {
   font-size: revert-layer !important;
   font-family: inherit;
 }
-
 body :where(.worker-home-page) :where(h1) { font-size: revert-layer !important; }
 body :where(.worker-home-page) :where(h2) { font-size: revert-layer !important; }
 body :where(.worker-home-page) :where(h3) { font-size: revert-layer !important; }
 body :where(.worker-home-page) :where(h4) { font-size: revert-layer !important; }
 
-/* Global readability rule for other Worker screens. */
 body :where(.worker-content:not(:has(.worker-home-page)), .worker-sidebar, .worker-header, .worker-mobile-nav) :where(p, span, small, label, th, td, button, input, select, textarea,
   option, a, li, dt, dd, legend, summary, caption, figcaption, h1, h2, h3, h4, h5, h6) {
   font-size: max(13px, 1em) !important;
   font-family: inherit;
 }
-
 body :where(.worker-content:not(:has(.worker-home-page)), .worker-sidebar, .worker-header, .worker-mobile-nav) :where(h1) { font-size: max(24px, 1em) !important; }
 body :where(.worker-content:not(:has(.worker-home-page)), .worker-sidebar, .worker-header, .worker-mobile-nav) :where(h2) { font-size: max(20px, 1em) !important; }
 body :where(.worker-content:not(:has(.worker-home-page)), .worker-sidebar, .worker-header, .worker-mobile-nav) :where(h3) { font-size: max(17px, 1em) !important; }
 body :where(.worker-content:not(:has(.worker-home-page)), .worker-sidebar, .worker-header, .worker-mobile-nav) :where(h4) { font-size: max(15px, 1em) !important; }
-
-body :where(.worker-content:not(:has(.worker-home-page)), .worker-sidebar, .worker-header, .worker-mobile-nav) :where(input, select, textarea, button) {
-  font-size: max(13px, 1em) !important;
-}
-
+body :where(.worker-content:not(:has(.worker-home-page)), .worker-sidebar, .worker-header, .worker-mobile-nav) :where(input, select, textarea, button) { font-size: max(13px, 1em) !important; }
 body :where(svg, svg *) { font-size: inherit !important; }
 
 /* Mobile Home: keep text sizes close together so no block looks disproportionately tiny. */
@@ -82,4 +66,17 @@ body :where(svg, svg *) { font-size: inherit !important; }
   body :where(.worker-home-page) .worker-home-report-main strong { font-size: 11.5px !important; }
   body :where(.worker-home-page) .worker-home-report-main small { font-size: 9.5px !important; }
   body :where(.worker-home-page) .worker-home-status { font-size: 9px !important; }
+}
+
+/* Mobile process/report title: smaller and lighter so the full title is easier to see. */
+@media (max-width: 800px) {
+  body :where(.select-process-title-row h1) {
+    font-size: 21px !important;
+    line-height: 1.2 !important;
+    font-weight: 650 !important;
+    letter-spacing: -.02em !important;
+  }
+}
+@media (max-width: 380px) {
+  body :where(.select-process-title-row h1) { font-size: 19px !important; }
 }
