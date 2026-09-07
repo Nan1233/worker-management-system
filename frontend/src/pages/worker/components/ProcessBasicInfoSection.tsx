@@ -33,6 +33,7 @@ interface Props {
     getMachineProductAutocompleteOptions: (machineCode: string) => AutocompleteOption[];
     productOptions: ProductStandardOption[];
     machineAutocompleteOptions: AutocompleteOption[];
+    machineOptions?: unknown[];
     loadingMasterData: boolean;
     machineCount: number;
     maxMachineCount: number;
@@ -103,7 +104,6 @@ export default function ProcessBasicInfoSection({
 
     const handleLongExecutionModeChange = (mode: "MANUAL" | "MACHINE" | "AIR") => {
         setLongExecutionMode(mode);
-        // Backend hiện dùng MANUAL/MACHINE. Lồng khí dùng nhánh MACHINE để giữ nguyên contract hiện tại.
         setOperationMode(mode === "MANUAL" ? "MANUAL" : "MACHINE");
     };
 
