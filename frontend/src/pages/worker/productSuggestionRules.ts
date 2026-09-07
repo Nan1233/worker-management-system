@@ -16,24 +16,13 @@ export const normalizeMachineKey = (value: unknown): string => {
     return numeric ? String(Number(numeric[1])) : code;
 };
 
-/**
- * Master data can carry Cắt/Lồng in either business-language or canonical
- * enum form. Normalize the values before applying the process scope.
- */
 export const normalizeWorkType = (value: unknown): string => {
     const code = normalize(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    if (["CUT", "CAT", "CẮT"].includes(code)) return "CUT";
-    if (["LONG", "LNG", "LỒNG"].includes(code)) return "LONG";
+    if (["CUT", "CAT", "CAT"].includes(code)) return "CUT";
+    if (["LONG", "LNG", "LONG"].includes(code)) return "LONG";
     return code;
 };
 
-/**
- * Some KTC product codes encode a machine target in the final suffix:
- *   C5770-1    -> machine 1
- *   C5770-9    -> machine 9
- *   C5770-auto -> automatic machine
- * Codes without one of these suffixes are treated as the base/manual variant.
- */
 export const getProductMachineHint = (productCode: string): { kind: "AUTO" | "NUMBER"; value: string } | null => {
     const code = normalize(productCode);
     const match = code.match(/-(AUTO|AUTOMATIC|\d+)$/i);
@@ -58,10 +47,9 @@ const eligibleMachineCodes = (product: ProductStandardOption): string[] =>
         .filter(Boolean);
 
 // GC automatic machines are explicitly C5/C6/C7/C11.
-// Keep this fallback even if old master-data rows do not carry is_automatic correctly.
 const GC_AUTOMATIC_MACHINE_CODES = new Set(["C5", "C6", "C7", "C11"]);
 
-const isGcAutomaticMachine = (machineCode: string): boolean =>
+const isGcAutomaticMachine = (machineCode: unknown): boolean =>
     GC_AUTOMATIC_MACHINE_CODES.has(normalize(machineCode));
 
 export const filterProductsForSelection = ({
@@ -99,14 +87,13 @@ export const filterProductsForSelection = ({
         const mappedMachines = eligibleMachineCodes(product);
         const hasExplicitMapping = Number(product.has_machine_specific_standard || 0) === 1 || mappedMachines.length > 0;
 
-        // The product_machine_standards relation is authoritative when it exists.
         if (hasExplicitMapping && !mappedMachines.includes(selectedMachine)) return false;
 
         if (useEncodedMachineSuffix) {
-            // For an automatic GC machine, ONLY the product variants ending in -auto are valid.
+            // Automatic machine => ONLY -AUTO products.
             if (isAutomatic) return hint?.kind === "AUTO";
 
-            // Manual/non-automatic GC machines must never receive an -auto product.
+            // Non-automatic machine => NEVER an -AUTO product.
             if (hint?.kind === "AUTO") return false;
             if (hint?.kind === "NUMBER") return selectedNumber !== null && hint.value === selectedNumber;
 
