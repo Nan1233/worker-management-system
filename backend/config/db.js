@@ -13,6 +13,13 @@ function getMissingDatabaseVariables() {
   return requiredVariables.filter((name) => !process.env[name]);
 }
 
+function assertCloudflareDriver() {
+  if (!isCloudflareWorker) return;
+  if (typeof tidbConnect !== "function") {
+    throw new Error("TiDB Serverless Driver chưa được khởi tạo trong Cloudflare Worker");
+  }
+}
+
 function parsePositiveInteger(value, fallback, { min = 1, max = 100 } = {}) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
   if (!Number.isFinite(parsed)) return fallback;
@@ -41,49 +48,33 @@ const ssl = useSsl
 
 function getTiDBDatabaseUrl() {
   const url = String(process.env.TIDB_DATABASE_URL || "").trim();
-  if (!url) {
-    throw new Error("Cloudflare Worker thiếu secret TIDB_DATABASE_URL");
-  }
+  if (!url) throw new Error("Cloudflare Worker thiếu secret TIDB_DATABASE_URL");
   return url;
 }
 
 function getErrorDetail(error) {
   if (error == null) return "Unknown database error";
   if (typeof error === "string") return error;
-
   const message = typeof error.message === "string" ? error.message.trim() : "";
   const stack = typeof error.stack === "string" ? error.stack.trim() : "";
-  const code = error.code ?? null;
-  const errno = error.errno ?? null;
-  const sqlState = error.sqlState ?? null;
-  const status = error.status ?? error.statusCode ?? null;
-  const name = error.name ?? null;
-
   if (message) return message;
   if (stack) return stack.split("\n")[0] || stack;
-
   try {
     const serialized = JSON.stringify(error);
     if (serialized && serialized !== "{}") return serialized;
-  } catch {
-    // Ignore serialization failures.
-  }
-
+  } catch {}
   return String(error);
 }
 
 function describeDatabaseError(error, sql) {
   const message = getErrorDetail(error);
   const wrapped = new Error(`TiDB query failed: ${message}`);
-
   if (error && typeof error === "object") {
     for (const key of ["code", "errno", "sqlState", "status", "statusCode"]) {
       if (error[key] != null) wrapped[key] = error[key];
     }
   }
-
   wrapped.cause = error;
-
   if (isCloudflareWorker) {
     const details = {
       message,
@@ -92,48 +83,25 @@ function describeDatabaseError(error, sql) {
       errno: error?.errno ?? null,
       sqlState: error?.sqlState ?? null,
       status: error?.status ?? error?.statusCode ?? null,
-      errorString: (() => {
-        try {
-          return String(error);
-        } catch {
-          return "[unavailable]";
-        }
-      })(),
-      ownProperties: (() => {
-        try {
-          return Object.getOwnPropertyNames(error || {});
-        } catch {
-          return [];
-        }
-      })(),
+      errorString: (() => { try { return String(error); } catch { return "[unavailable]"; } })(),
+      ownProperties: (() => { try { return Object.getOwnPropertyNames(error || {}); } catch { return []; } })(),
       sql: String(sql || "").replace(/\s+/g, " ").trim().slice(0, 1000),
     };
-
-    // Use a single string because Workers Logs reliably preserves it even when
-    // the thrown value is a non-Error object from fetch/driver internals.
     console.error(`[KTC][DB] TiDB query error ${JSON.stringify(details)}`);
   }
-
   return wrapped;
 }
 
 function normalizeExecuteResult(result) {
   if (result && typeof result === "object" && !Array.isArray(result)) {
-    if (Array.isArray(result.rows)) {
-      return [result.rows, result.fields || []];
-    }
-
-    return [
-      {
-        affectedRows: Number(result.rowsAffected ?? 0),
-        insertId: Number(result.lastInsertId ?? 0),
-        changedRows: Number(result.rowsAffected ?? 0),
-        warningStatus: 0,
-      },
-      result.fields || [],
-    ];
+    if (Array.isArray(result.rows)) return [result.rows, result.fields || []];
+    return [{
+      affectedRows: Number(result.rowsAffected ?? 0),
+      insertId: Number(result.lastInsertId ?? 0),
+      changedRows: Number(result.rowsAffected ?? 0),
+      warningStatus: 0,
+    }, result.fields || []];
   }
-
   return [Array.isArray(result) ? result : [], []];
 }
 
@@ -141,14 +109,12 @@ function splitQueryArgs(args) {
   let callback = null;
   const values = [...args];
   if (typeof values[values.length - 1] === "function") callback = values.pop();
-
   let sql = values[0];
   let params = values[1];
   if (sql && typeof sql === "object") {
     params = sql.values ?? sql.params ?? params;
     sql = sql.sql;
   }
-
   return {
     sql: String(sql ?? ""),
     params: Array.isArray(params) ? params : params == null ? [] : [params],
@@ -158,11 +124,7 @@ function splitQueryArgs(args) {
 
 function createCloudflareConnection() {
   assertCloudflareDriver();
-
-  const conn = tidbConnect({
-    url: getTiDBDatabaseUrl(),
-  });
-
+  const conn = tidbConnect({ url: getTiDBDatabaseUrl() });
   let transaction = null;
   let closed = false;
 
@@ -192,114 +154,65 @@ function createCloudflareConnection() {
     const { callback } = splitQueryArgs(args);
     const promise = operation(...args);
     if (!callback) return promise;
-    promise.then(
-      ([result, fields]) => callback(null, result, fields),
-      (error) => callback(error),
-    );
+    promise.then(([result, fields]) => callback(null, result, fields), (error) => callback(error));
     return undefined;
   }
 
   return {
-    query(...args) {
-      return callbackOrPromise(queryPromise, args);
-    },
-    execute(...args) {
-      return callbackOrPromise(executePromise, args);
-    },
+    query(...args) { return callbackOrPromise(queryPromise, args); },
+    execute(...args) { return callbackOrPromise(executePromise, args); },
     async beginTransaction(callback) {
       const promise = (async () => {
         if (transaction) throw new Error("Transaction đã được mở trên connection này");
-        try {
-          transaction = await conn.begin();
-        } catch (error) {
-          throw describeDatabaseError(error, "BEGIN");
-        }
+        try { transaction = await conn.begin(); } catch (error) { throw describeDatabaseError(error, "BEGIN"); }
       })();
-      if (typeof callback === "function") {
-        promise.then(() => callback(null), callback);
-        return undefined;
-      }
+      if (typeof callback === "function") { promise.then(() => callback(null), callback); return undefined; }
       return promise;
     },
     async commit(callback) {
       const promise = (async () => {
         if (!transaction) throw new Error("Không có transaction đang mở");
-        const current = transaction;
-        transaction = null;
-        try {
-          await current.commit();
-        } catch (error) {
-          throw describeDatabaseError(error, "COMMIT");
-        }
+        const current = transaction; transaction = null;
+        try { await current.commit(); } catch (error) { throw describeDatabaseError(error, "COMMIT"); }
       })();
-      if (typeof callback === "function") {
-        promise.then(() => callback(null), callback);
-        return undefined;
-      }
+      if (typeof callback === "function") { promise.then(() => callback(null), callback); return undefined; }
       return promise;
     },
     async rollback(callback) {
       const promise = (async () => {
         if (!transaction) return;
-        const current = transaction;
-        transaction = null;
-        try {
-          await current.rollback();
-        } catch (error) {
-          throw describeDatabaseError(error, "ROLLBACK");
-        }
+        const current = transaction; transaction = null;
+        try { await current.rollback(); } catch (error) { throw describeDatabaseError(error, "ROLLBACK"); }
       })();
-      if (typeof callback === "function") {
-        promise.then(() => callback(null), callback);
-        return undefined;
-      }
+      if (typeof callback === "function") { promise.then(() => callback(null), callback); return undefined; }
       return promise;
     },
-    async release() {
-      closed = true;
-      transaction = null;
-    },
-    async end() {
-      closed = true;
-      transaction = null;
-    },
+    async release() { closed = true; transaction = null; },
+    async end() { closed = true; transaction = null; },
   };
 }
 
 function createCloudflareDbFacade() {
   const getConnection = async () => createCloudflareConnection();
-
   const promiseApi = {
     query: (...args) => {
       const { sql, params } = splitQueryArgs(args);
-      return createCloudflareConnection().then((connection) =>
-        connection.query(sql, params).finally(() => connection.release()),
-      );
+      return createCloudflareConnection().then((connection) => connection.query(sql, params).finally(() => connection.release()));
     },
     execute: (...args) => {
       const { sql, params } = splitQueryArgs(args);
-      return createCloudflareConnection().then((connection) =>
-        connection.execute(sql, params).finally(() => connection.release()),
-      );
+      return createCloudflareConnection().then((connection) => connection.execute(sql, params).finally(() => connection.release()));
     },
     getConnection,
     end: async () => {},
   };
-
   return {
     promise: () => promiseApi,
-    query(...args) {
-      return callbackOrPromiseFacade(promiseApi.query, args);
-    },
-    execute(...args) {
-      return callbackOrPromiseFacade(promiseApi.execute, args);
-    },
+    query(...args) { return callbackOrPromiseFacade(promiseApi.query, args); },
+    execute(...args) { return callbackOrPromiseFacade(promiseApi.execute, args); },
     getConnection(callback) {
       const promise = getConnection();
-      if (typeof callback === "function") {
-        promise.then((connection) => callback(null, connection), callback);
-        return undefined;
-      }
+      if (typeof callback === "function") { promise.then((connection) => callback(null, connection), callback); return undefined; }
       return promise;
     },
   };
@@ -309,90 +222,49 @@ function callbackOrPromiseFacade(operation, args) {
   const { callback } = splitQueryArgs(args);
   const promise = operation(...args);
   if (!callback) return promise;
-  promise.then(
-    ([result, fields]) => callback(null, result, fields),
-    (error) => callback(error),
-  );
+  promise.then(([result, fields]) => callback(null, result, fields), (error) => callback(error));
   return undefined;
 }
 
 if (isCloudflareWorker) {
   const cloudflareDb = createCloudflareDbFacade();
-
   async function testConnection() {
     const missing = getMissingDatabaseVariables();
-    if (missing.length > 0) {
-      throw new Error(`Thiếu biến môi trường database: ${missing.join(", ")}`);
-    }
-
+    if (missing.length > 0) throw new Error(`Thiếu biến môi trường database: ${missing.join(", ")}`);
     const connection = await cloudflareDb.promise().getConnection();
     try {
       await connection.query("SELECT 1 AS ok");
-      return {
-        ssl: true,
-        host: process.env.DB_HOST,
-        port: dbPort,
-      };
-    } finally {
-      await connection.release();
-    }
+      return { ssl: true, host: process.env.DB_HOST, port: dbPort };
+    } finally { await connection.release(); }
   }
-
   module.exports = cloudflareDb;
   module.exports.testConnection = testConnection;
   module.exports.closePool = async () => {};
   module.exports.getMissingDatabaseVariables = getMissingDatabaseVariables;
 } else {
   const pool = mysql.createPool({
-    host: process.env.DB_HOST,
-    port: dbPort,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    ssl,
-    waitForConnections: true,
+    host: process.env.DB_HOST, port: dbPort, user: process.env.DB_USER, password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME, ssl, waitForConnections: true,
     connectionLimit: parsePositiveInteger(process.env.DB_CONNECTION_LIMIT, 6, { max: 20 }),
     maxIdle: parsePositiveInteger(process.env.DB_MAX_IDLE, 3, { max: 10 }),
     idleTimeout: parsePositiveInteger(process.env.DB_IDLE_TIMEOUT, 60_000, { max: 600_000 }),
     queueLimit: parsePositiveInteger(process.env.DB_QUEUE_LIMIT, 100, { max: 10_000 }),
-    enableKeepAlive: true,
-    keepAliveInitialDelay: parsePositiveInteger(process.env.DB_KEEP_ALIVE_DELAY, 10_000, { max: 120_000 }),
-    connectTimeout: parsePositiveInteger(process.env.DB_CONNECT_TIMEOUT, 15_000, { max: 120_000 }),
-    charset: "utf8mb4",
-    decimalNumbers: true,
+    enableKeepAlive: true, keepAliveInitialDelay: parsePositiveInteger(process.env.DB_KEEP_ALIVE_DELAY, 10_000, { max: 120_000 }),
+    connectTimeout: parsePositiveInteger(process.env.DB_CONNECT_TIMEOUT, 15_000, { max: 120_000 }), charset: "utf8mb4", decimalNumbers: true,
   });
-
   let connectionCheckPromise = null;
-
   async function testConnection() {
     if (connectionCheckPromise) return connectionCheckPromise;
-
     connectionCheckPromise = (async () => {
       const missing = getMissingDatabaseVariables();
-      if (missing.length > 0) {
-        throw new Error(`Thiếu biến môi trường database: ${missing.join(", ")}`);
-      }
-
+      if (missing.length > 0) throw new Error(`Thiếu biến môi trường database: ${missing.join(", ")}`);
       const connection = await pool.promise().getConnection();
-      try {
-        await connection.query("SELECT 1 AS ok");
-        return { ssl: useSsl, host: process.env.DB_HOST, port: dbPort };
-      } finally {
-        connection.release();
-      }
+      try { await connection.query("SELECT 1 AS ok"); return { ssl: useSsl, host: process.env.DB_HOST, port: dbPort }; }
+      finally { connection.release(); }
     })();
-
-    try {
-      return await connectionCheckPromise;
-    } finally {
-      connectionCheckPromise = null;
-    }
+    try { return await connectionCheckPromise; } finally { connectionCheckPromise = null; }
   }
-
-  async function closePool() {
-    await pool.promise().end();
-  }
-
+  async function closePool() { await pool.promise().end(); }
   module.exports = pool;
   module.exports.testConnection = testConnection;
   module.exports.closePool = closePool;
