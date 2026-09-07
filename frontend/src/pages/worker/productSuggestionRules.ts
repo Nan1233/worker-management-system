@@ -57,6 +57,13 @@ const eligibleMachineCodes = (product: ProductStandardOption): string[] =>
         .map(normalizeMachineKey)
         .filter(Boolean);
 
+// GC automatic machines are explicitly C5/C6/C7/C11.
+// Keep this fallback even if old master-data rows do not carry is_automatic correctly.
+const GC_AUTOMATIC_MACHINE_CODES = new Set(["C5", "C6", "C7", "C11"]);
+
+const isGcAutomaticMachine = (machineCode: string): boolean =>
+    GC_AUTOMATIC_MACHINE_CODES.has(normalize(machineCode));
+
 export const filterProductsForSelection = ({
     products,
     mode,
@@ -84,7 +91,7 @@ export const filterProductsForSelection = ({
     if (!selectedMachine) return [];
 
     const machine = (machineOptions || []).find((item) => normalizeMachineKey(item.machine_code) === selectedMachine);
-    const isAutomatic = Number(machine?.is_automatic || 0) === 1;
+    const isAutomatic = isGcAutomaticMachine(machineCode) || Number(machine?.is_automatic || 0) === 1;
     const selectedNumber = machineNumber(selectedMachine);
 
     return products.filter((product) => {
@@ -96,8 +103,12 @@ export const filterProductsForSelection = ({
         if (hasExplicitMapping && !mappedMachines.includes(selectedMachine)) return false;
 
         if (useEncodedMachineSuffix) {
-            if (hint?.kind === "AUTO") return isAutomatic;
-            if (hint?.kind === "NUMBER") return !isAutomatic && selectedNumber !== null && hint.value === selectedNumber;
+            // For an automatic GC machine, ONLY the product variants ending in -auto are valid.
+            if (isAutomatic) return hint?.kind === "AUTO";
+
+            // Manual/non-automatic GC machines must never receive an -auto product.
+            if (hint?.kind === "AUTO") return false;
+            if (hint?.kind === "NUMBER") return selectedNumber !== null && hint.value === selectedNumber;
 
             if (familyHasMachineVariant.has(getProductFamilyCode(product.product_code))) return false;
         }
