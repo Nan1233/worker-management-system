@@ -62,7 +62,10 @@ export default function ProcessWorkerHeader({
                     <span>{workerCode || "---"}</span>
                 </div>
                 <div className="worker-sticky-meta">
-                    <span className="worker-sticky-training">Học việc: {trainingPercent || 0}%</span>
+                    <span className="worker-sticky-training">
+                        <span className="worker-sticky-training-label">Học việc: </span>
+                        {trainingPercent || 0}%
+                    </span>
                     <label className="worker-sticky-date" htmlFor="workerWorkDate">
                         <select
                             id="workerWorkDate"
