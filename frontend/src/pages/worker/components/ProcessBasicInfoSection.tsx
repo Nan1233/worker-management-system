@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { ChangeEvent, Dispatch, SetStateAction } from "react";
 import AutocompleteInput from "../../../components/common/AutocompleteInput";
 import type { AutocompleteOption } from "../../../components/common/AutocompleteInput";
@@ -16,6 +17,8 @@ interface NgOption {
     code: string;
     label: string;
 }
+
+type LongExecutionMode = "HAND" | "MACHINE" | "AIR";
 
 interface Props {
     form: FormState;
@@ -75,6 +78,32 @@ export default function ProcessBasicInfoSection({
     toggleMachineDefect,
     updateMachineDefectValue,
 }: Props) {
+    const [longExecutionMode, setLongExecutionMode] = useState<LongExecutionMode>("HAND");
+
+    useEffect(() => {
+        if (!isCutLongProcess || operationType !== "LONG") return;
+        setLongExecutionMode(operationMode === "MACHINE" ? "MACHINE" : "HAND");
+    }, [isCutLongProcess, operationType]);
+
+    const chooseLongExecutionMode = (mode: LongExecutionMode) => {
+        setLongExecutionMode(mode);
+        // Keep the existing canonical backend mode: MACHINE gets machine lines;
+        // HAND/AIR are non-machine workflows. The visible selection still
+        // distinguishes Lồng tay from Lồng khí for the worker.
+        setOperationMode(mode === "MACHINE" ? "MACHINE" : "MANUAL");
+    };
+
+    const chooseOperationType = (type: OperationType) => {
+        setOperationType(type);
+        if (type === "CUT") {
+            setOperationMode("MANUAL");
+            setLongExecutionMode("HAND");
+        } else {
+            setLongExecutionMode("HAND");
+            setOperationMode("MANUAL");
+        }
+    };
+
     const setProduct = (value: string) => {
         const selectedProduct = productOptions.find(
             (item) => item.product_code.trim().toLowerCase() === value.trim().toLowerCase(),
@@ -114,16 +143,25 @@ export default function ProcessBasicInfoSection({
                         <div className="worker-mode-group">
                             <div className="worker-mode-label">Loại gia công</div>
                             <div className="worker-choice-row">
-                                <button type="button" className={operationType === "CUT" ? "active" : ""} onClick={() => setOperationType("CUT")}>Cắt</button>
-                                <button type="button" className={operationType === "LONG" ? "active" : ""} onClick={() => setOperationType("LONG")}>Lồng</button>
+                                <button type="button" className={operationType === "CUT" ? "active" : ""} onClick={() => chooseOperationType("CUT")}>Cắt</button>
+                                <button type="button" className={operationType === "LONG" ? "active" : ""} onClick={() => chooseOperationType("LONG")}>Lồng</button>
                             </div>
                         </div>
+
                         <div className="worker-mode-group">
-                            <div className="worker-mode-label">Hình thức thực hiện</div>
-                            <div className="worker-choice-row">
-                                <button type="button" className={operationMode === "MANUAL" ? "active" : ""} onClick={() => setOperationMode("MANUAL")}>Tay</button>
-                                <button type="button" className={operationMode === "MACHINE" ? "active" : ""} onClick={() => setOperationMode("MACHINE")}>Máy</button>
-                            </div>
+                            <div className="worker-mode-label">{operationType === "CUT" ? "Hình thức cắt" : "Hình thức lồng"}</div>
+                            {operationType === "CUT" ? (
+                                <div className="worker-choice-row">
+                                    <button type="button" className={operationMode === "MACHINE" ? "active" : ""} onClick={() => setOperationMode("MACHINE")}>Tự động</button>
+                                    <button type="button" className={operationMode === "MANUAL" ? "active" : ""} onClick={() => setOperationMode("MANUAL")}>Không tự động</button>
+                                </div>
+                            ) : (
+                                <div className="worker-choice-row">
+                                    <button type="button" className={longExecutionMode === "HAND" ? "active" : ""} onClick={() => chooseLongExecutionMode("HAND")}>Lồng tay</button>
+                                    <button type="button" className={longExecutionMode === "MACHINE" ? "active" : ""} onClick={() => chooseLongExecutionMode("MACHINE")}>Lồng máy</button>
+                                    <button type="button" className={longExecutionMode === "AIR" ? "active" : ""} onClick={() => chooseLongExecutionMode("AIR")}>Lồng khí</button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}

@@ -22,34 +22,28 @@ export const normalizeMachineKey = (value: unknown): string => {
  */
 export const normalizeWorkType = (value: unknown): string => {
     const code = normalize(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    if (["CUT", "CAT", "CẮT"].includes(code)) return "CUT";
-    if (["LONG", "LNG", "LỒNG"].includes(code)) return "LONG";
+    if (["CUT", "CAT", "CAT"].includes(code)) return "CUT";
+    if (["LONG", "LNG", "LONG"].includes(code)) return "LONG";
     return code;
 };
 
 /**
- * Some KTC product codes encode a machine target in the final suffix:
- *   C5770-1    -> machine 1
- *   C5770-9    -> machine 9
- *   C5770-auto -> automatic machine
- * Codes without one of these suffixes are treated as the base/manual variant.
+ * Product suffixes are names, not machine numbers.
+ * Only the explicit -auto suffix has machine-selection meaning for Cắt.
+ * Examples:
+ *   C5770-11   -> normal product code; NOT machine 11
+ *   C5770-5    -> normal product code; NOT machine 5
+ *   C5770-auto -> automatic cutting product code
  */
-export const getProductMachineHint = (productCode: string): { kind: "AUTO" | "NUMBER"; value: string } | null => {
+export const getProductMachineHint = (productCode: string): { kind: "AUTO"; value: "AUTO" } | null => {
     const code = normalize(productCode);
-    const match = code.match(/-(AUTO|AUTOMATIC|\d+)$/i);
+    const match = code.match(/-(AUTO|AUTOMATIC)$/i);
     if (!match) return null;
-    const suffix = normalize(match[1]);
-    if (suffix === "AUTO" || suffix === "AUTOMATIC") return { kind: "AUTO", value: "AUTO" };
-    return { kind: "NUMBER", value: String(Number(suffix)) };
+    return { kind: "AUTO", value: "AUTO" };
 };
 
 export const getProductFamilyCode = (productCode: string): string =>
-    normalize(productCode).replace(/-(AUTO|AUTOMATIC|\d+)$/i, "");
-
-const machineNumber = (machineCode: string): string | null => {
-    const key = normalizeMachineKey(machineCode);
-    return /^\d+$/.test(key) ? key : null;
-};
+    normalize(productCode).replace(/-(AUTO|AUTOMATIC)$/i, "");
 
 const eligibleMachineCodes = (product: ProductStandardOption): string[] =>
     String(product.eligible_machine_codes || "")
@@ -70,38 +64,41 @@ export const filterProductsForSelection = ({
     machineOptions?: MachineOption[];
     useEncodedMachineSuffix?: boolean;
 }): ProductStandardOption[] => {
-    const familyHasMachineVariant = new Set(
-        products.filter((product) => getProductMachineHint(product.product_code)).map((product) => getProductFamilyCode(product.product_code))
-    );
-
-    if (mode === "MANUAL") {
-        return useEncodedMachineSuffix
-            ? products.filter((product) => !getProductMachineHint(product.product_code))
-            : products;
-    }
-
+    const workTypes = new Set(products.map((product) => normalizeWorkType(product.work_type)).filter(Boolean));
+    const isCutSelection = workTypes.has("CUT");
     const selectedMachine = normalizeMachineKey(machineCode);
-    if (!selectedMachine) return [];
-
     const machine = (machineOptions || []).find((item) => normalizeMachineKey(item.machine_code) === selectedMachine);
-    const isAutomatic = Number(machine?.is_automatic || 0) === 1;
-    const selectedNumber = machineNumber(selectedMachine);
+    const isAutomaticMachine = Number(machine?.is_automatic || 0) === 1;
+
+    // Suffix rules are intentionally applied ONLY to Cắt.
+    // Lồng tay / máy / khí do not interpret -5, -6, -7, -11 or -auto as machine numbers.
+    if (!useEncodedMachineSuffix || !isCutSelection) {
+        if (mode === "MANUAL") return products;
+
+        if (!selectedMachine) return [];
+        return products.filter((product) => {
+            const mappedMachines = eligibleMachineCodes(product);
+            const hasExplicitMapping = Number(product.has_machine_specific_standard || 0) === 1 || mappedMachines.length > 0;
+            return !hasExplicitMapping || mappedMachines.includes(selectedMachine);
+        });
+    }
 
     return products.filter((product) => {
         const hint = getProductMachineHint(product.product_code);
         const mappedMachines = eligibleMachineCodes(product);
         const hasExplicitMapping = Number(product.has_machine_specific_standard || 0) === 1 || mappedMachines.length > 0;
 
-        // The product_machine_standards relation is authoritative when it exists.
-        if (hasExplicitMapping && !mappedMachines.includes(selectedMachine)) return false;
-
-        if (useEncodedMachineSuffix) {
-            if (hint?.kind === "AUTO") return isAutomatic;
-            if (hint?.kind === "NUMBER") return !isAutomatic && selectedNumber !== null && hint.value === selectedNumber;
-
-            if (familyHasMachineVariant.has(getProductFamilyCode(product.product_code))) return false;
+        // Cắt tự động: ONLY -auto. Any automatic machine can call the same -auto code.
+        if (mode === "MACHINE" && isAutomaticMachine) {
+            if (hint?.kind !== "AUTO") return false;
+            return true;
         }
 
+        // Cắt không tự động (including Tay): -auto is hidden.
+        if (hint?.kind === "AUTO") return false;
+
+        // Numeric suffixes are ordinary product names and never select a machine.
+        if (mode === "MACHINE" && hasExplicitMapping && !mappedMachines.includes(selectedMachine)) return false;
         return true;
     });
 };
