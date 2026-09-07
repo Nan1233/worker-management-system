@@ -2,14 +2,14 @@
    Visual layer only. Business logic and routes are untouched. */
 
 .worker-layout {
-  --worker-fs-body: 14px;
-  --worker-fs-label: 12px;
-  --worker-fs-support: 11px;
-  --worker-fs-caption: 10px;
-  --worker-fs-button: 13px;
-  --worker-fs-title: 28px;
-  --worker-fs-section: 18px;
-  --worker-fs-subsection: 16px;
+  --worker-fs-body: 13px;
+  --worker-fs-label: 11px;
+  --worker-fs-support: 10.5px;
+  --worker-fs-caption: 9.5px;
+  --worker-fs-button: 12px;
+  --worker-fs-title: 20px;
+  --worker-fs-section: 16px;
+  --worker-fs-subsection: 14px;
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
   font-size: var(--worker-fs-body);
   -webkit-font-smoothing: antialiased;
@@ -19,169 +19,74 @@
 .worker-layout button,
 .worker-layout input,
 .worker-layout select,
-.worker-layout textarea {
-  font-family: inherit;
-}
+.worker-layout textarea { font-family: inherit; }
 
-.worker-nav::before {
-  content: "KHU VỰC LÀM VIỆC";
-  font-size: var(--worker-fs-caption);
-  letter-spacing: .06em;
-}
-
+.worker-nav::before { content: "KHU VỰC LÀM VIỆC"; font-size: 9.5px; letter-spacing: .06em; }
 .worker-nav button,
 .worker-logout,
 .worker-mobile-nav button,
-.worker-mobile-nav button span {
-  font-size: var(--worker-fs-button);
-}
-
+.worker-mobile-nav button span { font-size: var(--worker-fs-button); }
 .worker-brand strong,
-.worker-brand small {
-  font-size: var(--worker-fs-label);
-}
+.worker-brand small { font-size: var(--worker-fs-label); }
 
-/* Shared hierarchy for every Worker screen except Home.
-   Keep clear emphasis, but avoid large jumps between pages or sections. */
+/* Shared hierarchy: compact enterprise/mobile scale. */
 body :where(.worker-content:not(:has(.worker-home-page))) :where(p, span, small, label, th, td, li, dt, dd, legend, summary, caption, figcaption) {
   font-size: var(--worker-fs-body);
   font-family: inherit;
 }
-
 body :where(.worker-content:not(:has(.worker-home-page))) :where(h1) {
-  font-size: var(--worker-fs-title) !important;
-  line-height: 1.2 !important;
-  font-weight: 700 !important;
+  font-size: var(--worker-fs-title) !important; line-height: 1.2 !important; font-weight: 700 !important;
 }
-
 body :where(.worker-content:not(:has(.worker-home-page))) :where(h2) {
-  font-size: var(--worker-fs-section) !important;
-  line-height: 1.3 !important;
-  font-weight: 700 !important;
+  font-size: var(--worker-fs-section) !important; line-height: 1.3 !important; font-weight: 700 !important;
 }
-
 body :where(.worker-content:not(:has(.worker-home-page))) :where(h3) {
-  font-size: var(--worker-fs-subsection) !important;
-  line-height: 1.3 !important;
-  font-weight: 700 !important;
+  font-size: var(--worker-fs-subsection) !important; line-height: 1.3 !important; font-weight: 700 !important;
 }
-
 body :where(.worker-content:not(:has(.worker-home-page))) :where(h4) {
-  font-size: 15px !important;
-  line-height: 1.35 !important;
-  font-weight: 650 !important;
+  font-size: 14px !important; line-height: 1.35 !important; font-weight: 650 !important;
 }
-
-body :where(.worker-content:not(:has(.worker-home-page))) :where(input, select, textarea) {
-  font-family: inherit;
-}
-
-/* Common Worker controls / labels */
-body :where(.worker-content:not(:has(.worker-home-page))) :where(
-  .worker-field-label,
-  .worker-field-block > label,
-  .worker-card-subtitle,
-  .worker-field-block > small,
-  .multi-machine-controls > label,
-  .multi-machine-controls > small,
-  .machine-section-title,
-  .worker-time-item > label,
-  .worker-time-item > small,
-  .worker-time-part > span,
-  .worker-time-unit,
-  .worker-quality-card label,
-  .worker-quality-card small,
-  .worker-dropdown-title-main > small
-) {
-  font-size: var(--worker-fs-label) !important;
-}
+body :where(.worker-content:not(:has(.worker-home-page))) :where(input, select, textarea) { font-family: inherit; }
 
 body :where(.worker-content:not(:has(.worker-home-page))) :where(
-  .worker-choice-row button,
-  .history-entry-button,
-  .worker-shift-item span,
-  .worker-submit-button,
-  .worker-clear-button,
-  .detail-btn
-) {
-  font-size: var(--worker-fs-button) !important;
-}
+  .worker-field-label,.worker-field-block > label,.worker-card-subtitle,.worker-field-block > small,
+  .multi-machine-controls > label,.multi-machine-controls > small,.machine-section-title,
+  .worker-time-item > label,.worker-time-item > small,.worker-time-part > span,.worker-time-unit,
+  .worker-quality-card label,.worker-quality-card small,.worker-dropdown-title-main > small
+) { font-size: var(--worker-fs-label) !important; }
 
-/* Compact metadata/badges stay smaller, but never dramatically smaller. */
 body :where(.worker-content:not(:has(.worker-home-page))) :where(
-  .worker-process-code,
-  .select-process-section-kicker,
-  .select-process-training,
-  .machine-card-badge,
-  .machine-performance-metric span,
-  .worker-error,
-  .worker-field-error,
-  .history-count span,
-  .status-cell span,
-  .shift-badge
-) {
-  font-size: var(--worker-fs-caption) !important;
+  .worker-choice-row button,.history-entry-button,.worker-shift-item span,
+  .worker-submit-button,.worker-clear-button,.detail-btn
+) { font-size: var(--worker-fs-button) !important; }
+
+body :where(.worker-content:not(:has(.worker-home-page))) :where(
+  .worker-process-code,.select-process-section-kicker,.select-process-training,
+  .machine-card-badge,.machine-performance-metric span,.worker-error,.worker-field-error,
+  .history-count span,.status-cell span,.shift-badge
+) { font-size: var(--worker-fs-caption) !important; }
+
+body :where(.select-process-title-row h1,.worker-form-title-row h1) {
+  font-size: var(--worker-fs-title) !important; line-height: 1.2 !important; font-weight: 700 !important; letter-spacing: -.025em !important;
 }
 
-/* Process selection: align its hierarchy with Worker Home. */
-body :where(.select-process-title-row h1) {
-  font-size: var(--worker-fs-title) !important;
-  line-height: 1.2 !important;
-  font-weight: 700 !important;
-}
-
-/* Report form title: same visual level as Home title, compact enough for mobile. */
-body :where(.worker-form-title-row h1) {
-  font-size: var(--worker-fs-title) !important;
-  line-height: 1.2 !important;
-  font-weight: 700 !important;
-  letter-spacing: -.025em !important;
-}
-
-/* Mobile: one shared scale across Home, process selection, report and history. */
 @media (max-width: 800px) {
   .worker-layout {
     --worker-fs-body: 13px;
-    --worker-fs-label: 12px;
-    --worker-fs-support: 11px;
-    --worker-fs-caption: 10px;
-    --worker-fs-button: 13px;
+    --worker-fs-label: 11px;
+    --worker-fs-support: 10.5px;
+    --worker-fs-caption: 9.5px;
+    --worker-fs-button: 12px;
     --worker-fs-title: 20px;
     --worker-fs-section: 16px;
-    --worker-fs-subsection: 15px;
+    --worker-fs-subsection: 14px;
   }
-
-  .worker-nav button,
-  .worker-logout,
-  .worker-mobile-nav button,
-  .worker-mobile-nav button span {
-    font-size: 13px;
-  }
-
-  body :where(.select-process-title-row h1, .worker-form-title-row h1) {
-    font-size: 20px !important;
-    line-height: 1.2 !important;
-  }
-
-  body :where(.worker-content:not(:has(.worker-home-page))) :where(.history-title-group h1) {
-    font-size: 20px !important;
-    line-height: 1.2 !important;
-  }
-
-  /* History table: readable like Home report rows, without making the table bulky. */
-  body :where(.worker-content:not(:has(.worker-home-page))) :where(.history-table th) {
-    font-size: 10px !important;
-  }
-  body :where(.worker-content:not(:has(.worker-home-page))) :where(.history-table td) {
-    font-size: 11px !important;
-  }
-  body :where(.worker-content:not(:has(.worker-home-page))) :where(.history-table .date-cell, .history-table .machine-cell) {
-    font-size: 11px !important;
-  }
+  body :where(.select-process-title-row h1,.worker-form-title-row h1,.history-title-group h1) { font-size: 20px !important; line-height: 1.2 !important; }
+  body :where(.worker-content:not(:has(.worker-home-page))) :where(.history-table th) { font-size: 9.5px !important; }
+  body :where(.worker-content:not(:has(.worker-home-page))) :where(.history-table td,.history-table .date-cell,.history-table .machine-cell) { font-size: 10.5px !important; }
 }
 
 @media (max-width: 430px) {
-  /* Home baseline: compact, but not tiny. */
   body :where(.worker-home-page) .worker-home-action strong { font-size: 13px !important; }
   body :where(.worker-home-page) .worker-home-action small { font-size: 10.5px !important; }
   body :where(.worker-home-page) .worker-home-report-date strong { font-size: 11.5px !important; }
@@ -195,19 +100,15 @@ body :where(.worker-form-title-row h1) {
 @media (max-width: 380px) {
   .worker-layout {
     --worker-fs-body: 12.5px;
-    --worker-fs-label: 11.5px;
-    --worker-fs-support: 10.5px;
-    --worker-fs-caption: 9.5px;
-    --worker-fs-button: 12.5px;
+    --worker-fs-label: 10.5px;
+    --worker-fs-support: 10px;
+    --worker-fs-caption: 9px;
+    --worker-fs-button: 11.5px;
     --worker-fs-title: 19px;
     --worker-fs-section: 15px;
-    --worker-fs-subsection: 14px;
+    --worker-fs-subsection: 13.5px;
   }
-
-  body :where(.select-process-title-row h1, .worker-form-title-row h1, .history-title-group h1) {
-    font-size: 19px !important;
-  }
-
+  body :where(.select-process-title-row h1,.worker-form-title-row h1,.history-title-group h1) { font-size: 19px !important; }
   body :where(.worker-home-page) .worker-home-action strong { font-size: 12.5px !important; }
   body :where(.worker-home-page) .worker-home-action small { font-size: 10px !important; }
   body :where(.worker-home-page) .worker-home-report-date strong { font-size: 11px !important; }
@@ -219,23 +120,12 @@ body :where(.worker-form-title-row h1) {
 
 body :where(svg, svg *) { font-size: inherit !important; }
 
-/* KTC Worker form — minimal container chrome.
-   Keep borders only where the user actually interacts: buttons, inputs,
-   selects, textareas, checkboxes and radio controls. */
+/* Remove decorative frames. Keep chrome only on true interactive controls. */
 body :where(.worker-content:not(:has(.worker-home-page))) :where(
-  .worker-form-card,
-  .worker-sticky-info,
-  .worker-selection-card,
-  .worker-machine-workspace,
-  .worker-mode-panel,
-  .worker-mode-group,
-  .multi-machine-panel,
-  .machine-line,
-  .worker-time-item,
-  .worker-quality-card,
-  .machine-performance-metric,
-  .worker-dropdown-box,
-  .worker-form-actions
+  .worker-form-card,.worker-sticky-info,.worker-selection-card,.worker-machine-workspace,
+  .worker-mode-panel,.worker-mode-group,.multi-machine-panel,.machine-line,.worker-time-item,
+  .worker-quality-card,.machine-performance-metric,.worker-dropdown-box,.worker-form-actions,
+  .worker-card-heading,.worker-selection-heading
 ) {
   border: 0 !important;
   box-shadow: none !important;
@@ -243,47 +133,57 @@ body :where(.worker-content:not(:has(.worker-home-page))) :where(
 }
 
 body :where(.worker-content:not(:has(.worker-home-page))) :where(
-  .worker-form-card,
-  .worker-sticky-info,
-  .worker-selection-card,
-  .worker-machine-workspace,
-  .worker-mode-panel,
-  .worker-mode-group,
-  .multi-machine-panel,
-  .machine-line,
-  .worker-time-item,
-  .worker-quality-card,
-  .machine-performance-metric
-) {
-  border-radius: 0 !important;
-}
+  .worker-form-card,.worker-sticky-info,.worker-selection-card,.worker-machine-workspace,
+  .worker-mode-panel,.worker-mode-group,.multi-machine-panel,.machine-line,.worker-time-item,
+  .worker-quality-card,.machine-performance-metric
+) { border-radius: 0 !important; }
 
-/* Remove visual boxes from headings/group wrappers; preserve spacing. */
-body :where(.worker-content:not(:has(.worker-home-page))) :where(
-  .worker-card-heading,
-  .worker-selection-heading,
-  .worker-mode-label,
-  .machine-card-header,
-  .machine-section-title
-) {
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-sticky-info { padding-inline: 0 !important; }
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-form-actions { padding-inline: 0 !important; border-radius: 0 !important; }
+
+/* Radio-style choices: no outer button frame. The selected state is only the radio dot + text. */
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-choice-row {
+  gap: 14px !important;
+  align-items: center;
+}
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-choice-row button {
+  min-width: auto !important;
+  min-height: 32px !important;
+  padding: 0 2px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #536b83 !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-choice-row button:hover,
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-choice-row button.active {
+  border: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
+  transform: none !important;
+}
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-choice-row button.active { color: #1768c8 !important; font-weight: 750 !important; }
+
+/* If a choice button contains a radio input, keep the radio as the only visual selector. */
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-choice-row button input[type="radio"] {
+  width: 17px !important;
+  height: 17px !important;
+  margin: 0 6px 0 0 !important;
+  accent-color: #1768c8;
 }
 
-/* The sticky context is information, not a card. Its date selector remains a real control. */
-body :where(.worker-content:not(:has(.worker-home-page))) .worker-sticky-info {
-  padding-inline: 0 !important;
-}
+/* Keep real fields and primary actions framed. */
+body :where(.worker-content:not(:has(.worker-home-page))) :where(
+  .worker-choice-row button,.worker-form-back,.worker-submit-button,
+  .worker-text-input,.worker-field-block input:not([type=checkbox]):not([type=radio]),
+  .worker-field-block select,.worker-field-block textarea,
+  .worker-time-item input,.worker-time-split input,.worker-quality-card input,
+  .worker-sticky-date-select,.worker-sticky-training,.machine-deduction-minute
+) { box-shadow: none; }
 
-/* Keep the action buttons themselves visually distinct; only the surrounding bar loses its frame. */
-body :where(.worker-content:not(:has(.worker-home-page))) .worker-form-actions {
-  padding-inline: 0 !important;
-  border-radius: 0 !important;
-}
-
-/* Choice buttons stay framed because they are actual controls. */
-body :where(.worker-content:not(:has(.worker-home-page))) .worker-choice-row button,
-body :where(.worker-content:not(:has(.worker-home-page))) .worker-dropdown-option,
-body :where(.worker-content:not(:has(.worker-home-page))) .machine-deduction-option {
-  box-shadow: none;
+/* Do not add a frame to the radio choices even when another stylesheet has stronger defaults. */
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-choice-row button {
+  outline: none !important;
 }
