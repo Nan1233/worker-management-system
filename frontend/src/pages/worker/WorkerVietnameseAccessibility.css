@@ -29,7 +29,6 @@
 .worker-brand strong,
 .worker-brand small { font-size: var(--worker-fs-label); }
 
-/* Shared hierarchy: compact enterprise/mobile scale. */
 body :where(.worker-content:not(:has(.worker-home-page))) :where(p, span, small, label, th, td, li, dt, dd, legend, summary, caption, figcaption) {
   font-size: var(--worker-fs-body);
   font-family: inherit;
@@ -165,16 +164,9 @@ body :where(.worker-content:not(:has(.worker-home-page))) .worker-choice-row but
   transform: none !important;
 }
 body :where(.worker-content:not(:has(.worker-home-page))) .worker-choice-row button.active { color: #1768c8 !important; font-weight: 750 !important; }
-
-/* If a choice button contains a radio input, keep the radio as the only visual selector. */
 body :where(.worker-content:not(:has(.worker-home-page))) .worker-choice-row button input[type="radio"] {
-  width: 17px !important;
-  height: 17px !important;
-  margin: 0 6px 0 0 !important;
-  accent-color: #1768c8;
+  width: 17px !important; height: 17px !important; margin: 0 6px 0 0 !important; accent-color: #1768c8;
 }
-
-/* Keep real fields and primary actions framed. */
 body :where(.worker-content:not(:has(.worker-home-page))) :where(
   .worker-choice-row button,.worker-form-back,.worker-submit-button,
   .worker-text-input,.worker-field-block input:not([type=checkbox]):not([type=radio]),
@@ -182,8 +174,76 @@ body :where(.worker-content:not(:has(.worker-home-page))) :where(
   .worker-time-item input,.worker-time-split input,.worker-quality-card input,
   .worker-sticky-date-select,.worker-sticky-training,.machine-deduction-minute
 ) { box-shadow: none; }
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-choice-row button { outline: none !important; }
 
-/* Do not add a frame to the radio choices even when another stylesheet has stronger defaults. */
-body :where(.worker-content:not(:has(.worker-home-page))) .worker-choice-row button {
-  outline: none !important;
+/* Shift radio labels are also controls, but must not look like four separate buttons. */
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-shift-list {
+  display: flex !important;
+  align-items: center !important;
+  gap: 18px !important;
+  min-height: 28px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-shift-item {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  min-height: 28px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-shift-item input[type="radio"] {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  width: 17px !important;
+  height: 17px !important;
+  min-width: 17px !important;
+  min-height: 17px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 2px solid #b9cbe0 !important;
+  border-radius: 50% !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-shift-item input[type="radio"]:checked {
+  border: 5px solid #1768c8 !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-shift-item span {
+  font-size: 12px !important;
+  line-height: 17px !important;
+  font-weight: 650 !important;
+  color: #405873 !important;
+}
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-shift-item input[type="radio"]:checked + span {
+  color: #1768c8 !important;
+  font-weight: 750 !important;
+}
+
+/* Header scale: keep worker info, training and date visually on one hierarchy. */
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-sticky-person strong {
+  font-size: 13px !important;
+  line-height: 1.25 !important;
+}
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-sticky-person > span {
+  font-size: 10px !important;
+  line-height: 1.2 !important;
+}
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-sticky-training {
+  font-size: 11px !important;
+  line-height: 1.2 !important;
+  padding: 0 8px !important;
+}
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-sticky-date-select {
+  font-size: 13px !important;
+  font-weight: 650 !important;
 }
