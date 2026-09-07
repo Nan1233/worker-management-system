@@ -101,7 +101,6 @@ export default function WorkerHome() {
               <span className="worker-home-training">Học việc: {formatPercent(trainingPercent)}</span>
             </div>
           </div>
-          <div className="worker-home-decoration" aria-hidden="true"><span>KTC</span><i>HANOI</i></div>
         </section>
 
         <section className="worker-home-today card" aria-label="Tổng quan hôm nay">
@@ -110,27 +109,27 @@ export default function WorkerHome() {
             <div className="worker-home-date-filter"><CalendarDays size={19} /><span>{formatDate(todayKey)}</span><ChevronRight size={17} /></div>
           </div>
           <div className="worker-home-metrics">
-            <div className="metric ok"><CheckCircle2 size={27} /><strong>{formatNumber(todayStats.ok)}</strong><span>Sản lượng OK</span></div>
-            <div className="metric ng"><XCircle size={27} /><strong>{formatNumber(todayStats.ng)}</strong><span>Sản lượng NG</span></div>
-            <div className="metric time"><Clock3 size={27} /><strong>{Math.floor(todayStats.time / 60)}.{String(todayStats.time % 60).padStart(2, "0")}</strong><span>Tổng giờ làm</span></div>
-            <div className="metric reports"><ClipboardList size={27} /><strong>{todayStats.reportCount}</strong><span>Số báo cáo</span></div>
+            <div className="metric ok"><CheckCircle2 size={27} /><strong>{formatNumber(todayStats.ok)}</strong><span>OK</span></div>
+            <div className="metric ng"><XCircle size={27} /><strong>{formatNumber(todayStats.ng)}</strong><span>NG</span></div>
+            <div className="metric time"><Clock3 size={27} /><strong>{Math.floor(todayStats.time / 60)}.{String(todayStats.time % 60).padStart(2, "0")}</strong><span>Giờ làm</span></div>
+            <div className="metric reports"><ClipboardList size={27} /><strong>{todayStats.reportCount}</strong><span>Báo cáo</span></div>
           </div>
         </section>
 
         <section className="worker-home-actions" aria-label="Thao tác nhanh">
           <button type="button" className="worker-home-action primary" onClick={() => navigate("/worker/process/select")}>
             <span className="worker-home-action-icon"><ClipboardPenLine size={27} /></span>
-            <span><strong>Nhập báo cáo</strong><small>Tạo báo cáo sản xuất mới</small></span>
+            <span><strong>Nhập báo cáo</strong><small>Tạo báo cáo mới</small></span>
             <span className="worker-home-action-arrow"><ChevronRight size={19} /></span>
           </button>
           <button type="button" className="worker-home-action" onClick={() => navigate("/worker/history")}>
             <span className="worker-home-action-icon"><History size={27} /></span>
-            <span><strong>Lịch sử báo cáo</strong><small>Xem các báo cáo đã gửi</small></span>
+            <span><strong>Lịch sử báo cáo</strong><small>Xem báo cáo đã gửi</small></span>
             <span className="worker-home-action-arrow"><ChevronRight size={19} /></span>
           </button>
           <button type="button" className="worker-home-action" onClick={() => navigate("/worker/statistics")}>
             <span className="worker-home-action-icon"><BarChart3 size={27} /></span>
-            <span><strong>Thống kê của tôi</strong><small>Xem hiệu suất làm việc</small></span>
+            <span><strong>Thống kê của tôi</strong><small>Xem hiệu suất</small></span>
             <span className="worker-home-action-arrow"><ChevronRight size={19} /></span>
           </button>
           <button type="button" className="worker-home-action" onClick={() => navigate("/worker/notifications")}>
