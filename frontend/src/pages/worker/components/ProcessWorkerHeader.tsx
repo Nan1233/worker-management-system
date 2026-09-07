@@ -37,7 +37,7 @@ export default function ProcessWorkerHeader({
             }}
         >
             <style>{`
-                /* Compact worker header: never let the training badge wrap on phones. */
+                /* Compact worker header: keep training percentage and date on one row. */
                 @media (max-width: 680px) {
                     .worker-sticky-training-label { display: none !important; }
                     .worker-sticky-training {
@@ -51,12 +51,17 @@ export default function ProcessWorkerHeader({
                         word-break: keep-all !important;
                     }
                     .worker-sticky-meta {
+                        width: 100% !important;
                         min-width: 0;
-                        display: flex;
+                        display: flex !important;
+                        flex-direction: row !important;
                         align-items: center;
                         gap: 6px;
                     }
-                    .worker-sticky-date { min-width: 0; flex: 1 1 auto; }
+                    .worker-sticky-date {
+                        min-width: 0;
+                        flex: 1 1 auto;
+                    }
                     .worker-sticky-date-select {
                         width: 100% !important;
                         min-width: 0 !important;
