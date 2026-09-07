@@ -89,7 +89,12 @@ const validateMasterData = async ({
         defect_name: canonicalDefectsById.get(Number(item?.defect_type_id))?.defect_name || null
     }));
 
-    if (!assignments.length) errors.process_id = "Công nhân chưa được phân công công đoạn này";
+    // CVK is a common non-production work process. Active workers can use it
+    // without a production-process assignment; normal processes keep the
+    // existing worker_processes authorization rule.
+    if (!isNonProductWork && !assignments.length) {
+        errors.process_id = "Công nhân chưa được phân công công đoạn này";
+    }
 
     let legacyApprovedWithoutMachine = false;
     if (!normalizedMachineNo && !allowEmptyMachine && Number(workerId) > 0 && Number(processId) > 0 && workDate && normalizedProductName) {
