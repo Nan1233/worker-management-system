@@ -1,7 +1,5 @@
 /* KTC Worker UI — readability + Vietnamese presentation overrides.
-   Applies only to Worker screens. Business logic and routes are untouched.
-   Minimum readable UI text is 13px; headings remain larger. */
-
+   Applies only to Worker screens. Business logic and routes are untouched. */
 .worker-layout { font-size: 13px; }
 
 .worker-nav::before {
@@ -15,101 +13,42 @@
 .worker-mobile-nav button { font-size: 13px; }
 
 .worker-brand strong,
-.worker-brand small,
-.worker-header span { font-size: 13px; }
-.worker-header strong { font-size: 17px; }
-
-.worker-content p,
-.worker-content label,
-.worker-content small,
-.worker-content span,
-.worker-content th,
-.worker-content td,
-.worker-content button,
-.worker-content input,
-.worker-content select,
-.worker-content textarea,
-.worker-content option,
-.worker-content summary,
-.worker-content dt,
-.worker-content dd { font-size: 13px; }
-
-.worker-content h1 { font-size: 24px; }
-.worker-content h2 { font-size: 20px; }
-.worker-content h3 { font-size: 17px; }
-.worker-content h4 { font-size: 15px; }
-
-.worker-content button:has(svg:only-child),
-.worker-mobile-nav button svg { font-size: 13px; }
+.worker-brand small { font-size: 13px; }
 
 @media (max-width: 800px) {
-  .worker-header strong { font-size: 16px; }
-  .worker-header span { font-size: 13px; }
-  .worker-mobile-nav button,
-  .worker-mobile-nav button span,
-  .worker-content { font-size: 13px; }
-}
-
-@media (max-width: 380px) {
-  .worker-header strong { font-size: 15px; }
-  .worker-header span { font-size: 13px; }
   .worker-mobile-nav button,
   .worker-mobile-nav button span { font-size: 13px; }
 }
 
-/* Worker Home: normalize compact reference text. */
-.worker-home-page .worker-home-brand small,
-.worker-home-page .worker-home-eyebrow,
-.worker-home-page .worker-home-identity span,
-.worker-home-page .worker-home-section-title small,
-.worker-home-page .worker-home-section-title button,
-.worker-home-page .worker-home-metrics span,
-.worker-home-page .worker-home-metrics small,
-.worker-home-page .worker-home-create small,
-.worker-home-page .worker-home-report-date strong,
-.worker-home-page .worker-home-report-date small,
-.worker-home-page .worker-home-report-main strong,
-.worker-home-page .worker-home-report-main small,
-.worker-home-page .worker-home-empty span { font-size: 13px !important; }
-
-.worker-home-page .worker-home-status {
-  font-size: 13px !important;
-  min-height: 26px;
-  padding-inline: 9px;
+/*
+ * Do not apply the old global 13px minimum to Worker Home.
+ * The Home screen is deliberately compact on phones and its responsive
+ * typography is defined by WorkerHome.css. Keeping the old global rule
+ * here made the four KPI cards and quick-action cards overflow on narrow
+ * screens and also changed "HV: xx%" back to the legacy "Công đoạn:" label.
+ */
+body :where(.worker-home-page) :where(p, span, small, label, th, td, button, input, select, textarea,
+  option, a, li, dt, dd, legend, summary, caption, figcaption, h1, h2, h3, h4, h5, h6) {
+  font-size: revert-layer !important;
 }
 
-.worker-home-page .worker-home-status.approved,
-.worker-home-page .worker-home-status.pending,
-.worker-home-page .worker-home-status.rejected,
-.worker-home-page .worker-home-status.need-fix { font-size: 0 !important; }
+body :where(.worker-home-page) :where(h1) { font-size: revert-layer !important; }
+body :where(.worker-home-page) :where(h2) { font-size: revert-layer !important; }
+body :where(.worker-home-page) :where(h3) { font-size: revert-layer !important; }
+body :where(.worker-home-page) :where(h4) { font-size: revert-layer !important; }
 
-.worker-home-page .worker-home-status.approved::after { content: "Đã duyệt"; font-size: 13px; }
-.worker-home-page .worker-home-status.pending::after { content: "Chờ duyệt"; font-size: 13px; }
-.worker-home-page .worker-home-status.rejected::after { content: "Từ chối"; font-size: 13px; }
-.worker-home-page .worker-home-status.need-fix::after { content: "Cần sửa"; font-size: 13px; }
-
-.worker-home-page .worker-home-identity span:last-child { font-size: 0 !important; }
-.worker-home-page .worker-home-identity span:last-child::after { content: "Công đoạn: "; font-size: 13px; }
-.worker-home-page .worker-home-brand small { font-size: 0 !important; }
-.worker-home-page .worker-home-brand small::after { content: "Công nhân"; font-size: 13px; }
-
-/* ================================================================
-   KTC GLOBAL READABILITY RULE
-   All application screens use a minimum visible text size of 13px.
-   Legacy 8–12px component rules are raised to 13px while larger
-   headings remain larger. SVG graphics/icons are excluded.
-   ================================================================ */
-body :where(p, span, small, label, th, td, button, input, select, textarea,
+/* Global readability rule for other Worker screens. */
+body :where(.worker-content:not(:has(.worker-home-page)), .worker-sidebar, .worker-header, .worker-mobile-nav) :where(p, span, small, label, th, td, button, input, select, textarea,
   option, a, li, dt, dd, legend, summary, caption, figcaption, h1, h2, h3, h4, h5, h6) {
   font-size: max(13px, 1em) !important;
 }
 
-body :where(h1) { font-size: max(24px, 1em) !important; }
-body :where(h2) { font-size: max(20px, 1em) !important; }
-body :where(h3) { font-size: max(17px, 1em) !important; }
-body :where(h4) { font-size: max(15px, 1em) !important; }
+body :where(.worker-content:not(:has(.worker-home-page)), .worker-sidebar, .worker-header, .worker-mobile-nav) :where(h1) { font-size: max(24px, 1em) !important; }
+body :where(.worker-content:not(:has(.worker-home-page)), .worker-sidebar, .worker-header, .worker-mobile-nav) :where(h2) { font-size: max(20px, 1em) !important; }
+body :where(.worker-content:not(:has(.worker-home-page)), .worker-sidebar, .worker-header, .worker-mobile-nav) :where(h3) { font-size: max(17px, 1em) !important; }
+body :where(.worker-content:not(:has(.worker-home-page)), .worker-sidebar, .worker-header, .worker-mobile-nav) :where(h4) { font-size: max(15px, 1em) !important; }
 
-body :where(input, select, textarea, button) {
+body :where(.worker-content:not(:has(.worker-home-page)), .worker-sidebar, .worker-header, .worker-mobile-nav) :where(input, select, textarea, button) {
   font-size: max(13px, 1em) !important;
 }
 
