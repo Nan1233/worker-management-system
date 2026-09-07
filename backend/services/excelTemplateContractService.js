@@ -3,9 +3,6 @@
 const path = require('node:path');
 const fs = require('node:fs/promises');
 
-// `__dirname` is a CommonJS runtime global, but Cloudflare Workers bundles this
-// module into an ESM-like Worker where `__dirname` is not defined. Resolve the
-// relative template path lazily so Worker startup never evaluates it.
 const TEMPLATE_RELATIVE_PATH = '../templates/KTC-Bao-cao-9-cong-doan.xlsx';
 
 const TEMPLATE_CANDIDATES = [TEMPLATE_RELATIVE_PATH];
@@ -33,11 +30,25 @@ function normalizeLabel(value) {
 }
 
 function getTemplatePath() {
-  return path.resolve(__dirname, TEMPLATE_RELATIVE_PATH);
+  // CommonJS `__dirname` is not available in Cloudflare's Worker module scope.
+  // Node/Render keeps the original filesystem behavior; Cloudflare callers
+  // should not invoke Excel template file resolution because Workers do not
+  // provide a local Node filesystem.
+  if (typeof __dirname === 'string') {
+    return path.resolve(__dirname, TEMPLATE_RELATIVE_PATH);
+  }
+  return null;
 }
 
 async function resolveTemplatePath() {
   const file = getTemplatePath();
+  if (!file) {
+    throw Object.assign(new Error('Excel template file resolution is not available in Cloudflare Workers'), {
+      code: 'KTC_EXCEL_TEMPLATE_FS_UNSUPPORTED',
+      statusCode: 501
+    });
+  }
+
   try {
     await fs.access(file);
     return file;
