@@ -1,6 +1,18 @@
 /* KTC Worker UI — readability + Vietnamese presentation overrides.
    Applies only to Worker screens. Business logic and routes are untouched. */
-.worker-layout { font-size: 13px; }
+.worker-layout {
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.worker-layout button,
+.worker-layout input,
+.worker-layout select,
+.worker-layout textarea {
+  font-family: inherit;
+}
 
 .worker-nav::before {
   content: "KHU VỰC LÀM VIỆC";
@@ -20,16 +32,11 @@
   .worker-mobile-nav button span { font-size: 13px; }
 }
 
-/*
- * Do not apply the old global 13px minimum to Worker Home.
- * The Home screen is deliberately compact on phones and its responsive
- * typography is defined by WorkerHome.css. Keeping the old global rule
- * here made the four KPI cards and quick-action cards overflow on narrow
- * screens and also changed "HV: xx%" back to the legacy "Công đoạn:" label.
- */
+/* Do not apply the old global 13px minimum to Worker Home. */
 body :where(.worker-home-page) :where(p, span, small, label, th, td, button, input, select, textarea,
   option, a, li, dt, dd, legend, summary, caption, figcaption, h1, h2, h3, h4, h5, h6) {
   font-size: revert-layer !important;
+  font-family: inherit;
 }
 
 body :where(.worker-home-page) :where(h1) { font-size: revert-layer !important; }
@@ -41,6 +48,7 @@ body :where(.worker-home-page) :where(h4) { font-size: revert-layer !important; 
 body :where(.worker-content:not(:has(.worker-home-page)), .worker-sidebar, .worker-header, .worker-mobile-nav) :where(p, span, small, label, th, td, button, input, select, textarea,
   option, a, li, dt, dd, legend, summary, caption, figcaption, h1, h2, h3, h4, h5, h6) {
   font-size: max(13px, 1em) !important;
+  font-family: inherit;
 }
 
 body :where(.worker-content:not(:has(.worker-home-page)), .worker-sidebar, .worker-header, .worker-mobile-nav) :where(h1) { font-size: max(24px, 1em) !important; }
