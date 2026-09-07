@@ -3,6 +3,7 @@ import { Bell, ClipboardPenLine, History, Home, LogOut, UserRound } from "lucide
 import { logout } from "../services/authService";
 import { usePermissions } from "../hooks/usePermissions";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
+import { getStoredUser } from "../utils/authStorage";
 import type { PermissionCode } from "../security/permissions";
 import "./WorkerLayout.css";
 
@@ -27,6 +28,10 @@ export default function WorkerLayout() {
   const { can } = usePermissions();
   const { unreadCount } = useNotificationBadge(can("NOTIFICATION_VIEW"));
   const visible = items.filter((item) => !item.permission || can(item.permission));
+  const user = getStoredUser();
+  const displayName = user?.full_name || "Công nhân";
+  const workerCode = user?.worker_code || "";
+  const initials = displayName.trim().split(/\s+/).slice(-2).map((part) => part[0]).join("").toUpperCase().slice(0, 2) || "KT";
 
   const active = (item: Item) => {
     if (item.path === "/worker") return location.pathname === "/worker";
@@ -39,13 +44,20 @@ export default function WorkerLayout() {
     navigate("/login", { replace: true });
   };
 
+  const notificationButton = (
+    <button type="button" className="worker-header-notification" onClick={() => navigate("/worker/notifications")} aria-label="Thông báo">
+      <Bell size={20} />
+      {unreadCount > 0 && <b className="worker-badge">{unreadCount > 99 ? "99+" : unreadCount}</b>}
+    </button>
+  );
+
   return (
     <div className="worker-layout">
       <aside className="worker-sidebar">
         <button className="worker-brand" type="button" onClick={() => navigate("/worker")}>
-          <span className="worker-brand-mark">K</span>
+          <img src="/ktc-hanoi-logo.jpg" alt="KTC HANOI" className="worker-brand-logo" />
           <span>
-            <strong>KTC (HANOI) CO., LTD</strong>
+            <strong>KTC HANOI</strong>
             <small>Công nhân</small>
           </span>
         </button>
@@ -54,17 +66,10 @@ export default function WorkerLayout() {
           {visible.map((item) => {
             const Icon = item.icon;
             return (
-              <button
-                key={`${item.path}-${item.label}`}
-                type="button"
-                className={active(item) ? "active" : ""}
-                onClick={() => navigate(item.path)}
-              >
+              <button key={`${item.path}-${item.label}`} type="button" className={active(item) ? "active" : ""} onClick={() => navigate(item.path)}>
                 <Icon size={18} />
                 <span>{item.label}</span>
-                {item.icon === Bell && unreadCount > 0 && (
-                  <b className="worker-badge">{unreadCount > 99 ? "99+" : unreadCount}</b>
-                )}
+                {item.icon === Bell && unreadCount > 0 && <b className="worker-badge">{unreadCount > 99 ? "99+" : unreadCount}</b>}
               </button>
             );
           })}
@@ -78,10 +83,18 @@ export default function WorkerLayout() {
 
       <section className="worker-main">
         <header className="worker-header">
-          <div>
-            <strong>Quản lý sản xuất KTC</strong>
-            <span>Công nhân · Sản xuất</span>
-          </div>
+          <button className="worker-header-brand" type="button" onClick={() => navigate("/worker")} aria-label="Trang chủ KTC HANOI">
+            <img src="/ktc-hanoi-logo.jpg" alt="KTC HANOI" />
+          </button>
+          <div className="worker-header-spacer" />
+          {notificationButton}
+          <button type="button" className="worker-header-user" onClick={() => navigate("/worker/profile")} aria-label="Trang cá nhân">
+            <span className="worker-header-avatar">{initials}</span>
+            <span className="worker-header-user-copy">
+              <strong>{displayName}</strong>
+              <small>{workerCode ? `Mã CN: ${workerCode}` : "Công nhân"}</small>
+            </span>
+          </button>
         </header>
         <main className="worker-content"><Outlet /></main>
       </section>
@@ -97,10 +110,6 @@ export default function WorkerLayout() {
             </button>
           );
         })}
-        <button type="button" className="worker-mobile-logout" onClick={() => void handleLogout()}>
-          <LogOut size={19} />
-          <span>Đăng xuất</span>
-        </button>
       </nav>
     </div>
   );
