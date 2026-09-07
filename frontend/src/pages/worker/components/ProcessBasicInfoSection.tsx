@@ -37,7 +37,8 @@ interface Props {
     updateMachineDefectValue: (lineIndex: number, key: string, value: string) => void;
 }
 
-const GC_AUTOMATIC_MACHINE_CODES = new Set(["5", "6", "7", "11"]);
+// Mã máy cắt tự động: C5, C6, C7, C11.
+const GC_AUTOMATIC_MACHINE_CODES = new Set(["C5", "C6", "C7", "C11"]);
 const getMachineCode = (option: AutocompleteOption): string => option.value.trim().toUpperCase().replace(/^MÁY\s*/i, "");
 
 export default function ProcessBasicInfoSection({
@@ -74,7 +75,7 @@ export default function ProcessBasicInfoSection({
         setOperationMode(mode === "MANUAL" ? "MANUAL" : "MACHINE");
     };
 
-    // GC: máy tự động chỉ gồm 5/6/7/11; các máy còn lại là cắt không tự động.
+    // Cắt tự động chỉ cho C5/C6/C7/C11. Cắt không tự động dùng các mã máy C còn lại.
     const visibleGcMachineOptions = operationType === "CUT"
         ? operationMode === "MACHINE"
             ? machineAutocompleteOptions.filter((option) => GC_AUTOMATIC_MACHINE_CODES.has(getMachineCode(option)))
@@ -168,8 +169,7 @@ export default function ProcessBasicInfoSection({
                                 {Array.from({ length: maxMachineCount }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count}</option>)}
                             </select></label>
                         </div>
-                        {isCutLongProcess && <div className="worker-machine-policy-note">Máy tự động: 5, 6, 7, 11. Các máy còn lại: cắt không tự động.</div>}
-
+                        {isCutLongProcess && <div className="worker-machine-policy-note">Máy tự động: C5, C6, C7, C11. Các máy C còn lại: cắt không tự động.</div>}
                         <div className="machine-lines-list">
                             {machineLines.map((line, index) => (
                                 <article className="machine-line" key={index}>
