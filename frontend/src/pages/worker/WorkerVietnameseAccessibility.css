@@ -218,3 +218,72 @@ body :where(.worker-form-title-row h1) {
 }
 
 body :where(svg, svg *) { font-size: inherit !important; }
+
+/* KTC Worker form — minimal container chrome.
+   Keep borders only where the user actually interacts: buttons, inputs,
+   selects, textareas, checkboxes and radio controls. */
+body :where(.worker-content:not(:has(.worker-home-page))) :where(
+  .worker-form-card,
+  .worker-sticky-info,
+  .worker-selection-card,
+  .worker-machine-workspace,
+  .worker-mode-panel,
+  .worker-mode-group,
+  .multi-machine-panel,
+  .machine-line,
+  .worker-time-item,
+  .worker-quality-card,
+  .machine-performance-metric,
+  .worker-dropdown-box,
+  .worker-form-actions
+) {
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+body :where(.worker-content:not(:has(.worker-home-page))) :where(
+  .worker-form-card,
+  .worker-sticky-info,
+  .worker-selection-card,
+  .worker-machine-workspace,
+  .worker-mode-panel,
+  .worker-mode-group,
+  .multi-machine-panel,
+  .machine-line,
+  .worker-time-item,
+  .worker-quality-card,
+  .machine-performance-metric
+) {
+  border-radius: 0 !important;
+}
+
+/* Remove visual boxes from headings/group wrappers; preserve spacing. */
+body :where(.worker-content:not(:has(.worker-home-page))) :where(
+  .worker-card-heading,
+  .worker-selection-heading,
+  .worker-mode-label,
+  .machine-card-header,
+  .machine-section-title
+) {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* The sticky context is information, not a card. Its date selector remains a real control. */
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-sticky-info {
+  padding-inline: 0 !important;
+}
+
+/* Keep the action buttons themselves visually distinct; only the surrounding bar loses its frame. */
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-form-actions {
+  padding-inline: 0 !important;
+  border-radius: 0 !important;
+}
+
+/* Choice buttons stay framed because they are actual controls. */
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-choice-row button,
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-dropdown-option,
+body :where(.worker-content:not(:has(.worker-home-page))) .machine-deduction-option {
+  box-shadow: none;
+}
