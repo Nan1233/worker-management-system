@@ -1,14 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { Bell, CalendarDays, CheckCircle2, ChevronRight, ClipboardPenLine, Clock3, History, XCircle } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronRight, ClipboardPenLine, Clock3, History, XCircle } from "lucide-react";
 import { clearAuthSession, getStoredUser } from "../../utils/authStorage";
 import { getCurrentWorker } from "../../services/workerService";
 import { getMyTempReports } from "../../services/productionService";
 import type { WorkerProfile } from "../../types/worker";
 import type { ProductionReport } from "../../types/production";
-import { useNotificationBadge } from "../../hooks/useNotificationBadge";
-import { usePermissions } from "../../hooks/usePermissions";
 import "./WorkerHome.css";
 
 const formatNumber = (value: unknown) => new Intl.NumberFormat("vi-VN").format(Number(value ?? 0));
@@ -21,17 +19,15 @@ const formatDate = (value?: string) => {
 
 const statusMeta = (status?: string) => {
   switch (status) {
-    case "approved": return { label: "Approved", className: "approved" };
-    case "rejected": return { label: "Rejected", className: "rejected" };
-    case "need_fix": return { label: "Need fix", className: "need-fix" };
-    default: return { label: "Pending", className: "pending" };
+    case "approved": return { label: "Đã duyệt", className: "approved" };
+    case "rejected": return { label: "Từ chối", className: "rejected" };
+    case "need_fix": return { label: "Cần sửa", className: "need-fix" };
+    default: return { label: "Chờ duyệt", className: "pending" };
   }
 };
 
 export default function WorkerHome() {
   const navigate = useNavigate();
-  const { can } = usePermissions();
-  const { unreadCount } = useNotificationBadge(can("NOTIFICATION_VIEW"));
   const [worker, setWorker] = useState<WorkerProfile | null>(null);
   const [reports, setReports] = useState<ProductionReport[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,10 +48,7 @@ export default function WorkerHome() {
           navigate("/login", { replace: true });
           return;
         }
-        const [workerData, reportData] = await Promise.all([
-          getCurrentWorker(true),
-          getMyTempReports(),
-        ]);
+        const [workerData, reportData] = await Promise.all([getCurrentWorker(true), getMyTempReports()]);
         if (!alive) return;
         setWorker(workerData);
         setReports(Array.isArray(reportData) ? reportData : []);
@@ -91,42 +84,25 @@ export default function WorkerHome() {
   const trainingPercent = Number(worker?.training_percent ?? 0);
   const displayReports = todayReports.length ? todayReports : reports.slice(0, 4);
 
-  if (loading) {
-    return <main className="worker-home-page"><div className="worker-home-state">Đang tải dữ liệu...</div></main>;
-  }
-
-  if (error) {
-    return <main className="worker-home-page"><div className="worker-home-state error"><strong>Không thể tải trang chủ</strong><span>{error}</span><button type="button" onClick={() => window.location.reload()}>Thử lại</button></div></main>;
-  }
+  if (loading) return <main className="worker-home-page"><div className="worker-home-state">Đang tải dữ liệu...</div></main>;
+  if (error) return <main className="worker-home-page"><div className="worker-home-state error"><strong>Không thể tải trang chủ</strong><span>{error}</span><button type="button" onClick={() => window.location.reload()}>Thử lại</button></div></main>;
 
   return (
     <main className="worker-home-page">
       <div className="worker-home-shell">
-        <header className="worker-home-topbar">
-          <button type="button" className="worker-home-brand" onClick={() => navigate("/worker")} aria-label="KTC Worker Home">
-            <span className="worker-home-brand-mark">K</span>
-            <span><strong>KTC (HANOI) CO., LTD.</strong><small>Worker</small></span>
-          </button>
-          <button type="button" className="worker-home-notification" onClick={() => navigate("/worker/system")} aria-label="Thông báo">
-            <Bell size={18} />
-            {unreadCount > 0 && <b>{unreadCount > 99 ? "99+" : unreadCount}</b>}
-          </button>
-        </header>
-
         <section className="worker-home-welcome">
           <div>
             <span className="worker-home-eyebrow">Hôm nay</span>
-            <h1>Xin chào, <strong>{worker?.full_name || "Nguyễn Văn An"}</strong></h1>
+            <h1>Xin chào, <strong>{worker?.full_name || "Công nhân"}!</strong></h1>
             <div className="worker-home-identity">
-              <span>KTC-{worker?.worker_code || "00125"}</span>
+              <span>KTC-{worker?.worker_code || "--"}</span>
               <span className="worker-home-training">Học việc: {formatPercent(trainingPercent)}</span>
             </div>
           </div>
-          <div className="worker-home-avatar" aria-hidden="true">{(worker?.full_name || "N").slice(0, 1).toUpperCase()}</div>
         </section>
 
-        <section className="worker-home-today card" aria-label="Tổng quan hôm nay">
-          <div className="worker-home-section-title"><span>Hôm nay</span><small>{formatDate(todayKey)}</small></div>
+        <section className="worker-home-today card" aria-label="Kết quả hôm nay">
+          <div className="worker-home-section-title"><div><span>Kết quả hôm nay</span><small>Theo dữ liệu báo cáo đã nhập</small></div><small>{formatDate(todayKey)}</small></div>
           <div className="worker-home-metrics">
             <div><span>Tổng SL</span><strong>{formatNumber(todayStats.total)}</strong><small>sản phẩm</small></div>
             <div className="ok"><span>OK</span><strong>{formatNumber(todayStats.ok)}</strong><small>sản phẩm</small></div>
@@ -136,9 +112,14 @@ export default function WorkerHome() {
         </section>
 
         <button type="button" className="worker-home-create" onClick={() => navigate("/worker/process/select")}>
-          <span><ClipboardPenLine size={20} /><strong>+ BÁO CÁO SẢN XUẤT</strong><small>Nhập báo cáo sản lượng mới</small></span>
+          <span><ClipboardPenLine size={20} /><strong>Nhập báo cáo</strong><small>Tạo báo cáo sản xuất mới</small></span>
           <ChevronRight size={20} />
         </button>
+
+        <section className="worker-home-history-link" aria-label="Lịch sử báo cáo">
+          <div><span className="worker-home-history-icon"><History size={19} /></span><span><strong>Lịch sử báo cáo</strong><small>Xem các báo cáo đã gửi</small></span></div>
+          <button type="button" onClick={() => navigate("/worker/history")} aria-label="Mở lịch sử báo cáo"><ChevronRight size={19} /></button>
+        </section>
 
         <section className="worker-home-reports card">
           <div className="worker-home-section-title">
