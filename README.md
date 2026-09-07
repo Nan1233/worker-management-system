@@ -35,3 +35,5 @@ npm run build
 ```
 
 Giao diện dùng CSS cơ bản, tập trung vào khả năng bảo trì và tương thích mobile/desktop.
+
+<!-- deployment smoke test: 2026-09-07 -->
