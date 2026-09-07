@@ -8,6 +8,7 @@ import "./pages/worker/ProcessPage.polished.css";
 import "./pages/worker/ProcessPage.ng-layout.css";
 import "./pages/worker/ProcessPage.time-layout.css";
 import "./pages/worker/ProcessPage.actions-flow.css";
+import "./pages/worker/ProcessPage.layout-fix.css";
 import "./pages/manager/ApprovedReportsOrder.css";
 import "./pages/manager/ApprovedReportsReference.css";
 import "./pages/manager/ApprovedReportsPendingStyle.css";
