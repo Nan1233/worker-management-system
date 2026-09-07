@@ -247,3 +247,19 @@ body :where(.worker-content:not(:has(.worker-home-page))) .worker-sticky-date-se
   font-size: 13px !important;
   font-weight: 650 !important;
 }
+
+/* Machine-count control: match Dashboard's compact visual rhythm. */
+body :where(.worker-content:not(:has(.worker-home-page))) .multi-machine-controls > label {
+  font-size: 10px !important;
+  line-height: 1.2 !important;
+  font-weight: 600 !important;
+}
+body :where(.worker-content:not(:has(.worker-home-page))) .multi-machine-controls > select {
+  min-height: 36px !important;
+  height: 36px !important;
+  padding: 0 26px 0 11px !important;
+  border-radius: 8px !important;
+  font-size: 12px !important;
+  line-height: 1.2 !important;
+  font-weight: 600 !important;
+}
