@@ -53,9 +53,29 @@ function assertCloudflareDriver() {
   }
 }
 
+function describeDatabaseError(error, sql) {
+  const message = String(error?.message || error || "Unknown database error");
+  const wrapped = new Error(`TiDB query failed: ${message}`);
+  if (error && typeof error === "object") {
+    for (const key of ["code", "errno", "sqlState", "status", "statusCode"]) {
+      if (error[key] != null) wrapped[key] = error[key];
+    }
+  }
+  wrapped.cause = error;
+  if (isCloudflareWorker) {
+    console.error("[KTC][DB] TiDB query error", {
+      message,
+      code: error?.code ?? null,
+      errno: error?.errno ?? null,
+      sqlState: error?.sqlState ?? null,
+      status: error?.status ?? error?.statusCode ?? null,
+      sql: String(sql || "").replace(/\s+/g, " ").trim().slice(0, 1000),
+    });
+  }
+  return wrapped;
+}
+
 function normalizeExecuteResult(result) {
-  // TiDB Serverless Driver with fullResult=true returns an object containing
-  // rows for SELECT-like statements and rowsAffected/lastInsertId for writes.
   if (result && typeof result === "object" && !Array.isArray(result)) {
     if (Array.isArray(result.rows)) {
       return [result.rows, result.fields || []];
@@ -107,7 +127,11 @@ function createCloudflareConnection() {
   async function executeRaw(sql, params = []) {
     if (closed) throw new Error("Database connection đã được đóng");
     const client = transaction || conn;
-    return client.execute(sql, params, { fullResult: true });
+    try {
+      return await client.execute(sql, params, { fullResult: true });
+    } catch (error) {
+      throw describeDatabaseError(error, sql);
+    }
   }
 
   async function queryPromise(...args) {
@@ -143,7 +167,11 @@ function createCloudflareConnection() {
     async beginTransaction(callback) {
       const promise = (async () => {
         if (transaction) throw new Error("Transaction đã được mở trên connection này");
-        transaction = await conn.begin();
+        try {
+          transaction = await conn.begin();
+        } catch (error) {
+          throw describeDatabaseError(error, "BEGIN");
+        }
       })();
       if (typeof callback === "function") {
         promise.then(() => callback(null), callback);
@@ -156,7 +184,11 @@ function createCloudflareConnection() {
         if (!transaction) throw new Error("Không có transaction đang mở");
         const current = transaction;
         transaction = null;
-        await current.commit();
+        try {
+          await current.commit();
+        } catch (error) {
+          throw describeDatabaseError(error, "COMMIT");
+        }
       })();
       if (typeof callback === "function") {
         promise.then(() => callback(null), callback);
@@ -169,7 +201,11 @@ function createCloudflareConnection() {
         if (!transaction) return;
         const current = transaction;
         transaction = null;
-        await current.rollback();
+        try {
+          await current.rollback();
+        } catch (error) {
+          throw describeDatabaseError(error, "ROLLBACK");
+        }
       })();
       if (typeof callback === "function") {
         promise.then(() => callback(null), callback);
@@ -238,9 +274,6 @@ function callbackOrPromiseFacade(operation, args) {
   return undefined;
 }
 
-// Cloudflare Workers use TiDB Cloud Serverless Driver over HTTPS. This avoids
-// long-lived TCP connections and Hyperdrive while preserving the mysql2-like
-// query/transaction API expected by the existing KTC models.
 if (isCloudflareWorker) {
   const cloudflareDb = createCloudflareDbFacade();
 
@@ -268,7 +301,6 @@ if (isCloudflareWorker) {
   module.exports.closePool = async () => {};
   module.exports.getMissingDatabaseVariables = getMissingDatabaseVariables;
 } else {
-  // Render/Node path: keep the existing pool implementation unchanged.
   const pool = mysql.createPool({
     host: process.env.DB_HOST,
     port: dbPort,
