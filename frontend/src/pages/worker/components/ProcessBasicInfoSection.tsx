@@ -47,6 +47,10 @@ interface Props {
     updateMachineDefectValue: (lineIndex: number, key: string, value: string) => void;
 }
 
+const GC_AUTOMATIC_MACHINE_CODES = new Set(["5", "6", "7", "11"]);
+
+const getMachineCode = (option: AutocompleteOption): string => option.value.trim().toUpperCase().replace(/^MÁY\s*/i, "");
+
 export default function ProcessBasicInfoSection({
     form,
     setForm,
@@ -107,6 +111,16 @@ export default function ProcessBasicInfoSection({
         setOperationMode(mode === "MANUAL" ? "MANUAL" : "MACHINE");
     };
 
+    // GC: máy tự động chỉ gồm 5/6/7/11. Các máy còn lại thuộc Cắt không tự động.
+    // Không thay đổi dữ liệu master trong DB; chỉ lọc danh sách hiển thị theo chế độ đang chọn.
+    const visibleGcMachineOptions = operationType === "CUT"
+        ? operationMode === "MACHINE"
+            ? machineAutocompleteOptions.filter((option) => GC_AUTOMATIC_MACHINE_CODES.has(getMachineCode(option)))
+            : machineAutocompleteOptions.filter((option) => !GC_AUTOMATIC_MACHINE_CODES.has(getMachineCode(option)))
+        : machineAutocompleteOptions;
+
+    const visibleMachineOptions = isCutLongProcess ? visibleGcMachineOptions : machineAutocompleteOptions;
+
     return (
         <section className="worker-form-card worker-form-card-basic">
             <div className="worker-card-heading">
@@ -143,14 +157,14 @@ export default function ProcessBasicInfoSection({
                             <div className="worker-mode-label">Hình thức thực hiện</div>
                             {operationType === "CUT" ? (
                                 <div className="worker-choice-row">
-                                    <button type="button" className={operationMode === "MACHINE" ? "active" : ""} onClick={() => setOperationMode("MACHINE")}>Cắt tự động</button>
-                                    <button type="button" className={operationMode === "MANUAL" ? "active" : ""} onClick={() => setOperationMode("MANUAL")}>Cắt không tự động</button>
+                                    <button type="button" className={operationMode === "MACHINE" ? "active" : ""} onClick={() => setOperationMode("MACHINE")}>Tự động</button>
+                                    <button type="button" className={operationMode === "MANUAL" ? "active" : ""} onClick={() => setOperationMode("MANUAL")}>Không tự động</button>
                                 </div>
                             ) : (
                                 <div className="worker-choice-row">
-                                    <button type="button" className={longExecutionMode === "MANUAL" ? "active" : ""} onClick={() => handleLongExecutionModeChange("MANUAL")}>Lồng tay</button>
-                                    <button type="button" className={longExecutionMode === "MACHINE" ? "active" : ""} onClick={() => handleLongExecutionModeChange("MACHINE")}>Lồng máy</button>
-                                    <button type="button" className={longExecutionMode === "AIR" ? "active" : ""} onClick={() => handleLongExecutionModeChange("AIR")}>Lồng khí</button>
+                                    <button type="button" className={longExecutionMode === "MANUAL" ? "active" : ""} onClick={() => handleLongExecutionModeChange("MANUAL")}>Tay</button>
+                                    <button type="button" className={longExecutionMode === "MACHINE" ? "active" : ""} onClick={() => handleLongExecutionModeChange("MACHINE")}>Máy</button>
+                                    <button type="button" className={longExecutionMode === "AIR" ? "active" : ""} onClick={() => handleLongExecutionModeChange("AIR")}>Khí</button>
                                 </div>
                             )}
                         </div>
@@ -163,7 +177,7 @@ export default function ProcessBasicInfoSection({
                             <div className="worker-mode-label">Hình thức kiểm tra</div>
                             <div className="worker-choice-row">
                                 <button type="button" className={operationMode === "MANUAL" ? "active" : ""} onClick={() => setOperationMode("MANUAL")}>Tay</button>
-                                <button type="button" className={operationMode === "MACHINE" ? "active" : ""} onClick={() => setOperationMode("MACHINE")}>Máy</button>
+                                <button type="button" className={operationMode === "MACHINE" ? "active' : ""} onClick={() => setOperationMode("MACHINE")}>Máy</button>
                             </div>
                         </div>
                         <div className="worker-mode-hint">Làm tay: chỉ chọn mã sản phẩm. Làm máy: chọn máy trước, sau đó chọn mã sản phẩm thuộc máy.</div>
@@ -210,7 +224,7 @@ export default function ProcessBasicInfoSection({
                             </label>
                         </div>
 
-                        {isCutLongProcess && <div className="worker-machine-policy-note">Máy tự động có thể chạy tối đa 4 máy/người. Máy thường áp dụng giới hạn theo dữ liệu máy.</div>}
+                        {isCutLongProcess && <div className="worker-machine-policy-note">Máy tự động: 5, 6, 7, 11. Các máy còn lại: cắt không tự động.</div>}
 
                         <div className="machine-lines-list">
                             {machineLines.map((line, index) => (
@@ -228,11 +242,11 @@ export default function ProcessBasicInfoSection({
                                             id={`machineNo-${index}`}
                                             label="Mã máy"
                                             value={line.machineCode}
-                                            options={machineAutocompleteOptions}
+                                            options={visibleMachineOptions}
                                             placeholder="Chọn mã máy"
                                             required
                                             disabled={loadingMasterData}
-                                            emptyMessage="Không tìm thấy máy trong công đoạn"
+                                            emptyMessage="Không tìm thấy máy trong chế độ đang chọn"
                                             onChange={(value) => updateMachineLine(index, { machineCode: value, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" })}
                                             onSelect={(option) => updateMachineLine(index, { machineCode: option.value, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" })}
                                         />
@@ -325,7 +339,7 @@ export default function ProcessBasicInfoSection({
                                 id="machineNo"
                                 label="Mã máy"
                                 value={form.machineNo}
-                                options={machineAutocompleteOptions}
+                                options={visibleMachineOptions}
                                 placeholder="Chọn mã máy"
                                 required
                                 disabled={loadingMasterData}
