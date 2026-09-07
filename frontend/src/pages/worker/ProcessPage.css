@@ -26,3 +26,73 @@
 @media(max-width:900px){.worker-form-page{padding-inline:14px}.worker-form-shell{width:min(100%,760px)}}
 @media(max-width:760px){.worker-form-page{padding:12px 10px 34px}.worker-sticky-context{margin-bottom:12px}.worker-sticky-info{align-items:flex-start;flex-direction:column;gap:9px}.worker-sticky-meta{width:100%;flex-wrap:wrap}.worker-sticky-date-select{min-width:0;flex:1 1 200px}.worker-basic-grid,.worker-dynamic-grid{grid-template-columns:1fr}.worker-field-full{grid-column:auto}.worker-form-card{padding:15px 13px 18px;border-radius:13px}.worker-time-grid,.worker-quality-summary{grid-template-columns:1fr}.machine-performance-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.machine-deduction-options,.worker-dropdown-options{grid-template-columns:1fr}.multi-machine-controls{grid-template-columns:1fr}.multi-machine-controls>small{grid-column:auto}.worker-form-title-row h1{font-size:22px}}
 @media(max-width:480px){.worker-form-page{padding-inline:8px}.worker-form-title-row{gap:9px}.worker-form-back{width:38px;height:38px;flex-basis:38px}.worker-form-title-row h1{font-size:20px}.worker-sticky-person{width:100%}.worker-sticky-person strong{max-width:64vw}.worker-sticky-meta{display:grid;grid-template-columns:1fr;width:100%}.worker-sticky-training,.worker-sticky-date-select{width:100%}.worker-form-card{padding:13px 11px 16px}.worker-choice-row button{flex:1 1 0;min-width:0}.machine-time-row,.machine-quantity-row{grid-template-columns:1fr}.machine-performance-strip{grid-template-columns:1fr 1fr}.worker-form-actions{bottom:6px;margin-inline:-2px}}
+
+/* Minimal / calm mobile layer: keep only meaningful containers as cards. */
+@media(max-width:760px){
+  .worker-form-page{background:#f6f8fb;padding:10px 10px 34px}
+  .worker-sticky-context{padding-bottom:8px;background:rgba(246,248,251,.96);backdrop-filter:blur(10px)}
+  .worker-form-header{margin-bottom:10px}
+  .worker-form-title-row{gap:8px}
+  .worker-form-title-row h1{font-size:20px!important;font-weight:700;letter-spacing:-.02em}
+  .worker-form-back{width:36px;height:36px;flex-basis:36px;border:0;border-radius:9px;background:#fff;box-shadow:0 1px 5px rgba(31,61,93,.06);font-size:19px}
+  .worker-sticky-info{min-height:0;padding:10px 11px;gap:8px;border:1px solid #e2e9f1;border-radius:11px;box-shadow:none}
+  .worker-sticky-person strong{font-size:13px}
+  .worker-sticky-person span{font-size:10px}
+  .worker-sticky-training,.worker-sticky-date-select{min-height:34px;border:1px solid #d9e4ef;border-radius:8px;background:#fff;font-size:11px}
+  .worker-form-card{margin-top:10px;padding:14px 12px 16px;border:1px solid #e1e8f0;border-radius:11px;background:#fff;box-shadow:none}
+  .worker-card-heading{gap:8px;margin-bottom:13px}
+  .worker-card-step{width:24px;height:24px;flex-basis:24px;border-radius:7px;font-size:10px;background:#f1f6fc}
+  .worker-card-title{gap:7px;margin:0;font-size:16px!important;font-weight:700!important}
+  .worker-card-title>span{width:21px;height:21px;border-radius:6px;background:#f2f6fb}
+  .worker-card-subtitle{font-size:11px}
+  .worker-basic-grid,.worker-dynamic-grid{gap:13px}
+  .worker-field-block{gap:5px}
+  .worker-field-label,.worker-field-block>label{font-size:12px}
+  .worker-field-block>small{font-size:10px}
+  .worker-text-input,.worker-field-block input:not([type=checkbox]):not([type=radio]),.worker-field-block select,.worker-field-block textarea{min-height:42px;border:1px solid #d5e0eb;border-radius:8px;padding:8px 11px;font-size:13px}
+  .worker-choice-row{gap:5px}
+  .worker-choice-row button{min-height:35px;border:1px solid #d7e2ed;border-radius:7px;background:#fff;font-size:12px;font-weight:650;box-shadow:none}
+  .worker-choice-row button.active{border-color:#9bc3ee;background:#f1f7ff;color:#155da9;box-shadow:inset 0 0 0 1px #dcecff}
+  .worker-shift-list{gap:9px 16px;min-height:36px}
+  .worker-shift-item{gap:6px}
+  .worker-shift-item input{width:17px;height:17px;min-width:17px;border-width:2px}
+  .worker-shift-item input:checked{border-width:5px;box-shadow:none}
+  .worker-shift-item span{font-size:12px}
+  .machine-line{margin-top:9px;padding:11px 0 0;border:0;border-top:1px solid #edf1f5;border-radius:0;background:transparent;box-shadow:none}
+  .machine-card-header{margin-bottom:8px}
+  .machine-card-header strong{font-size:12px}
+  .machine-card-badge{padding:3px 7px;border-radius:6px;font-size:10px}
+  .machine-section-title{margin:7px 0 5px;font-size:11px}
+  .machine-line-total{margin-top:8px;padding:8px 0;border-radius:0;background:transparent;border-top:1px dashed #e3e9ef;font-size:11px}
+  .machine-performance-strip{gap:5px;margin-top:8px}
+  .machine-performance-metric{padding:7px;border:0;border-radius:7px;background:#f7f9fc}
+  .machine-performance-metric span{font-size:9px}
+  .machine-performance-metric strong{font-size:11px}
+  .machine-deduction-box{margin-top:8px;padding-top:8px}
+  .machine-deduction-option{border:0;border-bottom:1px solid #edf1f5;border-radius:0;background:transparent;padding:6px 0;font-size:11px}
+  .worker-time-grid{gap:10px}
+  .worker-time-item{padding:0;border:0;border-radius:0;background:transparent}
+  .worker-time-item>label{margin-bottom:5px;font-size:11px}
+  .worker-time-item>input,.worker-time-split input{min-height:44px;border:1px solid #d5e0eb;border-radius:8px;background:#fff;font-size:16px!important}
+  .worker-time-split{gap:7px}
+  .worker-time-part{gap:4px}
+  .worker-time-part>span{font-size:10px}
+  .worker-quality-summary{gap:7px;margin-bottom:10px}
+  .worker-quality-card{padding:9px;border:1px solid #e2e8ef;border-radius:8px;background:#fff}
+  .worker-quality-card input{min-height:44px;margin-top:5px;border-radius:7px;font-size:18px}
+  .worker-dropdown-box{margin-top:9px;border:0;border-top:1px solid #edf1f5;border-radius:0}
+  .worker-dropdown-title{min-height:43px;padding:0;background:transparent;font-size:13px}
+  .worker-dropdown-options{padding:7px 0;border-top:1px solid #edf1f5;background:transparent}
+  .worker-dropdown-option{min-height:34px;padding:5px 7px;border:1px solid #e2e8ef;border-radius:7px;background:#fff;font-size:11px}
+  .worker-form-actions{gap:7px;margin-top:12px;padding:7px;border:0;border-top:1px solid #e0e7ef;border-radius:0;background:rgba(255,255,255,.96);box-shadow:0 -4px 16px rgba(31,61,93,.07);backdrop-filter:blur(10px)}
+  .worker-submit-button{min-height:46px;border-radius:8px;background:#1767c8;box-shadow:none}
+  .worker-offline-banner{margin-bottom:9px;padding:9px 10px;border-radius:8px;font-size:11px}
+}
+
+@media(max-width:420px){
+  .worker-form-page{padding-inline:8px}
+  .worker-form-card{padding-inline:11px}
+  .worker-card-title{font-size:15px!important}
+  .worker-field-label,.worker-field-block>label{font-size:11.5px}
+  .worker-choice-row button{font-size:11.5px}
+}
