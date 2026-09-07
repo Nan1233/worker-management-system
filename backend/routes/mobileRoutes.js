@@ -4,13 +4,19 @@ const path = require("path");
 
 const router = express.Router();
 
-const IOS_PROFILE_PATH = path.resolve(
-  __dirname,
-  "..",
-  "mobile",
-  "ios",
-  "KTC-Production-Control.mobileconfig",
-);
+const isCloudflareWorker =
+  process.env.KTC_CLOUDFLARE_WORKER === "true" ||
+  Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
+
+function getIosProfilePath() {
+  return path.resolve(
+    __dirname,
+    "..",
+    "mobile",
+    "ios",
+    "KTC-Production-Control.mobileconfig",
+  );
+}
 
 /**
  * Public iPhone configuration-profile delivery endpoint.
@@ -24,7 +30,16 @@ const IOS_PROFILE_PATH = path.resolve(
  * SPA page, JSON wrapper, redirect or Content-Disposition attachment here.
  */
 router.get("/ios-profile", (_req, res, next) => {
-  fs.access(IOS_PROFILE_PATH, fs.constants.R_OK, (error) => {
+  if (isCloudflareWorker) {
+    const error = new Error("Hồ sơ cài đặt iPhone chưa được hỗ trợ trực tiếp trên Cloudflare Worker");
+    error.status = 501;
+    error.code = "IOS_PROFILE_UNSUPPORTED_ON_CLOUDFLARE";
+    error.isPublic = true;
+    return next(error);
+  }
+
+  const iosProfilePath = getIosProfilePath();
+  fs.access(iosProfilePath, fs.constants.R_OK, (error) => {
     if (error) {
       error.status = 503;
       error.code = "IOS_PROFILE_UNAVAILABLE";
@@ -39,7 +54,7 @@ router.get("/ios-profile", (_req, res, next) => {
     res.setHeader("Expires", "0");
     res.setHeader("X-KTC-Mobile-Profile", "ios-webclip-v1");
 
-    return res.sendFile(IOS_PROFILE_PATH);
+    return res.sendFile(iosProfilePath);
   });
 });
 
