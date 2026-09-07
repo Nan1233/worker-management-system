@@ -47,31 +47,73 @@ function getTiDBDatabaseUrl() {
   return url;
 }
 
-function assertCloudflareDriver() {
-  if (!tidbConnect) {
-    throw new Error("Cloudflare Worker chưa nạp được TiDB Serverless Driver");
+function getErrorDetail(error) {
+  if (error == null) return "Unknown database error";
+  if (typeof error === "string") return error;
+
+  const message = typeof error.message === "string" ? error.message.trim() : "";
+  const stack = typeof error.stack === "string" ? error.stack.trim() : "";
+  const code = error.code ?? null;
+  const errno = error.errno ?? null;
+  const sqlState = error.sqlState ?? null;
+  const status = error.status ?? error.statusCode ?? null;
+  const name = error.name ?? null;
+
+  if (message) return message;
+  if (stack) return stack.split("\n")[0] || stack;
+
+  try {
+    const serialized = JSON.stringify(error);
+    if (serialized && serialized !== "{}") return serialized;
+  } catch {
+    // Ignore serialization failures.
   }
+
+  return String(error);
 }
 
 function describeDatabaseError(error, sql) {
-  const message = String(error?.message || error || "Unknown database error");
+  const message = getErrorDetail(error);
   const wrapped = new Error(`TiDB query failed: ${message}`);
+
   if (error && typeof error === "object") {
     for (const key of ["code", "errno", "sqlState", "status", "statusCode"]) {
       if (error[key] != null) wrapped[key] = error[key];
     }
   }
+
   wrapped.cause = error;
+
   if (isCloudflareWorker) {
-    console.error("[KTC][DB] TiDB query error", {
+    const details = {
       message,
+      name: error?.name ?? null,
       code: error?.code ?? null,
       errno: error?.errno ?? null,
       sqlState: error?.sqlState ?? null,
       status: error?.status ?? error?.statusCode ?? null,
+      errorString: (() => {
+        try {
+          return String(error);
+        } catch {
+          return "[unavailable]";
+        }
+      })(),
+      ownProperties: (() => {
+        try {
+          return Object.getOwnPropertyNames(error || {});
+        } catch {
+          return [];
+        }
+      })(),
       sql: String(sql || "").replace(/\s+/g, " ").trim().slice(0, 1000),
-    });
+    };
+
+    // Use a single string because Workers Logs reliably preserves it even when
+    // the thrown value is a non-Error object from fetch/driver internals.
+    console.error(`[KTC][DB] TiDB query error ${JSON.stringify(details)}`);
   }
+
   return wrapped;
 }
 
