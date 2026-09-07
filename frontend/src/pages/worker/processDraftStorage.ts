@@ -149,10 +149,13 @@ function normalizeDraftForResume(draft: ProcessDraft): ProcessDraft {
     ...(sourceLines[index] || {}),
   }));
 
-  // Giữ nguyên dữ liệu đã nhập theo từng máy. Nếu draft cũ chỉ lưu dữ liệu
-  // máy/sản phẩm/thời gian ở form chính thì đồng bộ sang dòng máy đầu tiên.
+  const first = machineLines[0];
+
+  // Đồng bộ hai chiều giữa form chính và dòng máy đầu tiên.
+  // Một số luồng dùng form.machineNo/productName để hiển thị/chọn lại,
+  // trong khi draft lưu chi tiết máy/sản phẩm ở machineLines. Khi resume
+  // phải khôi phục cả hai để không bị mất máy/SP trên giao diện.
   if (form.machineNo || form.productName || form.actualHours || form.actualMinutes) {
-    const first = machineLines[0];
     machineLines[0] = {
       ...first,
       machineCode: first.machineCode || form.machineNo || "",
@@ -163,6 +166,17 @@ function normalizeDraftForResume(draft: ProcessDraft): ProcessDraft {
       okQuantity: first.okQuantity || form.ttOk || "",
       ngQuantity: first.ngQuantity || form.ttNg || "",
     };
+  }
+
+  const restoredFirst = machineLines[0];
+  if (!form.machineNo && restoredFirst.machineCode) form.machineNo = restoredFirst.machineCode;
+  if (!form.productName && restoredFirst.productCode) form.productName = restoredFirst.productCode;
+  if (!form.actualHours && restoredFirst.hours) form.actualHours = restoredFirst.hours;
+  if (!form.actualMinutes && restoredFirst.minutes) form.actualMinutes = restoredFirst.minutes;
+  if (!form.ttOk && restoredFirst.okQuantity) form.ttOk = restoredFirst.okQuantity;
+  if (!form.ttNg && restoredFirst.ngQuantity) form.ttNg = restoredFirst.ngQuantity;
+  if ((!form.standardOutput || form.standardOutput === "0") && restoredFirst.standardOutputPerHour) {
+    form.standardOutput = String(restoredFirst.standardOutputPerHour);
   }
 
   return {
