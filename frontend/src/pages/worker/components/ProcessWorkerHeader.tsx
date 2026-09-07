@@ -37,9 +37,30 @@ export default function ProcessWorkerHeader({
             }}
         >
             <style>{`
-                @media (max-width: 500px) {
-                    .worker-sticky-training-label { display: none; }
-                    .worker-sticky-training { white-space: nowrap; }
+                /* Compact worker header: never let the training badge wrap on phones. */
+                @media (max-width: 680px) {
+                    .worker-sticky-training-label { display: none !important; }
+                    .worker-sticky-training {
+                        display: inline-flex !important;
+                        align-items: center;
+                        justify-content: center;
+                        width: max-content !important;
+                        min-width: 42px !important;
+                        flex: 0 0 auto !important;
+                        white-space: nowrap !important;
+                        word-break: keep-all !important;
+                    }
+                    .worker-sticky-meta {
+                        min-width: 0;
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                    }
+                    .worker-sticky-date { min-width: 0; flex: 1 1 auto; }
+                    .worker-sticky-date-select {
+                        width: 100% !important;
+                        min-width: 0 !important;
+                    }
                 }
             `}</style>
             <header className="worker-form-header">
