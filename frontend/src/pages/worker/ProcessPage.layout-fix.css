@@ -1,36 +1,60 @@
-/* KTC Worker - compact layout refinement for Cắt/Lồng choices. */
+/* KTC Worker - balanced layout for process and execution choices. */
 
-/* Keep the three Lồng options in one equal-width row on desktop/tablet. */
-.worker-mode-group:has(.worker-choice-row button:nth-child(3)) .worker-choice-row {
+/* Operation type / execution mode are real controls: keep the original
+   bordered-button appearance, but make every option equal width. */
+.worker-mode-group .worker-choice-row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
   width: 100%;
   gap: 6px;
+}
+
+/* Two-option groups: Cắt/Lồng and Tự động/Không tự động. */
+.worker-mode-group:has(.worker-choice-row button:nth-child(2)):not(:has(.worker-choice-row button:nth-child(3))) .worker-choice-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.worker-mode-group:has(.worker-choice-row button:nth-child(2)):not(:has(.worker-choice-row button:nth-child(3))) .worker-choice-row button {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  box-sizing: border-box;
+  padding: 5px 8px;
+  font-size: 12px !important;
+  line-height: 1.25;
+}
+
+/* Three-option groups: Tay/Máy/Khí. */
+.worker-mode-group:has(.worker-choice-row button:nth-child(3)) .worker-choice-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .worker-mode-group:has(.worker-choice-row button:nth-child(3)) .worker-choice-row button {
   width: 100%;
   min-width: 0;
-  min-height: 34px;
-  padding: 0 10px;
+  min-height: 36px;
+  padding: 5px 8px;
   box-sizing: border-box;
+  font-size: 12px !important;
+  line-height: 1.25;
 }
 
-/* Cắt has two options: keep them balanced without changing their shape. */
-.worker-mode-group:has(.worker-choice-row button:nth-child(2)):not(:has(.worker-choice-row button:nth-child(3))) .worker-choice-row button {
-  flex: 1 1 0;
+/* Keep the labels in the same visual scale as the Dashboard. */
+.worker-mode-group .worker-mode-label {
+  margin-bottom: 6px;
+  font-size: 11px !important;
+  line-height: 1.25;
+  font-weight: 600;
 }
 
-/* On narrow phones, preserve the same single-row 3-column layout. */
 @media (max-width: 500px) {
-  .worker-mode-group:has(.worker-choice-row button:nth-child(3)) .worker-choice-row {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 5px;
+  .worker-mode-group .worker-choice-row {
+    gap: 6px;
   }
 
+  .worker-mode-group:has(.worker-choice-row button:nth-child(2)):not(:has(.worker-choice-row button:nth-child(3))) .worker-choice-row button,
   .worker-mode-group:has(.worker-choice-row button:nth-child(3)) .worker-choice-row button {
-    min-height: 34px;
+    min-height: 36px;
     padding-inline: 5px;
-    font-size: 11px;
+    font-size: 12px !important;
   }
 }
