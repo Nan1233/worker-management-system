@@ -17,6 +17,7 @@ import "./pages/manager/Workers.css";
 import "./pages/manager/CheckboxPolish.css";
 import "./pages/worker/SelectProcess.css";
 import "./pages/worker/ProcessPage.css";
+import "./pages/worker/ProcessPageTypography.css";
 import "./pages/worker/ProductionHistory.css";
 import "./pages/worker/ProductionDetail.css";
 import "./pages/worker/WorkerVietnameseAccessibility.css";
