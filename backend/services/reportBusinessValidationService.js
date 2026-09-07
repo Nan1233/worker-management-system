@@ -35,7 +35,7 @@ const validateMasterData = async ({
     const defectIds = uniquePositiveIds(defects, "defect_type_id");
     const deductionIds = uniquePositiveIds(deductions, "deduction_type_id");
 
-    const [assignments, machines, products, validDefectRows, validDeductionRows] = await Promise.all([
+    const [assignments, machines, products, validDefectRows, validDeductionRows, processRows] = await Promise.all([
         query(
             `SELECT 1 FROM worker_processes WHERE worker_id = ? AND process_id = ? LIMIT 1`,
             [workerId, processId]
@@ -75,8 +75,12 @@ const validateMasterData = async ({
                  AND id IN (${deductionIds.map(() => "?").join(",")})`,
                 [processId, ...deductionIds]
             )
-            : Promise.resolve([])
+            : Promise.resolve([]),
+        query(`SELECT process_code FROM processes WHERE id = ? LIMIT 1`, [processId])
     ]);
+
+    const processCode = normalizeText(processRows?.[0]?.process_code).toUpperCase();
+    const isNonProductWork = processCode === "CVK";
 
     const canonicalDefectsById = new Map(validDefectRows.map((row) => [Number(row.id), row]));
     const authoritativeDefects = (defects || []).map((item) => ({
@@ -87,11 +91,6 @@ const validateMasterData = async ({
 
     if (!assignments.length) errors.process_id = "Công nhân chưa được phân công công đoạn này";
 
-    // Legacy approved reports may legitimately have no machine value because
-    // machine master-data enforcement was introduced after those reports were
-    // created. Do not block an edit to such an existing approved report merely
-    // because the old row has machine_no = NULL/empty. New reports still require
-    // a machine unless the caller explicitly sets allowEmptyMachine.
     let legacyApprovedWithoutMachine = false;
     if (!normalizedMachineNo && !allowEmptyMachine && Number(workerId) > 0 && Number(processId) > 0 && workDate && normalizedProductName) {
         const legacyRows = await query(
@@ -111,7 +110,7 @@ const validateMasterData = async ({
 
     let machineCode = null;
     if (!normalizedMachineNo) {
-        if (!allowEmptyMachine && !legacyApprovedWithoutMachine) {
+        if (!isNonProductWork && !allowEmptyMachine && !legacyApprovedWithoutMachine) {
             errors.machine_no = "Vui lòng chọn máy trong danh mục";
         }
     } else if (!machines.length) {
@@ -126,7 +125,13 @@ const validateMasterData = async ({
     let standardVersionId = null;
     let machineStandardId = null;
     let productStandardId = null;
-    if (!normalizedProductName) {
+
+    if (isNonProductWork) {
+        // CVK deliberately has no product, standard or production quantity.
+        // The report records the worker, work type, time and note only.
+        productCode = null;
+        standardOutput = 0;
+    } else if (!normalizedProductName) {
         errors.product_name = "Vui lòng chọn sản phẩm trong danh mục";
     } else if (!products.length) {
         errors.product_name = "Sản phẩm không tồn tại hoặc không thuộc công đoạn đã chọn";
@@ -186,7 +191,8 @@ const validateMasterData = async ({
         standardVersionId,
         machineStandardId,
         productStandardId,
-        authoritativeDefects
+        authoritativeDefects,
+        isNonProductWork
     };
 };
 
