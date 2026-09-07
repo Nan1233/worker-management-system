@@ -61,3 +61,25 @@ body :where(.worker-content:not(:has(.worker-home-page)), .worker-sidebar, .work
 }
 
 body :where(svg, svg *) { font-size: inherit !important; }
+
+/* Mobile Home: keep text sizes close together so no block looks disproportionately tiny. */
+@media (max-width: 430px) {
+  body :where(.worker-home-page) .worker-home-action strong { font-size: 12.5px !important; }
+  body :where(.worker-home-page) .worker-home-action small { font-size: 10px !important; }
+  body :where(.worker-home-page) .worker-home-report-date strong { font-size: 11px !important; }
+  body :where(.worker-home-page) .worker-home-report-date small { font-size: 9.5px !important; }
+  body :where(.worker-home-page) .worker-home-report-main strong { font-size: 12px !important; }
+  body :where(.worker-home-page) .worker-home-report-main small { font-size: 10px !important; }
+  body :where(.worker-home-page) .worker-home-status { font-size: 9.5px !important; }
+  body :where(.worker-home-page) .worker-home-see-all { font-size: 12px !important; }
+}
+
+@media (max-width: 380px) {
+  body :where(.worker-home-page) .worker-home-action strong { font-size: 11.5px !important; }
+  body :where(.worker-home-page) .worker-home-action small { font-size: 9.5px !important; }
+  body :where(.worker-home-page) .worker-home-report-date strong { font-size: 10.5px !important; }
+  body :where(.worker-home-page) .worker-home-report-date small { font-size: 9px !important; }
+  body :where(.worker-home-page) .worker-home-report-main strong { font-size: 11.5px !important; }
+  body :where(.worker-home-page) .worker-home-report-main small { font-size: 9.5px !important; }
+  body :where(.worker-home-page) .worker-home-status { font-size: 9px !important; }
+}
