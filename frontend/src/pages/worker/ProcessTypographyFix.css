@@ -1,0 +1,47 @@
+/* Final typography overrides for Worker production form.
+   Keep labels quieter than the actual entered values/placeholders. */
+
+@media (max-width: 800px) {
+  .worker-content:not(:has(.worker-home-page)) .machine-line .machine-card-header strong {
+    font-size: 12px !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .machine-line .machine-card-badge {
+    font-size: 9px !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .machine-line .machine-section-title,
+  .worker-content:not(:has(.worker-home-page)) .machine-line label,
+  .worker-content:not(:has(.worker-home-page)) .machine-line .worker-field-label,
+  .worker-content:not(:has(.worker-home-page)) .machine-line .worker-time-item > label {
+    font-size: 10px !important;
+    line-height: 1.25 !important;
+    font-weight: 650 !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .machine-line .worker-time-part > span {
+    font-size: 9.5px !important;
+    font-weight: 600 !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .machine-line input:not([type=checkbox]):not([type=radio]),
+  .worker-content:not(:has(.worker-home-page)) .machine-line select,
+  .worker-content:not(:has(.worker-home-page)) .machine-line textarea {
+    font-size: 12px !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .machine-line input::placeholder,
+  .worker-content:not(:has(.worker-home-page)) .machine-line textarea::placeholder {
+    font-size: 12px !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .machine-line .machine-time-row input,
+  .worker-content:not(:has(.worker-home-page)) .machine-line .machine-quantity-row input {
+    font-size: 13px !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .machine-line .machine-line-total,
+  .worker-content:not(:has(.worker-home-page)) .machine-line .machine-deduction-option {
+    font-size: 10px !important;
+  }
+}
