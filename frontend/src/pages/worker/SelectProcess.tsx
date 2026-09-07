@@ -34,17 +34,29 @@ const processIconMap: Record<string, IconName> = {
     EP: "press",
     XLBV: "deburr",
     SX3: "assembly",
+    CVK: "support",
 };
 
-const allProcesses = PROCESS_SELECTIONS.map((item) => ({
-    id: item.slug,
-    dbId: item.processId,
-    code: item.processCode,
-    name: item.name,
-    icon: item.icon,
-    visualIcon: processIconMap[item.processCode] ?? "process",
-    description: item.description,
-}));
+const allProcesses = [
+    ...PROCESS_SELECTIONS.map((item) => ({
+        id: item.slug,
+        dbId: item.processId,
+        code: item.processCode,
+        name: item.name,
+        icon: item.icon,
+        visualIcon: processIconMap[item.processCode] ?? "process",
+        description: item.description,
+    })),
+    {
+        id: "cong-viec-khac",
+        dbId: 60006,
+        code: "CVK",
+        name: "Công việc khác",
+        icon: "CVK",
+        visualIcon: processIconMap.CVK,
+        description: "Xuất / Nhập / Hỗ trợ và công việc không có mã sản phẩm",
+    },
+];
 
 
 function SelectProcess() {
@@ -304,6 +316,7 @@ function SelectProcess() {
 
                     </div>
 
+
                 </header>
 
 
@@ -340,6 +353,10 @@ function SelectProcess() {
                                     onTouchStart={() => item.dbId && prefetchProcessMasterData(item.dbId)}
                                     onClick={() => {
                                         if (item.dbId) prefetchProcessMasterData(item.dbId);
+                                        if (item.code === "CVK") {
+                                            navigate("/worker/process/non-product");
+                                            return;
+                                        }
                                         navigate(`/worker/process/${item.id}`);
                                     }}
                                 >
