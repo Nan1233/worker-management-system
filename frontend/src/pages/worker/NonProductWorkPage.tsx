@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { createTempReport } from "../../services/productionService";
 import { getStoredUser } from "../../utils/authStorage";
@@ -20,8 +20,6 @@ export default function NonProductWorkPage() {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-
-  const workerCode = String(storedUser?.worker_code || storedUser?.workerCode || "").trim();
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -128,7 +126,7 @@ export default function NonProductWorkPage() {
   );
 }
 
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   display: "block",
   width: "100%",
   boxSizing: "border-box",
