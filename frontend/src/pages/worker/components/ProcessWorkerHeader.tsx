@@ -37,34 +37,40 @@ export default function ProcessWorkerHeader({
             }}
         >
             <style>{`
-                /* Compact worker header: keep training percentage and date on one row. */
+                /* Compact worker header: training percentage and date are always one row on mobile. */
                 @media (max-width: 680px) {
                     .worker-sticky-training-label { display: none !important; }
-                    .worker-sticky-training {
-                        display: inline-flex !important;
-                        align-items: center;
-                        justify-content: center;
-                        width: max-content !important;
-                        min-width: 42px !important;
-                        flex: 0 0 auto !important;
-                        white-space: nowrap !important;
-                        word-break: keep-all !important;
-                    }
                     .worker-sticky-meta {
                         width: 100% !important;
-                        min-width: 0;
-                        display: flex !important;
-                        flex-direction: row !important;
-                        align-items: center;
-                        gap: 6px;
+                        min-width: 0 !important;
+                        display: grid !important;
+                        grid-template-columns: max-content minmax(0, 1fr) !important;
+                        align-items: center !important;
+                        gap: 6px !important;
+                    }
+                    .worker-sticky-training {
+                        display: inline-flex !important;
+                        align-items: center !important;
+                        justify-content: center !important;
+                        width: max-content !important;
+                        min-width: 42px !important;
+                        max-width: max-content !important;
+                        flex: none !important;
+                        white-space: nowrap !important;
+                        word-break: keep-all !important;
+                        margin: 0 !important;
                     }
                     .worker-sticky-date {
-                        min-width: 0;
-                        flex: 1 1 auto;
+                        display: block !important;
+                        min-width: 0 !important;
+                        width: 100% !important;
+                        margin: 0 !important;
                     }
                     .worker-sticky-date-select {
+                        display: block !important;
                         width: 100% !important;
                         min-width: 0 !important;
+                        box-sizing: border-box !important;
                     }
                 }
             `}</style>
