@@ -41,6 +41,8 @@ interface Props {
 const GC_AUTOMATIC_MACHINE_CODES = new Set(["C5", "C6", "C7", "C11"]);
 const getMachineCode = (option: AutocompleteOption): string => option.value.trim().toUpperCase().replace(/^MÁY\s*/i, "");
 
+type CutExecutionMode = "AUTO" | "NON_AUTO";
+
 export default function ProcessBasicInfoSection({
     form, setForm, onFormChange, isCutLongProcess, isInspectionProcess,
     operationType, setOperationType, operationMode, setOperationMode,
@@ -53,6 +55,10 @@ export default function ProcessBasicInfoSection({
     const [longExecutionMode, setLongExecutionMode] = useState<"MANUAL" | "MACHINE" | "AIR">(
         operationMode === "MACHINE" ? "MACHINE" : "MANUAL",
     );
+    // Cắt tự động và Cắt không tự động đều là workflow có máy.
+    // operationMode=MACHINE keeps the machine/product UI visible; this local state
+    // distinguishes which machine subset the worker is allowed to select.
+    const [cutExecutionMode, setCutExecutionMode] = useState<CutExecutionMode>("AUTO");
 
     const setProduct = (value: string) => {
         const selectedProduct = productOptions.find((item) => item.product_code.trim().toLowerCase() === value.trim().toLowerCase());
@@ -62,11 +68,15 @@ export default function ProcessBasicInfoSection({
     const handleOperationTypeChange = (nextType: OperationType) => {
         setOperationType(nextType);
         if (nextType === "CUT") {
+            // Both Cắt modes use a machine workflow. The local execution mode
+            // decides whether the machine list is automatic or non-automatic.
             setOperationMode("MACHINE");
+            setCutExecutionMode("AUTO");
             setLongExecutionMode("MACHINE");
             return;
         }
         setOperationMode("MANUAL");
+        setCutExecutionMode("AUTO");
         setLongExecutionMode("MANUAL");
     };
 
@@ -75,9 +85,10 @@ export default function ProcessBasicInfoSection({
         setOperationMode(mode === "MANUAL" ? "MANUAL" : "MACHINE");
     };
 
-    // Cắt tự động chỉ cho C5/C6/C7/C11. Cắt không tự động dùng các mã máy C còn lại.
+    // Cắt tự động chỉ cho C5/C6/C7/C11. Cắt không tự động vẫn phải chọn máy,
+    // nhưng chỉ được chọn các mã máy C còn lại.
     const visibleGcMachineOptions = operationType === "CUT"
-        ? operationMode === "MACHINE"
+        ? cutExecutionMode === "AUTO"
             ? machineAutocompleteOptions.filter((option) => GC_AUTOMATIC_MACHINE_CODES.has(getMachineCode(option)))
             : machineAutocompleteOptions.filter((option) => !GC_AUTOMATIC_MACHINE_CODES.has(getMachineCode(option)))
         : machineAutocompleteOptions;
@@ -118,8 +129,8 @@ export default function ProcessBasicInfoSection({
                             <div className="worker-mode-label">Hình thức thực hiện</div>
                             {operationType === "CUT" ? (
                                 <div className="worker-choice-row">
-                                    <button type="button" className={operationMode === "MACHINE" ? "active" : ""} onClick={() => setOperationMode("MACHINE")}>Tự động</button>
-                                    <button type="button" className={operationMode === "MANUAL" ? "active" : ""} onClick={() => setOperationMode("MANUAL")}>Không tự động</button>
+                                    <button type="button" className={cutExecutionMode === "AUTO" ? "active" : ""} onClick={() => { setCutExecutionMode("AUTO"); setOperationMode("MACHINE"); }}>Tự động</button>
+                                    <button type="button" className={cutExecutionMode === "NON_AUTO" ? "active" : ""} onClick={() => { setCutExecutionMode("NON_AUTO"); setOperationMode("MACHINE"); }}>Không tự động</button>
                                 </div>
                             ) : (
                                 <div className="worker-choice-row">
