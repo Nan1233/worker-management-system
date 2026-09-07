@@ -30,7 +30,6 @@ export default function WorkerLayout() {
   const visible = items.filter((item) => !item.permission || can(item.permission));
   const user = getStoredUser();
   const displayName = user?.full_name || "Công nhân";
-  const workerCode = user?.worker_code || "";
   const initials = displayName.trim().split(/\s+/).slice(-2).map((part) => part[0]).join("").toUpperCase().slice(0, 2) || "KT";
 
   const active = (item: Item) => {
@@ -43,13 +42,6 @@ export default function WorkerLayout() {
     void logout();
     navigate("/login", { replace: true });
   };
-
-  const notificationButton = (
-    <button type="button" className="worker-header-notification" onClick={() => navigate("/worker/notifications")} aria-label="Thông báo">
-      <Bell size={20} />
-      {unreadCount > 0 && <b className="worker-badge">{unreadCount > 99 ? "99+" : unreadCount}</b>}
-    </button>
-  );
 
   return (
     <div className="worker-layout">
@@ -87,13 +79,12 @@ export default function WorkerLayout() {
             <img src="/ktc-hanoi-logo.jpg" alt="KTC HANOI" />
           </button>
           <div className="worker-header-spacer" />
-          {notificationButton}
-          <button type="button" className="worker-header-user" onClick={() => navigate("/worker/profile")} aria-label="Trang cá nhân">
+          <button type="button" className="worker-header-notification" onClick={() => navigate("/worker/notifications")} aria-label="Thông báo">
+            <Bell size={20} />
+            {unreadCount > 0 && <b className="worker-badge">{unreadCount > 99 ? "99+" : unreadCount}</b>}
+          </button>
+          <button type="button" className="worker-header-user" onClick={() => navigate("/worker/profile")} aria-label={`Trang cá nhân của ${displayName}`}>
             <span className="worker-header-avatar">{initials}</span>
-            <span className="worker-header-user-copy">
-              <strong>{displayName}</strong>
-              <small>{workerCode ? `Mã CN: ${workerCode}` : "Công nhân"}</small>
-            </span>
           </button>
         </header>
         <main className="worker-content"><Outlet /></main>
