@@ -1,0 +1,32 @@
+/* Radio choices are controls, but their surrounding rectangular button frame is not needed. */
+.worker-form-page .worker-choice-row,
+.worker-form-page .worker-choice-row button {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+}
+
+.worker-form-page .worker-choice-row button {
+  min-width: 0 !important;
+  min-height: 30px !important;
+  padding: 0 2px !important;
+  margin: 0 !important;
+  flex: 0 0 auto !important;
+}
+
+.worker-form-page .worker-choice-row button.active,
+.worker-form-page .worker-choice-row button:hover,
+.worker-form-page .worker-choice-row button:focus,
+.worker-form-page .worker-choice-row button:active {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.worker-form-page .worker-choice-row button::before,
+.worker-form-page .worker-choice-row button::after {
+  box-shadow: none !important;
+}
