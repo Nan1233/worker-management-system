@@ -20,7 +20,7 @@
   .worker-content:not(:has(.worker-home-page)) .worker-time-item > label {
     display: block !important;
     margin-bottom: 5px !important;
-    font-size: 11px !important;
+    font-size: 10.5px !important;
     line-height: 1.25 !important;
   }
 
@@ -43,7 +43,7 @@
   .worker-content:not(:has(.worker-home-page)) .worker-time-part > span {
     display: block !important;
     margin-bottom: 4px !important;
-    font-size: 10px !important;
+    font-size: 9.5px !important;
     line-height: 1.2 !important;
   }
 
@@ -67,7 +67,7 @@
   .worker-content:not(:has(.worker-home-page)) .worker-quality-card label {
     display: block !important;
     margin-bottom: 5px !important;
-    font-size: 11px !important;
+    font-size: 10.5px !important;
     line-height: 1.25 !important;
     white-space: nowrap !important;
     overflow: hidden !important;
@@ -82,8 +82,46 @@
     font-size: 13px !important;
   }
 
-  .worker-content:not(:has(.worker-home-page)) .worker-quality-card small {
-    display: none !important;
+  /* Machine/product block: labels are secondary to the values and must never look larger. */
+  .worker-content:not(:has(.worker-home-page)) .machine-line .machine-card-header strong {
+    font-size: 12px !important;
+    line-height: 1.25 !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .machine-line .machine-card-badge {
+    font-size: 9px !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .machine-line .machine-section-title,
+  .worker-content:not(:has(.worker-home-page)) .machine-line .worker-field-label,
+  .worker-content:not(:has(.worker-home-page)) .machine-line .worker-field-block > label {
+    font-size: 10px !important;
+    line-height: 1.25 !important;
+    font-weight: 650 !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .machine-line .worker-field-block {
+    gap: 5px !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .machine-line .worker-field-block input:not([type="checkbox"]):not([type="radio"]),
+  .worker-content:not(:has(.worker-home-page)) .machine-line .worker-field-block select,
+  .worker-content:not(:has(.worker-home-page)) .machine-line .machine-deduction-minute {
+    font-size: 12px !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .machine-line .worker-field-block input::placeholder {
+    font-size: 12px !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .machine-line .machine-time-row .worker-time-part > span,
+  .worker-content:not(:has(.worker-home-page)) .machine-line .machine-quantity-row .worker-time-part > span {
+    font-size: 9.5px !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .machine-line .machine-time-row input,
+  .worker-content:not(:has(.worker-home-page)) .machine-line .machine-quantity-row input {
+    font-size: 12px !important;
   }
 }
 
@@ -97,5 +135,11 @@
   .worker-content:not(:has(.worker-home-page)) .worker-quality-card input {
     height: 36px !important;
     min-height: 36px !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .machine-line .machine-section-title,
+  .worker-content:not(:has(.worker-home-page)) .machine-line .worker-field-label,
+  .worker-content:not(:has(.worker-home-page)) .machine-line .worker-field-block > label {
+    font-size: 9.5px !important;
   }
 }
