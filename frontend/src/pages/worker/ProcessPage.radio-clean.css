@@ -30,3 +30,35 @@
 .worker-form-page .worker-choice-row button::after {
   box-shadow: none !important;
 }
+
+/* Operation type / execution mode are real segmented controls.
+   Keep their rectangular touch targets, unlike the A/B/C/D shift radios. */
+.worker-form-page .worker-mode-group .worker-choice-row {
+  display: flex;
+  gap: 6px;
+}
+
+.worker-form-page .worker-mode-group .worker-choice-row button {
+  min-width: 0 !important;
+  min-height: 36px !important;
+  flex: 1 1 0 !important;
+  padding: 6px 10px !important;
+  border: 1px solid #c9dced !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+
+.worker-form-page .worker-mode-group .worker-choice-row button.active {
+  border-color: #6ea9e6 !important;
+  background: #eef6ff !important;
+  color: #1768c8 !important;
+}
+
+.worker-form-page .worker-mode-group .worker-choice-row button:hover,
+.worker-form-page .worker-mode-group .worker-choice-row button:focus,
+.worker-form-page .worker-mode-group .worker-choice-row button:active {
+  border: 1px solid #6ea9e6 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+}
