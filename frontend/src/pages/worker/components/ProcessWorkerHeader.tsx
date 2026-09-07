@@ -26,6 +26,8 @@ export default function ProcessWorkerHeader({
     onBack,
     onDateChange,
 }: Props) {
+    const normalizedTrainingPercent = Math.min(100, Math.max(70, Math.round(Number(trainingPercent) || 100)));
+
     return (
         <div
             className="worker-sticky-context"
@@ -102,7 +104,7 @@ export default function ProcessWorkerHeader({
                 <div className="worker-sticky-meta">
                     <span className="worker-sticky-training">
                         <span className="worker-sticky-training-label">Học việc: </span>
-                        {trainingPercent || 0}%
+                        {normalizedTrainingPercent}%
                     </span>
                     <label className="worker-sticky-date" htmlFor="workerWorkDate">
                         <select
