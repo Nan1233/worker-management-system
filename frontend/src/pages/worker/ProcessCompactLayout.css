@@ -1,0 +1,101 @@
+/* Compact Worker report layout: reduce vertical waste without changing form logic. */
+
+@media (max-width: 800px) {
+  .worker-content:not(:has(.worker-home-page)) .worker-time-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 12px 10px !important;
+    align-items: start !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .worker-time-item[data-worker-time="actual"] {
+    grid-column: 1 / -1 !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .worker-time-item[data-worker-time="deduction"],
+  .worker-content:not(:has(.worker-home-page)) .worker-time-item[data-worker-time="total"] {
+    grid-column: span 1 !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .worker-time-item > label {
+    display: block !important;
+    margin-bottom: 5px !important;
+    font-size: 11px !important;
+    line-height: 1.25 !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .worker-time-item > small {
+    display: none !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .worker-time-item input {
+    width: 100% !important;
+    min-height: 38px !important;
+    height: 38px !important;
+    padding: 0 10px !important;
+    font-size: 13px !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .worker-time-parts {
+    gap: 8px !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .worker-time-part > span {
+    display: block !important;
+    margin-bottom: 4px !important;
+    font-size: 10px !important;
+    line-height: 1.2 !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .worker-quality-summary {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 12px 10px !important;
+    align-items: start !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .worker-quality-card {
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .worker-quality-card.total-output {
+    grid-column: 1 / -1 !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .worker-quality-card label {
+    display: block !important;
+    margin-bottom: 5px !important;
+    font-size: 11px !important;
+    line-height: 1.25 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .worker-quality-card input {
+    width: 100% !important;
+    min-height: 38px !important;
+    height: 38px !important;
+    padding: 0 10px !important;
+    font-size: 13px !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .worker-quality-card small {
+    display: none !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .worker-content:not(:has(.worker-home-page)) .worker-time-grid,
+  .worker-content:not(:has(.worker-home-page)) .worker-quality-summary {
+    gap: 10px 8px !important;
+  }
+
+  .worker-content:not(:has(.worker-home-page)) .worker-time-item input,
+  .worker-content:not(:has(.worker-home-page)) .worker-quality-card input {
+    height: 36px !important;
+    min-height: 36px !important;
+  }
+}
