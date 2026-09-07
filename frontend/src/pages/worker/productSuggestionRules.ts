@@ -23,7 +23,9 @@ export const normalizeWorkType = (value: unknown): string => {
     return code;
 };
 
-export const getProductMachineHint = (productCode: string): { kind: "AUTO" | "NUMBER"; value: string } | null => {
+// Product codes from master data can be optional at the type level; normalize
+// them here so filtering remains safe under strict TypeScript settings.
+export const getProductMachineHint = (productCode: unknown): { kind: "AUTO" | "NUMBER"; value: string } | null => {
     const code = normalize(productCode);
     const match = code.match(/-(AUTO|AUTOMATIC|\d+)$/i);
     if (!match) return null;
@@ -32,7 +34,7 @@ export const getProductMachineHint = (productCode: string): { kind: "AUTO" | "NU
     return { kind: "NUMBER", value: String(Number(suffix)) };
 };
 
-export const getProductFamilyCode = (productCode: string): string =>
+export const getProductFamilyCode = (productCode: unknown): string =>
     normalize(productCode).replace(/-(AUTO|AUTOMATIC|\d+)$/i, "");
 
 const machineNumber = (machineCode: string): string | null => {
