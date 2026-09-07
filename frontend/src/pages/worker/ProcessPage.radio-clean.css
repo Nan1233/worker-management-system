@@ -62,3 +62,16 @@
   outline: 0 !important;
   box-shadow: none !important;
 }
+
+/* Report date selector: smaller and closer to the surrounding typography. */
+.worker-form-page .worker-sticky-date-select {
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+}
+
+@media (max-width: 500px) {
+  .worker-form-page .worker-sticky-date-select {
+    font-size: 11.5px !important;
+  }
+}
