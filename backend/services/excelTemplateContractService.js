@@ -3,9 +3,12 @@
 const path = require('node:path');
 const fs = require('node:fs/promises');
 
-const TEMPLATE_CANDIDATES = [
-  path.join(__dirname, '../templates/KTC-Bao-cao-9-cong-doan.xlsx')
-];
+// `__dirname` is a CommonJS runtime global, but Cloudflare Workers bundles this
+// module into an ESM-like Worker where `__dirname` is not defined. Resolve the
+// relative template path lazily so Worker startup never evaluates it.
+const TEMPLATE_RELATIVE_PATH = '../templates/KTC-Bao-cao-9-cong-doan.xlsx';
+
+const TEMPLATE_CANDIDATES = [TEMPLATE_RELATIVE_PATH];
 
 const PROCESS_TEMPLATE_CONTRACTS = Object.freeze({
   CAN:  { sheet: 'CÁN',       headerRow: 133, dataStartRow: 134, dataEndRow: 3323 },
@@ -29,17 +32,21 @@ function normalizeLabel(value) {
     .trim().toLowerCase();
 }
 
+function getTemplatePath() {
+  return path.resolve(__dirname, TEMPLATE_RELATIVE_PATH);
+}
+
 async function resolveTemplatePath() {
-  for (const file of TEMPLATE_CANDIDATES) {
-    try {
-      await fs.access(file);
-      return file;
-    } catch (_) {}
+  const file = getTemplatePath();
+  try {
+    await fs.access(file);
+    return file;
+  } catch (_) {
+    throw Object.assign(new Error('Không tìm thấy file mẫu Excel KTC trong backend/templates'), {
+      code: 'KTC_EXCEL_TEMPLATE_MISSING',
+      statusCode: 500
+    });
   }
-  throw Object.assign(new Error('Không tìm thấy file mẫu Excel KTC trong backend/templates'), {
-    code: 'KTC_EXCEL_TEMPLATE_MISSING',
-    statusCode: 500
-  });
 }
 
 function getProcessTemplateContract(processCode) {
