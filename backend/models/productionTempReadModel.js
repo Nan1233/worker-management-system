@@ -82,6 +82,27 @@ async function getTempMachineLines(tempReportId) {
     return lines.map((line) => ({ ...line, defects: byLine.get(Number(line.id)) || [] }));
 }
 
+// TiDB Serverless returns database DATETIME values without an explicit timezone.
+// The KTC database timestamps are UTC, while the worker UI is Vietnam time.
+// Mark naive DB timestamps as UTC so the browser correctly renders GMT+7.
+function normalizeUtcTimestamp(value) {
+    if (!value) return value;
+    const text = String(value).trim();
+    if (!text) return value;
+    if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(text)) return text;
+    if (!/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(text)) return value;
+    return `${text.replace(" ", "T")}Z`;
+}
+
+function normalizeReportTimestamps(report) {
+    if (!report) return report;
+    return {
+        ...report,
+        created_at: normalizeUtcTimestamp(report.created_at),
+        updated_at: normalizeUtcTimestamp(report.updated_at),
+    };
+}
+
 module.exports = {
     async getPending(managerId, filters = {}, isAdmin = false) {
         const { page = 1, page_size: pageSize = 20, offset = 0 } = filters.pagination || {};
@@ -98,7 +119,7 @@ module.exports = {
                     pr.updated_at, w.worker_code, u.full_name, p.process_name
                  FROM production_reports_temp pr
                  JOIN workers w ON pr.worker_id = w.id
-                 JOIN users u ON w.user_id = u.id
+                 JOIN users u ON pr.worker_id = w.id
                  JOIN processes p ON pr.process_id = p.id
                  WHERE ${where}
                  ORDER BY pr.work_date DESC, pr.created_at ASC, pr.id ASC
@@ -204,7 +225,7 @@ module.exports = {
                  ORDER BY COALESCE(dt.sort_order, 999999), d.id`, [id]),
             getTempMachineLines(id)
         ]);
-        return { ...rows[0], defects: mergeDefects(rows[0], defects), deductions: normalizeDeductions(deductions), machine_lines: machineLines };
+        return normalizeReportTimestamps({ ...rows[0], defects: mergeDefects(rows[0], defects), deductions: normalizeDeductions(deductions), machine_lines: machineLines });
     },
 
     async canManageReport(reportId, managerId, isAdmin = false) {
