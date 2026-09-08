@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useState, type ChangeEvent, type Dispatch, type SetStateAction } from "react";
 import AutocompleteInput from "../../../components/common/AutocompleteInput";
 import type { AutocompleteOption } from "../../../components/common/AutocompleteInput";
 import type { ProductStandardOption } from "../../../services/masterDataService";
@@ -57,6 +57,14 @@ export default function ProcessBasicInfoSection({
         operationMode === "MACHINE" ? "MACHINE" : "MANUAL",
     );
     const [cutExecutionMode, setCutExecutionMode] = useState<CutExecutionMode>("AUTO");
+
+    // operationMode is the canonical parent state. Keep the local Lồng selector
+    // synchronized so a resumed draft cannot display "Tay" while the parent is
+    // actually in MACHINE mode.
+    useEffect(() => {
+        if (operationType !== "LONG") return;
+        setLongExecutionMode(operationMode === "MACHINE" ? "MACHINE" : "MANUAL");
+    }, [operationMode, operationType]);
 
     const setProduct = (value: string) => {
         const selectedProduct = productOptions.find((item) => item.product_code.trim().toLowerCase() === value.trim().toLowerCase());
