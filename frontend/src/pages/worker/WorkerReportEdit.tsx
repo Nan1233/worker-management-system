@@ -145,6 +145,7 @@ function WorkerReportEdit() {
 
   const updateForm = (key: string, value: string) => setForm((current) => ({ ...current, [key]: value }));
   const updateLine = (index: number, patch: Partial<MachineLineState>) => setMachineLines((current) => current.map((line, i) => i === index ? { ...line, ...patch } : line));
+  const updateLineDefect = (index: number, key: string, value: string) => setMachineLines((current) => current.map((line, i) => i === index ? { ...line, selectedDefects: value && Number(value) > 0 ? Array.from(new Set([...line.selectedDefects, key])) : line.selectedDefects.filter((item) => item !== key), defects: { ...line.defects, [key]: value } } : line));
   const addMachine = () => { if (machineLines.length < 4) setMachineLines((current) => [...current, createEmptyMachineLine()]); };
   const removeMachine = (index: number) => setMachineLines((current) => current.filter((_, i) => i !== index));
 
@@ -169,6 +170,7 @@ function WorkerReportEdit() {
       machineLines: normalizedLines, machineOptions, productOptions, activeNgOptions, deductions, activeDeductionOptions,
       excludeKqdFromTt: Number(report.exclude_kqd_from_tt || 0) === 1,
     });
+    payload.updated_at = report.updated_at;
     try {
       setSaving(true);
       await updateTempReport(Number(report.id), payload);
@@ -215,7 +217,7 @@ function WorkerReportEdit() {
         <label><span>Phút chạy máy</span><input type="number" min="0" max="59" value={line.minutes} onChange={(e) => updateLine(index, { minutes: e.target.value })} /></label>
         <label><span>OK</span><input type="number" min="0" value={line.okQuantity} onChange={(e) => updateLine(index, { okQuantity: e.target.value })} /></label>
         <label><span>NG</span><input type="number" min="0" value={line.ngQuantity} onChange={(e) => updateLine(index, { ngQuantity: e.target.value })} /></label>
-      </div></div>; })}
+      </div>{activeNgOptions.length > 0 && <div style={{ marginTop: 10 }}><span style={{ display: "block", marginBottom: 6 }}>Lỗi NG theo máy</span><div className="detail-grid">{activeNgOptions.map((option: any) => <label key={option.key}><span>{option.label}</span><input type="number" min="0" value={line.defects[option.key] || ""} onChange={(e) => updateLineDefect(index, option.key, e.target.value)} /></label>)}</div></div>}</div>; })}
     </div></section>}
 
     <section className="detail-section"><h2>Thời gian làm việc</h2><div className="detail-grid">
