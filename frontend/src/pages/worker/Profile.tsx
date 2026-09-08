@@ -76,12 +76,12 @@ export default function Profile() {
   return (
     <section className="ktc-page">
       <header className="mb-3 sm:mb-4">
-        <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground sm:text-xs">Tài khoản</div>
-        <h1 className="my-1 text-[20px] font-semibold leading-tight text-foreground sm:text-[22px]">Hồ sơ cá nhân</h1>
-        <p className="max-w-[34rem] text-[11px] leading-[1.4] text-muted-foreground sm:text-[13px]">Thông tin nhận diện và phân công đang áp dụng cho tài khoản của bạn.</p>
+        <div className="text-[9px] font-medium uppercase tracking-[0.08em] text-muted-foreground sm:text-xs">Tài khoản</div>
+        <h1 className="my-1 text-[19px] font-semibold leading-tight text-foreground sm:text-[22px]">Hồ sơ cá nhân</h1>
+        <p className="max-w-[34rem] text-[10px] leading-[1.4] text-muted-foreground sm:text-[13px]">Thông tin nhận diện và phân công đang áp dụng cho tài khoản của bạn.</p>
       </header>
 
-      {error && <div role="alert" className="mb-3 rounded-lg border border-destructive/30 bg-destructive/5 p-2.5 text-[12px] text-destructive">{error}</div>}
+      {error && <div role="alert" className="mb-3 rounded-lg border border-destructive/30 bg-destructive/5 p-2.5 text-[11px] text-destructive">{error}</div>}
 
       <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
         <div className="flex items-center gap-3 border-b border-border/60 bg-muted/20 px-3 py-3 sm:gap-4 sm:px-5 sm:py-4">
@@ -89,8 +89,8 @@ export default function Profile() {
             <UserRound className="size-[18px] sm:size-5" />
           </div>
           <div className="min-w-0">
-            <h2 className="truncate text-[14px] font-semibold leading-tight sm:text-base">{profile?.full_name || storedUser?.full_name || "Người dùng"}</h2>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">{displayRole(profile?.role || storedUser?.role)}</p>
+            <h2 className="truncate text-[13px] font-semibold leading-tight sm:text-base">{profile?.full_name || storedUser?.full_name || "Người dùng"}</h2>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">{displayRole(profile?.role || storedUser?.role)}</p>
           </div>
         </div>
 
@@ -107,8 +107,8 @@ export default function Profile() {
                     <Icon className="size-[13px]" />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <dt className="text-[9px] font-medium leading-tight text-muted-foreground sm:text-[10px]">{label}</dt>
-                    <dd className="mt-1 break-words text-[11px] font-semibold leading-tight text-foreground sm:text-xs">{value}</dd>
+                    <dt className="text-[8.5px] font-medium leading-tight text-muted-foreground sm:text-[10px]">{label}</dt>
+                    <dd className="mt-1 break-words text-[10px] font-semibold leading-tight text-foreground sm:text-xs">{value}</dd>
                   </div>
                 </div>
               </div>
@@ -122,7 +122,7 @@ export default function Profile() {
         onClick={() => void handleLogout()}
         disabled={loggingOut}
         aria-label="Đăng xuất tài khoản"
-        className="mt-3 flex h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 text-[11px] font-semibold text-red-600 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 sm:mt-4 sm:h-10"
+        className="mt-3 flex h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 text-[10px] font-semibold text-red-600 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 sm:mt-4 sm:h-10"
       >
         <LogOut className="size-3.5" />
         <span>{loggingOut ? "Đang đăng xuất…" : "Đăng xuất"}</span>
