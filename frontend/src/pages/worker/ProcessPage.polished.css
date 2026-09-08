@@ -225,3 +225,33 @@
   border-color: #e99aaa !important;
   box-shadow: 0 0 0 2px rgba(225,29,72,.07) !important;
 }
+
+
+/* One-time worker dropdown interaction polish */
+.worker-form-page .worker-dropdown-box {
+  border: 1px solid #d5e0ec !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+  overflow: hidden !important;
+}
+.worker-form-page .worker-dropdown-title {
+  width: 100% !important;
+  min-height: 34px !important;
+  height: 34px !important;
+  padding: 0 9px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+  box-sizing: border-box !important;
+  font-size: 11px !important;
+}
+@media (max-width: 680px) {
+  .worker-form-page .worker-dropdown-box {
+    border-radius: 8px !important;
+  }
+  .worker-form-page .worker-dropdown-title {
+    min-height: 34px !important;
+    height: 34px !important;
+    font-size: 10.5px !important;
+  }
+}
