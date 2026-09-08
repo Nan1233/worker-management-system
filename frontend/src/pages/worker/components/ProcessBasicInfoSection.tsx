@@ -42,7 +42,7 @@ const GC_AUTOMATIC_MACHINE_CODES = new Set(["C5", "C6", "C7", "C11"]);
 const getMachineCode = (option: AutocompleteOption): string => option.value.trim().toUpperCase().replace(/^MÁY\s*/i, "");
 
 type CutExecutionMode = "AUTO" | "NON_AUTO";
-type LongExecutionMode = "MANUAL" | "MACHINE" | "AIR";
+type LongExecutionMode = "MANUAL" | "MACHINE";
 
 export default function ProcessBasicInfoSection({
     form, setForm, onFormChange, isCutLongProcess, isInspectionProcess,
@@ -130,7 +130,6 @@ export default function ProcessBasicInfoSection({
                                 <div className="worker-choice-row">
                                     <button type="button" className={longExecutionMode === "MANUAL" ? "active" : ""} onClick={() => handleLongExecutionModeChange("MANUAL")}>Tay</button>
                                     <button type="button" className={longExecutionMode === "MACHINE" ? "active" : ""} onClick={() => handleLongExecutionModeChange("MACHINE")}>Máy</button>
-                                    <button type="button" className={longExecutionMode === "AIR" ? "active" : ""} onClick={() => handleLongExecutionModeChange("AIR")}>Khí</button>
                                 </div>
                             )}
                         </div>
