@@ -25,6 +25,7 @@ import "./pages/worker/ProcessCompactLayout.css";
 import "./pages/worker/ProcessTypographyFix.css";
 import "./pages/system/SystemCenter.css";
 import "./pages/system/ActivityLogMinimal.css";
+import "./styles/ManagerDashboardMinimal.css";
 import "./components/feedback/toast.css";
 import "./components/system/NetworkStatusBanner.css";
 import "./components/system/OfflineReportSync.css";
