@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bell, Boxes, ClipboardCheck, Cog, FileWarning, History, LayoutDashboard, MoreHorizontal, ShieldCheck, Timer, UserRound, Users, BarChart3, LogOut, Search, CalendarDays, ChevronDown } from "lucide-react";
+import { Bell, Boxes, ClipboardCheck, Cog, FileWarning, History, LayoutDashboard, MoreHorizontal, ShieldCheck, Timer, UserRound, Users, BarChart3, LogOut, CalendarDays, ChevronDown } from "lucide-react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { getStoredUser, clearAuthSession } from "../utils/authStorage";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
@@ -53,7 +53,6 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
   </aside>
   <section className="management-main">
    <header className="management-header">
-    <div className="management-search"><Search size={20}/><input aria-label="Tìm kiếm" placeholder="Tìm công nhân, máy, công đoạn, báo cáo..."/></div>
     <div className="management-header-actions">
      <button className="management-date" type="button"><CalendarDays size={19}/><span>{today}</span></button>
      <button className="management-notification" type="button" aria-label="Thông báo" onClick={()=>navigate(`${base}/notifications`)}><Bell size={22}/>{unreadCount>0&&<b>{unreadCount>9?"9+":unreadCount}</b>}</button>
