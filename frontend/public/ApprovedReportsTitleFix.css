@@ -1,7 +1,12 @@
-/* Approved reports: title visibility only. Keep the actual list/filter/table styling shared
-   with Chờ duyệt via ReportsSplitReference.css + ReportsPendingFix.css. */
+/* KTC - Shared report page title.
+   Chờ duyệt and Đã duyệt must use the same title hierarchy and typography. */
 .pending-reference-page > .pending-page-title {
   display: flex !important;
+  align-items: flex-end !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  margin: 0 0 12px !important;
+  padding: 0 2px !important;
   visibility: visible !important;
   opacity: 1 !important;
 }
@@ -11,19 +16,22 @@
   visibility: visible !important;
   opacity: 1 !important;
   margin: 0 !important;
-  color: #17345b !important;
-  font-size: clamp(24px, 2.1vw, 32px) !important;
-  line-height: 1.2 !important;
-  font-weight: 800 !important;
+  color: #123b78 !important;
+  font-size: 26px !important;
+  line-height: 1.25 !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.25px !important;
 }
 
 .pending-reference-page > .pending-page-title > div {
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
-  margin-top: 5px !important;
-  color: #6f89a8 !important;
-  font-size: 13px !important;
+  margin-top: 4px !important;
+  color: #7185a4 !important;
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+  font-weight: 400 !important;
 }
 
 /* Đã duyệt: không cần cột Xem/kính lúp.
