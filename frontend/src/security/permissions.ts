@@ -15,7 +15,7 @@ const defaults: Record<string, Set<PermissionCode>> = {
   manager: new Set(all.filter(code => !['PERIOD_UNLOCK','PERMISSION_MANAGE','WORKER_ENTRY','WORKER_HISTORY'].includes(code))),
   // Tổ trưởng được dùng Máy móc, Sản phẩm, Trừ giờ giống Quản lý: xem + thêm + sửa + xóa.
   lead: new Set(['DASHBOARD_VIEW','REPORT_PENDING_VIEW','REPORT_APPROVE','REPORT_APPROVED_VIEW','REPORT_EXPORT','USER_VIEW','MASTER_VIEW','MASTER_EDIT','STATISTICS_VIEW','NOTIFICATION_VIEW','AUDIT_VIEW','SYSTEM_HEALTH_VIEW','PROFILE_VIEW']),
-  worker: new Set(['NOTIFICATION_VIEW','WORKER_ENTRY','WORKER_HISTORY','PROFILE_VIEW'])
+  worker: new Set(['NOTIFICATION_VIEW','WORKER_ENTRY','WORKER_HISTORY','STATISTICS_VIEW','PROFILE_VIEW'])
 };
 
 let cache: { userId:number; values:Set<PermissionCode>; expiresAt:number } | null = null;
