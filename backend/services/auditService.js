@@ -45,11 +45,7 @@ const query = async (executor, sql, params = []) => {
 let schemaReadyPromise = null;
 
 async function ensureSchema(executor = db) {
-  // Runtime DDL is reserved for the shared pool fallback. Transaction-scoped
-  // executors must never mutate schema implicitly; migrations own schema state.
   if (process.env.KTC_RUNTIME_SCHEMA_REPAIR !== '1') return true;
-  // Existing TiDB deployments may predate the notification link/entity columns.
-  // Repair only the missing additive columns so notification writes remain compatible.
   if (!schemaReadyPromise) {
     schemaReadyPromise = (async () => {
       const rows = await query(
@@ -145,11 +141,6 @@ async function createReportVersion(
   const changeReason = reason ? String(reason).slice(0, 500) : null;
   const createdBy = Number(userId) || null;
 
-  // TiDB/MySQL transactions can use a repeatable-read snapshot. A plain
-  // SELECT MAX() can therefore miss a version committed by another
-  // transaction after this transaction started. SELECT ... FOR UPDATE is a
-  // locking/current read and prevents the stale version=1 retry loop that
-  // previously caused uq_report_version failures during Reject Selected.
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const rows = await query(
       executor,
@@ -188,8 +179,6 @@ async function createReportVersion(
         || /duplicate entry|duplicate key|already exists/i.test(message);
 
       if (!duplicateVersion || attempt === 4) throw error;
-      // A concurrent writer won the candidate version. Re-run the locking
-      // read on the same connection so the next attempt sees the latest row.
     }
   }
 
@@ -197,51 +186,55 @@ async function createReportVersion(
 }
 
 async function loadTempReportSnapshot(reportId, executor = db) {
+  const normalizedReportId = Number(reportId);
   const reportRows = await query(
     executor,
     `SELECT * FROM production_reports_temp WHERE id=? LIMIT 1`,
-    [Number(reportId)],
+    [normalizedReportId],
   );
   const report = reportRows[0];
   if (!report) return null;
 
-  const [defects, deductions, machineLines] = await Promise.all([
-    query(
-      executor,
-      `SELECT d.id,d.defect_type_id,dt.defect_code,dt.defect_name,d.quantity
-         FROM production_temp_defects d
-         LEFT JOIN defect_types dt ON dt.id=d.defect_type_id
-        WHERE d.temp_report_id=? ORDER BY d.id`,
-      [Number(reportId)],
-    ),
-    query(
-      executor,
-      `SELECT d.id,d.deduction_type_id,dt.deduction_code,dt.deduction_name,d.hours
-         FROM production_temp_deductions d
-         LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id
-        WHERE d.temp_report_id=? ORDER BY d.id`,
-      [Number(reportId)],
-    ),
-    query(
-      executor,
-      `SELECT * FROM production_temp_machine_lines
-        WHERE temp_report_id=? ORDER BY sort_order,id`,
-      [Number(reportId)],
-    ),
-  ]);
+  // TiDB Serverless transactions cannot execute multiple statements
+  // concurrently on the same transaction. Snapshot reads are intentionally
+  // sequential whenever the supplied executor is transaction-scoped.
+  const defects = await query(
+    executor,
+    `SELECT d.id,d.defect_type_id,dt.defect_code,dt.defect_name,d.quantity
+       FROM production_temp_defects d
+       LEFT JOIN defect_types dt ON dt.id=d.defect_type_id
+      WHERE d.temp_report_id=? ORDER BY d.id`,
+    [normalizedReportId],
+  );
+
+  const deductions = await query(
+    executor,
+    `SELECT d.id,d.deduction_type_id,dt.deduction_code,dt.deduction_name,d.hours
+       FROM production_temp_deductions d
+       LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id
+      WHERE d.temp_report_id=? ORDER BY d.id`,
+    [normalizedReportId],
+  );
+
+  const machineLines = await query(
+    executor,
+    `SELECT * FROM production_temp_machine_lines
+      WHERE temp_report_id=? ORDER BY sort_order,id`,
+    [normalizedReportId],
+  );
 
   const machineIds = machineLines.map((line) => Number(line.id)).filter(Boolean);
   let machineDefects = [];
   if (machineIds.length) {
-    const rows = await query(
+    machineDefects = await query(
       executor,
       `SELECT * FROM production_temp_machine_defects
         WHERE machine_line_id IN (${machineIds.map(() => '?').join(',')})
         ORDER BY machine_line_id,id`,
       machineIds,
     );
-    machineDefects = rows;
   }
+
   const defectsByMachine = new Map();
   machineDefects.forEach((item) => {
     const key = Number(item.machine_line_id);
