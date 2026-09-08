@@ -22,6 +22,9 @@
 .management-layout .management-menu::before {
   padding: 5px 9px 5px;
   font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  color: #97a5b7;
 }
 
 .management-layout .management-menu button {
@@ -31,12 +34,18 @@
   padding: 0 10px;
   border-radius: 9px;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.15;
+  color: #71839a;
+}
+
+.management-layout .management-menu button:hover {
+  color: #1768cb;
 }
 
 .management-layout .management-menu button.active {
-  font-weight: 650;
+  font-weight: 600;
+  color: #fff;
 }
 
 .management-layout .management-menu button svg {
@@ -52,7 +61,7 @@
 
 .management-layout .management-sidebar-footer strong {
   font-size: 11px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .management-layout .management-sidebar-footer span,
