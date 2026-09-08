@@ -45,6 +45,11 @@ async function verifyDatabaseSchema({ executor = db.promise() } = {}) {
       tableRows.map((row) => String(row.TABLE_NAME).toLowerCase()),
     );
 
+    // Runtime readiness intentionally uses the long-standing minimum structural
+    // contract. The full canonical SQL remains an audit/source-of-truth artifact;
+    // it must not force production DB rewrites during a demo. This is especially
+    // important for existing TiDB databases that contain legacy migration-era
+    // objects or harmless type/index drift.
     const expectedTables = new Set(Object.keys(canonical.tables));
     const missingTables = [...expectedTables].filter((table) => !actualTables.has(table));
     const extraTables = [...actualTables].filter((table) => !expectedTables.has(table));
@@ -71,6 +76,9 @@ async function verifyDatabaseSchema({ executor = db.promise() } = {}) {
       }
     }
 
+    // Keep these arrays for diagnostics/API compatibility. They are intentionally
+    // non-blocking in runtime mode; strict canonical verification is available via
+    // the canonical contract tests and can be run separately after production.
     const ready = missingTables.length === 0 && missingColumns.length === 0;
 
     return {
@@ -111,6 +119,7 @@ async function verifyDatabaseSchema({ executor = db.promise() } = {}) {
       extraIndexes: [],
       contractVersion: CONTRACT_VERSION,
       runtimeContract: 'MINIMUM_STRUCTURAL_V1',
+      error,
       reason,
     };
   }
@@ -118,36 +127,70 @@ async function verifyDatabaseSchema({ executor = db.promise() } = {}) {
 
 async function currentDatabase(executor) {
   const [rows] = await executor.query('SELECT DATABASE() AS db_name');
-  return String(rows?.[0]?.db_name || '').trim();
-}
-
-async function assertDatabaseSchemaReady({ executor = db.promise() } = {}) {
-  const result = await verifyDatabaseSchema({ executor });
-  if (!result.ready) {
-    const error = new Error('DATABASE_SCHEMA_NOT_READY');
-    error.code = 'DATABASE_SCHEMA_NOT_READY';
-    error.schemaDiagnostics = result;
+  const dbName = rows[0]?.db_name;
+  if (!dbName) {
+    const error = new Error('No active database selected');
+    error.code = 'DATABASE_UNAVAILABLE';
     throw error;
   }
+  return dbName;
+}
+
+function createSchemaNotReadyError(result) {
+  const error = new Error(`Database schema not ready: ${result.status}`);
+  error.code =
+    result.status === SCHEMA_STATUS.DATABASE_UNAVAILABLE
+      ? 'DATABASE_UNAVAILABLE'
+      : 'DATABASE_CONTRACT_INVALID';
+  error.schemaStatus = result.status;
+  error.status = 503;
+  error.statusCode = 503;
+  error.isPublic = false;
+  error.details = {
+    missingTables: result.missingTables || [],
+    extraTables: result.extraTables || [],
+    missingColumns: result.missingColumns || [],
+    invalidColumns: result.invalidColumns || [],
+    extraColumns: result.extraColumns || [],
+    missingIndexes: result.missingIndexes || [],
+    invalidIndexes: result.invalidIndexes || [],
+    extraIndexes: result.extraIndexes || [],
+    contractVersion: result.contractVersion || CONTRACT_VERSION,
+    runtimeContract: result.runtimeContract || 'MINIMUM_STRUCTURAL_V1',
+  };
+  return error;
+}
+
+async function assertDatabaseSchemaReady(options = {}) {
+  const result = await verifyDatabaseSchema(options);
+  if (!result.ready) throw createSchemaNotReadyError(result);
   return result;
 }
 
 function toSafeSchemaDiagnostics(result) {
-  if (!result || typeof result !== 'object') return null;
   return {
-    ready: Boolean(result.ready),
     status: result.status,
-    missingTables: Array.isArray(result.missingTables) ? result.missingTables : [],
-    missingColumns: Array.isArray(result.missingColumns) ? result.missingColumns : [],
+    schemaReady: Boolean(result.ready),
     contractVersion: result.contractVersion || CONTRACT_VERSION,
     runtimeContract: result.runtimeContract || 'MINIMUM_STRUCTURAL_V1',
-    reason: result.reason || null,
+    missingTables: result.missingTables || [],
+    invalidColumns: result.invalidColumns || [],
+    missingColumns: result.missingColumns || [],
+    extraTables: result.extraTables || [],
+    extraColumns: result.extraColumns || [],
+    missingIndexes: result.missingIndexes || [],
+    invalidIndexes: result.invalidIndexes || [],
+    extraIndexes: result.extraIndexes || [],
+    ...(result.reason ? { reason: result.reason } : {}),
   };
 }
 
 module.exports = {
   SCHEMA_STATUS,
+  CONTRACT_VERSION,
   verifyDatabaseSchema,
   assertDatabaseSchemaReady,
+  createSchemaNotReadyError,
   toSafeSchemaDiagnostics,
+  RUNTIME_REQUIRED_COLUMNS,
 };
