@@ -1,0 +1,5 @@
+/* KTC Manager dashboard: remove decorative motto and soften management title weight. */
+.manager-dashboard .dashboard-motto{display:none!important}
+.manager-dashboard .dashboard-welcome{justify-content:flex-start!important}
+.manager-dashboard .dashboard-welcome h1{font-weight:600!important}
+.master-page .master-heading h1{font-weight:500!important}
