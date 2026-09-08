@@ -1,22 +1,34 @@
-/* KTC Manager activity log — minimal presentation override. */
-.audit-page{gap:10px!important;padding-top:0!important}
-.audit-page-header{padding:0 2px 2px!important;margin:0!important}
-.audit-page-header h1{font-size:22px!important;font-weight:600!important;line-height:1.25!important;gap:6px!important}
+/* KTC Manager activity log — minimal, balanced presentation. */
+.audit-page{gap:12px!important;padding-top:0!important;width:100%!important;max-width:1280px!important;margin:0 auto!important}
+.audit-page-header{padding:0 2px 1px!important;margin:0!important}
+.audit-page-header h1{font-size:22px!important;font-weight:600!important;line-height:1.25!important;gap:7px!important;letter-spacing:-.02em!important}
 .audit-page-header h1 svg{width:22px!important;height:22px!important}
 .audit-page-header p{display:none!important}
-.audit-filter-card{border:0!important;box-shadow:none!important;border-radius:0!important;background:transparent!important;padding:0!important;gap:7px!important}
+.audit-filter-card{border:1px solid #dbe6f3!important;box-shadow:none!important;border-radius:9px!important;background:#fff!important;padding:8px!important;gap:7px!important;grid-template-columns:1.25fr 1fr 1fr 1fr 1.25fr auto!important}
 .audit-filter-date,.audit-select,.audit-search{height:36px!important;border-radius:7px!important;background:#fff!important}
+.audit-filter-date{padding:0 8px!important}
 .audit-filter-date input,.audit-select select,.audit-search input{font-size:11px!important}
 .audit-filter-date svg{width:14px!important;height:14px!important}
-.audit-export{height:36px!important;border-radius:7px!important;font-size:11px!important;font-weight:500!important;padding:0 10px!important}
+.audit-export{height:36px!important;border-radius:7px!important;font-size:11px!important;font-weight:500!important;padding:0 11px!important}
 .audit-table-card{border-radius:9px!important;box-shadow:none!important}
+.audit-table-wrap{overflow-x:auto!important}
+.audit-table-card table{min-width:0!important;width:100%!important;table-layout:auto!important}
 .audit-table-card th,.audit-table-card td{padding:7px 9px!important}
 .audit-table-card th{height:34px!important;font-size:10px!important;font-weight:600!important}
 .audit-table-card td{height:38px!important;font-size:11px!important}
 .audit-table-card td strong{font-weight:500!important}
+.audit-table-card th:nth-child(1),.audit-table-card td:nth-child(1){width:145px!important}
+.audit-table-card th:nth-child(2),.audit-table-card td:nth-child(2){width:125px!important}
+.audit-table-card th:nth-child(3),.audit-table-card td:nth-child(3){width:82px!important}
+.audit-table-card th:nth-child(4),.audit-table-card td:nth-child(4){width:125px!important}
+.audit-table-card th:nth-child(5),.audit-table-card td:nth-child(5){width:105px!important}
+.audit-table-card th:nth-child(6),.audit-table-card td:nth-child(6){min-width:210px!important}
+.audit-table-card th:nth-child(7),.audit-table-card td:nth-child(7){width:120px!important}
+.audit-table-card th:nth-child(8),.audit-table-card td:nth-child(8){width:68px!important}
+.audit-content{max-width:320px!important}
 .audit-role,.audit-action{font-size:9.5px!important;font-weight:500!important;padding:2px 6px!important}
 .audit-detail-btn{height:26px!important;font-size:10px!important;font-weight:500!important;padding:0 8px!important}
 .audit-table-footer{padding:8px 10px!important;font-size:10px!important}
 .audit-table-footer select,.audit-table-footer button{height:28px!important;font-size:10px!important}
-@media(max-width:1250px){.audit-filter-card{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
-@media(max-width:800px){.audit-page-header h1{font-size:20px!important}.audit-filter-card{grid-template-columns:1fr!important}.audit-filter-card>*{min-width:0}.audit-table-footer{gap:7px!important}}
+@media(max-width:1400px){.audit-page{max-width:calc(100% - 36px)!important}.audit-filter-card{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+@media(max-width:800px){.audit-page{max-width:100%!important}.audit-page-header h1{font-size:20px!important}.audit-filter-card{grid-template-columns:1fr!important;border-radius:8px!important}.audit-filter-card>*{min-width:0}.audit-table-footer{gap:7px!important}.audit-table-card table{min-width:1000px!important}}
