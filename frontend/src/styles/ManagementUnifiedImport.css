@@ -1,0 +1,2 @@
+/* Load the shared Manager presentation rules from the application stylesheet entry. */
+@import "./ManagementUnified.css";
