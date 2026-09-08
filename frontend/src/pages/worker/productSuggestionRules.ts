@@ -50,6 +50,7 @@ const eligibleMachineCodes = (product: ProductStandardOption): string[] =>
 
 // GC automatic machines are explicitly C5/C6/C7/C11.
 const GC_AUTOMATIC_MACHINE_CODES = new Set(["C5", "C6", "C7", "C11"]);
+const LONG_MACHINE_ONLY_PRODUCT_CODES = new Set(["2801-LT"]);
 
 const isGcAutomaticMachine = (machineCode: unknown): boolean =>
     GC_AUTOMATIC_MACHINE_CODES.has(normalize(machineCode));
@@ -72,9 +73,8 @@ export const filterProductsForSelection = ({
     );
 
     if (mode === "MANUAL") {
-        return useEncodedMachineSuffix
-            ? products.filter((product) => !getProductMachineHint(product.product_code))
-            : products;
+        return products.filter((product) => !LONG_MACHINE_ONLY_PRODUCT_CODES.has(normalize(product.product_code)))
+            .filter((product) => useEncodedMachineSuffix ? !getProductMachineHint(product.product_code) : true);
     }
 
     const selectedMachine = normalizeMachineKey(machineCode);
