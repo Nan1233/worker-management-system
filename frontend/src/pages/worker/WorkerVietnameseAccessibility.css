@@ -20,7 +20,6 @@
 .worker-layout input,
 .worker-layout select,
 .worker-layout textarea { font-family: inherit; }
-
 .worker-nav::before { content: "KHU VỰC LÀM VIỆC"; font-size: 9.5px; letter-spacing: .06em; }
 .worker-nav button,
 .worker-logout,
@@ -167,13 +166,6 @@ body :where(.worker-content:not(:has(.worker-home-page))) .worker-choice-row but
 body :where(.worker-content:not(:has(.worker-home-page))) .worker-choice-row button input[type="radio"] {
   width: 17px !important; height: 17px !important; margin: 0 6px 0 0 !important; accent-color: #1768c8;
 }
-body :where(.worker-content:not(:has(.worker-home-page))) :where(
-  .worker-choice-row button,.worker-form-back,.worker-submit-button,
-  .worker-text-input,.worker-field-block input:not([type=checkbox]):not([type=radio]),
-  .worker-field-block select,.worker-field-block textarea,
-  .worker-time-item input,.worker-time-split input,.worker-quality-card input,
-  .worker-sticky-date-select,.worker-sticky-training,.machine-deduction-minute
-) { box-shadow: none; }
 body :where(.worker-content:not(:has(.worker-home-page))) .worker-choice-row button { outline: none !important; }
 
 /* Shift radio labels are also controls, but must not look like four separate buttons. */
@@ -269,4 +261,11 @@ body :where(.worker-content:not(:has(.worker-home-page))) .worker-selection-card
   font-size: 11px !important;
   line-height: 1.2 !important;
   font-weight: 600 !important;
+}
+
+/* Product autocomplete placeholder: keep it subordinate to nearby labels. */
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-selection-card .autocomplete-input::placeholder {
+  font-size: 13px !important;
+  line-height: 1.2 !important;
+  opacity: 0.72 !important;
 }
