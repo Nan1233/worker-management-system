@@ -1,5 +1,5 @@
 /* KTC Manager - Chờ duyệt báo cáo
-   Shared visual language with Worker UI: compact, light typography, soft cards.
+   Shared visual language with Worker UI: minimal, light typography, clear actions.
 */
 .pending-reference-page{min-width:0;color:#315a91;font-size:13px}
 .pending-reference-page *{box-sizing:border-box}
@@ -7,27 +7,32 @@
 .pending-page-title h1{margin:0;color:#123b78;font-size:19px!important;line-height:1.3;font-weight:600!important;letter-spacing:-.15px}
 .pending-page-title p{margin:3px 0 0;color:#7185a4;font-size:11px;line-height:1.4;font-weight:400}
 
-/* Filters - same compact density as Worker forms */
-.pending-filter-card{display:grid;grid-template-columns:minmax(190px,1.25fr) minmax(120px,.72fr) minmax(235px,1.15fr) minmax(105px,.65fr) minmax(105px,.65fr);gap:8px;align-items:end;margin-bottom:12px;padding:10px;border:1px solid #dbe7f3;border-radius:11px;background:#fff;box-shadow:0 2px 9px rgba(35,76,125,.035)}
+/* Filter toolbar - clean, compact and consistent with Worker UI */
+.pending-filter-card{display:grid;grid-template-columns:minmax(240px,1.9fr) minmax(145px,1fr) minmax(145px,1fr) minmax(135px,.9fr);grid-template-areas:"search date process shift" "quick quick quick quick";gap:8px 10px;align-items:end;margin-bottom:12px;padding:11px 12px;border:1px solid #dbe7f3;border-radius:11px;background:#fff;box-shadow:0 2px 9px rgba(35,76,125,.035)}
+.pending-filter-card .pending-search{grid-area:search}
+.pending-filter-card .pending-quick-filters{grid-area:quick}
+.pending-filter-card label:nth-of-type(1){grid-area:date}
+.pending-filter-card label:nth-of-type(2){grid-area:process}
+.pending-filter-card label:nth-of-type(3){grid-area:shift}
 .pending-filter-card label,.pending-filter-card .pending-search{display:flex;flex-direction:column;gap:4px;min-width:0}
 .pending-filter-card label>span{font-size:10px;color:#7185a4;font-weight:400;line-height:1.2}
-.pending-filter-card input,.pending-filter-card select{width:100%;height:34px;border:1px solid #d5e2ef;border-radius:8px;background:#fff;color:#315a91;padding:0 9px;font:400 12px/1 inherit;outline:none}
+.pending-filter-card input,.pending-filter-card select{width:100%;height:35px;border:1px solid #d5e2ef;border-radius:8px;background:#fff;color:#315a91;padding:0 10px;font:400 12px/1 inherit;outline:none;transition:border-color .15s,box-shadow .15s}
 .pending-filter-card input::placeholder{color:#9aabc0}
 .pending-filter-card input:focus,.pending-filter-card select:focus{border-color:#8bb9ed;box-shadow:0 0 0 2px rgba(23,105,210,.06)}
 .pending-search{position:relative}
-.pending-search>span{position:absolute;left:9px;bottom:9px;color:#7d94b1;font-size:14px;line-height:1;z-index:1}
-.pending-search input{padding-left:28px!important}
-.pending-quick-filters{height:34px;display:flex;align-items:center;gap:2px;padding:2px;border:1px solid #d5e2ef;border-radius:8px;background:#f8fbff;white-space:nowrap;min-width:0;overflow:hidden}
-.pending-quick-filters>span{display:none}
-.pending-quick-filters button{height:28px;padding:0 7px;border:0;border-radius:6px;background:transparent;color:#7185a4;font:400 11px/1 inherit;cursor:pointer;white-space:nowrap;flex:1 1 auto}
-.pending-quick-filters button:hover{background:#edf5ff;color:#1769d2}
+.pending-search>span{position:absolute;left:10px;bottom:10px;color:#7d94b1;font-size:14px;line-height:1;z-index:1}
+.pending-search input{padding-left:29px!important}
+
+/* Quick date filters: simple segmented control, no nested visual box */
+.pending-quick-filters{height:30px;display:flex;align-items:center;justify-content:flex-start;gap:3px;padding:0;white-space:nowrap;min-width:0;overflow:hidden;border-top:1px solid #edf2f7;padding-top:6px}
+.pending-quick-filters>span{display:inline-flex;align-items:center;margin-right:5px;color:#8193aa;font-size:10px;font-weight:400}
+.pending-quick-filters button{height:25px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:#7185a4;font:400 11px/1 inherit;cursor:pointer;white-space:nowrap;flex:0 0 auto;transition:background .12s,color .12s}
+.pending-quick-filters button:hover{background:#f2f7fd;color:#1769d2}
 .pending-quick-filters button.active,.pending-quick-filters button:focus{background:#eaf3ff;color:#1769d2;outline:none}
 .pending-refresh{height:34px!important;border-radius:8px!important;font-size:11px!important}
 
-/* Period summary intentionally removed from the UI.
-   Period counts are not part of the Manager's primary approval workflow. */
-.pending-kpis{display:none!important}
-.pending-kpi{display:none!important}
+/* Period summary intentionally removed from the UI. */
+.pending-kpis,.pending-kpi{display:none!important}
 
 /* List / detail */
 .pending-workspace{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,.88fr);gap:9px;align-items:stretch}
@@ -105,7 +110,7 @@
 /* Errors */
 .management-error{padding:10px;border:1px solid #f1c2c7;border-radius:8px;background:#fff7f7;color:#c63e4a;font-size:11px}
 
-@media(max-width:1280px){.pending-filter-card{grid-template-columns:1.2fr .8fr 1fr 1fr 1fr}.pending-workspace{grid-template-columns:1fr}.pending-detail-card{min-height:420px}}
-@media(max-width:1000px){.pending-filter-card{grid-template-columns:1fr 1fr}.pending-filter-card .pending-search{grid-column:span 2}.pending-quick-filters{grid-column:span 2}}
-@media(max-width:720px){.pending-page-title h1{font-size:18px!important}.pending-filter-card{grid-template-columns:1fr}.pending-filter-card .pending-search,.pending-quick-filters{grid-column:1}.pending-detail-grid,.pending-detail-info-grid,.pending-edit-grid{grid-template-columns:1fr}.pending-result-grid{grid-template-columns:1fr 1fr}.pending-result-item:nth-child(2){border-right:0}.pending-result-item:nth-child(-n+2){border-bottom:1px solid #e0e8f1}.pending-detail-actions{grid-template-columns:1fr}.pending-detail-actions:has(.pending-detail-cancel){grid-template-columns:1fr 1fr}.pending-table-wrap{overflow-x:auto}}
+@media(max-width:1280px){.pending-filter-card{grid-template-columns:1.4fr 1fr 1fr;grid-template-areas:"search date date" "process shift shift" "quick quick quick"}.pending-workspace{grid-template-columns:1fr}.pending-detail-card{min-height:420px}}
+@media(max-width:1000px){.pending-filter-card{grid-template-columns:1fr 1fr;grid-template-areas:"search search" "date process" "shift shift" "quick quick"}}
+@media(max-width:720px){.pending-page-title h1{font-size:18px!important}.pending-filter-card{grid-template-columns:1fr;grid-template-areas:"search" "date" "process" "shift" "quick"}.pending-detail-grid,.pending-detail-info-grid,.pending-edit-grid{grid-template-columns:1fr}.pending-result-grid{grid-template-columns:1fr 1fr}.pending-result-item:nth-child(2){border-right:0}.pending-result-item:nth-child(-n+2){border-bottom:1px solid #e0e8f1}.pending-detail-actions{grid-template-columns:1fr}.pending-detail-actions:has(.pending-detail-cancel){grid-template-columns:1fr 1fr}.pending-table-wrap{overflow-x:auto}}
 @media(max-width:520px){.pending-page-title{align-items:flex-start}.pending-filter-card{padding:9px}.pending-detail-actions{padding:9px}.pending-bulk-actions{justify-content:stretch}.pending-bulk-actions>span{margin-right:auto}}
