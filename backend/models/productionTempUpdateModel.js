@@ -1,20 +1,18 @@
 const AuditService = require("../services/auditService");
+const createModel = require("./productionTempCreateModel");
 const { recalculateReportOutput } = require("../services/kqdReportCalculationService");
 const { validateMachineLines } = require("../services/machineLineValidationService");
-const { query, getConnection, beginTransaction, commit, rollback, normalizeIds, editableFields } = require("./productionTempModelShared");
+const { query, getConnection, beginTransaction, commit, rollback, editableFields } = require("./productionTempModelShared");
 const { validateMachineWorkerCapacityLocked } = require("../services/factoryMachineRuleService");
 
 const DAILY_HOURS_LIMIT = 12;
 
 const lockAndCheckDailyHours = async (connection, { workerId, workDate, incomingActualHours, excludeTempReportId = null }) => {
-    const worker = Number(workerId);
-    const date = String(workDate || "").slice(0, 10);
-    const incoming = Number(incomingActualHours) || 0;
+    const worker = Number(workerId), date = String(workDate || "").slice(0, 10), incoming = Number(incomingActualHours) || 0;
     if (!Number.isInteger(worker) || worker <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
     const lockName = `ktc:worker-daily-hours:${worker}:${date}`;
     const [lockRows] = await connection.query("SELECT GET_LOCK(?, 10) AS acquired", [lockName]);
-    const locked = Number(lockRows?.[0]?.acquired) === 1;
-    if (!locked) {
+    if (Number(lockRows?.[0]?.acquired) !== 1) {
         const error = new Error("Không thể kiểm tra tổng giờ trong ngày, vui lòng gửi lại sau.");
         error.status = 503; error.code = "DAILY_HOURS_LOCK_TIMEOUT"; error.isPublic = true; throw error;
     }
@@ -98,8 +96,6 @@ module.exports = {
             normalizedDefects.length = 0;
             normalizedDefects.push(...[...defectTotalsByType.entries()].filter(([, value]) => value > 0).map(([defect_type_id, quantity]) => ({ defect_type_id, quantity: Math.trunc(quantity) })));
             const detailValues = { deduction_time: normalizedDeductions.reduce((sum, item) => sum + item.hours, 0), tt_ng: normalizedDefects.reduce((sum, item) => sum + item.quantity, 0) };
-            const totalTime = Math.max(0, Number(Object.prototype.hasOwnProperty.call(data, "total_time") ? data.total_time : current.total_time) || 0);
-            const actualOutput = Math.max(0, Math.trunc(Number(Object.prototype.hasOwnProperty.call(data, "actual_output") ? data.actual_output : current.actual_output) || 0));
             if (hasDeductions) {
                 data.deduction_time = detailValues.deduction_time;
                 const actualTime = Math.max(0, Number(Object.prototype.hasOwnProperty.call(data, "actual_time") ? data.actual_time : current.actual_time) || 0);
@@ -125,18 +121,8 @@ module.exports = {
             let normalizedMachineLines = null;
             if (hasMachineLines) {
                 const processRows = await query(connection, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(current.process_id)]);
-                const validation = await validateMachineLines({
-                    processId: current.process_id,
-                    machineLines: Array.isArray(data.machine_lines) ? data.machine_lines : [],
-                    operationType: data.operation_type || current.operation_type,
-                    operationMode: "MACHINE",
-                    maxMachines: 4,
-                    workDate: nextWorkDate
-                });
-                if (!validation.valid) {
-                    const error = new Error("Thông tin máy hoặc thời gian máy không hợp lệ");
-                    error.status = 422; error.code = "MACHINE_LINES_INVALID"; error.isPublic = true; error.details = validation.errors; throw error;
-                }
+                const validation = await validateMachineLines({ processId: current.process_id, machineLines: Array.isArray(data.machine_lines) ? data.machine_lines : [], operationType: data.operation_type || current.operation_type, operationMode: "MACHINE", maxMachines: 4, workDate: nextWorkDate });
+                if (!validation.valid) { const error = new Error("Thông tin máy hoặc thời gian máy không hợp lệ"); error.status = 422; error.code = "MACHINE_LINES_INVALID"; error.isPublic = true; error.details = validation.errors; throw error; }
                 normalizedMachineLines = validation.lines;
                 const nextShift = Object.prototype.hasOwnProperty.call(data, "shift") ? data.shift : current.shift;
                 const lockedCapacity = await validateMachineWorkerCapacityLocked({ executor: connection, processCode: processRows[0]?.process_code, processId: current.process_id, machineLines: normalizedMachineLines, workerId: current.worker_id, workDate: nextWorkDate, shift: nextShift, excludeTempReportId: id });
@@ -163,7 +149,7 @@ module.exports = {
             if (hasMachineLines) {
                 const nextShift = Object.prototype.hasOwnProperty.call(data, 'shift') ? data.shift : current.shift;
                 const preserveEventLinks = String(nextWorkDate).slice(0,10) === String(current.work_date).slice(0,10) && String(nextShift || '').trim() === String(current.shift || '').trim();
-                await this.replaceMachineLines(id, normalizedMachineLines || [], connection, { preserveEventLinks });
+                await createModel.replaceMachineLines(id, normalizedMachineLines || [], connection, { preserveEventLinks });
             }
             const newSnapshot = await AuditService.loadTempReportSnapshot(id, connection);
             const changedFieldsForAudit = [...changes, ...(hasDeductions ? ["deductions"] : []), ...(hasDefects ? ["defects"] : []), ...(hasMachineLines ? ["machine_lines"] : []), ...(resubmittingRejected ? ["status", "review_note", "reviewed_by"] : [])];
@@ -177,18 +163,12 @@ module.exports = {
                 reviewers.forEach((reviewer) => { if (reviewerGroups[reviewer.role]) reviewerGroups[reviewer.role].push(reviewer.id); });
                 const notification = { type: "report_resubmitted", title: "Báo cáo đã được sửa và gửi lại", message: `Báo cáo #${id} đã được công nhân chỉnh sửa sau khi bị từ chối và đang chờ duyệt lại.`, entityType: "temp_report", entityId: id };
                 for (const [role, linkUrl] of [["lead", "/lead/reports"], ["manager", "/manager/reports"], ["admin", "/admin/reports"]]) {
-                    const ids = reviewerGroups[role];
-                    if (ids.length) await AuditService.notifyUsers(ids, { ...notification, linkUrl }, connection);
+                    const ids = reviewerGroups[role]; if (ids.length) await AuditService.notifyUsers(ids, { ...notification, linkUrl }, connection);
                 }
             }
             await commit(connection);
             return { changed: true, fields: changes, details: { deductions: hasDeductions, defects: hasDefects, machine_lines: hasMachineLines } };
-        } catch (error) {
-            await rollback(connection);
-            throw error;
-        } finally {
-            await releaseDailyHoursLock(connection, dailyHoursState);
-            connection.release();
-        }
+        } catch (error) { await rollback(connection); throw error; }
+        finally { await releaseDailyHoursLock(connection, dailyHoursState); connection.release(); }
     }
 };
