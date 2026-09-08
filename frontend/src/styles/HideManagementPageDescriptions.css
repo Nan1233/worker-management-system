@@ -1,27 +1,14 @@
-/* KTC Manager: hide redundant subtitles and normalize report page titles. */
+/* KTC Manager: hide redundant report page titles/subtitles. */
+.management-content .pending-reference-page > .pending-page-title {
+  display: none !important;
+}
+
 .management-content .pending-reference-page > .pending-page-title > div > p {
   display: none !important;
 }
 
-/* Hide the original implementation title so it cannot appear twice. */
-.pending-reference-page .pending-page-title h1 {
-  font-size: 0 !important;
-  line-height: 0 !important;
-  margin: 0 !important;
-}
-
-/* Approved reports: display only the requested title. */
+.pending-reference-page .pending-page-title h1,
 .pending-reference-page .pending-page-title h1::after {
-  content: "Báo cáo đã duyệt";
-  display: block;
-  color: #12385f;
-  font-size: 26px;
-  line-height: 1.25;
-  font-weight: 600;
-  letter-spacing: -0.15px;
-}
-
-/* Pending reports: same wording/style as the navigation and page content. */
-.management-report-page.pending-reference-page .pending-page-title h1::after {
-  content: "Báo cáo chờ duyệt";
+  display: none !important;
+  content: none !important;
 }
