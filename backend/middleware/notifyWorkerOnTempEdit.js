@@ -1,11 +1,16 @@
 const db = require("../config/db");
 const AuditService = require("../services/auditService");
 
-const WORKER_SELF_EDIT_WINDOW_MS = 10 * 60 * 1000;
+const WORKER_SELF_EDIT_WINDOW_SECONDS = 10 * 60;
 
 /**
  * Manager/admin sửa báo cáo chờ duyệt phải thông báo cho công nhân sở hữu báo cáo.
  * Worker tự sửa báo cáo của mình chỉ được phép trong 10 phút kể từ lúc nộp.
+ *
+ * IMPORTANT: production_reports_temp.created_at is a DB timestamp. Do not parse
+ * the timestamp in the Cloudflare Worker runtime because a timezone-less DB
+ * value can be interpreted as UTC and become 7 hours wrong for Vietnam.
+ * Let TiDB compare the DB timestamp with CURRENT_TIMESTAMP instead.
  */
 async function notifyWorkerOnTempEdit(req, res, next) {
     const role = String(req.user?.role || "").toLowerCase();
@@ -17,6 +22,7 @@ async function notifyWorkerOnTempEdit(req, res, next) {
         const [rows] = await db.promise().query(
             `SELECT prt.id, prt.worker_id, prt.work_date, prt.shift, prt.product_name,
                     prt.status, prt.created_at, prt.updated_at,
+                    TIMESTAMPDIFF(SECOND, prt.created_at, CURRENT_TIMESTAMP) AS edit_elapsed_seconds,
                     w.user_id AS worker_user_id
                FROM production_reports_temp prt
                JOIN workers w ON w.id = prt.worker_id
@@ -53,9 +59,8 @@ async function notifyWorkerOnTempEdit(req, res, next) {
             return res.status(422).json({ success: false, message: "Báo cáo đã duyệt không thể sửa" });
         }
 
-        const createdAt = new Date(report.created_at).getTime();
-        const elapsed = Date.now() - createdAt;
-        if (!Number.isFinite(createdAt) || elapsed < 0 || elapsed > WORKER_SELF_EDIT_WINDOW_MS) {
+        const elapsedSeconds = Number(report.edit_elapsed_seconds);
+        if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 0 || elapsedSeconds > WORKER_SELF_EDIT_WINDOW_SECONDS) {
             return res.status(422).json({
                 success: false,
                 code: "WORKER_EDIT_WINDOW_EXPIRED",
