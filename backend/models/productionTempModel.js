@@ -3,8 +3,50 @@ const createModel = require("./productionTempCreateModel");
 const readModel = require("./productionTempReadModel");
 const reviewModel = require("./productionTempReviewModel");
 const historyModel = require("./productionTempHistoryModel");
+const { query } = require("./productionTempModelShared");
 
 const DAILY_HOURS_LIMIT = 12;
+
+/**
+ * TiDB/Cloudflare compatibility:
+ * some database adapters can successfully INSERT a temp report but do not
+ * expose insertId on the returned result. The create flow needs the actual
+ * temp report id before it can insert machine lines/defects/deductions.
+ * Recover the id using the idempotency key on the same executor instead of
+ * passing null into production_temp_machine_lines.temp_report_id.
+ */
+const originalCreate = createModel.create;
+createModel.create = async (data, executor = db) => {
+    const result = await originalCreate(data, executor);
+    const insertedId = Number(result);
+    if (Number.isInteger(insertedId) && insertedId > 0) return insertedId;
+
+    const workerId = Number(data?.worker_id);
+    const clientRequestId = String(data?.client_request_id || "").trim();
+    if (!Number.isInteger(workerId) || workerId <= 0 || !clientRequestId) {
+        const error = new Error("Không lấy được mã báo cáo tạm sau khi tạo");
+        error.code = "TEMP_REPORT_ID_UNAVAILABLE";
+        error.status = 500;
+        throw error;
+    }
+
+    const rows = await query(
+        executor,
+        `SELECT id
+         FROM production_reports_temp
+         WHERE worker_id = ?
+           AND client_request_id = ?
+         LIMIT 1`,
+        [workerId, clientRequestId]
+    );
+    const recoveredId = Number(rows?.[0]?.id);
+    if (Number.isInteger(recoveredId) && recoveredId > 0) return recoveredId;
+
+    const error = new Error("Đã tạo báo cáo nhưng không xác định được mã báo cáo tạm");
+    error.code = "TEMP_REPORT_ID_UNAVAILABLE";
+    error.status = 500;
+    throw error;
+};
 
 /**
  * The daily-hours rule is enforced at the worker/date boundary, not per
