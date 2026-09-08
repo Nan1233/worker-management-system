@@ -30,3 +30,36 @@ html body .history-page .history-shell .history-table .column-index{width:28px!i
 .history-page .table-container{overflow-x:hidden!important;overflow-y:hidden!important}.pagination{margin-top:8px;gap:4px}.pagination button{min-width:30px;height:30px;font-size:10px}
 }
 @media(max-width:420px){.history-page{padding:8px 6px 76px}.history-title-group h1{font-size:17px}.history-count{padding:3px 6px}.history-count span{display:none}.history-filter-card{padding:7px}.history-table{font-size:9px}.history-page .history-table th{height:28px;font-size:8px}.history-page .history-table td{height:34px;font-size:9px}.history-page .history-table .date-cell{width:68px!important}.history-page .history-table .product-cell{width:70px!important}.history-page .history-table .ok-column{width:42px!important}.history-page .history-table .ng-column{width:39px!important}.history-page .history-table .status-cell{width:59px!important;min-width:59px!important}}
+
+/* Mobile history: simpler, clearer, slightly larger type. */
+@media(max-width:760px){
+  .history-page{padding:10px 8px 78px!important}
+  .history-title-group h1{font-size:20px!important;font-weight:600!important;letter-spacing:-.01em!important}
+  .history-back-button{width:34px!important;height:34px!important;font-size:17px!important}
+  .history-count{border:0!important;background:transparent!important;padding:2px 0!important}
+  .history-count strong{font-size:14px!important}.history-count span{font-size:10px!important}
+  .history-filter-card{padding:0!important;margin-bottom:10px!important;background:transparent!important;border:0!important;box-shadow:none!important}
+  .history-search-box{margin-bottom:7px!important}
+  .history-search-box input{height:40px!important;min-height:40px!important;padding-left:32px!important;font-size:13px!important;border-radius:8px!important}
+  .history-filter-grid{gap:7px!important}
+  .history-filter-field>span{font-size:10px!important;font-weight:500!important}
+  .history-filter-field input,.history-filter-field select{height:38px!important;min-height:38px!important;font-size:12px!important;border-radius:8px!important}
+  .history-clear-button{min-height:34px!important;height:34px!important;font-size:11px!important;border-radius:8px!important}
+  .report-card{border:0!important;background:transparent!important;box-shadow:none!important}
+  html body .history-page .history-shell .history-table th{font-size:9px!important;height:32px!important;font-weight:600!important;padding:0 4px!important}
+  html body .history-page .history-shell .history-table td{font-size:11px!important;height:40px!important;padding:5px 4px!important;line-height:1.2!important}
+  .history-page .history-table .date-cell{font-weight:600!important;width:72px!important}
+  .history-page .history-table .product-cell{width:78px!important;max-width:78px!important}
+  .history-page .history-table .ok-column{width:48px!important;max-width:48px!important;font-weight:600!important}
+  .history-page .history-table .ng-column{width:45px!important;max-width:45px!important;font-weight:600!important}
+  .history-page .history-table .status-cell{width:65px!important;min-width:65px!important}
+  .history-page .history-table .status-cell span{font-size:8.5px!important;min-height:20px!important;padding:0 5px!important}
+  .history-page .history-table .shift-badge{height:21px!important;font-size:9px!important}
+  .history-page .history-table .detail-btn{min-height:27px!important;font-size:10px!important;padding:0 7px!important}
+}
+@media(max-width:420px){
+  .history-title-group h1{font-size:19px!important}
+  .history-search-box input{font-size:13px!important}
+  html body .history-page .history-shell .history-table th{font-size:9px!important}
+  html body .history-page .history-shell .history-table td{font-size:10.5px!important}
+}
