@@ -1,33 +1,32 @@
-/* KTC Manager: keep page titles, hide only redundant subtitles. */
+/* KTC Manager: hide redundant subtitles and normalize report page titles. */
 .management-content .pending-reference-page > .pending-page-title > div > p {
   display: none !important;
 }
 
-/* Use the business-facing title wording consistently across the two report pages. */
-.pending-reference-page .pending-page-title > div > h1 {
+/* Hide the old implementation title regardless of whether the h1 is direct or nested. */
+.pending-reference-page .pending-page-title h1 {
   font-size: 0 !important;
+  line-height: 0 !important;
+  margin: 0 !important;
 }
 
-.pending-reference-page .pending-page-title > div > h1::after {
-  content: "Báo cáo chờ duyệt";
-  display: block;
-  color: #123b78;
-  font-size: 19px;
-  line-height: 1.3;
-  font-weight: 600;
-  letter-spacing: -0.15px;
-}
-
-.pending-reference-page .pending-page-title > h1 {
-  font-size: 0 !important;
-}
-
-.pending-reference-page .pending-page-title > h1::after {
-  content: "Báo cáo đã duyệt";
+/* Show only the business-facing title. */
+.pending-reference-page .pending-page-title h1::after {
   display: block;
   color: #12385f;
-  font-size: 19px;
-  line-height: 1.3;
+  font-size: 26px;
+  line-height: 1.25;
   font-weight: 600;
   letter-spacing: -0.15px;
+}
+
+/* Chờ duyệt */
+.management-report-page .pending-reference-page .pending-page-title h1::after,
+.pending-reference-page .pending-page-title h1::after {
+  content: "Báo cáo chờ duyệt";
+}
+
+/* ApprovedReports uses the same page class; override its title text. */
+.management-report-page:not(:has(.management-selected-info)) .pending-reference-page .pending-page-title h1::after {
+  content: "Báo cáo đã duyệt";
 }
