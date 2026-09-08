@@ -1,14 +1,4 @@
-/* KTC Manager: hide redundant report page titles/subtitles. */
-.management-content .pending-reference-page > .pending-page-title {
-  display: none !important;
-}
-
+/* KTC Manager: keep report page titles, hide only redundant subtitles. */
 .management-content .pending-reference-page > .pending-page-title > div > p {
   display: none !important;
-}
-
-.pending-reference-page .pending-page-title h1,
-.pending-reference-page .pending-page-title h1::after {
-  display: none !important;
-  content: none !important;
 }

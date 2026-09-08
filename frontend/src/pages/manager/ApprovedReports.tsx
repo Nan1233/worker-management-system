@@ -81,7 +81,7 @@ export default function ApprovedReports() {
     return (
         <div className="pending-reference-page">
             <div className="pending-page-title">
-                <h1 style={{ margin: 0, color: "#12385f", fontSize: 26, fontWeight: 800 }}>Đã duyệt báo cáo</h1>
+                <h1 style={{ margin: 0, color: "#12385f", fontSize: 26, fontWeight: 800 }}>Báo cáo đã duyệt</h1>
                 <div style={{ marginTop: 5, color: "#6f89a8", fontSize: 13 }}>Xem lại các báo cáo sản xuất đã được duyệt.</div>
             </div>
 

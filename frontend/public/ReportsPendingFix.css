@@ -67,7 +67,6 @@
 }
 
 /* ===== Final manager report UI alignment ===== */
-.pending-reference-page:has(.pending-reference-table th.management-checkbox-column) > .pending-page-title{display:none!important}
 
 /* When there are no approved reports, hide the table header completely.
    The empty state is the only content shown below the list tab. */
