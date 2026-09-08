@@ -98,7 +98,26 @@ export default function ProductionDetail() {
       <div><span>Cập nhật cuối</span><strong>{formatDateTime(report.updated_at)}</strong></div>
     </div></section>
 
-    {report.machine_lines?.length ? <section className="detail-section"><h2>Máy / sản phẩm</h2><div style={{ display: "grid", gap: 8 }}>{report.machine_lines.map((line, index) => <div key={line.id || index} style={{ display: "grid", gridTemplateColumns: "repeat(6,minmax(0,1fr))", gap: 8, padding: 10, border: "1px solid #d9e2ef", borderRadius: 10 }}><div><span>Máy</span><strong>{line.machine_code}</strong></div><div><span>Sản phẩm</span><strong>{line.product_code}</strong></div><div><span>Giờ máy</span><strong>{number(line.machine_time_hours)}</strong></div><div><span>OK</span><strong>{quantity(line.ok_quantity)}</strong></div><div><span>NG</span><strong>{quantity(line.ng_quantity)}</strong></div><div><span>Lỗi</span><strong>{quantity((line.defects || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0))}</strong></div></div>)}</div></section> : null}
+    {report.machine_lines?.length ? <section className="detail-section"><h2>Máy / sản phẩm</h2><div style={{ display: "grid", gap: 10 }}>{report.machine_lines.map((line, index) => {
+      const defectTotal = (line.defects || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+      return <div key={line.id || index} style={{ padding: 10, border: "1px solid #d9e2ef", borderRadius: 10, background: "#fff" }}>
+        <div style={{ fontWeight: 600, marginBottom: 8, color: "#0f4b8a" }}>Máy {index + 1}</div>
+        <div className="detail-grid" style={{ margin: 0 }}>
+          <div><span>Mã máy</span><strong>{line.machine_code || "-"}</strong></div>
+          <div><span>Mã sản phẩm</span><strong>{line.product_code || "-"}</strong></div>
+          <div><span>Thời gian máy</span><strong>{number(line.machine_time_hours)} giờ</strong></div>
+          <div><span>OK</span><strong>{quantity(line.ok_quantity)}</strong></div>
+          <div><span>NG</span><strong>{quantity(line.ng_quantity)}</strong></div>
+          <div><span>Tổng lỗi</span><strong>{quantity(defectTotal)}</strong></div>
+        </div>
+        {(line.defects || []).filter((item) => Number(item.quantity) > 0).length > 0 && <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #edf1f7" }}>
+          <span style={{ display: "block", fontSize: 12, color: "#64748b", marginBottom: 4 }}>Lỗi NG theo máy</span>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 6 }}>
+            {(line.defects || []).filter((item) => Number(item.quantity) > 0).map((item, defectIndex) => <div key={item.id || defectIndex} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "6px 8px", border: "1px solid #e5eaf1", borderRadius: 8 }}><span>{item.defect_name || item.defect_code || "NG"}</span><strong>{quantity(item.quantity)}</strong></div>)}
+          </div>
+        </div>}
+      </div>;
+    })}</div></section> : null}
 
     <section className="detail-section"><h2>Sản lượng</h2><div className="detail-grid">
       <div><span>Định mức</span><strong>{number(report.standard_output)}</strong></div>
@@ -114,7 +133,7 @@ export default function ProductionDetail() {
     </div></section>
 
     {defects.length > 0 && <section className="detail-section"><h2>Lỗi NG</h2><div className="detail-grid">{defects.map((item, index) => <div key={item.id || index}><span>{item.defect_name || item.defect_code || "NG"}</span><strong>{quantity(item.quantity)}</strong></div>)}</div></section>}
-    {deductions.length > 0 && <section className="detail-section"><h2>Trừ giờ</h2><div className="detail-grid">{deductions.map((item, index) => <div key={item.id || index}><span>{item.deduction_name || item.deduction_code || "Trừ giờ"}</span><strong>{number(item.hours)} giờ</strong></div>)}</div></section>}
+    {deductions.length > 0 && <section className="detail-section"><h2>Trừ giờ</h2><div className="detail-grid">{deductions.map((item, index) => <div key={item.id || index}><span>{item.deduction_name || item.deduction_code || "Trừ giờ"}</span><strong>{number(item.hours)} giờ</strong></div>)}</section>}
     {report.note && <section className="detail-section"><h2>Ghi chú</h2><p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{report.note}</p></section>}
   </main></div>;
 }
