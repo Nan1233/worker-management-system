@@ -1,0 +1,22 @@
+/* KTC Manager activity log — minimal presentation override. */
+.audit-page{gap:10px!important;padding-top:0!important}
+.audit-page-header{padding:0 2px 2px!important;margin:0!important}
+.audit-page-header h1{font-size:22px!important;font-weight:600!important;line-height:1.25!important;gap:6px!important}
+.audit-page-header h1 svg{width:22px!important;height:22px!important}
+.audit-page-header p{display:none!important}
+.audit-filter-card{border:0!important;box-shadow:none!important;border-radius:0!important;background:transparent!important;padding:0!important;gap:7px!important}
+.audit-filter-date,.audit-select,.audit-search{height:36px!important;border-radius:7px!important;background:#fff!important}
+.audit-filter-date input,.audit-select select,.audit-search input{font-size:11px!important}
+.audit-filter-date svg{width:14px!important;height:14px!important}
+.audit-export{height:36px!important;border-radius:7px!important;font-size:11px!important;font-weight:500!important;padding:0 10px!important}
+.audit-table-card{border-radius:9px!important;box-shadow:none!important}
+.audit-table-card th,.audit-table-card td{padding:7px 9px!important}
+.audit-table-card th{height:34px!important;font-size:10px!important;font-weight:600!important}
+.audit-table-card td{height:38px!important;font-size:11px!important}
+.audit-table-card td strong{font-weight:500!important}
+.audit-role,.audit-action{font-size:9.5px!important;font-weight:500!important;padding:2px 6px!important}
+.audit-detail-btn{height:26px!important;font-size:10px!important;font-weight:500!important;padding:0 8px!important}
+.audit-table-footer{padding:8px 10px!important;font-size:10px!important}
+.audit-table-footer select,.audit-table-footer button{height:28px!important;font-size:10px!important}
+@media(max-width:1250px){.audit-filter-card{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+@media(max-width:800px){.audit-page-header h1{font-size:20px!important}.audit-filter-card{grid-template-columns:1fr!important}.audit-filter-card>*{min-width:0}.audit-table-footer{gap:7px!important}}
