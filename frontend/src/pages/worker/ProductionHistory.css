@@ -2,3 +2,72 @@
 @media (max-width: 760px) { .history-page { padding: 10px 8px 78px; }.history-shell { width: 100%; }.history-header { align-items: center; gap: 7px; margin-bottom: 8px; }.history-title-group { gap: 7px; }.history-title-group h1 { font-size: 19px; line-height: 1.12; font-weight: 650; }.history-title-group p { display: none; }.history-back-button { width: 32px; height: 32px; border-radius: 8px; font-size: 16px; }.history-count { padding: 4px 7px; border-radius: 8px; gap: 3px; }.history-count strong { font-size: 14px; }.history-count span { font-size: 8.5px; }.history-filter-card { padding: 8px; margin-bottom: 8px; border-radius: 10px; }.history-search-box { margin-bottom: 6px; }.history-search-box > span { left: 10px; font-size: 14px; }.history-search-box input { min-height: 36px; padding-left: 30px; font-size: 12px; }.history-filter-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; }.history-filter-field:first-child { grid-column: 1 / -1; }.history-filter-field { gap: 3px; }.history-filter-field > span { font-size: 9px; }.history-filter-field input,.history-filter-field select { min-height: 34px; height: 34px; padding: 0 9px; font-size: 11px; }.history-clear-button { grid-column: 1 / -1; min-height: 32px; height: 32px; padding: 0 8px; font-size: 10px; }.history-error { padding: 8px 9px; font-size: 10px; }.report-card { overflow: hidden; border: 1px solid var(--ktc-border); border-radius: 11px; background: var(--ktc-surface); box-shadow: var(--ktc-shadow-xs); }.table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }.history-table { display: table; width: 100%; min-width: 0; table-layout: fixed; font-size: 10.5px; }.history-table thead { display: table-header-group; }.history-table tbody { display: table-row-group; }.history-table tr { display: table-row; }.history-table th { display: table-cell; height: 38px; padding: 0 8px; font-size: 8.5px; font-weight: 750; letter-spacing: .01em; color: var(--ktc-ink-500); background: var(--ktc-surface-muted); }.history-table td { display: table-cell; height: 45px; padding: 6px 8px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }.history-table tbody tr { border-bottom: 1px solid var(--ktc-border); }.history-table tbody tr:last-child { border-bottom: 0; }.history-table .column-index { display: table-cell; width: 32px; min-width: 32px; text-align: center; }.history-table .date-cell { display: table-cell; width: 92px; color: var(--ktc-ink-800); font-size: 10px; font-weight: 700; }.history-table .shift-cell { display: table-cell; width: 43px; text-align: center; }.history-table .shift-badge { min-width: 25px; height: 22px; font-size: 9px; border-radius: 7px; }.history-table .machine-cell { display: table-cell; width: auto; max-width: none; font-size: 10px; }.history-table .product-cell,.history-table .ok-column,.history-table .ng-column { display: none; }.history-table thead th:nth-child(5),.history-table thead th:nth-child(6),.history-table thead th:nth-child(7) { display: none; }.history-table .status-cell { display: table-cell; width: 78px; min-width: 78px; text-align: center; padding-right: 14px; }.history-table .status-cell span { min-height: 20px; padding: 0 6px; font-size: 8px; white-space: nowrap; }.history-table .action-column { display: table-cell; width: 46px; min-width: 46px; text-align: center; padding-left: 14px; }.history-table .action-column .detail-btn { min-height: 26px; width: 30px; padding: 0; font-size: 0; border-radius: 7px; }.history-table .action-column .detail-btn::after { content: "›"; font-size: 16px; line-height: 1; }.history-table td::before { display: none !important; }.pagination { margin-top: 8px; gap: 4px; }.pagination button { min-width: 30px; height: 30px; font-size: 10px; } }
 @media (max-width: 420px) { .history-page { padding: 8px 7px 76px; }.history-title-group h1 { font-size: 18px; }.history-count { padding: 3px 6px; }.history-count strong { font-size: 13px; }.history-count span { display: none; }.history-filter-card { padding: 7px; }.history-filter-grid { gap: 5px; }.history-filter-field input,.history-filter-field select { min-height: 33px; height: 33px; font-size: 10.5px; }.history-clear-button { min-height: 30px; height: 30px; font-size: 9.5px; }.history-table { min-width: 350px; width: 350px; }.history-table th { height: 36px; padding: 0 6px; font-size: 8px; }.history-table td { height: 43px; padding: 5px 6px; font-size: 9.5px; }.history-table .column-index { width: 30px; min-width: 30px; }.history-table .date-cell { width: 82px; font-size: 9.5px; }.history-table .shift-cell { width: 40px; }.history-table .machine-cell { width: 48px; font-size: 9.5px; }.history-table .status-cell { width: 82px; min-width: 82px; padding-right: 16px; }.history-table .status-cell span { font-size: 7.5px; padding: 0 5px; }.history-table .action-column { width: 42px; min-width: 42px; padding-left: 16px; }.history-table .action-column .detail-btn { width: 27px; min-height: 24px; }.history-table .action-column .detail-btn::after { font-size: 15px; } }
 @media (max-width: 760px) { .history-table .action-column .detail-btn { width: auto; min-width: 42px; padding: 0 9px; font-size: 10px; white-space: nowrap; }.history-table .action-column .detail-btn::after { content: none; } .history-table th,.history-table td { font-size: 11px; } .history-table th { font-size: 10px; } .history-table .date-cell,.history-table .machine-cell { font-size: 10.5px; } }
+
+/* KTC mobile history: compact, information-dense table instead of oversized report cards. */
+@media (max-width: 760px) {
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .report-card {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    border-radius: 9px !important;
+  }
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .table-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+  }
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table {
+    display: table !important;
+    width: 100% !important;
+    min-width: 560px !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+  }
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table thead,
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table tbody,
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table tr {
+    display: table-header-group !important;
+  }
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table tbody { display: table-row-group !important; }
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table tr { display: table-row !important; }
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table th {
+    display: table-cell !important;
+    height: 30px !important;
+    padding: 0 6px !important;
+    font-size: 8.5px !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+  }
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table td {
+    display: table-cell !important;
+    height: 38px !important;
+    padding: 4px 6px !important;
+    font-size: 9.5px !important;
+    line-height: 1.1 !important;
+    vertical-align: middle !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table .column-index { width: 34px !important; min-width: 34px !important; text-align: center !important; }
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table .date-cell { width: 92px !important; font-size: 9.5px !important; font-weight: 700 !important; }
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table .shift-cell { width: 42px !important; text-align: center !important; }
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table .machine-cell { width: 58px !important; max-width: 58px !important; }
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table .product-cell { width: 105px !important; max-width: 105px !important; display: table-cell !important; }
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table .ok-column,
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table .ng-column { width: 45px !important; display: table-cell !important; text-align: right !important; }
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table .status-cell { width: 78px !important; min-width: 78px !important; text-align: center !important; padding: 4px 5px !important; }
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table .status-cell span { min-height: 19px !important; padding: 0 5px !important; font-size: 7.5px !important; }
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table .action-column { width: 50px !important; min-width: 50px !important; text-align: center !important; padding: 4px 5px !important; }
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table .action-column .detail-btn { width: auto !important; min-width: 40px !important; height: 26px !important; min-height: 26px !important; padding: 0 7px !important; font-size: 9px !important; border-radius: 6px !important; }
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table .action-column .detail-btn::after { content: none !important; }
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table td::before { display: none !important; content: none !important; }
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table tbody tr { height: 38px !important; }
+}
+@media (max-width: 420px) {
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table { min-width: 560px !important; }
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table th { height: 29px !important; font-size: 8px !important; }
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table td { height: 36px !important; padding: 4px 5px !important; font-size: 9px !important; }
+  body :where(.worker-content:not(:has(.worker-home-page))) .history-page .history-table .product-cell { width: 100px !important; max-width: 100px !important; }
+}
