@@ -113,6 +113,16 @@
 /* Errors */
 .management-error{padding:10px;border:1px solid #f1c2c7;border-radius:8px;background:#fff7f7;color:#c63e4a;font-size:11px}
 
+/* Approved reports uses the same filter layout as Chờ duyệt.
+   Its JSX keeps the quick-date row between the other controls, so target
+   children directly instead of relying on label:nth-of-type selectors. */
+.pending-reference-page .pending-filter-card > .pending-search{grid-area:search!important}
+.pending-reference-page .pending-filter-card > label:nth-of-type(1){grid-area:date!important}
+.pending-reference-page .pending-filter-card > label:nth-of-type(2){grid-area:process!important}
+.pending-reference-page .pending-filter-card > label:nth-of-type(3){grid-area:shift!important}
+.pending-reference-page .pending-filter-card > .pending-quick-filters{grid-area:quick!important}
+.pending-reference-page .pending-filter-card[style]{grid-template-columns:minmax(260px,2fr) minmax(145px,1fr) minmax(145px,1fr) minmax(135px,.9fr)!important;grid-template-areas:"search date process shift" "quick quick quick quick"!important;gap:8px 10px!important;align-items:end!important;padding:11px 12px!important}
+
 @media(max-width:1280px){.pending-filter-card{grid-template-columns:1.4fr 1fr 1fr;grid-template-areas:"search date date" "process shift shift" "quick quick quick"}.pending-workspace{grid-template-columns:1fr}.pending-detail-card{min-height:420px}}
 @media(max-width:1000px){.pending-filter-card{grid-template-columns:1fr 1fr;grid-template-areas:"search search" "date process" "shift shift" "quick quick"}}
 @media(max-width:720px){.pending-page-title h1{font-size:18px!important}.pending-filter-card{grid-template-columns:1fr;grid-template-areas:"search" "date" "process" "shift" "quick"}.pending-detail-grid,.pending-detail-info-grid,.pending-edit-grid{grid-template-columns:1fr}.pending-result-grid{grid-template-columns:1fr 1fr}.pending-result-item:nth-child(2){border-right:0}.pending-result-item:nth-child(-n+2){border-bottom:1px solid #e0e8f1}.pending-detail-actions{grid-template-columns:1fr}.pending-detail-actions:has(.pending-detail-cancel){grid-template-columns:1fr 1fr}.pending-table-wrap{overflow-x:auto}}
