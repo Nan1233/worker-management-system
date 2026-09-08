@@ -1,4 +1,17 @@
-/* KTC demo cleanup: page subtitles are redundant with the navigation/page title. */
-.management-content .pending-reference-page > .pending-page-title > div {
+/* KTC: Ẩn mô tả phụ nhưng giữ nguyên tiêu đề trang.
+   Trước đây selector nhắm vào > div nên vô tình ẩn luôn h1 của
+   Chờ duyệt / Đã duyệt. */
+.management-content .pending-reference-page > .pending-page-title > div > p {
   display: none !important;
+}
+
+/* Giữ title chính luôn hiển thị và đồng nhất giữa hai trang. */
+.management-content .pending-reference-page > .pending-page-title > div {
+  display: block !important;
+}
+
+.management-content .pending-reference-page > .pending-page-title h1 {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
