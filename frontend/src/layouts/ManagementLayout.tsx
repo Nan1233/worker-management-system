@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bell, Boxes, ClipboardCheck, Cog, FileWarning, History, LayoutDashboard, MoreHorizontal, ShieldCheck, Timer, UserRound, Users, BarChart3, LogOut } from "lucide-react";
+import { Bell, Boxes, ClipboardCheck, Cog, FileWarning, History, LayoutDashboard, MoreHorizontal, ShieldCheck, Timer, UserRound, Users, BarChart3, LogOut, Search, CalendarDays, ChevronDown } from "lucide-react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { getStoredUser, clearAuthSession } from "../utils/authStorage";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
@@ -31,39 +31,32 @@ const items:ManagementMenuItem[]=[
 const roleLabel:Record<ManagementRole,string>={lead:"Tổ trưởng",manager:"Quản lý",admin:"Quản trị viên"};
 
 export default function ManagementLayout({role}:{role:ManagementRole}){
- const navigate=useNavigate(),location=useLocation();
- const {can}=usePermissions();
- const {unreadCount}=useNotificationBadge(can("NOTIFICATION_VIEW"));
- const base=`/${role}`,user=getStoredUser();
- const [mobileMoreOpen,setMobileMoreOpen]=useState(false);
- const temporaryManagerView=role==="manager" && String(user?.role||"").toLowerCase()==="lead";
- const managerPermissions=defaultPermissionsForRole("manager");
- const visible=items.filter(item=>item.roles.includes(role)&&(temporaryManagerView?managerPermissions.has(item.permission):can(item.permission)));
- const mobilePrimaryItems=visible.slice(0,2),mobileOverflowItems=visible.slice(2);
- const active=(path:string)=>path===""?location.pathname===base:location.pathname===`${base}/${path}`||location.pathname.startsWith(`${base}/${path}/`);
- const displayName=user?.full_name||user?.username||roleLabel[role];
- const avatarText=displayName.trim().charAt(0).toUpperCase()||"K";
+ const navigate=useNavigate(),location=useLocation(); const {can}=usePermissions();
+ const {unreadCount}=useNotificationBadge(can("NOTIFICATION_VIEW")); const base=`/${role}`,user=getStoredUser();
+ const [mobileMoreOpen,setMobileMoreOpen]=useState(false); const temporaryManagerView=role==="manager" && String(user?.role||"").toLowerCase()==="lead";
+ const managerPermissions=defaultPermissionsForRole("manager"); const visible=items.filter(item=>item.roles.includes(role)&&(temporaryManagerView?managerPermissions.has(item.permission):can(item.permission)));
+ const mobilePrimaryItems=visible.slice(0,2),mobileOverflowItems=visible.slice(2); const active=(path:string)=>path===""?location.pathname===base:location.pathname===`${base}/${path}`||location.pathname.startsWith(`${base}/${path}/`);
+ const displayName=user?.full_name||user?.username||roleLabel[role]; const avatarText=displayName.trim().charAt(0).toUpperCase()||"K";
  const logout=()=>{setMobileMoreOpen(false);clearAuthSession();navigate("/login",{replace:true});};
- useEffect(()=>{
-  if(role!=="manager")return;
-  const forbiddenMasterPath=/^\/manager\/master\/(users|processes)(?:\/|$)/.test(location.pathname);
-  if(forbiddenMasterPath)navigate(`${base}/master/machines`,{replace:true});
- },[role,location.pathname,navigate,base]);
+ useEffect(()=>{if(role!=="manager")return;const forbiddenMasterPath=/^\/manager\/master\/(users|processes)(?:\/|$)/.test(location.pathname);if(forbiddenMasterPath)navigate(`${base}/master/machines`,{replace:true});},[role,location.pathname,navigate,base]);
+ const today=new Intl.DateTimeFormat("vi-VN",{weekday:"short",day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date()).replace(/^./,m=>m.toUpperCase());
  return <div className="management-layout" data-management-role={role}>
   <aside className="management-sidebar">
-   <button className="management-brand" type="button" onClick={()=>navigate(base)}><span className="management-brand-mark">K</span><span><strong>KTC (HANOI) CO., LTD</strong><small>{roleLabel[role]}</small></span></button>
+   <button className="management-brand" type="button" onClick={()=>navigate(base)}><img src="/ktc-hanoi-logo.jpg" alt="KTC HANOI" className="management-brand-logo"/></button>
    <nav className="management-menu" aria-label="Management navigation">
-    {visible.map(item=>{const Icon=item.icon;return <button key={item.path||"home"} type="button" className={active(item.path)?"active":""} onClick={()=>navigate(`${base}${item.path?`/${item.path}`:""}`)}><Icon size={18}/><span>{item.label}</span></button>;})}
-    <button type="button" className={active("profile")?"active":""} onClick={()=>navigate(`${base}/profile`)}><UserRound size={18}/><span>Cá nhân</span></button><button type="button" className="management-logout" onClick={logout}><LogOut size={18}/><span>Đăng xuất</span></button>
+    {visible.map(item=>{const Icon=item.icon;return <button key={item.path||"home"} type="button" className={active(item.path)?"active":""} onClick={()=>navigate(`${base}${item.path?`/${item.path}`:""}`)}><Icon size={21}/><span>{item.label}</span></button>;})}
+    <button type="button" className={active("profile")?"active":""} onClick={()=>navigate(`${base}/profile`)}><UserRound size={21}/><span>Tài khoản</span></button>
+    <button type="button" className="management-logout" onClick={logout}><LogOut size={21}/><span>Đăng xuất</span></button>
    </nav>
+   <div className="management-sidebar-footer"><strong>KTC (HANOI) CO., LTD</strong><span>Production Management System</span><small>v1.0.0</small></div>
   </aside>
   <section className="management-main">
    <header className="management-header">
-    <div className="management-header-title"><strong>KTC Production Control</strong><span>{roleLabel[role]}</span></div>
+    <div className="management-search"><Search size={20}/><input aria-label="Tìm kiếm" placeholder="Tìm công nhân, máy, công đoạn, báo cáo..."/></div>
     <div className="management-header-actions">
-     <button className="management-notification" type="button" aria-label="Thông báo" onClick={()=>navigate(`${base}/notifications`)}><Bell size={19}/>{unreadCount>0&&<b>{unreadCount>9?"9+":unreadCount}</b>}</button>
-     <button className="management-user" type="button" aria-label="Mở trang cá nhân" onClick={()=>navigate(`${base}/profile`)}><span className="management-user-avatar">{avatarText}</span><span className="management-user-copy"><strong>{displayName}</strong><small>{roleLabel[role]}</small></span></button>
-     <button type="button" className="management-header-logout" aria-label="Đăng xuất" onClick={logout}><LogOut size={18}/><span>Đăng xuất</span></button>
+     <button className="management-date" type="button"><CalendarDays size={19}/><span>{today}</span></button>
+     <button className="management-notification" type="button" aria-label="Thông báo" onClick={()=>navigate(`${base}/notifications`)}><Bell size={22}/>{unreadCount>0&&<b>{unreadCount>9?"9+":unreadCount}</b>}</button>
+     <button className="management-user" type="button" aria-label="Mở trang cá nhân" onClick={()=>navigate(`${base}/profile`)}><span className="management-user-avatar">{avatarText}</span><span className="management-user-copy"><strong>{displayName}</strong><small>{roleLabel[role]} · Khu A</small></span><ChevronDown size={17}/></button>
     </div>
    </header>
    <main className="management-content"><MasterDataTransferActions/><Outlet/></main>
