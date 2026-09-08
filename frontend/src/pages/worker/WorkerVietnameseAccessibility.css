@@ -263,3 +263,10 @@ body :where(.worker-content:not(:has(.worker-home-page))) .multi-machine-control
   line-height: 1.2 !important;
   font-weight: 600 !important;
 }
+
+/* Product autocomplete label: compact like the other worker field labels. */
+body :where(.worker-content:not(:has(.worker-home-page))) .worker-selection-card .autocomplete-label {
+  font-size: 11px !important;
+  line-height: 1.2 !important;
+  font-weight: 600 !important;
+}
