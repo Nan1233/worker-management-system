@@ -8,7 +8,7 @@
 .pending-page-title p{margin:3px 0 0;color:#7185a4;font-size:11px;line-height:1.4;font-weight:400}
 
 /* Filter toolbar - clean, compact and consistent with Worker UI */
-.pending-filter-card{display:grid;grid-template-columns:minmax(240px,1.9fr) minmax(145px,1fr) minmax(145px,1fr) minmax(135px,.9fr);grid-template-areas:"search date process shift" "quick quick quick quick";gap:8px 10px;align-items:end;margin-bottom:12px;padding:11px 12px;border:1px solid #dbe7f3;border-radius:11px;background:#fff;box-shadow:0 2px 9px rgba(35,76,125,.035)}
+.pending-filter-card{display:grid;grid-template-columns:minmax(260px,2fr) minmax(145px,1fr) minmax(145px,1fr) minmax(135px,.9fr);grid-template-areas:"search date process shift" "quick quick quick quick";gap:8px 10px;align-items:end;margin-bottom:12px;padding:11px 12px;border:1px solid #dbe7f3;border-radius:11px;background:#fff;box-shadow:0 2px 9px rgba(35,76,125,.035)}
 .pending-filter-card .pending-search{grid-area:search}
 .pending-filter-card .pending-quick-filters{grid-area:quick}
 .pending-filter-card label:nth-of-type(1){grid-area:date}
@@ -19,9 +19,12 @@
 .pending-filter-card input,.pending-filter-card select{width:100%;height:35px;border:1px solid #d5e2ef;border-radius:8px;background:#fff;color:#315a91;padding:0 10px;font:400 12px/1 inherit;outline:none;transition:border-color .15s,box-shadow .15s}
 .pending-filter-card input::placeholder{color:#9aabc0}
 .pending-filter-card input:focus,.pending-filter-card select:focus{border-color:#8bb9ed;box-shadow:0 0 0 2px rgba(23,105,210,.06)}
+
+/* Search field: use a clean CSS magnifier instead of a text glyph */
 .pending-search{position:relative}
-.pending-search>span{position:absolute;left:10px;bottom:10px;color:#7d94b1;font-size:14px;line-height:1;z-index:1}
-.pending-search input{padding-left:29px!important}
+.pending-search>span{position:absolute;left:11px;bottom:10px;width:13px;height:13px;border:1.5px solid #7d94b1;border-radius:50%;font-size:0;line-height:0;z-index:1}
+.pending-search>span::after{content:"";position:absolute;width:5px;height:1.5px;background:#7d94b1;right:-4px;bottom:-2px;transform:rotate(45deg);transform-origin:left center;border-radius:2px}
+.pending-search input{padding-left:31px!important}
 
 /* Quick date filters: simple segmented control, no nested visual box */
 .pending-quick-filters{height:30px;display:flex;align-items:center;justify-content:flex-start;gap:3px;padding:0;white-space:nowrap;min-width:0;overflow:hidden;border-top:1px solid #edf2f7;padding-top:6px}
