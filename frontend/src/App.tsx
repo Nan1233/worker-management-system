@@ -24,6 +24,7 @@ import "./pages/worker/WorkerVietnameseAccessibility.css";
 import "./pages/worker/ProcessCompactLayout.css";
 import "./pages/worker/ProcessTypographyFix.css";
 import "./pages/worker/ProductionHistoryCompact.css";
+import "./pages/worker/HistoryVerticalCompact.css";
 import "./pages/system/SystemCenter.css";
 import "./pages/system/ActivityLogMinimal.css";
 import "./styles/ManagerDashboardMinimal.css";
