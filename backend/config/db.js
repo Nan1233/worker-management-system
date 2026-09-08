@@ -80,7 +80,8 @@ function normalizeCloudflareResult(result) {
 // TiDB Serverless' Cloudflare driver currently rejects parameter markers in
 // INSERT ... SELECT statements. Keep the workaround narrowly scoped to the
 // worker notification backfill, whose parameters are authenticated numeric IDs.
-// Placeholders inside quoted strings (e.g. ?source=approved) are preserved.
+// Placeholders inside quoted strings (e.g. ?source=approved) are converted so
+// the driver receives no literal question-mark characters at all.
 function normalizeNotificationBackfillQuery(sql, params) {
   if (!/^\s*INSERT\s+INTO\s+notifications\b/i.test(sql) || !/\bSELECT\s+\?/i.test(sql)) {
     return { sql, params };
@@ -120,6 +121,14 @@ function normalizeNotificationBackfillQuery(sql, params) {
     }
     output += ch;
   }
+
+  // TiDB Serverless' parameter-marker handling can also reject a literal '?'
+  // embedded in the SQL text of this INSERT ... SELECT. Build the URL query
+  // separator with CHAR(63) so the SQL sent to the driver contains no '?'.
+  output = output
+    .replace(/'\?source=approved'/g, "CONCAT(CHAR(63), 'source=approved')")
+    .replace(/'\?source=pending'/g, "CONCAT(CHAR(63), 'source=pending')");
+
   return { sql: output, params: [] };
 }
 
