@@ -179,11 +179,22 @@ function normalizeDraftForResume(draft: ProcessDraft): ProcessDraft {
     form.standardOutput = String(restoredFirst.standardOutputPerHour);
   }
 
+  // The machine lines are the canonical source for a resumed multi-machine
+  // report. Older/partially-written drafts could contain machine data while
+  // operationMode was still MANUAL. Infer MACHINE from the actual saved lines
+  // so reopening the draft cannot silently switch the UI back to "Tay" and
+  // hide the machine inputs.
+  const hasMachineData = machineLines.some((line) =>
+    Boolean(line.machineCode || line.productCode || line.hours || line.minutes || line.okQuantity || line.ngQuantity)
+  );
+  const operationMode: OperationMode = hasMachineData ? "MACHINE" : draft.operationMode;
+
   return {
     ...draft,
     form,
     machineLines,
     machineCount: lineCount,
+    operationMode,
     selectedDeduction: Array.isArray(draft.selectedDeduction) ? draft.selectedDeduction : [],
     selectedNg: Array.isArray(draft.selectedNg) ? draft.selectedNg : [],
     extraData: draft.extraData || {},
