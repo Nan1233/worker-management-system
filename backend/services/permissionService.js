@@ -35,7 +35,7 @@ const CAPABILITIES = {
   manager: new Set(ALL_CODES.filter((code) => !['PERIOD_UNLOCK','PERMISSION_MANAGE','WORKER_ENTRY','WORKER_HISTORY'].includes(code))),
   // Tổ trưởng được dùng các chức năng master giống Quản lý: xem + thêm + sửa + xóa Máy móc, Sản phẩm, Trừ giờ.
   lead: new Set(['DASHBOARD_VIEW','REPORT_PENDING_VIEW','REPORT_APPROVE','REPORT_APPROVED_VIEW','REPORT_EXPORT','USER_VIEW','MASTER_VIEW','MASTER_EDIT','STATISTICS_VIEW','NOTIFICATION_VIEW','AUDIT_VIEW','SYSTEM_HEALTH_VIEW','PROFILE_VIEW']),
-  worker: new Set(['NOTIFICATION_VIEW','WORKER_ENTRY','WORKER_HISTORY','PROFILE_VIEW'])
+  worker: new Set(['NOTIFICATION_VIEW','WORKER_ENTRY','WORKER_HISTORY','STATISTICS_VIEW','PROFILE_VIEW'])
 };
 const DEFAULTS = {
   admin: new Set(ALL_CODES),
