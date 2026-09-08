@@ -8,7 +8,7 @@
 .pending-page-title p{margin:3px 0 0;color:#7185a4;font-size:11px;line-height:1.4;font-weight:400}
 
 /* Filters - same compact density as Worker forms */
-.pending-filter-card{display:grid;grid-template-columns:minmax(190px,1.25fr) minmax(120px,.72fr) minmax(235px,1.15fr) minmax(105px,.65fr) minmax(105px,.65fr);gap:8px;align-items:end;margin-bottom:9px;padding:10px;border:1px solid #dbe7f3;border-radius:11px;background:#fff;box-shadow:0 2px 9px rgba(35,76,125,.035)}
+.pending-filter-card{display:grid;grid-template-columns:minmax(190px,1.25fr) minmax(120px,.72fr) minmax(235px,1.15fr) minmax(105px,.65fr) minmax(105px,.65fr);gap:8px;align-items:end;margin-bottom:12px;padding:10px;border:1px solid #dbe7f3;border-radius:11px;background:#fff;box-shadow:0 2px 9px rgba(35,76,125,.035)}
 .pending-filter-card label,.pending-filter-card .pending-search{display:flex;flex-direction:column;gap:4px;min-width:0}
 .pending-filter-card label>span{font-size:10px;color:#7185a4;font-weight:400;line-height:1.2}
 .pending-filter-card input,.pending-filter-card select{width:100%;height:34px;border:1px solid #d5e2ef;border-radius:8px;background:#fff;color:#315a91;padding:0 9px;font:400 12px/1 inherit;outline:none}
@@ -24,17 +24,10 @@
 .pending-quick-filters button.active,.pending-quick-filters button:focus{background:#eaf3ff;color:#1769d2;outline:none}
 .pending-refresh{height:34px!important;border-radius:8px!important;font-size:11px!important}
 
-/* Period summary */
-.pending-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:9px}
-.pending-kpi{min-height:64px;padding:9px 12px;border:1px solid #dbe7f3;border-radius:10px;background:#fff;cursor:pointer;user-select:none;display:flex;flex-direction:column;justify-content:center;gap:2px;transition:border-color .15s,box-shadow .15s,transform .15s}
-.pending-kpi:hover{transform:translateY(-1px);box-shadow:0 4px 10px rgba(35,76,125,.055)}
-.pending-kpi.is-active{border-color:#3b91e9;box-shadow:0 0 0 1px rgba(23,105,210,.06)}
-.pending-kpi strong{display:block;color:#123b78;font-size:17px!important;line-height:1.1;font-weight:600!important}
-.pending-kpi span{display:block;color:#627895;font-size:11px;line-height:1.2;font-weight:400}
-.pending-kpi small{display:block;color:#8a9bb0;font-size:9.5px;line-height:1.2;font-weight:400}
-.pending-kpi.kpi-orange{background:#fffaf2}
-.pending-kpi.kpi-orange strong{color:#d87916}
-.pending-kpi.kpi-slate{background:#f8fafc}
+/* Period summary intentionally removed from the UI.
+   Period counts are not part of the Manager's primary approval workflow. */
+.pending-kpis{display:none!important}
+.pending-kpi{display:none!important}
 
 /* List / detail */
 .pending-workspace{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,.88fr);gap:9px;align-items:stretch}
@@ -113,6 +106,6 @@
 .management-error{padding:10px;border:1px solid #f1c2c7;border-radius:8px;background:#fff7f7;color:#c63e4a;font-size:11px}
 
 @media(max-width:1280px){.pending-filter-card{grid-template-columns:1.2fr .8fr 1fr 1fr 1fr}.pending-workspace{grid-template-columns:1fr}.pending-detail-card{min-height:420px}}
-@media(max-width:1000px){.pending-kpis{grid-template-columns:repeat(2,1fr)}.pending-filter-card{grid-template-columns:1fr 1fr}.pending-filter-card .pending-search{grid-column:span 2}.pending-quick-filters{grid-column:span 2}}
-@media(max-width:720px){.pending-page-title h1{font-size:18px!important}.pending-filter-card{grid-template-columns:1fr}.pending-filter-card .pending-search,.pending-quick-filters{grid-column:1}.pending-kpis{grid-template-columns:1fr 1fr}.pending-detail-grid,.pending-detail-info-grid,.pending-edit-grid{grid-template-columns:1fr}.pending-result-grid{grid-template-columns:1fr 1fr}.pending-result-item:nth-child(2){border-right:0}.pending-result-item:nth-child(-n+2){border-bottom:1px solid #e0e8f1}.pending-detail-actions{grid-template-columns:1fr}.pending-detail-actions:has(.pending-detail-cancel){grid-template-columns:1fr 1fr}.pending-table-wrap{overflow-x:auto}}
-@media(max-width:520px){.pending-kpis{grid-template-columns:1fr}.pending-page-title{align-items:flex-start}.pending-filter-card{padding:9px}.pending-detail-actions{padding:9px}.pending-bulk-actions{justify-content:stretch}.pending-bulk-actions>span{margin-right:auto}}
+@media(max-width:1000px){.pending-filter-card{grid-template-columns:1fr 1fr}.pending-filter-card .pending-search{grid-column:span 2}.pending-quick-filters{grid-column:span 2}}
+@media(max-width:720px){.pending-page-title h1{font-size:18px!important}.pending-filter-card{grid-template-columns:1fr}.pending-filter-card .pending-search,.pending-quick-filters{grid-column:1}.pending-detail-grid,.pending-detail-info-grid,.pending-edit-grid{grid-template-columns:1fr}.pending-result-grid{grid-template-columns:1fr 1fr}.pending-result-item:nth-child(2){border-right:0}.pending-result-item:nth-child(-n+2){border-bottom:1px solid #e0e8f1}.pending-detail-actions{grid-template-columns:1fr}.pending-detail-actions:has(.pending-detail-cancel){grid-template-columns:1fr 1fr}.pending-table-wrap{overflow-x:auto}}
+@media(max-width:520px){.pending-page-title{align-items:flex-start}.pending-filter-card{padding:9px}.pending-detail-actions{padding:9px}.pending-bulk-actions{justify-content:stretch}.pending-bulk-actions>span{margin-right:auto}}
