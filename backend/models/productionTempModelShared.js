@@ -1,10 +1,34 @@
 const db = require("../config/db");
 
+/**
+ * Execute a SQL statement and normalize MySQL/TiDB INSERT metadata.
+ *
+ * Cloudflare Worker deployments can expose a ResultSetHeader without a
+ * usable insertId even though TiDB successfully inserted the auto-increment
+ * row.  The production-report transaction depends on that id immediately
+ * afterwards, so recover LAST_INSERT_ID() on the same connection when the
+ * driver did not populate result.insertId.
+ */
 const query = (executor, sql, params = []) =>
     new Promise((resolve, reject) => {
         executor.query(sql, params, (error, result) => {
             if (error) return reject(error);
-            resolve(result);
+
+            const isInsert = /^\s*INSERT\s+/i.test(String(sql || ""));
+            const currentInsertId = Number(result?.insertId || 0);
+
+            if (!isInsert || currentInsertId > 0) {
+                return resolve(result);
+            }
+
+            executor.query("SELECT LAST_INSERT_ID() AS insertId", [], (idError, idRows) => {
+                if (idError) return reject(idError);
+                const insertId = Number(idRows?.[0]?.insertId || 0);
+                resolve({
+                    ...(result || {}),
+                    insertId
+                });
+            });
         });
     });
 
