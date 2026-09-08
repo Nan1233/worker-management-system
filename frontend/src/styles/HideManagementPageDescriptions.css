@@ -3,15 +3,16 @@
   display: none !important;
 }
 
-/* Hide the old implementation title regardless of whether the h1 is direct or nested. */
+/* Hide the original implementation title so it cannot appear twice. */
 .pending-reference-page .pending-page-title h1 {
   font-size: 0 !important;
   line-height: 0 !important;
   margin: 0 !important;
 }
 
-/* Show only the business-facing title. */
+/* Approved reports: display only the requested title. */
 .pending-reference-page .pending-page-title h1::after {
+  content: "Báo cáo đã duyệt";
   display: block;
   color: #12385f;
   font-size: 26px;
@@ -20,13 +21,7 @@
   letter-spacing: -0.15px;
 }
 
-/* Chờ duyệt */
-.management-report-page .pending-reference-page .pending-page-title h1::after,
-.pending-reference-page .pending-page-title h1::after {
+/* Pending reports: same wording/style as the navigation and page content. */
+.management-report-page.pending-reference-page .pending-page-title h1::after {
   content: "Báo cáo chờ duyệt";
-}
-
-/* ApprovedReports uses the same page class; override its title text. */
-.management-report-page:not(:has(.management-selected-info)) .pending-reference-page .pending-page-title h1::after {
-  content: "Báo cáo đã duyệt";
 }
