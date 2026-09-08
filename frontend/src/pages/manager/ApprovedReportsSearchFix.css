@@ -30,6 +30,7 @@
   margin: 0 !important;
 }
 
+/* Keep the search text clear of the magnifier rendered by ReportsSplitReference.css. */
 .pending-reference-page .pending-filter-card .pending-search input {
-  padding-left: 12px !important;
+  padding-left: 31px !important;
 }
