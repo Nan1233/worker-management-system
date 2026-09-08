@@ -52,12 +52,9 @@ export default function ProcessBasicInfoSection({
     updateMachineLine, refreshMachineLineStandard, getMachineNgTotal, activeNgOptions,
     toggleMachineDefect, updateMachineDefectValue,
 }: Props) {
-    const [longExecutionMode, setLongExecutionMode] = useState<"MANUAL" | "MACHINE" | "AIR">(
+    const [longExecutionMode, setLongExecutionMode] = useState<"MANUAL" | "MACHINE">(
         operationMode === "MACHINE" ? "MACHINE" : "MANUAL",
     );
-    // Cắt tự động và Cắt không tự động đều là workflow có máy.
-    // operationMode=MACHINE keeps the machine/product UI visible; this local state
-    // distinguishes which machine subset the worker is allowed to select.
     const [cutExecutionMode, setCutExecutionMode] = useState<CutExecutionMode>("AUTO");
 
     const setProduct = (value: string) => {
@@ -68,8 +65,6 @@ export default function ProcessBasicInfoSection({
     const handleOperationTypeChange = (nextType: OperationType) => {
         setOperationType(nextType);
         if (nextType === "CUT") {
-            // Both Cắt modes use a machine workflow. The local execution mode
-            // decides whether the machine list is automatic or non-automatic.
             setOperationMode("MACHINE");
             setCutExecutionMode("AUTO");
             setLongExecutionMode("MACHINE");
@@ -80,13 +75,11 @@ export default function ProcessBasicInfoSection({
         setLongExecutionMode("MANUAL");
     };
 
-    const handleLongExecutionModeChange = (mode: "MANUAL" | "MACHINE" | "AIR") => {
+    const handleLongExecutionModeChange = (mode: "MANUAL" | "MACHINE") => {
         setLongExecutionMode(mode);
         setOperationMode(mode === "MANUAL" ? "MANUAL" : "MACHINE");
     };
 
-    // Cắt tự động chỉ cho C5/C6/C7/C11. Cắt không tự động vẫn phải chọn máy,
-    // nhưng chỉ được chọn các mã máy C còn lại.
     const visibleGcMachineOptions = operationType === "CUT"
         ? cutExecutionMode === "AUTO"
             ? machineAutocompleteOptions.filter((option) => GC_AUTOMATIC_MACHINE_CODES.has(getMachineCode(option)))
@@ -136,7 +129,6 @@ export default function ProcessBasicInfoSection({
                                 <div className="worker-choice-row">
                                     <button type="button" className={longExecutionMode === "MANUAL" ? "active" : ""} onClick={() => handleLongExecutionModeChange("MANUAL")}>Tay</button>
                                     <button type="button" className={longExecutionMode === "MACHINE" ? "active" : ""} onClick={() => handleLongExecutionModeChange("MACHINE")}>Máy</button>
-                                    <button type="button" className={longExecutionMode === "AIR" ? "active" : ""} onClick={() => handleLongExecutionModeChange("AIR")}>Khí</button>
                                 </div>
                             )}
                         </div>
