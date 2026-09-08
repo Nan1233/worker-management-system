@@ -77,6 +77,52 @@ function normalizeCloudflareResult(result) {
   return [Array.isArray(result) ? result : [], []];
 }
 
+// TiDB Serverless' Cloudflare driver currently rejects parameter markers in
+// INSERT ... SELECT statements. Keep the workaround narrowly scoped to the
+// worker notification backfill, whose parameters are authenticated numeric IDs.
+// Placeholders inside quoted strings (e.g. ?source=approved) are preserved.
+function normalizeNotificationBackfillQuery(sql, params) {
+  if (!/^\s*INSERT\s+INTO\s+notifications\b/i.test(sql) || !/\bSELECT\s+\?/i.test(sql)) {
+    return { sql, params };
+  }
+
+  let paramIndex = 0;
+  let quote = null;
+  let output = "";
+  for (let i = 0; i < sql.length; i += 1) {
+    const ch = sql[i];
+    if (quote) {
+      output += ch;
+      if (ch === quote) {
+        if (sql[i + 1] === quote) {
+          output += sql[i + 1];
+          i += 1;
+        } else {
+          quote = null;
+        }
+      }
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === "`") {
+      quote = ch;
+      output += ch;
+      continue;
+    }
+    if (ch === "?" && paramIndex < params.length) {
+      const value = params[paramIndex];
+      const numeric = Number(value);
+      if (!Number.isInteger(numeric) || numeric <= 0) {
+        return { sql, params };
+      }
+      output += String(numeric);
+      paramIndex += 1;
+      continue;
+    }
+    output += ch;
+  }
+  return { sql: output, params: [] };
+}
+
 function createCloudflareConnection() {
   if (typeof tidbConnect !== "function") {
     throw new Error("TiDB Serverless Driver chưa được khởi tạo trong Cloudflare Worker");
@@ -91,8 +137,9 @@ function createCloudflareConnection() {
   async function executeRaw(sql, params = []) {
     if (closed) throw new Error("Database connection đã được đóng");
     try {
+      const normalized = normalizeNotificationBackfillQuery(sql, params);
       const client = transaction || conn;
-      return await client.execute(sql, params, { fullResult: true });
+      return await client.execute(normalized.sql, normalized.params, { fullResult: true });
     } catch (error) {
       throw wrapCloudflareError(error, sql);
     }
