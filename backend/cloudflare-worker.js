@@ -36,15 +36,34 @@ process.env.KTC_CLOUDFLARE_WORKER = "true";
 
 const { start, app } = require("./server.js");
 const ensureGcLong2801Lt = require("./scripts/ensureGcLong2801Lt");
+const { masterDataCache } = require("./utils/masterDataCache");
 
 // Cloudflare forbids asynchronous I/O during module evaluation/global scope.
-// Run the idempotent master-data seed from an actual request lifecycle.
-const seedPromise = new Map();
+// Seed only from a real request. The seed is idempotent and is awaited once per
+// Worker isolate so the first master-data request cannot race the seed.
+let cloudflareSeedReady = false;
+let cloudflareSeedPromise = null;
 async function ensureCloudflareSeeded() {
-  if (seedPromise.has("2801")) return seedPromise.get("2801");
-  const pending = ensureGcLong2801Lt().finally(() => seedPromise.delete("2801"));
-  seedPromise.set("2801", pending);
-  return pending;
+  if (cloudflareSeedReady) return true;
+  if (cloudflareSeedPromise) return cloudflareSeedPromise;
+
+  cloudflareSeedPromise = ensureGcLong2801Lt()
+    .then(() => {
+      // Product standards are cached for 30 minutes in the Express layer. The
+      // seed may have added 2801-LT after an old cache entry was created, so
+      // invalidate master-data cache before serving the first request.
+      masterDataCache.clear();
+      cloudflareSeedReady = true;
+      console.log("[KTC] Cloudflare GC master-data seed completed; master cache cleared");
+      return true;
+    })
+    .catch((error) => {
+      console.error("[KTC] Cloudflare GC master-data seed failed", error);
+      cloudflareSeedPromise = null;
+      return false;
+    });
+
+  return cloudflareSeedPromise;
 }
 
 const originalListen = app.listen.bind(app);
@@ -117,15 +136,16 @@ function handleCorsPreflight(request) {
 }
 
 const wrappedServer = {
-  fetch(request, envArg, ctx) {
+  async fetch(request, envArg, ctx) {
     // Handle browser preflight before Express, auth, rate limiting or DB access.
     const preflight = handleCorsPreflight(request);
     if (preflight) return preflight;
 
-    const seed = ensureCloudflareSeeded().catch((error) => {
-      console.error("[KTC] Cloudflare GC master-data seed failed", error);
-    });
-    if (ctx?.waitUntil) ctx.waitUntil(seed);
+    // Await the one-time seed before serving the first request. This guarantees
+    // 2801-LT exists before /product-standards is allowed to populate its cache.
+    // If the seed fails, keep the API available and let the normal endpoint
+    // return its own result instead of turning every request into a 500.
+    await ensureCloudflareSeeded();
     return httpHandler.fetch(request, envArg, ctx);
   },
 };
