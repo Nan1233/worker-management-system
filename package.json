@@ -9,6 +9,7 @@
     "e2e:critical": "node scripts/stagingE2E.cjs",
     "security:runtime": "node scripts/runtimeSecurityAudit.cjs",
     "smoke:production": "node scripts/productionSmokeE2E.cjs",
+    "smoke:cloudflare": "node scripts/cloudflareProductionSmoke.cjs",
     "perf:large-data": "node backend/scripts/performanceLargeData.cjs",
     "test:hardening": "node --test tests/dependency-hardening.contract.test.cjs",
     "perf:benchmark": "node scripts/performanceBenchmark.cjs"
