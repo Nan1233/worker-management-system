@@ -13,7 +13,9 @@ test('2801-LT is seeded as LONG at 605/h and mapped to numeric GC machines', () 
   assert.match(seed, /'LONG', '2801-LT', 605/);
   assert.match(seed, /m\.process_id = 1/);
   assert.match(seed, /TRIM\(m\.machine_code\) REGEXP '\^\[0-9\]\+\$'/);
-  assert.match(seed, /standard_output = 605/);
+  assert.match(seed, /product_machine_standards/);
+  assert.match(seed, /SELECT\s+1, '2801-LT', m\.id, 605/);
+  assert.match(seed, /calculated_output_per_hour, source_name/);
 });
 
 test('Lồng product filtering does not apply Cắt suffix semantics', () => {
