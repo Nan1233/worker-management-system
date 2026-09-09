@@ -42,14 +42,10 @@ process.env.KTC_CLOUDFLARE_WORKER = "true";
 const { start, app } = require("./server.js");
 const ensureGcLong2801Lt = require("./scripts/ensureGcLong2801Lt");
 
-// Cloudflare does not execute package.json's `start` script. Seed the canonical
-// GC Lồng master data explicitly before the Express runtime starts/warmups run.
-// The helper is idempotent, so Render and Cloudflare can safely use the same rule.
-await ensureGcLong2801Lt();
-
-// Express normally calls server.listen(port, host, callback). Cloudflare's
-// Worker HTTP server supports listen(port, callback), so normalize the host
-// argument only for this Worker without changing the Render server code.
+// Cloudflare forbids asynchronous I/O during module evaluation/global scope.
+// Run the idempotent master-data seed from an actual request handler lifecycle.
+// `scheduled` is used when available; normal HTTP startup is still handled by
+// the Express runtime without any global DB connection.
 const originalListen = app.listen.bind(app);
 app.listen = (port, hostOrCallback, maybeCallback) => {
   if (typeof hostOrCallback === "string") {
@@ -58,6 +54,24 @@ app.listen = (port, hostOrCallback, maybeCallback) => {
   return originalListen(port, hostOrCallback);
 };
 
+const seedPromise = new Map();
+async function ensureCloudflareSeeded() {
+  if (seedPromise.has("2801")) return seedPromise.get("2801");
+  const pending = ensureGcLong2801Lt().finally(() => seedPromise.delete("2801"));
+  seedPromise.set("2801", pending);
+  return pending;
+}
+
 const server = await start();
 
-export default httpServerHandler(server);
+const wrappedServer = {
+  fetch(request, envArg, ctx) {
+    const seed = ensureCloudflareSeeded().catch((error) => {
+      console.error("[KTC] Cloudflare GC master-data seed failed", error);
+    });
+    if (ctx?.waitUntil) ctx.waitUntil(seed);
+    return server.fetch(request, envArg, ctx);
+  },
+};
+
+export default wrappedServer;
