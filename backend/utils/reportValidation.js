@@ -84,6 +84,8 @@ const validateProductionReport = (payload = {}, options = {}) => {
     const errors = {};
     const workDate = String(payload.work_date || "").slice(0, 10);
     const parsedDate = DATE_PATTERN.test(workDate) ? new Date(`${workDate}T00:00:00`) : null;
+    const isNonProductWork = Number(payload.process_id) === 60006 ||
+        String(payload.process_code || payload.extra_data?.process_code || "").trim().toUpperCase() === "CVK";
 
     if (!parsedDate || Number.isNaN(parsedDate.getTime())) {
         errors.work_date = "Ngày làm việc không hợp lệ";
@@ -107,7 +109,11 @@ const validateProductionReport = (payload = {}, options = {}) => {
     const totalTime = finiteNumber(payload.total_time, "total_time", errors, { max: MAX_TOTAL_TIME_HOURS });
     const deductionTime = finiteNumber(payload.deduction_time, "deduction_time", errors, { max: MAX_TOTAL_TIME_HOURS });
     const actualTime = finiteNumber(payload.actual_time, "actual_time", errors, { max: MAX_TOTAL_TIME_HOURS });
-    const standardOutput = finiteNumber(payload.standard_output, "standard_output", errors, { min: Number.MIN_VALUE, max: 100000000 });
+    // Normal production reports must have a positive standard. CVK is intentionally
+    // product-less, so standard_output=0 is the canonical value for this process.
+    const standardOutput = isNonProductWork
+        ? finiteNumber(payload.standard_output, "standard_output", errors, { max: 100000000 })
+        : finiteNumber(payload.standard_output, "standard_output", errors, { min: Number.MIN_VALUE, max: 100000000 });
     const actualOutput = finiteNumber(payload.actual_output, "actual_output", errors, { max: 100000000 });
     const ttOk = finiteNumber(payload.tt_ok, "tt_ok", errors, { max: 100000000 });
     const ttNg = finiteNumber(payload.tt_ng, "tt_ng", errors, { max: 100000000 });
