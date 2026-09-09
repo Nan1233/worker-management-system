@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const ExcelJS = require('exceljs');
+const ExcelJS = require('../backend/node_modules/exceljs');
 const { buildTemplateDrivenProcessWorkbook } = require('../backend/services/templateDrivenProcessExcelExportService');
 
 function fixture(overrides = {}) {
