@@ -120,6 +120,11 @@ export function recoverReliableReportJournal(): void {
 }
 
 export function initializeReliableReportRecovery(): void {
+    // Ask the browser for persistent site storage when supported. This does not
+    // block submission if the browser declines; the normal localStorage journal
+    // remains the last-resort recovery layer.
+    void navigator.storage?.persist?.().catch(() => false);
+
     api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
         if (!isProductionTempCreate(config) || isReplayRequest(config)) return config;
 
