@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { getAllReports,getReportDates,getReportsByDate,getReportById,updateReport,deleteReport } = require("../controllers/productionController");
+const managerApprovedReportsController = require("../controllers/managerApprovedReportsController");
 const verifyToken = require("../middleware/authMiddleware");
 const checkRole = require("../middleware/roleMiddleware");
 const permission = require("../middleware/permissionMiddleware");
@@ -14,10 +15,10 @@ const ProductionTemp = require("../models/productionTempModel");
 
 router.get("/dates",verifyToken,checkRole("admin","manager","lead"),permission("REPORT_APPROVED_VIEW"),getReportDates);
 router.get("/by-date",verifyToken,checkRole("admin","manager","lead"),permission("REPORT_APPROVED_VIEW"),getReportsByDate);
-router.get("/",verifyToken,checkRole("admin","manager","lead"),permission("REPORT_APPROVED_VIEW"),getAllReports);
+// Manager pages use server-side filtering/pagination. Keep the legacy controller
+// available for older internal callers, but do not download the whole table.
+router.get("/",verifyToken,checkRole("admin","manager","lead"),permission("REPORT_APPROVED_VIEW"),managerApprovedReportsController.getApprovedReports);
 
-// Lazy-load Excel sync so a stale/mismatched controller export can never crash
-// the whole backend during route registration.
 router.post(
   "/excel-sync",
   verifyToken,
@@ -41,10 +42,6 @@ router.post(
   }
 );
 
-// Worker history can contain a pending/need-fix report that still lives in
-// production_reports_temp. Older clients may call /production/:id without the
-// source query parameter, so transparently fall back to the temp report for
-// the logged-in worker when the approved report does not exist.
 router.get("/:id",verifyToken,checkRole("admin","manager","lead","worker"),async (req,res,next) => {
   const reportId = Number(req.params.id);
   if (!Number.isInteger(reportId) || reportId <= 0) return res.status(400).json({success:false,message:"ID báo cáo không hợp lệ"});
@@ -70,9 +67,6 @@ router.get("/:id",verifyToken,checkRole("admin","manager","lead","worker"),async
   }
 });
 
-// Restore endpoint is implemented here because productionController no longer
-// exports a restoreReportVersion handler. Keep the service as the single source
-// of truth for validation, locking, snapshot safety and audit/versioning.
 const restoreVersion = async (req, res) => {
   const reportId = Number(req.params.id);
   const versionNo = Number(req.params.versionNo);
@@ -103,9 +97,6 @@ const restoreVersion = async (req, res) => {
 
 router.post("/:id/versions/:versionNo/restore",verifyToken,checkRole("admin","manager"),permission("REPORT_APPROVED_EDIT"),approvedReportEditLock,restoreVersion);
 
-// Lý do chỉnh sửa không còn là dữ liệu bắt buộc từ người dùng.
-// Gán giá trị audit mặc định trước mọi middleware tiếp theo để backend
-// không bao giờ trả CHANGE_REASON_REQUIRED cho thao tác sửa trên bảng.
 const ensureApprovedEditReason = (req, _res, next) => {
   if (!req.body || typeof req.body !== "object") req.body = {};
   req.body.reason = String(req.body.reason || req.body.change_reason || "").trim() || "Cập nhật báo cáo đã duyệt";
