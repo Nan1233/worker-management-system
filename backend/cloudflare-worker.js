@@ -40,6 +40,12 @@ process.env.PORT = process.env.PORT || "3000";
 process.env.KTC_CLOUDFLARE_WORKER = "true";
 
 const { start, app } = require("./server.js");
+const ensureGcLong2801Lt = require("./scripts/ensureGcLong2801Lt");
+
+// Cloudflare does not execute package.json's `start` script. Seed the canonical
+// GC Lồng master data explicitly before the Express runtime starts/warmups run.
+// The helper is idempotent, so Render and Cloudflare can safely use the same rule.
+await ensureGcLong2801Lt();
 
 // Express normally calls server.listen(port, host, callback). Cloudflare's
 // Worker HTTP server supports listen(port, callback), so normalize the host
