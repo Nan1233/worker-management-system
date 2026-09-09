@@ -22,8 +22,9 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install root dependencies
-        run: npm ci
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm install --no-audit --no-fund
 
       - name: Cloudflare + master-data contracts
         run: node --test tests/cloudflare-production-contract.test.cjs tests/2801-lt-long-selection.contract.test.cjs
