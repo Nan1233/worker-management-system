@@ -22,11 +22,17 @@ jobs:
         with:
           node-version: 22
 
+      - name: Install root dependencies
+        run: npm ci
+
       - name: Cloudflare + master-data contracts
         run: node --test tests/cloudflare-production-contract.test.cjs tests/2801-lt-long-selection.contract.test.cjs
 
       - name: Report regression contracts
         run: node --test tests/regression-report-issues.contract.test.cjs backend/tests/product-suggestion-scope.test.js
+
+      - name: 2801-LT Excel export regression
+        run: node --test tests/2801-lt-excel-export.contract.test.cjs
 
       - name: Critical E2E source gate
         run: node --check scripts/zero-cost/critical-e2e.cjs
