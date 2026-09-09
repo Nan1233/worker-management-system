@@ -80,9 +80,10 @@ exports.getApprovedReports = async (req, res) => {
         params,
       ),
       db.promise().query(
-        `SELECT pr.*, p.process_name, w.worker_code, u.full_name
+        `SELECT pr.*, p.process_name, w.worker_code, u.full_name,
+                COALESCE(pr.training_percent_snapshot, pr.training_percent, pr.hv_percent, pr.learning_percent, pr.hoc_viec_percent, 0) AS training_percent
            FROM production_reports pr
-           JOIN workers w ON pr.worker_id=w.id
+           JOIN workers w ON pr.worker_id=u.id
            JOIN users u ON w.user_id=u.id
            JOIN processes p ON pr.process_id=p.id
           WHERE ${whereSql}
