@@ -1,4 +1,5 @@
-const assert = require('assert');
+const test = require('node:test');
+const assert = require('node:assert/strict');
 const { buildCanonicalLogicalDuplicateIdentity, buildLogicalDuplicateKey } = require('../services/logicalDuplicateReportService');
 const { normalizeWorkType } = require('../models/nonProductWorkCreateModel');
 
