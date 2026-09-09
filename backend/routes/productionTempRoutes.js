@@ -21,8 +21,10 @@ const proposalDetail = async (id) => {
 };
 const assertProposalAccess = async (req, reportId) => req.user?.role === "admin" ? true : ProductionTemp.canManageReport(Number(reportId), req.user.id, false);
 
-router.post("/", authMiddleware, workerReportLimiter, checkRole("worker"), permission("WORKER_ENTRY"), validate({ process_id:{required:true,type:"positiveInt"}, work_date:{required:true}, shift:{required:true,maxLength:20}, machine_no:{required:false,maxLength:100}, product_name:{required:true,maxLength:150} }), controller.createTempReport);
-router.post("/check-similar", authMiddleware, checkRole("worker"), permission("WORKER_ENTRY"), validate({ process_id:{required:true,type:"positiveInt"}, work_date:{required:true}, shift:{required:true,maxLength:20}, machine_no:{required:false,maxLength:100}, product_name:{required:true,maxLength:150} }), controller.checkSimilarReport);
+const productionTempValidation = validate({ process_id:{required:true,type:"positiveInt"}, work_date:{required:true}, shift:{required:true,maxLength:20}, machine_no:{required:false,maxLength:100}, product_name:{required:false,maxLength:150} });
+
+router.post("/", authMiddleware, workerReportLimiter, checkRole("worker"), permission("WORKER_ENTRY"), productionTempValidation, controller.createTempReport);
+router.post("/check-similar", authMiddleware, checkRole("worker"), permission("WORKER_ENTRY"), productionTempValidation, controller.checkSimilarReport);
 router.get("/my", authMiddleware, checkRole("worker"), permission("WORKER_HISTORY"), controller.getMyTempReports);
 router.get("/daily-hours", authMiddleware, checkRole("worker"), permission("WORKER_ENTRY"), async (req, res) => {
     try {
@@ -64,8 +66,8 @@ router.get("/edit-proposals", authMiddleware, checkRole("admin", "manager", "lea
             if (typeof row.proposed_data === "string") { try { row.proposed_data = JSON.parse(row.proposed_data); } catch { row.proposed_data = {}; } }
             accessible.push(row);
         }
-        return res.json({ success:true, data:accessible });
-    } catch (error) { console.error("GET EDIT PROPOSALS ERROR:", error); return res.status(error.status || 500).json({ success:false, message:error.message || "Không thể tải đề xuất sửa" }); }
+        return res.json({success:true, data:accessible});
+    } catch (error) { console.error("GET EDIT PROPOSALS ERROR:", error); return res.status(error.status || 500).json({success:false, message:error.message || "Không thể tải đề xuất sửa"}); }
 });
 
 router.post("/edit-proposals", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), async (req, res) => {
