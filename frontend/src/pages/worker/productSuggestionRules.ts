@@ -68,13 +68,22 @@ export const filterProductsForSelection = ({
     machineOptions?: MachineOption[];
     useEncodedMachineSuffix?: boolean;
 }): ProductStandardOption[] => {
+    // The encoded suffix convention (-AUTO / -<machine>) belongs to GC Cắt.
+    // Lồng uses the real product_code plus eligible_machine_codes mapping, so
+    // applying the Cắt suffix filter to Lồng can incorrectly collapse a valid
+    // machine's product list to one item (or hide products such as 2801-LT).
     const familyHasMachineVariant = new Set(
-        products.filter((product) => getProductMachineHint(product.product_code)).map((product) => getProductFamilyCode(product.product_code))
+        products
+            .filter((product) => normalizeWorkType(product.work_type) === "CUT")
+            .filter((product) => getProductMachineHint(product.product_code))
+            .map((product) => getProductFamilyCode(product.product_code))
     );
 
     if (mode === "MANUAL") {
         return products.filter((product) => !LONG_MACHINE_ONLY_PRODUCT_CODES.has(normalize(product.product_code)))
-            .filter((product) => useEncodedMachineSuffix ? !getProductMachineHint(product.product_code) : true);
+            .filter((product) => useEncodedMachineSuffix
+                ? normalizeWorkType(product.work_type) !== "CUT" || !getProductMachineHint(product.product_code)
+                : true);
     }
 
     const selectedMachine = normalizeMachineKey(machineCode);
@@ -91,7 +100,12 @@ export const filterProductsForSelection = ({
 
         if (hasExplicitMapping && !mappedMachines.includes(selectedMachine)) return false;
 
-        if (useEncodedMachineSuffix) {
+        // IMPORTANT: only GC Cắt uses encoded product suffixes to decide
+        // automatic/non-automatic machine compatibility. GC Lồng products are
+        // matched by their real machine mapping and must not be forced through
+        // the Cắt -AUTO/-<machine> convention.
+        const isCutProduct = normalizeWorkType(product.work_type) === "CUT";
+        if (useEncodedMachineSuffix && isCutProduct) {
             // Automatic machine => ONLY -AUTO products.
             if (isAutomatic) return hint?.kind === "AUTO";
 
