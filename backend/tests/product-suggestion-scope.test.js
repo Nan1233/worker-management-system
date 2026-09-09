@@ -14,6 +14,7 @@ test('product suggestions are scoped by process_code and GC work_type', () => {
   const controller = read('backend/controllers/productStandardController.js');
   const model = read('backend/models/productStandardModel.js');
   const rules = read('frontend/src/pages/worker/productSuggestionRules.ts');
+  const migration = read('backend/migrations/033_map_2801_lt_to_gc_long_machine_11_20260909.sql');
 
   assert.match(service, /process_code:\s*processCode/);
   assert.match(controller, /findByProcessCode\(processCode\)/);
@@ -30,4 +31,12 @@ test('product suggestions are scoped by process_code and GC work_type', () => {
   assert.match(rules, /const isCutProduct = normalizeWorkType\(product\.work_type\) === "CUT"/);
   assert.match(rules, /if \(useEncodedMachineSuffix && isCutProduct\)/);
   assert.match(rules, /filter\(\(product\) => normalizeWorkType\(product\.work_type\) === "CUT"\)/);
+
+  // Master-data contract: 2801-LT is a GC Lồng product and is explicitly
+  // mapped to the canonical GC machine with machine_code 11.
+  assert.match(migration, /process_id, product_code, machine_id/);
+  assert.match(migration, /'2801-LT'/);
+  assert.match(migration, /m\.process_id = 1/);
+  assert.match(migration, /TRIM\(m\.machine_code\) = '11'/);
+  assert.match(migration, /605/);
 });
