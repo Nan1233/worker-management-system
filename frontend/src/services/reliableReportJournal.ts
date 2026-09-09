@@ -1,4 +1,4 @@
-import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
+import axios, { AxiosHeaders, type AxiosError, type InternalAxiosRequestConfig } from "axios";
 import { api } from "./api";
 import { getStoredUser } from "../utils/authStorage";
 import type { ProductionReport } from "../types/production";
@@ -70,6 +70,11 @@ function payloadFromConfig(config?: InternalAxiosRequestConfig | null): Producti
     }
 }
 
+function isReplayRequest(config: InternalAxiosRequestConfig): boolean {
+    const headers = AxiosHeaders.from(config.headers || {});
+    return String(headers.get(REPLAY_HEADER) || "") === "1";
+}
+
 function saveBeforeSend(payload: ProductionReport): void {
     const owner = currentOwner();
     const clientRequestId = String(payload.client_request_id || "").trim();
@@ -116,9 +121,7 @@ export function recoverReliableReportJournal(): void {
 
 export function initializeReliableReportRecovery(): void {
     api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-        if (!isProductionTempCreate(config)) return config;
-        const replay = String(config.headers?.[REPLAY_HEADER] || "") === "1";
-        if (replay) return config;
+        if (!isProductionTempCreate(config) || isReplayRequest(config)) return config;
 
         const payload = payloadFromConfig(config);
         if (!payload) return config;
