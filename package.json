@@ -12,6 +12,7 @@
     "smoke:cloudflare": "node scripts/cloudflareProductionSmoke.cjs",
     "perf:large-data": "node backend/scripts/performanceLargeData.cjs",
     "test:hardening": "node --test tests/dependency-hardening.contract.test.cjs",
+    "test:cloudflare-contract": "node --test tests/cloudflare-production-contract.test.cjs",
     "perf:benchmark": "node scripts/performanceBenchmark.cjs"
   }
 }
