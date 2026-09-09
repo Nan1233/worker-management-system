@@ -56,6 +56,7 @@ app.listen = (port, hostOrCallback, maybeCallback) => {
 };
 
 const server = await start();
+const httpHandler = httpServerHandler(server);
 
 function getAllowedOrigin(request) {
   const origin = request.headers.get("Origin");
@@ -118,8 +119,6 @@ function handleCorsPreflight(request) {
 const wrappedServer = {
   fetch(request, envArg, ctx) {
     // Handle browser preflight before Express, auth, rate limiting or DB access.
-    // This prevents an OPTIONS request from becoming a 500 because of an
-    // unrelated runtime/DB initialization problem.
     const preflight = handleCorsPreflight(request);
     if (preflight) return preflight;
 
@@ -127,7 +126,7 @@ const wrappedServer = {
       console.error("[KTC] Cloudflare GC master-data seed failed", error);
     });
     if (ctx?.waitUntil) ctx.waitUntil(seed);
-    return server.fetch(request, envArg, ctx);
+    return httpHandler.fetch(request, envArg, ctx);
   },
 };
 
