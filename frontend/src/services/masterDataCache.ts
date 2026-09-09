@@ -6,8 +6,8 @@ import { getSessionCached, clearSessionCache } from "./sessionCache";
 
 const TTL_MS = 30 * 60 * 1000;
 // Bump this namespace whenever the worker master contract changes so a browser
-// cannot keep an older NG list after a Render deployment.
-const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v3";
+// cannot keep an older product list after a deployment/master-data correction.
+const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v4";
 
 type DefectOptions = Awaited<ReturnType<typeof getDefectOptionsByProcess>>;
 type DeductionOptions = Awaited<ReturnType<typeof getDeductionOptionsByProcess>>;
@@ -39,10 +39,6 @@ async function withOfflineSnapshot<T>(name: string, loader: () => Promise<T>): P
   }
 }
 
-/**
- * Manager Excel suggestions must come from master data for the selected
- * process, not only from the currently visible/paginated reports.
- */
 function syncManagerMasterDataHints(machines: MachineOption[], products: ProductStandardOption[]): void {
   if (typeof document === "undefined") return;
 
@@ -50,9 +46,7 @@ function syncManagerMasterDataHints(machines: MachineOption[], products: Product
   if (machineList) {
     machineList.replaceChildren();
     const values = Array.from(new Set(
-      machines
-        .map((item) => String(item?.machine_code || "").trim())
-        .filter(Boolean),
+      machines.map((item) => String(item?.machine_code || "").trim()).filter(Boolean),
     ));
     for (const value of values) {
       const option = document.createElement("option");
@@ -65,9 +59,7 @@ function syncManagerMasterDataHints(machines: MachineOption[], products: Product
   if (productList) {
     productList.replaceChildren();
     const values = Array.from(new Set(
-      products
-        .map((item) => String(item?.product_code || "").trim())
-        .filter(Boolean),
+      products.map((item) => String(item?.product_code || "").trim()).filter(Boolean),
     ));
     for (const value of values) {
       const option = document.createElement("option");
@@ -132,24 +124,13 @@ export function prefetchProcessMasterData(processId: number): void {
   ]);
 }
 
-/**
- * Advances a browser-wide master-data revision. Other tabs immediately stop
- * addressing the previous cache namespace on their next master-data read.
- */
 export function bumpMasterDataEpoch(): number {
   const next = getMasterDataEpoch() + 1;
-  try { localStorage.setItem(MASTER_DATA_EPOCH_KEY, String(next)); } catch { /* noop */ }
-  clearMasterDataCache();
-  return next;
-}
-
-export function clearMasterDataCache(processId?: number): void {
-  if (processId !== undefined) {
-    clearSessionCache(epochKey(`machines:${processId}`));
-    clearSessionCache(epochKey(`products:${processId}:NONE`));
-    clearSessionCache(epochKey(`defects:${processId}`));
-    clearSessionCache(epochKey(`deductions:${processId}`));
-    return;
+  try {
+    localStorage.setItem(MASTER_DATA_EPOCH_KEY, String(next));
+  } catch {
+    // Ignore storage failures; the current request can still use the new namespace.
   }
-  clearSessionCache("master:");
+  clearSessionCache();
+  return next;
 }
