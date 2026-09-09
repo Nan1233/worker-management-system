@@ -4,7 +4,7 @@
   "description": "KTC internal production reporting API optimized for Render and TiDB",
   "main": "server.js",
   "scripts": {
-    "start": "node scripts/ensureGcDefectMasterData.js && node --require ./scripts/approvedReportConcurrencyPatch.cjs --expose-gc server.js",
+    "start": "node scripts/ensureGcDefectMasterData.js && node scripts/ensureGcLong2801Lt.js && node --require ./scripts/approvedReportConcurrencyPatch.cjs --expose-gc server.js",
     "worker": "node worker.js",
     "dev": "nodemon server.js",
     "check": "node --check server.js && node scripts/checkSource.js",
@@ -12,6 +12,7 @@
     "db:analyze": "node scripts/analyzeTables.js",
     "db:sync-template-master": "node scripts/syncKtcTemplateMasterData.js",
     "db:ensure-gc-defects": "node scripts/ensureGcDefectMasterData.js",
+    "db:ensure-gc-long-2801-lt": "node scripts/ensureGcLong2801Lt.js",
     "db:migration-inventory": "node scripts/verifyMigrationInventory.js",
     "test": "node --test tests/*.test.js",
     "verify": "npm run check && npm run db:migration-inventory && npm test",
@@ -46,14 +47,12 @@
   "dependencies": {
     "@tidbcloud/serverless": "0.3.0",
     "bcrypt": "npm:bcryptjs@3.0.2",
-    "cors": "2.8.6",
-    "dotenv": "17.4.2",
+    "cors": "2.8.0",
     "exceljs": "4.4.0",
     "express": "5.2.1",
     "express-rate-limit": "8.6.1",
     "googleapis": "173.0.0",
     "helmet": "8.3.0",
-    "ipaddr.js": "1.9.1",
     "jsonwebtoken": "9.0.3",
     "mysql2": "3.23.2"
   },
