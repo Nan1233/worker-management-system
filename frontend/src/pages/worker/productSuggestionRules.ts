@@ -4,11 +4,7 @@ export type ProductSuggestionMode = "MANUAL" | "MACHINE";
 
 const normalize = (value: unknown) => String(value ?? "").trim().toUpperCase();
 
-/**
- * Canonical machine key used only for matching master-data relations.
- * The DB may contain 1, 01, M1, MAY-1, MÁY 01, etc.; these all refer to
- * the same machine when the machine is numeric.
- */
+/** Canonical machine key used only for matching master-data relations. */
 export const normalizeMachineKey = (value: unknown): string => {
     const code = normalize(value).replace(/\s+/g, "");
     if (!code) return "";
@@ -18,13 +14,11 @@ export const normalizeMachineKey = (value: unknown): string => {
 
 export const normalizeWorkType = (value: unknown): string => {
     const code = normalize(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    if (["CUT", "CAT", "CAT"].includes(code)) return "CUT";
-    if (["LONG", "LNG", "LONG"].includes(code)) return "LONG";
+    if (["CUT", "CAT"].includes(code)) return "CUT";
+    if (["LONG", "LNG"].includes(code)) return "LONG";
     return code;
 };
 
-// Product codes from master data can be optional at the type level; normalize
-// them here so filtering remains safe under strict TypeScript settings.
 export const getProductMachineHint = (productCode: unknown): { kind: "AUTO" | "NUMBER"; value: string } | null => {
     const code = normalize(productCode);
     const match = code.match(/-(AUTO|AUTOMATIC|\d+)$/i);
@@ -48,9 +42,7 @@ const eligibleMachineCodes = (product: ProductStandardOption): string[] =>
         .map(normalizeMachineKey)
         .filter(Boolean);
 
-// GC automatic machines are explicitly C5/C6/C7/C11.
 const GC_AUTOMATIC_MACHINE_CODES = new Set(["C5", "C6", "C7", "C11"]);
-const LONG_MACHINE_ONLY_PRODUCT_CODES = new Set(["2801-LT"]);
 
 const isGcAutomaticMachine = (machineCode: unknown): boolean =>
     GC_AUTOMATIC_MACHINE_CODES.has(normalize(machineCode));
@@ -68,10 +60,6 @@ export const filterProductsForSelection = ({
     machineOptions?: MachineOption[];
     useEncodedMachineSuffix?: boolean;
 }): ProductStandardOption[] => {
-    // The encoded suffix convention (-AUTO / -<machine>) belongs to GC Cắt.
-    // Lồng uses the real product_code plus eligible_machine_codes mapping, so
-    // applying the Cắt suffix filter to Lồng can incorrectly collapse a valid
-    // machine's product list to one item (or hide products such as 2801-LT).
     const familyHasMachineVariant = new Set(
         products
             .filter((product) => normalizeWorkType(product.work_type) === "CUT")
@@ -80,10 +68,12 @@ export const filterProductsForSelection = ({
     );
 
     if (mode === "MANUAL") {
-        return products.filter((product) => !LONG_MACHINE_ONLY_PRODUCT_CODES.has(normalize(product.product_code)))
-            .filter((product) => useEncodedMachineSuffix
-                ? normalizeWorkType(product.work_type) !== "CUT" || !getProductMachineHint(product.product_code)
-                : true);
+        // Product scope is already separated by GC Cắt/Lồng via work_type.
+        // Do not special-case 2801-LT here: it is a valid Lồng product and
+        // must remain selectable in all Lồng modes.
+        return products.filter((product) => useEncodedMachineSuffix
+            ? normalizeWorkType(product.work_type) !== "CUT" || !getProductMachineHint(product.product_code)
+            : true);
     }
 
     const selectedMachine = normalizeMachineKey(machineCode);
@@ -98,21 +88,17 @@ export const filterProductsForSelection = ({
         const mappedMachines = eligibleMachineCodes(product);
         const hasExplicitMapping = Number(product.has_machine_specific_standard || 0) === 1 || mappedMachines.length > 0;
 
-        if (hasExplicitMapping && !mappedMachines.includes(selectedMachine)) return false;
+        // A product may have explicit machine mappings. Keep strict machine
+        // scoping only when such mappings actually exist.
+        if (hasExplicitMapping && mappedMachines.length > 0 && !mappedMachines.includes(selectedMachine)) return false;
 
-        // IMPORTANT: only GC Cắt uses encoded product suffixes to decide
-        // automatic/non-automatic machine compatibility. GC Lồng products are
-        // matched by their real machine mapping and must not be forced through
-        // the Cắt -AUTO/-<machine> convention.
+        // Only GC Cắt uses encoded product suffixes. GC Lồng uses the real
+        // product code and machine mapping, so 2801-LT must not be hidden.
         const isCutProduct = normalizeWorkType(product.work_type) === "CUT";
         if (useEncodedMachineSuffix && isCutProduct) {
-            // Automatic machine => ONLY -AUTO products.
             if (isAutomatic) return hint?.kind === "AUTO";
-
-            // Non-automatic machine => NEVER an -AUTO product.
             if (hint?.kind === "AUTO") return false;
             if (hint?.kind === "NUMBER") return selectedNumber !== null && hint.value === selectedNumber;
-
             if (familyHasMachineVariant.has(getProductFamilyCode(product.product_code))) return false;
         }
 
