@@ -37,6 +37,13 @@ function normalizeMachineProductPairs({ machineLines = [], machineNo = null, pro
   return [`${cleanText(machineNo, { upper: true })}\u001f${cleanText(productName)}`];
 }
 
+function normalizeNonProductWorkType(value) {
+  const raw = cleanText(value, { upper: true });
+  if (raw === 'XUẤT' || raw === 'XUAT' || raw === 'NHẬP' || raw === 'NHAP' || raw === 'XUẤT/NHẬP' || raw === 'XUAT/NHAP') return 'XUẤT NHẬP';
+  if (raw === 'XUẤT NHẬP' || raw === 'XUAT NHAP') return 'XUẤT NHẬP';
+  return cleanText(value);
+}
+
 function buildCanonicalLogicalDuplicateIdentity(input = {}) {
   const workerId = Number(input.workerId ?? input.worker_id);
   const processId = Number(input.processId ?? input.process_id);
@@ -50,6 +57,8 @@ function buildCanonicalLogicalDuplicateIdentity(input = {}) {
     operationMode: input.operationMode ?? input.operation_mode,
   });
   const mode = normalizeMode(input.operationMode ?? input.operation_mode, Array.isArray(input.machineLines ?? input.machine_lines) && (input.machineLines ?? input.machine_lines).length > 0);
+  const processCode = cleanText(input.processCode ?? input.process_code, { upper: true });
+  const workType = normalizeNonProductWorkType(input.workType ?? input.work_type);
 
   return [
     `w=${workerId}`,
@@ -58,6 +67,7 @@ function buildCanonicalLogicalDuplicateIdentity(input = {}) {
     `s=${cleanText(input.shift, { upper: true })}`,
     `m=${mode}`,
     `pairs=${pairs.join('\u001e')}`,
+    ...(processCode === 'CVK' || processId === 60006 ? [`wt=${cleanText(workType, { upper: true })}`] : []),
   ].join('|');
 }
 
@@ -69,4 +79,5 @@ module.exports = {
   buildCanonicalLogicalDuplicateIdentity,
   buildLogicalDuplicateKey,
   normalizeMachineProductPairs,
+  normalizeNonProductWorkType,
 };

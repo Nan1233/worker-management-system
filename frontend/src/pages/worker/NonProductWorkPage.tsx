@@ -7,7 +7,7 @@ import { createClientRequestId } from "../../utils/workerSubmitGuard";
 const PROCESS_ID = 60006;
 const PROCESS_CODE = "CVK";
 const SHIFTS = ["A", "B", "C", "D", "Ca 1", "Ca 2", "Ca 3"];
-const WORK_TYPES = ["Xuất", "Nhập", "Hỗ trợ", "Kho", "Vệ sinh", "Công việc khác"];
+const WORK_TYPES = ["Xuất nhập", "Hỗ trợ", "Kho", "Vệ sinh", "Công việc khác"];
 
 export default function NonProductWorkPage() {
   const navigate = useNavigate();
@@ -91,7 +91,7 @@ export default function NonProductWorkPage() {
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".08em", opacity: .65 }}>CÔNG ĐOẠN {PROCESS_CODE}</div>
             <h1 style={{ margin: "4px 0 4px", fontSize: 24 }}>Công việc khác</h1>
-            <div style={{ fontSize: 14, opacity: .72 }}>Dành cho Xuất / Nhập / Hỗ trợ và công việc không có mã sản phẩm.</div>
+            <div style={{ fontSize: 14, opacity: .72 }}>Dành cho Xuất nhập, Hỗ trợ và các công việc không có mã sản phẩm.</div>
           </div>
           <button type="button" onClick={() => navigate("/worker/process/select")} style={{ border: 0, background: "transparent", cursor: "pointer", fontWeight: 700 }}>← Quay lại</button>
         </div>
@@ -113,7 +113,7 @@ export default function NonProductWorkPage() {
 
           <div style={{ background: "#f7f9fc", borderRadius: 12, padding: 12, fontSize: 13, lineHeight: 1.5 }}>
             <b>Mã sản phẩm:</b> Không áp dụng &nbsp;•&nbsp; <b>Thực tích:</b> Không áp dụng<br />
-            Hệ thống chỉ lưu người làm, loại công việc, thời gian và ghi chú; không tạo mã sản phẩm giả.
+            Hệ thống lưu người làm, loại công việc, thời gian và ghi chú; không tạo mã sản phẩm giả.
           </div>
 
           {message && <div role="status" style={{ padding: 11, borderRadius: 10, background: "#eef5ff", fontSize: 14 }}>{message}</div>}

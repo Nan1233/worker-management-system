@@ -22,6 +22,7 @@ module.exports = {
                        pr.work_date, pr.shift, pr.operation_type, pr.operation_mode, pr.machine_no, pr.product_name,
                        pr.standard_output, pr.actual_output, pr.total_time,
                        pr.actual_time, pr.deduction_time, pr.tt_ok, pr.tt_ng,
+                       pr.extra_data,
                        pr.status, pr.review_note, pr.created_at, pr.approved_at,
                        p.process_name
                 FROM production_reports pr
@@ -34,6 +35,7 @@ module.exports = {
                        temp.work_date, temp.shift, temp.operation_type, temp.operation_mode, temp.machine_no, temp.product_name,
                        temp.standard_output, temp.actual_output, temp.total_time,
                        temp.actual_time, temp.deduction_time, temp.tt_ok, temp.tt_ng,
+                       temp.extra_data,
                        temp.status, temp.review_note, temp.created_at, temp.approved_at,
                        p.process_name
                 FROM production_reports_temp temp
