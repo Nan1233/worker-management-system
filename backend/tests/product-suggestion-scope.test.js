@@ -13,6 +13,7 @@ test('product suggestions are scoped by process_code and GC work_type', () => {
   const service = read('frontend/src/services/masterDataService.ts');
   const controller = read('backend/controllers/productStandardController.js');
   const model = read('backend/models/productStandardModel.js');
+  const rules = read('frontend/src/pages/worker/productSuggestionRules.ts');
 
   assert.match(service, /process_code:\s*processCode/);
   assert.match(controller, /findByProcessCode\(processCode\)/);
@@ -22,4 +23,11 @@ test('product suggestions are scoped by process_code and GC work_type', () => {
   assert.match(domain, /normalizeWorkType\(product\.work_type\) === expectedWorkType/);
   assert.match(basic, /productOptions\.find/);
   assert.doesNotMatch(page, /product_code:\s*productOptions\.find/);
+
+  // GC Cắt may use encoded -AUTO/-<machine> product suffixes, but GC Lồng
+  // must use the real machine mapping instead. Applying Cắt suffix rules to
+  // Lồng would hide valid products such as 2801-LT.
+  assert.match(rules, /const isCutProduct = normalizeWorkType\(product\.work_type\) === "CUT"/);
+  assert.match(rules, /if \(useEncodedMachineSuffix && isCutProduct\)/);
+  assert.match(rules, /filter\(\(product\) => normalizeWorkType\(product\.work_type\) === "CUT"\)/);
 });
