@@ -53,7 +53,7 @@ test('Công việc khác uses one Xuất nhập work type and remains product-le
 
 test('Xuất/Nhập aliases normalize to the same duplicate-detection work type', () => {
   assert.match(duplicateService, /raw === 'XUẤT' \\|\\| raw === 'XUAT' \\|\\| raw === 'NHẬP' \\|\\| raw === 'NHAP'/);
-  assert.match(duplicateService, /raw === 'XUẤT\\/NHẬP' \\|\\| raw === 'XUAT\\/NHAP'/);
+  assert.ok(duplicateService.includes("raw === 'XUẤT/NHẬP' || raw === 'XUAT/NHAP'"));
   assert.match(duplicateService, /return 'XUẤT NHẬP'/);
 });
 
