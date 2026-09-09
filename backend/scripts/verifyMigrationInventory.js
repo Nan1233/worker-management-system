@@ -19,25 +19,23 @@ const duplicateNumbers = [...new Set(parsed
   .sort((a, b) => a - b);
 
 const latest = parsed.at(-1) || null;
-const gaps = [];
-for (let i = 1; i <= (latest?.number || 0); i += 1) {
-  if (!parsed.some((item) => item.number === i)) gaps.push(i);
-}
+const malformed = fs.readdirSync(migrationsDir)
+  .filter((name) => name.toLowerCase().endsWith('.sql'))
+  .filter((name) => !/^\d+_.+\.sql$/i.test(name));
 
 console.log(JSON.stringify({
   migration_count: parsed.length,
   latest: latest?.filename || null,
   latest_number: latest?.number || null,
   duplicate_numbers: duplicateNumbers,
-  missing_numbers: gaps,
+  malformed_files: malformed,
   deterministic_order: true,
 }, null, 2));
 
-// Duplicate numeric prefixes are legacy-compatible: filenames remain the
-// durable migration identity, so renaming an already-deployed migration would
-// make an existing database appear to be missing a migration. We therefore
-// report duplicates but only fail on malformed filenames/order gaps.
-if (!latest || gaps.length) {
+// Numeric prefixes are not the durable migration identity in this repository;
+// filenames are. Duplicate legacy prefixes are therefore diagnostic only.
+// Never rename an already-deployed migration merely to make the prefix unique.
+if (!latest || malformed.length) {
   console.error('MIGRATION_INVENTORY_INVALID');
   process.exitCode = 1;
 }
