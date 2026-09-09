@@ -54,7 +54,7 @@ const allProcesses = [
         name: "Công việc khác",
         icon: "CVK",
         visualIcon: processIconMap.CVK,
-        description: "Xuất / Nhập / Hỗ trợ và công việc không có mã sản phẩm",
+        description: "Xuất nhập / Hỗ trợ và công việc không có mã sản phẩm",
     },
 ];
 
@@ -113,7 +113,6 @@ function SelectProcess() {
                         );
 
                         return;
-
                     }
 
 
