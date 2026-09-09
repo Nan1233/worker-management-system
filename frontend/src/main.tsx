@@ -25,6 +25,7 @@ import { ToastProvider } from "./components/feedback/ToastProvider";
 import AuthBootstrap from "./components/AuthBootstrap";
 import AppErrorBoundary from "./components/system/AppErrorBoundary";
 import OfflineReportSync from "./components/system/OfflineReportSync";
+import { initializeReliableReportRecovery } from "./services/reliableReportJournal";
 import "./ui-polish.css";
 import "./admin-worker-password-override.css";
 import "./config/workerAccountPolicy";
@@ -48,6 +49,11 @@ if (/\/login\/?$/.test(window.location.pathname)) {
     const route = window.location.hash || "#/login";
     window.history.replaceState(null, "", `${window.location.origin}/${route}`);
 }
+
+// Install the durable report journal before React mounts any worker page.
+// This guarantees that every POST /production-temp is recorded locally before
+// the request is allowed onto the network, including CVK and all normal processes.
+initializeReliableReportRecovery();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
