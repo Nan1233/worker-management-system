@@ -47,8 +47,6 @@ function normalizeStoredItem(item: OfflineReportQueueItem): OfflineReportQueueIt
     const createdAt = Number(item.createdAt || 0);
     const stale = createdAt > 0 && Date.now() - createdAt > STALE_AFTER_MS;
     if (!stale || item.status === "blocked") return item;
-    // Không bao giờ âm thầm xóa báo cáo sản xuất chưa đồng bộ. Báo cáo chờ
-    // quá lâu được giữ lại và chuyển sang kiểm tra thủ công để worker biết.
     return {
         ...item,
         status: "blocked",
@@ -68,8 +66,6 @@ function readAll(): OfflineReportQueueItem[] {
 }
 
 function writeAll(items: OfflineReportQueueItem[]): void {
-    // Không slice/cắt queue: cắt âm thầm có thể làm mất báo cáo sản xuất.
-    // Giới hạn được kiểm tra lúc enqueue để người dùng nhận lỗi rõ ràng.
     try {
         if (!items.length) localStorage.removeItem(STORAGE_KEY);
         else localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
@@ -86,6 +82,8 @@ export function isTransientNetworkFailure(error: unknown): boolean {
     return !error.response
         || error.code === "ERR_NETWORK"
         || error.code === "ECONNABORTED"
+        || error.code === "ETIMEDOUT"
+        || error.code === "ECONNRESET"
         || status === 408
         || status === 425
         || status === 429
@@ -170,9 +168,15 @@ export function removeOfflineReport(id: string): boolean {
     return true;
 }
 
-export async function flushOfflineReportQueue(): Promise<{ sent: number; remaining: number }> {
+export async function flushOfflineReportQueue(options: { force?: boolean } = {}): Promise<{ sent: number; remaining: number }> {
     const owner = currentOwner();
-    if (!owner || !navigator.onLine) return { sent: 0, remaining: getCurrentOfflineQueueCount() };
+    const force = options.force === true;
+    // navigator.onLine is only a browser hint. Automatic sync avoids needless
+    // requests while offline, but a manual sync is allowed to probe the real
+    // connection because online/offline state can be stale during Wi-Fi/4G changes.
+    if (!owner || (!navigator.onLine && !force)) {
+        return { sent: 0, remaining: getCurrentOfflineQueueCount() };
+    }
 
     const all = readAll();
     const mine = all.filter((item) => ownerMatches(item.owner, owner));
@@ -183,12 +187,18 @@ export async function flushOfflineReportQueue(): Promise<{ sent: number; remaini
 
     for (let index = 0; index < mine.length; index += 1) {
         const item = mine[index];
-        if (item.status === "blocked" || Number(item.nextRetryAt || 0) > now) {
+        if (item.status === "blocked" || (!force && Number(item.nextRetryAt || 0) > now)) {
             remaining.push(item);
             continue;
         }
         try {
-            await createTempReport(item.payload);
+            const result = await createTempReport(item.payload);
+            // Do not remove an item merely because HTTP returned successfully.
+            // This protects the queue if an API endpoint ever responds 2xx with
+            // { success: false } instead of a proper HTTP error.
+            if (result?.success === false) {
+                throw new Error(result.message || "Backend từ chối báo cáo chưa đồng bộ.");
+            }
             sent += 1;
         } catch (error) {
             const attempts = Number(item.attempts || 0) + 1;
@@ -201,11 +211,9 @@ export async function flushOfflineReportQueue(): Promise<{ sent: number; remaini
                     nextRetryAt: Date.now() + retryDelayMs(attempts),
                     lastError: message
                 });
-                // Khi mạng/server đang lỗi, dừng batch để không bắn hàng loạt request thất bại.
                 remaining.push(...mine.slice(index + 1));
                 break;
             }
-            // 4xx nghiệp vụ/auth không tự retry vô hạn. Giữ dữ liệu để worker/manager xử lý thủ công.
             remaining.push({
                 ...item,
                 attempts,
