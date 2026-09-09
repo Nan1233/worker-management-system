@@ -1,0 +1,107 @@
+/* Manager production UI hardening: compact hierarchy, readable tables and safe tablet/mobile overflow. */
+.manager-dashboard,
+.pending-reference-page {
+  min-width: 0;
+}
+
+.manager-dashboard .dashboard-panel,
+.pending-reference-page .pending-list-card,
+.pending-reference-page .pending-detail-card {
+  min-width: 0;
+}
+
+.manager-dashboard .pending-table-wrap,
+.pending-reference-page .pending-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.manager-dashboard table,
+.pending-reference-page table {
+  min-width: 980px;
+}
+
+.manager-dashboard th,
+.manager-dashboard td,
+.pending-reference-page th,
+.pending-reference-page td {
+  white-space: nowrap;
+}
+
+.manager-dashboard .dashboard-panel-title,
+.pending-reference-page .pending-page-title {
+  overflow: hidden;
+}
+
+.manager-dashboard .dashboard-panel-title h2,
+.pending-reference-page .pending-page-title h1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 1100px) {
+  .manager-dashboard {
+    padding-inline: 12px;
+  }
+
+  .manager-dashboard .dashboard-chart-grid,
+  .manager-dashboard .dashboard-bottom-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .manager-dashboard .dashboard-panel-title {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 760px) {
+  .manager-dashboard {
+    padding-inline: 8px;
+  }
+
+  .manager-dashboard .dashboard-welcome {
+    padding: 16px;
+  }
+
+  .manager-dashboard .dashboard-motto {
+    display: none;
+  }
+
+  .manager-dashboard .dashboard-tags {
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .manager-dashboard .dashboard-panel {
+    border-radius: 12px;
+  }
+
+  .manager-dashboard .dashboard-panel-title h2 {
+    font-size: 16px;
+  }
+
+  .pending-reference-page {
+    padding-inline: 8px;
+  }
+
+  .pending-reference-page .pending-filter-card {
+    grid-template-columns: 1fr !important;
+  }
+
+  .pending-reference-page .pending-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 460px) {
+  .pending-reference-page .pending-kpis {
+    grid-template-columns: 1fr !important;
+  }
+
+  .manager-dashboard .output-chart {
+    min-height: 220px;
+  }
+}

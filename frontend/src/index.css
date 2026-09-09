@@ -1,4 +1,5 @@
 /* Global reset. Visual tokens live in styles/ktc-professional.css. */
+@import "./styles/manager-production-polish.css";
 *,*::before,*::after { box-sizing: border-box; }
 html,body,#root { width: 100%; min-width: 0; min-height: 100%; margin: 0; }
 html { -webkit-text-size-adjust: 100%; }
