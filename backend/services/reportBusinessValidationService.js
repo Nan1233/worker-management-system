@@ -80,7 +80,10 @@ const validateMasterData = async ({
     ]);
 
     const processCode = normalizeText(processRows?.[0]?.process_code).toUpperCase();
-    const isNonProductWork = processCode === "CVK";
+    // CVK is identified canonically by process id 60006 and also by process_code.
+    // The id fallback is intentional because some existing databases may have the
+    // correct CVK process row with a missing/different process_code value.
+    const isNonProductWork = Number(processId) === 60006 || processCode === "CVK";
 
     const canonicalDefectsById = new Map(validDefectRows.map((row) => [Number(row.id), row]));
     const authoritativeDefects = (defects || []).map((item) => ({
@@ -89,9 +92,6 @@ const validateMasterData = async ({
         defect_name: canonicalDefectsById.get(Number(item?.defect_type_id))?.defect_name || null
     }));
 
-    // CVK is a common non-production work process. Active workers can use it
-    // without a production-process assignment; normal processes keep the
-    // existing worker_processes authorization rule.
     if (!isNonProductWork && !assignments.length) {
         errors.process_id = "Công nhân chưa được phân công công đoạn này";
     }
@@ -133,7 +133,6 @@ const validateMasterData = async ({
 
     if (isNonProductWork) {
         // CVK deliberately has no product, standard or production quantity.
-        // The report records the worker, work type, time and note only.
         productCode = null;
         standardOutput = 0;
     } else if (!normalizedProductName) {
