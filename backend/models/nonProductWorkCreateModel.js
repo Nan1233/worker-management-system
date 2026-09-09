@@ -37,9 +37,13 @@ function getWorkType(data) {
 
 async function findExisting({ workerId, workDate, shift, workType }, executor) {
   const params = [workerId, PROCESS_ID, workDate, shift, workType];
+  // Do not read logical_duplicate_key here. CVK duplicate detection is based on
+  // worker/date/shift/work_type, and legacy approved databases may not have that
+  // optional column yet. Keeping the lookup schema-light lets CVK submissions work
+  // before a maintenance migration is applied.
   const tempRows = await query(
     executor,
-    `SELECT id, status, work_date, shift, machine_no, product_name, logical_duplicate_key, created_at, updated_at,
+    `SELECT id, status, work_date, shift, machine_no, product_name, created_at, updated_at,
             'temp' AS report_type
        FROM production_reports_temp
       WHERE worker_id = ?
@@ -56,7 +60,7 @@ async function findExisting({ workerId, workDate, shift, workType }, executor) {
 
   const approvedRows = await query(
     executor,
-    `SELECT id, status, work_date, shift, machine_no, product_name, logical_duplicate_key, created_at, updated_at,
+    `SELECT id, status, work_date, shift, machine_no, product_name, created_at, updated_at,
             'approved' AS report_type
        FROM production_reports
       WHERE worker_id = ?
