@@ -1,0 +1,32 @@
+name: KTC Quality Gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Cloudflare production contracts
+        run: node --test tests/cloudflare-production-contract.test.cjs
+
+      - name: Critical E2E source gate
+        run: node --check scripts/zero-cost/critical-e2e.cjs
+
+      - name: Cloudflare smoke source gate
+        run: node --check scripts/cloudflareProductionSmoke.cjs
