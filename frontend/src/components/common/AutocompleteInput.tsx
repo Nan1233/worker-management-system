@@ -45,10 +45,9 @@ function AutocompleteInput({
 
     const displayValue = selectOnly ? typedValue : value;
 
-    // Công đoạn Gia công dùng chung danh mục máy cho cả Cắt/Lồng:
-    // - Máy Cắt: C1, C11, ...
-    // - Máy Lồng: 1, 11, ...
-    // Chỉ áp dụng khi form đang có bộ chọn "Loại gia công".
+    // The machine list is the only place where GC Cắt/Lồng needs a DOM-level
+    // scope. Do not apply the numeric/C-prefix rule to product suggestions:
+    // product options are already scoped by the parent form and selected machine.
     const readMachineOperationType = () => id.startsWith("machineNo")
         ? Array.from(document.querySelectorAll(".worker-mode-panel .worker-mode-group:first-child .worker-choice-row button"))
             .find((button) => button.classList.contains("active"))
@@ -69,10 +68,12 @@ function AutocompleteInput({
         const keyword = displayValue.trim().toLowerCase();
         let scopedOptions = options;
 
-        if (machineOperationType === "CẮT") {
-            scopedOptions = options.filter((option) => /^C\d+$/i.test(String(option.value).trim()));
-        } else if (machineOperationType === "LỒNG") {
-            scopedOptions = options.filter((option) => /^\d+$/.test(String(option.value).trim()));
+        if (id.startsWith("machineNo")) {
+            if (machineOperationType === "CẮT") {
+                scopedOptions = options.filter((option) => /^C\d+$/i.test(String(option.value).trim()));
+            } else if (machineOperationType === "LỒNG") {
+                scopedOptions = options.filter((option) => /^\d+$/.test(String(option.value).trim()));
+            }
         }
 
         const result = keyword
@@ -84,7 +85,7 @@ function AutocompleteInput({
             )
             : scopedOptions;
         return result.slice(0, 50);
-    }, [options, displayValue, machineOperationType]);
+    }, [options, displayValue, machineOperationType, id]);
 
     useEffect(() => {
         const handleOutside = (event: MouseEvent | TouchEvent) => {
