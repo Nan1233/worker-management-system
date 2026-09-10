@@ -2,7 +2,12 @@ const crypto = require("node:crypto");
 const { query, getConnection } = require("../models/productionTempModelShared");
 const { buildLogicalDuplicateKey } = require("./logicalDuplicateReportService");
 
-const LOCK_TIMEOUT_SECONDS = 2;
+// TiDB GET_LOCK is only an admission-control lock. The previous 2s timeout was
+// too short for a normal report transaction (machine lines, defects, audit,
+// duplicate checks), so concurrent browser/PWA submissions could incorrectly
+// return PRODUCTION_SUBMISSION_BUSY while the first request was still healthy.
+// Keep this bounded so Cloudflare requests are never allowed to wait indefinitely.
+const LOCK_TIMEOUT_SECONDS = 8;
 const LOCK_PREFIX = "ktc:pt2:";
 
 const buildSubmissionLockKey = (data = {}, machineLines = []) => {
@@ -12,10 +17,6 @@ const buildSubmissionLockKey = (data = {}, machineLines = []) => {
     const workDate = String(data?.work_date || "").slice(0, 10);
     const shift = String(data?.shift || "").trim().toUpperCase();
 
-    // Serialize the business duplicate identity, not only the browser request.
-    // Different client_request_id values can still represent the same report.
-    // Keeping them on the same distributed lock prevents the database duplicate
-    // lock row / unique index from becoming the contention point.
     let logicalKey = "";
     try {
         logicalKey = String(buildLogicalDuplicateKey({
@@ -46,7 +47,6 @@ const buildSubmissionLockKey = (data = {}, machineLines = []) => {
                 ? `capacity:${processId}:${workDate}:${shift}`
                 : `worker:${workerId}:${processId}:${workDate}:${shift}`;
 
-    // TiDB user-level lock names are limited to 64 characters.
     const digest = crypto
         .createHash("sha256")
         .update(scope, "utf8")
@@ -96,7 +96,6 @@ const withDistributedSubmissionLock = async (data, machineLines, task) => {
     let lockSession = null;
     let lockConnection = null;
     let acquired = false;
-    let taskStarted = false;
 
     try {
         if (isCloudflareWorker()) {
@@ -107,6 +106,7 @@ const withDistributedSubmissionLock = async (data, machineLines, task) => {
 
         console.log("[KTC][PRODUCTION_TEMP_LOCK] acquiring", {
             lockName,
+            timeoutSeconds: LOCK_TIMEOUT_SECONDS,
             statefulSession: Boolean(lockSession),
             processId: Number(data?.process_id || 0),
             workerId: Number(data?.worker_id || 0),
@@ -120,18 +120,25 @@ const withDistributedSubmissionLock = async (data, machineLines, task) => {
             : await query(lockConnection, "SELECT GET_LOCK(?, ?) AS acquired", [lockName, LOCK_TIMEOUT_SECONDS]);
         const result = Number(rows?.[0]?.acquired);
 
-        console.log("[KTC][PRODUCTION_TEMP_LOCK] acquire result", { lockName, result });
+        console.log("[KTC][PRODUCTION_TEMP_LOCK] acquire result", {
+            lockName,
+            result,
+            timeoutSeconds: LOCK_TIMEOUT_SECONDS,
+        });
 
         if (result !== 1) {
-            const error = new Error("Hệ thống đang xử lý một báo cáo trùng hoặc cùng yêu cầu. Vui lòng gửi lại sau vài giây.");
-            error.status = 409;
+            const error = new Error(
+                result === 0
+                    ? "Hệ thống đang xử lý báo cáo cùng dữ liệu. Vui lòng gửi lại sau vài giây."
+                    : "Không thể xác nhận khóa đồng bộ gửi báo cáo."
+            );
+            error.status = result === 0 ? 409 : 503;
             error.code = result === 0 ? "PRODUCTION_SUBMISSION_BUSY" : "PRODUCTION_SUBMISSION_LOCK_FAILED";
             error.isPublic = true;
             throw error;
         }
 
         acquired = true;
-        taskStarted = true;
         return await task();
     } catch (error) {
         if (isSupportedLockFunctionError(error)) {
@@ -156,7 +163,6 @@ const withDistributedSubmissionLock = async (data, machineLines, task) => {
                     console.log("[KTC][PRODUCTION_TEMP_LOCK] released", {
                         lockName,
                         released: Number(releaseRows?.[0]?.released),
-                        taskStarted,
                     });
                 }
             } catch (releaseError) {
@@ -183,7 +189,6 @@ const withDistributedSubmissionLock = async (data, machineLines, task) => {
                     console.log("[KTC][PRODUCTION_TEMP_LOCK] released", {
                         lockName,
                         released: Number(releaseRows?.[0]?.released),
-                        taskStarted,
                     });
                 }
             } catch (releaseError) {
