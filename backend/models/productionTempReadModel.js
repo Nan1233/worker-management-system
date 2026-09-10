@@ -82,9 +82,6 @@ async function getTempMachineLines(tempReportId) {
     return lines.map((line) => ({ ...line, defects: byLine.get(Number(line.id)) || [] }));
 }
 
-// TiDB Serverless returns database DATETIME values without an explicit timezone.
-// The KTC database timestamps are UTC, while the worker UI is Vietnam time.
-// Mark naive DB timestamps as UTC so the browser correctly renders GMT+7.
 function normalizeUtcTimestamp(value) {
     if (!value) return value;
     const text = String(value).trim();
@@ -116,10 +113,10 @@ module.exports = {
                  JOIN processes p ON pr.process_id = p.id
                  WHERE ${where}`, params),
             query(db, `SELECT pr.id, pr.work_date, pr.shift, pr.machine_no, pr.product_name,
-                    pr.updated_at, w.worker_code, u.full_name, p.process_name
+                    pr.updated_at, pr.worker_id, w.user_id, w.worker_code, u.full_name, p.process_name
                  FROM production_reports_temp pr
                  JOIN workers w ON pr.worker_id = w.id
-                 JOIN users u ON pr.worker_id = w.id
+                 JOIN users u ON w.user_id = u.id
                  JOIN processes p ON pr.process_id = p.id
                  WHERE ${where}
                  ORDER BY pr.work_date DESC, pr.created_at ASC, pr.id ASC
