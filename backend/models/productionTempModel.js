@@ -4,8 +4,7 @@ const nonProductWorkModel = require("./nonProductWorkCreateModel");
 const readModel = require("./productionTempReadModel");
 const reviewModel = require("./productionTempReviewModel");
 const historyModel = require("./productionTempHistoryModel");
-const { query, getConnection } = require("./productionTempModelShared");
-const { withDistributedSubmissionLock } = require("../services/productionSubmissionLockService");
+const { query } = require("./productionTempModelShared");
 const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
 
 const DAILY_HOURS_LIMIT = 12;
@@ -109,7 +108,6 @@ const recoverTimedOutSubmission = async (data) => {
     error.status = 409;
     error.code = "PRODUCTION_SUBMISSION_BUSY";
     error.isPublic = true;
-    error.isPublic = true;
     throw error;
 };
 
@@ -118,92 +116,39 @@ const enforceDailyWorkerHours = async (data, executor = db) => {
     const workDate = String(data?.work_date || "").slice(0, 10);
     const incomingActualHours = Number(data?.actual_time) || 0;
 
-    console.log("[DAILY_HOURS] START", {
-        workerId,
-        workDate,
-        incomingActualHours,
-        actualTimeRaw: data?.actual_time,
-        hasExecutor: Boolean(executor),
-    });
-
+    console.log("[DAILY_HOURS] START", { workerId, workDate, incomingActualHours, actualTimeRaw: data?.actual_time, hasExecutor: Boolean(executor) });
     if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
         console.log("[DAILY_HOURS] SKIP_INVALID_INPUT", { workerId, workDate, actualTimeRaw: data?.actual_time });
         return null;
     }
 
     try {
-        console.log("[DAILY_HOURS] BEFORE_APPROVED_QUERY");
         const approvedRows = await query(executor, `SELECT COALESCE(SUM(COALESCE(actual_time, 0)), 0) AS counted_hours FROM production_reports WHERE worker_id = ? AND work_date = ? AND status = 'approved'`, [workerId, workDate]);
-        console.log("[DAILY_HOURS] AFTER_APPROVED_QUERY", { approvedRows });
-
-        console.log("[DAILY_HOURS] BEFORE_TEMP_QUERY");
         const tempRows = await query(executor, `SELECT COALESCE(SUM(COALESCE(actual_time, 0)), 0) AS counted_hours FROM production_reports_temp WHERE worker_id = ? AND work_date = ? AND status IN ('pending', 'need_fix')`, [workerId, workDate]);
-        console.log("[DAILY_HOURS] AFTER_TEMP_QUERY", { tempRows });
-
         const approvedCountedHours = Number(approvedRows?.[0]?.counted_hours || 0);
         const tempCountedHours = Number(tempRows?.[0]?.counted_hours || 0);
         const existingHours = approvedCountedHours + tempCountedHours;
         const projectedHours = existingHours + incomingActualHours;
 
-        console.log("[DAILY_HOURS] CALCULATED", {
-            workerId,
-            workDate,
-            approvedCountedHours,
-            tempCountedHours,
-            existingHours,
-            incomingActualHours,
-            projectedHours,
-            limitHours: DAILY_HOURS_LIMIT,
-        });
-
+        console.log("[DAILY_HOURS] CALCULATED", { workerId, workDate, approvedCountedHours, tempCountedHours, existingHours, incomingActualHours, projectedHours, limitHours: DAILY_HOURS_LIMIT });
         if (projectedHours > DAILY_HOURS_LIMIT + 0.000001) {
             const remainingHours = Math.max(0, DAILY_HOURS_LIMIT - existingHours);
             const error = new Error(`Tổng giờ làm được tính trong ngày không được vượt quá 12 giờ. Hiện đã có ${existingHours.toFixed(2)} giờ, báo cáo này thêm ${incomingActualHours.toFixed(2)} giờ, chỉ còn ${remainingHours.toFixed(2)} giờ.`);
             error.status = 422;
             error.code = "DAILY_WORKING_HOURS_LIMIT_EXCEEDED";
             error.isPublic = true;
-            error.details = {
-                worker_id: workerId,
-                work_date: workDate,
-                existing_hours: Number(existingHours.toFixed(4)),
-                incoming_hours: Number(incomingActualHours.toFixed(4)),
-                projected_hours: Number(projectedHours.toFixed(4)),
-                limit_hours: DAILY_HOURS_LIMIT,
-                remaining_hours: Number(remainingHours.toFixed(4)),
-                counted_field: "actual_time",
-                excluded_from_daily_limit: "deduction_time / support hours / rejected reports",
-            };
-            console.error("[DAILY_HOURS] LIMIT_EXCEEDED", error.message, error.details);
+            error.details = { worker_id: workerId, work_date: workDate, existing_hours: Number(existingHours.toFixed(4)), incoming_hours: Number(incomingActualHours.toFixed(4)), projected_hours: Number(projectedHours.toFixed(4)), limit_hours: DAILY_HOURS_LIMIT, remaining_hours: Number(remainingHours.toFixed(4)), counted_field: "actual_time", excluded_from_daily_limit: "deduction_time / support hours / rejected reports" };
             throw error;
         }
-
-        console.log("[DAILY_HOURS] PASS", { workerId, workDate, existingHours, incomingActualHours, projectedHours });
         return { existingHours, incomingActualHours, projectedHours, limitHours: DAILY_HOURS_LIMIT };
     } catch (error) {
-        console.error("[DAILY_HOURS] FAILED", {
-            name: error?.name,
-            message: error?.message,
-            code: error?.code,
-            status: error?.status,
-            details: error?.details,
-            workerId,
-            workDate,
-            incomingActualHours,
-            stack: error?.stack,
-        });
+        console.error("[DAILY_HOURS] FAILED", { name: error?.name, message: error?.message, code: error?.code, status: error?.status, details: error?.details, workerId, workDate, incomingActualHours, stack: error?.stack });
         throw error;
     }
 };
 
-/*
- * Duplicate lookup used inside the submission transaction must be read-only.
- * The submission path already has a distributed business-key lock, so taking
- * FOR UPDATE locks on every approved report/machine line is unnecessary and
- * can make a new production_reports_temp INSERT wait on unrelated rows.
- */
 const findApprovedDuplicateReadOnly = async ({ workerId, processId, workDate, shift, logicalDuplicateKey }, executor = db) => {
     if (!logicalDuplicateKey) return null;
-
     const rows = await query(executor,
         `SELECT id, worker_id, process_id, work_date, shift, operation_mode, machine_no, product_name, status, created_at, updated_at
          FROM production_reports
@@ -220,33 +165,19 @@ const findApprovedDuplicateReadOnly = async ({ workerId, processId, workDate, sh
          FROM production_report_machine_lines
          WHERE report_id IN (${placeholders})
          ORDER BY report_id,sort_order,id`, ids) : [];
-
     const byReport = new Map();
     for (const line of machineRows) {
         const reportId = Number(line.report_id);
         if (!byReport.has(reportId)) byReport.set(reportId, []);
         byReport.get(reportId).push(line);
     }
-
     for (const row of rows) {
-        const key = buildLogicalDuplicateKey({
-            workerId: row.worker_id,
-            processId: row.process_id,
-            workDate: row.work_date,
-            shift: row.shift,
-            operationMode: row.operation_mode,
-            machineNo: row.machine_no,
-            productName: row.product_name,
-            machineLines: byReport.get(Number(row.id)) || [],
-        });
+        const key = buildLogicalDuplicateKey({ workerId: row.worker_id, processId: row.process_id, workDate: row.work_date, shift: row.shift, operationMode: row.operation_mode, machineNo: row.machine_no, productName: row.product_name, machineLines: byReport.get(Number(row.id)) || [] });
         if (key === logicalDuplicateKey) return { ...row, report_type: 'approved' };
     }
     return null;
 };
 
-// createCompleteReport in productionTempCreateModel resolves duplicate reads
-// through `this.findSimilarReport()`. Override only the approved-report lookup
-// so its existing transaction flow keeps all other business rules unchanged.
 createModel.findSimilarApprovedReport = findApprovedDuplicateReadOnly;
 
 const createCompleteReport = async (payload = {}, legacyDefects, legacyDeductions, legacyMachineLines, legacyAudit) => {
@@ -279,7 +210,6 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
 
     const existing = await findExistingClientRequest(data);
     if (existing) return toIdempotentResult(existing);
-
     await enforceDailyWorkerHours(data);
 
     const queueKey = getSubmissionQueueKey(data, machineLines);
@@ -287,21 +217,19 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         const alreadyCreated = await findExistingClientRequest(data);
         if (alreadyCreated) return toIdempotentResult(alreadyCreated);
 
-        return withDistributedSubmissionLock(data, machineLines, async () => {
-            const lockedExisting = await findExistingClientRequest(data);
-            if (lockedExisting) return toIdempotentResult(lockedExisting);
-
-            try {
-                const result = await createModel.createCompleteReport(data, defects, deductions, machineLines, audit);
-                if (result && typeof result === "object") return result;
-                return { id: Number(result), duplicate: false };
-            } catch (error) {
-                if (isLockWaitTimeout(error) && String(data?.client_request_id || "").trim()) {
-                    return recoverTimedOutSubmission(data);
-                }
-                throw error;
+        // TiDB Serverless GET_LOCK was removed from this request path. The
+        // transaction's idempotency/logical-duplicate row lock is the database
+        // source of truth and avoids session-scoped advisory-lock failures.
+        try {
+            const result = await createModel.createCompleteReport(data, defects, deductions, machineLines, audit);
+            if (result && typeof result === "object") return result;
+            return { id: Number(result), duplicate: false };
+        } catch (error) {
+            if (isLockWaitTimeout(error) && String(data?.client_request_id || "").trim()) {
+                return recoverTimedOutSubmission(data);
             }
-        });
+            throw error;
+        }
     });
 };
 
