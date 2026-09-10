@@ -31,6 +31,29 @@ createModel.create = async (data, executor = db) => {
     throw error;
 };
 
+const findExistingClientRequest = async (data, executor = db) => {
+    const workerId = Number(data?.worker_id);
+    const clientRequestId = String(data?.client_request_id || "").trim();
+    if (!Number.isInteger(workerId) || workerId <= 0 || !clientRequestId) return null;
+
+    const rows = await query(
+        executor,
+        `SELECT id, status
+         FROM production_reports_temp
+         WHERE worker_id = ? AND client_request_id = ?
+         LIMIT 1`,
+        [workerId, clientRequestId]
+    );
+    return rows?.[0] || null;
+};
+
+const toIdempotentResult = (existing) => ({
+    id: Number(existing.id),
+    duplicate: true,
+    duplicate_reason: "request_id",
+    existing_report: existing,
+});
+
 const enforceDailyWorkerHours = async (data, executor = db) => {
     const workerId = Number(data?.worker_id);
     const workDate = String(data?.work_date || "").slice(0, 10);
@@ -139,11 +162,19 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
     const processCode = String(data.process_code || data.extra_data?.process_code || "").trim().toUpperCase();
     const isNonProductWork = Number(data.process_id) === 60006 || processCode === "CVK";
     if (isNonProductWork) {
+        const existing = await findExistingClientRequest(data);
+        if (existing) return toIdempotentResult(existing);
         data.process_id = 60006;
         data.process_code = "CVK";
         await enforceDailyWorkerHours(data);
         return nonProductWorkModel.createCompleteReport({ data, defects, deductions, audit });
     }
+
+    // Fast idempotency check before the daily-hours query and before the
+    // transaction/duplicate-lock path. A retry of an already-created request
+    // must not wait on production_report_duplicate_locks.
+    const existing = await findExistingClientRequest(data);
+    if (existing) return toIdempotentResult(existing);
 
     await enforceDailyWorkerHours(data);
     const result = await createModel.createCompleteReport(data, defects, deductions, machineLines, audit);
