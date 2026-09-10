@@ -28,6 +28,8 @@ export interface OfflineReportQueueItem {
     payload: ProductionReport;
 }
 
+type QueuePayload = ProductionReport & { logical_duplicate_key?: string };
+
 function currentOwner(): QueueOwner | null {
     const user = getStoredUser();
     if (!user || user.role !== "worker") return null;
@@ -44,9 +46,6 @@ function ownerMatches(a: QueueOwner, b: QueueOwner): boolean {
 
 function normalizeStoredItem(item: OfflineReportQueueItem): OfflineReportQueueItem | null {
     if (!item?.payload || !item?.owner || !item?.id) return null;
-    // Items blocked by the previous queue implementation after a 409 duplicate
-    // must be retried once so the queue can reconcile them with the server.
-    // Validation/business errors remain blocked.
     if (item.status === "blocked" && /trùng|duplicate/i.test(String(item.lastError || ""))) {
         return {
             ...item,
@@ -120,12 +119,13 @@ function responseData(error: unknown): any {
 
 function payloadMatchesExistingReport(payload: ProductionReport, existing: any): boolean {
     if (!existing || typeof existing !== "object") return false;
+    const queued = payload as QueuePayload;
     const existingClient = String(existing.client_request_id || "").trim();
-    const payloadClient = String(payload.client_request_id || "").trim();
+    const payloadClient = String(queued.client_request_id || "").trim();
     if (existingClient && payloadClient && existingClient === payloadClient) return true;
 
     const existingKey = String(existing.logical_duplicate_key || "").trim();
-    const payloadKey = String(payload.logical_duplicate_key || "").trim();
+    const payloadKey = String(queued.logical_duplicate_key || "").trim();
     if (existingKey && payloadKey && existingKey === payloadKey) return true;
 
     const sameIdentity = String(existing.work_date || "").slice(0, 10) === String(payload.work_date || "").slice(0, 10)
@@ -239,8 +239,6 @@ export async function flushOfflineReportQueue(options: { force?: boolean } = {})
             sent += 1;
         } catch (error) {
             if (isAlreadyCreatedDuplicate(error, item.payload)) {
-                // The original request was already committed by the server.
-                // The queue entry is only the lost-response copy, so remove it.
                 sent += 1;
                 continue;
             }
@@ -259,8 +257,6 @@ export async function flushOfflineReportQueue(options: { force?: boolean } = {})
                 break;
             }
 
-            // 4xx business/validation errors are not connectivity failures.
-            // Keep them blocked so they cannot spam the API every few seconds.
             remaining.push({
                 ...item,
                 attempts,
