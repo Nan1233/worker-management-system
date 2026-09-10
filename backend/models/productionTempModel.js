@@ -32,6 +32,8 @@ const getSubmissionQueueKey = (data, machineLines = []) => {
     const workDate = String(data?.work_date || "").slice(0, 10);
     const shift = String(data?.shift || "").trim().toUpperCase();
     const logicalKey = String(data?.logical_duplicate_key || "").trim();
+    const clientRequestId = String(data?.client_request_id || "").trim();
+    if (clientRequestId) return `client:${workerId}:${clientRequestId}`;
     if (logicalKey) return `logical:${workerId}:${logicalKey}`;
 
     const machines = [...new Set(
@@ -87,6 +89,29 @@ const toIdempotentResult = (existing) => ({
     duplicate_reason: "request_id",
     existing_report: existing,
 });
+
+const isLockWaitTimeout = (error) => {
+    const message = String(error?.message || "").toLowerCase();
+    return Number(error?.errno) === 1205 || message.includes("error 1205") || message.includes("lock wait timeout exceeded");
+};
+
+const recoverTimedOutSubmission = async (data) => {
+    const existing = await findExistingClientRequest(data);
+    if (existing) {
+        console.warn("[KTC][PRODUCTION_TEMP] recovered idempotent submission after TiDB lock timeout", {
+            workerId: Number(data?.worker_id || 0),
+            clientRequestId: String(data?.client_request_id || "").trim(),
+            existingId: Number(existing.id),
+        });
+        return toIdempotentResult(existing);
+    }
+
+    const error = new Error("Hệ thống đang xử lý một yêu cầu gửi báo cáo khác. Vui lòng thử lại sau vài giây.");
+    error.status = 409;
+    error.code = "PRODUCTION_SUBMISSION_BUSY";
+    error.isPublic = true;
+    throw error;
+};
 
 const enforceDailyWorkerHours = async (data, executor = db) => {
     const workerId = Number(data?.worker_id);
@@ -212,9 +237,16 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
             const lockedExisting = await findExistingClientRequest(data);
             if (lockedExisting) return toIdempotentResult(lockedExisting);
 
-            const result = await createModel.createCompleteReport(data, defects, deductions, machineLines, audit);
-            if (result && typeof result === "object") return result;
-            return { id: Number(result), duplicate: false };
+            try {
+                const result = await createModel.createCompleteReport(data, defects, deductions, machineLines, audit);
+                if (result && typeof result === "object") return result;
+                return { id: Number(result), duplicate: false };
+            } catch (error) {
+                if (isLockWaitTimeout(error) && String(data?.client_request_id || "").trim()) {
+                    return recoverTimedOutSubmission(data);
+                }
+                throw error;
+            }
         });
     });
 };
