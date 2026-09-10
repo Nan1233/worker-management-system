@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useToast } from "../feedback/toastContext";
 import {
     flushOfflineReportQueue,
@@ -70,7 +70,7 @@ export default function OfflineReportSync() {
         }
     }, [showToast]);
 
-    const handleManualSync = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+    const handleManualSync = useCallback((event: MouseEvent<HTMLButtonElement>) => {
         event.preventDefault();
         event.stopPropagation();
         void sync(true, true);
