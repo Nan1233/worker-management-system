@@ -25,10 +25,12 @@ export default function OfflineReportSync() {
 
     const sync = useCallback(async (manual = false, force = false) => {
         if (syncing.current || getCurrentOfflineQueueCount() === 0) return;
-        if (!force && !navigator.onLine) return;
         syncing.current = true;
         try {
-            const result = await flushOfflineReportQueue({ force });
+            // Do not trust navigator.onLine here. It can be stale or wrong on
+            // some PCs/WebViews even when the KTC API is reachable. The API
+            // request itself is the authoritative connectivity test.
+            const result = await flushOfflineReportQueue({ force: true });
             const queue = getCurrentOfflineQueueItems();
             setItems(queue);
             const blocked = queue.filter((item) => item.status === "blocked").length;
@@ -45,15 +47,18 @@ export default function OfflineReportSync() {
     }, [showToast]);
 
     useEffect(() => {
-        // online/offline chỉ là tín hiệu của trình duyệt; khi vừa đổi Wi-Fi/4G,
-        // force=true cho phép thử ngay cả khi trạng thái online chưa kịp cập nhật.
+        // navigator.onLine is only a hint. Always probe the KTC API so a stale
+        // browser network flag cannot leave a valid report stuck offline.
         const onOnline = () => void sync(false, true);
-        const onQueueChanged = () => refreshItems();
+        const onQueueChanged = () => {
+            refreshItems();
+            void sync(false, true);
+        };
         window.addEventListener("online", onOnline);
         window.addEventListener(OFFLINE_QUEUE_CHANGED_EVENT, onQueueChanged);
         window.addEventListener("storage", onQueueChanged);
-        const timer = window.setInterval(() => void sync(false, false), 60_000);
-        void sync(false, false);
+        const timer = window.setInterval(() => void sync(false, true), 15_000);
+        void sync(false, true);
         return () => {
             window.removeEventListener("online", onOnline);
             window.removeEventListener(OFFLINE_QUEUE_CHANGED_EVENT, onQueueChanged);
@@ -69,7 +74,7 @@ export default function OfflineReportSync() {
         <div className={`offline-sync ${blocked ? "offline-sync--warning" : ""}`} role="status" aria-live="polite">
             <button type="button" className="offline-sync__summary" onClick={() => setOpen(value => !value)} aria-expanded={open}>
                 <span className="offline-sync__dot" />
-                <span><strong>{items.length} báo cáo chưa đồng bộ</strong>{blocked ? ` · ${blocked} cần kiểm tra` : navigator.onLine ? " · sẽ tự gửi khi có Internet" : " · đang mất mạng"}</span>
+                <span><strong>{items.length} báo cáo chưa đồng bộ</strong>{blocked ? ` · ${blocked} cần kiểm tra` : " · đang kiểm tra kết nối máy chủ"}</span>
                 <span aria-hidden="true">{open ? "▴" : "▾"}</span>
             </button>
             {open && <div className="offline-sync__panel">
