@@ -43,11 +43,6 @@ exports.resolveProductStandard = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Thiếu process_id, product_code hoặc work_date hợp lệ' });
     }
 
-    // The resolver uses canonical DB reads, while the frontend can call this endpoint
-    // immediately after a Render cold start. Warm the same master datasets first so the
-    // first resolution request cannot race the startup master-data warmup/TiDB connection.
-    // This does not change historical-standard rules: resolveStandard still decides
-    // whether the effective historical version exists and can still fail closed.
     await Promise.all([
       getOrLoadMasterData(
         `machines:${processId}`,
@@ -66,10 +61,9 @@ exports.resolveProductStandard = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Không tìm thấy định mức cho máy và sản phẩm đã chọn' });
     }
 
-    if (Number(data.has_machine_specific_standard || 0) === 1 && String(data.standard_source || '').toUpperCase() !== 'MACHINE') {
-      return res.status(422).json({ success: false, message: 'Sản phẩm này không được cấu hình chạy trên máy đã chọn theo dữ liệu Book2' });
-    }
-
+    // Machine-specific validation is performed by the canonical resolver itself.
+    // Do not re-derive it here from a cached product-list flag: a product with NO
+    // product_machine_standards must be allowed to fall back to product_standards.
     const resolved = Number(data.resolved_output_per_hour || 0);
     return res.status(200).json({
       success: true,
