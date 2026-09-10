@@ -160,11 +160,15 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         error.status = 400; error.code = "CLIENT_REQUEST_ID_REQUIRED"; error.isPublic = true; throw error;
     }
 
+    // Idempotency MUST be checked before the 12-hour calculation. A retry of
+    // an already-created request must return the existing report instead of
+    // counting that same report again and incorrectly returning HTTP 422.
+    const existingRequest = await findExistingClientRequest(data);
+    if (existingRequest) return idempotent(existingRequest);
+
     const processCode = String(data.process_code || data.extra_data?.process_code || "").trim().toUpperCase();
     const isCVK = Number(data.process_id) === 60006 || processCode === "CVK";
     if (isCVK) {
-        const existing = await findExistingClientRequest(data);
-        if (existing) return idempotent(existing);
         data.process_id = 60006; data.process_code = "CVK";
         await enforceDailyWorkerHours(data);
         return nonProductWorkModel.createCompleteReport({ data, defects, deductions, audit });
