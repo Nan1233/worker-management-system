@@ -103,6 +103,37 @@ function errorMessage(error: unknown): string {
     return error instanceof Error ? error.message.slice(0, 240) : "Không thể đồng bộ báo cáo";
 }
 
+function responseData(error: unknown): any {
+    if (!axios.isAxiosError(error)) return null;
+    return error.response?.data || null;
+}
+
+function payloadMatchesExistingReport(payload: ProductionReport, existing: any): boolean {
+    if (!existing || typeof existing !== "object") return false;
+    const sameClientRequest = String(existing.client_request_id || "").trim()
+        && String(payload.client_request_id || "").trim()
+        && String(existing.client_request_id).trim() === String(payload.client_request_id).trim();
+    if (sameClientRequest) return true;
+
+    const sameLogicalKey = String(existing.logical_duplicate_key || "").trim()
+        && String(payload.logical_duplicate_key || "").trim()
+        && String(existing.logical_duplicate_key).trim() === String(payload.logical_duplicate_key).trim();
+    if (sameLogicalKey) return true;
+
+    const sameIdentity = String(existing.work_date || "").slice(0, 10) === String(payload.work_date || "").slice(0, 10)
+        && String(existing.shift || "").trim().toUpperCase() === String(payload.shift || "").trim().toUpperCase()
+        && String(existing.machine_no || "").trim() === String(payload.machine_no || "").trim()
+        && String(existing.product_name || "").trim() === String(payload.product_name || "").trim();
+    return sameIdentity && Number(existing.process_id || 0) === Number(payload.process_id || 0);
+}
+
+function isAlreadyCreatedDuplicate(error: unknown, payload: ProductionReport): boolean {
+    const data = responseData(error);
+    if (!axios.isAxiosError(error) || Number(error.response?.status || 0) !== 409 || !data) return false;
+    if (data.code !== "DUPLICATE_CONFIRMATION_REQUIRED" || data.duplicate_reason !== "similar_report") return false;
+    return payloadMatchesExistingReport(payload, data.data || data.existing_report);
+}
+
 export function getCurrentOfflineQueueItems(): OfflineReportQueueItem[] {
     const owner = currentOwner();
     if (!owner) return [];
@@ -140,9 +171,7 @@ export function enqueueOfflineReport(payload: ProductionReport): OfflineReportQu
     };
     writeAll([...all, item]);
 
-    // Do not trust navigator.onLine. ProcessPage may have routed here because
-    // the browser reported a false/stale offline state. Immediately probe the
-    // real KTC API; if it is reachable, the item is removed from the queue.
+    // navigator.onLine is only a hint. Immediately probe the real KTC API.
     void flushOfflineReportQueue({ force: true });
 
     return item;
@@ -180,8 +209,6 @@ export function removeOfflineReport(id: string): boolean {
 export async function flushOfflineReportQueue(options: { force?: boolean } = {}): Promise<{ sent: number; remaining: number }> {
     const owner = currentOwner();
     const force = options.force === true;
-    // navigator.onLine is only a browser hint. A forced sync probes the real
-    // API and is used after a submit was incorrectly classified as offline.
     if (!owner || (!navigator.onLine && !force)) {
         return { sent: 0, remaining: getCurrentOfflineQueueCount() };
     }
@@ -206,6 +233,15 @@ export async function flushOfflineReportQueue(options: { force?: boolean } = {})
             }
             sent += 1;
         } catch (error) {
+            // A retry can legitimately receive 409 after the first request was
+            // committed on the server but its response was lost. Reconcile it
+            // as successful when the server's existing report matches this
+            // queued payload. This prevents a false "chưa đồng bộ" banner.
+            if (isAlreadyCreatedDuplicate(error, item.payload)) {
+                sent += 1;
+                continue;
+            }
+
             const attempts = Number(item.attempts || 0) + 1;
             const message = errorMessage(error);
             if (isTransientNetworkFailure(error)) {
@@ -219,6 +255,9 @@ export async function flushOfflineReportQueue(options: { force?: boolean } = {})
                 remaining.push(...mine.slice(index + 1));
                 break;
             }
+
+            // 4xx business/validation errors are not connectivity failures.
+            // Keep them blocked so they cannot spam the API every few seconds.
             remaining.push({
                 ...item,
                 attempts,
