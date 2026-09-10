@@ -4,7 +4,8 @@ const nonProductWorkModel = require("./nonProductWorkCreateModel");
 const readModel = require("./productionTempReadModel");
 const reviewModel = require("./productionTempReviewModel");
 const historyModel = require("./productionTempHistoryModel");
-const { query } = require("./productionTempModelShared");
+const { query, getConnection } = require("./productionTempModelShared");
+const { withDistributedSubmissionLock } = require("../services/productionSubmissionLockService");
 const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
 
 const DAILY_HOURS_LIMIT = 12;
@@ -217,19 +218,21 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         const alreadyCreated = await findExistingClientRequest(data);
         if (alreadyCreated) return toIdempotentResult(alreadyCreated);
 
-        // TiDB Serverless GET_LOCK was removed from this request path. The
-        // transaction's idempotency/logical-duplicate row lock is the database
-        // source of truth and avoids session-scoped advisory-lock failures.
-        try {
-            const result = await createModel.createCompleteReport(data, defects, deductions, machineLines, audit);
-            if (result && typeof result === "object") return result;
-            return { id: Number(result), duplicate: false };
-        } catch (error) {
-            if (isLockWaitTimeout(error) && String(data?.client_request_id || "").trim()) {
-                return recoverTimedOutSubmission(data);
+        return withDistributedSubmissionLock(data, machineLines, async () => {
+            const lockedExisting = await findExistingClientRequest(data);
+            if (lockedExisting) return toIdempotentResult(lockedExisting);
+
+            try {
+                const result = await createModel.createCompleteReport(data, defects, deductions, machineLines, audit);
+                if (result && typeof result === "object") return result;
+                return { id: Number(result), duplicate: false };
+            } catch (error) {
+                if (isLockWaitTimeout(error) && String(data?.client_request_id || "").trim()) {
+                    return recoverTimedOutSubmission(data);
+                }
+                throw error;
             }
-            throw error;
-        }
+        });
     });
 };
 
