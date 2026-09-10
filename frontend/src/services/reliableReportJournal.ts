@@ -111,6 +111,19 @@ function isValidationFailure(error: AxiosError): boolean {
     return status === 422 || (status === 400 && Boolean(data?.errors));
 }
 
+function isRetryableNetworkFailure(error: AxiosError): boolean {
+    const status = Number(error.response?.status || 0);
+    return !error.response
+        || error.code === "ERR_NETWORK"
+        || error.code === "ECONNABORTED"
+        || error.code === "ETIMEDOUT"
+        || error.code === "ECONNRESET"
+        || status === 408
+        || status === 425
+        || status === 429
+        || status >= 500;
+}
+
 export function recoverReliableReportJournal(): void {
     const items = readAll();
     if (!items.length) return;
@@ -120,9 +133,6 @@ export function recoverReliableReportJournal(): void {
 }
 
 export function initializeReliableReportRecovery(): void {
-    // Ask the browser for persistent site storage when supported. This does not
-    // block submission if the browser declines; the normal localStorage journal
-    // remains the last-resort recovery layer.
     void navigator.storage?.persist?.().catch(() => false);
 
     api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
@@ -131,9 +141,6 @@ export function initializeReliableReportRecovery(): void {
         const payload = payloadFromConfig(config);
         if (!payload) return config;
 
-        // The journal is written before the network request leaves the browser.
-        // If the tab/browser dies while fetch is in flight, the next app start
-        // can recover the exact payload instead of losing the report.
         saveBeforeSend(payload);
         (config as ReliableRequestConfig)._ktcReportJournaled = true;
         return config;
@@ -155,16 +162,24 @@ export function initializeReliableReportRecovery(): void {
             const payload = payloadFromConfig(config);
             if (!payload?.client_request_id) return Promise.reject(error);
 
-            // A validation error is deterministic: keep the form for correction,
-            // but do not create an endless offline retry item.
+            // Validation/business errors must stay with the form so the worker can
+            // correct and resubmit them. They are not offline reports.
             if (isValidationFailure(error)) {
                 removeJournalItem(String(payload.client_request_id));
                 return Promise.reject(error);
             }
 
-            // For every other failure, hand the exact payload to the existing
-            // offline queue. client_request_id makes this idempotent even when
-            // the backend actually received the request before the connection died.
+            // Deterministic HTTP conflicts (especially 409 duplicate confirmation)
+            // are real server responses, not network failures. Keep them in the
+            // normal submit flow so the UI can ask for confirmation; never enqueue.
+            if (!isRetryableNetworkFailure(error)) {
+                removeJournalItem(String(payload.client_request_id));
+                return Promise.reject(error);
+            }
+
+            // Only genuine transport/transient failures enter the offline queue.
+            // client_request_id makes this recovery idempotent if the backend
+            // received the request before the connection died.
             await moveFailedRequestToOfflineQueue(payload);
             return Promise.reject(error);
         }
