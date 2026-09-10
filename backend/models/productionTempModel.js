@@ -7,6 +7,19 @@ const historyModel = require("./productionTempHistoryModel");
 const { query } = require("./productionTempModelShared");
 
 const DAILY_HOURS_LIMIT = 12;
+const LOCK_RETRY_ATTEMPTS = 3;
+const LOCK_RETRY_DELAYS_MS = [250, 750];
+
+const isLockWaitTimeout = (error) => {
+    const code = String(error?.code || "").toUpperCase();
+    const message = String(error?.message || "").toLowerCase();
+    return code === "ER_LOCK_WAIT_TIMEOUT" ||
+        Number(error?.errno) === 1205 ||
+        message.includes("lock wait timeout exceeded") ||
+        message.includes("error 1205");
+};
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const originalCreate = createModel.create;
 createModel.create = async (data, executor = db) => {
@@ -74,16 +87,10 @@ const enforceDailyWorkerHours = async (data, executor = db) => {
 
     try {
         console.log("[DAILY_HOURS] BEFORE_APPROVED_QUERY");
-        // Only APPROVED production reports consume the worker's 12h daily quota.
-        // A rejected report must never consume hours because the worker is allowed
-        // to enter a replacement report for the same work date/shift.
         const approvedRows = await query(executor, `SELECT COALESCE(SUM(COALESCE(actual_time, 0)), 0) AS counted_hours FROM production_reports WHERE worker_id = ? AND work_date = ? AND status = 'approved'`, [workerId, workDate]);
         console.log("[DAILY_HOURS] AFTER_APPROVED_QUERY", { approvedRows });
 
         console.log("[DAILY_HOURS] BEFORE_TEMP_QUERY");
-        // Only active temp reports participate in the quota. In particular,
-        // status='rejected' is deliberately excluded so rejected reports can be
-        // re-entered without their old actual_time counting toward 12h.
         const tempRows = await query(executor, `SELECT COALESCE(SUM(COALESCE(actual_time, 0)), 0) AS counted_hours FROM production_reports_temp WHERE worker_id = ? AND work_date = ? AND status IN ('pending', 'need_fix')`, [workerId, workDate]);
         console.log("[DAILY_HOURS] AFTER_TEMP_QUERY", { tempRows });
 
@@ -170,16 +177,37 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         return nonProductWorkModel.createCompleteReport({ data, defects, deductions, audit });
     }
 
-    // Fast idempotency check before the daily-hours query and before the
-    // transaction/duplicate-lock path. A retry of an already-created request
-    // must not wait on production_report_duplicate_locks.
     const existing = await findExistingClientRequest(data);
     if (existing) return toIdempotentResult(existing);
 
     await enforceDailyWorkerHours(data);
-    const result = await createModel.createCompleteReport(data, defects, deductions, machineLines, audit);
-    if (result && typeof result === "object") return result;
-    return { id: Number(result), duplicate: false };
+
+    for (let attempt = 1; attempt <= LOCK_RETRY_ATTEMPTS; attempt += 1) {
+        try {
+            const result = await createModel.createCompleteReport(data, defects, deductions, machineLines, audit);
+            if (result && typeof result === "object") return result;
+            return { id: Number(result), duplicate: false };
+        } catch (error) {
+            if (!isLockWaitTimeout(error) || attempt >= LOCK_RETRY_ATTEMPTS) throw error;
+
+            console.warn("[KTC][PRODUCTION_TEMP] lock wait timeout; retrying transaction", {
+                attempt,
+                maxAttempts: LOCK_RETRY_ATTEMPTS,
+                workerId: data.worker_id,
+                processId: data.process_id,
+                workDate: data.work_date,
+                shift: data.shift,
+                clientRequestId: data.client_request_id,
+            });
+
+            await sleep(LOCK_RETRY_DELAYS_MS[attempt - 1] || 1000);
+
+            const recovered = await findExistingClientRequest(data);
+            if (recovered) return toIdempotentResult(recovered);
+        }
+    }
+
+    throw new Error("Không thể tạo báo cáo do xung đột khóa dữ liệu");
 };
 
 module.exports = { ...createModel, createCompleteReport, ...readModel, ...reviewModel, ...historyModel };
