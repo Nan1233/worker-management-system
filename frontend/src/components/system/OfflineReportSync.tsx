@@ -30,7 +30,7 @@ export default function OfflineReportSync() {
             // Do not trust navigator.onLine here. It can be stale or wrong on
             // some PCs/WebViews even when the KTC API is reachable. The API
             // request itself is the authoritative connectivity test.
-            const result = await flushOfflineReportQueue({ force: true });
+            const result = await flushOfflineReportQueue({ force });
             const queue = getCurrentOfflineQueueItems();
             setItems(queue);
             const blocked = queue.filter((item) => item.status === "blocked").length;
