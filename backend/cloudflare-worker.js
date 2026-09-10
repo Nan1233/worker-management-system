@@ -53,7 +53,7 @@ const DUPLICATE_LOCK_WAIT_SECONDS = 2;
 const DEFAULT_LOCK_WAIT_SECONDS = 50;
 
 function isTiDbLockTimeout(error) {
-  return /(?:Error\s*)?1205|lock wait timeout exceeded/i.test(String(error?.message || error || ""));
+  return /(?:Error\s*)?(?:1205|3572)|lock wait timeout exceeded|nowait/i.test(String(error?.message || error || ""));
 }
 
 async function acquireBoundedDuplicateLock(logicalKey, executor) {
