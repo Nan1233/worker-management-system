@@ -19,16 +19,23 @@ function statusText(item: OfflineReportQueueItem): string {
 export default function OfflineReportSync() {
     const { showToast } = useToast();
     const syncing = useRef(false);
+    const manualSyncPending = useRef(false);
     const [items, setItems] = useState<OfflineReportQueueItem[]>(() => getCurrentOfflineQueueItems());
     const [open, setOpen] = useState(false);
     const refreshItems = useCallback(() => setItems(getCurrentOfflineQueueItems()), []);
 
     const sync = useCallback(async (manual = false, force = false) => {
-        if (syncing.current || getCurrentOfflineQueueCount() === 0) return;
+        if (syncing.current) {
+            // A background 15-second sync can start at the same moment the user
+            // taps "Đồng bộ ngay". Do not silently ignore the tap; remember it
+            // and run a forced sync immediately after the current one finishes.
+            if (manual) manualSyncPending.current = true;
+            return;
+        }
+        if (getCurrentOfflineQueueCount() === 0) return;
+
         syncing.current = true;
         try {
-            // Automatic sync must respect each item's nextRetryAt. Only an
-            // explicit user action may bypass the backoff timer.
             const result = await flushOfflineReportQueue({ force: manual && force });
             const queue = getCurrentOfflineQueueItems();
             setItems(queue);
@@ -40,15 +47,21 @@ export default function OfflineReportSync() {
             } else if (manual && result.remaining > 0) {
                 showToast("Chưa đồng bộ được. Hệ thống vẫn giữ nguyên dữ liệu trên thiết bị và sẽ thử lại.", "warning");
             }
+        } catch (error) {
+            if (manual) {
+                showToast("Không thể đồng bộ lúc này. Dữ liệu vẫn được giữ trên thiết bị.", "warning");
+            }
+            console.error("[KTC][OFFLINE_SYNC] flush failed", error);
         } finally {
             syncing.current = false;
+            if (manualSyncPending.current) {
+                manualSyncPending.current = false;
+                void sync(true, true);
+            }
         }
     }, [showToast]);
 
     useEffect(() => {
-        // navigator.onLine is only a hint. Always probe the KTC API so a stale
-        // browser network flag cannot leave a valid report stuck offline.
-        // Automatic probes never bypass retry backoff.
         const onOnline = () => void sync(false, false);
         const onQueueChanged = () => {
             refreshItems();
