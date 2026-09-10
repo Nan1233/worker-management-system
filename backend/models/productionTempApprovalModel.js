@@ -511,8 +511,7 @@ module.exports = {
           WHERE temp.id IN (${placeholders})
             AND temp.status IN ('pending','need_fix')
             ${scopeWhere}
-          ORDER BY temp.id ASC
-          FOR UPDATE`,
+          ORDER BY temp.id ASC`,
         params,
       );
       if (rows.length !== reportIds.length) {
@@ -536,11 +535,24 @@ module.exports = {
         }
       }
       for (const row of rows) {
-        await query(
-          connection,
-          `UPDATE production_reports_temp SET status='rejected',review_note=?,reviewed_by=?,updated_at=NOW() WHERE id=?`,
-          [cleanReason,reviewerId,row.id],
-        );
+        const expected = expectedById.get(Number(row.id));
+        const updateSql = expected
+          ? `UPDATE production_reports_temp
+                SET status='rejected',review_note=?,reviewed_by=?,updated_at=NOW()
+              WHERE id=? AND status IN ('pending','need_fix') AND updated_at=?`
+          : `UPDATE production_reports_temp
+                SET status='rejected',review_note=?,reviewed_by=?,updated_at=NOW()
+              WHERE id=? AND status IN ('pending','need_fix')`;
+        const updateParams = expected
+          ? [cleanReason,reviewerId,row.id,expected]
+          : [cleanReason,reviewerId,row.id];
+        const updateResult = await query(connection,updateSql,updateParams);
+        if (Number(updateResult?.affectedRows || 0) !== 1) {
+          const error = new Error(`Báo cáo #${row.id} đã được xử lý bởi người khác. Hãy tải lại danh sách rồi thử lại.`);
+          error.status = 409;
+          error.code = "TEMP_REPORT_VERSION_CONFLICT";
+          throw error;
+        }
         const rejectedSnapshot = await AuditService.loadTempReportSnapshot(row.id, connection);
         if (rejectedSnapshot) {
           await AuditService.createReportVersion({
