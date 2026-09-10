@@ -44,6 +44,16 @@ function ownerMatches(a: QueueOwner, b: QueueOwner): boolean {
 
 function normalizeStoredItem(item: OfflineReportQueueItem): OfflineReportQueueItem | null {
     if (!item?.payload || !item?.owner || !item?.id) return null;
+    // Items blocked by the previous queue implementation after a 409 duplicate
+    // must be retried once so the queue can reconcile them with the server.
+    // Validation/business errors remain blocked.
+    if (item.status === "blocked" && /trùng|duplicate/i.test(String(item.lastError || ""))) {
+        return {
+            ...item,
+            status: "queued",
+            nextRetryAt: Date.now()
+        };
+    }
     const createdAt = Number(item.createdAt || 0);
     const stale = createdAt > 0 && Date.now() - createdAt > STALE_AFTER_MS;
     if (!stale || item.status === "blocked") return item;
@@ -110,15 +120,13 @@ function responseData(error: unknown): any {
 
 function payloadMatchesExistingReport(payload: ProductionReport, existing: any): boolean {
     if (!existing || typeof existing !== "object") return false;
-    const sameClientRequest = String(existing.client_request_id || "").trim()
-        && String(payload.client_request_id || "").trim()
-        && String(existing.client_request_id).trim() === String(payload.client_request_id).trim();
-    if (sameClientRequest) return true;
+    const existingClient = String(existing.client_request_id || "").trim();
+    const payloadClient = String(payload.client_request_id || "").trim();
+    if (existingClient && payloadClient && existingClient === payloadClient) return true;
 
-    const sameLogicalKey = String(existing.logical_duplicate_key || "").trim()
-        && String(payload.logical_duplicate_key || "").trim()
-        && String(existing.logical_duplicate_key).trim() === String(payload.logical_duplicate_key).trim();
-    if (sameLogicalKey) return true;
+    const existingKey = String(existing.logical_duplicate_key || "").trim();
+    const payloadKey = String(payload.logical_duplicate_key || "").trim();
+    if (existingKey && payloadKey && existingKey === payloadKey) return true;
 
     const sameIdentity = String(existing.work_date || "").slice(0, 10) === String(payload.work_date || "").slice(0, 10)
         && String(existing.shift || "").trim().toUpperCase() === String(payload.shift || "").trim().toUpperCase()
@@ -170,10 +178,7 @@ export function enqueueOfflineReport(payload: ProductionReport): OfflineReportQu
         payload
     };
     writeAll([...all, item]);
-
-    // navigator.onLine is only a hint. Immediately probe the real KTC API.
     void flushOfflineReportQueue({ force: true });
-
     return item;
 }
 
@@ -233,11 +238,9 @@ export async function flushOfflineReportQueue(options: { force?: boolean } = {})
             }
             sent += 1;
         } catch (error) {
-            // A retry can legitimately receive 409 after the first request was
-            // committed on the server but its response was lost. Reconcile it
-            // as successful when the server's existing report matches this
-            // queued payload. This prevents a false "chưa đồng bộ" banner.
             if (isAlreadyCreatedDuplicate(error, item.payload)) {
+                // The original request was already committed by the server.
+                // The queue entry is only the lost-response copy, so remove it.
                 sent += 1;
                 continue;
             }
