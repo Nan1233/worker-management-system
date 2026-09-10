@@ -22,19 +22,27 @@ export default function OfflineReportSync() {
     const manualSyncPending = useRef(false);
     const [items, setItems] = useState<OfflineReportQueueItem[]>(() => getCurrentOfflineQueueItems());
     const [open, setOpen] = useState(false);
+    const [manualWaiting, setManualWaiting] = useState(false);
     const refreshItems = useCallback(() => setItems(getCurrentOfflineQueueItems()), []);
 
     const sync = useCallback(async (manual = false, force = false) => {
         if (syncing.current) {
-            // A background 15-second sync can start at the same moment the user
-            // taps "Đồng bộ ngay". Do not silently ignore the tap; remember it
-            // and run a forced sync immediately after the current one finishes.
-            if (manual) manualSyncPending.current = true;
+            // A background sync may already be waiting on the server. Keep the
+            // manual action instead of silently dropping the user's click.
+            if (manual) {
+                manualSyncPending.current = true;
+                setManualWaiting(true);
+                showToast("Đang đồng bộ báo cáo. Yêu cầu Đồng bộ ngay sẽ được chạy tiếp sau khi lượt hiện tại kết thúc.", "warning");
+            }
             return;
         }
-        if (getCurrentOfflineQueueCount() === 0) return;
+        if (getCurrentOfflineQueueCount() === 0) {
+            if (manual) showToast("Không còn báo cáo nào đang chờ đồng bộ.", "success");
+            return;
+        }
 
         syncing.current = true;
+        if (manual) setManualWaiting(false);
         try {
             const result = await flushOfflineReportQueue({ force: manual && force });
             const queue = getCurrentOfflineQueueItems();
@@ -56,10 +64,17 @@ export default function OfflineReportSync() {
             syncing.current = false;
             if (manualSyncPending.current) {
                 manualSyncPending.current = false;
+                setManualWaiting(false);
                 void sync(true, true);
             }
         }
     }, [showToast]);
+
+    const handleManualSync = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        void sync(true, true);
+    }, [sync]);
 
     useEffect(() => {
         const onOnline = () => void sync(false, false);
@@ -84,13 +99,18 @@ export default function OfflineReportSync() {
     if (!items.length) return null;
 
     return (
-        <div className={`offline-sync ${blocked ? "offline-sync--warning" : ""}`} role="status" aria-live="polite">
+        <div
+            className={`offline-sync ${blocked ? "offline-sync--warning" : ""}`}
+            role="status"
+            aria-live="polite"
+            style={{ position: "relative", zIndex: 10000 }}
+        >
             <button type="button" className="offline-sync__summary" onClick={() => setOpen(value => !value)} aria-expanded={open}>
                 <span className="offline-sync__dot" />
                 <span><strong>{items.length} báo cáo chưa đồng bộ</strong>{blocked ? ` · ${blocked} cần kiểm tra` : " · đang kiểm tra kết nối máy chủ"}</span>
                 <span aria-hidden="true">{open ? "▴" : "▾"}</span>
             </button>
-            {open && <div className="offline-sync__panel">
+            {open && <div className="offline-sync__panel" style={{ position: "relative", zIndex: 10001 }}>
                 {items.map(item => <article key={item.id} className="offline-sync__item">
                     <div>
                         <strong>{String(item.payload.work_date || "Báo cáo")}</strong>
@@ -102,7 +122,16 @@ export default function OfflineReportSync() {
                         <button type="button" className="danger" onClick={() => { if (window.confirm("Xóa báo cáo đang chờ này khỏi thiết bị? Chỉ xóa khi bạn chắc chắn không cần gửi nữa.")) { removeOfflineReport(item.id); refreshItems(); } }}>Xóa</button>
                     </div>
                 </article>)}
-                <button type="button" className="offline-sync__retry" onClick={() => void sync(true, true)}>Đồng bộ ngay</button>
+                <button
+                    type="button"
+                    className="offline-sync__retry"
+                    onClick={handleManualSync}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    aria-label="Đồng bộ ngay các báo cáo đang chờ"
+                    style={{ position: "relative", zIndex: 10002, pointerEvents: "auto", cursor: "pointer" }}
+                >
+                    {manualWaiting ? "Đang chờ lượt đồng bộ hiện tại…" : "Đồng bộ ngay"}
+                </button>
             </div>}
         </div>
     );
