@@ -6,11 +6,10 @@ const reviewModel = require("./productionTempReviewModel");
 const historyModel = require("./productionTempHistoryModel");
 const { query, getConnection } = require("./productionTempModelShared");
 const { withDistributedSubmissionLock } = require("../services/productionSubmissionLockService");
+const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
 
 const DAILY_HOURS_LIMIT = 12;
 const submissionQueues = new Map();
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const runSerialized = async (key, task) => {
     const previous = submissionQueues.get(key) || Promise.resolve();
@@ -193,6 +192,55 @@ const enforceDailyWorkerHours = async (data, executor = db) => {
         });
         throw error;
     }
+};
+
+/*
+ * Duplicate lookup used inside the submission transaction must be read-only.
+ * The submission path already has a distributed business-key lock, so taking
+ * FOR UPDATE locks on every approved report/machine line is unnecessary and
+ * can make a new production_reports_temp INSERT wait on unrelated rows.
+ */
+const findApprovedDuplicateReadOnly = async ({ workerId, processId, workDate, shift, logicalDuplicateKey }, executor = db) => {
+    if (!logicalDuplicateKey) return null;
+
+    const rows = await query(executor,
+        `SELECT id, worker_id, process_id, work_date, shift, operation_mode, machine_no, product_name, status, created_at, updated_at
+         FROM production_reports
+         WHERE worker_id=? AND process_id=? AND work_date=? AND shift=? AND status <> 'deleted'
+         ORDER BY id DESC`,
+        [workerId, processId, workDate, shift]
+    );
+    if (!rows.length) return null;
+
+    const ids = rows.map((row) => Number(row.id)).filter(Boolean);
+    const placeholders = ids.map(() => '?').join(',');
+    const machineRows = ids.length ? await query(executor,
+        `SELECT report_id,machine_code,product_code,sort_order,id
+         FROM production_report_machine_lines
+         WHERE report_id IN (${placeholders})
+         ORDER BY report_id,sort_order,id`, ids) : [];
+
+    const byReport = new Map();
+    for (const line of machineRows) {
+        const reportId = Number(line.report_id);
+        if (!byReport.has(reportId)) byReport.set(reportId, []);
+        byReport.get(reportId).push(line);
+    }
+
+    for (const row of rows) {
+        const key = buildLogicalDuplicateKey({
+            workerId: row.worker_id,
+            processId: row.process_id,
+            workDate: row.work_date,
+            shift: row.shift,
+            operationMode: row.operation_mode,
+            machineNo: row.machine_no,
+            productName: row.product_name,
+            machineLines: byReport.get(Number(row.id)) || [],
+        });
+        if (key === logicalDuplicateKey) return { ...row, report_type: 'approved' };
+    }
+    return null;
 };
 
 const createCompleteReport = async (payload = {}, legacyDefects, legacyDeductions, legacyMachineLines, legacyAudit) => {
