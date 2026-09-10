@@ -51,10 +51,16 @@ const enforceDailyWorkerHours = async (data, executor = db) => {
 
     try {
         console.log("[DAILY_HOURS] BEFORE_APPROVED_QUERY");
-        const approvedRows = await query(executor, `SELECT COALESCE(SUM(COALESCE(actual_time, 0)), 0) AS counted_hours FROM production_reports WHERE worker_id = ? AND work_date = ? AND status <> 'deleted'`, [workerId, workDate]);
+        // Only APPROVED production reports consume the worker's 12h daily quota.
+        // A rejected report must never consume hours because the worker is allowed
+        // to enter a replacement report for the same work date/shift.
+        const approvedRows = await query(executor, `SELECT COALESCE(SUM(COALESCE(actual_time, 0)), 0) AS counted_hours FROM production_reports WHERE worker_id = ? AND work_date = ? AND status = 'approved'`, [workerId, workDate]);
         console.log("[DAILY_HOURS] AFTER_APPROVED_QUERY", { approvedRows });
 
         console.log("[DAILY_HOURS] BEFORE_TEMP_QUERY");
+        // Only active temp reports participate in the quota. In particular,
+        // status='rejected' is deliberately excluded so rejected reports can be
+        // re-entered without their old actual_time counting toward 12h.
         const tempRows = await query(executor, `SELECT COALESCE(SUM(COALESCE(actual_time, 0)), 0) AS counted_hours FROM production_reports_temp WHERE worker_id = ? AND work_date = ? AND status IN ('pending', 'need_fix')`, [workerId, workDate]);
         console.log("[DAILY_HOURS] AFTER_TEMP_QUERY", { tempRows });
 
@@ -89,7 +95,7 @@ const enforceDailyWorkerHours = async (data, executor = db) => {
                 limit_hours: DAILY_HOURS_LIMIT,
                 remaining_hours: Number(remainingHours.toFixed(4)),
                 counted_field: "actual_time",
-                excluded_from_daily_limit: "deduction_time / support hours",
+                excluded_from_daily_limit: "deduction_time / support hours / rejected reports",
             };
             console.error("[DAILY_HOURS] LIMIT_EXCEEDED", error.message, error.details);
             throw error;
