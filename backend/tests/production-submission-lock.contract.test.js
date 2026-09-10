@@ -11,7 +11,8 @@ const sharedSource = fs.readFileSync(sharedPath, 'utf8');
 
 assert.match(lockSource, /GET_LOCK\(\?, \?\)/);
 assert.match(lockSource, /RELEASE_LOCK\(\?\)/);
-assert.match(lockSource, /LOCK_TIMEOUT_SECONDS = 2/);
+assert.match(lockSource, /LOCK_TIMEOUT_SECONDS = 8/);
+assert.match(lockSource, /bounded/);
 assert.match(lockSource, /buildLogicalDuplicateKey/);
 assert.match(lockSource, /logical:\$\{logicalKey\}/);
 assert.match(lockSource, /capacity:\$\{processId\}:\$\{workDate\}:\$\{shift\}/);
