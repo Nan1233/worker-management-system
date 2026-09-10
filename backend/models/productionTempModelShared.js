@@ -32,18 +32,15 @@ const query = (executor, sql, params = []) =>
         });
     });
 
-const prepareProductionSubmissionConnection = (connection) =>
-    new Promise((resolve) => {
-        // TiDB 8.5.6+ can use shared locks for FK checks in pessimistic
-        // transactions. This removes unnecessary INSERT-vs-INSERT blocking
-        // when many reports reference the same worker/process/standard rows.
-        // Older TiDB versions simply ignore this optional optimization.
-        connection.query(
-            "SET SESSION tidb_foreign_key_check_in_shared_lock = ON",
-            [],
-            () => resolve(connection)
-        );
-    });
+/**
+ * Keep the production submission connection setup limited to features that
+ * are supported by the TiDB Cloud Serverless runtime used by Cloudflare.
+ *
+ * Do not issue TiDB-specific optional SET SESSION variables here. The
+ * connected TiDB version may reject them with Error 1193 and turn an
+ * otherwise valid production submission into HTTP 500.
+ */
+const prepareProductionSubmissionConnection = async (connection) => connection;
 
 const getConnection = () =>
     new Promise((resolve, reject) => {
@@ -53,10 +50,7 @@ const getConnection = () =>
                 await prepareProductionSubmissionConnection(connection);
                 resolve(connection);
             } catch (prepareError) {
-                // The setting is an optimization only. Never prevent the
-                // application from obtaining a DB connection if the connected
-                // TiDB version does not expose it.
-                console.warn("[KTC][DB] optional FK shared-lock setting unavailable", {
+                console.warn("[KTC][DB] optional connection setup unavailable", {
                     message: prepareError?.message,
                     code: prepareError?.code,
                 });
