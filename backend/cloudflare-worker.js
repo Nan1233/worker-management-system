@@ -37,78 +37,17 @@ process.env.KTC_CLOUDFLARE_WORKER = "true";
 const { start, app } = require("./server.js");
 const ensureGcLong2801Lt = require("./scripts/ensureGcLong2801Lt");
 const { masterDataCache } = require("./utils/masterDataCache");
-const { query: ktcQuery } = require("./models/productionTempModelShared");
 const productionTempCreateModel = require("./models/productionTempCreateModel");
 
-// KTC production-temp uses a transaction-scoped row in
-// production_report_duplicate_locks as a serialization point. On TiDB, a
-// pessimistic transaction waits up to innodb_lock_wait_timeout (50s by default)
-// for that row. That is longer than the browser request timeout and makes a
-// healthy Internet connection look like an offline failure.
-//
-// Logical duplicate locking is still required for the business rule that
-// prevents two similar reports from being created concurrently. The
-// client_request_id path is different: it already has an exact idempotency
-// lookup and a unique database index. Taking a second DB lock for that exact
-// request only adds contention and can deadlock/retry against stale sessions.
-// Therefore Cloudflare deliberately does NOT take the extra client-request
-// lock. Exact retries are resolved by findByClientRequest / the unique index,
-// while logicalDuplicateKey keeps the business duplicate serialization.
-const DUPLICATE_LOCK_WAIT_SECONDS = 2;
-const DEFAULT_LOCK_WAIT_SECONDS = 50;
-
-function isTiDbLockTimeout(error) {
-  return /(?:Error\s*)?(?:1205|3572)|lock wait timeout exceeded|nowait/i.test(String(error?.message || error || ""));
-}
-
-async function acquireBoundedDuplicateLock(logicalKey, executor) {
-  if (!logicalKey) return;
-
-  await ktcQuery(executor, `SET SESSION innodb_lock_wait_timeout = ${DUPLICATE_LOCK_WAIT_SECONDS}`);
-  try {
-    await ktcQuery(
-      executor,
-      `INSERT INTO production_report_duplicate_locks (logical_key, last_used_at)
-       VALUES (?, NOW())
-       ON DUPLICATE KEY UPDATE last_used_at = last_used_at`,
-      [logicalKey]
-    );
-    await ktcQuery(
-      executor,
-      `SELECT logical_key
-       FROM production_report_duplicate_locks
-       WHERE logical_key = ?
-       FOR UPDATE NOWAIT`,
-      [logicalKey]
-    );
-  } catch (error) {
-    if (isTiDbLockTimeout(error)) {
-      const retryable = new Error("Máy chủ đang xử lý một báo cáo khác. Hệ thống sẽ tự thử lại.");
-      retryable.code = "DUPLICATE_LOCK_BUSY";
-      retryable.status = 503;
-      retryable.isPublic = true;
-      retryable.retryable = true;
-      throw retryable;
-    }
-    throw error;
-  } finally {
-    try {
-      await ktcQuery(executor, `SET SESSION innodb_lock_wait_timeout = ${DEFAULT_LOCK_WAIT_SECONDS}`);
-    } catch {
-      // The transaction may already be rolling back after a lock failure.
-    }
-  }
-}
-
-// Exact client_request_id idempotency is handled by the fast lookup in
-// productionTempModel and by the database unique index. Do not create a second
-// transaction lock for it in the Cloudflare/TiDB runtime.
+// Cloudflare/TiDB runtime: do not use the auxiliary duplicate-lock table for
+// report creation. That table can become a single hot row under normal worker
+// activity and TiDB lock waits then turn valid submissions into 503 responses.
+// Duplicate detection remains in productionTempCreateModel via the existing
+// exact client_request_id lookup and logical duplicate query. This keeps the
+// application-level duplicate confirmation flow without serializing every
+// submission through a pessimistic lock.
 productionTempCreateModel.lockClientRequestId = async () => {};
-
-productionTempCreateModel.lockLogicalDuplicateKey = async (logicalDuplicateKey, executor) => {
-  if (!logicalDuplicateKey) return;
-  await acquireBoundedDuplicateLock(logicalDuplicateKey, executor);
-};
+productionTempCreateModel.lockLogicalDuplicateKey = async () => {};
 
 // Cloudflare forbids asynchronous I/O during module evaluation/global scope.
 // Seed only from a real request. The seed is idempotent and is awaited once per
