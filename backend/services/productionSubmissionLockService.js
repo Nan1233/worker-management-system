@@ -7,14 +7,15 @@ const buildSubmissionLockKey = (data = {}, machineLines = []) => {
     const processId = Number(data?.process_id || 0);
     const workDate = String(data?.work_date || "").slice(0, 10);
     const shift = String(data?.shift || "").trim().toUpperCase();
-    const machines = [...new Set(
-        (Array.isArray(machineLines) ? machineLines : [])
-            .map((line) => String(line?.machine_code || "").trim().toUpperCase())
-            .filter(Boolean)
-    )].sort();
+    const hasMachineLines = Array.isArray(machineLines) && machineLines.some(
+        (line) => String(line?.machine_code || "").trim()
+    );
 
-    const scope = machines.length
-        ? `machine:${processId}:${workDate}:${shift}:${machines.join(",")}`
+    // Capacity is checked against all workers using the same process/date/shift.
+    // Use one distributed lock for that scope so Cloudflare isolates cannot race
+    // between the capacity read and the temp-report insert.
+    const scope = hasMachineLines
+        ? `capacity:${processId}:${workDate}:${shift}`
         : `worker:${Number(data?.worker_id || 0)}:${processId}:${workDate}:${shift}`;
 
     return `ktc:production-temp:${crypto.createHash("sha256").update(scope, "utf8").digest("hex")}`;
