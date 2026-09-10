@@ -46,9 +46,14 @@ const productionTempCreateModel = require("./models/productionTempCreateModel");
 // for that row. That is longer than the browser request timeout and makes a
 // healthy Internet connection look like an offline failure.
 //
-// Keep the existing correctness lock, but bound ONLY the duplicate-lock wait to
-// 2s. If another submission owns the lock, the caller gets a retryable 503 and
-// the frontend queue can retry instead of hanging for 30-50s.
+// Logical duplicate locking is still required for the business rule that
+// prevents two similar reports from being created concurrently. The
+// client_request_id path is different: it already has an exact idempotency
+// lookup and a unique database index. Taking a second DB lock for that exact
+// request only adds contention and can deadlock/retry against stale sessions.
+// Therefore Cloudflare deliberately does NOT take the extra client-request
+// lock. Exact retries are resolved by findByClientRequest / the unique index,
+// while logicalDuplicateKey keeps the business duplicate serialization.
 const DUPLICATE_LOCK_WAIT_SECONDS = 2;
 const DEFAULT_LOCK_WAIT_SECONDS = 50;
 
@@ -95,17 +100,10 @@ async function acquireBoundedDuplicateLock(logicalKey, executor) {
   }
 }
 
-productionTempCreateModel.lockClientRequestId = async (workerId, clientRequestId, executor) => {
-  const worker = Number(workerId);
-  const requestId = String(clientRequestId || "").trim();
-  if (!Number.isInteger(worker) || worker <= 0 || !requestId) return;
-  const crypto = require("node:crypto");
-  const logicalLockKey = crypto
-    .createHash("sha256")
-    .update(`client-request:${worker}:${requestId}`, "utf8")
-    .digest("hex");
-  await acquireBoundedDuplicateLock(logicalLockKey, executor);
-};
+// Exact client_request_id idempotency is handled by the fast lookup in
+// productionTempModel and by the database unique index. Do not create a second
+// transaction lock for it in the Cloudflare/TiDB runtime.
+productionTempCreateModel.lockClientRequestId = async () => {};
 
 productionTempCreateModel.lockLogicalDuplicateKey = async (logicalDuplicateKey, executor) => {
   if (!logicalDuplicateKey) return;
@@ -123,9 +121,6 @@ async function ensureCloudflareSeeded() {
 
   cloudflareSeedPromise = ensureGcLong2801Lt()
     .then(() => {
-      // Product standards are cached for 30 minutes in the Express layer. The
-      // seed may have added 2801-LT after an old cache entry was created, so
-      // invalidate master-data cache before serving the first request.
       masterDataCache.clear();
       cloudflareSeedReady = true;
       console.log("[KTC] Cloudflare GC master-data seed completed; master cache cleared");
@@ -211,14 +206,9 @@ function handleCorsPreflight(request) {
 
 const wrappedServer = {
   async fetch(request, envArg, ctx) {
-    // Handle browser preflight before Express, auth, rate limiting or DB access.
     const preflight = handleCorsPreflight(request);
     if (preflight) return preflight;
 
-    // Await the one-time seed before serving the first request. This guarantees
-    // 2801-LT exists before /product-standards is allowed to populate its cache.
-    // If the seed fails, keep the API available and let the normal endpoint
-    // return its own result instead of turning every request into a 500.
     await ensureCloudflareSeeded();
     return httpHandler.fetch(request, envArg, ctx);
   },
