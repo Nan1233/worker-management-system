@@ -6,7 +6,6 @@ import { checkSimilarTempReport, createTempReport } from "./productionService";
 const STORAGE_KEY = "ktcOfflineReportQueueV1";
 const MAX_ITEMS_PER_OWNER = 50;
 const MAX_TOTAL_ITEMS = 100;
-const STALE_AFTER_MS = 24 * 60 * 60 * 1000;
 export const OFFLINE_QUEUE_CHANGED_EVENT = "ktc:offline-queue-changed";
 
 interface QueueOwner {
@@ -27,8 +26,6 @@ export interface OfflineReportQueueItem {
     lastError?: string;
     payload: ProductionReport;
 }
-
-type QueuePayload = ProductionReport & { logical_duplicate_key?: string };
 
 function currentOwner(): QueueOwner | null {
     const user = getStoredUser();
@@ -53,15 +50,10 @@ function normalizeStoredItem(item: OfflineReportQueueItem): OfflineReportQueueIt
             nextRetryAt: Date.now()
         };
     }
-    const createdAt = Number(item.createdAt || 0);
-    const stale = createdAt > 0 && Date.now() - createdAt > STALE_AFTER_MS;
-    if (!stale || item.status === "blocked") return item;
-    return {
-        ...item,
-        status: "blocked",
-        nextRetryAt: Number.MAX_SAFE_INTEGER,
-        lastError: item.lastError || "Báo cáo đã chờ đồng bộ quá 24 giờ. Hãy kiểm tra trước khi gửi lại."
-    };
+    // Do not automatically block old reports. KTC workers can backdate reports
+    // within the business-approved window, so queue age alone is not a reason
+    // to prevent automatic delivery. Only deterministic server errors may block.
+    return item;
 }
 
 function readAll(): OfflineReportQueueItem[] {
@@ -122,9 +114,6 @@ function isAlreadyCreatedDuplicate(error: unknown, payload: ProductionReport): b
     if (!axios.isAxiosError(error) || Number(error.response?.status || 0) !== 409 || !data) return false;
     if (data.code !== "DUPLICATE_CONFIRMATION_REQUIRED" || data.duplicate_reason !== "similar_report") return false;
 
-    // A similar report is NOT enough to prove that this exact queued request
-    // was already created. Two intentional reports can share the same identity.
-    // Only reconcile automatically when the backend gives us the exact request id.
     const existing = data.data || data.existing_report;
     const existingClient = String(existing?.client_request_id || "").trim();
     const payloadClient = String(payload.client_request_id || "").trim();
@@ -151,6 +140,8 @@ export function getCurrentOfflineQueueItems(): OfflineReportQueueItem[] {
     if (!owner) return [];
     return readAll().filter((item) => ownerMatches(item.owner, owner));
 }
+
+let activeFlushPromise: Promise<{ sent: number; remaining: number }> | null = null;
 
 export function enqueueOfflineReport(payload: ProductionReport): OfflineReportQueueItem {
     const owner = currentOwner();
@@ -215,11 +206,11 @@ export function removeOfflineReport(id: string): boolean {
     return true;
 }
 
-export async function flushOfflineReportQueue(options: { force?: boolean } = {}): Promise<{ sent: number; remaining: number }> {
+async function flushOfflineReportQueueInternal(options: { force?: boolean } = {}): Promise<{ sent: number; remaining: number }> {
     const owner = currentOwner();
     const force = options.force === true;
-    if (!owner || (!navigator.onLine && !force)) {
-        return { sent: 0, remaining: getCurrentOfflineQueueCount() };
+    if (!owner) {
+        return { sent: 0, remaining: 0 };
     }
 
     const all = readAll();
@@ -249,11 +240,6 @@ export async function flushOfflineReportQueue(options: { force?: boolean } = {})
 
             const attempts = Number(item.attempts || 0) + 1;
             const message = errorMessage(error);
-
-            // A stale queue item can replay a request that actually reached the
-            // server earlier. Some business validation paths return 422 before
-            // the idempotency record is surfaced. Re-check the server by report
-            // identity before marking the item as a permanent failure.
             const status = Number(axios.isAxiosError(error) ? error.response?.status || 0 : 0);
             if (status === 422 && await serverAlreadyHasQueuedReport(item.payload)) {
                 sent += 1;
@@ -284,4 +270,12 @@ export async function flushOfflineReportQueue(options: { force?: boolean } = {})
 
     writeAll([...others, ...remaining]);
     return { sent, remaining: remaining.length };
+}
+
+export function flushOfflineReportQueue(options: { force?: boolean } = {}): Promise<{ sent: number; remaining: number }> {
+    if (activeFlushPromise) return activeFlushPromise;
+    activeFlushPromise = flushOfflineReportQueueInternal(options).finally(() => {
+        activeFlushPromise = null;
+    });
+    return activeFlushPromise;
 }
