@@ -58,6 +58,15 @@ export default function ProcessBasicInfoSection({
     );
     const [cutExecutionMode, setCutExecutionMode] = useState<CutExecutionMode>("AUTO");
 
+    // GC Cắt mặc định là làm máy. Parent ProcessPage cũ khởi tạo GC ở MANUAL,
+    // nên trước đây lần mở form đầu tiên không hiện phần nhập máy; người dùng
+    // phải đổi "Không tự động" rồi quay lại "Tự động" mới thấy. Đồng bộ lại
+    // ngay tại component để mọi luồng mở/reset/resume đều hiển thị đúng.
+    useEffect(() => {
+        if (!isCutLongProcess || operationType !== "CUT") return;
+        if (operationMode !== "MACHINE") setOperationMode("MACHINE");
+    }, [isCutLongProcess, operationType, operationMode, setOperationMode]);
+
     // operationMode is the canonical parent state. Keep the local Lồng selector
     // synchronized so a resumed draft cannot display "Tay" while the parent is
     // actually in MACHINE mode.
