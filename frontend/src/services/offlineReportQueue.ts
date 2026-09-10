@@ -156,7 +156,7 @@ export function enqueueOfflineReport(payload: ProductionReport): OfflineReportQu
     const all = readAll();
     const existing = all.find((item) => ownerMatches(item.owner, owner) && item.payload.client_request_id === clientRequestId);
     if (existing) {
-        void flushOfflineReportQueue({ force: true });
+        void flushOfflineReportQueue();
         return existing;
     }
     const mine = all.filter((item) => ownerMatches(item.owner, owner));
@@ -177,7 +177,7 @@ export function enqueueOfflineReport(payload: ProductionReport): OfflineReportQu
         payload
     };
     writeAll([...all, item]);
-    void flushOfflineReportQueue({ force: true });
+    void flushOfflineReportQueue();
     return item;
 }
 
