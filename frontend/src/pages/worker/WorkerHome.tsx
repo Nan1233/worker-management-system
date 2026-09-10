@@ -11,6 +11,11 @@ import "./WorkerHome.css";
 
 const formatNumber = (value: unknown) => new Intl.NumberFormat("vi-VN").format(Number(value ?? 0));
 const formatPercent = (value: unknown) => `${Math.max(0, Math.min(100, Number(value ?? 0))).toLocaleString("vi-VN", { maximumFractionDigits: 0 })}%`;
+const formatHours = (value: unknown) => {
+  const hours = Number(value ?? 0);
+  if (!Number.isFinite(hours) || hours <= 0) return "0 giờ";
+  return `${hours.toLocaleString("vi-VN", { maximumFractionDigits: 2 })} giờ`;
+};
 const formatDate = (value?: string) => {
   if (!value) return "--/--/----";
   const [year, month, day] = value.split("T")[0].split("-");
@@ -77,7 +82,7 @@ export default function WorkerHome() {
   const todayStats = useMemo(() => {
     const ok = todayReports.reduce((sum, report) => sum + Number(report.tt_ok ?? 0), 0);
     const ng = todayReports.reduce((sum, report) => sum + Number((report.defects || []).reduce((defectSum, defect) => defectSum + Number(defect.quantity ?? 0), 0)), 0);
-    const time = todayReports.reduce((sum, report) => sum + Number(report.total_time ?? 0), 0);
+    const time = todayReports.reduce((sum, report) => sum + Number(report.actual_time ?? report.total_time ?? 0), 0);
     return { ok, ng, time, reportCount: todayReports.length };
   }, [todayReports]);
 
@@ -111,7 +116,7 @@ export default function WorkerHome() {
           <div className="worker-home-metrics">
             <div className="metric ok"><CheckCircle2 size={27} /><strong>{formatNumber(todayStats.ok)}</strong><span>OK</span></div>
             <div className="metric ng"><XCircle size={27} /><strong>{formatNumber(todayStats.ng)}</strong><span>NG</span></div>
-            <div className="metric time"><Clock3 size={27} /><strong>{Math.floor(todayStats.time / 60)}.{String(todayStats.time % 60).padStart(2, "0")}</strong><span>Giờ làm</span></div>
+            <div className="metric time"><Clock3 size={27} /><strong>{formatHours(todayStats.time).replace(" giờ", "")}</strong><span>Giờ làm</span></div>
             <div className="metric reports"><ClipboardList size={27} /><strong>{todayStats.reportCount}</strong><span>Báo cáo</span></div>
           </div>
         </section>
@@ -147,10 +152,11 @@ export default function WorkerHome() {
           <div className="worker-home-report-list">
             {displayReports.length ? displayReports.map((report) => {
               const status = statusMeta(report.status);
+              const reportTime = Number(report.actual_time ?? report.total_time ?? 0);
               return (
                 <button type="button" className="worker-home-report" key={report.id ?? `${report.work_date}-${report.machine_no}-${report.product_name}`} onClick={() => report.id && navigate(`/worker/history/${report.id}`)}>
                   <span className="worker-home-report-date"><strong>{formatDate(report.work_date).slice(0, 5)}</strong><small>{formatDate(report.work_date).slice(6)}</small></span>
-                  <span className="worker-home-report-main"><strong>{report.process_name || report.process_code || "Sản xuất"}{report.machine_no ? ` - Máy ${report.machine_no}` : ""}</strong><small>{report.product_name || "Sản phẩm"} · {report.total_time ? `${(Number(report.total_time) / 60).toFixed(1)} giờ` : "--"}</small></span>
+                  <span className="worker-home-report-main"><strong>{report.process_name || report.process_code || "Sản xuất"}{report.machine_no ? ` - Máy ${report.machine_no}` : ""}</strong><small>{report.product_name || "Sản phẩm"} · {formatHours(reportTime)}</small></span>
                   <span className="worker-home-report-output"><b>{formatNumber(report.tt_ok ?? 0)} OK</b><b>{formatNumber((report.defects || []).reduce((sum, defect) => sum + Number(defect.quantity ?? 0), 0))} NG</b></span>
                   <span className={`worker-home-status ${status.className}`}>{status.label}</span>
                   <ChevronRight className="worker-home-report-arrow" size={18} />
