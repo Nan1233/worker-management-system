@@ -117,7 +117,10 @@ export function enqueueOfflineReport(payload: ProductionReport): OfflineReportQu
 
     const all = readAll();
     const existing = all.find((item) => ownerMatches(item.owner, owner) && item.payload.client_request_id === clientRequestId);
-    if (existing) return existing;
+    if (existing) {
+        void flushOfflineReportQueue({ force: true });
+        return existing;
+    }
     const mine = all.filter((item) => ownerMatches(item.owner, owner));
     if (mine.length >= MAX_ITEMS_PER_OWNER) {
         throw new Error(`Thiết bị đang giữ ${mine.length} báo cáo chưa đồng bộ. Hãy đồng bộ hoặc xử lý hàng đợi trước khi nhập thêm.`);
@@ -136,6 +139,12 @@ export function enqueueOfflineReport(payload: ProductionReport): OfflineReportQu
         payload
     };
     writeAll([...all, item]);
+
+    // Do not trust navigator.onLine. ProcessPage may have routed here because
+    // the browser reported a false/stale offline state. Immediately probe the
+    // real KTC API; if it is reachable, the item is removed from the queue.
+    void flushOfflineReportQueue({ force: true });
+
     return item;
 }
 
@@ -171,9 +180,8 @@ export function removeOfflineReport(id: string): boolean {
 export async function flushOfflineReportQueue(options: { force?: boolean } = {}): Promise<{ sent: number; remaining: number }> {
     const owner = currentOwner();
     const force = options.force === true;
-    // navigator.onLine is only a browser hint. Automatic sync avoids needless
-    // requests while offline, but a manual sync is allowed to probe the real
-    // connection because online/offline state can be stale during Wi-Fi/4G changes.
+    // navigator.onLine is only a browser hint. A forced sync probes the real
+    // API and is used after a submit was incorrectly classified as offline.
     if (!owner || (!navigator.onLine && !force)) {
         return { sent: 0, remaining: getCurrentOfflineQueueCount() };
     }
@@ -193,9 +201,6 @@ export async function flushOfflineReportQueue(options: { force?: boolean } = {})
         }
         try {
             const result = await createTempReport(item.payload);
-            // Do not remove an item merely because HTTP returned successfully.
-            // This protects the queue if an API endpoint ever responds 2xx with
-            // { success: false } instead of a proper HTTP error.
             if (result?.success === false) {
                 throw new Error(result.message || "Backend từ chối báo cáo chưa đồng bộ.");
             }
