@@ -18,6 +18,13 @@ const normalizeDate = (value, fallback) => {
  * Manager approved-report listing.
  * Filtering, counting and pagination stay in TiDB; the browser never downloads
  * the complete production_reports table just to display one page.
+ *
+ * Cloudflare/TiDB Serverless note: do not run the COUNT and page SELECT in
+ * Promise.all(). Each Cloudflare query creates a separate Serverless driver
+ * connection, so parallel queries add avoidable connection/rate contention.
+ * Also keep LIMIT/OFFSET values as validated integers in the SQL text instead
+ * of parameter markers; this is more portable across the TiDB Serverless
+ * driver used by the Worker.
  */
 exports.getApprovedReports = async (req, res) => {
   try {
@@ -69,34 +76,37 @@ exports.getApprovedReports = async (req, res) => {
     }
 
     const whereSql = where.join(' AND ');
-    const [countRows, dataRows] = await Promise.all([
-      db.promise().query(
-        `SELECT COUNT(*) AS total
-           FROM production_reports pr
-           JOIN workers w ON pr.worker_id=w.id
-           JOIN users u ON w.user_id=u.id
-           JOIN processes p ON pr.process_id=p.id
-          WHERE ${whereSql}`,
-        params,
-      ),
-      db.promise().query(
-        `SELECT pr.*, p.process_name, w.worker_code, u.full_name,
-                COALESCE(pr.training_percent_snapshot, pr.training_percent, 0) AS training_percent
-           FROM production_reports pr
-           JOIN workers w ON pr.worker_id=w.id
-           JOIN users u ON w.user_id=u.id
-           JOIN processes p ON pr.process_id=p.id
-          WHERE ${whereSql}
-          ORDER BY pr.work_date DESC, pr.id DESC
-          LIMIT ? OFFSET ?`,
-        [...params, pageSize, offset],
-      ),
-    ]);
 
-    const total = Number(countRows[0]?.[0]?.total || 0);
+    // Run the two read queries sequentially in Cloudflare. The Worker DB
+    // adapter opens a fresh TiDB Serverless connection per query, so parallel
+    // COUNT/SELECT calls are unnecessary contention and can surface as 500s.
+    const [countRows] = await db.promise().query(
+      `SELECT COUNT(*) AS total
+         FROM production_reports pr
+         JOIN workers w ON pr.worker_id=w.id
+         JOIN users u ON w.user_id=u.id
+         JOIN processes p ON pr.process_id=p.id
+        WHERE ${whereSql}`,
+      params,
+    );
+
+    const [dataRows] = await db.promise().query(
+      `SELECT pr.*, p.process_name, w.worker_code, u.full_name,
+              COALESCE(pr.training_percent_snapshot, pr.training_percent, 0) AS training_percent
+         FROM production_reports pr
+         JOIN workers w ON pr.worker_id=w.id
+         JOIN users u ON w.user_id=u.id
+         JOIN processes p ON pr.process_id=p.id
+        WHERE ${whereSql}
+        ORDER BY pr.work_date DESC, pr.id DESC
+        LIMIT ${pageSize} OFFSET ${offset}`,
+      params,
+    );
+
+    const total = Number(countRows[0]?.total || 0);
     return res.json({
       success: true,
-      data: dataRows[0] || [],
+      data: dataRows || [],
       pagination: {
         page,
         page_size: pageSize,
@@ -109,6 +119,10 @@ exports.getApprovedReports = async (req, res) => {
       return res.status(403).json({ success: false, code: error.code, message: error.message });
     }
     console.error('GET MANAGER APPROVED REPORTS ERROR:', error);
-    return res.status(500).json({ success: false, message: 'Không thể tải báo cáo đã duyệt' });
+    return res.status(500).json({
+      success: false,
+      code: 'APPROVED_REPORTS_QUERY_FAILED',
+      message: 'Không thể tải báo cáo đã duyệt',
+    });
   }
 };
