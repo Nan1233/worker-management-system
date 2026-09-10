@@ -8,7 +8,9 @@ const source = fs.readFileSync(
   'utf8',
 );
 
-test('production temp create retries TiDB lock wait timeouts from a fresh transaction', () => {
+test('production temp create serializes submissions and retries TiDB lock wait timeouts', () => {
+  assert.match(source, /submissionQueues\s*=\s*new Map/);
+  assert.match(source, /runSerialized\(queueKey/);
   assert.match(source, /LOCK_RETRY_ATTEMPTS\s*=\s*3/);
   assert.match(source, /ER_LOCK_WAIT_TIMEOUT/);
   assert.match(source, /Number\(error\?\.errno\)\s*===\s*1205/);
