@@ -1,7 +1,7 @@
 import axios from "axios";
 import type { ProductionReport } from "../types/production";
 import { getStoredUser } from "../utils/authStorage";
-import { createTempReport } from "./productionService";
+import { checkSimilarTempReport, createTempReport } from "./productionService";
 
 const STORAGE_KEY = "ktcOfflineReportQueueV1";
 const MAX_ITEMS_PER_OWNER = 50;
@@ -117,29 +117,33 @@ function responseData(error: unknown): any {
     return error.response?.data || null;
 }
 
-function payloadMatchesExistingReport(payload: ProductionReport, existing: any): boolean {
-    if (!existing || typeof existing !== "object") return false;
-    const queued = payload as QueuePayload;
-    const existingClient = String(existing.client_request_id || "").trim();
-    const payloadClient = String(queued.client_request_id || "").trim();
-    if (existingClient && payloadClient && existingClient === payloadClient) return true;
-
-    const existingKey = String(existing.logical_duplicate_key || "").trim();
-    const payloadKey = String(queued.logical_duplicate_key || "").trim();
-    if (existingKey && payloadKey && existingKey === payloadKey) return true;
-
-    const sameIdentity = String(existing.work_date || "").slice(0, 10) === String(payload.work_date || "").slice(0, 10)
-        && String(existing.shift || "").trim().toUpperCase() === String(payload.shift || "").trim().toUpperCase()
-        && String(existing.machine_no || "").trim() === String(payload.machine_no || "").trim()
-        && String(existing.product_name || "").trim() === String(payload.product_name || "").trim();
-    return sameIdentity && Number(existing.process_id || 0) === Number(payload.process_id || 0);
-}
-
 function isAlreadyCreatedDuplicate(error: unknown, payload: ProductionReport): boolean {
     const data = responseData(error);
     if (!axios.isAxiosError(error) || Number(error.response?.status || 0) !== 409 || !data) return false;
     if (data.code !== "DUPLICATE_CONFIRMATION_REQUIRED" || data.duplicate_reason !== "similar_report") return false;
-    return payloadMatchesExistingReport(payload, data.data || data.existing_report);
+
+    // A similar report is NOT enough to prove that this exact queued request
+    // was already created. Two intentional reports can share the same identity.
+    // Only reconcile automatically when the backend gives us the exact request id.
+    const existing = data.data || data.existing_report;
+    const existingClient = String(existing?.client_request_id || "").trim();
+    const payloadClient = String(payload.client_request_id || "").trim();
+    return Boolean(existingClient && payloadClient && existingClient === payloadClient);
+}
+
+async function serverAlreadyHasQueuedReport(payload: ProductionReport): Promise<boolean> {
+    try {
+        const result = await checkSimilarTempReport({
+            process_id: payload.process_id,
+            work_date: payload.work_date,
+            shift: payload.shift,
+            machine_no: payload.machine_no,
+            product_name: payload.product_name,
+        });
+        return Boolean(result?.duplicate && result?.data?.id);
+    } catch {
+        return false;
+    }
 }
 
 export function getCurrentOfflineQueueItems(): OfflineReportQueueItem[] {
@@ -245,6 +249,17 @@ export async function flushOfflineReportQueue(options: { force?: boolean } = {})
 
             const attempts = Number(item.attempts || 0) + 1;
             const message = errorMessage(error);
+
+            // A stale queue item can replay a request that actually reached the
+            // server earlier. Some business validation paths return 422 before
+            // the idempotency record is surfaced. Re-check the server by report
+            // identity before marking the item as a permanent failure.
+            const status = Number(axios.isAxiosError(error) ? error.response?.status || 0 : 0);
+            if (status === 422 && await serverAlreadyHasQueuedReport(item.payload)) {
+                sent += 1;
+                continue;
+            }
+
             if (isTransientNetworkFailure(error)) {
                 remaining.push({
                     ...item,
