@@ -298,6 +298,7 @@ const validateMachineWorkerCapacityLocked = async ({
   }
 
   const placeholders = uniqueCodes.map(() => "?").join(",");
+  const machineLockClause = globalThis.__KTC_CLOUDFLARE_WORKER ? "" : "FOR UPDATE";
   const machineRows = await executorQuery(
     executor,
     `SELECT id, process_id, machine_code,
@@ -308,8 +309,7 @@ const validateMachineWorkerCapacityLocked = async ({
       WHERE process_id = ?
         AND status = 'active'
         AND UPPER(TRIM(machine_code)) IN (${placeholders})
-      ORDER BY id
-      FOR UPDATE`,
+      ORDER BY id ${machineLockClause}`,
     [Number(processId), ...uniqueCodes]
   );
 
