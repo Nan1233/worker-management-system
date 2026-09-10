@@ -194,61 +194,69 @@ const validateMachineWorkerCapacity = async ({
   );
 
   const errors = {};
-
   for (const machineCode of uniqueCodes) {
     const row = rowByCode.get(machineCode);
     const rule = getProcessMachineRule(code, machineCode, row);
+    if (rule.maxWorkersPerMachine < 1) continue;
+  }
 
-    const db = getDb();
-    const tempExclude = excludeTempReportId ? " AND prt.id <> ?" : "";
-    const tempParams = [
+  const db = getDb();
+  const machinePlaceholders = uniqueCodes.map(() => "?").join(",");
+  const tempExclude = excludeTempReportId ? " AND prt.id <> ?" : "";
+  const tempParams = [
+    Number(processId),
+    String(workDate).slice(0, 10),
+    String(shift).trim(),
+    ...uniqueCodes
+  ];
+  if (excludeTempReportId) tempParams.push(Number(excludeTempReportId));
+
+  const [usageRows] = await db.promise().query(
+    `SELECT machine_code, worker_id FROM (
+       SELECT UPPER(TRIM(ml.machine_code)) AS machine_code, prt.worker_id
+         FROM production_reports_temp prt
+         JOIN production_temp_machine_lines ml
+           ON ml.temp_report_id = prt.id
+        WHERE prt.process_id = ?
+          AND prt.work_date = ?
+          AND prt.shift = ?
+          AND UPPER(TRIM(ml.machine_code)) IN (${machinePlaceholders})
+          AND prt.status IN ('pending','approved','need_fix')
+          ${tempExclude}
+       UNION
+       SELECT UPPER(TRIM(ml2.machine_code)) AS machine_code, pr.worker_id
+         FROM production_reports pr
+         JOIN production_report_machine_lines ml2
+           ON ml2.report_id = pr.id
+        WHERE pr.process_id = ?
+          AND pr.work_date = ?
+          AND pr.shift = ?
+          AND UPPER(TRIM(ml2.machine_code)) IN (${machinePlaceholders})
+     ) used
+     ORDER BY machine_code, worker_id`,
+    [
+      ...tempParams,
       Number(processId),
       String(workDate).slice(0, 10),
       String(shift).trim(),
-      machineCode
-    ];
+      ...uniqueCodes
+    ]
+  );
 
-    if (excludeTempReportId) {
-      tempParams.push(Number(excludeTempReportId));
-    }
+  const workersByMachine = new Map();
+  for (const item of usageRows || []) {
+    const machineCode = String(item.machine_code || "").trim().toUpperCase();
+    const worker = Number(item.worker_id);
+    if (!machineCode || !worker) continue;
+    if (!workersByMachine.has(machineCode)) workersByMachine.set(machineCode, new Set());
+    workersByMachine.get(machineCode).add(worker);
+  }
 
-    const [usageRows] = await db.promise().query(
-      `SELECT DISTINCT worker_id FROM (
-         SELECT prt.worker_id
-           FROM production_reports_temp prt
-           JOIN production_temp_machine_lines ml
-             ON ml.temp_report_id = prt.id
-          WHERE prt.process_id = ?
-            AND prt.work_date = ?
-            AND prt.shift = ?
-            AND UPPER(TRIM(ml.machine_code)) = UPPER(?)
-            AND prt.status IN ('pending','approved')
-            ${tempExclude}
-         UNION
-         SELECT pr.worker_id
-           FROM production_reports pr
-           JOIN production_report_machine_lines ml2
-             ON ml2.report_id = pr.id
-          WHERE pr.process_id = ?
-            AND pr.work_date = ?
-            AND pr.shift = ?
-            AND UPPER(TRIM(ml2.machine_code)) = UPPER(?)
-       ) used`,
-      [
-        ...tempParams,
-        Number(processId),
-        String(workDate).slice(0, 10),
-        String(shift).trim(),
-        machineCode
-      ]
-    );
-
-    const workers = new Set(
-      (usageRows || [])
-        .map((item) => Number(item.worker_id))
-        .filter(Boolean)
-    );
-
+  for (const machineCode of uniqueCodes) {
+    const row = rowByCode.get(machineCode);
+    if (!row) continue;
+    const rule = getProcessMachineRule(code, machineCode, row);
+    const workers = workersByMachine.get(machineCode) || new Set();
     workers.add(Number(workerId));
 
     if (workers.size > rule.maxWorkersPerMachine) {
@@ -318,61 +326,64 @@ const validateMachineWorkerCapacityLocked = async ({
   );
 
   const errors = {};
+  const db = getDb();
+  const machinePlaceholders = uniqueCodes.map(() => "?").join(",");
+  const tempExclude = excludeTempReportId ? " AND prt.id <> ?" : "";
+  const tempParams = [
+    Number(processId),
+    String(workDate).slice(0, 10),
+    String(shift).trim(),
+    ...uniqueCodes
+  ];
+  if (excludeTempReportId) tempParams.push(Number(excludeTempReportId));
+
+  const usage = await executorQuery(
+    executor,
+    `SELECT machine_code, worker_id FROM (
+       SELECT UPPER(TRIM(ml.machine_code)) AS machine_code, prt.worker_id
+         FROM production_reports_temp prt
+         JOIN production_temp_machine_lines ml
+           ON ml.temp_report_id = prt.id
+        WHERE prt.process_id = ?
+          AND prt.work_date = ?
+          AND prt.shift = ?
+          AND UPPER(TRIM(ml.machine_code)) IN (${machinePlaceholders})
+          AND prt.status IN ('pending','approved','need_fix')
+          ${tempExclude}
+       UNION
+       SELECT UPPER(TRIM(ml2.machine_code)) AS machine_code, pr.worker_id
+         FROM production_reports pr
+         JOIN production_report_machine_lines ml2
+           ON ml2.report_id = pr.id
+        WHERE pr.process_id = ?
+          AND pr.work_date = ?
+          AND pr.shift = ?
+          AND UPPER(TRIM(ml2.machine_code)) IN (${machinePlaceholders})
+     ) used
+     ORDER BY machine_code, worker_id`,
+    [
+      ...tempParams,
+      Number(processId),
+      String(workDate).slice(0, 10),
+      String(shift).trim(),
+      ...uniqueCodes
+    ]
+  );
+
+  const workersByMachine = new Map();
+  for (const item of usage) {
+    const machineCode = String(item.machine_code || "").trim().toUpperCase();
+    const worker = Number(item.worker_id);
+    if (!machineCode || !worker) continue;
+    if (!workersByMachine.has(machineCode)) workersByMachine.set(machineCode, new Set());
+    workersByMachine.get(machineCode).add(worker);
+  }
 
   for (const machineCode of uniqueCodes) {
     const row = rowByCode.get(machineCode);
     if (!row) continue;
-
     const rule = getProcessMachineRule(code, machineCode, row);
-
-    const tempExclude = excludeTempReportId ? " AND prt.id <> ?" : "";
-    const tempParams = [
-      Number(processId),
-      String(workDate).slice(0, 10),
-      String(shift).trim(),
-      machineCode
-    ];
-
-    if (excludeTempReportId) {
-      tempParams.push(Number(excludeTempReportId));
-    }
-
-    const usage = await executorQuery(
-      executor,
-      `SELECT DISTINCT worker_id FROM (
-         SELECT prt.worker_id
-           FROM production_reports_temp prt
-           JOIN production_temp_machine_lines ml
-             ON ml.temp_report_id = prt.id
-          WHERE prt.process_id = ?
-            AND prt.work_date = ?
-            AND prt.shift = ?
-            AND UPPER(TRIM(ml.machine_code)) = UPPER(?)
-            AND prt.status IN ('pending','approved')
-            ${tempExclude}
-         UNION
-         SELECT pr.worker_id
-           FROM production_reports pr
-           JOIN production_report_machine_lines ml2
-             ON ml2.report_id = pr.id
-          WHERE pr.process_id = ?
-            AND pr.work_date = ?
-            AND pr.shift = ?
-            AND UPPER(TRIM(ml2.machine_code)) = UPPER(?)
-       ) used`,
-      [
-        ...tempParams,
-        Number(processId),
-        String(workDate).slice(0, 10),
-        String(shift).trim(),
-        machineCode
-      ]
-    );
-
-    const workers = new Set(
-      usage.map((item) => Number(item.worker_id)).filter(Boolean)
-    );
-
+    const workers = workersByMachine.get(machineCode) || new Set();
     workers.add(Number(workerId));
 
     if (workers.size > rule.maxWorkersPerMachine) {
