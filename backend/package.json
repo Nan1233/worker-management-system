@@ -1,6 +1,6 @@
 {
   "name": "backend",
-  "version": "1.9.17",
+  "version": "1.9.18",
   "description": "KTC internal production reporting API optimized for Render and TiDB",
   "main": "server.js",
   "scripts": {
@@ -47,7 +47,7 @@
   },
   "dependencies": {
     "@tidbcloud/serverless": "0.3.0",
-    "bcrypt": "npm:bcryptjs@3.0.2",
+    "bcrypt": "npm:bcryptjs@3.0.0",
     "cors": "2.8.6",
     "dotenv": "17.4.2",
     "exceljs": "4.4.0",
