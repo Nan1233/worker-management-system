@@ -43,13 +43,17 @@ function ownerMatches(a: QueueOwner, b: QueueOwner): boolean {
 
 function normalizeStoredItem(item: OfflineReportQueueItem): OfflineReportQueueItem | null {
     if (!item?.payload || !item?.owner || !item?.id) return null;
-    if (item.status === "blocked" && /trùng|duplicate/i.test(String(item.lastError || ""))) {
+
+    const lastError = String(item.lastError || "");
+    if (item.status === "blocked" && (/trùng|duplicate/i.test(lastError) || /chờ đồng bộ quá 24 giờ/i.test(lastError))) {
         return {
             ...item,
             status: "queued",
-            nextRetryAt: Date.now()
+            nextRetryAt: Date.now(),
+            lastError: undefined
         };
     }
+
     // Do not automatically block old reports. KTC workers can backdate reports
     // within the business-approved window, so queue age alone is not a reason
     // to prevent automatic delivery. Only deterministic server errors may block.
