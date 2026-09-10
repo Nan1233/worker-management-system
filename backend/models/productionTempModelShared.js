@@ -32,11 +32,36 @@ const query = (executor, sql, params = []) =>
         });
     });
 
+const prepareProductionSubmissionConnection = (connection) =>
+    new Promise((resolve) => {
+        // TiDB 8.5.6+ can use shared locks for FK checks in pessimistic
+        // transactions. This removes unnecessary INSERT-vs-INSERT blocking
+        // when many reports reference the same worker/process/standard rows.
+        // Older TiDB versions simply ignore this optional optimization.
+        connection.query(
+            "SET SESSION tidb_foreign_key_check_in_shared_lock = ON",
+            [],
+            () => resolve(connection)
+        );
+    });
+
 const getConnection = () =>
     new Promise((resolve, reject) => {
-        db.getConnection((error, connection) => {
+        db.getConnection(async (error, connection) => {
             if (error) return reject(error);
-            resolve(connection);
+            try {
+                await prepareProductionSubmissionConnection(connection);
+                resolve(connection);
+            } catch (prepareError) {
+                // The setting is an optimization only. Never prevent the
+                // application from obtaining a DB connection if the connected
+                // TiDB version does not expose it.
+                console.warn("[KTC][DB] optional FK shared-lock setting unavailable", {
+                    message: prepareError?.message,
+                    code: prepareError?.code,
+                });
+                resolve(connection);
+            }
         });
     });
 
