@@ -18,7 +18,11 @@ const buildSubmissionLockKey = (data = {}, machineLines = []) => {
         ? `capacity:${processId}:${workDate}:${shift}`
         : `worker:${Number(data?.worker_id || 0)}:${processId}:${workDate}:${shift}`;
 
-    return `ktc:production-temp:${crypto.createHash("sha256").update(scope, "utf8").digest("hex")}`;
+    // TiDB user-level lock names are limited to 64 characters. Keep the
+    // namespace short and use a 128-bit digest: deterministic, collision-safe
+    // for this application, and comfortably below the database limit.
+    const digest = crypto.createHash("sha256").update(scope, "utf8").digest("hex").slice(0, 32);
+    return `ktc:pt:${digest}`;
 };
 
 const isSupportedLockFunctionError = (error) => {
