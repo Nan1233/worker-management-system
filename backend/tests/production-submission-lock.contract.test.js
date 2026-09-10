@@ -24,6 +24,8 @@ assert.doesNotMatch(modelSource, /GET_LOCK\(/);
 assert.doesNotMatch(modelSource, /LOCK_RETRY_ATTEMPTS/);
 assert.doesNotMatch(modelSource, /for \(let attempt = 1; attempt <= LOCK_RETRY_ATTEMPTS/);
 assert.match(createSource, /lockLogicalDuplicateKey\(/);
-assert.match(sharedSource, /tidb_foreign_key_check_in_shared_lock = ON/);
+// The Cloudflare Serverless TiDB runtime used by KTC does not expose this
+// optional TiDB session variable. The submission connection must not issue it.
+assert.doesNotMatch(sharedSource, /tidb_foreign_key_check_in_shared_lock/);
 
 console.log('production submission lock contract: PASS');
