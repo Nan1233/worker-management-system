@@ -4,21 +4,11 @@ const nonProductWorkModel = require("./nonProductWorkCreateModel");
 const readModel = require("./productionTempReadModel");
 const reviewModel = require("./productionTempReviewModel");
 const historyModel = require("./productionTempHistoryModel");
-const { query } = require("./productionTempModelShared");
+const { query, getConnection } = require("./productionTempModelShared");
+const { withDistributedSubmissionLock } = require("../services/productionSubmissionLockService");
 
 const DAILY_HOURS_LIMIT = 12;
-const LOCK_RETRY_ATTEMPTS = 3;
-const LOCK_RETRY_DELAYS_MS = [250, 750];
 const submissionQueues = new Map();
-
-const isLockWaitTimeout = (error) => {
-    const code = String(error?.code || "").toUpperCase();
-    const message = String(error?.message || "").toLowerCase();
-    return code === "ER_LOCK_WAIT_TIMEOUT" ||
-        Number(error?.errno) === 1205 ||
-        message.includes("lock wait timeout exceeded") ||
-        message.includes("error 1205");
-};
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -218,32 +208,14 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         const alreadyCreated = await findExistingClientRequest(data);
         if (alreadyCreated) return toIdempotentResult(alreadyCreated);
 
-        for (let attempt = 1; attempt <= LOCK_RETRY_ATTEMPTS; attempt += 1) {
-            try {
-                const result = await createModel.createCompleteReport(data, defects, deductions, machineLines, audit);
-                if (result && typeof result === "object") return result;
-                return { id: Number(result), duplicate: false };
-            } catch (error) {
-                if (!isLockWaitTimeout(error) || attempt >= LOCK_RETRY_ATTEMPTS) throw error;
+        return withDistributedSubmissionLock(data, machineLines, async () => {
+            const lockedExisting = await findExistingClientRequest(data);
+            if (lockedExisting) return toIdempotentResult(lockedExisting);
 
-                console.warn("[KTC][PRODUCTION_TEMP] lock wait timeout; retrying transaction", {
-                    attempt,
-                    maxAttempts: LOCK_RETRY_ATTEMPTS,
-                    workerId: data.worker_id,
-                    processId: data.process_id,
-                    workDate: data.work_date,
-                    shift: data.shift,
-                    clientRequestId: data.client_request_id,
-                });
-
-                await sleep(LOCK_RETRY_DELAYS_MS[attempt - 1] || 1000);
-
-                const recovered = await findExistingClientRequest(data);
-                if (recovered) return toIdempotentResult(recovered);
-            }
-        }
-
-        throw new Error("Không thể tạo báo cáo do xung đột khóa dữ liệu");
+            const result = await createModel.createCompleteReport(data, defects, deductions, machineLines, audit);
+            if (result && typeof result === "object") return result;
+            return { id: Number(result), duplicate: false };
+        });
     });
 };
 
