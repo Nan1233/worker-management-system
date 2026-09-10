@@ -40,6 +40,22 @@ const keyFor = (process: string, workerId: number | null, workerCode: string | n
   return `ktc:process-draft:v2:${identity}:${encodeKeyPart(process)}`;
 };
 
+// clearProcessDraft() is also called immediately after a successful submit.
+// The autosave effect can run once more before navigation, so briefly suppress
+// writes after a clear. The next form/page instance is allowed to save normally.
+const DRAFT_CLEAR_SUPPRESS_MS = 1200;
+const clearMarkerKeyFor = (process: string, workerId: number | null, workerCode: string | null) =>
+  `${keyFor(process, workerId, workerCode)}:clear-marker`;
+
+const isAutosaveSuppressed = (process: string, workerId: number | null, workerCode: string | null) => {
+  const markerKey = clearMarkerKeyFor(process, workerId, workerCode);
+  const until = Number(localStorage.getItem(markerKey) || 0);
+  if (!until) return false;
+  if (until > Date.now()) return true;
+  localStorage.removeItem(markerKey);
+  return false;
+};
+
 const FORM_LABELS: Record<string, string> = {
   workerCode: "Mã công nhân",
   workerName: "Công nhân",
@@ -207,6 +223,8 @@ export function loadProcessDraft(process: string): ProcessDraft | null {
     const { workerId, workerCode } = getCurrentWorkerIdentity();
     if (workerId == null && !workerCode) return null;
 
+    if (isAutosaveSuppressed(process, workerId, workerCode)) return null;
+
     const raw = localStorage.getItem(keyFor(process, workerId, workerCode));
     if (!raw) return null;
 
@@ -238,6 +256,8 @@ export function saveProcessDraft(draft: ProcessDraft): void {
     const { workerId, workerCode } = getCurrentWorkerIdentity();
     if (workerId == null && !workerCode) return;
 
+    if (isAutosaveSuppressed(draft.process, workerId, workerCode)) return;
+
     const sourceLines = Array.isArray(draft.machineLines) ? draft.machineLines : [];
     const ownedDraft: ProcessDraft = {
       ...draft,
@@ -256,6 +276,10 @@ export function clearProcessDraft(process: string): void {
     const { workerId, workerCode } = getCurrentWorkerIdentity();
     if (workerId == null && !workerCode) return;
     localStorage.removeItem(keyFor(process, workerId, workerCode));
+    localStorage.setItem(
+      clearMarkerKeyFor(process, workerId, workerCode),
+      String(Date.now() + DRAFT_CLEAR_SUPPRESS_MS),
+    );
   } catch { /* noop */ }
 }
 
