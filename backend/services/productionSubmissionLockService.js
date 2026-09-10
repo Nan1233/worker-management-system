@@ -1,5 +1,6 @@
 const crypto = require("node:crypto");
 const { query, getConnection } = require("../models/productionTempModelShared");
+const { buildLogicalDuplicateKey } = require("./logicalDuplicateReportService");
 
 const LOCK_TIMEOUT_SECONDS = 2;
 const LOCK_PREFIX = "ktc:pt2:";
@@ -10,19 +11,40 @@ const buildSubmissionLockKey = (data = {}, machineLines = []) => {
     const processId = Number(data?.process_id || 0);
     const workDate = String(data?.work_date || "").slice(0, 10);
     const shift = String(data?.shift || "").trim().toUpperCase();
+
+    // Serialize the business duplicate identity, not only the browser request.
+    // Different client_request_id values can still represent the same report.
+    // Keeping them on the same distributed lock prevents the database duplicate
+    // lock row / unique index from becoming the contention point.
+    let logicalKey = "";
+    try {
+        logicalKey = String(buildLogicalDuplicateKey({
+            workerId,
+            processId,
+            workDate,
+            shift,
+            operationMode: data?.operation_mode ?? data?.operationMode,
+            machineNo: data?.machine_no,
+            productName: data?.product_name,
+            machineLines: Array.isArray(machineLines) ? machineLines : [],
+        }) || "").trim();
+    } catch (error) {
+        console.warn("[KTC][PRODUCTION_TEMP_LOCK] logical key build failed; falling back", {
+            message: error?.message,
+        });
+    }
+
     const hasMachineLines = Array.isArray(machineLines) && machineLines.some(
         (line) => String(line?.machine_code || "").trim()
     );
 
-    // The same client request must always share one distributed lock, even
-    // when duplicate requests arrive at different Cloudflare isolates.
-    // This prevents the unique (worker_id, client_request_id) index from
-    // becoming the contention point before idempotency can be resolved.
-    const scope = clientRequestId
-        ? `client:${workerId}:${clientRequestId}`
-        : hasMachineLines
-            ? `capacity:${processId}:${workDate}:${shift}`
-            : `worker:${workerId}:${processId}:${workDate}:${shift}`;
+    const scope = logicalKey
+        ? `logical:${logicalKey}`
+        : clientRequestId
+            ? `client:${workerId}:${clientRequestId}`
+            : hasMachineLines
+                ? `capacity:${processId}:${workDate}:${shift}`
+                : `worker:${workerId}:${processId}:${workDate}:${shift}`;
 
     // TiDB user-level lock names are limited to 64 characters.
     const digest = crypto
@@ -101,7 +123,7 @@ const withDistributedSubmissionLock = async (data, machineLines, task) => {
         console.log("[KTC][PRODUCTION_TEMP_LOCK] acquire result", { lockName, result });
 
         if (result !== 1) {
-            const error = new Error("Hệ thống đang xử lý một báo cáo khác cùng yêu cầu. Vui lòng gửi lại sau vài giây.");
+            const error = new Error("Hệ thống đang xử lý một báo cáo trùng hoặc cùng yêu cầu. Vui lòng gửi lại sau vài giây.");
             error.status = 409;
             error.code = result === 0 ? "PRODUCTION_SUBMISSION_BUSY" : "PRODUCTION_SUBMISSION_LOCK_FAILED";
             error.isPublic = true;
