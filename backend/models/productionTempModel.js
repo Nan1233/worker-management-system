@@ -9,6 +9,7 @@ const { query } = require("./productionTempModelShared");
 const DAILY_HOURS_LIMIT = 12;
 const LOCK_RETRY_ATTEMPTS = 3;
 const LOCK_RETRY_DELAYS_MS = [250, 750];
+const submissionQueues = new Map();
 
 const isLockWaitTimeout = (error) => {
     const code = String(error?.code || "").toUpperCase();
@@ -20,6 +21,36 @@ const isLockWaitTimeout = (error) => {
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const runSerialized = async (key, task) => {
+    const previous = submissionQueues.get(key) || Promise.resolve();
+    let release;
+    const current = new Promise((resolve) => { release = resolve; });
+    submissionQueues.set(key, current);
+    await previous;
+    try {
+        return await task();
+    } finally {
+        release();
+        if (submissionQueues.get(key) === current) submissionQueues.delete(key);
+    }
+};
+
+const getSubmissionQueueKey = (data, machineLines = []) => {
+    const workerId = Number(data?.worker_id || data?.workerId || 0);
+    const processId = Number(data?.process_id || 0);
+    const workDate = String(data?.work_date || "").slice(0, 10);
+    const shift = String(data?.shift || "").trim().toUpperCase();
+    const logicalKey = String(data?.logical_duplicate_key || "").trim();
+    if (logicalKey) return `logical:${workerId}:${logicalKey}`;
+
+    const machines = [...new Set(
+        (Array.isArray(machineLines) ? machineLines : [])
+            .map((line) => String(line?.machine_code || "").trim().toUpperCase())
+            .filter(Boolean)
+    )].sort().join(",");
+    return `capacity:${workerId}:${processId}:${workDate}:${shift}:${machines || "MANUAL"}`;
+};
 
 const originalCreate = createModel.create;
 createModel.create = async (data, executor = db) => {
@@ -182,32 +213,38 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
 
     await enforceDailyWorkerHours(data);
 
-    for (let attempt = 1; attempt <= LOCK_RETRY_ATTEMPTS; attempt += 1) {
-        try {
-            const result = await createModel.createCompleteReport(data, defects, deductions, machineLines, audit);
-            if (result && typeof result === "object") return result;
-            return { id: Number(result), duplicate: false };
-        } catch (error) {
-            if (!isLockWaitTimeout(error) || attempt >= LOCK_RETRY_ATTEMPTS) throw error;
+    const queueKey = getSubmissionQueueKey(data, machineLines);
+    return runSerialized(queueKey, async () => {
+        const alreadyCreated = await findExistingClientRequest(data);
+        if (alreadyCreated) return toIdempotentResult(alreadyCreated);
 
-            console.warn("[KTC][PRODUCTION_TEMP] lock wait timeout; retrying transaction", {
-                attempt,
-                maxAttempts: LOCK_RETRY_ATTEMPTS,
-                workerId: data.worker_id,
-                processId: data.process_id,
-                workDate: data.work_date,
-                shift: data.shift,
-                clientRequestId: data.client_request_id,
-            });
+        for (let attempt = 1; attempt <= LOCK_RETRY_ATTEMPTS; attempt += 1) {
+            try {
+                const result = await createModel.createCompleteReport(data, defects, deductions, machineLines, audit);
+                if (result && typeof result === "object") return result;
+                return { id: Number(result), duplicate: false };
+            } catch (error) {
+                if (!isLockWaitTimeout(error) || attempt >= LOCK_RETRY_ATTEMPTS) throw error;
 
-            await sleep(LOCK_RETRY_DELAYS_MS[attempt - 1] || 1000);
+                console.warn("[KTC][PRODUCTION_TEMP] lock wait timeout; retrying transaction", {
+                    attempt,
+                    maxAttempts: LOCK_RETRY_ATTEMPTS,
+                    workerId: data.worker_id,
+                    processId: data.process_id,
+                    workDate: data.work_date,
+                    shift: data.shift,
+                    clientRequestId: data.client_request_id,
+                });
 
-            const recovered = await findExistingClientRequest(data);
-            if (recovered) return toIdempotentResult(recovered);
+                await sleep(LOCK_RETRY_DELAYS_MS[attempt - 1] || 1000);
+
+                const recovered = await findExistingClientRequest(data);
+                if (recovered) return toIdempotentResult(recovered);
+            }
         }
-    }
 
-    throw new Error("Không thể tạo báo cáo do xung đột khóa dữ liệu");
+        throw new Error("Không thể tạo báo cáo do xung đột khóa dữ liệu");
+    });
 };
 
 module.exports = { ...createModel, createCompleteReport, ...readModel, ...reviewModel, ...historyModel };
