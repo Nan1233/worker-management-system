@@ -27,10 +27,9 @@ export default function OfflineReportSync() {
         if (syncing.current || getCurrentOfflineQueueCount() === 0) return;
         syncing.current = true;
         try {
-            // Do not trust navigator.onLine here. It can be stale or wrong on
-            // some PCs/WebViews even when the KTC API is reachable. The API
-            // request itself is the authoritative connectivity test.
-            const result = await flushOfflineReportQueue({ force });
+            // Automatic sync must respect each item's nextRetryAt. Only an
+            // explicit user action may bypass the backoff timer.
+            const result = await flushOfflineReportQueue({ force: manual && force });
             const queue = getCurrentOfflineQueueItems();
             setItems(queue);
             const blocked = queue.filter((item) => item.status === "blocked").length;
@@ -49,16 +48,17 @@ export default function OfflineReportSync() {
     useEffect(() => {
         // navigator.onLine is only a hint. Always probe the KTC API so a stale
         // browser network flag cannot leave a valid report stuck offline.
-        const onOnline = () => void sync(false, true);
+        // Automatic probes never bypass retry backoff.
+        const onOnline = () => void sync(false, false);
         const onQueueChanged = () => {
             refreshItems();
-            void sync(false, true);
+            void sync(false, false);
         };
         window.addEventListener("online", onOnline);
         window.addEventListener(OFFLINE_QUEUE_CHANGED_EVENT, onQueueChanged);
         window.addEventListener("storage", onQueueChanged);
-        const timer = window.setInterval(() => void sync(false, true), 15_000);
-        void sync(false, true);
+        const timer = window.setInterval(() => void sync(false, false), 15_000);
+        void sync(false, false);
         return () => {
             window.removeEventListener("online", onOnline);
             window.removeEventListener(OFFLINE_QUEUE_CHANGED_EVENT, onQueueChanged);
