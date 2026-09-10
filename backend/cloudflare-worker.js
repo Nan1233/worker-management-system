@@ -37,6 +37,80 @@ process.env.KTC_CLOUDFLARE_WORKER = "true";
 const { start, app } = require("./server.js");
 const ensureGcLong2801Lt = require("./scripts/ensureGcLong2801Lt");
 const { masterDataCache } = require("./utils/masterDataCache");
+const { query: ktcQuery } = require("./models/productionTempModelShared");
+const productionTempCreateModel = require("./models/productionTempCreateModel");
+
+// KTC production-temp uses a transaction-scoped row in
+// production_report_duplicate_locks as a serialization point. On TiDB, a
+// pessimistic transaction waits up to innodb_lock_wait_timeout (50s by default)
+// for that row. That is longer than the browser request timeout and makes a
+// healthy Internet connection look like an offline failure.
+//
+// Keep the existing correctness lock, but bound ONLY the duplicate-lock wait to
+// 2s. If another submission owns the lock, the caller gets a retryable 503 and
+// the frontend queue can retry instead of hanging for 30-50s.
+const DUPLICATE_LOCK_WAIT_SECONDS = 2;
+const DEFAULT_LOCK_WAIT_SECONDS = 50;
+
+function isTiDbLockTimeout(error) {
+  return /(?:Error\s*)?1205|lock wait timeout exceeded/i.test(String(error?.message || error || ""));
+}
+
+async function acquireBoundedDuplicateLock(logicalKey, executor) {
+  if (!logicalKey) return;
+
+  await ktcQuery(executor, `SET SESSION innodb_lock_wait_timeout = ${DUPLICATE_LOCK_WAIT_SECONDS}`);
+  try {
+    await ktcQuery(
+      executor,
+      `INSERT INTO production_report_duplicate_locks (logical_key, last_used_at)
+       VALUES (?, NOW())
+       ON DUPLICATE KEY UPDATE last_used_at = last_used_at`,
+      [logicalKey]
+    );
+    await ktcQuery(
+      executor,
+      `SELECT logical_key
+       FROM production_report_duplicate_locks
+       WHERE logical_key = ?
+       FOR UPDATE NOWAIT`,
+      [logicalKey]
+    );
+  } catch (error) {
+    if (isTiDbLockTimeout(error)) {
+      const retryable = new Error("Máy chủ đang xử lý một báo cáo khác. Hệ thống sẽ tự thử lại.");
+      retryable.code = "DUPLICATE_LOCK_BUSY";
+      retryable.status = 503;
+      retryable.isPublic = true;
+      retryable.retryable = true;
+      throw retryable;
+    }
+    throw error;
+  } finally {
+    try {
+      await ktcQuery(executor, `SET SESSION innodb_lock_wait_timeout = ${DEFAULT_LOCK_WAIT_SECONDS}`);
+    } catch {
+      // The transaction may already be rolling back after a lock failure.
+    }
+  }
+}
+
+productionTempCreateModel.lockClientRequestId = async (workerId, clientRequestId, executor) => {
+  const worker = Number(workerId);
+  const requestId = String(clientRequestId || "").trim();
+  if (!Number.isInteger(worker) || worker <= 0 || !requestId) return;
+  const crypto = require("node:crypto");
+  const logicalLockKey = crypto
+    .createHash("sha256")
+    .update(`client-request:${worker}:${requestId}`, "utf8")
+    .digest("hex");
+  await acquireBoundedDuplicateLock(logicalLockKey, executor);
+};
+
+productionTempCreateModel.lockLogicalDuplicateKey = async (logicalDuplicateKey, executor) => {
+  if (!logicalDuplicateKey) return;
+  await acquireBoundedDuplicateLock(logicalDuplicateKey, executor);
+};
 
 // Cloudflare forbids asynchronous I/O during module evaluation/global scope.
 // Seed only from a real request. The seed is idempotent and is awaited once per
