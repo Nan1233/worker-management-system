@@ -5,6 +5,8 @@ const LOCK_TIMEOUT_SECONDS = 2;
 const LOCK_PREFIX = "ktc:pt2:";
 
 const buildSubmissionLockKey = (data = {}, machineLines = []) => {
+    const workerId = Number(data?.worker_id || data?.workerId || 0);
+    const clientRequestId = String(data?.client_request_id || "").trim();
     const processId = Number(data?.process_id || 0);
     const workDate = String(data?.work_date || "").slice(0, 10);
     const shift = String(data?.shift || "").trim().toUpperCase();
@@ -12,13 +14,17 @@ const buildSubmissionLockKey = (data = {}, machineLines = []) => {
         (line) => String(line?.machine_code || "").trim()
     );
 
-    const scope = hasMachineLines
-        ? `capacity:${processId}:${workDate}:${shift}`
-        : `worker:${Number(data?.worker_id || 0)}:${processId}:${workDate}:${shift}`;
+    // The same client request must always share one distributed lock, even
+    // when duplicate requests arrive at different Cloudflare isolates.
+    // This prevents the unique (worker_id, client_request_id) index from
+    // becoming the contention point before idempotency can be resolved.
+    const scope = clientRequestId
+        ? `client:${workerId}:${clientRequestId}`
+        : hasMachineLines
+            ? `capacity:${processId}:${workDate}:${shift}`
+            : `worker:${workerId}:${processId}:${workDate}:${shift}`;
 
     // TiDB user-level lock names are limited to 64 characters.
-    // Keep the digest short and use a new prefix so locks created by the
-    // previous stateless-session implementation cannot block this version.
     const digest = crypto
         .createHash("sha256")
         .update(scope, "utf8")
@@ -34,11 +40,6 @@ const isSupportedLockFunctionError = (error) => {
 
 const isCloudflareWorker = () => Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
 
-/**
- * Acquire/release GET_LOCK on one stateful TiDB session in Cloudflare.
- * GET_LOCK is session-bound, so the normal stateless query wrapper cannot be
- * used here: GET_LOCK and RELEASE_LOCK must execute on the same session.
- */
 const createCloudflareLockSession = async () => {
     const tidbConnect = globalThis.__KTC_TIDB_CONNECT;
     if (typeof tidbConnect !== "function") {
@@ -77,11 +78,8 @@ const withDistributedSubmissionLock = async (data, machineLines, task) => {
 
     try {
         if (isCloudflareWorker()) {
-            // IMPORTANT: use one persisted session for both GET_LOCK and
-            // RELEASE_LOCK. The normal DB wrapper is stateless in CF Workers.
             lockSession = await createCloudflareLockSession();
         } else {
-            // mysql2 pool connections are already stateful sessions.
             lockConnection = await getConnection();
         }
 
@@ -90,6 +88,7 @@ const withDistributedSubmissionLock = async (data, machineLines, task) => {
             statefulSession: Boolean(lockSession),
             processId: Number(data?.process_id || 0),
             workerId: Number(data?.worker_id || 0),
+            clientRequestId: String(data?.client_request_id || "").trim() || null,
             workDate: String(data?.work_date || "").slice(0, 10),
             shift: String(data?.shift || "").trim().toUpperCase(),
         });
@@ -99,13 +98,10 @@ const withDistributedSubmissionLock = async (data, machineLines, task) => {
             : await query(lockConnection, "SELECT GET_LOCK(?, ?) AS acquired", [lockName, LOCK_TIMEOUT_SECONDS]);
         const result = Number(rows?.[0]?.acquired);
 
-        console.log("[KTC][PRODUCTION_TEMP_LOCK] acquire result", {
-            lockName,
-            result,
-        });
+        console.log("[KTC][PRODUCTION_TEMP_LOCK] acquire result", { lockName, result });
 
         if (result !== 1) {
-            const error = new Error("Hệ thống đang xử lý một báo cáo khác cùng máy/ca. Vui lòng gửi lại sau vài giây.");
+            const error = new Error("Hệ thống đang xử lý một báo cáo khác cùng yêu cầu. Vui lòng gửi lại sau vài giây.");
             error.status = 409;
             error.code = result === 0 ? "PRODUCTION_SUBMISSION_BUSY" : "PRODUCTION_SUBMISSION_LOCK_FAILED";
             error.isPublic = true;
@@ -131,16 +127,10 @@ const withDistributedSubmissionLock = async (data, machineLines, task) => {
         }
         throw error;
     } finally {
-        // Cleanup errors must never turn a successfully-created report into
-        // HTTP 500. The stateful CF session is closed after RELEASE_LOCK.
         if (lockSession) {
             try {
                 if (acquired) {
-                    const releaseRows = await executeLockQuery(
-                        lockSession,
-                        "SELECT RELEASE_LOCK(?) AS released",
-                        [lockName]
-                    );
+                    const releaseRows = await executeLockQuery(lockSession, "SELECT RELEASE_LOCK(?) AS released", [lockName]);
                     console.log("[KTC][PRODUCTION_TEMP_LOCK] released", {
                         lockName,
                         released: Number(releaseRows?.[0]?.released),
@@ -152,14 +142,10 @@ const withDistributedSubmissionLock = async (data, machineLines, task) => {
                     lockName,
                     message: releaseError?.message,
                     code: releaseError?.code,
-                    errno: releaseError?.errno,
-                    sqlState: releaseError?.sqlState,
                 });
             } finally {
                 try {
-                    if (typeof lockSession.close === "function") {
-                        await lockSession.close();
-                    }
+                    if (typeof lockSession.close === "function") await lockSession.close();
                 } catch (sessionCloseError) {
                     console.error("[KTC][PRODUCTION_TEMP_LOCK] stateful session close failed", {
                         lockName,
@@ -171,11 +157,7 @@ const withDistributedSubmissionLock = async (data, machineLines, task) => {
         } else if (lockConnection) {
             try {
                 if (acquired) {
-                    const releaseRows = await query(
-                        lockConnection,
-                        "SELECT RELEASE_LOCK(?) AS released",
-                        [lockName]
-                    );
+                    const releaseRows = await query(lockConnection, "SELECT RELEASE_LOCK(?) AS released", [lockName]);
                     console.log("[KTC][PRODUCTION_TEMP_LOCK] released", {
                         lockName,
                         released: Number(releaseRows?.[0]?.released),
@@ -187,8 +169,6 @@ const withDistributedSubmissionLock = async (data, machineLines, task) => {
                     lockName,
                     message: releaseError?.message,
                     code: releaseError?.code,
-                    errno: releaseError?.errno,
-                    sqlState: releaseError?.sqlState,
                 });
             } finally {
                 try {
