@@ -8,7 +8,9 @@ exports.getDeductionsByProcess = async (req, res) => {
       return res.status(400).json({ success: false, message: "process_id không hợp lệ" });
     }
 
-    const cacheKey = `deductions:${processId}`;
+    // v2 deliberately invalidates any worker/backend isolate that still holds
+    // the pre-GC-canonical deduction catalogue in memory.
+    const cacheKey = `deductions:v2:${processId}`;
     let data = masterDataCache.get(cacheKey);
     if (!data) {
       data = await Deduction.getByProcess(processId);
