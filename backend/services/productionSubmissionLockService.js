@@ -2,13 +2,12 @@ const crypto = require("node:crypto");
 const { query, getConnection } = require("../models/productionTempModelShared");
 const { buildLogicalDuplicateKey } = require("./logicalDuplicateReportService");
 
-// TiDB GET_LOCK is only an admission-control lock. The previous 2s timeout was
-// too short for a normal report transaction (machine lines, defects, audit,
-// duplicate checks), so concurrent browser/PWA submissions could incorrectly
-// return PRODUCTION_SUBMISSION_BUSY while the first request was still healthy.
-// Keep this bounded so Cloudflare requests are never allowed to wait indefinitely.
-const LOCK_TIMEOUT_SECONDS = 8;
-const LOCK_PREFIX = "ktc:pt2:";
+// The advisory lock is only a short admission-control guard. Do not turn a
+// normal concurrent retry into a hard 409 just because another request is
+// still finishing its transaction. The database duplicate/idempotency checks
+// remain the source of truth for the actual submission.
+const LOCK_TIMEOUT_SECONDS = 30;
+const LOCK_PREFIX = "ktc:pt3:";
 
 const buildSubmissionLockKey = (data = {}, machineLines = []) => {
     const workerId = Number(data?.worker_id || data?.workerId || 0);
@@ -129,11 +128,11 @@ const withDistributedSubmissionLock = async (data, machineLines, task) => {
         if (result !== 1) {
             const error = new Error(
                 result === 0
-                    ? "Hệ thống đang xử lý báo cáo cùng dữ liệu. Vui lòng gửi lại sau vài giây."
+                    ? "Hệ thống đang xử lý báo cáo cùng dữ liệu. Vui lòng thử lại sau vài giây."
                     : "Không thể xác nhận khóa đồng bộ gửi báo cáo."
             );
-            error.status = result === 0 ? 409 : 503;
-            error.code = result === 0 ? "PRODUCTION_SUBMISSION_BUSY" : "PRODUCTION_SUBMISSION_LOCK_FAILED";
+            error.status = result === 0 ? 503 : 503;
+            error.code = result === 0 ? "PRODUCTION_SUBMISSION_LOCK_BUSY" : "PRODUCTION_SUBMISSION_LOCK_FAILED";
             error.isPublic = true;
             throw error;
         }
