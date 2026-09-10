@@ -109,6 +109,7 @@ const recoverTimedOutSubmission = async (data) => {
     error.status = 409;
     error.code = "PRODUCTION_SUBMISSION_BUSY";
     error.isPublic = true;
+    error.isPublic = true;
     throw error;
 };
 
@@ -242,6 +243,11 @@ const findApprovedDuplicateReadOnly = async ({ workerId, processId, workDate, sh
     }
     return null;
 };
+
+// createCompleteReport in productionTempCreateModel resolves duplicate reads
+// through `this.findSimilarReport()`. Override only the approved-report lookup
+// so its existing transaction flow keeps all other business rules unchanged.
+createModel.findSimilarApprovedReport = findApprovedDuplicateReadOnly;
 
 const createCompleteReport = async (payload = {}, legacyDefects, legacyDeductions, legacyMachineLines, legacyAudit) => {
     const isWrappedPayload = payload && typeof payload === "object" && payload.data && typeof payload.data === "object";
