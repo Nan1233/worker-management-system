@@ -28,8 +28,15 @@ export const getProductMachineHint = (productCode: unknown): { kind: "AUTO" | "N
     return { kind: "NUMBER", value: String(Number(suffix)) };
 };
 
+/**
+ * Machine-specific Cắt variants may be written as C7630-11 while the base
+ * product in the master list is 7630. Treat the optional leading C as the
+ * same family so the base product is not hidden on normal machines.
+ */
 export const getProductFamilyCode = (productCode: unknown): string =>
-    normalize(productCode).replace(/-(AUTO|AUTOMATIC|\d+)$/i, "");
+    normalize(productCode)
+        .replace(/-(AUTO|AUTOMATIC|\d+)$/i, "")
+        .replace(/^C(?=\d)/, "");
 
 const machineNumber = (machineCode: string): string | null => {
     const key = normalizeMachineKey(machineCode);
@@ -87,20 +94,34 @@ export const filterProductsForSelection = ({
         const hint = getProductMachineHint(product.product_code);
         const mappedMachines = eligibleMachineCodes(product);
         const hasExplicitMapping = Number(product.has_machine_specific_standard || 0) === 1 || mappedMachines.length > 0;
+        const isCutProduct = normalizeWorkType(product.work_type) === "CUT";
+
+        // Only GC Cắt uses encoded product suffixes. Apply this rule before
+        // generic machine mapping so a base product such as 7630 remains
+        // available on normal machines even when its machine-specific sibling
+        // (for example C7630-11) has an explicit mapping.
+        if (useEncodedMachineSuffix && isCutProduct) {
+            if (isAutomatic) {
+                // Automatic machines accept either a generic -AUTO variant or
+                // a numeric variant that explicitly targets this machine,
+                // e.g. C7630-11 on machine 11.
+                if (hint?.kind === "AUTO") return true;
+                if (hint?.kind === "NUMBER") return selectedNumber !== null && hint.value === selectedNumber;
+                return false;
+            }
+
+            // Normal/manual-numbered machines never use AUTO variants.
+            if (hint?.kind === "AUTO") return false;
+            if (hint?.kind === "NUMBER") return selectedNumber !== null && hint.value === selectedNumber;
+
+            // A base product with a machine-specific sibling is the normal
+            // machine form (7630 ↔ C7630-11, 5770 ↔ C5770-auto, ...).
+            if (familyHasMachineVariant.has(getProductFamilyCode(product.product_code))) return true;
+        }
 
         // A product may have explicit machine mappings. Keep strict machine
         // scoping only when such mappings actually exist.
         if (hasExplicitMapping && mappedMachines.length > 0 && !mappedMachines.includes(selectedMachine)) return false;
-
-        // Only GC Cắt uses encoded product suffixes. GC Lồng uses the real
-        // product code and machine mapping, so 2801-LT must not be hidden.
-        const isCutProduct = normalizeWorkType(product.work_type) === "CUT";
-        if (useEncodedMachineSuffix && isCutProduct) {
-            if (isAutomatic) return hint?.kind === "AUTO";
-            if (hint?.kind === "AUTO") return false;
-            if (hint?.kind === "NUMBER") return selectedNumber !== null && hint.value === selectedNumber;
-            if (familyHasMachineVariant.has(getProductFamilyCode(product.product_code))) return false;
-        }
 
         return true;
     });
