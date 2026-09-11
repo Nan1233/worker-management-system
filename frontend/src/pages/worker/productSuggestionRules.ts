@@ -61,14 +61,9 @@ const AUTO_MACHINE_SUFFIXES = new Set(["5", "6", "11"]);
 
 /**
  * GC uses one shared worker screen for Cắt/Lồng. The worker no longer chooses
- * "Cắt/Lồng" or "Tự động/Tay/Máy". The selected machine is therefore the
- * source of truth for the product work_type:
- *   - C / C5 / C6 / C7 / C11 => Cắt
- *   - numeric machines => Lồng
- *
- * Product suggestions must be scoped to both the process and this inferred
- * work type before applying machine-specific variants. This prevents Lồng
- * products such as 6001 from appearing when C5 (Cắt tự động) is selected.
+ * "Cắt/Lồng" or "Tự động/Tay/Máy". The selected machine is the source of truth
+ * when a machine is entered. If the machine is blank, KTC treats the entry as
+ * Lồng tay, so the product list must remain selectable from LONG master data.
  */
 const getGcWorkTypeForMachine = (machineCode: unknown): "CUT" | "LONG" | null => {
     const key = normalize(machineCode).replace(/\s+/g, "");
@@ -99,19 +94,42 @@ export const filterProductsForSelection = ({
     );
 
     if (mode === "MANUAL") {
-        return products.filter((product) => useEncodedMachineSuffix
-            ? normalizeWorkType(product.work_type) !== "CUT" || !getProductMachineHint(product.product_code)
-            : true);
+        if (!useEncodedMachineSuffix) return products;
+
+        // GC without a machine means Lồng tay. Only show LONG products that
+        // are not tied to a specific machine/variant; do not leak Cắt or
+        // machine-specific products into the manual Lồng selector.
+        return products.filter((product) => {
+            if (normalizeWorkType(product.work_type) !== "LONG") return false;
+            const mappedMachines = eligibleMachineCodes(product);
+            const hasExplicitMapping = Number(product.has_machine_specific_standard || 0) === 1 || mappedMachines.length > 0;
+            if (hasExplicitMapping) return false;
+            return !getProductMachineHint(product.product_code);
+        });
     }
 
     const selectedMachine = normalizeMachineKey(machineCode);
+    const selectedRawMachine = normalize(machineCode).replace(/\s+/g, "");
+
+    // GC: blank machine is explicitly interpreted as Lồng tay. This is
+    // intentionally handled here too because the GC screen uses MACHINE mode
+    // for its machine workspace even before a machine has been selected.
+    if (!selectedMachine && useEncodedMachineSuffix) {
+        return products.filter((product) => {
+            if (normalizeWorkType(product.work_type) !== "LONG") return false;
+            const mappedMachines = eligibleMachineCodes(product);
+            const hasExplicitMapping = Number(product.has_machine_specific_standard || 0) === 1 || mappedMachines.length > 0;
+            if (hasExplicitMapping) return false;
+            return !getProductMachineHint(product.product_code);
+        });
+    }
+
     if (!selectedMachine) return [];
 
     const machine = (machineOptions || []).find(
         (item) => normalizeMachineKey(item.machine_code) === selectedMachine
     );
 
-    const selectedRawMachine = normalize(machineCode).replace(/\s+/g, "");
     const gcWorkType = useEncodedMachineSuffix ? getGcWorkTypeForMachine(selectedRawMachine) : null;
 
     // For GC, C/C5/C6/C7/C11 are Cắt machines. C5/C6/C7/C11 are automatic;
