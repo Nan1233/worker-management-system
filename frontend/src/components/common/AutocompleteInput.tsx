@@ -84,6 +84,12 @@ function AutocompleteInput({
         return result.slice(0, 50);
     }, [options, displayValue, machineOperationType, id]);
 
+    // GC uses the same machine/product workspace for both cases. When no
+    // machine is entered, productSuggestionRules returns the valid Lồng-tay
+    // products, so the product field must remain interactive even though the
+    // caller still passes its old "disabled until machine" guard.
+    const effectiveDisabled = disabled && !(id.startsWith("machineProduct-") && options.length > 0);
+
     useEffect(() => {
         const handleOutside = (event: MouseEvent | TouchEvent) => {
             const target = event.target;
@@ -146,7 +152,7 @@ function AutocompleteInput({
                     className="autocomplete-input"
                     value={displayValue}
                     placeholder={placeholder}
-                    disabled={disabled}
+                    disabled={effectiveDisabled}
                     autoComplete="off"
                     onFocus={() => setOpen(true)}
                     onClick={() => setOpen(true)}
@@ -163,7 +169,7 @@ function AutocompleteInput({
                 />
                 <span className="autocomplete-search-icon">⌕</span>
             </div>
-            {open && !disabled && (
+            {open && !effectiveDisabled && (
                 <div className="autocomplete-menu" role="listbox">
                     {filteredOptions.length > 0 ? filteredOptions.map((option, index) => (
                         <button
