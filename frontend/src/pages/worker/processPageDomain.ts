@@ -44,6 +44,12 @@ export function getProcessCapabilities(process: string): ProcessCapabilities {
 
 export function getInitialOperationMode(c: ProcessCapabilities): OperationMode {
   if (c.isManualOnlyProcess || c.isInspectionProcess) return "MANUAL";
+
+  // GC opens on Cắt + Tự động. Both Cắt execution modes use the
+  // machine workspace, so start in MACHINE immediately instead of
+  // rendering a MANUAL frame and waiting for a child effect.
+  if (c.processCode === "GC") return "MACHINE";
+
   if (["MAI", "DO", "CAN", "EP"].includes(c.processCode)) return "MACHINE";
   return "MANUAL";
 }
