@@ -93,7 +93,10 @@ function AutocompleteInput({
                 if (selectOnly) {
                     const normalizedValue = typedValue.trim().toLowerCase();
                     const exactOption = options.find((option) => option.value.trim().toLowerCase() === normalizedValue);
-                    if (!exactOption) setTypedValue(value);
+                    if (!exactOption) {
+                        setTypedValue("");
+                        onChange("");
+                    }
                 }
             }
         };
@@ -103,7 +106,7 @@ function AutocompleteInput({
             document.removeEventListener("mousedown", handleOutside);
             document.removeEventListener("touchstart", handleOutside);
         };
-    }, [options, selectOnly, typedValue, value]);
+    }, [options, selectOnly, typedValue, value, onChange]);
 
     useEffect(() => setActiveIndex(-1), [displayValue, machineOperationType]);
 
