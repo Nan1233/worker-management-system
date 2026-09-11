@@ -101,7 +101,7 @@ export const filterProductsForSelection = ({
     // Do not trust a stale/incorrect is_automatic flag in the machine master
     // to turn another machine (for example 10) into an automatic machine.
     // Other processes still use the machine master's is_automatic flag.
-    const isAutomatic = useEncodedMachineSuffix && normalizeWorkType("CUT") === "CUT"
+    const isAutomatic = useEncodedMachineSuffix
         ? isGcAutomaticMachine(machineCode)
         : Number(machine?.is_automatic || 0) === 1;
     const selectedNumber = machineNumber(selectedMachine);
