@@ -27,8 +27,6 @@ export default function OfflineReportSync() {
 
     const sync = useCallback(async (manual = false, force = false) => {
         if (syncing.current) {
-            // A background sync may already be waiting on the server. Keep the
-            // manual action instead of silently dropping the user's click.
             if (manual) {
                 manualSyncPending.current = true;
                 setManualWaiting(true);
@@ -103,14 +101,13 @@ export default function OfflineReportSync() {
             className={`offline-sync ${blocked ? "offline-sync--warning" : ""}`}
             role="status"
             aria-live="polite"
-            style={{ position: "relative", zIndex: 10000 }}
         >
             <button type="button" className="offline-sync__summary" onClick={() => setOpen(value => !value)} aria-expanded={open}>
                 <span className="offline-sync__dot" />
                 <span><strong>{items.length} báo cáo chưa đồng bộ</strong>{blocked ? ` · ${blocked} cần kiểm tra` : " · đang kiểm tra kết nối máy chủ"}</span>
                 <span aria-hidden="true">{open ? "▴" : "▾"}</span>
             </button>
-            {open && <div className="offline-sync__panel" style={{ position: "relative", zIndex: 10001 }}>
+            {open && <div className="offline-sync__panel">
                 {items.map(item => <article key={item.id} className="offline-sync__item">
                     <div>
                         <strong>{String(item.payload.work_date || "Báo cáo")}</strong>
@@ -128,7 +125,6 @@ export default function OfflineReportSync() {
                     onClick={handleManualSync}
                     onPointerDown={(event) => event.stopPropagation()}
                     aria-label="Đồng bộ ngay các báo cáo đang chờ"
-                    style={{ position: "relative", zIndex: 10002, pointerEvents: "auto", cursor: "pointer" }}
                 >
                     {manualWaiting ? "Đang chờ lượt đồng bộ hiện tại…" : "Đồng bộ ngay"}
                 </button>
