@@ -49,10 +49,16 @@ const eligibleMachineCodes = (product: ProductStandardOption): string[] =>
         .map(normalizeMachineKey)
         .filter(Boolean);
 
-const GC_AUTOMATIC_MACHINE_CODES = new Set(["C5", "C6", "C7", "C11"]);
+// For GC Cắt, only C5/C6/C11 are automatic machine codes.
+// C7 and all other machines are treated as non-automatic here.
+const GC_AUTOMATIC_MACHINE_CODES = new Set(["C5", "C6", "C11"]);
 
 const isGcAutomaticMachine = (machineCode: unknown): boolean =>
     GC_AUTOMATIC_MACHINE_CODES.has(normalize(machineCode));
+
+// Product-code suffixes that explicitly represent automatic GC Cắt machines.
+// Everything else is a normal/non-automatic machine variant.
+const AUTO_MACHINE_SUFFIXES = new Set(["5", "6", "11"]);
 
 export const filterProductsForSelection = ({
     products,
@@ -87,7 +93,7 @@ export const filterProductsForSelection = ({
     if (!selectedMachine) return [];
 
     const machine = (machineOptions || []).find((item) => normalizeMachineKey(item.machine_code) === selectedMachine);
-    const isAutomatic = isGcAutomaticMachine(machineCode) || Number(machine?.is_automatic || 0) === 1;
+    const isAutomatic = isGcAutomaticMachine(machineCode);
     const selectedNumber = machineNumber(selectedMachine);
 
     return products.filter((product) => {
@@ -102,17 +108,25 @@ export const filterProductsForSelection = ({
         // (for example C7630-11) has an explicit mapping.
         if (useEncodedMachineSuffix && isCutProduct) {
             if (isAutomatic) {
-                // Automatic machines accept either a generic -AUTO variant or
-                // a numeric variant that explicitly targets this machine,
-                // e.g. C7630-11 on machine 11.
+                // Automatic variants are ONLY -AUTO, -5, -6 and -11.
+                // A numeric suffix is valid only for its matching automatic machine.
                 if (hint?.kind === "AUTO") return true;
-                if (hint?.kind === "NUMBER") return selectedNumber !== null && hint.value === selectedNumber;
+                if (hint?.kind === "NUMBER") {
+                    return AUTO_MACHINE_SUFFIXES.has(hint.value)
+                        && selectedNumber !== null
+                        && hint.value === selectedNumber;
+                }
                 return false;
             }
 
-            // Normal/manual-numbered machines never use AUTO variants.
+            // All other machines are non-automatic. They never use -AUTO,
+            // -5, -6 or -11 variants. A normal numeric suffix is allowed only
+            // when it explicitly targets the selected non-automatic machine.
             if (hint?.kind === "AUTO") return false;
-            if (hint?.kind === "NUMBER") return selectedNumber !== null && hint.value === selectedNumber;
+            if (hint?.kind === "NUMBER") {
+                if (AUTO_MACHINE_SUFFIXES.has(hint.value)) return false;
+                return selectedNumber !== null && hint.value === selectedNumber;
+            }
 
             // A base product with a machine-specific sibling is the normal
             // machine form (7630 ↔ C7630-11, 5770 ↔ C5770-auto, ...).
