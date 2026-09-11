@@ -14,7 +14,7 @@ export const normalizeMasterText = (value: unknown) => codeOf(value);
 
 /**
  * KTC worker form policy:
- * - GC: Cắt/Lồng, each mode can be Tay or Máy; machine mode supports multiple machines.
+ * - GC: machine workspace; product is resolved from the selected machine.
  * - MAI: machine workflow, supports multiple machines.
  * - DO/EP/CAN: machine-only workflows; each supports multiple machines from master Máy.
  * - K1/K2: worker may do Tay or exactly one Máy.
@@ -44,12 +44,7 @@ export function getProcessCapabilities(process: string): ProcessCapabilities {
 
 export function getInitialOperationMode(c: ProcessCapabilities): OperationMode {
   if (c.isManualOnlyProcess || c.isInspectionProcess) return "MANUAL";
-
-  // GC opens on Cắt + Tự động. Both Cắt execution modes use the
-  // machine workspace, so start in MACHINE immediately instead of
-  // rendering a MANUAL frame and waiting for a child effect.
   if (c.processCode === "GC") return "MACHINE";
-
   if (["MAI", "DO", "CAN", "EP"].includes(c.processCode)) return "MACHINE";
   return "MANUAL";
 }
@@ -79,9 +74,8 @@ export function filterProductsForProcessScope(args: {
     const returnedProcessCode = codeOf(product.process_code);
     const processMatches = !expectedProcessCode || !returnedProcessCode || returnedProcessCode === expectedProcessCode;
     if (!processMatches) return false;
-    if (expectedProcessCode === "GC" && expectedWorkType) {
-      return normalizeWorkType(product.work_type) === expectedWorkType;
-    }
+    if (expectedProcessCode === "GC") return true;
+    if (expectedWorkType) return normalizeWorkType(product.work_type) === expectedWorkType;
     return true;
   });
 }
