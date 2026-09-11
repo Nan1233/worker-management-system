@@ -6,9 +6,10 @@ import { getSessionCached, clearSessionCache } from "./sessionCache";
 
 const TTL_MS = 30 * 60 * 1000;
 // Bump this namespace whenever the worker master contract changes so a browser
-// cannot keep an older product/deduction list after a deployment/master-data correction.
-const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v6";
+// cannot keep an older product/deduction/defect list after a deployment/master-data correction.
+const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v7";
 const DEDUCTION_MASTER_VERSION = "v6";
+const DEFECT_MASTER_VERSION = "v7";
 
 type DefectOptions = Awaited<ReturnType<typeof getDefectOptionsByProcess>>;
 type DeductionOptions = Awaited<ReturnType<typeof getDeductionOptionsByProcess>>;
@@ -99,15 +100,17 @@ export const getCachedProductStandards = (processId: number, processCode?: strin
   );
 };
 
-export const getCachedDefects = (processId: number): Promise<DefectOptions> =>
-  getSessionCached(
-    epochKey(`defects:${processId}`),
+export const getCachedDefects = (processId: number): Promise<DefectOptions> => {
+  const key = `defects:${processId}:${DEFECT_MASTER_VERSION}`;
+  return getSessionCached(
+    epochKey(key),
     TTL_MS,
-    () => withOfflineSnapshot(`defects:${processId}`, () => getDefectOptionsByProcess(processId)),
+    () => withOfflineSnapshot(key, () => getDefectOptionsByProcess(processId)),
   ).then((value) => {
     void syncManagerHintsForProcess(processId);
     return value;
   });
+};
 
 export const getCachedDeductions = (processId: number): Promise<DeductionOptions> => {
   const key = `deductions:${processId}:${DEDUCTION_MASTER_VERSION}`;
