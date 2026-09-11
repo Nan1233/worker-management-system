@@ -265,6 +265,9 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
                     const existing = await findExistingClientRequest(data);
                     if (existing) return idempotent(existing);
                 }
+                if (is1205(error)) {
+                    return recoverAfter1205(data);
+                }
                 throw error;
             }
             await commit(parentConnection);
