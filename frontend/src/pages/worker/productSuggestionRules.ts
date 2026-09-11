@@ -29,9 +29,8 @@ export const getProductMachineHint = (productCode: unknown): { kind: "AUTO" | "N
 };
 
 /**
- * Machine-specific Cắt variants may be written as C7630-11 while the base
- * product in the master list is 7630. Treat the optional leading C as the
- * same family so the base product is not hidden on normal machines.
+ * Canonical product family. C7630-11 and 7630 belong to the same family.
+ * This is used only for matching machine-specific variants.
  */
 export const getProductFamilyCode = (productCode: unknown): string =>
     normalize(productCode)
@@ -49,17 +48,35 @@ const eligibleMachineCodes = (product: ProductStandardOption): string[] =>
         .map(normalizeMachineKey)
         .filter(Boolean);
 
-// Canonical GC Cắt automatic machines from the factory sample/rules.
-// Machine 7 IS an automatic machine, but there is deliberately NO "-7"
-// automatic product suffix. Product suffixes are handled separately below.
-const GC_AUTOMATIC_MACHINE_CODES = new Set(["5", "6", "7", "11"]);
+// GC Cắt automatic machines. C7 is automatic as a MACHINE even though the
+// product-code convention has no -7 suffix.
+const GC_AUTOMATIC_MACHINE_CODES = new Set(["C5", "C6", "C7", "C11"]);
 
 const isGcAutomaticMachine = (machineCode: unknown): boolean =>
-    GC_AUTOMATIC_MACHINE_CODES.has(normalizeMachineKey(machineCode));
+    GC_AUTOMATIC_MACHINE_CODES.has(normalize(machineCode).replace(/\s+/g, ""));
 
-// Product-code suffixes that explicitly represent automatic GC Cắt machines.
-// Do NOT add -7: machine 7 is automatic, but the sample has no -7 rule.
+// Product-code suffixes that explicitly represent automatic GC Cắt variants.
+// There is deliberately no -7 variant.
 const AUTO_MACHINE_SUFFIXES = new Set(["5", "6", "11"]);
+
+/**
+ * GC uses one shared worker screen for Cắt/Lồng. The worker no longer chooses
+ * "Cắt/Lồng" or "Tự động/Tay/Máy". The selected machine is therefore the
+ * source of truth for the product work_type:
+ *   - C / C5 / C6 / C7 / C11 => Cắt
+ *   - numeric machines => Lồng
+ *
+ * Product suggestions must be scoped to both the process and this inferred
+ * work type before applying machine-specific variants. This prevents Lồng
+ * products such as 6001 from appearing when C5 (Cắt tự động) is selected.
+ */
+const getGcWorkTypeForMachine = (machineCode: unknown): "CUT" | "LONG" | null => {
+    const key = normalize(machineCode).replace(/\s+/g, "");
+    if (!key) return null;
+    if (key === "C" || /^C\d+$/.test(key)) return "CUT";
+    if (/^\d+$/.test(normalizeMachineKey(key))) return "LONG";
+    return null;
+};
 
 export const filterProductsForSelection = ({
     products,
@@ -82,9 +99,6 @@ export const filterProductsForSelection = ({
     );
 
     if (mode === "MANUAL") {
-        // Product scope is already separated by GC Cắt/Lồng via work_type.
-        // Do not special-case 2801-LT here: it is a valid Lồng product and
-        // must remain selectable in all Lồng modes.
         return products.filter((product) => useEncodedMachineSuffix
             ? normalizeWorkType(product.work_type) !== "CUT" || !getProductMachineHint(product.product_code)
             : true);
@@ -97,12 +111,14 @@ export const filterProductsForSelection = ({
         (item) => normalizeMachineKey(item.machine_code) === selectedMachine
     );
 
-    // For GC Cắt, the factory rule is canonical: 5/6/7/11 are automatic.
-    // Do not trust a stale/incorrect is_automatic flag in the machine master
-    // to turn another machine (for example 10) into an automatic machine.
-    // Other processes still use the machine master's is_automatic flag.
+    const selectedRawMachine = normalize(machineCode).replace(/\s+/g, "");
+    const gcWorkType = useEncodedMachineSuffix ? getGcWorkTypeForMachine(selectedRawMachine) : null;
+
+    // For GC, C/C5/C6/C7/C11 are Cắt machines. C5/C6/C7/C11 are automatic;
+    // numeric machine codes are Lồng machines. Do not trust a stale generic
+    // is_automatic flag to determine the GC work type.
     const isAutomatic = useEncodedMachineSuffix
-        ? isGcAutomaticMachine(machineCode)
+        ? isGcAutomaticMachine(selectedRawMachine)
         : Number(machine?.is_automatic || 0) === 1;
     const selectedNumber = machineNumber(selectedMachine);
 
@@ -110,42 +126,44 @@ export const filterProductsForSelection = ({
         const hint = getProductMachineHint(product.product_code);
         const mappedMachines = eligibleMachineCodes(product);
         const hasExplicitMapping = Number(product.has_machine_specific_standard || 0) === 1 || mappedMachines.length > 0;
-        const isCutProduct = normalizeWorkType(product.work_type) === "CUT";
+        const productWorkType = normalizeWorkType(product.work_type);
 
-        // Only GC Cắt uses encoded product suffixes. Apply this rule before
-        // generic machine mapping so a base product such as 7630 remains
-        // available on normal machines even when its machine-specific sibling
-        // (for example C7630-11) has an explicit mapping.
-        if (useEncodedMachineSuffix && isCutProduct) {
+        // GC must first respect the work type implied by the selected machine.
+        // This is the key guard against Lồng products leaking into Cắt and vice versa.
+        if (useEncodedMachineSuffix && gcWorkType && productWorkType !== gcWorkType) return false;
+
+        // Explicit machine mappings are authoritative. If a product is mapped
+        // to machines, never show it for another machine even if its code looks
+        // like a generic/base product.
+        if (hasExplicitMapping && mappedMachines.length > 0 && !mappedMachines.includes(selectedMachine)) {
+            return false;
+        }
+
+        if (useEncodedMachineSuffix && gcWorkType === "CUT") {
             if (isAutomatic) {
-                // Automatic variants are ONLY -AUTO, -5, -6 and -11.
-                // A numeric suffix is valid only for its matching automatic machine.
+                // Automatic variants are -AUTO plus matching numeric variants.
+                // Base Cắt products remain valid when they have no explicit
+                // machine mapping; the work type already guarantees Cắt scope.
                 if (hint?.kind === "AUTO") return true;
                 if (hint?.kind === "NUMBER") {
                     return AUTO_MACHINE_SUFFIXES.has(hint.value)
                         && selectedNumber !== null
                         && hint.value === selectedNumber;
                 }
-                return false;
+                return true;
             }
 
-            // All other machines are non-automatic. They never use -AUTO,
-            // -5, -6 or -11 variants. A normal numeric suffix is allowed only
-            // when it explicitly targets the selected non-automatic machine.
+            // Machine C (non-auto) and other non-automatic Cắt machines do not
+            // use automatic variants. Other numeric suffixes are only valid when
+            // they explicitly target the selected machine.
             if (hint?.kind === "AUTO") return false;
             if (hint?.kind === "NUMBER") {
                 if (AUTO_MACHINE_SUFFIXES.has(hint.value)) return false;
                 return selectedNumber !== null && hint.value === selectedNumber;
             }
 
-            // A base product with a machine-specific sibling is the normal
-            // machine form (7630 ↔ C7630-11, 5770 ↔ C5770-auto, ...).
             if (familyHasMachineVariant.has(getProductFamilyCode(product.product_code))) return true;
         }
-
-        // A product may have explicit machine mappings. Keep strict machine
-        // scoping only when such mappings actually exist.
-        if (hasExplicitMapping && mappedMachines.length > 0 && !mappedMachines.includes(selectedMachine)) return false;
 
         return true;
     });
