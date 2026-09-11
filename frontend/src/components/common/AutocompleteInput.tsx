@@ -32,7 +32,7 @@ function AutocompleteInput({
     emptyMessage = "Không tìm thấy dữ liệu",
     onChange,
     onSelect,
-    selectOnly = id === "productName" || id.startsWith("machineProduct-"),
+    selectOnly = id === "productName" || id.startsWith("machineProduct-") || id.startsWith("machineNo"),
 }: AutocompleteInputProps) {
     const wrapperRef = useRef<HTMLDivElement | null>(null);
     const [open, setOpen] = useState(false);
@@ -45,9 +45,6 @@ function AutocompleteInput({
 
     const displayValue = selectOnly ? typedValue : value;
 
-    // The machine list is the only place where GC Cắt/Lồng needs a DOM-level
-    // scope. Do not apply the numeric/C-prefix rule to product suggestions:
-    // product options are already scoped by the parent form and selected machine.
     const readMachineOperationType = () => id.startsWith("machineNo")
         ? Array.from(document.querySelectorAll(".worker-mode-panel .worker-mode-group:first-child .worker-choice-row button"))
             .find((button) => button.classList.contains("active"))
@@ -93,6 +90,14 @@ function AutocompleteInput({
             if (target instanceof Node && wrapperRef.current && !wrapperRef.current.contains(target)) {
                 setOpen(false);
                 setActiveIndex(-1);
+                if (selectOnly) {
+                    const normalizedValue = typedValue.trim().toLowerCase();
+                    const exactOption = options.find((option) => option.value.trim().toLowerCase() === normalizedValue);
+                    if (!exactOption) {
+                        setTypedValue("");
+                        onChange("");
+                    }
+                }
             }
         };
         document.addEventListener("mousedown", handleOutside);
@@ -101,7 +106,7 @@ function AutocompleteInput({
             document.removeEventListener("mousedown", handleOutside);
             document.removeEventListener("touchstart", handleOutside);
         };
-    }, []);
+    }, [options, selectOnly, typedValue, value, onChange]);
 
     useEffect(() => setActiveIndex(-1), [displayValue, machineOperationType]);
 
