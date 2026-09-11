@@ -12,8 +12,16 @@ const SHIFTS = ["A", "B", "C", "D", "Ca 1", "Ca 2", "Ca 3"];
 const WORK_TYPES = ["Xuất nhập", "Hỗ trợ", "Kho", "Vệ sinh", "Công việc khác"];
 const MAX_WORK_MINUTES = 12 * 60;
 
-const today = () => new Date().toISOString().slice(0, 10);
-const deductionKey = (item: ProductionDeduction) => String(item.id ?? item.deduction_type_id ?? item.deduction_code ?? item.deduction_name);
+const today = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const deductionKey = (item: ProductionDeduction) =>
+  String(item.id ?? item.deduction_type_id ?? item.deduction_code ?? item.deduction_name);
 
 export default function NonProductWorkPage() {
   const navigate = useNavigate();
@@ -53,8 +61,11 @@ export default function NonProductWorkPage() {
     return () => { cancelled = true; };
   }, [showToast]);
 
-  const actualMinutes = (Number(hours || 0) * 60) + Number(minutes || 0);
-  const deductionMinutes = selectedDeductions.reduce((sum, key) => sum + Math.max(0, Number(deductions[key] || 0)), 0);
+  const actualMinutes = Number(hours || 0) * 60 + Number(minutes || 0);
+  const deductionMinutes = selectedDeductions.reduce(
+    (sum, key) => sum + Math.max(0, Number(deductions[key] || 0)),
+    0,
+  );
   const totalMinutes = actualMinutes + deductionMinutes;
   const actualHours = actualMinutes / 60;
   const deductionHours = deductionMinutes / 60;
@@ -186,40 +197,37 @@ export default function NonProductWorkPage() {
   return (
     <main className="cvk-page">
       <style>{`
-        .cvk-page { min-height: 100%; box-sizing: border-box; padding: 16px 14px 96px; background: var(--page-bg, #f5f8fc); color: var(--text, #172033); }
-        .cvk-shell { max-width: 760px; margin: 0 auto; }
-        .cvk-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+        .cvk-page { min-height: 100%; box-sizing: border-box; padding: 14px 16px 96px; background: var(--page-bg, #f5f8fc); color: var(--text, #172033); }
+        .cvk-shell { max-width: 920px; margin: 0 auto; }
+        .cvk-header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
         .cvk-back { width: 40px; height: 40px; flex: 0 0 40px; border: 1px solid #dbe4ef; border-radius: 12px; background: #fff; color: #24344d; cursor: pointer; font-size: 20px; line-height: 1; }
         .cvk-title-wrap { min-width: 0; }
-        .cvk-kicker { margin: 0 0 2px; font-size: 11px; font-weight: 800; letter-spacing: .09em; color: #58708f; }
-        .cvk-title { margin: 0; font-size: 23px; line-height: 1.15; font-weight: 800; }
-        .cvk-subtitle { margin: 4px 0 0; font-size: 13px; color: #66758c; }
-        .cvk-card { background: #fff; border: 1px solid #e1e8f1; border-radius: 18px; box-shadow: 0 7px 24px rgba(30, 55, 90, .07); overflow: hidden; }
-        .cvk-person { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; background: linear-gradient(180deg, #f8fbff 0%, #f4f8fd 100%); border-bottom: 1px solid #e7edf5; }
-        .cvk-person-main { min-width: 0; }
-        .cvk-person-label { font-size: 11px; color: #72829a; margin-bottom: 2px; }
-        .cvk-person-name { font-size: 16px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .cvk-person-code { margin-top: 2px; font-size: 12px; color: #65758e; }
-        .cvk-badge { flex: 0 0 auto; padding: 7px 10px; border-radius: 999px; background: #eaf3ff; color: #1769e0; font-size: 12px; font-weight: 800; }
-        .cvk-form { padding: 16px; }
-        .cvk-section + .cvk-section { margin-top: 18px; padding-top: 18px; border-top: 1px solid #edf1f6; }
-        .cvk-section-title { margin: 0 0 11px; font-size: 14px; font-weight: 800; }
+        .cvk-kicker { margin: 0 0 2px; font-size: 11px; font-weight: 800; letter-spacing: .08em; color: #58708f; }
+        .cvk-title { margin: 0; font-size: 22px; line-height: 1.15; font-weight: 800; }
+        .cvk-subtitle { margin: 3px 0 0; font-size: 13px; color: #66758c; }
+        .cvk-worker { display: flex; align-items: baseline; gap: 7px; padding: 7px 2px 12px; font-size: 12px; color: #65758e; }
+        .cvk-worker strong { color: #174c91; font-size: 13px; }
+        .cvk-card { background: #fff; border: 1px solid #dce6f1; border-radius: 15px; box-shadow: 0 7px 24px rgba(30, 55, 90, .06); overflow: hidden; }
+        .cvk-form { padding: 18px 18px 20px; }
+        .cvk-section + .cvk-section { margin-top: 18px; padding-top: 18px; border-top: 1px solid #e8eef5; }
+        .cvk-section-title { margin: 0 0 12px; font-size: 15px; font-weight: 800; color: #162d4d; }
         .cvk-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+        .cvk-grid .cvk-field:last-child { grid-column: 1 / -1; }
         .cvk-field { min-width: 0; }
         .cvk-label { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 700; color: #52637b; }
-        .cvk-input { display: block; width: 100%; box-sizing: border-box; height: 42px; border: 1px solid #cfd9e7; border-radius: 11px; padding: 9px 11px; background: #fff; color: #172033; font-size: 14px; outline: none; transition: border-color .15s, box-shadow .15s; }
-        .cvk-input:focus { border-color: #5a93e6; box-shadow: 0 0 0 3px rgba(58, 123, 213, .11); }
-        textarea.cvk-input { height: auto; min-height: 88px; resize: vertical; line-height: 1.45; }
-        .cvk-time-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; }
-        .cvk-total { height: 42px; min-width: 110px; box-sizing: border-box; padding: 7px 10px; border-radius: 11px; background: #f2f6fb; border: 1px solid #e1e8f1; display: flex; flex-direction: column; justify-content: center; }
+        .cvk-input { display: block; width: 100%; box-sizing: border-box; height: 42px; border: 1px solid #cbd8e8; border-radius: 10px; padding: 9px 11px; background: #fff; color: #172033; font-size: 14px; outline: none; transition: border-color .15s, box-shadow .15s; }
+        .cvk-input:focus { border-color: #3b82e8; box-shadow: 0 0 0 3px rgba(59, 130, 232, .11); }
+        textarea.cvk-input { height: auto; min-height: 82px; resize: vertical; line-height: 1.45; }
+        .cvk-time-row { display: grid; grid-template-columns: 1fr 1fr 110px; gap: 10px; align-items: end; }
+        .cvk-total { height: 42px; box-sizing: border-box; padding: 6px 10px; border-radius: 10px; background: #f1f6fc; border: 1px solid #dce7f3; display: flex; flex-direction: column; justify-content: center; }
         .cvk-total-label { font-size: 10px; color: #718198; }
-        .cvk-total-value { font-size: 13px; font-weight: 800; color: #27405f; }
+        .cvk-total-value { font-size: 12px; font-weight: 800; color: #27405f; }
         .cvk-time-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
-        .cvk-summary-item { padding: 9px 10px; border: 1px solid #e4ebf3; border-radius: 10px; background: #f8fafc; }
+        .cvk-summary-item { padding: 9px 10px; border: 1px solid #e0e8f2; border-radius: 10px; background: #f7faff; }
         .cvk-summary-label { display: block; font-size: 10px; color: #718198; }
         .cvk-summary-value { display: block; margin-top: 2px; font-size: 13px; font-weight: 800; color: #27405f; }
-        .cvk-dropdown { margin-top: 10px; border: 1px solid #dbe4ef; border-radius: 12px; overflow: hidden; }
-        .cvk-dropdown-title { width: 100%; border: 0; background: #f8fafc; color: #24344d; min-height: 46px; padding: 8px 11px; display: flex; align-items: center; justify-content: space-between; gap: 10px; text-align: left; cursor: pointer; }
+        .cvk-dropdown { margin-top: 10px; border: 1px solid #d7e2ef; border-radius: 10px; overflow: hidden; }
+        .cvk-dropdown-title { width: 100%; border: 0; background: #f8fbff; color: #24344d; min-height: 46px; padding: 8px 11px; display: flex; align-items: center; justify-content: space-between; gap: 10px; text-align: left; cursor: pointer; }
         .cvk-dropdown-title-main { min-width: 0; }
         .cvk-dropdown-title-main span { display: block; font-size: 13px; font-weight: 800; }
         .cvk-dropdown-title-main small { display: block; margin-top: 2px; color: #72829a; font-size: 11px; }
@@ -227,30 +235,28 @@ export default function NonProductWorkPage() {
         .cvk-check { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 7px 3px; font-size: 12px; color: #40536d; cursor: pointer; }
         .cvk-check input { width: 16px; height: 16px; flex: 0 0 16px; accent-color: #1769e0; }
         .cvk-deduction-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
-        .cvk-deduction-card { padding: 10px; border: 1px solid #e1e8f1; border-radius: 11px; background: #fbfcfe; }
+        .cvk-deduction-card { padding: 10px; border: 1px solid #e1e8f1; border-radius: 10px; background: #fbfcfe; }
         .cvk-deduction-input-row { display: flex; align-items: center; gap: 7px; }
         .cvk-deduction-input-row .cvk-input { flex: 1; min-width: 0; }
         .cvk-unit { color: #72829a; font-size: 11px; font-weight: 700; }
         .cvk-empty { padding: 10px; color: #718198; font-size: 12px; }
-        .cvk-note { margin-top: 10px; padding: 10px 11px; border-radius: 10px; background: #f8fafc; color: #68778c; font-size: 12px; line-height: 1.45; }
-        .cvk-success { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; padding: 11px 12px; border: 1px solid #bce4cc; border-radius: 11px; background: #f0fbf4; color: #176b3a; font-size: 13px; line-height: 1.4; }
+        .cvk-note { margin-top: 10px; padding: 9px 10px; border-radius: 9px; background: #f6f9fd; color: #68778c; font-size: 12px; line-height: 1.45; }
+        .cvk-success { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; padding: 11px 12px; border: 1px solid #bce4cc; border-radius: 10px; background: #f0fbf4; color: #176b3a; font-size: 13px; line-height: 1.4; }
         .cvk-success-icon { width: 22px; height: 22px; flex: 0 0 22px; border-radius: 50%; background: #20a05a; color: #fff; display: grid; place-items: center; font-weight: 900; }
-        .cvk-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
-        .cvk-submit { min-width: 170px; height: 44px; border: 0; border-radius: 11px; padding: 0 18px; background: #1769e0; color: #fff; font-size: 14px; font-weight: 800; cursor: pointer; box-shadow: 0 5px 14px rgba(23, 105, 224, .2); }
+        .cvk-actions { display: flex; justify-content: flex-end; margin-top: 18px; }
+        .cvk-submit { min-width: 170px; height: 44px; border: 0; border-radius: 10px; padding: 0 18px; background: #1769e0; color: #fff; font-size: 14px; font-weight: 800; cursor: pointer; box-shadow: 0 5px 14px rgba(23, 105, 224, .18); }
         .cvk-submit:hover:not(:disabled) { background: #125bc2; }
         .cvk-submit:disabled { opacity: .65; cursor: wait; box-shadow: none; }
-        @media (max-width: 560px) {
+        @media (max-width: 620px) {
           .cvk-page { padding: 10px 9px 84px; }
-          .cvk-header { margin-bottom: 9px; }
+          .cvk-shell { max-width: 100%; }
           .cvk-title { font-size: 20px; }
-          .cvk-subtitle { font-size: 12px; }
-          .cvk-card { border-radius: 15px; }
-          .cvk-person, .cvk-form { padding: 13px; }
+          .cvk-form { padding: 14px 12px 16px; }
           .cvk-grid { grid-template-columns: 1fr; gap: 10px; }
+          .cvk-grid .cvk-field:last-child { grid-column: auto; }
           .cvk-time-row { grid-template-columns: 1fr 1fr; }
-          .cvk-total { grid-column: 1 / -1; height: 38px; min-width: 0; }
+          .cvk-total { grid-column: 1 / -1; width: 100%; }
           .cvk-time-summary, .cvk-deduction-grid, .cvk-dropdown-options { grid-template-columns: 1fr; }
-          .cvk-actions { margin-top: 15px; }
           .cvk-submit { width: 100%; }
         }
       `}</style>
@@ -265,22 +271,12 @@ export default function NonProductWorkPage() {
           </div>
         </header>
 
-        <section className="cvk-card">
-          <div className="cvk-person">
-            <div className="cvk-person-main">
-              <div className="cvk-person-label">Người thực hiện</div>
-              <div className="cvk-person-name">{workerName}</div>
-              <div className="cvk-person-code">Mã NV: {workerCode}</div>
-            </div>
-            <span className="cvk-badge">CVK · Không SP</span>
-          </div>
+        <div className="cvk-worker"><strong>{workerName}</strong><span>{workerCode}</span></div>
 
+        <section className="cvk-card">
           <form className="cvk-form" onSubmit={submit}>
             {message && message.toLowerCase().includes("thành công") && (
-              <div className="cvk-success" role="status">
-                <span className="cvk-success-icon">✓</span>
-                <span>{message}</span>
-              </div>
+              <div className="cvk-success" role="status"><span className="cvk-success-icon">✓</span><span>{message}</span></div>
             )}
 
             <section className="cvk-section">
