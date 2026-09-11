@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent, type Dispatch, type SetStateAction } from "react";
+import { useEffect, type ChangeEvent, type Dispatch, type SetStateAction } from "react";
 import AutocompleteInput from "../../../components/common/AutocompleteInput";
 import type { AutocompleteOption } from "../../../components/common/AutocompleteInput";
 import type { ProductStandardOption } from "../../../services/masterDataService";
@@ -39,7 +39,7 @@ interface Props {
 
 export default function ProcessBasicInfoSection({
     form, setForm, onFormChange, isCutLongProcess, isInspectionProcess,
-    operationType, setOperationType, operationMode, setOperationMode,
+    setOperationType, operationMode, setOperationMode,
     usesMultiMachineLines, usesSingleMachine, productAutocompleteOptions,
     getMachineProductAutocompleteOptions, productOptions, machineAutocompleteOptions,
     loadingMasterData, machineCount, maxMachineCount, machineLines, resizeMachineLines,
@@ -51,9 +51,8 @@ export default function ProcessBasicInfoSection({
         setForm((prev) => ({ ...prev, productName: value, standardOutput: selectedProduct ? String(Number(selectedProduct.standard_output)) : "" }));
     };
 
-    // Legacy Cắt/Lồng + Tự động/Không tự động/Tay/Máy selectors were removed
-    // from the worker form. Keep canonical internal values so existing payload
-    // contracts remain compatible while machine/product selection drives the UI.
+    // Cắt/Lồng và Tự động/Không tự động/Tay/Máy không còn là lựa chọn trên form.
+    // Giữ giá trị nội bộ tương thích payload cũ; người dùng chỉ chọn máy + sản phẩm.
     useEffect(() => {
         if (!isCutLongProcess) return;
         setOperationType("CUT");
