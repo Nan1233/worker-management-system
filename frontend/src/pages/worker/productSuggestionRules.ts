@@ -92,7 +92,6 @@ export const filterProductsForSelection = ({
     const selectedMachine = normalizeMachineKey(machineCode);
     if (!selectedMachine) return [];
 
-    const machine = (machineOptions || []).find((item) => normalizeMachineKey(item.machine_code) === selectedMachine);
     const isAutomatic = isGcAutomaticMachine(machineCode);
     const selectedNumber = machineNumber(selectedMachine);
 
