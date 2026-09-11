@@ -43,12 +43,16 @@ const productionTempCreateModel = require("./models/productionTempCreateModel");
 // Cloudflare/TiDB runtime: do not use the auxiliary duplicate-lock table for
 // report creation. That table can become a single hot row under normal worker
 // activity and TiDB lock waits then turn valid submissions into 503 responses.
+// Duplicate detection remains in productionTempCreateModel via the existing
+// exact client_request_id lookup and logical duplicate query. This keeps the
+// application-level duplicate confirmation flow without serializing every
+// submission through a pessimistic lock.
 productionTempCreateModel.lockClientRequestId = async () => {};
 productionTempCreateModel.lockLogicalDuplicateKey = async () => {};
 
 // Cloudflare forbids asynchronous I/O during module evaluation/global scope.
-// Seed/repair master data only from a real request. The operations are
-// idempotent and are awaited once per Worker isolate before serving the request.
+// Seed only from a real request. The seed is idempotent and is awaited once per
+// Worker isolate so the first master-data request cannot race the seed.
 let cloudflareSeedReady = false;
 let cloudflareSeedPromise = null;
 async function ensureCloudflareSeeded() {
@@ -119,20 +123,31 @@ function handleCorsPreflight(request) {
     });
   }
 
+  const requestedHeaders = request.headers.get("Access-Control-Request-Headers");
+  const allowHeaders = requestedHeaders || [
+    "Content-Type",
+    "Authorization",
+    "Idempotency-Key",
+    "X-Cron-Secret",
+    "X-Request-Id",
+    "X-Frontend-Version",
+  ].join(", ");
+
   return new Response(null, {
     status: 204,
     headers: {
       "Access-Control-Allow-Origin": origin,
       "Access-Control-Allow-Credentials": "true",
-      "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": allowHeaders,
       "Access-Control-Max-Age": "86400",
-      "Vary": "Origin",
+      "Vary": "Origin, Access-Control-Request-Headers",
+      "Cache-Control": "no-store",
     },
   });
 }
 
-export default {
+const wrappedServer = {
   async fetch(request, envArg, ctx) {
     const preflight = handleCorsPreflight(request);
     if (preflight) return preflight;
@@ -142,7 +157,7 @@ export default {
       return new Response(JSON.stringify({
         success: false,
         code: "MASTER_DATA_BOOTSTRAP_FAILED",
-        message: "Không thể đồng bộ dữ liệu danh mục máy/sản phẩm/lỗi. Vui lòng thử lại.",
+        message: "Không thể đồng bộ dữ liệu danh mục lỗi. Vui lòng thử lại.",
       }), {
         status: 503,
         headers: {
@@ -159,18 +174,8 @@ export default {
       });
     }
 
-    const response = await httpHandler(request);
-    const origin = getAllowedOrigin(request);
-    if (!origin) return response;
-
-    const headers = new Headers(response.headers);
-    headers.set("Access-Control-Allow-Origin", origin);
-    headers.set("Access-Control-Allow-Credentials", "true");
-    headers.set("Vary", "Origin");
-    return new Response(response.body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers,
-    });
+    return httpHandler.fetch(request, envArg, ctx);
   },
 };
+
+export default wrappedServer;
