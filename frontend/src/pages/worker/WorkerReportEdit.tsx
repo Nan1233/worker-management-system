@@ -62,7 +62,7 @@ function WorkerReportEdit() {
     label: String(product.product_code || "").trim(),
   })).filter((option) => option.value), [productOptions]);
 
-  const getMachineAutocompleteOptions = (machineCode: string) => {
+  const getMachineAutocompleteOptions = () => {
     if (!capabilities.isCutLongProcess || operationType !== "CUT") return machineAutocompleteOptions;
     return machineAutocompleteOptions.filter((option) => {
       const code = getMachineCode(option.value);
@@ -250,7 +250,7 @@ function WorkerReportEdit() {
     </div></section>}
 
     {operationMode === "MACHINE" && <section className="detail-section"><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><h2>Máy / sản phẩm</h2><button type="button" className="back-btn" onClick={addMachine} disabled={machineLines.length >= 4}>+ Thêm máy</button></div><div style={{ display: "grid", gap: 10 }}>
-      {machineLines.map((line, index) => { const machineOptionsForLine = getMachineAutocompleteOptions(line.machineCode); const products = getProductAutocompleteOptions(line.machineCode); return <div key={index} style={{ border: "1px solid #d9e2ef", borderRadius: 10, padding: 12 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><strong>Máy {index + 1}</strong>{machineLines.length > 1 && <button type="button" className="back-btn" onClick={() => removeMachine(index)}>Xóa</button>}</div><div className="detail-grid">
+      {machineLines.map((line, index) => { const machineOptionsForLine = getMachineAutocompleteOptions(); const products = getProductAutocompleteOptions(line.machineCode); return <div key={index} style={{ border: "1px solid #d9e2ef", borderRadius: 10, padding: 12 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><strong>Máy {index + 1}</strong>{machineLines.length > 1 && <button type="button" className="back-btn" onClick={() => removeMachine(index)}>Xóa</button>}</div><div className="detail-grid">
         <AutocompleteInput id={`machineNo-${index}`} label="Mã máy" value={line.machineCode} options={machineOptionsForLine} placeholder={loadingMasterData ? "Đang tải danh mục máy…" : "Nhập hoặc chọn mã máy"} required disabled={loadingMasterData} emptyMessage={capabilities.isCutLongProcess && operationType === "CUT" ? (cutExecutionMode === "AUTO" ? "Không có máy tự động phù hợp" : "Không có máy không tự động phù hợp") : "Không tìm thấy máy"} onChange={(value) => updateLine(index, { machineCode: value, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" })} onSelect={(option) => updateLine(index, { machineCode: option.value, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" })} />
         <AutocompleteInput id={`machineProduct-${index}`} label="Mã sản phẩm" value={line.productCode} options={products} placeholder={line.machineCode.trim() ? "Nhập hoặc chọn mã sản phẩm theo máy" : "Chọn máy trước"} required disabled={loadingMasterData || !line.machineCode.trim()} emptyMessage={line.machineCode.trim() ? "Không có mã sản phẩm phù hợp với máy này" : "Chọn máy trước để xem mã sản phẩm"} onChange={(value) => updateLine(index, { productCode: value })} onSelect={(option) => updateLine(index, { productCode: option.value })} />
         <label><span>Giờ chạy máy</span><input type="number" min="0" value={line.hours} onChange={(e) => updateLine(index, { hours: e.target.value })} /></label>
