@@ -49,15 +49,16 @@ const eligibleMachineCodes = (product: ProductStandardOption): string[] =>
         .map(normalizeMachineKey)
         .filter(Boolean);
 
-// For GC Cắt, only C5/C6/C11 are automatic machine codes.
-// C7 and all other machines are treated as non-automatic here.
-const GC_AUTOMATIC_MACHINE_CODES = new Set(["C5", "C6", "C11"]);
+// Canonical GC Cắt automatic machines from the factory sample/rules.
+// Machine 7 IS an automatic machine, but there is deliberately NO "-7"
+// automatic product suffix. Product suffixes are handled separately below.
+const GC_AUTOMATIC_MACHINE_CODES = new Set(["5", "6", "7", "11"]);
 
 const isGcAutomaticMachine = (machineCode: unknown): boolean =>
-    GC_AUTOMATIC_MACHINE_CODES.has(normalize(machineCode));
+    GC_AUTOMATIC_MACHINE_CODES.has(normalizeMachineKey(machineCode));
 
 // Product-code suffixes that explicitly represent automatic GC Cắt machines.
-// Everything else is a normal/non-automatic machine variant.
+// Do NOT add -7: machine 7 is automatic, but the sample has no -7 rule.
 const AUTO_MACHINE_SUFFIXES = new Set(["5", "6", "11"]);
 
 export const filterProductsForSelection = ({
@@ -95,7 +96,14 @@ export const filterProductsForSelection = ({
     const machine = (machineOptions || []).find(
         (item) => normalizeMachineKey(item.machine_code) === selectedMachine
     );
-    const isAutomatic = isGcAutomaticMachine(machineCode) || Number(machine?.is_automatic || 0) === 1;
+
+    // For GC Cắt, the factory rule is canonical: 5/6/7/11 are automatic.
+    // Do not trust a stale/incorrect is_automatic flag in the machine master
+    // to turn another machine (for example 10) into an automatic machine.
+    // Other processes still use the machine master's is_automatic flag.
+    const isAutomatic = useEncodedMachineSuffix && normalizeWorkType("CUT") === "CUT"
+        ? isGcAutomaticMachine(machineCode)
+        : Number(machine?.is_automatic || 0) === 1;
     const selectedNumber = machineNumber(selectedMachine);
 
     return products.filter((product) => {
