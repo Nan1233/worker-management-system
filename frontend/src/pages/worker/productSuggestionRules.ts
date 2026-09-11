@@ -1,4 +1,4 @@
-import type { MachineOption, ProductStandardOption } from "../../services/masterDataService";
+import type { ProductStandardOption } from "../../services/masterDataService";
 
 export type ProductSuggestionMode = "MANUAL" | "MACHINE";
 
@@ -64,13 +64,11 @@ export const filterProductsForSelection = ({
     products,
     mode,
     machineCode,
-    machineOptions,
     useEncodedMachineSuffix = false,
 }: {
     products: ProductStandardOption[];
     mode: ProductSuggestionMode;
     machineCode?: string;
-    machineOptions?: MachineOption[];
     useEncodedMachineSuffix?: boolean;
 }): ProductStandardOption[] => {
     const familyHasMachineVariant = new Set(
