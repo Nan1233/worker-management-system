@@ -73,18 +73,23 @@ export function buildProductionReportPayload(args: {
   const actualTime=parseHours(args.form.actualTime);
   const deductionTime=parseHours(args.form.deductionTime);
   const totalTime=parseHours(args.form.totalTime);
+  const hasActualMachineLine = args.usesMultiMachineLines && lines.some((line) => !!line.machine_code);
+  const useMachineLinesPayload = args.usesMultiMachineLines && hasActualMachineLine;
   return {
     process_id:args.processId,
     work_date:args.form.workDate,
     shift:args.form.shift,
-    machine_no:args.usesMultiMachineLines ? lines.map(l=>l.machine_code).join(", ") : args.form.machineNo,
-    product_name:args.usesMultiMachineLines ? [...new Set(lines.map(l=>l.product_code))].join(", ") : args.form.productName,
+    // GC with no machine is Lồng tay, so do not serialize an empty machine as
+    // a MACHINE report. This lets the normal manual-report validation resolve
+    // the product standard without a machine.
+    machine_no:useMachineLinesPayload ? lines.map(l=>l.machine_code).join(", ") : args.form.machineNo,
+    product_name:useMachineLinesPayload ? [...new Set(lines.map(l=>l.product_code))].join(", ") : args.form.productName,
     operation_type:args.operationType,
-    operation_mode:args.usesAnyMachine ? "MACHINE" : "MANUAL",
+    operation_mode:useMachineLinesPayload ? "MACHINE" : (args.usesAnyMachine && !args.isCutLongProcess ? "MACHINE" : "MANUAL"),
     total_time:totalTime,
     actual_time:actualTime,
     deduction_time:deductionTime,
-    standard_output:args.usesMultiMachineLines ? lines.reduce((sum,l)=>sum+num(l.standard_output),0) : num(args.form.standardOutput),
+    standard_output:useMachineLinesPayload ? lines.reduce((sum,l)=>sum+num(l.standard_output),0) : num(args.form.standardOutput),
     actual_output:actualOutput,
     tt_ok:num(args.form.ttOk),
     tt_ng:num(args.form.ttNg),
@@ -104,7 +109,7 @@ export function buildProductionReportPayload(args: {
     extra_data:args.extraData,
     defects,
     deductions,
-    machine_lines:lines,
+    machine_lines:useMachineLinesPayload ? lines : [],
     client_request_id:args.clientRequestId || undefined,
     exclude_kqd_from_tt:args.excludeKqdFromTt ? 1 : 0
   } as ProductionReport;
