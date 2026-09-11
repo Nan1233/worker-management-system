@@ -37,13 +37,6 @@ interface Props {
     updateMachineDefectValue: (lineIndex: number, key: string, value: string) => void;
 }
 
-// Mã máy cắt tự động: C5, C6, C7, C11.
-const GC_AUTOMATIC_MACHINE_CODES = new Set(["C5", "C6", "C7", "C11"]);
-const getMachineCode = (option: AutocompleteOption): string => option.value.trim().toUpperCase().replace(/^MÁY\s*/i, "");
-
-type CutExecutionMode = "AUTO" | "NON_AUTO";
-type LongExecutionMode = "MANUAL" | "MACHINE";
-
 export default function ProcessBasicInfoSection({
     form, setForm, onFormChange, isCutLongProcess, isInspectionProcess,
     operationType, setOperationType, operationMode, setOperationMode,
@@ -53,57 +46,21 @@ export default function ProcessBasicInfoSection({
     updateMachineLine, refreshMachineLineStandard, getMachineNgTotal, activeNgOptions,
     toggleMachineDefect, updateMachineDefectValue,
 }: Props) {
-    const [longExecutionMode, setLongExecutionMode] = useState<LongExecutionMode>(
-        operationMode === "MACHINE" ? "MACHINE" : "MANUAL",
-    );
-    const [cutExecutionMode, setCutExecutionMode] = useState<CutExecutionMode>("AUTO");
-
-    // GC Cắt mặc định là làm máy. Parent ProcessPage cũ khởi tạo GC ở MANUAL,
-    // nên trước đây lần mở form đầu tiên không hiện phần nhập máy; người dùng
-    // phải đổi "Không tự động" rồi quay lại "Tự động" mới thấy. Đồng bộ lại
-    // ngay tại component để mọi luồng mở/reset/resume đều hiển thị đúng.
-    useEffect(() => {
-        if (!isCutLongProcess || operationType !== "CUT") return;
-        if (operationMode !== "MACHINE") setOperationMode("MACHINE");
-    }, [isCutLongProcess, operationType, operationMode, setOperationMode]);
-
-    // operationMode is the canonical parent state. Keep the local Lồng selector
-    // synchronized so a resumed draft cannot display "Tay" while the parent is
-    // actually in MACHINE mode.
-    useEffect(() => {
-        if (operationType !== "LONG") return;
-        setLongExecutionMode(operationMode === "MACHINE" ? "MACHINE" : "MANUAL");
-    }, [operationMode, operationType]);
-
     const setProduct = (value: string) => {
         const selectedProduct = productOptions.find((item) => item.product_code.trim().toLowerCase() === value.trim().toLowerCase());
         setForm((prev) => ({ ...prev, productName: value, standardOutput: selectedProduct ? String(Number(selectedProduct.standard_output)) : "" }));
     };
 
-    const handleOperationTypeChange = (nextType: OperationType) => {
-        setOperationType(nextType);
-        if (nextType === "CUT") {
-            setOperationMode("MACHINE");
-            setCutExecutionMode("AUTO");
-            setLongExecutionMode("MACHINE");
-            return;
-        }
-        setOperationMode("MANUAL");
-        setCutExecutionMode("AUTO");
-        setLongExecutionMode("MANUAL");
-    };
+    // Legacy Cắt/Lồng + Tự động/Không tự động/Tay/Máy selectors were removed
+    // from the worker form. Keep canonical internal values so existing payload
+    // contracts remain compatible while machine/product selection drives the UI.
+    useEffect(() => {
+        if (!isCutLongProcess) return;
+        setOperationType("CUT");
+        setOperationMode("MACHINE");
+    }, [isCutLongProcess, setOperationType, setOperationMode]);
 
-    const handleLongExecutionModeChange = (mode: LongExecutionMode) => {
-        setLongExecutionMode(mode);
-        setOperationMode(mode === "MANUAL" ? "MANUAL" : "MACHINE");
-    };
-
-    const visibleGcMachineOptions = operationType === "CUT"
-        ? cutExecutionMode === "AUTO"
-            ? machineAutocompleteOptions.filter((option) => GC_AUTOMATIC_MACHINE_CODES.has(getMachineCode(option)))
-            : machineAutocompleteOptions.filter((option) => !GC_AUTOMATIC_MACHINE_CODES.has(getMachineCode(option)))
-        : machineAutocompleteOptions;
-    const visibleMachineOptions = isCutLongProcess ? visibleGcMachineOptions : machineAutocompleteOptions;
+    const visibleMachineOptions = machineAutocompleteOptions;
 
     return (
         <section className="worker-form-card worker-form-card-basic">
@@ -126,32 +83,6 @@ export default function ProcessBasicInfoSection({
                         ))}
                     </div>
                 </div>
-
-                {isCutLongProcess && (
-                    <div className="worker-mode-panel worker-field-full">
-                        <div className="worker-mode-group">
-                            <div className="worker-mode-label">Loại gia công</div>
-                            <div className="worker-choice-row">
-                                <button type="button" className={operationType === "CUT" ? "active" : ""} onClick={() => handleOperationTypeChange("CUT")}>Cắt</button>
-                                <button type="button" className={operationType === "LONG" ? "active" : ""} onClick={() => handleOperationTypeChange("LONG")}>Lồng</button>
-                            </div>
-                        </div>
-                        <div className="worker-mode-group worker-execution-mode-group">
-                            <div className="worker-mode-label">Hình thức thực hiện</div>
-                            {operationType === "CUT" ? (
-                                <div className="worker-choice-row">
-                                    <button type="button" className={cutExecutionMode === "AUTO" ? "active" : ""} onClick={() => { setCutExecutionMode("AUTO"); setOperationMode("MACHINE"); }}>Tự động</button>
-                                    <button type="button" className={cutExecutionMode === "NON_AUTO" ? "active" : ""} onClick={() => { setCutExecutionMode("NON_AUTO"); setOperationMode("MACHINE"); }}>Không tự động</button>
-                                </div>
-                            ) : (
-                                <div className="worker-choice-row">
-                                    <button type="button" className={longExecutionMode === "MANUAL" ? "active" : ""} onClick={() => handleLongExecutionModeChange("MANUAL")}>Tay</button>
-                                    <button type="button" className={longExecutionMode === "MACHINE" ? "active" : ""} onClick={() => handleLongExecutionModeChange("MACHINE")}>Máy</button>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
 
                 {isInspectionProcess && (
                     <div className="worker-mode-panel worker-field-full">
@@ -182,15 +113,13 @@ export default function ProcessBasicInfoSection({
                     <div className="worker-machine-workspace worker-field-full">
                         <div className="worker-selection-heading">
                             <div>
-                                <strong>{isCutLongProcess ? "Danh sách máy & sản phẩm" : "Danh sách máy mài & sản phẩm"}</strong>
+                                <strong>Danh sách máy &amp; sản phẩm</strong>
                                 <small>Mỗi dòng = 1 máy + 1 mã sản phẩm + thời gian + sản lượng</small>
-                                {isCutLongProcess && <small>Shared machine: sản lượng được credit theo báo cáo; physical truth nằm ở production event riêng.</small>}
                             </div>
                             <label className="worker-machine-count"><span>Số máy</span><select value={machineCount} onChange={(event) => resizeMachineLines(Number(event.target.value))}>
                                 {Array.from({ length: maxMachineCount }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count}</option>)}
                             </select></label>
                         </div>
-                        {isCutLongProcess && <div className="worker-machine-policy-note">Máy tự động: C5, C6, C7, C11. Các máy C còn lại: cắt không tự động.</div>}
                         <div className="machine-lines-list">
                             {machineLines.map((line, index) => (
                                 <article className="machine-line" key={index}>
@@ -200,7 +129,7 @@ export default function ProcessBasicInfoSection({
                                     </div>
                                     <div className="machine-selection-grid">
                                         <AutocompleteInput id={`machineNo-${index}`} label="Mã máy" value={line.machineCode} options={visibleMachineOptions} placeholder="Chọn mã máy" required disabled={loadingMasterData}
-                                            emptyMessage="Không tìm thấy máy trong chế độ đang chọn"
+                                            emptyMessage="Không tìm thấy máy trong công đoạn"
                                             onChange={(value) => updateMachineLine(index, { machineCode: value, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" })}
                                             onSelect={(option) => updateMachineLine(index, { machineCode: option.value, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" })} />
                                         <AutocompleteInput id={`machineProduct-${index}`} label="Mã sản phẩm" value={line.productCode} options={getMachineProductAutocompleteOptions(line.machineCode)}
@@ -224,15 +153,12 @@ export default function ProcessBasicInfoSection({
                                         <summary>Chi tiết lỗi NG <strong>{getMachineNgTotal(line)} sản phẩm</strong></summary>
                                         <div className="machine-deduction-options">
                                             {activeNgOptions.map((item) => (
-                                                <label key={item.key} className="machine-deduction-option"><input type="checkbox" className="machine-ng-checkbox"
-                                                    style={{ width: 16, height: 16, minWidth: 16, maxWidth: 16, minHeight: 16, maxHeight: 16, flex: "0 0 16px", boxSizing: "border-box", margin: 0, padding: 0 }}
-                                                    checked={line.selectedDefects.includes(item.key)} onChange={() => toggleMachineDefect(index, item.key)} /><span>{item.label}</span></label>
+                                                <label key={item.key} className="machine-deduction-option"><input type="checkbox" className="machine-ng-checkbox" style={{ width: 16, height: 16, minWidth: 16, maxWidth: 16, minHeight: 16, maxHeight: 16, flex: "0 0 16px", boxSizing: "border-box", margin: 0, padding: 0 }} checked={line.selectedDefects.includes(item.key)} onChange={() => toggleMachineDefect(index, item.key)} /><span>{item.label}</span></label>
                                             ))}
                                         </div>
                                         {line.selectedDefects.length > 0 && <div className="machine-ng-quantities">
                                             {activeNgOptions.filter((item) => line.selectedDefects.includes(item.key)).map((item) => (
-                                                <label key={`qty-${item.key}`} className="machine-ng-quantity-row"><span>{item.label}</span><input className="machine-deduction-minute" type="number" min="0" inputMode="numeric" placeholder="0"
-                                                    aria-label={`Số lượng ${item.label}`} value={line.defects[item.key] || ""} onChange={(event) => updateMachineDefectValue(index, item.key, event.target.value.replace(/\D/g, ""))} /></label>
+                                                <label key={`qty-${item.key}`} className="machine-ng-quantity-row"><span>{item.label}</span><input className="machine-deduction-minute" type="number" min="0" inputMode="numeric" placeholder="0" aria-label={`Số lượng ${item.label}`} value={line.defects[item.key] || ""} onChange={(event) => updateMachineDefectValue(index, item.key, event.target.value.replace(/\D/g, ""))} /></label>
                                             ))}
                                         </div>}
                                     </details>
