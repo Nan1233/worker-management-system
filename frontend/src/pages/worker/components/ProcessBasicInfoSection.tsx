@@ -37,7 +37,6 @@ interface Props {
     updateMachineDefectValue: (lineIndex: number, key: string, value: string) => void;
 }
 
-// Mã máy cắt tự động: C5, C6, C7, C11.
 const GC_AUTOMATIC_MACHINE_CODES = new Set(["C5", "C6", "C7", "C11"]);
 const getMachineCode = (option: AutocompleteOption): string => option.value.trim().toUpperCase().replace(/^MÁY\s*/i, "");
 
@@ -58,18 +57,11 @@ export default function ProcessBasicInfoSection({
     );
     const [cutExecutionMode, setCutExecutionMode] = useState<CutExecutionMode>("AUTO");
 
-    // GC Cắt mặc định là làm máy. Parent ProcessPage cũ khởi tạo GC ở MANUAL,
-    // nên trước đây lần mở form đầu tiên không hiện phần nhập máy; người dùng
-    // phải đổi "Không tự động" rồi quay lại "Tự động" mới thấy. Đồng bộ lại
-    // ngay tại component để mọi luồng mở/reset/resume đều hiển thị đúng.
     useEffect(() => {
         if (!isCutLongProcess || operationType !== "CUT") return;
         if (operationMode !== "MACHINE") setOperationMode("MACHINE");
     }, [isCutLongProcess, operationType, operationMode, setOperationMode]);
 
-    // operationMode is the canonical parent state. Keep the local Lồng selector
-    // synchronized so a resumed draft cannot display "Tay" while the parent is
-    // actually in MACHINE mode.
     useEffect(() => {
         if (operationType !== "LONG") return;
         setLongExecutionMode(operationMode === "MACHINE" ? "MACHINE" : "MANUAL");
@@ -98,11 +90,9 @@ export default function ProcessBasicInfoSection({
         setOperationMode(mode === "MANUAL" ? "MANUAL" : "MACHINE");
     };
 
-    const visibleGcMachineOptions = operationType === "CUT"
-        ? cutExecutionMode === "AUTO"
-            ? machineAutocompleteOptions.filter((option) => GC_AUTOMATIC_MACHINE_CODES.has(getMachineCode(option)))
-            : machineAutocompleteOptions.filter((option) => !GC_AUTOMATIC_MACHINE_CODES.has(getMachineCode(option)))
-        : machineAutocompleteOptions;
+    // GC no longer asks the worker to choose Cắt/Lồng or Tự động/Tay/Máy.
+    // The machine master is the source of truth; the worker simply chooses a machine first.
+    const visibleGcMachineOptions = machineAutocompleteOptions;
     const visibleMachineOptions = isCutLongProcess ? visibleGcMachineOptions : machineAutocompleteOptions;
 
     return (
@@ -127,7 +117,7 @@ export default function ProcessBasicInfoSection({
                     </div>
                 </div>
 
-                {isCutLongProcess && (
+                {isCutLongProcess && false && (
                     <div className="worker-mode-panel worker-field-full">
                         <div className="worker-mode-group">
                             <div className="worker-mode-label">Loại gia công</div>
@@ -184,13 +174,11 @@ export default function ProcessBasicInfoSection({
                             <div>
                                 <strong>{isCutLongProcess ? "Danh sách máy & sản phẩm" : "Danh sách máy mài & sản phẩm"}</strong>
                                 <small>Mỗi dòng = 1 máy + 1 mã sản phẩm + thời gian + sản lượng</small>
-                                {isCutLongProcess && <small>Shared machine: sản lượng được credit theo báo cáo; physical truth nằm ở production event riêng.</small>}
                             </div>
                             <label className="worker-machine-count"><span>Số máy</span><select value={machineCount} onChange={(event) => resizeMachineLines(Number(event.target.value))}>
                                 {Array.from({ length: maxMachineCount }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count}</option>)}
                             </select></label>
                         </div>
-                        {isCutLongProcess && <div className="worker-machine-policy-note">Máy tự động: C5, C6, C7, C11. Các máy C còn lại: cắt không tự động.</div>}
                         <div className="machine-lines-list">
                             {machineLines.map((line, index) => (
                                 <article className="machine-line" key={index}>
@@ -200,7 +188,7 @@ export default function ProcessBasicInfoSection({
                                     </div>
                                     <div className="machine-selection-grid">
                                         <AutocompleteInput id={`machineNo-${index}`} label="Mã máy" value={line.machineCode} options={visibleMachineOptions} placeholder="Chọn mã máy" required disabled={loadingMasterData}
-                                            emptyMessage="Không tìm thấy máy trong chế độ đang chọn"
+                                            emptyMessage="Không tìm thấy máy trong danh mục"
                                             onChange={(value) => updateMachineLine(index, { machineCode: value, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" })}
                                             onSelect={(option) => updateMachineLine(index, { machineCode: option.value, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" })} />
                                         <AutocompleteInput id={`machineProduct-${index}`} label="Mã sản phẩm" value={line.productCode} options={getMachineProductAutocompleteOptions(line.machineCode)}
