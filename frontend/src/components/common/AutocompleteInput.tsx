@@ -32,7 +32,7 @@ function AutocompleteInput({
     emptyMessage = "Không tìm thấy dữ liệu",
     onChange,
     onSelect,
-    selectOnly = id === "productName" || id.startsWith("machineProduct-"),
+    selectOnly = id === "productName" || id.startsWith("machineProduct-") || id.startsWith("machineNo"),
 }: AutocompleteInputProps) {
     const wrapperRef = useRef<HTMLDivElement | null>(null);
     const [open, setOpen] = useState(false);
