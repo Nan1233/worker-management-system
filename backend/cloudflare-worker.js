@@ -154,7 +154,7 @@ const BOOTSTRAP_EXEMPT_PATHS = new Set([
   "/api/auth/refresh",
   "/api/auth/logout",
   "/api/health/live",
-  "/api/health/ready",
+  "/api/health/ready",
 ]);
 
 function shouldBootstrapBeforeRequest(request) {
