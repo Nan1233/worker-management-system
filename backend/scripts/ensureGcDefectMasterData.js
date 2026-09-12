@@ -31,6 +31,17 @@ const CANONICAL_GC_DEFECTS = [
   ['THIEU_CAO_SU', 'thiếu cao su'],
 ];
 
+const DUPLICATE_ENTRY_CODES = new Set(['ER_DUP_ENTRY', 1062, '1062']);
+
+function isDuplicateEntryError(error) {
+  const code = error?.code;
+  const errno = error?.errno;
+  const message = String(error?.message || '');
+  return DUPLICATE_ENTRY_CODES.has(code)
+    || DUPLICATE_ENTRY_CODES.has(errno)
+    || /duplicate entry/i.test(message);
+}
+
 async function ensureGcDefectMasterData() {
   const [processes] = await Promise.all([
     query(`
@@ -47,25 +58,81 @@ async function ensureGcDefectMasterData() {
   const processId = Number(processes[0].id);
 
   const sync = async () => {
+    /*
+     * Repair legacy duplicates before applying canonical codes.
+     *
+     * The unique key uq_defect_process_code is (process_id, defect_code).
+     * Older data may contain two rows that are equivalent by defect name while
+     * still having different/legacy codes. Updating one row to the canonical
+     * code can then collide with the other row and produce ER_DUP_ENTRY.
+     *
+     * Keep the oldest row for each normalized canonical name and deactivate
+     * extra active rows instead of deleting them (safer for historical FKs).
+     */
+    const [legacyRows] = await query(
+      `SELECT id, defect_code, defect_name
+         FROM defect_types
+        WHERE process_id = ?
+          AND COALESCE(status, 'active') IN ('active', 'enabled', '1')
+        ORDER BY id`,
+      [processId],
+    );
+
+    const canonicalByName = new Map(
+      CANONICAL_GC_DEFECTS.map(([code, name]) => [String(name).trim().toLowerCase(), code]),
+    );
+    const seenCanonicalNames = new Set();
+
+    for (const row of legacyRows || []) {
+      const normalizedName = String(row.defect_name || '').trim().toLowerCase();
+      if (!canonicalByName.has(normalizedName)) continue;
+      if (seenCanonicalNames.has(normalizedName)) {
+        await query(
+          `UPDATE defect_types
+              SET status = 'inactive'
+            WHERE id = ?`,
+          [Number(row.id)],
+        );
+      } else {
+        seenCanonicalNames.add(normalizedName);
+      }
+    }
+
     for (let index = 0; index < CANONICAL_GC_DEFECTS.length; index += 1) {
       const [defectCode, defectName] = CANONICAL_GC_DEFECTS[index];
-      const [rows] = await query(
-        `SELECT id
+
+      // Prefer an already-canonical code; otherwise reuse the oldest matching
+      // active name. This minimizes row churn and preserves historical IDs.
+      let rows = await query(
+        `SELECT id, defect_code, defect_name
            FROM defect_types
           WHERE process_id = ?
-            AND (
-              LOWER(TRIM(defect_name)) = LOWER(TRIM(?))
-              OR UPPER(TRIM(defect_code)) = UPPER(TRIM(?))
-            )
-          ORDER BY
-            CASE WHEN LOWER(TRIM(defect_name)) = LOWER(TRIM(?)) THEN 0 ELSE 1 END,
-            CASE WHEN UPPER(TRIM(defect_code)) = UPPER(TRIM(?)) THEN 0 ELSE 1 END,
-            id
-          LIMIT 1`,
-        [processId, defectName, defectCode, defectName, defectCode],
+            AND COALESCE(status, 'active') IN ('active', 'enabled', '1')
+            AND UPPER(TRIM(defect_code)) = UPPER(TRIM(?))
+          ORDER BY id
+          LIMIT 2`,
+        [processId, defectCode],
       );
 
-      if (rows.length) {
+      if (!rows.length) {
+        rows = await query(
+          `SELECT id, defect_code, defect_name
+             FROM defect_types
+            WHERE process_id = ?
+              AND COALESCE(status, 'active') IN ('active', 'enabled', '1')
+              AND LOWER(TRIM(defect_name)) = LOWER(TRIM(?))
+            ORDER BY id
+            LIMIT 2`,
+          [processId, defectName],
+        );
+      }
+
+      const target = rows[0] || null;
+
+      if (target) {
+        // If a canonical-code row already exists, do not rewrite another row
+        // into the same code. Just normalize the canonical row and deactivate
+        // any redundant matching row returned by the query.
         await query(
           `UPDATE defect_types
               SET defect_code = ?,
@@ -73,15 +140,51 @@ async function ensureGcDefectMasterData() {
                   sort_order = ?,
                   status = 'active'
             WHERE id = ?`,
-          [defectCode, defectName, index + 1, Number(rows[0].id)],
+          [defectCode, defectName, index + 1, Number(target.id)],
         );
+
+        for (const duplicate of rows.slice(1)) {
+          await query(
+            `UPDATE defect_types
+                SET status = 'inactive'
+              WHERE id = ?`,
+            [Number(duplicate.id)],
+          );
+        }
       } else {
-        await query(
-          `INSERT INTO defect_types
-            (process_id, defect_code, defect_name, sort_order, status)
-           VALUES (?, ?, ?, ?, 'active')`,
-          [processId, defectCode, defectName, index + 1],
-        );
+        try {
+          await query(
+            `INSERT INTO defect_types
+              (process_id, defect_code, defect_name, sort_order, status)
+             VALUES (?, ?, ?, ?, 'active')`,
+            [processId, defectCode, defectName, index + 1],
+          );
+        } catch (error) {
+          // Another Cloudflare isolate/request may have inserted the same
+          // canonical row between our SELECT and INSERT. Re-read it and make
+          // sure the request stays idempotent instead of bubbling 1062.
+          if (!isDuplicateEntryError(error)) throw error;
+
+          const [existing] = await query(
+            `SELECT id
+               FROM defect_types
+              WHERE process_id = ?
+                AND UPPER(TRIM(defect_code)) = UPPER(TRIM(?))
+              ORDER BY id
+              LIMIT 1`,
+            [processId, defectCode],
+          );
+          if (!existing.length) throw error;
+
+          await query(
+            `UPDATE defect_types
+                SET defect_name = ?,
+                    sort_order = ?,
+                    status = 'active'
+              WHERE id = ?`,
+            [defectName, index + 1, Number(existing[0].id)],
+          );
+        }
       }
     }
 

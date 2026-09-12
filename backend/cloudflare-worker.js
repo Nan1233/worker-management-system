@@ -71,6 +71,8 @@ async function ensureCloudflareSeeded() {
     })
     .catch((error) => {
       console.error("[KTC] Cloudflare GC master-data seed failed", error);
+      // Keep the promise cleared so a later request can retry, but do not make
+      // authentication depend on non-critical master-data bootstrap.
       cloudflareSeedPromise = null;
       return false;
     });
@@ -147,31 +149,32 @@ function handleCorsPreflight(request) {
   });
 }
 
+const BOOTSTRAP_EXEMPT_PATHS = new Set([
+  "/api/auth/login",
+  "/api/auth/refresh",
+  "/api/auth/logout",
+  "/api/health/live",
+  "/api/health/ready",
+]);
+
+function shouldBootstrapBeforeRequest(request) {
+  return !BOOTSTRAP_EXEMPT_PATHS.has(new URL(request.url).pathname);
+}
+
 const wrappedServer = {
   async fetch(request, envArg, ctx) {
     const preflight = handleCorsPreflight(request);
     if (preflight) return preflight;
 
-    const seeded = await ensureCloudflareSeeded();
-    if (!seeded) {
-      return new Response(JSON.stringify({
-        success: false,
-        code: "MASTER_DATA_BOOTSTRAP_FAILED",
-        message: "Không thể đồng bộ dữ liệu danh mục lỗi. Vui lòng thử lại.",
-      }), {
-        status: 503,
-        headers: {
-          "Content-Type": "application/json; charset=utf-8",
-          "Cache-Control": "no-store",
-          ...(getAllowedOrigin(request)
-            ? {
-                "Access-Control-Allow-Origin": getAllowedOrigin(request),
-                "Access-Control-Allow-Credentials": "true",
-                "Vary": "Origin",
-              }
-            : {}),
-        },
-      });
+    if (shouldBootstrapBeforeRequest(request)) {
+      const seeded = await ensureCloudflareSeeded();
+      if (!seeded) {
+        console.warn("[KTC] Continuing request without master-data bootstrap; seed will retry on a later request.");
+      }
+    } else {
+      // Do not block authentication/health checks on optional GC master-data
+      // synchronization. Kick off a best-effort bootstrap for later requests.
+      ctx?.waitUntil?.(ensureCloudflareSeeded());
     }
 
     return httpHandler.fetch(request, envArg, ctx);
