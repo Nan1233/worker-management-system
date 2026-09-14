@@ -1,6 +1,8 @@
 const db = require("../config/db");
 
-const GC_DEDUCTION_TYPES = [
+// CVK (Công việc khác) uses exactly the same deduction catalogue as Gia công.
+// Keep one canonical list so the API can self-heal if a migration was skipped.
+const CANONICAL_DEDUCTION_TYPES = [
     { code: "THIEU_SAN_LUONG", name: "Thiếu sản lượng", sort: 1 },
     { code: "CHUYEN_MA", name: "Chuyển mã", sort: 2 },
     { code: "CHINH_MAY", name: "Chỉnh máy", sort: 3 },
@@ -13,32 +15,31 @@ const GC_DEDUCTION_TYPES = [
     { code: "DI_MUON_VE_SOM", name: "Đi muộn về sớm", sort: 10 },
 ];
 
-const GC_DEDUCTION_NAMES = GC_DEDUCTION_TYPES.map((item) => item.name);
+const CANONICAL_DEDUCTION_NAMES = CANONICAL_DEDUCTION_TYPES.map((item) => item.name);
 
-async function ensureGcDeductionTypes(processId) {
+async function ensureCanonicalDeductionTypes(processId) {
     const [processRows] = await db.promise().query(
-        `SELECT id
+        `SELECT id, UPPER(TRIM(COALESCE(process_code, ''))) AS process_code
            FROM processes
           WHERE id = ?
-            AND UPPER(TRIM(COALESCE(process_code, ''))) = 'GC'
+            AND UPPER(TRIM(COALESCE(process_code, ''))) IN ('GC', 'CVK')
           LIMIT 1`,
         [processId],
     );
     if (!processRows.length) return;
 
-    // Repair the master data if migration 038 has not yet been applied to the
-    // connected TiDB database. This is intentionally idempotent and only runs
-    // for GC, so existing production history is preserved.
-    const placeholders = GC_DEDUCTION_NAMES.map(() => "?").join(",");
+    // Self-heal both GC and CVK at request time. This makes the API resilient
+    // when a Cloudflare/TiDB deployment has not executed the latest migration.
+    const placeholders = CANONICAL_DEDUCTION_NAMES.map(() => "?").join(",");
     await db.promise().query(
         `UPDATE deduction_types
             SET status = 'inactive'
           WHERE process_id = ?
             AND LOWER(TRIM(COALESCE(deduction_name, ''))) NOT IN (${placeholders})`,
-        [processId, ...GC_DEDUCTION_NAMES.map((name) => name.toLowerCase())],
+        [processId, ...CANONICAL_DEDUCTION_NAMES.map((name) => name.toLowerCase())],
     );
 
-    for (const item of GC_DEDUCTION_TYPES) {
+    for (const item of CANONICAL_DEDUCTION_TYPES) {
         const [existingRows] = await db.promise().query(
             `SELECT id
                FROM deduction_types
@@ -73,11 +74,11 @@ const Deduction = {
     // LẤY TRỪ GIỜ THEO CÔNG ĐOẠN
     // GET /api/processes/:id/deductions
     // =====================================================
-    // GC có danh mục Trừ giờ cố định theo business rule.
-    // Nếu DB còn thiếu các row mới, tự bổ sung trước khi trả dữ liệu.
+    // GC và CVK có danh mục Trừ giờ cố định theo business rule.
+    // Nếu DB còn thiếu các row, tự bổ sung trước khi trả dữ liệu.
     async getByProcess(process_id) {
         const processId = Number(process_id);
-        await ensureGcDeductionTypes(processId);
+        await ensureCanonicalDeductionTypes(processId);
 
         return new Promise((resolve, reject) => {
             const sql = `
@@ -91,15 +92,15 @@ const Deduction = {
                 WHERE d.process_id = ?
                   AND d.status = 'active'
                   AND (
-                    UPPER(TRIM(COALESCE(p.process_code, ''))) <> 'GC'
+                    UPPER(TRIM(COALESCE(p.process_code, ''))) NOT IN ('GC', 'CVK')
                     OR LOWER(TRIM(COALESCE(d.deduction_name, ''))) IN (
-                        ${GC_DEDUCTION_NAMES.map(() => "?").join(",")}
+                        ${CANONICAL_DEDUCTION_NAMES.map(() => "?").join(",")}
                     )
                   )
                 ORDER BY d.sort_order ASC, d.id ASC
             `;
 
-            const params = [processId, ...GC_DEDUCTION_NAMES.map((name) => name.toLowerCase())];
+            const params = [processId, ...CANONICAL_DEDUCTION_NAMES.map((name) => name.toLowerCase())];
 
             db.query(sql, params, (err, rows) => {
                 if (err) return reject(err);
