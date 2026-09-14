@@ -1,4 +1,4 @@
-name: Repair edit full data
+name: Repair worker edit and CVK visibility
 
 on:
   push:
@@ -12,54 +12,107 @@ jobs:
   repair:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Repair backend detail and frontend edit loading
+
+      - name: Patch source files
+        shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              s = p.read_text(encoding='utf-8')
+              if old not in s:
+                  raise SystemExit(f'pattern not found: {path}: {old[:120]}')
+              p.write_text(s.replace(old, new, 1), encoding='utf-8')
+
+          # TypeScript build errors in WorkerReportEdit.
+          replace_once(
+              'frontend/src/pages/worker/WorkerReportEdit.tsx',
+              '(report.defects || []).forEach((item) => {',
+              '(report.defects || []).forEach((item: any) => {'
+          )
+          replace_once(
+              'frontend/src/pages/worker/WorkerReportEdit.tsx',
+              '(source.defects || []).forEach((item) => {',
+              '(source.defects || []).forEach((item: any) => {'
+          )
+          replace_once(
+              'frontend/src/pages/worker/WorkerReportEdit.tsx',
+              'const lines = sourceLines.map((line) => {',
+              'const lines = sourceLines.map((line: any) => {'
+          )
+
+          # Never request process_id=0 while WorkerReportEdit is still loading the report.
+          p = Path('frontend/src/pages/worker/useProcessMasterData.ts')
+          s = p.read_text(encoding='utf-8')
+          old = '  const load = useCallback(async () => {\n    const generation = ++requestGeneration.current;'
+          new = '  const load = useCallback(async () => {\n    if (!Number.isInteger(processId) || processId <= 0) {\n      setMachineOptions([]);\n      setProductOptions([]);\n      setActiveNgOptions([]);\n      setActiveDeductionOptions([]);\n      setLoading(false);\n      return;\n    }\n\n    const generation = ++requestGeneration.current;'
+          if old not in s:
+              raise SystemExit('useProcessMasterData guard pattern not found')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+
+          # CVK (non-product work) is a cross-process manager review queue.
+          # Keep the normal manager_processes scope for production processes,
+          # but make CVK visible/reviewable without requiring a fake assignment.
           p = Path('backend/models/productionTempReadModel.js')
           s = p.read_text(encoding='utf-8')
-          old = 'SELECT pr.*, w.worker_code, u.full_name, p.process_name,\n                    reviewer.full_name AS reviewer_name'
-          new = 'SELECT pr.*, w.worker_code, u.full_name, p.process_name, p.process_code AS process_code,\n                    reviewer.full_name AS reviewer_name'
-          if old in s and 'p.process_code AS process_code' not in s:
-              s = s.replace(old, new, 1)
+          s = s.replace(
+              'conditions.push(`EXISTS (\n            SELECT 1 FROM manager_processes mp\n            WHERE mp.process_id = pr.process_id\n              AND mp.manager_id = ?\n        )`);',
+              'conditions.push(`(pr.process_id = 60006 OR EXISTS (\n            SELECT 1 FROM manager_processes mp\n            WHERE mp.process_id = pr.process_id\n              AND mp.manager_id = ?\n        ))`);', 1)
+          s = s.replace(
+              'AND EXISTS (\n        SELECT 1 FROM manager_processes mp\n        WHERE mp.manager_id = ? AND mp.process_id = p.id\n    )`,',
+              'AND (p.id = 60006 OR EXISTS (\n        SELECT 1 FROM manager_processes mp\n        WHERE mp.manager_id = ? AND mp.process_id = p.id\n    ))`,', 1)
+          s = s.replace(
+              'AND EXISTS (\n        SELECT 1 FROM manager_processes mp\n        WHERE mp.manager_id = ? AND mp.process_id = pr.process_id\n    )`;',
+              'AND (pr.process_id = 60006 OR EXISTS (\n        SELECT 1 FROM manager_processes mp\n        WHERE mp.manager_id = ? AND mp.process_id = pr.process_id\n    ))`;', 1)
+          s = s.replace(
+              'if (managerId) { scope = " AND mp.manager_id = ?"; params.push(managerId); }',
+              'if (managerId) { scope = " AND (pr.process_id = 60006 OR mp.manager_id = ?)"; params.push(managerId); }', 1)
           p.write_text(s, encoding='utf-8')
 
-          p = Path('frontend/src/services/productionService.ts')
+          # Manager detail access for CVK.
+          p = Path('backend/controllers/productionTempManagementController.js')
           s = p.read_text(encoding='utf-8')
-          old = 'export const getReportById=async(id:number,source?:string|null)=>{const normalizedSource=String(source||"").toLowerCase();const url=normalizedSource==="pending"||normalizedSource==="temp"?`/production-temp/${id}`:`/production/${id}`;const res=await api.get(url);return res.data.data||res.data;};'
-          new = 'export const getReportById=async(id:number,source?:string|null)=>{const normalizedSource=String(source||"").toLowerCase();const url=normalizedSource==="pending"||normalizedSource==="temp"?`/production-temp/${id}`:`/production/${id}`;const res=await api.get(url,{params:{_t:Date.now()},headers:{"Cache-Control":"no-cache","Pragma":"no-cache"}});return res.data.data||res.data;};'
+          old = 'const canManage = await ProductionTemp.canManageReport(reportId, req.user.id, req.user?.role === "admin");'
+          new = 'const canManage = Number(data.process_id) === 60006 || await ProductionTemp.canManageReport(reportId, req.user.id, req.user?.role === "admin");'
           if old not in s:
-              raise SystemExit('getReportById pattern not found')
-          s = s.replace(old, new, 1)
-          p.write_text(s, encoding='utf-8')
+              raise SystemExit('manager detail scope pattern not found')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
 
-          p = Path('frontend/src/pages/worker/WorkerReportEdit.tsx')
+          # Manager approval scope for CVK.
+          p = Path('backend/models/productionTempApprovalModel.js')
           s = p.read_text(encoding='utf-8')
-          old = 'setOperationType(data.operation_type === "LONG" ? "LONG" : "CUT");\n        setOperationMode(data.operation_mode === "MACHINE" || (data.machine_lines || []).length > 0 ? "MACHINE" : "MANUAL");\n        setExtraData(Object.fromEntries(Object.entries(data.extra_data || {}).map(([key, value]) => [key, value == null ? "" : String(value)])));'
-          new = '''const loadedMachineLines = Array.isArray(data.machine_lines) ? data.machine_lines : Array.isArray(data.machineLines) ? data.machineLines : Array.isArray(data.machines) ? data.machines : [];
-        setOperationType(data.operation_type === "LONG" ? "LONG" : "CUT");
-        setOperationMode(data.operation_mode === "MACHINE" || loadedMachineLines.length > 0 || String(data.machine_no || "").trim() !== "" ? "MACHINE" : "MANUAL");
-        setMachineLines(loadedMachineLines.length ? loadedMachineLines.map((line) => {
-          const hm = toHoursMinutes(number(line.machine_time_hours ?? line.machineTimeHours ?? ((Number(line.running_hours || 0) * 60 + Number(line.running_minutes || 0)) / 60)));
-          return { ...createEmptyMachineLine(), machineCode: String(line.machine_code ?? line.machineCode ?? ""), productCode: String(line.product_code ?? line.productCode ?? ""), hours: hm.hours, minutes: hm.minutes, okQuantity: String(line.ok_quantity ?? line.okQuantity ?? ""), ngQuantity: String(line.ng_quantity ?? line.ngQuantity ?? ""), adjustmentMinutes: "", adjustmentCount: "", standardOutputPerHour: Number(line.standard_output || 0), standardTimeSeconds: line.standard_time_seconds ?? null, standardSource: line.standard_source || null };
-        }) : [createEmptyMachineLine()]);
-        setExtraData(Object.fromEntries(Object.entries(data.extra_data || {}).map(([key, value]) => [key, value == null ? "" : String(value)])));'''
+          old = 'const scopeJoin = isAdmin ? "" : "JOIN manager_processes mp ON mp.process_id = temp.process_id";\n      const scopeWhere = isAdmin ? "" : "AND mp.manager_id = ?";'
+          new = 'const scopeJoin = isAdmin ? "" : "LEFT JOIN manager_processes mp ON mp.process_id = temp.process_id";\n      const scopeWhere = isAdmin ? "" : "AND (mp.manager_id = ? OR temp.process_id = 60006)";'
           if old not in s:
-              raise SystemExit('WorkerReportEdit load pattern not found')
-          s = s.replace(old, new, 1)
-          p.write_text(s, encoding='utf-8')
+              raise SystemExit('approval scope pattern not found')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
           PY
+
           git diff --check
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Commit repaired source
+        run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add backend/models/productionTempReadModel.js frontend/src/services/productionService.ts frontend/src/pages/worker/WorkerReportEdit.tsx
-          git commit -m 'fix(worker): restore full report details in edit form [skip ci]'
+          git add frontend/src/pages/worker/WorkerReportEdit.tsx frontend/src/pages/worker/useProcessMasterData.ts backend/models/productionTempReadModel.js backend/controllers/productionTempManagementController.js backend/models/productionTempApprovalModel.js
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix: repair worker edit build and CVK manager visibility'
           git push
-      - name: Remove helper workflow
+
+      - name: Remove repair workflow
         run: |
           git rm .github/workflows/repair-edit-full-data.yml
-          git commit -m 'chore: remove edit data repair helper [skip ci]'
+          git commit -m 'chore: remove one-time repair workflow [skip ci]'
           git push
