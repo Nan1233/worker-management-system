@@ -30,8 +30,6 @@ const CANONICAL_GC_DEFECTS = [
   ['THIEU_CAO_SU', 'thiếu cao su'],
 ];
 
-const ACTIVE_STATUSES = ['active', 'enabled', '1'];
-
 function normalize(value) {
   return String(value ?? '').trim().toLowerCase();
 }
@@ -47,7 +45,10 @@ function errorDetails(error) {
 }
 
 async function ensureGcDefectMasterData() {
-  const [processes] = await query(`
+  // db.query callback resolves the rows array directly. Do NOT destructure it
+  // as [rows]; doing so turns the first DB row into the rows variable and makes
+  // Cloudflare/TiDB bootstrap fail before the master can be synchronized.
+  const processes = await query(`
     SELECT id
       FROM processes
      WHERE UPPER(TRIM(process_code)) = 'GC'
@@ -63,13 +64,10 @@ async function ensureGcDefectMasterData() {
   const processId = Number(processes[0].id);
 
   const sync = async () => {
-    // Do not try to rename legacy rows into new codes one-by-one. That can
-    // collide with an inactive row that still owns the unique key. Instead,
-    // canonical codes are reconciled with an atomic MySQL/TiDB upsert.
-    // Legacy/non-canonical rows are then made inactive.
     const canonicalCodes = CANONICAL_GC_DEFECTS.map(([code]) => code);
     const placeholders = canonicalCodes.map(() => '?').join(', ');
 
+    // Deactivate every legacy/non-canonical GC defect without deleting it.
     await query(
       `UPDATE defect_types
           SET status = 'inactive'
@@ -106,11 +104,8 @@ async function ensureGcDefectMasterData() {
       }
     }
 
-    // If old rows used a canonical display name with a non-canonical code,
-    // keep them for historical reports but ensure they are not returned by the
-    // active master endpoint.
     const canonicalCodeSet = new Set(canonicalCodes.map(normalize));
-    const [rows] = await query(
+    const rows = await query(
       `SELECT id, defect_code, defect_name, status
          FROM defect_types
         WHERE process_id = ?
@@ -133,7 +128,7 @@ async function ensureGcDefectMasterData() {
       }
     }
 
-    const [verifyRows] = await query(
+    const verifyRows = await query(
       `SELECT defect_code, defect_name, sort_order
          FROM defect_types
         WHERE process_id = ?
@@ -143,7 +138,7 @@ async function ensureGcDefectMasterData() {
     );
 
     if (verifyRows.length !== CANONICAL_GC_DEFECTS.length) {
-      const actual = verifyRows.map((row) => ({
+      const actual = (verifyRows || []).map((row) => ({
         code: row.defect_code,
         name: row.defect_name,
         sortOrder: row.sort_order,
