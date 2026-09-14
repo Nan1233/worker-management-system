@@ -138,7 +138,7 @@ function WorkerReportEdit() {
     if (!report) return;
     const lines = (report.machine_lines || []).map((line) => {
       const hm = toHoursMinutes(number(line.machine_time_hours));
-      return { ...createEmptyMachineLine(), machineCode: String(line.machine_code || ""), productCode: String(line.product_code || ""), hours: hm.hours, minutes: hm.minutes, okQuantity: String(line.ok_quantity ?? ""), ngQuantity: String(line.ng_quantity ?? ""), standardOutputPerHour: Number(line.standard_output || 0), standardTimeSeconds: line.standard_time_seconds ?? null, standardSource: line.standard_source || null };
+      return { ...createEmptyMachineLine(), machineCode: String(line.machine_code || ""), productCode: String(line.product_code || ""), hours: hm.hours, minutes: hm.minutes, adjustmentMinutes: String(line.adjustment_minutes ?? ""), adjustmentCount: String(line.adjustment_count ?? ""), okQuantity: String(line.ok_quantity ?? ""), ngQuantity: String(line.ng_quantity ?? ""), standardOutputPerHour: Number(line.standard_output || 0), standardTimeSeconds: line.standard_time_seconds ?? null, standardSource: line.standard_source || null };
     });
     setMachineLines(lines.length ? lines : [createEmptyMachineLine()]);
   }, [report]);
