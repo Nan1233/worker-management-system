@@ -30,10 +30,10 @@ function buildListFilters(managerId, filters, isAdmin, statusSql) {
 
 async function getProcessOptions(managerId, isAdmin) {
     const params = [];
-    const scope = isAdmin ? "" : `AND EXISTS (
+    const scope = isAdmin ? "" : `AND (p.id = 60006 OR EXISTS (
         SELECT 1 FROM manager_processes mp
         WHERE mp.manager_id = ? AND mp.process_id = p.id
-    )`;
+    ))`;
     if (!isAdmin) params.push(managerId);
     return query(db, `SELECT p.id, p.process_name
         FROM processes p
@@ -160,9 +160,11 @@ module.exports = {
         if (managerId) {
             return query(db, `SELECT DISTINCT DATE(pr.work_date) AS date
                 FROM production_reports_temp pr
-                JOIN manager_processes mp ON mp.process_id = pr.process_id
-                WHERE mp.manager_id = ?
-                  AND pr.status IN ('pending', 'need_fix')
+                WHERE pr.status IN ('pending', 'need_fix')
+                  AND (pr.process_id = 60006 OR EXISTS (
+                      SELECT 1 FROM manager_processes mp
+                      WHERE mp.manager_id = ? AND mp.process_id = pr.process_id
+                  ))
                 ORDER BY date DESC`, [managerId]);
         }
         return query(db, `SELECT DISTINCT DATE(work_date) AS date
@@ -229,8 +231,12 @@ module.exports = {
         if (isAdmin) return true;
         const rows = await query(db, `SELECT 1
              FROM production_reports_temp pr
-             JOIN manager_processes mp ON mp.process_id = pr.process_id
-             WHERE pr.id = ? AND mp.manager_id = ?
+             WHERE pr.id = ?
+               AND (pr.process_id = 60006 OR EXISTS (
+                   SELECT 1 FROM manager_processes mp
+                   WHERE mp.process_id = pr.process_id
+                     AND mp.manager_id = ?
+               ))
              LIMIT 1`, [reportId, managerId]);
         return rows.length > 0;
     }
