@@ -3,7 +3,7 @@ import { createEmptyMachineLine } from "./processPageConfig";
 import type { DeductionState, FormState, MachineLineState, NgKey, DeductionKey, OperationMode, OperationType } from "./processPageConfig";
 
 export type ProcessDraft = {
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   savedAt: number;
   process: string;
   ownerWorkerId?: number | null;
@@ -37,7 +37,29 @@ const keyFor = (process: string, workerId: number | null, workerCode: string | n
     : workerCode
       ? `code-${encodeKeyPart(workerCode)}`
       : "anonymous";
+  return `ktc:process-draft:v3:${identity}:${encodeKeyPart(process)}`;
+};
+
+// Drafts created by the previous v2 implementation may contain stale report
+// data that should not override the new/default report. They are intentionally
+// invalidated when this version is first loaded.
+const legacyKeyForV2 = (process: string, workerId: number | null, workerCode: string | null) => {
+  const identity = workerId != null
+    ? `id-${workerId}`
+    : workerCode
+      ? `code-${encodeKeyPart(workerCode)}`
+      : "anonymous";
   return `ktc:process-draft:v2:${identity}:${encodeKeyPart(process)}`;
+};
+
+const legacyClearMarkerKeyForV2 = (process: string, workerId: number | null, workerCode: string | null) =>
+  `${legacyKeyForV2(process, workerId, workerCode)}:clear-marker`;
+
+const invalidateLegacyV2Draft = (process: string, workerId: number | null, workerCode: string | null) => {
+  try {
+    localStorage.removeItem(legacyKeyForV2(process, workerId, workerCode));
+    localStorage.removeItem(legacyClearMarkerKeyForV2(process, workerId, workerCode));
+  } catch { /* storage unavailable */ }
 };
 
 // clearProcessDraft() is also called immediately after a successful submit.
@@ -167,10 +189,6 @@ function normalizeDraftForResume(draft: ProcessDraft): ProcessDraft {
 
   const first = machineLines[0];
 
-  // Đồng bộ hai chiều giữa form chính và dòng máy đầu tiên.
-  // Một số luồng dùng form.machineNo/productName để hiển thị/chọn lại,
-  // trong khi draft lưu chi tiết máy/sản phẩm ở machineLines. Khi resume
-  // phải khôi phục cả hai để không bị mất máy/SP trên giao diện.
   if (form.machineNo || form.productName || form.actualHours || form.actualMinutes) {
     machineLines[0] = {
       ...first,
@@ -195,11 +213,6 @@ function normalizeDraftForResume(draft: ProcessDraft): ProcessDraft {
     form.standardOutput = String(restoredFirst.standardOutputPerHour);
   }
 
-  // The machine lines are the canonical source for a resumed multi-machine
-  // report. Older/partially-written drafts could contain machine data while
-  // operationMode was still MANUAL. Infer MACHINE from the actual saved lines
-  // so reopening the draft cannot silently switch the UI back to "Tay" and
-  // hide the machine inputs.
   const hasMachineData = machineLines.some((line) =>
     Boolean(line.machineCode || line.productCode || line.hours || line.minutes || line.okQuantity || line.ngQuantity)
   );
@@ -223,6 +236,10 @@ export function loadProcessDraft(process: string): ProcessDraft | null {
     const { workerId, workerCode } = getCurrentWorkerIdentity();
     if (workerId == null && !workerCode) return null;
 
+    // A new/default report must never be hijacked by a draft from the old
+    // storage format. Remove the v2 draft once and start clean on v3.
+    invalidateLegacyV2Draft(process, workerId, workerCode);
+
     if (isAutosaveSuppressed(process, workerId, workerCode)) return null;
 
     const raw = localStorage.getItem(keyFor(process, workerId, workerCode));
@@ -230,7 +247,7 @@ export function loadProcessDraft(process: string): ProcessDraft | null {
 
     const parsed = JSON.parse(raw) as ProcessDraft;
     if (
-      parsed?.version !== 2 ||
+      parsed?.version !== 3 ||
       parsed.process !== process ||
       !hasMeaningfulProcessDraft(parsed)
     ) return null;
@@ -261,7 +278,7 @@ export function saveProcessDraft(draft: ProcessDraft): void {
     const sourceLines = Array.isArray(draft.machineLines) ? draft.machineLines : [];
     const ownedDraft: ProcessDraft = {
       ...draft,
-      version: 2,
+      version: 3,
       ownerWorkerId: workerId,
       ownerWorkerCode: workerCode,
       machineLines: sourceLines.map((line) => ({ ...createEmptyMachineLine(), ...line })),
@@ -276,6 +293,7 @@ export function clearProcessDraft(process: string): void {
     const { workerId, workerCode } = getCurrentWorkerIdentity();
     if (workerId == null && !workerCode) return;
     localStorage.removeItem(keyFor(process, workerId, workerCode));
+    invalidateLegacyV2Draft(process, workerId, workerCode);
     localStorage.setItem(
       clearMarkerKeyFor(process, workerId, workerCode),
       String(Date.now() + DRAFT_CLEAR_SUPPRESS_MS),
