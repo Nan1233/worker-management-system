@@ -1,0 +1,65 @@
+name: Repair machine adjustment backend
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch backend persistence and types
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new):
+              p = Path(path)
+              s = p.read_text(encoding='utf-8')
+              if old not in s:
+                  raise SystemExit(f'Pattern not found: {path}: {old[:120]}')
+              p.write_text(s.replace(old, new, 1), encoding='utf-8')
+
+          replace('backend/models/productionTempCreateModel.js',
+            'machine_time_hours, standard_output, standard_time_seconds, standard_source, exclude_kqd_from_tt,',
+            'machine_time_hours, adjustment_minutes, adjustment_count, standard_output, standard_time_seconds, standard_source, exclude_kqd_from_tt,')
+          replace('backend/models/productionTempCreateModel.js',
+            'Number(line.machine_time_hours) || 0,\n                Number(line.standard_output) || 0,',
+            'Number(line.machine_time_hours) || 0,\n                Math.max(0, Number(line.adjustment_minutes) || 0),\n                Math.max(0, Math.trunc(Number(line.adjustment_count) || 0)),\n                Number(line.standard_output) || 0,')
+
+          replace('backend/models/productionTempApprovalModel.js',
+            'machine_time_hours,standard_output,standard_time_seconds,standard_source,exclude_kqd_from_tt,',
+            'machine_time_hours,adjustment_minutes,adjustment_count,standard_output,standard_time_seconds,standard_source,exclude_kqd_from_tt,')
+          replace('backend/models/productionTempApprovalModel.js',
+            'Number(line.machine_time_hours)||0,Number(line.standard_output)||0,',
+            'Number(line.machine_time_hours)||0,Math.max(0,Number(line.adjustment_minutes)||0),Math.max(0,Math.trunc(Number(line.adjustment_count)||0)),Number(line.standard_output)||0,')
+
+          replace('frontend/src/types/production.ts',
+            'machine_time_hours: number;\n        ok_quantity: number;',
+            'machine_time_hours: number;\n        adjustment_minutes?: number;\n        adjustment_count?: number;\n        ok_quantity: number;')
+          PY
+      - name: Verify
+        run: |
+          grep -q 'adjustment_minutes' backend/models/productionTempCreateModel.js
+          grep -q 'adjustment_count' backend/models/productionTempCreateModel.js
+          grep -q 'adjustment_minutes' backend/models/productionTempApprovalModel.js
+          grep -q 'adjustment_count' backend/models/productionTempApprovalModel.js
+      - name: Commit backend repair
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add backend/models/productionTempCreateModel.js backend/models/productionTempApprovalModel.js frontend/src/types/production.ts
+          git commit -m 'fix(worker): persist machine adjustment fields [skip ci]'
+          git push
+      - name: Remove one-shot workflow
+        run: |
+          git rm .github/workflows/repair-machine-backend.yml
+          git commit -m 'chore: remove one-shot repair workflow [skip ci]'
+          git push
