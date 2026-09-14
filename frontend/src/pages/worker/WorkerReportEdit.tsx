@@ -23,7 +23,7 @@ const parseDbDateMs = (value?: string | null) => {
   return Number.isFinite(parsed) ? parsed : NaN;
 };
 
-const processSlug = (code?: string | null) => ({ GC: "cat-long", MAI: "mai", DO: "do", K1: "kiem-1", K2: "kiem-2", CAN: "can", EP: "ep", XLBV: "bavia", SX3: "sx3" } as Record<string, string>)[String(code || "").trim().toUpperCase()] || "cat-long";
+const processSlug = (code?: string | null) => ({ GC: "cat-long", MAI: "mai", DO: "do", K1: "kiem-1", K2: "kiem-2", CAN: "can", EP: "ep", XLBV: "bavia", SX3: "sx3", CVK: "cvk" } as Record<string, string>)[String(code || "").trim().toUpperCase()] || "cat-long";
 const machineProcessCodes = new Set(["GC", "MAI", "DO", "EP", "CAN"]);
 
 function WorkerReportEdit() {
@@ -42,10 +42,13 @@ function WorkerReportEdit() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [remaining, setRemaining] = useState(0);
+  const [workType, setWorkType] = useState("Công việc khác");
 
   const process = processSlug(report?.process_code);
+  const resolvedProcessId = Number(report?.process_id) > 0 ? Number(report?.process_id) : (String(report?.process_code || "").toUpperCase() === "CVK" ? 60006 : 0);
+  const isCVK = String(report?.process_code || "").toUpperCase() === "CVK" || resolvedProcessId === 60006;
   const capabilities = useMemo(() => getProcessCapabilities(process), [process]);
-  const { machineOptions, productOptions, activeNgOptions, activeDeductionOptions, loadingMasterData } = useProcessMasterData(report?.process_id || 0, capabilities.processCode);
+  const { machineOptions, productOptions, activeNgOptions, activeDeductionOptions, loadingMasterData } = useProcessMasterData(resolvedProcessId, capabilities.processCode);
 
   useEffect(() => {
     let alive = true;
@@ -57,7 +60,11 @@ function WorkerReportEdit() {
         const data = (rawData as any)?.report || (rawData as any)?.data || rawData;
         if (!data) throw new Error("Không tìm thấy báo cáo.");
         if (!alive) return;
-        setReport(data);
+        const normalizedProcessCode = String(data.process_code || data.extra_data?.process_code || "").trim().toUpperCase();
+        const normalizedProcessId = Number(data.process_id) > 0 ? Number(data.process_id) : (normalizedProcessCode === "CVK" ? 60006 : 0);
+        const normalizedData = { ...data, process_id: normalizedProcessId, process_code: normalizedProcessCode || data.process_code };
+        setReport(normalizedData);
+        setWorkType(String(data.extra_data?.work_type || data.work_type || "Công việc khác"));
         const actual = toHoursMinutes(number(data.actual_time));
         const total = toHoursMinutes(number(data.total_time));
         const deductionTotal = toHoursMinutes(number(data.deduction_time));
@@ -75,7 +82,7 @@ function WorkerReportEdit() {
         });
         setOperationType(data.operation_type === "LONG" ? "LONG" : "CUT");
         setOperationMode(data.operation_mode === "MACHINE" || (data.machine_lines || []).length > 0 ? "MACHINE" : "MANUAL");
-        setExtraData(Object.fromEntries(Object.entries(data.extra_data || {}).filter(([key]) => key !== "adjustment_count").map(([key, value]) => [key, value == null ? "" : String(value)])));
+        setExtraData(Object.fromEntries(Object.entries(data.extra_data || {}).filter(([key]) => key !== "adjustment_count" && key !== "work_type").map(([key, value]) => [key, value == null ? "" : String(value)])));
         setForm((current) => ({ ...current, adjustmentCount: String((data.extra_data || {}).adjustment_count ?? data.adjustment_count ?? "") }));
       } catch (e: any) {
         if (alive) setError(e?.response?.data?.message || e?.message || "Không tải được báo cáo.");
@@ -166,6 +173,18 @@ function WorkerReportEdit() {
     if (totalHours > 12.000001) { setError("Tổng thời gian không được vượt quá 12 giờ."); return; }
     const normalizedLines = operationMode === "MACHINE" ? machineLines.filter((l) => l.machineCode.trim() || l.productCode.trim()) : [];
     if (operationMode === "MACHINE" && (!normalizedLines.length || normalizedLines.some((l) => !l.machineCode.trim() || !l.productCode.trim()))) { setError("Vui lòng nhập đủ mã máy và mã sản phẩm cho từng máy."); return; }
+    if (isCVK) {
+      const deductionPayload = selectedDeduction.map((key) => {
+        const option: any = activeDeductionOptions.find((item: any) => item.key === key);
+        const minutes = Number(deductions[key] || 0);
+        return option && minutes > 0 ? { deduction_type_id: option.id ?? option.deduction_type_id, deduction_code: option.code ?? option.deduction_code, deduction_name: option.label ?? option.deduction_name, hours: minutes / 60 } : null;
+      }).filter(Boolean);
+      const actual = number(form.actualHours) + number(form.actualMinutes) / 60;
+      const deduction = deductionPayload.reduce((sum: number, item: any) => sum + Number(item.hours || 0), 0);
+      const cvkPayload: any = { ...report, process_id: 60006, process_code: "CVK", work_date: form.workDate, shift: form.shift, machine_no: null, product_name: null, operation_mode: "MANUAL", total_time: actual + deduction, actual_time: actual, deduction_time: deduction, standard_output: 0, actual_output: 0, tt_ok: 0, tt_ng: 0, note: form.note, defects: [], deductions: deductionPayload, extra_data: { ...extraData, process_code: "CVK", non_product_work: true, work_type: workType }, expected_updated_at: report.updated_at, updated_at: report.updated_at };
+      try { setSaving(true); await updateTempReport(Number(report.id), cvkPayload); navigate(`/worker/history/${report.id}`, { replace: true }); } catch (e: any) { setError(e?.response?.data?.message || e?.message || "Không thể lưu thay đổi."); } finally { setSaving(false); }
+      return;
+    }
     const payload = buildProductionReportPayload({
       clientRequestId: createClientRequestId(), processId: report.process_id,
       form: { ...form, actualTime: `${form.actualHours}:${form.actualMinutes}`, deductionTime: form.deductionTime, totalTime: `${Math.floor(totalHours)}:${String(Math.round((totalHours % 1) * 60)).padStart(2, "0")}` },
@@ -205,7 +224,9 @@ function WorkerReportEdit() {
       {!capabilities.isManualOnlyProcess && <label><span>Hình thức</span><select value={operationMode} onChange={(e) => setOperationMode(e.target.value as "MANUAL" | "MACHINE")}><option value="MANUAL">Tay</option><option value="MACHINE">Máy</option></select></label>}
     </div></section>
 
-    {operationMode === "MANUAL" && <section className="detail-section"><h2>Sản phẩm & sản lượng</h2><div className="detail-grid">
+    {isCVK && <section className="detail-section"><h2>Thông tin công việc</h2><div className="detail-grid"><label><span>Loại công việc</span><select value={workType} onChange={(e) => setWorkType(e.target.value)}><option>Xuất nhập</option><option>Hỗ trợ</option><option>Kho</option><option>Vệ sinh</option><option>Công việc khác</option></select></label><label><span>Công đoạn</span><input value="Công việc khác (CVK)" disabled /></label></div></section>}
+
+    {!isCVK && operationMode === "MANUAL" && <section className="detail-section"><h2>Sản phẩm & sản lượng</h2><div className="detail-grid">
       <label><span>Mã sản phẩm</span><select value={form.productName} onChange={(e) => updateForm("productName", e.target.value)}><option value="">Chọn sản phẩm</option>{productOptions.map((p) => <option key={`${p.id}-${p.product_code}`} value={p.product_code}>{p.product_code}</option>)}</select></label>
       <label><span>Mã máy</span><input value={form.machineNo} onChange={(e) => updateForm("machineNo", e.target.value)} /></label>
       <label><span>Định mức / giờ</span><input type="number" value={form.standardOutput} onChange={(e) => updateForm("standardOutput", e.target.value)} /></label>
@@ -214,7 +235,7 @@ function WorkerReportEdit() {
       <label><span>TT NG</span><input type="number" value={form.ttNg} onChange={(e) => updateForm("ttNg", e.target.value)} /></label>
     </div></section>}
 
-    {operationMode === "MACHINE" && <section className="detail-section"><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><h2>Máy / sản phẩm</h2><button type="button" className="back-btn" onClick={addMachine} disabled={machineLines.length >= 4}>+ Thêm máy</button></div><div style={{ display: "grid", gap: 10 }}>
+    {!isCVK && operationMode === "MACHINE" && <section className="detail-section"><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><h2>Máy / sản phẩm</h2><button type="button" className="back-btn" onClick={addMachine} disabled={machineLines.length >= 4}>+ Thêm máy</button></div><div style={{ display: "grid", gap: 10 }}>
       {machineLines.map((line, index) => { const products = filteredProducts(line.machineCode); return <div key={index} style={{ border: "1px solid #d9e2ef", borderRadius: 10, padding: 12 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><strong>Máy {index + 1}</strong>{machineLines.length > 1 && <button type="button" className="back-btn" onClick={() => removeMachine(index)}>Xóa</button>}</div><div className="detail-grid">
         <label><span>Mã máy</span><select value={line.machineCode} onChange={(e) => updateLine(index, { machineCode: e.target.value, productCode: "" })}><option value="">Chọn máy</option>{machineOptions.map((m) => <option key={m.id} value={m.machine_code}>{m.machine_code}</option>)}</select></label>
         <label><span>Mã sản phẩm</span><select value={line.productCode} disabled={!line.machineCode} onChange={(e) => updateLine(index, { productCode: e.target.value })}><option value="">Chọn sản phẩm</option>{products.map((p) => <option key={`${p.id}-${p.product_code}`} value={p.product_code}>{p.product_code}</option>)}</select></label>
@@ -232,7 +253,7 @@ function WorkerReportEdit() {
       <label><span>Tổng thời gian</span><input value={form.totalTime} onChange={(e) => updateForm("totalTime", e.target.value)} /></label>
     </div></section>
 
-    <section className="detail-section"><h2>Lỗi NG</h2><div className="detail-grid">{ngFields.map((option: any) => <label key={option.key}><span>{option.label || option.defect_name || option.code}</span><input type="number" min="0" value={form[option.key] || ""} onChange={(e) => updateForm(option.key, e.target.value)} /></label>)}</div></section>
+    {!isCVK && <section className="detail-section"><h2>Lỗi NG</h2><div className="detail-grid">{ngFields.map((option: any) => <label key={option.key}><span>{option.label || option.defect_name || option.code}</span><input type="number" min="0" value={form[option.key] || ""} onChange={(e) => updateForm(option.key, e.target.value)} /></label>)}</div></section>}
 
     <section className="detail-section"><h2>Trừ giờ</h2><div className="detail-grid">{activeDeductionOptions.map((option: any) => <label key={option.key}><span>{option.label}</span><input type="number" min="0" value={deductions[option.key] || ""} onChange={(e) => setDeductions((current) => ({ ...current, [option.key]: e.target.value }))} placeholder="phút" /></label>)}</div></section>
 

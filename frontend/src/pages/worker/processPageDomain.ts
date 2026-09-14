@@ -31,6 +31,7 @@ export function getProcessCapabilities(process: string): ProcessCapabilities {
     "ep": "EP",
     "bavia": "XLBV",
     "sx3": "SX3",
+    "cvk": "CVK",
   };
   const processCode = map[process] || codeOf(process);
 
@@ -38,7 +39,7 @@ export function getProcessCapabilities(process: string): ProcessCapabilities {
     processCode,
     isCutLongProcess: processCode === "GC",
     isInspectionProcess: ["K1", "K2"].includes(processCode),
-    isManualOnlyProcess: ["XLBV", "SX3"].includes(processCode),
+    isManualOnlyProcess: ["XLBV", "SX3", "CVK"].includes(processCode),
   };
 }
 
