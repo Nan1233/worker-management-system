@@ -238,6 +238,10 @@ export default function ProcessBasicInfoSection({
                                             <label><span>Thời gian (phút)</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentMinutes} onChange={(event) => updateMachineLine(index, { adjustmentMinutes: event.target.value.replace(/\D/g, "") })} /></label>
                                             <label><span>Số lần</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentCount} onChange={(event) => updateMachineLine(index, { adjustmentCount: event.target.value.replace(/\D/g, "") })} /></label>
                                         </div></div>
+                                        <div><div className="machine-section-title">Chỉnh máy</div><div className="machine-quantity-row">
+                                            <label><span>Thời gian (phút)</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentMinutes} onChange={(event) => updateMachineLine(index, { adjustmentMinutes: event.target.value.replace(/\D/g, "") })} /></label>
+                                            <label><span>Số lần</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentCount} onChange={(event) => updateMachineLine(index, { adjustmentCount: event.target.value.replace(/\D/g, "") })} /></label>
+                                        </div></div>
                                     </div>
                                     {line.standardError && <div className="worker-inline-error">{line.standardError}</div>}
                                     <details className="machine-deduction-box">
