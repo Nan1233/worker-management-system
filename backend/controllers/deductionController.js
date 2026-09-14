@@ -8,14 +8,28 @@ exports.getDeductionsByProcess = async (req, res) => {
       return res.status(400).json({ success: false, message: "process_id không hợp lệ" });
     }
 
-    // v2 deliberately invalidates any worker/backend isolate that still holds
-    // the pre-GC-canonical deduction catalogue in memory.
-    const cacheKey = `deductions:v2:${processId}`;
-    let data = masterDataCache.get(cacheKey);
-    if (!data) {
+    const isCVK = processId === 60006;
+
+    // CVK master data is self-healed from TiDB on every request. Do not allow
+    // a stale isolate cache to hide a repaired catalogue.
+    const cacheKey = `deductions:v3:${processId}`;
+    let data;
+    if (isCVK) {
       data = await Deduction.getByProcess(processId);
-      masterDataCache.set(cacheKey, data, TTL.deductions);
+      masterDataCache.delete(cacheKey);
+    } else {
+      data = masterDataCache.get(cacheKey);
+      if (!data) {
+        data = await Deduction.getByProcess(processId);
+        masterDataCache.set(cacheKey, data, TTL.deductions);
+      }
     }
+
+    console.info("[KTC][DEDUCTION_API]", JSON.stringify({
+      requestedProcessId: processId,
+      isCVK,
+      returned: Array.isArray(data) ? data.length : 0,
+    }));
 
     return res.json({ success: true, data });
   } catch (error) {
