@@ -1,0 +1,83 @@
+name: Fix adjustment count
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def patch(path, old, new, count=1):
+              p=Path(path); s=p.read_text(encoding='utf-8')
+              if old not in s:
+                  raise SystemExit(f'Pattern not found: {path}: {old[:120]}')
+              p.write_text(s.replace(old,new,count),encoding='utf-8')
+
+          # Remove the per-machine adjustment block; adjustment time is already handled by Trừ giờ.
+          patch('frontend/src/pages/worker/components/ProcessBasicInfoSection.tsx', '''                                        <div><div className="machine-section-title">Chỉnh máy</div><div className="machine-quantity-row">
+                                            <label><span>Thời gian (phút)</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentMinutes} onChange={(event) => updateMachineLine(index, { adjustmentMinutes: event.target.value.replace(/\\D/g, "") })} /></label>
+                                            <label><span>Số lần</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentCount} onChange={(event) => updateMachineLine(index, { adjustmentCount: event.target.value.replace(/\\D/g, "") })} /></label>
+                                        </div></div>
+''','')
+
+          # Keep only machine runtime/output in machine_lines payload.
+          patch('frontend/src/pages/worker/processReportSubmission.ts','    adjustment_minutes:num(l.adjustmentMinutes),\n    adjustment_count:num(l.adjustmentCount),\n','')
+
+          # Add one overall count field beside the existing Trừ giờ details, without affecting deduction minutes.
+          path='frontend/src/pages/worker/components/ProcessTimeDeductionSection.tsx'
+          s=Path(path).read_text(encoding='utf-8')
+          marker='''            {selectedDeduction.length > 0 && <div className="worker-dynamic-grid worker-deduction-detail-grid">'''
+          replacement='''            {selectedDeduction.length > 0 && <div className="worker-dynamic-grid worker-deduction-detail-grid">
+                {selectedDeduction.includes("chinhMay") && <div className="worker-field-block">
+                    <label className="worker-field-label" htmlFor="adjustmentCount">Số lần chỉnh máy</label>
+                    <div className="worker-deduction-input-row"><input id="adjustmentCount" className="worker-text-input worker-deduction-input" value={form.adjustmentCount || ""} onChange={(event) => setForm((current) => ({ ...current, adjustmentCount: event.target.value.replace(/\\D/g, "") }))} inputMode="numeric" min="0" placeholder="Số lần" autoComplete="off" /><span className="worker-time-unit" aria-hidden="true">lần</span></div>
+                </div>}
+'''
+          if marker not in s: raise SystemExit('time deduction marker not found')
+          s=s.replace(marker,replacement,1)
+          Path(path).write_text(s,encoding='utf-8')
+
+          # Persist the count in extra_data, not in machine lines.
+          path='frontend/src/pages/worker/processReportSubmission.ts'
+          s=Path(path).read_text(encoding='utf-8')
+          s=s.replace('    extra_data:args.extraData,','    extra_data:{...args.extraData, adjustment_count:num(args.form.adjustmentCount)},',1)
+          Path(path).write_text(s,encoding='utf-8')
+
+          # Restore the count when editing an existing report.
+          path='frontend/src/pages/worker/WorkerReportEdit.tsx'
+          s=Path(path).read_text(encoding='utf-8')
+          old='''setExtraData(Object.fromEntries(Object.entries(data.extra_data || {}).map(([key, value]) => [key, value == null ? "" : String(value)])));'''
+          new='''setExtraData(Object.fromEntries(Object.entries(data.extra_data || {}).map(([key, value]) => [key, value == null ? "" : String(value)])));
+        setForm((current) => ({ ...current, adjustmentCount: String((data.extra_data || {}).adjustment_count ?? "") }));'''
+          if old not in s: raise SystemExit('edit extra_data marker not found')
+          s=s.replace(old,new,1)
+          Path(path).write_text(s,encoding='utf-8')
+          PY
+      - name: Verify
+        run: |
+          grep -q 'Số lần chỉnh máy' frontend/src/pages/worker/components/ProcessTimeDeductionSection.tsx
+          ! grep -q 'Chỉnh máy</div><div className="machine-quantity-row"' frontend/src/pages/worker/components/ProcessBasicInfoSection.tsx
+          ! grep -q 'adjustment_minutes:num(l.adjustmentMinutes)' frontend/src/pages/worker/processReportSubmission.ts
+          grep -q 'adjustment_count:num(args.form.adjustmentCount)' frontend/src/pages/worker/processReportSubmission.ts
+      - name: Commit and remove helper workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontend/src/pages/worker/components/ProcessBasicInfoSection.tsx frontend/src/pages/worker/components/ProcessTimeDeductionSection.tsx frontend/src/pages/worker/processReportSubmission.ts frontend/src/pages/worker/WorkerReportEdit.tsx
+          git rm .github/workflows/fix-adjustment-count.yml
+          git commit -m 'fix(worker): move adjustment count to time information [skip ci]'
+          git push
