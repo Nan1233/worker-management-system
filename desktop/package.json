@@ -65,9 +65,6 @@
       ],
       "icon": "assets/icon.ico",
       "signAndEditExecutable": true,
-      "signingHashAlgorithms": [
-        "sha256"
-      ],
       "requestedExecutionLevel": "asInvoker"
     },
     "publish": [
