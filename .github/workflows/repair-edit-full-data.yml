@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   repair:
-    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[skip ci]')
+    if: "github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,9 +21,6 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-
-          # 1) Return process_code with temp report detail so edit mode uses the
-          # exact same process configuration as the original report.
           p = Path('backend/models/productionTempReadModel.js')
           s = p.read_text(encoding='utf-8')
           old = 'SELECT pr.*, w.worker_code, u.full_name, p.process_name,\n                    reviewer.full_name AS reviewer_name'
@@ -32,8 +29,6 @@ jobs:
               s = s.replace(old, new, 1)
           p.write_text(s, encoding='utf-8')
 
-          # 2) Always fetch the edit report fresh. A cached GET must never make
-          # the edit form look empty/stale after the detail page has fresh data.
           p = Path('frontend/src/services/productionService.ts')
           s = p.read_text(encoding='utf-8')
           old = 'export const getReportById=async(id:number,source?:string|null)=>{const normalizedSource=String(source||"").toLowerCase();const url=normalizedSource==="pending"||normalizedSource==="temp"?`/production-temp/${id}`:`/production/${id}`;const res=await api.get(url);return res.data.data||res.data;};'
@@ -43,8 +38,6 @@ jobs:
           s = s.replace(old, new, 1)
           p.write_text(s, encoding='utf-8')
 
-          # 3) Restore machine/defect/deduction state immediately from every
-          # supported response shape, not only after master data finishes.
           p = Path('frontend/src/pages/worker/WorkerReportEdit.tsx')
           s = p.read_text(encoding='utf-8')
           old = 'setOperationType(data.operation_type === "LONG" ? "LONG" : "CUT");\n        setOperationMode(data.operation_mode === "MACHINE" || (data.machine_lines || []).length > 0 ? "MACHINE" : "MANUAL");\n        setExtraData(Object.fromEntries(Object.entries(data.extra_data || {}).map(([key, value]) => [key, value == null ? "" : String(value)])));'
