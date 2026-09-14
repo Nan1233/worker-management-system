@@ -43,6 +43,8 @@ export function buildProductionReportPayload(args: {
     machine_code:l.machineCode.trim(),
     product_code:l.productCode.trim(),
     machine_time_hours:num(l.hours)+num(l.minutes)/60,
+    adjustment_minutes:num(l.adjustmentMinutes),
+    adjustment_count:num(l.adjustmentCount),
     ok_quantity:num(l.okQuantity),
     ng_quantity:num(l.ngQuantity),
     standard_output:num(l.standardOutputPerHour),
