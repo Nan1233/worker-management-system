@@ -7,7 +7,7 @@ function buildListFilters(managerId, filters, isAdmin, statusSql) {
     const params = [];
     const conditions = [statusSql];
     if (!isAdmin) {
-        conditions.push(`(pr.process_id = 60006 OR EXISTS (
+        conditions.push(`((pr.process_id = 60006 OR UPPER(TRIM(COALESCE(p.process_code, ''))) = 'CVK') OR EXISTS (
             SELECT 1 FROM manager_processes mp
             WHERE mp.process_id = pr.process_id
               AND mp.manager_id = ?
@@ -30,7 +30,7 @@ function buildListFilters(managerId, filters, isAdmin, statusSql) {
 
 async function getProcessOptions(managerId, isAdmin) {
     const params = [];
-    const scope = isAdmin ? "" : `AND (p.id = 60006 OR EXISTS (
+    const scope = isAdmin ? "" : `AND (p.id = 60006 OR UPPER(TRIM(COALESCE(p.process_code, ''))) = 'CVK' OR EXISTS (
         SELECT 1 FROM manager_processes mp
         WHERE mp.manager_id = ? AND mp.process_id = p.id
     ))`;
@@ -43,7 +43,11 @@ async function getProcessOptions(managerId, isAdmin) {
 
 async function getPreviousPendingCount(managerId, isAdmin) {
     const params = [];
-    const scope = isAdmin ? "" : `AND (pr.process_id = 60006 OR EXISTS (
+    const scope = isAdmin ? "" : `AND ((pr.process_id = 60006 OR EXISTS (
+        SELECT 1 FROM processes pc
+        WHERE pc.id = pr.process_id
+          AND UPPER(TRIM(COALESCE(pc.process_code, ''))) = 'CVK'
+    )) OR EXISTS (
         SELECT 1 FROM manager_processes mp
         WHERE mp.manager_id = ? AND mp.process_id = pr.process_id
     ))`;
@@ -161,7 +165,11 @@ module.exports = {
             return query(db, `SELECT DISTINCT DATE(pr.work_date) AS date
                 FROM production_reports_temp pr
                 WHERE pr.status IN ('pending', 'need_fix')
-                  AND (pr.process_id = 60006 OR EXISTS (
+                  AND ((pr.process_id = 60006 OR EXISTS (
+                      SELECT 1 FROM processes pc
+                      WHERE pc.id = pr.process_id
+                        AND UPPER(TRIM(COALESCE(pc.process_code, ''))) = 'CVK'
+                  )) OR EXISTS (
                       SELECT 1 FROM manager_processes mp
                       WHERE mp.manager_id = ? AND mp.process_id = pr.process_id
                   ))
@@ -176,7 +184,7 @@ module.exports = {
     async getByDate(date, managerId = null) {
         const params = [date];
         let scope = "";
-        if (managerId) { scope = " AND (pr.process_id = 60006 OR mp.manager_id = ?)"; params.push(managerId); }
+        if (managerId) { scope = " AND ((pr.process_id = 60006 OR UPPER(TRIM(COALESCE(p.process_code, ''))) = 'CVK') OR mp.manager_id = ?)"; params.push(managerId); }
         return query(db, `SELECT pr.*, w.worker_code, u.full_name, p.process_name,
                 CASE WHEN dup.duplicate_count > 1 THEN 1 ELSE 0 END AS is_duplicate,
                 COALESCE(dup.duplicate_count, 1) AS duplicate_count
@@ -231,8 +239,9 @@ module.exports = {
         if (isAdmin) return true;
         const rows = await query(db, `SELECT 1
              FROM production_reports_temp pr
+             LEFT JOIN processes p ON p.id = pr.process_id
              WHERE pr.id = ?
-               AND (pr.process_id = 60006 OR EXISTS (
+               AND ((pr.process_id = 60006 OR UPPER(TRIM(COALESCE(p.process_code, ''))) = 'CVK') OR EXISTS (
                    SELECT 1 FROM manager_processes mp
                    WHERE mp.process_id = pr.process_id
                      AND mp.manager_id = ?
