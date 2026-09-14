@@ -1,0 +1,61 @@
+name: Fix adjustment count placement
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Move count to time deduction
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('frontend/src/pages/worker/components/ProcessBasicInfoSection.tsx')
+          s = p.read_text(encoding='utf-8')
+          block = re.compile(r'\n\s*<div className="worker-field-block worker-machine-adjustment-count">.*?</div>\s*</div>\s*<div className="machine-lines-list">', re.S)
+          s, n = block.subn('\n                <div className="machine-lines-list">', s, count=1)
+          if n != 1:
+              raise SystemExit(f'Expected one machine-level adjustment count block, removed {n}')
+          p.write_text(s, encoding='utf-8')
+
+          p = Path('frontend/src/pages/worker/components/ProcessTimeDeductionSection.tsx')
+          s = p.read_text(encoding='utf-8')
+          marker = '<span className="worker-time-unit" aria-hidden="true">phút</span></div>\n                </div>)}'
+          addition = '''<span className="worker-time-unit" aria-hidden="true">phút</span></div>
+                    {item.key === "chinhMay" && <div className="worker-field-block worker-adjustment-count-inline">
+                        <label className="worker-field-label" htmlFor="adjustmentCount">Số lần chỉnh máy</label>
+                        <div className="worker-deduction-input-row"><input id="adjustmentCount" className="worker-text-input worker-deduction-input" type="number" min="0" inputMode="numeric" value={form.adjustmentCount || ""} onChange={(event) => setForm((current) => ({ ...current, adjustmentCount: event.target.value.replace(/\\D/g, "") }))} placeholder="0" autoComplete="off" /><span className="worker-time-unit" aria-hidden="true">lần</span></div>
+                    </div>
+                </div>)}'''
+          if marker not in s:
+              raise SystemExit('Deduction input marker not found')
+          if 'id="adjustmentCount"' in s:
+              raise SystemExit('adjustmentCount already exists in deduction section')
+          s = s.replace(marker, addition, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Verify
+        run: |
+          test "$(grep -o 'id=\"adjustmentCount\"' frontend/src/pages/worker/components/ProcessTimeDeductionSection.tsx | wc -l)" -eq 1
+          ! grep -q 'id=\"adjustmentCount\"' frontend/src/pages/worker/components/ProcessBasicInfoSection.tsx
+          ! grep -q 'value={line.adjustmentMinutes}' frontend/src/pages/worker/components/ProcessBasicInfoSection.tsx
+          ! grep -q 'value={line.adjustmentCount}' frontend/src/pages/worker/components/ProcessBasicInfoSection.tsx
+      - name: Commit and remove helper
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontend/src/pages/worker/components/ProcessBasicInfoSection.tsx frontend/src/pages/worker/components/ProcessTimeDeductionSection.tsx
+          git rm .github/workflows/fix-adjustment-placement.yml
+          git commit -m 'fix(worker): place adjustment count beside deduction time [skip ci]'
+          git push
