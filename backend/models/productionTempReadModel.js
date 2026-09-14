@@ -14,9 +14,9 @@ function buildListFilters(managerId, filters, isAdmin, statusSql) {
         ))`);
         params.push(managerId);
     }
-    if (filters.date) { conditions.push("pr.work_date = ?"); params.push(filters.date); }
-    if (filters.date_from) { conditions.push("pr.work_date >= ?"); params.push(filters.date_from); }
-    if (filters.date_to) { conditions.push("pr.work_date <= ?"); params.push(filters.date_to); }
+    if (filters.date) { conditions.push("DATE(pr.work_date) = ?"); params.push(filters.date); }
+    if (filters.date_from) { conditions.push("DATE(pr.work_date) >= ?"); params.push(filters.date_from); }
+    if (filters.date_to) { conditions.push("DATE(pr.work_date) <= ?"); params.push(filters.date_to); }
     if (filters.shift) { conditions.push("pr.shift = ?"); params.push(filters.shift); }
     if (filters.process_id) { conditions.push("pr.process_id = ?"); params.push(filters.process_id); }
     if (filters.process_name) { conditions.push("p.process_name = ?"); params.push(filters.process_name); }
@@ -203,7 +203,7 @@ module.exports = {
                 AND dup.shift = pr.shift
                 AND COALESCE(dup.machine_no, '') = COALESCE(pr.machine_no, '')
                 AND COALESCE(dup.product_name, '') = COALESCE(pr.product_name, '')
-            WHERE pr.work_date = ?
+            WHERE DATE(pr.work_date) = ?
               AND pr.status IN ('pending', 'need_fix')
               ${scope}
             ORDER BY pr.created_at ASC`, params);
