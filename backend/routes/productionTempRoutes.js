@@ -12,6 +12,14 @@ const db = require("../config/db");
 const AuditService = require("../services/auditService");
 const ProductionTemp = require("../models/productionTempModel");
 
+const { TtlCache } = require("../utils/cache");
+const managerListCache = new TtlCache({ maxEntries: 300 });
+const MANAGER_LIST_TTL_MS = 15000;
+function invalidateManagerReportLists() {
+    managerListCache.deleteByPrefix("manager:pending:");
+    managerListCache.deleteByPrefix("manager:approved:");
+}
+
 const proposalDetail = async (id) => {
     const [rows] = await db.promise().query(`SELECT p.*, u.full_name AS proposer_name, u.username AS proposer_username FROM report_edit_proposals p LEFT JOIN users u ON u.id = p.proposer_user_id WHERE p.id = ? LIMIT 1`, [id]);
     if (!rows?.[0]) return null;
@@ -60,7 +68,7 @@ router.get("/by-date", authMiddleware, checkRole("admin", "manager", "lead"), pe
 router.get("/edit-proposals", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), async (req, res) => {
     try {
         const isLead = String(req.user?.role || "").toLowerCase() === "lead";
-        const [rows] = await db.promise().query(`SELECT p.*, u.full_name AS proposer_name, u.proposer_username AS proposer_username, prt.work_date, prt.shift, prt.process_id, prt.machine_no, prt.product_name, w.worker_code, wu.full_name AS worker_name FROM report_edit_proposals p LEFT JOIN users u ON u.id = p.proposer_user_id LEFT JOIN production_reports_temp prt ON prt.id = p.report_id LEFT JOIN workers w ON w.id = prt.worker_id LEFT JOIN users wu ON wu.id = w.user_id WHERE (? = 0 OR p.proposer_user_id = ?) ORDER BY p.updated_at DESC, p.id DESC LIMIT 300`, [isLead ? 1 : 0, Number(req.user.id)]);
+        const [rows] = await db.promise().query(`SELECT p.*, u.full_name AS proposer_name, u.username AS proposer_username, prt.work_date, prt.shift, prt.process_id, prt.machine_no, prt.product_name, w.worker_code, wu.full_name AS worker_name FROM report_edit_proposals p LEFT JOIN users u ON u.id = p.proposer_user_id LEFT JOIN production_reports_temp prt ON prt.id = p.report_id LEFT JOIN workers w ON w.id = prt.worker_id LEFT JOIN users wu ON wu.id = w.user_id WHERE (? = 0 OR p.proposer_user_id = ?) ORDER BY p.updated_at DESC, p.id DESC LIMIT 300`, [isLead ? 1 : 0, Number(req.user.id)]);
         const accessible = [];
         for (const row of rows || []) if (await assertProposalAccess(req, row.report_id)) {
             if (typeof row.proposed_data === "string") { try { row.proposed_data = JSON.parse(row.proposed_data); } catch { row.proposed_data = {}; } }
@@ -120,7 +128,7 @@ router.post("/:id/request-edit",authMiddleware,checkRole("admin","manager","lead
 router.get("/:id", authMiddleware, checkRole("admin", "manager", "lead", "worker"), permission("WORKER_HISTORY", "REPORT_PENDING_VIEW"), controller.getTempReportDetail);
 router.get("/:id/logs",authMiddleware,checkRole("admin","manager","lead"),permission("AUDIT_VIEW"),controller.getReportActionLogs);
 
-router.put("/:id",authMiddleware,checkRole("admin","manager","lead","worker"),validate({id:{in:"params",required:true,type:"positiveInt"}}),permission("REPORT_PENDING_EDIT","REPORT_APPROVE","WORKER_ENTRY"),async(req,res,next)=>{if(String(req.user?.role||"").toLowerCase()!=="lead")return next();try{const reportId=Number(req.params.id),report=await ProductionTemp.getDetail(reportId);if(!report)return res.status(404).json({success:false,message:"Không tìm thấy báo cáo"});if(Number(report.proposer_user_id)!==Number(req.user.id))return res.status(403).json({success:false,message:"Lead chỉ được sửa đề xuất của chính mình"});return next();}catch(error){return res.status(error.status||500).json({success:false,message:publicMessage(error,"Không thể kiểm tra quyền sửa báo cáo")});}},notifyWorkerOnTempEdit,controller.updateTempReport);
+router.put("/:id",authMiddleware,checkRole("admin","manager","lead","worker"),validate({id:{in:"params",required:true,type:"positiveInt"}}),permission("REPORT_PENDING_EDIT","REPORT_APPROVE","WORKER_ENTRY"),async(req,res,next)=>{if(String(req.user?.role||"").toLowerCase()!=="lead")return next();try{const reportId=Number(req.params.id),report=await ProductionTemp.getDetail(reportId);if(!report)return res.status(404).json({success:false,message:"Không tìm thấy báo cáo"});if(Number(report.proposer_user_id)!==Number(req.user.id))return res.status(403).json({success:false,message:"Lead chỉ được sửa đề xuất của chính mình"});return next();}catch(error){return res.status(error.status||500).json({success:false,message:error.message||"Không thể kiểm tra quyền sửa báo cáo"});}},notifyWorkerOnTempEdit,controller.updateTempReport);
 
 router.delete("/:id",authMiddleware,checkRole("admin","manager","lead"),permission("REPORT_DELETE"),async(req,res)=>{try{const reportId=Number(req.params.id);if(!Number.isInteger(reportId)||reportId<=0)return res.status(400).json({success:false,message:"ID báo cáo không hợp lệ"});const reason=String(req.body?.reason||"").trim();if(!reason)return res.status(400).json({success:false,message:"Vui lòng nhập lý do xóa báo cáo"});const result=await ProductionTemp.deleteTempReport(reportId,Number(req.user.id),req.user.role==="admin",reason,requestMeta(req));invalidateManagerReportLists();return res.json({success:true,message:"Đã xóa báo cáo",data:result});}catch(error){console.error("DELETE TEMP REPORT ERROR:",error);return res.status(error.status||500).json({success:false,message:error.message||"Không thể xóa báo cáo"});}});
 
