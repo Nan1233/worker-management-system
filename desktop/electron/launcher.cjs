@@ -79,4 +79,7 @@ ipcMain.handle('ktc-save-statistics-excel', async (_event, payload = {}) => {
   return { success: true, filePath, exportRoot: root };
 });
 
+// Register updater before the main process bootstraps so every packaged
+// Windows/NSIS build checks GitHub Releases for a newer Git commit build.
+require('./autoUpdate.cjs');
 require('./main.cjs');
