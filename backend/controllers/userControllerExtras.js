@@ -15,6 +15,18 @@ const normalizeStatus = (value) => value === 'inactive' ? 'inactive' : 'active';
 const normalizeProcessIds = (value) => [...new Set((Array.isArray(value) ? value : [])
   .map(Number).filter((id) => Number.isInteger(id) && id > 0))];
 
+// TiDB/Cloudflare's mysql-compatible driver does not expand mysql2's
+// object-placeholder form (`UPDATE table SET ?`). Build the SET clause
+// explicitly so objects are never serialized as "[object Object]".
+function buildUpdateSet(payload) {
+  const entries = Object.entries(payload || {});
+  if (!entries.length) return null;
+  return {
+    sql: entries.map(([field]) => `\`${field.replace(/`/g, '``')}\`=?`).join(','),
+    values: entries.map(([, value]) => value),
+  };
+}
+
 function publicError(res, error, fallback) {
   console.error(fallback, error);
   return res.status(500).json({ success: false, message: fallback });
@@ -127,9 +139,15 @@ exports.updateUser = async (req, res) => {
 
     await connection.beginTransaction();
     if (processIdsProvided) await validateProcessAssignment(connection, req.user, processIds, true);
-    if (Object.keys(payload).length) await connection.query('UPDATE users SET ? WHERE id=?', [payload, id]);
+    if (Object.keys(payload).length) {
+      const update = buildUpdateSet(payload);
+      await connection.query(`UPDATE users SET ${update.sql} WHERE id=?`, [...update.values, id]);
+    }
     if (found[0].role === 'worker' && 'status' in payload) workerPayload.status = payload.status;
-    if (found[0].role === 'worker' && Object.keys(workerPayload).length) await connection.query('UPDATE workers SET ? WHERE user_id=?', [workerPayload, id]);
+    if (found[0].role === 'worker' && Object.keys(workerPayload).length) {
+      const update = buildUpdateSet(workerPayload);
+      await connection.query(`UPDATE workers SET ${update.sql} WHERE user_id=?`, [...update.values, id]);
+    }
     if (processIdsProvided) await replaceProcessAssignments(connection, found[0].role, id, found[0].worker_id, processIds);
     if (Object.prototype.hasOwnProperty.call(payload, 'password') || payload.status === 'inactive') {
       await revokeAllUserFamilies(id, { executor: connection });
@@ -290,9 +308,11 @@ exports.importUsersExcel = async (req, res) => {
             if (password.length < 6) throw new Error('Mật khẩu tối thiểu 6 ký tự');
             payload.password = await bcrypt.hash(password, 10);
           }
-          await connection.query('UPDATE users SET ? WHERE id=?', [payload, existing.id]);
+          const userUpdate = buildUpdateSet(payload);
+          await connection.query(`UPDATE users SET ${userUpdate.sql} WHERE id=?`, [...userUpdate.values, existing.id]);
           if (role === 'worker') {
-            await connection.query('UPDATE workers SET ? WHERE user_id=?', [{ worker_code: workerCode || null, phone: phone || null, department: department || 'Sản xuất', position: position || 'Công nhân', training_percent: trainingPercent, status }, existing.id]);
+            const workerUpdate = buildUpdateSet({ worker_code: workerCode || null, phone: phone || null, department: department || 'Sản xuất', position: position || 'Công nhân', training_percent: trainingPercent, status });
+            await connection.query(`UPDATE workers SET ${workerUpdate.sql} WHERE user_id=?`, [...workerUpdate.values, existing.id]);
           }
           await replaceProcessAssignments(connection, role, existing.id, existing.worker_id, uniqueProcessIds);
           if (password || status === 'inactive') await revokeAllUserFamilies(existing.id, { executor: connection });
