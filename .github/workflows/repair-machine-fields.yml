@@ -18,24 +18,54 @@ jobs:
       - name: Restore config from known-good commit
         run: |
           git show 6d92c5f08169588fa659505ee310844605764d5e:frontend/src/pages/worker/processPageConfig.ts > frontend/src/pages/worker/processPageConfig.ts
-      - name: Add machine adjustment fields
+      - name: Patch machine form and payload
         run: |
           python - <<'PY'
           from pathlib import Path
-          p = Path('frontend/src/pages/worker/processPageConfig.ts')
-          s = p.read_text(encoding='utf-8')
-          s = s.replace('    minutes: string;\n    okQuantity: string;', '    minutes: string;\n    adjustmentMinutes: string;\n    adjustmentCount: string;\n    okQuantity: string;', 1)
-          s = s.replace('    minutes: "",\n    okQuantity: "",', '    minutes: "",\n    adjustmentMinutes: "",\n    adjustmentCount: "",\n    okQuantity: "",', 1)
-          p.write_text(s, encoding='utf-8')
+
+          def patch(path, replacements):
+              p = Path(path)
+              s = p.read_text(encoding='utf-8')
+              for old, new in replacements:
+                  if old not in s:
+                      raise SystemExit(f'Pattern not found in {path}: {old[:100]}')
+                  s = s.replace(old, new, 1)
+              p.write_text(s, encoding='utf-8')
+
+          patch('frontend/src/pages/worker/processPageConfig.ts', [
+              ('    minutes: string;\n    okQuantity: string;', '    minutes: string;\n    adjustmentMinutes: string;\n    adjustmentCount: string;\n    okQuantity: string;'),
+              ('    minutes: "",\n    okQuantity: "",', '    minutes: "",\n    adjustmentMinutes: "",\n    adjustmentCount: "",\n    okQuantity: "",'),
+          ])
+
+          patch('frontend/src/pages/worker/components/ProcessBasicInfoSection.tsx', [
+              ('                                    <div className="machine-data-grid">', '''                                    <div className="machine-data-grid">''',),
+              ('''                                        <div><div className="machine-section-title">Sản lượng</div><div className="machine-quantity-row">\n                                            <label><span>OK</span><input type="number" min="0" inputMode="numeric" value={line.okQuantity} onChange={(event) => updateMachineLine(index, { okQuantity: event.target.value.replace(/\\D/g, "") })} /></label>\n                                            <label><span>NG</span><input type="number" min="0" inputMode="numeric" value={line.ngQuantity} readOnly aria-readonly="true" title="Tự động tính từ chi tiết lỗi NG" /></label>\n                                        </div></div>''', '''                                        <div><div className="machine-section-title">Sản lượng</div><div className="machine-quantity-row">\n                                            <label><span>OK</span><input type="number" min="0" inputMode="numeric" value={line.okQuantity} onChange={(event) => updateMachineLine(index, { okQuantity: event.target.value.replace(/\\D/g, "") })} /></label>\n                                            <label><span>NG</span><input type="number" min="0" inputMode="numeric" value={line.ngQuantity} readOnly aria-readonly="true" title="Tự động tính từ chi tiết lỗi NG" /></label>\n                                        </div></div>\n                                        <div><div className="machine-section-title">Chỉnh máy</div><div className="machine-quantity-row">\n                                            <label><span>Thời gian (phút)</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentMinutes} onChange={(event) => updateMachineLine(index, { adjustmentMinutes: event.target.value.replace(/\\D/g, "") })} /></label>\n                                            <label><span>Số lần</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentCount} onChange={(event) => updateMachineLine(index, { adjustmentCount: event.target.value.replace(/\\D/g, "") })} /></label>\n                                        </div></div>''', 1),
+          ])
+
+          patch('frontend/src/pages/worker/processReportSubmission.ts', [
+              ('    machine_time_hours:num(l.hours)+num(l.minutes)/60,\n    ok_quantity:num(l.okQuantity),', '    machine_time_hours:num(l.hours)+num(l.minutes)/60,\n    adjustment_minutes:num(l.adjustmentMinutes),\n    adjustment_count:num(l.adjustmentCount),\n    ok_quantity:num(l.okQuantity),'),
+          ])
+
+          patch('frontend/src/pages/worker/WorkerReportEdit.tsx', [
+              ('machineCode: String(line.machine_code || ""), productCode: String(line.product_code || ""), hours: hm.hours, minutes: hm.minutes, okQuantity:', 'machineCode: String(line.machine_code || ""), productCode: String(line.product_code || ""), hours: hm.hours, minutes: hm.minutes, adjustmentMinutes: String(line.adjustment_minutes ?? ""), adjustmentCount: String(line.adjustment_count ?? ""), okQuantity:'),
+          ])
+
+          patch('frontend/src/pages/worker/ProductionDetail.tsx', [
+              ('<div><span>Thời gian máy</span><strong>{number(line.machine_time_hours)} giờ</strong></div>\n                          <div><span>OK</span><strong>{quantity(line.ok_quantity)}</strong></div>', '<div><span>Thời gian máy</span><strong>{number(line.machine_time_hours)} giờ</strong></div>\n                          <div><span>Chỉnh máy</span><strong>{number(line.adjustment_minutes)} phút · {quantity(line.adjustment_count)} lần</strong></div>\n                          <div><span>OK</span><strong>{quantity(line.ok_quantity)}</strong></div>'),
+          ])
           PY
       - name: Verify
         run: |
           grep -q 'adjustmentMinutes' frontend/src/pages/worker/processPageConfig.ts
           grep -q 'adjustmentCount' frontend/src/pages/worker/processPageConfig.ts
-      - name: Commit repaired file
+          grep -q 'adjustment_minutes' frontend/src/pages/worker/processReportSubmission.ts
+          grep -q 'adjustmentMinutes' frontend/src/pages/worker/components/ProcessBasicInfoSection.tsx
+          grep -q 'adjustment_count' frontend/src/pages/worker/WorkerReportEdit.tsx
+          grep -q 'Chỉnh máy' frontend/src/pages/worker/ProductionDetail.tsx
+      - name: Commit repaired files
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add frontend/src/pages/worker/processPageConfig.ts
+          git add frontend/src/pages/worker/processPageConfig.ts frontend/src/pages/worker/components/ProcessBasicInfoSection.tsx frontend/src/pages/worker/processReportSubmission.ts frontend/src/pages/worker/WorkerReportEdit.tsx frontend/src/pages/worker/ProductionDetail.tsx
           git commit -m 'fix(worker): add per-machine adjustment fields [skip ci]'
           git push
