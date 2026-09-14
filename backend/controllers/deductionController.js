@@ -9,14 +9,14 @@ exports.getDeductionsByProcess = async (req, res) => {
     }
 
     const isCVK = processId === 60006;
-
-    // CVK master data is self-healed from TiDB on every request. Do not allow
-    // a stale isolate cache to hide a repaired catalogue.
     const cacheKey = `deductions:v3:${processId}`;
     let data;
+
+    // CVK master data is self-healed from TiDB on every request. Never serve a
+    // stale isolate cache while repairing the catalogue.
     if (isCVK) {
+      masterDataCache.deleteByPrefix(cacheKey);
       data = await Deduction.getByProcess(processId);
-      masterDataCache.delete(cacheKey);
     } else {
       data = masterDataCache.get(cacheKey);
       if (!data) {
