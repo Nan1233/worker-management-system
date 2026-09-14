@@ -10,13 +10,11 @@ permissions:
 
 jobs:
   repair:
-    if: "github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Repair backend detail and frontend edit loading
         run: |
           python - <<'PY'
@@ -42,30 +40,24 @@ jobs:
           s = p.read_text(encoding='utf-8')
           old = 'setOperationType(data.operation_type === "LONG" ? "LONG" : "CUT");\n        setOperationMode(data.operation_mode === "MACHINE" || (data.machine_lines || []).length > 0 ? "MACHINE" : "MANUAL");\n        setExtraData(Object.fromEntries(Object.entries(data.extra_data || {}).map(([key, value]) => [key, value == null ? "" : String(value)])));'
           new = '''const loadedMachineLines = Array.isArray(data.machine_lines) ? data.machine_lines : Array.isArray(data.machineLines) ? data.machineLines : Array.isArray(data.machines) ? data.machines : [];
-        const loadedDefects = Array.isArray(data.defects) ? data.defects : Array.isArray(data.ng_defects) ? data.ng_defects : [];
-        const loadedDeductions = Array.isArray(data.deductions) ? data.deductions : Array.isArray(data.deduction_items) ? data.deduction_items : [];
         setOperationType(data.operation_type === "LONG" ? "LONG" : "CUT");
         setOperationMode(data.operation_mode === "MACHINE" || loadedMachineLines.length > 0 || String(data.machine_no || "").trim() !== "" ? "MACHINE" : "MANUAL");
         setMachineLines(loadedMachineLines.length ? loadedMachineLines.map((line) => {
           const hm = toHoursMinutes(number(line.machine_time_hours ?? line.machineTimeHours ?? ((Number(line.running_hours || 0) * 60 + Number(line.running_minutes || 0)) / 60)));
           return { ...createEmptyMachineLine(), machineCode: String(line.machine_code ?? line.machineCode ?? ""), productCode: String(line.product_code ?? line.productCode ?? ""), hours: hm.hours, minutes: hm.minutes, okQuantity: String(line.ok_quantity ?? line.okQuantity ?? ""), ngQuantity: String(line.ng_quantity ?? line.ngQuantity ?? ""), adjustmentMinutes: "", adjustmentCount: "", standardOutputPerHour: Number(line.standard_output || 0), standardTimeSeconds: line.standard_time_seconds ?? null, standardSource: line.standard_source || null };
         }) : [createEmptyMachineLine()]);
-        setExtraData(Object.fromEntries(Object.entries(data.extra_data || {}).map(([key, value]) => [key, value == null ? "" : String(value)])));
-        if (loadedDefects.length) setSelectedNg(loadedDefects.map((item) => String(item.defect_code || item.code || item.defect_name || "")).filter(Boolean));
-        if (loadedDeductions.length) setSelectedDeduction(loadedDeductions.map((item) => String(item.deduction_code || item.code || item.deduction_name || "")).filter(Boolean));'''
+        setExtraData(Object.fromEntries(Object.entries(data.extra_data || {}).map(([key, value]) => [key, value == null ? "" : String(value)])));'''
           if old not in s:
               raise SystemExit('WorkerReportEdit load pattern not found')
           s = s.replace(old, new, 1)
           p.write_text(s, encoding='utf-8')
           PY
-
           git diff --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add backend/models/productionTempReadModel.js frontend/src/services/productionService.ts frontend/src/pages/worker/WorkerReportEdit.tsx
           git commit -m 'fix(worker): restore full report details in edit form [skip ci]'
           git push
-
       - name: Remove helper workflow
         run: |
           git rm .github/workflows/repair-edit-full-data.yml
