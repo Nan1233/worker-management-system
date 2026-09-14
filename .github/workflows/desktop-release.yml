@@ -50,7 +50,7 @@ jobs:
         run: |
           $path = 'package.json'
           $pkg = Get-Content $path -Raw | ConvertFrom-Json
-          $pkg.version = "1.9.${{ github.run_number }}"
+          $pkg.version = "2.0.${{ github.run_number }}"
           $pkg | ConvertTo-Json -Depth 100 | Set-Content -Encoding utf8 $path
           Write-Host "Desktop release version: $($pkg.version)"
 
