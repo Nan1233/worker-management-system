@@ -38,27 +38,12 @@ router.get("/daily-hours", authMiddleware, checkRole("worker"), permission("WORK
     try {
         const workerId = Number(req.user?.worker_id);
         const workDate = String(req.query?.date || "").trim();
-        if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
-            return res.status(400).json({ success: false, message: "Ngày làm việc không hợp lệ" });
-        }
-        const [approvedRows] = await db.promise().query(
-            `SELECT COALESCE(SUM(COALESCE(actual_time, 0)), 0) AS counted_hours
-             FROM production_reports
-             WHERE worker_id = ? AND work_date = ? AND status = 'approved'`,
-            [workerId, workDate]
-        );
-        const [tempRows] = await db.promise().query(
-            `SELECT COALESCE(SUM(COALESCE(actual_time, 0)), 0) AS counted_hours
-             FROM production_reports_temp
-             WHERE worker_id = ? AND work_date = ? AND status IN ('pending', 'need_fix')`,
-            [workerId, workDate]
-        );
+        if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return res.status(400).json({ success: false, message: "Ngày làm việc không hợp lệ" });
+        const [approvedRows] = await db.promise().query(`SELECT COALESCE(SUM(COALESCE(actual_time, 0)), 0) AS counted_hours FROM production_reports WHERE worker_id = ? AND work_date = ? AND status = 'approved'`, [workerId, workDate]);
+        const [tempRows] = await db.promise().query(`SELECT COALESCE(SUM(COALESCE(actual_time, 0)), 0) AS counted_hours FROM production_reports_temp WHERE worker_id = ? AND work_date = ? AND status IN ('pending', 'need_fix')`, [workerId, workDate]);
         const countedHours = Number(approvedRows?.[0]?.counted_hours || 0) + Number(tempRows?.[0]?.counted_hours || 0);
         return res.json({ success: true, data: { work_date: workDate, counted_hours: Number(countedHours.toFixed(4)), limit_hours: 12 } });
-    } catch (error) {
-        console.error("GET DAILY WORKING HOURS ERROR:", error);
-        return res.status(error.status || 500).json({ success: false, message: error.message || "Không thể lấy tổng giờ làm hôm nay" });
-    }
+    } catch (error) { console.error("GET DAILY WORKING HOURS ERROR:", error); return res.status(error.status || 500).json({ success: false, message: error.message || "Không thể lấy tổng giờ làm hôm nay" }); }
 });
 router.get("/pending", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_PENDING_VIEW"), controller.getPendingReports);
 router.get("/approved", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVED_VIEW"), controller.getApprovedReports);
@@ -75,7 +60,7 @@ router.get("/edit-proposals", authMiddleware, checkRole("admin", "manager", "lea
             accessible.push(row);
         }
         return res.json({success:true, data:accessible});
-    } catch (error) { console.error("GET EDIT PROPOSALS ERROR:", error); return res.status(error.status || 500).json({success:false, message:error.message || "Không thể tải đề xuất sửa"}); }
+    } catch (error) { console.error("GET EDIT PROPOSALS ERROR:", error); return res.status(error.status || 500).json({success:false,message:error.message || "Không thể tải đề xuất sửa"}); }
 });
 
 router.post("/edit-proposals", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), async (req,res)=>{
@@ -119,7 +104,7 @@ router.post("/edit-proposals/:id/review", authMiddleware, checkRole("manager","a
     }catch(error){console.error("REVIEW EDIT PROPOSAL ERROR:",error);return res.status(error.status||500).json({success:false,message:error.message||"Không thể xử lý đề xuất sửa"});}
 });
 
-router.delete("/edit-proposals/:id", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), async (req,res)=>{try{const id=Number(req.params.id),current=await proposalDetail(id);if(!current)return res.status(404).json({success:false,message:"Không tìm thấy đề xuất sửa"});if(!(await assertProposalAccess(req,current.report_id)))return res.status(403).json({success:false,message:"Đề xuất ngoài phạm vi phụ trách"});if(String(req.user.role).toLowerCase()==="lead"&&Number(current.proposer_user_id)!==Number(req.user.id))return res.status(403).json({success:false,message:"Bạn chỉ được sửa đề xuất của mình"});await db.promise().query(`DELETE FROM report_edit_proposals WHERE id=?`,[id]);return res.json({success:true,message:"Đã xóa đề xuất sửa"});}catch(error){return res.status(error.status||500).json({success:false,message:error.message||"Không thể xóa đề xuất sửa"});}});
+router.delete("/edit-proposals/:id", authMiddleware, checkRole("admin", "manager", "lead"), permission("REPORT_APPROVE"), async (req,res)=>{try{const id=Number(req.params.id),current=await proposalDetail(id);if(!current)return res.status(404).json({success:false,message:"Không tìm thấy đề xuất sửa"});if(!(await assertProposalAccess(req,id)))return res.status(403).json({success:false,message:"Đề xuất ngoài phạm vi phụ trách"});if(String(req.user.role).toLowerCase()==="lead"&&Number(current.proposer_user_id)!==Number(req.user.id))return res.status(403).json({success:false,message:"Bạn chỉ được sửa đề xuất của mình"});await db.promise().query(`DELETE FROM report_edit_proposals WHERE id=?`,[id]);return res.json({success:true,message:"Đã xóa đề xuất sửa"});}catch(error){return res.status(error.status||500).json({success:false,message:error.message||"Không thể xóa đề xuất sửa"});}});
 
 router.post("/approve-selected",authMiddleware,checkRole("admin","manager","lead"),validate({ids:{required:true,type:"array",itemType:"positiveInt",minItems:1,maxItems:100,unique:true}}),permission("REPORT_APPROVE"),controller.approveSelectedReports);
 router.post("/reject-selected",authMiddleware,checkRole("admin","manager","lead"),validate({ids:{required:true,type:"array",itemType:"positiveInt",minItems:1,maxItems:100,unique:true},reason:{required:true,type:"string",minLength:2,maxLength:500}}),permission("REPORT_APPROVE"),controller.rejectSelectedReports);
@@ -132,4 +117,7 @@ router.put("/:id",authMiddleware,checkRole("admin","manager","lead","worker"),va
 
 router.delete("/:id",authMiddleware,checkRole("admin","manager","lead"),permission("REPORT_DELETE"),async(req,res)=>{try{const reportId=Number(req.params.id);if(!Number.isInteger(reportId)||reportId<=0)return res.status(400).json({success:false,message:"ID báo cáo không hợp lệ"});const reason=String(req.body?.reason||"").trim();if(!reason)return res.status(400).json({success:false,message:"Vui lòng nhập lý do xóa báo cáo"});const result=await ProductionTemp.deleteTempReport(reportId,Number(req.user.id),req.user.role==="admin",reason,requestMeta(req));invalidateManagerReportLists();return res.json({success:true,message:"Đã xóa báo cáo",data:result});}catch(error){console.error("DELETE TEMP REPORT ERROR:",error);return res.status(error.status||500).json({success:false,message:error.message||"Không thể xóa báo cáo"});}});
 
-module.exports = { invalidateManagerReportLists };
+// Express router must be the CommonJS module export. Attach helpers as properties
+// so callers can still access them without changing the value passed to app.use().
+router.invalidateManagerReportLists = invalidateManagerReportLists;
+module.exports = router;
