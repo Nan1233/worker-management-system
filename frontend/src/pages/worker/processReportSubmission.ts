@@ -43,8 +43,6 @@ export function buildProductionReportPayload(args: {
     machine_code:l.machineCode.trim(),
     product_code:l.productCode.trim(),
     machine_time_hours:num(l.hours)+num(l.minutes)/60,
-    adjustment_minutes:num(l.adjustmentMinutes),
-    adjustment_count:num(l.adjustmentCount),
     ok_quantity:num(l.okQuantity),
     ng_quantity:num(l.ngQuantity),
     standard_output:num(l.standardOutputPerHour),
@@ -58,58 +56,35 @@ export function buildProductionReportPayload(args: {
     })).filter(x=>x.quantity>0)
   }));
   const defects=args.activeNgOptions.map(o=>({
-    key:String(o.key||""),
-    id:Number(o.id||o.defect_type_id||0)||undefined,
-    code:String(o.code||""),
-    label:String(o.label||o.defect_name||"")
+    key:String(o.key||""), id:Number(o.id||o.defect_type_id||0)||undefined,
+    code:String(o.code||""), label:String(o.label||o.defect_name||"")
   })).filter(o=>o.key).map(o=>({defect_type_id:o.id,defect_code:o.code,defect_name:o.label,quantity:num(args.form[o.key])})).filter(x=>x.quantity>0);
-
   const deductions=args.activeDeductionOptions.map(o=>({
     deduction_type_id:Number(o.id||o.deduction_type_id||0)||undefined,
-    deduction_code:String(o.code||""),
-    deduction_name:String(o.label||o.deduction_name||o.key||""),
+    deduction_code:String(o.code||""), deduction_name:String(o.label||o.deduction_name||o.key||""),
     hours:num(args.deductions[String(o.key||"")])/60
   })).filter(x=>x.hours>0);
-
   const actualOutput=num(args.form.actualOutput);
   const actualTime=parseHours(args.form.actualTime);
   const deductionTime=parseHours(args.form.deductionTime);
   const totalTime=parseHours(args.form.totalTime);
-  const hasActualMachineLine = args.usesMultiMachineLines && lines.some((line) => !!line.machine_code);
-  const useMachineLinesPayload = args.usesMultiMachineLines && hasActualMachineLine;
+  const hasActualMachineLine=args.usesMultiMachineLines&&lines.some((line)=>!!line.machine_code);
+  const useMachineLinesPayload=args.usesMultiMachineLines&&hasActualMachineLine;
   return {
-    process_id:args.processId,
-    work_date:args.form.workDate,
-    shift:args.form.shift,
-    machine_no:useMachineLinesPayload ? lines.map(l=>l.machine_code).join(", ") : args.form.machineNo,
-    product_name:useMachineLinesPayload ? [...new Set(lines.map(l=>l.product_code))].join(", ") : args.form.productName,
+    process_id:args.processId, work_date:args.form.workDate, shift:args.form.shift,
+    machine_no:useMachineLinesPayload?lines.map(l=>l.machine_code).join(", "):args.form.machineNo,
+    product_name:useMachineLinesPayload?[...new Set(lines.map(l=>l.product_code))].join(", "):args.form.productName,
     operation_type:args.operationType,
-    operation_mode:useMachineLinesPayload ? "MACHINE" : (args.usesAnyMachine && !args.isCutLongProcess ? "MACHINE" : "MANUAL"),
-    total_time:totalTime,
-    actual_time:actualTime,
-    deduction_time:deductionTime,
-    standard_output:useMachineLinesPayload ? lines.reduce((sum,l)=>sum+num(l.standard_output),0) : num(args.form.standardOutput),
-    actual_output:actualOutput,
-    tt_ok:num(args.form.ttOk),
-    tt_ng:num(args.form.ttNg),
-    kqd_dap_lai:num(args.form.kqdDapLai),
-    kqd_tuot:num(args.form.kqdTuot),
-    vo_do_long:num(args.form.voDoLong),
-    xuoc_do_long:num(args.form.xuocDoLong),
-    cong_gay:num(args.form.congGay),
-    xoay:num(args.form.xoay),
-    khong_dut:num(args.form.khongDut),
-    bavia_hut:num(args.form.baviaHut),
-    ppcm:num(args.form.ppcm),
-    loi_cao_su:num(args.form.loiCaoSu),
-    ng_kich_thuoc:num(args.form.ngKichThuoc),
-    cat_lem:num(args.form.catLem),
-    note:args.form.note || "",
-    extra_data:{...args.extraData, adjustment_count:num(args.form.adjustmentCount)},
-    defects,
-    deductions,
-    machine_lines:useMachineLinesPayload ? lines : [],
-    client_request_id:args.clientRequestId || undefined,
-    exclude_kqd_from_tt:args.excludeKqdFromTt ? 1 : 0
+    operation_mode:useMachineLinesPayload?"MACHINE":(args.usesAnyMachine&&!args.isCutLongProcess?"MACHINE":"MANUAL"),
+    total_time:totalTime, actual_time:actualTime, deduction_time:deductionTime,
+    standard_output:useMachineLinesPayload?lines.reduce((sum,l)=>sum+num(l.standard_output),0):num(args.form.standardOutput),
+    actual_output:actualOutput, tt_ok:num(args.form.ttOk), tt_ng:num(args.form.ttNg),
+    kqd_dap_lai:num(args.form.kqdDapLai), kqd_tuot:num(args.form.kqdTuot), vo_do_long:num(args.form.voDoLong),
+    xuoc_do_long:num(args.form.xuocDoLong), cong_gay:num(args.form.congGay), xoay:num(args.form.xoay),
+    khong_dut:num(args.form.khongDut), bavia_hut:num(args.form.baviaHut), ppcm:num(args.form.ppcm),
+    loi_cao_su:num(args.form.loiCaoSu), ng_kich_thuoc:num(args.form.ngKichThuoc), cat_lem:num(args.form.catLem),
+    note:args.form.note||"", extra_data:{...args.extraData, adjustment_count:num(args.form.adjustmentCount)},
+    defects, deductions, machine_lines:useMachineLinesPayload?lines:[], client_request_id:args.clientRequestId||undefined,
+    exclude_kqd_from_tt:args.excludeKqdFromTt?1:0
   } as ProductionReport;
 }
