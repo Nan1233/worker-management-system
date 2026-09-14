@@ -70,10 +70,19 @@ const validateMasterData = async ({
             : Promise.resolve([]),
         deductionIds.length
             ? query(
-                `SELECT DISTINCT id FROM deduction_types
-                 WHERE process_id = ? AND status = 'active'
-                 AND id IN (${deductionIds.map(() => "?").join(",")})`,
-                [processId, ...deductionIds]
+                `SELECT DISTINCT d.id
+                 FROM deduction_types d
+                 LEFT JOIN processes dp ON dp.id = d.process_id
+                 WHERE d.status = 'active'
+                   AND d.id IN (${deductionIds.map(() => "?").join(",")})
+                   AND (
+                       d.process_id = ?
+                       OR (
+                           ? = 60006
+                           AND UPPER(TRIM(COALESCE(dp.process_code, ''))) = 'CVK'
+                       )
+                   )`,
+                [...deductionIds, processId, processId]
             )
             : Promise.resolve([]),
         query(`SELECT process_code FROM processes WHERE id = ? LIMIT 1`, [processId])
