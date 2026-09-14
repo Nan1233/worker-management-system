@@ -179,6 +179,10 @@ export default function ProcessBasicInfoSection({
                                 {Array.from({ length: maxMachineCount }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count}</option>)}
                             </select></label>
                         </div>
+                        <div className="worker-field-block worker-machine-adjustment-count">
+                            <label className="worker-field-label" htmlFor="adjustmentCount">Số lần chỉnh máy</label>
+                            <div className="worker-deduction-input-row"><input id="adjustmentCount" className="worker-text-input worker-deduction-input" type="number" min="0" inputMode="numeric" value={form.adjustmentCount || ""} onChange={(event) => setForm((current) => ({ ...current, adjustmentCount: event.target.value.replace(/\D/g, "") }))} placeholder="0" autoComplete="off" /><span className="worker-time-unit" aria-hidden="true">lần</span></div>
+                        </div>
                         <div className="machine-lines-list">
                             {machineLines.map((line, index) => (
                                 <article className="machine-line" key={index}>
