@@ -19,7 +19,7 @@ const CANONICAL_DEDUCTION_NAMES = CANONICAL_DEDUCTION_TYPES.map((item) => item.n
 async function resolveProcess(processId) {
     const requestedId = Number(processId);
     const [exactRows] = await db.promise().query(
-        `SELECT id, UPPER(TRIM(COALESCE(process_code, ''))) AS process_code
+        `SELECT id, UPPER(TRIM(COALESCE(process_code, ''))) AS process_code, status
            FROM processes
           WHERE id = ?
           LIMIT 1`,
@@ -28,23 +28,45 @@ async function resolveProcess(processId) {
 
     const exact = exactRows?.[0];
     if (exact && ["GC", "CVK"].includes(exact.process_code)) {
+        if (exact.process_code === "CVK" && String(exact.status || "active").toLowerCase() !== "active") {
+            await db.promise().query(`UPDATE processes SET status = 'active' WHERE id = ?`, [exact.id]);
+        }
         return { id: Number(exact.id), code: exact.process_code, source: "id" };
     }
 
-    // CVK is represented by logical id 60006 in the worker UI, while the
-    // migration creates processes with AUTO_INCREMENT. Resolve the physical
-    // row by canonical process_code when the ids differ.
+    // Never assume that the AUTO_INCREMENT id of CVK is 60006. Resolve the
+    // physical process by its canonical code instead.
     if (requestedId === 60006) {
         const [codeRows] = await db.promise().query(
-            `SELECT id, UPPER(TRIM(COALESCE(process_code, ''))) AS process_code
+            `SELECT id, UPPER(TRIM(COALESCE(process_code, ''))) AS process_code, status
                FROM processes
               WHERE UPPER(TRIM(COALESCE(process_code, ''))) = 'CVK'
-                AND COALESCE(status, 'active') IN ('active', 'enabled', '1')
               ORDER BY id
               LIMIT 1`,
         );
         const byCode = codeRows?.[0];
-        if (byCode) return { id: Number(byCode.id), code: byCode.process_code, source: "code" };
+        if (byCode) {
+            if (String(byCode.status || "active").toLowerCase() !== "active") {
+                await db.promise().query(`UPDATE processes SET status = 'active' WHERE id = ?`, [byCode.id]);
+            }
+            return { id: Number(byCode.id), code: "CVK", source: "code" };
+        }
+
+        // Migration 034 should create CVK, but self-heal it here as well so a
+        // partially migrated TiDB database cannot leave the worker form empty.
+        await db.promise().query(
+            `INSERT INTO processes (process_code, process_name, status)
+             VALUES ('CVK', 'Công việc khác (Không theo mã sản phẩm)', 'active')`,
+        );
+        const [createdRows] = await db.promise().query(
+            `SELECT id, UPPER(TRIM(COALESCE(process_code, ''))) AS process_code
+               FROM processes
+              WHERE UPPER(TRIM(COALESCE(process_code, ''))) = 'CVK'
+              ORDER BY id DESC
+              LIMIT 1`,
+        );
+        const created = createdRows?.[0];
+        if (created) return { id: Number(created.id), code: "CVK", source: "created" };
     }
 
     return null;
@@ -108,13 +130,11 @@ const Deduction = {
             const sql = `
                 SELECT d.id, d.deduction_code, d.deduction_name, d.sort_order
                 FROM deduction_types d
-                LEFT JOIN processes p ON p.id = d.process_id
+                INNER JOIN processes p ON p.id = d.process_id
                 WHERE d.process_id = ?
                   AND d.status = 'active'
-                  AND (
-                    UPPER(TRIM(COALESCE(p.process_code, ''))) NOT IN ('GC', 'CVK')
-                    OR LOWER(TRIM(COALESCE(d.deduction_name, ''))) IN (${placeholders})
-                  )
+                  AND UPPER(TRIM(COALESCE(p.process_code, ''))) IN ('GC', 'CVK')
+                  AND LOWER(TRIM(COALESCE(d.deduction_name, ''))) IN (${placeholders})
                 ORDER BY d.sort_order ASC, d.id ASC
             `;
             const params = [effectiveProcessId, ...CANONICAL_DEDUCTION_NAMES.map((name) => name.toLowerCase())];
