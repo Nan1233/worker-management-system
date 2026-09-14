@@ -221,7 +221,6 @@ export default function ProductionDetail() {
                           <div><span>Mã máy</span><strong>{line.machine_code || "-"}</strong></div>
                           <div><span>Mã sản phẩm</span><strong>{line.product_code || "-"}</strong></div>
                           <div><span>Thời gian máy</span><strong>{number(line.machine_time_hours)} giờ</strong></div>
-                          <div><span>Chỉnh máy</span><strong>{number(line.adjustment_minutes)} phút · {quantity(line.adjustment_count)} lần</strong></div>
                           <div><span>OK</span><strong>{quantity(line.ok_quantity)}</strong></div>
                           <div><span>NG</span><strong>{quantity(line.ng_quantity)}</strong></div>
                           <div><span>Tổng lỗi</span><strong>{quantity(defectTotal)}</strong></div>

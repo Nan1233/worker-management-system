@@ -75,7 +75,7 @@ function WorkerReportEdit() {
         });
         setOperationType(data.operation_type === "LONG" ? "LONG" : "CUT");
         setOperationMode(data.operation_mode === "MACHINE" || (data.machine_lines || []).length > 0 ? "MACHINE" : "MANUAL");
-        setExtraData(Object.fromEntries(Object.entries(data.extra_data || {}).map(([key, value]) => [key, value == null ? "" : String(value)])));
+        setExtraData(Object.fromEntries(Object.entries(data.extra_data || {}).filter(([key]) => key !== "adjustment_count").map(([key, value]) => [key, value == null ? "" : String(value)])));
         setForm((current) => ({ ...current, adjustmentCount: String((data.extra_data || {}).adjustment_count ?? data.adjustment_count ?? "") }));
       } catch (e: any) {
         if (alive) setError(e?.response?.data?.message || e?.message || "Không tải được báo cáo.");

@@ -200,7 +200,7 @@ module.exports = {
     },
 
     async getDetail(id) {
-        const rows = await query(db, `SELECT pr.*, w.worker_code, u.full_name, p.process_name,
+        const rows = await query(db, `SELECT pr.*, w.worker_code, u.full_name, p.process_name, p.process_code,
                     reviewer.full_name AS reviewer_name
              FROM production_reports_temp pr
              LEFT JOIN workers w ON pr.worker_id = w.id
