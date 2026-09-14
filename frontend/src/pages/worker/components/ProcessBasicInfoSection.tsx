@@ -37,9 +37,6 @@ interface Props {
     updateMachineDefectValue: (lineIndex: number, key: string, value: string) => void;
 }
 
-const GC_AUTOMATIC_MACHINE_CODES = new Set(["C5", "C6", "C7", "C11"]);
-const getMachineCode = (option: AutocompleteOption): string => option.value.trim().toUpperCase().replace(/^MÁY\s*/i, "");
-
 type CutExecutionMode = "AUTO" | "NON_AUTO";
 type LongExecutionMode = "MANUAL" | "MACHINE";
 
@@ -52,9 +49,7 @@ export default function ProcessBasicInfoSection({
     updateMachineLine, refreshMachineLineStandard, getMachineNgTotal, activeNgOptions,
     toggleMachineDefect, updateMachineDefectValue,
 }: Props) {
-    const [longExecutionMode, setLongExecutionMode] = useState<LongExecutionMode>(
-        operationMode === "MACHINE" ? "MACHINE" : "MANUAL",
-    );
+    const [longExecutionMode, setLongExecutionMode] = useState<LongExecutionMode>(operationMode === "MACHINE" ? "MACHINE" : "MANUAL");
     const [cutExecutionMode, setCutExecutionMode] = useState<CutExecutionMode>("AUTO");
 
     useEffect(() => {
@@ -75,14 +70,9 @@ export default function ProcessBasicInfoSection({
     const handleOperationTypeChange = (nextType: OperationType) => {
         setOperationType(nextType);
         if (nextType === "CUT") {
-            setOperationMode("MACHINE");
-            setCutExecutionMode("AUTO");
-            setLongExecutionMode("MACHINE");
-            return;
+            setOperationMode("MACHINE"); setCutExecutionMode("AUTO"); setLongExecutionMode("MACHINE"); return;
         }
-        setOperationMode("MANUAL");
-        setCutExecutionMode("AUTO");
-        setLongExecutionMode("MANUAL");
+        setOperationMode("MANUAL"); setCutExecutionMode("AUTO"); setLongExecutionMode("MANUAL");
     };
 
     const handleLongExecutionModeChange = (mode: LongExecutionMode) => {
@@ -90,10 +80,7 @@ export default function ProcessBasicInfoSection({
         setOperationMode(mode === "MANUAL" ? "MANUAL" : "MACHINE");
     };
 
-    // GC no longer asks the worker to choose Cắt/Lồng or Tự động/Tay/Máy.
-    // The machine master is the source of truth; the worker simply chooses a machine first.
-    const visibleGcMachineOptions = machineAutocompleteOptions;
-    const visibleMachineOptions = isCutLongProcess ? visibleGcMachineOptions : machineAutocompleteOptions;
+    const visibleMachineOptions = machineAutocompleteOptions;
 
     return (
         <section className="worker-form-card worker-form-card-basic">
@@ -210,61 +197,18 @@ export default function ProcessBasicInfoSection({
                                             <label><span>OK</span><input type="number" min="0" inputMode="numeric" value={line.okQuantity} onChange={(event) => updateMachineLine(index, { okQuantity: event.target.value.replace(/\D/g, "") })} /></label>
                                             <label><span>NG</span><input type="number" min="0" inputMode="numeric" value={line.ngQuantity} readOnly aria-readonly="true" title="Tự động tính từ chi tiết lỗi NG" /></label>
                                         </div></div>
-                                        <div><div className="machine-section-title">Chỉnh máy</div><div className="machine-quantity-row">
-                                            <label><span>Thời gian (phút)</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentMinutes} onChange={(event) => updateMachineLine(index, { adjustmentMinutes: event.target.value.replace(/\D/g, "") })} /></label>
-                                            <label><span>Số lần</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentCount} onChange={(event) => updateMachineLine(index, { adjustmentCount: event.target.value.replace(/\D/g, "") })} /></label>
-                                        </div></div>
-                                        <div><div className="machine-section-title">Chỉnh máy</div><div className="machine-quantity-row">
-                                            <label><span>Thời gian (phút)</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentMinutes} onChange={(event) => updateMachineLine(index, { adjustmentMinutes: event.target.value.replace(/\D/g, "") })} /></label>
-                                            <label><span>Số lần</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentCount} onChange={(event) => updateMachineLine(index, { adjustmentCount: event.target.value.replace(/\D/g, "") })} /></label>
-                                        </div></div>
-                                        <div><div className="machine-section-title">Chỉnh máy</div><div className="machine-quantity-row">
-                                            <label><span>Thời gian (phút)</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentMinutes} onChange={(event) => updateMachineLine(index, { adjustmentMinutes: event.target.value.replace(/\D/g, "") })} /></label>
-                                            <label><span>Số lần</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentCount} onChange={(event) => updateMachineLine(index, { adjustmentCount: event.target.value.replace(/\D/g, "") })} /></label>
-                                        </div></div>
-                                        <div><div className="machine-section-title">Chỉnh máy</div><div className="machine-quantity-row">
-                                            <label><span>Thời gian (phút)</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentMinutes} onChange={(event) => updateMachineLine(index, { adjustmentMinutes: event.target.value.replace(/\D/g, "") })} /></label>
-                                            <label><span>Số lần</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentCount} onChange={(event) => updateMachineLine(index, { adjustmentCount: event.target.value.replace(/\D/g, "") })} /></label>
-                                        </div></div>
-                                        <div><div className="machine-section-title">Chỉnh máy</div><div className="machine-quantity-row">
-                                            <label><span>Thời gian (phút)</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentMinutes} onChange={(event) => updateMachineLine(index, { adjustmentMinutes: event.target.value.replace(/\D/g, "") })} /></label>
-                                            <label><span>Số lần</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentCount} onChange={(event) => updateMachineLine(index, { adjustmentCount: event.target.value.replace(/\D/g, "") })} /></label>
-                                        </div></div>
-                                        <div><div className="machine-section-title">Chỉnh máy</div><div className="machine-quantity-row">
-                                            <label><span>Thời gian (phút)</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentMinutes} onChange={(event) => updateMachineLine(index, { adjustmentMinutes: event.target.value.replace(/\D/g, "") })} /></label>
-                                            <label><span>Số lần</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentCount} onChange={(event) => updateMachineLine(index, { adjustmentCount: event.target.value.replace(/\D/g, "") })} /></label>
-                                        </div></div>
-                                        <div><div className="machine-section-title">Chỉnh máy</div><div className="machine-quantity-row">
-                                            <label><span>Thời gian (phút)</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentMinutes} onChange={(event) => updateMachineLine(index, { adjustmentMinutes: event.target.value.replace(/\D/g, "") })} /></label>
-                                            <label><span>Số lần</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentCount} onChange={(event) => updateMachineLine(index, { adjustmentCount: event.target.value.replace(/\D/g, "") })} /></label>
-                                        </div></div>
-                                        <div><div className="machine-section-title">Chỉnh máy</div><div className="machine-quantity-row">
-                                            <label><span>Thời gian (phút)</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentMinutes} onChange={(event) => updateMachineLine(index, { adjustmentMinutes: event.target.value.replace(/\D/g, "") })} /></label>
-                                            <label><span>Số lần</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentCount} onChange={(event) => updateMachineLine(index, { adjustmentCount: event.target.value.replace(/\D/g, "") })} /></label>
-                                        </div></div>
-                                        <div><div className="machine-section-title">Chỉnh máy</div><div className="machine-quantity-row">
-                                            <label><span>Thời gian (phút)</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentMinutes} onChange={(event) => updateMachineLine(index, { adjustmentMinutes: event.target.value.replace(/\D/g, "") })} /></label>
-                                            <label><span>Số lần</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentCount} onChange={(event) => updateMachineLine(index, { adjustmentCount: event.target.value.replace(/\D/g, "") })} /></label>
-                                        </div></div>
-                                        <div><div className="machine-section-title">Chỉnh máy</div><div className="machine-quantity-row">
-                                            <label><span>Thời gian (phút)</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentMinutes} onChange={(event) => updateMachineLine(index, { adjustmentMinutes: event.target.value.replace(/\D/g, "") })} /></label>
-                                            <label><span>Số lần</span><input type="number" min="0" inputMode="numeric" placeholder="0" value={line.adjustmentCount} onChange={(event) => updateMachineLine(index, { adjustmentCount: event.target.value.replace(/\D/g, "") })} /></label>
-                                        </div></div>
                                     </div>
                                     {line.standardError && <div className="worker-inline-error">{line.standardError}</div>}
                                     <details className="machine-deduction-box">
                                         <summary>Chi tiết lỗi NG <strong>{getMachineNgTotal(line)} sản phẩm</strong></summary>
                                         <div className="machine-deduction-options">
                                             {activeNgOptions.map((item) => (
-                                                <label key={item.key} className="machine-deduction-option"><input type="checkbox" className="machine-ng-checkbox"
-                                                    style={{ width: 16, height: 16, minWidth: 16, maxWidth: 16, minHeight: 16, maxHeight: 16, flex: "0 0 16px", boxSizing: "border-box", margin: 0, padding: 0 }}
-                                                    checked={line.selectedDefects.includes(item.key)} onChange={() => toggleMachineDefect(index, item.key)} /><span>{item.label}</span></label>
+                                                <label key={item.key} className="machine-deduction-option"><input type="checkbox" className="machine-ng-checkbox" style={{ width: 16, height: 16, minWidth: 16, maxWidth: 16, minHeight: 16, maxHeight: 16, flex: "0 0 16px", boxSizing: "border-box", margin: 0, padding: 0 }} checked={line.selectedDefects.includes(item.key)} onChange={() => toggleMachineDefect(index, item.key)} /><span>{item.label}</span></label>
                                             ))}
                                         </div>
                                         {line.selectedDefects.length > 0 && <div className="machine-ng-quantities">
                                             {activeNgOptions.filter((item) => line.selectedDefects.includes(item.key)).map((item) => (
-                                                <label key={`qty-${item.key}`} className="machine-ng-quantity-row"><span>{item.label}</span><input className="machine-deduction-minute" type="number" min="0" inputMode="numeric" placeholder="0"
-                                                    aria-label={`Số lượng ${item.label}`} value={line.defects[item.key] || ""} onChange={(event) => updateMachineDefectValue(index, item.key, event.target.value.replace(/\D/g, ""))} /></label>
+                                                <label key={`qty-${item.key}`} className="machine-ng-quantity-row"><span>{item.label}</span><input className="machine-deduction-minute" type="number" min="0" inputMode="numeric" placeholder="0" aria-label={`Số lượng ${item.label}`} value={line.defects[item.key] || ""} onChange={(event) => updateMachineDefectValue(index, item.key, event.target.value.replace(/\D/g, ""))} /></label>
                                             ))}
                                         </div>}
                                     </details>
@@ -276,13 +220,8 @@ export default function ProcessBasicInfoSection({
                     <div className="worker-machine-single worker-field-full">
                         <div className="worker-selection-heading"><div><strong>Máy &amp; sản phẩm</strong><small>Chọn máy trước → hệ thống chỉ hiển thị mã sản phẩm hợp lệ của máy</small></div></div>
                         <div className="worker-single-machine-grid">
-                            <AutocompleteInput id="machineNo" label="Mã máy" value={form.machineNo} options={visibleMachineOptions} placeholder="Chọn mã máy" required disabled={loadingMasterData}
-                                emptyMessage="Không tìm thấy máy trong công đoạn"
-                                onChange={(value) => setForm((prev) => ({ ...prev, machineNo: value, productName: "", standardOutput: "" }))}
-                                onSelect={(option) => setForm((prev) => ({ ...prev, machineNo: option.value, productName: "", standardOutput: "" }))} />
-                            <AutocompleteInput id="productName" label="Mã sản phẩm" value={form.productName} options={productAutocompleteOptions}
-                                placeholder={form.machineNo.trim() ? "Nhập hoặc chọn mã sản phẩm" : "Chọn máy trước"} required disabled={loadingMasterData || !form.machineNo.trim()}
-                                emptyMessage={form.machineNo.trim() ? "Không có mã sản phẩm phù hợp với máy này" : "Chọn máy trước để xem mã sản phẩm"} onChange={setProduct} onSelect={(option) => setProduct(option.value)} />
+                            <AutocompleteInput id="machineNo" label="Mã máy" value={form.machineNo} options={visibleMachineOptions} placeholder="Chọn mã máy" required disabled={loadingMasterData} emptyMessage="Không tìm thấy máy trong công đoạn" onChange={(value) => setForm((prev) => ({ ...prev, machineNo: value, productName: "", standardOutput: "" }))} onSelect={(option) => setForm((prev) => ({ ...prev, machineNo: option.value, productName: "", standardOutput: "" }))} />
+                            <AutocompleteInput id="productName" label="Mã sản phẩm" value={form.productName} options={productAutocompleteOptions} placeholder={form.machineNo.trim() ? "Nhập hoặc chọn mã sản phẩm" : "Chọn máy trước"} required disabled={loadingMasterData || !form.machineNo.trim()} emptyMessage={form.machineNo.trim() ? "Không có mã sản phẩm phù hợp với máy này" : "Chọn máy trước để xem mã sản phẩm"} onChange={setProduct} onSelect={(option) => setProduct(option.value)} />
                         </div>
                     </div>
                 ) : null}
