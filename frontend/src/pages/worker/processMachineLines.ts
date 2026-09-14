@@ -106,3 +106,5 @@ export function updateMachineDefectLine(
     ngQuantity: String(ngQuantity),
   };
 }
+
+// Machine adjustment fields are stored per machine line alongside runtime/output data.
