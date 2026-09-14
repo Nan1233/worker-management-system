@@ -203,9 +203,9 @@ module.exports = {
         const rows = await query(db, `SELECT pr.*, w.worker_code, u.full_name, p.process_name,
                     reviewer.full_name AS reviewer_name
              FROM production_reports_temp pr
-             JOIN workers w ON pr.worker_id = w.id
-             JOIN users u ON w.user_id = u.id
-             JOIN processes p ON pr.process_id = p.id
+             LEFT JOIN workers w ON pr.worker_id = w.id
+             LEFT JOIN users u ON w.user_id = u.id
+             LEFT JOIN processes p ON pr.process_id = p.id
              LEFT JOIN users reviewer ON reviewer.id = pr.reviewed_by
              WHERE pr.id = ? LIMIT 1`, [id]);
         if (!rows[0]) return null;
