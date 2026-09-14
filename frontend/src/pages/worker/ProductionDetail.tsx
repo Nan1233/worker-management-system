@@ -136,9 +136,6 @@ export default function ProductionDetail() {
                 <div><span>Công nhân</span><strong>{report.full_name || report.worker_name || "-"}</strong></div>
                 <div><span>Mã công nhân</span><strong>{report.worker_code || "-"}</strong></div>
                 <div><span>Công việc</span><strong>{workType}</strong></div>
-                <div><span>Công đoạn</span><strong>{processLabel}</strong></div>
-                <div><span>Ngày làm việc</span><strong>{String(report.work_date || "").slice(0, 10)}</strong></div>
-                <div><span>Ca</span><strong>{report.shift || "-"}</strong></div>
               </div>
             </section>
 
@@ -152,7 +149,6 @@ export default function ProductionDetail() {
               <div className="cvk-time-summary">
                 <div><span>Thời gian thực tế</span><strong>{number(actualHours)} giờ</strong></div>
                 <div><span>Thời gian trừ</span><strong>{number(deductionHours)} giờ</strong></div>
-                <div><span>Tổng cộng</span><strong>{number(totalHours)} giờ</strong></div>
               </div>
             </section>
 
@@ -186,7 +182,7 @@ export default function ProductionDetail() {
               .cvk-time-box span,.cvk-time-summary span{font-size:11px;color:#718198}
               .cvk-time-box strong{margin-top:3px;font-size:17px;color:#174b86}
               .cvk-time-total{background:#f6f9fc}
-              .cvk-time-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+              .cvk-time-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px}
               .cvk-time-summary>div{padding:9px 10px;border:1px solid #e0e8f1;border-radius:10px;background:#f8fafc}
               .cvk-time-summary strong{display:block;margin-top:3px;font-size:13px;color:#24476e}
               .cvk-deduction-list{display:grid;gap:8px}
@@ -194,7 +190,7 @@ export default function ProductionDetail() {
               .cvk-deduction-item span{font-size:13px;color:#40536d}
               .cvk-deduction-item strong{font-size:13px;color:#24476e;white-space:nowrap}
               .cvk-note{margin:0;white-space:pre-wrap;line-height:1.55;color:#29435f}
-              @media(max-width:650px){.cvk-time-detail-grid,.cvk-time-summary{grid-template-columns:1fr 1fr}.cvk-time-total{grid-column:1/-1}.cvk-history-detail .detail-grid{grid-template-columns:1fr 1fr}}
+              @media(max-width:650px){.cvk-time-detail-grid{grid-template-columns:1fr 1fr}.cvk-time-total{grid-column:1/-1}.cvk-history-detail .detail-grid{grid-template-columns:1fr 1fr}}
             `}</style>
           </>
         ) : (
