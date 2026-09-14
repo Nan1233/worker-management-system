@@ -3,11 +3,15 @@ const { mergeDefects, normalizeDeductions } = require("../utils/reportDetailNorm
 const { query } = require("./productionTempModelShared");
 const { paginationMeta } = require("../services/managerReportPaginationService");
 
+const LEGACY_CVK_ID = 60006;
+const LEGACY_CVK_NAME = "Công việc khác (Không theo mã sản phẩm)";
+
 function buildListFilters(managerId, filters, isAdmin, statusSql) {
     const params = [];
     const conditions = [statusSql];
+    const processNameSql = `COALESCE(p.process_name, CASE WHEN pr.process_id = ${LEGACY_CVK_ID} THEN '${LEGACY_CVK_NAME}' END)`;
     if (!isAdmin) {
-        conditions.push(`((pr.process_id = 60006 OR UPPER(TRIM(COALESCE(p.process_code, ''))) = 'CVK') OR EXISTS (
+        conditions.push(`((pr.process_id = ${LEGACY_CVK_ID} OR UPPER(TRIM(COALESCE(p.process_code, ''))) = 'CVK') OR EXISTS (
             SELECT 1 FROM manager_processes mp
             WHERE mp.process_id = pr.process_id
               AND mp.manager_id = ?
@@ -19,9 +23,9 @@ function buildListFilters(managerId, filters, isAdmin, statusSql) {
     if (filters.date_to) { conditions.push("DATE(pr.work_date) <= ?"); params.push(filters.date_to); }
     if (filters.shift) { conditions.push("pr.shift = ?"); params.push(filters.shift); }
     if (filters.process_id) { conditions.push("pr.process_id = ?"); params.push(filters.process_id); }
-    if (filters.process_name) { conditions.push("p.process_name = ?"); params.push(filters.process_name); }
+    if (filters.process_name) { conditions.push(`${processNameSql} = ?`); params.push(filters.process_name); }
     if (filters.search) {
-        conditions.push("(w.worker_code LIKE ? OR u.full_name LIKE ? OR p.process_name LIKE ? OR pr.machine_no LIKE ? OR pr.product_name LIKE ?)");
+        conditions.push(`(w.worker_code LIKE ? OR u.full_name LIKE ? OR ${processNameSql} LIKE ? OR pr.machine_no LIKE ? OR pr.product_name LIKE ?)`);
         const search = `%${filters.search}%`;
         params.push(search, search, search, search, search);
     }
@@ -30,7 +34,7 @@ function buildListFilters(managerId, filters, isAdmin, statusSql) {
 
 async function getProcessOptions(managerId, isAdmin) {
     const params = [];
-    const scope = isAdmin ? "" : `AND (p.id = 60006 OR UPPER(TRIM(COALESCE(p.process_code, ''))) = 'CVK' OR EXISTS (
+    const scope = isAdmin ? "" : `AND (p.id = ${LEGACY_CVK_ID} OR UPPER(TRIM(COALESCE(p.process_code, ''))) = 'CVK' OR EXISTS (
         SELECT 1 FROM manager_processes mp
         WHERE mp.manager_id = ? AND mp.process_id = p.id
     ))`;
@@ -43,7 +47,7 @@ async function getProcessOptions(managerId, isAdmin) {
 
 async function getPreviousPendingCount(managerId, isAdmin) {
     const params = [];
-    const scope = isAdmin ? "" : `AND ((pr.process_id = 60006 OR EXISTS (
+    const scope = isAdmin ? "" : `AND ((pr.process_id = ${LEGACY_CVK_ID} OR EXISTS (
         SELECT 1 FROM processes pc
         WHERE pc.id = pr.process_id
           AND UPPER(TRIM(COALESCE(pc.process_code, ''))) = 'CVK'
@@ -114,14 +118,15 @@ module.exports = {
                  FROM production_reports_temp pr
                  JOIN workers w ON pr.worker_id = w.id
                  JOIN users u ON w.user_id = u.id
-                 JOIN processes p ON pr.process_id = p.id
+                 LEFT JOIN processes p ON pr.process_id = p.id
                  WHERE ${where}`, params),
             query(db, `SELECT pr.id, pr.work_date, pr.shift, pr.machine_no, pr.product_name,
-                    pr.updated_at, pr.worker_id, w.user_id, w.worker_code, u.full_name, p.process_name
+                    pr.updated_at, pr.worker_id, w.user_id, w.worker_code, u.full_name,
+                    COALESCE(p.process_name, CASE WHEN pr.process_id = ${LEGACY_CVK_ID} THEN '${LEGACY_CVK_NAME}' END) AS process_name
                  FROM production_reports_temp pr
                  JOIN workers w ON pr.worker_id = w.id
                  JOIN users u ON w.user_id = u.id
-                 JOIN processes p ON pr.process_id = p.id
+                 LEFT JOIN processes p ON pr.process_id = p.id
                  WHERE ${where}
                  ORDER BY pr.work_date DESC, pr.created_at ASC, pr.id ASC
                  LIMIT ? OFFSET ?`, [...params, pageSize, offset]),
@@ -141,16 +146,17 @@ module.exports = {
                  FROM production_reports pr
                  JOIN workers w ON pr.worker_id = w.id
                  JOIN users u ON w.user_id = u.id
-                 JOIN processes p ON pr.process_id = p.id
+                 LEFT JOIN processes p ON pr.process_id = p.id
                  WHERE ${where}`, params),
             query(db, `SELECT pr.id, pr.work_date, pr.shift, pr.machine_no, pr.product_name,
                         pr.training_percent_snapshot,
                         pr.training_percent_snapshot AS training_percent,
-                        w.worker_code, u.full_name, p.process_name
+                        w.worker_code, u.full_name,
+                        COALESCE(p.process_name, CASE WHEN pr.process_id = ${LEGACY_CVK_ID} THEN '${LEGACY_CVK_NAME}' END) AS process_name
                  FROM production_reports pr
                  JOIN workers w ON pr.worker_id = w.id
                  JOIN users u ON w.user_id = u.id
-                 JOIN processes p ON pr.process_id = p.id
+                 LEFT JOIN processes p ON pr.process_id = p.id
                  WHERE ${where}
                  ORDER BY pr.approved_at DESC, pr.id DESC
                  LIMIT ? OFFSET ?`, [...params, pageSize, offset]),
@@ -165,7 +171,7 @@ module.exports = {
             return query(db, `SELECT DISTINCT DATE(pr.work_date) AS date
                 FROM production_reports_temp pr
                 WHERE pr.status IN ('pending', 'need_fix')
-                  AND ((pr.process_id = 60006 OR EXISTS (
+                  AND ((pr.process_id = ${LEGACY_CVK_ID} OR EXISTS (
                       SELECT 1 FROM processes pc
                       WHERE pc.id = pr.process_id
                         AND UPPER(TRIM(COALESCE(pc.process_code, ''))) = 'CVK'
@@ -184,14 +190,15 @@ module.exports = {
     async getByDate(date, managerId = null) {
         const params = [date];
         let scope = "";
-        if (managerId) { scope = " AND ((pr.process_id = 60006 OR UPPER(TRIM(COALESCE(p.process_code, ''))) = 'CVK') OR mp.manager_id = ?)"; params.push(managerId); }
-        return query(db, `SELECT pr.*, w.worker_code, u.full_name, p.process_name,
+        if (managerId) { scope = ` AND ((pr.process_id = ${LEGACY_CVK_ID} OR UPPER(TRIM(COALESCE(p.process_code, ''))) = 'CVK') OR mp.manager_id = ?)`; params.push(managerId); }
+        return query(db, `SELECT pr.*, w.worker_code, u.full_name,
+                COALESCE(p.process_name, CASE WHEN pr.process_id = ${LEGACY_CVK_ID} THEN '${LEGACY_CVK_NAME}' END) AS process_name,
                 CASE WHEN dup.duplicate_count > 1 THEN 1 ELSE 0 END AS is_duplicate,
                 COALESCE(dup.duplicate_count, 1) AS duplicate_count
             FROM production_reports_temp pr
             JOIN workers w ON pr.worker_id = w.id
             JOIN users u ON w.user_id = u.id
-            JOIN processes p ON pr.process_id = p.id
+            LEFT JOIN processes p ON pr.process_id = p.id
             LEFT JOIN manager_processes mp ON mp.process_id = pr.process_id
             LEFT JOIN (
                 SELECT worker_id, work_date, shift, machine_no, product_name, COUNT(*) AS duplicate_count
@@ -241,7 +248,7 @@ module.exports = {
              FROM production_reports_temp pr
              LEFT JOIN processes p ON p.id = pr.process_id
              WHERE pr.id = ?
-               AND ((pr.process_id = 60006 OR UPPER(TRIM(COALESCE(p.process_code, ''))) = 'CVK') OR EXISTS (
+               AND ((pr.process_id = ${LEGACY_CVK_ID} OR UPPER(TRIM(COALESCE(p.process_code, ''))) = 'CVK') OR EXISTS (
                    SELECT 1 FROM manager_processes mp
                    WHERE mp.process_id = pr.process_id
                      AND mp.manager_id = ?
