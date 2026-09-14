@@ -142,9 +142,17 @@ export const resolveProductStandard = async (
         });
         const payload = response.data?.data ?? response.data;
         const rows = Array.isArray(payload) ? payload as ProductStandardOption[] : [];
-        const product = rows.find(
+        const candidates = rows.filter(
             (row) => String(row?.product_code || "").trim().toUpperCase() === normalizedProduct.toUpperCase(),
         );
+
+        // Some GC products have both a legacy/default row and machine-scoped
+        // rows. A zero default row must never win the lookup when a positive
+        // master standard exists for the same product.
+        const product = candidates
+            .filter((row) => Number.isFinite(Number(row?.standard_output)) && Number(row.standard_output) > 0)
+            .sort((a, b) => Number(b.standard_output) - Number(a.standard_output))[0]
+            ?? candidates[0];
 
         if (!product) {
             throw new Error(`Không tìm thấy mã sản phẩm ${normalizedProduct} trong công đoạn`);
