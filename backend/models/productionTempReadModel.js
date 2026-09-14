@@ -7,11 +7,11 @@ function buildListFilters(managerId, filters, isAdmin, statusSql) {
     const params = [];
     const conditions = [statusSql];
     if (!isAdmin) {
-        conditions.push(`EXISTS (
+        conditions.push(`(pr.process_id = 60006 OR EXISTS (
             SELECT 1 FROM manager_processes mp
             WHERE mp.process_id = pr.process_id
               AND mp.manager_id = ?
-        )`);
+        ))`);
         params.push(managerId);
     }
     if (filters.date) { conditions.push("pr.work_date = ?"); params.push(filters.date); }
@@ -43,10 +43,10 @@ async function getProcessOptions(managerId, isAdmin) {
 
 async function getPreviousPendingCount(managerId, isAdmin) {
     const params = [];
-    const scope = isAdmin ? "" : `AND EXISTS (
+    const scope = isAdmin ? "" : `AND (pr.process_id = 60006 OR EXISTS (
         SELECT 1 FROM manager_processes mp
         WHERE mp.manager_id = ? AND mp.process_id = pr.process_id
-    )`;
+    ))`;
     if (!isAdmin) params.push(managerId);
     const rows = await query(db, `SELECT COUNT(*) AS total
         FROM production_reports_temp pr
@@ -174,7 +174,7 @@ module.exports = {
     async getByDate(date, managerId = null) {
         const params = [date];
         let scope = "";
-        if (managerId) { scope = " AND mp.manager_id = ?"; params.push(managerId); }
+        if (managerId) { scope = " AND (pr.process_id = 60006 OR mp.manager_id = ?)"; params.push(managerId); }
         return query(db, `SELECT pr.*, w.worker_code, u.full_name, p.process_name,
                 CASE WHEN dup.duplicate_count > 1 THEN 1 ELSE 0 END AS is_duplicate,
                 COALESCE(dup.duplicate_count, 1) AS duplicate_count

@@ -32,6 +32,15 @@ export function useProcessMasterData(processId: number, processCode: string) {
   const requestGeneration = useRef(0);
 
   const load = useCallback(async () => {
+    if (!Number.isInteger(processId) || processId <= 0) {
+      setMachineOptions([]);
+      setProductOptions([]);
+      setActiveNgOptions([]);
+      setActiveDeductionOptions([]);
+      setLoading(false);
+      return;
+    }
+
     const generation = ++requestGeneration.current;
     setLoading(true);
 

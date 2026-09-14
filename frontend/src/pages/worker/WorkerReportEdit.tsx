@@ -111,7 +111,7 @@ function WorkerReportEdit() {
     const selected: string[] = [];
     setForm((current) => {
       const next = { ...current };
-      (report.defects || []).forEach((item) => {
+      (report.defects || []).forEach((item: any) => {
         const key = findNgKey(item);
         if (key) { next[key] = String(item.quantity || 0); selected.push(key); }
       });
@@ -124,7 +124,7 @@ function WorkerReportEdit() {
       if (!source) return line;
       const selectedDefects: string[] = [];
       const defects: Record<string, string> = {};
-      (source.defects || []).forEach((item) => {
+      (source.defects || []).forEach((item: any) => {
         const key = findNgKey(item);
         if (key) { selectedDefects.push(key); defects[key] = String(item.quantity || 0); }
       });
@@ -136,7 +136,7 @@ function WorkerReportEdit() {
     if (!report || !activeDeductionOptions.length) return;
     const next: DeductionState = { ...initialDeduction };
     const selected: string[] = [];
-    (Array.isArray(report.deductions) ? report.deductions : Array.isArray((report as any).deduction_items) ? (report as any).deduction_items : []).forEach((item) => {
+    (Array.isArray(report.deductions) ? report.deductions : Array.isArray((report as any).deduction_items) ? (report as any).deduction_items : []).forEach((item: any) => {
       const key = findDeductionKey(item);
       const minutes = item.minutes ?? item.deduction_minutes ?? (Number(item.hours || 0) * 60);
       if (key) { next[key] = String(Math.round(Number(minutes) || 0)); selected.push(key); }
@@ -148,7 +148,7 @@ function WorkerReportEdit() {
   useEffect(() => {
     if (!report) return;
     const sourceLines = Array.isArray(report.machine_lines) ? report.machine_lines : Array.isArray((report as any).machineLines) ? (report as any).machineLines : [];
-    const lines = sourceLines.map((line) => {
+    const lines = sourceLines.map((line: any) => {
       const hm = toHoursMinutes(number(line.machine_time_hours));
       return { ...createEmptyMachineLine(), machineCode: String(line.machine_code || ""), productCode: String(line.product_code || ""), hours: hm.hours, minutes: hm.minutes, adjustmentMinutes: String(line.adjustment_minutes ?? ""), adjustmentCount: String(line.adjustment_count ?? ""), okQuantity: String(line.ok_quantity ?? ""), ngQuantity: String(line.ng_quantity ?? ""), standardOutputPerHour: Number(line.standard_output || 0), standardTimeSeconds: line.standard_time_seconds ?? null, standardSource: line.standard_source || null };
     });
