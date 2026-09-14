@@ -1,7 +1,6 @@
 const db = require("../config/db");
 
-// CVK (Công việc khác) uses exactly the same deduction catalogue as Gia công.
-// Keep one canonical list so the API can self-heal if a migration was skipped.
+// GC and CVK use the same canonical deduction catalogue.
 const CANONICAL_DEDUCTION_TYPES = [
     { code: "THIEU_SAN_LUONG", name: "Thiếu sản lượng", sort: 1 },
     { code: "CHUYEN_MA", name: "Chuyển mã", sort: 2 },
@@ -17,26 +16,54 @@ const CANONICAL_DEDUCTION_TYPES = [
 
 const CANONICAL_DEDUCTION_NAMES = CANONICAL_DEDUCTION_TYPES.map((item) => item.name);
 
-async function ensureCanonicalDeductionTypes(processId) {
-    const [processRows] = await db.promise().query(
+async function resolveProcess(processId) {
+    const requestedId = Number(processId);
+    const [exactRows] = await db.promise().query(
         `SELECT id, UPPER(TRIM(COALESCE(process_code, ''))) AS process_code
            FROM processes
           WHERE id = ?
-            AND UPPER(TRIM(COALESCE(process_code, ''))) IN ('GC', 'CVK')
           LIMIT 1`,
-        [processId],
+        [requestedId],
     );
-    if (!processRows.length) return;
 
-    // Self-heal both GC and CVK at request time. This makes the API resilient
-    // when a Cloudflare/TiDB deployment has not executed the latest migration.
+    const exact = exactRows?.[0];
+    if (exact && ["GC", "CVK"].includes(exact.process_code)) {
+        return { id: Number(exact.id), code: exact.process_code, source: "id" };
+    }
+
+    // CVK is represented by logical id 60006 in the worker UI, while the
+    // migration creates processes with AUTO_INCREMENT. Resolve the physical
+    // row by canonical process_code when the ids differ.
+    if (requestedId === 60006) {
+        const [codeRows] = await db.promise().query(
+            `SELECT id, UPPER(TRIM(COALESCE(process_code, ''))) AS process_code
+               FROM processes
+              WHERE UPPER(TRIM(COALESCE(process_code, ''))) = 'CVK'
+                AND COALESCE(status, 'active') IN ('active', 'enabled', '1')
+              ORDER BY id
+              LIMIT 1`,
+        );
+        const byCode = codeRows?.[0];
+        if (byCode) return { id: Number(byCode.id), code: byCode.process_code, source: "code" };
+    }
+
+    return null;
+}
+
+async function ensureCanonicalDeductionTypes(processId) {
+    const process = await resolveProcess(processId);
+    if (!process) {
+        console.warn("[KTC][DEDUCTION] process not resolved", JSON.stringify({ requestedProcessId: Number(processId) }));
+        return null;
+    }
+
     const placeholders = CANONICAL_DEDUCTION_NAMES.map(() => "?").join(",");
     await db.promise().query(
         `UPDATE deduction_types
             SET status = 'inactive'
           WHERE process_id = ?
             AND LOWER(TRIM(COALESCE(deduction_name, ''))) NOT IN (${placeholders})`,
-        [processId, ...CANONICAL_DEDUCTION_NAMES.map((name) => name.toLowerCase())],
+        [process.id, ...CANONICAL_DEDUCTION_NAMES.map((name) => name.toLowerCase())],
     );
 
     for (const item of CANONICAL_DEDUCTION_TYPES) {
@@ -47,7 +74,7 @@ async function ensureCanonicalDeductionTypes(processId) {
                 AND LOWER(TRIM(COALESCE(deduction_name, ''))) = LOWER(TRIM(?))
               ORDER BY id
               LIMIT 1`,
-            [processId, item.name],
+            [process.id, item.name],
         );
 
         if (existingRows.length) {
@@ -62,64 +89,53 @@ async function ensureCanonicalDeductionTypes(processId) {
                 `INSERT INTO deduction_types
                     (process_id, deduction_code, deduction_name, sort_order, status)
                  VALUES (?, ?, ?, ?, 'active')`,
-                [processId, item.code, item.name, item.sort],
+                [process.id, item.code, item.name, item.sort],
             );
         }
     }
+
+    return process;
 }
 
 const Deduction = {
-
-    // =====================================================
-    // LẤY TRỪ GIỜ THEO CÔNG ĐOẠN
-    // GET /api/processes/:id/deductions
-    // =====================================================
-    // GC và CVK có danh mục Trừ giờ cố định theo business rule.
-    // Nếu DB còn thiếu các row, tự bổ sung trước khi trả dữ liệu.
     async getByProcess(process_id) {
-        const processId = Number(process_id);
-        await ensureCanonicalDeductionTypes(processId);
+        const requestedId = Number(process_id);
+        const process = await ensureCanonicalDeductionTypes(requestedId);
+        const effectiveProcessId = process?.id ?? requestedId;
+        const placeholders = CANONICAL_DEDUCTION_NAMES.map(() => "?").join(",");
 
         return new Promise((resolve, reject) => {
             const sql = `
-                SELECT
-                    d.id,
-                    d.deduction_code,
-                    d.deduction_name,
-                    d.sort_order
+                SELECT d.id, d.deduction_code, d.deduction_name, d.sort_order
                 FROM deduction_types d
                 LEFT JOIN processes p ON p.id = d.process_id
                 WHERE d.process_id = ?
                   AND d.status = 'active'
                   AND (
                     UPPER(TRIM(COALESCE(p.process_code, ''))) NOT IN ('GC', 'CVK')
-                    OR LOWER(TRIM(COALESCE(d.deduction_name, ''))) IN (
-                        ${CANONICAL_DEDUCTION_NAMES.map(() => "?").join(",")}
-                    )
+                    OR LOWER(TRIM(COALESCE(d.deduction_name, ''))) IN (${placeholders})
                   )
                 ORDER BY d.sort_order ASC, d.id ASC
             `;
-
-            const params = [processId, ...CANONICAL_DEDUCTION_NAMES.map((name) => name.toLowerCase())];
+            const params = [effectiveProcessId, ...CANONICAL_DEDUCTION_NAMES.map((name) => name.toLowerCase())];
 
             db.query(sql, params, (err, rows) => {
                 if (err) return reject(err);
+                console.info("[KTC][DEDUCTION] resolved", JSON.stringify({
+                    requestedProcessId: requestedId,
+                    effectiveProcessId,
+                    processCode: process?.code ?? null,
+                    processSource: process?.source ?? null,
+                    returned: Array.isArray(rows) ? rows.length : 0,
+                }));
                 resolve(rows);
             });
         });
     },
 
-    // =====================================================
-    // LẤY CHI TIẾT TRỪ GIỜ
-    // =====================================================
     getById(id) {
         return new Promise((resolve, reject) => {
-            const sql = `
-                SELECT *
-                FROM deduction_types
-                WHERE id = ?
-            `;
-
+            const sql = `SELECT * FROM deduction_types WHERE id = ?`;
             db.query(sql, [id], (err, result) => {
                 if (err) return reject(err);
                 resolve(result[0]);
