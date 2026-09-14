@@ -15,6 +15,16 @@ const manageableRoles = (role) => ROLE_CREATE_RULES[role] || [];
 const normalizeStatus = (value) => value === 'inactive' ? 'inactive' : 'active';
 const normalizeProcessIds = (value) => [...new Set((Array.isArray(value) ? value : [])
   .map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+const parseProcessIds = (value) => {
+  if (Array.isArray(value)) return normalizeProcessIds(value);
+  const raw = String(value ?? '').trim();
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return normalizeProcessIds(parsed);
+  } catch (_) {}
+  return normalizeProcessIds(raw.split(','));
+};
 
 function publicError(res, error, fallback) {
   console.error(fallback, error);
@@ -89,7 +99,7 @@ exports.getProcessOptions = async (req, res) => {
       const canonicalKey = isGiaCong ? 'GC' : code || `ID_${row.id}`;
       if (seen.has(canonicalKey)) continue;
       seen.add(canonicalKey);
-      normalized.push({ ...row, process_code: isGiaCong ? 'GC' : row.process_code, process_name: isGiaCong ? 'Gia công' : row.process_name });
+      normalized.push({ ...row, id: Number(row.id), process_code: isGiaCong ? 'GC' : row.process_code, process_name: isGiaCong ? 'Gia công' : row.process_name });
     }
     return res.json({ success: true, data: normalized });
   } catch (error) { return publicError(res, error, 'Không thể lấy danh sách công đoạn'); }
@@ -130,7 +140,11 @@ exports.getUserById = async (req, res) => {
     );
     if (!rows.length) return res.status(404).json({ success:false, message:'Người dùng không tồn tại' });
     if (!await canManageTarget(connection, req.user, rows[0])) return res.status(403).json({ success:false, message:'Bạn không có quyền xem người dùng này' });
-    return res.json({ success:true, data:rows[0] });
+
+    // Always return assignments as a real numeric array. The DB driver may expose
+    // GROUP_CONCAT as a string, and the editor must not depend on driver coercion.
+    const detail = { ...rows[0], process_ids: parseProcessIds(rows[0].process_ids) };
+    return res.json({ success:true, data:detail });
   } catch (error) { return publicError(res, error, 'Không thể lấy thông tin người dùng'); }
   finally { connection.release(); }
 };
