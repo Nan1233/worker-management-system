@@ -10,9 +10,9 @@ export interface SimilarReportCheckResponse{success:boolean;duplicate:boolean;da
 export const checkSimilarTempReport=async(data:Pick<ProductionReport,"process_id"|"work_date"|"shift"|"machine_no"|"product_name">):Promise<SimilarReportCheckResponse>=>{const res=await api.post("/production-temp/check-similar",data);return res.data;};
 export const getTempDates=async()=>{const res=await api.get("/production-temp/dates");return res.data.data||res.data||[];};
 export const getTempReportsByDate=async(date:string):Promise<ProductionReport[]>=>{const res=await api.get(`/production-temp/by-date?date=${date}`);return res.data.data||res.data||[];};
-export const getTempReportById=async(id:number):Promise<ProductionReport>=>{const res=await api.get(`/production-temp/${id}`,{params:{_t:Date.now()}});return res.data.data||res.data;};
-export const getTempReportDetail=async(id:number):Promise<ProductionReport>=>getTempReportById(id);
-export const getMyTempReports=async()=>{const res=await api.get("/production-temp/my");return res.data.data||res.data||[];};
+export const getTempReportById=async(id:number):Promise<ProductionReport>=>{const res=await api.get(`/production-temp/${id}`,{params:{_t:Date.now()} ,headers:{"Cache-Control":"no-cache"}});return res.data.data||res.data;};
+export const getTempReportDetail=async(id:number):Promise<ProductionReport=>getTempReportById(id);
+export const getMyTempReports=async()=>{const res=await api.get("/production-temp/my",{params:{_t:Date.now()},headers:{"Cache-Control":"no-cache","Pragma":"no-cache"}});return res.data.data||res.data||[];};
 export interface DailyWorkingHours{work_date:string;counted_hours:number;limit_hours:number;}
 export const getMyDailyWorkingHours=async(date:string):Promise<DailyWorkingHours>=>{const res=await api.get("/production-temp/daily-hours",{params:{date}});return res.data?.data||res.data;};
 export interface ManagerReportPagination{page:number;page_size:number;total:number;total_pages:number;}
@@ -29,7 +29,7 @@ export const getReports=async():Promise<ProductionReport[]> =>(await getApproved
 export const getReportById=async(id:number,source?:string|null)=>{const normalizedSource=String(source||"").toLowerCase();const url=normalizedSource==="pending"||normalizedSource==="temp"?`/production-temp/${id}`:`/production/${id}`;const res=await api.get(url);return res.data.data||res.data;};
 export const updateReport=async(id:number,data:ProductionReport,source:"pending"|"approved"="approved",expectedUpdatedAt:string|null=null)=>{const endpoint=source==="pending"?`/production-temp/${id}`:`/production/${id}`;const payload=source==="approved"?{...data,expected_updated_at:expectedUpdatedAt||undefined}:data;const res=await api.put(endpoint,payload);return res.data;};
 export const updateTempReport=async(id:number,data:ProductionReport)=>{const res=await api.put(`/production-temp/${id}`,{...data,expected_updated_at:data.updated_at||undefined});return res.data;};
-export const deleteReport=async(id:number,reason:string)=>{const res=await api.delete(`/production/${id}`,{data:{reason:String(reason||"").trim()}});return res.data;};
+export const deleteReport=async(id:number,reason:string)=>{const res=await api.delete(`/production/${id}`,{data:{reason:String(reason||"")}});return res.data;};
 export const createApprovedReportFromExcel=async(data:ProductionReport)=>{const res=await api.post("/production/excel-sync",{changes:[{create:true,data,source:{file:"Manager Web",sheet:"Quản lý báo cáo"}}]});const result=res.data?.results?.[0];if(!result?.success)throw new Error(result?.message||res.data?.message||"Không thể thêm báo cáo");return result;};
 const downloadExcel=(data:BlobPart,filename:string)=>{const blob=new Blob([data],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});const url=window.URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download=filename;document.body.appendChild(link);link.click();link.remove();window.URL.revokeObjectURL(url);};
 export const exportProductionExcel=async(date:string)=>{const res=await api.get(`/reports/export-excel?date=${date}&type=pending`,{responseType:"blob"});downloadExcel(res.data,`BaoCaoChoDuyet_${date}.xlsx`);};
