@@ -22,48 +22,47 @@ jobs:
           from pathlib import Path
           import re
 
-          # 1) Remove every accidental per-machine "Chỉnh máy" block.
+          # Remove every accidental per-machine adjustment block.
           path = Path('frontend/src/pages/worker/components/ProcessBasicInfoSection.tsx')
           s = path.read_text(encoding='utf-8')
-          block = re.compile(r'\s*<div><div className="machine-section-title">Chỉnh máy</div><div className="machine-quantity-row">\s*<label><span>Thời gian \(phút\)</span><input[^>]*value=\{line\.adjustmentMinutes\}[^>]*/></label>\s*<label><span>Số lần</span><input[^>]*value=\{line\.adjustmentCount\}[^>]*/></label>\s*</div></div>\s*')
-          s, removed = block.subn('\n', s)
-          if removed == 0:
-              raise SystemExit('No per-machine adjustment block found')
+          per_machine = re.compile(r'\s*<div><div className="machine-section-title">Chỉnh máy</div><div className="machine-quantity-row">\s*<label><span>Thời gian \(phút\)</span><input[^>]*value=\{line\.adjustmentMinutes\}[^>]*/></label>\s*<label><span>Số lần</span><input[^>]*value=\{line\.adjustmentCount\}[^>]*/></label>\s*</div></div>\s*')
+          s, _ = per_machine.subn('\n', s)
 
-          # 2) Add ONE overall count immediately below the machine/product selectors,
-          #    outside the machineLines.map().
-          marker = '''                                    </div>\n                                    <div className="machine-data-grid">'''
-          count_ui = '''                                    </div>\n                                    {index === 0 && <div className="worker-field-block worker-machine-adjustment-count">\n                                        <label className="worker-field-label" htmlFor="adjustmentCount">Số lần chỉnh máy</label>\n                                        <div className="worker-deduction-input-row"><input id="adjustmentCount" className="worker-text-input worker-deduction-input" type="number" min="0" inputMode="numeric" value={form.adjustmentCount || ""} onChange={(event) => setForm((current) => ({ ...current, adjustmentCount: event.target.value.replace(/\\D/g, "") }))} placeholder="0" autoComplete="off" /><span className="worker-time-unit" aria-hidden="true">lần</span></div>\n                                    </div>}\n                                    <div className="machine-data-grid">'''
+          # Remove an old count block if a previous helper placed it inside the first machine row.
+          old_count = re.compile(r'\s*\{index === 0 && <div className="worker-field-block worker-machine-adjustment-count">.*?</div>\}\s*', re.S)
+          s, _ = old_count.subn('\n', s)
+
+          # Add exactly one overall count between the machine/product area and the machine rows.
+          marker = '''                        </div>\n                        <div className="machine-lines-list">'''
+          count_ui = '''                        </div>\n                        <div className="worker-field-block worker-machine-adjustment-count">\n                            <label className="worker-field-label" htmlFor="adjustmentCount">Số lần chỉnh máy</label>\n                            <div className="worker-deduction-input-row"><input id="adjustmentCount" className="worker-text-input worker-deduction-input" type="number" min="0" inputMode="numeric" value={form.adjustmentCount || ""} onChange={(event) => setForm((current) => ({ ...current, adjustmentCount: event.target.value.replace(/\\D/g, "") }))} placeholder="0" autoComplete="off" /><span className="worker-time-unit" aria-hidden="true">lần</span></div>\n                        </div>\n                        <div className="machine-lines-list">'''
           if marker not in s:
-              raise SystemExit('Machine selector marker not found')
+              raise SystemExit('Machine rows marker not found')
           s = s.replace(marker, count_ui, 1)
           path.write_text(s, encoding='utf-8')
 
-          # 3) Count belongs to the report, never to machine_lines.
+          # Count is report-level data, not machine-line data.
           path = Path('frontend/src/pages/worker/processReportSubmission.ts')
           s = path.read_text(encoding='utf-8')
           s = s.replace('    adjustment_minutes:num(l.adjustmentMinutes),\n', '')
           s = s.replace('    adjustment_count:num(l.adjustmentCount),\n', '')
-          if 'extra_data:{...args.extraData, adjustment_count:num(args.form.adjustmentCount)},' not in s:
-              s = s.replace('    extra_data:args.extraData,', '    extra_data:{...args.extraData, adjustment_count:num(args.form.adjustmentCount)},', 1)
+          s = s.replace('    extra_data:args.extraData,', '    extra_data:{...args.extraData, adjustment_count:num(args.form.adjustmentCount)},', 1)
           path.write_text(s, encoding='utf-8')
 
-          # 4) Remove the count field from the generic Trừ giờ details if a previous helper inserted it there.
+          # Count must not be duplicated in the generic Trừ giờ detail area.
           path = Path('frontend/src/pages/worker/components/ProcessTimeDeductionSection.tsx')
           s = path.read_text(encoding='utf-8')
-          generic_count = re.compile(r'\s*\{selectedDeduction\.includes\("chinhMay"\) && <div className="worker-field-block">\s*<label className="worker-field-label" htmlFor="adjustmentCount">Số lần chỉnh máy</label>\s*<div className="worker-deduction-input-row"><input[^>]*id="adjustmentCount"[^>]*/>.*?</div>\s*</div>\}\s*', re.S)
+          generic_count = re.compile(r'\s*\{selectedDeduction\.includes\("chinhMay"\) && <div className="worker-field-block">\s*<label className="worker-field-label" htmlFor="adjustmentCount">Số lần chỉnh máy</label>.*?</div>\}\s*', re.S)
           s, _ = generic_count.subn('\n', s)
           path.write_text(s, encoding='utf-8')
 
-          # 5) Restore the overall count when editing.
+          # Restore the report-level count while editing an existing report.
           path = Path('frontend/src/pages/worker/WorkerReportEdit.tsx')
           s = path.read_text(encoding='utf-8')
           if 'adjustmentCount:' not in s:
               anchor = '          note: String(data.note || ""),'
-              if anchor in s:
-                  s = s.replace(anchor, anchor + '\n          adjustmentCount: String((data.extra_data || {}).adjustment_count ?? ""),', 1)
-              else:
-                  raise SystemExit('WorkerReportEdit form anchor not found')
+              if anchor not in s:
+                  raise SystemExit('WorkerReportEdit anchor not found')
+              s = s.replace(anchor, anchor + '\n          adjustmentCount: String((data.extra_data || {}).adjustment_count ?? ""),', 1)
           path.write_text(s, encoding='utf-8')
           PY
       - name: Verify
@@ -80,5 +79,5 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add frontend/src/pages/worker/components/ProcessBasicInfoSection.tsx frontend/src/pages/worker/components/ProcessTimeDeductionSection.tsx frontend/src/pages/worker/processReportSubmission.ts frontend/src/pages/worker/WorkerReportEdit.tsx
           git rm .github/workflows/fix-adjustment-count.yml
-          git commit -m 'fix(worker): place adjustment count under machine selector [skip ci]'
+          git commit -m 'fix(worker): put adjustment count outside machine rows [skip ci]'
           git push
