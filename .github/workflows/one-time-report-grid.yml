@@ -1,69 +1,10 @@
 name: One-time Excel report UX fix
 
 on:
-  push:
-    branches: [main]
-
-permissions:
-  contents: write
+  workflow_dispatch:
 
 jobs:
-  patch:
-    if: github.actor != 'github-actions[bot]'
+  disabled:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Patch draft restore ordering
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('frontend/src/pages/worker/ProcessPage.tsx')
-          text = path.read_text(encoding='utf-8')
-
-          old_import = '''    useEffect,\n    useMemo,'''
-          new_import = '''    useEffect,\n    useLayoutEffect,\n    useMemo,'''
-          if 'useLayoutEffect' not in text:
-              if old_import not in text:
-                  raise SystemExit('Could not locate React hook import block')
-              text = text.replace(old_import, new_import, 1)
-
-          marker = '''useEffect(() => {\n        const draft = loadProcessDraft(process);\n        if (!draft) return;\n\n        isRestoringDraftRef.current = true;'''
-          replacement = '''useLayoutEffect(() => {\n        const draft = loadProcessDraft(process);\n        if (!draft) return;\n\n        // Restore the draft in a layout effect so the initialization effects\n        // below cannot reset the restored machine lines during the same mount.\n        isRestoringDraftRef.current = true;'''
-          if marker not in text:
-              raise SystemExit('Could not locate draft restore effect')
-          text = text.replace(marker, replacement, 1)
-
-          path.write_text(text, encoding='utf-8')
-          PY
-
-      - name: Verify patch
-        run: |
-          grep -n "useLayoutEffect" frontend/src/pages/worker/ProcessPage.tsx
-          grep -n "Restore the draft in a layout effect" frontend/src/pages/worker/ProcessPage.tsx
-
-      - name: Commit patch and restore one-time workflow
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          cat > .github/workflows/one-time-report-grid.yml <<'EOF'
-          name: One-time Excel report UX fix
-
-          on:
-            workflow_dispatch:
-
-          jobs:
-            disabled:
-              runs-on: ubuntu-latest
-              steps:
-                - run: echo "One-time report UX patch has already been applied to main."
-          EOF
-          git add frontend/src/pages/worker/ProcessPage.tsx .github/workflows/one-time-report-grid.yml
-          git commit -m "fix(worker): preserve machine lines on draft resume"
-          git push origin main
+      - run: echo "One-time report UX patch has already been applied to main."

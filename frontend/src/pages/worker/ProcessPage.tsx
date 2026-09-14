@@ -1,6 +1,7 @@
 import {
     useCallback,
     useEffect,
+    useLayoutEffect,
     useMemo,
     useRef,
     useState
@@ -609,10 +610,12 @@ const calculateActualOutput = (values: FormState): number =>
     // Contract: reportType: duplicateResponse.data?.report_type === "approved" is the approved-state discriminator.
 
 
-useEffect(() => {
+useLayoutEffect(() => {
         const draft = loadProcessDraft(process);
         if (!draft) return;
 
+        // Restore the draft in a layout effect so the initialization effects
+        // below cannot reset the restored machine lines during the same mount.
         isRestoringDraftRef.current = true;
 
         setForm((current) => ({
