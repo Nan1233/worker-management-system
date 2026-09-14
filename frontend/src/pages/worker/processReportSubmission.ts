@@ -43,6 +43,8 @@ export function buildProductionReportPayload(args: {
     machine_code:l.machineCode.trim(),
     product_code:l.productCode.trim(),
     machine_time_hours:num(l.hours)+num(l.minutes)/60,
+    adjustment_minutes:num(l.adjustmentMinutes),
+    adjustment_count:num(l.adjustmentCount),
     ok_quantity:num(l.okQuantity),
     ng_quantity:num(l.ngQuantity),
     standard_output:num(l.standardOutputPerHour),
@@ -79,9 +81,6 @@ export function buildProductionReportPayload(args: {
     process_id:args.processId,
     work_date:args.form.workDate,
     shift:args.form.shift,
-    // GC with no machine is Lồng tay, so do not serialize an empty machine as
-    // a MACHINE report. This lets the normal manual-report validation resolve
-    // the product standard without a machine.
     machine_no:useMachineLinesPayload ? lines.map(l=>l.machine_code).join(", ") : args.form.machineNo,
     product_name:useMachineLinesPayload ? [...new Set(lines.map(l=>l.product_code))].join(", ") : args.form.productName,
     operation_type:args.operationType,
