@@ -4,6 +4,7 @@ const path = require('node:path');
 
 const DEFAULT_IMPORT_MAX_BYTES = 50 * 1024 * 1024;
 const DEFAULT_PREVIEW_TTL_MS = 10 * 60 * 1000;
+const DEFAULT_TRUSTED_WEB_ORIGIN = 'https://ktc-frontend.nan978971.workers.dev';
 
 function normalizedFilePathFromUrl(targetUrl) {
   try {
@@ -17,7 +18,19 @@ function normalizedFilePathFromUrl(targetUrl) {
   }
 }
 
+function getTrustedWebOrigin() {
+  const configured = String(process.env.KTC_WEB_ORIGIN || '').trim().replace(/\/+$/, '');
+  return configured || DEFAULT_TRUSTED_WEB_ORIGIN;
+}
+
 function isTrustedRendererNavigation(targetUrl, trustedFiles = []) {
+  try {
+    const parsed = new URL(String(targetUrl || ''));
+    if (parsed.origin === getTrustedWebOrigin()) return true;
+  } catch {
+    // Continue with the packaged file check below.
+  }
+
   const candidate = normalizedFilePathFromUrl(targetUrl);
   if (!candidate) return false;
   const trusted = new Set((trustedFiles || []).map((file) => path.resolve(String(file || ''))));
@@ -95,6 +108,7 @@ class ReportImportPreviewGuard {
 module.exports = {
   DEFAULT_IMPORT_MAX_BYTES,
   DEFAULT_PREVIEW_TTL_MS,
+  DEFAULT_TRUSTED_WEB_ORIGIN,
   normalizedFilePathFromUrl,
   isTrustedRendererNavigation,
   isSafeExternalUrl,
