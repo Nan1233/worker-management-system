@@ -22,40 +22,31 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-
-          # Backend: return process_code so the edit page can resolve the correct process/master data.
           p = Path('backend/models/productionTempReadModel.js')
           s = p.read_text()
           old = '''SELECT pr.*, w.worker_code, u.full_name, p.process_name,\n                    reviewer.full_name AS reviewer_name'''
           new = '''SELECT pr.*, w.worker_code, u.full_name, p.process_name, p.process_code,\n                    reviewer.full_name AS reviewer_name'''
-          if old not in s:
-              raise SystemExit('backend target not found')
+          if old not in s: raise SystemExit('backend target not found')
           p.write_text(s.replace(old, new, 1))
 
-          # Frontend service: prevent stale browser/proxy cache when opening an editable report.
           p = Path('frontend/src/services/productionService.ts')
           s = p.read_text()
           old = '''export const getReportById=async(id:number,source?:string|null)=>{const normalizedSource=String(source||"").toLowerCase();const url=normalizedSource==="pending"||normalizedSource==="temp"?`/production-temp/${id}`:`/production/${id}`;const res=await api.get(url);return res.data.data||res.data;};'''
           new = '''export const getReportById=async(id:number,source?:string|null)=>{const normalizedSource=String(source||"").toLowerCase();const url=normalizedSource==="pending"||normalizedSource==="temp"?`/production-temp/${id}`:`/production/${id}`;const res=await api.get(url,{params:{_t:Date.now()},headers:{"Cache-Control":"no-cache","Pragma":"no-cache"}});return res.data.data||res.data;};'''
-          if old not in s:
-              raise SystemExit('service target not found')
+          if old not in s: raise SystemExit('service target not found')
           p.write_text(s.replace(old, new, 1))
 
-          # Detail: adjustment time/count is a general deduction, not per-machine data.
           p = Path('frontend/src/pages/worker/ProductionDetail.tsx')
           s = p.read_text()
           old = '''                          <div><span>Chỉnh máy</span><strong>{number(line.adjustment_minutes)} phút · {quantity(line.adjustment_count)} lần</strong></div>\n'''
-          if old not in s:
-              raise SystemExit('detail target not found')
+          if old not in s: raise SystemExit('detail target not found')
           p.write_text(s.replace(old, '', 1))
 
-          # Edit page: do not expose adjustment_count as a raw "Thông tin bổ sung" field.
           p = Path('frontend/src/pages/worker/WorkerReportEdit.tsx')
           s = p.read_text()
           old = '''        setExtraData(Object.fromEntries(Object.entries(data.extra_data || {}).map(([key, value]) => [key, value == null ? "" : String(value)])));'''
           new = '''        setExtraData(Object.fromEntries(Object.entries(data.extra_data || {}).filter(([key]) => key !== "adjustment_count").map(([key, value]) => [key, value == null ? "" : String(value)])));'''
-          if old not in s:
-              raise SystemExit('edit extra_data target not found')
+          if old not in s: raise SystemExit('edit extra_data target not found')
           p.write_text(s.replace(old, new, 1))
           PY
       - name: TypeScript syntax check
