@@ -22,7 +22,7 @@ import "./pages/manager/ReportsDetailCompact.css";
 import "./pages/manager/PendingReportActiveRow.css";
 import "./pages/manager/PendingReportDetailFocus";
 import "./styles/ManagementUnified.css";
-import { ToastProvider } from "./components/feedback/toastContext";
+import { ToastProvider } from "./components/feedback/ToastProvider";
 import AuthBootstrap from "./components/AuthBootstrap";
 import AppErrorBoundary from "./components/system/AppErrorBoundary";
 import OfflineReportSync from "./components/system/OfflineReportSync";
