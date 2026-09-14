@@ -1,4 +1,4 @@
-const { app, ipcMain, dialog } = require('electron');
+const { app, ipcMain, dialog, BrowserWindow } = require('electron');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
@@ -6,6 +6,34 @@ const os = require('node:os');
 
 const DEFAULT_EXPORT_ROOT = path.join(os.homedir(), 'Documents', 'KTC', 'Bao cao san xuat');
 const CONFIG_FILE = path.join(app.getPath('userData'), 'excel-export-config.json');
+
+// The desktop shell is built once, while the actual UI is served from the same
+// web deployment used by the browser. This means frontend changes published to
+// Cloudflare are visible in the installed desktop app without rebuilding the
+// Electron package. If the web deployment is unavailable, main.cjs falls back
+// to the packaged frontend/offline page.
+const KTC_WEB_URL = String(
+  process.env.KTC_WEB_URL || 'https://ktc-frontend.nan978971.workers.dev/'
+).trim();
+const KTC_WEB_ORIGIN = (() => {
+  try { return new URL(KTC_WEB_URL).origin; } catch { return ''; }
+})();
+process.env.KTC_WEB_URL = KTC_WEB_URL;
+process.env.KTC_WEB_ORIGIN = KTC_WEB_ORIGIN;
+
+// main.cjs historically calls loadFile(FRONTEND_INDEX). Keep that contract so
+// offline fallback and packaging checks remain intact, but transparently route
+// only the packaged frontend entry to the hosted web application.
+const originalLoadFile = BrowserWindow.prototype.loadFile;
+BrowserWindow.prototype.loadFile = function patchedKtcLoadFile(filePath, ...args) {
+  const normalized = path.resolve(String(filePath || ''));
+  if (normalized.endsWith(`${path.sep}frontend${path.sep}dist${path.sep}index.html`)) {
+    return this.loadURL(KTC_WEB_URL, {
+      extraHeaders: 'pragma: no-cache\n'
+    });
+  }
+  return originalLoadFile.call(this, filePath, ...args);
+};
 
 function normalizeExportRoot(value) {
   const raw = String(value || '').trim();
@@ -80,6 +108,6 @@ ipcMain.handle('ktc-save-statistics-excel', async (_event, payload = {}) => {
 });
 
 // Register updater before the main process bootstraps so every packaged
-// Windows/NSIS build checks GitHub Releases for a newer Git commit build.
+// Windows/NSIS build checks GitHub Releases for a newer desktop shell build.
 require('./autoUpdate.cjs');
 require('./main.cjs');
