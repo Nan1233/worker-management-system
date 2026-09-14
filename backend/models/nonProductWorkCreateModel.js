@@ -7,7 +7,6 @@ const { buildLogicalDuplicateKey, normalizeNonProductWorkType } = require("../se
 const { verifyDuplicateConfirmation } = require("../services/duplicateConfirmationService");
 
 const PROCESS_CODE = "CVK";
-const PROCESS_ID = 60006;
 const ALLOWED_WORK_TYPES = new Set([
   "XUẤT NHẬP",
   "HỖ TRỢ",
@@ -15,6 +14,28 @@ const ALLOWED_WORK_TYPES = new Set([
   "VỆ SINH",
   "CÔNG VIỆC KHÁC",
 ]);
+
+async function resolveProcessId(executor) {
+  const rows = await query(
+    executor,
+    `SELECT id
+       FROM processes
+      WHERE UPPER(TRIM(process_code)) = ?
+        AND COALESCE(status, 'active') IN ('active', 'enabled', '1')
+      ORDER BY id ASC
+      LIMIT 1`,
+    [PROCESS_CODE],
+  );
+  const processId = Number(rows?.[0]?.id || 0);
+  if (!Number.isInteger(processId) || processId <= 0) {
+    const error = new Error("Chưa cấu hình công đoạn CVK trong hệ thống");
+    error.status = 500;
+    error.code = "CVK_PROCESS_NOT_CONFIGURED";
+    error.isPublic = true;
+    throw error;
+  }
+  return processId;
+}
 
 function normalizeWorkType(value) {
   const normalized = normalizeNonProductWorkType(value).toUpperCase();
@@ -35,8 +56,8 @@ function getWorkType(data) {
   );
 }
 
-async function findExisting({ workerId, workDate, shift, workType }, executor) {
-  const params = [workerId, PROCESS_ID, workDate, shift, workType];
+async function findExisting({ workerId, processId, workDate, shift, workType }, executor) {
+  const params = [workerId, processId, workDate, shift, workType];
   // Do not read logical_duplicate_key here. CVK duplicate detection is based on
   // worker/date/shift/work_type, and legacy approved databases may not have that
   // optional column yet. Keeping the lookup schema-light lets CVK submissions work
@@ -99,45 +120,46 @@ async function createCompleteReport(payload = {}) {
     throw error;
   }
 
-  data.process_id = PROCESS_ID;
-  data.process_code = PROCESS_CODE;
-  data.worker_id = workerId;
-  data.workerId = workerId;
-  data.operation_mode = "MANUAL";
-  data.operation_type = null;
-  data.machine_no = null;
-  data.product_name = null;
-  data.standard_output = 0;
-  data.standard_version_id = null;
-  data.machine_standard_id = null;
-  data.actual_output = 0;
-  data.tt_ok = 0;
-  data.tt_ng = 0;
-  data.deduction_time = Number(data.deduction_time) || 0;
-  data.extra_data = {
-    ...(data.extra_data && typeof data.extra_data === "object" ? data.extra_data : {}),
-    work_type: workType,
-    process_code: PROCESS_CODE,
-    non_product_work: true,
-  };
-
-  const logicalDuplicateKey = buildLogicalDuplicateKey({
-    workerId,
-    processId: PROCESS_ID,
-    processCode: PROCESS_CODE,
-    workDate: data.work_date,
-    shift: data.shift,
-    operationMode: "MANUAL",
-    machineNo: null,
-    productName: null,
-    workType,
-    machineLines: [],
-  });
-  data.logical_duplicate_key = logicalDuplicateKey;
-
   const connection = await getConnection();
   try {
     await beginTransaction(connection);
+
+    const processId = await resolveProcessId(connection);
+    data.process_id = processId;
+    data.process_code = PROCESS_CODE;
+    data.worker_id = workerId;
+    data.workerId = workerId;
+    data.operation_mode = "MANUAL";
+    data.operation_type = null;
+    data.machine_no = null;
+    data.product_name = null;
+    data.standard_output = 0;
+    data.standard_version_id = null;
+    data.machine_standard_id = null;
+    data.actual_output = 0;
+    data.tt_ok = 0;
+    data.tt_ng = 0;
+    data.deduction_time = Number(data.deduction_time) || 0;
+    data.extra_data = {
+      ...(data.extra_data && typeof data.extra_data === "object" ? data.extra_data : {}),
+      work_type: workType,
+      process_code: PROCESS_CODE,
+      non_product_work: true,
+    };
+
+    const logicalDuplicateKey = buildLogicalDuplicateKey({
+      workerId,
+      processId,
+      processCode: PROCESS_CODE,
+      workDate: data.work_date,
+      shift: data.shift,
+      operationMode: "MANUAL",
+      machineNo: null,
+      productName: null,
+      workType,
+      machineLines: [],
+    });
+    data.logical_duplicate_key = logicalDuplicateKey;
 
     const clientRequestId = String(data.client_request_id || "").trim();
     if (!clientRequestId) {
@@ -160,6 +182,7 @@ async function createCompleteReport(payload = {}) {
 
     const existing = await findExisting({
       workerId,
+      processId,
       workDate: data.work_date,
       shift: data.shift,
       workType,
@@ -202,7 +225,7 @@ async function createCompleteReport(payload = {}) {
     const trainingSnapshot = await resolveInitialTrainingSnapshot({
       executor: connection,
       workerId,
-      processId: PROCESS_ID,
+      processId,
       workDate: data.work_date,
       trainingPercent: data.training_percent,
     });
@@ -217,8 +240,8 @@ async function createCompleteReport(payload = {}) {
     }
 
     const tempId = await createModel.create(data, connection);
-    await createModel.createDefects(tempId, PROCESS_ID, defects, connection);
-    await createModel.createDeductions(tempId, PROCESS_ID, deductions, connection);
+    await createModel.createDefects(tempId, processId, defects, connection);
+    await createModel.createDeductions(tempId, processId, deductions, connection);
 
     const createdSnapshot = await AuditService.loadTempReportSnapshot(tempId, connection);
     if (createdSnapshot) {
@@ -250,7 +273,7 @@ async function createCompleteReport(payload = {}) {
         auditUserId,
         String(tempId),
         `Công nhân tạo báo cáo ${workType} chờ duyệt`,
-        JSON.stringify({ processId: PROCESS_ID, processCode: PROCESS_CODE, workDate: data.work_date, shift: data.shift, workType, clientRequestId, logicalDuplicateKey }),
+        JSON.stringify({ processId, processCode: PROCESS_CODE, workDate: data.work_date, shift: data.shift, workType, clientRequestId, logicalDuplicateKey }),
         audit.ipAddress || null,
         audit.userAgent || null,
       ]
