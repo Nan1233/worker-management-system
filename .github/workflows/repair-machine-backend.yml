@@ -15,51 +15,72 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Patch backend persistence and types
+      - name: Fix worker adjustment layout
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
-          def replace(path, old, new):
-              p = Path(path)
-              s = p.read_text(encoding='utf-8')
-              if old not in s:
-                  raise SystemExit(f'Pattern not found: {path}: {old[:120]}')
-              p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          # Remove all per-machine adjustment UI. Adjustment minutes are already Trừ giờ.
+          p = Path('frontend/src/pages/worker/components/ProcessBasicInfoSection.tsx')
+          s = p.read_text(encoding='utf-8')
+          pattern = re.compile(
+              r'\s*<div><div className="machine-section-title">Chỉnh máy</div>'
+              r'.*?value=\{line\.adjustmentMinutes\}.*?'
+              r'value=\{line\.adjustmentCount\}.*?</div></div>', re.S)
+          s, removed = pattern.subn('\n', s)
+          if removed == 0:
+              raise SystemExit('No per-machine adjustment blocks found')
 
-          replace('backend/models/productionTempCreateModel.js',
-            'machine_time_hours, standard_output, standard_time_seconds, standard_source, exclude_kqd_from_tt,',
-            'machine_time_hours, adjustment_minutes, adjustment_count, standard_output, standard_time_seconds, standard_source, exclude_kqd_from_tt,')
-          replace('backend/models/productionTempCreateModel.js',
-            'Number(line.machine_time_hours) || 0,\n                Number(line.standard_output) || 0,',
-            'Number(line.machine_time_hours) || 0,\n                Math.max(0, Number(line.adjustment_minutes) || 0),\n                Math.max(0, Math.trunc(Number(line.adjustment_count) || 0)),\n                Number(line.standard_output) || 0,')
+          # Recreate exactly one report-level count outside machineLines.map().
+          old_count = re.compile(r'\s*<div className="worker-field-block worker-machine-adjustment-count">.*?</div>\s*', re.S)
+          s, _ = old_count.subn('\n', s)
+          marker = '''                        </div>\n                        <div className="machine-lines-list">'''
+          count_ui = '''                        </div>\n                        <div className="worker-field-block worker-machine-adjustment-count">\n                            <label className="worker-field-label" htmlFor="adjustmentCount">Số lần chỉnh máy</label>\n                            <div className="worker-deduction-input-row"><input id="adjustmentCount" className="worker-text-input worker-deduction-input" type="number" min="0" inputMode="numeric" value={form.adjustmentCount || ""} onChange={(event) => setForm((current) => ({ ...current, adjustmentCount: event.target.value.replace(/\\D/g, "") }))} placeholder="0" autoComplete="off" /><span className="worker-time-unit" aria-hidden="true">lần</span></div>\n                        </div>\n                        <div className="machine-lines-list">'''
+          if marker not in s:
+              raise SystemExit('Machine list marker not found')
+          s = s.replace(marker, count_ui, 1)
+          p.write_text(s, encoding='utf-8')
 
-          replace('backend/models/productionTempApprovalModel.js',
-            'machine_time_hours,standard_output,standard_time_seconds,standard_source,exclude_kqd_from_tt,',
-            'machine_time_hours,adjustment_minutes,adjustment_count,standard_output,standard_time_seconds,standard_source,exclude_kqd_from_tt,')
-          replace('backend/models/productionTempApprovalModel.js',
-            'Number(line.machine_time_hours)||0,Number(line.standard_output)||0,',
-            'Number(line.machine_time_hours)||0,Math.max(0,Number(line.adjustment_minutes)||0),Math.max(0,Math.trunc(Number(line.adjustment_count)||0)),Number(line.standard_output)||0,')
+          # Never send adjustment fields per machine line.
+          p = Path('frontend/src/pages/worker/processReportSubmission.ts')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace('    adjustment_minutes:num(l.adjustmentMinutes),\n', '')
+          s = s.replace('    adjustment_count:num(l.adjustmentCount),\n', '')
+          if 'adjustment_count:num(args.form.adjustmentCount)' not in s:
+              s = s.replace('    extra_data:args.extraData,', '    extra_data:{...args.extraData, adjustment_count:num(args.form.adjustmentCount)},', 1)
+          p.write_text(s, encoding='utf-8')
 
-          replace('frontend/src/types/production.ts',
-            'machine_time_hours: number;\n        ok_quantity: number;',
-            'machine_time_hours: number;\n        adjustment_minutes?: number;\n        adjustment_count?: number;\n        ok_quantity: number;')
+          # Remove count from generic Trừ giờ if an earlier patch placed it there.
+          p = Path('frontend/src/pages/worker/components/ProcessTimeDeductionSection.tsx')
+          s = p.read_text(encoding='utf-8')
+          generic = re.compile(r'\s*\{selectedDeduction\.includes\("chinhMay"\) && <div className="worker-field-block">.*?</div>\}\s*', re.S)
+          s, _ = generic.subn('\n', s)
+          p.write_text(s, encoding='utf-8')
+
+          # Restore count in worker edit form.
+          p = Path('frontend/src/pages/worker/WorkerReportEdit.tsx')
+          s = p.read_text(encoding='utf-8')
+          if 'adjustmentCount: String((data.extra_data || {}).adjustment_count' not in s:
+              anchor = '          note: String(data.note || ""),'
+              if anchor not in s:
+                  raise SystemExit('WorkerReportEdit anchor not found')
+              s = s.replace(anchor, anchor + '\n          adjustmentCount: String((data.extra_data || {}).adjustment_count ?? ""),', 1)
+          p.write_text(s, encoding='utf-8')
           PY
       - name: Verify
         run: |
-          grep -q 'adjustment_minutes' backend/models/productionTempCreateModel.js
-          grep -q 'adjustment_count' backend/models/productionTempCreateModel.js
-          grep -q 'adjustment_minutes' backend/models/productionTempApprovalModel.js
-          grep -q 'adjustment_count' backend/models/productionTempApprovalModel.js
-      - name: Commit backend repair
+          test "$(grep -o 'id=\"adjustmentCount\"' frontend/src/pages/worker/components/ProcessBasicInfoSection.tsx | wc -l)" -eq 1
+          ! grep -q 'value={line.adjustmentMinutes}' frontend/src/pages/worker/components/ProcessBasicInfoSection.tsx
+          ! grep -q 'value={line.adjustmentCount}' frontend/src/pages/worker/components/ProcessBasicInfoSection.tsx
+          ! grep -q 'adjustment_minutes:num(l.adjustmentMinutes)' frontend/src/pages/worker/processReportSubmission.ts
+          ! grep -q 'adjustment_count:num(l.adjustmentCount)' frontend/src/pages/worker/processReportSubmission.ts
+          grep -q 'adjustment_count:num(args.form.adjustmentCount)' frontend/src/pages/worker/processReportSubmission.ts
+      - name: Commit and remove helper files
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add backend/models/productionTempCreateModel.js backend/models/productionTempApprovalModel.js frontend/src/types/production.ts
-          git commit -m 'fix(worker): persist machine adjustment fields [skip ci]'
-          git push
-      - name: Remove one-shot workflow
-        run: |
-          git rm .github/workflows/repair-machine-backend.yml
-          git commit -m 'chore: remove one-shot repair workflow [skip ci]'
+          git add frontend/src/pages/worker/components/ProcessBasicInfoSection.tsx frontend/src/pages/worker/components/ProcessTimeDeductionSection.tsx frontend/src/pages/worker/processReportSubmission.ts frontend/src/pages/worker/WorkerReportEdit.tsx
+          git rm .github/workflows/repair-machine-backend.yml .github/workflows/fix-adjustment-count.yml .github/ADJUSTMENT_FIX_TRIGGER || true
+          git commit -m 'fix(worker): keep adjustment count separate from machine rows [skip ci]'
           git push
