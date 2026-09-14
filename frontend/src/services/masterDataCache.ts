@@ -8,7 +8,7 @@ const TTL_MS = 30 * 60 * 1000;
 // Bump this namespace whenever the worker master contract changes so a browser
 // cannot keep an older product/deduction/defect list after a deployment/master-data correction.
 const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v8";
-const DEDUCTION_MASTER_VERSION = "v6";
+const DEDUCTION_MASTER_VERSION = "v7";
 const DEFECT_MASTER_VERSION = "v8";
 
 type DefectOptions = Awaited<ReturnType<typeof getDefectOptionsByProcess>>;
@@ -118,13 +118,15 @@ export const getCachedDefects = async (processId: number): Promise<DefectOptions
   return value;
 };
 
-export const getCachedDeductions = (processId: number): Promise<DeductionOptions> => {
+/**
+ * Deduction master data follows the same rule as defects: online API is the
+ * source of truth. Do not keep a 30-minute in-memory copy because an empty
+ * response from before a master-data repair would otherwise keep CVK blank.
+ * Offline devices may still use the last persistent snapshot.
+ */
+export const getCachedDeductions = async (processId: number): Promise<DeductionOptions> => {
   const key = `deductions:${processId}:${DEDUCTION_MASTER_VERSION}`;
-  return getSessionCached(
-    epochKey(key),
-    TTL_MS,
-    () => withOfflineSnapshot(key, () => getDeductionOptionsByProcess(processId)),
-  );
+  return withOfflineSnapshot(key, () => getDeductionOptionsByProcess(processId));
 };
 
 export function prefetchProcessMasterData(processId: number): void {
