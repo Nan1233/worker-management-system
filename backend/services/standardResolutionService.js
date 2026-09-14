@@ -200,26 +200,18 @@ function createStandardResolver({ query = defaultQuery } = {}) {
       return resolvedMachine;
     }
 
-    const anyMachineSpecific = await query(
-      `SELECT id FROM product_machine_standards
-       WHERE process_id=? AND product_code=? AND is_active=1
-       LIMIT 1`,
-      [product.processId, product.productCode]
-    );
-    if (anyMachineSpecific.length) {
-      throw businessError(
-        'HISTORICAL_MACHINE_STANDARD_NOT_FOUND',
-        `Không có định mức lịch sử cho ${product.productCode} trên máy ${machine.machine_code} tại ngày ${product.workDate}`,
-        {
-          process_id: product.processId,
-          product_code: product.productCode,
-          machine_id: Number(machine.id),
-          work_date: product.workDate
-        }
-      );
-    }
-
-    const resolvedFallback = { ...product, machineId: Number(machine.id), machineCode: machine.machine_code };
+    // A product may have machine-specific standards for some machines while
+    // still legitimately using its product-level standard on other machines.
+    // Do not reject the selected machine merely because another machine has a
+    // mapping. The product historical/default standard remains the canonical
+    // fallback when no machine-specific row is effective for this machine/date.
+    const resolvedFallback = {
+      ...product,
+      machineId: Number(machine.id),
+      machineCode: machine.machine_code,
+      machineStandardId: null,
+      source: `${product.source}_MACHINE_FALLBACK`
+    };
     standardCache.set(standardKey, resolvedFallback);
     return resolvedFallback;
   }
