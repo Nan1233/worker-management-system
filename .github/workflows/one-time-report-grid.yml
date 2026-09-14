@@ -33,8 +33,8 @@ jobs:
                   raise SystemExit('Could not locate React hook import block')
               text = text.replace(old_import, new_import, 1)
 
-          marker = '''    useEffect(() => {\n        const draft = loadProcessDraft(process);\n        if (!draft) return;\n\n        isRestoringDraftRef.current = true;'''
-          replacement = '''    useLayoutEffect(() => {\n        const draft = loadProcessDraft(process);\n        if (!draft) return;\n\n        // Restore the draft in a layout effect so the initialization effects\n        // below cannot reset the restored machine lines during the same mount.\n        isRestoringDraftRef.current = true;'''
+          marker = '''useEffect(() => {\n        const draft = loadProcessDraft(process);\n        if (!draft) return;\n\n        isRestoringDraftRef.current = true;'''
+          replacement = '''useLayoutEffect(() => {\n        const draft = loadProcessDraft(process);\n        if (!draft) return;\n\n        // Restore the draft in a layout effect so the initialization effects\n        // below cannot reset the restored machine lines during the same mount.\n        isRestoringDraftRef.current = true;'''
           if marker not in text:
               raise SystemExit('Could not locate draft restore effect')
           text = text.replace(marker, replacement, 1)
