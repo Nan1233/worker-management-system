@@ -7,9 +7,9 @@ import { getSessionCached, clearSessionCache } from "./sessionCache";
 const TTL_MS = 30 * 60 * 1000;
 // Bump this namespace whenever the worker master contract changes so a browser
 // cannot keep an older product/deduction/defect list after a deployment/master-data correction.
-const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v7";
+const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v8";
 const DEDUCTION_MASTER_VERSION = "v6";
-const DEFECT_MASTER_VERSION = "v7";
+const DEFECT_MASTER_VERSION = "v8";
 
 type DefectOptions = Awaited<ReturnType<typeof getDefectOptionsByProcess>>;
 type DeductionOptions = Awaited<ReturnType<typeof getDeductionOptionsByProcess>>;
@@ -100,16 +100,22 @@ export const getCachedProductStandards = (processId: number, processCode?: strin
   );
 };
 
-export const getCachedDefects = (processId: number): Promise<DefectOptions> => {
+/**
+ * Defect master data must not be served from the in-memory session cache.
+ *
+ * A stale defect snapshot is dangerous because changing the master list in DB
+ * (for example GC's migration from the legacy 16-item list to the canonical
+ * 19-item list) can otherwise leave the worker UI showing the old options for
+ * up to the cache TTL without even making a /defects request.
+ *
+ * We still keep an offline snapshot as a last-resort fallback when the device
+ * is genuinely offline. When online, the API is always the source of truth.
+ */
+export const getCachedDefects = async (processId: number): Promise<DefectOptions> => {
   const key = `defects:${processId}:${DEFECT_MASTER_VERSION}`;
-  return getSessionCached(
-    epochKey(key),
-    TTL_MS,
-    () => withOfflineSnapshot(key, () => getDefectOptionsByProcess(processId)),
-  ).then((value) => {
-    void syncManagerHintsForProcess(processId);
-    return value;
-  });
+  const value = await withOfflineSnapshot(key, () => getDefectOptionsByProcess(processId));
+  void syncManagerHintsForProcess(processId);
+  return value;
 };
 
 export const getCachedDeductions = (processId: number): Promise<DeductionOptions> => {
