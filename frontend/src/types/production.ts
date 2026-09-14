@@ -53,6 +53,8 @@ export interface ProductionReport {
         machine_code: string;
         product_code: string;
         machine_time_hours: number;
+        adjustment_minutes?: number;
+        adjustment_count?: number;
         ok_quantity: number;
         ng_quantity: number;
         standard_time_seconds?: number | null;
@@ -99,7 +101,6 @@ export interface ProductionReport {
 
     tt_ok: number;
     tt_ng: number;
-
     kqd_dap_lai: number;
     kqd_tuot: number;
     vo_do_long: number;
@@ -112,47 +113,19 @@ export interface ProductionReport {
     loi_cao_su: number;
     ng_kich_thuoc: number;
     cat_lem: number;
-
-    defects?: ProductionDefect[];
-    deductions?: ProductionDeduction[];
-
-    note: string;
-
+    note?: string;
     status?: ProductionReportStatus;
-    review_note?: string | null;
-    reviewed_by?: number | null;
-    approved_at?: string | null;
-
-    worker_code?: string;
-    full_name?: string;
-    process_code?: string;
-    process_name?: string;
-
-    // Compatibility fields returned/used by the manager Excel-style grid.
-    // Backend canonical fields remain full_name, note and performance data.
-    worker_name?: string;
-    hv_percent?: number;
-    notes?: string;
-
     created_at?: string;
     updated_at?: string;
-    source?: ProductionReportSource;
-}
-
-export interface ProductionReportResponse {
-    success: boolean;
-    message?: string;
-    data: ProductionReport;
-}
-
-export interface ProductionReportListResponse {
-    success: boolean;
-    message?: string;
-    data: ProductionReport[];
-}
-
-export interface CreateProductionReportResponse {
-    success: boolean;
-    message: string;
-    id: number;
+    reviewed_at?: string;
+    reviewed_by?: number;
+    review_note?: string | null;
+    worker_code?: string;
+    full_name?: string;
+    worker_name?: string;
+    process_code?: string;
+    process_name?: string;
+    defects?: ProductionDefect[];
+    deductions?: ProductionDeduction[];
+    exclude_kqd_from_tt_snapshot?: number;
 }
