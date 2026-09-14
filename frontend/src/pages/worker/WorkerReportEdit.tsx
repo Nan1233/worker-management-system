@@ -53,7 +53,8 @@ function WorkerReportEdit() {
       try {
         const reportId = Number(id);
         if (!Number.isInteger(reportId) || reportId <= 0) throw new Error("ID báo cáo không hợp lệ.");
-        const data = await getReportById(reportId, "pending");
+        const rawData = await getReportById(reportId, "pending");
+        const data = (rawData as any)?.report || (rawData as any)?.data || rawData;
         if (!data) throw new Error("Không tìm thấy báo cáo.");
         if (!alive) return;
         setReport(data);
@@ -67,7 +68,7 @@ function WorkerReportEdit() {
           trainingPercent: decimal(data.training_percent), machineNo: String(data.machine_no || "").split(",")[0].trim(),
           productName: String(data.product_name || "").split(",")[0].trim(), standardOutput: decimal(data.standard_output), actualOutput: decimal(data.actual_output),
           ttOk: decimal(data.tt_ok), ttNg: decimal(data.tt_ng), totalTime: `${total.hours}:${total.minutes}`, actualTime: `${actual.hours}:${actual.minutes}`,
-          actualHours: actual.hours, actualMinutes: actual.minutes, deductionTime: `${deductionTotal.hours}:${deductionTotal.minutes}`, note: String(data.note || ""),
+          actualHours: actual.hours, actualMinutes: actual.minutes, deductionTime: `${deductionTotal.hours}:${deductionTotal.minutes}`, adjustmentCount: String((data.extra_data || {}).adjustment_count ?? data.adjustment_count ?? ""), note: String(data.note || data.notes || ""),
           kqdDapLai: decimal(data.kqd_dap_lai), kqdTuot: decimal(data.kqd_tuot), voDoLong: decimal(data.vo_do_long), xuocDoLong: decimal(data.xuoc_do_long),
           congGay: decimal(data.cong_gay), xoay: decimal(data.xoay), khongDut: decimal(data.khong_dut), baviaHut: decimal(data.bavia_hut), ppcm: decimal(data.ppcm),
           loiCaoSu: decimal(data.loi_cao_su), ngKichThuoc: decimal(data.ng_kich_thuoc), catLem: decimal(data.cat_lem),
@@ -75,6 +76,7 @@ function WorkerReportEdit() {
         setOperationType(data.operation_type === "LONG" ? "LONG" : "CUT");
         setOperationMode(data.operation_mode === "MACHINE" || (data.machine_lines || []).length > 0 ? "MACHINE" : "MANUAL");
         setExtraData(Object.fromEntries(Object.entries(data.extra_data || {}).map(([key, value]) => [key, value == null ? "" : String(value)])));
+        setForm((current) => ({ ...current, adjustmentCount: String((data.extra_data || {}).adjustment_count ?? data.adjustment_count ?? "") }));
       } catch (e: any) {
         if (alive) setError(e?.response?.data?.message || e?.message || "Không tải được báo cáo.");
       } finally { if (alive) setLoading(false); }
@@ -110,7 +112,8 @@ function WorkerReportEdit() {
     });
     setSelectedNg(selected);
     setMachineLines((current) => current.map((line, index) => {
-      const source = report.machine_lines?.[index];
+      const sourceLines = Array.isArray(report.machine_lines) ? report.machine_lines : Array.isArray((report as any).machineLines) ? (report as any).machineLines : [];
+      const source = sourceLines[index];
       if (!source) return line;
       const selectedDefects: string[] = [];
       const defects: Record<string, string> = {};
@@ -126,9 +129,10 @@ function WorkerReportEdit() {
     if (!report || !activeDeductionOptions.length) return;
     const next: DeductionState = { ...initialDeduction };
     const selected: string[] = [];
-    (report.deductions || []).forEach((item) => {
+    (Array.isArray(report.deductions) ? report.deductions : Array.isArray((report as any).deduction_items) ? (report as any).deduction_items : []).forEach((item) => {
       const key = findDeductionKey(item);
-      if (key) { next[key] = String(Math.round(Number(item.hours || 0) * 60)); selected.push(key); }
+      const minutes = item.minutes ?? item.deduction_minutes ?? (Number(item.hours || 0) * 60);
+      if (key) { next[key] = String(Math.round(Number(minutes) || 0)); selected.push(key); }
     });
     setDeductions(next);
     setSelectedDeduction(selected);
@@ -136,7 +140,8 @@ function WorkerReportEdit() {
 
   useEffect(() => {
     if (!report) return;
-    const lines = (report.machine_lines || []).map((line) => {
+    const sourceLines = Array.isArray(report.machine_lines) ? report.machine_lines : Array.isArray((report as any).machineLines) ? (report as any).machineLines : [];
+    const lines = sourceLines.map((line) => {
       const hm = toHoursMinutes(number(line.machine_time_hours));
       return { ...createEmptyMachineLine(), machineCode: String(line.machine_code || ""), productCode: String(line.product_code || ""), hours: hm.hours, minutes: hm.minutes, adjustmentMinutes: String(line.adjustment_minutes ?? ""), adjustmentCount: String(line.adjustment_count ?? ""), okQuantity: String(line.ok_quantity ?? ""), ngQuantity: String(line.ng_quantity ?? ""), standardOutputPerHour: Number(line.standard_output || 0), standardTimeSeconds: line.standard_time_seconds ?? null, standardSource: line.standard_source || null };
     });
