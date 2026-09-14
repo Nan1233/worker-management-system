@@ -18,10 +18,27 @@ const emptyForm: FormState = { role:"worker", username:"", password:"", full_nam
 const roleText = (role:string) => role === "manager" ? "Quản lý" : role === "lead" ? "Tổ trưởng" : "Công nhân";
 const statusText = (status:string) => status === "active" ? "Đang hoạt động" : "Ngừng hoạt động";
 const processIds = (value?:string|number[]|null) => {
-  if (Array.isArray(value)) return value.map(Number).filter(n => Number.isInteger(n) && n > 0);
-  return String(value || "").split(",").map(Number).filter(n => Number.isInteger(n) && n > 0);
+  if (Array.isArray(value)) return [...new Set(value.map(Number).filter(n => Number.isInteger(n) && n > 0))];
+  const raw = String(value || "").trim();
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return [...new Set(parsed.map(Number).filter(n => Number.isInteger(n) && n > 0))];
+  } catch {}
+  return [...new Set(raw.split(/[;,]/).map(Number).filter(n => Number.isInteger(n) && n > 0))];
 };
 const normalizeProcessName = (value:string) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const resolveProcessIds = (ids:string|number[]|null|undefined, names:string|null|undefined, options:Process[]) => {
+  const optionIds = new Set(options.map(process => Number(process.id)));
+  const selected = processIds(ids).filter(id => optionIds.has(id));
+  const normalizedNames = String(names || "").split(",").map(normalizeProcessName).filter(Boolean);
+  if (normalizedNames.length) {
+    for (const process of options) {
+      if (normalizedNames.includes(normalizeProcessName(process.process_name))) selected.push(Number(process.id));
+    }
+  }
+  return [...new Set(selected)];
+};
 
 export default function AdminWorkers() {
   const { can } = usePermissions();
@@ -90,55 +107,78 @@ export default function AdminWorkers() {
   const create = (role:Role) => setModal({ ...emptyForm, role, position: role === "worker" ? "Công nhân" : role === "lead" ? "Tổ trưởng" : "Quản lý" });
 
   const edit = async (person:Person) => {
-    // Do not trust the /users list row for editing. The list is an overview payload;
-    // assignment IDs must come from the authoritative /users/:id endpoint.
     try {
       const response = await api.get(`/users/${person.id}`);
       const detail = response.data?.data || person;
-      let selected = processIds(detail.process_ids);
-
-      // Compatibility fallback for older deployed backends that return process_names
-      // correctly but omit process_ids. Resolve names against the current process options.
-      if (!selected.length && detail.process_names) {
-        const names = String(detail.process_names).split(",").map(normalizeProcessName).filter(Boolean);
-        selected = processes.filter(process => names.includes(normalizeProcessName(process.process_name))).map(process => process.id);
-      }
+      const selected = resolveProcessIds(detail.process_ids, detail.process_names, processes);
+      const fallbackSelected = selected.length ? selected : resolveProcessIds(person.process_ids, person.process_names, processes);
 
       setModal({
         id: detail.id ?? person.id,
         role: detail.role ?? person.role,
-        username: detail.username || "",
+        username: detail.username || person.username || "",
         password: "",
-        full_name: detail.full_name || "",
-        worker_code: detail.worker_code || "",
-        phone: detail.phone || "",
-        department: detail.department || "Sản xuất",
-        position: detail.position || roleText(detail.role ?? person.role),
-        training_percent: String(detail.training_percent ?? 100),
-        process_ids: selected,
-        status: detail.status === "inactive" ? "inactive" : "active"
+        full_name: detail.full_name || person.full_name || "",
+        worker_code: detail.worker_code || person.worker_code || "",
+        phone: detail.phone || person.phone || "",
+        department: detail.department || person.department || "Sản xuất",
+        position: detail.position || person.position || roleText(detail.role ?? person.role),
+        training_percent: String(detail.training_percent ?? person.training_percent ?? 100),
+        process_ids: fallbackSelected,
+        status: detail.status === "inactive" || person.status === "inactive" ? "inactive" : "active"
       });
     } catch {
-      // Keep the modal usable if the detail endpoint is temporarily unavailable.
       setModal({
-        id: person.id, role: person.role, username: person.username || "", password: "", full_name: person.full_name || "",
-        worker_code: person.worker_code || "", phone: person.phone || "", department: person.department || "Sản xuất",
-        position: person.position || roleText(person.role), training_percent: String(person.training_percent ?? 100), process_ids: processIds(person.process_ids), status: person.status === "inactive" ? "inactive" : "active"
+        id: person.id,
+        role: person.role,
+        username: person.username || "",
+        password: "",
+        full_name: person.full_name || "",
+        worker_code: person.worker_code || "",
+        phone: person.phone || "",
+        department: person.department || "Sản xuất",
+        position: person.position || roleText(person.role),
+        training_percent: String(person.training_percent ?? 100),
+        process_ids: resolveProcessIds(person.process_ids, person.process_names, processes),
+        status: person.status === "inactive" ? "inactive" : "active"
       });
     }
   };
 
   const save = async () => {
     if (!modal) return;
+    if (!modal.process_ids.length) {
+      showToast("Phải chọn ít nhất một công đoạn", "error");
+      return;
+    }
     setSaving(true);
     try {
-      const body:any = { username: modal.username, full_name: modal.full_name, status: modal.status, process_ids: modal.process_ids, role: modal.role, department: modal.department, position: modal.position };
+      const body:any = {
+        username: modal.username.trim(),
+        full_name: modal.full_name.trim(),
+        status: modal.status,
+        process_ids: modal.process_ids,
+        // Keep aliases for older deployed worker bundles; current backend uses process_ids.
+        processes: modal.process_ids,
+        processIds: modal.process_ids,
+        role: modal.role,
+        department: modal.department,
+        position: modal.position
+      };
       if (modal.password) body.password = modal.password;
-      if (modal.role === "worker") { body.training_percent = Number(modal.training_percent); body.worker_code = modal.worker_code; body.phone = modal.phone; }
-      if (modal.id) await api.put(`/users/${modal.id}`, body); else await api.post("/users", { ...body, password: modal.password });
-      showToast(modal.id ? "Đã cập nhật tài khoản" : "Đã tạo tài khoản", "success"); setModal(null); await load();
-    } catch (error:any) { showToast(error?.response?.data?.message || "Không thể lưu tài khoản", "error"); }
-    finally { setSaving(false); }
+      if (modal.role === "worker") {
+        body.training_percent = Number(modal.training_percent);
+        body.worker_code = modal.worker_code.trim();
+        body.phone = modal.phone.trim();
+      }
+      if (modal.id) await api.put(`/users/${modal.id}`, body);
+      else await api.post("/users", { ...body, password: modal.password });
+      showToast(modal.id ? "Đã cập nhật tài khoản" : "Đã tạo tài khoản", "success");
+      setModal(null);
+      await load();
+    } catch (error:any) {
+      showToast(error?.response?.data?.message || "Không thể lưu tài khoản", "error");
+    } finally { setSaving(false); }
   };
 
   const promoteWorkerToLead = async (person:Person) => {
@@ -212,7 +252,7 @@ function Overview({ people, managers, leads, workers, active, workerGroups, proc
       <section className="admin-card"><CardTitle title="Phân bổ tài khoản" sub="Admin không bị giới hạn tổng số quản lý hoặc tổ trưởng"/><div className="role-overview">{roleRows.map(item => <button key={item.key} onClick={() => onTab(item.key)}><span className={`role-icon ${item.key}`}><UserRound size={17}/></span><div><b>{item.label}</b><small>{item.rows.filter(x => x.status === "active").length} hoạt động · {item.rows.length} tổng</small></div><strong>{item.rows.length}</strong></button>)}</div></section>
       <section className="admin-card"><CardTitle title="Công nhân theo công đoạn" sub="Phân bổ nhân sự đang được gán công đoạn"/><div className="process-list">{workerGroups.map(item => <div key={item.process.id}><div><b>{item.process.process_name}</b><span>{item.active}/{item.total} hoạt động</span></div><div className="bar"><i style={{ width: `${item.total ? Math.min(100, item.active / item.total * 100) : 0}%` }}/></div></div>)}{workerGroups.length === 0 && <div className="admin-empty">Chưa có dữ liệu công đoạn.</div>}</div></section>
       <section className="admin-card wide"><CardTitle title="Định biên quản lý theo công đoạn" sub="Mỗi công đoạn có tối đa 1 quản lý và 3 tổ trưởng"/><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Công đoạn</th><th>Quản lý</th><th>Tổ trưởng</th><th>Trạng thái định biên</th></tr></thead><tbody>{processCapacity.length ? processCapacity.map(item => { const managerFull = item.managerCount >= 1; const leadFull = item.leadCount >= 3; return <tr key={item.id}><td><strong>{item.process_name}</strong>{item.process_code && <small>{item.process_code}</small>}</td><td><strong>{item.managerCount}/1</strong><small>{item.managers.filter(x => x.status === "active").map(x => x.full_name || x.username).join(", ") || "Chưa phân công"}</small></td><td><strong>{item.leadCount}/3</strong><small>{item.leads.filter(x => x.status === "active").map(x => x.full_name || x.username).join(", ") || "Chưa phân công"}</small></td><td><span className={`status-badge ${managerFull && leadFull ? "active" : "inactive"}`}>{managerFull && leadFull ? "Đã đủ định biên" : "Còn vị trí"}</span></td></tr>; }) : <tr><td colSpan={4} className="admin-empty">Chưa có dữ liệu công đoạn.</td></tr>}</tbody></table></div></section>
-      <section className="admin-card wide"><CardTitle title="Tài khoản cập nhật gần đây" sub="Các tài khoản mới nhất trong hệ thống"/><AccountTable rows={[...people].sort((a,b) => String(b.created_at || "").localeCompare(String(a.created_at || ""))).slice(0,8)} canEdit={canEdit} isAdmin={isAdmin} onEdit={onEdit} onDelete={remove} onPromote={onPromote} onPromoteManager={onPromoteManager} promotingId={promotingId}/></section>
+      <section className="admin-card wide"><CardTitle title="Tài khoản cập nhật gần đây" sub="Các tài khoản mới nhất trong hệ thống"/><AccountTable rows={[...people].sort((a,b) => String(b.created_at || "").localeCompare(String(a.created_at || ""))).slice(0,8)} canEdit={canEdit} isAdmin={isAdmin} onEdit={onEdit} onDelete={onDelete} onPromote={onPromote} onPromoteManager={onPromoteManager} promotingId={promotingId}/></section>
     </div>
   </>;
 }
@@ -235,6 +275,6 @@ function Modal({ form, setForm, processes, processCapacity, saving, onClose, onS
     if (form.role === "manager") return capacity.managerCount < 1;
     return capacity.leadCount < 3;
   };
-  const toggleProcess = (processId:number, checked:boolean) => setForm({ ...form, process_ids: checked ? [...form.process_ids, processId] : form.process_ids.filter(id => id !== processId) });
-  return <div className="admin-modal-backdrop"><div className="admin-modal"><div className="admin-modal-head"><div><span>QUẢN TRỊ TÀI KHOẢN</span><h2>{isEditing ? "Chỉnh sửa" : "Tạo"} {roleText(form.role)}</h2><p>{form.role === "manager" ? "Admin không giới hạn tổng số quản lý; mỗi công đoạn tối đa 1 quản lý." : form.role === "lead" ? "Admin không giới hạn tổng số tổ trưởng; mỗi công đoạn tối đa 3 tổ trưởng." : "Thông tin tài khoản được lưu trực tiếp vào hệ thống."}</p></div><button onClick={onClose}><X size={18}/></button></div><div className="admin-modal-grid"><label>Vai trò<select value={form.role} disabled={isEditing} onChange={event => { const role = event.target.value as Role; setForm({...form, role, position: role === "worker" ? "Công nhân" : role === "lead" ? "Tổ trưởng" : "Quản lý", process_ids:[]}); }}><option value="manager">Quản lý</option><option value="lead">Tổ trưởng</option><option value="worker">Công nhân</option></select></label><label>Trạng thái<select value={form.status} onChange={event => setForm({...form, status:event.target.value as "active"|"inactive"})}><option value="active">Đang hoạt động</option><option value="inactive">Ngừng hoạt động</option></select></label><label>Họ và tên<input value={form.full_name} onChange={event => setForm({...form, full_name:event.target.value})}/></label><label>Tên đăng nhập<input value={form.username} onChange={event => setForm({...form, username:event.target.value})}/></label><label>Mật khẩu{form.id && <small> (để trống nếu không đổi)</small>}<input type="password" value={form.password} onChange={event => setForm({...form, password:event.target.value})} placeholder="Tối thiểu 6 ký tự"/></label>{form.role === "worker" && <><label>Mã công nhân<input value={form.worker_code} onChange={event => setForm({...form, worker_code:event.target.value})}/></label><label>Số điện thoại<input value={form.phone} onChange={event => setForm({...form, phone:event.target.value})}/></label><label>% học việc<input type="number" min="0" max="100" value={form.training_percent} onChange={event => setForm({...form, training_percent:event.target.value})}/></label></>}<label>Bộ phận / đơn vị<input value={form.department} onChange={event => setForm({...form, department:event.target.value})}/></label><label>Chức danh<input value={form.position} onChange={event => setForm({...form, position:event.target.value})}/></label><div className="admin-process-select"><span>Công đoạn phụ trách</span><div>{processes.map(process => { const capacity = processCapacity.find(item => item.id === process.id); const selected = selectedIds.includes(process.id); const full = form.role === "manager" ? (capacity?.managerCount || 0) >= 1 : form.role === "lead" ? (capacity?.leadCount || 0) >= 3 : false; const disabled = !canAssignProcess(process); return <label key={process.id} title={form.role === "manager" ? `Quản lý: ${capacity?.managerCount || 0}/1` : form.role === "lead" ? `Tổ trưởng: ${capacity?.leadCount || 0}/3` : "Không giới hạn"}><input type="checkbox" checked={selected} disabled={disabled} onChange={event => toggleProcess(process.id, event.target.checked)}/><span>{process.process_name}{form.role !== "worker" && <small> ({form.role === "manager" ? `${capacity?.managerCount || 0}/1` : `${capacity?.leadCount || 0}/3`}{full && !selected ? " · đủ" : ""})}</small>}</span></label>; })}</div></div></div><div className="admin-modal-actions"><button onClick={onClose}>Hủy</button><button className="admin-btn primary" disabled={saving} onClick={onSave}>{saving ? "Đang lưu..." : "Lưu tài khoản"}</button></div></div></div>;
+  const toggleProcess = (processId:number, checked:boolean) => setForm({ ...form, process_ids: checked ? [...new Set([...form.process_ids, processId])] : form.process_ids.filter(id => id !== processId) });
+  return <div className="admin-modal-backdrop"><div className="admin-modal"><div className="admin-modal-head"><div><span>QUẢN TRỊ TÀI KHOẢN</span><h2>{isEditing ? "Chỉnh sửa" : "Tạo"} {roleText(form.role)}</h2><p>{form.role === "manager" ? "Admin không giới hạn tổng số quản lý; mỗi công đoạn tối đa 1 quản lý." : form.role === "lead" ? "Admin không giới hạn tổng số tổ trưởng; mỗi công đoạn tối đa 3 tổ trưởng." : "Thông tin tài khoản được lưu trực tiếp vào hệ thống."}</p></div><button onClick={onClose}><X size={18}/></button></div><div className="admin-modal-grid"><label>Vai trò<select value={form.role} disabled={isEditing} onChange={event => { const role = event.target.value as Role; setForm({...form, role, position: role === "worker" ? "Công nhân" : role === "lead" ? "Tổ trưởng" : "Quản lý", process_ids:[]}); }}><option value="manager">Quản lý</option><option value="lead">Tổ trưởng</option><option value="worker">Công nhân</option></select></label><label>Trạng thái<select value={form.status} onChange={event => setForm({...form, status:event.target.value as "active"|"inactive"})}><option value="active">Đang hoạt động</option><option value="inactive">Ngừng hoạt động</option></select></label><label>Họ và tên<input value={form.full_name} onChange={event => setForm({...form, full_name:event.target.value})}/></label><label>Tên đăng nhập<input value={form.username} onChange={event => setForm({...form, username:event.target.value})}/></label><label>Mật khẩu{form.id && <small> (để trống nếu không đổi)</small>}<input type="password" value={form.password} onChange={event => setForm({...form, password:event.target.value})} placeholder="Tối thiểu 6 ký tự"/></label>{form.role === "worker" && <><label>Mã công nhân<input value={form.worker_code} onChange={event => setForm({...form, worker_code:event.target.value})}/></label><label>Số điện thoại<input value={form.phone} onChange={event => setForm({...form, phone:event.target.value})}/></label><label>% học việc<input type="number" min="0" max="100" value={form.training_percent} onChange={event => setForm({...form, training_percent:event.target.value})}/></label></>}<label>Bộ phận / đơn vị<input value={form.department} onChange={event => setForm({...form, department:event.target.value})}/></label><label>Chức danh<input value={form.position} onChange={event => setForm({...form, position:event.target.value})}/></label><div className="admin-process-select"><span>Công đoạn phụ trách</span><div>{processes.map(process => { const capacity = processCapacity.find(item => item.id === process.id); const selected = selectedIds.includes(process.id); const full = form.role === "manager" ? (capacity?.managerCount || 0) >= 1 : form.role === "lead" ? (capacity?.leadCount || 0) >= 3 : false; const disabled = !canAssignProcess(process); return <label key={process.id} title={form.role === "manager" ? `Quản lý: ${capacity?.managerCount || 0}/1` : form.role === "lead" ? `Tổ trưởng: ${capacity?.leadCount || 0}/3` : "Không giới hạn"}><input type="checkbox" checked={selected} disabled={disabled} onChange={event => toggleProcess(process.id, event.target.checked)}/><span>{process.process_name}{form.role !== "worker" && <small> ({form.role === "manager" ? `${capacity?.managerCount || 0}/1` : `${capacity?.leadCount || 0}/3`}{full && !selected ? " · đủ" : ""})</small>}</span></label>; })}</div></div></div><div className="admin-modal-actions"><button onClick={onClose}>Hủy</button><button className="admin-btn primary" disabled={saving} onClick={onSave}>{saving ? "Đang lưu..." : "Lưu tài khoản"}</button></div></div></div>;
 }
