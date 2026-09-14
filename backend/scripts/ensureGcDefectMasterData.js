@@ -58,22 +58,13 @@ async function ensureGcDefectMasterData() {
   const processId = Number(processes[0].id);
 
   const sync = async () => {
-    /*
-     * Repair legacy duplicates before applying canonical codes.
-     *
-     * The unique key uq_defect_process_code is (process_id, defect_code).
-     * Older data may contain two rows that are equivalent by defect name while
-     * still having different/legacy codes. Updating one row to the canonical
-     * code can then collide with the other row and produce ER_DUP_ENTRY.
-     *
-     * Keep the oldest row for each normalized canonical name and deactivate
-     * extra active rows instead of deleting them (safer for historical FKs).
-     */
-    const [legacyRows] = await query(
-      `SELECT id, defect_code, defect_name
+    // Keep historical rows, but make the active GC master deterministic.
+    // IMPORTANT: the unique key is (process_id, defect_code), regardless of
+    // status. Therefore inactive legacy rows can still block an INSERT/UPDATE.
+    const [allRows] = await query(
+      `SELECT id, defect_code, defect_name, status
          FROM defect_types
         WHERE process_id = ?
-          AND COALESCE(status, 'active') IN ('active', 'enabled', '1')
         ORDER BY id`,
       [processId],
     );
@@ -81,74 +72,74 @@ async function ensureGcDefectMasterData() {
     const canonicalByName = new Map(
       CANONICAL_GC_DEFECTS.map(([code, name]) => [String(name).trim().toLowerCase(), code]),
     );
-    const seenCanonicalNames = new Set();
 
-    for (const row of legacyRows || []) {
+    // First deactivate duplicate active rows for the same canonical name.
+    const seenNames = new Set();
+    for (const row of allRows || []) {
       const normalizedName = String(row.defect_name || '').trim().toLowerCase();
       if (!canonicalByName.has(normalizedName)) continue;
-      if (seenCanonicalNames.has(normalizedName)) {
-        await query(
-          `UPDATE defect_types
-              SET status = 'inactive'
-            WHERE id = ?`,
-          [Number(row.id)],
-        );
+      if (seenNames.has(normalizedName) && ['active', 'enabled', '1'].includes(String(row.status ?? 'active'))) {
+        await query(`UPDATE defect_types SET status = 'inactive' WHERE id = ?`, [Number(row.id)]);
       } else {
-        seenCanonicalNames.add(normalizedName);
+        seenNames.add(normalizedName);
       }
     }
 
     for (let index = 0; index < CANONICAL_GC_DEFECTS.length; index += 1) {
       const [defectCode, defectName] = CANONICAL_GC_DEFECTS[index];
 
-      // Prefer an already-canonical code; otherwise reuse the oldest matching
-      // active name. This minimizes row churn and preserves historical IDs.
-      let rows = await query(
-        `SELECT id, defect_code, defect_name
+      // Prefer an existing row that already owns the canonical code, even if
+      // it is inactive. This avoids a unique-key collision with legacy rows.
+      const [codeRows] = await query(
+        `SELECT id, defect_code, defect_name, status
            FROM defect_types
           WHERE process_id = ?
-            AND COALESCE(status, 'active') IN ('active', 'enabled', '1')
             AND UPPER(TRIM(defect_code)) = UPPER(TRIM(?))
           ORDER BY id
           LIMIT 2`,
         [processId, defectCode],
       );
 
-      if (!rows.length) {
-        rows = await query(
-          `SELECT id, defect_code, defect_name
+      const canonicalCodeRow = codeRows[0] || null;
+      let target = canonicalCodeRow;
+
+      if (!target) {
+        const [nameRows] = await query(
+          `SELECT id, defect_code, defect_name, status
              FROM defect_types
             WHERE process_id = ?
-              AND COALESCE(status, 'active') IN ('active', 'enabled', '1')
               AND LOWER(TRIM(defect_name)) = LOWER(TRIM(?))
+              AND COALESCE(status, 'active') IN ('active', 'enabled', '1')
             ORDER BY id
             LIMIT 2`,
           [processId, defectName],
         );
+        target = nameRows[0] || null;
       }
 
-      const target = rows[0] || null;
-
       if (target) {
-        // If a canonical-code row already exists, do not rewrite another row
-        // into the same code. Just normalize the canonical row and deactivate
-        // any redundant matching row returned by the query.
-        await query(
-          `UPDATE defect_types
-              SET defect_code = ?,
-                  defect_name = ?,
-                  sort_order = ?,
-                  status = 'active'
-            WHERE id = ?`,
-          [defectCode, defectName, index + 1, Number(target.id)],
-        );
+        // If another active row already owns this canonical code, deactivate it
+        // before reusing the canonical-code row. Historical IDs are preserved.
+        if (codeRows.length > 1) {
+          for (const duplicate of codeRows.slice(1)) {
+            await query(`UPDATE defect_types SET status = 'inactive' WHERE id = ?`, [Number(duplicate.id)]);
+          }
+        }
 
-        for (const duplicate of rows.slice(1)) {
+        if (canonicalCodeRow && target.id === canonicalCodeRow.id) {
+          // The row already owns the unique key, so updating it is safe.
           await query(
             `UPDATE defect_types
-                SET status = 'inactive'
+                SET defect_name = ?, sort_order = ?, status = 'active'
               WHERE id = ?`,
-            [Number(duplicate.id)],
+            [defectName, index + 1, Number(target.id)],
+          );
+        } else {
+          await query(
+            `UPDATE defect_types
+                SET defect_code = ?, defect_name = ?, sort_order = ?, status = 'active'
+              WHERE id = ?`,
+            [defectCode, defectName, index + 1, Number(target.id)],
           );
         }
       } else {
@@ -160,11 +151,10 @@ async function ensureGcDefectMasterData() {
             [processId, defectCode, defectName, index + 1],
           );
         } catch (error) {
-          // Another Cloudflare isolate/request may have inserted the same
-          // canonical row between our SELECT and INSERT. Re-read it and make
-          // sure the request stays idempotent instead of bubbling 1062.
           if (!isDuplicateEntryError(error)) throw error;
 
+          // A concurrent isolate may have inserted the code, or an inactive
+          // historical row may already own it. Re-read ALL statuses.
           const [existing] = await query(
             `SELECT id
                FROM defect_types
@@ -178,9 +168,7 @@ async function ensureGcDefectMasterData() {
 
           await query(
             `UPDATE defect_types
-                SET defect_name = ?,
-                    sort_order = ?,
-                    status = 'active'
+                SET defect_name = ?, sort_order = ?, status = 'active'
               WHERE id = ?`,
             [defectName, index + 1, Number(existing[0].id)],
           );
