@@ -114,6 +114,10 @@ export interface ProductionReport {
     ng_kich_thuoc: number;
     cat_lem: number;
     note?: string;
+    notes?: string | null;
+    hv_percent?: number | null;
+    approved_at?: string | null;
+    source?: ProductionReportSource;
     status?: ProductionReportStatus;
     created_at?: string;
     updated_at?: string;
