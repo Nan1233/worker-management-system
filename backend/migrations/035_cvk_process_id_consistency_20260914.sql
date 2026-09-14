@@ -16,24 +16,31 @@ WHERE NOT EXISTS (
 );
 
 -- 2) Move legacy CVK temp reports written with process_id=60006.
--- The extra_data marker is written by the CVK submission model, so this does
--- not rewrite unrelated records if 60006 is ever reused by another process.
+-- If 60006 is not a real process row, every report pointing to it is an
+-- orphaned legacy reference. Otherwise require the explicit CVK marker so we
+-- never rewrite a legitimate process that happens to use id 60006.
 UPDATE production_reports_temp pr
 JOIN processes cvk
   ON UPPER(TRIM(cvk.process_code)) = 'CVK'
 SET pr.process_id = cvk.id
 WHERE pr.process_id = 60006
   AND cvk.id <> 60006
-  AND UPPER(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(pr.extra_data, '$.process_code')), '')) = 'CVK';
+  AND (
+      NOT EXISTS (SELECT 1 FROM processes legacy WHERE legacy.id = 60006)
+      OR UPPER(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(pr.extra_data, '$.process_code')), '')) = 'CVK'
+  );
 
--- 3) Move legacy approved CVK reports using the same explicit marker.
+-- 3) Move legacy approved CVK reports using the same safety rule.
 UPDATE production_reports pr
 JOIN processes cvk
   ON UPPER(TRIM(cvk.process_code)) = 'CVK'
 SET pr.process_id = cvk.id
 WHERE pr.process_id = 60006
   AND cvk.id <> 60006
-  AND UPPER(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(pr.extra_data, '$.process_code')), '')) = 'CVK';
+  AND (
+      NOT EXISTS (SELECT 1 FROM processes legacy WHERE legacy.id = 60006)
+      OR UPPER(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(pr.extra_data, '$.process_code')), '')) = 'CVK'
+  );
 
 -- 4) Preserve any existing manager->legacy-CVK assignments under the
 -- canonical process id.
