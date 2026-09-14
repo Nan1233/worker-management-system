@@ -1,0 +1,80 @@
+name: Desktop Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'
+      - 'desktop/**'
+      - 'shared/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/desktop-release.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout current Git commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            desktop/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm install --no-audit --no-fund
+
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm install --no-audit --no-fund
+
+      - name: Set release version from GitHub Actions run
+        shell: pwsh
+        working-directory: desktop
+        run: |
+          $path = 'package.json'
+          $pkg = Get-Content $path -Raw | ConvertFrom-Json
+          $pkg.version = "1.9.${{ github.run_number }}"
+          $pkg | ConvertTo-Json -Depth 100 | Set-Content -Encoding utf8 $path
+          Write-Host "Desktop release version: $($pkg.version)"
+
+      - name: Validate desktop sources
+        working-directory: desktop
+        run: npm run check
+
+      - name: Build frontend and Windows installers
+        working-directory: desktop
+        run: |
+          npm run build:frontend
+          npm run smoke:excel
+          npx electron-builder --win nsis portable --x64 --publish always
+
+      - name: Verify release artifacts
+        shell: pwsh
+        working-directory: desktop
+        run: |
+          $installer = Get-ChildItem release -Filter 'KTC-Production-Control-Setup.exe' -Recurse | Select-Object -First 1
+          $portable = Get-ChildItem release -Filter 'KTC-Production-Control.exe' -Recurse | Select-Object -First 1
+          $latest = Get-ChildItem release -Filter 'latest.yml' -Recurse | Select-Object -First 1
+          if (-not $installer) { throw 'Missing NSIS installer artifact.' }
+          if (-not $portable) { throw 'Missing portable artifact.' }
+          if (-not $latest) { throw 'Missing latest.yml required for auto-update.' }
+          Write-Host "Installer: $($installer.FullName)"
+          Write-Host "Portable: $($portable.FullName)"
+          Write-Host "Update metadata: $($latest.FullName)"
