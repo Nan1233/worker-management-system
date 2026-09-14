@@ -1,5 +1,5 @@
 import { getStoredUser } from "../../utils/authStorage";
-import { createEmptyMachineLine } from "./processPageConfig";
+import { createEmptyMachineLine, getCurrentLocalDate } from "./processPageConfig";
 import type { DeductionState, FormState, MachineLineState, NgKey, DeductionKey, OperationMode, OperationType } from "./processPageConfig";
 
 export type ProcessDraft = {
@@ -40,9 +40,6 @@ const keyFor = (process: string, workerId: number | null, workerCode: string | n
   return `ktc:process-draft:v3:${identity}:${encodeKeyPart(process)}`;
 };
 
-// Drafts created by the previous v2 implementation may contain stale report
-// data that should not override the new/default report. They are intentionally
-// invalidated when this version is first loaded.
 const legacyKeyForV2 = (process: string, workerId: number | null, workerCode: string | null) => {
   const identity = workerId != null
     ? `id-${workerId}`
@@ -62,9 +59,6 @@ const invalidateLegacyV2Draft = (process: string, workerId: number | null, worke
   } catch { /* storage unavailable */ }
 };
 
-// clearProcessDraft() is also called immediately after a successful submit.
-// The autosave effect can run once more before navigation, so briefly suppress
-// writes after a clear. The next form/page instance is allowed to save normally.
 const DRAFT_CLEAR_SUPPRESS_MS = 1200;
 const clearMarkerKeyFor = (process: string, workerId: number | null, workerCode: string | null) =>
   `${keyFor(process, workerId, workerCode)}:clear-marker`;
@@ -188,7 +182,6 @@ function normalizeDraftForResume(draft: ProcessDraft): ProcessDraft {
   }));
 
   const first = machineLines[0];
-
   if (form.machineNo || form.productName || form.actualHours || form.actualMinutes) {
     machineLines[0] = {
       ...first,
@@ -231,15 +224,19 @@ function normalizeDraftForResume(draft: ProcessDraft): ProcessDraft {
   };
 }
 
+const isDefaultSameDayShiftDraft = (draft: ProcessDraft): boolean => {
+  const draftDate = String(draft.form?.workDate || "").trim();
+  const draftShift = String(draft.form?.shift || "").trim().toUpperCase();
+  const today = getCurrentLocalDate();
+  return draftDate === today && draftShift === "A";
+};
+
 export function loadProcessDraft(process: string): ProcessDraft | null {
   try {
     const { workerId, workerCode } = getCurrentWorkerIdentity();
     if (workerId == null && !workerCode) return null;
 
-    // A new/default report must never be hijacked by a draft from the old
-    // storage format. Remove the v2 draft once and start clean on v3.
     invalidateLegacyV2Draft(process, workerId, workerCode);
-
     if (isAutosaveSuppressed(process, workerId, workerCode)) return null;
 
     const raw = localStorage.getItem(keyFor(process, workerId, workerCode));
@@ -256,6 +253,16 @@ export function loadProcessDraft(process: string): ProcessDraft | null {
     if (parsed.ownerWorkerCode && workerCode && String(parsed.ownerWorkerCode).trim() !== workerCode) return null;
 
     const value = normalizeDraftForResume(parsed);
+
+    // The default new-report context is today + shift A. If the saved draft
+    // is exactly that context, it is the continuation of the report the worker
+    // is reopening. Restore it silently instead of showing a confirmation.
+    if (isDefaultSameDayShiftDraft(value)) {
+      return value;
+    }
+
+    // Older/different-day or different-shift drafts still require an explicit
+    // choice so a worker does not accidentally reopen another report.
     const shouldResume = window.confirm(buildDraftResumeMessage(value));
     if (!shouldResume) {
       localStorage.removeItem(keyFor(process, workerId, workerCode));
@@ -272,7 +279,6 @@ export function saveProcessDraft(draft: ProcessDraft): void {
   try {
     const { workerId, workerCode } = getCurrentWorkerIdentity();
     if (workerId == null && !workerCode) return;
-
     if (isAutosaveSuppressed(draft.process, workerId, workerCode)) return;
 
     const sourceLines = Array.isArray(draft.machineLines) ? draft.machineLines : [];
