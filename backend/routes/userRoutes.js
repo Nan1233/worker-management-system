@@ -25,7 +25,16 @@ const runUserHandler = (name) => (req, res, next) => {
 router.get('/export/excel', permission('USER_VIEW'), runUserHandler('exportUsersExcel'));
 router.post('/import/excel', permission('USER_CREATE','USER_EDIT'), runUserHandler('importUsersExcel'));
 router.get('/', permission('USER_VIEW'), controller.getAllUsers);
-router.get('/options/processes', permission('USER_VIEW','MASTER_VIEW'), controller.getProcessOptions);
+router.get('/options/processes', permission('USER_VIEW','MASTER_VIEW'), (req, res, next) => {
+  const originalJson = res.json.bind(res);
+  res.json = (body) => {
+    if (body?.success && Array.isArray(body.data)) {
+      body.data = body.data.map((process) => ({ ...process, id: Number(process.id) }));
+    }
+    return originalJson(body);
+  };
+  return controller.getProcessOptions(req, res, next);
+});
 router.get('/:id', permission('USER_VIEW'), controller.getUserById);
 
 const ensureWorkerTechnicalPassword = (req, _res, next) => {
