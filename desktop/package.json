@@ -68,11 +68,15 @@
       "signingHashAlgorithms": [
         "sha256"
       ],
-      "requestedExecutionLevel": "asInvoker",
-      "publish": [
-        "github"
-      ]
+      "requestedExecutionLevel": "asInvoker"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Nan1233",
+        "repo": "worker-management-system"
+      }
+    ],
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
