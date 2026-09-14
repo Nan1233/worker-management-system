@@ -6,9 +6,8 @@ const query = (sql, params = []) => new Promise((resolve, reject) => {
   db.query(sql, params, (error, rows) => error ? reject(error) : resolve(rows));
 });
 
-// Factory source of truth for GC / Gia công NG master data.
-// This is intentionally idempotent and runs at Cloudflare request bootstrap
-// because SQL migration files are not automatically executed by that runtime.
+// Canonical source of truth for GC / Gia công NG master data.
+// Historical rows are never deleted; only the active master is synchronized.
 const CANONICAL_GC_DEFECTS = [
   ['KQD', 'KQD'],
   ['VO_CAO_SU', 'Vỡ cao su'],
@@ -31,37 +30,87 @@ const CANONICAL_GC_DEFECTS = [
   ['THIEU_CAO_SU', 'thiếu cao su'],
 ];
 
-const DUPLICATE_ENTRY_CODES = new Set(['ER_DUP_ENTRY', 1062, '1062']);
+const ACTIVE_STATUSES = ['active', 'enabled', '1'];
 
-function isDuplicateEntryError(error) {
-  const code = error?.code;
-  const errno = error?.errno;
-  const message = String(error?.message || '');
-  return DUPLICATE_ENTRY_CODES.has(code)
-    || DUPLICATE_ENTRY_CODES.has(errno)
-    || /duplicate entry/i.test(message);
+function normalize(value) {
+  return String(value ?? '').trim().toLowerCase();
+}
+
+function errorDetails(error) {
+  return {
+    message: String(error?.message || error || ''),
+    code: error?.code ?? null,
+    errno: error?.errno ?? null,
+    sqlState: error?.sqlState ?? null,
+    sqlMessage: error?.sqlMessage ?? null,
+  };
 }
 
 async function ensureGcDefectMasterData() {
-  const [processes] = await Promise.all([
-    query(`
-      SELECT id
-        FROM processes
-       WHERE UPPER(TRIM(process_code)) = 'GC'
-         AND COALESCE(status, 'active') IN ('active', 'enabled', '1')
-       ORDER BY id
-       LIMIT 1
-    `),
-  ]);
+  const [processes] = await query(`
+    SELECT id
+      FROM processes
+     WHERE UPPER(TRIM(process_code)) = 'GC'
+       AND COALESCE(status, 'active') IN ('active', 'enabled', '1')
+     ORDER BY id
+     LIMIT 1
+  `);
 
-  if (!processes.length) throw new Error('GC process master was not found.');
+  if (!processes.length) {
+    throw new Error('GC process master was not found.');
+  }
+
   const processId = Number(processes[0].id);
 
   const sync = async () => {
-    // Keep historical rows, but make the active GC master deterministic.
-    // IMPORTANT: the unique key is (process_id, defect_code), regardless of
-    // status. Therefore inactive legacy rows can still block an INSERT/UPDATE.
-    const [allRows] = await query(
+    // Do not try to rename legacy rows into new codes one-by-one. That can
+    // collide with an inactive row that still owns the unique key. Instead,
+    // canonical codes are reconciled with an atomic MySQL/TiDB upsert.
+    // Legacy/non-canonical rows are then made inactive.
+    const canonicalCodes = CANONICAL_GC_DEFECTS.map(([code]) => code);
+    const placeholders = canonicalCodes.map(() => '?').join(', ');
+
+    await query(
+      `UPDATE defect_types
+          SET status = 'inactive'
+        WHERE process_id = ?
+          AND defect_code IS NOT NULL
+          AND UPPER(TRIM(defect_code)) NOT IN (${placeholders})`,
+      [processId, ...canonicalCodes],
+    );
+
+    for (let index = 0; index < CANONICAL_GC_DEFECTS.length; index += 1) {
+      const [defectCode, defectName] = CANONICAL_GC_DEFECTS[index];
+      const sortOrder = index + 1;
+
+      try {
+        await query(
+          `INSERT INTO defect_types
+            (process_id, defect_code, defect_name, sort_order, status)
+           VALUES (?, ?, ?, ?, 'active')
+           ON DUPLICATE KEY UPDATE
+             defect_name = VALUES(defect_name),
+             sort_order = VALUES(sort_order),
+             status = 'active'`,
+          [processId, defectCode, defectName, sortOrder],
+        );
+      } catch (error) {
+        console.error('[KTC] GC defect upsert failed', {
+          processId,
+          defectCode,
+          defectName,
+          sortOrder,
+          ...errorDetails(error),
+        });
+        throw error;
+      }
+    }
+
+    // If old rows used a canonical display name with a non-canonical code,
+    // keep them for historical reports but ensure they are not returned by the
+    // active master endpoint.
+    const canonicalCodeSet = new Set(canonicalCodes.map(normalize));
+    const [rows] = await query(
       `SELECT id, defect_code, defect_name, status
          FROM defect_types
         WHERE process_id = ?
@@ -69,123 +118,20 @@ async function ensureGcDefectMasterData() {
       [processId],
     );
 
-    const canonicalByName = new Map(
-      CANONICAL_GC_DEFECTS.map(([code, name]) => [String(name).trim().toLowerCase(), code]),
-    );
+    const seenCanonicalCodes = new Set();
+    for (const row of rows || []) {
+      const code = normalize(row.defect_code);
+      if (!canonicalCodeSet.has(code)) continue;
 
-    // First deactivate duplicate active rows for the same canonical name.
-    const seenNames = new Set();
-    for (const row of allRows || []) {
-      const normalizedName = String(row.defect_name || '').trim().toLowerCase();
-      if (!canonicalByName.has(normalizedName)) continue;
-      if (seenNames.has(normalizedName) && ['active', 'enabled', '1'].includes(String(row.status ?? 'active'))) {
-        await query(`UPDATE defect_types SET status = 'inactive' WHERE id = ?`, [Number(row.id)]);
-      } else {
-        seenNames.add(normalizedName);
-      }
-    }
-
-    for (let index = 0; index < CANONICAL_GC_DEFECTS.length; index += 1) {
-      const [defectCode, defectName] = CANONICAL_GC_DEFECTS[index];
-
-      // Prefer an existing row that already owns the canonical code, even if
-      // it is inactive. This avoids a unique-key collision with legacy rows.
-      const [codeRows] = await query(
-        `SELECT id, defect_code, defect_name, status
-           FROM defect_types
-          WHERE process_id = ?
-            AND UPPER(TRIM(defect_code)) = UPPER(TRIM(?))
-          ORDER BY id
-          LIMIT 2`,
-        [processId, defectCode],
-      );
-
-      const canonicalCodeRow = codeRows[0] || null;
-      let target = canonicalCodeRow;
-
-      if (!target) {
-        const [nameRows] = await query(
-          `SELECT id, defect_code, defect_name, status
-             FROM defect_types
-            WHERE process_id = ?
-              AND LOWER(TRIM(defect_name)) = LOWER(TRIM(?))
-              AND COALESCE(status, 'active') IN ('active', 'enabled', '1')
-            ORDER BY id
-            LIMIT 2`,
-          [processId, defectName],
+      if (seenCanonicalCodes.has(code)) {
+        await query(
+          `UPDATE defect_types SET status = 'inactive' WHERE id = ?`,
+          [Number(row.id)],
         );
-        target = nameRows[0] || null;
-      }
-
-      if (target) {
-        // If another active row already owns this canonical code, deactivate it
-        // before reusing the canonical-code row. Historical IDs are preserved.
-        if (codeRows.length > 1) {
-          for (const duplicate of codeRows.slice(1)) {
-            await query(`UPDATE defect_types SET status = 'inactive' WHERE id = ?`, [Number(duplicate.id)]);
-          }
-        }
-
-        if (canonicalCodeRow && target.id === canonicalCodeRow.id) {
-          // The row already owns the unique key, so updating it is safe.
-          await query(
-            `UPDATE defect_types
-                SET defect_name = ?, sort_order = ?, status = 'active'
-              WHERE id = ?`,
-            [defectName, index + 1, Number(target.id)],
-          );
-        } else {
-          await query(
-            `UPDATE defect_types
-                SET defect_code = ?, defect_name = ?, sort_order = ?, status = 'active'
-              WHERE id = ?`,
-            [defectCode, defectName, index + 1, Number(target.id)],
-          );
-        }
       } else {
-        try {
-          await query(
-            `INSERT INTO defect_types
-              (process_id, defect_code, defect_name, sort_order, status)
-             VALUES (?, ?, ?, ?, 'active')`,
-            [processId, defectCode, defectName, index + 1],
-          );
-        } catch (error) {
-          if (!isDuplicateEntryError(error)) throw error;
-
-          // A concurrent isolate may have inserted the code, or an inactive
-          // historical row may already own it. Re-read ALL statuses.
-          const [existing] = await query(
-            `SELECT id
-               FROM defect_types
-              WHERE process_id = ?
-                AND UPPER(TRIM(defect_code)) = UPPER(TRIM(?))
-              ORDER BY id
-              LIMIT 1`,
-            [processId, defectCode],
-          );
-          if (!existing.length) throw error;
-
-          await query(
-            `UPDATE defect_types
-                SET defect_name = ?, sort_order = ?, status = 'active'
-              WHERE id = ?`,
-            [defectName, index + 1, Number(existing[0].id)],
-          );
-        }
+        seenCanonicalCodes.add(code);
       }
     }
-
-    const canonicalNames = CANONICAL_GC_DEFECTS.map(([, name]) => name.toLowerCase().trim());
-    const placeholders = canonicalNames.map(() => '?').join(', ');
-    await query(
-      `UPDATE defect_types
-          SET status = 'inactive'
-        WHERE process_id = ?
-          AND COALESCE(status, 'active') IN ('active', 'enabled', '1')
-          AND LOWER(TRIM(defect_name)) NOT IN (${placeholders})`,
-      [processId, ...canonicalNames],
-    );
 
     const [verifyRows] = await query(
       `SELECT defect_code, defect_name, sort_order
@@ -197,17 +143,34 @@ async function ensureGcDefectMasterData() {
     );
 
     if (verifyRows.length !== CANONICAL_GC_DEFECTS.length) {
-      throw new Error(`GC defect master verification failed: expected ${CANONICAL_GC_DEFECTS.length} active rows, got ${verifyRows.length}.`);
+      const actual = verifyRows.map((row) => ({
+        code: row.defect_code,
+        name: row.defect_name,
+        sortOrder: row.sort_order,
+      }));
+      const error = new Error(
+        `GC defect master verification failed: expected ${CANONICAL_GC_DEFECTS.length} active rows, got ${verifyRows.length}`,
+      );
+      error.details = { processId, actual };
+      throw error;
     }
 
     console.log(`GC_DEFECT_MASTER_OK process_id=${processId} active=${verifyRows.length}`);
   };
 
-  // TiDB Serverless used by Cloudflare should receive idempotent DML without
-  // transaction control. Render keeps the transaction wrapper for mysql2.
+  // Cloudflare/TiDB Serverless does not need transaction control here and
+  // request isolates must be allowed to retry safely.
   if (isCloudflareWorker) {
-    await sync();
-    return;
+    try {
+      await sync();
+      return;
+    } catch (error) {
+      console.error('[KTC] Cloudflare GC master-data seed failed', {
+        ...errorDetails(error),
+        details: error?.details ?? null,
+      });
+      throw error;
+    }
   }
 
   await query('START TRANSACTION');
@@ -226,7 +189,7 @@ if (require.main === module) {
   ensureGcDefectMasterData()
     .then(() => process.exit(0))
     .catch((error) => {
-      console.error('[KTC] Failed to ensure exact GC NG master data:', error);
+      console.error('[KTC] Failed to ensure exact GC NG master data:', errorDetails(error));
       process.exit(1);
     });
 }
