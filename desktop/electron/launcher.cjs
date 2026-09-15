@@ -28,6 +28,10 @@ app.on('browser-window-created', (_event, window) => {
 // This keeps the desktop UI, including images/public assets, self-contained
 // in the generated Electron package.
 
+// Production desktop uses the Cloudflare Worker backend. Set this before
+// loading main.cjs so the packaged app cannot silently fall back to Render.
+process.env.KTC_API_URL = 'https://ktc-backend.nan978971.workers.dev/api';
+
 function normalizeExportRoot(value) {
   const raw = String(value || '').trim();
   if (!raw) return DEFAULT_EXPORT_ROOT;
