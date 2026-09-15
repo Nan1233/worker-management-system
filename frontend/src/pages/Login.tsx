@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import "./Login.css";
 
 const LOGIN_LOGO_URL = "/KTC-WebClip-Icon-400.png";
-const LOGIN_LOGO_FALLBACK_URL = "https://ktc-frontend.nan978971.workers.dev/KTC-WebClip-Icon-400.png";
+const LOGIN_LOGO_FALLBACK_URL = "https://raw.githubusercontent.com/Nan1233/worker-management-system/main/frontend/public/KTC-WebClip-Icon-400.png";
 
 export default function Login() {
   const [loginLogoSrc, setLoginLogoSrc] = useState(LOGIN_LOGO_URL);
 
   useEffect(() => {
-    setLoginLogoSrc(`${LOGIN_LOGO_URL}?v=${Date.now()}`);
+    const logo = document.querySelector<HTMLImageElement>(".login-logo");
+    if (logo) logo.src = `${LOGIN_LOGO_URL}?v=${Date.now()}`;
   }, []);
 
   return (
@@ -35,8 +36,6 @@ export default function Login() {
 
         <h1>Chào mừng bạn!</h1>
         <p className="login-subtitle">Hệ thống quản lý sản xuất KTC HANOI</p>
-
-        {/* Existing login form/content remains below. */}
       </main>
     </div>
   );
