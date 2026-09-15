@@ -18,26 +18,47 @@ const isRetryableLockTimeout = (error) =>
     Number(error?.errno) === 1205
     || String(error?.message || "").includes("Lock wait timeout exceeded");
 
+const executeRaw = (executor, sql, params = []) =>
+    new Promise((resolve, reject) => {
+        executor.query(sql, params, (error, result) => {
+            if (error) return reject(error);
+            resolve(result);
+        });
+    });
+
 const queryWithLockRetry = async (executor, sql, params = []) => {
-    let lastError;
-    // A competing approval/edit can briefly hold the same temp-report row.
-    // Retry the statement on a fresh server round-trip instead of immediately
-    // turning a transient TiDB 1205 into an approval failure.
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-        try {
-            return await new Promise((resolve, reject) => {
-                executor.query(sql, params, (error, result) => {
-                    if (error) return reject(error);
-                    resolve(result);
-                });
-            });
-        } catch (error) {
-            lastError = error;
-            if (!isRetryableLockTimeout(error) || attempt >= 2) throw error;
-            await sleep(250 * (attempt + 1));
+    try {
+        return await executeRaw(executor, sql, params);
+    } catch (error) {
+        if (!isRetryableLockTimeout(error)) throw error;
+
+        // The approval selection previously used SELECT ... FOR UPDATE.
+        // On TiDB Serverless a concurrent edit/approval can keep that row lock
+        // long enough to hit Error 1205. Approval already performs an
+        // optimistic updated_at check, so the initial read does not need a
+        // pessimistic row lock. If this exact temp-report selection somehow
+        // reaches 1205, retry it once without FOR UPDATE.
+        const text = String(sql || "");
+        const isTempReportApprovalSelect =
+            /FROM\s+production_reports_temp\s+temp/i.test(text)
+            && /FOR\s+UPDATE\s*$/i.test(text);
+        if (isTempReportApprovalSelect) {
+            const lockFreeSql = text.replace(/\s+FOR\s+UPDATE\s*$/i, "");
+            return executeRaw(executor, lockFreeSql, params);
         }
+
+        let lastError = error;
+        for (let attempt = 1; attempt < 3; attempt += 1) {
+            await sleep(250 * attempt);
+            try {
+                return await executeRaw(executor, sql, params);
+            } catch (retryError) {
+                lastError = retryError;
+                if (!isRetryableLockTimeout(retryError) || attempt >= 2) throw retryError;
+            }
+        }
+        throw lastError;
     }
-    throw lastError;
 };
 
 /**
