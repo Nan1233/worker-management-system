@@ -34,7 +34,7 @@ export default function AdminLayout(){
  const go=(path:string)=>navigate(`/admin${path?`/${path}`:""}`);
  return <div className="admin-layout">
   <aside className={`admin-sidebar${mobileSidebarOpen?" open":""}`}>
-   <button className="admin-brand" type="button" onClick={()=>go("")}><span className="admin-brand-mark">K</span><span><strong>KTC (HANOI) CO., LTD</strong><small>Trung tâm quản trị hệ thống</small></span></button>
+   <button className="admin-brand" type="button" onClick={()=>go("")}><img src="/ktc-hanoi-logo.png" alt="KTC HANOI" className="admin-brand-logo"/><span><strong>KTC (HANOI) CO., LTD</strong><small>Trung tâm quản trị hệ thống</small></span></button>
    <div className="admin-sidebar-heading">QUẢN TRỊ HỆ THỐNG</div>
    <nav className="admin-menu" aria-label="Điều hướng quản trị viên">
     {visible.map(item=>{const Icon=item.icon;return <button key={item.path||"home"} type="button" className={active(item.path)?"active":""} onClick={()=>go(item.path)}><Icon size={18}/><span>{item.label}</span></button>;})}
