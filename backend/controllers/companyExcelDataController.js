@@ -1,12 +1,7 @@
-const { assertReportVolume } = require('../services/excelExportGuards');
-const { loadProcessMonthReports } = require('../services/processExcelExportService');
-const db = require('../config/db');
+const { loadBulkCompanyReports, PROCESS_CODES } = require('../services/bulkCompanyExcelDataService');
 const { getSettingsMap } = require('../services/formulaSettingsService');
 const { calculateProductionMetrics } = require('../domain/productionCalculationEngine.cjs');
-const { getActorProcessScope } = require('../services/processAuthorizationService');
 
-const PROCESS_CODES = ['CAN','EP','XLBV','GC','MAI','DO','K1','K2','SX3'];
-const query = (sql, params = []) => db.promise().query(sql, params).then(([rows]) => rows);
 const inFlightByScope = new Map();
 const cacheByScope = new Map();
 const CACHE_TTL_MS = Math.max(0, Math.min(10_000, Number(process.env.COMPANY_DATA_CACHE_TTL_MS || 5_000)));
@@ -23,53 +18,7 @@ function scopeCacheKey(yearMonth, actor, scope) {
 }
 
 async function buildCompanyData(yearMonth, actor) {
-  const placeholders = PROCESS_CODES.map(() => '?').join(',');
-  const allProcesses = await query(
-    `SELECT id, process_code, process_name
-     FROM processes
-     WHERE UPPER(process_code) IN (${placeholders})
-     ORDER BY id`,
-    PROCESS_CODES
-  );
-
-  // Export data is scope-aware: Admin receives the full company payload;
-  // Manager/Lead receive only the processes assigned in manager_processes.
-  // This avoids a 403 during Desktop startup while never leaking another
-  // manager's production data into the workbook payload.
-  const scope = actor ? await getActorProcessScope(actor) : { type: 'ALL', processIds: null };
-  const processes = scope.type === 'ALL'
-    ? allProcesses
-    : allProcesses.filter((row) => scope.processIds.has(Number(row.id)));
-
-  const processIds = processes.map((row) => Number(row.id));
-  if (processIds.length) {
-    await assertReportVolume({
-      yearMonth,
-      processIds
-    });
-  }
-
-  const processData = Object.fromEntries(PROCESS_CODES.map((code) => [code, {
-    processId: null,
-    processCode: code,
-    processName: code,
-    reports: [],
-    deductionTypes: [],
-    defectTypes: []
-  }]));
-  for (const process of processes) {
-    const code = String(process.process_code || '').toUpperCase();
-    const reports = await loadProcessMonthReports(yearMonth, Number(process.id));
-    processData[code] = {
-      processId: Number(process.id),
-      processCode: code,
-      processName: process.process_name,
-      reports,
-      physicalMachineEvents: reports.physicalMachineEvents || [],
-      deductionTypes: reports.deductionTypes || [],
-      defectTypes: reports.defectTypes || []
-    };
-  }
+  const { processData, processIds, scope } = await loadBulkCompanyReports(yearMonth, actor);
 
   const diagnostics = Object.fromEntries(PROCESS_CODES.map((code) => {
     const data = processData[code] || {};
@@ -81,29 +30,30 @@ async function buildCompanyData(yearMonth, actor) {
     }];
   }));
 
-  // Công thức có thể đổi giữa tháng. Trả thêm cấu hình theo từng ngày có dữ liệu
-  // để Desktop tính đúng từng báo cáo, đồng thời giữ formulaSettings mức tháng cho
-  // tương thích với các bản Desktop cũ.
   const reportDates = [...new Set(
     PROCESS_CODES.flatMap((code) => (processData[code]?.reports || [])
       .map((report) => String(report.work_date || '').slice(0, 10))
       .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)))
   )].sort();
+
   const mapsByDate = new Map();
-  await Promise.all(reportDates.map(async (date) => {
+  // Load formula settings once per date. The bulk report query above is the
+  // important subrequest reduction; sequential loading also prevents a burst
+  // of duplicate cache misses inside one Cloudflare Worker invocation.
+  for (const date of reportDates) {
     mapsByDate.set(date, await getSettingsMap(date));
-  }));
+  }
+
   for (const code of PROCESS_CODES) {
-    processData[code].formulaSettingsByDate = Object.fromEntries(
+    const data = processData[code];
+    data.formulaSettingsByDate = Object.fromEntries(
       reportDates.map((date) => {
         const map = mapsByDate.get(date) || {};
         return [date, map[code] || map.GLOBAL || null];
       }).filter(([, settings]) => Boolean(settings))
     );
 
-    // Backend là nguồn tính chuẩn. Desktop/Excel ưu tiên snapshot này thay vì
-    // tự diễn giải lại công thức, tránh lệch số giữa API, màn hình và file Excel.
-    processData[code].reports = (processData[code].reports || []).map((report) => {
+    data.reports = (data.reports || []).map((report) => {
       const workDate = String(report.work_date || '').slice(0, 10);
       const map = mapsByDate.get(workDate) || {};
       const settings = map[code] || map.GLOBAL || undefined;
@@ -147,7 +97,7 @@ async function buildCompanyData(yearMonth, actor) {
 
 async function getCompanyData(yearMonth, actor) {
   const scope = actor
-    ? await getActorProcessScope(actor)
+    ? await require('../services/processAuthorizationService').getActorProcessScope(actor)
     : { type: 'ALL', processIds: null };
   const key = scopeCacheKey(yearMonth, actor, scope);
 
