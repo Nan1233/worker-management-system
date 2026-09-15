@@ -50,6 +50,29 @@ function assertEffectiveOnDate(row, date, label) {
   }
 }
 
+function chooseHistoricalVersion(rows, date, label) {
+  const applicable = (rows || []).filter((row) => {
+    const from = row?.effective_from ? String(row.effective_from).slice(0, 10) : null;
+    const to = row?.effective_to ? String(row.effective_to).slice(0, 10) : null;
+    return (!from || from <= date) && (!to || to >= date);
+  });
+  if (!applicable.length) return null;
+
+  // Active is preferred for current masters. If an older version is inactive but
+  // its effective range contains the work date, it is still the authoritative
+  // historical source for an already-created report and must not be discarded.
+  const active = applicable.filter((row) => String(row.status || '').toLowerCase() === 'active' || Number(row.is_active) === 1);
+  const candidates = active.length ? active : applicable;
+  if (candidates.length > 1) {
+    throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT', `Có nhiều định mức cùng hiệu lực cho ${label} tại ngày ${date}`, {
+      work_date: date,
+      version_ids: candidates.map((row) => Number(row.id)).filter(Boolean),
+      machine_standard_ids: candidates.map((row) => Number(row.id)).filter(Boolean)
+    });
+  }
+  return candidates[0];
+}
+
 function createStandardResolver({ query = defaultQuery } = {}) {
   const productCache = new Map();
   const standardCache = new Map();
@@ -88,10 +111,6 @@ function createStandardResolver({ query = defaultQuery } = {}) {
       throw businessError('HISTORICAL_STANDARD_NOT_FOUND', `Không tìm thấy sản phẩm ${product} đang hoạt động trong công đoạn`);
     }
 
-    // Approval must validate against the immutable historical version saved on the
-    // report, not re-select a different version merely because the master table was
-    // edited after the report was created. This is the important distinction between
-    // "resolve by work_date" for new reports and "verify the saved snapshot" for old ones.
     if (requestedVersionId) {
       const versionRows = await query(
         `SELECT id, process_id, product_code, standard_output, exclude_kqd_from_tt,
@@ -125,16 +144,17 @@ function createStandardResolver({ query = defaultQuery } = {}) {
 
     const versions = await query(
       `SELECT id, process_id, product_code, standard_output, exclude_kqd_from_tt,
-              version_no, effective_from, effective_to
+              version_no, effective_from, effective_to, status
        FROM product_standard_versions
-       WHERE process_id=? AND product_code=? AND status='active'
+       WHERE process_id=? AND product_code=?
          AND effective_from <= ?
          AND (effective_to IS NULL OR effective_to >= ?)
        ORDER BY effective_from, version_no, id`,
       [pid, product, date, date]
     );
 
-    if (versions.length === 0) {
+    const version = chooseHistoricalVersion(versions, date, product);
+    if (!version) {
       const legacyStandardOutput = Number(productRows[0].standard_output);
       if (!Number.isFinite(legacyStandardOutput) || legacyStandardOutput <= 0) {
         throw businessError('HISTORICAL_STANDARD_NOT_FOUND', `Không có định mức lịch sử cho ${product} tại ngày ${date}`, {
@@ -154,14 +174,6 @@ function createStandardResolver({ query = defaultQuery } = {}) {
       return resolvedLegacy;
     }
 
-    if (versions.length > 1) {
-      throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT', `Có nhiều định mức cùng hiệu lực cho ${product} tại ngày ${date}`, {
-        process_id: pid, product_code: product, work_date: date,
-        version_ids: versions.map((row) => Number(row.id))
-      });
-    }
-
-    const version = versions[0];
     const resolvedProduct = {
       processId: pid, productCode: productRows[0].product_code,
       productStandardId: Number(productRows[0].product_standard_id), standardVersionId: Number(version.id), machineStandardId: null,
@@ -169,7 +181,8 @@ function createStandardResolver({ query = defaultQuery } = {}) {
       excludeKqdFromTt: Number(version.exclude_kqd_from_tt || 0) === 1 ? 1 : 0,
       effectiveFrom: String(version.effective_from).slice(0, 10),
       effectiveTo: version.effective_to ? String(version.effective_to).slice(0, 10) : null,
-      source: 'PRODUCT_VERSION', workDate: date, historicalVersionAvailable: true
+      source: String(version.status || '').toLowerCase() === 'active' ? 'PRODUCT_VERSION' : 'PRODUCT_VERSION_HISTORICAL',
+      workDate: date, historicalVersionAvailable: true
     };
     productCache.set(cacheKey, resolvedProduct);
     return resolvedProduct;
@@ -189,12 +202,24 @@ function createStandardResolver({ query = defaultQuery } = {}) {
       return product;
     }
 
-    const machineRows = await query(
-      `SELECT id, machine_code FROM machines
-       WHERE process_id=? AND status='active'
-         AND (? IS NULL OR id=?) AND (?='' OR machine_code=?) LIMIT 2`,
-      [product.processId, requestedMachineId || (requestedMachineStandardId ? null : null), requestedMachineId || (requestedMachineStandardId ? null : null), requestedMachineCode, requestedMachineCode]
-    );
+    let machineRows;
+    if (requestedMachineStandardId && !requestedMachineId && !requestedMachineCode) {
+      machineRows = await query(
+        `SELECT m.id, m.machine_code
+           FROM machines m
+           JOIN product_machine_standards pms ON pms.machine_id=m.id
+          WHERE m.process_id=? AND pms.id=?
+          LIMIT 2`,
+        [product.processId, requestedMachineStandardId]
+      );
+    } else {
+      machineRows = await query(
+        `SELECT id, machine_code FROM machines
+         WHERE process_id=? AND status='active'
+           AND (? IS NULL OR id=?) AND (?='' OR machine_code=?) LIMIT 2`,
+        [product.processId, requestedMachineId, requestedMachineId, requestedMachineCode, requestedMachineCode]
+      );
+    }
     if (machineRows.length !== 1) {
       throw businessError('MACHINE_NOT_FOUND', 'Máy không tồn tại hoặc không thuộc công đoạn');
     }
@@ -235,16 +260,18 @@ function createStandardResolver({ query = defaultQuery } = {}) {
       return resolvedMachineSnapshot;
     }
 
-    const applicable = await query(
+    const applicableRows = await query(
       `SELECT id, standard_output, calculated_output_per_hour, standard_time_seconds,
-              effective_from, effective_to
+              effective_from, effective_to, is_active
        FROM product_machine_standards
-       WHERE process_id=? AND product_code=? AND machine_id=? AND is_active=1
+       WHERE process_id=? AND product_code=? AND machine_id=?
          AND (effective_from IS NULL OR effective_from <= ?)
          AND (effective_to IS NULL OR effective_to >= ?)
        ORDER BY COALESCE(effective_from,'1000-01-01'), id`,
       [product.processId, product.productCode, Number(machine.id), product.workDate, product.workDate]
     );
+    const applicableActive = applicableRows.filter((row) => Number(row.is_active) === 1);
+    const applicable = applicableActive.length ? applicableActive : applicableRows;
     if (applicable.length > 1) {
       throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT', `Có nhiều định mức máy cùng hiệu lực cho ${product.productCode} / ${machine.machine_code}`, {
         process_id: product.processId, product_code: product.productCode,
@@ -259,7 +286,7 @@ function createStandardResolver({ query = defaultQuery } = {}) {
         machineStandardId: Number(row.id),
         standardOutput: positiveDecimal(row.calculated_output_per_hour ?? row.standard_output),
         standardTimeSeconds: Number(row.standard_time_seconds) > 0 ? Number(row.standard_time_seconds) : null,
-        source: 'MACHINE',
+        source: Number(row.is_active) === 1 ? 'MACHINE' : 'MACHINE_HISTORICAL',
         machineEffectiveFrom: row.effective_from ? String(row.effective_from).slice(0, 10) : null,
         machineEffectiveTo: row.effective_to ? String(row.effective_to).slice(0, 10) : null
       };
