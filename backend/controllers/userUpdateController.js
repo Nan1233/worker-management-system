@@ -69,18 +69,15 @@ exports.updateUser = async (req,res) => {
     const processIdsProvided=Array.isArray(body.process_ids);
     const processIds=processIdsProvided?normalizeProcessIds(body.process_ids):[];
     if(!Object.keys(payload).length&&!Object.keys(workerPayload).length&&!processIdsProvided)return res.status(400).json({success:false,message:'Không có dữ liệu cập nhật'});
-    await connection.beginTransaction();
     if(processIdsProvided)await validateProcessAssignment(connection,req.user,processIds);
     if(Object.keys(payload).length){const update=buildUpdateSet(payload);await connection.query(`UPDATE users SET ${update.sql} WHERE id=?`,[...update.values,id]);}
     if(found[0].role==='worker'&&'status'in payload)workerPayload.status=payload.status;
     if(found[0].role==='worker'&&Object.keys(workerPayload).length){const update=buildUpdateSet(workerPayload);await connection.query(`UPDATE workers SET ${update.sql} WHERE user_id=?`,[...update.values,id]);}
     if(processIdsProvided)await replaceProcessAssignments(connection,found[0].role,id,found[0].worker_id,processIds);
     if(Object.prototype.hasOwnProperty.call(payload,'password')||payload.status==='inactive')await revokeAllUserFamilies(id,{executor:connection});
-    await connection.commit();
     clearWorkerProfile(id);deleteCachedAuthUser(id);
     return res.json({success:true,message:'Cập nhật người dùng thành công'});
   } catch(error){
-    try{await connection.rollback();}catch(_){}
     if(error?.code==='ER_DUP_ENTRY')return res.status(409).json({success:false,message:'Tên đăng nhập hoặc mã công nhân đã tồn tại'});
     if(error?.status)return res.status(error.status).json({success:false,message:error.message});
     console.error('UPDATE USER ERROR:',error);
