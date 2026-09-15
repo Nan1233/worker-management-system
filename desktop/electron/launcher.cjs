@@ -14,45 +14,19 @@ if (process.platform === 'win32') {
   app.setAppUserModelId('vn.ktc.productioncontrol');
 }
 
-// Force the packaged KTC icon onto every BrowserWindow. This is intentionally
-// done at the shell level so the icon also works when the renderer is loaded
-// from the hosted Cloudflare URL instead of the packaged frontend files.
+// Force the packaged KTC icon onto every BrowserWindow.
 app.on('browser-window-created', (_event, window) => {
   try {
     if (process.platform === 'win32') window.setIcon(DESKTOP_ICON);
   } catch (_) {
-    // The packaged icon is also configured in electron-builder; this is only
-    // a runtime fallback for title-bar/taskbar rendering.
+    // The packaged icon is also configured in electron-builder.
   }
 });
 
-// The desktop shell is built once, while the actual UI is served from the same
-// web deployment used by the browser. This means frontend changes published to
-// Cloudflare are visible in the installed desktop app without rebuilding the
-// Electron package. If the web deployment is unavailable, main.cjs falls back
-// to the packaged frontend/offline page.
-const KTC_WEB_URL = String(
-  process.env.KTC_WEB_URL || 'https://ktc-frontend.nan978971.workers.dev/'
-).trim();
-const KTC_WEB_ORIGIN = (() => {
-  try { return new URL(KTC_WEB_URL).origin; } catch { return ''; }
-})();
-process.env.KTC_WEB_URL = KTC_WEB_URL;
-process.env.KTC_WEB_ORIGIN = KTC_WEB_ORIGIN;
-
-// main.cjs historically calls loadFile(FRONTEND_INDEX). Keep that contract so
-// offline fallback and packaging checks remain intact, but transparently route
-// only the packaged frontend entry to the hosted web application.
-const originalLoadFile = BrowserWindow.prototype.loadFile;
-BrowserWindow.prototype.loadFile = function patchedKtcLoadFile(filePath, ...args) {
-  const normalized = path.resolve(String(filePath || ''));
-  if (normalized.endsWith(`${path.sep}frontend${path.sep}dist${path.sep}index.html`)) {
-    return this.loadURL(KTC_WEB_URL, {
-      extraHeaders: 'pragma: no-cache\n'
-    });
-  }
-  return originalLoadFile.call(this, filePath, ...args);
-};
+// Desktop MUST use the frontend bundled from the Git checkout/package.
+// Do not redirect BrowserWindow.loadFile() to Cloudflare or another web host.
+// This keeps the desktop UI, including images/public assets, self-contained
+// in the generated Electron package.
 
 function normalizeExportRoot(value) {
   const raw = String(value || '').trim();
