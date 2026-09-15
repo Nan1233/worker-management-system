@@ -8,19 +8,12 @@ import type { User, UserRole } from "../types/auth";
 
 type LoginStep = "employee-code" | "role-choice" | "management-password";
 type AccessType = "worker" | "management";
-
 interface LoginResultShape { user?: User; data?: { user?: User } }
-
 const CROSS_TAB_LOGIN_MARKER_KEY = "ktcCrossTabAuthInvalidated";
 const REMEMBERED_CODE_KEY = "ktc_login_code";
-
 const homeByRole: Record<UserRole, string> = { admin: "/admin", manager: "/manager", lead: "/lead", worker: "/worker" };
 const normalizeWorkerLoginCode = (value: string): string => { const trimmed=value.trim(); if(!/^\d+$/.test(trimmed)) return trimmed; const stripped=trimmed.replace(/^0+(?=\d)/,""); return stripped||"0"; };
-
-function KtcLogo(){
- return <svg className="login-logo-vector" viewBox="0 0 212 81" role="img" aria-label="KTC HANOI"><ellipse cx="106" cy="37" rx="70" ry="31" fill="none" stroke="#174ea6" strokeWidth="3.2"/><path d="M28 51c16 17 40 25 66 25 31 0 58-9 78-27" fill="none" stroke="#174ea6" strokeWidth="3.4" strokeLinecap="round"/><path d="M129 70c17-2 31-8 43-18" fill="none" stroke="#ef7d1a" strokeWidth="3.4" strokeLinecap="round"/><text x="45" y="52" fontFamily="Arial,Helvetica,sans-serif" fontSize="38" fontWeight="800" fontStyle="italic" letterSpacing="-3"><tspan fill="#ef7d1a">K</tspan><tspan fill="#174ea6">TC</tspan></text></svg>;
-}
-
+function KtcLogo(){return <img className="login-logo-vector" src="/ktc-hanoi-logo-exact.svg" alt="KTC HANOI" width="200" height="200" decoding="async"/>;}
 function Login() {
  const navigate=useNavigate(); const initializedRef=useRef(false);
  const [username,setUsername]=useState(()=>localStorage.getItem(REMEMBERED_CODE_KEY)||""); const [password,setPassword]=useState(""); const [step,setStep]=useState<LoginStep>("employee-code"); const [accessType,setAccessType]=useState<AccessType|null>(null); const [rememberAccount,setRememberAccount]=useState(true); const [showPassword,setShowPassword]=useState(false); const [error,setError]=useState(""); const [loading,setLoading]=useState(false);
