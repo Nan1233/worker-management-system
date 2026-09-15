@@ -13,7 +13,7 @@ const CROSS_TAB_LOGIN_MARKER_KEY = "ktcCrossTabAuthInvalidated";
 const REMEMBERED_CODE_KEY = "ktc_login_code";
 const homeByRole: Record<UserRole, string> = { admin: "/admin", manager: "/manager", lead: "/lead", worker: "/worker" };
 const normalizeWorkerLoginCode = (value: string): string => { const trimmed=value.trim(); if(!/^\d+$/.test(trimmed)) return trimmed; const stripped=trimmed.replace(/^0+(?=\d)/,""); return stripped||"0"; };
-function KtcLogo(){return <img className="login-logo-vector" src="/ktc-hanoi-logo-exact.svg" alt="KTC HANOI" width="200" height="200" decoding="async"/>;}
+function KtcLogo(){return <img className="login-logo-vector" src="/ktc-hanoi-logo-clean.png" alt="KTC HANOI" width="250" height="80" decoding="async"/>;}
 function Login() {
  const navigate=useNavigate(); const initializedRef=useRef(false);
  const [username,setUsername]=useState(()=>localStorage.getItem(REMEMBERED_CODE_KEY)||""); const [password,setPassword]=useState(""); const [step,setStep]=useState<LoginStep>("employee-code"); const [accessType,setAccessType]=useState<AccessType|null>(null); const [rememberAccount,setRememberAccount]=useState(true); const [showPassword,setShowPassword]=useState(false); const [error,setError]=useState(""); const [loading,setLoading]=useState(false);
