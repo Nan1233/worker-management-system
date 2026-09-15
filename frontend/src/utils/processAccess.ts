@@ -32,12 +32,9 @@ export const workerCanAccessProcess = (
 ): boolean => {
   // SX3 is intentionally removed from the KTC worker process list.
   if (Number(processId) === 60005 || String(processCode ?? "").trim().toUpperCase() === "SX3") return false;
+  // CVK / Công việc khác is removed from the system, including legacy worker assignments.
+  if (Number(processId) === 60006 || String(processCode ?? "").trim().toUpperCase() === "CVK") return false;
   if (!worker || worker.status !== "active") return false;
-
-  // CVK is a common time-based work process. It is intentionally available to
-  // every active worker because Xuất/Nhập/Hỗ trợ does not represent a normal
-  // production process assignment and has no product productivity.
-  if (Number(processId) === 60006 || String(processCode ?? "").trim().toUpperCase() === "CVK") return true;
 
   const ids = getWorkerProcessIds(worker);
   const codes = getWorkerProcessCodes(worker);
