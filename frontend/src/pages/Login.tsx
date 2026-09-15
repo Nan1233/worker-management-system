@@ -82,7 +82,6 @@ function Login() {
         setAccessType(type);
         setPassword("");
         setError("");
-        // Worker uses the employee code already entered; do not show the code form again.
         if (type === "worker") {
             void completeLogin("worker");
             return;
@@ -184,7 +183,7 @@ function Login() {
             <section className="login-card" aria-label="Đăng nhập hệ thống KTC">
                 <div className="login-brand">
                     <img
-                        src="/pwa/icon-192.png"
+                        src="/KTC-WebClip-Icon-400.png"
                         alt="KTC HANOI"
                         className="login-logo"
                         width="192"
@@ -208,36 +207,15 @@ function Login() {
                             <label htmlFor="login-username">Mã nhân viên</label>
                             <div className="login-input-wrap">
                                 <span className="login-input-icon" aria-hidden="true">♙</span>
-                                <input
-                                    id="login-username"
-                                    type="text"
-                                    inputMode="text"
-                                    autoComplete="username"
-                                    placeholder="Nhập mã nhân viên"
-                                    value={username}
-                                    onChange={(event) => setUsername(event.target.value)}
-                                    disabled={loading}
-                                    autoFocus
-                                    maxLength={20}
-                                />
+                                <input id="login-username" type="text" inputMode="text" autoComplete="username" placeholder="Nhập mã nhân viên" value={username} onChange={(event) => setUsername(event.target.value)} disabled={loading} autoFocus maxLength={20} />
                             </div>
                         </div>
-
                         <label className="remember-checkbox">
-                            <input
-                                type="checkbox"
-                                checked={rememberAccount}
-                                onChange={(event) => setRememberAccount(event.target.checked)}
-                                disabled={loading}
-                            />
+                            <input type="checkbox" checked={rememberAccount} onChange={(event) => setRememberAccount(event.target.checked)} disabled={loading} />
                             <span>Ghi nhớ mã nhân viên trên thiết bị</span>
                         </label>
-
                         {error && <div className="login-error" role="alert">{error}</div>}
-
-                        <button type="submit" className="login-submit" disabled={loading}>
-                            Tiếp tục <span aria-hidden="true">→</span>
-                        </button>
+                        <button type="submit" className="login-submit" disabled={loading}>Tiếp tục <span aria-hidden="true">→</span></button>
                     </form>
                 )}
 
@@ -248,13 +226,11 @@ function Login() {
                             <span className="login-role-copy"><strong>Công nhân</strong><small>Đăng nhập bằng mã nhân viên đã nhập</small></span>
                             <b aria-hidden="true">›</b>
                         </button>
-
                         <button type="button" className="login-role-card" onClick={() => chooseRole("management")} disabled={loading}>
                             <span className="login-role-icon" aria-hidden="true">♙</span>
                             <span className="login-role-copy"><strong>Quản lý</strong><small>Dùng mã nhân viên và nhập mật khẩu</small></span>
                             <b aria-hidden="true">›</b>
                         </button>
-
                         {error && <div className="login-error" role="alert">{error}</div>}
                         <button type="button" className="login-back" onClick={backToCode} disabled={loading}>← Nhập lại mã nhân viên</button>
                     </div>
@@ -266,44 +242,16 @@ function Login() {
                             <label htmlFor="login-password">Mật khẩu quản lý</label>
                             <div className="login-input-wrap">
                                 <span className="login-input-icon" aria-hidden="true">●</span>
-                                <input
-                                    id="login-password"
-                                    type={showPassword ? "text" : "password"}
-                                    autoComplete="current-password"
-                                    placeholder="Nhập mật khẩu"
-                                    value={password}
-                                    onChange={(event) => setPassword(event.target.value)}
-                                    disabled={loading}
-                                    autoFocus
-                                />
-                                <button
-                                    type="button"
-                                    className="password-toggle"
-                                    onClick={() => setShowPassword((current) => !current)}
-                                    disabled={loading}
-                                    aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
-                                >
-                                    {showPassword ? "Ẩn" : "Hiện"}
-                                </button>
+                                <input id="login-password" type={showPassword ? "text" : "password"} autoComplete="current-password" placeholder="Nhập mật khẩu" value={password} onChange={(event) => setPassword(event.target.value)} disabled={loading} autoFocus />
+                                <button type="button" className="password-toggle" onClick={() => setShowPassword((current) => !current)} disabled={loading} aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}>{showPassword ? "Ẩn" : "Hiện"}</button>
                             </div>
                         </div>
-
                         <label className="remember-checkbox">
-                            <input
-                                type="checkbox"
-                                checked={rememberAccount}
-                                onChange={(event) => setRememberAccount(event.target.checked)}
-                                disabled={loading}
-                            />
+                            <input type="checkbox" checked={rememberAccount} onChange={(event) => setRememberAccount(event.target.checked)} disabled={loading} />
                             <span>Ghi nhớ mã nhân viên trên thiết bị</span>
                         </label>
-
                         {error && <div className="login-error" role="alert">{error}</div>}
-
-                        <button type="submit" className="login-submit" disabled={loading}>
-                            {loading ? <><span className="login-spinner" /> Đang đăng nhập...</> : <>Đăng nhập <span aria-hidden="true">→</span></>}
-                        </button>
-
+                        <button type="submit" className="login-submit" disabled={loading}>{loading ? <><span className="login-spinner" /> Đang đăng nhập...</> : <>Đăng nhập <span aria-hidden="true">→</span></>}</button>
                         <button type="button" className="login-back" onClick={backToRoleChoice} disabled={loading}>← Chọn lại vai trò</button>
                     </form>
                 )}
