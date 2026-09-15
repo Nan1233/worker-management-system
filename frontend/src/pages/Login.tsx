@@ -16,6 +16,8 @@ interface LoginResultShape {
 
 const CROSS_TAB_LOGIN_MARKER_KEY = "ktcCrossTabAuthInvalidated";
 const REMEMBERED_CODE_KEY = "ktc_login_code";
+const LOGIN_LOGO_URL = "/KTC-WebClip-Icon-400.png";
+const LOGIN_LOGO_FALLBACK_URL = "https://raw.githubusercontent.com/Nan1233/worker-management-system/main/frontend/public/KTC-WebClip-Icon-400.png";
 
 const homeByRole: Record<UserRole, string> = {
     admin: "/admin",
@@ -42,6 +44,7 @@ function Login() {
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
+    const [loginLogoSrc, setLoginLogoSrc] = useState(LOGIN_LOGO_URL);
 
     useEffect(() => {
         if (initializedRef.current) return;
@@ -183,7 +186,12 @@ function Login() {
             <section className="login-card" aria-label="Đăng nhập hệ thống KTC">
                 <div className="login-brand">
                     <img
-                        src="/KTC-WebClip-Icon-400.png"
+                        src={loginLogoSrc}
+                        onError={() => {
+                            if (loginLogoSrc !== LOGIN_LOGO_FALLBACK_URL) {
+                                setLoginLogoSrc(LOGIN_LOGO_FALLBACK_URL);
+                            }
+                        }}
                         alt="KTC HANOI"
                         className="login-logo"
                         width="192"
