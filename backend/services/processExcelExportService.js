@@ -84,9 +84,6 @@ async function loadProcessMonthReports(value, processId, options = {}) {
   if (options.actor) await assertProcessScope(options.actor, processId, { action:'PROCESS_EXPORT' });
   const yearMonth = normalizeYearMonth(value);
   const { start, next } = monthRange(yearMonth);
-  // Dữ liệu Excel chỉ lấy từ báo cáo đã duyệt trong production_reports.
-  // Các cột mở rộng là tùy chọn để tương thích schema TiDB cũ; nếu chưa có,
-  // export trả NULL thay vì làm hỏng toàn bộ API.
   const [supportsEntryDate, supportsExtraData] = await Promise.all([
     hasColumn('production_reports', 'entry_date'),
     hasColumn('production_reports', 'extra_data')
@@ -122,8 +119,6 @@ async function loadProcessMonthReports(value, processId, options = {}) {
     [start, next, Number(processId)]
   );
 
-  // F05: physical machine truth is exported once per approved production event.
-  // Worker rows remain worker credited-output rows and must never be used as machine physical aggregation.
   reports.physicalMachineEvents = await query(
     `SELECT e.id,e.process_id,e.machine_id,e.machine_code,e.product_code,e.work_date,e.shift,
             e.physical_ok_quantity,e.physical_ng_quantity,e.physical_counted_output,e.physical_total_output,
@@ -136,8 +131,26 @@ async function loadProcessMonthReports(value, processId, options = {}) {
   );
 
   for (const report of reports) {
-    // Historical Excel must never re-read mutable master state.
-    assertTrainingSnapshotAvailable(report);
+    // New reports must keep the immutable snapshot contract. Legacy approved
+    // rows may predate that column/value; they must remain exportable instead
+    // of blocking the entire month. For those rows, expose the calculation
+    // engine's documented 100% default explicitly and mark the source so the
+    // workbook does not pretend this was an immutable historical snapshot.
+    const hasTrainingSnapshot = report.training_percent_snapshot !== null
+      && report.training_percent_snapshot !== undefined
+      && String(report.training_percent_snapshot).trim() !== '';
+    if (!hasTrainingSnapshot) {
+      report.training_percent = 100;
+      report.trainingSnapshotSource = 'LEGACY_DEFAULT_100';
+      // The calculation engine treats the presence of a null snapshot field
+      // as an intentional "unavailable" value. Remove it for legacy export so
+      // the explicit 100% compatibility value is actually used.
+      delete report.training_percent_snapshot;
+    } else {
+      assertTrainingSnapshotAvailable(report);
+      report.trainingSnapshotSource = 'IMMUTABLE_SNAPSHOT';
+    }
+
     const isMachineReport = String(report.operation_mode || '').toUpperCase() === 'MACHINE';
     if (!isMachineReport && (report.exclude_kqd_from_tt === null || report.exclude_kqd_from_tt === undefined)) {
       const error = new Error('Báo cáo cũ chưa có snapshot chính sách KQD; cần audit trước khi xuất Excel lịch sử');
@@ -147,9 +160,6 @@ async function loadProcessMonthReports(value, processId, options = {}) {
   }
 
   const reportIds = reports.map((report) => Number(report.id));
-  // Danh mục NG và trừ giờ là cấu hình của công đoạn, không phụ thuộc tháng
-  // có phát sinh báo cáo hay không. Luôn tải danh mục trước để Excel có đủ
-  // cột chi tiết ngay cả khi tháng hiện tại chưa có dòng dữ liệu.
   const [deductionTypes, defectTypes] = await Promise.all([
     query(`SELECT id, process_id, deduction_code AS code, deduction_name AS name, deduction_code, deduction_name, sort_order FROM deduction_types WHERE process_id=? AND status='active' ORDER BY sort_order,id`, [Number(processId)]),
     query(`SELECT id, process_id, defect_code AS code, defect_name AS name, defect_code, defect_name, sort_order FROM defect_types WHERE process_id=? AND status='active' ORDER BY sort_order,id`, [Number(processId)])
@@ -190,20 +200,13 @@ async function loadProcessMonthReports(value, processId, options = {}) {
   const machineLines = mapDetails(machineLineRows, reportIds, (row) => ({ ...row }));
   reports.forEach((report) => {
     const id = Number(report.id);
-    // Chỉ gắn chi tiết đúng report_id. Không ghi đè các cột đã lưu trong
-    // production_reports bằng kết quả tính lại ở thời điểm xuất Excel.
     report.deductions = deductions.get(id) || [];
     report.defects = defects.get(id) || [];
     report.machineLines = machineLines.get(id) || [];
-
-    // Tính aggregate multi-machine từ chính snapshot từng máy đã lưu trong DB.
-    // Không ghi đè các cột production_reports; chỉ bổ sung machinePerformance
-    // để calculationSnapshot và Excel dùng đúng tổng counted/max của nhiều máy.
     Object.assign(report, calculateReportPerformance({
       report,
       machineLines: report.machineLines
     }));
-
     report.dataSource = 'production_reports';
     report.isApprovedDatabaseRecord = true;
   });
@@ -225,32 +228,15 @@ async function buildProcessWorkbook(value, processId) {
     throw error;
   }
 
-  // Báo cáo công đoạn luôn được dựng riêng. Không gọi service A+B Mài - Đo
-  // từ luồng này vì sẽ làm trùng tên, sai thư mục và mất file Mài/Đo riêng.
   await assertReportVolume({ yearMonth, processIds: [Number(processId)] });
   const reports = await loadProcessMonthReports(yearMonth, processId);
-
-  // Luôn tạo lại file tháng cho mọi công đoạn đang hoạt động. Nếu tháng chưa
-  // có báo cáo đã duyệt, workbook vẫn được dựng từ template với bảng dữ liệu
-  // rỗng. Điều này giúp Desktop luôn có đầy đủ Bao-cao-<công đoạn>-MM-YYYY
-  // thay vì âm thầm bỏ qua cả công đoạn.
   const processName = reports[0]?.process_name || selectedProcess.process_name || `Cong doan ${processId}`;
-  const latestUpdatedAt = reports.reduce((latest, report) => {
-    const candidate = report.updated_at || report.approved_at || report.created_at;
-    if (!candidate) return latest;
-    const iso = new Date(candidate).toISOString();
-    return !latest || iso > latest ? iso : latest;
-  }, null);
-
   const tempRoot = process.env.EXCEL_PROCESS_TEMP_ROOT || path.join(process.cwd(), 'exports-process');
   const [year, month] = yearMonth.split('-');
   const processFolder = safeName(processName);
   const folder = path.join(tempRoot, year, processFolder, month);
   await fs.mkdir(folder, { recursive: true });
 
-  // Process export is template-driven: use backend/templates/ktc-machine-master-source.xlsx
-  // and the exact sheet/data block for the selected process. Company A+B
-  // export remains a separate flow.
   const result = await buildTemplateDrivenProcessWorkbook(reports, yearMonth, {
     processCode: selectedProcess.process_code,
     processName: processFolder,
