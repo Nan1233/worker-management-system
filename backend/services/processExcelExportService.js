@@ -107,7 +107,7 @@ async function loadProcessMonthReports(value, processId, options = {}) {
         w.position, w.department,
         u.full_name, p.process_name, p.process_code,
         pr.exclude_kqd_from_tt_snapshot,
-        COALESCE(pr.exclude_kqd_from_tt_snapshot, pr.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt
+        COALESCE(pr.exclude_kqd_from_tt_snapshot, 0) AS exclude_kqd_from_tt
        FROM production_reports AS pr
        INNER JOIN workers AS w ON w.id = pr.worker_id
        INNER JOIN users AS u ON u.id = w.user_id
@@ -162,7 +162,7 @@ async function loadProcessMonthReports(value, processId, options = {}) {
   const reportIds = reports.map((report) => Number(report.id));
   const [deductionTypes, defectTypes] = await Promise.all([
     query(`SELECT id, process_id, deduction_code AS code, deduction_name AS name, deduction_code, deduction_name, sort_order FROM deduction_types WHERE process_id=? AND status='active' ORDER BY sort_order,id`, [Number(processId)]),
-    query(`SELECT id, process_id, defect_code AS code, defect_name AS name, defect_code, defect_name, sort_order FROM defect_types WHERE process_id=? AND status='active' ORDER BY sort_order,id`, [Number(processId)])
+    query(`SELECT id, process_id, defect_code AS code, defect_name AS name, defect_code, defect_name, sort_order FROM defect_types WHERE process_id=? AND status='active' ORDER BY sort_order,id`, [Number(processId)]),
   ]);
 
   reports.deductionTypes = deductionTypes;
