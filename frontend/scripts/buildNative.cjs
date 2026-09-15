@@ -1,6 +1,8 @@
 const { spawnSync } = require('node:child_process');
 
-const apiUrl = 'https://worker-management-system-2-5jqv.onrender.com/api';
+// Native/Desktop builds must use the production Cloudflare Worker backend.
+// Do not point the packaged frontend at the retired Render backend.
+const apiUrl = 'https://ktc-backend.nan978971.workers.dev/api';
 
 const result = spawnSync('npm', ['run', 'build'], {
   cwd: process.cwd(),
