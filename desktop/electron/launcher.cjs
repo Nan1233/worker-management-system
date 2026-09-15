@@ -8,29 +8,22 @@ const DEFAULT_EXPORT_ROOT = path.join(os.homedir(), 'Documents', 'KTC', 'Bao cao
 const CONFIG_FILE = path.join(app.getPath('userData'), 'excel-export-config.json');
 const DESKTOP_ICON = path.join(__dirname, '..', 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
 
-// Windows uses the AppUserModelId to associate the running window/taskbar
-// button with the packaged application icon. Keep it stable across releases.
 if (process.platform === 'win32') {
   app.setAppUserModelId('vn.ktc.productioncontrol');
 }
 
-// Force the packaged KTC icon onto every BrowserWindow.
 app.on('browser-window-created', (_event, window) => {
   try {
     if (process.platform === 'win32') window.setIcon(DESKTOP_ICON);
-  } catch (_) {
-    // The packaged icon is also configured in electron-builder.
-  }
+  } catch (_) {}
 });
-
-// Desktop MUST use the frontend bundled from the Git checkout/package.
-// Do not redirect BrowserWindow.loadFile() to Cloudflare or another web host.
-// This keeps the desktop UI, including images/public assets, self-contained
-// in the generated Electron package.
 
 // Production desktop uses the Cloudflare Worker backend. Set this before
 // loading main.cjs so the packaged app cannot silently fall back to Render.
 process.env.KTC_API_URL = 'https://ktc-backend.nan978971.workers.dev/api';
+
+// Apply the Excel export contract before main.cjs loads monthlyWorkbookLocal.cjs.
+require('./excelExportContractPatch.cjs');
 
 function normalizeExportRoot(value) {
   const raw = String(value || '').trim();
@@ -115,8 +108,5 @@ fsp.readdir = async (...args) => {
   });
 };
 
-// Register updater before the main process bootstraps so every packaged
-// Windows/NSIS build checks GitHub Releases for a newer desktop shell build.
-// Release rebuild is intentionally triggered with the Excel compatibility fix.
 require('./autoUpdate.cjs');
 require('./main.cjs');
