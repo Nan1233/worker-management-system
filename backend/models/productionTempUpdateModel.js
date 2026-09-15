@@ -6,10 +6,8 @@ const { query, getConnection, beginTransaction, commit, rollback, editableFields
 const { validateMachineWorkerCapacityLocked } = require("../services/factoryMachineRuleService");
 
 const DAILY_HOURS_LIMIT = 12;
+const WORKER_EDIT_WINDOW_MS = 10 * 60 * 1000;
 
-// Cloudflare + TiDB Serverless must not hold a session-level GET_LOCK across a
-// transaction. Keep this check stateless; duplicate/edit concurrency is still
-// protected by the transaction and row locks used by the report update flow.
 const checkDailyHours = async (connection, { workerId, workDate, incomingActualHours, excludeTempReportId = null }) => {
     const worker = Number(workerId), date = String(workDate || "").slice(0, 10), incoming = Number(incomingActualHours) || 0;
     if (!Number.isInteger(worker) || worker <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
@@ -29,6 +27,17 @@ const checkDailyHours = async (connection, { workerId, workDate, incomingActualH
     return { existingHours, incomingActualHours: incoming, projectedHours, limitHours: DAILY_HOURS_LIMIT };
 };
 
+const parseDbTimestampMs = (value) => {
+    if (!value) return NaN;
+    const text = String(value).trim();
+    if (!text) return NaN;
+    const normalized = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(text)
+        ? text.replace(" ", "T") + "Z"
+        : text;
+    const parsed = new Date(normalized).getTime();
+    return Number.isFinite(parsed) ? parsed : NaN;
+};
+
 module.exports = {
     async updateReport(id, data, changedBy, reason = null, options = {}) {
         const connection = await getConnection();
@@ -42,6 +51,23 @@ module.exports = {
             const current = rows[0];
             if (!current) throw new Error("Không tìm thấy báo cáo hoặc ngoài phạm vi phụ trách");
             if (current.status === "approved") throw new Error("Báo cáo đã duyệt không thể sửa ở bảng tạm");
+
+            if (isWorkerEdit) {
+                const createdAtMs = parseDbTimestampMs(current.created_at);
+                if (!Number.isFinite(createdAtMs)) {
+                    const error = new Error("Không xác định được thời điểm tạo báo cáo để kiểm tra thời gian sửa.");
+                    error.status = 422; error.code = "TEMP_REPORT_EDIT_TIME_INVALID"; error.isPublic = true;
+                    throw error;
+                }
+                const remainingMs = createdAtMs + WORKER_EDIT_WINDOW_MS - Date.now();
+                if (remainingMs <= 0) {
+                    const error = new Error("Báo cáo chỉ được sửa trong vòng 10 phút kể từ lúc tạo.");
+                    error.status = 422; error.code = "TEMP_REPORT_EDIT_WINDOW_EXPIRED"; error.isPublic = true;
+                    error.details = { created_at: current.created_at, edit_window_ms: WORKER_EDIT_WINDOW_MS };
+                    throw error;
+                }
+            }
+
             if (options.expectedUpdatedAt && new Date(options.expectedUpdatedAt).getTime() !== new Date(current.updated_at).getTime()) {
                 const error = new Error("Báo cáo đã thay đổi sau khi bạn mở. Hãy tải lại dữ liệu trước khi sửa hoặc gửi lại.");
                 error.status = 409; error.code = "TEMP_REPORT_VERSION_CONFLICT"; throw error;
