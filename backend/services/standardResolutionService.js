@@ -44,26 +44,13 @@ function createStandardResolver({ query = defaultQuery } = {}) {
     const product = String(productCode || '').trim();
     const date = normalizeWorkDate(workDate);
 
-    // CVK (Công việc khác) is intentionally a non-product process. Its reports
-    // have no product and therefore must not enter the product-standard resolver.
-    // Approval still validates the report structure, but there is no production
-    // standard or KQD snapshot to resolve for this process.
     if (pid === 60006 && !product) {
       return {
-        processId: pid,
-        productCode: null,
-        productStandardId: null,
-        standardVersionId: null,
-        machineStandardId: null,
-        standardOutput: 0,
-        standardTimeSeconds: null,
-        excludeKqdFromTt: 0,
-        effectiveFrom: null,
-        effectiveTo: null,
-        source: 'NON_PRODUCT_WORK',
-        workDate: date,
-        historicalVersionAvailable: false,
-        nonProductWork: true
+        processId: pid, productCode: null, productStandardId: null,
+        standardVersionId: null, machineStandardId: null, standardOutput: 0,
+        standardTimeSeconds: null, excludeKqdFromTt: 0, effectiveFrom: null,
+        effectiveTo: null, source: 'NON_PRODUCT_WORK', workDate: date,
+        historicalVersionAvailable: false, nonProductWork: true
       };
     }
 
@@ -99,60 +86,40 @@ function createStandardResolver({ query = defaultQuery } = {}) {
     if (versions.length === 0) {
       const legacyStandardOutput = Number(productRows[0].standard_output);
       if (!Number.isFinite(legacyStandardOutput) || legacyStandardOutput <= 0) {
-        throw businessError(
-          'HISTORICAL_STANDARD_NOT_FOUND',
-          `Không có định mức lịch sử cho ${product} tại ngày ${date}`,
-          { process_id: pid, product_code: product, work_date: date }
-        );
+        throw businessError('HISTORICAL_STANDARD_NOT_FOUND', `Không có định mức lịch sử cho ${product} tại ngày ${date}`, {
+          process_id: pid, product_code: product, work_date: date
+        });
       }
-
       const resolvedLegacy = {
-        processId: pid,
-        productCode: productRows[0].product_code,
+        processId: pid, productCode: productRows[0].product_code,
         productStandardId: Number(productRows[0].product_standard_id),
-        standardVersionId: null,
-        machineStandardId: null,
-        standardOutput: legacyStandardOutput,
-        standardTimeSeconds: null,
+        standardVersionId: null, machineStandardId: null,
+        standardOutput: legacyStandardOutput, standardTimeSeconds: null,
         excludeKqdFromTt: Number(productRows[0].exclude_kqd_from_tt || 0) === 1 ? 1 : 0,
-        effectiveFrom: null,
-        effectiveTo: null,
-        source: 'LEGACY_PRODUCT_STANDARD',
-        workDate: date,
-        historicalVersionAvailable: false
+        effectiveFrom: null, effectiveTo: null, source: 'LEGACY_PRODUCT_STANDARD',
+        workDate: date, historicalVersionAvailable: false
       };
       productCache.set(cacheKey, resolvedLegacy);
       return resolvedLegacy;
     }
 
     if (versions.length > 1) {
-      throw businessError(
-        'STANDARD_EFFECTIVE_RANGE_CONFLICT',
-        `Có nhiều định mức cùng hiệu lực cho ${product} tại ngày ${date}`,
-        {
-          process_id: pid,
-          product_code: product,
-          work_date: date,
-          version_ids: versions.map((row) => Number(row.id))
-        }
-      );
+      throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT', `Có nhiều định mức cùng hiệu lực cho ${product} tại ngày ${date}`, {
+        process_id: pid, product_code: product, work_date: date,
+        version_ids: versions.map((row) => Number(row.id))
+      });
     }
 
     const version = versions[0];
     const resolvedProduct = {
-      processId: pid,
-      productCode: productRows[0].product_code,
+      processId: pid, productCode: productRows[0].product_code,
       productStandardId: Number(productRows[0].product_standard_id),
-      standardVersionId: Number(version.id),
-      machineStandardId: null,
-      standardOutput: positiveDecimal(version.standard_output),
-      standardTimeSeconds: null,
+      standardVersionId: Number(version.id), machineStandardId: null,
+      standardOutput: positiveDecimal(version.standard_output), standardTimeSeconds: null,
       excludeKqdFromTt: Number(version.exclude_kqd_from_tt || 0) === 1 ? 1 : 0,
       effectiveFrom: String(version.effective_from).slice(0, 10),
       effectiveTo: version.effective_to ? String(version.effective_to).slice(0, 10) : null,
-      source: 'PRODUCT_VERSION',
-      workDate: date,
-      historicalVersionAvailable: true
+      source: 'PRODUCT_VERSION', workDate: date, historicalVersionAvailable: true
     };
     productCache.set(cacheKey, resolvedProduct);
     return resolvedProduct;
@@ -171,12 +138,9 @@ function createStandardResolver({ query = defaultQuery } = {}) {
     }
 
     const machineRows = await query(
-      `SELECT id, machine_code
-       FROM machines
+      `SELECT id, machine_code FROM machines
        WHERE process_id=? AND status='active'
-         AND (? IS NULL OR id=?)
-         AND (?='' OR machine_code=?)
-       LIMIT 2`,
+         AND (? IS NULL OR id=?) AND (?='' OR machine_code=?) LIMIT 2`,
       [product.processId, requestedMachineId, requestedMachineId, requestedMachineCode, requestedMachineCode]
     );
     if (machineRows.length !== 1) {
@@ -195,24 +159,16 @@ function createStandardResolver({ query = defaultQuery } = {}) {
       [product.processId, product.productCode, Number(machine.id), product.workDate, product.workDate]
     );
     if (applicable.length > 1) {
-      throw businessError(
-        'STANDARD_EFFECTIVE_RANGE_CONFLICT',
-        `Có nhiều định mức máy cùng hiệu lực cho ${product.productCode} / ${machine.machine_code}`,
-        {
-          process_id: product.processId,
-          product_code: product.productCode,
-          machine_id: Number(machine.id),
-          work_date: product.workDate,
-          machine_standard_ids: applicable.map((row) => Number(row.id))
-        }
-      );
+      throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT', `Có nhiều định mức máy cùng hiệu lực cho ${product.productCode} / ${machine.machine_code}`, {
+        process_id: product.processId, product_code: product.productCode,
+        machine_id: Number(machine.id), work_date: product.workDate,
+        machine_standard_ids: applicable.map((row) => Number(row.id))
+      });
     }
     if (applicable.length === 1) {
       const row = applicable[0];
       const resolvedMachine = {
-        ...product,
-        machineId: Number(machine.id),
-        machineCode: machine.machine_code,
+        ...product, machineId: Number(machine.id), machineCode: machine.machine_code,
         machineStandardId: Number(row.id),
         standardOutput: positiveDecimal(row.calculated_output_per_hour ?? row.standard_output),
         standardTimeSeconds: Number(row.standard_time_seconds) > 0 ? Number(row.standard_time_seconds) : null,
@@ -225,11 +181,8 @@ function createStandardResolver({ query = defaultQuery } = {}) {
     }
 
     const resolvedFallback = {
-      ...product,
-      machineId: Number(machine.id),
-      machineCode: machine.machine_code,
-      machineStandardId: null,
-      source: `${product.source}_MACHINE_FALLBACK`
+      ...product, machineId: Number(machine.id), machineCode: machine.machine_code,
+      machineStandardId: null, source: `${product.source}_MACHINE_FALLBACK`
     };
     standardCache.set(standardKey, resolvedFallback);
     return resolvedFallback;
@@ -258,7 +211,27 @@ function createStandardResolver({ query = defaultQuery } = {}) {
 }
 
 function assertStandardSnapshotConsistency({ resolved, standardOutput, standardVersionId, machineStandardId = null }) {
-  if (!resolved || !sameDecimal(resolved.standardOutput, standardOutput) || Number(resolved.standardVersionId || 0) !== Number(standardVersionId || 0) || Number(resolved.machineStandardId || 0) !== Number(machineStandardId || 0)) {
+  const outputMatches = Boolean(resolved) && sameDecimal(resolved.standardOutput, standardOutput);
+  const versionMatches = Number(resolved?.standardVersionId || 0) === Number(standardVersionId || 0);
+  const machineMatches = Number(resolved?.machineStandardId || 0) === Number(machineStandardId || 0);
+
+  // Legacy machine reports were historically stored against the product-level
+  // standard before product_machine_standards existed. If the saved output and
+  // product-version snapshot still match, a null machine_standard_id is valid
+  // even when the current resolver can now find a machine-specific standard.
+  const legacyProductSnapshot = outputMatches
+    && versionMatches
+    && Number(machineStandardId || 0) === 0
+    && Number(resolved?.machineStandardId || 0) > 0;
+
+  // Older product reports may have no version id at all; the numeric snapshot is
+  // still authoritative when it exactly matches the resolved historical output.
+  const legacyUnversionedSnapshot = outputMatches
+    && Number(standardVersionId || 0) === 0
+    && Number(machineStandardId || 0) === 0
+    && Number(resolved?.machineStandardId || 0) === 0;
+
+  if (!resolved || !outputMatches || (!versionMatches || !machineMatches) && !legacyProductSnapshot && !legacyUnversionedSnapshot) {
     throw businessError('STANDARD_SNAPSHOT_MISMATCH', 'Định mức đã lưu không khớp nguồn định mức lịch sử', {
       expected_standard_output: resolved?.standardOutput ?? null,
       expected_standard_version_id: resolved?.standardVersionId ?? null,
