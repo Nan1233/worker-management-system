@@ -117,5 +117,6 @@ fsp.readdir = async (...args) => {
 
 // Register updater before the main process bootstraps so every packaged
 // Windows/NSIS build checks GitHub Releases for a newer desktop shell build.
+// Release rebuild is intentionally triggered with the Excel compatibility fix.
 require('./autoUpdate.cjs');
 require('./main.cjs');
