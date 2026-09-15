@@ -1,9 +1,10 @@
 const db = require('../config/db');
-const { getActorProcessScope, assertProcessScope } = require('./processAuthorizationService');
+const { getActorProcessScope } = require('./processAuthorizationService');
 const { assertReportVolume, chunkArray } = require('./excelExportGuards');
 const { hasColumn } = require('./schemaCompatibilityService');
 const { calculateReportPerformance } = require('./machinePerformanceService');
 const { assertTrainingSnapshotAvailable } = require('./trainingSnapshotService');
+const { mergeDefects } = require('../utils/reportDetailNormalizer');
 
 const PROCESS_CODES = ['CAN','EP','XLBV','GC','MAI','DO','K1','K2','SX3'];
 const query = (sql, params = []) => db.promise().query(sql, params).then(([rows]) => rows);
@@ -144,7 +145,7 @@ async function loadBulkCompanyReports(yearMonth, actor) {
   for (const ids of chunkArray(reportIds, Number(process.env.EXCEL_DETAIL_BATCH_SIZE || 1000))) {
     const p = ids.map(() => '?').join(',');
     const [d, f, m] = await Promise.all([
-      query(`SELECT prd.report_id, prd.deduction_type_id, dt.deduction_code, dt.deduction_name, prd.hours FROM production_report_deductions prd LEFT JOIN deduction_types dt ON dt.id=prd.deduction_type_id WHERE prd.report_id IN (${p}) ORDER BY prd.report_id,COALESCE(dt.sort_order,999999),prd.deduction_type_id`, ids),
+      query(`SELECT prd.report_id, prd.deduction_type_id, dt.defect_code, dt.deduction_code, dt.deduction_name, prd.hours FROM production_report_deductions prd LEFT JOIN deduction_types dt ON dt.id=prd.deduction_type_id WHERE prd.report_id IN (${p}) ORDER BY prd.report_id,COALESCE(dt.sort_order,999999),prd.deduction_type_id`, ids),
       query(`SELECT prd.report_id, prd.defect_type_id, dt.defect_code, dt.defect_name, prd.quantity FROM production_report_defects prd LEFT JOIN defect_types dt ON dt.id=prd.defect_type_id WHERE prd.report_id IN (${p}) ORDER BY prd.report_id,COALESCE(dt.sort_order,999999),prd.defect_type_id`, ids),
       query(`SELECT * FROM production_report_machine_lines WHERE report_id IN (${p}) ORDER BY report_id,sort_order,id`, ids)
     ]);
@@ -171,8 +172,8 @@ async function loadBulkCompanyReports(yearMonth, actor) {
   for (const report of reports) {
     const id = Number(report.id);
     report.deductions = deductions.get(id) || [];
-    report.defects = defects.get(id) || [];
     report.machineLines = machineLines.get(id) || [];
+    report.defects = mergeDefects(report, defects.get(id) || [], report.machineLines);
     Object.assign(report, calculateReportPerformance({ report, machineLines: report.machineLines }));
     report.dataSource = 'production_reports';
     report.isApprovedDatabaseRecord = true;
