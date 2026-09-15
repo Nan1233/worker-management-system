@@ -24,18 +24,13 @@ async function ensureLegacyMachineLines(targets) {
   for (const report of reports || []) {
     const policy = getProcessMachinePolicy(report.process_id);
 
-    // CVK is genuinely non-machine and must never be backfilled here.
-    // GC shared-machine reports also must keep the production-event requirement.
+    // CVK is non-machine. GC shared-machine reports must keep their event-based
+    // validation, so neither process is handled by this legacy compatibility path.
     if (policy.code === "CVK" || policy.code === "GC") continue;
 
     const machineCode = String(report.machine_no || "").split(",")[0].trim();
     const productCode = String(report.product_name || "").split(",")[0].trim();
-
-    // This compatibility path is ONLY for old MACHINE reports that already
-    // contain the complete parent-level machine/product snapshot but lost their
-    // child machine-line row. New reports are created with child lines and never
-    // enter this path.
-    if (!machineCode || !productCode || Number(report.standard_output || 0) <= 0) continue;
+    if (!machineCode || !productCode) continue;
 
     const [existing] = await db.promise().query(
       `SELECT id FROM production_temp_machine_lines WHERE temp_report_id=? LIMIT 1`,
@@ -43,15 +38,17 @@ async function ensureLegacyMachineLines(targets) {
     );
     if (existing?.length) continue;
 
+    // Old reports can legitimately reference a machine that is no longer present
+    // in the active machine master. The parent report still contains the machine
+    // code and the immutable standard snapshot, which is sufficient for approval.
     const [machines] = await db.promise().query(
       `SELECT id,machine_code FROM machines
-        WHERE process_id=? AND status='active'
+        WHERE process_id=?
           AND UPPER(TRIM(machine_code))=UPPER(TRIM(?))
         LIMIT 1`,
       [Number(report.process_id), machineCode],
     );
-    const machine = machines?.[0];
-    if (!machine) continue;
+    const machine = machines?.[0] || null;
 
     const actualTime = Number(report.actual_time || 0);
     const standardOutput = Number(report.standard_output || 0);
@@ -70,8 +67,8 @@ async function ensureLegacyMachineLines(targets) {
       [
         Number(report.id),
         null,
-        Number(machine.id),
-        machine.machine_code,
+        machine ? Number(machine.id) : null,
+        machine?.machine_code || machineCode,
         null,
         report.standard_version_id || null,
         report.machine_standard_id || null,
