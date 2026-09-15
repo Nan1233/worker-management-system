@@ -162,12 +162,12 @@ module.exports = {
                 FROM production_reports_temp pr
                 JOIN manager_processes mp ON mp.process_id = pr.process_id
                 WHERE mp.manager_id = ?
-                  AND pr.status IN ('pending', 'need_fix')
+                  AND pr.status IN ('pending','need_fix')
                 ORDER BY date DESC`, [managerId]);
         }
         return query(db, `SELECT DISTINCT DATE(work_date) AS date
             FROM production_reports_temp
-            WHERE status IN ('pending', 'need_fix')
+            WHERE status IN ('pending','need_fix')
             ORDER BY date DESC`);
     },
 
@@ -222,7 +222,16 @@ module.exports = {
                  ORDER BY COALESCE(dt.sort_order, 999999), d.id`, [id]),
             getTempMachineLines(id)
         ]);
-        return normalizeReportTimestamps({ ...rows[0], defects: mergeDefects(rows[0], defects), deductions: normalizeDeductions(deductions), machine_lines: machineLines });
+
+        // Machine NG is stored per machine line. Keep that relationship when
+        // building the report detail; never fall back to a report-level total
+        // when machine-line defects are available.
+        return normalizeReportTimestamps({
+            ...rows[0],
+            defects: mergeDefects(rows[0], defects, machineLines),
+            deductions: normalizeDeductions(deductions),
+            machine_lines: machineLines
+        });
     },
 
     async canManageReport(reportId, managerId, isAdmin = false) {
