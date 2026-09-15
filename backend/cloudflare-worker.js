@@ -26,43 +26,53 @@ const configuredCorsOrigins = String(process.env.CORS_ORIGINS || "")
   .split(",")
   .map((value) => value.trim())
   .filter(Boolean);
-if (!configuredCorsOrigins.includes(cloudflareFrontendOrigin)) {
-  configuredCorsOrigins.push(cloudflareFrontendOrigin);
-}
+if (!configuredCorsOrigins.includes(cloudflareFrontendOrigin)) configuredCorsOrigins.push(cloudflareFrontendOrigin);
 process.env.CORS_ORIGINS = configuredCorsOrigins.join(",");
-
 process.env.PORT = process.env.PORT || "3000";
 process.env.KTC_CLOUDFLARE_WORKER = "true";
 
 const { start, app } = require("./server.js");
+const db = require("./config/db");
 const ensureGcDefectMasterData = require("./scripts/ensureGcDefectMasterData");
 const ensureGcLong2801Lt = require("./scripts/ensureGcLong2801Lt");
 const { masterDataCache } = require("./utils/masterDataCache");
 const productionTempCreateModel = require("./models/productionTempCreateModel");
 
-// Cloudflare/TiDB runtime: do not use the auxiliary duplicate-lock table for
-// report creation. That table can become a single hot row under normal worker
-// activity and TiDB lock waits then turn valid submissions into 503 responses.
-// Duplicate detection remains in productionTempCreateModel via the existing
-// exact client_request_id lookup and logical duplicate query. This keeps the
-// application-level duplicate confirmation flow without serializing every
-// submission through a pessimistic lock.
+// Cloudflare/TiDB runtime: do not use the auxiliary duplicate-lock table for report creation.
 productionTempCreateModel.lockClientRequestId = async () => {};
 productionTempCreateModel.lockLogicalDuplicateKey = async () => {};
 
+// Safety net for every pooled Cloudflare connection: if a legacy handler leaves a
+// transaction open, release() must rollback it before the connection is discarded.
+// This prevents abandoned transactions from keeping row locks alive across requests.
+const originalDbPromise = db.promise.bind(db);
+db.promise = () => {
+  const api = originalDbPromise();
+  const originalGetConnection = api.getConnection;
+  if (typeof originalGetConnection === "function") {
+    api.getConnection = async (...args) => {
+      const connection = await originalGetConnection(...args);
+      const originalRelease = connection.release.bind(connection);
+      let released = false;
+      connection.release = async () => {
+        if (released) return;
+        released = true;
+        try { await connection.rollback(); } catch (_) {}
+        return originalRelease();
+      };
+      return connection;
+    };
+  }
+  return api;
+};
+
 // Cloudflare forbids asynchronous I/O during module evaluation/global scope.
-// Seed only from a real request. The seed is idempotent and is awaited once per
-// Worker isolate so the first master-data request cannot race the seed.
 let cloudflareSeedReady = false;
 let cloudflareSeedPromise = null;
 async function ensureCloudflareSeeded() {
   if (cloudflareSeedReady) return true;
   if (cloudflareSeedPromise) return cloudflareSeedPromise;
-
-  cloudflareSeedPromise = Promise.all([
-    ensureGcDefectMasterData(),
-    ensureGcLong2801Lt(),
-  ])
+  cloudflareSeedPromise = Promise.all([ensureGcDefectMasterData(), ensureGcLong2801Lt()])
     .then(() => {
       masterDataCache.clear();
       cloudflareSeedReady = true;
@@ -71,20 +81,15 @@ async function ensureCloudflareSeeded() {
     })
     .catch((error) => {
       console.error("[KTC] Cloudflare GC master-data seed failed", error);
-      // Keep the promise cleared so a later request can retry, but do not make
-      // authentication depend on non-critical master-data bootstrap.
       cloudflareSeedPromise = null;
       return false;
     });
-
   return cloudflareSeedPromise;
 }
 
 const originalListen = app.listen.bind(app);
 app.listen = (port, hostOrCallback, maybeCallback) => {
-  if (typeof hostOrCallback === "string") {
-    return originalListen(port, maybeCallback);
-  }
+  if (typeof hostOrCallback === "string") return originalListen(port, maybeCallback);
   return originalListen(port, hostOrCallback);
 };
 
@@ -94,7 +99,6 @@ const httpHandler = httpServerHandler(server);
 function getAllowedOrigin(request) {
   const origin = request.headers.get("Origin");
   if (!origin) return null;
-
   const allowed = new Set([
     "https://ktc-frontend.nan978971.workers.dev",
     "https://worker-management-system-3-dzox.onrender.com",
@@ -103,80 +107,30 @@ function getAllowedOrigin(request) {
     "capacitor://localhost",
     ...configuredCorsOrigins,
   ]);
-
   return allowed.has(origin) ? origin : null;
 }
-
 function handleCorsPreflight(request) {
   if (request.method !== "OPTIONS") return null;
-
   const origin = getAllowedOrigin(request);
-  if (!origin) {
-    return new Response(JSON.stringify({
-      success: false,
-      code: "CORS_ORIGIN_DENIED",
-      message: "Nguồn truy cập không được phép bởi CORS",
-    }), {
-      status: 403,
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        "Cache-Control": "no-store",
-      },
-    });
-  }
-
+  if (!origin) return new Response(JSON.stringify({ success: false, code: "CORS_ORIGIN_DENIED", message: "Nguồn truy cập không được phép bởi CORS" }), { status: 403, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
   const requestedHeaders = request.headers.get("Access-Control-Request-Headers");
-  const allowHeaders = requestedHeaders || [
-    "Content-Type",
-    "Authorization",
-    "Idempotency-Key",
-    "X-Cron-Secret",
-    "X-Request-Id",
-    "X-Frontend-Version",
-  ].join(", ");
-
-  return new Response(null, {
-    status: 204,
-    headers: {
-      "Access-Control-Allow-Origin": origin,
-      "Access-Control-Allow-Credentials": "true",
-      "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": allowHeaders,
-      "Access-Control-Max-Age": "86400",
-      "Vary": "Origin, Access-Control-Request-Headers",
-      "Cache-Control": "no-store",
-    },
-  });
+  const allowHeaders = requestedHeaders || ["Content-Type", "Authorization", "Idempotency-Key", "X-Cron-Secret", "X-Request-Id", "X-Frontend-Version"].join(", ");
+  return new Response(null, { status: 204, headers: { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true", "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS", "Access-Control-Allow-Headers": allowHeaders, "Access-Control-Max-Age": "86400", "Vary": "Origin, Access-Control-Request-Headers", "Cache-Control": "no-store" } });
 }
 
-const BOOTSTRAP_EXEMPT_PATHS = new Set([
-  "/api/auth/login",
-  "/api/auth/refresh",
-  "/api/auth/logout",
-  "/api/health/live",
-  "/api/health/ready",
-]);
-
-function shouldBootstrapBeforeRequest(request) {
-  return !BOOTSTRAP_EXEMPT_PATHS.has(new URL(request.url).pathname);
-}
+const BOOTSTRAP_EXEMPT_PATHS = new Set(["/api/auth/login", "/api/auth/refresh", "/api/auth/logout", "/api/health/live", "/api/health/ready"]);
+function shouldBootstrapBeforeRequest(request) { return !BOOTSTRAP_EXEMPT_PATHS.has(new URL(request.url).pathname); }
 
 const wrappedServer = {
   async fetch(request, envArg, ctx) {
     const preflight = handleCorsPreflight(request);
     if (preflight) return preflight;
-
     if (shouldBootstrapBeforeRequest(request)) {
       const seeded = await ensureCloudflareSeeded();
-      if (!seeded) {
-        console.warn("[KTC] Continuing request without master-data bootstrap; seed will retry on a later request.");
-      }
-    } else {
-      // Do not block authentication/health checks on optional GC master-data
-      // synchronization. Kick off a best-effort bootstrap for later requests.
-      ctx?.waitUntil?.(ensureCloudflareSeeded());
+      if (!seeded) console.warn("[KTC] Continuing request without master-data bootstrap; seed will retry on a later request.");
     }
-
+    // Authentication requests must not launch background master-data writes. This
+    // avoids a seed transaction competing with personnel writes on the same TiDB cluster.
     return httpHandler.fetch(request, envArg, ctx);
   },
 };
