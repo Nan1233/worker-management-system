@@ -23,7 +23,7 @@ app.on('browser-window-created', (_event, window) => {
 process.env.KTC_API_URL = 'https://ktc-backend.nan978971.workers.dev/api';
 
 // Apply the Excel export contract before main.cjs loads monthlyWorkbookLocal.cjs.
-require('./excelExportContractPatch.cjs');
+require('./excelExportContractPatch.v2.cjs');
 
 function normalizeExportRoot(value) {
   const raw = String(value || '').trim();
