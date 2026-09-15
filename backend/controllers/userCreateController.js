@@ -10,12 +10,31 @@ const buildInsert = (table, payload) => {
   return { sql: `INSERT INTO ${table} (${fields.map((field) => `\`${field.replace(/`/g, '``')}\``).join(',')}) VALUES (${fields.map(() => '?').join(',')})`, values: fields.map((field) => payload[field]) };
 };
 
+// TiDB Cloud / serverless drivers may not expose insertId reliably. Always
+// resolve generated IDs with a SELECT before using them as foreign keys.
+async function findUserIdByUsername(connection, username) {
+  const [rows] = await connection.query('SELECT id FROM users WHERE username=? LIMIT 1', [username]);
+  const id = Number(rows?.[0]?.id);
+  if (!Number.isInteger(id) || id <= 0) throw Object.assign(new Error('Không lấy được ID tài khoản vừa tạo'), { status: 500 });
+  return id;
+}
+
+async function findWorkerIdByUserId(connection, userId) {
+  const [rows] = await connection.query('SELECT id FROM workers WHERE user_id=? LIMIT 1', [userId]);
+  const id = Number(rows?.[0]?.id);
+  if (!Number.isInteger(id) || id <= 0) throw Object.assign(new Error('Không lấy được ID công nhân vừa tạo'), { status: 500 });
+  return id;
+}
+
 async function insertAssignments(connection, role, userId, workerId, processIds) {
   if (!processIds.length) return;
   const table = role === 'worker' ? 'worker_processes' : 'manager_processes';
   const idField = role === 'worker' ? 'worker_id' : 'manager_id';
   const targetId = role === 'worker' ? workerId : userId;
-  for (const processId of processIds) await connection.query(`INSERT INTO ${table} (${idField}, process_id) VALUES (?, ?)`, [targetId, processId]);
+  if (!Number.isInteger(Number(targetId)) || Number(targetId) <= 0) {
+    throw Object.assign(new Error('ID đối tượng phân công không hợp lệ'), { status: 500 });
+  }
+  for (const processId of processIds) await connection.query(`INSERT INTO ${table} (${idField}, process_id) VALUES (?, ?)`, [Number(targetId), processId]);
 }
 
 async function validateProcessIds(connection, processIds) {
@@ -103,8 +122,6 @@ exports.createUser = async (req, res) => {
     const role = String(body.role || '').trim().toLowerCase();
     if (!['manager', 'lead', 'worker'].includes(role)) return res.status(400).json({ success: false, message: 'Vai trò không hợp lệ' });
 
-    // Usernames are authentication identifiers. Normalize case so K094/k094
-    // cannot behave like two different accounts at the application layer.
     const username = String(body.username || '').trim().toLowerCase();
     const fullName = String(body.full_name || '').trim();
     if (!username) return res.status(400).json({ success: false, message: 'Tên đăng nhập không được để trống' });
@@ -116,9 +133,7 @@ exports.createUser = async (req, res) => {
     const workerCode = String(body.worker_code || '').trim();
     const existingUser = await validateUniqueUser(connection, username, role, workerCode);
 
-    // Repair an orphaned worker account instead of attempting to insert a
-    // second users row with the same username. This specifically handles
-    // legacy/partial records such as user k094 without a workers row.
+    // Repair an orphaned worker account instead of inserting a second users row.
     if (existingUser?.role === 'worker' && role === 'worker' && !existingUser.worker_id) {
       const trainingPercent = Number(body.training_percent ?? 100);
       if (!Number.isFinite(trainingPercent) || trainingPercent < 0 || trainingPercent > 100) {
@@ -128,21 +143,21 @@ exports.createUser = async (req, res) => {
       try {
         await connection.query(
           `UPDATE users SET full_name=?, status=? WHERE id=?`,
-          [fullName, body.status === 'inactive' ? 'inactive' : 'active', existingUser.id]
+          [fullName, body.status === 'inactive' ? 'inactive' : 'active', Number(existingUser.id)]
         );
-        const [workerResult] = await connection.query(
+        await connection.query(
           `INSERT INTO workers (user_id,worker_code,phone,department,position,training_percent,status) VALUES (?,?,?,?,?,?,?)`,
-          [existingUser.id, workerCode, String(body.phone || '').trim() || null, String(body.department || 'Sản xuất').trim() || 'Sản xuất', String(body.position || 'Công nhân').trim() || 'Công nhân', trainingPercent, body.status === 'inactive' ? 'inactive' : 'active']
+          [Number(existingUser.id), workerCode, String(body.phone || '').trim() || null, String(body.department || 'Sản xuất').trim() || 'Sản xuất', String(body.position || 'Công nhân').trim() || 'Công nhân', trainingPercent, body.status === 'inactive' ? 'inactive' : 'active']
         );
-        const workerId = Number(workerResult.insertId);
-        await insertAssignments(connection, 'worker', existingUser.id, workerId, processIds);
+        const workerId = await findWorkerIdByUserId(connection, Number(existingUser.id));
+        await insertAssignments(connection, 'worker', Number(existingUser.id), workerId, processIds);
         await connection.commit();
-        clearWorkerProfile(existingUser.id);
-        deleteCachedAuthUser(existingUser.id);
+        clearWorkerProfile(Number(existingUser.id));
+        deleteCachedAuthUser(Number(existingUser.id));
         return res.status(201).json({
           success: true,
           message: 'Đã khôi phục và tạo công nhân từ tài khoản có sẵn',
-          data: { id: existingUser.id, worker_id: workerId, repaired: true }
+          data: { id: Number(existingUser.id), worker_id: workerId, repaired: true }
         });
       } catch (error) {
         try { await connection.rollback(); } catch (_) {}
@@ -154,10 +169,6 @@ exports.createUser = async (req, res) => {
     if (!password) password = crypto.randomBytes(32).toString('hex');
     if (password.length < 6) return res.status(400).json({ success: false, message: 'Mật khẩu tối thiểu 6 ký tự' });
 
-    // Cloudflare/TiDB runtime intentionally keeps this path statement-level.
-    // The TiDB Cloud Serverless driver supports parameterized execute calls;
-    // keeping values bound also prevents usernames/passwords from being
-    // interpolated into SQL text.
     const userInsert = buildInsert('users', {
       username,
       password: await bcrypt.hash(password, 10),
@@ -165,8 +176,8 @@ exports.createUser = async (req, res) => {
       role,
       status: body.status === 'inactive' ? 'inactive' : 'active'
     });
-    const [userResult] = await connection.query(userInsert.sql, userInsert.values);
-    const userId = Number(userResult.insertId);
+    await connection.query(userInsert.sql, userInsert.values);
+    const userId = await findUserIdByUsername(connection, username);
 
     let workerId = null;
     if (role === 'worker') {
@@ -183,14 +194,14 @@ exports.createUser = async (req, res) => {
         training_percent: trainingPercent,
         status: body.status === 'inactive' ? 'inactive' : 'active'
       });
-      const [workerResult] = await connection.query(workerInsert.sql, workerInsert.values);
-      workerId = Number(workerResult.insertId);
+      await connection.query(workerInsert.sql, workerInsert.values);
+      workerId = await findWorkerIdByUserId(connection, userId);
     }
 
     await insertAssignments(connection, role, userId, workerId, processIds);
     clearWorkerProfile(userId);
     deleteCachedAuthUser(userId);
-    return res.status(201).json({ success: true, message: 'Tạo người dùng thành công', data: { id: userId } });
+    return res.status(201).json({ success: true, message: 'Tạo người dùng thành công', data: { id: userId, worker_id: workerId } });
   } catch (error) {
     const message = String(error?.message || '');
     if (error?.code === 'ER_DUP_ENTRY' || /duplicate entry/i.test(message) || /uq_users_username/i.test(message)) {
