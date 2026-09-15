@@ -22,6 +22,11 @@ function normalizeKqdPolicySnapshot(value, { allowNull = false } = {}) {
 }
 
 function assertKqdPolicySnapshotConsistency({ resolved, snapshot }) {
+  // CVK (Công việc khác) has no product, production standard, or KQD policy.
+  // Its create flow intentionally stores a null KQD snapshot, so approval must
+  // not reject it as a missing production-standard snapshot.
+  if (resolved?.nonProductWork === true) return true;
+
   const actual = normalizeKqdPolicySnapshot(snapshot);
   const expected = Number(resolved?.excludeKqdFromTt || 0) === 1 ? 1 : 0;
   if (actual !== expected) {
