@@ -18,7 +18,32 @@ const parseDefects = (value) => {
   }
 };
 
-
+const aggregateMachineDefects = (lines = []) => {
+  const merged = new Map();
+  for (const line of lines) {
+    for (const defect of parseDefects(line?.defects ?? line?.defects_json)) {
+      const quantity = Math.max(0, safeNumber(defect?.quantity));
+      if (quantity <= 0) continue;
+      const defectTypeId = Number(defect?.defect_type_id || defect?.id) || null;
+      const code = String(defect?.defect_code || defect?.code || "").trim();
+      const name = String(defect?.defect_name || defect?.name || "").trim();
+      const key = defectTypeId ? `ID:${defectTypeId}` : code ? `CODE:${code}` : name ? `NAME:${name}` : null;
+      if (!key) continue;
+      const existing = merged.get(key);
+      if (existing) {
+        existing.quantity += quantity;
+      } else {
+        merged.set(key, {
+          defect_type_id: defectTypeId,
+          defect_code: code || null,
+          defect_name: name || null,
+          quantity
+        });
+      }
+    }
+  }
+  return [...merged.values()];
+};
 
 const calculateMachineLinePerformance = (line = {}) => {
   const ok = Math.max(0, safeNumber(line.ok_quantity));
@@ -106,10 +131,16 @@ const calculateReportPerformance = ({ report = {}, machineLines = [] } = {}) => 
   const earnedStandardHours = lines.reduce((sum, line) => sum + line.earned_standard_hours, 0);
   const totalMachineHours = lines.reduce((sum, line) => sum + Math.max(0, safeNumber(line.machine_time_hours)), 0);
   const actualWorkerHours = Math.max(0, safeNumber(report.actual_time));
+  const machineDefects = aggregateMachineDefects(lines);
 
   return {
     performanceMode: "MACHINE",
     machine_lines: lines,
+    // For legacy approved machine reports, the parent production_report_defects
+    // table can be empty while defects_json on machine lines still contains the
+    // real NG detail. Expose that authoritative machine detail as report.defects
+    // so the existing UI/Excel pipeline can render it without rewriting DB data.
+    defects: machineDefects,
     manualPerformance: null,
     machinePerformance: {
       machine_count: machineCount,
