@@ -6,6 +6,25 @@ const os = require('node:os');
 
 const DEFAULT_EXPORT_ROOT = path.join(os.homedir(), 'Documents', 'KTC', 'Bao cao san xuat');
 const CONFIG_FILE = path.join(app.getPath('userData'), 'excel-export-config.json');
+const DESKTOP_ICON = path.join(__dirname, '..', 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
+
+// Windows uses the AppUserModelId to associate the running window/taskbar
+// button with the packaged application icon. Keep it stable across releases.
+if (process.platform === 'win32') {
+  app.setAppUserModelId('vn.ktc.productioncontrol');
+}
+
+// Force the packaged KTC icon onto every BrowserWindow. This is intentionally
+// done at the shell level so the icon also works when the renderer is loaded
+// from the hosted Cloudflare URL instead of the packaged frontend files.
+app.on('browser-window-created', (_event, window) => {
+  try {
+    if (process.platform === 'win32') window.setIcon(DESKTOP_ICON);
+  } catch (_) {
+    // The packaged icon is also configured in electron-builder; this is only
+    // a runtime fallback for title-bar/taskbar rendering.
+  }
+});
 
 // The desktop shell is built once, while the actual UI is served from the same
 // web deployment used by the browser. This means frontend changes published to
