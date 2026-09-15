@@ -26,39 +26,38 @@ const executeRaw = (executor, sql, params = []) =>
         });
     });
 
+const isTempReportApprovalSelect = (sql) => {
+    const text = String(sql || "");
+    return /FROM\s+production_reports_temp\s+temp/i.test(text)
+        && /FOR\s+UPDATE\s*$/i.test(text);
+};
+
+const removeApprovalRowLock = (sql) =>
+    String(sql || "").replace(/\s+FOR\s+UPDATE\s*$/i, "");
+
 const queryWithLockRetry = async (executor, sql, params = []) => {
-    try {
-        return await executeRaw(executor, sql, params);
-    } catch (error) {
-        if (!isRetryableLockTimeout(error)) throw error;
+    // Approval used SELECT ... FOR UPDATE while the whole approval workflow
+    // was inside one transaction. That kept the temp-report row locked during
+    // standard resolution, snapshot creation, audit writes, etc., which is
+    // too long for TiDB Serverless and causes Error 1205. The approval flow
+    // already checks updated_at and status before writing, so this initial
+    // selection is intentionally lock-free. The subsequent writes remain in
+    // the transaction and use the optimistic version check.
+    const effectiveSql = isTempReportApprovalSelect(sql)
+        ? removeApprovalRowLock(sql)
+        : sql;
 
-        // The approval selection previously used SELECT ... FOR UPDATE.
-        // On TiDB Serverless a concurrent edit/approval can keep that row lock
-        // long enough to hit Error 1205. Approval already performs an
-        // optimistic updated_at check, so the initial read does not need a
-        // pessimistic row lock. If this exact temp-report selection somehow
-        // reaches 1205, retry it once without FOR UPDATE.
-        const text = String(sql || "");
-        const isTempReportApprovalSelect =
-            /FROM\s+production_reports_temp\s+temp/i.test(text)
-            && /FOR\s+UPDATE\s*$/i.test(text);
-        if (isTempReportApprovalSelect) {
-            const lockFreeSql = text.replace(/\s+FOR\s+UPDATE\s*$/i, "");
-            return executeRaw(executor, lockFreeSql, params);
+    let lastError;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+            return await executeRaw(executor, effectiveSql, params);
+        } catch (error) {
+            lastError = error;
+            if (!isRetryableLockTimeout(error) || attempt >= 2) throw error;
+            await sleep(250 * (attempt + 1));
         }
-
-        let lastError = error;
-        for (let attempt = 1; attempt < 3; attempt += 1) {
-            await sleep(250 * attempt);
-            try {
-                return await executeRaw(executor, sql, params);
-            } catch (retryError) {
-                lastError = retryError;
-                if (!isRetryableLockTimeout(retryError) || attempt >= 2) throw retryError;
-            }
-        }
-        throw lastError;
     }
+    throw lastError;
 };
 
 /**
