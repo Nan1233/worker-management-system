@@ -183,7 +183,14 @@ function Login() {
 
             <section className="login-card" aria-label="Đăng nhập hệ thống KTC">
                 <div className="login-brand">
-                    <img src="/ktc-hanoi-logo.jpg" alt="KTC HANOI" className="login-logo" />
+                    <img
+                        src="/pwa/icon-192.png"
+                        alt="KTC HANOI"
+                        className="login-logo"
+                        width="192"
+                        height="192"
+                        decoding="async"
+                    />
                 </div>
 
                 <header className="login-heading">
