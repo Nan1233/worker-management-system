@@ -77,9 +77,6 @@ exports.getApprovedReports = async (req, res) => {
 
     const whereSql = where.join(' AND ');
 
-    // Run the two read queries sequentially in Cloudflare. The Worker DB
-    // adapter opens a fresh TiDB Serverless connection per query, so parallel
-    // COUNT/SELECT calls are unnecessary contention and can surface as 500s.
     const [countRows] = await db.promise().query(
       `SELECT COUNT(*) AS total
          FROM production_reports pr
@@ -92,7 +89,7 @@ exports.getApprovedReports = async (req, res) => {
 
     const [dataRows] = await db.promise().query(
       `SELECT pr.*, p.process_name, w.worker_code, u.full_name,
-              COALESCE(pr.training_percent_snapshot, 0) AS training_percent
+              COALESCE(pr.training_percent_snapshot, w.training_percent, 100) AS training_percent
          FROM production_reports pr
          JOIN workers w ON pr.worker_id=w.id
          JOIN users u ON w.user_id=u.id
