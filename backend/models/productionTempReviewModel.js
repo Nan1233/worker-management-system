@@ -1,6 +1,5 @@
 const db = require("../config/db");
 const approvalModel = require("./productionTempApprovalModel");
-const { getProcessMachinePolicy } = require("../services/processMachinePolicy");
 
 async function ensureLegacyMachineLines(targets) {
   const normalized = (Array.isArray(targets) ? targets : [])
@@ -22,12 +21,6 @@ async function ensureLegacyMachineLines(targets) {
   );
 
   for (const report of reports || []) {
-    const policy = getProcessMachinePolicy(report.process_id);
-
-    // CVK is non-machine. GC shared-machine reports must keep their event-based
-    // validation, so neither process is handled by this legacy compatibility path.
-    if (policy.code === "CVK" || policy.code === "GC") continue;
-
     const machineCode = String(report.machine_no || "").split(",")[0].trim();
     const productCode = String(report.product_name || "").split(",")[0].trim();
     if (!machineCode || !productCode) continue;
@@ -38,17 +31,17 @@ async function ensureLegacyMachineLines(targets) {
     );
     if (existing?.length) continue;
 
-    // Old reports can legitimately reference a machine that is no longer present
-    // in the active machine master. The parent report still contains the machine
-    // code and the immutable standard snapshot, which is sufficient for approval.
-    const [machines] = await db.promise().query(
-      `SELECT id,machine_code FROM machines
-        WHERE process_id=?
-          AND UPPER(TRIM(machine_code))=UPPER(TRIM(?))
-        LIMIT 1`,
-      [Number(report.process_id), machineCode],
-    );
-    const machine = machines?.[0] || null;
+    let machine = null;
+    try {
+      const [machines] = await db.promise().query(
+        `SELECT id,machine_code FROM machines
+          WHERE process_id=?
+            AND UPPER(TRIM(machine_code))=UPPER(TRIM(?))
+          LIMIT 1`,
+        [Number(report.process_id), machineCode],
+      );
+      machine = machines?.[0] || null;
+    } catch (_) {}
 
     const actualTime = Number(report.actual_time || 0);
     const standardOutput = Number(report.standard_output || 0);
@@ -56,37 +49,41 @@ async function ensureLegacyMachineLines(targets) {
     const maxOutput = standardOutput > 0 && actualTime > 0 ? standardOutput * actualTime : 0;
     const earnedStandardHours = standardOutput > 0 ? actualOutput / standardOutput : 0;
 
-    await db.promise().query(
-      `INSERT INTO production_temp_machine_lines
-       (temp_report_id,machine_event_id,machine_id,machine_code,product_standard_id,
-        standard_version_id,machine_standard_id,product_code,machine_time_hours,
-        standard_output,standard_time_seconds,standard_source,exclude_kqd_from_tt,
-        ok_quantity,ng_quantity,maximum_output,counted_output,earned_standard_hours,
-        defects_json,sort_order)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [
-        Number(report.id),
-        null,
-        machine ? Number(machine.id) : null,
-        machine?.machine_code || machineCode,
-        null,
-        report.standard_version_id || null,
-        report.machine_standard_id || null,
-        productCode,
-        actualTime,
-        standardOutput,
-        null,
-        "LEGACY_PARENT_SNAPSHOT",
-        Number(report.exclude_kqd_from_tt_snapshot || 0) === 1 ? 1 : 0,
-        Number(report.tt_ok || 0),
-        Number(report.tt_ng || 0),
-        maxOutput,
-        actualOutput,
-        earnedStandardHours,
-        "[]",
-        1,
-      ],
-    );
+    try {
+      await db.promise().query(
+        `INSERT INTO production_temp_machine_lines
+         (temp_report_id,machine_event_id,machine_id,machine_code,product_standard_id,
+          standard_version_id,machine_standard_id,product_code,machine_time_hours,
+          standard_output,standard_time_seconds,standard_source,exclude_kqd_from_tt,
+          ok_quantity,ng_quantity,maximum_output,counted_output,earned_standard_hours,
+          defects_json,sort_order)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          Number(report.id),
+          null,
+          machine ? Number(machine.id) : null,
+          machine?.machine_code || machineCode,
+          null,
+          report.standard_version_id || null,
+          report.machine_standard_id || null,
+          productCode,
+          actualTime,
+          standardOutput,
+          null,
+          "LEGACY_PARENT_SNAPSHOT",
+          Number(report.exclude_kqd_from_tt_snapshot || 0) === 1 ? 1 : 0,
+          Number(report.tt_ok || 0),
+          Number(report.tt_ng || 0),
+          maxOutput,
+          actualOutput,
+          earnedStandardHours,
+          "[]",
+          1,
+        ],
+      );
+    } catch (error) {
+      console.warn(`[KTC] Legacy machine-line backfill skipped for temp #${report.id}: ${error.message}`);
+    }
   }
 }
 
