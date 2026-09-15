@@ -1,3 +1,25 @@
+const CANONICAL_GC_DEFECTS = new Map([
+    ["KQD", "KQD"],
+    ["VO_CAO_SU", "Vỡ cao su"],
+    ["K_XUOC_CONG_GAY", "K xước cong gãy"],
+    ["CAO_SU_XOAY", "Cao su xoay"],
+    ["CAT_KHONG_DUT", "Cắt không đứt"],
+    ["BAVIA", "Bavia"],
+    ["CSH", "CSH"],
+    ["PPCM", "PPCM"],
+    ["KT_LON", "KT lớn"],
+    ["KT_NHO", "KT nhỏ"],
+    ["LCS", "LCS"],
+    ["CAT_LEM", "Cắt lẹm"],
+    ["RACH_NVL", "Rách NVL"],
+    ["CHAN_NGAN_DAI", "Chân ngắn dài"],
+    ["SOT_VIA", "Sót via"],
+    ["FURE_TRUC", "Fure trục"],
+    ["LAN_CS", "Lẫn CS"],
+    ["BAVIA_CAT_HUT", "Bavia cắt hụt"],
+    ["THIEU_CAO_SU", "Thiếu cao su"]
+]);
+
 const LEGACY_DEFECT_FIELDS = [
     ["kqd_dap_lai", "KQD_DAP_LAI", "KQD dập lại"],
     ["kqd_tuot", "KQD_TUOT", "KQD tuốt"],
@@ -22,24 +44,63 @@ const normalizeKey = (value) => String(value || "")
     .replace(/^_+|_+$/g, "")
     .toUpperCase();
 
-function mergeDefects(report, rows = []) {
+function canonicalDefect(item = {}) {
+    const code = normalizeKey(item.defect_code || item.defect_type_code || item.code);
+    const nameKey = normalizeKey(item.defect_name || item.name || item.label);
+    const canonicalName = CANONICAL_GC_DEFECTS.get(code) || CANONICAL_GC_DEFECTS.get(nameKey);
+    if (!canonicalName) return item;
+    const canonicalCode = [...CANONICAL_GC_DEFECTS.entries()].find(([, name]) => name === canonicalName)?.[0] || code;
+    return { ...item, defect_code: canonicalCode, defect_name: canonicalName };
+}
+
+function parseMachineDefects(machineLines = []) {
+    const result = [];
+    for (const line of Array.isArray(machineLines) ? machineLines : []) {
+        const raw = line?.defects_json;
+        if (!raw) continue;
+        let parsed = raw;
+        if (typeof raw === "string") {
+            try { parsed = JSON.parse(raw); } catch { parsed = null; }
+        }
+        if (parsed && !Array.isArray(parsed) && Array.isArray(parsed.defects)) parsed = parsed.defects;
+        if (!Array.isArray(parsed)) continue;
+        for (const item of parsed) {
+            if (!item || typeof item !== "object") continue;
+            const quantity = Number(item.quantity ?? item.qty ?? item.ng_quantity ?? 0) || 0;
+            if (quantity <= 0) continue;
+            result.push(canonicalDefect({
+                id: Number(item.id) || undefined,
+                defect_type_id: Number(item.defect_type_id ?? item.type_id) || undefined,
+                defect_code: item.defect_code || item.defect_type_code || item.code,
+                defect_name: item.defect_name || item.defect_type_name || item.name || item.label,
+                quantity
+            }));
+        }
+    }
+    return result;
+}
+
+function mergeDefects(report, rows = [], machineLines = []) {
+    const machineDefects = parseMachineDefects(machineLines);
+    const sourceRows = machineDefects.length ? machineDefects : rows;
     const merged = new Map();
     const add = (item, fallbackIndex = 0) => {
-        const quantity = Number(item?.quantity ?? 0) || 0;
+        const canonical = canonicalDefect(item);
+        const quantity = Number(canonical?.quantity ?? 0) || 0;
         if (quantity <= 0) return;
-        const code = String(item?.defect_code || "").trim();
-        const name = String(item?.defect_name || "").trim();
-        const typeId = Number(item?.defect_type_id) || null;
-        const key = typeId ? `ID:${typeId}` : `CODE:${normalizeKey(code || name || `LOI_${fallbackIndex}`)}`;
-        const existing = merged.get(key);
+        const code = String(canonical?.defect_code || "").trim();
+        const name = String(canonical?.defect_name || "").trim();
+        const typeId = Number(canonical?.defect_type_id) || null;
+        const canonicalKey = CANONICAL_GC_DEFECTS.has(normalizeKey(code))
+            ? `CODE:${normalizeKey(code)}`
+            : typeId ? `ID:${typeId}` : `CODE:${normalizeKey(code || name || `LOI_${fallbackIndex}`)}`;
+        const existing = merged.get(canonicalKey);
         if (existing) {
             existing.quantity += quantity;
-            if (!existing.defect_name && name) existing.defect_name = name;
-            if (!existing.defect_code && code) existing.defect_code = code;
             return;
         }
-        merged.set(key, {
-            id: Number(item?.id) || undefined,
+        merged.set(canonicalKey, {
+            id: Number(canonical?.id) || undefined,
             defect_type_id: typeId || undefined,
             defect_code: code || undefined,
             defect_name: name || code || `Lỗi NG ${fallbackIndex + 1}`,
@@ -47,17 +108,18 @@ function mergeDefects(report, rows = []) {
         });
     };
 
-    rows.forEach(add);
-    LEGACY_DEFECT_FIELDS.forEach(([field, code, name], index) => {
-        const quantity = Number(report?.[field] ?? 0) || 0;
-        if (quantity <= 0) return;
-        const key = `CODE:${normalizeKey(code)}`;
-        const alreadyIncluded = [...merged.values()].some((item) => {
-            const itemKey = normalizeKey(item.defect_code || item.defect_name);
-            return itemKey === normalizeKey(code) || itemKey === normalizeKey(name);
+    sourceRows.forEach(add);
+    if (!machineDefects.length) {
+        LEGACY_DEFECT_FIELDS.forEach(([field, code, name], index) => {
+            const quantity = Number(report?.[field] ?? 0) || 0;
+            if (quantity <= 0) return;
+            const alreadyIncluded = [...merged.values()].some((item) => {
+                const itemKey = normalizeKey(item.defect_code || item.defect_name);
+                return itemKey === normalizeKey(code) || itemKey === normalizeKey(name);
+            });
+            if (!alreadyIncluded) add({ defect_code: code, defect_name: name, quantity }, sourceRows.length + index);
         });
-        if (!alreadyIncluded) add({ defect_code: code, defect_name: name, quantity }, rows.length + index);
-    });
+    }
 
     return [...merged.values()].sort((a, b) => String(a.defect_name).localeCompare(String(b.defect_name), "vi"));
 }
@@ -75,4 +137,4 @@ function normalizeDeductions(rows = []) {
     return [...merged.values()];
 }
 
-module.exports = { mergeDefects, normalizeDeductions, LEGACY_DEFECT_FIELDS };
+module.exports = { mergeDefects, normalizeDeductions, LEGACY_DEFECT_FIELDS, CANONICAL_GC_DEFECTS, parseMachineDefects };
