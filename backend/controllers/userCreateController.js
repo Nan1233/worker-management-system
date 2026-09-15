@@ -26,12 +26,47 @@ async function validateProcessIds(connection, processIds) {
 }
 
 async function validateUniqueUser(connection, username, role, workerCode) {
-  const [users] = await connection.query('SELECT id FROM users WHERE username=? LIMIT 1', [username]);
-  if (users.length) throw Object.assign(new Error(`Tên đăng nhập "${username}" đã tồn tại`), { status: 409, code: 'USERNAME_EXISTS' });
+  const [users] = await connection.query(
+    `SELECT u.id,u.username,u.full_name,u.role,u.status,w.worker_code
+     FROM users u LEFT JOIN workers w ON w.user_id=u.id
+     WHERE LOWER(TRIM(u.username))=LOWER(TRIM(?)) LIMIT 1`,
+    [username]
+  );
+  if (users.length) {
+    const existing = users[0];
+    const existingRole = existing.role === 'admin' ? 'quản trị viên' : existing.role === 'manager' ? 'quản lý' : existing.role === 'lead' ? 'tổ trưởng' : 'công nhân';
+    if (existing.role === 'worker' && role === 'lead') {
+      throw Object.assign(
+        new Error(`Tài khoản "${existing.username}" đã là tài khoản công nhân${existing.full_name ? ` của ${existing.full_name}` : ''}. Không thể tạo thêm tài khoản Tổ trưởng trùng tên đăng nhập. Nếu muốn nâng chính công nhân này lên Tổ trưởng, hãy dùng nút "Nâng lên Tổ trưởng" tại danh sách công nhân.`),
+        { status: 409, code: 'WORKER_ACCOUNT_EXISTS_PROMOTE_LEAD' }
+      );
+    }
+    if (existing.role === 'worker' && role === 'manager') {
+      throw Object.assign(
+        new Error(`Tài khoản "${existing.username}" đã là tài khoản công nhân${existing.full_name ? ` của ${existing.full_name}` : ''}. Không thể tạo thêm tài khoản Quản lý trùng tên đăng nhập. Nếu muốn nâng chính công nhân này lên Quản lý, hãy dùng nút "Nâng lên Quản lý".`),
+        { status: 409, code: 'WORKER_ACCOUNT_EXISTS_PROMOTE_MANAGER' }
+      );
+    }
+    throw Object.assign(
+      new Error(`Tên đăng nhập "${existing.username}" đã tồn tại với tài khoản ${existingRole}${existing.full_name ? ` (${existing.full_name})` : ''}. Mỗi tài khoản phải có tên đăng nhập duy nhất.`),
+      { status: 409, code: 'USERNAME_EXISTS' }
+    );
+  }
 
   if (role === 'worker' && workerCode) {
-    const [workers] = await connection.query('SELECT id FROM workers WHERE worker_code=? LIMIT 1', [workerCode]);
-    if (workers.length) throw Object.assign(new Error(`Mã công nhân "${workerCode}" đã tồn tại`), { status: 409, code: 'WORKER_CODE_EXISTS' });
+    const [workers] = await connection.query(
+      `SELECT w.id,w.worker_code,u.username,u.full_name,u.role
+       FROM workers w LEFT JOIN users u ON u.id=w.user_id
+       WHERE LOWER(TRIM(w.worker_code))=LOWER(TRIM(?)) LIMIT 1`,
+      [workerCode]
+    );
+    if (workers.length) {
+      const existing = workers[0];
+      throw Object.assign(
+        new Error(`Mã công nhân "${existing.worker_code}" đã tồn tại${existing.full_name ? ` (${existing.full_name})` : ''}${existing.username ? ` với tài khoản "${existing.username}"` : ''}. Không tạo bản ghi công nhân thứ hai cho cùng một mã.`),
+        { status: 409, code: 'WORKER_CODE_EXISTS' }
+      );
+    }
   }
 }
 
@@ -42,7 +77,9 @@ exports.createUser = async (req, res) => {
     const role = String(body.role || '').trim().toLowerCase();
     if (!['manager', 'lead', 'worker'].includes(role)) return res.status(400).json({ success: false, message: 'Vai trò không hợp lệ' });
 
-    const username = String(body.username || '').trim();
+    // Usernames are authentication identifiers. Normalize case so K094/k094
+    // cannot behave like two different accounts at the application layer.
+    const username = String(body.username || '').trim().toLowerCase();
     const fullName = String(body.full_name || '').trim();
     if (!username) return res.status(400).json({ success: false, message: 'Tên đăng nhập không được để trống' });
     if (!fullName) return res.status(400).json({ success: false, message: 'Họ tên không được để trống' });
@@ -97,8 +134,8 @@ exports.createUser = async (req, res) => {
   } catch (error) {
     const message = String(error?.message || '');
     if (error?.code === 'ER_DUP_ENTRY' || /duplicate entry/i.test(message) || /uq_users_username/i.test(message)) {
-      if (/worker_code|uq_.*worker.*code/i.test(message)) return res.status(409).json({ success: false, code: 'WORKER_CODE_EXISTS', message: 'Mã công nhân đã tồn tại' });
-      return res.status(409).json({ success: false, code: 'USERNAME_EXISTS', message: 'Tên đăng nhập đã tồn tại' });
+      if (/worker_code|uq_.*worker.*code/i.test(message)) return res.status(409).json({ success: false, code: 'WORKER_CODE_EXISTS', message: 'Mã công nhân đã tồn tại. Không thể tạo công nhân thứ hai với cùng mã.' });
+      return res.status(409).json({ success: false, code: 'USERNAME_EXISTS', message: 'Tên đăng nhập đã tồn tại. Vui lòng dùng tài khoản hiện có hoặc chọn tên đăng nhập khác.' });
     }
     if (error?.status) return res.status(error.status).json({ success: false, code: error.code, message: error.message });
     console.error('CREATE USER ERROR:', error);
