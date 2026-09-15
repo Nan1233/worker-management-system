@@ -100,6 +100,17 @@ ipcMain.handle('ktc-save-statistics-excel', async (_event, payload = {}) => {
   return { success: true, filePath, exportRoot: root };
 });
 
+// Excel creates temporary lock files named ~$*.xlsx while a workbook is open.
+// They are not real workbooks and must never enter the DB preview/import scan.
+const originalReaddir = fsp.readdir.bind(fsp);
+fsp.readdir = async (...args) => {
+  const entries = await originalReaddir(...args);
+  return entries.filter((entry) => {
+    const name = typeof entry === 'string' ? entry : entry?.name;
+    return !String(name || '').startsWith('~$');
+  });
+};
+
 // Register updater before the main process bootstraps so every packaged
 // Windows/NSIS build checks GitHub Releases for a newer desktop shell build.
 require('./autoUpdate.cjs');
