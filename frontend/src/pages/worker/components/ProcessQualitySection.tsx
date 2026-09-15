@@ -35,6 +35,10 @@ export default function ProcessQualitySection({
     onToggleNg,
     onNgValue,
 }: Props) {
+    // Khi đã chọn/nhập máy, OK/NG/Tổng sản lượng phải do dữ liệu máy tính,
+    // công nhân không được sửa thủ công. Với nhiều máy, luồng này vốn đã khóa.
+    const qualityLocked = usesMultiMachineLines || Boolean(form.machineNo.trim());
+
     return (
         <section className="worker-form-card worker-quality-section">
             <h2 className="worker-card-title"><span><AppIcon name="sheet" size={20} /></span> Báo cáo Chất lượng</h2>
@@ -46,10 +50,10 @@ export default function ProcessQualitySection({
                         id="ttOk"
                         name="ttOk"
                         value={formatIntegerDisplay(form.ttOk)}
-                        onChange={usesMultiMachineLines ? undefined : onTtOkChange}
-                        onBlur={usesMultiMachineLines ? undefined : onNumberBlur}
-                        readOnly={usesMultiMachineLines}
-                        disabled={usesMultiMachineLines}
+                        onChange={qualityLocked ? undefined : onTtOkChange}
+                        onBlur={qualityLocked ? undefined : onNumberBlur}
+                        readOnly={qualityLocked}
+                        disabled={qualityLocked}
                         inputMode="numeric"
                         autoComplete="off"
                     />
@@ -62,7 +66,7 @@ export default function ProcessQualitySection({
                         name="ttNg"
                         value={formatIntegerDisplay(form.ttNg)}
                         readOnly
-                        disabled={usesMultiMachineLines}
+                        disabled={qualityLocked}
                     />
                 </div>
 
@@ -72,7 +76,7 @@ export default function ProcessQualitySection({
                         id="totalOutput"
                         value={formatIntegerDisplay(String((Number(form.ttOk) || 0) + (Number(form.ttNg) || 0)))}
                         readOnly
-                        disabled={usesMultiMachineLines}
+                        disabled={qualityLocked}
                         aria-label="Tổng sản lượng bằng TT OK cộng TT NG"
                     />
                     <small>{usesMultiMachineLines ? "Tổng sản lượng thực tế của tất cả máy người này chạy" : "OK + NG"}</small>
@@ -112,9 +116,9 @@ export default function ProcessQualitySection({
                                     style={{ width: 16, height: 16, minWidth: 16, maxWidth: 16, minHeight: 16, maxHeight: 16, flex: "0 0 16px", boxSizing: "border-box", margin: 0, padding: 0 }}
                                     checked={selectedNg.includes(item.key)}
                                     onChange={(event) => {
-                                        if (!usesMultiMachineLines) onToggleNg(item.key, event.target.checked);
+                                        if (!qualityLocked) onToggleNg(item.key, event.target.checked);
                                     }}
-                                    disabled={usesMultiMachineLines}
+                                    disabled={qualityLocked}
                                 />
                                 <span>{item.label}</span>
                             </label>
@@ -136,10 +140,10 @@ export default function ProcessQualitySection({
                                     name={item.key}
                                     value={form[item.key]}
                                     onChange={(event) => {
-                                        if (!usesMultiMachineLines) onNgValue(item.key, event.target.value);
+                                        if (!qualityLocked) onNgValue(item.key, event.target.value);
                                     }}
-                                    readOnly={usesMultiMachineLines}
-                                    disabled={usesMultiMachineLines}
+                                    readOnly={qualityLocked}
+                                    disabled={qualityLocked}
                                     inputMode="numeric"
                                     autoComplete="off"
                                 />
