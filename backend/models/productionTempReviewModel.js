@@ -70,7 +70,7 @@ async function ensureLegacyMachineLines(targets) {
           actualTime,
           standardOutput,
           null,
-          "LEGACY_PARENT_SNAPSHOT",
+          "LEGACY",
           Number(report.exclude_kqd_from_tt_snapshot || 0) === 1 ? 1 : 0,
           Number(report.tt_ok || 0),
           Number(report.tt_ng || 0),
