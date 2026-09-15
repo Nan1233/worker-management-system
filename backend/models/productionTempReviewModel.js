@@ -87,55 +87,14 @@ async function ensureLegacyMachineLines(targets) {
   }
 }
 
-async function withApprovalLocks(targets, task) {
-  const ids = [...new Set(
-    (Array.isArray(targets) ? targets : [])
-      .map((item) => typeof item === "object" ? item?.id : item)
-      .map(Number)
-      .filter((id) => Number.isInteger(id) && id > 0),
-  )].sort((a, b) => a - b);
-
-  if (!ids.length) return task();
-
-  // TiDB supports session-level GET_LOCK(). Serialize approvals for the same
-  // temp report before the long approval transaction starts. This prevents
-  // two manager requests from racing on production_reports.source_temp_id and
-  // turning a normal double-click/concurrent request into Error 1205.
-  const connection = await db.promise().getConnection();
-  const acquired = [];
-
-  try {
-    for (const id of ids) {
-      const lockName = `ktc:approve-temp:${id}`;
-      const [rows] = await connection.query("SELECT GET_LOCK(?, 1) AS acquired", [lockName]);
-      if (Number(rows?.[0]?.acquired) !== 1) {
-        const error = new Error(`Báo cáo #${id} đang được xử lý bởi một yêu cầu duyệt khác. Vui lòng thử lại sau.`);
-        error.status = 409;
-        error.code = "APPROVAL_IN_PROGRESS";
-        throw error;
-      }
-      acquired.push(lockName);
-    }
-
-    return await task();
-  } finally {
-    for (let index = acquired.length - 1; index >= 0; index -= 1) {
-      try {
-        await connection.query("SELECT RELEASE_LOCK(?) AS released", [acquired[index]]);
-      } catch (error) {
-        console.warn(`[KTC] Failed to release approval lock ${acquired[index]}: ${error.message}`);
-      }
-    }
-    connection.release();
-  }
-}
-
 module.exports = {
   ...approvalModel,
   async approveSelected(targets, reviewerId, isAdmin = false) {
-    return withApprovalLocks(targets, async () => {
-      await ensureLegacyMachineLines(targets);
-      return approvalModel.approveSelected(targets, reviewerId, isAdmin);
-    });
+    // Do not use GET_LOCK() here. TiDB session locks can outlive the
+    // application-side connection wrapper when a Cloudflare Worker request is
+    // terminated, which can make a healthy retry fail with a false 409.
+    // The approval transaction/status checks remain the source of truth.
+    await ensureLegacyMachineLines(targets);
+    return approvalModel.approveSelected(targets, reviewerId, isAdmin);
   },
 };
