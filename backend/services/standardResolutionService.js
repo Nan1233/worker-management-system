@@ -43,6 +43,30 @@ function createStandardResolver({ query = defaultQuery } = {}) {
     const pid = Number(processId);
     const product = String(productCode || '').trim();
     const date = normalizeWorkDate(workDate);
+
+    // CVK (Công việc khác) is intentionally a non-product process. Its reports
+    // have no product and therefore must not enter the product-standard resolver.
+    // Approval still validates the report structure, but there is no production
+    // standard or KQD snapshot to resolve for this process.
+    if (pid === 60006 && !product) {
+      return {
+        processId: pid,
+        productCode: null,
+        productStandardId: null,
+        standardVersionId: null,
+        machineStandardId: null,
+        standardOutput: 0,
+        standardTimeSeconds: null,
+        excludeKqdFromTt: 0,
+        effectiveFrom: null,
+        effectiveTo: null,
+        source: 'NON_PRODUCT_WORK',
+        workDate: date,
+        historicalVersionAvailable: false,
+        nonProductWork: true
+      };
+    }
+
     if (!Number.isInteger(pid) || pid <= 0 || !product) {
       throw businessError('INVALID_STANDARD_LOOKUP', 'Thiếu công đoạn hoặc sản phẩm để tra định mức');
     }
@@ -200,11 +224,6 @@ function createStandardResolver({ query = defaultQuery } = {}) {
       return resolvedMachine;
     }
 
-    // A product may have machine-specific standards for some machines while
-    // still legitimately using its product-level standard on other machines.
-    // Do not reject the selected machine merely because another machine has a
-    // mapping. The product historical/default standard remains the canonical
-    // fallback when no machine-specific row is effective for this machine/date.
     const resolvedFallback = {
       ...product,
       machineId: Number(machine.id),
