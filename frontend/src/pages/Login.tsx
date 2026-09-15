@@ -16,9 +16,8 @@ interface LoginResultShape {
 
 const CROSS_TAB_LOGIN_MARKER_KEY = "ktcCrossTabAuthInvalidated";
 const REMEMBERED_CODE_KEY = "ktc_login_code";
-// Relative path is required for the packaged Electron file:// frontend.
-// The same path also resolves correctly when the app is served by the web host.
-const LOGIN_LOGO_URL = "./ktc-hanoi-logo.png";
+const LOGIN_LOGO_URL = "/ktc-hanoi-logo.png";
+const LOGIN_LOGO_FALLBACK_URL = "https://raw.githubusercontent.com/Nan1233/worker-management-system/main/frontend/public/ktc-hanoi-logo.png";
 
 const homeByRole: Record<UserRole, string> = {
     admin: "/admin",
@@ -45,6 +44,7 @@ function Login() {
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
+    const [loginLogoSrc, setLoginLogoSrc] = useState(LOGIN_LOGO_URL);
 
     useEffect(() => {
         if (initializedRef.current) return;
@@ -186,10 +186,16 @@ function Login() {
             <section className="login-card" aria-label="Đăng nhập hệ thống KTC">
                 <div className="login-brand">
                     <img
-                        src={LOGIN_LOGO_URL}
+                        src={loginLogoSrc}
+                        onError={() => {
+                            if (loginLogoSrc !== LOGIN_LOGO_FALLBACK_URL) {
+                                setLoginLogoSrc(LOGIN_LOGO_FALLBACK_URL);
+                            }
+                        }}
                         alt="KTC HANOI"
                         className="login-logo"
-                        width="192" height="64"
+                        width="192"
+                        height="192"
                         decoding="async"
                     />
                 </div>
@@ -270,4 +276,3 @@ function Login() {
 }
 
 export default Login;
-
