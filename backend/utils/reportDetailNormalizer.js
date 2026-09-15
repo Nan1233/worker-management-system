@@ -17,7 +17,6 @@ const LEGACY_DEFECT_FIELDS = [
 
 const LEGACY_MACHINE_KEYS = new Map([
   ["KQD_DAP_LAI", "KQD"], ["KQD_TUOT", "KQD"], ["KQD_DL", "KQD"],
-  ["KQD_DAP_LAI", "KQD"], ["KQD_TUOT", "KQD"],
   ["VO_DO_LONG", "VO_CAO_SU"], ["VO_LONG", "VO_CAO_SU"],
   ["XUOC_DO_LONG", "K_XUOC_CONG_GAY"], ["XUOC_LONG", "K_XUOC_CONG_GAY"],
   ["CONG_GAY", "K_XUOC_CONG_GAY"], ["XOAY", "CAO_SU_XOAY"],
@@ -33,9 +32,11 @@ function canonicalDefect(item = {}) {
   const rawCode = normalizeKey(item.defect_code || item.defect_type_code || item.code);
   const aliasCode = LEGACY_MACHINE_KEYS.get(rawCode) || rawCode;
   const nameKey = normalizeKey(item.defect_name || item.name || item.label);
-  const canonicalName = CANONICAL_GC_DEFECTS.get(aliasCode) || CANONICAL_GC_DEFECTS.get(nameKey);
-  if (!canonicalName) return item;
-  return { ...item, defect_code: aliasCode, defect_name: canonicalName };
+  const canonicalCode = CANONICAL_GC_DEFECTS.has(aliasCode)
+    ? aliasCode
+    : [...CANONICAL_GC_DEFECTS.entries()].find(([, name]) => normalizeKey(name) === nameKey)?.[0] || null;
+  if (!canonicalCode) return null;
+  return { ...item, defect_code: canonicalCode, defect_name: CANONICAL_GC_DEFECTS.get(canonicalCode) };
 }
 
 function parseMachineDefectEntry(key, value) {
@@ -55,27 +56,33 @@ function parseMachineDefectEntry(key, value) {
 function parseMachineDefects(machineLines = []) {
   const result = [];
   for (const line of Array.isArray(machineLines) ? machineLines : []) {
-    const raw = line?.defects_json;
-    if (!raw) continue;
-    let parsed = raw;
-    if (typeof raw === "string") {
-      try { parsed = JSON.parse(raw); } catch { parsed = null; }
+    // Temp read-model attaches normalized rows as `defects`; older rows may
+    // only have the serialized `defects_json` field.
+    let parsed = line?.defects;
+    if (!Array.isArray(parsed)) {
+      const raw = line?.defects_json;
+      if (!raw) continue;
+      parsed = raw;
+      if (typeof raw === "string") {
+        try { parsed = JSON.parse(raw); } catch { parsed = null; }
+      }
+      if (!parsed) continue;
+      if (!Array.isArray(parsed) && Array.isArray(parsed.defects)) parsed = parsed.defects;
     }
-    if (!parsed) continue;
-    if (!Array.isArray(parsed) && Array.isArray(parsed.defects)) parsed = parsed.defects;
 
     if (Array.isArray(parsed)) {
       for (const item of parsed) {
         if (!item || typeof item !== "object") continue;
         const quantity = Number(item.quantity ?? item.qty ?? item.ng_quantity ?? 0) || 0;
         if (quantity <= 0) continue;
-        result.push(canonicalDefect({
+        const normalized = canonicalDefect({
           id: Number(item.id) || undefined,
           defect_type_id: Number(item.defect_type_id ?? item.type_id) || undefined,
           defect_code: item.defect_code || item.defect_type_code || item.code,
           defect_name: item.defect_name || item.defect_type_name || item.name || item.label,
           quantity: Math.trunc(quantity)
-        }));
+        });
+        if (normalized) result.push(normalized);
       }
       continue;
     }
@@ -95,25 +102,29 @@ function mergeDefects(report, rows = [], machineLines = []) {
   const machineDefects = parseMachineDefects(machineLines);
   const sourceRows = machineDefects.length ? machineDefects : rows;
   const merged = new Map();
-  const add = (item, fallbackIndex = 0) => {
+  const add = (item) => {
     const canonical = canonicalDefect(item);
-    const quantity = Math.trunc(Number(canonical?.quantity ?? 0) || 0);
+    if (!canonical) return;
+    const quantity = Math.trunc(Number(canonical.quantity ?? 0) || 0);
     if (quantity <= 0) return;
-    const code = String(canonical?.defect_code || "").trim();
-    const name = String(canonical?.defect_name || "").trim();
-    const typeId = Number(canonical?.defect_type_id) || null;
-    const key = CANONICAL_GC_DEFECTS.has(normalizeKey(code))
-      ? `CODE:${normalizeKey(code)}`
-      : typeId ? `ID:${typeId}` : `CODE:${normalizeKey(code || name || `LOI_${fallbackIndex}`)}`;
+    const code = canonical.defect_code;
+    const key = `CODE:${code}`;
     const existing = merged.get(key);
-    if (existing) { existing.quantity += quantity; return; }
-    merged.set(key, { id: Number(canonical?.id) || undefined, defect_type_id: typeId || undefined, defect_code: code || undefined, defect_name: name || code || `Lỗi NG ${fallbackIndex + 1}`, quantity });
+    if (existing) existing.quantity += quantity;
+    else merged.set(key, {
+      id: Number(canonical.id) || undefined,
+      defect_type_id: Number(canonical.defect_type_id) || undefined,
+      defect_code: code,
+      defect_name: CANONICAL_GC_DEFECTS.get(code),
+      quantity
+    });
   };
+
   sourceRows.forEach(add);
   if (!machineDefects.length) {
-    LEGACY_DEFECT_FIELDS.forEach(([field, code, name], index) => {
+    LEGACY_DEFECT_FIELDS.forEach(([field, code, name]) => {
       const quantity = Math.trunc(Number(report?.[field] ?? 0) || 0);
-      if (quantity > 0) add({ defect_code: code, defect_name: name, quantity }, sourceRows.length + index);
+      if (quantity > 0) add({ defect_code: code, defect_name: name, quantity });
     });
   }
   return [...merged.values()].sort((a, b) => String(a.defect_name).localeCompare(String(b.defect_name), "vi"));
@@ -121,11 +132,11 @@ function mergeDefects(report, rows = [], machineLines = []) {
 
 function normalizeDeductions(rows = []) {
   const merged = new Map();
-  rows.forEach((item, index) => {
+  rows.forEach((item) => {
     const hours = Number(item?.hours ?? 0) || 0;
     if (hours <= 0) return;
     const typeId = Number(item?.deduction_type_id) || null;
-    const key = typeId ? `ID:${typeId}` : `CODE:${normalizeKey(item?.deduction_code || item?.deduction_name || `MUC_${index}`)}`;
+    const key = typeId ? `ID:${typeId}` : `CODE:${normalizeKey(item?.deduction_code || item?.deduction_name || '')}`;
     if (merged.has(key)) merged.get(key).hours += hours;
     else merged.set(key, { ...item, hours });
   });
