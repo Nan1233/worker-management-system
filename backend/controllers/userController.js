@@ -140,9 +140,6 @@ exports.getUserById = async (req, res) => {
     );
     if (!rows.length) return res.status(404).json({ success:false, message:'Người dùng không tồn tại' });
     if (!await canManageTarget(connection, req.user, rows[0])) return res.status(403).json({ success:false, message:'Bạn không có quyền xem người dùng này' });
-
-    // Always return assignments as a real numeric array. The DB driver may expose
-    // GROUP_CONCAT as a string, and the editor must not depend on driver coercion.
     const detail = { ...rows[0], process_ids: parseProcessIds(rows[0].process_ids) };
     return res.json({ success:true, data:detail });
   } catch (error) { return publicError(res, error, 'Không thể lấy thông tin người dùng'); }
@@ -165,6 +162,30 @@ exports.createUser = async (req, res) => {
     const processIds = normalizeProcessIds(req.body?.process_ids);
     await connection.beginTransaction();
     await validateProcessAssignment(connection, req.user, processIds, true);
+
+    const [usernameRows] = await connection.query(
+      `SELECT id,username,full_name,role,status FROM users WHERE username=? LIMIT 1`,
+      [username]
+    );
+    if (usernameRows.length) {
+      await connection.rollback();
+      const existing = usernameRows[0];
+      const roleLabel = existing.role === 'admin' ? 'quản trị viên' : existing.role === 'manager' ? 'quản lý' : existing.role === 'lead' ? 'tổ trưởng' : 'công nhân';
+      return res.status(409).json({ success:false, code:'USERNAME_ALREADY_EXISTS', message:`Tên đăng nhập "${username}" đã được sử dụng bởi tài khoản ${roleLabel}${existing.full_name ? ` (${existing.full_name})` : ''}. Vui lòng dùng tên đăng nhập khác.` });
+    }
+
+    if (role === 'worker') {
+      const [workerCodeRows] = await connection.query(
+        `SELECT w.id,w.worker_code,u.username,u.full_name,u.role FROM workers w LEFT JOIN users u ON u.id=w.user_id WHERE w.worker_code=? LIMIT 1`,
+        [workerCode]
+      );
+      if (workerCodeRows.length) {
+        await connection.rollback();
+        const existing = workerCodeRows[0];
+        return res.status(409).json({ success:false, code:'WORKER_CODE_ALREADY_EXISTS', message:`Mã công nhân "${workerCode}" đã tồn tại${existing.full_name ? ` (${existing.full_name})` : ''}${existing.username ? ` với tài khoản "${existing.username}"` : ''}. Vui lòng kiểm tra lại.` });
+      }
+    }
+
     const hash = await bcrypt.hash(password, 10);
     const [userResult] = await connection.query('INSERT INTO users (username,password,full_name,role,status) VALUES (?,?,?,?,?)', [username,hash,fullName,role,normalizeStatus(req.body?.status)]);
     let workerId = null;
@@ -176,9 +197,11 @@ exports.createUser = async (req, res) => {
     await connection.commit();
     return res.status(201).json({ success:true, message:'Đã tạo tài khoản' });
   } catch (error) {
-    try { await db.promise().query('ROLLBACK'); } catch {}
+    try { await connection.rollback(); } catch {}
     if (error?.status) return res.status(error.status).json({ success:false, message:error.message });
-    if (error?.code === 'ER_DUP_ENTRY') return res.status(409).json({ success:false, message:'Tên đăng nhập hoặc mã công nhân đã tồn tại' });
+    if (error?.code === 'ER_DUP_ENTRY') return res.status(409).json({ success:false, code:'DUPLICATE_USER_DATA', message:'Tên đăng nhập hoặc mã công nhân đã tồn tại. Vui lòng kiểm tra lại.' });
     return publicError(res, error, 'Không thể tạo tài khoản');
+  } finally {
+    connection.release();
   }
 };
