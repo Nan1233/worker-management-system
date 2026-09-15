@@ -8,8 +8,7 @@ export default function Login() {
   const [loginLogoSrc, setLoginLogoSrc] = useState(LOGIN_LOGO_URL);
 
   useEffect(() => {
-    const logo = document.querySelector<HTMLImageElement>(".login-logo");
-    if (logo) logo.src = `${LOGIN_LOGO_URL}?v=${Date.now()}`;
+    setLoginLogoSrc(`${LOGIN_LOGO_URL}?v=${Date.now()}`);
   }, []);
 
   return (
