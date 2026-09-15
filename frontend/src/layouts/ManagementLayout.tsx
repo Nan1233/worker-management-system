@@ -43,7 +43,7 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
  const today=new Intl.DateTimeFormat("vi-VN",{weekday:"short",day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date()).replace(/^./,m=>m.toUpperCase());
  return <div className="management-layout" data-management-role={role}>
   <aside className="management-sidebar">
-   <button className="management-brand" type="button" onClick={()=>navigate(base)}><img src="/ktc-hanoi-logo.jpg" alt="KTC HANOI" className="management-brand-logo"/></button>
+   <button className="management-brand" type="button" onClick={()=>navigate(base)}><img src="/ktc-hanoi-logo.png" alt="KTC HANOI" className="management-brand-logo"/></button>
    <nav className="management-menu" aria-label="Management navigation">
     {visible.map(item=>{const Icon=item.icon;return <button key={item.path||"home"} type="button" className={active(item.path)?"active":""} onClick={()=>navigate(`${base}${item.path?`/${item.path}`:""}`)}><Icon size={21}/><span>{item.label}</span></button>;})}
     <button type="button" className={active("profile")?"active":""} onClick={()=>navigate(`${base}/profile`)}><UserRound size={21}/><span>Tài khoản</span></button>
