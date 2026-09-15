@@ -70,9 +70,6 @@ async function listProcessesForMonth(value, options = {}) {
     scoped.params
   );
 
-  // Danh sách này phục vụ file báo cáo theo công đoạn, vì vậy Mài và Đo
-  // phải luôn là hai công đoạn độc lập. Việc gộp MAI + DO chỉ áp dụng cho
-  // workbook công ty A+B và được xử lý ở companyExcelExportService.
   return rows.map((row) => ({
     ...row,
     id: Number(row.id),
@@ -104,9 +101,13 @@ async function loadProcessMonthReports(value, processId, options = {}) {
         pr.standard_output, pr.actual_output, pr.tt_ok, pr.tt_ng,
         pr.note, ${extraDataSelect}, pr.status, pr.review_note,
         pr.reviewed_by, pr.approved_at, pr.created_at, pr.updated_at,
-        w.worker_code, pr.training_percent_snapshot, pr.training_percent_snapshot AS training_percent, w.position, w.department,
+        w.worker_code, w.training_percent AS worker_training_percent,
+        pr.training_percent_snapshot,
+        COALESCE(pr.training_percent_snapshot, w.training_percent, 100) AS training_percent,
+        w.position, w.department,
         u.full_name, p.process_name, p.process_code,
-        pr.exclude_kqd_from_tt_snapshot, pr.exclude_kqd_from_tt_snapshot AS exclude_kqd_from_tt
+        pr.exclude_kqd_from_tt_snapshot,
+        COALESCE(pr.exclude_kqd_from_tt_snapshot, pr.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt
        FROM production_reports AS pr
        INNER JOIN workers AS w ON w.id = pr.worker_id
        INNER JOIN users AS u ON u.id = w.user_id
@@ -131,20 +132,20 @@ async function loadProcessMonthReports(value, processId, options = {}) {
   );
 
   for (const report of reports) {
-    // New reports must keep the immutable snapshot contract. Legacy approved
-    // rows may predate that column/value; they must remain exportable instead
-    // of blocking the entire month. For those rows, expose the calculation
-    // engine's documented 100% default explicitly and mark the source so the
-    // workbook does not pretend this was an immutable historical snapshot.
     const hasTrainingSnapshot = report.training_percent_snapshot !== null
       && report.training_percent_snapshot !== undefined
       && String(report.training_percent_snapshot).trim() !== '';
     if (!hasTrainingSnapshot) {
-      report.training_percent = 100;
-      report.trainingSnapshotSource = 'LEGACY_DEFAULT_100';
-      // The calculation engine treats the presence of a null snapshot field
-      // as an intentional "unavailable" value. Remove it for legacy export so
-      // the explicit 100% compatibility value is actually used.
+      // Legacy approved reports did not persist the immutable snapshot. Keep
+      // them exportable, but prefer the worker master % currently shown in the
+      // worker list instead of silently replacing it with 100%.
+      report.training_percent = Number.isFinite(Number(report.worker_training_percent))
+        ? Number(report.worker_training_percent)
+        : 100;
+      report.trainingSnapshotSource = report.worker_training_percent !== null
+        && report.worker_training_percent !== undefined
+        ? 'LEGACY_WORKER_MASTER'
+        : 'LEGACY_DEFAULT_100';
       delete report.training_percent_snapshot;
     } else {
       assertTrainingSnapshotAvailable(report);
@@ -153,9 +154,8 @@ async function loadProcessMonthReports(value, processId, options = {}) {
 
     const isMachineReport = String(report.operation_mode || '').toUpperCase() === 'MACHINE';
     if (!isMachineReport && (report.exclude_kqd_from_tt === null || report.exclude_kqd_from_tt === undefined)) {
-      const error = new Error('Báo cáo cũ chưa có snapshot chính sách KQD; cần audit trước khi xuất Excel lịch sử');
-      error.status = 422; error.code = 'KQD_POLICY_SNAPSHOT_MISSING'; error.isPublic = true;
-      throw error;
+      report.exclude_kqd_from_tt = 0;
+      report.excludeKqdSnapshotSource = 'LEGACY_DEFAULT_0';
     }
   }
 
@@ -257,7 +257,6 @@ async function buildProcessWorkbook(value, processId) {
     reportCount: reports.length,
     yearMonth
   };
-
 }
 
 module.exports = {
