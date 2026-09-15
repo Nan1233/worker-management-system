@@ -2,8 +2,6 @@ const db = require("../config/db");
 const approvalModel = require("./productionTempApprovalModel");
 const { getProcessMachinePolicy } = require("../services/processMachinePolicy");
 
-const LEGACY_MACHINE_POLICIES = new Set(["LEGACY", "MANUAL_OR_SINGLE_MACHINE"]);
-
 async function ensureLegacyMachineLines(targets) {
   const normalized = (Array.isArray(targets) ? targets : [])
     .map((item) => typeof item === "object" ? item : { id: item })
@@ -25,11 +23,19 @@ async function ensureLegacyMachineLines(targets) {
 
   for (const report of reports || []) {
     const policy = getProcessMachinePolicy(report.process_id);
-    if (!LEGACY_MACHINE_POLICIES.has(policy.mode)) continue;
+
+    // CVK is genuinely non-machine and must never be backfilled here.
+    // GC shared-machine reports also must keep the production-event requirement.
+    if (policy.code === "CVK" || policy.code === "GC") continue;
 
     const machineCode = String(report.machine_no || "").split(",")[0].trim();
     const productCode = String(report.product_name || "").split(",")[0].trim();
-    if (!machineCode || !productCode) continue;
+
+    // This compatibility path is ONLY for old MACHINE reports that already
+    // contain the complete parent-level machine/product snapshot but lost their
+    // child machine-line row. New reports are created with child lines and never
+    // enter this path.
+    if (!machineCode || !productCode || Number(report.standard_output || 0) <= 0) continue;
 
     const [existing] = await db.promise().query(
       `SELECT id FROM production_temp_machine_lines WHERE temp_report_id=? LIMIT 1`,
