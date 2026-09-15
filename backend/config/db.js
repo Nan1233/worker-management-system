@@ -143,6 +143,12 @@ function createCloudflareConnection() {
   let transaction = null;
   let closed = false;
 
+  // TiDB Cloud Serverless rejects overlapping operations on the same
+  // transaction. Several approval/snapshot helpers use Promise.all(), so all
+  // statements on one connection must share a FIFO queue. The queue is local
+  // to this connection and does not serialize unrelated requests/connections.
+  let queryQueue = Promise.resolve();
+
   async function executeRaw(sql, params = []) {
     if (closed) throw new Error("Database connection đã được đóng");
     try {
@@ -157,7 +163,11 @@ function createCloudflareConnection() {
   async function queryPromise(...args) {
     const { sql, params } = splitQueryArgs(args);
     if (!sql) throw new Error("SQL query rỗng");
-    return normalizeCloudflareResult(await executeRaw(sql, params));
+
+    const run = () => executeRaw(sql, params);
+    const current = queryQueue.then(run, run);
+    queryQueue = current.catch(() => {});
+    return normalizeCloudflareResult(await current);
   }
 
   const connection = {
