@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'desktop/**'
+      - 'frontend/**'
       - 'shared/**'
       - 'package.json'
       - 'package-lock.json'
