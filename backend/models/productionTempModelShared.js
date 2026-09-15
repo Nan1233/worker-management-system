@@ -12,6 +12,34 @@ const enqueueTransactionQuery = (executor, task) => {
     return current;
 };
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const isRetryableLockTimeout = (error) =>
+    Number(error?.errno) === 1205
+    || String(error?.message || "").includes("Lock wait timeout exceeded");
+
+const queryWithLockRetry = async (executor, sql, params = []) => {
+    let lastError;
+    // A competing approval/edit can briefly hold the same temp-report row.
+    // Retry the statement on a fresh server round-trip instead of immediately
+    // turning a transient TiDB 1205 into an approval failure.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+            return await new Promise((resolve, reject) => {
+                executor.query(sql, params, (error, result) => {
+                    if (error) return reject(error);
+                    resolve(result);
+                });
+            });
+        } catch (error) {
+            lastError = error;
+            if (!isRetryableLockTimeout(error) || attempt >= 2) throw error;
+            await sleep(250 * (attempt + 1));
+        }
+    }
+    throw lastError;
+};
+
 /**
  * Execute a SQL statement and normalize MySQL/TiDB INSERT metadata.
  *
@@ -21,28 +49,23 @@ const enqueueTransactionQuery = (executor, task) => {
  * afterwards, so recover LAST_INSERT_ID() on the same connection when the
  * driver did not populate result.insertId.
  */
-const executeQuery = (executor, sql, params = []) =>
-    new Promise((resolve, reject) => {
-        executor.query(sql, params, (error, result) => {
-            if (error) return reject(error);
+const executeQuery = async (executor, sql, params = []) => {
+    const result = await queryWithLockRetry(executor, sql, params);
 
-            const isInsert = /^\s*INSERT\s+/i.test(String(sql || ""));
-            const currentInsertId = Number(result?.insertId || 0);
+    const isInsert = /^\s*INSERT\s+/i.test(String(sql || ""));
+    const currentInsertId = Number(result?.insertId || 0);
 
-            if (!isInsert || currentInsertId > 0) {
-                return resolve(result);
-            }
+    if (!isInsert || currentInsertId > 0) {
+        return result;
+    }
 
-            executor.query("SELECT LAST_INSERT_ID() AS insertId", [], (idError, idRows) => {
-                if (idError) return reject(idError);
-                const insertId = Number(idRows?.[0]?.insertId || 0);
-                resolve({
-                    ...(result || {}),
-                    insertId
-                });
-            });
-        });
-    });
+    const idRows = await queryWithLockRetry(executor, "SELECT LAST_INSERT_ID() AS insertId", []);
+    const insertId = Number(idRows?.[0]?.insertId || 0);
+    return {
+        ...(result || {}),
+        insertId
+    };
+};
 
 const query = (executor, sql, params = []) => {
     if (executor?.__ktcTransactionActive) {
