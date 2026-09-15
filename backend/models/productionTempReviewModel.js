@@ -26,10 +26,25 @@ async function ensureLegacyMachineLines(targets) {
     if (!machineCode || !productCode) continue;
 
     const [existing] = await db.promise().query(
-      `SELECT id FROM production_temp_machine_lines WHERE temp_report_id=? LIMIT 1`,
+      `SELECT id,product_code,machine_code FROM production_temp_machine_lines WHERE temp_report_id=? LIMIT 1`,
       [Number(report.id)],
     );
-    if (existing?.length) continue;
+
+    if (existing?.length) {
+      const line = existing[0];
+      const missingProduct = !String(line.product_code || "").trim();
+      const missingMachine = !String(line.machine_code || "").trim();
+      if (missingProduct || missingMachine) {
+        await db.promise().query(
+          `UPDATE production_temp_machine_lines
+              SET product_code=CASE WHEN TRIM(COALESCE(product_code,''))='' THEN ? ELSE product_code END,
+                  machine_code=CASE WHEN TRIM(COALESCE(machine_code,''))='' THEN ? ELSE machine_code END
+            WHERE id=?`,
+          [productCode, machineCode, Number(line.id)],
+        );
+      }
+      continue;
+    }
 
     let machine = null;
     try {
@@ -90,10 +105,6 @@ async function ensureLegacyMachineLines(targets) {
 module.exports = {
   ...approvalModel,
   async approveSelected(targets, reviewerId, isAdmin = false) {
-    // Do not use GET_LOCK() here. TiDB session locks can outlive the
-    // application-side connection wrapper when a Cloudflare Worker request is
-    // terminated, which can make a healthy retry fail with a false 409.
-    // The approval transaction/status checks remain the source of truth.
     await ensureLegacyMachineLines(targets);
     return approvalModel.approveSelected(targets, reviewerId, isAdmin);
   },
