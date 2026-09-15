@@ -47,7 +47,7 @@ export default function WorkerLayout() {
     <div className="worker-layout">
       <aside className="worker-sidebar">
         <button className="worker-brand" type="button" onClick={() => navigate("/worker")}>
-          <img src="/ktc-hanoi-logo.jpg" alt="KTC HANOI" className="worker-brand-logo" />
+          <img src="/ktc-hanoi-logo.png" alt="KTC HANOI" className="worker-brand-logo" />
           <span>
             <strong>KTC HANOI</strong>
             <small>Công nhân</small>
@@ -76,7 +76,7 @@ export default function WorkerLayout() {
       <section className="worker-main">
         <header className="worker-header">
           <button className="worker-header-brand" type="button" onClick={() => navigate("/worker")} aria-label="Trang chủ KTC HANOI">
-            <img src="/ktc-hanoi-logo.jpg" alt="KTC HANOI" />
+            <img src="/ktc-hanoi-logo.png" alt="KTC HANOI" />
           </button>
           <div className="worker-header-spacer" />
           <button type="button" className="worker-header-notification" onClick={() => navigate("/worker/notifications")} aria-label="Thông báo">
