@@ -21,8 +21,6 @@ async function hydrateLegacyMachineLineSnapshot(report, line) {
 
   const resolver = createStandardResolver();
 
-  // First try the current canonical historical machine standard. If the legacy
-  // snapshot was created from a machine-specific standard, keep that exact source.
   try {
     const resolvedMachine = await resolver.resolveStandard({
       processId: report.process_id,
@@ -59,12 +57,6 @@ async function hydrateLegacyMachineLineSnapshot(report, line) {
     );
   }
 
-  // Older reports were often saved before machine-specific standards were
-  // introduced. In that case the stored output can legitimately be the product
-  // historical standard even though a machine standard now exists. Only accept
-  // this compatibility path when the saved numeric output exactly matches the
-  // historical product standard for the report date. Never replace a different
-  // saved value with a newly calculated value.
   try {
     const resolvedProduct = await resolver.resolveStandard({
       processId: report.process_id,
