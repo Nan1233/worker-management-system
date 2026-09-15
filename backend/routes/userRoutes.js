@@ -4,6 +4,7 @@ const router = express.Router();
 const controller = require('../controllers/userController');
 const controllerExtras = require('../controllers/userControllerExtras');
 const updateUserController = require('../controllers/userUpdateController');
+const createUserController = require('../controllers/userCreateController');
 const promotionController = require('../controllers/workerPromotionController');
 const permanentDeletionController = require('../controllers/permanentUserDeletionController');
 const verifyToken = require('../middleware/authMiddleware');
@@ -13,30 +14,23 @@ const processAssignmentCapacity = require('../middleware/processAssignmentCapaci
 const db = require('../config/db');
 
 router.use(verifyToken, checkRole('admin','manager','lead'));
-
 const runUserHandler = (name) => (req, res, next) => {
   const handler = controllerExtras?.[name] || controller?.[name];
-  if (typeof handler !== 'function') {
-    return res.status(500).json({ success: false, code: 'USER_HANDLER_MISSING', message: `Thiếu bộ xử lý ${name} của quản lý người dùng` });
-  }
+  if (typeof handler !== 'function') return res.status(500).json({ success: false, code: 'USER_HANDLER_MISSING', message: `Thiếu bộ xử lý ${name} của quản lý người dùng` });
   return handler(req, res, next);
 };
-
 router.get('/export/excel', permission('USER_VIEW'), runUserHandler('exportUsersExcel'));
 router.post('/import/excel', permission('USER_CREATE','USER_EDIT'), runUserHandler('importUsersExcel'));
 router.get('/', permission('USER_VIEW'), controller.getAllUsers);
 router.get('/options/processes', permission('USER_VIEW','MASTER_VIEW'), (req, res, next) => {
   const originalJson = res.json.bind(res);
   res.json = (body) => {
-    if (body?.success && Array.isArray(body.data)) {
-      body.data = body.data.map((process) => ({ ...process, id: Number(process.id) }));
-    }
+    if (body?.success && Array.isArray(body.data)) body.data = body.data.map((process) => ({ ...process, id: Number(process.id) }));
     return originalJson(body);
   };
   return controller.getProcessOptions(req, res, next);
 });
 router.get('/:id', permission('USER_VIEW'), controller.getUserById);
-
 const ensureWorkerTechnicalPassword = (req, _res, next) => {
   if (String(req.body?.role || '').trim() === 'worker' && !String(req.body?.password || '')) req.body.password = crypto.randomBytes(32).toString('hex');
   next();
@@ -55,8 +49,7 @@ const permanentDeleteLeadFromLegacyRemove = async (req, res, next) => {
   } catch (error) { return next(error); }
   return next();
 };
-
-router.post('/', permission('USER_CREATE'), ensureWorkerTechnicalPassword, ensureLeadDefaultPassword, processAssignmentCapacity, controller.createUser);
+router.post('/', permission('USER_CREATE'), ensureWorkerTechnicalPassword, ensureLeadDefaultPassword, processAssignmentCapacity, createUserController.createUser);
 router.post('/:id/promote-lead', permission('USER_EDIT'), promotionController.promoteWorkerToLead);
 router.post('/:id/promote-manager', permission('USER_EDIT'), promotionController.promoteWorkerToManager);
 router.delete('/:id/permanent', permission('USER_EDIT'), permanentDeletionController.deleteLeadPermanently);
