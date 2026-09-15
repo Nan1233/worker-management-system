@@ -1,15 +1,27 @@
 const db = require("../config/db");
 
+// TiDB Cloud Serverless does not allow concurrent statements on the same
+// transaction connection. Keep transaction-bound statements strictly
+// sequential even when application code uses Promise.all().
+const transactionQueues = new WeakMap();
+
+const enqueueTransactionQuery = (executor, task) => {
+    const previous = transactionQueues.get(executor) || Promise.resolve();
+    const current = previous.then(task, task);
+    transactionQueues.set(executor, current.catch(() => {}));
+    return current;
+};
+
 /**
  * Execute a SQL statement and normalize MySQL/TiDB INSERT metadata.
  *
  * Cloudflare Worker deployments can expose a ResultSetHeader without a
  * usable insertId even though TiDB successfully inserted the auto-increment
- * row.  The production-report transaction depends on that id immediately
+ * row. The production-report transaction depends on that id immediately
  * afterwards, so recover LAST_INSERT_ID() on the same connection when the
  * driver did not populate result.insertId.
  */
-const query = (executor, sql, params = []) =>
+const executeQuery = (executor, sql, params = []) =>
     new Promise((resolve, reject) => {
         executor.query(sql, params, (error, result) => {
             if (error) return reject(error);
@@ -31,6 +43,13 @@ const query = (executor, sql, params = []) =>
             });
         });
     });
+
+const query = (executor, sql, params = []) => {
+    if (executor?.__ktcTransactionActive) {
+        return enqueueTransactionQuery(executor, () => executeQuery(executor, sql, params));
+    }
+    return executeQuery(executor, sql, params);
+};
 
 /**
  * Keep the production submission connection setup limited to features that
@@ -63,6 +82,7 @@ const beginTransaction = (connection) =>
     new Promise((resolve, reject) => {
         connection.beginTransaction((error) => {
             if (error) return reject(error);
+            connection.__ktcTransactionActive = true;
             resolve();
         });
     });
@@ -71,12 +91,18 @@ const commit = (connection) =>
     new Promise((resolve, reject) => {
         connection.commit((error) => {
             if (error) return reject(error);
+            connection.__ktcTransactionActive = false;
+            transactionQueues.delete(connection);
             resolve();
         });
     });
 
 const rollback = (connection) =>
-    new Promise((resolve) => connection.rollback(resolve));
+    new Promise((resolve) => connection.rollback(() => {
+        connection.__ktcTransactionActive = false;
+        transactionQueues.delete(connection);
+        resolve();
+    }));
 
 const normalizeIds = (ids) => [
     ...new Set(
