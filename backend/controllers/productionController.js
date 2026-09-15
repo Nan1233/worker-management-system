@@ -132,7 +132,7 @@ exports.getReportById = async (req, res) => {
             success: true,
             data: {
                 ...report,
-                defects: mergeDefects(report, defectResult[0]),
+                defects: mergeDefects(report, defectResult[0], machineLineResult[0]),
                 deductions: normalizeDeductions(deductionResult[0]),
                 ...performance
             }
