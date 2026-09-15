@@ -15,7 +15,8 @@ exports.getAllReports = async (req,res)=>{
     const scope = await getActorProcessScope(req.user);
     const scoped = scopeSql(scope, 'pr.process_id');
     const sql=`
-      SELECT pr.*, p.process_name, w.worker_code, u.full_name
+      SELECT pr.*, p.process_name, w.worker_code, u.full_name,
+             COALESCE(pr.training_percent_snapshot, w.training_percent, 100) AS training_percent
       FROM production_reports pr
       JOIN workers w ON pr.worker_id=w.id
       JOIN users u ON w.user_id=u.id
@@ -54,7 +55,8 @@ exports.getReportsByDate=async (req,res)=>{
     if(req.query.process_id){extra+=' AND pr.process_id=?';params.push(Number(req.query.process_id));}
     const scoped = scopeSql(scope, 'pr.process_id', params);
     const [rows]=await db.promise().query(`
-      SELECT pr.*,p.process_name,w.worker_code,u.full_name
+      SELECT pr.*,p.process_name,w.worker_code,u.full_name,
+             COALESCE(pr.training_percent_snapshot, w.training_percent, 100) AS training_percent
       FROM production_reports pr
       JOIN workers w ON pr.worker_id=w.id
       JOIN users u ON w.user_id=u.id
@@ -95,7 +97,8 @@ exports.getReportById = async (req, res) => {
 
         const [reportResult, defectResult, deductionResult, machineLineResult] = await Promise.all([
             db.promise().query(
-                `SELECT pr.*, p.process_name, w.worker_code, u.full_name
+                `SELECT pr.*, p.process_name, w.worker_code, u.full_name,
+                        COALESCE(pr.training_percent_snapshot, w.training_percent, 100) AS training_percent
                  FROM production_reports pr
                  JOIN workers w ON pr.worker_id = w.id
                  JOIN users u ON w.user_id = u.id
