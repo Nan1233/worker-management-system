@@ -180,6 +180,8 @@ async function validateApprovalSnapshot(item, connection, standardResolver) {
         machineId: line.machine_id,
         machineCode: line.machine_code,
         workDate: item.work_date,
+        standardVersionId: line.standard_version_id,
+        machineStandardId: line.machine_standard_id,
       });
       assertStandardSnapshotConsistency({
         resolved,
@@ -199,6 +201,8 @@ async function validateApprovalSnapshot(item, connection, standardResolver) {
     processId: item.process_id,
     productCode: item.product_name,
     workDate: item.work_date,
+    standardVersionId: item.standard_version_id,
+    machineStandardId: item.machine_standard_id,
   });
   assertStandardSnapshotConsistency({
     resolved,
