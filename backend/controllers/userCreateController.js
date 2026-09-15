@@ -25,15 +25,40 @@ async function validateProcessIds(connection, processIds) {
   if (valid.size !== processIds.length) throw Object.assign(new Error('Có công đoạn không tồn tại hoặc đã ngừng sử dụng'), { status: 400 });
 }
 
-async function validateUniqueUser(connection, username, role, workerCode) {
+async function findExistingUser(connection, username) {
   const [users] = await connection.query(
-    `SELECT u.id,u.username,u.full_name,u.role,u.status,w.worker_code
+    `SELECT u.id,u.username,u.full_name,u.role,u.status,w.id AS worker_id,w.worker_code
      FROM users u LEFT JOIN workers w ON w.user_id=u.id
      WHERE LOWER(TRIM(u.username))=LOWER(TRIM(?)) LIMIT 1`,
     [username]
   );
-  if (users.length) {
-    const existing = users[0];
+  return users[0] || null;
+}
+
+async function validateUniqueUser(connection, username, role, workerCode) {
+  const existing = await findExistingUser(connection, username);
+  if (existing) {
+    // A previous failed/legacy seed can leave a worker user without its
+    // workers row. That account is repairable when the user is creating the
+    // same worker again; do not force a second username.
+    if (existing.role === 'worker' && role === 'worker' && !existing.worker_id) {
+      if (!workerCode) throw Object.assign(new Error('Mã công nhân là bắt buộc để khôi phục tài khoản công nhân này'), { status: 400 });
+      const [workers] = await connection.query(
+        `SELECT w.id,w.worker_code,u.username,u.full_name,u.role
+         FROM workers w LEFT JOIN users u ON u.id=w.user_id
+         WHERE LOWER(TRIM(w.worker_code))=LOWER(TRIM(?)) LIMIT 1`,
+        [workerCode]
+      );
+      if (workers.length) {
+        const duplicate = workers[0];
+        throw Object.assign(
+          new Error(`Mã công nhân "${duplicate.worker_code}" đã tồn tại${duplicate.full_name ? ` (${duplicate.full_name})` : ''}${duplicate.username ? ` với tài khoản "${duplicate.username}"` : ''}. Vui lòng kiểm tra lại.`),
+          { status: 409, code: 'WORKER_CODE_EXISTS' }
+        );
+      }
+      return existing;
+    }
+
     const existingRole = existing.role === 'admin' ? 'quản trị viên' : existing.role === 'manager' ? 'quản lý' : existing.role === 'lead' ? 'tổ trưởng' : 'công nhân';
     if (existing.role === 'worker' && role === 'lead') {
       throw Object.assign(
@@ -68,6 +93,7 @@ async function validateUniqueUser(connection, username, role, workerCode) {
       );
     }
   }
+  return null;
 }
 
 exports.createUser = async (req, res) => {
@@ -88,7 +114,41 @@ exports.createUser = async (req, res) => {
     await validateProcessIds(connection, processIds);
 
     const workerCode = String(body.worker_code || '').trim();
-    await validateUniqueUser(connection, username, role, workerCode);
+    const existingUser = await validateUniqueUser(connection, username, role, workerCode);
+
+    // Repair an orphaned worker account instead of attempting to insert a
+    // second users row with the same username. This specifically handles
+    // legacy/partial records such as user k094 without a workers row.
+    if (existingUser?.role === 'worker' && role === 'worker' && !existingUser.worker_id) {
+      const trainingPercent = Number(body.training_percent ?? 100);
+      if (!Number.isFinite(trainingPercent) || trainingPercent < 0 || trainingPercent > 100) {
+        throw Object.assign(new Error('% học việc phải từ 0 đến 100'), { status: 400 });
+      }
+      await connection.beginTransaction();
+      try {
+        await connection.query(
+          `UPDATE users SET full_name=?, status=? WHERE id=?`,
+          [fullName, body.status === 'inactive' ? 'inactive' : 'active', existingUser.id]
+        );
+        const [workerResult] = await connection.query(
+          `INSERT INTO workers (user_id,worker_code,phone,department,position,training_percent,status) VALUES (?,?,?,?,?,?,?)`,
+          [existingUser.id, workerCode, String(body.phone || '').trim() || null, String(body.department || 'Sản xuất').trim() || 'Sản xuất', String(body.position || 'Công nhân').trim() || 'Công nhân', trainingPercent, body.status === 'inactive' ? 'inactive' : 'active']
+        );
+        const workerId = Number(workerResult.insertId);
+        await insertAssignments(connection, 'worker', existingUser.id, workerId, processIds);
+        await connection.commit();
+        clearWorkerProfile(existingUser.id);
+        deleteCachedAuthUser(existingUser.id);
+        return res.status(201).json({
+          success: true,
+          message: 'Đã khôi phục và tạo công nhân từ tài khoản có sẵn',
+          data: { id: existingUser.id, worker_id: workerId, repaired: true }
+        });
+      } catch (error) {
+        try { await connection.rollback(); } catch (_) {}
+        throw error;
+      }
+    }
 
     let password = String(body.password || '');
     if (!password) password = crypto.randomBytes(32).toString('hex');
