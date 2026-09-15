@@ -29,20 +29,17 @@ const executeRaw = (executor, sql, params = []) =>
 const isTempReportApprovalSelect = (sql) => {
     const text = String(sql || "");
     return /FROM\s+production_reports_temp\s+temp/i.test(text)
-        && /FOR\s+UPDATE\s*$/i.test(text);
+        && /\bFOR\s+UPDATE\b/i.test(text);
 };
 
 const removeApprovalRowLock = (sql) =>
-    String(sql || "").replace(/\s+FOR\s+UPDATE\s*$/i, "");
+    String(sql || "").replace(/\s+FOR\s+UPDATE\b/gi, "");
 
 const queryWithLockRetry = async (executor, sql, params = []) => {
-    // Approval used SELECT ... FOR UPDATE while the whole approval workflow
-    // was inside one transaction. That kept the temp-report row locked during
-    // standard resolution, snapshot creation, audit writes, etc., which is
-    // too long for TiDB Serverless and causes Error 1205. The approval flow
-    // already checks updated_at and status before writing, so this initial
-    // selection is intentionally lock-free. The subsequent writes remain in
-    // the transaction and use the optimistic version check.
+    // The approval selection is optimistic (status + updated_at are checked
+    // before writes). Do not send FOR UPDATE to TiDB for this query: holding a
+    // pessimistic row lock across standard resolution, snapshot creation and
+    // audit writes causes Error 1205 on TiDB Cloud Serverless.
     const effectiveSql = isTempReportApprovalSelect(sql)
         ? removeApprovalRowLock(sql)
         : sql;
