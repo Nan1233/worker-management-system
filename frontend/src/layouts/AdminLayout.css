@@ -1,6 +1,7 @@
 .admin-layout{min-height:100dvh;background:#f4f7fb;color:var(--ktc-text)}
 .admin-sidebar{position:fixed;inset:0 auto 0 0;z-index:60;width:248px;display:flex;flex-direction:column;padding:18px 14px;background:#fff;border-right:1px solid #dce5f0;box-shadow:4px 0 18px rgba(25,58,100,.035)}
 .admin-brand{display:flex;align-items:center;gap:11px;width:100%;padding:7px 8px;border:0;background:transparent;text-align:left;color:var(--ktc-text);cursor:pointer}
+.admin-brand-logo{width:82px;height:32px;flex:0 0 82px;object-fit:contain;object-position:left center;display:block}
 .admin-brand-mark{display:grid;place-items:center;width:38px;height:38px;flex:0 0 38px;border-radius:9px;background:var(--ktc-primary);color:#fff;font-weight:800;box-shadow:0 5px 12px rgba(26,103,214,.2)}
 .admin-brand strong,.admin-brand small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.admin-brand strong{font-size:12px}.admin-brand small{margin-top:3px;color:var(--ktc-muted);font-size:10px}
 .admin-sidebar-heading{margin:27px 10px 8px;color:#8191a7;font-size:9px;font-weight:800;letter-spacing:.12em}
