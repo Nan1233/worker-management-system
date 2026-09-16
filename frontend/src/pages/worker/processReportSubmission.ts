@@ -65,7 +65,14 @@ export function buildProductionReportPayload(args: {
       ...Object.keys(l.defects || {}).filter((key) => num(l.defects[key]) > 0),
     ]);
     const lineDefects = [...defectKeys].map((key) => {
-      const option = args.activeNgOptions.find(o=>String(o.key)===key);
+      // New master-data keys are defect:<id>. Older drafts/data can still
+      // contain the defect code. Resolve by key first, then id/code so the
+      // quantity cannot silently disappear from the submit payload.
+      const option = args.activeNgOptions.find(o =>
+        String(o.key) === key ||
+        String(o.code || o.defect_code || "").trim().toUpperCase() === key.trim().toUpperCase() ||
+        String(o.id || o.defect_type_id || "") === key
+      );
       return defectForOption(option, num(l.defects[key]));
     }).filter(x=>x.quantity>0);
 
@@ -84,11 +91,13 @@ export function buildProductionReportPayload(args: {
     };
   });
 
-  // GC/MAI/DO/EP/CAN machine mode: machine-line defects are authoritative.
+  // Machine-line quantities are the authoritative source whenever they contain
+  // defect detail. Do not gate this on a UI mode flag: that flag can be stale
+  // when a draft is restored/edited, while the line defects are the actual data.
   // Also copy them to the parent defects list so production_temp_defects is
-  // populated and the worker History/Detail endpoint can always display them.
+  // populated and History/Detail can display the same NG breakdown.
   const machineDefects = lines.flatMap((line) => line.defects || []);
-  const defects = (args.usesMultiMachineLines && machineDefects.length > 0)
+  const defects = machineDefects.length > 0
     ? machineDefects.reduce<Array<{defect_type_id?:number;defect_code:string;defect_name:string;quantity:number}>>((acc, item) => {
         const key = item.defect_type_id ? `id:${item.defect_type_id}` : `code:${item.defect_code || item.defect_name}`;
         const existing = acc.find((x) => (x.defect_type_id ? `id:${x.defect_type_id}` : `code:${x.defect_code || x.defect_name}`) === key);
@@ -132,12 +141,14 @@ export function buildProductionReportPayload(args: {
   const hasActualMachineLine=(args.usesMultiMachineLines||args.usesSingleMachine)&&lines.some((line)=>!!line.machine_code);
   const useMachineLinesPayload=(args.usesMultiMachineLines||args.usesSingleMachine)&&hasActualMachineLine;
 
+  // CUT execution is determined by the selected machine. C5/C6/C7/C11 are
+  // automatic; every other C machine is non-automatic. The old form state
+  // could retain the default AUTO after the worker clicked "Không tự động",
+  // causing the UI selection and persisted report to disagree.
   const normalizedMachine = String(args.form.machineNo || lines[0]?.machine_code || "").trim().toUpperCase();
   const automaticCutMachines = new Set<string>(["C5", "C6", "C7", "C11"]);
   const executionMethod = args.operationType === "CUT"
-    ? ((args.form.executionMethod === "AUTO" || args.form.executionMethod === "NON_AUTO")
-      ? args.form.executionMethod
-      : (automaticCutMachines.has(normalizedMachine) ? "AUTO" : "NON_AUTO"))
+    ? (automaticCutMachines.has(normalizedMachine) ? "AUTO" : "NON_AUTO")
     : ((args.form.executionMethod === "MANUAL" || args.form.executionMethod === "MACHINE")
       ? args.form.executionMethod
       : (args.usesAnyMachine ? "MACHINE" : "MANUAL"));
