@@ -1,6 +1,6 @@
 import type { MachineOption, ProductStandardOption } from "../../services/masterDataService";
 import type { ProductionReport } from "../../types/production";
-import type { DeductionState, FormState, MachineLineState, OperationMode, OperationType } from "./processPageConfig";
+import type { DeductionState, FormState, MachineLineState, OperationType } from "./processPageConfig";
 
 type Option = { key?: string; id?: number; code?: string; defect_code?: string; label?: string; defect_type_id?: number; deduction_type_id?: number; defect_name?: string; deduction_name?: string };
 
@@ -26,7 +26,6 @@ export function buildProductionReportPayload(args: {
   form: FormState;
   extraData: Record<string,string>;
   operationType: OperationType;
-  operationMode: OperationMode;
   isCutLongProcess: boolean;
   usesAnyMachine: boolean;
   usesMultiMachineLines: boolean;
@@ -115,14 +114,16 @@ export function buildProductionReportPayload(args: {
   const useMachineLinesPayload=(args.usesMultiMachineLines||args.usesSingleMachine)&&hasActualMachineLine;
 
   // operation_mode remains MACHINE for machine-based CẮT/LỒNG validation,
-  // while execution_method preserves the actual business selection. The
-  // previous payload only persisted generic MACHINE, so CẮT Tự động and CẮT
-  // Không tự động became indistinguishable in the saved report.
+  // while execution_method preserves the actual business selection. The old
+  // payload only persisted generic MACHINE, so CẮT Tự động and CẮT Không tự
+  // động became indistinguishable in the saved report.
+  // CẮT is derived from the selected machine family; LỒNG keeps the existing
+  // machine/manual distinction through usesAnyMachine.
   const normalizedMachine = String(args.form.machineNo || lines[0]?.machine_code || "").trim().toUpperCase();
   const automaticCutMachines = new Set(["C5", "C6", "C7", "C11"]);
   const executionMethod = args.operationType === "CUT"
     ? (automaticCutMachines.has(normalizedMachine) ? "AUTO" : "NON_AUTO")
-    : (args.operationMode === "MANUAL" ? "MANUAL" : "MACHINE");
+    : (args.usesAnyMachine ? "MACHINE" : "MANUAL");
 
   return {
     process_id:args.processId, work_date:args.form.workDate, shift:args.form.shift,
@@ -134,7 +135,7 @@ export function buildProductionReportPayload(args: {
     standard_output:useMachineLinesPayload?lines.reduce((sum,l)=>sum+num(l.standard_output),0):num(args.form.standardOutput),
     actual_output:actualOutput, tt_ok:num(args.form.ttOk), tt_ng:num(args.form.ttNg),
     kqd_dap_lai:num(args.form.kqdDapLai), kqd_tuot:num(args.form.kqdTuot), vo_do_long:num(args.form.voDoLong),
-    xuoc_do_long:num(args.form.xuocDoLong), cong_gay:num(args.form.congGay), xoay:num(args.form.xoay),
+    xuocDoLong:num(args.form.xuocDoLong), cong_gay:num(args.form.congGay), xoay:num(args.form.xoay),
     khong_dut:num(args.form.khongDut), bavia_hut:num(args.form.baviaHut), ppcm:num(args.form.ppcm),
     loi_cao_su:num(args.form.loiCaoSu), ng_kich_thuoc:num(args.form.ngKichThuoc), cat_lem:num(args.form.catLem),
     note:args.form.note||"",
