@@ -47,7 +47,7 @@ export function buildProductionReportPayload(args: {
     quantity:num(quantity)
   });
 
-  const defects=args.activeNgOptions.map(o=>({
+  const formDefects=args.activeNgOptions.map(o=>({
     key:String(o.key||""),
     id:Number(o.id||o.defect_type_id||0)||undefined,
     code:String(o.code||o.defect_code||""),
@@ -60,9 +60,6 @@ export function buildProductionReportPayload(args: {
   })).filter(x=>x.quantity>0);
 
   const lines=args.machineLines.filter(l=>l.machineCode.trim()||l.productCode.trim()).map(l=>{
-    // `defects` is the source of truth for entered quantities. Do not rely on
-    // selectedDefects: older/current form paths can update quantities without
-    // maintaining that UI-only selection array.
     const defectKeys = new Set<string>([
       ...(l.selectedDefects || []).map(String),
       ...Object.keys(l.defects || {}).filter((key) => num(l.defects[key]) > 0),
@@ -86,6 +83,20 @@ export function buildProductionReportPayload(args: {
       defects:lineDefects
     };
   });
+
+  // GC/MAI/DO/EP/CAN machine mode: machine-line defects are authoritative.
+  // Also copy them to the parent defects list so production_temp_defects is
+  // populated and the worker History/Detail endpoint can always display them.
+  const machineDefects = lines.flatMap((line) => line.defects || []);
+  const defects = (args.usesMultiMachineLines && machineDefects.length > 0)
+    ? machineDefects.reduce<Array<{defect_type_id?:number;defect_code:string;defect_name:string;quantity:number}>>((acc, item) => {
+        const key = item.defect_type_id ? `id:${item.defect_type_id}` : `code:${item.defect_code || item.defect_name}`;
+        const existing = acc.find((x) => (x.defect_type_id ? `id:${x.defect_type_id}` : `code:${x.defect_code || x.defect_name}`) === key);
+        if (existing) existing.quantity += item.quantity;
+        else acc.push({ ...item });
+        return acc;
+      }, [])
+    : formDefects;
 
   if (args.usesSingleMachine && !args.usesMultiMachineLines && args.form.machineNo.trim()) {
     const singleLineDefects = defects.map((item) => ({
