@@ -20,6 +20,24 @@ const parseHours = (value: unknown): number => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+// Legacy GC fields are still present in the form because older reports/drafts
+// use names such as `xoay`, `bavia_hut`, etc. Keep them as a compatibility
+// source for persistence, but always resolve them to the DB master defect.
+const LEGACY_DEFECT_BINDINGS: Array<[keyof FormState, string, string]> = [
+  ["kqdDapLai", "KQD", "KQD"],
+  ["kqdTuot", "KQD", "KQD"],
+  ["voDoLong", "VO_CAO_SU", "Vỡ cao su"],
+  ["xuocDoLong", "K_XUOC_CONG_GAY", "K xước cong gãy"],
+  ["congGay", "K_XUOC_CONG_GAY", "K xước cong gãy"],
+  ["xoay", "XOAY", "Cao su xoay"],
+  ["khongDut", "CAT_KHONG_DUT", "Cắt không đứt"],
+  ["baviaHut", "BAVIA", "Bavia"],
+  ["ppcm", "PPCM", "PPCM"],
+  ["loiCaoSu", "LCS", "Lỗi cao su"],
+  ["ngKichThuoc", "KT_LON", "KT kích thước"],
+  ["catLem", "CAT_LEM", "Cắt lẹm"],
+];
+
 export function buildProductionReportPayload(args: {
   clientRequestId: string|null;
   processId: number;
@@ -47,6 +65,12 @@ export function buildProductionReportPayload(args: {
     quantity:num(quantity)
   });
 
+  const normalizeDefectIdentity = (code:string, name:string) => {
+    const normalizedCode=String(code||"").trim().toUpperCase();
+    if (normalizedCode === "CAO_SU_XOAY") return "XOAY";
+    return normalizedCode || String(name||"").trim().toUpperCase();
+  };
+
   const formDefects=args.activeNgOptions.map(o=>({
     key:String(o.key||""),
     id:Number(o.id||o.defect_type_id||0)||undefined,
@@ -58,6 +82,28 @@ export function buildProductionReportPayload(args: {
     defect_name:o.label,
     quantity:num(args.form[o.key])
   })).filter(x=>x.quantity>0);
+
+  // If the current master option key is different from an older form field,
+  // recover the entered quantity from the legacy field instead of silently
+  // dropping the NG detail from the submit payload.
+  for (const [field, code, name] of LEGACY_DEFECT_BINDINGS) {
+    const quantity=num(args.form[String(field)]);
+    if (quantity<=0) continue;
+    const identity=normalizeDefectIdentity(code,name);
+    const existing=formDefects.find(item=>normalizeDefectIdentity(item.defect_code,item.defect_name)===identity);
+    if (existing) {
+      // The modern option and legacy field represent the same physical defect;
+      // do not double-count it.
+      continue;
+    }
+    const master=args.activeNgOptions.find(o=>normalizeDefectIdentity(String(o.code||o.defect_code||""),String(o.label||o.defect_name||""))===identity);
+    formDefects.push({
+      defect_type_id:Number(master?.id||master?.defect_type_id||0)||undefined,
+      defect_code:String(master?.code||master?.defect_code||code),
+      defect_name:String(master?.label||master?.defect_name||name),
+      quantity,
+    });
+  }
 
   const lines=args.machineLines.filter(l=>l.machineCode.trim()||l.productCode.trim()).map(l=>{
     const defectKeys = new Set<string>([
@@ -99,8 +145,8 @@ export function buildProductionReportPayload(args: {
   const machineDefects = lines.flatMap((line) => line.defects || []);
   const defects = machineDefects.length > 0
     ? machineDefects.reduce<Array<{defect_type_id?:number;defect_code:string;defect_name:string;quantity:number}>>((acc, item) => {
-        const key = item.defect_type_id ? `id:${item.defect_type_id}` : `code:${item.defect_code || item.defect_name}`;
-        const existing = acc.find((x) => (x.defect_type_id ? `id:${x.defect_type_id}` : `code:${x.defect_code || x.defect_name}`) === key);
+        const key = item.defect_type_id ? `id:${item.defect_type_id}` : `code:${normalizeDefectIdentity(item.defect_code,item.defect_name)}`;
+        const existing = acc.find((x) => (x.defect_type_id ? `id:${x.defect_type_id}` : `code:${normalizeDefectIdentity(x.defect_code,x.defect_name)}`) === key);
         if (existing) existing.quantity += item.quantity;
         else acc.push({ ...item });
         return acc;
