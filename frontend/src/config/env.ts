@@ -7,12 +7,13 @@ function normalizeApiBaseUrl(value: string): string {
   const normalized = value.replace(/\/+$/, "");
   if (/\/api$/i.test(normalized)) return normalized;
 
-  // Cloudflare test deployment may provide the Worker origin without /api.
-  // Normalize it here so the test build cannot white-screen before React mounts.
+  // The test Worker may receive VITE_API_URL as the bare Worker origin.
+  // Append /api instead of throwing during module evaluation, which previously
+  // stopped React from mounting and produced a completely white page.
   if (
     typeof window !== "undefined" &&
     window.location.hostname === testCloudflareFrontendHost &&
-    normalized === testCloudflareApiUrl.replace(/\/api$/i, "")
+    /^https?:\/\//i.test(normalized)
   ) {
     return `${normalized}/api`;
   }
