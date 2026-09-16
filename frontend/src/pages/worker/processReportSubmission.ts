@@ -39,6 +39,7 @@ export function buildProductionReportPayload(args: {
   excludeKqdFromTt: boolean;
 }): ProductionReport {
   const num=(v:unknown)=>Number(v)||0;
+  const getDefectId = (option?: Option) => Number(option?.id || option?.defect_type_id || 0) || undefined;
   const lines=args.machineLines.filter(l=>l.machineCode.trim()||l.productCode.trim()).map(l=>({
     machine_code:l.machineCode.trim(),
     product_code:l.productCode.trim(),
@@ -50,16 +51,19 @@ export function buildProductionReportPayload(args: {
     standard_output:num(l.standardOutputPerHour),
     standard_time_seconds:l.standardTimeSeconds,
     standard_source:l.standardSource,
-    defects:(l.selectedDefects||[]).map(key=>({
-      defect_type_id:Number(args.activeNgOptions.find(o=>o.key===key)?.id || 0)||undefined,
-      defect_code:String(args.activeNgOptions.find(o=>o.key===key)?.code || ""),
-      defect_name:String(args.activeNgOptions.find(o=>o.key===key)?.label || ""),
-      quantity:num(l.defects[key])
-    })).filter(x=>x.quantity>0)
+    defects:(l.selectedDefects||[]).map(key=>{
+      const option=args.activeNgOptions.find(o=>o.key===key);
+      return {
+        defect_type_id:getDefectId(option),
+        defect_code:String(option?.code || option?.defect_code || ""),
+        defect_name:String(option?.label || option?.defect_name || ""),
+        quantity:num(l.defects[key])
+      };
+    }).filter(x=>x.quantity>0)
   }));
   const defects=args.activeNgOptions.map(o=>({
-    key:String(o.key||""), id:Number(o.id||o.defect_type_id||0)||undefined,
-    code:String(o.code||""), label:String(o.label||o.defect_name||"")
+    key:String(o.key||""), id:getDefectId(o),
+    code:String(o.code||o.defect_code||""), label:String(o.label||o.defect_name||"")
   })).filter(o=>o.key).map(o=>({defect_type_id:o.id,defect_code:o.code,defect_name:o.label,quantity:num(args.form[o.key])})).filter(x=>x.quantity>0);
   const deductions=args.activeDeductionOptions.map(o=>({
     deduction_type_id:Number(o.id||o.deduction_type_id||0)||undefined,
