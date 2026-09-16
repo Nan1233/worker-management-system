@@ -72,6 +72,19 @@ async function getTempMachineLines(tempReportId) {
          WHERE machine_line_id IN (${ids.map(() => "?").join(",")})
          ORDER BY machine_line_id ASC, id ASC`, ids);
 
+    // A machine event is the physical source of truth for shared-machine
+    // production. Some reports therefore have an event_id + NG total while
+    // the per-report defect rows are intentionally empty. The approved-report
+    // detail path already reads machine_production_event_defects; temp/history
+    // must do the same or the UI shows "NG 100" but "no NG detail".
+    const eventIds = [...new Set(lines.map((line) => Number(line.machine_event_id)).filter(Boolean))];
+    const eventDefects = eventIds.length
+        ? await query(db, `SELECT id, machine_event_id, defect_type_id, defect_code, defect_name, quantity
+             FROM machine_production_event_defects
+             WHERE machine_event_id IN (${eventIds.map(() => "?").join(",")})
+             ORDER BY machine_event_id ASC, id ASC`, eventIds)
+        : [];
+
     const byLine = new Map();
     for (const defect of defects) {
         const key = Number(defect.machine_line_id);
@@ -79,7 +92,23 @@ async function getTempMachineLines(tempReportId) {
         byLine.get(key).push(defect);
     }
 
-    return lines.map((line) => ({ ...line, defects: byLine.get(Number(line.id)) || [] }));
+    const byEvent = new Map();
+    for (const defect of eventDefects) {
+        const key = Number(defect.machine_event_id);
+        if (!byEvent.has(key)) byEvent.set(key, []);
+        byEvent.get(key).push(defect);
+    }
+
+    return lines.map((line) => {
+        const persistedLineDefects = byLine.get(Number(line.id)) || [];
+        const linkedEventDefects = byEvent.get(Number(line.machine_event_id)) || [];
+        return {
+            ...line,
+            // Prefer report-specific defect rows. Fall back to the linked
+            // machine event only when the report has no own defect rows.
+            defects: persistedLineDefects.length ? persistedLineDefects : linkedEventDefects,
+        };
+    });
 }
 
 function normalizeUtcTimestamp(value) {
@@ -223,9 +252,9 @@ module.exports = {
             getTempMachineLines(id)
         ]);
 
-        // Machine NG is stored per machine line. Keep that relationship when
-        // building the report detail; never fall back to a report-level total
-        // when machine-line defects are available.
+        // Machine NG is stored per machine line or in the linked machine event.
+        // Keep that relationship when building the report detail; never hide a
+        // physical-event defect merely because the temp child table is empty.
         return normalizeReportTimestamps({
             ...rows[0],
             defects: mergeDefects(rows[0], defects, machineLines),
