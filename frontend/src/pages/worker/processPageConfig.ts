@@ -137,6 +137,12 @@ export const allNgOptions: Array<{ key: NgKey; id?: number; code: string; label:
     { key:"catLem", code:"CAT_LEM", label:"Cắt lẹm" },
 ];
 
+// Canonical KQD exclusion registry used by ProcessPage.
+// Keep this export here so a clean Cloudflare build does not depend on a generated patch.
+export const KQD_CODES = new Set(
+    kqdExclusionRegistry.map((code) => String(code).trim().toUpperCase())
+);
+
 export const getCurrentLocalDate = (): string => {
     const now = new Date();
     const year = now.getFullYear();
