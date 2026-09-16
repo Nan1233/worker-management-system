@@ -48,18 +48,23 @@ const findExistingClientRequest = async (data, executor = db) => {
     return rows?.[0] || null;
 };
 
-const idempotent = (row) => ({ id: Number(row.id), duplicate: true, duplicate_reason: "request_id", existing_report: row });
+const idempotent = (row) => ({
+    id: Number(row.id),
+    duplicate: true,
+    duplicate_reason: "request_id",
+    existing_report: row
+});
 
 const is1205 = (error) => {
     const message = String(error?.message || "").toLowerCase();
     return Number(error?.errno) === 1205 || message.includes("lock wait timeout exceeded") || message.includes("error 1205");
 };
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const recoverAfter1205 = async (data) => {
-    // The failed transaction has already been rolled back by createModel.
-    // Only perform short read-only checks here; never retry the INSERT.
     for (const delay of [0, 150, 500, 1000]) {
-        if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+        if (delay) await sleep(delay);
         const existing = await findExistingClientRequest(data);
         if (existing) return idempotent(existing);
     }
@@ -94,8 +99,7 @@ const enforceDailyWorkerHours = async (data, executor = db) => {
     return { existingHours: existing, incomingActualHours: incoming, projectedHours: projected, limitHours: DAILY_HOURS_LIMIT };
 };
 
-// Never use the old FOR UPDATE approved lookup on Cloudflare. It can hold
-// unrelated production rows while another worker is trying to create a temp report.
+// Cloudflare/TiDB: avoid long FOR UPDATE scans during temp submission.
 createModel.findSimilarApprovedReport = async ({ workerId, processId, workDate, shift, logicalDuplicateKey }, executor = db) => {
     if (!logicalDuplicateKey) return null;
     const rows = await query(executor,
@@ -106,9 +110,12 @@ createModel.findSimilarApprovedReport = async ({ workerId, processId, workDate, 
         [workerId, processId, workDate, shift]);
     if (!rows.length) return null;
     const ids = rows.map((r) => Number(r.id)).filter(Boolean);
+    if (!ids.length) return null;
     const machineRows = await query(executor,
-        `SELECT report_id,machine_code,product_code,sort_order,id FROM production_report_machine_lines
-         WHERE report_id IN (${ids.map(() => '?').join(',')}) ORDER BY report_id,sort_order,id`, ids);
+        `SELECT report_id,machine_code,product_code,sort_order,id
+         FROM production_report_machine_lines
+         WHERE report_id IN (${ids.map(() => '?').join(',')})
+         ORDER BY report_id,sort_order,id`, ids);
     const byReport = new Map();
     for (const line of machineRows) {
         const id = Number(line.report_id);
@@ -121,31 +128,179 @@ createModel.findSimilarApprovedReport = async ({ workerId, processId, workDate, 
             shift: row.shift, operationMode: row.operation_mode, machineNo: row.machine_no,
             productName: row.product_name, machineLines: byReport.get(Number(row.id)) || []
         });
-        if (key === logicalDuplicateKey) return { ...row, report_type: 'approved' };
+        if (key === logicalDuplicateKey) return { ...row, report_type: "approved" };
     }
     return null;
 };
 
-/*
- * IMPORTANT concurrency design:
- *
- * The parent production_reports_temp INSERT is committed in its own very short
- * transaction. This releases the unique client_request_id index lock before
- * machine lines, defects, deductions and audit work begins. Previously the
- * parent INSERT and all those operations shared one long transaction, so a
- * second request for the same client_request_id could sit on the unique index
- * until TiDB returned Error 1205.
- *
- * The second transaction owns only the child/audit work. If that phase fails,
- * we mark the report as need_fix rather than leaving the request hanging or
- * pretending that the network is offline.
- */
+const normalizeDefectsForPersistence = async (processId, defects, executor) => {
+    const items = (Array.isArray(defects) ? defects : [])
+        .map((item) => ({
+            defectTypeId: Number(item?.defect_type_id || item?.id || 0) || null,
+            defectCode: String(item?.defect_code || item?.defect_type_code || item?.code || "").trim(),
+            defectName: String(item?.defect_name || item?.name || item?.label || "").trim(),
+            quantity: Math.trunc(Number(item?.quantity ?? item?.qty ?? item?.ng_quantity ?? 0) || 0)
+        }))
+        .filter((item) => item.quantity > 0);
+    if (!items.length) return [];
+
+    const ids = [...new Set(items.map((x) => x.defectTypeId).filter(Boolean))];
+    const codes = [...new Set(items.map((x) => x.defectCode).filter(Boolean))];
+    const names = [...new Set(items.map((x) => x.defectName).filter(Boolean))];
+    const clauses = [];
+    const params = [Number(processId)];
+    if (ids.length) { clauses.push(`id IN (${ids.map(() => "?").join(",")})`); params.push(...ids); }
+    if (codes.length) { clauses.push(`defect_code IN (${codes.map(() => "?").join(",")})`); params.push(...codes); }
+    if (names.length) { clauses.push(`defect_name IN (${names.map(() => "?").join(",")})`); params.push(...names); }
+
+    const rows = clauses.length ? await query(executor,
+        `SELECT id, defect_code, defect_name FROM defect_types
+         WHERE process_id=? AND status='active' AND (${clauses.join(" OR ")})`, params) : [];
+    const byId = new Map(rows.map((r) => [Number(r.id), r]));
+    const byCode = new Map(rows.map((r) => [String(r.defect_code || "").trim().toUpperCase(), r]));
+    const byName = new Map(rows.map((r) => [String(r.defect_name || "").trim(), r]));
+
+    const resolved = [];
+    for (const item of items) {
+        const master = (item.defectTypeId && byId.get(item.defectTypeId))
+            || (item.defectCode && byCode.get(item.defectCode.toUpperCase()))
+            || (item.defectName && byName.get(item.defectName));
+        if (!master) {
+            const error = new Error(`Không xác định được loại lỗi NG: ${item.defectCode || item.defectName || item.defectTypeId}`);
+            error.status = 422;
+            error.code = "DEFECT_TYPE_NOT_FOUND";
+            error.isPublic = true;
+            error.details = { process_id: processId, item };
+            throw error;
+        }
+        resolved.push({
+            defect_type_id: Number(master.id),
+            defect_code: String(master.defect_code || ""),
+            defect_name: String(master.defect_name || ""),
+            quantity: item.quantity
+        });
+    }
+
+    const totals = new Map();
+    for (const item of resolved) totals.set(item.defect_type_id, (totals.get(item.defect_type_id) || 0) + item.quantity);
+    return [...totals.entries()].map(([defect_type_id, quantity]) => {
+        const master = byId.get(defect_type_id);
+        return { defect_type_id, defect_code: master?.defect_code || "", defect_name: master?.defect_name || "", quantity };
+    });
+};
+
+const normalizeDeductionsForPersistence = async (processId, deductions, executor) => {
+    const items = (Array.isArray(deductions) ? deductions : [])
+        .map((item) => ({
+            deductionTypeId: Number(item?.deduction_type_id || item?.id || 0) || null,
+            deductionCode: String(item?.deduction_code || item?.code || "").trim(),
+            deductionName: String(item?.deduction_name || item?.name || item?.label || "").trim(),
+            hours: Number(item?.hours ?? item?.deduction_hours ?? 0) || 0
+        }))
+        .filter((item) => item.hours > 0);
+    if (!items.length) return [];
+
+    const ids = [...new Set(items.map((x) => x.deductionTypeId).filter(Boolean))];
+    const codes = [...new Set(items.map((x) => x.deductionCode).filter(Boolean))];
+    const names = [...new Set(items.map((x) => x.deductionName).filter(Boolean))];
+    const clauses = [];
+    const params = [Number(processId)];
+    if (ids.length) { clauses.push(`id IN (${ids.map(() => "?").join(",")})`); params.push(...ids); }
+    if (codes.length) { clauses.push(`deduction_code IN (${codes.map(() => "?").join(",")})`); params.push(...codes); }
+    if (names.length) { clauses.push(`deduction_name IN (${names.map(() => "?").join(",")})`); params.push(...names); }
+
+    const rows = clauses.length ? await query(executor,
+        `SELECT id, deduction_code, deduction_name FROM deduction_types
+         WHERE process_id=? AND status='active' AND (${clauses.join(" OR ")})`, params) : [];
+    const byId = new Map(rows.map((r) => [Number(r.id), r]));
+    const byCode = new Map(rows.map((r) => [String(r.deduction_code || "").trim().toUpperCase(), r]));
+    const byName = new Map(rows.map((r) => [String(r.deduction_name || "").trim(), r]));
+
+    const resolved = [];
+    for (const item of items) {
+        const master = (item.deductionTypeId && byId.get(item.deductionTypeId))
+            || (item.deductionCode && byCode.get(item.deductionCode.toUpperCase()))
+            || (item.deductionName && byName.get(item.deductionName));
+        if (!master) {
+            const error = new Error(`Không xác định được loại trừ giờ: ${item.deductionCode || item.deductionName || item.deductionTypeId}`);
+            error.status = 422;
+            error.code = "DEDUCTION_TYPE_NOT_FOUND";
+            error.isPublic = true;
+            error.details = { process_id: processId, item };
+            throw error;
+        }
+        resolved.push({
+            deduction_type_id: Number(master.id),
+            deduction_code: String(master.deduction_code || ""),
+            deduction_name: String(master.deduction_name || ""),
+            hours: item.hours
+        });
+    }
+
+    const totals = new Map();
+    for (const item of resolved) totals.set(item.deduction_type_id, (totals.get(item.deduction_type_id) || 0) + item.hours);
+    return [...totals.entries()].map(([deduction_type_id, hours]) => {
+        const master = byId.get(deduction_type_id);
+        return { deduction_type_id, deduction_code: master?.deduction_code || "", deduction_name: master?.deduction_name || "", hours };
+    });
+};
+
+const validateChildTotals = (data, defects, deductions) => {
+    const expectedNg = Math.max(0, Math.trunc(Number(data?.tt_ng || 0) || 0));
+    const actualNg = defects.reduce((sum, item) => sum + Math.max(0, Math.trunc(Number(item.quantity) || 0)), 0);
+    if (expectedNg !== actualNg) {
+        const error = new Error(`Chi tiết NG (${actualNg}) không khớp TT NG (${expectedNg})`);
+        error.status = 422; error.code = "NG_DETAIL_TOTAL_MISMATCH"; error.isPublic = true;
+        error.details = { expected: expectedNg, actual: actualNg }; throw error;
+    }
+
+    const expectedDeduction = Number(data?.deduction_time || 0) || 0;
+    const actualDeduction = deductions.reduce((sum, item) => sum + (Number(item.hours) || 0), 0);
+    if (Math.abs(expectedDeduction - actualDeduction) > 0.0002) {
+        const error = new Error(`Chi tiết trừ giờ (${actualDeduction.toFixed(4)}) không khớp tổng trừ giờ (${expectedDeduction.toFixed(4)})`);
+        error.status = 422; error.code = "DEDUCTION_DETAIL_TOTAL_MISMATCH"; error.isPublic = true;
+        error.details = { expected: expectedDeduction, actual: actualDeduction }; throw error;
+    }
+};
+
+const createAuditAfterChildren = async ({ tempId, audit, data, requestId, logicalDuplicateKey }) => {
+    const connection = await getConnection();
+    try {
+        await beginTransaction(connection);
+        const snapshot = await AuditService.loadTempReportSnapshot(tempId, connection);
+        if (snapshot) {
+            await AuditService.createReportVersion({
+                reportType: "temp", reportId: tempId, snapshot,
+                reason: "Tạo báo cáo chờ duyệt", userId: Number(audit?.userId || 0)
+            }, connection);
+        }
+        await createModel.logAction({
+            reportType: "temp", reportId: tempId, userId: Number(audit?.userId || 0), action: "CREATE",
+            note: audit?.note || "Công nhân tạo báo cáo", ipAddress: audit?.ipAddress || null,
+            userAgent: audit?.userAgent || null
+        }, connection);
+        await query(connection,
+            `INSERT INTO activity_logs
+             (user_id, action, entity_type, entity_id, description, metadata_json, ip_address, user_agent)
+             VALUES (?, 'CREATE_REPORT', 'temp_report', ?, ?, ?, ?, ?)`,
+            [Number(audit?.userId || 0), String(tempId), "Công nhân tạo báo cáo chờ duyệt",
+                JSON.stringify({ processId: data.process_id, workDate: data.work_date, shift: data.shift, clientRequestId: requestId, logicalDuplicateKey }),
+                audit?.ipAddress || null, audit?.userAgent || null]);
+        await commit(connection);
+    } catch (error) {
+        await rollback(connection);
+        throw error;
+    } finally {
+        connection.release();
+    }
+};
+
 const createCompleteReport = async (payload = {}, legacyDefects, legacyDeductions, legacyMachineLines, legacyAudit) => {
     const wrapped = payload && typeof payload === "object" && payload.data && typeof payload.data === "object";
     const raw = wrapped ? payload.data : payload;
     const data = { ...(raw || {}), worker_id: raw?.worker_id ?? raw?.workerId ?? null };
-    const defects = wrapped ? (Array.isArray(payload.defects) ? payload.defects : []) : (Array.isArray(legacyDefects) ? legacyDefects : []);
-    const deductions = wrapped ? (Array.isArray(payload.deductions) ? payload.deductions : []) : (Array.isArray(legacyDeductions) ? legacyDeductions : []);
+    const defectsInput = wrapped ? (Array.isArray(payload.defects) ? payload.defects : []) : (Array.isArray(legacyDefects) ? legacyDefects : []);
+    const deductionsInput = wrapped ? (Array.isArray(payload.deductions) ? payload.deductions : []) : (Array.isArray(legacyDeductions) ? legacyDeductions : []);
     const machineLines = wrapped ? (Array.isArray(payload.machineLines) ? payload.machineLines : []) : (Array.isArray(legacyMachineLines) ? legacyMachineLines : []);
     const audit = wrapped ? (payload.audit || {}) : (legacyAudit || {});
 
@@ -160,9 +315,6 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         error.status = 400; error.code = "CLIENT_REQUEST_ID_REQUIRED"; error.isPublic = true; throw error;
     }
 
-    // Idempotency MUST be checked before the 12-hour calculation. A retry of
-    // an already-created request must return the existing report instead of
-    // counting that same report again and incorrectly returning HTTP 422.
     const existingRequest = await findExistingClientRequest(data);
     if (existingRequest) return idempotent(existingRequest);
 
@@ -171,7 +323,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
     if (isCVK) {
         data.process_id = 60006; data.process_code = "CVK";
         await enforceDailyWorkerHours(data);
-        return nonProductWorkModel.createCompleteReport({ data, defects, deductions, audit });
+        return nonProductWorkModel.createCompleteReport({ data, defects: defectsInput, deductions: deductionsInput, audit });
     }
 
     await enforceDailyWorkerHours(data);
@@ -187,7 +339,6 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
             machineNo: data.machine_no, productName: data.product_name, machineLines
         });
 
-        // Duplicate confirmation is read-only and happens before the short INSERT transaction.
         const tempDuplicate = await createModel.findSimilarTempReport({
             workerId: data.worker_id, processId: data.process_id, workDate: data.work_date,
             shift: data.shift, machineNo: data.machine_no, productName: data.product_name,
@@ -218,7 +369,6 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
             error.status = 409; error.code = "DUPLICATE_CONFIRMATION_REQUIRED"; error.isPublic = true; throw error;
         }
 
-        // All expensive validation is outside the parent INSERT transaction.
         const processRows = await query(db, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data.process_id)]);
         const training = await resolveInitialTrainingSnapshot({
             executor: db, workerId: data.worker_id, processId: data.process_id,
@@ -243,11 +393,28 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         const auditUserId = Number(audit?.userId || 0);
         if (!Number.isInteger(auditUserId) || auditUserId <= 0) {
             const error = new Error("Không xác định được người tạo báo cáo để ghi audit");
-            error.code = "REPORT_AUDIT_ACTOR_REQUIRED"; throw error;
+            error.status = 422; error.code = "REPORT_AUDIT_ACTOR_REQUIRED"; error.isPublic = true; throw error;
         }
 
-        // PHASE 1: atomic parent insert only. The unique index lock exists for
-        // milliseconds instead of covering all child/audit queries.
+        // Resolve master data BEFORE creating the parent. This prevents the old
+        // failure mode where a parent report existed with only tt_ng/deduction_time
+        // and the detail rows were silently dropped.
+        const validationConnection = await getConnection();
+        let defects;
+        let deductions;
+        try {
+            await beginTransaction(validationConnection);
+            defects = await normalizeDefectsForPersistence(data.process_id, defectsInput, validationConnection);
+            deductions = await normalizeDeductionsForPersistence(data.process_id, deductionsInput, validationConnection);
+            validateChildTotals(data, defects, deductions);
+            await rollback(validationConnection);
+        } catch (error) {
+            try { await rollback(validationConnection); } catch {}
+            throw error;
+        } finally {
+            validationConnection.release();
+        }
+
         let tempId;
         const parentConnection = await getConnection();
         try {
@@ -265,9 +432,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
                     const existing = await findExistingClientRequest(data);
                     if (existing) return idempotent(existing);
                 }
-                if (is1205(error)) {
-                    return recoverAfter1205(data);
-                }
+                if (is1205(error)) return recoverAfter1205(data);
                 throw error;
             }
             await commit(parentConnection);
@@ -275,48 +440,59 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
             parentConnection.release();
         }
 
-        // PHASE 2: child data + audit. No unique client-request lock is held now.
+        // Child rows are committed independently from audit. A failure in audit
+        // must never erase NG/deduction/machine details that were already saved.
         const childConnection = await getConnection();
         try {
             await beginTransaction(childConnection);
             await createModel.createDefects(tempId, data.process_id, defects, childConnection);
             await createModel.createDeductions(tempId, data.process_id, deductions, childConnection);
             await createModel.replaceMachineLines(tempId, machineLines, childConnection);
-
-            const snapshot = await AuditService.loadTempReportSnapshot(tempId, childConnection);
-            if (snapshot) {
-                await AuditService.createReportVersion({
-                    reportType: "temp", reportId: tempId, snapshot,
-                    reason: "Tạo báo cáo chờ duyệt", userId: auditUserId
-                }, childConnection);
-            }
-            await createModel.logAction({
-                reportType: "temp", reportId: tempId, userId: auditUserId, action: "CREATE",
-                note: audit.note || "Công nhân tạo báo cáo", ipAddress: audit.ipAddress || null,
-                userAgent: audit.userAgent || null
-            }, childConnection);
-            await query(childConnection,
-                `INSERT INTO activity_logs (user_id, action, entity_type, entity_id, description, metadata_json, ip_address, user_agent)
-                 VALUES (?, 'CREATE_REPORT', 'temp_report', ?, ?, ?, ?, ?)`,
-                [auditUserId, String(tempId), "Công nhân tạo báo cáo chờ duyệt",
-                    JSON.stringify({ processId: data.process_id, workDate: data.work_date, shift: data.shift, clientRequestId: requestId, logicalDuplicateKey: data.logical_duplicate_key }),
-                    audit.ipAddress || null, audit.userAgent || null]);
             await commit(childConnection);
         } catch (error) {
             await rollback(childConnection);
-            // Parent is already committed intentionally. Keep it visible as
-            // need_fix so the report is recoverable instead of returning 500
-            // after a successful parent creation.
             try {
-                await query(childConnection, `UPDATE production_reports_temp SET status='need_fix' WHERE id=?`, [tempId]);
+                await query(db, `UPDATE production_reports_temp SET status='need_fix', review_note=? WHERE id=?`,
+                    [`Không thể lưu chi tiết báo cáo: ${String(error?.message || error).slice(0, 450)}`, tempId]);
             } catch {}
-            throw error;
+            if (is1205(error)) return recoverAfter1205(data);
+            const wrappedError = new Error(`Không thể lưu chi tiết báo cáo: ${String(error?.message || error)}`);
+            wrappedError.status = Number(error?.status) >= 400 ? Number(error.status) : 422;
+            wrappedError.code = error?.code || "REPORT_DETAIL_PERSIST_FAILED";
+            wrappedError.isPublic = true;
+            wrappedError.details = error?.details || { temp_report_id: tempId };
+            throw wrappedError;
         } finally {
             childConnection.release();
         }
 
-        return { id: Number(tempId), duplicate: false, duplicate_reason: null, existing_report: null, logical_duplicate_key: data.logical_duplicate_key };
+        let auditWarning = null;
+        try {
+            await createAuditAfterChildren({ tempId, audit, data, requestId, logicalDuplicateKey: data.logical_duplicate_key });
+        } catch (error) {
+            auditWarning = String(error?.message || error).slice(0, 450);
+            try {
+                await query(db, `UPDATE production_reports_temp SET review_note=? WHERE id=?`,
+                    [`Audit chưa hoàn tất: ${auditWarning}`, tempId]);
+            } catch {}
+        }
+
+        return {
+            id: Number(tempId),
+            duplicate: false,
+            duplicate_reason: null,
+            existing_report: null,
+            logical_duplicate_key: data.logical_duplicate_key,
+            audit_warning: auditWarning
+        };
     });
 };
 
-module.exports = { ...createModel, createCompleteReport, ...readModel, ...reviewModel, ...historyModel, enforceDailyWorkerHours };
+module.exports = {
+    ...createModel,
+    createCompleteReport,
+    ...readModel,
+    ...reviewModel,
+    ...historyModel,
+    enforceDailyWorkerHours
+};
