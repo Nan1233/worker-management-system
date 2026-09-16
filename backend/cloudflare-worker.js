@@ -22,11 +22,14 @@ if (typeof env.TIDB_DATABASE_URL === "string" && env.TIDB_DATABASE_URL) {
 }
 
 const cloudflareFrontendOrigin = "https://ktc-frontend.nan978971.workers.dev";
+const cloudflareTestFrontendOrigin = "https://ktc-fe-test.nan978971.workers.dev";
 const configuredCorsOrigins = String(process.env.CORS_ORIGINS || "")
   .split(",")
   .map((value) => value.trim())
   .filter(Boolean);
-if (!configuredCorsOrigins.includes(cloudflareFrontendOrigin)) configuredCorsOrigins.push(cloudflareFrontendOrigin);
+for (const origin of [cloudflareFrontendOrigin, cloudflareTestFrontendOrigin]) {
+  if (!configuredCorsOrigins.includes(origin)) configuredCorsOrigins.push(origin);
+}
 process.env.CORS_ORIGINS = configuredCorsOrigins.join(",");
 process.env.PORT = process.env.PORT || "3000";
 process.env.KTC_CLOUDFLARE_WORKER = "true";
@@ -95,7 +98,8 @@ function getAllowedOrigin(request) {
   const origin = request.headers.get("Origin");
   if (!origin) return null;
   const allowed = new Set([
-    "https://ktc-frontend.nan978971.workers.dev",
+    cloudflareFrontendOrigin,
+    cloudflareTestFrontendOrigin,
     "https://worker-management-system-3-dzox.onrender.com",
     "http://localhost:5173",
     "https://localhost",
