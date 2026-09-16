@@ -20,6 +20,8 @@ interface DuplicateResponseShape {
         report_id?: number | string | null;
         report_type?: string | null;
         duplicate_confirmation_token?: string | null;
+        created_at?: string | null;
+        updated_at?: string | null;
     } | null;
 }
 
@@ -28,11 +30,6 @@ function unwrapDuplicatePayload(
 ): DuplicateResponseShape | null {
     if (!response || typeof response !== "object") return null;
 
-    // Accept both the normalized API payload and an AxiosResponse-like
-    // wrapper. This prevents duplicate handling from depending on which
-    // layer called the helper.
-    // If the current object already carries the challenge token, it is the
-    // API payload we need. Do not unwrap its `data` field and lose the token.
     if ("duplicate_confirmation_token" in response) {
         return response;
     }
@@ -51,6 +48,20 @@ function unwrapDuplicatePayload(
     return response;
 }
 
+function isWorkerEditWindowExpired(body: DuplicateResponseShape | null): boolean {
+    const reportType = body?.data?.report_type || body?.report_type;
+    if (reportType === "approved") return true;
+
+    const createdAt = String(body?.data?.created_at || "").trim();
+    if (!createdAt) return false;
+
+    const normalized = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(createdAt)
+        ? `${createdAt.replace(" ", "T")}Z`
+        : createdAt;
+    const createdMs = new Date(normalized).getTime();
+    return !Number.isFinite(createdMs) || createdMs + 10 * 60 * 1000 <= Date.now();
+}
+
 export function toDuplicatePrompt(
     response: DuplicateResponseShape | null | undefined,
     payload: ProductionReport
@@ -65,13 +76,23 @@ export function toDuplicatePrompt(
         return null;
     }
 
+    const originalReportType = body?.data?.report_type === "approved" || body?.report_type === "approved"
+        ? "approved"
+        : "temp";
+
+    // A worker may only edit a TEMP report during the 10-minute window.
+    // Expired TEMP reports must never be auto-resumed: show the duplicate
+    // dialog and allow the worker to explicitly create a new report instead.
+    const reportType: DuplicateReportType =
+        originalReportType === "temp" && isWorkerEditWindowExpired(body)
+            ? "approved"
+            : originalReportType;
+
     return {
         reportId,
         payload,
         confirmationToken,
-        reportType: body?.data?.report_type === "approved" || body?.report_type === "approved"
-            ? "approved"
-            : "temp",
+        reportType,
     };
 }
 
