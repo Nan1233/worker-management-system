@@ -35,9 +35,11 @@ export default function ProcessQualitySection({
     onToggleNg,
     onNgValue,
 }: Props) {
-    // Khi đã chọn/nhập máy, OK/NG/Tổng sản lượng phải do dữ liệu máy tính,
-    // công nhân không được sửa thủ công. Với nhiều máy, luồng này vốn đã khóa.
-    const qualityLocked = usesMultiMachineLines || Boolean(form.machineNo.trim());
+    // Chỉ khóa phần chất lượng khi dùng nhiều máy vì NG/OK khi đó được
+    // nhập trực tiếp theo từng dòng máy ở ProcessBasicInfoSection.
+    // Với công đoạn 1 máy, NG vẫn phải được nhập ở đây và được gửi trong
+    // payload `defects` để backend lưu vào production_temp_defects.
+    const qualityLocked = usesMultiMachineLines;
 
     return (
         <section className="worker-form-card worker-quality-section">
