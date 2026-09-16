@@ -74,8 +74,12 @@ export function buildProductionReportPayload(args: {
   const actualTime=parseHours(args.form.actualTime);
   const deductionTime=parseHours(args.form.deductionTime);
   const totalTime=parseHours(args.form.totalTime);
-  const hasActualMachineLine=args.usesMultiMachineLines&&lines.some((line)=>!!line.machine_code);
-  const useMachineLinesPayload=args.usesMultiMachineLines&&hasActualMachineLine;
+  const hasActualMachineLine=(args.usesMultiMachineLines||args.usesSingleMachine)&&lines.some((line)=>!!line.machine_code);
+  // Persist machine details for both multi-machine and single-machine reports.
+  // Single-machine reports previously sent machine_lines=[] and therefore relied
+  // only on the parent defect table; persisting the line keeps NG detail attached
+  // to the physical machine and makes history/detail use the same canonical path.
+  const useMachineLinesPayload=(args.usesMultiMachineLines||args.usesSingleMachine)&&hasActualMachineLine;
   return {
     process_id:args.processId, work_date:args.form.workDate, shift:args.form.shift,
     machine_no:useMachineLinesPayload?lines.map(l=>l.machine_code).join(", "):args.form.machineNo,
