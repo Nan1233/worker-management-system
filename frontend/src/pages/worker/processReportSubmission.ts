@@ -59,22 +59,33 @@ export function buildProductionReportPayload(args: {
     quantity:num(args.form[o.key])
   })).filter(x=>x.quantity>0);
 
-  const lines=args.machineLines.filter(l=>l.machineCode.trim()||l.productCode.trim()).map(l=>({
-    machine_code:l.machineCode.trim(),
-    product_code:l.productCode.trim(),
-    machine_time_hours:num(l.hours)+num(l.minutes)/60,
-    adjustment_minutes:num(l.adjustmentMinutes),
-    adjustment_count:num(l.adjustmentCount),
-    ok_quantity:num(l.okQuantity),
-    ng_quantity:num(l.ngQuantity),
-    standard_output:num(l.standardOutputPerHour),
-    standard_time_seconds:l.standardTimeSeconds,
-    standard_source:l.standardSource,
-    defects:(l.selectedDefects||[]).map(key=>{
-      const option=args.activeNgOptions.find(o=>o.key===key);
+  const lines=args.machineLines.filter(l=>l.machineCode.trim()||l.productCode.trim()).map(l=>{
+    // `defects` is the source of truth for entered quantities. Do not rely on
+    // selectedDefects: older/current form paths can update quantities without
+    // maintaining that UI-only selection array.
+    const defectKeys = new Set<string>([
+      ...(l.selectedDefects || []).map(String),
+      ...Object.keys(l.defects || {}).filter((key) => num(l.defects[key]) > 0),
+    ]);
+    const lineDefects = [...defectKeys].map((key) => {
+      const option = args.activeNgOptions.find(o=>String(o.key)===key);
       return defectForOption(option, num(l.defects[key]));
-    }).filter(x=>x.quantity>0)
-  }));
+    }).filter(x=>x.quantity>0);
+
+    return {
+      machine_code:l.machineCode.trim(),
+      product_code:l.productCode.trim(),
+      machine_time_hours:num(l.hours)+num(l.minutes)/60,
+      adjustment_minutes:num(l.adjustmentMinutes),
+      adjustment_count:num(l.adjustmentCount),
+      ok_quantity:num(l.okQuantity),
+      ng_quantity:num(l.ngQuantity),
+      standard_output:num(l.standardOutputPerHour),
+      standard_time_seconds:l.standardTimeSeconds,
+      standard_source:l.standardSource,
+      defects:lineDefects
+    };
+  });
 
   if (args.usesSingleMachine && !args.usesMultiMachineLines && args.form.machineNo.trim()) {
     const singleLineDefects = defects.map((item) => ({
