@@ -1,0 +1,61 @@
+name: Desktop Test Build
+
+on:
+  push:
+    branches:
+      - test
+    paths:
+      - 'desktop/**'
+      - 'frontend/**'
+      - 'shared/**'
+      - '.github/workflows/desktop-test.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            desktop/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: Run desktop checks
+        working-directory: desktop
+        run: npm run check
+
+      - name: Build Windows installer and portable app
+        working-directory: desktop
+        run: npm run dist:win
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: KTC-Production-Control-test-${{ github.sha }}
+          path: |
+            desktop/release/*.exe
+          if-no-files-found: error
+          retention-days: 14
