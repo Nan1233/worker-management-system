@@ -12,7 +12,8 @@ const LEGACY_DEFECT_FIELDS = [
   ["vo_do_long", "VO_CAO_SU", "Vỡ cao su"], ["xuoc_do_long", "K_XUOC_CONG_GAY", "K xước cong gãy"],
   ["cong_gay", "K_XUOC_CONG_GAY", "K xước cong gãy"], ["xoay", "CAO_SU_XOAY", "Cao su xoay"],
   ["khong_dut", "CAT_KHONG_DUT", "Cắt không đứt"], ["bavia_hut", "BAVIA", "Bavia"],
-  ["ppcm", "PPCM", "PPCM"], ["loi_cao_su", "LCS", "LCS"], ["cat_lem", "CAT_LEM", "Cắt lẹm"]
+  ["ppcm", "PPCM", "PPCM"], ["loi_cao_su", "LCS", "LCS"],
+  ["ng_kich_thuoc", "KT_LON", "KT kích thước"], ["cat_lem", "CAT_LEM", "Cắt lẹm"]
 ];
 
 const LEGACY_MACHINE_KEYS = new Map([
@@ -112,7 +113,6 @@ function parseMachineDefects(machineLines = []) {
 
 function mergeDefects(report, rows = [], machineLines = []) {
   const machineDefects = parseMachineDefects(machineLines);
-  const sourceRows = machineDefects.length ? machineDefects : rows;
   const merged = new Map();
   const add = (item) => {
     const canonical = canonicalDefect(item);
@@ -134,20 +134,28 @@ function mergeDefects(report, rows = [], machineLines = []) {
     });
   };
 
-  sourceRows.forEach(add);
-  if (!machineDefects.length) {
+  // A report can legitimately have both report-level NG rows and machine/event
+  // NG rows. The old implementation selected only one source, which could make
+  // valid NG details disappear in history. Merge all persisted sources and then
+  // use legacy parent columns only when no persisted detail exists.
+  rows.forEach(add);
+  machineDefects.forEach(add);
+
+  if (!rows.length && !machineDefects.length) {
     LEGACY_DEFECT_FIELDS.forEach(([field, code, name]) => {
       const quantity = Math.trunc(Number(report?.[field] ?? 0) || 0);
       if (quantity > 0) add({ defect_code: code, defect_name: name, quantity });
     });
   }
+
   return [...merged.values()].sort((a, b) => String(a.defect_name).localeCompare(String(b.defect_name), "vi"));
 }
 
 function normalizeDeductions(rows = []) {
   const merged = new Map();
-  rows.forEach((item) => {
-    const hours = Number(item?.hours ?? 0) || 0;
+  const source = Array.isArray(rows) ? rows : [];
+  source.forEach((item) => {
+    const hours = Number(item?.hours ?? item?.deduction_hours ?? 0) || 0;
     if (hours <= 0) return;
     const typeId = Number(item?.deduction_type_id) || null;
     const key = typeId ? `ID:${typeId}` : `CODE:${normalizeKey(item?.deduction_code || item?.deduction_name || '')}`;
