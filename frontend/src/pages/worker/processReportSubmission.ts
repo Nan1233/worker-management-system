@@ -39,7 +39,26 @@ export function buildProductionReportPayload(args: {
   excludeKqdFromTt: boolean;
 }): ProductionReport {
   const num=(v:unknown)=>Number(v)||0;
-  const getDefectId = (option?: Option) => Number(option?.id || option?.defect_type_id || 0) || undefined;
+
+  const defectForOption = (option?: Option, quantity = 0) => ({
+    defect_type_id:Number(option?.id || option?.defect_type_id || 0)||undefined,
+    defect_code:String(option?.code || option?.defect_code || ""),
+    defect_name:String(option?.label || option?.defect_name || ""),
+    quantity:num(quantity)
+  });
+
+  const defects=args.activeNgOptions.map(o=>({
+    key:String(o.key||""),
+    id:Number(o.id||o.defect_type_id||0)||undefined,
+    code:String(o.code||o.defect_code||""),
+    label:String(o.label||o.defect_name||"")
+  })).filter(o=>o.key).map(o=>({
+    defect_type_id:o.id,
+    defect_code:o.code,
+    defect_name:o.label,
+    quantity:num(args.form[o.key])
+  })).filter(x=>x.quantity>0);
+
   const lines=args.machineLines.filter(l=>l.machineCode.trim()||l.productCode.trim()).map(l=>({
     machine_code:l.machineCode.trim(),
     product_code:l.productCode.trim(),
@@ -53,18 +72,38 @@ export function buildProductionReportPayload(args: {
     standard_source:l.standardSource,
     defects:(l.selectedDefects||[]).map(key=>{
       const option=args.activeNgOptions.find(o=>o.key===key);
-      return {
-        defect_type_id:getDefectId(option),
-        defect_code:String(option?.code || option?.defect_code || ""),
-        defect_name:String(option?.label || option?.defect_name || ""),
-        quantity:num(l.defects[key])
-      };
+      return defectForOption(option, l.defects[key]);
     }).filter(x=>x.quantity>0)
   }));
-  const defects=args.activeNgOptions.map(o=>({
-    key:String(o.key||""), id:getDefectId(o),
-    code:String(o.code||o.defect_code||""), label:String(o.label||o.defect_name||"")
-  })).filter(o=>o.key).map(o=>({defect_type_id:o.id,defect_code:o.code,defect_name:o.label,quantity:num(args.form[o.key])})).filter(x=>x.quantity>0);
+
+  // IMPORTANT: single-machine processes keep the selected machine/product in
+  // form.machineNo/form.productName, not in machineLines state. Before this
+  // normalization the payload therefore sent machine_lines=[] and the server
+  // could only persist the parent NG totals/details. Build one canonical line
+  // here so the same machine-line path is used for both single- and multi-machine
+  // reports, including the NG breakdown.
+  if (args.usesSingleMachine && !args.usesMultiMachineLines && args.form.machineNo.trim()) {
+    const singleLineDefects = defects.map((item) => ({
+      defect_type_id:item.defect_type_id,
+      defect_code:item.defect_code,
+      defect_name:item.defect_name,
+      quantity:item.quantity,
+    }));
+    lines.splice(0, lines.length, {
+      machine_code:args.form.machineNo.trim(),
+      product_code:args.form.productName.trim(),
+      machine_time_hours:parseHours(args.form.actualTime),
+      adjustment_minutes:0,
+      adjustment_count:num(args.form.adjustmentCount),
+      ok_quantity:num(args.form.ttOk),
+      ng_quantity:num(args.form.ttNg),
+      standard_output:num(args.form.standardOutput),
+      standard_time_seconds:null,
+      standard_source:"DEFAULT",
+      defects:singleLineDefects,
+    });
+  }
+
   const deductions=args.activeDeductionOptions.map(o=>({
     deduction_type_id:Number(o.id||o.deduction_type_id||0)||undefined,
     deduction_code:String(o.code||""), deduction_name:String(o.label||o.deduction_name||o.key||""),
@@ -76,9 +115,8 @@ export function buildProductionReportPayload(args: {
   const totalTime=parseHours(args.form.totalTime);
   const hasActualMachineLine=(args.usesMultiMachineLines||args.usesSingleMachine)&&lines.some((line)=>!!line.machine_code);
   // Persist machine details for both multi-machine and single-machine reports.
-  // Single-machine reports previously sent machine_lines=[] and therefore relied
-  // only on the parent defect table; persisting the line keeps NG detail attached
-  // to the physical machine and makes history/detail use the same canonical path.
+  // Single-machine reports previously sent machine_lines=[] because their
+  // machine was held in form.machineNo; the canonical line above fixes that.
   const useMachineLinesPayload=(args.usesMultiMachineLines||args.usesSingleMachine)&&hasActualMachineLine;
   return {
     process_id:args.processId, work_date:args.form.workDate, shift:args.form.shift,
