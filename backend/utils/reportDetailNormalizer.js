@@ -35,7 +35,21 @@ function canonicalDefect(item = {}) {
   const canonicalCode = CANONICAL_GC_DEFECTS.has(aliasCode)
     ? aliasCode
     : [...CANONICAL_GC_DEFECTS.entries()].find(([, name]) => normalizeKey(name) === nameKey)?.[0] || null;
-  if (!canonicalCode) return null;
+
+  if (!canonicalCode) {
+    const defectTypeId = Number(item.defect_type_id ?? item.id) || undefined;
+    const defectCode = String(item.defect_code || item.defect_type_code || item.code || "").trim();
+    const defectName = String(item.defect_name || item.name || item.label || "").trim();
+    if (!defectTypeId && !defectCode && !defectName) return null;
+    return {
+      ...item,
+      id: defectTypeId,
+      defect_type_id: defectTypeId,
+      defect_code: defectCode || undefined,
+      defect_name: defectName || defectCode || `Lỗi NG #${defectTypeId || "?"}`
+    };
+  }
+
   return { ...item, defect_code: canonicalCode, defect_name: CANONICAL_GC_DEFECTS.get(canonicalCode) };
 }
 
@@ -56,8 +70,6 @@ function parseMachineDefectEntry(key, value) {
 function parseMachineDefects(machineLines = []) {
   const result = [];
   for (const line of Array.isArray(machineLines) ? machineLines : []) {
-    // Temp read-model attaches normalized rows as `defects`; older rows may
-    // only have the serialized `defects_json` field.
     let parsed = line?.defects;
     if (!Array.isArray(parsed)) {
       const raw = line?.defects_json;
@@ -107,15 +119,17 @@ function mergeDefects(report, rows = [], machineLines = []) {
     if (!canonical) return;
     const quantity = Math.trunc(Number(canonical.quantity ?? 0) || 0);
     if (quantity <= 0) return;
-    const code = canonical.defect_code;
-    const key = `CODE:${code}`;
+    const typeId = Number(canonical.defect_type_id ?? canonical.id) || null;
+    const code = String(canonical.defect_code || "").trim();
+    const name = String(canonical.defect_name || "").trim();
+    const key = typeId ? `ID:${typeId}` : code ? `CODE:${code}` : `NAME:${name}`;
     const existing = merged.get(key);
     if (existing) existing.quantity += quantity;
     else merged.set(key, {
-      id: Number(canonical.id) || undefined,
-      defect_type_id: Number(canonical.defect_type_id) || undefined,
-      defect_code: code,
-      defect_name: CANONICAL_GC_DEFECTS.get(code),
+      id: typeId || undefined,
+      defect_type_id: typeId || undefined,
+      defect_code: code || undefined,
+      defect_name: name || code || `Lỗi NG #${typeId || "?"}`,
       quantity
     });
   };
