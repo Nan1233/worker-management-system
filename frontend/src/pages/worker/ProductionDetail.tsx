@@ -2,34 +2,123 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { getReportById } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
+import "./ProductionDetail.css";
 
 const number = (value: unknown) => new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(Number(value) || 0);
-const quantity = (value: unknown) => new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(Math.round(Number(value) || 0));
+const integer = (value: unknown) => new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(Math.round(Number(value) || 0));
+
 const parseDbDate = (value?: string | null) => {
   if (!value) return null;
   const text = String(value).trim();
-  const normalized = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(text) ? text.replace(" ", "T") + "Z" : text;
+  const normalized = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(text)
+    ? `${text.replace(" ", "T")}Z`
+    : text;
   const date = new Date(normalized);
   return Number.isNaN(date.getTime()) ? null : date;
 };
+
 const formatDateTime = (value?: string | null) => parseDbDate(value)?.toLocaleString("vi-VN") || "---";
 const WORKER_EDIT_WINDOW_MS = 10 * 60 * 1000;
 const CVK_PROCESS_ID = 60006;
 const CVK_PROCESS_CODE = "CVK";
 
+const EXTRA_LABELS: Record<string, string> = {
+  process_code: "Mã công đoạn",
+  work_type: "Công việc",
+  operation_type: "Loại thao tác",
+  operation_mode: "Hình thức thực hiện",
+  execution_method: "Hình thức thực hiện",
+  material_code: "Mã nguyên liệu",
+  product_code: "Mã sản phẩm",
+  press_date: "Ngày tháng Ép",
+  press_box_shift: "Ca / thùng Ép",
+  deduction_work: "Công việc trừ giờ",
+  late_early_hours: "Đi muộn / về sớm",
+  xlbv_deduction_worker: "Trừ giờ XLBV",
+  vsk_hours: "Số giờ VSK",
+  five_s_overtime_hours: "5S + gia ca",
+  mold_warmup_hours: "Hâm khuôn",
+  mold_repair_hours: "Sửa khuôn",
+  machine_repair_hours: "Sửa máy",
+  machine_stop_hours: "Dừng máy",
+  stop_operation_hours: "Dừng thao tác",
+  shortage_hours: "Thiếu sản lượng",
+  rolling_hours: "Thời gian cán",
+  work_minutes: "Thời gian làm việc",
+  assembly_minutes: "Thời gian lắp ráp",
+  tray_minutes: "Thời gian khay",
+  actual_output: "Sản lượng thực tế",
+  handler: "Người xử lý",
+  stop_reason: "Lý do dừng máy",
+  non_product_work: "Công việc khác",
+};
+
+const TECHNICAL_EXTRA_KEYS = new Set([
+  "process_code", "non_product_work", "client_request_id", "logical_duplicate_key",
+  "duplicate_confirmation_token", "force_create", "source_temp_id",
+]);
+
 function extraDataOf(report: ProductionReport) {
   const raw = (report as any)?.extra_data;
-  if (!raw) return {} as Record<string, any>;
-  if (typeof raw === "object" && !Array.isArray(raw)) return raw as Record<string, any>;
-  try { return JSON.parse(String(raw)); } catch { return {}; }
+  if (!raw) return {} as Record<string, unknown>;
+  if (typeof raw === "object" && !Array.isArray(raw)) return raw as Record<string, unknown>;
+  try {
+    const parsed = JSON.parse(String(raw));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function labelExtra(key: string) {
+  if (EXTRA_LABELS[key]) return EXTRA_LABELS[key];
+  return key.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function displayExtraValue(key: string, value: unknown) {
+  if (value === null || value === undefined || value === "") return "-";
+  if (typeof value === "boolean") return value ? "Có" : "Không";
+  if (typeof value === "number") {
+    const unitKeys = new Set(["late_early_hours", "vsk_hours", "five_s_overtime_hours", "mold_warmup_hours", "mold_repair_hours", "machine_repair_hours", "machine_stop_hours", "stop_operation_hours", "shortage_hours", "rolling_hours"]);
+    const minuteKeys = new Set(["work_minutes", "assembly_minutes", "tray_minutes"]);
+    if (unitKeys.has(key)) return `${number(value)} giờ`;
+    if (minuteKeys.has(key)) return `${number(value)} phút`;
+    if (key === "training_percent") return `${number(value)}%`;
+    return number(value);
+  }
+  return String(value);
 }
 
 function timeParts(report: ProductionReport) {
   const actual = Math.max(0, Number(report.actual_time ?? report.total_time ?? 0));
   const hours = Math.floor(actual);
   const minutes = Math.round((actual - hours) * 60);
-  return { hours: minutes >= 60 ? hours + 1 : hours, minutes: minutes >= 60 ? 0 : minutes };
+  return minutes >= 60 ? { hours: hours + 1, minutes: 0 } : { hours, minutes };
 }
+
+function Field({ label, value, className = "" }: { label: string; value: unknown; className?: string }) {
+  return (
+    <div className={className}>
+      <span>{label}</span>
+      <strong>{value === null || value === undefined || value === "" ? "-" : String(value)}</strong>
+    </div>
+  );
+}
+
+const LEGACY_DEFECT_FIELDS: Array<[string, string]> = [
+  ["kqd_dap_lai", "KQD đập lại"],
+  ["kqd_tuot", "KQD tuột"],
+  ["vo_do_long", "Vỡ do lồng"],
+  ["xuoc_do_long", "Xước do lồng"],
+  ["cong_gay", "Cong / gãy"],
+  ["xoay", "Xoay"],
+  ["khong_dut", "Không đứt"],
+  ["bavia_hut", "Bavia hụt"],
+  ["ppcm", "PPCM"],
+  ["loi_cao_su", "Lỗi cao su"],
+  ["ng_kich_thuoc", "NG kích thước"],
+  ["cat_lem", "Cắt lem"],
+];
 
 export default function ProductionDetail() {
   const { id } = useParams();
@@ -64,7 +153,9 @@ export default function ProductionDetail() {
         if (alive) setReport(data);
       } catch (err: any) {
         if (alive) setError(err?.response?.data?.message || err?.message || "Không thể tải chi tiết báo cáo.");
-      } finally { if (alive) setLoading(false); }
+      } finally {
+        if (alive) setLoading(false);
+      }
     };
     void load();
     return () => { alive = false; };
@@ -87,11 +178,11 @@ export default function ProductionDetail() {
   const processCode = String((report as any).process_code || extra.process_code || "").trim().toUpperCase();
   const isCVK = processId === CVK_PROCESS_ID || processCode === CVK_PROCESS_CODE || extra.non_product_work === true;
   const processLabel = isCVK ? "Công việc khác (CVK)" : (report.process_name || report.process_code || "Chưa xác định");
-  const workType = String(extra.work_type || (report as any).work_type || "").trim() || "Công việc khác";
-  const time = timeParts(report);
+  const workType = String(extra.work_type || (report as any).work_type || "").trim();
   const totalHours = Number(report.total_time || 0);
   const actualHours = Number(report.actual_time || 0);
   const deductionHours = Number(report.deduction_time || 0);
+  const time = timeParts(report);
   const isPending = report.status === "pending" || report.status === "need_fix";
   const createdAt = parseDbDate(report.created_at);
   const remainingMs = createdAt ? Math.max(0, createdAt.getTime() + WORKER_EDIT_WINDOW_MS - now) : 0;
@@ -100,147 +191,233 @@ export default function ProductionDetail() {
   const remainingText = `${Math.floor(remainingSeconds / 60)}:${String(remainingSeconds % 60).padStart(2, "0")}`;
   const statusLabel = report.status === "approved" ? "Đã duyệt" : report.status === "rejected" ? "Bị từ chối" : report.status === "need_fix" ? "Cần sửa" : "Chờ duyệt";
 
+  const extraEntries = Object.entries(extra).filter(([key, value]) => !TECHNICAL_EXTRA_KEYS.has(key) && value !== null && value !== undefined && value !== "");
+  const legacyDefects = LEGACY_DEFECT_FIELDS
+    .map(([key, label]) => ({ key, label, quantity: Number((report as any)[key] || 0) }))
+    .filter((item) => item.quantity > 0);
+
+  const machineLines = Array.isArray(report.machine_lines) ? report.machine_lines : [];
+  const machinePerformance = (report as any).machinePerformance;
+  const workerPerformance = (report as any).workerPerformance;
+
   return (
     <div className="ktc-page">
-      <main className={`detail-container${isCVK ? " cvk-history-detail" : ""}`}>
+      <main className="detail-container">
         <header className="detail-header">
-          <div><h1>Chi tiết báo cáo</h1><p>{isCVK ? "Xem lại báo cáo Công việc khác theo đúng biểu mẫu nhập" : "Kiểm tra sản lượng, thời gian và lỗi NG"}</p></div>
+          <div><h1>Chi tiết báo cáo</h1></div>
           <button className="back-btn" type="button" onClick={() => navigate(-1)}>← Quay lại</button>
         </header>
 
         <section className="detail-summary">
-          <div><span>Trạng thái</span><strong className={`status ${report.status || "pending"}`}>{statusLabel}</strong></div>
-          <div><span>Ngày sản xuất</span><strong>{String(report.work_date || "").slice(0, 10)}</strong></div>
-          <div><span>Ca</span><strong>{report.shift || "-"}</strong></div>
-          <div><span>Công đoạn</span><strong>{processLabel}</strong></div>
+          <Field label="Trạng thái" value={<span className={`status ${report.status || "pending"}`}>{statusLabel}</span>} />
+          <Field label="Ngày sản xuất" value={String(report.work_date || "").slice(0, 10)} />
+          <Field label="Ca" value={report.shift || "-"} />
+          <Field label="Công đoạn" value={processLabel} />
         </section>
 
         {isPending && (
-          <section className="detail-section" style={{ marginBottom: 16 }}>
+          <section className="detail-section" style={{ marginBottom: 10 }}>
             {canEdit ? (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                <div><strong>Có thể sửa toàn bộ báo cáo · còn {remainingText}</strong><p style={{ margin: "4px 0 0" }}>Mở lại biểu mẫu nhập để sửa thông tin.</p></div>
+              <div className="detail-action-row">
+                <div><strong>Có thể sửa toàn bộ báo cáo · còn {remainingText}</strong><p>Mở lại biểu mẫu nhập để sửa thông tin.</p></div>
                 <button type="button" className="back-btn" onClick={() => navigate(`/worker/history/${report.id}/edit`)}>Sửa báo cáo</button>
               </div>
             ) : (
-              <div><strong>Đã hết thời gian chỉnh sửa</strong><p style={{ margin: "4px 0 0" }}>Nếu cần sửa, vui lòng liên hệ quản lý.</p></div>
+              <div><strong>Đã hết thời gian chỉnh sửa</strong><p>Những báo cáo quá 10 phút cần liên hệ quản lý.</p></div>
             )}
           </section>
         )}
 
+        <section className="detail-section">
+          <h2>Thông tin người nhập</h2>
+          <div className="detail-grid">
+            <Field label="Công nhân" value={report.full_name || report.worker_name || "-"} />
+            <Field label="Mã công nhân" value={report.worker_code || "-"} />
+            <Field label="Mã công đoạn" value={report.process_code || processCode || "-"} />
+            <Field label="Hình thức thực hiện" value={(report.operation_mode || extra.operation_mode || extra.execution_method || "-").toString()} />
+            <Field label="Loại thao tác" value={report.operation_type || extra.operation_type || "-"} />
+            <Field label="% học việc" value={report.training_percent ?? extra.training_percent ?? (report as any).training_percent_snapshot ?? "-"} />
+            <Field label="Thời gian nhập" value={formatDateTime(report.created_at)} />
+            <Field label="Cập nhật cuối" value={formatDateTime(report.updated_at)} />
+            {report.approved_at && <Field label="Thời điểm duyệt" value={formatDateTime(report.approved_at)} />}
+            {report.reviewed_at && <Field label="Thời điểm xử lý" value={formatDateTime(report.reviewed_at)} />}
+            {(report as any).reviewer_name && <Field label="Người duyệt" value={(report as any).reviewer_name} />}
+          </div>
+        </section>
+
         {isCVK ? (
           <>
-            <section className="detail-section cvk-detail-card">
+            <section className="detail-section">
               <h2>Thông tin công việc</h2>
               <div className="detail-grid">
-                <div><span>Công nhân</span><strong>{report.full_name || report.worker_name || "-"}</strong></div>
-                <div><span>Mã công nhân</span><strong>{report.worker_code || "-"}</strong></div>
-                <div><span>Công việc</span><strong>{workType}</strong></div>
+                <Field label="Công việc" value={workType || "Công việc khác"} />
+                <Field label="Mã công việc" value={processCode || "CVK"} />
+                {report.note && <Field label="Ghi chú" value={report.note} />}
               </div>
             </section>
 
-            <section className="detail-section cvk-detail-card">
+            <section className="detail-section">
               <h2>Thời gian làm việc</h2>
-              <div className="cvk-time-detail-grid">
-                <div className="cvk-time-box"><span>Giờ</span><strong>{time.hours}</strong></div>
-                <div className="cvk-time-box"><span>Phút</span><strong>{String(time.minutes).padStart(2, "0")}</strong></div>
-                <div className="cvk-time-box cvk-time-total"><span>Tổng thời gian</span><strong>{number(totalHours)} giờ</strong></div>
-              </div>
-              <div className="cvk-time-summary">
-                <div><span>Thời gian thực tế</span><strong>{number(actualHours)} giờ</strong></div>
-                <div><span>Thời gian trừ</span><strong>{number(deductionHours)} giờ</strong></div>
+              <div className="metric-grid">
+                <Field label="Giờ" value={time.hours} />
+                <Field label="Phút" value={String(time.minutes).padStart(2, "0")} />
+                <Field label="Tổng thời gian" value={`${number(totalHours)} giờ`} />
+                <Field label="Thời gian thực tế" value={`${number(actualHours)} giờ`} />
+                <Field label="Thời gian trừ" value={`${number(deductionHours)} giờ`} />
               </div>
             </section>
 
             {deductions.length > 0 && (
-              <section className="detail-section cvk-detail-card">
-                <h2>Thời gian trừ</h2>
-                <div className="cvk-deduction-list">
-                  {deductions.map((item, index) => (
-                    <div className="cvk-deduction-item" key={item.id || index}>
-                      <span>{item.deduction_name || item.deduction_code || "Trừ giờ"}</span>
-                      <strong>{number(item.hours)} giờ</strong>
-                    </div>
-                  ))}
+              <section className="detail-section">
+                <h2>Chi tiết trừ giờ</h2>
+                <div className="detail-list">
+                  {deductions.map((item, index) => <div key={item.id || index}><span>{item.deduction_name || item.deduction_code || "Trừ giờ"}</span><strong>{number(item.hours)} giờ</strong></div>)}
                 </div>
               </section>
             )}
-
-            {report.note && (
-              <section className="detail-section cvk-detail-card">
-                <h2>Ghi chú</h2>
-                <p className="cvk-note">{report.note}</p>
-              </section>
-            )}
-
-            <style>{`
-              .cvk-history-detail .detail-summary{margin-bottom:14px}
-              .cvk-history-detail .cvk-detail-card{border-radius:12px}
-              .cvk-history-detail .cvk-detail-card h2{margin-bottom:14px}
-              .cvk-time-detail-grid{display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:10px}
-              .cvk-time-box{min-height:62px;padding:9px 12px;border:1px solid #dbe5f0;border-radius:10px;background:#fff;display:flex;flex-direction:column;justify-content:center}
-              .cvk-time-box span,.cvk-time-summary span{font-size:11px;color:#718198}
-              .cvk-time-box strong{margin-top:3px;font-size:17px;color:#174b86}
-              .cvk-time-total{background:#f6f9fc}
-              .cvk-time-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px}
-              .cvk-time-summary>div{padding:9px 10px;border:1px solid #e0e8f1;border-radius:10px;background:#f8fafc}
-              .cvk-time-summary strong{display:block;margin-top:3px;font-size:13px;color:#24476e}
-              .cvk-deduction-list{display:grid;gap:8px}
-              .cvk-deduction-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid #e0e8f1;border-radius:10px;background:#fbfcfe}
-              .cvk-deduction-item span{font-size:13px;color:#40536d}
-              .cvk-deduction-item strong{font-size:13px;color:#24476e;white-space:nowrap}
-              .cvk-note{margin:0;white-space:pre-wrap;line-height:1.55;color:#29435f}
-              @media(max-width:650px){.cvk-time-detail-grid{grid-template-columns:1fr 1fr}.cvk-time-total{grid-column:1/-1}.cvk-history-detail .detail-grid{grid-template-columns:1fr 1fr}}
-            `}</style>
           </>
         ) : (
           <>
             <section className="detail-section">
-              <h2>Thông tin báo cáo</h2>
+              <h2>Thông tin sản xuất</h2>
               <div className="detail-grid">
-                <div><span>Công nhân</span><strong>{report.full_name || report.worker_name || "-"}</strong></div>
-                <div><span>Mã công nhân</span><strong>{report.worker_code || "-"}</strong></div>
-                <div><span>Mã máy</span><strong>{report.machine_no || "-"}</strong></div>
-                <div><span>Mã sản phẩm</span><strong>{report.product_name || "-"}</strong></div>
-                <div><span>Thời gian nhập</span><strong>{formatDateTime(report.created_at)}</strong></div>
-                <div><span>Cập nhật cuối</span><strong>{formatDateTime(report.updated_at)}</strong></div>
+                <Field label="Mã máy" value={report.machine_no || "-"} />
+                <Field label="Mã sản phẩm" value={report.product_name || "-"} />
+                <Field label="Định mức" value={`${number(report.standard_output)} sp/giờ`} />
+                <Field label="Mục tiêu" value={report.target_output == null ? "-" : integer(report.target_output)} />
+                <Field label="Sản lượng thực tế" value={integer(report.actual_output)} />
+                <Field label="OK" value={integer(report.tt_ok)} className="ok" />
+                <Field label="NG" value={integer(report.tt_ng)} className="ng" />
+                <Field label="KQD đập lại" value={integer(report.kqd_dap_lai)} />
+                <Field label="KQD tuột" value={integer(report.kqd_tuot)} />
+                <Field label="Trừ KQD khỏi TT" value={Number(report.exclude_kqd_from_tt_snapshot ?? report.exclude_kqd_from_tt ?? 0) ? "Có" : "Không"} />
               </div>
             </section>
 
-            {report.machine_lines?.length ? (
+            <section className="detail-section">
+              <h2>Thời gian</h2>
+              <div className="metric-grid">
+                <Field label="Tổng thời gian" value={`${number(totalHours)} giờ`} />
+                <Field label="Thời gian thực tế" value={`${number(actualHours)} giờ`} />
+                <Field label="Thời gian trừ" value={`${number(deductionHours)} giờ`} />
+                <Field label="Lý do dừng máy" value={report.stop_reason || extra.stop_reason || "-"} />
+              </div>
+            </section>
+
+            {machineLines.length > 0 && (
               <section className="detail-section">
-                <h2>Máy / sản phẩm</h2>
-                <div style={{ display: "grid", gap: 10 }}>
-                  {report.machine_lines.map((line, index) => {
-                    const defectTotal = (line.defects || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+                <h2>Chi tiết từng máy</h2>
+                <div className="machine-detail-list">
+                  {machineLines.map((line, index) => {
                     const lineDefects = (line.defects || []).filter((item) => Number(item.quantity) > 0);
                     return (
-                      <div key={line.id || index} style={{ padding: 10, border: "1px solid #d9e2ef", borderRadius: 10, background: "#fff" }}>
-                        <div style={{ fontWeight: 600, marginBottom: 8, color: "#0f4b8a" }}>Máy {index + 1}</div>
-                        <div className="detail-grid" style={{ margin: 0 }}>
-                          <div><span>Mã máy</span><strong>{line.machine_code || "-"}</strong></div>
-                          <div><span>Mã sản phẩm</span><strong>{line.product_code || "-"}</strong></div>
-                          <div><span>Thời gian máy</span><strong>{number(line.machine_time_hours)} giờ</strong></div>
-                          <div><span>OK</span><strong>{quantity(line.ok_quantity)}</strong></div>
-                          <div><span>NG</span><strong>{quantity(line.ng_quantity)}</strong></div>
-                          <div><span>Tổng lỗi</span><strong>{quantity(defectTotal)}</strong></div>
+                      <div className="machine-detail-card" key={line.id || index}>
+                        <div className="machine-detail-title">Máy {index + 1} · {line.machine_code || "-"}</div>
+                        <div className="detail-grid">
+                          <Field label="Mã máy" value={line.machine_code || "-"} />
+                          <Field label="Mã sản phẩm" value={line.product_code || "-"} />
+                          <Field label="Thời gian máy" value={`${number(line.machine_time_hours)} giờ`} />
+                          <Field label="Định mức máy" value={line.standard_output == null ? "-" : `${number(line.standard_output)} sp/giờ`} />
+                          <Field label="Nguồn định mức" value={line.standard_source || "-"} />
+                          <Field label="Sản lượng OK" value={integer(line.ok_quantity)} className="ok" />
+                          <Field label="Sản lượng NG" value={integer(line.ng_quantity)} className="ng" />
+                          <Field label="Sản lượng tính" value={integer(line.counted_output)} />
+                          <Field label="Sản lượng tối đa" value={integer(line.maximum_output)} />
+                          <Field label="Giờ định mức đạt được" value={number(line.earned_standard_hours)} />
+                          <Field label="Loại trừ KQD" value={Number(line.exclude_kqd_from_tt || 0) ? "Có" : "Không"} />
+                          {line.adjustment_minutes != null && <Field label="Điều chỉnh thời gian" value={`${number(line.adjustment_minutes)} phút`} />}
                         </div>
-                        {lineDefects.length > 0 && <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #edf1f7" }}><span style={{ display: "block", fontSize: 12, color: "#64748b", marginBottom: 4 }}>Lỗi NG theo máy</span><div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 6 }}>{lineDefects.map((item, defectIndex) => <div key={item.id || defectIndex} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "6px 8px", border: "1px solid #e5eaf1", borderRadius: 8 }}><span>{item.defect_name || item.defect_code || "NG"}</span><strong>{quantity(item.quantity)}</strong></div>)}</div></div>}
+                        {lineDefects.length > 0 && (
+                          <div className="detail-list">
+                            {lineDefects.map((item, defectIndex) => <div key={item.id || defectIndex}><span>{item.defect_name || item.defect_code || "Lỗi NG"}</span><strong>{integer(item.quantity)}</strong></div>)}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
                 </div>
               </section>
-            ) : null}
+            )}
 
-            <section className="detail-section"><h2>Sản lượng</h2><div className="detail-grid"><div><span>Định mức</span><strong>{number(report.standard_output)}</strong></div><div><span>Thực tế</span><strong>{quantity(report.actual_output)}</strong></div><div><span>OK</span><strong>{quantity(report.tt_ok)}</strong></div><div><span>NG</span><strong>{quantity(report.tt_ng)}</strong></div></div></section>
-            <section className="detail-section"><h2>Thời gian</h2><div className="detail-grid"><div><span>Tổng thời gian</span><strong>{number(report.total_time)} giờ</strong></div><div><span>Thời gian thực tế</span><strong>{number(report.actual_time)} giờ</strong></div><div><span>Thời gian trừ</span><strong>{number(report.deduction_time)} giờ</strong></div></div></section>
-            {defects.length > 0 && <section className="detail-section"><h2>Lỗi NG</h2><div className="detail-grid">{defects.map((item, index) => <div key={item.id || index}><span>{item.defect_name || item.defect_code || "NG"}</span><strong>{quantity(item.quantity)}</strong></div>)}</div></section>}
-            {deductions.length > 0 && <section className="detail-section"><h2>Trừ giờ</h2><div className="detail-grid">{deductions.map((item, index) => <div key={item.id || index}><span>{item.deduction_name || item.deduction_code || "Trừ giờ"}</span><strong>{number(item.hours)} giờ</strong></div>)}</div></section>}
-            {report.note && <section className="detail-section"><h2>Ghi chú</h2><p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{report.note}</p></section>}
+            {(machinePerformance || workerPerformance) && (
+              <section className="detail-section">
+                <h2>Hiệu suất</h2>
+                {machinePerformance && <div className="metric-grid">
+                  <Field label="Số máy" value={machinePerformance.machine_count} />
+                  <Field label="Tổng giờ máy" value={number(machinePerformance.total_machine_hours)} />
+                  <Field label="Sản lượng vật lý" value={integer(machinePerformance.physical_output)} />
+                  <Field label="Sản lượng tính" value={integer(machinePerformance.counted_output)} />
+                  <Field label="Hiệu suất máy" value={`${number(machinePerformance.efficiency_percent)}%`} />
+                  <Field label="Tỷ lệ OK" value={`${number(machinePerformance.ok_rate_percent)}%`} />
+                  <Field label="Tỷ lệ NG" value={`${number(machinePerformance.ng_rate_percent)}%`} />
+                </div>}
+                {workerPerformance && <div className="metric-grid" style={{ marginTop: 7 }}>
+                  <Field label="Giờ công thực tế" value={number(workerPerformance.actual_worker_hours)} />
+                  <Field label="Giờ định mức đạt được" value={number(workerPerformance.earned_standard_hours)} />
+                  <Field label="Hiệu suất công nhân" value={`${number(workerPerformance.efficiency_percent)}%`} />
+                </div>}
+              </section>
+            )}
+
+            <section className="detail-section">
+              <h2>Chi tiết lỗi NG</h2>
+              {defects.length > 0 ? (
+                <div className="detail-list">
+                  {defects.map((item, index) => <div key={item.id || index}><span>{item.defect_name || item.defect_code || "Lỗi NG"}</span><strong>{integer(item.quantity)}</strong></div>)}
+                </div>
+              ) : legacyDefects.length > 0 ? (
+                <div className="detail-list">
+                  {legacyDefects.map((item) => <div key={item.key}><span>{item.label}</span><strong>{integer(item.quantity)}</strong></div>)}
+                </div>
+              ) : <p className="empty-row">Không có lỗi NG được ghi nhận.</p>}
+            </section>
+
+            {deductions.length > 0 && (
+              <section className="detail-section">
+                <h2>Chi tiết trừ giờ</h2>
+                <div className="detail-list">
+                  {deductions.map((item, index) => <div key={item.id || index}><span>{item.deduction_name || item.deduction_code || "Trừ giờ"}</span><strong>{number(item.hours)} giờ</strong></div>)}
+                </div>
+              </section>
+            )}
           </>
         )}
+
+        {extraEntries.length > 0 && (
+          <section className="detail-section">
+            <h2>Thông tin bổ sung</h2>
+            <div className="detail-grid">
+              {extraEntries.map(([key, value]) => <Field key={key} label={labelExtra(key)} value={displayExtraValue(key, value)} />)}
+            </div>
+          </section>
+        )}
+
+        {(report.note || report.notes) && (
+          <section className="detail-section">
+            <h2>Ghi chú</h2>
+            <p className="detail-note">{report.note || report.notes}</p>
+          </section>
+        )}
+
+        {(report.review_note || report.reason) && (
+          <section className="detail-section detail-rejection">
+            <h2>Thông tin xử lý</h2>
+            {report.review_note && <p><strong>Ghi chú xử lý:</strong> {report.review_note}</p>}
+            {report.reason && <p><strong>Lý do:</strong> {report.reason}</p>}
+          </section>
+        )}
       </main>
+      <style>{`
+        .detail-action-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+        .detail-action-row p{margin:4px 0 0;color:var(--ktc-text-muted);font-size:11px}
+        .machine-detail-list{display:grid;gap:10px}
+        .machine-detail-card{border:1px solid var(--ktc-border);border-radius:9px;padding:10px;background:#fbfcfe}
+        .machine-detail-title{font-weight:600;color:var(--ktc-brand-900);font-size:13px;margin-bottom:8px}
+        .detail-note{margin:0;white-space:pre-wrap;color:var(--ktc-text);font-size:12px;line-height:1.55}
+        .detail-rejection h2{margin-bottom:6px}
+        .detail-rejection p{margin:5px 0;font-size:11px}
+        @media(max-width:760px){.detail-action-row{align-items:flex-start}.machine-detail-card{padding:8px}}
+      `}</style>
     </div>
   );
 }
