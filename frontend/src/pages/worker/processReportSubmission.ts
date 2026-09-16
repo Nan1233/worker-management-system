@@ -72,13 +72,10 @@ export function buildProductionReportPayload(args: {
     standard_source:l.standardSource,
     defects:(l.selectedDefects||[]).map(key=>{
       const option=args.activeNgOptions.find(o=>o.key===key);
-      return defectForOption(option, l.defects[key]);
+      return defectForOption(option, num(l.defects[key]));
     }).filter(x=>x.quantity>0)
   }));
 
-  // Single-machine processes keep the selected machine/product in
-  // form.machineNo/form.productName. Canonicalize them into machine_lines so
-  // NG details and machine accounting use the same persistence path.
   if (args.usesSingleMachine && !args.usesMultiMachineLines && args.form.machineNo.trim()) {
     const singleLineDefects = defects.map((item) => ({
       defect_type_id:item.defect_type_id,
@@ -113,17 +110,15 @@ export function buildProductionReportPayload(args: {
   const hasActualMachineLine=(args.usesMultiMachineLines||args.usesSingleMachine)&&lines.some((line)=>!!line.machine_code);
   const useMachineLinesPayload=(args.usesMultiMachineLines||args.usesSingleMachine)&&hasActualMachineLine;
 
-  // operation_mode remains MACHINE for machine-based CẮT/LỒNG validation,
-  // while execution_method preserves the actual business selection. The old
-  // payload only persisted generic MACHINE, so CẮT Tự động and CẮT Không tự
-  // động became indistinguishable in the saved report.
-  // CẮT is derived from the selected machine family; LỒNG keeps the existing
-  // machine/manual distinction through usesAnyMachine.
   const normalizedMachine = String(args.form.machineNo || lines[0]?.machine_code || "").trim().toUpperCase();
-  const automaticCutMachines = new Set(["C5", "C6", "C7", "C11"]);
+  const automaticCutMachines = new Set<string>(["C5", "C6", "C7", "C11"]);
   const executionMethod = args.operationType === "CUT"
-    ? (automaticCutMachines.has(normalizedMachine) ? "AUTO" : "NON_AUTO")
-    : (args.usesAnyMachine ? "MACHINE" : "MANUAL");
+    ? ((args.form.executionMethod === "AUTO" || args.form.executionMethod === "NON_AUTO")
+      ? args.form.executionMethod
+      : (automaticCutMachines.has(normalizedMachine) ? "AUTO" : "NON_AUTO"))
+    : ((args.form.executionMethod === "MANUAL" || args.form.executionMethod === "MACHINE")
+      ? args.form.executionMethod
+      : (args.usesAnyMachine ? "MACHINE" : "MANUAL"));
 
   return {
     process_id:args.processId, work_date:args.form.workDate, shift:args.form.shift,
