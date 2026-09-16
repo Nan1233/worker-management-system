@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { getMyDailyWorkingHours } from "../../../services/productionService";
 import { parseFlexibleTime } from "../processFormUtils";
 
@@ -45,23 +45,6 @@ export default function ProcessSubmitActions({ duplicatePrompt, canUpdateExistin
     const [dailyTimeDetails, setDailyTimeDetails] = useState<TimeDetails | null>(null);
     const [loadingDailyHours, setLoadingDailyHours] = useState(false);
     const [dailyHoursError, setDailyHoursError] = useState("");
-    const autoResumeReportIdRef = useRef<number | null>(null);
-
-    // A duplicate TEMP report for the exact worker/process/date/shift is the
-    // continuation of the current production report, not a second report.
-    // ProcessPage already receives the server's duplicate challenge bound to
-    // that exact collision, so resume the existing TEMP report automatically.
-    // Approved reports stay protected and continue through the explicit dialog.
-    useEffect(() => {
-        const reportId = Number(duplicatePrompt?.reportId || 0);
-        if (!duplicatePrompt || !canUpdateExisting || reportId <= 0 || submitting) {
-            if (!duplicatePrompt) autoResumeReportIdRef.current = null;
-            return;
-        }
-        if (autoResumeReportIdRef.current === reportId) return;
-        autoResumeReportIdRef.current = reportId;
-        onUpdateExisting();
-    }, [duplicatePrompt, canUpdateExisting, submitting, onUpdateExisting]);
 
     const handleSubmitClick = async () => {
         if (submitting || loadingDailyHours) return;
@@ -94,13 +77,20 @@ export default function ProcessSubmitActions({ duplicatePrompt, canUpdateExistin
 
     return (
         <>
-            {duplicatePrompt && !canUpdateExisting && <div className="duplicate-dialog-backdrop" role="presentation">
+            {duplicatePrompt && <div className="duplicate-dialog-backdrop" role="presentation">
                 <div className="duplicate-dialog" role="dialog" aria-modal="true" aria-labelledby="duplicate-dialog-title">
-                    <h2 id="duplicate-dialog-title">Phát hiện báo cáo tương tự</h2>
-                    <p>Đã tồn tại báo cáo đã duyệt cho cùng nhân viên, ngày, ca, máy và sản phẩm. Báo cáo đã duyệt không thể tiếp tục cập nhật.</p>
+                    <h2 id="duplicate-dialog-title">Đã tồn tại báo cáo tương tự</h2>
+                    {canUpdateExisting ? (
+                        <p>Báo cáo này đã tồn tại cho cùng công nhân, ngày, ca, máy và sản phẩm. Bạn có thể tiếp tục chỉnh sửa báo cáo hiện có hoặc tạo một báo cáo mới.</p>
+                    ) : (
+                        <p>Báo cáo tương tự đã tồn tại nhưng đã hết thời gian 10 phút để công nhân chỉnh sửa. Bạn có thể tạo một báo cáo mới.</p>
+                    )}
                     <div className="duplicate-dialog-actions">
-                        <button type="button" className="duplicate-dialog-cancel" onClick={onCancelDuplicate}>Hủy</button>
-                        <button type="button" className="duplicate-dialog-create" onClick={onCreateDuplicate} disabled={submitting}>Vẫn tạo báo cáo mới</button>
+                        <button type="button" className="duplicate-dialog-cancel" onClick={onCancelDuplicate} disabled={submitting}>Hủy</button>
+                        {canUpdateExisting && (
+                            <button type="button" className="duplicate-dialog-cancel" onClick={onUpdateExisting} disabled={submitting}>Tiếp tục báo cáo cũ</button>
+                        )}
+                        <button type="button" className="duplicate-dialog-create" onClick={onCreateDuplicate} disabled={submitting}>Tạo báo cáo mới</button>
                     </div>
                 </div>
             </div>}
