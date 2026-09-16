@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { HashRouter } from "react-router-dom";
 
 import App from "./App";
+import "./pages/Login.css";
 import "./pages/worker/ProcessPage.compact.css";
 import "./pages/worker/ProcessPage.polished.css";
 import "./pages/worker/ProcessPage.ng-layout.css";
