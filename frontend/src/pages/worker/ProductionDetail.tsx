@@ -288,9 +288,6 @@ export default function ProductionDetail() {
                 <Field label="Sản lượng thực tế" value={integer(report.actual_output)} />
                 <Field label="OK" value={integer(report.tt_ok)} className="ok" />
                 <Field label="NG" value={integer(report.tt_ng)} className="ng" />
-                <Field label="KQD đập lại" value={integer(report.kqd_dap_lai)} />
-                <Field label="KQD tuột" value={integer(report.kqd_tuot)} />
-                <Field label="Trừ KQD khỏi TT" value={Number(report.exclude_kqd_from_tt_snapshot ?? report.exclude_kqd_from_tt ?? 0) ? "Có" : "Không"} />
               </div>
             </section>
 
@@ -328,8 +325,14 @@ export default function ProductionDetail() {
                           {line.adjustment_minutes != null && <Field label="Điều chỉnh thời gian" value={`${number(line.adjustment_minutes)} phút`} />}
                         </div>
                         {lineDefects.length > 0 && (
-                          <div className="detail-list">
-                            {lineDefects.map((item, defectIndex) => <div key={item.id || defectIndex}><span>{item.defect_name || item.defect_code || "Lỗi NG"}</span><strong>{integer(item.quantity)}</strong></div>)}
+                          <div className="machine-defects">
+                            <div className="machine-detail-title">Chi tiết lỗi NG</div>
+                            {lineDefects.map((item, defectIndex) => (
+                              <div key={item.id || item.defect_code || defectIndex} className="machine-defect-row">
+                                <span>{item.defect_name || item.defect_code || "Lỗi NG"}</span>
+                                <strong>{integer(item.quantity)}</strong>
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
@@ -339,38 +342,25 @@ export default function ProductionDetail() {
               </section>
             )}
 
-            {(machinePerformance || workerPerformance) && (
+            {(defects.length > 0 || legacyDefects.length > 0) && (
               <section className="detail-section">
-                <h2>Hiệu suất</h2>
-                {machinePerformance && <div className="metric-grid">
-                  <Field label="Số máy" value={machinePerformance.machine_count} />
-                  <Field label="Tổng giờ máy" value={number(machinePerformance.total_machine_hours)} />
-                  <Field label="Sản lượng vật lý" value={integer(machinePerformance.physical_output)} />
-                  <Field label="Sản lượng tính" value={integer(machinePerformance.counted_output)} />
-                  <Field label="Hiệu suất máy" value={`${number(machinePerformance.efficiency_percent)}%`} />
-                  <Field label="Tỷ lệ OK" value={`${number(machinePerformance.ok_rate_percent)}%`} />
-                  <Field label="Tỷ lệ NG" value={`${number(machinePerformance.ng_rate_percent)}%`} />
-                </div>}
-                {workerPerformance && <div className="metric-grid" style={{ marginTop: 7 }}>
-                  <Field label="Giờ công thực tế" value={number(workerPerformance.actual_worker_hours)} />
-                  <Field label="Giờ định mức đạt được" value={number(workerPerformance.earned_standard_hours)} />
-                  <Field label="Hiệu suất công nhân" value={`${number(workerPerformance.efficiency_percent)}%`} />
-                </div>}
+                <h2>Chi tiết lỗi NG</h2>
+                <div className="detail-list">
+                  {defects.map((item, index) => (
+                    <div key={item.id || item.defect_code || index}>
+                      <span>{item.defect_name || item.defect_code || "Lỗi NG"}</span>
+                      <strong>{integer(item.quantity)}</strong>
+                    </div>
+                  ))}
+                  {defects.length === 0 && legacyDefects.map((item) => (
+                    <div key={item.key}>
+                      <span>{item.label}</span>
+                      <strong>{integer(item.quantity)}</strong>
+                    </div>
+                  ))}
+                </div>
               </section>
             )}
-
-            <section className="detail-section">
-              <h2>Chi tiết lỗi NG</h2>
-              {defects.length > 0 ? (
-                <div className="detail-list">
-                  {defects.map((item, index) => <div key={item.id || index}><span>{item.defect_name || item.defect_code || "Lỗi NG"}</span><strong>{integer(item.quantity)}</strong></div>)}
-                </div>
-              ) : legacyDefects.length > 0 ? (
-                <div className="detail-list">
-                  {legacyDefects.map((item) => <div key={item.key}><span>{item.label}</span><strong>{integer(item.quantity)}</strong></div>)}
-                </div>
-              ) : <p className="empty-row">Không có lỗi NG được ghi nhận.</p>}
-            </section>
 
             {deductions.length > 0 && (
               <section className="detail-section">
@@ -387,37 +377,23 @@ export default function ProductionDetail() {
           <section className="detail-section">
             <h2>Thông tin bổ sung</h2>
             <div className="detail-grid">
-              {extraEntries.map(([key, value]) => <Field key={key} label={labelExtra(key)} value={displayExtraValue(key, value)} />)}
+              {extraEntries.map(([key, value]) => (
+                <Field key={key} label={labelExtra(key)} value={displayExtraValue(key, value)} />
+              ))}
             </div>
           </section>
         )}
 
-        {(report.note || report.notes) && (
+        {(machinePerformance || workerPerformance) && (
           <section className="detail-section">
-            <h2>Ghi chú</h2>
-            <p className="detail-note">{report.note || report.notes}</p>
-          </section>
-        )}
-
-        {(report.review_note || report.reason) && (
-          <section className="detail-section detail-rejection">
-            <h2>Thông tin xử lý</h2>
-            {report.review_note && <p><strong>Ghi chú xử lý:</strong> {report.review_note}</p>}
-            {report.reason && <p><strong>Lý do:</strong> {report.reason}</p>}
+            <h2>Hiệu suất</h2>
+            <div className="detail-grid">
+              {workerPerformance?.efficiency != null && <Field label="Hiệu suất người" value={`${number(workerPerformance.efficiency)}%`} />}
+              {machinePerformance?.efficiency != null && <Field label="Hiệu suất máy" value={`${number(machinePerformance.efficiency)}%`} />}
+            </div>
           </section>
         )}
       </main>
-      <style>{`
-        .detail-action-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-        .detail-action-row p{margin:4px 0 0;color:var(--ktc-text-muted);font-size:11px}
-        .machine-detail-list{display:grid;gap:10px}
-        .machine-detail-card{border:1px solid var(--ktc-border);border-radius:9px;padding:10px;background:#fbfcfe}
-        .machine-detail-title{font-weight:600;color:var(--ktc-brand-900);font-size:13px;margin-bottom:8px}
-        .detail-note{margin:0;white-space:pre-wrap;color:var(--ktc-text);font-size:12px;line-height:1.55}
-        .detail-rejection h2{margin-bottom:6px}
-        .detail-rejection p{margin:5px 0;font-size:11px}
-        @media(max-width:760px){.detail-action-row{align-items:flex-start}.machine-detail-card{padding:8px}}
-      `}</style>
     </div>
   );
 }
