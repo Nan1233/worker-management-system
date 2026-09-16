@@ -12,7 +12,7 @@ const LEGACY_DEFECT_FIELDS = [
   ["vo_do_long", "VO_CAO_SU", "Vỡ cao su"], ["xuoc_do_long", "K_XUOC_CONG_GAY", "K xước cong gãy"],
   ["cong_gay", "K_XUOC_CONG_GAY", "K xước cong gãy"], ["xoay", "CAO_SU_XOAY", "Cao su xoay"],
   ["khong_dut", "CAT_KHONG_DUT", "Cắt không đứt"], ["bavia_hut", "BAVIA", "Bavia"],
-  ["ppcm", "PPCM", "PPCM"], ["loi_cao_su", "LCS", "LCS"],
+  ["ppcm", "PPCM", "PPCM"], ["loi_cao_su", "LCS", "Lỗi cao su"],
   ["ng_kich_thuoc", "KT_LON", "KT kích thước"], ["cat_lem", "CAT_LEM", "Cắt lẹm"]
 ];
 
@@ -134,10 +134,6 @@ function mergeDefects(report, rows = [], machineLines = []) {
     });
   };
 
-  // A report can legitimately have both report-level NG rows and machine/event
-  // NG rows. The old implementation selected only one source, which could make
-  // valid NG details disappear in history. Merge all persisted sources and then
-  // use legacy parent columns only when no persisted detail exists.
   rows.forEach(add);
   machineDefects.forEach(add);
 
@@ -148,10 +144,28 @@ function mergeDefects(report, rows = [], machineLines = []) {
     });
   }
 
+  // Legacy machine reports can contain a valid NG total in ng_quantity while
+  // the old UI never persisted the individual defect type. Never hide that
+  // quantity in History/Detail: expose it explicitly as unclassified rather
+  // than inventing a defect type.
+  if (merged.size === 0) {
+    const machineNgTotal = (Array.isArray(machineLines) ? machineLines : [])
+      .reduce((sum, line) => sum + Math.max(0, Math.trunc(Number(line?.ng_quantity || 0) || 0)), 0);
+    const parentNg = Math.max(0, Math.trunc(Number(report?.tt_ng || 0) || 0));
+    const fallbackNg = machineNgTotal > 0 ? machineNgTotal : parentNg;
+    if (fallbackNg > 0) {
+      add({
+        defect_code: "NG_UNCLASSIFIED",
+        defect_name: "NG chưa phân loại",
+        quantity: fallbackNg,
+      });
+    }
+  }
+
   return [...merged.values()].sort((a, b) => String(a.defect_name).localeCompare(String(b.defect_name), "vi"));
 }
 
-function normalizeDeductions(rows = []) {
+function normalizeDeductions(rows = [], report = null) {
   const merged = new Map();
   const source = Array.isArray(rows) ? rows : [];
   source.forEach((item) => {
@@ -162,6 +176,21 @@ function normalizeDeductions(rows = []) {
     if (merged.has(key)) merged.get(key).hours += hours;
     else merged.set(key, { ...item, hours });
   });
+
+  // Older reports can retain only the parent deduction_time. Preserve the
+  // accounting total in Detail instead of rendering an empty deduction block.
+  if (merged.size === 0) {
+    const parentHours = Math.max(0, Number(report?.deduction_time || 0) || 0);
+    if (parentHours > 0) {
+      merged.set("UNCLASSIFIED", {
+        deduction_type_id: undefined,
+        deduction_code: "TRU_GIO_UNCLASSIFIED",
+        deduction_name: "Trừ giờ chưa phân loại",
+        hours: parentHours,
+      });
+    }
+  }
+
   return [...merged.values()];
 }
 
