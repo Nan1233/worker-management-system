@@ -1,6 +1,6 @@
 import type { MachineOption, ProductStandardOption } from "../../services/masterDataService";
 import type { ProductionReport } from "../../types/production";
-import type { DeductionState, FormState, MachineLineState, OperationType } from "./processPageConfig";
+import type { DeductionState, FormState, MachineLineState, OperationMode, OperationType } from "./processPageConfig";
 
 type Option = { key?: string; id?: number; code?: string; defect_code?: string; label?: string; defect_type_id?: number; deduction_type_id?: number; defect_name?: string; deduction_name?: string };
 
@@ -26,6 +26,7 @@ export function buildProductionReportPayload(args: {
   form: FormState;
   extraData: Record<string,string>;
   operationType: OperationType;
+  operationMode: OperationMode;
   isCutLongProcess: boolean;
   usesAnyMachine: boolean;
   usesMultiMachineLines: boolean;
@@ -113,14 +114,11 @@ export function buildProductionReportPayload(args: {
   const hasActualMachineLine=(args.usesMultiMachineLines||args.usesSingleMachine)&&lines.some((line)=>!!line.machine_code);
   const useMachineLinesPayload=(args.usesMultiMachineLines||args.usesSingleMachine)&&hasActualMachineLine;
 
-  // operation_mode is intentionally kept as MACHINE for CẮT because the
-  // selected machine is still a machine line. The old code lost the actual
-  // CẮT selection (Tự động / Không tự động) and only persisted the generic
-  // MACHINE value. Derive and persist the business selection separately.
-  // For CẮT, the automatic machine family is fixed by the existing master-data
-  // rule (C5/C6/C7/C11); every other selected CẮT machine is non-automatic.
-  // For LỒNG, the existing operation mode already represents Tay/Máy.
-  const normalizedMachine = String(args.form.machineNo || "").trim().toUpperCase();
+  // operation_mode remains MACHINE for machine-based CẮT/LỒNG validation,
+  // while execution_method preserves the actual business selection. The
+  // previous payload only persisted generic MACHINE, so CẮT Tự động and CẮT
+  // Không tự động became indistinguishable in the saved report.
+  const normalizedMachine = String(args.form.machineNo || lines[0]?.machine_code || "").trim().toUpperCase();
   const automaticCutMachines = new Set(["C5", "C6", "C7", "C11"]);
   const executionMethod = args.operationType === "CUT"
     ? (automaticCutMachines.has(normalizedMachine) ? "AUTO" : "NON_AUTO")
