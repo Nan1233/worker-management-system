@@ -9,8 +9,8 @@
 .login-dots{position:absolute;width:92px;height:92px;opacity:.72;background-image:radial-gradient(circle,rgba(130,180,239,.5) 2px,transparent 2.5px);background-size:22px 22px;z-index:1}
 .login-dots-top{right:15%;top:9%}.login-dots-bottom{left:4%;bottom:9%}
 .login-card{position:relative;z-index:3;width:min(560px,calc(100vw - 48px));min-height:620px;padding:58px 52px 42px;border:1px solid #e4edf7;border-radius:20px;background:rgba(255,255,255,.98);box-shadow:0 18px 55px rgba(93,143,195,.13);display:flex;flex-direction:column}
-.login-brand{height:140px;display:flex;justify-content:center;align-items:center;margin-bottom:0;overflow:visible}
-.login-logo-vector{display:block;width:250px;height:140px;object-fit:contain;object-position:center;border:0;flex:0 0 auto}
+.login-brand{height:100px;display:flex;justify-content:center;align-items:center;margin-bottom:18px;overflow:visible}
+.login-logo-vector{display:block;width:270px;height:84px;object-fit:contain;object-position:center;border:0;flex:0 0 auto;overflow:visible}
 .login-heading{text-align:center;margin:0 0 34px}
 .login-heading h1{margin:0;color:#19345d;font-size:34px;line-height:1.18;letter-spacing:-.035em;font-weight:760}
 .login-heading p{margin:10px 0 0;color:#7891b1;font-size:16px;line-height:1.5;font-weight:450}
@@ -55,10 +55,10 @@
  .login-page::before{background:radial-gradient(circle at 50% 0%,rgba(222,237,254,.8),transparent 38%),#fff}
  .login-decoration-top{width:105px;height:105px;right:-35px;top:-35px}.login-decoration-left{width:170px;height:170px;left:-120px;top:25%;border-radius:38px}.login-decoration-bottom{width:175px;height:175px;right:-120px;bottom:-115px;border-radius:38px}.login-dots{width:65px;height:65px;background-size:16px 16px}.login-dots-top{right:4%;top:7%}.login-dots-bottom{left:3%;bottom:6%}
  .login-card{width:min(100%,460px);min-height:0;padding:42px 30px 30px;border-radius:20px;box-shadow:0 14px 42px rgba(93,143,195,.11)}
- .login-brand{height:126px;margin-bottom:0}.login-logo-vector{width:225px;height:126px}.login-heading{margin-bottom:28px}.login-heading h1{font-size:30px}.login-heading p{font-size:15px;margin-top:8px}
+ .login-brand{height:88px;margin-bottom:14px}.login-logo-vector{width:240px;height:75px}.login-heading{margin-bottom:28px}.login-heading h1{font-size:30px}.login-heading p{font-size:15px;margin-top:8px}
  .login-role-card{min-height:94px;padding:15px 16px;grid-template-columns:48px 1fr 24px;gap:12px;border-radius:14px}.login-role-icon{width:48px;height:48px;border-radius:12px;font-size:23px}.login-role-copy strong{font-size:17px}.login-role-copy small{font-size:12px}
  .login-input-wrap input,.login-submit{height:58px}.login-footer{padding-top:30px;font-size:12px}
 }
 @media (max-width:430px){
- .login-page{padding:14px 10px}.login-card{width:100%;padding:34px 20px 26px;border-radius:18px}.login-logo-vector{width:200px;height:112px}.login-brand{height:112px;margin-bottom:0}.login-heading{margin-bottom:25px}.login-heading h1{font-size:27px}.login-heading p{font-size:14px}.login-role-choice{gap:12px}.login-role-card{min-height:88px;padding:13px 12px;grid-template-columns:43px 1fr 20px;gap:10px}.login-role-icon{width:43px;height:43px;border-radius:11px;font-size:20px}.login-role-copy strong{font-size:15px}.login-role-copy small{font-size:11px}.login-role-arrow{font-size:21px}.login-field{gap:8px}.login-field label,.login-form>.login-field>label{font-size:13px}.login-input-wrap input{height:56px;font-size:15px}.login-submit{height:56px;font-size:16px}.login-footer{padding-top:28px}.login-decoration-left{left:-145px}.login-decoration-bottom{right:-140px}
+ .login-page{padding:14px 10px}.login-card{width:100%;padding:34px 20px 26px;border-radius:18px}.login-logo-vector{width:215px;height:67px}.login-brand{height:80px;margin-bottom:12px}.login-heading{margin-bottom:25px}.login-heading h1{font-size:27px}.login-heading p{font-size:14px}.login-role-choice{gap:12px}.login-role-card{min-height:88px;padding:13px 12px;grid-template-columns:43px 1fr 20px;gap:10px}.login-role-icon{width:43px;height:43px;border-radius:11px;font-size:20px}.login-role-copy strong{font-size:15px}.login-role-copy small{font-size:11px}.login-role-arrow{font-size:21px}.login-field{gap:8px}.login-field label,.login-form>.login-field>label{font-size:13px}.login-input-wrap input{height:56px;font-size:15px}.login-submit{height:56px;font-size:16px}.login-footer{padding-top:28px}.login-decoration-left{left:-145px}.login-decoration-bottom{right:-140px}
 }
