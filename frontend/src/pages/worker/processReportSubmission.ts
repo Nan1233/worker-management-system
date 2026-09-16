@@ -2,7 +2,7 @@ import type { MachineOption, ProductStandardOption } from "../../services/master
 import type { ProductionReport } from "../../types/production";
 import type { DeductionState, FormState, MachineLineState, OperationType } from "./processPageConfig";
 
-type Option = { key?: string; id?: number; code?: string; label?: string; defect_type_id?: number; deduction_type_id?: number; defect_name?: string; deduction_name?: string };
+type Option = { key?: string; id?: number; code?: string; defect_code?: string; label?: string; defect_type_id?: number; deduction_type_id?: number; defect_name?: string; deduction_name?: string };
 
 const parseHours = (value: unknown): number => {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
