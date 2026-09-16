@@ -76,12 +76,9 @@ export function buildProductionReportPayload(args: {
     }).filter(x=>x.quantity>0)
   }));
 
-  // IMPORTANT: single-machine processes keep the selected machine/product in
-  // form.machineNo/form.productName, not in machineLines state. Before this
-  // normalization the payload therefore sent machine_lines=[] and the server
-  // could only persist the parent NG totals/details. Build one canonical line
-  // here so the same machine-line path is used for both single- and multi-machine
-  // reports, including the NG breakdown.
+  // Single-machine processes keep the selected machine/product in
+  // form.machineNo/form.productName. Canonicalize them into machine_lines so
+  // NG details and machine accounting use the same persistence path.
   if (args.usesSingleMachine && !args.usesMultiMachineLines && args.form.machineNo.trim()) {
     const singleLineDefects = defects.map((item) => ({
       defect_type_id:item.defect_type_id,
@@ -114,10 +111,21 @@ export function buildProductionReportPayload(args: {
   const deductionTime=parseHours(args.form.deductionTime);
   const totalTime=parseHours(args.form.totalTime);
   const hasActualMachineLine=(args.usesMultiMachineLines||args.usesSingleMachine)&&lines.some((line)=>!!line.machine_code);
-  // Persist machine details for both multi-machine and single-machine reports.
-  // Single-machine reports previously sent machine_lines=[] because their
-  // machine was held in form.machineNo; the canonical line above fixes that.
   const useMachineLinesPayload=(args.usesMultiMachineLines||args.usesSingleMachine)&&hasActualMachineLine;
+
+  // operation_mode is intentionally kept as MACHINE for CẮT because the
+  // selected machine is still a machine line. The old code lost the actual
+  // CẮT selection (Tự động / Không tự động) and only persisted the generic
+  // MACHINE value. Derive and persist the business selection separately.
+  // For CẮT, the automatic machine family is fixed by the existing master-data
+  // rule (C5/C6/C7/C11); every other selected CẮT machine is non-automatic.
+  // For LỒNG, the existing operation mode already represents Tay/Máy.
+  const normalizedMachine = String(args.form.machineNo || "").trim().toUpperCase();
+  const automaticCutMachines = new Set(["C5", "C6", "C7", "C11"]);
+  const executionMethod = args.operationType === "CUT"
+    ? (automaticCutMachines.has(normalizedMachine) ? "AUTO" : "NON_AUTO")
+    : (args.operationMode === "MANUAL" ? "MANUAL" : "MACHINE");
+
   return {
     process_id:args.processId, work_date:args.form.workDate, shift:args.form.shift,
     machine_no:useMachineLinesPayload?lines.map(l=>l.machine_code).join(", "):args.form.machineNo,
@@ -131,7 +139,8 @@ export function buildProductionReportPayload(args: {
     xuoc_do_long:num(args.form.xuocDoLong), cong_gay:num(args.form.congGay), xoay:num(args.form.xoay),
     khong_dut:num(args.form.khongDut), bavia_hut:num(args.form.baviaHut), ppcm:num(args.form.ppcm),
     loi_cao_su:num(args.form.loiCaoSu), ng_kich_thuoc:num(args.form.ngKichThuoc), cat_lem:num(args.form.catLem),
-    note:args.form.note||"", extra_data:{...args.extraData, adjustment_count:num(args.form.adjustmentCount)},
+    note:args.form.note||"",
+    extra_data:{...args.extraData, adjustment_count:num(args.form.adjustmentCount), execution_method:executionMethod},
     defects, deductions, machine_lines:useMachineLinesPayload?lines:[], client_request_id:args.clientRequestId||undefined,
     exclude_kqd_from_tt:args.excludeKqdFromTt?1:0
   } as ProductionReport;
