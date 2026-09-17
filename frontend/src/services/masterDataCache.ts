@@ -4,6 +4,8 @@ import { getDeductionOptionsByProcess, getDefectOptionsByProcess } from "./produ
 import { isOfflineLikeError, readOfflineSnapshot, writeOfflineSnapshot } from "./offlinePersistentCache";
 import { getSessionCached, clearSessionCache } from "./sessionCache";
 
+// Master data changes infrequently, so keep it in the authenticated tab session
+// for 30 minutes. getSessionCached also deduplicates concurrent requests.
 const TTL_MS = 30 * 60 * 1000;
 const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v8";
 const DEDUCTION_MASTER_VERSION = "v7";
@@ -57,22 +59,31 @@ export const getCachedProductStandards = (processId: number, processCode?: strin
 };
 
 /**
- * Defect master data must not be served from the in-memory session cache.
- * Online API remains the source of truth; persistent snapshot is only a
- * last-resort fallback when the device is genuinely offline.
+ * Defect master data is session-cached per authenticated worker/process.
+ * The API remains the source of truth; epoch/version invalidation clears the
+ * session cache whenever master configuration changes.
  */
-export const getCachedDefects = async (processId: number): Promise<DefectOptions> => {
+export const getCachedDefects = (processId: number): Promise<DefectOptions> => {
   const key = `defects:${processId}:${DEFECT_MASTER_VERSION}`;
-  return withOfflineSnapshot(key, () => getDefectOptionsByProcess(processId));
+  return getSessionCached(
+    epochKey(key),
+    TTL_MS,
+    () => withOfflineSnapshot(key, () => getDefectOptionsByProcess(processId)),
+  );
 };
 
 /**
- * Deduction master data follows the same rule as defects: online API is the
- * source of truth. Offline devices may use the last persistent snapshot.
+ * Deduction master data follows the same session-cache policy as defects.
+ * Online API data is cached for normal navigation; the persistent snapshot is
+ * still available as a last-resort fallback when the device is offline.
  */
-export const getCachedDeductions = async (processId: number): Promise<DeductionOptions> => {
+export const getCachedDeductions = (processId: number): Promise<DeductionOptions> => {
   const key = `deductions:${processId}:${DEDUCTION_MASTER_VERSION}`;
-  return withOfflineSnapshot(key, () => getDeductionOptionsByProcess(processId));
+  return getSessionCached(
+    epochKey(key),
+    TTL_MS,
+    () => withOfflineSnapshot(key, () => getDeductionOptionsByProcess(processId)),
+  );
 };
 
 export function prefetchProcessMasterData(processId: number): void {
