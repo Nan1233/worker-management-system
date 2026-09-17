@@ -249,7 +249,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
 
         const processRows = await query(db, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data.process_id)]);
         const training = await resolveInitialTrainingSnapshot({ executor: db, workerId: data.worker_id, processId: data.process_id, workDate: data.work_date, trainingPercent: data.training_percent });
-        data.training_percent_snapshot = training.training_percent;
+        data.training_percent_snapshot = Number(training);
         data.standard_version_id = data.standard_version_id || null;
         data.machine_standard_id = data.machine_standard_id || null;
         data.exclude_kqd_from_tt_snapshot = data.exclude_kqd_from_tt_snapshot ?? data.exclude_kqd_from_tt ?? null;
