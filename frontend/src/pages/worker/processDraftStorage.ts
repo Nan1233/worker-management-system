@@ -290,6 +290,20 @@ export function saveProcessDraft(draft: ProcessDraft): void {
       machineLines: sourceLines.map((line) => ({ ...createEmptyMachineLine(), ...line })),
       machineCount: Math.max(1, Number(draft.machineCount) || 1, sourceLines.length),
     };
+
+    // Multi-machine reports keep the real machine code in machineLines rather
+    // than form.machineNo. Mirror the first machine into the legacy form field
+    // as well so resume/normalization can recover the machine even when an
+    // older draft was saved before machineLines was fully persisted.
+    const firstMachineLine = ownedDraft.machineLines[0];
+    if (firstMachineLine) {
+      ownedDraft.form = {
+        ...ownedDraft.form,
+        machineNo: String(firstMachineLine.machineCode || ownedDraft.form.machineNo || ""),
+        productName: String(firstMachineLine.productCode || ownedDraft.form.productName || ""),
+      };
+    }
+
     localStorage.setItem(keyFor(draft.process, workerId, workerCode), JSON.stringify(ownedDraft));
   } catch { /* storage unavailable */ }
 }
