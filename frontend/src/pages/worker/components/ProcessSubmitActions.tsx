@@ -73,11 +73,103 @@ const findCurrentTempActual = async (workDate: string, incoming: TimeDetails): P
     }
 };
 
+/**
+ * Autosave is intentionally debounced. If the worker clicks "Tiếp tục báo cáo cũ"
+ * immediately after changing the machine/product, navigation can happen before
+ * the debounce writes the latest machineLines. Persist the visible machine rows
+ * synchronously before the parent callback navigates away.
+ */
+const syncVisibleMachineLinesToDraft = (): void => {
+    try {
+        const workDate = readWorkDate();
+        const shift = normalize(readShift());
+        if (!workDate) return;
+
+        const machineLineElements = Array.from(document.querySelectorAll<HTMLElement>(".machine-line"));
+        if (!machineLineElements.length) return;
+
+        const lines = machineLineElements.map((_, index) => {
+            const machineCode = readValue(`#machineNo-${index}`);
+            const productCode = readValue(`#machineProduct-${index}`);
+            const hours = readValue(`#machineHours-${index}`) || readValue(`[data-machine-hours="${index}"]`);
+            const minutes = readValue(`#machineMinutes-${index}`) || readValue(`[data-machine-minutes="${index}"]`);
+            const okQuantity = readValue(`#machineOk-${index}`) || readValue(`[data-machine-ok="${index}"]`);
+            const ngQuantity = readValue(`#machineNg-${index}`) || readValue(`[data-machine-ng="${index}"]`);
+            return { machineCode, productCode, hours, minutes, okQuantity, ngQuantity };
+        });
+
+        const currentMachine = normalize(lines[0]?.machineCode);
+        const currentProduct = normalize(lines[0]?.productCode);
+        const draftKeys: string[] = [];
+        for (let index = 0; index < localStorage.length; index += 1) {
+            const key = localStorage.key(index);
+            if (key?.startsWith("ktc:process-draft:v3:")) draftKeys.push(key);
+        }
+
+        let bestKey = "";
+        let bestDraft: any = null;
+        let bestScore = -1;
+        for (const key of draftKeys) {
+            const raw = localStorage.getItem(key);
+            if (!raw) continue;
+            try {
+                const draft = JSON.parse(raw);
+                if (normalize(draft?.form?.workDate) !== normalize(workDate)) continue;
+                if (shift && normalize(draft?.form?.shift) !== shift) continue;
+
+                const first = Array.isArray(draft?.machineLines) ? draft.machineLines[0] : null;
+                let score = Number(draft?.savedAt || 0) / 1e15;
+                if (currentMachine && normalize(first?.machineCode) === currentMachine) score += 10;
+                if (currentProduct && normalize(first?.productCode) === currentProduct) score += 10;
+                if (!currentMachine && currentProduct && normalize(draft?.form?.productName) === currentProduct) score += 8;
+                if (!bestDraft || score > bestScore) {
+                    bestScore = score;
+                    bestKey = key;
+                    bestDraft = draft;
+                }
+            } catch { /* ignore malformed unrelated drafts */ }
+        }
+
+        if (!bestKey || !bestDraft) return;
+
+        const previousLines = Array.isArray(bestDraft.machineLines) ? bestDraft.machineLines : [];
+        bestDraft.machineLines = lines.map((line, index) => ({
+            ...(previousLines[index] || {}),
+            machineCode: line.machineCode || previousLines[index]?.machineCode || "",
+            productCode: line.productCode || previousLines[index]?.productCode || "",
+            hours: line.hours || previousLines[index]?.hours || "",
+            minutes: line.minutes || previousLines[index]?.minutes || "",
+            okQuantity: line.okQuantity || previousLines[index]?.okQuantity || "",
+            ngQuantity: line.ngQuantity || previousLines[index]?.ngQuantity || "",
+        }));
+        bestDraft.machineCount = Math.max(1, Number(bestDraft.machineCount) || 1, bestDraft.machineLines.length);
+        bestDraft.form = {
+            ...(bestDraft.form || {}),
+            machineNo: lines[0]?.machineCode || bestDraft.form?.machineNo || "",
+            productName: lines[0]?.productCode || bestDraft.form?.productName || "",
+            actualHours: lines[0]?.hours || bestDraft.form?.actualHours || "",
+            actualMinutes: lines[0]?.minutes || bestDraft.form?.actualMinutes || "",
+            ttOk: lines[0]?.okQuantity || bestDraft.form?.ttOk || "",
+            ttNg: lines[0]?.ngQuantity || bestDraft.form?.ttNg || "",
+        };
+        bestDraft.savedAt = Date.now();
+        localStorage.setItem(bestKey, JSON.stringify(bestDraft));
+    } catch (error) {
+        console.warn("SYNC MACHINE LINES BEFORE RESUME ERROR:", error);
+    }
+};
+
 export default function ProcessSubmitActions({ duplicatePrompt, canUpdateExisting, submitting, loadingWorker, onCancelDuplicate, onUpdateExisting, onCreateDuplicate, onReset, onSubmit }: Props) {
     const [dailyHoursPrompt, setDailyHoursPrompt] = useState<number | null>(null);
     const [dailyTimeDetails, setDailyTimeDetails] = useState<TimeDetails | null>(null);
     const [loadingDailyHours, setLoadingDailyHours] = useState(false);
     const [dailyHoursError, setDailyHoursError] = useState("");
+
+    const handleContinueExisting = () => {
+        if (submitting) return;
+        syncVisibleMachineLinesToDraft();
+        onUpdateExisting();
+    };
 
     const handleSubmitClick = async () => {
         if (submitting || loadingDailyHours) return;
@@ -121,7 +213,7 @@ export default function ProcessSubmitActions({ duplicatePrompt, canUpdateExistin
                     )}
                     <div className="duplicate-dialog-actions">
                         <button type="button" className="duplicate-dialog-cancel" onClick={onCancelDuplicate} disabled={submitting}>Hủy</button>
-                        {canUpdateExisting && <button type="button" className="duplicate-dialog-cancel" onClick={onUpdateExisting} disabled={submitting}>Tiếp tục báo cáo cũ</button>}
+                        {canUpdateExisting && <button type="button" className="duplicate-dialog-cancel" onClick={handleContinueExisting} disabled={submitting}>Tiếp tục báo cáo cũ</button>}
                         <button type="button" className="duplicate-dialog-create" onClick={onCreateDuplicate} disabled={submitting}>Tạo báo cáo mới</button>
                     </div>
                 </div>
