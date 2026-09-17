@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { ChangeEvent, Dispatch, FocusEvent, SetStateAction } from "react";
 import type { FormState, NgKey } from "../processPageConfig";
 import AppIcon from "../../../components/common/AppIcon";
@@ -38,6 +39,7 @@ export default function ProcessQualitySection({
     // Khi đã chọn/nhập máy, OK/NG/Tổng sản lượng phải do dữ liệu máy tính,
     // công nhân không được sửa thủ công. Với nhiều máy, luồng này vốn đã khóa.
     const qualityLocked = usesMultiMachineLines || Boolean(form.machineNo.trim());
+    const [editingTtOk, setEditingTtOk] = useState(false);
 
     return (
         <section className="worker-form-card worker-quality-section">
@@ -49,9 +51,15 @@ export default function ProcessQualitySection({
                     <input
                         id="ttOk"
                         name="ttOk"
-                        value={formatIntegerDisplay(form.ttOk)}
+                        value={editingTtOk ? form.ttOk : formatIntegerDisplay(form.ttOk)}
+                        onFocus={() => {
+                            if (!qualityLocked) setEditingTtOk(true);
+                        }}
                         onChange={qualityLocked ? undefined : onTtOkChange}
-                        onBlur={qualityLocked ? undefined : onNumberBlur}
+                        onBlur={(event) => {
+                            if (!qualityLocked) onNumberBlur(event);
+                            setEditingTtOk(false);
+                        }}
                         readOnly={qualityLocked}
                         disabled={qualityLocked}
                         inputMode="numeric"
