@@ -5,8 +5,6 @@ import { isOfflineLikeError, readOfflineSnapshot, writeOfflineSnapshot } from ".
 import { getSessionCached, clearSessionCache } from "./sessionCache";
 
 const TTL_MS = 30 * 60 * 1000;
-// Bump this namespace whenever the worker master contract changes so a browser
-// cannot keep an older product/deduction/defect list after a deployment/master-data correction.
 const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v8";
 const DEDUCTION_MASTER_VERSION = "v7";
 const DEFECT_MASTER_VERSION = "v8";
@@ -41,48 +39,6 @@ async function withOfflineSnapshot<T>(name: string, loader: () => Promise<T>): P
   }
 }
 
-function syncManagerMasterDataHints(machines: MachineOption[], products: ProductStandardOption[]): void {
-  if (typeof document === "undefined") return;
-
-  const machineList = document.getElementById("manager-machine-hints");
-  if (machineList) {
-    machineList.replaceChildren();
-    const values = Array.from(new Set(
-      machines.map((item) => String(item?.machine_code || "").trim()).filter(Boolean),
-    ));
-    for (const value of values) {
-      const option = document.createElement("option");
-      option.value = value;
-      machineList.appendChild(option);
-    }
-  }
-
-  const productList = document.getElementById("manager-product-hints");
-  if (productList) {
-    productList.replaceChildren();
-    const values = Array.from(new Set(
-      products.map((item) => String(item?.product_code || "").trim()).filter(Boolean),
-    ));
-    for (const value of values) {
-      const option = document.createElement("option");
-      option.value = value;
-      productList.appendChild(option);
-    }
-  }
-}
-
-async function syncManagerHintsForProcess(processId: number): Promise<void> {
-  try {
-    const [machines, products] = await Promise.all([
-      getCachedMachines(processId),
-      getCachedProductStandards(processId),
-    ]);
-    syncManagerMasterDataHints(machines, products);
-  } catch {
-    // Suggestions are optional UI enhancement; never fail the master-data flow.
-  }
-}
-
 export const getCachedMachines = (processId: number): Promise<MachineOption[]> =>
   getSessionCached(
     epochKey(`machines:${processId}`),
@@ -102,27 +58,17 @@ export const getCachedProductStandards = (processId: number, processCode?: strin
 
 /**
  * Defect master data must not be served from the in-memory session cache.
- *
- * A stale defect snapshot is dangerous because changing the master list in DB
- * (for example GC's migration from the legacy 16-item list to the canonical
- * 19-item list) can otherwise leave the worker UI showing the old options for
- * up to the cache TTL without even making a /defects request.
- *
- * We still keep an offline snapshot as a last-resort fallback when the device
- * is genuinely offline. When online, the API is always the source of truth.
+ * Online API remains the source of truth; persistent snapshot is only a
+ * last-resort fallback when the device is genuinely offline.
  */
 export const getCachedDefects = async (processId: number): Promise<DefectOptions> => {
   const key = `defects:${processId}:${DEFECT_MASTER_VERSION}`;
-  const value = await withOfflineSnapshot(key, () => getDefectOptionsByProcess(processId));
-  void syncManagerHintsForProcess(processId);
-  return value;
+  return withOfflineSnapshot(key, () => getDefectOptionsByProcess(processId));
 };
 
 /**
  * Deduction master data follows the same rule as defects: online API is the
- * source of truth. Do not keep a 30-minute in-memory copy because an empty
- * response from before a master-data repair would otherwise keep CVK blank.
- * Offline devices may still use the last persistent snapshot.
+ * source of truth. Offline devices may use the last persistent snapshot.
  */
 export const getCachedDeductions = async (processId: number): Promise<DeductionOptions> => {
   const key = `deductions:${processId}:${DEDUCTION_MASTER_VERSION}`;
