@@ -171,10 +171,10 @@ async function linkTempLines(executor, event, tempLineIds = []) {
   if (rows.length !== ids.length) throw eventError(422, 'MACHINE_LINE_NOT_FOUND', 'Có dòng máy chờ duyệt không tồn tại');
   for (const row of rows) {
     const same = Number(row.process_id)===Number(event.process_id)
-      && Number(row.machine_id)===Number(event.machine_id)
-      && String(row.product_code||'').trim()===String(event.product_code||'').trim()
+      && String(row.machine_code||'').trim().toUpperCase()===String(event.machine_code||'').trim().toUpperCase()
+      && String(row.product_code||'').trim().toUpperCase()===String(event.product_code||'').trim().toUpperCase()
       && isoDate(row.work_date)===isoDate(event.work_date)
-      && String(row.shift||'').trim()===String(event.shift||'').trim();
+      && String(row.shift||'').trim().toUpperCase()===String(event.shift||'').trim().toUpperCase();
     if (!same) throw eventError(422, 'MACHINE_EVENT_DIMENSION_MISMATCH', `Dòng máy #${row.id} không khớp công đoạn/máy/sản phẩm/ngày/ca của event`);
   }
   await q(executor, `UPDATE production_temp_machine_lines SET machine_event_id=? WHERE id IN (${placeholders})`, [Number(event.id), ...ids]);
@@ -313,31 +313,57 @@ async function assertApprovedEventForTempLine(executor,{report,line}){
   const processRows=await q(executor,'SELECT process_code FROM processes WHERE id=? LIMIT 1',[Number(report.process_id)]);
   if(!isSharedEventManaged(processRows[0]?.process_code,line.machine_code)) return true;
 
+  const processId = Number(report.process_id);
+  const machineCode = String(line.machine_code || '').trim();
+  const productCode = String(line.product_code || '').trim();
+  const workDate = isoDate(report.work_date);
+  const shift = String(report.shift || '').trim();
+
+  // Legacy worker reports can contain a stale/missing machine_id or a stale machine_event_id.
+  // For GC shared machines, machine_code is the physical identity. Resolve the approved
+  // event by the stable business dimensions, then backfill the temp line linkage.
+  const findApprovedEvent = async () => q(executor,`SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status
+      FROM machine_production_events
+      WHERE status='approved'
+        AND process_id=?
+        AND UPPER(TRIM(machine_code))=UPPER(TRIM(?))
+        AND UPPER(TRIM(product_code))=UPPER(TRIM(?))
+        AND work_date=?
+        AND UPPER(TRIM(shift))=UPPER(TRIM(?))
+      ORDER BY id DESC
+      LIMIT 2`,[
+      processId,
+      machineCode,
+      productCode,
+      workDate,
+      shift
+    ]);
+
   let eventId = Number(line.machine_event_id) || null;
   let event = null;
 
   if (eventId) {
-    const rows=await q(executor,`SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status FROM machine_production_events WHERE id=? LIMIT 1`,[eventId]);
-    event=rows[0] || null;
-  } else {
     const rows=await q(executor,`SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status
-      FROM machine_production_events
-      WHERE status='approved'
-        AND process_id=?
-        AND machine_id=?
-        AND UPPER(TRIM(machine_code))=UPPER(TRIM(?))
-        AND product_code=?
-        AND work_date=?
-        AND shift=?
-      ORDER BY id DESC
-      LIMIT 2`,[
-      Number(report.process_id),
-      Number(line.machine_id),
-      String(line.machine_code || '').trim(),
-      String(line.product_code || '').trim(),
-      isoDate(report.work_date),
-      String(report.shift || '').trim()
-    ]);
+      FROM machine_production_events WHERE id=? LIMIT 1`,[eventId]);
+    event=rows[0] || null;
+
+    // The stored event link may be stale (old machine_id, old dimensions, or an event
+    // that was never approved). Do not fail immediately; resolve the current approved
+    // physical event using the canonical machine code dimensions.
+    const linkedMatches = event && String(event.status).toLowerCase()==='approved'
+      && Number(event.process_id)===processId
+      && String(event.machine_code||'').trim().toUpperCase()===machineCode.toUpperCase()
+      && String(event.product_code||'').trim().toUpperCase()===productCode.toUpperCase()
+      && isoDate(event.work_date)===workDate
+      && String(event.shift||'').trim().toUpperCase()===shift.toUpperCase();
+    if (!linkedMatches) {
+      event = null;
+      eventId = null;
+    }
+  }
+
+  if (!event) {
+    const rows = await findApprovedEvent();
     if (rows.length === 1) {
       event = rows[0];
       eventId = Number(event.id);
@@ -352,7 +378,11 @@ async function assertApprovedEventForTempLine(executor,{report,line}){
 
   if(!event) throw eventError(422,'MACHINE_EVENT_REQUIRED',`Máy ${line.machine_code} cần production event vật lý đã duyệt trước khi duyệt báo cáo worker`);
   if(String(event.status).toLowerCase()!=='approved') throw eventError(422,'MACHINE_EVENT_REQUIRED',`Production event #${eventId||'-'} chưa được duyệt`);
-  const same=Number(event.process_id)===Number(report.process_id)&&Number(event.machine_id)===Number(line.machine_id)&&String(event.product_code)===String(line.product_code)&&isoDate(event.work_date)===isoDate(report.work_date)&&String(event.shift)===String(report.shift);
+  const same=Number(event.process_id)===processId
+    && String(event.machine_code||'').trim().toUpperCase()===machineCode.toUpperCase()
+    && String(event.product_code||'').trim().toUpperCase()===productCode.toUpperCase()
+    && isoDate(event.work_date)===workDate
+    && String(event.shift||'').trim().toUpperCase()===shift.toUpperCase();
   if(!same) throw eventError(422,'MACHINE_EVENT_DIMENSION_MISMATCH','Production event không khớp dòng máy worker');
   return true;
 }
