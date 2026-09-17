@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { getReportById } from "../../services/productionService";
 import type { ProductionReport } from "../../types/production";
@@ -96,11 +96,11 @@ function timeParts(report: ProductionReport) {
   return minutes >= 60 ? { hours: hours + 1, minutes: 0 } : { hours, minutes };
 }
 
-function Field({ label, value, className = "" }: { label: string; value: unknown; className?: string }) {
+function Field({ label, value, className = "" }: { label: string; value: ReactNode; className?: string }) {
   return (
     <div className={className}>
       <span>{label}</span>
-      <strong>{value === null || value === undefined || value === "" ? "-" : String(value)}</strong>
+      <strong>{value === null || value === undefined || value === "" ? "-" : value}</strong>
     </div>
   );
 }
