@@ -44,12 +44,21 @@ export function useProcessMasterData(processId: number, processCode: string) {
     const generation = ++requestGeneration.current;
     setLoading(true);
 
+    // The process-selection screen does not render the time-deduction section.
+    // Do not spend ~1s loading deductions before the worker has even opened a
+    // report. ProcessPage itself keeps loading deductions normally.
+    const isProcessSelectionRoute =
+      typeof window !== "undefined" &&
+      window.location.pathname.replace(/\/+$/, "").endsWith("/worker/process/select");
+
     try {
       const results = await Promise.allSettled([
         getCachedMachines(processId),
         getCachedProductStandards(processId, processCode),
         getCachedDefects(processId),
-        getCachedDeductions(processId),
+        isProcessSelectionRoute
+          ? Promise.resolve([] as Awaited<ReturnType<typeof getCachedDeductions>>)
+          : getCachedDeductions(processId),
       ]);
 
       if (generation !== requestGeneration.current) return;
