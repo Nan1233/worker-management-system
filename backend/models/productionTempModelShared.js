@@ -16,7 +16,10 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const isRetryableLockTimeout = (error) =>
     Number(error?.errno) === 1205
-    || String(error?.message || "").includes("Lock wait timeout exceeded");
+    || Number(error?.errno) === 1213
+    || String(error?.code || "") === "ER_LOCK_DEADLOCK"
+    || String(error?.message || "").includes("Lock wait timeout exceeded")
+    || String(error?.message || "").includes("Deadlock found when trying to get lock");
 
 const executeRaw = (executor, sql, params = []) =>
     new Promise((resolve, reject) => {
@@ -36,22 +39,25 @@ const removeApprovalRowLock = (sql) =>
     String(sql || "").replace(/\s+FOR\s+UPDATE\b/gi, "");
 
 const queryWithLockRetry = async (executor, sql, params = []) => {
-    // The approval selection is optimistic (status + updated_at are checked
-    // before writes). Do not send FOR UPDATE to TiDB for this query: holding a
-    // pessimistic row lock across standard resolution, snapshot creation and
-    // audit writes causes Error 1205 on TiDB Cloud Serverless.
+    // Approval selection is optimistic (status + updated_at are checked
+    // before writes). Do not hold a pessimistic temp-row lock across standard
+    // resolution, snapshot creation and audit writes on TiDB Cloud Serverless.
     const effectiveSql = isTempReportApprovalSelect(sql)
         ? removeApprovalRowLock(sql)
         : sql;
 
+    // A TiDB 1205 can outlive the short application retry window. Keep the
+    // retry on the same connection and use bounded exponential backoff so a
+    // transient competing transaction gets time to commit before we fail.
+    const maxAttempts = 5;
     let lastError;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
         try {
             return await executeRaw(executor, effectiveSql, params);
         } catch (error) {
             lastError = error;
-            if (!isRetryableLockTimeout(error) || attempt >= 2) throw error;
-            await sleep(250 * (attempt + 1));
+            if (!isRetryableLockTimeout(error) || attempt >= maxAttempts - 1) throw error;
+            await sleep(300 * (2 ** attempt));
         }
     }
     throw lastError;
