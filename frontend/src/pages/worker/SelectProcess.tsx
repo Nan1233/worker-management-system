@@ -116,8 +116,12 @@ function SelectProcess() {
                     }
 
 
+                    // Respect the worker-profile session cache. This avoids a
+                    // forced /workers/me round-trip every time the worker
+                    // returns to the process-selection page while still
+                    // refreshing automatically after the 60s cache TTL.
                     const workerData =
-                        await getCurrentWorker(true);
+                        await getCurrentWorker();
 
 
                     setWorker(
