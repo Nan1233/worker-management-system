@@ -1,6 +1,7 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "ktc-be-test",
+  // backend/wrangler.jsonc
+"name": "ktc-backend",
   "main": "cloudflare-worker.js",
   "compatibility_date": "2026-09-05",
   "compatibility_flags": ["nodejs_compat", "nodejs_compat_populate_process_env"],
