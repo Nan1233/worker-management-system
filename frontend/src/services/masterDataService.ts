@@ -28,6 +28,12 @@ export const getMachinesByProcess = async (processId: number): Promise<MachineOp
     return Array.isArray(payload) ? payload : [];
 };
 
+// Short-lived process cache lets the worker reuse the master rows it already
+// loaded when resolving a standard. This avoids a second /product-standards
+// request immediately after the master-data preload.
+const PROCESS_PRODUCT_CACHE_TTL_MS = 30_000;
+const processProductRowsCache = new Map<number, { expiresAt: number; rows: ProductStandardOption[] }>();
+
 export const getProductStandardsByProcess = async (
     processId: number,
     processCode?: string,
@@ -67,7 +73,12 @@ export const getProductStandardsByProcess = async (
         }
     }
 
-    return Array.from(merged.values());
+    const rows = Array.from(merged.values());
+    processProductRowsCache.set(Number(processId), {
+        expiresAt: Date.now() + PROCESS_PRODUCT_CACHE_TTL_MS,
+        rows,
+    });
+    return rows;
 };
 
 export interface ResolvedProductStandard {
@@ -86,27 +97,35 @@ export interface ResolvedProductStandard {
 
 const processProductCache = new Map<number, { expiresAt: number; codes: Set<string> }>();
 
-const hasExactProcessProduct = async (processId: number, productCode: string): Promise<boolean> => {
-    const normalized = String(productCode || "").trim().toUpperCase();
-    if (!normalized) return false;
-
-    const cached = processProductCache.get(Number(processId));
-    if (cached && cached.expiresAt > Date.now()) {
-        return cached.codes.has(normalized);
-    }
+const getCachedProcessProductRows = async (processId: number): Promise<ProductStandardOption[]> => {
+    const now = Date.now();
+    const rowsCache = processProductRowsCache.get(Number(processId));
+    if (rowsCache && rowsCache.expiresAt > now) return rowsCache.rows;
 
     const response = await api.get("/product-standards", {
         params: { process_id: processId },
     });
     const payload = response.data?.data ?? response.data;
     const rows = Array.isArray(payload) ? payload as ProductStandardOption[] : [];
+    processProductRowsCache.set(Number(processId), {
+        expiresAt: now + PROCESS_PRODUCT_CACHE_TTL_MS,
+        rows,
+    });
+    return rows;
+};
+
+const hasExactProcessProduct = async (processId: number, productCode: string): Promise<boolean> => {
+    const normalized = String(productCode || "").trim().toUpperCase();
+    if (!normalized) return false;
+
+    const rows = await getCachedProcessProductRows(processId);
     const codes = new Set(
         rows
             .map((row) => String(row?.product_code || "").trim().toUpperCase())
             .filter(Boolean),
     );
     processProductCache.set(Number(processId), {
-        expiresAt: Date.now() + 30_000,
+        expiresAt: Date.now() + PROCESS_PRODUCT_CACHE_TTL_MS,
         codes,
     });
     return codes.has(normalized);
@@ -137,11 +156,7 @@ export const resolveProductStandard = async (
     }
 
     if (!normalizedMachine) {
-        const response = await api.get("/product-standards", {
-            params: { process_id: processId },
-        });
-        const payload = response.data?.data ?? response.data;
-        const rows = Array.isArray(payload) ? payload as ProductStandardOption[] : [];
+        const rows = await getCachedProcessProductRows(processId);
         const candidates = rows.filter(
             (row) => String(row?.product_code || "").trim().toUpperCase() === normalizedProduct.toUpperCase(),
         );
