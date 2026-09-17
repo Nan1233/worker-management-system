@@ -39,14 +39,10 @@ function assertEffectiveOnDate(row, date, label) {
   const from = row?.effective_from ? String(row.effective_from).slice(0, 10) : null;
   const to = row?.effective_to ? String(row.effective_to).slice(0, 10) : null;
   if (from && from > date) {
-    throw businessError('HISTORICAL_STANDARD_NOT_FOUND', `${label} chưa có hiệu lực tại ngày ${date}`, {
-      effective_from: from, effective_to: to
-    });
+    throw businessError('HISTORICAL_STANDARD_NOT_FOUND', `${label} chưa có hiệu lực tại ngày ${date}`, { effective_from: from, effective_to: to });
   }
   if (to && to < date) {
-    throw businessError('HISTORICAL_STANDARD_NOT_FOUND', `${label} đã hết hiệu lực tại ngày ${date}`, {
-      effective_from: from, effective_to: to
-    });
+    throw businessError('HISTORICAL_STANDARD_NOT_FOUND', `${label} đã hết hiệu lực tại ngày ${date}`, { effective_from: from, effective_to: to });
   }
 }
 
@@ -57,10 +53,6 @@ function chooseHistoricalVersion(rows, date, label) {
     return (!from || from <= date) && (!to || to >= date);
   });
   if (!applicable.length) return null;
-
-  // Active is preferred for current masters. If an older version is inactive but
-  // its effective range contains the work date, it is still the authoritative
-  // historical source for an already-created report and must not be discarded.
   const active = applicable.filter((row) => String(row.status || '').toLowerCase() === 'active' || Number(row.is_active) === 1);
   const candidates = active.length ? active : applicable;
   if (candidates.length > 1) {
@@ -91,7 +83,6 @@ function createStandardResolver({ query = defaultQuery } = {}) {
         historicalVersionAvailable: false, nonProductWork: true
       };
     }
-
     if (!Number.isInteger(pid) || pid <= 0 || !product) {
       throw businessError('INVALID_STANDARD_LOOKUP', 'Thiếu công đoạn hoặc sản phẩm để tra định mức');
     }
@@ -152,7 +143,6 @@ function createStandardResolver({ query = defaultQuery } = {}) {
        ORDER BY effective_from, version_no, id`,
       [pid, product, date, date]
     );
-
     const version = chooseHistoricalVersion(versions, date, product);
     if (!version) {
       const legacyStandardOutput = Number(productRows[0].standard_output);
@@ -173,7 +163,6 @@ function createStandardResolver({ query = defaultQuery } = {}) {
       productCache.set(cacheKey, resolvedLegacy);
       return resolvedLegacy;
     }
-
     const resolvedProduct = {
       processId: pid, productCode: productRows[0].product_code,
       productStandardId: Number(productRows[0].product_standard_id), standardVersionId: Number(version.id), machineStandardId: null,
@@ -220,9 +209,7 @@ function createStandardResolver({ query = defaultQuery } = {}) {
         [product.processId, requestedMachineId, requestedMachineId, requestedMachineCode, requestedMachineCode]
       );
     }
-    if (machineRows.length !== 1) {
-      throw businessError('MACHINE_NOT_FOUND', 'Máy không tồn tại hoặc không thuộc công đoạn');
-    }
+    if (machineRows.length !== 1) throw businessError('MACHINE_NOT_FOUND', 'Máy không tồn tại hoặc không thuộc công đoạn');
     const machine = machineRows[0];
 
     if (requestedMachineStandardId) {
@@ -315,9 +302,7 @@ function createStandardResolver({ query = defaultQuery } = {}) {
        LIMIT 2`,
       [Number(processId), String(productCode || '').trim(), excludeVersionId ? Number(excludeVersionId) : null, excludeVersionId ? Number(excludeVersionId) : null, to, from]
     );
-    if (rows.length) {
-      throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT', 'Khoảng hiệu lực định mức bị chồng lấn', { conflicting_version_ids: rows.map((row) => Number(row.id)) });
-    }
+    if (rows.length) throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT', 'Khoảng hiệu lực định mức bị chồng lấn', { conflicting_version_ids: rows.map((row) => Number(row.id)) });
     return true;
   }
 
@@ -325,21 +310,67 @@ function createStandardResolver({ query = defaultQuery } = {}) {
 }
 
 function assertStandardSnapshotConsistency({ resolved, standardOutput, standardVersionId, machineStandardId = null }) {
+  const savedOutput = Number(standardOutput);
+  const hasSavedOutput = Number.isFinite(savedOutput) && savedOutput > 0;
   const outputMatches = Boolean(resolved) && sameDecimal(resolved.standardOutput, standardOutput);
   const versionMatches = Number(resolved?.standardVersionId || 0) === Number(standardVersionId || 0);
   const machineMatches = Number(resolved?.machineStandardId || 0) === Number(machineStandardId || 0);
+  const hasMachineSnapshotId = Number(machineStandardId || 0) > 0;
+  const hasProductSnapshotId = Number(standardVersionId || 0) > 0;
 
-  const legacyProductSnapshot = outputMatches
-    && versionMatches
-    && Number(machineStandardId || 0) === 0
-    && Number(resolved?.machineStandardId || 0) > 0;
+  // New records: all persisted snapshot identifiers and the numeric standard
+  // must match the historical resolver exactly.
+  if (hasMachineSnapshotId && (!outputMatches || !machineMatches || (hasProductSnapshotId && !versionMatches))) {
+    throw businessError('STANDARD_SNAPSHOT_MISMATCH', 'Định mức đã lưu không khớp nguồn định mức lịch sử', {
+      saved_standard_output: standardOutput ?? null,
+      saved_standard_version_id: standardVersionId ?? null,
+      saved_machine_standard_id: machineStandardId ?? null,
+      expected_standard_output: resolved?.standardOutput ?? null,
+      expected_standard_version_id: resolved?.standardVersionId ?? null,
+      expected_machine_standard_id: resolved?.machineStandardId ?? null,
+      expected_source: resolved?.source ?? null
+    });
+  }
 
-  const legacyUnversionedSnapshot = outputMatches
-    && Number(standardVersionId || 0) === 0
-    && Number(machineStandardId || 0) === 0
-    && Number(resolved?.machineStandardId || 0) === 0;
+  // Legacy machine reports may have a product-version snapshot but no machine
+  // standard id. Their saved standard_output is the value captured at entry
+  // time; do not reject the report merely because the machine master has since
+  // received a different historical row. The product version must still match.
+  if (hasProductSnapshotId && !hasMachineSnapshotId) {
+    if (!hasSavedOutput || !versionMatches) {
+      throw businessError('STANDARD_SNAPSHOT_MISMATCH', 'Định mức đã lưu không khớp nguồn định mức lịch sử', {
+        saved_standard_output: standardOutput ?? null,
+        saved_standard_version_id: standardVersionId ?? null,
+        saved_machine_standard_id: machineStandardId ?? null,
+        expected_standard_output: resolved?.standardOutput ?? null,
+        expected_standard_version_id: resolved?.standardVersionId ?? null,
+        expected_machine_standard_id: resolved?.machineStandardId ?? null,
+        expected_source: resolved?.source ?? null
+      });
+    }
+    return true;
+  }
 
-  if (!resolved || !outputMatches || (!versionMatches || !machineMatches) && !legacyProductSnapshot && !legacyUnversionedSnapshot) {
+  // Old records created before standard-version snapshots have neither id.
+  // They already contain the standard used when the report was entered, so a
+  // valid persisted positive value is sufficient for backward-compatible
+  // approval. New records are still protected by the strict branch above.
+  if (!hasProductSnapshotId && !hasMachineSnapshotId) {
+    if (!hasSavedOutput) {
+      throw businessError('STANDARD_SNAPSHOT_MISMATCH', 'Định mức đã lưu không khớp nguồn định mức lịch sử', {
+        saved_standard_output: standardOutput ?? null,
+        saved_standard_version_id: standardVersionId ?? null,
+        saved_machine_standard_id: machineStandardId ?? null,
+        expected_standard_output: resolved?.standardOutput ?? null,
+        expected_standard_version_id: resolved?.standardVersionId ?? null,
+        expected_machine_standard_id: resolved?.machineStandardId ?? null,
+        expected_source: resolved?.source ?? null
+      });
+    }
+    return true;
+  }
+
+  if (!resolved || !outputMatches || !versionMatches || !machineMatches) {
     throw businessError('STANDARD_SNAPSHOT_MISMATCH', 'Định mức đã lưu không khớp nguồn định mức lịch sử', {
       saved_standard_output: standardOutput ?? null,
       saved_standard_version_id: standardVersionId ?? null,
