@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { getMyDailyWorkingHours } from "../../../services/productionService";
+import { getMyDailyWorkingHours, getMyTempReports } from "../../../services/productionService";
 import { parseFlexibleTime } from "../processFormUtils";
 
 interface DuplicatePrompt { reportId: number; }
@@ -24,13 +24,13 @@ const readIncomingTimes = (): TimeDetails => {
 
     const actual = Math.max(0, (Number.isFinite(actualHours) ? actualHours : 0) + (Number.isFinite(actualMinutes) ? actualMinutes : 0) / 60);
     const deduction = Math.max(0, parseFlexibleTime(deductionValue));
-
     const total = actual + deduction;
-
     return { actual, deduction, total };
 };
 
 const readWorkDate = (): string => document.querySelector<HTMLInputElement>("#workerWorkDate")?.value || "";
+const readShift = (): string => document.querySelector<HTMLInputElement>('input[name="shift"]:checked')?.value || "";
+const readValue = (selector: string): string => document.querySelector<HTMLInputElement>(selector)?.value?.trim() || "";
 
 const formatHours = (hours: number): string => {
     const totalMinutes = Math.max(0, Math.round(hours * 60));
@@ -38,6 +38,39 @@ const formatHours = (hours: number): string => {
     const minutes = totalMinutes % 60;
     if (minutes === 0) return `${wholeHours} giờ`;
     return `${wholeHours} giờ ${minutes} phút`;
+};
+
+const normalize = (value: unknown): string => String(value ?? "").trim().toLowerCase();
+
+/**
+ * /daily-hours intentionally includes pending temp reports. The current report
+ * is normally already autosaved as a temp report, so adding incoming time again
+ * double-counts it. Find that current temp row and remove only its actual_time
+ * from the already-counted total; deduction is not included by the backend and
+ * must still be added by the submit preview.
+ */
+const findCurrentTempActual = async (workDate: string, incoming: TimeDetails): Promise<number> => {
+    try {
+        const reports = await getMyTempReports();
+        const shift = normalize(readShift());
+        const machine = normalize(readValue("#machineNo"));
+        const product = normalize(readValue("#productName"));
+
+        const candidates = reports.filter((report: any) => {
+            if (normalize(report?.work_date) !== normalize(workDate)) return false;
+            if (shift && normalize(report?.shift) !== shift) return false;
+            if (machine && normalize(report?.machine_no) !== machine) return false;
+            if (product && normalize(report?.product_name) !== product) return false;
+            const actual = Number(report?.actual_time ?? report?.actual_hours ?? 0) || 0;
+            return Math.abs(actual - incoming.actual) < 0.0001;
+        });
+
+        if (!candidates.length) return 0;
+        return Math.max(0, Number(candidates[0]?.actual_time ?? 0) || 0);
+    } catch (error) {
+        console.warn("GET CURRENT TEMP REPORT FOR DAILY HOURS ERROR:", error);
+        return 0;
+    }
 };
 
 export default function ProcessSubmitActions({ duplicatePrompt, canUpdateExisting, submitting, loadingWorker, onCancelDuplicate, onUpdateExisting, onCreateDuplicate, onReset, onSubmit }: Props) {
@@ -50,7 +83,6 @@ export default function ProcessSubmitActions({ duplicatePrompt, canUpdateExistin
         if (submitting || loadingDailyHours) return;
         const workDate = readWorkDate();
         const incoming = readIncomingTimes();
-
         if (!workDate) { onSubmit(); return; }
 
         setLoadingDailyHours(true);
@@ -58,7 +90,9 @@ export default function ProcessSubmitActions({ duplicatePrompt, canUpdateExistin
         try {
             const summary = await getMyDailyWorkingHours(workDate);
             const existingTotal = Math.max(0, Number(summary.counted_hours || 0));
-            const promptTotal = existingTotal + incoming.total;
+            const currentTempActual = await findCurrentTempActual(workDate, incoming);
+            const baseExistingTotal = Math.max(0, existingTotal - currentTempActual);
+            const promptTotal = baseExistingTotal + incoming.total;
             setDailyTimeDetails({ actual: incoming.actual, deduction: incoming.deduction, total: promptTotal });
             setDailyHoursPrompt(promptTotal);
         } catch (error) {
@@ -87,9 +121,7 @@ export default function ProcessSubmitActions({ duplicatePrompt, canUpdateExistin
                     )}
                     <div className="duplicate-dialog-actions">
                         <button type="button" className="duplicate-dialog-cancel" onClick={onCancelDuplicate} disabled={submitting}>Hủy</button>
-                        {canUpdateExisting && (
-                            <button type="button" className="duplicate-dialog-cancel" onClick={onUpdateExisting} disabled={submitting}>Tiếp tục báo cáo cũ</button>
-                        )}
+                        {canUpdateExisting && <button type="button" className="duplicate-dialog-cancel" onClick={onUpdateExisting} disabled={submitting}>Tiếp tục báo cáo cũ</button>}
                         <button type="button" className="duplicate-dialog-create" onClick={onCreateDuplicate} disabled={submitting}>Tạo báo cáo mới</button>
                     </div>
                 </div>
