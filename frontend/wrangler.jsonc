@@ -1,6 +1,7 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "ktc-fe-test",
+  // frontend/wrangler.jsonc
+"name": "ktc-frontend",
   "compatibility_date": "2026-09-05",
   "workers_dev": true,
   "assets": {
