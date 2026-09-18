@@ -24,7 +24,8 @@ export const normalizeWorkType = (value: unknown): string => {
  * Canonical KTC product-code classification.
  *
  * Rules for the GC Cắt/Lồng screen:
- *   - Cắt tự động: product code ends with -AUTO / -AUTOMATIC
+ *   - Cắt tự động: product code ends with -AUTO / -AUTOMATIC, or -5 / -6 / -7 / -11
+ *     (the numeric suffixes are automatic-machine variants)
  *   - Cắt thường: product code starts with C + digit and is not automatic
  *   - Lồng máy: product code ends with -M
  *   - Lồng: product code ends with -L
@@ -37,7 +38,7 @@ export const normalizeWorkType = (value: unknown): string => {
 export const classifyProductCode = (productCode: unknown): ProductCodeFamily => {
     const code = normalize(productCode).replace(/\s+/g, "");
     if (!code) return "LONG";
-    if (/-AUTO(?:MATIC)?$/i.test(code)) return "CUT_AUTO";
+    if (/(?:-AUTO|-AUTOMATIC|-5|-6|-7|-11)$/i.test(code)) return "CUT_AUTO";
     if (/^C\d/.test(code)) return "CUT";
     if (/-M$/i.test(code)) return "LONG_MACHINE";
     if (/-L$/i.test(code)) return "LONG";
@@ -145,10 +146,20 @@ export const filterProductsForSelection = ({
 
         // Selected C machine = Cắt.
         if (gcWorkType === "CUT") {
-            // Cắt tự động: CHỈ mã kết thúc bằng -AUTO/-AUTOMATIC.
-            if (isAutomatic) return family === "CUT_AUTO";
+            if (isAutomatic) {
+                if (family !== "CUT_AUTO") return false;
 
-            // Cắt không tự động: CHỈ mã C + số và KHÔNG có -AUTO.
+                // -AUTO is a generic automatic variant. Numeric suffixes -5/-6/-7/-11
+                // are machine-specific automatic variants and must match the selected
+                // automatic machine. This prevents C2556-5 appearing on C6, etc.
+                const hint = getProductMachineHint(code);
+                if (hint?.kind === "NUMBER") {
+                    return hint.value === selectedMachine.replace(/^C/, "");
+                }
+                return true;
+            }
+
+            // Cắt không tự động: CHỈ mã C + số và KHÔNG có automatic suffix.
             return family === "CUT";
         }
 
