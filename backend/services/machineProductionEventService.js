@@ -316,6 +316,21 @@ function normalizeBusinessCode(value) {
     .replace(/[\s_-]+/g, '');
 }
 
+function productCandidates(report, line) {
+  const values = [
+    line?.product_code,
+    line?.product_name,
+    report?.product_code,
+    report?.product_name
+  ];
+  const result = [];
+  for (const value of values) {
+    const normalized = normalizeBusinessCode(value);
+    if (normalized && !result.includes(normalized)) result.push(normalized);
+  }
+  return result;
+}
+
 async function assertApprovedEventForTempLine(executor,{report,line}){
   const processRows=await q(executor,'SELECT process_code FROM processes WHERE id=? LIMIT 1',[Number(report.process_id)]);
   if(!isSharedEventManaged(processRows[0]?.process_code,line.machine_code)) return true;
@@ -323,36 +338,33 @@ async function assertApprovedEventForTempLine(executor,{report,line}){
   const processId = Number(report.process_id);
   const machineId = Number(line.machine_id) || null;
   const machineCode = String(line.machine_code || '').trim();
-  const productCode = String(line.product_code || '').trim();
   const workDate = isoDate(report.work_date);
   const shift = String(report.shift || '').trim();
-  const normalizedProduct = normalizeBusinessCode(productCode);
   const normalizedMachine = canonicalMachineNumber(machineCode);
+  const normalizedProducts = productCandidates(report, line);
 
-  // 1) Prefer the explicit link, but only when the linked event is approved and all
-  //    canonical dimensions still match. A stale link must never block approval.
   let event = null;
   let eventId = Number(line.machine_event_id) || null;
+
   if (eventId) {
     const rows=await q(executor,`SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status
       FROM machine_production_events WHERE id=? LIMIT 1`,[eventId]);
     const candidate = rows[0] || null;
     const candidateMachine = canonicalMachineNumber(candidate?.machine_code);
+    const candidateProduct = normalizeBusinessCode(candidate?.product_code);
     const linkedMatches = candidate && String(candidate.status).toLowerCase()==='approved'
       && Number(candidate.process_id)===processId
       && (!machineId || Number(candidate.machine_id)===machineId || candidateMachine===normalizedMachine)
       && candidateMachine===normalizedMachine
-      && normalizeBusinessCode(candidate.product_code)===normalizedProduct
+      && normalizedProducts.includes(candidateProduct)
       && isoDate(candidate.work_date)===workDate
       && String(candidate.shift||'').trim().toUpperCase()===shift.toUpperCase();
     if (linkedMatches) event = candidate;
   }
 
-  // 2) Canonical lookup. Machine number is the physical identity for GC 5/6/7/11;
-  //    do not depend on a stale machine_id. Product code is normalized so harmless
-  //    formatting differences (spaces, '-' or '_', case) do not make an approved
-  //    physical event invisible to worker-report approval.
   if (!event) {
+    const productParams = normalizedProducts.length ? normalizedProducts : ['__NO_PRODUCT__'];
+    const productPlaceholders = productParams.map(()=>'?').join(',');
     const rows = await q(executor,`SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status
       FROM machine_production_events
       WHERE status='approved'
@@ -364,36 +376,37 @@ async function assertApprovedEventForTempLine(executor,{report,line}){
           OR machine_id=?
           OR REPLACE(REPLACE(REPLACE(UPPER(TRIM(machine_code)),' ',''),'-',''),'_','')=?
         )
-        AND REPLACE(REPLACE(REPLACE(UPPER(TRIM(product_code)),' ',''),'-',''),'_','')=?
+        AND REPLACE(REPLACE(REPLACE(UPPER(TRIM(product_code)),' ',''),'-',''),'_','') IN (${productPlaceholders})
       ORDER BY id DESC
-      LIMIT 10`,[
-      processId, workDate, shift, machineCode, machineId, String(normalizedMachine || ''), normalizedProduct
+      LIMIT 1`,[
+      processId, workDate, shift, machineCode, machineId, String(normalizedMachine || ''), ...productParams
     ]);
 
-    if (rows.length === 1) {
+    if (rows[0]) {
       event = rows[0];
       eventId = Number(event.id);
-    } else if (rows.length > 1) {
-      // Multiple approved events can exist for the same machine/day/shift only when
-      // product codes differ. Since product is part of the canonical identity, this
-      // branch should be exceptional; fail closed rather than attaching the wrong event.
-      throw eventError(422,'MACHINE_EVENT_AMBIGUOUS',`Có nhiều production event đã duyệt khớp máy ${line.machine_code} / sản phẩm ${line.product_code}; cần liên kết đúng event trước khi duyệt báo cáo worker`);
     }
   }
 
   if(!event) {
-    throw eventError(422,'MACHINE_EVENT_REQUIRED',`Máy ${line.machine_code} cần production event vật lý đã duyệt trước khi duyệt báo cáo worker`);
+    throw eventError(422,'MACHINE_EVENT_REQUIRED',`Máy ${line.machine_code} cần production event vật lý đã duyệt trước khi duyệt báo cáo worker`,{
+      process_id: processId,
+      machine_code: machineCode,
+      machine_number: normalizedMachine,
+      product_candidates: normalizedProducts,
+      work_date: workDate,
+      shift
+    });
   }
 
   const same=String(event.status).toLowerCase()==='approved'
     && Number(event.process_id)===processId
     && canonicalMachineNumber(event.machine_code)===normalizedMachine
-    && normalizeBusinessCode(event.product_code)===normalizedProduct
+    && normalizedProducts.includes(normalizeBusinessCode(event.product_code))
     && isoDate(event.work_date)===workDate
     && String(event.shift||'').trim().toUpperCase()===shift.toUpperCase();
   if(!same) throw eventError(422,'MACHINE_EVENT_DIMENSION_MISMATCH','Production event không khớp dòng máy worker');
 
-  // Backfill a missing/stale temp link once the canonical approved event is found.
   if (Number(line.machine_event_id) !== Number(event.id)) {
     await q(executor,`UPDATE production_temp_machine_lines SET machine_event_id=? WHERE id=? AND temp_report_id=?`,[
       Number(event.id), Number(line.id), Number(report.id)
