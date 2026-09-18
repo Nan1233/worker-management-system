@@ -27,7 +27,8 @@ export const normalizeWorkType = (value: unknown): string => {
  *   - Cắt tự động: product code ends with -AUTO / -AUTOMATIC
  *   - Cắt thường: product code starts with C + digit and is not automatic
  *   - Lồng máy: product code ends with -M
- *   - Lồng tay: everything else that is not a Cắt code
+ *   - Lồng: product code ends with -L
+ *   - Other non-Cắt codes remain Lồng for backward compatibility.
  *
  * This function is intentionally based on product_code, not work_type from a
  * stale master-data row, so the worker selector and persisted product_code use
@@ -39,6 +40,7 @@ export const classifyProductCode = (productCode: unknown): ProductCodeFamily => 
     if (/-AUTO(?:MATIC)?$/i.test(code)) return "CUT_AUTO";
     if (/^C\d/.test(code)) return "CUT";
     if (/-M$/i.test(code)) return "LONG_MACHINE";
+    if (/-L$/i.test(code)) return "LONG";
     return "LONG";
 };
 
@@ -150,9 +152,8 @@ export const filterProductsForSelection = ({
             return family === "CUT";
         }
 
-        // Numeric machine = Lồng. -M means Lồng máy; all other non-Cut codes
-        // are Lồng tay candidates. Machine-specific rows are still restricted
-        // by their explicit eligible-machine mapping.
+        // Numeric machine = Lồng. -M means Lồng máy; -L means Lồng.
+        // Other non-Cut codes remain Lồng for backward compatibility.
         if (gcWorkType === "LONG") {
             if (family === "CUT" || family === "CUT_AUTO") return false;
             return true;
