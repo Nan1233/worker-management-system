@@ -119,6 +119,7 @@ export const filterProductsForSelection = ({
     // Non-GC processes keep their master-data work_type/machine mapping rules.
     if (!useEncodedMachineSuffix) {
         if (mode === "MANUAL") return products;
+        // A machine-based operation must choose a machine before a product can be selected.
         if (!selectedMachine) return [];
         return products.filter((product) => {
             const mappedMachines = eligibleMachineCodes(product);
@@ -128,8 +129,10 @@ export const filterProductsForSelection = ({
         });
     }
 
-    // GC without a machine = Lồng tay. Only canonical LONG codes are shown.
+    // GC manual Lồng: no machine is valid, and only canonical LONG codes are shown.
+    // GC machine operations: no machine means no product selection is allowed.
     if (!selectedMachine) {
+        if (mode === "MACHINE") return [];
         return products.filter((product) => classifyProductCode(product.product_code) === "LONG");
     }
 
