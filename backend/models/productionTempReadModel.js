@@ -21,9 +21,17 @@ function buildListFilters(managerId, filters, isAdmin, statusSql) {
     if (filters.process_id) { conditions.push("pr.process_id = ?"); params.push(filters.process_id); }
     if (filters.process_name) { conditions.push("p.process_name = ?"); params.push(filters.process_name); }
     if (filters.search) {
-        conditions.push("(w.worker_code LIKE ? OR u.full_name LIKE ? OR p.process_name LIKE ? OR pr.machine_no LIKE ? OR pr.product_name LIKE ?)");
-        const search = `%${filters.search}%`;
-        params.push(search, search, search, search, search);
+        // Search is token-based instead of treating the complete input as one
+        // contiguous substring. Example: "an t" now matches "An Thị Thanh
+        // Phương" because both tokens are found in the worker/name fields.
+        // Every token must match at least one searchable field.
+        const tokens = String(filters.search).trim().split(/\s+/).filter(Boolean).slice(0, 12);
+        const fields = ["w.worker_code", "u.full_name", "p.process_name", "pr.machine_no", "pr.product_name"];
+        for (const token of tokens) {
+            const search = `%${token}%`;
+            conditions.push(`(${fields.map((field) => `${field} LIKE ?`).join(" OR ")})`);
+            params.push(...fields.map(() => search));
+        }
     }
     return { conditions, params };
 }
