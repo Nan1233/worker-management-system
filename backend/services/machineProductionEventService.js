@@ -233,27 +233,24 @@ async function createEvent({ actor, data, req = null }) {
 }
 
 async function updateEvent({ id, actor, patch, req = null }) {
-  const connection = await getDb().promise().getConnection();
+  const connection=await getDb().promise().getConnection();
   try {
     await connection.beginTransaction();
-    const before = await loadEvent(connection, id, { lock:true });
+    const before = await loadEvent(connection, id, {lock:true});
     await assertActorProcessScope(connection, actor, before.process_id);
     if (String(before.status).toLowerCase()==='approved' && ['process_id','machine_id','machine_code','product_code','work_date','shift'].some((k)=>Object.prototype.hasOwnProperty.call(patch||{},k))) {
       throw eventError(422,'APPROVED_EVENT_DIMENSIONS_IMMUTABLE','Không đổi công đoạn/máy/sản phẩm/ngày/ca của event đã duyệt');
     }
-    const dimensionsChanged = ['process_id','machine_id','machine_code','product_code','work_date','shift'].some((k)=>Object.prototype.hasOwnProperty.call(patch||{},k) && String(patch[k]??'')!==String(before[k]??''));
-    const linked = await participantRows(connection, before.id);
-    if (dimensionsChanged && linked.length) throw eventError(422,'EVENT_DIMENSION_CHANGE_WITH_PARTICIPANTS','Không đổi dimensions khi event đã có participant; hãy tạo event mới');
-    const resulting = { ...before, ...(patch||{}) };
-    const ctx = await loadEventContext(connection,{processId:resulting.process_id,machineId:resulting.machine_id,machineCode:resulting.machine_code,productCode:resulting.product_code,workDate:resulting.work_date});
-    const defects = Object.prototype.hasOwnProperty.call(patch||{},'defects')
+    const dimensionsChanged=['process_id','machine_id','machine_code','product_code','work_date','shift'].some((k)=>Object.prototype.hasOwnProperty.call(patch||{},k) && String(patch[k]??'')!==String(before[k]??''));
+    const linked=await participantRows(connection,before.id);
+    if(dimensionsChanged && linked.length) throw eventError(422,'EVENT_DIMENSION_CHANGE_WITH_PARTICIPANTS','Không đổi dimensions khi event đã có participant; hãy tạo event mới');
+    const resulting={...before,...(patch||{})};
+    const ctx=await loadEventContext(connection,{processId:resulting.process_id,machineId:resulting.machine_id,machineCode:resulting.machine_code,productCode:resulting.product_code,workDate:resulting.work_date});
+    const defects=Object.prototype.hasOwnProperty.call(patch||{},'defects')
       ? await authoritativeDefects(connection,ctx.process.id,patch.defects)
       : await q(connection,`SELECT defect_type_id,defect_code,defect_name,quantity,responsible_worker_id FROM machine_production_event_defects WHERE machine_event_id=? ORDER BY id`,[before.id]);
-    const calc = calculateEventPhysical({physicalOkQuantity:resulting.physical_ok_quantity,defects,excludeKqdFromTt:ctx.resolved.excludeKqdFromTt,machineTimeHours:resulting.machine_time_hours,standardOutput:ctx.resolved.standardOutput});
-    if (linked.length) {
-      const participantIds=new Set(linked.map((r)=>Number(r.worker_id)));
-      for(const d of defects) if(!participantIds.has(Number(d.responsible_worker_id))) throw eventError(422,'DEFECT_WORKER_NOT_PARTICIPANT','Công nhân chịu trách nhiệm NG phải tham gia event');
-    }
+    const calc=calculateEventPhysical({physicalOkQuantity:resulting.physical_ok_quantity,defects,excludeKqdFromTt:ctx.resolved.excludeKqdFromTt,machineTimeHours:resulting.machine_time_hours,standardOutput:ctx.resolved.standardOutput});
+    if(linked.length){const participantIds=new Set(linked.map((r)=>Number(r.worker_id)));for(const d of defects)if(!participantIds.has(Number(d.responsible_worker_id)))throw eventError(422,'DEFECT_WORKER_NOT_PARTICIPANT','Công nhân chịu trách nhiệm NG phải tham gia event');}
     await connection.query(`UPDATE machine_production_events SET process_id=?,machine_id=?,machine_code=?,product_code=?,work_date=?,shift=?,
       physical_ok_quantity=?,physical_ng_quantity=?,physical_counted_output=?,physical_total_output=?,machine_time_hours=?,maximum_output=?,
       standard_output=?,standard_version_id=?,machine_standard_id=?,standard_source=?,exclude_kqd_from_tt_snapshot=?,updated_by=?,updated_at=NOW() WHERE id=?`,[
@@ -266,7 +263,7 @@ async function updateEvent({ id, actor, patch, req = null }) {
     }
     await getAuditService().logActivity({userId:actor.id,action:'MACHINE_EVENT_UPDATED',entityType:'machine_production_event',entityId:before.id,description:`Cập nhật production event #${before.id}`,metadata:{physical_counted_output:calc.physicalCountedOutput},req},connection);
     await connection.commit();
-    return getEvent(before.id, actor);
+    return getEvent(before.id,actor);
   }catch(error){await connection.rollback().catch(()=>{});throw error;}finally{connection.release();}
 }
 
@@ -363,27 +360,42 @@ async function assertApprovedEventForTempLine(executor,{report,line}){
   }
 
   if (!event) {
-    const productParams = normalizedProducts.length ? normalizedProducts : ['__NO_PRODUCT__'];
-    const productPlaceholders = productParams.map(()=>'?').join(',');
+    // Do not normalize machine/product in SQL. TiDB/MySQL prepared-statement
+    // parsing was failing on the nested REPLACE(...)=? + IN (?) expression.
+    // Fetch the small candidate set by indexed/simple dimensions and perform
+    // canonical matching in JavaScript instead.
     const rows = await q(executor,`SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status
       FROM machine_production_events
       WHERE status='approved'
         AND process_id=?
         AND work_date=?
         AND UPPER(TRIM(shift))=UPPER(TRIM(?))
-        AND (
-          UPPER(TRIM(machine_code))=UPPER(TRIM(?))
-          OR machine_id=?
-          OR REPLACE(REPLACE(REPLACE(UPPER(TRIM(machine_code)),' ',''),'-',''),'_','')=?
-        )
-        AND REPLACE(REPLACE(REPLACE(UPPER(TRIM(product_code)),' ',''),'-',''),'_','') IN (${productPlaceholders})
       ORDER BY id DESC
-      LIMIT 1`,[
-      processId, workDate, shift, machineCode, machineId, String(normalizedMachine || ''), ...productParams
-    ]);
+      LIMIT 50`,[processId,workDate,shift]);
 
-    if (rows[0]) {
-      event = rows[0];
+    const matchingRows = (rows || []).filter((candidate) => {
+      const candidateMachine = canonicalMachineNumber(candidate?.machine_code);
+      const candidateProduct = normalizeBusinessCode(candidate?.product_code);
+      const machineMatches = candidateMachine === normalizedMachine
+        || (machineId && Number(candidate?.machine_id) === machineId);
+      const productMatches = normalizedProducts.includes(candidateProduct);
+      return machineMatches && productMatches;
+    });
+
+    if (matchingRows.length > 1) {
+      throw eventError(409,'AMBIGUOUS_MACHINE_EVENT',`Có nhiều production event đã duyệt trùng máy ${machineCode}, sản phẩm ${normalizedProducts[0] || '-'}, ngày ${workDate}, ca ${shift}; không thể tự xác định event`,{
+        process_id: processId,
+        machine_id: machineId,
+        machine_code: machineCode,
+        product_candidates: normalizedProducts,
+        work_date: workDate,
+        shift,
+        event_ids: matchingRows.map((row)=>Number(row.id))
+      });
+    }
+
+    if (matchingRows.length === 1) {
+      event = matchingRows[0];
       eventId = Number(event.id);
     }
   }
