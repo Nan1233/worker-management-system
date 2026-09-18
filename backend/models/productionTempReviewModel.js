@@ -144,8 +144,6 @@ async function approveSelectedSerialized(targets, reviewerId, isAdmin) {
       .map(Number)
       .filter((id) => Number.isInteger(id) && id > 0))];
 
-    // If another request already approved these reports, make the duplicate
-    // request idempotent instead of trying to insert the same source_temp_id.
     const alreadyApproved = await loadAlreadyApproved(reportIds);
     if (alreadyApproved) return alreadyApproved;
 
@@ -170,11 +168,49 @@ async function approveSelectedSerialized(targets, reviewerId, isAdmin) {
   }
 }
 
+async function withDbApprovalProcessLocks(targets, task) {
+  const ids = [...new Set((Array.isArray(targets) ? targets : [])
+    .map((item) => typeof item === "object" ? item?.id : item)
+    .map(Number)
+    .filter((id) => Number.isInteger(id) && id > 0))];
+  if (!ids.length) return task();
+
+  const connection = await db.promise().getConnection();
+  try {
+    await connection.beginTransaction();
+    const placeholders = ids.map(() => "?").join(",");
+    // Cloudflare Workers can execute different requests in different isolates,
+    // so the in-memory queue above is not a database-wide mutex. Lock the
+    // process rows first, before any temp-machine-line or production-report
+    // locks are taken by the approval transaction. Every approval request for
+    // the same process therefore enters the critical section in one order.
+    await connection.query(
+      `SELECT id FROM processes
+        WHERE id IN (
+          SELECT DISTINCT process_id FROM production_reports_temp WHERE id IN (${placeholders})
+        )
+        ORDER BY id ASC
+        FOR UPDATE`,
+      ids,
+    );
+    const result = await task();
+    await connection.commit();
+    return result;
+  } catch (error) {
+    await connection.rollback().catch(() => {});
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
 module.exports = {
   ...approvalModel,
   async approveSelected(targets, reviewerId, isAdmin = false) {
-    await ensureLegacyMachineLines(targets);
-    await linkMatchingApprovedMachineEvents(targets);
-    return approveSelectedSerialized(targets, reviewerId, isAdmin);
+    return withDbApprovalProcessLocks(targets, async () => {
+      await ensureLegacyMachineLines(targets);
+      await linkMatchingApprovedMachineEvents(targets);
+      return approveSelectedSerialized(targets, reviewerId, isAdmin);
+    });
   },
 };
