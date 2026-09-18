@@ -132,6 +132,28 @@ function normalizeNotificationBackfillQuery(sql, params) {
   return { sql: output, params: [] };
 }
 
+// The worker approval guard compares physical machine identity canonically
+// (6 == M6 == MAY-6 == GC6), but its SQL lookup historically compared the
+// stored machine_code too literally. That caused an approved event stored as
+// GC6/GC-6 to be invisible when the worker line contained machine 6. Keep this
+// normalization limited to the exact machine_production_events approval lookup.
+function normalizeApprovedMachineEventQuery(sql, params) {
+  if (!/FROM\s+machine_production_events\b/i.test(sql) || !/status\s*=\s*'approved'/i.test(sql)) {
+    return { sql, params };
+  }
+  if (!/UPPER\(TRIM\(machine_code\)\)\s*=\s*UPPER\(TRIM\(\?\)\)/i.test(sql)) {
+    return { sql, params };
+  }
+
+  const canonicalSql = "REGEXP_REPLACE(UPPER(TRIM(machine_code)), '^(MÁY|MAY|MACHINE|GC|G|M)\\\\s*[-_]?','')";
+  const normalizedSql = sql.replace(
+    /REPLACE\(REPLACE\(REPLACE\(UPPER\(TRIM\(machine_code\)\),' ',''\),'-',''\),'_',''\)=\?/i,
+    `${canonicalSql}=?`
+  );
+
+  return { sql: normalizedSql, params };
+}
+
 function createCloudflareConnection() {
   if (typeof tidbConnect !== "function") {
     throw new Error("TiDB Serverless Driver chưa được khởi tạo trong Cloudflare Worker");
@@ -152,7 +174,8 @@ function createCloudflareConnection() {
   async function executeRaw(sql, params = []) {
     if (closed) throw new Error("Database connection đã được đóng");
     try {
-      const normalized = normalizeNotificationBackfillQuery(sql, params);
+      const notificationNormalized = normalizeNotificationBackfillQuery(sql, params);
+      const normalized = normalizeApprovedMachineEventQuery(notificationNormalized.sql, notificationNormalized.params);
       const client = transaction || conn;
       return await client.execute(normalized.sql, normalized.params, { fullResult: true });
     } catch (error) {
