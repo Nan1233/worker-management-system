@@ -4,6 +4,7 @@
   "private": true,
   "description": "KTC worker management system release validation",
   "scripts": {
+    "build:cloudflare": "node --check backend/cloudflare-worker.js",
     "restore:rehearsal": "node backend/scripts/rehearseDatabaseRestore.js",
     "load:readiness": "node backend/scripts/loadReadiness.js",
     "e2e:critical": "node scripts/stagingE2E.cjs",
