@@ -106,6 +106,8 @@ async function copyMachineLinesToApproved(tempReportId, approvedReportId, connec
   if (!tempLines.length) return [];
 
   const approvedIds = [];
+  const pendingDefects = [];
+
   for (const line of tempLines) {
     const result = await query(
       connection,
@@ -143,21 +145,27 @@ async function copyMachineLinesToApproved(tempReportId, approvedReportId, connec
     approvedIds.push(approvedLineId);
 
     for (const defect of line.defects || []) {
-      await query(
-        connection,
-        `INSERT INTO production_report_machine_defects
-         (machine_line_id,defect_type_id,defect_code,defect_name,quantity)
-         VALUES (?,?,?,?,?)`,
-        [
-          approvedLineId,
-          defect.defect_type_id || null,
-          defect.defect_code || null,
-          defect.defect_name || null,
-          defect.quantity || 0,
-        ],
-      );
+      pendingDefects.push([
+        approvedLineId,
+        defect.defect_type_id || null,
+        defect.defect_code || null,
+        defect.defect_name || null,
+        defect.quantity || 0,
+      ]);
     }
   }
+
+  if (pendingDefects.length) {
+    const placeholders = pendingDefects.map(() => "(?,?,?,?,?)").join(",");
+    await query(
+      connection,
+      `INSERT INTO production_report_machine_defects
+       (machine_line_id,defect_type_id,defect_code,defect_name,quantity)
+       VALUES ${placeholders}`,
+      pendingDefects.flat(),
+    );
+  }
+
   return approvedIds;
 }
 
