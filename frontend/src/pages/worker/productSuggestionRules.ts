@@ -69,25 +69,17 @@ export const getProductFamilyCode = (productCode: unknown): string =>
         .replace(/-M$/i, "")
         .replace(/^C(?=\d)/, "");
 
-const machineNumber = (machineCode: string): string | null => {
-    const key = normalizeMachineKey(machineCode);
-    return /^\d+$/.test(key) ? key : null;
-};
-
 const eligibleMachineCodes = (product: ProductStandardOption): string[] =>
     String(product.eligible_machine_codes || "")
         .split(",")
         .map(normalizeMachineKey)
         .filter(Boolean);
 
-// GC Cắt automatic machines. C7 is automatic as a MACHINE even though the
-// product-code convention has no -7 suffix.
+// GC Cắt automatic machines.
 const GC_AUTOMATIC_MACHINE_CODES = new Set(["C5", "C6", "C7", "C11"]);
 
 const isGcAutomaticMachine = (machineCode: unknown): boolean =>
     GC_AUTOMATIC_MACHINE_CODES.has(normalize(machineCode).replace(/\s+/g, ""));
-
-const AUTO_MACHINE_SUFFIXES = new Set(["5", "6", "11"]);
 
 /** GC shared Cắt/Lồng screen: selected machine remains the machine source of truth. */
 const getGcWorkTypeForMachine = (machineCode: unknown): "CUT" | "LONG" | null => {
@@ -120,7 +112,6 @@ export const filterProductsForSelection = ({
     const isAutomatic = useEncodedMachineSuffix
         ? isGcAutomaticMachine(selectedRawMachine)
         : Number(machine?.is_automatic || 0) === 1;
-    const selectedNumber = machineNumber(selectedMachine);
 
     // Non-GC processes keep their master-data work_type/machine mapping rules.
     if (!useEncodedMachineSuffix) {
@@ -136,10 +127,7 @@ export const filterProductsForSelection = ({
 
     // GC without a machine = Lồng tay. Only canonical LONG codes are shown.
     if (!selectedMachine) {
-        return products.filter((product) => {
-            const family = classifyProductCode(product.product_code);
-            return family === "LONG";
-        });
+        return products.filter((product) => classifyProductCode(product.product_code) === "LONG");
     }
 
     return products.filter((product) => {
@@ -153,31 +141,13 @@ export const filterProductsForSelection = ({
             return false;
         }
 
-        // Selected C machine = Cắt. Product code must be a Cắt code.
+        // Selected C machine = Cắt.
         if (gcWorkType === "CUT") {
-            if (family !== "CUT" && family !== "CUT_AUTO") return false;
+            // Cắt tự động: CHỈ mã kết thúc bằng -AUTO/-AUTOMATIC.
+            if (isAutomatic) return family === "CUT_AUTO";
 
-            if (isAutomatic) {
-                // Automatic Cắt accepts -AUTO. Numeric automatic variants are
-                // retained for the existing C5/C6/C11 master data convention.
-                if (family === "CUT_AUTO") return true;
-                const hint = getProductMachineHint(code);
-                if (hint?.kind === "NUMBER") {
-                    return AUTO_MACHINE_SUFFIXES.has(hint.value)
-                        && selectedNumber !== null
-                        && hint.value === selectedNumber;
-                }
-                return true;
-            }
-
-            // Non-automatic Cắt must never expose -AUTO products.
-            if (family === "CUT_AUTO") return false;
-            const hint = getProductMachineHint(code);
-            if (hint?.kind === "NUMBER") {
-                if (AUTO_MACHINE_SUFFIXES.has(hint.value)) return false;
-                return selectedNumber !== null && hint.value === selectedNumber;
-            }
-            return true;
+            // Cắt không tự động: CHỈ mã C + số và KHÔNG có -AUTO.
+            return family === "CUT";
         }
 
         // Numeric machine = Lồng. -M means Lồng máy; all other non-Cut codes
@@ -185,8 +155,7 @@ export const filterProductsForSelection = ({
         // by their explicit eligible-machine mapping.
         if (gcWorkType === "LONG") {
             if (family === "CUT" || family === "CUT_AUTO") return false;
-            if (family === "LONG_MACHINE") return true;
-            return mode === "MACHINE" ? true : true;
+            return true;
         }
 
         return false;
