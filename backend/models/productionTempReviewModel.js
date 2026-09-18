@@ -55,7 +55,7 @@ async function linkMatchingApprovedMachineEvents(targets) {
   const placeholders = ids.map(() => "?").join(",");
   const [lines] = await db.promise().query(
     `SELECT ml.id,ml.machine_event_id,ml.machine_id,ml.machine_code,ml.product_code,
-            r.process_id,r.work_date,r.shift,p.process_code
+            r.process_id,r.work_date,r.shift,r.machine_no,r.product_name,p.process_code
        FROM production_temp_machine_lines ml
        JOIN production_reports_temp r ON r.id=ml.temp_report_id
        JOIN processes p ON p.id=r.process_id
@@ -64,9 +64,14 @@ async function linkMatchingApprovedMachineEvents(targets) {
   for (const line of lines || []) {
     if (line.machine_event_id) continue;
     if (String(line.process_code || '').trim().toUpperCase() !== 'GC') continue;
-    const machineCode = String(line.machine_code || '').trim();
-    const productCode = String(line.product_code || '').trim();
+
+    // Legacy rows may have been created before machine_code/product_code were
+    // persisted into production_temp_machine_lines. The parent report remains
+    // the authoritative fallback for those two physical dimensions.
+    const machineCode = String(line.machine_code || line.machine_no || '').split(',')[0].trim();
+    const productCode = String(line.product_code || line.product_name || '').split(',')[0].trim();
     if (!machineCode || !productCode) continue;
+
     const [events] = await db.promise().query(
       `SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status
          FROM machine_production_events
@@ -78,8 +83,13 @@ async function linkMatchingApprovedMachineEvents(targets) {
       [Number(line.process_id),machineCode,productCode,String(line.work_date).slice(0,10),String(line.shift || '').trim()]);
     if (events?.length === 1) {
       await db.promise().query(
-        `UPDATE production_temp_machine_lines SET machine_event_id=?,machine_id=COALESCE(?,machine_id) WHERE id=? AND machine_event_id IS NULL`,
-        [Number(events[0].id),Number(events[0].machine_id) || null,Number(line.id)]);
+        `UPDATE production_temp_machine_lines
+            SET machine_event_id=?,
+                machine_id=COALESCE(?,machine_id),
+                machine_code=COALESCE(NULLIF(TRIM(machine_code),''),?),
+                product_code=COALESCE(NULLIF(TRIM(product_code),''),?)
+          WHERE id=? AND machine_event_id IS NULL`,
+        [Number(events[0].id),Number(events[0].machine_id) || null,machineCode,productCode,Number(line.id)]);
       console.log(`[KTC] Auto-linked approved machine event #${events[0].id} to temp machine line #${line.id}`);
     } else if (events?.length > 1) {
       const error = new Error(`Có nhiều production event đã duyệt trùng máy ${machineCode}, sản phẩm ${productCode}, ngày ${String(line.work_date).slice(0,10)}, ca ${String(line.shift || '').trim()}; không thể tự xác định event`);
