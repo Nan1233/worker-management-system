@@ -6,6 +6,9 @@
   "compatibility_flags": ["nodejs_compat", "nodejs_compat_populate_process_env"],
   "workers_dev": true,
   "keep_vars": true,
+  "limits": {
+    "subrequests": 10000
+  },
   "observability": {
     "enabled": true
   }
