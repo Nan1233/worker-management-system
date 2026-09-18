@@ -15,6 +15,29 @@ const normalizeDate = (value, fallback) => {
 };
 
 /**
+ * Build a user-friendly multi-word search predicate.
+ *
+ * The old implementation searched the complete input as one contiguous
+ * substring. That meant "an" matched "An Thị Thanh Phương", but "an t"
+ * did not because those characters are not adjacent in the stored name.
+ *
+ * Each whitespace-separated token must match at least one searchable field,
+ * while all tokens must match. This keeps partial searches useful:
+ *   an        -> An Thị Thanh Phương
+ *   an t      -> An Thị Thanh Phương
+ *   thanh ph  -> An Thị Thanh Phương
+ * and still supports report code / machine / product searches.
+ */
+const appendTokenizedSearch = (where, params, rawSearch, fields) => {
+  const tokens = String(rawSearch || '').trim().split(/\s+/).filter(Boolean).slice(0, 12);
+  for (const token of tokens) {
+    const q = `%${token}%`;
+    where.push(`(${fields.map((field) => `${field} LIKE ?`).join(' OR ')})`);
+    params.push(...fields.map(() => q));
+  }
+};
+
+/**
  * Manager approved-report listing.
  * Filtering, counting and pagination stay in TiDB; the browser never downloads
  * the complete production_reports table just to display one page.
@@ -66,9 +89,13 @@ exports.getApprovedReports = async (req, res) => {
       params.push(shift);
     }
     if (search) {
-      where.push('(w.worker_code LIKE ? OR u.full_name LIKE ? OR pr.machine_no LIKE ? OR pr.product_name LIKE ? OR p.process_name LIKE ?)');
-      const q = `%${search}%`;
-      params.push(q, q, q, q, q);
+      appendTokenizedSearch(where, params, search, [
+        'w.worker_code',
+        'u.full_name',
+        'pr.machine_no',
+        'pr.product_name',
+        'p.process_name',
+      ]);
     }
     if (scoped.clause) {
       where.push(scoped.clause.replace(/^\s*AND\s+/i, ''));
