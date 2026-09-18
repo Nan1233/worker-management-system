@@ -16,8 +16,11 @@ const canonicalMachineNumber = (value) => {
   const raw = String(value || "").trim().toUpperCase().replace(/\s+/g, "");
   if (!raw) return null;
 
+  // Physical GC machines can be persisted in several equivalent forms
+  // (6, M6, MAY6, MACHINE6, GC6, GC-6, ...). The business identity is
+  // the physical machine number, not the display prefix.
   const patterns = [
-    /^(?:MÁY|MAY|MACHINE|M)[-_]?(\d{1,2})$/i,
+    /^(?:MÁY|MAY|MACHINE|M|GC|G)[-_]?(\d{1,2})$/i,
     /^(\d{1,2})$/
   ];
 
