@@ -46,10 +46,10 @@ const queryWithLockRetry = async (executor, sql, params = []) => {
         ? removeApprovalRowLock(sql)
         : sql;
 
-    // A TiDB 1205 can outlive the short application retry window. Keep the
-    // retry on the same connection and use bounded exponential backoff so a
-    // transient competing transaction gets time to commit before we fail.
-    const maxAttempts = 5;
+    // TiDB 1205 may happen while another approval transaction is committing.
+    // Retry only transient lock/deadlock errors. Backoff is capped so this
+    // cannot turn a database contention issue into an unbounded Worker wait.
+    const maxAttempts = 7;
     let lastError;
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
         try {
@@ -57,7 +57,8 @@ const queryWithLockRetry = async (executor, sql, params = []) => {
         } catch (error) {
             lastError = error;
             if (!isRetryableLockTimeout(error) || attempt >= maxAttempts - 1) throw error;
-            await sleep(300 * (2 ** attempt));
+            // 250, 500, 1000, 1500, 2000, 2500 ms. Keep the final retry bounded.
+            await sleep(Math.min(250 * (attempt + 1), 2500));
         }
     }
     throw lastError;
@@ -86,7 +87,7 @@ const executeQuery = async (executor, sql, params = []) => {
     const insertId = Number(idRows?.[0]?.insertId || 0);
     return {
         ...(result || {}),
-        insertId
+        insertId,
     };
 };
 
