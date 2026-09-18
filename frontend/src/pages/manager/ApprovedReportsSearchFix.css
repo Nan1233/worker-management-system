@@ -2,7 +2,12 @@
 .pending-reference-page .pending-filter-card label{display:flex!important;flex-direction:column!important;align-items:stretch!important;justify-content:flex-start!important;gap:5px!important;min-width:0!important;position:relative!important}
 .pending-reference-page .pending-filter-card label>span{position:static!important;display:block!important;flex:0 0 auto!important;margin:0!important;padding:0!important;line-height:1.2!important;white-space:nowrap!important;transform:none!important}
 .pending-reference-page .pending-filter-card label>input,.pending-reference-page .pending-filter-card label>select{position:relative!important;display:block!important;width:100%!important;min-width:0!important;box-sizing:border-box!important;margin:0!important}
-/* The magnifier is inside the search field; reserve a clear text area. */
-.pending-reference-page .pending-filter-card .pending-search{position:relative!important;min-width:0!important}
-.pending-reference-page .pending-filter-card .pending-search>span{pointer-events:none!important;z-index:2!important}
-.pending-reference-page .pending-filter-card .pending-search input,.pending-reference-page .pending-search input{padding-left:40px!important;padding-right:10px!important;min-width:0!important}
+
+/* Search field: exactly one magnifier, vertically centered in the input. */
+.pending-reference-page .pending-filter-card label.pending-search{position:relative!important;min-width:0!important}
+.pending-reference-page .pending-filter-card label.pending-search>span{position:absolute!important;left:11px!important;top:50%!important;bottom:auto!important;width:13px!important;height:13px!important;margin:0!important;padding:0!important;border:1.5px solid #7d94b1!important;border-radius:50%!important;font-size:0!important;line-height:0!important;transform:translateY(-50%)!important;pointer-events:none!important;z-index:3!important;box-sizing:border-box!important}
+.pending-reference-page .pending-filter-card label.pending-search>span::after{content:""!important;position:absolute!important;width:5px!important;height:1.5px!important;right:-4px!important;bottom:-2px!important;background:#7d94b1!important;border:0!important;border-radius:2px!important;transform:rotate(45deg)!important;transform-origin:left center!important}
+.pending-reference-page .pending-filter-card label.pending-search>input{padding-left:31px!important;padding-right:10px!important}
+
+/* Keep any legacy search icon pseudo-elements from creating a second icon. */
+.pending-reference-page .pending-filter-card .pending-search::before,.pending-reference-page .pending-filter-card .pending-search::after{content:none!important;display:none!important}
