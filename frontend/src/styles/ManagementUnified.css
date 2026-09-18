@@ -74,6 +74,24 @@
   --management-title-size: 24px;
 }
 
+/* Search fields: keep the search icon and any trailing action/edit icon
+ * in their own visual zones instead of allowing them to sit over the text.
+ */
+.management-layout .management-content :is(div, label):has(> svg) {
+  position: relative;
+}
+.management-layout .management-content :is(div, label):has(> svg) > input {
+  padding-left: 38px !important;
+  padding-right: 42px !important;
+  min-width: 0;
+}
+.management-layout .management-content :is(div, label):has(> input + svg) > input {
+  padding-right: 42px !important;
+}
+.management-layout .management-content :is(div, label):has(> svg) > svg {
+  pointer-events: none;
+}
+
 @media (max-width: 800px) {
   .management-layout .management-content h1 { font-size: 20px; }
   .management-layout .management-content h2 { font-size: 16px; }
