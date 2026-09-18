@@ -145,7 +145,7 @@ function normalizeApprovedMachineEventQuery(sql, params) {
     return { sql, params };
   }
 
-  const canonicalSql = "REGEXP_REPLACE(UPPER(TRIM(machine_code)), '^(MÁY|MAY|MACHINE|GC|G|M)\\\\s*[-_]?','')";
+  const canonicalSql = "REGEXP_REPLACE(UPPER(TRIM(machine_code)), '^(MÁY|MAY|MACHINE|GC|G|M)\\s*[-_]?','')";
   const normalizedSql = sql.replace(
     /REPLACE\(REPLACE\(REPLACE\(UPPER\(TRIM\(machine_code\)\),' ',''\),'-',''\),'_',''\)=\?/i,
     `${canonicalSql}=?`
