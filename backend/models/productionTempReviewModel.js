@@ -64,10 +64,6 @@ async function linkMatchingApprovedMachineEvents(targets) {
   for (const line of lines || []) {
     if (line.machine_event_id) continue;
     if (String(line.process_code || '').trim().toUpperCase() !== 'GC') continue;
-
-    // Legacy rows may have been created before machine_code/product_code were
-    // persisted into production_temp_machine_lines. The parent report remains
-    // the authoritative fallback for those two physical dimensions.
     const machineCode = String(line.machine_code || line.machine_no || '').split(',')[0].trim();
     const productCode = String(line.product_code || line.product_name || '').split(',')[0].trim();
     if (!machineCode || !productCode) continue;
@@ -98,11 +94,87 @@ async function linkMatchingApprovedMachineEvents(targets) {
   }
 }
 
+const approvalQueues = new Map();
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const isLockWaitTimeout = (error) => Number(error?.errno) === 1205 || /lock wait timeout exceeded|error 1205/i.test(String(error?.message || ""));
+
+function approvalQueueKey(targets) {
+  return [...new Set((Array.isArray(targets) ? targets : [])
+    .map((item) => typeof item === "object" ? item?.id : item)
+    .map(Number)
+    .filter((id) => Number.isInteger(id) && id > 0))]
+    .sort((a, b) => a - b)
+    .join(",");
+}
+
+async function loadAlreadyApproved(reportIds) {
+  const ids = [...new Set((Array.isArray(reportIds) ? reportIds : []).map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+  if (!ids.length) return null;
+  const placeholders = ids.map(() => "?").join(",");
+  const [rows] = await db.promise().query(
+    `SELECT id,source_temp_id,work_date FROM production_reports
+      WHERE source_temp_id IN (${placeholders})
+      ORDER BY source_temp_id,id DESC`, ids);
+  const byTemp = new Map();
+  for (const row of rows || []) {
+    const key = Number(row.source_temp_id);
+    if (!byTemp.has(key)) byTemp.set(key, row);
+  }
+  if (byTemp.size !== ids.length) return null;
+  const approvedIds = ids.map((id) => Number(byTemp.get(id).id));
+  const dates = [...new Set(ids.map((id) => {
+    const value = byTemp.get(id).work_date;
+    return value instanceof Date
+      ? `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`
+      : String(value || "").slice(0, 10);
+  }).filter(Boolean))];
+  return { count: ids.length, temp_ids: ids, approved_ids: approvedIds, dates };
+}
+
+async function approveSelectedSerialized(targets, reviewerId, isAdmin) {
+  const key = approvalQueueKey(targets);
+  const previous = approvalQueues.get(key) || Promise.resolve();
+  let release;
+  const current = new Promise((resolve) => { release = resolve; });
+  approvalQueues.set(key, current);
+  await previous;
+  try {
+    const reportIds = [...new Set((Array.isArray(targets) ? targets : [])
+      .map((item) => typeof item === "object" ? item?.id : item)
+      .map(Number)
+      .filter((id) => Number.isInteger(id) && id > 0))];
+
+    // If another request already approved these reports, make the duplicate
+    // request idempotent instead of trying to insert the same source_temp_id.
+    const alreadyApproved = await loadAlreadyApproved(reportIds);
+    if (alreadyApproved) return alreadyApproved;
+
+    for (const delay of [0, 250, 750]) {
+      if (delay) await sleep(delay);
+      try {
+        return await approvalModel.approveSelected(targets, reviewerId, isAdmin);
+      } catch (error) {
+        if (!isLockWaitTimeout(error)) throw error;
+        const recovered = await loadAlreadyApproved(reportIds);
+        if (recovered) return recovered;
+      }
+    }
+    const error = new Error("Yêu cầu duyệt báo cáo đang bị yêu cầu khác xử lý. Vui lòng thử lại.");
+    error.status = 409;
+    error.code = "APPROVAL_CONCURRENT_CONFLICT";
+    error.isPublic = true;
+    throw error;
+  } finally {
+    release();
+    if (approvalQueues.get(key) === current) approvalQueues.delete(key);
+  }
+}
+
 module.exports = {
   ...approvalModel,
   async approveSelected(targets, reviewerId, isAdmin = false) {
     await ensureLegacyMachineLines(targets);
     await linkMatchingApprovedMachineEvents(targets);
-    return approvalModel.approveSelected(targets, reviewerId, isAdmin);
+    return approveSelectedSerialized(targets, reviewerId, isAdmin);
   },
 };
