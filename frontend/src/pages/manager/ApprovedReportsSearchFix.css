@@ -1,36 +1,8 @@
-/* Fix: filter label and search input were overlapping on the approved-reports page. */
-.pending-reference-page .pending-filter-card label {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: stretch !important;
-  justify-content: flex-start !important;
-  gap: 5px !important;
-  min-width: 0 !important;
-  position: relative !important;
-}
-
-.pending-reference-page .pending-filter-card label > span {
-  position: static !important;
-  display: block !important;
-  flex: 0 0 auto !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  line-height: 1.2 !important;
-  white-space: nowrap !important;
-  transform: none !important;
-}
-
-.pending-reference-page .pending-filter-card label > input,
-.pending-reference-page .pending-filter-card label > select {
-  position: relative !important;
-  display: block !important;
-  width: 100% !important;
-  min-width: 0 !important;
-  box-sizing: border-box !important;
-  margin: 0 !important;
-}
-
-/* Keep the search text clear of the magnifier rendered by ReportsSplitReference.css. */
-.pending-reference-page .pending-filter-card .pending-search input {
-  padding-left: 31px !important;
-}
+/* Fix: filter labels and search controls must never overlap. */
+.pending-reference-page .pending-filter-card label{display:flex!important;flex-direction:column!important;align-items:stretch!important;justify-content:flex-start!important;gap:5px!important;min-width:0!important;position:relative!important}
+.pending-reference-page .pending-filter-card label>span{position:static!important;display:block!important;flex:0 0 auto!important;margin:0!important;padding:0!important;line-height:1.2!important;white-space:nowrap!important;transform:none!important}
+.pending-reference-page .pending-filter-card label>input,.pending-reference-page .pending-filter-card label>select{position:relative!important;display:block!important;width:100%!important;min-width:0!important;box-sizing:border-box!important;margin:0!important}
+/* The magnifier is inside the search field; reserve a clear text area. */
+.pending-reference-page .pending-filter-card .pending-search{position:relative!important;min-width:0!important}
+.pending-reference-page .pending-filter-card .pending-search>span{pointer-events:none!important;z-index:2!important}
+.pending-reference-page .pending-filter-card .pending-search input,.pending-reference-page .pending-search input{padding-left:40px!important;padding-right:10px!important;min-width:0!important}
