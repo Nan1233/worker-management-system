@@ -15,24 +15,29 @@ const normalizeDate = (value, fallback) => {
 };
 
 /**
- * Build a user-friendly multi-word search predicate.
+ * Build a user-friendly multi-word, accent-insensitive search predicate.
  *
- * The old implementation searched the complete input as one contiguous
- * substring. That meant "an" matched "An Thị Thanh Phương", but "an t"
- * did not because those characters are not adjacent in the stored name.
+ * Every whitespace-separated token must match at least one searchable field,
+ * while all tokens must match. The explicit utf8mb4_general_ci collation is
+ * intentional: it makes Vietnamese diacritics searchable by their base
+ * letters, so "phuo" matches "Phương" and "thanh ph" matches
+ * "An Thị Thanh Phương", even when the DB column uses a binary collation.
  *
- * Each whitespace-separated token must match at least one searchable field,
- * while all tokens must match. This keeps partial searches useful:
+ * Examples:
  *   an        -> An Thị Thanh Phương
  *   an t      -> An Thị Thanh Phương
+ *   phuo      -> An Thị Thanh Phương
+ *   phuong    -> An Thị Thanh Phương
  *   thanh ph  -> An Thị Thanh Phương
- * and still supports report code / machine / product searches.
+ *
+ * Report code / worker code / machine / product / process searches remain
+ * partial substring searches as before.
  */
 const appendTokenizedSearch = (where, params, rawSearch, fields) => {
   const tokens = String(rawSearch || '').trim().split(/\s+/).filter(Boolean).slice(0, 12);
   for (const token of tokens) {
     const q = `%${token}%`;
-    where.push(`(${fields.map((field) => `${field} LIKE ?`).join(' OR ')})`);
+    where.push(`(${fields.map((field) => `CAST(${field} AS CHAR) COLLATE utf8mb4_general_ci LIKE ?`).join(' OR ')})`);
     params.push(...fields.map(() => q));
   }
 };
