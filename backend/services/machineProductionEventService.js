@@ -352,7 +352,6 @@ async function assertApprovedEventForTempLine(executor,{report,line}){
     const linkedMatches = candidate && String(candidate.status).toLowerCase()==='approved'
       && Number(candidate.process_id)===processId
       && (!machineId || Number(candidate.machine_id)===machineId || candidateMachine===normalizedMachine)
-      && candidateMachine===normalizedMachine
       && normalizedProducts.includes(candidateProduct)
       && isoDate(candidate.work_date)===workDate
       && String(candidate.shift||'').trim().toUpperCase()===shift.toUpperCase();
@@ -360,10 +359,8 @@ async function assertApprovedEventForTempLine(executor,{report,line}){
   }
 
   if (!event) {
-    // Do not normalize machine/product in SQL. TiDB/MySQL prepared-statement
-    // parsing was failing on the nested REPLACE(...)=? + IN (?) expression.
-    // Fetch the small candidate set by indexed/simple dimensions and perform
-    // canonical matching in JavaScript instead.
+    // Query by indexed/simple dimensions, then perform canonical machine/product matching in JS.
+    // This avoids the TiDB prepared-statement syntax failure from nested REPLACE(...)+IN(?).
     const rows = await q(executor,`SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status
       FROM machine_production_events
       WHERE status='approved'
@@ -411,9 +408,11 @@ async function assertApprovedEventForTempLine(executor,{report,line}){
     });
   }
 
+  const eventMachineMatches = (machineId && Number(event.machine_id) === machineId)
+    || canonicalMachineNumber(event.machine_code) === normalizedMachine;
   const same=String(event.status).toLowerCase()==='approved'
     && Number(event.process_id)===processId
-    && canonicalMachineNumber(event.machine_code)===normalizedMachine
+    && eventMachineMatches
     && normalizedProducts.includes(normalizeBusinessCode(event.product_code))
     && isoDate(event.work_date)===workDate
     && String(event.shift||'').trim().toUpperCase()===shift.toUpperCase();
