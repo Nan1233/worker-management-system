@@ -74,9 +74,7 @@
   --management-title-size: 24px;
 }
 
-/* Search fields: keep the search icon and any trailing action/edit icon
- * in their own visual zones instead of allowing them to sit over the text.
- */
+/* Search fields: reserve space for leading/trailing controls. */
 .management-layout .management-content :is(div, label):has(> svg) {
   position: relative;
 }
@@ -90,6 +88,41 @@
 }
 .management-layout .management-content :is(div, label):has(> svg) > svg {
   pointer-events: none;
+}
+
+/* Some manager pages contain Lucide/React SVG icons inside the search
+ * wrapper. A broad global SVG rule was previously able to make the
+ * magnifier inherit a large decorative size, covering the edit/action icon.
+ * Keep control icons at a predictable compact size. */
+.management-layout .management-content label:has(input) svg,
+.management-layout .management-content label:has(select) svg,
+.management-layout .management-content [class*="search"]:has(input) svg,
+.management-layout .management-content [class*="Search"]:has(input) svg,
+.management-layout .management-content [class*="filter"]:has(input) svg,
+.management-layout .management-content [class*="Filter"]:has(input) svg {
+  width: 16px !important;
+  height: 16px !important;
+  max-width: 16px !important;
+  max-height: 16px !important;
+  flex: 0 0 16px !important;
+  transform: none !important;
+}
+
+/* Action/edit buttons must also keep their icons compact and centered. */
+.management-layout .management-content button svg,
+.management-layout .management-content a svg {
+  width: 16px !important;
+  height: 16px !important;
+  max-width: 16px !important;
+  max-height: 16px !important;
+  flex: 0 0 16px !important;
+  transform: none !important;
+}
+.management-layout .management-content button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 @media (max-width: 800px) {
