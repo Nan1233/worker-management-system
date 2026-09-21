@@ -4,11 +4,15 @@ const dotenv = require("dotenv");
 dotenv.config();
 
 const isCloudflareWorker = process.env.KTC_CLOUDFLARE_WORKER === "true" || Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
+const cloudflareEnv = globalThis.__KTC_CLOUDFLARE_ENV || {};
 const tidbConnect = globalThis.__KTC_TIDB_CONNECT;
 
 const requiredVariables = ["DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME"];
+function getTidbDatabaseUrl() {
+  return String(process.env.TIDB_DATABASE_URL || cloudflareEnv.TIDB_DATABASE_URL || "").trim();
+}
 const getMissingDatabaseVariables = () => {
-  if (isCloudflareWorker) return process.env.TIDB_DATABASE_URL ? [] : ["TIDB_DATABASE_URL"];
+  if (isCloudflareWorker) return typeof tidbConnect !== "function" ? ["@tidbcloud/serverless"] : !getTidbDatabaseUrl() ? ["TIDB_DATABASE_URL"] : [];
   return requiredVariables.filter((name) => !process.env[name]);
 };
 
@@ -38,16 +42,15 @@ function wrapCloudflareError(error, sql) {
     }
   }
   wrapped.cause = error;
-  if (isCloudflareWorker) {
-    console.error("[KTC][DB] TiDB query failed", JSON.stringify({
-      message: getErrorDetail(error),
-      code: error?.code ?? null,
-      errno: error?.errno ?? null,
-      sqlState: error?.sqlState ?? null,
-      status: error?.status ?? error?.statusCode ?? null,
-      sql: String(sql || "").replace(/\s+/g, " ").trim().slice(0, 500),
-    }));
-  }
+  wrapped.details = {
+    message: getErrorDetail(error),
+    code: error?.code ?? null,
+    errno: error?.errno ?? null,
+    sqlState: error?.sqlState ?? null,
+    status: error?.status ?? error?.statusCode ?? null,
+    sql: String(sql || "").replace(/\s+/g, " ").trim().slice(0, 500),
+  };
+  if (isCloudflareWorker) console.error("[KTC][DB] TiDB query failed", JSON.stringify(wrapped.details));
   return wrapped;
 }
 
@@ -60,30 +63,19 @@ function splitQueryArgs(args) {
     params = sql.values ?? sql.params ?? params;
     sql = sql.sql;
   }
-  return {
-    sql: String(sql ?? ""),
-    params: Array.isArray(params) ? params : params == null ? [] : [params],
-    callback,
-  };
+  return { sql: String(sql ?? ""), params: Array.isArray(params) ? params : params == null ? [] : [params], callback };
 }
 
 function normalizeCloudflareResult(result) {
   if (result && typeof result === "object" && !Array.isArray(result)) {
     if (Array.isArray(result.rows)) return [result.rows, result.fields || []];
-    return [{
-      affectedRows: Number(result.rowsAffected ?? 0),
-      insertId: Number(result.lastInsertId ?? 0),
-      changedRows: Number(result.rowsAffected ?? 0),
-      warningStatus: 0,
-    }, result.fields || []];
+    return [{ affectedRows: Number(result.rowsAffected ?? 0), insertId: Number(result.lastInsertId ?? 0), changedRows: Number(result.rowsAffected ?? 0), warningStatus: 0 }, result.fields || []];
   }
   return [Array.isArray(result) ? result : [], []];
 }
 
 function normalizeNotificationBackfillQuery(sql, params) {
-  if (!/^\s*INSERT\s+INTO\s+notifications\b/i.test(sql) || !/\bSELECT\s+\?/i.test(sql)) {
-    return { sql, params };
-  }
+  if (!/^\s*INSERT\s+INTO\s+notifications\b/i.test(sql) || !/\bSELECT\s+\?/i.test(sql)) return { sql, params };
   let paramIndex = 0;
   let quote = null;
   let output = "";
@@ -107,26 +99,21 @@ function normalizeNotificationBackfillQuery(sql, params) {
     }
     output += ch;
   }
-  output = output
-    .replace(/'\?source=approved'/g, "CONCAT(CHAR(63), 'source=approved')")
-    .replace(/'\?source=pending'/g, "CONCAT(CHAR(63), 'source=pending')");
+  output = output.replace(/'\?source=approved'/g, "CONCAT(CHAR(63), 'source=approved')").replace(/'\?source=pending'/g, "CONCAT(CHAR(63), 'source=pending')");
   return { sql: output, params: [] };
 }
 
 function normalizeApprovedMachineEventQuery(sql, params) {
   if (!/FROM\s+machine_production_events\b/i.test(sql) || !/status\s*=\s*'approved'/i.test(sql)) return { sql, params };
   if (!/UPPER\(TRIM\(machine_code\)\)\s*=\s*UPPER\(TRIM\(\?\)\)/i.test(sql)) return { sql, params };
-  const canonicalSql = "REGEXP_REPLACE(UPPER(TRIM(machine_code)), '^(MÁY|MAY|MACHINE|GC|G|M)\\s*[-_]?','')";
-  const normalizedSql = sql.replace(
-    /REPLACE\(REPLACE\(REPLACE\(UPPER\(TRIM\(machine_code\)\),' ',''\),'-',''\),'_',''\)=\?/i,
-    `${canonicalSql}=?`
-  );
+  const canonicalSql = "REGEXP_REPLACE(UPPER(TRIM(machine_code)), '^(MÁY|MAY|MACHINE|GC|G|M)\\s*[-_]?', '')";
+  const normalizedSql = sql.replace(/REPLACE\(REPLACE\(REPLACE\(UPPER\(TRIM\(machine_code\)\),' ',' '\),'-',''\),'_',''\)=\?/i, `${canonicalSql}=?`);
   return { sql: normalizedSql, params };
 }
 
 function createCloudflareConnection() {
   if (typeof tidbConnect !== "function") throw new Error("TiDB Serverless Driver chưa được khởi tạo trong Cloudflare Worker");
-  const databaseUrl = String(process.env.TIDB_DATABASE_URL || "").trim();
+  const databaseUrl = getTidbDatabaseUrl();
   if (!databaseUrl) throw new Error("Cloudflare Worker thiếu secret TIDB_DATABASE_URL");
   const conn = tidbConnect({ url: databaseUrl });
   let transaction = null;
@@ -168,28 +155,17 @@ function createCloudflareConnection() {
       return promise;
     },
     async beginTransaction(callback) {
-      const promise = (async () => {
-        if (transaction) throw new Error("Transaction đã được mở trên connection này");
-        try { transaction = await conn.begin(); } catch (error) { throw wrapCloudflareError(error, "BEGIN"); }
-      })();
+      const promise = (async () => { if (transaction) throw new Error("Transaction đã được mở trên connection này"); try { transaction = await conn.begin(); } catch (error) { throw wrapCloudflareError(error, "BEGIN"); } })();
       if (typeof callback === "function") { promise.then(() => callback(null), callback); return undefined; }
       return promise;
     },
     async commit(callback) {
-      const promise = (async () => {
-        if (!transaction) throw new Error("Không có transaction đang mở");
-        const current = transaction; transaction = null;
-        try { await current.commit(); } catch (error) { throw wrapCloudflareError(error, "COMMIT"); }
-      })();
+      const promise = (async () => { if (!transaction) throw new Error("Không có transaction đang mở"); const current = transaction; transaction = null; try { await current.commit(); } catch (error) { throw wrapCloudflareError(error, "COMMIT"); } })();
       if (typeof callback === "function") { promise.then(() => callback(null), callback); return undefined; }
       return promise;
     },
     async rollback(callback) {
-      const promise = (async () => {
-        if (!transaction) return;
-        const current = transaction; transaction = null;
-        try { await current.rollback(); } catch (error) { throw wrapCloudflareError(error, "ROLLBACK"); }
-      })();
+      const promise = (async () => { if (!transaction) return; const current = transaction; transaction = null; try { await current.rollback(); } catch (error) { throw wrapCloudflareError(error, "ROLLBACK"); } })();
       if (typeof callback === "function") { promise.then(() => callback(null), callback); return undefined; }
       return promise;
     },
@@ -234,12 +210,12 @@ if (isCloudflareWorker) {
     },
     async testConnection() {
       const missing = getMissingDatabaseVariables();
-      if (missing.length > 0) throw new Error(`Thiếu biến môi trường database: ${missing.join(", ")}`);
+      if (missing.length) throw new Error(`Thiếu biến môi trường database: ${missing.join(", ")}`);
       const connection = createCloudflareConnection();
       try {
         await connection.query("SELECT 1 AS ok");
         let host = null;
-        try { host = new URL(String(process.env.TIDB_DATABASE_URL)).hostname; } catch {}
+        try { host = new URL(getTidbDatabaseUrl()).hostname; } catch {}
         return { ssl: true, host, port: Number(process.env.DB_PORT || 4000) };
       } finally { await connection.release(); }
     },
@@ -268,7 +244,7 @@ if (isCloudflareWorker) {
     if (connectionCheckPromise) return connectionCheckPromise;
     connectionCheckPromise = (async () => {
       const missing = getMissingDatabaseVariables();
-      if (missing.length > 0) throw new Error(`Thiếu biến môi trường database: ${missing.join(", ")}`);
+      if (missing.length) throw new Error(`Thiếu biến môi trường database: ${missing.join(", ")}`);
       const connection = await pool.promise().getConnection();
       try { await connection.query("SELECT 1 AS ok"); return { ssl: useSsl, host: process.env.DB_HOST, port: dbPort }; }
       finally { connection.release(); }
