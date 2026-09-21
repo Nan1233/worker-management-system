@@ -36,7 +36,7 @@ process.env.CORS_ORIGINS = configuredCorsOrigins.join(",");
 process.env.PORT = process.env.PORT || "3000";
 process.env.KTC_CLOUDFLARE_WORKER = "true";
 
-const { app, start } = require("./server.js");
+const { app } = require("./server.js");
 const db = require("./config/db");
 const ensureGcDefectMasterData = require("./scripts/ensureGcDefectMasterData");
 const ensureGcLong2801Lt = require("./scripts/ensureGcLong2801Lt");
@@ -120,11 +120,8 @@ async function ensureCloudflareSeeded() {
   return cloudflareSeedPromise;
 }
 
-// Express must create the real Node-compatible HTTP server before the
-// Cloudflare bridge is created. Passing the Express app directly to
-// httpServerHandler() is invalid; passing only {port} without starting the
-// server first also leaves no server registered for that routing key.
-await start();
+// Cloudflare's Express integration uses the listening port as the routing key.
+app.listen(Number(process.env.PORT || 3000));
 const httpHandler = httpServerHandler({ port: Number(process.env.PORT || 3000) });
 
 function getAllowedOrigin(request) {
