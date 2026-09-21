@@ -36,7 +36,7 @@ process.env.CORS_ORIGINS = configuredCorsOrigins.join(",");
 process.env.PORT = process.env.PORT || "3000";
 process.env.KTC_CLOUDFLARE_WORKER = "true";
 
-const { start, app } = require("./server.js");
+const { app } = require("./server.js");
 const db = require("./config/db");
 const ensureGcDefectMasterData = require("./scripts/ensureGcDefectMasterData");
 const ensureGcLong2801Lt = require("./scripts/ensureGcLong2801Lt");
@@ -136,8 +136,7 @@ async function ensureCloudflareSeeded() {
   return cloudflareSeedPromise;
 }
 
-await start();
-const httpHandler = httpServerHandler(app);
+const httpHandler = httpServerHandler({ port: Number(process.env.PORT || 3000) });
 
 function getAllowedOrigin(request) {
   const origin = request.headers.get("Origin"); if (!origin) return null;
@@ -152,7 +151,7 @@ function handleCorsPreflight(request) {
   const allowHeaders = requestedHeaders || ["Content-Type", "Authorization", "Idempotency-Key", "X-Cron-Secret", "X-Request-Id", "X-Frontend-Version"].join(", ");
   return new Response(null, { status: 204, headers: { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true", "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS", "Access-Control-Allow-Headers": allowHeaders, "Access-Control-Max-Age": "86400", "Vary": "Origin, Access-Control-Request-Headers", "Cache-Control": "no-store" } });
 }
-const BOOTSTRAP_EXEMPT_PATHS = new Set(["/api/auth/login", "/api/auth/refresh", "/api/auth/logout", "/api/health/live", "/api/health/ready"]);
+const BOOTSTRAP_EXEMPT_PATHS = new Set(["/api/auth/login", "/api/auth/refresh", "/api/auth/logout", "/api/health", "/api/health/live", "/api/health/ready"]);
 function shouldBootstrapBeforeRequest(request) { return !BOOTSTRAP_EXEMPT_PATHS.has(new URL(request.url).pathname); }
 const CANONICAL_EVENT_DEFECTS = new Map([["KQD", "KQD"], ["VO_CAO_SU", "Vỡ cao su"], ["K_XUOC_CONG_GAY", "K xước cong gãy"], ["CAO_SU_XOAY", "Cao su xoay"], ["CAT_KHONG_DUT", "Cắt không đứt"], ["BAVIA", "Bavia"], ["CSH", "CSH"], ["PPCM", "PPCM"], ["KT_LON", "KT lớn"], ["KT_NHO", "KT nhỏ"], ["LCS", "LCS"], ["CAT_LEM", "Cắt lẹm"], ["RACH_NVL", "Rách NVL"], ["CHAN_NGAN_DAI", "Chân ngắn dài"], ["SOT_VIA", "Sót via"], ["FURE_TRUC", "Fure trục"], ["LAN_CS", "Lẫn CS"], ["BAVIA_CAT_HUT", "Bavia cắt hụt"], ["THIEU_CAO_SU", "Thiếu cao su"]]);
 const EVENT_DEFECT_ALIASES = new Map([["KQD_DAP_LAI", "KQD"], ["KQD_TUOT", "KQD"], ["KQD_DL", "KQD"], ["VO_DO_LONG", "VO_CAO_SU"], ["VO_LONG", "VO_CAO_SU"], ["XUOC_DO_LONG", "K_XUOC_CONG_GAY"], ["XUOC_LONG", "K_XUOC_CONG_GAY"], ["CONG_GAY", "K_XUOC_CONG_GAY"], ["XOAY", "CAO_SU_XOAY"], ["KHONG_DUT", "CAT_KHONG_DUT"], ["BAVIA_HUT", "BAVIA"], ["CAO_SU", "LCS"], ["LOI_CAO_SU", "LCS"], ["CAT_LEM", "CAT_LEM"]]);
