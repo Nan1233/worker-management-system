@@ -5,7 +5,23 @@ export type ProductCodeFamily = "CUT_AUTO" | "CUT" | "LONG_MACHINE" | "LONG";
 
 const normalize = (value: unknown) => String(value ?? "").trim().toUpperCase();
 
-/** Canonical machine key used only for matching master-data relations. */
+/** Canonical GC product-code groups used by the test branch. */
+const GC_CUT_PRODUCT_CODES = new Set(["CAT01", "CAT02", "CAT03", "CAT04"]);
+const GC_LONG_PRODUCT_CODES = new Set(["LONG01", "LONG02"]);
+
+/**
+ * Returns the GC operation represented by a product code when the master row
+ * does not provide work_type. Explicit master work_type remains authoritative.
+ */
+export const getGcProductWorkType = (productCode: unknown): "CUT" | "LONG" | null => {
+    const code = normalize(productCode).replace(/\s+/g, "");
+    if (GC_CUT_PRODUCT_CODES.has(code)) return "CUT";
+    if (GC_LONG_PRODUCT_CODES.has(code)) return "LONG";
+    if (/^CAT\d+$/.test(code)) return "CUT";
+    if (/^LONG\d+$/.test(code)) return "LONG";
+    return null;
+};
+
 export const normalizeMachineKey = (value: unknown): string => {
     const code = normalize(value).replace(/\s+/g, "");
     if (!code) return "";
@@ -24,17 +40,17 @@ export const normalizeWorkType = (value: unknown): string => {
  * Canonical product-code classification used only as a legacy fallback.
  *
  * IMPORTANT: for GC Cắt/Lồng selection, product.work_type from master data is
- * the source of truth. Product-code inference must never move a row from Cắt
- * to Lồng (or the reverse), because real master codes do not necessarily use
- * the historical C + number / -L / -M naming convention.
+ * the source of truth when present. Product-code inference is used only when
+ * work_type is empty, including the explicit CAT01–CAT04 / LONG01–LONG02 test
+ * groups.
  */
 export const classifyProductCode = (productCode: unknown): ProductCodeFamily => {
     const code = normalize(productCode).replace(/\s+/g, "");
     if (!code) return "LONG";
     if (/(?:-AUTO|-AUTOMATIC|-5|-6|-7|-11)$/i.test(code)) return "CUT_AUTO";
-    if (/^C\d/.test(code)) return "CUT";
+    if (/^CAT\d+$/.test(code) || /^C\d/.test(code)) return "CUT";
     if (/-M$/i.test(code)) return "LONG_MACHINE";
-    if (/-L$/i.test(code)) return "LONG";
+    if (/^LONG\d+$/.test(code) || /-L$/i.test(code)) return "LONG";
     return "LONG";
 };
 
@@ -94,9 +110,12 @@ const matchesGcWorkType = (product: ProductStandardOption, operation: "CUT" | "L
     const masterWorkType = normalizeWorkType(product.work_type);
     if (masterWorkType === operation) return true;
 
-    // Keep a narrow backward-compatible fallback only when the master row has
-    // no work_type at all. A non-empty master work_type is authoritative.
+    // When work_type is empty, use the explicit test-branch product groups:
+    // CAT01/CAT02/CAT03/CAT04 => Cắt; LONG01/LONG02 => Lồng.
     if (!masterWorkType) {
+        const inferred = getGcProductWorkType(product.product_code);
+        if (inferred) return inferred === operation;
+
         const family = classifyProductCode(product.product_code);
         return operation === "CUT"
             ? family === "CUT" || family === "CUT_AUTO"
@@ -132,7 +151,6 @@ export const filterProductsForSelection = ({
     // Non-GC processes keep their master-data work_type/machine mapping rules.
     if (!useEncodedMachineSuffix) {
         if (mode === "MANUAL") return products;
-        // A machine-based operation must choose a machine before a product can be selected.
         if (!selectedMachine) return [];
         return products.filter((product) => {
             const mappedMachines = eligibleMachineCodes(product);
@@ -143,7 +161,7 @@ export const filterProductsForSelection = ({
     }
 
     // GC manual Lồng: no machine is valid. The process-scope filter has already
-    // selected LONG rows, but keep the work_type guard here as a final boundary.
+    // selected LONG rows, but keep the work_type/code guard here as a boundary.
     if (!selectedMachine) {
         if (mode === "MACHINE") return [];
         return products.filter((product) => matchesGcWorkType(product, "LONG"));
@@ -153,13 +171,10 @@ export const filterProductsForSelection = ({
         const mappedMachines = eligibleMachineCodes(product);
         const hasExplicitMapping = Number(product.has_machine_specific_standard || 0) === 1 || mappedMachines.length > 0;
 
-        // Explicit machine mappings always win over inference.
         if (hasExplicitMapping && mappedMachines.length > 0 && !mappedMachines.includes(selectedMachine)) {
             return false;
         }
 
-        // GC operation split is authoritative from the selected machine + master
-        // work_type. This prevents Cắt rows from appearing under Lồng and vice versa.
         if (gcWorkType) {
             if (!matchesGcWorkType(product, gcWorkType)) return false;
         } else {
