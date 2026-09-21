@@ -43,6 +43,7 @@
     "perf:large-data": "node scripts/performanceLargeData.cjs",
     "security:runtime": "node ../scripts/runtimeSecurityAudit.cjs",
     "smoke:production": "node ../scripts/productionSmokeE2E.cjs",
+    "e2e:guard": "node scripts/e2e-db-guard.cjs",
     "e2e:critical": "node ../scripts/stagingE2E.cjs"
   },
   "dependencies": {
