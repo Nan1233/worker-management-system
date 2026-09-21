@@ -13,17 +13,38 @@ function readEnv(name) {
   return String(process.env[name] ?? cloudflareEnv[name] ?? "").trim();
 }
 
+function firstEnv(...names) {
+  for (const name of names) {
+    const value = readEnv(name);
+    if (value) return value;
+  }
+  return "";
+}
+
 function buildTidbDatabaseUrl() {
-  const explicit = readEnv("TIDB_DATABASE_URL") || readEnv("TIDB_URL") || readEnv("DATABASE_URL") || readEnv("DB_URL");
+  const explicit = firstEnv("TIDB_DATABASE_URL", "TIDB_URL", "DATABASE_URL", "DB_URL");
   if (explicit) return explicit;
 
-  const host = readEnv("DB_HOST");
-  const user = readEnv("DB_USER");
-  const password = readEnv("DB_PASSWORD");
-  const database = readEnv("DB_NAME");
-  if (!host || !user || !password || !database) return "";
+  const hostValue = firstEnv("DB_HOST", "TIDB_HOST");
+  const user = firstEnv("DB_USER", "TIDB_USER");
+  const password = firstEnv("DB_PASSWORD", "TIDB_PASSWORD");
+  const database = firstEnv("DB_NAME", "TIDB_DATABASE");
+  if (!hostValue || !user || !password || !database) return "";
 
-  const port = Number.parseInt(readEnv("DB_PORT") || "4000", 10);
+  let host = hostValue;
+  let port = Number.parseInt(firstEnv("DB_PORT", "TIDB_PORT") || "4000", 10);
+  try {
+    if (/^\[.*\](?::\d+)?$/.test(hostValue)) {
+      const parsed = new URL(`mysql://${hostValue}`);
+      host = parsed.hostname;
+      if (parsed.port) port = Number.parseInt(parsed.port, 10);
+    } else if (/^[^/:]+:\d+$/.test(hostValue)) {
+      const parsed = new URL(`mysql://${hostValue}`);
+      host = parsed.hostname;
+      if (parsed.port) port = Number.parseInt(parsed.port, 10);
+    }
+  } catch {}
+
   const url = new URL("mysql://localhost");
   url.hostname = host;
   url.port = Number.isFinite(port) && port > 0 ? String(port) : "4000";
@@ -40,7 +61,7 @@ function getTidbDatabaseUrl() {
 const getMissingDatabaseVariables = () => {
   if (isCloudflareWorker) {
     if (typeof tidbConnect !== "function") return ["@tidbcloud/serverless"];
-    if (!getTidbDatabaseUrl()) return ["TIDB_DATABASE_URL/TIDB_URL hoặc DB_HOST + DB_USER + DB_PASSWORD + DB_NAME"];
+    if (!getTidbDatabaseUrl()) return ["TIDB_DATABASE_URL/TIDB_URL/DATABASE_URL hoặc DB_HOST + DB_USER + DB_PASSWORD + DB_NAME"];
     return [];
   }
   return requiredVariables.filter((name) => !process.env[name]);
@@ -144,7 +165,7 @@ function normalizeApprovedMachineEventQuery(sql, params) {
 function createCloudflareConnection() {
   if (typeof tidbConnect !== "function") throw new Error("TiDB Serverless Driver chưa được khởi tạo trong Cloudflare Worker");
   const databaseUrl = getTidbDatabaseUrl();
-  if (!databaseUrl) throw new Error("Cloudflare Worker thiếu cấu hình TiDB: cần TIDB_DATABASE_URL/TIDB_URL hoặc DB_HOST, DB_USER, DB_PASSWORD, DB_NAME");
+  if (!databaseUrl) throw new Error("Cloudflare Worker thiếu cấu hình TiDB: cần TIDB_DATABASE_URL/TIDB_URL/DATABASE_URL hoặc DB_HOST, DB_USER, DB_PASSWORD, DB_NAME");
   const conn = tidbConnect({ url: databaseUrl });
   let transaction = null;
   let closed = false;
@@ -246,7 +267,7 @@ if (isCloudflareWorker) {
         await connection.query("SELECT 1 AS ok");
         let host = null;
         try { host = new URL(getTidbDatabaseUrl()).hostname; } catch {}
-        return { ssl: true, host, port: Number(readEnv("DB_PORT") || 4000) };
+        return { ssl: true, host, port: Number(firstEnv("DB_PORT", "TIDB_PORT") || 4000) };
       } finally { await connection.release(); }
     },
     closePool: async () => {},
