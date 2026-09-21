@@ -10,20 +10,12 @@ for (const [key, value] of Object.entries(env)) {
   if (typeof value === "string") process.env[key] = value;
 }
 
-// Do not silently rewrite a valid TiDB URL with DB_NAME. A malformed/empty
-// DB_NAME must never redirect the worker to the wrong database. Only inject
-// DB_NAME when the URL has no pathname database component.
 if (typeof env.TIDB_DATABASE_URL === "string" && env.TIDB_DATABASE_URL) {
   try {
     const url = new URL(env.TIDB_DATABASE_URL);
-    const configuredDb = String(env.DB_NAME || "").trim();
-    const pathnameDb = decodeURIComponent(String(url.pathname || "").replace(/^\/+/, "")).trim();
-    if (!pathnameDb && configuredDb) {
-      url.pathname = `/${encodeURIComponent(configuredDb)}`;
-      process.env.TIDB_DATABASE_URL = url.toString();
-    } else {
-      process.env.TIDB_DATABASE_URL = url.toString();
-    }
+    const database = String(env.DB_NAME || "").trim();
+    if (database) url.pathname = `/${encodeURIComponent(database)}`;
+    process.env.TIDB_DATABASE_URL = url.toString();
   } catch {
     process.env.TIDB_DATABASE_URL = env.TIDB_DATABASE_URL;
   }
@@ -73,3 +65,84 @@ db.promise = () => {
   }
   return api;
 };
+
+// The canonical validation layer may resolve a defect/deduction for business
+// calculations while the legacy persistence layer still receives only the
+// original UI shape. Normalize those rows again immediately before persistence
+// so the child tables always receive canonical master-data IDs. Previously,
+// an unresolved positive row was silently dropped by createDefects/createDeductions.
+async function normalizeTempChildRows(defects, deductions, processId) {
+  const normalizedDefects = Array.isArray(defects) ? defects.map((item) => ({ ...item })) : [];
+  const normalizedDeductions = Array.isArray(deductions) ? deductions.map((item) => ({ ...item })) : [];
+  const pid = Number(processId);
+
+  const defectIds = [...new Set(normalizedDefects.map((item) => Number(item?.defect_type_id)).filter((id) => Number.isInteger(id) && id > 0))];
+  const defectNames = [...new Set(normalizedDefects.map((item) => String(item?.defect_name || "").trim()).filter(Boolean))];
+  const deductionIds = [...new Set(normalizedDeductions.map((item) => Number(item?.deduction_type_id)).filter((id) => Number.isInteger(id) && id > 0))];
+  const deductionNames = [...new Set(normalizedDeductions.map((item) => String(item?.deduction_name || "").trim()).filter(Boolean))];
+
+  const [defectRows, deductionRows] = await Promise.all([
+    queryMasterRows(
+      `SELECT id, defect_code, defect_name
+         FROM defect_types
+        WHERE process_id=? AND status='active'
+          AND (${defectIds.length ? `id IN (${defectIds.map(() => "?").join(",")})` : "1=0"}
+               ${defectNames.length ? ` OR defect_name IN (${defectNames.map(() => "?").join(",")})` : ""})`,
+      [pid, ...defectIds, ...defectNames]
+    ),
+    queryMasterRows(
+      `SELECT id, deduction_name
+         FROM deduction_types
+        WHERE process_id=? AND status='active'
+          AND (${deductionIds.length ? `id IN (${deductionIds.map(() => "?").join(",")})` : "1=0"}
+               ${deductionNames.length ? ` OR deduction_name IN (${deductionNames.map(() => "?").join(",")})` : ""})`,
+      [pid, ...deductionIds, ...deductionNames]
+    )
+  ]);
+
+  const defectById = new Map((defectRows || []).map((row) => [Number(row.id), row]));
+  const defectByName = new Map((defectRows || []).map((row) => [String(row.defect_name).trim(), row]));
+  const deductionById = new Map((deductionRows || []).map((row) => [Number(row.id), row]));
+  const deductionByName = new Map((deductionRows || []).map((row) => [String(row.deduction_name).trim(), row]));
+
+  const unresolvedDefects = [];
+  for (const item of normalizedDefects) {
+    const quantity = Number(item?.quantity || 0);
+    if (!(quantity > 0)) continue;
+    const row = defectById.get(Number(item?.defect_type_id)) || defectByName.get(String(item?.defect_name || "").trim());
+    if (!row) {
+      unresolvedDefects.push(item);
+      continue;
+    }
+    item.defect_type_id = Number(row.id);
+    item.defect_name = String(row.defect_name || "").trim();
+    item.defect_code = String(row.defect_code || item.defect_code || "").trim();
+  }
+
+  const unresolvedDeductions = [];
+  for (const item of normalizedDeductions) {
+    const hours = Number(item?.hours || 0);
+    if (!(hours > 0)) continue;
+    const row = deductionById.get(Number(item?.deduction_type_id)) || deductionByName.get(String(item?.deduction_name || "").trim());
+    if (!row) {
+      unresolvedDeductions.push(item);
+      continue;
+    }
+    item.deduction_type_id = Number(row.id);
+    item.deduction_name = String(row.deduction_name || "").trim();
+  }
+
+  if (unresolvedDefects.length || unresolvedDeductions.length) {
+    throw Object.assign(new Error("UNRESOLVED_MASTER_DATA"), {
+      code: "UNRESOLVED_MASTER_DATA",
+      unresolvedDefects,
+      unresolvedDeductions
+    });
+  }
+  return { defects: normalizedDefects, deductions: normalizedDeductions };
+}
+
+async function queryMasterRows(sql, params) {
+  const result = await db.promise().query(sql, params);
+  return Array.isArray(result) && Array.isArray(result[0]) ? result[0] : [];
+}
