@@ -25,10 +25,7 @@ if (explicitTiDbUrl) {
 
 const cloudflareFrontendOrigin = "https://ktc-frontend.nan978971.workers.dev";
 const cloudflareTestFrontendOrigin = "https://ktc-fe-test.nan978971.workers.dev";
-const configuredCorsOrigins = String(process.env.CORS_ORIGINS || "")
-  .split(",")
-  .map((value) => value.trim())
-  .filter(Boolean);
+const configuredCorsOrigins = String(process.env.CORS_ORIGINS || "").split(",").map((value) => value.trim()).filter(Boolean);
 for (const origin of [cloudflareFrontendOrigin, cloudflareTestFrontendOrigin]) {
   if (!configuredCorsOrigins.includes(origin)) configuredCorsOrigins.push(origin);
 }
@@ -36,16 +33,12 @@ process.env.CORS_ORIGINS = configuredCorsOrigins.join(",");
 process.env.PORT = process.env.PORT || "3000";
 process.env.KTC_CLOUDFLARE_WORKER = "true";
 
-const { app } = require("./server.js");
+const { app, start } = require("./server.js");
 const db = require("./config/db");
 const ensureGcDefectMasterData = require("./scripts/ensureGcDefectMasterData");
 const ensureGcLong2801Lt = require("./scripts/ensureGcLong2801Lt");
 const { masterDataCache } = require("./utils/masterDataCache");
 const productionTempCreateModel = require("./models/productionTempCreateModel");
-
-// Cloudflare/TiDB still needs the canonical DB locks. Do not disable them on
-// the test worker: doing so makes two retries race before the idempotency row
-// is visible and can produce misleading duplicate/500 combinations.
 
 const originalDbPromise = db.promise.bind(db);
 db.promise = () => {
@@ -72,50 +65,38 @@ async function normalizeTempChildRows(defects, deductions, processId) {
   const normalizedDefects = Array.isArray(defects) ? defects.map((item) => ({ ...item })) : [];
   const normalizedDeductions = Array.isArray(deductions) ? deductions.map((item) => ({ ...item })) : [];
   const pid = Number(processId);
-
   const defectIds = [...new Set(normalizedDefects.map((item) => Number(item?.defect_type_id)).filter((id) => Number.isInteger(id) && id > 0))];
   const defectNames = [...new Set(normalizedDefects.map((item) => String(item?.defect_name || "").trim()).filter(Boolean))];
   const deductionIds = [...new Set(normalizedDeductions.map((item) => Number(item?.deduction_type_id)).filter((id) => Number.isInteger(id) && id > 0))];
   const deductionNames = [...new Set(normalizedDeductions.map((item) => String(item?.deduction_name || "").trim()).filter(Boolean))];
-
   const [defectRows, deductionRows] = await Promise.all([
     queryMasterRows(`SELECT id, defect_code, defect_name FROM defect_types WHERE process_id=? AND status='active' AND (${defectIds.length ? `id IN (${defectIds.map(() => "?").join(",")})` : "1=0"}${defectNames.length ? ` OR defect_name IN (${defectNames.map(() => "?").join(",")})` : ""})`, [pid, ...defectIds, ...defectNames]),
     queryMasterRows(`SELECT id, deduction_name FROM deduction_types WHERE process_id=? AND status='active' AND (${deductionIds.length ? `id IN (${deductionIds.map(() => "?").join(",")})` : "1=0"}${deductionNames.length ? ` OR deduction_name IN (${deductionNames.map(() => "?").join(",")})` : ""})`, [pid, ...deductionIds, ...deductionNames])
   ]);
-
   const defectById = new Map((defectRows || []).map((row) => [Number(row.id), row]));
   const defectByName = new Map((defectRows || []).map((row) => [String(row.defect_name).trim(), row]));
   const deductionById = new Map((deductionRows || []).map((row) => [Number(row.id), row]));
   const deductionByName = new Map((deductionRows || []).map((row) => [String(row.deduction_name).trim(), row]));
   const unresolvedDefects = [];
   const unresolvedDeductions = [];
-
   for (const item of normalizedDefects) {
     const quantity = Number(item?.quantity || 0);
     if (!(quantity > 0)) continue;
     const row = defectById.get(Number(item?.defect_type_id)) || defectByName.get(String(item?.defect_name || "").trim());
     if (!row) { unresolvedDefects.push(item); continue; }
-    item.defect_type_id = Number(row.id);
-    item.defect_name = String(row.defect_name || "").trim();
-    item.defect_code = String(row.defect_code || item.defect_code || "").trim();
+    item.defect_type_id = Number(row.id); item.defect_name = String(row.defect_name || "").trim(); item.defect_code = String(row.defect_code || item.defect_code || "").trim();
   }
   for (const item of normalizedDeductions) {
     const hours = Number(item?.hours || 0);
     if (!(hours > 0)) continue;
     const row = deductionById.get(Number(item?.deduction_type_id)) || deductionByName.get(String(item?.deduction_name || "").trim());
     if (!row) { unresolvedDeductions.push(item); continue; }
-    item.deduction_type_id = Number(row.id);
-    item.deduction_name = String(row.deduction_name || "").trim();
+    item.deduction_type_id = Number(row.id); item.deduction_name = String(row.deduction_name || "").trim();
   }
-  if (unresolvedDefects.length) {
-    const error = new Error("Có loại lỗi NG không khớp danh mục công đoạn"); error.status = 422; error.code = "TEMP_DEFECT_MASTER_DATA_MISMATCH"; error.isPublic = true; error.details = unresolvedDefects.map((item) => ({ defect_type_id: item.defect_type_id || null, defect_name: item.defect_name || null, quantity: item.quantity })); throw error;
-  }
-  if (unresolvedDeductions.length) {
-    const error = new Error("Có loại thời gian trừ không khớp danh mục công đoạn"); error.status = 422; error.code = "TEMP_DEDUCTION_MASTER_DATA_MISMATCH"; error.isPublic = true; error.details = unresolvedDeductions.map((item) => ({ deduction_type_id: item.deduction_type_id || null, deduction_name: item.deduction_name || null, hours: item.hours })); throw error;
-  }
+  if (unresolvedDefects.length) { const error = new Error("Có loại lỗi NG không khớp danh mục công đoạn"); error.status = 422; error.code = "TEMP_DEFECT_MASTER_DATA_MISMATCH"; error.isPublic = true; error.details = unresolvedDefects; throw error; }
+  if (unresolvedDeductions.length) { const error = new Error("Có loại thời gian trừ không khớp danh mục công đoạn"); error.status = 422; error.code = "TEMP_DEDUCTION_MASTER_DATA_MISMATCH"; error.isPublic = true; error.details = unresolvedDeductions; throw error; }
   return { defects: normalizedDefects, deductions: normalizedDeductions };
 }
-
 async function queryMasterRows(sql, params) { const [rows] = await db.promise().query(sql, params); return rows || []; }
 
 const originalCreateCompleteReport = productionTempCreateModel.createCompleteReport.bind(productionTempCreateModel);
@@ -136,6 +117,11 @@ async function ensureCloudflareSeeded() {
   return cloudflareSeedPromise;
 }
 
+// Express must create the real Node-compatible HTTP server before the
+// Cloudflare bridge is created. Passing the Express app directly to
+// httpServerHandler() is invalid; passing only {port} without starting the
+// server first also leaves no server registered for that routing key.
+await start();
 const httpHandler = httpServerHandler({ port: Number(process.env.PORT || 3000) });
 
 function getAllowedOrigin(request) {
