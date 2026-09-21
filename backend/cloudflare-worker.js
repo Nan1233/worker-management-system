@@ -138,7 +138,7 @@ async function ensureCloudflareSeeded() {
 
 const originalListen = app.listen.bind(app);
 app.listen = (port, hostOrCallback, maybeCallback) => { if (typeof hostOrCallback === "string") return originalListen(port, maybeCallback); return originalListen(port, hostOrCallback); };
-const server = await start();
+await start();
 const httpHandler = httpServerHandler(server);
 
 function getAllowedOrigin(request) {
