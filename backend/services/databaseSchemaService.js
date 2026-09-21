@@ -28,6 +28,50 @@ const RUNTIME_REQUIRED_COLUMNS = Object.freeze({
   notifications: ['id', 'user_id', 'type', 'title', 'message', 'link_url', 'entity_type', 'entity_id', 'is_read', 'read_at', 'created_at'],
 });
 
+// Cloudflare/TiDB Serverless already uses the exact same HTTP query transport
+// through db.promise().query().  Do not run a second, independent connection
+// probe here: on Workers that probe can fail while normal queries are healthy,
+// leaving /api/health permanently stuck at DATABASE_STARTUP_FAILED. Reuse the
+// proven query path and keep the normal Node/MySQL testConnection unchanged.
+if (process.env.KTC_CLOUDFLARE_WORKER === 'true' && typeof db?.promise === 'function') {
+  const originalTestConnection = db.testConnection;
+  db.testConnection = async () => {
+    const startedAt = Date.now();
+    try {
+      const [rows] = await db.promise().query('SELECT 1 AS ok');
+      if (!rows || Number(rows[0]?.ok) !== 1) {
+        const error = new Error('TiDB health query did not return ok=1');
+        error.code = 'DATABASE_UNAVAILABLE';
+        throw error;
+      }
+      let host = null;
+      try {
+        const configured = String(
+          process.env.TIDB_DATABASE_URL ||
+          process.env.TIDB_URL ||
+          process.env.DATABASE_URL ||
+          process.env.DB_URL ||
+          ''
+        ).trim();
+        if (configured) host = new URL(configured).hostname;
+      } catch (_) {}
+      return {
+        ssl: true,
+        host,
+        port: Number(process.env.DB_PORT || process.env.TIDB_PORT || 4000),
+        latencyMs: Date.now() - startedAt,
+      };
+    } catch (error) {
+      // Preserve the original implementation as a fallback for environments
+      // where the Cloudflare marker is present but the query adapter is not.
+      if (typeof originalTestConnection === 'function' && error?.code === 'ADAPTER_NOT_READY') {
+        return originalTestConnection();
+      }
+      throw error;
+    }
+  };
+}
+
 async function verifyDatabaseSchema({ executor = db.promise() } = {}) {
   try {
     const canonical = getCanonicalSchema();
