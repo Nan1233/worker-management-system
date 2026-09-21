@@ -65,7 +65,49 @@ app.use("/api", (req, res, next) => { res.setHeader("Cache-Control", "private, n
 app.use("/api", require("./middleware/activityAuditMiddleware"));
 app.get("/api/health/live", (_req, res) => res.json({ success: true, service: "ktc-api", status: "live", uptimeSeconds: Math.round(process.uptime()), version: process.env.KTC_BACKEND_VERSION || process.env.npm_package_version || "unknown" }));
 const runtimeReadiness = { ready: false, initializing: false, startedAt: null, readyAt: null, database: "starting", databaseLatencyMs: null, schemaReady: false, schemaStatus: "STARTING", schemaContractVersion: 26, errorCode: null, errorMessage: null };
-function readinessHandler(_req, res) { res.setHeader("Cache-Control", "no-store"); const version = require("./config/version"); if (!runtimeReadiness.ready) return res.status(503).json({ success: false, service: "ktc-api", status: "not_ready", database: runtimeReadiness.database, databaseLatencyMs: runtimeReadiness.databaseLatencyMs, schemaReady: runtimeReadiness.schemaReady, schemaStatus: runtimeReadiness.schemaStatus, schemaContractVersion: runtimeReadiness.schemaContractVersion, errorCode: runtimeReadiness.errorCode, appVersion: version.backendVersion }); return res.json({ success: true, service: "ktc-api", status: "ready", database: runtimeReadiness.database, databaseLatencyMs: runtimeReadiness.databaseLatencyMs, schemaReady: true, schemaStatus: runtimeReadiness.schemaStatus, schemaContractVersion: runtimeReadiness.schemaContractVersion, startupMs: runtimeReadiness.readyAt && runtimeReadiness.startedAt ? runtimeReadiness.readyAt - runtimeReadiness.startedAt : null, appVersion: version.backendVersion }); }
+async function readinessHandler(_req, res) {
+  res.setHeader("Cache-Control", "no-store");
+  const version = require("./config/version");
+
+  // Cloudflare Workers creates request-serving isolates independently.
+  // A readiness check must actively initialize this isolate instead of relying
+  // on a previous in-memory startup callback.
+  if (!runtimeReadiness.ready && !runtimeReadiness.initializing) {
+    void initializeRuntime();
+  }
+
+  if (!runtimeReadiness.ready) {
+    return res.status(503).json({
+      success: false,
+      service: "ktc-api",
+      status: "not_ready",
+      database: runtimeReadiness.database,
+      databaseLatencyMs: runtimeReadiness.databaseLatencyMs,
+      schemaReady: runtimeReadiness.schemaReady,
+      schemaStatus: runtimeReadiness.schemaStatus,
+      schemaContractVersion: runtimeReadiness.schemaContractVersion,
+      errorCode: runtimeReadiness.errorCode,
+      errorMessage: runtimeReadiness.errorMessage || null,
+      appVersion: version.backendVersion
+    });
+  }
+
+  return res.json({
+    success: true,
+    service: "ktc-api",
+    status: "ready",
+    database: runtimeReadiness.database,
+    databaseLatencyMs: runtimeReadiness.databaseLatencyMs,
+    schemaReady: true,
+    schemaStatus: runtimeReadiness.schemaStatus,
+    schemaContractVersion: runtimeReadiness.schemaContractVersion,
+    startupMs:
+      runtimeReadiness.readyAt && runtimeReadiness.startedAt
+        ? runtimeReadiness.readyAt - runtimeReadiness.startedAt
+        : null,
+    appVersion: version.backendVersion
+  });
+}
 app.get("/api/health/ready", readinessHandler);
 app.get("/api/health", readinessHandler);
 app.use("/api", (req, res, next) => { if (String(process.env.KTC_MAINTENANCE_MODE || "").toUpperCase() !== "RESTORE") return next(); if (["GET", "HEAD", "OPTIONS"].includes(String(req.method || "").toUpperCase())) return next(); return res.status(503).json({ success: false, code: "MAINTENANCE_RESTORE", message: "Hệ thống đang ở chế độ khôi phục dữ liệu" }); });
