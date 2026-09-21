@@ -38,6 +38,7 @@ const { assertDatabaseSchemaReady, toSafeSchemaDiagnostics } = require("./servic
 const { globalApiLimiter } = require("./middleware/rateLimiters");
 const { resolveTrustProxySetting } = require("./services/proxyTrustPolicy");
 const { resolveRouteModule } = require("./utils/routeModule");
+const excelExportJobQueue = require("./services/excelExportJobQueue");
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
