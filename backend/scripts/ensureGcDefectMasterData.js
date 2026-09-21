@@ -7,27 +7,17 @@ const query = (sql, params = []) => new Promise((resolve, reject) => {
 });
 
 // Canonical source of truth for GC / Gia công NG master data.
+// GC defect codes are explicitly split by the worker's selected operation:
+//   Cắt  -> CAT01..CAT04
+//   Lồng -> LONG01..LONG02
 // Historical rows are never deleted; only the active master is synchronized.
 const CANONICAL_GC_DEFECTS = [
-  ['KQD', 'KQD'],
-  ['VO_CAO_SU', 'Vỡ cao su'],
-  ['K_XUOC_CONG_GAY', 'K xước cong gãy'],
-  ['CAO_SU_XOAY', 'Cao su xoay'],
-  ['CAT_KHONG_DUT', 'Cắt không đứt'],
-  ['BAVIA', 'Bavia'],
-  ['CSH', 'CSH'],
-  ['PPCM', 'ppcm'],
-  ['KT_LON', 'KT lớn'],
-  ['KT_NHO', 'KT nhỏ'],
-  ['LCS', 'LCS'],
-  ['CAT_LEM', 'cắt lẹm'],
-  ['RACH_NVL', 'rách nvl'],
-  ['CHAN_NGAN_DAI', 'Chân ngắn dài'],
-  ['SOT_VIA', 'sót via'],
-  ['FURE_TRUC', 'fure trục'],
-  ['LAN_CS', 'lẫn cs'],
-  ['BAVIA_CAT_HUT', 'bavia cắt hụt'],
-  ['THIEU_CAO_SU', 'thiếu cao su'],
+  ['CAT01', 'Cao su xoay'],
+  ['CAT02', 'Cắt không đứt'],
+  ['CAT03', 'Lỗi kích thước'],
+  ['CAT04', 'Cắt không đứt'],
+  ['LONG01', 'KQD'],
+  ['LONG02', 'Tuốt và lồng lại'],
 ];
 
 function normalize(value) {
@@ -41,14 +31,27 @@ function errorDetails(error) {
     errno: error?.errno ?? null,
     sqlState: error?.sqlState ?? null,
     sqlMessage: error?.sqlMessage ?? null,
+    status: error?.status ?? error?.statusCode ?? null,
   };
 }
 
+async function queryWithRetry(sql, params = [], attempts = 3) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await query(sql, params);
+    } catch (error) {
+      lastError = error;
+      const status = Number(error?.status ?? error?.statusCode ?? 0);
+      if (status !== 520 || attempt === attempts) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 150 * attempt));
+    }
+  }
+  throw lastError;
+}
+
 async function ensureGcDefectMasterData() {
-  // db.query callback resolves the rows array directly. Do NOT destructure it
-  // as [rows]; doing so turns the first DB row into the rows variable and makes
-  // Cloudflare/TiDB bootstrap fail before the master can be synchronized.
-  const processes = await query(`
+  const processes = await queryWithRetry(`
     SELECT id
       FROM processes
      WHERE UPPER(TRIM(process_code)) = 'GC'
@@ -67,8 +70,7 @@ async function ensureGcDefectMasterData() {
     const canonicalCodes = CANONICAL_GC_DEFECTS.map(([code]) => code);
     const placeholders = canonicalCodes.map(() => '?').join(', ');
 
-    // Deactivate every legacy/non-canonical GC defect without deleting it.
-    await query(
+    await queryWithRetry(
       `UPDATE defect_types
           SET status = 'inactive'
         WHERE process_id = ?
@@ -82,7 +84,7 @@ async function ensureGcDefectMasterData() {
       const sortOrder = index + 1;
 
       try {
-        await query(
+        await queryWithRetry(
           `INSERT INTO defect_types
             (process_id, defect_code, defect_name, sort_order, status)
            VALUES (?, ?, ?, ?, 'active')
@@ -105,7 +107,7 @@ async function ensureGcDefectMasterData() {
     }
 
     const canonicalCodeSet = new Set(canonicalCodes.map(normalize));
-    const rows = await query(
+    const rows = await queryWithRetry(
       `SELECT id, defect_code, defect_name, status
          FROM defect_types
         WHERE process_id = ?
@@ -119,16 +121,13 @@ async function ensureGcDefectMasterData() {
       if (!canonicalCodeSet.has(code)) continue;
 
       if (seenCanonicalCodes.has(code)) {
-        await query(
-          `UPDATE defect_types SET status = 'inactive' WHERE id = ?`,
-          [Number(row.id)],
-        );
+        await queryWithRetry(`UPDATE defect_types SET status = 'inactive' WHERE id = ?`, [Number(row.id)]);
       } else {
         seenCanonicalCodes.add(code);
       }
     }
 
-    const verifyRows = await query(
+    const verifyRows = await queryWithRetry(
       `SELECT defect_code, defect_name, sort_order
          FROM defect_types
         WHERE process_id = ?
@@ -153,8 +152,6 @@ async function ensureGcDefectMasterData() {
     console.log(`GC_DEFECT_MASTER_OK process_id=${processId} active=${verifyRows.length}`);
   };
 
-  // Cloudflare/TiDB Serverless does not need transaction control here and
-  // request isolates must be allowed to retry safely.
   if (isCloudflareWorker) {
     try {
       await sync();
