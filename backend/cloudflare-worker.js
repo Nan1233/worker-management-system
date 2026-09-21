@@ -36,7 +36,7 @@ process.env.CORS_ORIGINS = configuredCorsOrigins.join(",");
 process.env.PORT = process.env.PORT || "3000";
 process.env.KTC_CLOUDFLARE_WORKER = "true";
 
-const { app } = require("./server.js");
+const { app, initializeRuntime, runtimeReadiness } = require("./server.js");
 const db = require("./config/db");
 const ensureGcDefectMasterData = require("./scripts/ensureGcDefectMasterData");
 const ensureGcLong2801Lt = require("./scripts/ensureGcLong2801Lt");
@@ -116,7 +116,23 @@ let cloudflareSeedPromise = null;
 async function ensureCloudflareSeeded() {
   if (cloudflareSeedReady) return true;
   if (cloudflareSeedPromise) return cloudflareSeedPromise;
-  cloudflareSeedPromise = Promise.all([ensureGcDefectMasterData(), ensureGcLong2801Lt()]).then(() => { masterDataCache.clear(); cloudflareSeedReady = true; console.log("[KTC] Cloudflare GC master-data seed completed; master cache cleared"); return true; }).catch((error) => { console.error("[KTC] Cloudflare GC master-data seed failed", error); cloudflareSeedPromise = null; return false; });
+  cloudflareSeedPromise = Promise.all([ensureGcDefectMasterData(), ensureGcLong2801Lt()]).then(async () => {
+    masterDataCache.clear();
+    cloudflareSeedReady = true;
+    console.log("[KTC] Cloudflare GC master-data seed completed; master cache cleared");
+
+    // A previous cold start can fail before Cloudflare variables/DB become
+    // available. The seed can succeed later, so retry runtime readiness here
+    // instead of leaving /api/health permanently stuck at STARTUP_FAILED.
+    if (!runtimeReadiness.ready && !runtimeReadiness.initializing) {
+      void initializeRuntime();
+    }
+    return true;
+  }).catch((error) => {
+    console.error("[KTC] Cloudflare GC master-data seed failed", error);
+    cloudflareSeedPromise = null;
+    return false;
+  });
   return cloudflareSeedPromise;
 }
 
