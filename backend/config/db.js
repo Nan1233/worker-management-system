@@ -166,7 +166,18 @@ function createCloudflareConnection() {
   if (typeof tidbConnect !== "function") throw new Error("TiDB Serverless Driver chưa được khởi tạo trong Cloudflare Worker");
   const databaseUrl = getTidbDatabaseUrl();
   if (!databaseUrl) throw new Error("Cloudflare Worker thiếu cấu hình TiDB: cần TIDB_DATABASE_URL/TIDB_URL/DATABASE_URL hoặc DB_HOST, DB_USER, DB_PASSWORD, DB_NAME");
-  const conn = tidbConnect({ url: databaseUrl });
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(databaseUrl);
+  } catch (error) {
+    throw new Error("TIDB_DATABASE_URL không hợp lệ: " + getErrorDetail(error));
+  }
+  if (!parsedUrl.pathname || parsedUrl.pathname === "/") {
+    const database = firstEnv("DB_NAME", "TIDB_DATABASE");
+    if (database) parsedUrl.pathname = "/" + encodeURIComponent(database);
+  }
+  parsedUrl.searchParams.set("sslMode", parsedUrl.searchParams.get("sslMode") || "verify_identity");
+  const conn = tidbConnect({ url: parsedUrl.toString() });
   let transaction = null;
   let closed = false;
   let queryQueue = Promise.resolve();
