@@ -10,15 +10,16 @@ for (const [key, value] of Object.entries(env)) {
   if (typeof value === "string") process.env[key] = value;
 }
 
-if (typeof env.TIDB_DATABASE_URL === "string" && env.TIDB_DATABASE_URL) {
+const explicitTiDbUrl = String(env.TIDB_DATABASE_URL || env.TIDB_URL || env.DATABASE_URL || env.DB_URL || "").trim();
+if (explicitTiDbUrl) {
   try {
-    const url = new URL(env.TIDB_DATABASE_URL);
-    const configuredDb = String(env.DB_NAME || "").trim();
-    const pathnameDb = decodeURIComponent(String(url.pathname || "").replace(/^\/+/, "")).trim();
+    const url = new URL(explicitTiDbUrl);
+    const configuredDb = String(env.DB_NAME || env.TIDB_DATABASE || "").trim();
+    const pathnameDb = decodeURIComponent(String(url.pathname || "").replace(/^\\/+/, "")).trim();
     if (!pathnameDb && configuredDb) url.pathname = `/${encodeURIComponent(configuredDb)}`;
     process.env.TIDB_DATABASE_URL = url.toString();
   } catch {
-    process.env.TIDB_DATABASE_URL = env.TIDB_DATABASE_URL;
+    process.env.TIDB_DATABASE_URL = explicitTiDbUrl;
   }
 }
 
