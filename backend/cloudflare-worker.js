@@ -15,7 +15,7 @@ if (explicitTiDbUrl) {
   try {
     const url = new URL(explicitTiDbUrl);
     const configuredDb = String(env.DB_NAME || env.TIDB_DATABASE || "").trim();
-    const pathnameDb = decodeURIComponent(String(url.pathname || "").replace(/^\\/+/, "")).trim();
+    const pathnameDb = decodeURIComponent(String(url.pathname || "").replace(/^\/+/, "")).trim();
     if (!pathnameDb && configuredDb) url.pathname = `/${encodeURIComponent(configuredDb)}`;
     process.env.TIDB_DATABASE_URL = url.toString();
   } catch {
