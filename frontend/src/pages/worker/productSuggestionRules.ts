@@ -21,19 +21,12 @@ export const normalizeWorkType = (value: unknown): string => {
 };
 
 /**
- * Canonical KTC product-code classification.
+ * Canonical product-code classification used only as a legacy fallback.
  *
- * Rules for the GC Cắt/Lồng screen:
- *   - Cắt tự động: product code ends with -AUTO / -AUTOMATIC, or -5 / -6 / -7 / -11
- *     (the numeric suffixes are automatic-machine variants)
- *   - Cắt thường: product code starts with C + digit and is not automatic
- *   - Lồng máy: product code ends with -M
- *   - Lồng: product code ends with -L
- *   - Other non-Cắt codes remain Lồng for backward compatibility.
- *
- * This function is intentionally based on product_code, not work_type from a
- * stale master-data row, so the worker selector and persisted product_code use
- * the same canonical convention.
+ * IMPORTANT: for GC Cắt/Lồng selection, product.work_type from master data is
+ * the source of truth. Product-code inference must never move a row from Cắt
+ * to Lồng (or the reverse), because real master codes do not necessarily use
+ * the historical C + number / -L / -M naming convention.
  */
 export const classifyProductCode = (productCode: unknown): ProductCodeFamily => {
     const code = normalize(productCode).replace(/\s+/g, "");
@@ -84,13 +77,33 @@ const GC_AUTOMATIC_MACHINE_CODES = new Set(["C5", "C6", "C7", "C11"]);
 const isGcAutomaticMachine = (machineCode: unknown): boolean =>
     GC_AUTOMATIC_MACHINE_CODES.has(normalize(machineCode).replace(/\s+/g, ""));
 
-/** GC shared Cắt/Lồng screen: selected machine remains the machine source of truth. */
+/**
+ * Resolve the GC operation from the selected machine.
+ * C* machines are Cắt; numeric machines are Lồng.
+ * The actual product split is still taken from product.work_type below.
+ */
 const getGcWorkTypeForMachine = (machineCode: unknown): "CUT" | "LONG" | null => {
     const key = normalize(machineCode).replace(/\s+/g, "");
     if (!key) return null;
     if (key === "C" || /^C\d+$/.test(key)) return "CUT";
     if (/^\d+$/.test(normalizeMachineKey(key))) return "LONG";
     return null;
+};
+
+const matchesGcWorkType = (product: ProductStandardOption, operation: "CUT" | "LONG"): boolean => {
+    const masterWorkType = normalizeWorkType(product.work_type);
+    if (masterWorkType === operation) return true;
+
+    // Keep a narrow backward-compatible fallback only when the master row has
+    // no work_type at all. A non-empty master work_type is authoritative.
+    if (!masterWorkType) {
+        const family = classifyProductCode(product.product_code);
+        return operation === "CUT"
+            ? family === "CUT" || family === "CUT_AUTO"
+            : family === "LONG" || family === "LONG_MACHINE";
+    }
+
+    return false;
 };
 
 export const filterProductsForSelection = ({
@@ -129,51 +142,41 @@ export const filterProductsForSelection = ({
         });
     }
 
-    // GC manual Lồng: no machine is valid, and only canonical LONG codes are shown.
-    // GC machine operations: no machine means no product selection is allowed.
+    // GC manual Lồng: no machine is valid. The process-scope filter has already
+    // selected LONG rows, but keep the work_type guard here as a final boundary.
     if (!selectedMachine) {
         if (mode === "MACHINE") return [];
-        return products.filter((product) => classifyProductCode(product.product_code) === "LONG");
+        return products.filter((product) => matchesGcWorkType(product, "LONG"));
     }
 
     return products.filter((product) => {
-        const code = String(product.product_code || "").trim();
-        const family = classifyProductCode(code);
         const mappedMachines = eligibleMachineCodes(product);
         const hasExplicitMapping = Number(product.has_machine_specific_standard || 0) === 1 || mappedMachines.length > 0;
 
-        // Explicit machine mappings always win over code inference.
+        // Explicit machine mappings always win over inference.
         if (hasExplicitMapping && mappedMachines.length > 0 && !mappedMachines.includes(selectedMachine)) {
             return false;
         }
 
-        // Selected C machine = Cắt.
-        if (gcWorkType === "CUT") {
-            if (isAutomatic) {
-                if (family !== "CUT_AUTO") return false;
+        // GC operation split is authoritative from the selected machine + master
+        // work_type. This prevents Cắt rows from appearing under Lồng and vice versa.
+        if (gcWorkType) {
+            if (!matchesGcWorkType(product, gcWorkType)) return false;
+        } else {
+            return false;
+        }
 
-                // -AUTO is a generic automatic variant. Numeric suffixes -5/-6/-7/-11
-                // are machine-specific automatic variants and must match the selected
-                // automatic machine. This prevents C2556-5 appearing on C6, etc.
-                const hint = getProductMachineHint(code);
-                if (hint?.kind === "NUMBER") {
-                    return hint.value === selectedMachine.replace(/^C/, "");
-                }
-                return true;
+        // For automatic Cắt machines, machine-specific numeric product suffixes
+        // remain constrained to their corresponding machine. Generic -AUTO rows
+        // can be used by all GC automatic Cắt machines.
+        if (gcWorkType === "CUT" && isAutomatic) {
+            const hint = getProductMachineHint(product.product_code);
+            if (hint?.kind === "NUMBER") {
+                return hint.value === selectedMachine.replace(/^C/, "");
             }
-
-            // Cắt không tự động: CHỈ mã C + số và KHÔNG có automatic suffix.
-            return family === "CUT";
         }
 
-        // Numeric machine = Lồng. -M means Lồng máy; -L means Lồng.
-        // Other non-Cut codes remain Lồng for backward compatibility.
-        if (gcWorkType === "LONG") {
-            if (family === "CUT" || family === "CUT_AUTO") return false;
-            return true;
-        }
-
-        return false;
+        return true;
     });
 };
 
