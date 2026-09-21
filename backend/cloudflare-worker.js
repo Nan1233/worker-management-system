@@ -2,6 +2,9 @@ import { httpServerHandler } from "cloudflare:node";
 import { env } from "cloudflare:workers";
 import { connect as connectTiDB } from "@tidbcloud/serverless";
 
+// Cloudflare Workers has no long-lived TCP socket. The serverless TiDB
+// connector is the single database transport used by this Worker.
+
 globalThis.__KTC_CLOUDFLARE_ENV = env;
 globalThis.__KTC_CLOUDFLARE_WORKER = true;
 globalThis.__KTC_TIDB_CONNECT = connectTiDB;
