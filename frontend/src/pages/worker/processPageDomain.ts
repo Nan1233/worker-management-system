@@ -1,6 +1,6 @@
 import type { ProductStandardOption } from "../../services/masterDataService";
 import type { OperationMode, OperationType } from "./processPageConfig";
-import { normalizeWorkType } from "./productSuggestionRules";
+import { getGcProductWorkType, normalizeWorkType } from "./productSuggestionRules";
 
 export type ProcessCapabilities = {
   processCode: string;
@@ -80,9 +80,19 @@ export function filterProductsForProcessScope(args: {
     const returnedProcessCode = codeOf(product.process_code);
     const processMatches = !expectedProcessCode || !returnedProcessCode || returnedProcessCode === expectedProcessCode;
     if (!processMatches) return false;
+
     if (expectedProcessCode === "GC" && expectedWorkType) {
-      return normalizeWorkType(product.work_type) === expectedWorkType;
+      const masterWorkType = normalizeWorkType(product.work_type);
+
+      // Prefer the explicit master-data work_type. For legacy/test rows where
+      // work_type is empty, use the agreed product-code split:
+      // Cắt = CAT01, CAT02, CAT03, CAT04
+      // Lồng = LONG01, LONG02
+      if (masterWorkType) return masterWorkType === expectedWorkType;
+
+      return getGcProductWorkType(product.product_code) === expectedWorkType;
     }
+
     return true;
   });
 }
