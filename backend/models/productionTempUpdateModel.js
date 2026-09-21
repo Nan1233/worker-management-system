@@ -89,8 +89,12 @@ module.exports = {
             const normalizedDeductions = [];
             for (const item of deductions) {
                 let deductionTypeId = Number(item.deduction_type_id) || null;
+                if (deductionTypeId) {
+                    const typeRows = await query(connection, `SELECT id FROM deduction_types WHERE id=? AND process_id=? LIMIT 1`, [deductionTypeId, current.process_id]);
+                    deductionTypeId = typeRows[0]?.id || null;
+                }
                 if (!deductionTypeId && String(item.deduction_name || "").trim()) {
-                    const typeRows = await query(connection, `SELECT id FROM deduction_types WHERE process_id=? AND deduction_name=? AND status='active' LIMIT 1`, [current.process_id, String(item.deduction_name).trim()]);
+                    const typeRows = await query(connection, `SELECT id FROM deduction_types WHERE process_id=? AND deduction_name=? ORDER BY CASE WHEN status='active' THEN 0 ELSE 1 END, id LIMIT 1`, [current.process_id, String(item.deduction_name).trim()]);
                     deductionTypeId = typeRows[0]?.id || null;
                 }
                 if (!deductionTypeId) throw new Error(`Nội dung thời gian trừ "${String(item.deduction_name || "").trim() || "không xác định"}" không tồn tại trong công đoạn`);
@@ -99,8 +103,12 @@ module.exports = {
             const normalizedDefects = [];
             for (const item of defects) {
                 let defectTypeId = Number(item.defect_type_id) || null;
+                if (defectTypeId) {
+                    const typeRows = await query(connection, `SELECT id FROM defect_types WHERE id=? AND process_id=? LIMIT 1`, [defectTypeId, current.process_id]);
+                    defectTypeId = typeRows[0]?.id || null;
+                }
                 if (!defectTypeId && String(item.defect_name || "").trim()) {
-                    const typeRows = await query(connection, `SELECT id FROM defect_types WHERE process_id=? AND defect_name=? AND status='active' LIMIT 1`, [current.process_id, String(item.defect_name).trim()]);
+                    const typeRows = await query(connection, `SELECT id FROM defect_types WHERE process_id=? AND defect_name=? ORDER BY CASE WHEN status='active' THEN 0 ELSE 1 END, id LIMIT 1`, [current.process_id, String(item.defect_name).trim()]);
                     defectTypeId = typeRows[0]?.id || null;
                 }
                 if (!defectTypeId) throw new Error(`Loại NG "${String(item.defect_name || "").trim() || "không xác định"}" không tồn tại trong công đoạn`);
