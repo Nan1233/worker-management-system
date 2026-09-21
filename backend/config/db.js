@@ -9,10 +9,16 @@ const tidbConnect = globalThis.__KTC_TIDB_CONNECT;
 
 const requiredVariables = ["DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME"];
 function getTidbDatabaseUrl() {
-  return String(process.env.TIDB_DATABASE_URL || cloudflareEnv.TIDB_DATABASE_URL || "").trim();
+  return String(
+    process.env.TIDB_DATABASE_URL ||
+    process.env.TIDB_URL ||
+    cloudflareEnv.TIDB_DATABASE_URL ||
+    cloudflareEnv.TIDB_URL ||
+    ""
+  ).trim();
 }
 const getMissingDatabaseVariables = () => {
-  if (isCloudflareWorker) return typeof tidbConnect !== "function" ? ["@tidbcloud/serverless"] : !getTidbDatabaseUrl() ? ["TIDB_DATABASE_URL"] : [];
+  if (isCloudflareWorker) return typeof tidbConnect !== "function" ? ["@tidbcloud/serverless"] : !getTidbDatabaseUrl() ? ["TIDB_DATABASE_URL (or TIDB_URL)"] : [];
   return requiredVariables.filter((name) => !process.env[name]);
 };
 
@@ -114,7 +120,7 @@ function normalizeApprovedMachineEventQuery(sql, params) {
 function createCloudflareConnection() {
   if (typeof tidbConnect !== "function") throw new Error("TiDB Serverless Driver chưa được khởi tạo trong Cloudflare Worker");
   const databaseUrl = getTidbDatabaseUrl();
-  if (!databaseUrl) throw new Error("Cloudflare Worker thiếu secret TIDB_DATABASE_URL");
+  if (!databaseUrl) throw new Error("Cloudflare Worker thiếu TIDB_DATABASE_URL/TIDB_URL");
   const conn = tidbConnect({ url: databaseUrl });
   let transaction = null;
   let closed = false;
