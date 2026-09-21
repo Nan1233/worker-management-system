@@ -8,17 +8,41 @@ const cloudflareEnv = globalThis.__KTC_CLOUDFLARE_ENV || {};
 const tidbConnect = globalThis.__KTC_TIDB_CONNECT;
 
 const requiredVariables = ["DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME"];
-function getTidbDatabaseUrl() {
-  return String(
-    process.env.TIDB_DATABASE_URL ||
-    process.env.TIDB_URL ||
-    cloudflareEnv.TIDB_DATABASE_URL ||
-    cloudflareEnv.TIDB_URL ||
-    ""
-  ).trim();
+
+function readEnv(name) {
+  return String(process.env[name] ?? cloudflareEnv[name] ?? "").trim();
 }
+
+function buildTidbDatabaseUrl() {
+  const explicit = readEnv("TIDB_DATABASE_URL") || readEnv("TIDB_URL") || readEnv("DATABASE_URL") || readEnv("DB_URL");
+  if (explicit) return explicit;
+
+  const host = readEnv("DB_HOST");
+  const user = readEnv("DB_USER");
+  const password = readEnv("DB_PASSWORD");
+  const database = readEnv("DB_NAME");
+  if (!host || !user || !password || !database) return "";
+
+  const port = Number.parseInt(readEnv("DB_PORT") || "4000", 10);
+  const url = new URL("mysql://localhost");
+  url.hostname = host;
+  url.port = Number.isFinite(port) && port > 0 ? String(port) : "4000";
+  url.username = user;
+  url.password = password;
+  url.pathname = `/${encodeURIComponent(database)}`;
+  return url.toString();
+}
+
+function getTidbDatabaseUrl() {
+  return String(buildTidbDatabaseUrl()).trim();
+}
+
 const getMissingDatabaseVariables = () => {
-  if (isCloudflareWorker) return typeof tidbConnect !== "function" ? ["@tidbcloud/serverless"] : !getTidbDatabaseUrl() ? ["TIDB_DATABASE_URL (or TIDB_URL)"] : [];
+  if (isCloudflareWorker) {
+    if (typeof tidbConnect !== "function") return ["@tidbcloud/serverless"];
+    if (!getTidbDatabaseUrl()) return ["TIDB_DATABASE_URL/TIDB_URL hoặc DB_HOST + DB_USER + DB_PASSWORD + DB_NAME"];
+    return [];
+  }
   return requiredVariables.filter((name) => !process.env[name]);
 };
 
@@ -120,7 +144,7 @@ function normalizeApprovedMachineEventQuery(sql, params) {
 function createCloudflareConnection() {
   if (typeof tidbConnect !== "function") throw new Error("TiDB Serverless Driver chưa được khởi tạo trong Cloudflare Worker");
   const databaseUrl = getTidbDatabaseUrl();
-  if (!databaseUrl) throw new Error("Cloudflare Worker thiếu TIDB_DATABASE_URL/TIDB_URL");
+  if (!databaseUrl) throw new Error("Cloudflare Worker thiếu cấu hình TiDB: cần TIDB_DATABASE_URL/TIDB_URL hoặc DB_HOST, DB_USER, DB_PASSWORD, DB_NAME");
   const conn = tidbConnect({ url: databaseUrl });
   let transaction = null;
   let closed = false;
@@ -222,7 +246,7 @@ if (isCloudflareWorker) {
         await connection.query("SELECT 1 AS ok");
         let host = null;
         try { host = new URL(getTidbDatabaseUrl()).hostname; } catch {}
-        return { ssl: true, host, port: Number(process.env.DB_PORT || 4000) };
+        return { ssl: true, host, port: Number(readEnv("DB_PORT") || 4000) };
       } finally { await connection.release(); }
     },
     closePool: async () => {},
