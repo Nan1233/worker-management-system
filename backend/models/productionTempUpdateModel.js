@@ -52,6 +52,13 @@ module.exports = {
             if (!current) throw new Error("Không tìm thấy báo cáo hoặc ngoài phạm vi phụ trách");
             if (current.status === "approved") throw new Error("Báo cáo đã duyệt không thể sửa ở bảng tạm");
 
+            // Serialize every daily-hours mutation on the worker row. The lock
+            // is shared with create() so concurrent edits/creates cannot both
+            // read the same daily total and then push it above 12 hours.
+            if (Number.isInteger(Number(current.worker_id)) && Number(current.worker_id) > 0) {
+                await query(connection, `SELECT id FROM workers WHERE id=? FOR UPDATE`, [Number(current.worker_id)]);
+            }
+
             if (isWorkerEdit) {
                 const createdAtMs = parseDbTimestampMs(current.created_at);
                 if (!Number.isFinite(createdAtMs)) {
