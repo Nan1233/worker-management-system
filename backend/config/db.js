@@ -7,7 +7,10 @@ const isCloudflareWorker = process.env.KTC_CLOUDFLARE_WORKER === "true" || Boole
 const tidbConnect = globalThis.__KTC_TIDB_CONNECT;
 
 const requiredVariables = ["DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME"];
-const getMissingDatabaseVariables = () => requiredVariables.filter((name) => !process.env[name]);
+const getMissingDatabaseVariables = () => {
+  if (isCloudflareWorker) return process.env.TIDB_DATABASE_URL ? [] : ["TIDB_DATABASE_URL"];
+  return requiredVariables.filter((name) => !process.env[name]);
+};
 
 function parsePositiveInteger(value, fallback, { min = 1, max = 100 } = {}) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
@@ -77,16 +80,10 @@ function normalizeCloudflareResult(result) {
   return [Array.isArray(result) ? result : [], []];
 }
 
-// TiDB Serverless' Cloudflare driver currently rejects parameter markers in
-// INSERT ... SELECT statements. Keep the workaround narrowly scoped to the
-// worker notification backfill, whose parameters are authenticated numeric IDs.
-// Placeholders inside quoted strings (e.g. ?source=approved) are converted so
-// the driver receives no literal question-mark characters at all.
 function normalizeNotificationBackfillQuery(sql, params) {
   if (!/^\s*INSERT\s+INTO\s+notifications\b/i.test(sql) || !/\bSELECT\s+\?/i.test(sql)) {
     return { sql, params };
   }
-
   let paramIndex = 0;
   let quote = null;
   let output = "";
@@ -95,80 +92,45 @@ function normalizeNotificationBackfillQuery(sql, params) {
     if (quote) {
       output += ch;
       if (ch === quote) {
-        if (sql[i + 1] === quote) {
-          output += sql[i + 1];
-          i += 1;
-        } else {
-          quote = null;
-        }
+        if (sql[i + 1] === quote) { output += sql[i + 1]; i += 1; }
+        else quote = null;
       }
       continue;
     }
-    if (ch === "'" || ch === '"' || ch === "`") {
-      quote = ch;
-      output += ch;
-      continue;
-    }
+    if (ch === "'" || ch === '"' || ch === "`") { quote = ch; output += ch; continue; }
     if (ch === "?" && paramIndex < params.length) {
-      const value = params[paramIndex];
-      const numeric = Number(value);
-      if (!Number.isInteger(numeric) || numeric <= 0) {
-        return { sql, params };
-      }
+      const numeric = Number(params[paramIndex]);
+      if (!Number.isInteger(numeric) || numeric <= 0) return { sql, params };
       output += String(numeric);
       paramIndex += 1;
       continue;
     }
     output += ch;
   }
-
-  // TiDB Serverless' parameter-marker handling can also reject a literal '?'
-  // embedded in the SQL text of this INSERT ... SELECT. Build the URL query
-  // separator with CHAR(63) so the SQL sent to the driver contains no '?'.
   output = output
     .replace(/'\?source=approved'/g, "CONCAT(CHAR(63), 'source=approved')")
     .replace(/'\?source=pending'/g, "CONCAT(CHAR(63), 'source=pending')");
-
   return { sql: output, params: [] };
 }
 
-// The worker approval guard compares physical machine identity canonically
-// (6 == M6 == MAY-6 == GC6), but its SQL lookup historically compared the
-// stored machine_code too literally. That caused an approved event stored as
-// GC6/GC-6 to be invisible when the worker line contained machine 6. Keep this
-// normalization limited to the exact machine_production_events approval lookup.
 function normalizeApprovedMachineEventQuery(sql, params) {
-  if (!/FROM\s+machine_production_events\b/i.test(sql) || !/status\s*=\s*'approved'/i.test(sql)) {
-    return { sql, params };
-  }
-  if (!/UPPER\(TRIM\(machine_code\)\)\s*=\s*UPPER\(TRIM\(\?\)\)/i.test(sql)) {
-    return { sql, params };
-  }
-
+  if (!/FROM\s+machine_production_events\b/i.test(sql) || !/status\s*=\s*'approved'/i.test(sql)) return { sql, params };
+  if (!/UPPER\(TRIM\(machine_code\)\)\s*=\s*UPPER\(TRIM\(\?\)\)/i.test(sql)) return { sql, params };
   const canonicalSql = "REGEXP_REPLACE(UPPER(TRIM(machine_code)), '^(MÁY|MAY|MACHINE|GC|G|M)\\s*[-_]?','')";
   const normalizedSql = sql.replace(
     /REPLACE\(REPLACE\(REPLACE\(UPPER\(TRIM\(machine_code\)\),' ',''\),'-',''\),'_',''\)=\?/i,
     `${canonicalSql}=?`
   );
-
   return { sql: normalizedSql, params };
 }
 
 function createCloudflareConnection() {
-  if (typeof tidbConnect !== "function") {
-    throw new Error("TiDB Serverless Driver chưa được khởi tạo trong Cloudflare Worker");
-  }
+  if (typeof tidbConnect !== "function") throw new Error("TiDB Serverless Driver chưa được khởi tạo trong Cloudflare Worker");
   const databaseUrl = String(process.env.TIDB_DATABASE_URL || "").trim();
   if (!databaseUrl) throw new Error("Cloudflare Worker thiếu secret TIDB_DATABASE_URL");
-
   const conn = tidbConnect({ url: databaseUrl });
   let transaction = null;
   let closed = false;
-
-  // TiDB Cloud Serverless rejects overlapping operations on the same
-  // transaction. Several approval/snapshot helpers use Promise.all(), so all
-  // statements on one connection must share a FIFO queue. The queue is local
-  // to this connection and does not serialize unrelated requests/connections.
   let queryQueue = Promise.resolve();
 
   async function executeRaw(sql, params = []) {
@@ -186,7 +148,6 @@ function createCloudflareConnection() {
   async function queryPromise(...args) {
     const { sql, params } = splitQueryArgs(args);
     if (!sql) throw new Error("SQL query rỗng");
-
     const run = () => executeRaw(sql, params);
     const current = queryQueue.then(run, run);
     queryQueue = current.catch(() => {});
@@ -197,19 +158,13 @@ function createCloudflareConnection() {
     query(...args) {
       const { callback } = splitQueryArgs(args);
       const promise = queryPromise(...args);
-      if (callback) {
-        promise.then(([rows, fields]) => callback(null, rows, fields), callback);
-        return undefined;
-      }
+      if (callback) { promise.then(([rows, fields]) => callback(null, rows, fields), callback); return undefined; }
       return promise;
     },
     execute(...args) {
       const { callback } = splitQueryArgs(args);
       const promise = queryPromise(...args);
-      if (callback) {
-        promise.then(([rows, fields]) => callback(null, rows, fields), callback);
-        return undefined;
-      }
+      if (callback) { promise.then(([rows, fields]) => callback(null, rows, fields), callback); return undefined; }
       return promise;
     },
     async beginTransaction(callback) {
@@ -223,8 +178,7 @@ function createCloudflareConnection() {
     async commit(callback) {
       const promise = (async () => {
         if (!transaction) throw new Error("Không có transaction đang mở");
-        const current = transaction;
-        transaction = null;
+        const current = transaction; transaction = null;
         try { await current.commit(); } catch (error) { throw wrapCloudflareError(error, "COMMIT"); }
       })();
       if (typeof callback === "function") { promise.then(() => callback(null), callback); return undefined; }
@@ -233,8 +187,7 @@ function createCloudflareConnection() {
     async rollback(callback) {
       const promise = (async () => {
         if (!transaction) return;
-        const current = transaction;
-        transaction = null;
+        const current = transaction; transaction = null;
         try { await current.rollback(); } catch (error) { throw wrapCloudflareError(error, "ROLLBACK"); }
       })();
       if (typeof callback === "function") { promise.then(() => callback(null), callback); return undefined; }
@@ -252,15 +205,11 @@ if (isCloudflareWorker) {
       return {
         query: (...args) => {
           const { sql, params } = splitQueryArgs(args);
-          return Promise.resolve().then(() => createCloudflareConnection()).then((connection) =>
-            connection.query(sql, params).finally(() => connection.release())
-          );
+          return Promise.resolve().then(() => createCloudflareConnection()).then((connection) => connection.query(sql, params).finally(() => connection.release()));
         },
         execute: (...args) => {
           const { sql, params } = splitQueryArgs(args);
-          return Promise.resolve().then(() => createCloudflareConnection()).then((connection) =>
-            connection.execute(sql, params).finally(() => connection.release())
-          );
+          return Promise.resolve().then(() => createCloudflareConnection()).then((connection) => connection.execute(sql, params).finally(() => connection.release()));
         },
         getConnection: async () => createCloudflareConnection(),
         end: async () => {},
@@ -269,19 +218,13 @@ if (isCloudflareWorker) {
     query(...args) {
       const { callback } = splitQueryArgs(args);
       const promise = this.promise().query(...args);
-      if (callback) {
-        promise.then(([rows, fields]) => callback(null, rows, fields), callback);
-        return undefined;
-      }
+      if (callback) { promise.then(([rows, fields]) => callback(null, rows, fields), callback); return undefined; }
       return promise;
     },
     execute(...args) {
       const { callback } = splitQueryArgs(args);
       const promise = this.promise().execute(...args);
-      if (callback) {
-        promise.then(([rows, fields]) => callback(null, rows, fields), callback);
-        return undefined;
-      }
+      if (callback) { promise.then(([rows, fields]) => callback(null, rows, fields), callback); return undefined; }
       return promise;
     },
     getConnection(callback) {
@@ -295,10 +238,10 @@ if (isCloudflareWorker) {
       const connection = createCloudflareConnection();
       try {
         await connection.query("SELECT 1 AS ok");
-        return { ssl: true, host: process.env.DB_HOST, port: Number(process.env.DB_PORT || 4000) };
-      } finally {
-        await connection.release();
-      }
+        let host = null;
+        try { host = new URL(String(process.env.TIDB_DATABASE_URL)).hostname; } catch {}
+        return { ssl: true, host, port: Number(process.env.DB_PORT || 4000) };
+      } finally { await connection.release(); }
     },
     closePool: async () => {},
     getMissingDatabaseVariables,
