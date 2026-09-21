@@ -7,8 +7,54 @@ const { validateMachineWorkerCapacityLocked } = require("../services/factoryMach
 const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
 const { verifyDuplicateConfirmation } = require("../services/duplicateConfirmationService");
 
+const DAILY_HOURS_LIMIT = 12;
+
+const enforceDailyHoursLocked = async (executor, data) => {
+    const workerId = Number(data?.worker_id);
+    const workDate = String(data?.work_date || "").slice(0, 10);
+    const incoming = Number(data?.actual_time) || 0;
+    if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return;
+
+    // The worker row is the canonical serialization point shared by CREATE
+    // and EDIT. The caller is already inside the same transaction, so every
+    // daily-hours read below happens after the lock is acquired.
+    await query(executor, `SELECT id FROM workers WHERE id=? FOR UPDATE`, [workerId]);
+
+    const rows = await query(executor, `
+        SELECT COALESCE(SUM(actual_time),0) AS counted_hours FROM production_reports
+        WHERE worker_id=? AND work_date=? AND status <> 'deleted'
+        UNION ALL
+        SELECT COALESCE(SUM(actual_time),0) AS counted_hours FROM production_reports_temp
+        WHERE worker_id=? AND work_date=? AND status IN ('pending','need_fix')`,
+        [workerId, workDate, workerId, workDate]
+    );
+    const existing = (rows || []).reduce((sum, row) => sum + Number(row?.counted_hours || 0), 0);
+    const projected = existing + incoming;
+    if (projected > DAILY_HOURS_LIMIT + 0.000001) {
+        const remaining = Math.max(0, DAILY_HOURS_LIMIT - existing);
+        const error = new Error(`Tổng giờ làm được tính trong ngày không được vượt quá 12 giờ. Hiện đã có ${existing.toFixed(2)} giờ, báo cáo này thêm ${incoming.toFixed(2)} giờ, chỉ còn ${remaining.toFixed(2)} giờ.`);
+        error.status = 422;
+        error.code = "DAILY_WORKING_HOURS_LIMIT_EXCEEDED";
+        error.isPublic = true;
+        error.details = {
+            worker_id: workerId,
+            work_date: workDate,
+            existing_hours: Number(existing.toFixed(4)),
+            incoming_hours: Number(incoming.toFixed(4)),
+            projected_hours: Number(projected.toFixed(4)),
+            limit_hours: DAILY_HOURS_LIMIT,
+            remaining_hours: Number(remaining.toFixed(4)),
+            counted_field: "actual_time",
+            excluded_from_daily_limit: "deduction_time / support hours"
+        };
+        throw error;
+    }
+};
+
 module.exports = {
     async create(data, executor = db) {
+        await enforceDailyHoursLocked(executor, data);
+
         const sql = `
             INSERT INTO production_reports_temp
             (
