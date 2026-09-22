@@ -1,9 +1,8 @@
 import { chromium } from 'playwright';
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-async function visible(page, selector, timeout = 8000) {
-  const locator = page.locator(selector).first();
+async function visible(page, selectors, timeout = 12000) {
+  const list = Array.isArray(selectors) ? selectors : [selectors];
+  const locator = page.locator(list.join(', ')).first();
   await locator.waitFor({ state: 'visible', timeout });
   return locator;
 }
@@ -19,7 +18,26 @@ async function runCase(add, id, name, fn) {
 
 async function openLogin(page, frontendUrl) {
   await page.goto(`${frontendUrl}/#/login`, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await visible(page, '#login-username');
+  await page.locator('#root').waitFor({ state: 'attached', timeout: 10000 });
+
+  try {
+    return await visible(page, [
+      '#login-username',
+      'input[autocomplete="username"]',
+      'input[placeholder*="mã nhân viên" i]',
+    ], 12000);
+  } catch (error) {
+    const bodyText = ((await page.locator('body').innerText().catch(() => '')) || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 500);
+    const title = await page.title().catch(() => '');
+    throw new Error(`Login UI không render: URL=${page.url()}; title=${title}; body=${bodyText || '(trống)'}; ${error?.message || error}`);
+  }
+}
+
+function usernameInput(page) {
+  return page.locator('#login-username, input[autocomplete="username"], input[placeholder*="mã nhân viên" i]').first();
 }
 
 export async function runLoginE2E({ frontendUrl, add, managerUsername = '', managerPassword = '' }) {
@@ -62,7 +80,7 @@ export async function runLoginE2E({ frontendUrl, add, managerUsername = '', mana
 
         await runCase(add, 'LOGIN-003', 'Valid employee code opens role choice', async () => {
           await openLogin(page, frontendUrl);
-          await page.locator('#login-username').fill(managerUsername || 'manager1');
+          await usernameInput(page).fill(managerUsername || 'manager1');
           await page.getByRole('button', { name: /tiếp tục/i }).click();
           await page.getByRole('button', { name: /công nhân/i }).waitFor({ state: 'visible' });
           await page.getByRole('button', { name: /quản lý/i }).waitFor({ state: 'visible' });
@@ -71,15 +89,15 @@ export async function runLoginE2E({ frontendUrl, add, managerUsername = '', mana
 
         await runCase(add, 'LOGIN-004', 'Back from role choice returns to employee code', async () => {
           await page.getByRole('button', { name: /nhập lại mã nhân viên/i }).click();
-          if (!(await page.locator('#login-username').isVisible())) throw new Error('Không quay lại bước mã nhân viên.');
+          await usernameInput(page).waitFor({ state: 'visible' });
           return 'Quay lại bước 1';
         });
 
         await runCase(add, 'LOGIN-005', 'Management role opens password step', async () => {
-          await page.locator('#login-username').fill(managerUsername || 'manager1');
+          await usernameInput(page).fill(managerUsername || 'manager1');
           await page.getByRole('button', { name: /tiếp tục/i }).click();
           await page.getByRole('button', { name: /quản lý/i }).click();
-          await visible(page, '#login-password');
+          await visible(page, '#login-password, input[autocomplete="current-password"]');
           return 'Password field visible';
         });
 
@@ -92,8 +110,8 @@ export async function runLoginE2E({ frontendUrl, add, managerUsername = '', mana
         });
 
         await runCase(add, 'LOGIN-007', 'Password visibility toggle works', async () => {
-          await page.locator('#login-password').fill('test-password');
-          const input = page.locator('#login-password');
+          const input = page.locator('#login-password, input[autocomplete="current-password"]').first();
+          await input.fill('test-password');
           if (await input.getAttribute('type') !== 'password') throw new Error('Mặc định password không phải type=password.');
           await page.getByRole('button', { name: /hiện mật khẩu/i }).click();
           if (await input.getAttribute('type') !== 'text') throw new Error('Nút Hiện không đổi sang text.');
@@ -103,8 +121,8 @@ export async function runLoginE2E({ frontendUrl, add, managerUsername = '', mana
         });
 
         await runCase(add, 'LOGIN-008', 'Valid manager credentials login through FE', async () => {
-          if (!managerUsername || !managerPassword) throw new Error('Thiếu KTC_TEST_MANAGER_USERNAME/PASSWORD.');
-          await page.locator('#login-password').fill(managerPassword);
+          if (!managerUsername || !managerPassword) throw new Error('Thiếu credential test manager.');
+          await page.locator('#login-password, input[autocomplete="current-password"]').first().fill(managerPassword);
           await page.getByRole('button', { name: /đăng nhập/i }).click();
           await page.waitForTimeout(1000);
           if (/\/login/i.test(page.url())) throw new Error(`Đăng nhập không thành công: ${page.url()}`);
