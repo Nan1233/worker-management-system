@@ -9,8 +9,10 @@ const FE = process.env.KTC_FE_URL || 'http://127.0.0.1:5174';
 const WORKER_CODE = process.env.KTC_WORKER_CODE || 'CN001';
 const HEADLESS = process.env.KTC_HEADLESS === '1';
 const OUT = path.join(ROOT, 'e2e-results');
+
 const results = [];
 let driver;
+let loggedInWorker = false;
 
 function log(id, status, message) {
   results.push({ id, status, message, at: new Date().toISOString() });
@@ -34,18 +36,39 @@ async function urlContains(fragment, timeout = 20000) {
   await driver.wait(async () => (await driver.getCurrentUrl()).includes(fragment), timeout);
 }
 
-// Chrome starts on a data: URL. Web Storage is unavailable on data: URLs,
-// so always establish the real FE origin before touching localStorage/sessionStorage.
+async function waitForAppReady(timeout = 15000) {
+  await driver.wait(async () => {
+    const ready = await driver.executeScript('return document.readyState');
+    return ready === 'complete' || ready === 'interactive';
+  }, timeout);
+}
+
 async function resetBrowser() {
   await driver.manage().deleteAllCookies();
   const current = await driver.getCurrentUrl().catch(() => '');
   if (!current || current.startsWith('data:') || current === 'about:blank') {
     await driver.get(`${FE}/#/login`);
   }
+  await waitForAppReady();
   await driver.executeScript(`
     try { window.localStorage.clear(); } catch (e) {}
     try { window.sessionStorage.clear(); } catch (e) {}
   `);
+}
+
+async function saveFailure(id, message) {
+  try {
+    await fs.mkdir(OUT, { recursive: true });
+    const screenshot = await driver.takeScreenshot();
+    await fs.writeFile(path.join(OUT, `${id}-FAIL.png`), screenshot, 'base64');
+    const body = await driver.findElement(By.css('body')).getText().catch(() => '');
+    const url = await driver.getCurrentUrl().catch(() => '');
+    await fs.writeFile(
+      path.join(OUT, `${id}-FAIL.txt`),
+      `${message}\\n\\nURL=${url}\\n\\n${body}`,
+      'utf8'
+    );
+  } catch {}
 }
 
 async function run(id, fn) {
@@ -55,29 +78,29 @@ async function run(id, fn) {
   } catch (error) {
     const message = error?.message || String(error);
     log(id, 'FAIL', message);
-    try {
-      await driver.takeScreenshot().then((b64) => fs.writeFile(path.join(OUT, `${id}-FAIL.png`), b64, 'base64'));
-      const body = await driver.findElement(By.css('body')).getText().catch(() => '');
-      await fs.writeFile(path.join(OUT, `${id}-FAIL.txt`), `${message}\n\nURL=${await driver.getCurrentUrl()}\n\n${body}`, 'utf8');
-    } catch {}
+    await saveFailure(id, message);
   }
 }
 
 async function loginWorker() {
   await resetBrowser();
   await driver.get(`${FE}/#/login`);
-  const code = await visible('[data-testid="login-username"]');
+  await waitForAppReady();
+
+  const code = await visible('[data-testid="login-username"]', 15000);
   await code.clear();
   await code.sendKeys(WORKER_CODE);
 
-  await visible('.login-submit').then((el) => el.click());
-  const workerChoice = await driver.wait(until.elementLocated(By.css('[data-testid="login-role-worker"]')), 12000);
-  await driver.wait(until.elementIsVisible(workerChoice), 12000);
+  const continueButton = await visible('.login-submit', 10000);
+  await continueButton.click();
+
+  const workerChoice = await visible('[data-testid="login-role-worker"]', 15000);
   await workerChoice.click();
 
   await driver.wait(async () => {
     const url = await driver.getCurrentUrl();
     if (url.includes('/#/worker')) return true;
+
     const alerts = await driver.findElements(By.css('[role="alert"], .login-error'));
     if (alerts.length) {
       const message = (await alerts[0].getText()).trim();
@@ -85,9 +108,19 @@ async function loginWorker() {
     }
     return false;
   }, 30000);
+
+  loggedInWorker = true;
+  await textContains('Công nhân', 15000);
+}
+
+async function requireWorkerLogin() {
+  if (!loggedInWorker) {
+    throw new Error('Worker session chưa đăng nhập; testcase này không được tiếp tục để tránh FAIL dây chuyền.');
+  }
 }
 
 async function openProcessSelection() {
+  await requireWorkerLogin();
   await driver.get(`${FE}/#/worker/process/select`);
   await urlContains('/#/worker/process/select');
   await textContains('Gia công', 20000);
@@ -97,6 +130,7 @@ async function clickProcessByText(label, route) {
   const candidates = await driver.findElements(By.xpath(
     `//*[self::button or self::a or @role='button' or contains(@class,'card')][contains(normalize-space(.),'${label}')]`
   ));
+
   if (!candidates.length) {
     const fallback = await driver.findElements(By.xpath(`//*[contains(normalize-space(.),'${label}')]`));
     if (!fallback.length) throw new Error(`Không tìm thấy control công đoạn: ${label}`);
@@ -104,22 +138,25 @@ async function clickProcessByText(label, route) {
   } else {
     await candidates[0].click();
   }
+
   await urlContains(`/#/worker/process/${route}`, 20000);
 }
 
 async function main() {
   await fs.mkdir(OUT, { recursive: true });
+
   const options = new chrome.Options();
   if (HEADLESS) options.addArguments('--headless=new');
   options.addArguments('--window-size=1440,900', '--disable-gpu', '--no-sandbox');
+
   driver = await new Builder().forBrowser('chrome').setChromeOptions(options).build();
 
   try {
-    await run('E2E-LOGIN-001', async () => {
-      await resetBrowser();
+    await run('E2E-ENV-001', async () => {
       await driver.get(`${FE}/#/login`);
-      await visible('[data-testid="login-username"]');
-      await textContains('mã nhân viên');
+      await waitForAppReady();
+      await urlContains('/#/login', 10000);
+      await visible('[data-testid="login-username"]', 15000);
     });
 
     await run('E2E-LOGIN-002', async () => {
@@ -127,6 +164,7 @@ async function main() {
     });
 
     await run('E2E-WORKER-001', async () => {
+      await requireWorkerLogin();
       await driver.get(`${FE}/#/worker`);
       await urlContains('/#/worker');
       await textContains('Công nhân', 20000);
@@ -160,6 +198,7 @@ async function main() {
       ['E2E-PROC-NONPRODUCT', 'non-product', 'Công việc khác'],
     ]) {
       await run(id, async () => {
+        await requireWorkerLogin();
         await driver.get(`${FE}/#/worker/process/${route}`);
         await urlContains(`/#/worker/process/${route}`);
         await textContains(label, 20000);
@@ -167,6 +206,7 @@ async function main() {
     }
 
     await run('E2E-GC-MOBILE', async () => {
+      await requireWorkerLogin();
       await driver.manage().window().setRect({ width: 390, height: 844 });
       await driver.get(`${FE}/#/worker/process/cat-long`);
       await urlContains('/#/worker/process/cat-long');
@@ -174,13 +214,23 @@ async function main() {
     });
   } finally {
     await fs.writeFile(path.join(OUT, 'e2e-result.json'), JSON.stringify(results, null, 2), 'utf8');
-    const csv = ['id,status,message,at', ...results.map(r => [r.id, r.status, r.message, r.at].map(v => `"${String(v).replaceAll('"', '""')}"`).join(','))].join('\n');
+
+    const csv = [
+      'id,status,message,at',
+      ...results.map((r) =>
+        [r.id, r.status, r.message, r.at]
+          .map((v) => `"${String(v).replaceAll('"', '""')}"`)
+          .join(',')
+      ),
+    ].join('\\n');
+
     await fs.writeFile(path.join(OUT, 'e2e-result.csv'), csv, 'utf8');
     if (driver) await driver.quit();
   }
 
-  const pass = results.filter(r => r.status === 'PASS').length;
-  const fail = results.filter(r => r.status === 'FAIL').length;
+  const pass = results.filter((r) => r.status === 'PASS').length;
+  const fail = results.filter((r) => r.status === 'FAIL').length;
+
   console.log(`KTC E2E DONE | TOTAL=${results.length} PASS=${pass} FAIL=${fail}`);
   process.exitCode = fail ? 1 : 0;
 }
