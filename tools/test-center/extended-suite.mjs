@@ -31,7 +31,6 @@ export async function runExtendedSuite({ apiUrl, managerToken, workerToken, add 
   await check(add, 'HEALTH-001', 'API liveness', () => api(apiUrl, '/api/health/live'), r => r.response.ok && r.body?.success === true, r => `HTTP ${r.response.status}`);
   await check(add, 'HEALTH-002', 'API readiness', () => api(apiUrl, '/api/health/ready'), r => r.response.ok || r.response.status === 503, r => `HTTP ${r.response.status}${r.body?.schemaStatus ? ` | schema=${r.body.schemaStatus}` : ''}`);
   await check(add, 'VERSION-001', 'Backend version endpoint', () => api(apiUrl, '/api/version'), r => r.response.status < 500, r => `HTTP ${r.response.status}`);
-
   await check(add, 'MASTER-003', 'Process options', () => api(apiUrl, '/api/users/options/processes', { headers: auth(managerToken) }), r => r.response.ok && unwrap(r.body).length > 0, r => `HTTP ${r.response.status} | count=${unwrap(r.body).length}`);
 
   const processContext = await api(apiUrl, '/api/users/options/processes', { headers: auth(workerToken) });
@@ -72,16 +71,14 @@ export async function runExtendedSuite({ apiUrl, managerToken, workerToken, add 
 
   await check(add, 'USER-001', 'Manager user list', () => api(apiUrl, '/api/users', { headers: auth(managerToken) }), r => r.response.ok && r.body?.success !== false, r => `HTTP ${r.response.status} | users=${unwrap(r.body).length}`);
   await check(add, 'USER-002', 'User process options', () => api(apiUrl, '/api/users/options/processes', { headers: auth(managerToken) }), r => r.response.ok && unwrap(r.body).length > 0, r => `HTTP ${r.response.status} | processes=${unwrap(r.body).length}`);
-
   await check(add, 'NOTIFY-001', 'Notification unread count', () => api(apiUrl, '/api/system/notifications/unread-count', { headers: auth(managerToken) }), r => r.response.ok && r.body?.success !== false, r => `HTTP ${r.response.status}`);
   await check(add, 'NOTIFY-002', 'Notification list', () => api(apiUrl, '/api/system/notifications', { headers: auth(managerToken) }), r => r.response.ok && r.body?.success !== false, r => `HTTP ${r.response.status} | rows=${unwrap(r.body).length}`);
   await check(add, 'SYSTEM-001', 'System observability', () => api(apiUrl, '/api/system/observability', { headers: auth(managerToken) }), r => r.response.ok && r.body?.success !== false, r => `HTTP ${r.response.status}`);
   await check(add, 'SYSTEM-002', 'System activity audit', () => api(apiUrl, '/api/system/activities', { headers: auth(managerToken) }), r => r.response.ok && r.body?.success !== false, r => `HTTP ${r.response.status} | rows=${unwrap(r.body).length}`);
-
   await check(add, 'EXPORT-002', 'Excel export capability status', () => api(apiUrl, '/api/reports/export-excel/company-status', { headers: auth(managerToken) }), r => r.response.ok && r.body?.success === true, r => `HTTP ${r.response.status} | mode=${r.body?.mode || '-'}`);
   await check(add, 'EXPORT-003', 'Excel company data endpoint', () => api(apiUrl, '/api/reports/export-excel/company-data?date=' + today(), { headers: auth(managerToken) }), r => r.response.status < 500 && r.response.status !== 404, r => `HTTP ${r.response.status}`);
   await check(add, 'EXPORT-004', 'Excel process list endpoint', () => api(apiUrl, '/api/reports/export-excel/processes', { headers: auth(managerToken) }), r => r.response.status < 500 && r.response.status !== 404, r => `HTTP ${r.response.status} | rows=${unwrap(r.body).length}`);
 
-  await check(add, 'PERM-002', 'Worker cannot access dashboard', () => api(apiUrl, '/api/dashboard/summary?from=${from}&to=${to}', { headers: auth(workerToken) }), r => r.response.status === 403, r => `Worker dashboard: HTTP ${r.response.status}`);
+  await check(add, 'PERM-002', 'Worker cannot access dashboard', () => api(apiUrl, `/api/dashboard/summary?from=${from}&to=${to}`, { headers: auth(workerToken) }), r => r.response.status === 403, r => `Worker dashboard: HTTP ${r.response.status}`);
   await check(add, 'PERM-003', 'Worker cannot access manager report list', () => api(apiUrl, '/api/manager/reports', { headers: auth(workerToken) }), r => r.response.status === 403, r => `Worker manager reports: HTTP ${r.response.status}`);
 }
