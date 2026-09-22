@@ -1,6 +1,7 @@
 import { runAuthenticatedSuite } from './authenticated-suite.mjs';
 import { runExtendedSuite } from './extended-suite.mjs';
 import { runLoginE2E } from './login-e2e.mjs';
+import { runSeleniumFunctionalSuite } from './selenium-functional-suite.mjs';
 
 export async function runTestSuite(options = {}) {
   const results = [];
@@ -40,8 +41,16 @@ export async function runTestSuite(options = {}) {
 
   if (authContext?.managerToken && authContext?.workerToken) {
     await runExtendedSuite({ apiUrl, managerToken: authContext.managerToken, workerToken: authContext.workerToken, add });
+    await runSeleniumFunctionalSuite({
+      frontendUrl,
+      managerToken: authContext.managerToken,
+      workerToken: authContext.workerToken,
+      reportId: Number(authContext.reportId || 0),
+      add,
+    });
   } else {
     add('Extended functional suite', 'FAIL', 'Không có authenticated test session để chạy nhóm chức năng mở rộng.', 'AUTH-SUITE-002');
+    add('Selenium functional suite', 'FAIL', 'Không có authenticated test session để chạy Selenium chức năng.', 'SEL-FUNC-000');
   }
 
   return summarize(results);
