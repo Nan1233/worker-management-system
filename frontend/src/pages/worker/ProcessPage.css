@@ -96,3 +96,53 @@
   .worker-field-label,.worker-field-block>label{font-size:11.5px}
   .worker-choice-row button{font-size:11.5px}
 }
+
+/* Modern Industrial MES trial — flatter hierarchy, restrained radius, no decorative left rails. */
+.worker-form-page{--ktc-bg:#f6f8fb;--ktc-border:#dfe6ee;--ktc-border-strong:#cfd9e4;--ktc-text:#1f3449;--ktc-muted:#6f8092}
+.worker-form-shell{width:min(100%,820px)}
+.worker-form-card{margin-top:18px;padding:22px 20px 24px;border-radius:8px;box-shadow:none}
+.worker-card-title{border-bottom:1px solid #e8edf2;padding-bottom:12px}
+.worker-card-title>span{border-radius:5px;background:#f3f6f9}
+.worker-field-block{gap:6px}
+.worker-text-input,.worker-field-block input:not([type=checkbox]):not([type=radio]),.worker-field-block select,.worker-field-block textarea{border-radius:6px;box-shadow:none}
+.worker-choice-row button{border-radius:6px;box-shadow:none}
+.worker-choice-row button.active{background:#eef5fd;border-color:#7eaddc;box-shadow:none}
+.worker-quality-summary{gap:12px}
+.worker-quality-card{border-radius:7px;box-shadow:none}
+.worker-dropdown-box{border-radius:7px;box-shadow:none}
+.worker-dropdown-options{background:#fafbfd}
+.worker-dropdown-option{border-radius:6px;box-shadow:none}
+.worker-dropdown-option:hover{border-color:#b9cce0;background:#f7faff}
+.worker-form-actions{border-radius:7px;box-shadow:0 -4px 18px rgba(31,61,93,.08)}
+.worker-submit-button{border-radius:7px;background:#1767c8;box-shadow:none}
+
+/* Remove the visual rail/stripe treatment if supplied by any companion stylesheet. */
+.worker-form-card::before,.worker-quality-section::before,.worker-dropdown-box::before,.worker-dropdown-option::before{content:none!important;display:none!important}
+.worker-quality-section{position:relative}
+
+/* GC operation switch: compact segmented control. */
+.worker-mode-group:first-child .worker-choice-row{display:inline-flex;gap:0;border:1px solid #cfdbe7;border-radius:7px;overflow:hidden;background:#fff}
+.worker-mode-group:first-child .worker-choice-row button{min-width:96px;border:0;border-right:1px solid #dce5ee;border-radius:0;background:#fff;min-height:36px}
+.worker-mode-group:first-child .worker-choice-row button:last-child{border-right:0}
+.worker-mode-group:first-child .worker-choice-row button.active{background:#edf5fd;color:#145da9;box-shadow:inset 0 -2px 0 #1767c8}
+
+/* NG options: clean flat grid instead of nested cards/left accents. */
+.worker-dropdown-option{min-height:40px;padding:8px 10px;border:1px solid #dfe6ed;border-radius:6px;background:#fff;color:#344b61;font-size:12px;font-weight:600}
+.worker-dropdown-option input{accent-color:#1767c8}
+.worker-dropdown-option span{min-width:0;line-height:1.35}
+.worker-ng-grid{gap:10px;margin-top:10px}
+.worker-ng-grid .worker-field-block{padding-top:9px;border-top:1px solid #edf1f5}
+.worker-ng-grid .worker-field-label{font-size:11.5px;color:#5c7185}
+
+@media(max-width:760px){
+  .worker-form-card{margin-top:12px;padding:16px 13px 18px;border-radius:7px}
+  .worker-card-title{padding-bottom:10px}
+  .worker-mode-group:first-child .worker-choice-row{width:100%;display:flex}
+  .worker-mode-group:first-child .worker-choice-row button{flex:1;min-width:0}
+  .worker-dropdown-options{grid-template-columns:1fr 1fr}
+  .worker-dropdown-option{min-height:38px;padding:7px 8px;font-size:11px}
+  .worker-ng-grid{gap:8px}
+}
+@media(max-width:420px){
+  .worker-dropdown-options{grid-template-columns:1fr}
+}
