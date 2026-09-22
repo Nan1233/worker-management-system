@@ -34,9 +34,18 @@ async function urlContains(fragment, timeout = 20000) {
   await driver.wait(async () => (await driver.getCurrentUrl()).includes(fragment), timeout);
 }
 
+// Chrome starts on a data: URL. Web Storage is unavailable on data: URLs,
+// so always establish the real FE origin before touching localStorage/sessionStorage.
 async function resetBrowser() {
   await driver.manage().deleteAllCookies();
-  await driver.executeScript('window.localStorage.clear(); window.sessionStorage.clear();');
+  const current = await driver.getCurrentUrl().catch(() => '');
+  if (!current || current.startsWith('data:') || current === 'about:blank') {
+    await driver.get(`${FE}/#/login`);
+  }
+  await driver.executeScript(`
+    try { window.localStorage.clear(); } catch (e) {}
+    try { window.sessionStorage.clear(); } catch (e) {}
+  `);
 }
 
 async function run(id, fn) {
