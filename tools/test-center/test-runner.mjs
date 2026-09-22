@@ -6,8 +6,8 @@ export async function runTestSuite(options = {}) {
   const add = (name, status, detail = '', id = '') => results.push({ id, name, status, detail });
   const frontendUrl = String(options.frontendUrl || '').replace(/\/$/, '');
   const apiUrl = String(options.apiUrl || '').replace(/\/$/, '');
-  const managerUsername = String(options.managerUsername || process.env.KTC_TEST_MANAGER_USERNAME || '').trim();
-  const managerPassword = String(options.managerPassword || process.env.KTC_TEST_MANAGER_PASSWORD || '');
+  const managerUsername = String(options.managerUsername || 'manager1').trim();
+  const managerPassword = String(options.managerPassword || '123456');
 
   if (!/^https?:\/\//i.test(frontendUrl)) { add('Frontend URL', 'FAIL', 'KTC frontend URL không hợp lệ.', 'SYS-000'); return summarize(results); }
   if (!/^https?:\/\//i.test(apiUrl)) { add('API URL', 'FAIL', 'KTC backend URL không hợp lệ.', 'SYS-004'); return summarize(results); }
