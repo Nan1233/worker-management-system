@@ -212,5 +212,5 @@ export const initialForm: FormState = {
 
 export const initialDeduction: DeductionState = {
     thieuSanLuong:"", batMay:"", chuyenMa:"", chinhMay:"", choChinhMay:"", matDien:"", matKhi:"",
-    choHang:"", baoDuongMay:"", nghiGiaiLao:"", giaoCa:"", dungMayHoTro:"", giatCs:"", fiveS:"", hocViec:"
+    choHang:"", baoDuongMay:"", nghiGiaiLao:"", giaoCa:"", dungMayHoTro:"", giatCs:"", fiveS:"", hocViec:""
 };
