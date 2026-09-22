@@ -65,21 +65,6 @@ async function injectSession(driver, frontendUrl, token) {
   }, token, user);
 }
 
-async function clickFirstMatching(driver, selectors) {
-  for (const selector of selectors) {
-    try {
-      const elements = await driver.findElements(By.css(selector));
-      for (const el of elements) {
-        if (await el.isDisplayed()) {
-          await driver.executeScript('arguments[0].scrollIntoView({block:"center"}); arguments[0].click();', el);
-          return true;
-        }
-      }
-    } catch {}
-  }
-  return false;
-}
-
 async function runCase(driver, add, id, name, fn) {
   const started = Date.now();
   log(id, 'START', name);
@@ -106,9 +91,6 @@ export async function runSeleniumFunctionalSuite({ frontendUrl, managerToken, wo
   const slowMo = Number(process.env.KTC_SLOWMO_MS || 150);
   const options = new chrome.Options();
   options.addArguments('--start-maximized');
-  // TEST ONLY: the test backend may not include the local Selenium origin in
-  // its deployed CORS allow-list. Disable CORS enforcement only in this
-  // isolated automation browser; never in the application or user browsers.
   options.addArguments('--disable-web-security', '--allow-running-insecure-content');
   if (headless) options.addArguments('--headless=new', '--window-size=1440,900');
   log('SEL-FUNC-SYS', '01', 'Chrome functional launched', `headless=${headless}; slowMo=${slowMo}ms`);
@@ -165,16 +147,28 @@ export async function runSeleniumFunctionalSuite({ frontendUrl, managerToken, wo
     await runCase(driver, add, 'SEL-WORKER-007', 'Worker process page opens from process selection', async () => {
       await driver.get(`${frontendUrl}/#/worker/process/select`);
       await assertPageLoaded(driver, '/worker/process/select', 'SEL-WORKER-007');
-      const clicked = await clickFirstMatching(driver, [
-        '[data-testid*="process"]',
-        'button[class*="process"]',
-        'a[href*="/worker/process/"]',
-        'button'
-      ]);
-      if (!clicked) throw new Error('Không tìm thấy control chọn công đoạn trên giao diện công nhân.');
-      await sleep(slowMo);
+
+      // SelectProcess renders the actual process cards as
+      // <button class="worker-process-card worker-card">. Do not fall back
+      // to a generic button: the page also contains the back/history buttons,
+      // which previously caused Selenium to navigate to /worker.
+      const cards = await driver.findElements(By.css('button.worker-process-card'));
+      const visibleCard = cards.find(async (el) => await el.isDisplayed());
+      if (!cards.length) throw new Error('Không tìm thấy card công đoạn (.worker-process-card).');
+
+      let clicked = false;
+      for (const card of cards) {
+        if (!(await card.isDisplayed())) continue;
+        await driver.executeScript('arguments[0].scrollIntoView({block:"center"});', card);
+        await sleep(100);
+        await driver.executeScript('arguments[0].click();', card);
+        clicked = true;
+        break;
+      }
+      if (!clicked) throw new Error('Có card công đoạn nhưng không hiển thị để click.');
+
+      await driver.wait(async () => /\/worker\/process\/[^/]+/.test(await driver.getCurrentUrl()), 10000);
       const url = await driver.getCurrentUrl();
-      if (!/\/worker\/process\/[^/]+/.test(url)) throw new Error(`Chọn công đoạn không mở ProcessPage | URL=${url}`);
       return `ProcessPage opened | URL=${url}`;
     });
   } finally {
