@@ -37,8 +37,13 @@ export const getProductFamilyCode = (productCode: unknown): string =>
         .replace(/-(AUTO|AUTOMATIC|\d+)$/i, "")
         .replace(/^C(?=\d)/, "");
 
+/** Extract the physical machine number from both `C5` and `5` forms. */
 const machineNumber = (machineCode: string): string | null => {
-    const key = normalizeMachineKey(machineCode);
+    const raw = normalize(machineCode).replace(/\s+/g, "");
+    const cNumber = raw.match(/^C(\d{1,2})$/);
+    if (cNumber) return String(Number(cNumber[1]));
+
+    const key = normalizeMachineKey(raw);
     return /^\d+$/.test(key) ? key : null;
 };
 
@@ -48,22 +53,20 @@ const eligibleMachineCodes = (product: ProductStandardOption): string[] =>
         .map(normalizeMachineKey)
         .filter(Boolean);
 
-// GC Cắt automatic machines. C7 is automatic as a MACHINE even though the
-// product-code convention has no -7 suffix.
+// GC Cắt automatic machines.
+// C7 is automatic even though there is no `-7` product-code variant.
 const GC_AUTOMATIC_MACHINE_CODES = new Set(["C5", "C6", "C7", "C11"]);
 
 const isGcAutomaticMachine = (machineCode: unknown): boolean =>
     GC_AUTOMATIC_MACHINE_CODES.has(normalize(machineCode).replace(/\s+/g, ""));
 
-// Product-code suffixes that explicitly represent automatic GC Cắt variants.
-// There is deliberately no -7 variant.
+// Explicit numeric suffixes used by automatic GC Cắt variants.
+// There is deliberately no -7 variant: C7 uses the generic `-auto` variant.
 const AUTO_MACHINE_SUFFIXES = new Set(["5", "6", "11"]);
 
 /**
- * GC uses one shared worker screen for Cắt/Lồng. The worker no longer chooses
- * "Cắt/Lồng" or "Tự động/Tay/Máy". The selected machine is the source of truth
- * when a machine is entered. If the machine is blank, KTC treats the entry as
- * Lồng tay, so the product list must remain selectable from LONG master data.
+ * GC uses one shared worker screen for Cắt/Lồng. The selected machine is the
+ * source of truth for filtering the product master data.
  */
 const getGcWorkTypeForMachine = (machineCode: unknown): "CUT" | "LONG" | null => {
     const key = normalize(machineCode).replace(/\s+/g, "");
@@ -128,7 +131,7 @@ export const filterProductsForSelection = ({
     const isAutomatic = useEncodedMachineSuffix
         ? isGcAutomaticMachine(selectedRawMachine)
         : Number(machine?.is_automatic || 0) === 1;
-    const selectedNumber = machineNumber(selectedMachine);
+    const selectedNumber = machineNumber(selectedRawMachine);
 
     return products.filter((product) => {
         const hint = getProductMachineHint(product.product_code);
@@ -138,21 +141,27 @@ export const filterProductsForSelection = ({
 
         if (useEncodedMachineSuffix && gcWorkType && productWorkType !== gcWorkType) return false;
 
+        // A product explicitly mapped to another machine is never suggested
+        // for the selected machine, regardless of its product-code suffix.
         if (hasExplicitMapping && mappedMachines.length > 0 && !mappedMachines.includes(selectedMachine)) {
             return false;
         }
 
         if (useEncodedMachineSuffix && gcWorkType === "CUT") {
             if (isAutomatic) {
+                // Automatic GC machine: do NOT leak ordinary CUT products into
+                // the list. Only generic `-auto`, the exact machine suffix
+                // (`-5`, `-6`, `-11`), or an explicit DB machine mapping is valid.
                 if (hint?.kind === "AUTO") return true;
                 if (hint?.kind === "NUMBER") {
                     return AUTO_MACHINE_SUFFIXES.has(hint.value)
                         && selectedNumber !== null
                         && hint.value === selectedNumber;
                 }
-                return true;
+                return hasExplicitMapping && mappedMachines.includes(selectedMachine);
             }
 
+            // Manual/non-automatic GC machine: automatic variants are hidden.
             if (hint?.kind === "AUTO") return false;
             if (hint?.kind === "NUMBER") {
                 if (AUTO_MACHINE_SUFFIXES.has(hint.value)) return false;
