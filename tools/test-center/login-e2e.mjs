@@ -93,12 +93,16 @@ async function runCase(driver, add, id, name, fn) {
 }
 
 export async function runLoginE2E({ frontendUrl, add, managerUsername = TEST_MANAGER_USERNAME, managerPassword = TEST_MANAGER_PASSWORD }) {
-  const username = TEST_MANAGER_USERNAME;
-  const password = TEST_MANAGER_PASSWORD;
+  const username = String(managerUsername || TEST_MANAGER_USERNAME).trim();
+  const password = String(managerPassword || TEST_MANAGER_PASSWORD);
   const headless = /^(1|true|yes)$/i.test(String(process.env.KTC_HEADLESS || '0'));
   const slowMo = Number(process.env.KTC_SLOWMO_MS || 350);
   const options = new chrome.Options();
   options.addArguments('--start-maximized');
+  // TEST ONLY: the deployed test backend currently has a stricter CORS allow-list
+  // than the local Test Center origin (127.0.0.1:5174). Disable browser CORS
+  // enforcement only for this isolated Selenium test browser; never for users.
+  options.addArguments('--disable-web-security', '--allow-running-insecure-content');
   if (headless) options.addArguments('--headless=new','--window-size=1440,900');
   console.log(`[KTC SELENIUM] Chrome Login: headless=${headless}; slowMo=${slowMo}ms`);
   console.log(`[KTC SELENIUM] TEST FIXTURE: ${username} / ${password}`);
