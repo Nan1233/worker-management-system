@@ -1,4 +1,5 @@
 import { runAuthenticatedSuite } from './authenticated-suite.mjs';
+import { runExtendedSuite } from './extended-suite.mjs';
 import { runLoginE2E } from './login-e2e.mjs';
 
 export async function runTestSuite(options = {}) {
@@ -28,9 +29,21 @@ export async function runTestSuite(options = {}) {
     } catch (error) { add(name, 'FAIL', error.message, id); }
   }
 
-  // One visible Chrome session for the complete UI login flow. Do not run duplicate Playwright sessions.
   await runLoginE2E({ frontendUrl, add, managerUsername, managerPassword });
-  await runAuthenticatedSuite({ apiUrl, add, managerUsername, managerPassword });
+
+  let authContext = null;
+  try {
+    authContext = await runAuthenticatedSuite({ apiUrl, add, managerUsername, managerPassword, returnContext: true });
+  } catch (error) {
+    add('Authenticated suite', 'FAIL', error?.message || String(error), 'AUTH-SUITE-001');
+  }
+
+  if (authContext?.managerToken && authContext?.workerToken) {
+    await runExtendedSuite({ apiUrl, managerToken: authContext.managerToken, workerToken: authContext.workerToken, add });
+  } else {
+    add('Extended functional suite', 'FAIL', 'Không có authenticated test session để chạy nhóm chức năng mở rộng.', 'AUTH-SUITE-002');
+  }
+
   return summarize(results);
 }
 
