@@ -33,24 +33,35 @@ export async function runExtendedSuite({ apiUrl, managerToken, workerToken, add 
   await check(add, 'VERSION-001', 'Backend version endpoint', () => api(apiUrl, '/api/version'), r => r.response.status < 500, r => `HTTP ${r.response.status}`);
 
   await check(add, 'MASTER-003', 'Process options', () => api(apiUrl, '/api/users/options/processes', { headers: auth(managerToken) }), r => r.response.ok && unwrap(r.body).length > 0, r => `HTTP ${r.response.status} | count=${unwrap(r.body).length}`);
-  await check(add, 'MASTER-004', 'Machines master API', () => api(apiUrl, '/api/machines', { headers: auth(workerToken) }), r => r.response.ok && Array.isArray(unwrap(r.body)), r => `HTTP ${r.response.status} | count=${unwrap(r.body).length}`);
-  await check(add, 'MASTER-005', 'Product standards master API', () => api(apiUrl, '/api/product-standards', { headers: auth(workerToken) }), r => r.response.ok && Array.isArray(unwrap(r.body)), r => `HTTP ${r.response.status} | count=${unwrap(r.body).length}`);
+
+  // These master endpoints require process_id. The previous test called the
+  // collection without that required context and turned a valid API into a
+  // false 400 failure.
+  const processContext = await api(apiUrl, '/api/users/options/processes', { headers: auth(workerToken) });
+  const firstProcess = unwrap(processContext.body).find(x => Number(x?.id) > 0);
+  const processId = Number(firstProcess?.id || 0);
+
+  await check(add, 'MASTER-004', 'Machines master API', () => {
+    if (!processId) throw new Error('Không có process_id để kiểm tra machines master');
+    return api(apiUrl, `/api/machines?process_id=${processId}`, { headers: auth(workerToken) });
+  }, r => r.response.ok && Array.isArray(unwrap(r.body)), r => `HTTP ${r.response.status} | process=${processId} | count=${unwrap(r.body).length}`);
+
+  await check(add, 'MASTER-005', 'Product standards master API', () => {
+    if (!processId) throw new Error('Không có process_id để kiểm tra product standards master');
+    return api(apiUrl, `/api/product-standards?process_id=${processId}`, { headers: auth(workerToken) });
+  }, r => r.response.ok && Array.isArray(unwrap(r.body)), r => `HTTP ${r.response.status} | process=${processId} | count=${unwrap(r.body).length}`);
 
   await check(add, 'DEFECT-001', 'Defect master endpoint', async () => {
-    const p = await api(apiUrl, '/api/users/options/processes', { headers: auth(workerToken) });
-    const process = unwrap(p.body)[0];
-    if (!process?.id) throw new Error('Không có process để kiểm tra defect master');
-    const r = await api(apiUrl, `/api/processes/${process.id}/defects`, { headers: auth(workerToken) });
-    return { r, process };
-  }, x => x.r.response.ok && Array.isArray(unwrap(x.r.body)), x => `HTTP ${x.r.response.status} | process=${x.process?.id ?? '-'}`);
+    if (!processId) throw new Error('Không có process để kiểm tra defect master');
+    const r = await api(apiUrl, `/api/processes/${processId}/defects`, { headers: auth(workerToken) });
+    return { r, processId };
+  }, x => x.r.response.ok && Array.isArray(unwrap(x.r.body)), x => `HTTP ${x.r.response.status} | process=${x.processId}`);
 
   await check(add, 'WORKER-004', 'Worker report list API', () => api(apiUrl, '/api/production-temp/my', { headers: auth(workerToken) }), r => r.response.ok && r.body?.success !== false, r => `HTTP ${r.response.status} | rows=${unwrap(r.body).length}`);
   await check(add, 'WORKER-005', 'Worker daily hours API', () => api(apiUrl, `/api/production-temp/daily-hours?date=${new Date().toISOString().slice(0,10)}`, { headers: auth(workerToken) }), r => r.response.ok && Number(r.body?.data?.limit_hours) === 12, r => `HTTP ${r.response.status} | counted=${r.body?.data?.counted_hours ?? '-'}h | limit=${r.body?.data?.limit_hours ?? '-'}`);
   await check(add, 'WORKER-006', 'Worker similar-report check endpoint', async () => {
-    const p = await api(apiUrl, '/api/users/options/processes', { headers: auth(workerToken) });
-    const process = unwrap(p.body)[0];
-    if (!process?.id) throw new Error('Không có process để kiểm tra similar report');
-    const r = await api(apiUrl, '/api/production-temp/check-similar', { method:'POST', headers:auth(workerToken), body:JSON.stringify({ process_id:Number(process.id), work_date:new Date().toISOString().slice(0,10), shift:'TEST', machine_no:'TEST', product_name:'TEST' }) });
+    if (!processId) throw new Error('Không có process để kiểm tra similar report');
+    const r = await api(apiUrl, '/api/production-temp/check-similar', { method:'POST', headers:auth(workerToken), body:JSON.stringify({ process_id:processId, work_date:new Date().toISOString().slice(0,10), shift:'TEST', machine_no:'TEST', product_name:'TEST' }) });
     return r;
   }, r => r.response.status < 500, r => `HTTP ${r.response.status} | ${r.body?.message || 'endpoint reachable'}`);
 

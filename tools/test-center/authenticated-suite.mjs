@@ -115,7 +115,7 @@ export async function runAuthenticatedSuite({ apiUrl, add, managerUsername = '',
   const productionProcess = masters.cut || processes[0];
   let ctx;
   try { ctx = await chooseProductionContext(apiUrl, workerSession.token, productionProcess); }
-  catch (e) { add('Create production report','FAIL',e.message,'WORKER-001'); return returnContext ? { managerToken: manager.token, workerToken: workerSession.token } : null; }
+  catch (e) { add('Create production report','FAIL',e.message,'WORKER-001'); return returnContext ? { managerToken: manager.token, workerToken: workerSession.token, reportId: 0 } : null; }
   const created = await createReport(apiUrl, workerSession.token, ctx, { shift:'A' });
   add('Create production report', created.response.ok && created.body?.success ? 'PASS' : 'FAIL', `HTTP ${created.response.status} ${created.body?.message || ''}`, 'WORKER-001');
   const reportId = Number(created.body?.data?.id || created.body?.id || 0);
@@ -148,5 +148,5 @@ export async function runAuthenticatedSuite({ apiUrl, add, managerUsername = '',
   const exportResponse = await api(apiUrl, '/api/reports/export-excel/company-status', { headers:auth(manager.token) });
   add('Excel export', exportResponse.response.ok && exportResponse.body?.success === true ? 'PASS' : 'FAIL', `HTTP ${exportResponse.response.status}`, 'EXPORT-001');
 
-  return returnContext ? { managerToken: manager.token, workerToken: workerSession.token } : null;
+  return returnContext ? { managerToken: manager.token, workerToken: workerSession.token, reportId } : null;
 }

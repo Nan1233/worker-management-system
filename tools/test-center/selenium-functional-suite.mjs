@@ -1,4 +1,4 @@
-import { Builder, By, until } from 'selenium-webdriver';
+import { Builder, By } from 'selenium-webdriver';
 import chrome from 'selenium-webdriver/chrome.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -11,9 +11,7 @@ function decodeJwt(token) {
     const payload = token.split('.')[1];
     if (!payload) return {};
     return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
-  } catch {
-    return {};
-  }
+  } catch { return {}; }
 }
 
 async function screenshot(driver, id) {
@@ -28,11 +26,8 @@ async function bodyText(driver) {
   return (await driver.findElement(By.css('body')).getText()).trim();
 }
 
-async function assertPageLoaded(driver, expectedPath, id) {
-  await driver.wait(async () => {
-    const url = await driver.getCurrentUrl();
-    return url.includes(expectedPath);
-  }, 10000);
+async function assertPageLoaded(driver, expectedPath) {
+  await driver.wait(async () => (await driver.getCurrentUrl()).includes(expectedPath), 10000);
   await driver.wait(async () => (await bodyText(driver)).length > 0, 10000);
   const text = await bodyText(driver);
   if (/Unexpected Application Error|Cannot read properties of undefined|Cannot read properties of null|Application error/i.test(text)) {
@@ -65,21 +60,6 @@ async function injectSession(driver, frontendUrl, token) {
   }, token, user);
 }
 
-async function clickFirstMatching(driver, selectors) {
-  for (const selector of selectors) {
-    try {
-      const elements = await driver.findElements(By.css(selector));
-      for (const el of elements) {
-        if (await el.isDisplayed()) {
-          await driver.executeScript('arguments[0].scrollIntoView({block:"center"}); arguments[0].click();', el);
-          return true;
-        }
-      }
-    } catch {}
-  }
-  return false;
-}
-
 async function runCase(driver, add, id, name, fn) {
   const started = Date.now();
   log(id, 'START', name);
@@ -105,11 +85,7 @@ export async function runSeleniumFunctionalSuite({ frontendUrl, managerToken, wo
   const headless = /^(1|true|yes)$/i.test(String(process.env.KTC_HEADLESS || '0'));
   const slowMo = Number(process.env.KTC_SLOWMO_MS || 150);
   const options = new chrome.Options();
-  options.addArguments('--start-maximized');
-  // TEST ONLY: the test backend may not include the local Selenium origin in
-  // its deployed CORS allow-list. Disable CORS enforcement only in this
-  // isolated automation browser; never in the application or user browsers.
-  options.addArguments('--disable-web-security', '--allow-running-insecure-content');
+  options.addArguments('--start-maximized', '--disable-web-security', '--allow-running-insecure-content');
   if (headless) options.addArguments('--headless=new', '--window-size=1440,900');
   log('SEL-FUNC-SYS', '01', 'Chrome functional launched', `headless=${headless}; slowMo=${slowMo}ms`);
 
@@ -118,8 +94,8 @@ export async function runSeleniumFunctionalSuite({ frontendUrl, managerToken, wo
 
   try {
     await driver.manage().window().setRect({ width: 1440, height: 900 });
-
     await injectSession(driver, frontendUrl, managerToken);
+
     const managerRoutes = [
       ['/manager', 'SEL-MANAGER-001', 'Manager dashboard renders'],
       ['/manager/reports', 'SEL-MANAGER-002', 'Manager pending reports renders'],
@@ -133,7 +109,7 @@ export async function runSeleniumFunctionalSuite({ frontendUrl, managerToken, wo
     for (const [route, id, name] of managerRoutes) {
       await runCase(driver, add, id, name, async () => {
         await driver.get(`${frontendUrl}/#${route}`);
-        const text = await assertPageLoaded(driver, route, id);
+        const text = await assertPageLoaded(driver, route);
         return `URL=${await driver.getCurrentUrl()} | text=${text.slice(0, 90).replace(/\s+/g, ' ')}`;
       });
     }
@@ -141,7 +117,7 @@ export async function runSeleniumFunctionalSuite({ frontendUrl, managerToken, wo
     await runCase(driver, add, 'SEL-MANAGER-009', 'Manager report detail route renders', async () => {
       if (!reportId) throw new Error('Không có reportId từ authenticated fixture.');
       await driver.get(`${frontendUrl}/#/manager/report/${reportId}`);
-      const text = await assertPageLoaded(driver, `/manager/report/${reportId}`, 'SEL-MANAGER-009');
+      const text = await assertPageLoaded(driver, `/manager/report/${reportId}`);
       return `reportId=${reportId} | ${text.slice(0, 90).replace(/\s+/g, ' ')}`;
     });
 
@@ -157,25 +133,33 @@ export async function runSeleniumFunctionalSuite({ frontendUrl, managerToken, wo
     for (const [route, id, name] of workerRoutes) {
       await runCase(driver, add, id, name, async () => {
         await driver.get(`${frontendUrl}/#${route}`);
-        const text = await assertPageLoaded(driver, route, id);
+        const text = await assertPageLoaded(driver, route);
         return `URL=${await driver.getCurrentUrl()} | text=${text.slice(0, 90).replace(/\s+/g, ' ')}`;
       });
     }
 
     await runCase(driver, add, 'SEL-WORKER-007', 'Worker process page opens from process selection', async () => {
       await driver.get(`${frontendUrl}/#/worker/process/select`);
-      await assertPageLoaded(driver, '/worker/process/select', 'SEL-WORKER-007');
-      const clicked = await clickFirstMatching(driver, [
-        '[data-testid*="process"]',
-        'button[class*="process"]',
-        'a[href*="/worker/process/"]',
-        'button'
-      ]);
-      if (!clicked) throw new Error('Không tìm thấy control chọn công đoạn trên giao diện công nhân.');
-      await sleep(slowMo);
-      const url = await driver.getCurrentUrl();
-      if (!/\/worker\/process\/[^/]+/.test(url)) throw new Error(`Chọn công đoạn không mở ProcessPage | URL=${url}`);
-      return `ProcessPage opened | URL=${url}`;
+      await assertPageLoaded(driver, '/worker/process/select');
+
+      // SelectProcess renders the real process cards as button.worker-process-card.
+      // Never click a generic button here: the page also contains back/history buttons.
+      const cards = await driver.findElements(By.css('button.worker-process-card'));
+      if (!cards.length) throw new Error('Không tìm thấy card công đoạn (.worker-process-card).');
+
+      let clicked = false;
+      for (const card of cards) {
+        if (!(await card.isDisplayed())) continue;
+        await driver.executeScript('arguments[0].scrollIntoView({block:"center"});', card);
+        await sleep(100);
+        await driver.executeScript('arguments[0].click();', card);
+        clicked = true;
+        break;
+      }
+      if (!clicked) throw new Error('Có card công đoạn nhưng không hiển thị để click.');
+
+      await driver.wait(async () => /\/worker\/process\/[^/]+/.test(await driver.getCurrentUrl()), 10000);
+      return `ProcessPage opened | URL=${await driver.getCurrentUrl()}`;
     });
   } finally {
     log('SEL-FUNC-SYS', '99', 'Đóng Chrome functional');
