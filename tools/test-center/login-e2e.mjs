@@ -1,5 +1,7 @@
 import { chromium } from 'playwright';
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 async function visible(page, selectors, timeout = 12000) {
   const list = Array.isArray(selectors) ? selectors : [selectors];
   const locator = page.locator(list.join(', ')).first();
@@ -43,9 +45,16 @@ function usernameInput(page) {
 export async function runLoginE2E({ frontendUrl, add, managerUsername = '', managerPassword = '' }) {
   let browser;
   try {
+    // Selenium-like behavior: Chromium is visible by default.
+    // Headless is enabled only when the user explicitly sets KTC_HEADLESS=1/true/yes.
+    const headless = /^(1|true|yes)$/i.test(String(process.env.KTC_HEADLESS || '0'));
+    const slowMo = Number(process.env.KTC_SLOWMO_MS || 350);
+    console.log(`[KTC PLAYWRIGHT] Login Chromium: headless=${headless}; slowMo=${slowMo}ms`);
+
     browser = await chromium.launch({
-      headless: /^(1|true|yes)$/i.test(String(process.env.KTC_HEADLESS || '0')),
-      slowMo: Number(process.env.KTC_SLOWMO_MS || 120),
+      headless,
+      slowMo,
+      args: headless ? [] : ['--start-maximized'],
     });
 
     for (const [device, width, height] of [
@@ -136,6 +145,7 @@ export async function runLoginE2E({ frontendUrl, add, managerUsername = '', mana
         return 'Console sạch';
       });
 
+      if (!headless) await sleep(700);
       await context.close();
     }
   } catch (error) {
