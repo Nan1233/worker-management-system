@@ -32,7 +32,6 @@ export type FormState = {
     ngKichThuoc: string;
     catLem: string;
     note: string;
-    /** Canonical execution selection persisted with the report. GC: AUTO/NON_AUTO; LỒNG: MANUAL/MACHINE. */
     executionMethod: string;
 };
 
@@ -122,23 +121,20 @@ export const deductionOptions: Array<{ key: DeductionKey; label: string }> = [
     { key:"hocViec", label:"Học việc, đào tạo" },
 ];
 
+// Canonical GC defect codes shown to workers. The code is part of the label
+// so historical/approval/export records can be traced back to the exact defect.
 export const allNgOptions: Array<{ key: NgKey; id?: number; code: string; label: string }> = [
-    { key:"kqdDapLai", code:"KQD_DL", label:"KQD dập lại" },
-    { key:"kqdTuot", code:"KQD_TUOT", label:"KQD tuột" },
-    { key:"voDoLong", code:"VO_LONG", label:"Vỡ do lồng" },
-    { key:"xuocDoLong", code:"XUOC_LONG", label:"Xước do lồng" },
-    { key:"congGay", code:"CONG_GAY", label:"Cong gãy" },
-    { key:"xoay", code:"XOAY", label:"Xoay" },
-    { key:"khongDut", code:"KHONG_DUT", label:"Không đứt" },
-    { key:"baviaHut", code:"BAVIA", label:"Bavia hụt" },
-    { key:"ppcm", code:"PPCM", label:"PPCM" },
-    { key:"loiCaoSu", code:"CAO_SU", label:"Lỗi cao su" },
-    { key:"ngKichThuoc", code:"KT", label:"NG kích thước" },
-    { key:"catLem", code:"CAT_LEM", label:"Cắt lẹm" },
+    { key:"cat01", code:"CAT01", label:"CAT01 — Cao su xoay" },
+    { key:"cat02", code:"CAT02", label:"CAT02 — Cắt không đứt" },
+    { key:"cat03", code:"CAT03", label:"CAT03 — Lỗi kích thước" },
+    { key:"cat04", code:"CAT04", label:"CAT04 — Cắt không đứt" },
+    { key:"long01", code:"LONG01", label:"LONG01 — KQD" },
+    { key:"long02", code:"LONG02", label:"LONG02 — Xước" },
+    { key:"long03", code:"LONG03", label:"LONG03 — Vỡ" },
+    { key:"long04", code:"LONG04", label:"LONG04 — Trục cong" },
+    { key:"long05", code:"LONG05", label:"LONG05 — Lỗi cao su" },
 ];
 
-// Canonical KQD exclusion registry used by ProcessPage.
-// Keep this export here so a clean Cloudflare build does not depend on a generated patch.
 export const KQD_CODES = new Set(
     kqdExclusionRegistry.map((code) => String(code).trim().toUpperCase())
 );
@@ -178,59 +174,20 @@ export const getWorkerAllowedWorkDates = (): Array<{ value: string; label: strin
         const value = shiftLocalDate(today, -index);
         const [year, month, day] = value.split("-").map(Number);
         const date = new Date(year, month - 1, day);
-        const formatted = date.toLocaleDateString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
-        const prefix = index === 0 ? "Hôm nay" : index === 1 ? "Hôm qua" : "";
-        return { value, label: prefix ? `${prefix} - ${formatted}` : formatted };
+        const label = index === 0 ? "Hôm nay" : index === 1 ? "Hôm qua" : date.toLocaleDateString("vi-VN");
+        return { value, label };
     });
 };
 
-export const decimalHoursToText = (value: string): string => {
-    const normalized = value.trim().toLowerCase().replace(",", ".");
-    const hourMinuteMatch = normalized.match(/^(\d{1,2})\s*(?:h|:|g)\s*(\d{1,2})$/);
-    const parsedHours = hourMinuteMatch
-        ? Number(hourMinuteMatch[1]) + Math.min(59, Number(hourMinuteMatch[2])) / 60
-        : Number(normalized || 0);
-    const decimalHours = Math.max(0, Number.isFinite(parsedHours) ? parsedHours : 0);
-    const hours = Math.floor(decimalHours);
-    const minutes = Math.round((decimalHours - hours) * 60);
-    if (minutes === 60) return `${hours + 1} giờ 0 phút`;
-    return `${hours} giờ ${minutes} phút`;
-};
-
 export const initialForm: FormState = {
-    workDate: getCurrentLocalDate(),
-    shift: "A",
-    workerCode: "",
-    workerName: "",
-    trainingPercent: "",
-    machineNo: "",
-    totalTime: "",
-    actualTime: "",
-    actualHours: "",
-    actualMinutes: "",
-    deductionTime: "",
-    productName: "",
-    standardOutput: "",
-    actualOutput: "",
-    ttOk: "",
-    ttNg: "",
-    kqdDapLai: "",
-    kqdTuot: "",
-    voDoLong: "",
-    xuocDoLong: "",
-    congGay: "",
-    xoay: "",
-    khongDut: "",
-    baviaHut: "",
-    ppcm: "",
-    loiCaoSu: "",
-    ngKichThuoc: "",
-    catLem: "",
-    note: "",
-    executionMethod: "AUTO",
+    workDate: getCurrentLocalDate(), shift: "", workerCode: "", workerName: "", trainingPercent: "",
+    machineNo: "", totalTime: "", actualTime: "", actualHours: "", actualMinutes: "", deductionTime: "",
+    productName: "", standardOutput: "", actualOutput: "", ttOk: "", ttNg: "", kqdDapLai: "", kqdTuot: "",
+    voDoLong: "", xuocDoLong: "", congGay: "", xoay: "", khongDut: "", baviaHut: "", ppcm: "", loiCaoSu: "",
+    ngKichThuoc: "", catLem: "", note: "", executionMethod: "",
 };
 
 export const initialDeduction: DeductionState = {
-    thieuSanLuong:"", batMay:"", chuyenMa:"", chinhMay:"", choChinhMay:"", matDien:"", matKhi:"",
-    choHang:"", baoDuongMay:"", nghiGiaiLao:"", giaoCa:"", dungMayHoTro:"", giatCs:"", fiveS:"", hocViec:""
+    thieuSanLuong: "", batMay: "", chuyenMa: "", chinhMay: "", choChinhMay: "", matDien: "", matKhi: "",
+    choHang: "", baoDuongMay: "", nghiGiaiLao: "", giaoCa: "", dungMayHoTro: "", giatCs: "", fiveS: "", hocViec: "",
 };
