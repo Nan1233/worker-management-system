@@ -10,7 +10,8 @@ const repoRoot = path.resolve(__dirname, '../..');
 const frontendDir = path.join(repoRoot, 'frontend');
 const app = express();
 const port = Number(process.env.PORT || 4790);
-const localFrontendPort = Number(process.env.KTC_FRONTEND_PORT || 5173);
+// Use a dedicated port so an already-running KTC frontend on :5173 can never be mistaken for the test FE.
+const localFrontendPort = Number(process.env.KTC_FRONTEND_PORT || 5174);
 const expectedEnv = process.env.KTC_TEST_ENV || 'test';
 const defaultFrontendUrl = process.env.KTC_FRONTEND_URL || `http://127.0.0.1:${localFrontendPort}`;
 const defaultApiUrl = process.env.KTC_API_URL || 'https://ktc-be-test.nan978971.workers.dev';
@@ -56,7 +57,7 @@ function startLocalFrontend(apiUrl) {
     VITE_API_URL: `${apiUrl.replace(/\/$/, '')}/api`,
   };
 
-  frontendProcess = spawn(npmCommand, ['run', 'dev', '--', '--host', '127.0.0.1', '--port', String(localFrontendPort)], {
+  frontendProcess = spawn(npmCommand, ['run', 'dev', '--', '--host', '127.0.0.1', '--port', String(localFrontendPort), '--strictPort'], {
     cwd: frontendDir,
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -65,6 +66,7 @@ function startLocalFrontend(apiUrl) {
 
   frontendProcess.stdout?.on('data', chunk => process.stdout.write(`[KTC FE] ${chunk}`));
   frontendProcess.stderr?.on('data', chunk => process.stderr.write(`[KTC FE] ${chunk}`));
+  frontendProcess.on('error', error => console.error(`[KTC FE] process error: ${error.message}`));
   frontendProcess.on('exit', code => {
     frontendProcess = null;
     frontendStartPromise = null;
@@ -87,6 +89,7 @@ app.get('/api/config', (_req, res) => res.json({
   apiUrl: defaultApiUrl,
   environment: expectedEnv,
   frontendMode: 'local',
+  frontendPort: localFrontendPort,
 }));
 
 app.post('/api/run', async (req, res) => {
@@ -103,6 +106,7 @@ app.post('/api/run', async (req, res) => {
     const result = await runTestSuite({ frontendUrl, apiUrl });
     res.json(result);
   } catch (error) {
+    console.error('[KTC TEST CENTER] run failed:', error);
     res.status(400).json({ error: error.message, results: [] });
   }
 });
