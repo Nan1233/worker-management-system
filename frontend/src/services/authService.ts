@@ -1,10 +1,7 @@
 import axios from "axios";
 import api, { beginLoginTransition, finishLoginTransition, refreshAccessToken } from "./api";
-import type {
-    LoginResponse
-} from "../types/auth";
+import type { LoginResponse } from "../types/auth";
 import { API_BASE_URL, REQUEST_TIMEOUT_MS } from "../config/env";
-
 import {
     clearAuthSession,
     createAuthSessionId,
@@ -14,10 +11,7 @@ import {
     getStoredUser,
     saveAuthSession
 } from "../utils/authStorage";
-
-import type {
-    AuthUser
-} from "../utils/authStorage";
+import type { AuthUser } from "../utils/authStorage";
 
 interface RefreshResponse {
     success: boolean;
@@ -28,9 +22,7 @@ interface RefreshResponse {
     user?: AuthUser;
 }
 
-export type LoginAccessType =
-    | "worker"
-    | "management";
+export type LoginAccessType = "worker" | "management";
 
 const LOGIN_RETRY_DELAY_MS = 900;
 const RETRYABLE_LOGIN_STATUSES = new Set([408, 425, 500, 502, 503, 504]);
@@ -48,21 +40,23 @@ function wait(ms: number): Promise<void> {
 async function postLoginRequest(
     username: string,
     accessType: LoginAccessType,
-    password: string,
-    previousRefreshToken: string | null
+    password: string
 ): Promise<LoginResponse> {
     let lastError: unknown;
+
+    // Keep the login request deliberately minimal: this is the exact contract
+    // accepted by the test backend and avoids sending stale refresh-session data.
+    const payload = {
+        username: username.trim(),
+        access_type: accessType,
+        password
+    };
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
             const response = await axios.post<LoginResponse>(
                 `${API_BASE_URL}/auth/login`,
-                {
-                    username,
-                    access_type: accessType,
-                    password,
-                    previous_refresh_token: previousRefreshToken || undefined
-                },
+                payload,
                 {
                     timeout: REQUEST_TIMEOUT_MS,
                     withCredentials: true,
@@ -98,27 +92,18 @@ export const login = async (
     accessType: LoginAccessType,
     password = ""
 ): Promise<LoginResponse> => {
-    const previousRefreshToken = getRefreshToken();
     const loginEpoch = beginLoginTransition();
     clearAuthSession({ bumpEpoch: false });
     const loginSessionId = createAuthSessionId();
 
     try {
-        // Dùng axios độc lập để request login không đi qua interceptor/token
-        // của tài khoản trước. Nếu Render/cellular network vừa thức dậy,
-        // tự thử lại đúng 1 lần thay vì bắt người dùng bấm Đăng nhập lần hai.
-        const data = await postLoginRequest(
-            username,
-            accessType,
-            password,
-            previousRefreshToken
-        );
+        const data = await postLoginRequest(username, accessType, password);
 
         if (getAuthEpoch() !== loginEpoch) {
             throw new axios.CanceledError("Lần đăng nhập đã bị thay thế bởi một phiên mới hơn.");
         }
-        const accessToken = data.accessToken || data.token;
 
+        const accessToken = data.accessToken || data.token;
         if (!accessToken) {
             throw new Error("Backend không trả về access token");
         }
@@ -134,11 +119,8 @@ export const login = async (
             }
         });
 
-        // Storage là đồng bộ, nhưng kiểm tra lại ngay trước khi route được đổi
-        // để PrivateRoute không thể nhìn thấy một phiên nửa chừng.
         assertCommittedLoginSession(data.user.id);
         window.dispatchEvent(new CustomEvent("ktc:auth-session-saved"));
-
         return data;
     } catch (error) {
         if (getAuthEpoch() === loginEpoch) {
@@ -155,20 +137,18 @@ export const refreshSession = async (): Promise<RefreshResponse> => {
     return { success: true, message: "Phiên đã được làm mới", accessToken };
 };
 
-export const logout =
-    async (): Promise<void> => {
-        const refreshToken =
-            getRefreshToken();
-        clearAuthSession();
+export const logout = async (): Promise<void> => {
+    const refreshToken = getRefreshToken();
+    clearAuthSession();
 
-        try {
-            await api.post(
-                "/auth/logout",
-                refreshToken ? { refreshToken } : {}
-            );
-        } catch {
-            // Local identity is already retired. Server-side expiry/revocation is best-effort.
-        } finally {
-            clearAuthSession();
-        }
-    };
+    try {
+        await api.post(
+            "/auth/logout",
+            refreshToken ? { refreshToken } : {}
+        );
+    } catch {
+        // Local identity is already retired. Server-side expiry/revocation is best-effort.
+    } finally {
+        clearAuthSession();
+    }
+};
