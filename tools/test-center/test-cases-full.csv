@@ -1,0 +1,67 @@
+TC ID,Module,Test case,Execution,Expected
+SYS-001,System,Frontend reachable,Automated,HTTP 2xx-3xx
+SYS-002,System,Production-temp API no 5xx,Automated,HTTP < 500 when unauthenticated
+SYS-003,System,Notifications API no 5xx,Automated,HTTP < 500 when unauthenticated
+SEC-001,Security,Production target blocked,Automated,Test Center refuses production URLs
+UI-001,Login,Login page desktop,Automated,Login form renders at 1440x900
+UI-002,Login,Login page mobile,Automated,Login form renders at 390x844
+UI-003,Login,Desktop console errors,Automated,No browser console error
+UI-004,Login,Mobile console errors,Automated,No browser console error
+E2E-001,Login,Manager login through FE,Automated,Manager leaves login page
+E2E-002,Manager,Manager dashboard renders,Automated,Manager UI has meaningful content
+E2E-003,Login,Worker login through FE,Automated,Worker leaves login page
+E2E-004,Worker,Worker home/process renders,Automated,Worker process UI is visible
+E2E-005,Process,Cut mode selectable,Automated,Cắt button becomes active
+E2E-006,Process,Long mode selectable,Automated,Lồng button becomes active
+E2E-007,Defect,Cắt shows CAT01-CAT04 only,Automated,CAT01-CAT04 visible and LONG codes hidden
+E2E-008,Defect,Lồng shows LONG01-LONG05 only,Automated,LONG01-LONG05 visible and CAT codes hidden
+E2E-009,Defect,Lồng labels include code,Automated,LONG02 — Xước etc. visible with code
+E2E-010,Defect,Cắt labels include code,Automated,CAT01-CAT04 visible with code
+E2E-011,Responsive,Worker mobile no horizontal overflow,Automated,390x844 has no horizontal overflow
+E2E-012,Quality,Browser console during worker flow,Automated,No console error
+MASTER-001,Master,Cắt defect master CAT01-CAT04,Automated,All four codes exist in API master data
+MASTER-002,Master,Lồng defect master LONG01-LONG05,Automated,All five codes exist in API master data
+WORKER-001,Report,Create production report,Automated,Report is accepted by test API
+WORKER-002,History,View report history,Automated,Worker history endpoint returns successfully
+WORKER-003,Edit,Edit report within 10 minutes,Automated,Existing report is addressable for edit flow
+RULE-001,Hours,Daily total <= 12 hours,Automated,Additional production beyond 12h is rejected
+RULE-002,Hours,Support/deduction excluded from production total,Automated,Deduction does not increase counted production hours
+MANAGER-001,Manager,Review and approve report,Automated,Manager can approve pending report
+PERM-001,Security,Worker cannot access manager endpoint,Automated,Worker receives 403
+EXPORT-001,Export,Manager export authorization,Automated,Export endpoint is reachable for manager
+UI-013,Process,Ca A selectable,Planned,Shift A can be selected
+UI-014,Process,Ca B selectable,Planned,Shift B can be selected
+UI-015,Process,Ca C selectable,Planned,Shift C can be selected
+UI-016,Process,Ca D selectable,Planned,Shift D can be selected
+UI-017,Process,Machine selection before product,Planned,Product list depends on selected machine
+UI-018,Process,Product list filtered by process,Planned,Only valid products are shown
+UI-019,Quality,CAT defect selection updates NG,Planned,Selected CAT defect quantity contributes to NG
+UI-020,Quality,LONG defect selection updates NG,Planned,Selected LONG defect quantity contributes to NG
+UI-021,Quality,Cut defects hidden in Long mode,Planned,CAT codes disappear after switching to Lồng
+UI-022,Quality,Long defects hidden in Cut mode,Planned,LONG codes disappear after switching to Cắt
+UI-023,Report,Submit confirmation dialog,Planned,Daily-hours confirmation appears before submit
+UI-024,Report,Duplicate report dialog,Planned,Existing duplicate report gives edit/create choice
+UI-025,Edit,Edit data auto-filled,Planned,History edit form restores report values
+UI-026,Edit,Edit within 10 minutes saves,Planned,Allowed edit persists updated values
+UI-027,Edit,Edit after 10 minutes blocked,Planned,Expired report cannot be worker-edited
+UI-028,Hours,Two reports over 12h blocked,Planned,Combined production time cannot exceed 12h
+UI-029,Hours,Deduction time excluded,Planned,Deduction/support does not count toward daily production hours
+UI-030,Manager,Pending list displays report,Planned,Manager sees worker report in review queue
+UI-031,Manager,Approve status visible,Planned,Approved state is visible in manager UI
+UI-032,Security,Worker route authorization,Planned,Worker cannot open manager-only screens
+UI-033,Security,Manager route authorization,Planned,Manager can open manager screens
+UI-034,Export,Excel export starts,Planned,Export action downloads/creates Excel
+UI-035,Export,Excel contains approved data,Planned,Export includes approved report data
+UI-036,Mobile,Worker form 390x844,Planned,Core controls fit mobile viewport
+UI-037,Mobile,Worker history 390x844,Planned,History is usable on mobile
+UI-038,Mobile,Manager desktop 1440x900,Planned,Manager tables/charts fit desktop viewport
+UI-039,Validation,Missing machine blocked,Planned,Submit blocked when required machine missing
+UI-040,Validation,Missing product blocked,Planned,Submit blocked when required product missing
+UI-041,Validation,Invalid time blocked,Planned,Invalid total time is rejected
+UI-042,Validation,Negative quantity blocked,Planned,Negative production quantity cannot be submitted
+UI-043,Validation,Unknown product blocked,Planned,Product outside master list cannot be submitted
+UI-044,Validation,Unknown machine blocked,Planned,Machine outside master list cannot be submitted
+UI-045,Validation,Invalid defect quantity blocked,Planned,Invalid defect quantity is rejected
+UI-046,Validation,Required shift blocked,Planned,Report requires a valid shift
+UI-047,Regression,Operation switch clears hidden defects,Planned,Hidden Cắt/Lồng defects are not carried across
+UI-048,Regression,Shared machine accounting,Planned,Physical machine truth and worker credit remain separate
