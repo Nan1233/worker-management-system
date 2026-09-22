@@ -32,7 +32,6 @@ export type FormState = {
     ngKichThuoc: string;
     catLem: string;
     note: string;
-    /** Canonical execution selection persisted with the report. GC: AUTO/NON_AUTO; LỒNG: MANUAL/MACHINE. */
     executionMethod: string;
 };
 
@@ -122,21 +121,29 @@ export const deductionOptions: Array<{ key: DeductionKey; label: string }> = [
     { key:"hocViec", label:"Học việc, đào tạo" },
 ];
 
-// Canonical GC defect codes shown to workers. The code is part of the label.
+// Canonical GC defect codes.
+// CUT uses the 10 production defect codes; LONG keeps its own 8-code list.
 export const allNgOptions: Array<{ key: NgKey; id?: number; code: string; label: string }> = [
-    { key:"cat01", code:"CAT01", label:"CAT01 — Cao su xoay" },
-    { key:"cat02", code:"CAT02", label:"CAT02 — Cắt không đứt" },
-    { key:"cat03", code:"CAT03", label:"CAT03 — Lỗi kích thước" },
-    { key:"cat04", code:"CAT04", label:"CAT04 — Cắt không đứt" },
-    { key:"long01", code:"LONG01", label:"LONG01 — KQD" },
-    { key:"long02", code:"LONG02", label:"LONG02 — Xước" },
-    { key:"long03", code:"LONG03", label:"LONG03 — Vỡ" },
-    { key:"long04", code:"LONG04", label:"LONG04 — Trục cong" },
-    { key:"long05", code:"LONG05", label:"LONG05 — Lỗi cao su" },
+    { key:"cat01", code:"1", label:"1 — Cao su không đứt" },
+    { key:"cat02", code:"2", label:"2 — Cắt lẹm" },
+    { key:"cat03", code:"3", label:"3 — Cắt phạm" },
+    { key:"cat04", code:"4", label:"4 — Cao su ngắn" },
+    { key:"cat05", code:"5", label:"5 — Cao su dài" },
+    { key:"cat06", code:"6", label:"6 — Bavia cao su" },
+    { key:"cat07", code:"7", label:"7 — Phế phẩm chỉnh máy" },
+    { key:"cat08", code:"8", label:"8 — Lỗi cao su ( NCC )" },
+    { key:"cat09", code:"9", label:"9 — Lẫn cao su" },
+    { key:"cat10", code:"10", label:"10 — Khác" },
+    { key:"long01", code:"1", label:"1 — Không qua dưỡng" },
+    { key:"long02", code:"2", label:"2 — Cao su vỡ" },
+    { key:"long03", code:"3", label:"3 — Trục xước" },
+    { key:"long04", code:"4", label:"4 — Trục gãy, cong" },
+    { key:"long05", code:"5", label:"5 — Thiếu cao su" },
+    { key:"long06", code:"6", label:"6 — Lẫn trục" },
+    { key:"long07", code:"7", label:"7 — Lẫn cao su" },
+    { key:"long08", code:"8", label:"8 — Khác" },
 ];
 
-// Canonical KQD exclusion registry used by ProcessPage.
-// Keep this export here so a clean Cloudflare build does not depend on a generated patch.
 export const KQD_CODES = new Set(
     kqdExclusionRegistry.map((code) => String(code).trim().toUpperCase())
 );
@@ -196,39 +203,14 @@ export const decimalHoursToText = (value: string): string => {
 };
 
 export const initialForm: FormState = {
-    workDate: getCurrentLocalDate(),
-    shift: "A",
-    workerCode: "",
-    workerName: "",
-    trainingPercent: "",
-    machineNo: "",
-    totalTime: "",
-    actualTime: "",
-    actualHours: "",
-    actualMinutes: "",
-    deductionTime: "",
-    productName: "",
-    standardOutput: "",
-    actualOutput: "",
-    ttOk: "",
-    ttNg: "",
-    kqdDapLai: "",
-    kqdTuot: "",
-    voDoLong: "",
-    xuocDoLong: "",
-    congGay: "",
-    xoay: "",
-    khongDut: "",
-    baviaHut: "",
-    ppcm: "",
-    loiCaoSu: "",
-    ngKichThuoc: "",
-    catLem: "",
-    note: "",
-    executionMethod: "AUTO",
+    workDate: getCurrentLocalDate(), shift: "A", workerCode: "", workerName: "", trainingPercent: "",
+    machineNo: "", totalTime: "", actualTime: "", actualHours: "", actualMinutes: "", deductionTime: "",
+    productName: "", standardOutput: "", actualOutput: "", ttOk: "", ttNg: "", kqdDapLai: "", kqdTuot: "",
+    voDoLong: "", xuocDoLong: "", congGay: "", xoay: "", khongDut: "", baviaHut: "", ppcm: "", loiCaoSu: "",
+    ngKichThuoc: "", catLem: "", note: "", executionMethod: "AUTO",
 };
 
 export const initialDeduction: DeductionState = {
     thieuSanLuong:"", batMay:"", chuyenMa:"", chinhMay:"", choChinhMay:"", matDien:"", matKhi:"",
-    choHang:"", baoDuongMay:"", nghiGiaiLao:"", giaoCa:"", dungMayHoTro:"", giatCs:"", fiveS:"", hocViec:""
+    choHang:"", baoDuongMay:"", nghiGiaiLao:"", giaoCa:"", dungMayHoTro:"", giatCs:"", fiveS:"", hocViec:"
 };
