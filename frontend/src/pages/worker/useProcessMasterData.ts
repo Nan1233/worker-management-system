@@ -44,17 +44,37 @@ export function useProcessMasterData(processId: number, processCode: string) {
     const generation = ++requestGeneration.current;
     setLoading(true);
 
-    // The process-selection screen does not render the time-deduction section.
-    // Do not spend ~1s loading deductions before the worker has even opened a
-    // report. ProcessPage itself keeps loading deductions normally.
+    // Machines + product standards are required to start entering a report.
+    // NG / deduction master data is secondary and must not block the whole form.
     const isProcessSelectionRoute =
       typeof window !== "undefined" &&
       window.location.pathname.replace(/\/+$/, "").endsWith("/worker/process/select");
 
     try {
-      const results = await Promise.allSettled([
+      const [machines, products] = await Promise.allSettled([
         getCachedMachines(processId),
         getCachedProductStandards(processId, processCode),
+      ]);
+
+      if (generation !== requestGeneration.current) return;
+
+      if (machines.status === "fulfilled") {
+        setMachineOptions(machines.value);
+      } else {
+        setMachineOptions([]);
+      }
+
+      if (products.status === "fulfilled") {
+        setProductOptions(products.value);
+      } else {
+        setProductOptions([]);
+      }
+
+      // The worker can now interact with machine/product/time/output fields.
+      // Do not wait for optional NG/deduction requests before removing disabled state.
+      setLoading(false);
+
+      const optionalResults = await Promise.allSettled([
         getCachedDefects(processId),
         isProcessSelectionRoute
           ? Promise.resolve([] as Awaited<ReturnType<typeof getCachedDeductions>>)
@@ -63,15 +83,7 @@ export function useProcessMasterData(processId: number, processCode: string) {
 
       if (generation !== requestGeneration.current) return;
 
-      const [machines, products, defects, deductions] = results;
-
-      if (machines.status === "fulfilled") {
-        setMachineOptions(machines.value);
-      }
-
-      if (products.status === "fulfilled") {
-        setProductOptions(products.value);
-      }
+      const [defects, deductions] = optionalResults;
 
       if (defects.status === "fulfilled") {
         // Only defect_types/process relation returned by the master API.
@@ -89,7 +101,9 @@ export function useProcessMasterData(processId: number, processCode: string) {
       } else {
         setActiveDeductionOptions([]);
       }
-    } finally {
+    } catch {
+      // Promise.allSettled normally prevents this path. Keep the form usable
+      // even if an unexpected loader error occurs.
       if (generation === requestGeneration.current) {
         setLoading(false);
       }
