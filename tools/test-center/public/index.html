@@ -18,7 +18,7 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="top"><div><div class="eyebrow">KTC / TEST ENVIRONMENT</div><div class="title">Test Center</div><div class="sub">FE local + API/business + Playwright E2E trên Chromium thật.</div></div><div class="env">TEST ONLY</div></div>
+  <div class="top"><div><div class="eyebrow">KTC / TEST ENVIRONMENT</div><div class="title">Test Center</div><div class="sub">FE local + API/business + Selenium E2E trên Chromium thật.</div></div><div class="env">TEST ONLY</div></div>
   <div class="panel controls">
     <input id="frontend" class="input" placeholder="FE local URL" value="http://127.0.0.1:5174" />
     <input id="api" class="input" placeholder="KTC backend test URL" value="https://ktc-be-test.nan978971.workers.dev" />
@@ -39,10 +39,24 @@
 <script>
 const $=id=>document.getElementById(id);let running=false;
 function render(items=[]){$('cases').innerHTML=items.map(x=>`<div class="case"><div>${x.status==='PASS'?'✓':x.status==='FAIL'?'✕':x.status==='SKIP'?'–':'•'}</div><div><div class="name">${x.id?`<small>${x.id}</small> `:''}${x.name}</div><div class="detail">${x.detail||''}</div></div><span class="badge ${x.status==='PASS'?'pass':x.status==='FAIL'?'fail':x.status==='SKIP'?'skip':'run'}">${x.status}</span></div>`).join('');$('total').textContent=items.length;$('pass').textContent=items.filter(x=>x.status==='PASS').length;$('fail').textContent=items.filter(x=>x.status==='FAIL').length;$('skip').textContent=items.filter(x=>x.status==='SKIP').length}
-(async()=>{try{const c=await fetch('/api/config').then(r=>r.json());if(c.frontendUrl)$('frontend').value=c.frontendUrl;if(c.apiUrl)$('api').value=c.apiUrl}catch{}})();
-$('run').onclick=async()=>{if(running)return;running=true;$('run').disabled=true;$('download').disabled=true;render([{id:'RUN',name:'Test run đang khởi động',status:'RUN',detail:'FE test riêng trên :5174; Chromium visible; không sử dụng FE cũ trên :5173.'}]);$('log').textContent='Đang khởi động FE test + API/business + Playwright Chromium...';try{const r=await fetch('/api/run',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({frontendUrl:$('frontend').value.trim(),apiUrl:$('api').value.trim(),managerUsername:$('managerUsername').value.trim(),managerPassword:$('managerPassword').value})});const d=await r.json();render(d.results||[]);$('log').textContent=d.log||d.error||'Hoàn tất.';if(d.reportUrl)$('download').disabled=false}catch(e){render([{id:'RUN',name:'Test Center',status:'FAIL',detail:e.message}]);$('log').textContent=e.stack||String(e)}finally{running=false;$('run').disabled=false}};
+(async()=>{try{const r=await fetch('/api/config');if(!r.ok)throw new Error(`HTTP ${r.status}`);const c=await r.json();if(c.frontendUrl)$('frontend').value=c.frontendUrl;if(c.apiUrl)$('api').value=c.apiUrl}catch(e){$('log').textContent=`Không đọc được cấu hình Test Center: ${e.message}`}})();
+async function pollRun(runId){
+  for(;;){
+    const r=await fetch(`/api/run/status?runId=${encodeURIComponent(runId)}`,{cache:'no-store'});
+    if(!r.ok)throw new Error(`Test Center status HTTP ${r.status}`);
+    const d=await r.json();
+    if(d.status==='STARTING'){$('log').textContent='Đang khởi động FE test + Selenium Chromium...';}
+    else if(d.status==='RUNNING'){$('log').textContent='Đang chạy toàn bộ test. Chromium/Selenium đang thao tác trực tiếp; vui lòng giữ terminal mở...';}
+    if(d.status==='DONE'||d.status==='FAIL'){
+      const result=d.result||{results:[{id:'RUN',name:'Test Center',status:'FAIL',detail:d.error||'Runner failed'}]};
+      render(result.results||[]);$('log').textContent=result.log||d.error||'Hoàn tất.';if(result.reportUrl)$('download').disabled=false;return;
+    }
+    await new Promise(resolve=>setTimeout(resolve,700));
+  }
+}
+$('run').onclick=async()=>{if(running)return;running=true;$('run').disabled=true;$('download').disabled=true;render([{id:'RUN',name:'Test run đang khởi động',status:'RUN',detail:'FE test riêng trên :5174; Selenium Chrome visible; không sử dụng FE cũ trên :5173.'}]);$('log').textContent='Đang tạo test run...';try{const r=await fetch('/api/run',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({frontendUrl:$('frontend').value.trim(),apiUrl:$('api').value.trim(),managerUsername:$('managerUsername').value.trim(),managerPassword:$('managerPassword').value})});if(!r.ok){let d={};try{d=await r.json()}catch{}throw new Error(d.error||`HTTP ${r.status}`)}const d=await r.json();await pollRun(d.runId)}catch(e){render([{id:'RUN',name:'Test Center',status:'FAIL',detail:e.message}]);$('log').textContent=e.stack||String(e)}finally{running=false;$('run').disabled=false}};
 $('download').onclick=()=>{window.location.href='/api/results.csv'};
-$('clear').onclick=async()=>{if(!confirm('Chỉ xóa dữ liệu test. Tiếp tục?'))return;const r=await fetch('/api/cleanup',{method:'POST'});const d=await r.json();$('log').textContent=d.message||d.error||'Đã xử lý.'};
+$('clear').onclick=async()=>{if(!confirm('Chỉ xóa dữ liệu test. Tiếp tục?'))return;try{const r=await fetch('/api/cleanup',{method:'POST'});const d=await r.json();$('log').textContent=d.message||d.error||'Đã xử lý.'}catch(e){$('log').textContent=`Cleanup lỗi: ${e.message}`}};
 </script>
 </body>
 </html>
