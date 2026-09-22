@@ -22,7 +22,7 @@ let frontendStartPromise = null;
 let lastResult = null;
 let lastReportPath = '';
 
-app.use(express.json());
+app.use(express.json({ limit: '64kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 function assertTestTarget(url, label = 'URL') {
@@ -98,10 +98,12 @@ app.post('/api/run', async (req, res) => {
   try {
     const frontendUrl = String(req.body?.frontendUrl || defaultFrontendUrl).trim();
     const apiUrl = String(req.body?.apiUrl || defaultApiUrl).trim();
+    const managerUsername = String(req.body?.managerUsername || '').trim();
+    const managerPassword = String(req.body?.managerPassword || '');
     assertTestTarget(frontendUrl, 'Frontend URL');
     assertTestTarget(apiUrl, 'Backend API URL');
     if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(frontendUrl)) await startLocalFrontend(apiUrl);
-    lastResult = await runTestSuite({ frontendUrl, apiUrl });
+    lastResult = await runTestSuite({ frontendUrl, apiUrl, managerUsername, managerPassword });
     await saveCsvReport(lastResult);
     res.json({ ...lastResult, reportUrl: '/api/results.csv' });
   } catch (error) {
