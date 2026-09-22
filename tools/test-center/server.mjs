@@ -50,21 +50,26 @@ async function waitForFrontend(url, timeoutMs = 30_000) {
 function startLocalFrontend(apiUrl) {
   if (frontendProcess && !frontendProcess.killed) return frontendStartPromise;
 
-  const npmArgs = ['run', 'dev', '--', '--host', '127.0.0.1', '--port', String(localFrontendPort), '--strictPort'];
+  const viteBin = path.join(frontendDir, 'node_modules', 'vite', 'bin', 'vite.js');
   const env = {
     ...process.env,
     VITE_API_URL: `${apiUrl.replace(/\/$/, '')}/api`,
   };
 
-  // Windows can throw spawn EINVAL when npm.cmd is spawned directly from Node.
-  // Run npm through cmd.exe so the Test Center works from PowerShell/cmd on Windows.
-  const isWindows = process.platform === 'win32';
-  const command = isWindows ? (process.env.ComSpec || 'cmd.exe') : 'npm';
-  const args = isWindows
-    ? ['/d', '/s', '/c', 'npm.cmd', ...npmArgs]
-    : npmArgs;
+  if (process.platform === 'win32' && !requireViteFile(viteBin)) {
+    throw new Error(`Không tìm thấy Vite tại ${viteBin}. Hãy chạy npm.cmd install trong frontend/.`);
+  }
 
-  frontendProcess = spawn(command, args, {
+  const args = [
+    viteBin,
+    '--host', '127.0.0.1',
+    '--port', String(localFrontendPort),
+    '--strictPort',
+  ];
+
+  // Start Vite directly with the current Node executable.
+  // This avoids Windows npm.cmd/cmd.exe spawn EINVAL issues.
+  frontendProcess = spawn(process.execPath, args, {
     cwd: frontendDir,
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -86,10 +91,18 @@ function startLocalFrontend(apiUrl) {
       if (frontendProcess && !frontendProcess.killed) frontendProcess.kill();
       frontendProcess = null;
       frontendStartPromise = null;
-      throw new Error(`${error.message}. Hãy chạy npm.cmd install trong frontend/ nếu node_modules chưa có.`);
+      throw new Error(`${error.message}. Kiểm tra frontend/node_modules/vite hoặc chạy npm.cmd install trong frontend/.`);
     });
 
   return frontendStartPromise;
+}
+
+function requireViteFile(file) {
+  try {
+    return Boolean(require('node:fs').statSync(file));
+  } catch {
+    return false;
+  }
 }
 
 app.get('/api/config', (_req, res) => res.json({
@@ -120,13 +133,17 @@ app.post('/api/run', async (req, res) => {
 });
 
 app.post('/api/cleanup', async (_req, res) => {
-  res.status(409).json({ error: 'CLEANUP_NOT_CONFIGURED', message: 'Dọn dữ liệu chưa được bật. Cần cấu hình TEST-ONLY DB adapter trước khi cho phép DELETE.' });
+  res.status(409).json({
+    error: 'CLEANUP_NOT_CONFIGURED',
+    message: 'Dọn dữ liệu chưa được bật. Cần cấu hình TEST-ONLY DB adapter trước khi cho phép DELETE.',
+  });
 });
 
 function shutdown() {
   if (frontendProcess && !frontendProcess.killed) frontendProcess.kill();
   process.exit(0);
 }
+
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
