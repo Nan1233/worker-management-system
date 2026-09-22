@@ -30,11 +30,11 @@ export const getProductMachineHint = (productCode: unknown): { kind: "AUTO" | "N
 
 /**
  * Lồng-specific suffix convention:
- *   -M       = Lồng Máy
- *   -LT/-L/-T = Lồng Tay
- *   no suffix = usable for both Tay and Máy
+ *   -M          = Lồng Máy
+ *   -LT/-L/-T   = Lồng Tay
+ *   no suffix   = usable for both Tay and Máy
  */
-type LongHandling = "MACHINE" | "MANUAL" | "BOTH" | "UNKNOWN";
+type LongHandling = "MACHINE" | "MANUAL" | "BOTH";
 
 const getLongHandling = (productCode: unknown): LongHandling => {
     const code = normalize(productCode);
@@ -44,8 +44,8 @@ const getLongHandling = (productCode: unknown): LongHandling => {
 };
 
 /**
- * Canonical product family. C7630-11 and 7630 belong to the same family.
- * This is used only for matching machine-specific variants.
+ * Canonical product family. Machine/handling suffixes are stripped only for
+ * family matching; the original product code remains unchanged for display.
  */
 export const getProductFamilyCode = (productCode: unknown): string =>
     normalize(productCode)
@@ -115,39 +115,42 @@ export const filterProductsForSelection = ({
     const selectedMachine = normalizeMachineKey(machineCode);
     const selectedRawMachine = normalize(machineCode).replace(/\s+/g, "");
 
-    // For GC Lồng, suffix is the authoritative Tay/Máy classification:
+    // GC Lồng uses product-code suffixes to distinguish Tay/Máy:
     // -M = Máy, -LT/-L/-T = Tay, no suffix = both.
-    // This is intentionally independent from Cắt's -auto/-5/-6/-11 rules.
+    // Only enter this branch when the scoped products are actually Lồng;
+    // Cắt must continue to its separate -auto/-machine-suffix rules below.
     if (useEncodedMachineSuffix) {
         const longProducts = products.filter(
             (product) => normalizeWorkType(product.work_type) === "LONG"
         );
 
-        if (mode === "MANUAL") {
-            return longProducts.filter((product) => {
-                const handling = getLongHandling(product.product_code);
-                return handling === "MANUAL" || handling === "BOTH";
-            });
-        }
-
-        if (!selectedMachine) {
-            return longProducts.filter((product) => {
-                const handling = getLongHandling(product.product_code);
-                return handling === "MACHINE" || handling === "BOTH";
-            });
-        }
-
-        return longProducts.filter((product) => {
-            const handling = getLongHandling(product.product_code);
-            if (handling !== "MACHINE" && handling !== "BOTH") return false;
-
-            const mappedMachines = eligibleMachineCodes(product);
-            const hasExplicitMapping = Number(product.has_machine_specific_standard || 0) === 1 || mappedMachines.length > 0;
-            if (hasExplicitMapping && mappedMachines.length > 0 && !mappedMachines.includes(selectedMachine)) {
-                return false;
+        if (longProducts.length > 0) {
+            if (mode === "MANUAL") {
+                return longProducts.filter((product) => {
+                    const handling = getLongHandling(product.product_code);
+                    return handling === "MANUAL" || handling === "BOTH";
+                });
             }
-            return true;
-        });
+
+            if (!selectedMachine) {
+                return longProducts.filter((product) => {
+                    const handling = getLongHandling(product.product_code);
+                    return handling === "MACHINE" || handling === "BOTH";
+                });
+            }
+
+            return longProducts.filter((product) => {
+                const handling = getLongHandling(product.product_code);
+                if (handling !== "MACHINE" && handling !== "BOTH") return false;
+
+                const mappedMachines = eligibleMachineCodes(product);
+                const hasExplicitMapping = Number(product.has_machine_specific_standard || 0) === 1 || mappedMachines.length > 0;
+                if (hasExplicitMapping && mappedMachines.length > 0 && !mappedMachines.includes(selectedMachine)) {
+                    return false;
+                }
+                return true;
+            });
+        }
     }
 
     if (mode === "MANUAL") {
