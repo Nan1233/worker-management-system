@@ -42,8 +42,20 @@ async function clickSubmit(driver, timeout = 10000) {
   await driver.executeScript('arguments[0].scrollIntoView({block:"center"}); arguments[0].click();', el);
 }
 
-async function loginPage(driver, frontendUrl, id) {
+async function resetBrowserState(driver, frontendUrl, id) {
+  log(id, 'RESET', 'Xóa cookie/localStorage/sessionStorage để testcase độc lập');
+  // Must first navigate to the app origin before accessing its Web Storage.
+  await driver.get(`${frontendUrl}/`);
+  await driver.manage().deleteAllCookies();
+  await driver.executeScript(`
+    try { localStorage.clear(); } catch (e) {}
+    try { sessionStorage.clear(); } catch (e) {}
+  `);
   await driver.get(`${frontendUrl}/#/login`);
+}
+
+async function loginPage(driver, frontendUrl, id) {
+  await resetBrowserState(driver, frontendUrl, id);
   log(id, '01', 'Mở login', `URL=${await driver.getCurrentUrl()}`);
   await visible(driver, ['#login-username','input[autocomplete="username"]','input[placeholder*="mã nhân viên" i]']);
   log(id, '02', 'Login DOM sẵn sàng');
