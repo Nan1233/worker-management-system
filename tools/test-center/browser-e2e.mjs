@@ -79,9 +79,13 @@ export async function runBrowserE2E({ frontendUrl, apiUrl, add, managerUsername,
     }
   };
 
+  const headless = /^(1|true|yes)$/i.test(String(process.env.KTC_HEADLESS || '0'));
+  const slowMo = Number(process.env.KTC_SLOWMO_MS || 350);
+  console.log(`[KTC PLAYWRIGHT] Browser E2E Chromium: headless=${headless}; slowMo=${slowMo}ms`);
   const browser = await chromium.launch({
-    headless: /^(1|true|yes)$/i.test(String(process.env.KTC_HEADLESS || '0')),
-    slowMo: Number(process.env.KTC_SLOWMO_MS || 120),
+    headless,
+    slowMo,
+    args: headless ? [] : ['--start-maximized'],
   });
 
   try {
@@ -96,7 +100,6 @@ export async function runBrowserE2E({ frontendUrl, apiUrl, add, managerUsername,
     });
     page.on('pageerror', (error) => consoleErrors.push(`PAGEERROR: ${error.message}`));
 
-    // Login is an independent suite. Do not make worker fixtures a prerequisite for testing manager login.
     await record('E2E-001', 'Manager login opens through FE', async () => {
       if (!managerUsername || !managerPassword) throw new Error('Thiếu manager credentials test.');
       await openLogin(page, frontendUrl);
@@ -135,11 +138,11 @@ export async function runBrowserE2E({ frontendUrl, apiUrl, add, managerUsername,
         ['E2E-010', 'Worker mobile layout opens', 'SKIP: chưa có KTC_TEST_WORKER_CODE.'],
       ]) add(name, 'SKIP', detail, id);
       await screenshot(page, e2eDir, 'E2E-manager-screen');
+      if (!headless) await sleep(1000);
       await context.close();
       return { workerCode: '', results };
     }
 
-    // Verify the worker credential before driving the worker UI.
     await loginApi(apiUrl, workerCode, '', 'worker');
 
     await record('E2E-004', 'Worker login opens through FE', async () => {
@@ -216,6 +219,7 @@ export async function runBrowserE2E({ frontendUrl, apiUrl, add, managerUsername,
     });
 
     await screenshot(page, e2eDir, 'E2E-final-worker-screen');
+    if (!headless) await sleep(1000);
     await context.close();
   } finally {
     await browser.close();
