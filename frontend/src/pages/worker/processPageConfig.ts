@@ -122,12 +122,20 @@ export const deductionOptions: Array<{ key: DeductionKey; label: string }> = [
     { key:"hocViec", label:"Học việc, đào tạo" },
 ];
 
-// Canonical GC defect codes shown to workers. The code is part of the label.
+// Canonical GC defect codes.
+// CUT uses the 10 codes supplied by the production defect table.
+// LONG keeps its separate defect codes and is not mixed with CUT.
 export const allNgOptions: Array<{ key: NgKey; id?: number; code: string; label: string }> = [
-    { key:"cat01", code:"CAT01", label:"CAT01 — Cao su xoay" },
-    { key:"cat02", code:"CAT02", label:"CAT02 — Cắt không đứt" },
-    { key:"cat03", code:"CAT03", label:"CAT03 — Lỗi kích thước" },
-    { key:"cat04", code:"CAT04", label:"CAT04 — Cắt không đứt" },
+    { key:"cat01", code:"1", label:"1 — Cao su không đứt" },
+    { key:"cat02", code:"2", label:"2 — Cắt lẹm" },
+    { key:"cat03", code:"3", label:"3 — Cắt phạm" },
+    { key:"cat04", code:"4", label:"4 — Cao su ngắn" },
+    { key:"cat05", code:"5", label:"5 — Cao su dài" },
+    { key:"cat06", code:"6", label:"6 — Bavia cao su" },
+    { key:"cat07", code:"7", label:"7 — Phế phẩm chỉnh máy" },
+    { key:"cat08", code:"8", label:"8 — Lỗi cao su ( NCC )" },
+    { key:"cat09", code:"9", label:"9 — Lẫn cao su" },
+    { key:"cat10", code:"10", label:"10 — Khác" },
     { key:"long01", code:"LONG01", label:"LONG01 — KQD" },
     { key:"long02", code:"LONG02", label:"LONG02 — Xước" },
     { key:"long03", code:"LONG03", label:"LONG03 — Vỡ" },
