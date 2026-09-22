@@ -106,6 +106,10 @@ export async function runSeleniumFunctionalSuite({ frontendUrl, managerToken, wo
   const slowMo = Number(process.env.KTC_SLOWMO_MS || 150);
   const options = new chrome.Options();
   options.addArguments('--start-maximized');
+  // TEST ONLY: the test backend may not include the local Selenium origin in
+  // its deployed CORS allow-list. Disable CORS enforcement only in this
+  // isolated automation browser; never in the application or user browsers.
+  options.addArguments('--disable-web-security', '--allow-running-insecure-content');
   if (headless) options.addArguments('--headless=new', '--window-size=1440,900');
   log('SEL-FUNC-SYS', '01', 'Chrome functional launched', `headless=${headless}; slowMo=${slowMo}ms`);
 
