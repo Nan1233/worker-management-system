@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "test": "node server.mjs --once"
+    "test": "node server.mjs --once",
+    "e2e:selenium": "node selenium-runner.mjs"
   },
   "dependencies": {
     "express": "^5.1.0",

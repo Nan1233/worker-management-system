@@ -25,6 +25,8 @@ let frontendProcess = null;
 let frontendStartPromise = null;
 let lastResult = null;
 let lastReportPath = '';
+let activeRun = null;
+let runSequence = 0;
 
 app.use(express.json({ limit: '64kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -104,23 +106,45 @@ app.get('/api/results.csv', async (_req, res) => {
   res.download(lastReportPath, path.basename(lastReportPath));
 });
 
-app.post('/api/run', async (req, res) => {
+// The browser must not hold one HTTP request open while Selenium/Chrome runs.
+// Starting the suite asynchronously avoids "Failed to fetch" when Chrome or the
+// test runner takes several minutes or encounters a child-process/network reset.
+app.post('/api/run', async (_req, res) => {
+  if (activeRun) return res.status(409).json({ error: 'TEST_ALREADY_RUNNING', runId: activeRun.id });
+  const runId = `run-${Date.now()}-${++runSequence}`;
+  activeRun = { id: runId, status: 'STARTING', result: null, error: null, startedAt: new Date().toISOString() };
+  res.status(202).json({ runId, status: activeRun.status });
+
   try {
-    // Credentials are intentionally NOT read from request body or CMD/environment.
     const frontendUrl = defaultFrontendUrl;
     const apiUrl = defaultApiUrl;
     const managerUsername = TEST_MANAGER_USERNAME;
     const managerPassword = TEST_MANAGER_PASSWORD;
     assertTestTarget(frontendUrl, 'Frontend URL');
     assertTestTarget(apiUrl, 'Backend API URL');
+    activeRun.status = 'RUNNING';
     await startLocalFrontend(apiUrl);
-    lastResult = await runTestSuite({ frontendUrl, apiUrl, managerUsername, managerPassword });
-    await saveCsvReport(lastResult);
-    res.json({ ...lastResult, reportUrl: '/api/results.csv' });
+    const result = await runTestSuite({ frontendUrl, apiUrl, managerUsername, managerPassword });
+    await saveCsvReport(result);
+    lastResult = result;
+    activeRun.status = 'DONE';
+    activeRun.result = { ...result, reportUrl: '/api/results.csv' };
   } catch (error) {
     console.error('[KTC TEST CENTER] run failed:', error);
-    res.status(400).json({ error: error.message, results: [] });
+    activeRun.status = 'FAIL';
+    activeRun.error = error?.stack || error?.message || String(error);
+    activeRun.result = { results: [{ id: 'RUN', name: 'Test Center', status: 'FAIL', detail: error?.message || String(error) }], summary: { total: 1, pass: 0, fail: 1, skip: 0 }, log: 'Test runner failed.' };
   }
+});
+
+app.get('/api/run/status', (_req, res) => {
+  if (!activeRun) return res.json({ status: 'IDLE', result: lastResult });
+  if (activeRun.status === 'DONE' || activeRun.status === 'FAIL') {
+    const finished = { ...activeRun };
+    activeRun = null;
+    return res.json(finished);
+  }
+  res.json({ id: activeRun.id, status: activeRun.status, startedAt: activeRun.startedAt });
 });
 
 app.post('/api/cleanup', async (_req, res) => {
