@@ -85,6 +85,22 @@ async function runCase(driver, add, id, name, fn) {
   }
 }
 
+async function clickAutocompleteOption(driver, inputId) {
+  const input = await driver.findElement(By.id(inputId));
+  await driver.executeScript('arguments[0].scrollIntoView({block:"center"});', input);
+  await input.click();
+  await driver.wait(async () => (await driver.findElements(By.css('.autocomplete-menu .autocomplete-option'))).length > 0, 8000);
+  const options = await driver.findElements(By.css('.autocomplete-menu .autocomplete-option'));
+  if (!options.length) throw new Error(`Không có option cho ${inputId}`);
+  await options[0].click();
+}
+
+async function firstValue(driver, selector) {
+  const els = await driver.findElements(By.css(selector));
+  if (!els.length) return '';
+  return (await els[0].getAttribute('value')) || '';
+}
+
 export async function runSeleniumFunctionalSuite({ frontendUrl, managerToken, workerToken, reportId = 0, add }) {
   if (!managerToken || !workerToken) {
     add('Selenium functional suite', 'FAIL', 'Thiếu managerToken/workerToken.', 'SEL-FUNC-000');
@@ -147,7 +163,7 @@ export async function runSeleniumFunctionalSuite({ frontendUrl, managerToken, wo
       });
     }
 
-    // 1) Always test Gia công first. This is the primary production flow.
+    // PRIMARY FLOW: always exercise Gia công before other processes.
     await runCase(driver, add, 'SEL-GC-001', 'Gia công process selection opens', async () => {
       await driver.get(`${frontendUrl}/#/worker/process/select`);
       await assertPageLoaded(driver, '/worker/process/select');
@@ -158,10 +174,7 @@ export async function runSeleniumFunctionalSuite({ frontendUrl, managerToken, wo
       let gcCard = null;
       for (const card of cards) {
         const text = (await card.getText()).trim();
-        if (/Gia công|GC|Cắt \/ Lồng/i.test(text)) {
-          gcCard = card;
-          break;
-        }
+        if (/Gia công|GC|Cắt \/ Lồng/i.test(text)) { gcCard = card; break; }
       }
       if (!gcCard) throw new Error('Không tìm thấy card Gia công (GC).');
       await driver.executeScript('arguments[0].scrollIntoView({block:"center"});', gcCard);
@@ -172,21 +185,61 @@ export async function runSeleniumFunctionalSuite({ frontendUrl, managerToken, wo
       return `Gia công mở ProcessPage | URL=${await driver.getCurrentUrl()} | ${text.slice(0, 120).replace(/\s+/g, ' ')}`;
     });
 
-    // 2) Gia công-specific UI must expose the core fields before any submit.
     await runCase(driver, add, 'SEL-GC-002', 'Gia công form loads core production fields', async () => {
       await driver.get(`${frontendUrl}/#/worker/process/cat-long`);
-      const text = await assertPageLoaded(driver, '/worker/process/cat-long');
+      await assertPageLoaded(driver, '/worker/process/cat-long');
       await driver.wait(async () => {
         const current = await bodyText(driver);
-        return /Gia công|Cắt\/Lồng/i.test(current) && /Mã sản phẩm|Số máy|Máy gia công/i.test(current);
+        return /Sản phẩm & máy|Danh sách máy & sản phẩm|Máy & sản phẩm/i.test(current) &&
+          await driver.findElements(By.css('.machine-line')).then(x => x.length > 0);
       }, 15000);
       const current = await bodyText(driver);
-      if (!/Thời gian làm việc/i.test(current)) throw new Error('Gia công chưa hiển thị trường Thời gian làm việc.');
-      if (!/Số lượng OK/i.test(current)) throw new Error('Gia công chưa hiển thị trường Số lượng OK.');
-      return 'Gia công: máy + sản phẩm + thời gian + OK đã render';
+      if (!/Thời gian chạy máy/i.test(current)) throw new Error('Gia công chưa hiển thị khu vực thời gian chạy máy.');
+      if (!/Sản lượng/i.test(current) || !/OK/i.test(current)) throw new Error('Gia công chưa hiển thị trường sản lượng OK.');
+      const machineInput = await driver.findElements(By.id('machineNo-0'));
+      const productInput = await driver.findElements(By.id('machineProduct-0'));
+      if (!machineInput.length || !productInput.length) throw new Error('Thiếu ô Mã máy/Mã sản phẩm của Gia công.');
+      return 'Gia công: máy + sản phẩm + thời gian chạy + sản lượng OK/NG đã render';
     });
 
-    // 3) Exercise other process types after the primary Gia công flow.
+    await runCase(driver, add, 'SEL-GC-003', 'Gia công machine and product selection works', async () => {
+      const machine = await driver.findElement(By.id('machineNo-0'));
+      await machine.click();
+      await driver.wait(async () => (await driver.findElements(By.css('.autocomplete-menu .autocomplete-option'))).length > 0, 8000);
+      const machineOptions = await driver.findElements(By.css('.autocomplete-menu .autocomplete-option'));
+      if (!machineOptions.length) throw new Error('Danh sách máy Gia công rỗng.');
+      const machineText = (await machineOptions[0].getText()).trim();
+      await machineOptions[0].click();
+      await driver.wait(async () => (await driver.findElement(By.id('machineNo-0')).getAttribute('value')) === machineText, 5000);
+      await sleep(300);
+
+      const product = await driver.findElement(By.id('machineProduct-0'));
+      await product.click();
+      await driver.wait(async () => {
+        const options = await driver.findElements(By.css('.autocomplete-menu .autocomplete-option'));
+        return options.length > 0 || /Không có mã sản phẩm phù hợp/i.test(await bodyText(driver));
+      }, 8000);
+      const productOptions = await driver.findElements(By.css('.autocomplete-menu .autocomplete-option'));
+      if (!productOptions.length) throw new Error(`Máy ${machineText} không có mã sản phẩm hợp lệ.`);
+      const productText = (await productOptions[0].getText()).trim();
+      await productOptions[0].click();
+      await driver.wait(async () => (await driver.findElement(By.id('machineProduct-0')).getAttribute('value')) === productText, 5000);
+      return `Máy=${machineText} → sản phẩm=${productText}`;
+    });
+
+    await runCase(driver, add, 'SEL-GC-004', 'Gia công time and quantity inputs accept values', async () => {
+      const numericInputs = await driver.findElements(By.css('.machine-line input[type="number"]'));
+      if (numericInputs.length < 3) throw new Error(`Chỉ tìm thấy ${numericInputs.length} ô số trong machine line.`);
+      await numericInputs[0].clear(); await numericInputs[0].sendKeys('1');
+      await numericInputs[1].clear(); await numericInputs[1].sendKeys('30');
+      await numericInputs[2].clear(); await numericInputs[2].sendKeys('10');
+      const values = [];
+      for (const input of numericInputs.slice(0, 3)) values.push(await input.getAttribute('value'));
+      if (values[0] !== '1' || values[1] !== '30' || values[2] !== '10') throw new Error(`Giá trị input không được giữ: ${values.join('/')}`);
+      return `Giờ=${values[0]} | Phút=${values[1]} | OK=${values[2]}`;
+    });
+
+    // Other process forms are tested only after the primary Gia công flow.
     const processCases = [
       ['mai', 'SEL-PROC-002', 'Mài process form renders'],
       ['do', 'SEL-PROC-003', 'Đo process form renders'],
@@ -200,7 +253,7 @@ export async function runSeleniumFunctionalSuite({ frontendUrl, managerToken, wo
     ];
     for (const [slug, id, name] of processCases) {
       await runCase(driver, add, id, name, async () => {
-        const expected = slug === 'non-product' ? '/worker/process/non-product' : `/worker/process/${slug}`;
+        const expected = `/worker/process/${slug}`;
         await driver.get(`${frontendUrl}/#${expected}`);
         const text = await assertPageLoaded(driver, expected);
         await driver.wait(async () => {
@@ -208,20 +261,19 @@ export async function runSeleniumFunctionalSuite({ frontendUrl, managerToken, wo
           return current.length > 100 || /Đang tải|Không thể mở|Không có/i.test(current);
         }, 10000);
         const current = await bodyText(driver);
-        if (/Unexpected Application Error|Application error|Cannot read properties/i.test(current)) {
-          throw new Error(`UI runtime error: ${current.slice(0, 400)}`);
-        }
+        if (/Unexpected Application Error|Application error|Cannot read properties/i.test(current)) throw new Error(`UI runtime error: ${current.slice(0, 400)}`);
         return `URL=${await driver.getCurrentUrl()} | ${current.slice(0, 110).replace(/\s+/g, ' ')}`;
       });
     }
 
-    // 4) Mobile rendering of the real Gia công page.
     await runCase(driver, add, 'SEL-GC-MOBILE-001', 'Gia công mobile form renders', async () => {
       await driver.manage().window().setRect({ width: 390, height: 844 });
       await driver.get(`${frontendUrl}/#/worker/process/cat-long`);
       const text = await assertPageLoaded(driver, '/worker/process/cat-long');
       if (!/Gia công|Cắt\/Lồng/i.test(text)) throw new Error('Không thấy tiêu đề Gia công trên mobile.');
-      return `viewport=390x844 | URL=${await driver.getCurrentUrl()}`;
+      const machineLines = await driver.findElements(By.css('.machine-line'));
+      if (!machineLines.length) throw new Error('Gia công mobile không render machine line.');
+      return `viewport=390x844 | machineLines=${machineLines.length} | URL=${await driver.getCurrentUrl()}`;
     });
   } finally {
     log('SEL-FUNC-SYS', '99', 'Đóng Chrome functional');

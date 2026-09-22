@@ -104,44 +104,43 @@ export const processMap: Record<string, { id: number; title: string; machineLabe
 );
 
 export const deductionOptions: Array<{ key: DeductionKey; label: string }> = [
-    { key:"thieuSanLuong", label:"Thiếu sản lượng" },
-    { key:"batMay", label:"Bật máy, xét máy" },
-    { key:"chuyenMa", label:"Chuyển mã" },
-    { key:"chinhMay", label:"Chỉnh máy" },
-    { key:"choChinhMay", label:"Chờ chỉnh máy" },
-    { key:"matDien", label:"Mất điện" },
-    { key:"matKhi", label:"Mất khí" },
-    { key:"choHang", label:"Chờ hàng" },
-    { key:"baoDuongMay", label:"Bảo dưỡng máy" },
-    { key:"nghiGiaiLao", label:"Nghỉ giải lao" },
-    { key:"giaoCa", label:"Giao ca" },
-    { key:"dungMayHoTro", label:"Dừng máy đi hỗ trợ" },
-    { key:"giatCs", label:"Giặt CS/Cân CS, Tuốt-Tái PP, GL" },
-    { key:"fiveS", label:"5S" },
-    { key:"hocViec", label:"Học việc, đào tạo" },
+    { key: "thieuSanLuong", label: "Thiếu sản lượng" },
+    { key: "batMay", label: "Bật máy, xét máy" },
+    { key: "chuyenMa", label: "Chuyển mã" },
+    { key: "chinhMay", label: "Chỉnh máy" },
+    { key: "choChinhMay", label: "Chờ chỉnh máy" },
+    { key: "matDien", label: "Mất điện" },
+    { key: "matKhi", label: "Mất khí" },
+    { key: "choHang", label: "Chờ hàng" },
+    { key: "baoDuongMay", label: "Bảo dưỡng máy" },
+    { key: "nghiGiaiLao", label: "Nghỉ giải lao" },
+    { key: "giaoCa", label: "Giao ca" },
+    { key: "dungMayHoTro", label: "Dừng máy đi hỗ trợ" },
+    { key: "giatCs", label: "Giặt CS/Cân CS, Tuốt-Tái PP, GL" },
+    { key: "fiveS", label: "5S" },
+    { key: "hocViec", label: "Học việc, đào tạo" },
 ];
 
-// Canonical GC defect codes.
-// CUT uses the 10 production defect codes; LONG keeps its own 8-code list.
+// Canonical GC defect codes: CUT 1-10, LONG 1-8.
 export const allNgOptions: Array<{ key: NgKey; id?: number; code: string; label: string }> = [
-    { key:"cat01", code:"1", label:"1 — Cao su không đứt" },
-    { key:"cat02", code:"2", label:"2 — Cắt lẹm" },
-    { key:"cat03", code:"3", label:"3 — Cắt phạm" },
-    { key:"cat04", code:"4", label:"4 — Cao su ngắn" },
-    { key:"cat05", code:"5", label:"5 — Cao su dài" },
-    { key:"cat06", code:"6", label:"6 — Bavia cao su" },
-    { key:"cat07", code:"7", label:"7 — Phế phẩm chỉnh máy" },
-    { key:"cat08", code:"8", label:"8 — Lỗi cao su ( NCC )" },
-    { key:"cat09", code:"9", label:"9 — Lẫn cao su" },
-    { key:"cat10", code:"10", label:"10 — Khác" },
-    { key:"long01", code:"1", label:"1 — Không qua dưỡng" },
-    { key:"long02", code:"2", label:"2 — Cao su vỡ" },
-    { key:"long03", code:"3", label:"3 — Trục xước" },
-    { key:"long04", code:"4", label:"4 — Trục gãy, cong" },
-    { key:"long05", code:"5", label:"5 — Thiếu cao su" },
-    { key:"long06", code:"6", label:"6 — Lẫn trục" },
-    { key:"long07", code:"7", label:"7 — Lẫn cao su" },
-    { key:"long08", code:"8", label:"8 — Khác" },
+    { key: "cat01", code: "1", label: "1 — Cao su không đứt" },
+    { key: "cat02", code: "2", label: "2 — Cắt lẹm" },
+    { key: "cat03", code: "3", label: "3 — Cắt phạm" },
+    { key: "cat04", code: "4", label: "4 — Cao su ngắn" },
+    { key: "cat05", code: "5", label: "5 — Cao su dài" },
+    { key: "cat06", code: "6", label: "6 — Bavia cao su" },
+    { key: "cat07", code: "7", label: "7 — Phế phẩm chỉnh máy" },
+    { key: "cat08", code: "8", label: "8 — Lỗi cao su ( NCC )" },
+    { key: "cat09", code: "9", label: "9 — Lẫn cao su" },
+    { key: "cat10", code: "10", label: "10 — Khác" },
+    { key: "long01", code: "1", label: "1 — Không qua dưỡng" },
+    { key: "long02", code: "2", label: "2 — Cao su vỡ" },
+    { key: "long03", code: "3", label: "3 — Trục xước" },
+    { key: "long04", code: "4", label: "4 — Trục gãy, cong" },
+    { key: "long05", code: "5", label: "5 — Thiếu cao su" },
+    { key: "long06", code: "6", label: "6 — Lẫn trục" },
+    { key: "long07", code: "7", label: "7 — Lẫn cao su" },
+    { key: "long08", code: "8", label: "8 — Khác" },
 ];
 
 export const KQD_CODES = new Set(
@@ -211,6 +210,6 @@ export const initialForm: FormState = {
 };
 
 export const initialDeduction: DeductionState = {
-    thieuSanLuong:"", batMay:"", chuyenMa:"", chinhMay:"", choChinhMay:"", matDien:"", matKhi:"",
-    choHang:"", baoDuongMay:"", nghiGiaiLao:"", giaoCa:"", dungMayHoTro:"", giatCs:"", fiveS:"", hocViec:""
+    thieuSanLuong: "", batMay: "", chuyenMa: "", chinhMay: "", choChinhMay: "", matDien: "", matKhi: "",
+    choHang: "", baoDuongMay: "", nghiGiaiLao: "", giaoCa: "", dungMayHoTro: "", giatCs: "", fiveS: "", hocViec: "",
 };
