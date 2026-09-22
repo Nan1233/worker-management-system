@@ -1,5 +1,4 @@
 import { runAuthenticatedSuite } from './authenticated-suite.mjs';
-import { runBrowserE2E } from './browser-e2e.mjs';
 import { runLoginE2E } from './login-e2e.mjs';
 
 export async function runTestSuite(options = {}) {
@@ -29,9 +28,9 @@ export async function runTestSuite(options = {}) {
     } catch (error) { add(name, 'FAIL', error.message, id); }
   }
 
+  // One visible Chrome session for the complete UI login flow. Do not run duplicate Playwright sessions.
   await runLoginE2E({ frontendUrl, add, managerUsername, managerPassword });
   await runAuthenticatedSuite({ apiUrl, add, managerUsername, managerPassword });
-  await runBrowserE2E({ frontendUrl, apiUrl, add, managerUsername, managerPassword });
   return summarize(results);
 }
 
