@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { getMyDailyWorkingHours, getMyTempReports } from "../../../services/productionService";
-import { parseFlexibleTime } from "../processFormUtils";
+import { MAX_TOTAL_WORK_MINUTES, parseFlexibleTime } from "../processFormUtils";
 
 interface DuplicatePrompt { reportId: number; }
 interface Props {
@@ -185,7 +185,16 @@ export default function ProcessSubmitActions({ duplicatePrompt, canUpdateExistin
             const currentTempActual = await findCurrentTempActual(workDate, incoming);
             const baseExistingTotal = Math.max(0, existingTotal - currentTempActual);
             const promptTotal = baseExistingTotal + incoming.total;
+            const maxHours = MAX_TOTAL_WORK_MINUTES / 60;
+
             setDailyTimeDetails({ actual: incoming.actual, deduction: incoming.deduction, total: promptTotal });
+
+            if (promptTotal * 60 > MAX_TOTAL_WORK_MINUTES + 0.0001) {
+                setDailyHoursError(`Không thể nộp báo cáo: tổng thời gian trong ngày sẽ là ${formatHours(promptTotal)}, vượt quá ${maxHours} giờ.`);
+                setDailyHoursPrompt(null);
+                return;
+            }
+
             setDailyHoursPrompt(promptTotal);
         } catch (error) {
             console.error("GET DAILY HOURS BEFORE SUBMIT ERROR:", error);
