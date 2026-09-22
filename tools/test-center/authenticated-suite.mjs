@@ -24,7 +24,6 @@ async function login(base, username, password, accessType) {
 function auth(token) { return { Authorization: `Bearer ${token}` }; }
 function unwrap(body) { return Array.isArray(body?.data) ? body.data : body?.data?.items || body?.data || []; }
 function codeOf(x) { return String(x?.defect_code || x?.code || '').trim().toUpperCase(); }
-function nameOf(x) { return String(x?.defect_name || x?.name || x?.process_name || '').trim(); }
 function processCodeOf(x) { return String(x?.process_code || x?.code || '').trim().toUpperCase(); }
 function processNameOf(x) { return String(x?.process_name || x?.name || '').trim(); }
 function productCodeOf(x) { return String(x?.product_code || x?.product_name || x?.code || '').trim(); }
@@ -55,7 +54,7 @@ async function masterChecks(base, workerToken, processes) {
   const result = [];
   for (const [id, label, process] of [['MASTER-001','Cắt has CAT01-CAT04',cut], ['MASTER-002','Lồng has LONG01-LONG05',long]]) {
     if (!process?.id) { result.push({id,name:label,status:'FAIL',detail:'Không tìm thấy công đoạn phù hợp'}); continue; }
-    const r = await api(base, `/api/defects/processes/${process.id}/defects`, { headers: auth(workerToken) });
+    const r = await api(base, `/api/processes/${process.id}/defects`, { headers: auth(workerToken) });
     if (!r.response.ok) { result.push({id,name:label,status:'FAIL',detail:`HTTP ${r.response.status}`}); continue; }
     const defects = unwrap(r.body);
     const codes = new Set(defects.map(codeOf));
@@ -92,31 +91,31 @@ async function createReport(base, workerToken, ctx, values = {}) {
   return api(base, '/api/production-temp', { method:'POST', headers:auth(workerToken), body:JSON.stringify(payload) });
 }
 
-export async function runAuthenticatedSuite({ apiUrl, add, managerUsername = '', managerPassword = '' }) {
+export async function runAuthenticatedSuite({ apiUrl, add, managerUsername = '', managerPassword = '', returnContext = false }) {
   if (!managerUsername || !managerPassword) {
-    for (const [id,name,detail] of [['MASTER-001','Cắt has CAT01-CAT04','Thiếu KTC_TEST_MANAGER_USERNAME/PASSWORD'],['MASTER-002','Lồng has LONG01-LONG05','Thiếu KTC_TEST_MANAGER_USERNAME/PASSWORD'],['WORKER-001','Create production report','Thiếu manager fixture'],['WORKER-002','View report history','Thiếu worker fixture'],['WORKER-003','Edit report within 10 minutes','Thiếu worker fixture'],['RULE-001','Daily total <= 12 hours','Thiếu worker fixture'],['RULE-002','Support/deduction excluded from daily production hours','Thiếu worker fixture'],['MANAGER-001','Manager review/approve','Thiếu manager fixture'],['PERM-001','Role authorization','Thiếu role fixture'],['EXPORT-001','Excel export','Thiếu manager fixture']]) add(name,'SKIP',detail,id);
-    return;
+    for (const [id,name,detail] of [['MASTER-001','Cắt has CAT01-CAT04','Thiếu manager fixture'],['MASTER-002','Lồng has LONG01-LONG05','Thiếu manager fixture'],['WORKER-001','Create production report','Thiếu manager fixture'],['WORKER-002','View report history','Thiếu worker fixture'],['WORKER-003','Edit report within 10 minutes','Thiếu worker fixture'],['RULE-001','Daily total <= 12 hours','Thiếu worker fixture'],['RULE-002','Support/deduction excluded from daily production hours','Thiếu worker fixture'],['MANAGER-001','Manager review/approve','Thiếu manager fixture'],['PERM-001','Role authorization','Thiếu role fixture'],['EXPORT-001','Excel export','Thiếu manager fixture']]) add(name,'SKIP',detail,id);
+    return null;
   }
   let manager;
   try { manager = await login(apiUrl, managerUsername, managerPassword, 'management'); }
-  catch (e) { for (const [id,name] of [['MASTER-001','Cắt has CAT01-CAT04'],['MASTER-002','Lồng has LONG01-LONG05'],['WORKER-001','Create production report'],['WORKER-002','View report history'],['WORKER-003','Edit report within 10 minutes'],['RULE-001','Daily total <= 12 hours'],['RULE-002','Support/deduction excluded from daily production hours'],['MANAGER-001','Manager review/approve'],['PERM-001','Role authorization'],['EXPORT-001','Excel export']]) add(name,'FAIL',e.message,id); return; }
+  catch (e) { for (const [id,name] of [['MASTER-001','Cắt has CAT01-CAT04'],['MASTER-002','Lồng has LONG01-LONG05'],['WORKER-001','Create production report'],['WORKER-002','View report history'],['WORKER-003','Edit report within 10 minutes'],['RULE-001','Daily total <= 12 hours'],['RULE-002','Support/deduction excluded from daily production hours'],['MANAGER-001','Manager review/approve'],['PERM-001','Role authorization'],['EXPORT-001','Excel export']]) add(name,'FAIL',e.message,id); return null; }
   let processes;
   try { processes = await getProcesses(apiUrl, manager.token); }
-  catch (e) { add('Authenticated process fixture','FAIL',e.message,'AUTH-001'); return; }
-  if (!processes.length) { add('Authenticated process fixture','FAIL','Không có công đoạn active','AUTH-001'); return; }
+  catch (e) { add('Authenticated process fixture','FAIL',e.message,'AUTH-001'); return null; }
+  if (!processes.length) { add('Authenticated process fixture','FAIL','Không có công đoạn active','AUTH-001'); return null; }
   let worker;
-  try { worker = await createWorker(apiUrl, manager.token, processes.map(p=>p.id)); process.env.KTC_TEST_WORKER_CODE = worker.workerCode; }
-  catch (e) { add('Authenticated worker fixture','FAIL',e.message,'AUTH-002'); return; }
+  try { worker = await createWorker(apiUrl, manager.token, processes.map(p=>p.id)); }
+  catch (e) { add('Authenticated worker fixture','FAIL',e.message,'AUTH-002'); return null; }
   let workerSession;
   try { workerSession = await login(apiUrl, worker.workerCode, '', 'worker'); }
-  catch (e) { add('Authenticated worker login','FAIL',e.message,'AUTH-003'); return; }
+  catch (e) { add('Authenticated worker login','FAIL',e.message,'AUTH-003'); return null; }
 
   const masters = await masterChecks(apiUrl, workerSession.token, processes);
   for (const x of masters.result) add(x.name,x.status,x.detail,x.id);
   const productionProcess = masters.cut || processes[0];
   let ctx;
   try { ctx = await chooseProductionContext(apiUrl, workerSession.token, productionProcess); }
-  catch (e) { add('Create production report','FAIL',e.message,'WORKER-001'); return; }
+  catch (e) { add('Create production report','FAIL',e.message,'WORKER-001'); return returnContext ? { managerToken: manager.token, workerToken: workerSession.token } : null; }
   const created = await createReport(apiUrl, workerSession.token, ctx, { shift:'A' });
   add('Create production report', created.response.ok && created.body?.success ? 'PASS' : 'FAIL', `HTTP ${created.response.status} ${created.body?.message || ''}`, 'WORKER-001');
   const reportId = Number(created.body?.data?.id || created.body?.id || 0);
@@ -146,6 +145,8 @@ export async function runAuthenticatedSuite({ apiUrl, add, managerUsername = '',
   add('Manager review/approve', approve?.response.ok && approve.body?.success !== false ? 'PASS' : 'FAIL', approve ? `HTTP ${approve.response.status}` : 'Không tìm thấy pending report', 'MANAGER-001');
   const workerForbidden = await api(apiUrl, '/api/production-temp/pending', { headers:auth(workerSession.token) });
   add('Role authorization', workerForbidden.response.status === 403 ? 'PASS' : 'FAIL', `Worker gọi manager API: HTTP ${workerForbidden.response.status}`, 'PERM-001');
-  const exportResponse = await api(apiUrl, '/api/report-export/excel', { headers:auth(manager.token) });
-  add('Excel export', exportResponse.response.status !== 401 && exportResponse.response.status !== 403 ? 'PASS' : 'FAIL', `HTTP ${exportResponse.response.status}`, 'EXPORT-001');
+  const exportResponse = await api(apiUrl, '/api/reports/export-excel/company-status', { headers:auth(manager.token) });
+  add('Excel export', exportResponse.response.ok && exportResponse.body?.success === true ? 'PASS' : 'FAIL', `HTTP ${exportResponse.response.status}`, 'EXPORT-001');
+
+  return returnContext ? { managerToken: manager.token, workerToken: workerSession.token } : null;
 }
