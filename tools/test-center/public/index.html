@@ -20,21 +20,21 @@
 <div class="wrap">
   <div class="top"><div><div class="eyebrow">KTC / TEST ENVIRONMENT</div><div class="title">Test Center</div><div class="sub">Một lần chạy: FE local + API/business test + Playwright UI/E2E.</div></div><div class="env">TEST ONLY</div></div>
   <div class="panel controls">
-    <input id="frontend" class="input" placeholder="FE local URL" value="http://127.0.0.1:5173" />
+    <input id="frontend" class="input" placeholder="FE local URL" value="http://127.0.0.1:5174" />
     <input id="api" class="input" placeholder="KTC backend test URL" value="https://ktc-be-test.nan978971.workers.dev" />
-    <button id="run" class="btn primary">▶ Chạy toàn bộ</button>
-    <button id="clear" class="btn danger">Dọn dữ liệu test</button>
+    <button id="run" type="button" class="btn primary">▶ Chạy toàn bộ</button>
+    <button id="clear" type="button" class="btn danger">Dọn dữ liệu test</button>
   </div>
   <div class="summary"><div class="stat"><div id="total" class="n">0</div><div class="l">TOTAL</div></div><div class="stat"><div id="pass" class="n">0</div><div class="l">PASS</div></div><div class="stat"><div id="fail" class="n">0</div><div class="l">FAIL</div></div><div class="stat"><div id="skip" class="n">0</div><div class="l">SKIP</div></div></div>
   <div class="panel suite"><div class="suite-head">Test suite</div><div id="cases"></div></div>
-  <div id="log" class="log">Sẵn sàng. FE sẽ tự chạy bằng Vite từ thư mục frontend; API dùng ktc-be-test.</div>
-  <div class="hint">Test Center tự khởi động frontend local tại http://127.0.0.1:5173 bằng Vite và inject VITE_API_URL trỏ vào backend test. Không deploy FE test riêng. Không ghi credential vào Git.</div>
+  <div id="log" class="log">Sẵn sàng. FE test sẽ chạy bằng Vite trên cổng 5174; API dùng ktc-be-test.</div>
+  <div class="hint">Test Center tự khởi động frontend local tại http://127.0.0.1:5174 bằng Vite và inject VITE_API_URL trỏ vào backend test. Cổng 5174 được tách riêng để không dùng nhầm một FE cũ đang chạy ở 5173.</div>
 </div>
 <script>
 const $=id=>document.getElementById(id);let running=false;
 function render(items=[]){$('cases').innerHTML=items.map(x=>`<div class="case"><div>${x.status==='PASS'?'✓':x.status==='FAIL'?'✕':x.status==='SKIP'?'–':'•'}</div><div><div class="name">${x.name}</div><div class="detail">${x.detail||''}</div></div><span class="badge ${x.status==='PASS'?'pass':x.status==='FAIL'?'fail':x.status==='SKIP'?'skip':'run'}">${x.status}</span></div>`).join('');$('total').textContent=items.length;$('pass').textContent=items.filter(x=>x.status==='PASS').length;$('fail').textContent=items.filter(x=>x.status==='FAIL').length;$('skip').textContent=items.filter(x=>x.status==='SKIP').length}
 (async()=>{try{const c=await fetch('/api/config').then(r=>r.json());if(c.frontendUrl)$('frontend').value=c.frontendUrl;if(c.apiUrl)$('api').value=c.apiUrl}catch{}})();
-$('run').onclick=async()=>{if(running)return;running=true;$('run').disabled=true;render([{name:'Test run đang khởi động',status:'RUN'}]);$('log').textContent='Đang khởi động FE local + chạy API + Playwright...';try{const r=await fetch('/api/run',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({frontendUrl:$('frontend').value.trim(),apiUrl:$('api').value.trim()})});const d=await r.json();render(d.results||[]);$('log').textContent=d.log||d.error||'Hoàn tất.'}catch(e){render([{name:'Test Center',status:'FAIL',detail:e.message}]);$('log').textContent=e.stack||String(e)}finally{running=false;$('run').disabled=false}};
+$('run').onclick=async()=>{if(running)return;running=true;$('run').disabled=true;render([{name:'Test run đang khởi động',status:'RUN',detail:'FE test riêng trên :5174; không sử dụng FE cũ trên :5173.'}]);$('log').textContent='Đang khởi động FE test local trên :5174 + chạy API + Playwright...';try{const r=await fetch('/api/run',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({frontendUrl:$('frontend').value.trim(),apiUrl:$('api').value.trim()})});const d=await r.json();render(d.results||[]);$('log').textContent=d.log||d.error||'Hoàn tất.'}catch(e){render([{name:'Test Center',status:'FAIL',detail:e.message}]);$('log').textContent=e.stack||String(e)}finally{running=false;$('run').disabled=false}};
 $('clear').onclick=async()=>{if(!confirm('Chỉ xóa dữ liệu test. Tiếp tục?'))return;const r=await fetch('/api/cleanup',{method:'POST'});const d=await r.json();$('log').textContent=d.message||d.error||'Đã xử lý.'};
 </script>
 </body>
