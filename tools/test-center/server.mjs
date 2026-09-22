@@ -29,7 +29,7 @@ app.post('/api/run', async (req, res) => {
 });
 
 app.post('/api/cleanup', async (_req, res) => {
-  // Intentionally fail closed until a test-only DB adapter is configured.
+  // Fail closed until a test-only DB adapter is configured.
   // Never guess table names or run destructive SQL from the dashboard.
   res.status(409).json({
     error: 'CLEANUP_NOT_CONFIGURED',
@@ -37,7 +37,7 @@ app.post('/api/cleanup', async (_req, res) => {
   });
 });
 
-app.get('*', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.use((_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 app.listen(port, () => {
   console.log(`KTC Test Center: http://127.0.0.1:${port}`);
