@@ -1,5 +1,5 @@
 import { chromium } from 'playwright';
-import { TEST_CASES } from './test-cases.mjs';
+import { runAuthenticatedSuite } from './authenticated-suite.mjs';
 
 export async function runTestSuite(options = {}) {
   const results = [];
@@ -39,9 +39,6 @@ export async function runTestSuite(options = {}) {
       try {
         await page.goto(`${frontendUrl}/#/login`, { waitUntil: 'networkidle', timeout: 30_000 });
         await page.waitForLoadState('domcontentloaded');
-
-        // Do not depend on visible Vietnamese/English text: the login UI can be icon/text styled
-        // or localized. Validate the actual form structure instead.
         const inputs = page.locator('input');
         const inputCount = await inputs.count();
         const buttons = page.locator('button, [role="button"], input[type="submit"]');
@@ -50,13 +47,8 @@ export async function runTestSuite(options = {}) {
         const hasForm = await page.locator('form').count() > 0;
         const bodyText = await page.locator('body').innerText();
         const hasLoginText = /đăng nhập|login|mã công nhân|mật khẩu|worker/i.test(bodyText);
-
-        if ((hasForm && inputCount >= 1) || (inputCount >= 1 && buttonCount >= 1) || hasPassword || hasLoginText) {
-          add(name, 'PASS', `viewport=${width}x${height}; inputs=${inputCount}; buttons=${buttonCount}`, id);
-        } else {
-          add(name, 'FAIL', `Không nhận diện được form login. inputs=${inputCount}; buttons=${buttonCount}; URL=${page.url()}`, id);
-        }
-
+        if ((hasForm && inputCount >= 1) || (inputCount >= 1 && buttonCount >= 1) || hasPassword || hasLoginText) add(name, 'PASS', `viewport=${width}x${height}; inputs=${inputCount}; buttons=${buttonCount}`, id);
+        else add(name, 'FAIL', `Không nhận diện được form login. inputs=${inputCount}; buttons=${buttonCount}; URL=${page.url()}`, id);
         add(id === 'UI-001' ? 'Browser console desktop' : 'Browser console mobile', consoleErrors.length ? 'FAIL' : 'PASS', consoleErrors.slice(0, 3).join(' | '), id === 'UI-001' ? 'UI-003' : 'UI-004');
       } catch (error) { add(name, 'FAIL', error.message, id); }
       finally { await context.close(); }
@@ -64,7 +56,13 @@ export async function runTestSuite(options = {}) {
   } catch (error) { add('Playwright engine', 'FAIL', `${error.message}. Chạy npm install trong tools/test-center.`, 'UI-000'); }
   finally { if (browser) await browser.close(); }
 
-  for (const test of TEST_CASES.filter(x => x.status === 'SKIP')) add(test.name, 'SKIP', test.detail, test.id);
+  await runAuthenticatedSuite({
+    apiUrl,
+    add,
+    managerUsername: process.env.KTC_TEST_MANAGER_USERNAME || '',
+    managerPassword: process.env.KTC_TEST_MANAGER_PASSWORD || '',
+  });
+
   return summarize(results);
 }
 
