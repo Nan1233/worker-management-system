@@ -13,21 +13,24 @@ const defaultApiUrl = process.env.KTC_API_URL || 'https://ktc-be-test.nan978971.
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-function assertTestTarget(url) {
-  const target = String(url || '').toLowerCase();
-  if (expectedEnv === 'test' && !/(test|staging|127\.0\.0\.1|localhost)/i.test(target)) {
-    throw new Error('Chỉ được chạy Test Center với URL test/staging/local. Production bị chặn.');
-  }
+function assertTestTarget(url, label = 'URL') {
+  let parsed;
+  try { parsed = new URL(String(url || '')); } catch { throw new Error(`${label} không phải URL hợp lệ.`); }
+  if (!/^https?:$/i.test(parsed.protocol)) throw new Error(`${label} phải dùng http/https.`);
+  if (expectedEnv !== 'test') return;
+  const host = parsed.hostname.toLowerCase();
+  const allowed = host.includes('test') || host.includes('staging') || host === 'localhost' || host === '127.0.0.1';
+  if (!allowed) throw new Error(`${label} không phải môi trường test: ${parsed.origin}. Production bị chặn.`);
 }
 
 app.get('/api/config', (_req, res) => res.json({ frontendUrl: defaultFrontendUrl, apiUrl: defaultApiUrl, environment: expectedEnv }));
 
 app.post('/api/run', async (req, res) => {
   try {
-    const frontendUrl = req.body?.frontendUrl || defaultFrontendUrl;
-    const apiUrl = req.body?.apiUrl || defaultApiUrl;
-    assertTestTarget(frontendUrl);
-    assertTestTarget(apiUrl);
+    const frontendUrl = String(req.body?.frontendUrl || defaultFrontendUrl).trim();
+    const apiUrl = String(req.body?.apiUrl || defaultApiUrl).trim();
+    assertTestTarget(frontendUrl, 'Frontend URL');
+    assertTestTarget(apiUrl, 'Backend API URL');
     const result = await runTestSuite({ frontendUrl, apiUrl });
     res.json(result);
   } catch (error) {
