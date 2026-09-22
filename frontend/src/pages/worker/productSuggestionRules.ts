@@ -29,12 +29,28 @@ export const getProductMachineHint = (productCode: unknown): { kind: "AUTO" | "N
 };
 
 /**
+ * Lồng-specific suffix convention:
+ *   -M       = Lồng Máy
+ *   -LT/-L/-T = Lồng Tay
+ *   no suffix = usable for both Tay and Máy
+ */
+type LongHandling = "MACHINE" | "MANUAL" | "BOTH" | "UNKNOWN";
+
+const getLongHandling = (productCode: unknown): LongHandling => {
+    const code = normalize(productCode);
+    if (/-M$/i.test(code)) return "MACHINE";
+    if (/(?:-LT|-L|-T)$/i.test(code)) return "MANUAL";
+    return "BOTH";
+};
+
+/**
  * Canonical product family. C7630-11 and 7630 belong to the same family.
  * This is used only for matching machine-specific variants.
  */
 export const getProductFamilyCode = (productCode: unknown): string =>
     normalize(productCode)
         .replace(/-(AUTO|AUTOMATIC|\d+)$/i, "")
+        .replace(/(?:-LT|-L|-T|-M)$/i, "")
         .replace(/^C(?=\d)/, "");
 
 /** Extract the physical machine number from both `C5` and `5` forms. */
@@ -96,29 +112,46 @@ export const filterProductsForSelection = ({
             .map((product) => getProductFamilyCode(product.product_code))
     );
 
-    if (mode === "MANUAL") {
-        if (!useEncodedMachineSuffix) return products;
-
-        return products.filter((product) => {
-            if (normalizeWorkType(product.work_type) !== "LONG") return false;
-            const mappedMachines = eligibleMachineCodes(product);
-            const hasExplicitMapping = Number(product.has_machine_specific_standard || 0) === 1 || mappedMachines.length > 0;
-            if (hasExplicitMapping) return false;
-            return !getProductMachineHint(product.product_code);
-        });
-    }
-
     const selectedMachine = normalizeMachineKey(machineCode);
     const selectedRawMachine = normalize(machineCode).replace(/\s+/g, "");
 
-    if (!selectedMachine && useEncodedMachineSuffix) {
-        return products.filter((product) => {
-            if (normalizeWorkType(product.work_type) !== "LONG") return false;
+    // For GC Lồng, suffix is the authoritative Tay/Máy classification:
+    // -M = Máy, -LT/-L/-T = Tay, no suffix = both.
+    // This is intentionally independent from Cắt's -auto/-5/-6/-11 rules.
+    if (useEncodedMachineSuffix) {
+        const longProducts = products.filter(
+            (product) => normalizeWorkType(product.work_type) === "LONG"
+        );
+
+        if (mode === "MANUAL") {
+            return longProducts.filter((product) => {
+                const handling = getLongHandling(product.product_code);
+                return handling === "MANUAL" || handling === "BOTH";
+            });
+        }
+
+        if (!selectedMachine) {
+            return longProducts.filter((product) => {
+                const handling = getLongHandling(product.product_code);
+                return handling === "MACHINE" || handling === "BOTH";
+            });
+        }
+
+        return longProducts.filter((product) => {
+            const handling = getLongHandling(product.product_code);
+            if (handling !== "MACHINE" && handling !== "BOTH") return false;
+
             const mappedMachines = eligibleMachineCodes(product);
             const hasExplicitMapping = Number(product.has_machine_specific_standard || 0) === 1 || mappedMachines.length > 0;
-            if (hasExplicitMapping) return false;
-            return !getProductMachineHint(product.product_code);
+            if (hasExplicitMapping && mappedMachines.length > 0 && !mappedMachines.includes(selectedMachine)) {
+                return false;
+            }
+            return true;
         });
+    }
+
+    if (mode === "MANUAL") {
+        return products;
     }
 
     if (!selectedMachine) return [];
