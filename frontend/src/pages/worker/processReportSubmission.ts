@@ -20,9 +20,6 @@ const parseHours = (value: unknown): number => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-// Legacy GC fields are still present in the form because older reports/drafts
-// use names such as `xoay`, `bavia_hut`, etc. Keep them as a compatibility
-// source for persistence, but always resolve them to the DB master defect.
 const LEGACY_DEFECT_BINDINGS: Array<[keyof FormState, string, string]> = [
   ["kqdDapLai", "KQD", "KQD"],
   ["kqdTuot", "KQD", "KQD"],
@@ -58,6 +55,19 @@ export function buildProductionReportPayload(args: {
 }): ProductionReport {
   const num=(v:unknown)=>Number(v)||0;
 
+  const resolvePositiveStandardOutput = (productCode: string, currentValue: unknown): number => {
+    const current = Number(currentValue);
+    if (Number.isFinite(current) && current > 0) return current;
+    const normalizedProduct = String(productCode || "").trim().toUpperCase();
+    if (!normalizedProduct) return 0;
+    const candidates = args.productOptions
+      .filter((row) => String(row?.product_code || "").trim().toUpperCase() === normalizedProduct)
+      .map((row) => Number(row?.standard_output))
+      .filter((value) => Number.isFinite(value) && value > 0)
+      .sort((a, b) => b - a);
+    return candidates[0] ?? 0;
+  };
+
   const defectForOption = (option?: Option, quantity = 0) => ({
     defect_type_id:Number(option?.id || option?.defect_type_id || 0)||undefined,
     defect_code:String(option?.code || option?.defect_code || ""),
@@ -83,19 +93,12 @@ export function buildProductionReportPayload(args: {
     quantity:num(args.form[o.key])
   })).filter(x=>x.quantity>0);
 
-  // If the current master option key is different from an older form field,
-  // recover the entered quantity from the legacy field instead of silently
-  // dropping the NG detail from the submit payload.
   for (const [field, code, name] of LEGACY_DEFECT_BINDINGS) {
     const quantity=num(args.form[String(field)]);
     if (quantity<=0) continue;
     const identity=normalizeDefectIdentity(code,name);
     const existing=formDefects.find(item=>normalizeDefectIdentity(item.defect_code,item.defect_name)===identity);
-    if (existing) {
-      // The modern option and legacy field represent the same physical defect;
-      // do not double-count it.
-      continue;
-    }
+    if (existing) continue;
     const master=args.activeNgOptions.find(o=>normalizeDefectIdentity(String(o.code||o.defect_code||""),String(o.label||o.defect_name||""))===identity);
     formDefects.push({
       defect_type_id:Number(master?.id||master?.defect_type_id||0)||undefined,
@@ -111,9 +114,6 @@ export function buildProductionReportPayload(args: {
       ...Object.keys(l.defects || {}).filter((key) => num(l.defects[key]) > 0),
     ]);
     const lineDefects = [...defectKeys].map((key) => {
-      // New master-data keys are defect:<id>. Older drafts/data can still
-      // contain the defect code. Resolve by key first, then id/code so the
-      // quantity cannot silently disappear from the submit payload.
       const option = args.activeNgOptions.find(o =>
         String(o.key) === key ||
         String(o.code || o.defect_code || "").trim().toUpperCase() === key.trim().toUpperCase() ||
@@ -130,18 +130,13 @@ export function buildProductionReportPayload(args: {
       adjustment_count:num(l.adjustmentCount),
       ok_quantity:num(l.okQuantity),
       ng_quantity:num(l.ngQuantity),
-      standard_output:num(l.standardOutputPerHour),
+      standard_output:resolvePositiveStandardOutput(l.productCode, l.standardOutputPerHour),
       standard_time_seconds:l.standardTimeSeconds,
       standard_source:l.standardSource,
       defects:lineDefects
     };
   });
 
-  // Machine-line quantities are the authoritative source whenever they contain
-  // defect detail. Do not gate this on a UI mode flag: that flag can be stale
-  // when a draft is restored/edited, while the line defects are the actual data.
-  // Also copy them to the parent defects list so production_temp_defects is
-  // populated and History/Detail can display the same NG breakdown.
   const machineDefects = lines.flatMap((line) => line.defects || []);
   const defects = machineDefects.length > 0
     ? machineDefects.reduce<Array<{defect_type_id?:number;defect_code:string;defect_name:string;quantity:number}>>((acc, item) => {
@@ -168,7 +163,7 @@ export function buildProductionReportPayload(args: {
       adjustment_count:num(args.form.adjustmentCount),
       ok_quantity:num(args.form.ttOk),
       ng_quantity:num(args.form.ttNg),
-      standard_output:num(args.form.standardOutput),
+      standard_output:resolvePositiveStandardOutput(args.form.productName, args.form.standardOutput),
       standard_time_seconds:null,
       standard_source:"DEFAULT",
       defects:singleLineDefects,
@@ -187,10 +182,6 @@ export function buildProductionReportPayload(args: {
   const hasActualMachineLine=(args.usesMultiMachineLines||args.usesSingleMachine)&&lines.some((line)=>!!line.machine_code);
   const useMachineLinesPayload=(args.usesMultiMachineLines||args.usesSingleMachine)&&hasActualMachineLine;
 
-  // CUT execution is determined by the selected machine. C5/C6/C7/C11 are
-  // automatic; every other C machine is non-automatic. The old form state
-  // could retain the default AUTO after the worker clicked "Không tự động",
-  // causing the UI selection and persisted report to disagree.
   const normalizedMachine = String(args.form.machineNo || lines[0]?.machine_code || "").trim().toUpperCase();
   const automaticCutMachines = new Set<string>(["C5", "C6", "C7", "C11"]);
   const executionMethod = args.operationType === "CUT"
@@ -206,7 +197,7 @@ export function buildProductionReportPayload(args: {
     operation_type:args.operationType,
     operation_mode:useMachineLinesPayload?"MACHINE":(args.usesAnyMachine&&!args.isCutLongProcess?"MACHINE":"MANUAL"),
     total_time:totalTime, actual_time:actualTime, deduction_time:deductionTime,
-    standard_output:useMachineLinesPayload?lines.reduce((sum,l)=>sum+num(l.standard_output),0):num(args.form.standardOutput),
+    standard_output:useMachineLinesPayload?lines.reduce((sum,l)=>sum+num(l.standard_output),0):resolvePositiveStandardOutput(args.form.productName,args.form.standardOutput),
     actual_output:actualOutput, tt_ok:num(args.form.ttOk), tt_ng:num(args.form.ttNg),
     kqd_dap_lai:num(args.form.kqdDapLai), kqd_tuot:num(args.form.kqdTuot), vo_do_long:num(args.form.voDoLong),
     xuoc_do_long:num(args.form.xuocDoLong), cong_gay:num(args.form.congGay), xoay:num(args.form.xoay),
