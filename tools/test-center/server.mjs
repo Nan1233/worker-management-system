@@ -10,7 +10,6 @@ const repoRoot = path.resolve(__dirname, '../..');
 const frontendDir = path.join(repoRoot, 'frontend');
 const app = express();
 const port = Number(process.env.PORT || 4790);
-// Use a dedicated port so an already-running KTC frontend on :5173 can never be mistaken for the test FE.
 const localFrontendPort = Number(process.env.KTC_FRONTEND_PORT || 5174);
 const expectedEnv = process.env.KTC_TEST_ENV || 'test';
 const defaultFrontendUrl = process.env.KTC_FRONTEND_URL || `http://127.0.0.1:${localFrontendPort}`;
@@ -51,17 +50,26 @@ async function waitForFrontend(url, timeoutMs = 30_000) {
 function startLocalFrontend(apiUrl) {
   if (frontendProcess && !frontendProcess.killed) return frontendStartPromise;
 
-  const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const npmArgs = ['run', 'dev', '--', '--host', '127.0.0.1', '--port', String(localFrontendPort), '--strictPort'];
   const env = {
     ...process.env,
     VITE_API_URL: `${apiUrl.replace(/\/$/, '')}/api`,
   };
 
-  frontendProcess = spawn(npmCommand, ['run', 'dev', '--', '--host', '127.0.0.1', '--port', String(localFrontendPort), '--strictPort'], {
+  // Windows can throw spawn EINVAL when npm.cmd is spawned directly from Node.
+  // Run npm through cmd.exe so the Test Center works from PowerShell/cmd on Windows.
+  const isWindows = process.platform === 'win32';
+  const command = isWindows ? (process.env.ComSpec || 'cmd.exe') : 'npm';
+  const args = isWindows
+    ? ['/d', '/s', '/c', 'npm.cmd', ...npmArgs]
+    : npmArgs;
+
+  frontendProcess = spawn(command, args, {
     cwd: frontendDir,
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
+    shell: false,
   });
 
   frontendProcess.stdout?.on('data', chunk => process.stdout.write(`[KTC FE] ${chunk}`));
