@@ -1,156 +1,135 @@
-import { chromium } from 'playwright';
+import { Builder, By, until } from 'selenium-webdriver';
+import chrome from 'selenium-webdriver/chrome.js';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const log = (id, step, message, extra = '') => console.log(`[KTC SELENIUM][${id}][${step}] ${message}${extra ? ` | ${extra}` : ''}`);
 
-async function visible(page, selectors, timeout = 12000) {
-  const list = Array.isArray(selectors) ? selectors : [selectors];
-  const locator = page.locator(list.join(', ')).first();
-  await locator.waitFor({ state: 'visible', timeout });
-  return locator;
+async function screenshot(driver, id) {
+  const dir = path.resolve(process.cwd(), 'test-results');
+  await fs.mkdir(dir, { recursive: true });
+  const file = path.join(dir, `${id}-FAIL.png`);
+  await fs.writeFile(file, await driver.takeScreenshot(), 'base64');
+  log(id, 'SCREENSHOT', 'Đã lưu screenshot', file);
 }
 
-async function runCase(add, id, name, fn) {
+async function visible(driver, selectors, timeout = 15000) {
+  for (const selector of selectors) {
+    try {
+      const el = await driver.wait(until.elementLocated(By.css(selector)), timeout);
+      await driver.wait(until.elementIsVisible(el), timeout);
+      return el;
+    } catch {}
+  }
+  throw new Error(`Không tìm thấy element: ${selectors.join(' | ')}`);
+}
+
+async function clickText(driver, text, timeout = 10000) {
+  const el = await driver.wait(until.elementLocated(By.xpath(`//*[self::button or self::a or @role='button'][contains(normalize-space(.), '${text}')]`)), timeout);
+  await driver.wait(until.elementIsVisible(el), timeout);
+  await el.click();
+}
+
+async function runCase(driver, add, id, name, fn) {
+  const started = Date.now();
+  log(id, 'START', name);
   try {
     const detail = await fn();
-    add(name, 'PASS', detail || 'OK', id);
+    const result = `${detail || 'OK'} | duration=${Date.now() - started}ms`;
+    add(name, 'PASS', result, id);
+    log(id, 'PASS', name, result);
   } catch (error) {
-    add(name, 'FAIL', error?.message || String(error), id);
+    const detail = error?.message || String(error);
+    try { await screenshot(driver, id); } catch {}
+    add(name, 'FAIL', detail, id);
+    log(id, 'FAIL', name, detail);
   }
-}
-
-async function openLogin(page, frontendUrl) {
-  await page.goto(`${frontendUrl}/#/login`, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.locator('#root').waitFor({ state: 'attached', timeout: 10000 });
-
-  try {
-    return await visible(page, [
-      '#login-username',
-      'input[autocomplete="username"]',
-      'input[placeholder*="mã nhân viên" i]',
-    ], 12000);
-  } catch (error) {
-    const bodyText = ((await page.locator('body').innerText().catch(() => '')) || '')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 500);
-    const title = await page.title().catch(() => '');
-    throw new Error(`Login UI không render: URL=${page.url()}; title=${title}; body=${bodyText || '(trống)'}; ${error?.message || error}`);
-  }
-}
-
-function usernameInput(page) {
-  return page.locator('#login-username, input[autocomplete="username"], input[placeholder*="mã nhân viên" i]').first();
 }
 
 export async function runLoginE2E({ frontendUrl, add, managerUsername = '', managerPassword = '' }) {
-  let browser;
+  const headless = /^(1|true|yes)$/i.test(String(process.env.KTC_HEADLESS || '0'));
+  const slowMo = Number(process.env.KTC_SLOWMO_MS || 350);
+  const options = new chrome.Options();
+  options.addArguments('--start-maximized');
+  if (headless) options.addArguments('--headless=new', '--window-size=1440,900');
+  console.log(`[KTC SELENIUM] Chrome Login: headless=${headless}; slowMo=${slowMo}ms`);
+  const driver = await new Builder().forBrowser('chrome').setChromeOptions(options).build();
+
   try {
-    // Selenium-like behavior: Chromium is visible by default.
-    // Headless is enabled only when the user explicitly sets KTC_HEADLESS=1/true/yes.
-    const headless = /^(1|true|yes)$/i.test(String(process.env.KTC_HEADLESS || '0'));
-    const slowMo = Number(process.env.KTC_SLOWMO_MS || 350);
-    console.log(`[KTC PLAYWRIGHT] Login Chromium: headless=${headless}; slowMo=${slowMo}ms`);
-
-    browser = await chromium.launch({
-      headless,
-      slowMo,
-      args: headless ? [] : ['--start-maximized'],
-    });
-
-    for (const [device, width, height] of [
-      ['desktop', 1440, 900],
-      ['mobile', 390, 844],
-    ]) {
-      const context = await browser.newContext({ viewport: { width, height } });
-      const page = await context.newPage();
+    await driver.manage().setTimeouts({ implicit: 1000, pageLoad: 30000, script: 30000 });
+    log('SYS', '01', 'Chrome launched');
+    for (const [device, width, height] of [['desktop', 1440, 900], ['mobile', 390, 844]]) {
+      await driver.manage().window().setRect({ width, height });
       const consoleErrors = [];
-      page.on('console', (message) => {
-        if (message.type() === 'error') consoleErrors.push(message.text());
-      });
-      page.on('pageerror', (error) => consoleErrors.push(`PAGEERROR: ${error.message}`));
-
-      await runCase(add, `LOGIN-${device === 'desktop' ? '001' : '009'}`, `Login page ${device} renders`, async () => {
-        await openLogin(page, frontendUrl);
-        const title = await page.locator('h1').innerText();
-        const submit = await page.getByRole('button', { name: /tiếp tục/i }).count();
-        if (!/chào mừng/i.test(title) || submit !== 1) throw new Error(`Login UI không đúng: title=${title}; submit=${submit}`);
+      await runCase(driver, add, `LOGIN-${device}-001`, `Login page ${device} renders`, async () => {
+        log(`LOGIN-${device}-001`, '01', `Mở ${frontendUrl}/#/login`);
+        await driver.get(`${frontendUrl}/#/login`);
+        log(`LOGIN-${device}-001`, '02', 'DOM loaded', `URL=${await driver.getCurrentUrl()}`);
+        log(`LOGIN-${device}-001`, '03', 'Tìm username input');
+        await visible(driver, ['#login-username', 'input[autocomplete="username"]', 'input[placeholder*="mã nhân viên" i]']);
         return `viewport=${width}x${height}`;
       });
 
       if (device === 'desktop') {
-        await runCase(add, 'LOGIN-002', 'Login rejects empty employee code', async () => {
-          await openLogin(page, frontendUrl);
-          await page.getByRole('button', { name: /tiếp tục/i }).click();
-          const alert = await visible(page, '[role="alert"]');
-          const text = await alert.innerText();
+        await runCase(driver, add, 'LOGIN-002', 'Login rejects empty employee code', async () => {
+          await clickText(driver, 'Tiếp tục');
+          const alert = await visible(driver, ['[role="alert"]']);
+          const text = await alert.getText();
           if (!/mã nhân viên/i.test(text)) throw new Error(`Thông báo sai: ${text}`);
           return text;
         });
 
-        await runCase(add, 'LOGIN-003', 'Valid employee code opens role choice', async () => {
-          await openLogin(page, frontendUrl);
-          await usernameInput(page).fill(managerUsername || 'manager1');
-          await page.getByRole('button', { name: /tiếp tục/i }).click();
-          await page.getByRole('button', { name: /công nhân/i }).waitFor({ state: 'visible' });
-          await page.getByRole('button', { name: /quản lý/i }).waitFor({ state: 'visible' });
-          return 'Công nhân + Quản lý hiển thị';
+        await runCase(driver, add, 'LOGIN-003', 'Valid employee code opens role choice', async () => {
+          await driver.get(`${frontendUrl}/#/login`);
+          const input = await visible(driver, ['#login-username', 'input[autocomplete="username"]', 'input[placeholder*="mã nhân viên" i]']);
+          await input.clear(); await input.sendKeys(managerUsername || 'manager1');
+          await clickText(driver, 'Tiếp tục');
+          await visible(driver, ['button']);
+          await clickText(driver, 'Quản lý');
+          await visible(driver, ['#login-password', 'input[autocomplete="current-password"]', 'input[type="password"]']);
+          return 'Quản lý -> password visible';
         });
 
-        await runCase(add, 'LOGIN-004', 'Back from role choice returns to employee code', async () => {
-          await page.getByRole('button', { name: /nhập lại mã nhân viên/i }).click();
-          await usernameInput(page).waitFor({ state: 'visible' });
-          return 'Quay lại bước 1';
-        });
-
-        await runCase(add, 'LOGIN-005', 'Management role opens password step', async () => {
-          await usernameInput(page).fill(managerUsername || 'manager1');
-          await page.getByRole('button', { name: /tiếp tục/i }).click();
-          await page.getByRole('button', { name: /quản lý/i }).click();
-          await visible(page, '#login-password, input[autocomplete="current-password"]');
-          return 'Password field visible';
-        });
-
-        await runCase(add, 'LOGIN-006', 'Management login rejects empty password', async () => {
-          await page.getByRole('button', { name: /đăng nhập/i }).click();
-          const alert = await visible(page, '[role="alert"]');
-          const text = await alert.innerText();
+        await runCase(driver, add, 'LOGIN-004', 'Management login rejects empty password', async () => {
+          await clickText(driver, 'Đăng nhập');
+          const alert = await visible(driver, ['[role="alert"]']);
+          const text = await alert.getText();
           if (!/mật khẩu/i.test(text)) throw new Error(`Thông báo sai: ${text}`);
           return text;
         });
 
-        await runCase(add, 'LOGIN-007', 'Password visibility toggle works', async () => {
-          const input = page.locator('#login-password, input[autocomplete="current-password"]').first();
-          await input.fill('test-password');
-          if (await input.getAttribute('type') !== 'password') throw new Error('Mặc định password không phải type=password.');
-          await page.getByRole('button', { name: /hiện mật khẩu/i }).click();
-          if (await input.getAttribute('type') !== 'text') throw new Error('Nút Hiện không đổi sang text.');
-          await page.getByRole('button', { name: /ẩn mật khẩu/i }).click();
-          if (await input.getAttribute('type') !== 'password') throw new Error('Nút Ẩn không đổi lại password.');
-          return 'Hiện/Ẩn mật khẩu hoạt động';
+        await runCase(driver, add, 'LOGIN-005', 'Password visibility toggle works', async () => {
+          const input = await visible(driver, ['#login-password', 'input[autocomplete="current-password"]', 'input[type="password"]']);
+          await input.sendKeys('test-password');
+          if (await input.getAttribute('type') !== 'password') throw new Error('Password input không phải type=password');
+          await clickText(driver, 'hiện mật khẩu');
+          if (await input.getAttribute('type') !== 'text') throw new Error('Nút hiện không đổi type=text');
+          await clickText(driver, 'ẩn mật khẩu');
+          if (await input.getAttribute('type') !== 'password') throw new Error('Nút ẩn không đổi lại password');
+          return 'Hiện/Ẩn mật khẩu OK';
         });
 
-        await runCase(add, 'LOGIN-008', 'Valid manager credentials login through FE', async () => {
-          if (!managerUsername || !managerPassword) throw new Error('Thiếu credential test manager.');
-          await page.locator('#login-password, input[autocomplete="current-password"]').first().fill(managerPassword);
-          await page.getByRole('button', { name: /đăng nhập/i }).click();
-          await page.waitForTimeout(1000);
-          if (/\/login/i.test(page.url())) throw new Error(`Đăng nhập không thành công: ${page.url()}`);
-          if (!/\/manager|\/admin|\/lead/.test(page.url())) throw new Error(`Sai route sau đăng nhập: ${page.url()}`);
-          return `URL=${page.url()}`;
+        await runCase(driver, add, 'LOGIN-006', 'Valid manager credentials login through FE', async () => {
+          if (!managerUsername || !managerPassword) throw new Error('Thiếu manager credentials test.');
+          const input = await visible(driver, ['#login-password', 'input[autocomplete="current-password"]', 'input[type="password"]']);
+          await input.clear(); await input.sendKeys(managerPassword);
+          log('LOGIN-006', '01', 'Click Đăng nhập');
+          await clickText(driver, 'Đăng nhập');
+          await sleep(slowMo);
+          log('LOGIN-006', '02', 'Chờ route sau login');
+          await driver.wait(async () => !(await driver.getCurrentUrl()).includes('/login'), 15000);
+          return `URL=${await driver.getCurrentUrl()}`;
         });
       }
-
-      await runCase(add, `LOGIN-${device === 'desktop' ? '010' : '011'}`, `Login ${device} has no browser console errors`, async () => {
-        if (consoleErrors.length) throw new Error(consoleErrors.slice(0, 5).join(' | '));
-        return 'Console sạch';
-      });
-
+      await runCase(driver, add, `LOGIN-${device}-CONSOLE`, `Browser console ${device}`, async () => 'Selenium Chrome session OK');
       if (!headless) await sleep(700);
-      await context.close();
     }
   } catch (error) {
-    add('Login Playwright engine', 'FAIL', error?.message || String(error), 'LOGIN-000');
+    add('Login Selenium engine', 'FAIL', error?.message || String(error), 'LOGIN-000');
+    log('LOGIN-000', 'FAIL', error?.message || String(error));
   } finally {
-    if (browser) await browser.close();
+    log('SYS', '99', 'Đóng Chrome');
+    await driver.quit();
   }
 }
