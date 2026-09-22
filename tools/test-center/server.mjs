@@ -13,9 +13,13 @@ const reportDir = path.join(__dirname, 'reports');
 const app = express();
 const port = Number(process.env.PORT || 4790);
 const localFrontendPort = Number(process.env.KTC_FRONTEND_PORT || 5174);
-const expectedEnv = process.env.KTC_TEST_ENV || 'test';
-const defaultFrontendUrl = process.env.KTC_FRONTEND_URL || `http://127.0.0.1:${localFrontendPort}`;
-const defaultApiUrl = process.env.KTC_API_URL || 'https://ktc-be-test.nan978971.workers.dev';
+const expectedEnv = 'test';
+const defaultFrontendUrl = `http://127.0.0.1:${localFrontendPort}`;
+const defaultApiUrl = 'https://ktc-be-test.nan978971.workers.dev';
+
+// TEST ONLY: fixed fixture credentials. Do not use these against production.
+const TEST_MANAGER_USERNAME = 'manager1';
+const TEST_MANAGER_PASSWORD = '123456';
 
 let frontendProcess = null;
 let frontendStartPromise = null;
@@ -29,7 +33,6 @@ function assertTestTarget(url, label = 'URL') {
   let parsed;
   try { parsed = new URL(String(url || '')); } catch { throw new Error(`${label} không phải URL hợp lệ.`); }
   if (!/^https?:$/i.test(parsed.protocol)) throw new Error(`${label} phải dùng http/https.`);
-  if (expectedEnv !== 'test') return;
   const host = parsed.hostname.toLowerCase();
   const allowed = host.includes('test') || host.includes('staging') || host === 'localhost' || host === '127.0.0.1';
   if (!allowed) throw new Error(`${label} không phải môi trường test: ${parsed.origin}. Production bị chặn.`);
@@ -87,7 +90,14 @@ async function saveCsvReport(result) {
   return file;
 }
 
-app.get('/api/config', (_req, res) => res.json({ frontendUrl: defaultFrontendUrl, apiUrl: defaultApiUrl, environment: expectedEnv, frontendMode: 'local', frontendPort: localFrontendPort }));
+app.get('/api/config', (_req, res) => res.json({
+  frontendUrl: defaultFrontendUrl,
+  apiUrl: defaultApiUrl,
+  environment: expectedEnv,
+  frontendMode: 'local',
+  frontendPort: localFrontendPort,
+  managerFixture: TEST_MANAGER_USERNAME,
+}));
 app.get('/api/results', (_req, res) => res.json(lastResult || { results: [], summary: { total: 0, pass: 0, fail: 0, skip: 0 } }));
 app.get('/api/results.csv', async (_req, res) => {
   if (!lastReportPath || !fs.existsSync(lastReportPath)) return res.status(404).send('Chưa có kết quả test.');
@@ -96,13 +106,14 @@ app.get('/api/results.csv', async (_req, res) => {
 
 app.post('/api/run', async (req, res) => {
   try {
-    const frontendUrl = String(req.body?.frontendUrl || defaultFrontendUrl).trim();
-    const apiUrl = String(req.body?.apiUrl || defaultApiUrl).trim();
-    const managerUsername = String(req.body?.managerUsername || '').trim();
-    const managerPassword = String(req.body?.managerPassword || '');
+    // Credentials are intentionally NOT read from request body or CMD/environment.
+    const frontendUrl = defaultFrontendUrl;
+    const apiUrl = defaultApiUrl;
+    const managerUsername = TEST_MANAGER_USERNAME;
+    const managerPassword = TEST_MANAGER_PASSWORD;
     assertTestTarget(frontendUrl, 'Frontend URL');
     assertTestTarget(apiUrl, 'Backend API URL');
-    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(frontendUrl)) await startLocalFrontend(apiUrl);
+    await startLocalFrontend(apiUrl);
     lastResult = await runTestSuite({ frontendUrl, apiUrl, managerUsername, managerPassword });
     await saveCsvReport(lastResult);
     res.json({ ...lastResult, reportUrl: '/api/results.csv' });
@@ -129,6 +140,7 @@ const server = app.listen(port, '127.0.0.1', () => {
   console.log(`Local frontend target: ${defaultFrontendUrl}`);
   console.log(`API target: ${defaultApiUrl}`);
   console.log(`Frontend source: ${frontendDir}`);
+  console.log('TEST FIXTURE: manager1 / 123456');
   console.log('KTC Test Center is running. Keep this terminal open.');
 });
 server.on('error', error => console.error(`[KTC TEST CENTER] server error: ${error.code || error.message}`));
