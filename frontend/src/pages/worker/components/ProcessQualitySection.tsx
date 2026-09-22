@@ -1,4 +1,4 @@
-import type { ChangeEvent, Dispatch, FocusEvent, SetStateAction } from "react";
+import { useLayoutEffect, useState, type ChangeEvent, type Dispatch, type FocusEvent, type SetStateAction } from "react";
 import type { FormState, NgKey } from "../processPageConfig";
 import AppIcon from "../../../components/common/AppIcon";
 
@@ -22,6 +22,8 @@ interface Props {
     onNgValue: (key: NgKey, value: string) => void;
 }
 
+const normalizeCode = (value: unknown) => String(value ?? "").trim().toUpperCase();
+
 export default function ProcessQualitySection({
     form,
     activeNgOptions,
@@ -35,11 +37,36 @@ export default function ProcessQualitySection({
     onToggleNg,
     onNgValue,
 }: Props) {
-    // Chỉ khóa phần chất lượng khi dùng nhiều máy vì NG/OK khi đó được
-    // nhập trực tiếp theo từng dòng máy ở ProcessBasicInfoSection.
-    // Với công đoạn 1 máy, NG vẫn phải được nhập ở đây và được gửi trong
-    // payload `defects` để backend lưu vào production_temp_defects.
     const qualityLocked = usesMultiMachineLines;
+    const hasCanonicalGcDefects = activeNgOptions.some((item) => /^(CAT|LONG)\d+$/.test(normalizeCode(item.code)));
+    const [gcOperation, setGcOperation] = useState<"CUT" | "LONG">("CUT");
+
+    // ProcessPage owns the Cắt/Lồng state. Keep this section synchronized with
+    // the active operation button without duplicating that state in the form.
+    // useLayoutEffect runs after the parent commits the newly-active button.
+    useLayoutEffect(() => {
+        if (!hasCanonicalGcDefects || typeof document === "undefined") return;
+        const activeOperationButton = document.querySelector<HTMLElement>(
+            ".worker-mode-panel .worker-mode-group:first-child .worker-choice-row button.active"
+        );
+        const nextOperation = activeOperationButton?.textContent?.trim() === "Lồng" ? "LONG" : "CUT";
+        setGcOperation((current) => current === nextOperation ? current : nextOperation);
+    });
+
+    const visibleNgOptions = hasCanonicalGcDefects
+        ? activeNgOptions.filter((item) => {
+            const code = normalizeCode(item.code);
+            return gcOperation === "CUT" ? code.startsWith("CAT") : code.startsWith("LONG");
+        })
+        : activeNgOptions;
+
+    const getDisplayLabel = (item: NgOption) => {
+        const code = normalizeCode(item.code);
+        const label = String(item.label ?? "").trim();
+        if (!code) return label;
+        if (label.toUpperCase().startsWith(`${code} `) || label.toUpperCase().startsWith(`${code} —`)) return label;
+        return `${code} — ${label}`;
+    };
 
     return (
         <section className="worker-form-card worker-quality-section">
@@ -106,11 +133,11 @@ export default function ProcessQualitySection({
 
                 {showNg && (
                     <div id="worker-ng-options" className="worker-dropdown-options">
-                        {activeNgOptions.length === 0 ? (
+                        {visibleNgOptions.length === 0 ? (
                             <div className="worker-dropdown-empty" role="status">
                                 Chưa có loại lỗi NG được cấu hình cho công đoạn này.
                             </div>
-                        ) : activeNgOptions.map((item) => (
+                        ) : visibleNgOptions.map((item) => (
                             <label key={item.key} className="worker-dropdown-option">
                                 <input
                                     type="checkbox"
@@ -122,7 +149,7 @@ export default function ProcessQualitySection({
                                     }}
                                     disabled={qualityLocked}
                                 />
-                                <span>{item.label}</span>
+                                <span>{getDisplayLabel(item)}</span>
                             </label>
                         ))}
                     </div>
@@ -131,11 +158,11 @@ export default function ProcessQualitySection({
 
             {selectedNg.length > 0 && (
                 <div className="worker-dynamic-grid worker-ng-grid">
-                    {activeNgOptions
+                    {visibleNgOptions
                         .filter((item) => selectedNg.includes(item.key))
                         .map((item) => (
                             <div key={item.key} className="worker-field-block">
-                                <label className="worker-field-label" htmlFor={String(item.key)}>{item.label}</label>
+                                <label className="worker-field-label" htmlFor={String(item.key)}>{getDisplayLabel(item)}</label>
                                 <input
                                     id={item.key}
                                     className="worker-text-input"
