@@ -3,6 +3,12 @@ import chrome from 'selenium-webdriver/chrome.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
+// TEST ONLY: credentials are intentionally fixed in the test source so the
+// Selenium suite can run with a single `npm.cmd start` command. Never use these
+// credentials against production.
+const TEST_MANAGER_USERNAME = 'manager1';
+const TEST_MANAGER_PASSWORD = '123456';
+
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const log = (id, step, msg, extra = '') => console.log(`[KTC SELENIUM][${id}][${step}] ${msg}${extra ? ` | ${extra}` : ''}`);
 
@@ -44,7 +50,6 @@ async function clickSubmit(driver, timeout = 10000) {
 
 async function resetBrowserState(driver, frontendUrl, id) {
   log(id, 'RESET', 'Xóa cookie/localStorage/sessionStorage để testcase độc lập');
-  // Must first navigate to the app origin before accessing its Web Storage.
   await driver.get(`${frontendUrl}/`);
   await driver.manage().deleteAllCookies();
   await driver.executeScript(`
@@ -57,7 +62,7 @@ async function resetBrowserState(driver, frontendUrl, id) {
 async function loginPage(driver, frontendUrl, id) {
   await resetBrowserState(driver, frontendUrl, id);
   log(id, '01', 'Mở login', `URL=${await driver.getCurrentUrl()}`);
-  await visible(driver, ['#login-username','input[autocomplete="username"]','input[placeholder*="mã nhân viên" i]']);
+  await visible(driver, ['#login-username','input[data-testid="login-username"]','input[autocomplete="username"]','input[placeholder*="mã nhân viên" i]']);
   log(id, '02', 'Login DOM sẵn sàng');
 }
 
@@ -87,13 +92,16 @@ async function runCase(driver, add, id, name, fn) {
   }
 }
 
-export async function runLoginE2E({ frontendUrl, add, managerUsername='', managerPassword='' }) {
+export async function runLoginE2E({ frontendUrl, add, managerUsername = TEST_MANAGER_USERNAME, managerPassword = TEST_MANAGER_PASSWORD }) {
+  const username = TEST_MANAGER_USERNAME;
+  const password = TEST_MANAGER_PASSWORD;
   const headless = /^(1|true|yes)$/i.test(String(process.env.KTC_HEADLESS || '0'));
   const slowMo = Number(process.env.KTC_SLOWMO_MS || 350);
   const options = new chrome.Options();
   options.addArguments('--start-maximized');
   if (headless) options.addArguments('--headless=new','--window-size=1440,900');
   console.log(`[KTC SELENIUM] Chrome Login: headless=${headless}; slowMo=${slowMo}ms`);
+  console.log(`[KTC SELENIUM] TEST FIXTURE: ${username} / ${password}`);
   const driver = await new Builder().forBrowser('chrome').setChromeOptions(options).build();
   await driver.manage().setTimeouts({implicit:1000,pageLoad:30000,script:30000});
 
@@ -117,20 +125,20 @@ export async function runLoginE2E({ frontendUrl, add, managerUsername='', manage
 
         await runCase(driver,add,'LOGIN-003','Valid employee code opens role choice',async()=>{
           await loginPage(driver,frontendUrl,'LOGIN-003');
-          const input=await visible(driver,['#login-username','input[autocomplete="username"]','input[placeholder*="mã nhân viên" i]']);
-          await input.clear(); await input.sendKeys(managerUsername || 'manager1');
+          const input=await visible(driver,['#login-username','input[data-testid="login-username"]','input[autocomplete="username"]','input[placeholder*="mã nhân viên" i]']);
+          await input.clear(); await input.sendKeys(username);
           log('LOGIN-003','01','Click Tiếp tục'); await clickText(driver,'Tiếp tục');
           await clickText(driver,'Quản lý');
-          await visible(driver,['#login-password','input[autocomplete="current-password"]','input[type="password"]']);
+          await visible(driver,['#login-password','input[data-testid="login-password"]','input[autocomplete="current-password"]','input[type="password"]']);
           return 'Quản lý -> password visible';
         });
 
         await runCase(driver,add,'LOGIN-004','Management login rejects empty password',async()=>{
           await loginPage(driver,frontendUrl,'LOGIN-004');
-          const input=await visible(driver,['#login-username','input[autocomplete="username"]','input[placeholder*="mã nhân viên" i]']);
-          await input.clear(); await input.sendKeys(managerUsername || 'manager1');
+          const input=await visible(driver,['#login-username','input[data-testid="login-username"]','input[autocomplete="username"]','input[placeholder*="mã nhân viên" i]']);
+          await input.clear(); await input.sendKeys(username);
           await clickText(driver,'Tiếp tục'); await clickText(driver,'Quản lý');
-          await visible(driver,['#login-password','input[autocomplete="current-password"]','input[type="password"]']);
+          await visible(driver,['#login-password','input[data-testid="login-password"]','input[autocomplete="current-password"]','input[type="password"]']);
           log('LOGIN-004','01','Click submit với password rỗng'); await clickSubmit(driver);
           const alert=await visible(driver,['[role="alert"]']); const text=await alert.getText();
           if(!/mật khẩu/i.test(text)) throw new Error(`Thông báo sai: ${text}`); return text;
@@ -138,10 +146,10 @@ export async function runLoginE2E({ frontendUrl, add, managerUsername='', manage
 
         await runCase(driver,add,'LOGIN-005','Password visibility toggle works',async()=>{
           await loginPage(driver,frontendUrl,'LOGIN-005');
-          const input=await visible(driver,['#login-username','input[autocomplete="username"]','input[placeholder*="mã nhân viên" i]']);
-          await input.clear(); await input.sendKeys(managerUsername || 'manager1');
+          const input=await visible(driver,['#login-username','input[data-testid="login-username"]','input[autocomplete="username"]','input[placeholder*="mã nhân viên" i]']);
+          await input.clear(); await input.sendKeys(username);
           await clickText(driver,'Tiếp tục'); await clickText(driver,'Quản lý');
-          const pass=await visible(driver,['#login-password','input[autocomplete="current-password"]','input[type="password"]']);
+          const pass=await visible(driver,['#login-password','input[data-testid="login-password"]','input[autocomplete="current-password"]','input[type="password"]']);
           await pass.sendKeys('test-password');
           const show=await xpathVisible(driver,"//button[contains(translate(@aria-label,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'hiện mật khẩu') or contains(translate(@title,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'hiện mật khẩu') or contains(normalize-space(.),'Hiện')]");
           log('LOGIN-005','01','Tìm thấy password toggle',`aria=${await show.getAttribute('aria-label')||''}; text=${await show.getText()}`);
@@ -153,19 +161,18 @@ export async function runLoginE2E({ frontendUrl, add, managerUsername='', manage
         });
 
         await runCase(driver,add,'LOGIN-006','Valid manager credentials login through FE',async()=>{
-          if(!managerUsername || !managerPassword) throw new Error('Thiếu manager credentials test.');
           await loginPage(driver,frontendUrl,'LOGIN-006');
-          const user=await visible(driver,['#login-username','input[autocomplete="username"]','input[placeholder*="mã nhân viên" i]']);
-          await user.clear(); await user.sendKeys(managerUsername); await clickText(driver,'Tiếp tục'); await clickText(driver,'Quản lý');
-          const pass=await visible(driver,['#login-password','input[autocomplete="current-password"]','input[type="password"]']);
-          await pass.clear(); await pass.sendKeys(managerPassword);
+          const user=await visible(driver,['#login-username','input[data-testid="login-username"]','input[autocomplete="username"]','input[placeholder*="mã nhân viên" i]']);
+          await user.clear(); await user.sendKeys(username); await clickText(driver,'Tiếp tục'); await clickText(driver,'Quản lý');
+          const pass=await visible(driver,['#login-password','input[data-testid="login-password"]','input[autocomplete="current-password"]','input[type="password"]']);
+          await pass.clear(); await pass.sendKeys(password);
           log('LOGIN-006','01','Click Đăng nhập'); await clickSubmit(driver); log('LOGIN-006','02','Chờ kết quả login');
           await sleep(slowMo);
           const deadline=Date.now()+15000;
           while(Date.now()<deadline){
             const url=await driver.getCurrentUrl(); const body=(await driver.findElement(By.css('body')).getText()).trim();
             if(!url.includes('/login')) return `Login thành công | URL=${url}`;
-            if(/không hợp lệ|sai mật khẩu|đăng nhập thất bại|lỗi đăng nhập|401|403/i.test(body)) throw new Error(`Backend/FE từ chối credentials | ${body.slice(0,500)}`);
+            if(/không hợp lệ|sai mật khẩu|đăng nhập thất bại|lỗi đăng nhập|mật khẩu không đúng|401|403/i.test(body)) throw new Error(`Backend/FE từ chối credentials | ${body.slice(0,500)}`);
             await sleep(300);
           }
           const body=(await driver.findElement(By.css('body')).getText()).trim();
