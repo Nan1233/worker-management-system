@@ -39,6 +39,15 @@ async function assertPageLoaded(driver, expectedPath) {
   return text;
 }
 
+async function waitForProcessCards(driver) {
+  await driver.wait(async () => {
+    const cards = await driver.findElements(By.css('button.worker-process-card'));
+    if (cards.length > 0) return true;
+    const text = await bodyText(driver);
+    return /Chưa được phân công công đoạn|Không thể mở trang|Thông tin tài khoản không hợp lệ/i.test(text);
+  }, 15000);
+}
+
 async function injectSession(driver, frontendUrl, token) {
   const payload = decodeJwt(token);
   const user = {
@@ -138,28 +147,81 @@ export async function runSeleniumFunctionalSuite({ frontendUrl, managerToken, wo
       });
     }
 
-    await runCase(driver, add, 'SEL-WORKER-007', 'Worker process page opens from process selection', async () => {
+    // 1) Always test Gia công first. This is the primary production flow.
+    await runCase(driver, add, 'SEL-GC-001', 'Gia công process selection opens', async () => {
       await driver.get(`${frontendUrl}/#/worker/process/select`);
       await assertPageLoaded(driver, '/worker/process/select');
-
-      // SelectProcess renders the real process cards as button.worker-process-card.
-      // Never click a generic button here: the page also contains back/history buttons.
+      await waitForProcessCards(driver);
       const cards = await driver.findElements(By.css('button.worker-process-card'));
-      if (!cards.length) throw new Error('Không tìm thấy card công đoạn (.worker-process-card).');
+      if (!cards.length) throw new Error('Không có công đoạn được phân công cho worker fixture.');
 
-      let clicked = false;
+      let gcCard = null;
       for (const card of cards) {
-        if (!(await card.isDisplayed())) continue;
-        await driver.executeScript('arguments[0].scrollIntoView({block:"center"});', card);
-        await sleep(100);
-        await driver.executeScript('arguments[0].click();', card);
-        clicked = true;
-        break;
+        const text = (await card.getText()).trim();
+        if (/Gia công|GC|Cắt \/ Lồng/i.test(text)) {
+          gcCard = card;
+          break;
+        }
       }
-      if (!clicked) throw new Error('Có card công đoạn nhưng không hiển thị để click.');
+      if (!gcCard) throw new Error('Không tìm thấy card Gia công (GC).');
+      await driver.executeScript('arguments[0].scrollIntoView({block:"center"});', gcCard);
+      await sleep(150);
+      await driver.executeScript('arguments[0].click();', gcCard);
+      await driver.wait(async () => /\/worker\/process\/cat-long/.test(await driver.getCurrentUrl()), 10000);
+      const text = await assertPageLoaded(driver, '/worker/process/cat-long');
+      return `Gia công mở ProcessPage | URL=${await driver.getCurrentUrl()} | ${text.slice(0, 120).replace(/\s+/g, ' ')}`;
+    });
 
-      await driver.wait(async () => /\/worker\/process\/[^/]+/.test(await driver.getCurrentUrl()), 10000);
-      return `ProcessPage opened | URL=${await driver.getCurrentUrl()}`;
+    // 2) Gia công-specific UI must expose the core fields before any submit.
+    await runCase(driver, add, 'SEL-GC-002', 'Gia công form loads core production fields', async () => {
+      await driver.get(`${frontendUrl}/#/worker/process/cat-long`);
+      const text = await assertPageLoaded(driver, '/worker/process/cat-long');
+      await driver.wait(async () => {
+        const current = await bodyText(driver);
+        return /Gia công|Cắt\/Lồng/i.test(current) && /Mã sản phẩm|Số máy|Máy gia công/i.test(current);
+      }, 15000);
+      const current = await bodyText(driver);
+      if (!/Thời gian làm việc/i.test(current)) throw new Error('Gia công chưa hiển thị trường Thời gian làm việc.');
+      if (!/Số lượng OK/i.test(current)) throw new Error('Gia công chưa hiển thị trường Số lượng OK.');
+      return 'Gia công: máy + sản phẩm + thời gian + OK đã render';
+    });
+
+    // 3) Exercise other process types after the primary Gia công flow.
+    const processCases = [
+      ['mai', 'SEL-PROC-002', 'Mài process form renders'],
+      ['do', 'SEL-PROC-003', 'Đo process form renders'],
+      ['kiem-1', 'SEL-PROC-004', 'Kiểm 1 process form renders'],
+      ['kiem-2', 'SEL-PROC-005', 'Kiểm 2 process form renders'],
+      ['can', 'SEL-PROC-006', 'Cán process form renders'],
+      ['ep', 'SEL-PROC-007', 'Ép process form renders'],
+      ['bavia', 'SEL-PROC-008', 'Xử lý bavia process form renders'],
+      ['sx3', 'SEL-PROC-009', 'Sản xuất 3 process form renders'],
+      ['non-product', 'SEL-PROC-010', 'Công việc khác form renders'],
+    ];
+    for (const [slug, id, name] of processCases) {
+      await runCase(driver, add, id, name, async () => {
+        const expected = slug === 'non-product' ? '/worker/process/non-product' : `/worker/process/${slug}`;
+        await driver.get(`${frontendUrl}/#${expected}`);
+        const text = await assertPageLoaded(driver, expected);
+        await driver.wait(async () => {
+          const current = await bodyText(driver);
+          return current.length > 100 || /Đang tải|Không thể mở|Không có/i.test(current);
+        }, 10000);
+        const current = await bodyText(driver);
+        if (/Unexpected Application Error|Application error|Cannot read properties/i.test(current)) {
+          throw new Error(`UI runtime error: ${current.slice(0, 400)}`);
+        }
+        return `URL=${await driver.getCurrentUrl()} | ${current.slice(0, 110).replace(/\s+/g, ' ')}`;
+      });
+    }
+
+    // 4) Mobile rendering of the real Gia công page.
+    await runCase(driver, add, 'SEL-GC-MOBILE-001', 'Gia công mobile form renders', async () => {
+      await driver.manage().window().setRect({ width: 390, height: 844 });
+      await driver.get(`${frontendUrl}/#/worker/process/cat-long`);
+      const text = await assertPageLoaded(driver, '/worker/process/cat-long');
+      if (!/Gia công|Cắt\/Lồng/i.test(text)) throw new Error('Không thấy tiêu đề Gia công trên mobile.');
+      return `viewport=390x844 | URL=${await driver.getCurrentUrl()}`;
     });
   } finally {
     log('SEL-FUNC-SYS', '99', 'Đóng Chrome functional');
