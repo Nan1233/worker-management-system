@@ -1,4 +1,5 @@
 import express from 'express';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
@@ -51,25 +52,21 @@ function startLocalFrontend(apiUrl) {
   if (frontendProcess && !frontendProcess.killed) return frontendStartPromise;
 
   const viteBin = path.join(frontendDir, 'node_modules', 'vite', 'bin', 'vite.js');
+  if (!fs.existsSync(viteBin)) {
+    throw new Error(`Không tìm thấy Vite tại ${viteBin}. Hãy chạy npm.cmd install trong frontend/.`);
+  }
+
   const env = {
     ...process.env,
     VITE_API_URL: `${apiUrl.replace(/\/$/, '')}/api`,
   };
 
-  if (process.platform === 'win32' && !requireViteFile(viteBin)) {
-    throw new Error(`Không tìm thấy Vite tại ${viteBin}. Hãy chạy npm.cmd install trong frontend/.`);
-  }
-
-  const args = [
+  frontendProcess = spawn(process.execPath, [
     viteBin,
     '--host', '127.0.0.1',
     '--port', String(localFrontendPort),
     '--strictPort',
-  ];
-
-  // Start Vite directly with the current Node executable.
-  // This avoids Windows npm.cmd/cmd.exe spawn EINVAL issues.
-  frontendProcess = spawn(process.execPath, args, {
+  ], {
     cwd: frontendDir,
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -95,14 +92,6 @@ function startLocalFrontend(apiUrl) {
     });
 
   return frontendStartPromise;
-}
-
-function requireViteFile(file) {
-  try {
-    return Boolean(require('node:fs').statSync(file));
-  } catch {
-    return false;
-  }
 }
 
 app.get('/api/config', (_req, res) => res.json({
@@ -146,13 +135,20 @@ function shutdown() {
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
+process.on('uncaughtException', error => console.error('[KTC TEST CENTER] uncaught exception:', error));
+process.on('unhandledRejection', error => console.error('[KTC TEST CENTER] unhandled rejection:', error));
 
 app.use((_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
-app.listen(port, () => {
+const server = app.listen(port, '127.0.0.1', () => {
   console.log(`KTC Test Center: http://127.0.0.1:${port}`);
   console.log(`Environment guard: ${expectedEnv}`);
   console.log(`Local frontend target: ${defaultFrontendUrl}`);
   console.log(`API target: ${defaultApiUrl}`);
   console.log(`Frontend source: ${frontendDir}`);
+  console.log('KTC Test Center is running. Keep this terminal open.');
+});
+
+server.on('error', error => {
+  console.error(`[KTC TEST CENTER] server error: ${error.code || error.message}`);
 });
