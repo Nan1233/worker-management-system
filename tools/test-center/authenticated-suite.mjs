@@ -5,6 +5,11 @@ const json = async (response) => {
 };
 
 const unique = (prefix) => `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,7)}`;
+const isoDate = (offsetDays = 0) => {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return d.toISOString().slice(0, 10);
+};
 
 async function api(base, path, options = {}) {
   const headers = { Accept: 'application/json', ...(options.headers || {}) };
@@ -69,40 +74,64 @@ async function chooseProductionContext(base, workerToken, process) {
   const ps = await api(base, `/api/product-standards?process_id=${process.id}`, { headers: auth(workerToken) });
   if (!ps.response.ok) throw new Error(`Không lấy product standard process ${process.id}: HTTP ${ps.response.status}`);
   const products = unwrap(ps.body);
-  const product = products.find(x => productCodeOf(x)) || products[0];
+  const product = products.find(x => productCodeOf(x) && Number(x.standard_output || x.output_per_hour || 0) > 0) || products.find(x => productCodeOf(x)) || products[0];
   if (!product) throw new Error(`Process ${process.id} không có product standard`);
   const productCode = productCodeOf(product);
-  const ms = await api(base, `/api/machines?process_id=${process.id}`, { headers: auth(workerToken) });
-  const machines = ms.response.ok ? unwrap(ms.body) : [];
-  const machineCode = machineCodeOf(machines[0]);
-  const resolved = await api(base, `/api/product-standards/resolve?process_id=${process.id}&product_code=${encodeURIComponent(productCode)}&machine_code=${encodeURIComponent(machineCode)}&work_date=${new Date().toISOString().slice(0,10)}`, { headers: auth(workerToken) });
-  const standardOutput = Number(resolved.body?.data?.resolved_output_per_hour || product.standard_output || product.output_per_hour || 0);
-  if (!standardOutput) throw new Error(`Không resolve được định mức cho ${productCode}`);
-  return { process, productCode, machineCode, standardOutput };
+  const standardOutput = Number(product.standard_output || product.output_per_hour || 0);
+  if (!standardOutput) throw new Error(`Không có định mức cho ${productCode}`);
+  return { process, productCode, machineCode: '', standardOutput };
 }
 
 async function createReport(base, workerToken, ctx, values = {}) {
   const actual = Number(values.actual_time ?? 1);
   const deduction = Number(values.deduction_time ?? 0);
   const total = Number(values.total_time ?? actual + deduction);
-  const ok = Number(values.tt_ok ?? Math.max(1, Math.floor(ctx.standardOutput * actual)));
+  const ok = Number(values.tt_ok ?? Math.max(1, Math.floor(ctx.standardOutput * Math.max(actual, 1))));
   const ng = Number(values.tt_ng ?? 0);
-  const payload = { process_id: ctx.process.id, process_code: ctx.process.code, work_date: new Date().toISOString().slice(0,10), shift: values.shift || `TC${Math.floor(Math.random()*3)+1}`, machine_no: ctx.machineCode || undefined, product_name: ctx.productCode, operation_mode: ctx.machineCode ? 'MACHINE' : 'MANUAL', operation_type: 'PRODUCTION', total_time: total, actual_time: actual, deduction_time: deduction, standard_output: ctx.standardOutput, actual_output: ok, tt_ok: ok, tt_ng: ng, defects: values.defects || [], deductions: values.deductions || [], training_percent: 100, client_request_id: unique('tc-report'), note: 'TEST ONLY - KTC Test Center' };
+  const workDate = values.work_date || isoDate(0);
+  const payload = {
+    process_id: ctx.process.id,
+    process_code: ctx.process.code,
+    work_date: workDate,
+    shift: values.shift || `TC${Math.floor(Math.random()*3)+1}`,
+    machine_no: ctx.machineCode || undefined,
+    product_name: ctx.productCode,
+    operation_mode: ctx.machineCode ? 'MACHINE' : 'MANUAL',
+    operation_type: 'PRODUCTION',
+    total_time: total,
+    actual_time: actual,
+    deduction_time: deduction,
+    standard_output: ctx.standardOutput,
+    actual_output: ok,
+    tt_ok: ok,
+    tt_ng: ng,
+    defects: values.defects || [],
+    deductions: values.deductions || [],
+    training_percent: 100,
+    client_request_id: unique('tc-report'),
+    note: 'TEST ONLY - KTC Test Center',
+  };
   return api(base, '/api/production-temp', { method:'POST', headers:auth(workerToken), body:JSON.stringify(payload) });
 }
 
 export async function runAuthenticatedSuite({ apiUrl, add, managerUsername = '', managerPassword = '', returnContext = false }) {
   if (!managerUsername || !managerPassword) {
-    for (const [id,name,detail] of [['MASTER-001','Cắt has CAT01-CAT04','Thiếu manager fixture'],['MASTER-002','Lồng has LONG01-LONG05','Thiếu manager fixture'],['WORKER-001','Create production report','Thiếu manager fixture'],['WORKER-002','View report history','Thiếu worker fixture'],['WORKER-003','Edit report within 10 minutes','Thiếu worker fixture'],['RULE-001','Daily total <= 12 hours','Thiếu worker fixture'],['RULE-002','Support/deduction excluded from daily production hours','Thiếu worker fixture'],['MANAGER-001','Manager review/approve','Thiếu manager fixture'],['PERM-001','Role authorization','Thiếu role fixture'],['EXPORT-001','Excel export','Thiếu manager fixture']]) add(name,'SKIP',detail,id);
+    for (const [id,name,detail] of [['MASTER-001','Cắt has CAT01-CAT04','Thiếu manager fixture'],['MASTER-002','Lồng has LONG01-LONG05','Thiếu manager fixture'],['WORKER-001','Create production report','Thiếu manager fixture'],['WORKER-002','View report history','Thiếu worker fixture'],['WORKER-003','Edit report within 10 minutes','Thiếu worker fixture'],['RULE-001','Daily total <= 12 hours','Thiếu worker fixture'],['RULE-002','Support/deduction excluded from daily production hours','Thiếu worker fixture'],['MANAGER-001','Manager review/approve','Thiếu role fixture'],['PERM-001','Role authorization','Thiếu role fixture'],['EXPORT-001','Excel export','Thiếu manager fixture']]) add(name,'SKIP',detail,id);
     return null;
   }
+
   let manager;
   try { manager = await login(apiUrl, managerUsername, managerPassword, 'management'); }
-  catch (e) { for (const [id,name] of [['MASTER-001','Cắt has CAT01-CAT04'],['MASTER-002','Lồng has LONG01-LONG05'],['WORKER-001','Create production report'],['WORKER-002','View report history'],['WORKER-003','Edit report within 10 minutes'],['RULE-001','Daily total <= 12 hours'],['RULE-002','Support/deduction excluded from daily production hours'],['MANAGER-001','Manager review/approve'],['PERM-001','Role authorization'],['EXPORT-001','Excel export']]) add(name,'FAIL',e.message,id); return null; }
+  catch (e) {
+    for (const [id,name] of [['MASTER-001','Cắt has CAT01-CAT04'],['MASTER-002','Lồng has LONG01-LONG05'],['WORKER-001','Create production report'],['WORKER-002','View report history'],['WORKER-003','Edit report within 10 minutes'],['RULE-001','Daily total <= 12 hours'],['RULE-002','Support/deduction excluded from daily production hours'],['MANAGER-001','Manager review/approve'],['PERM-001','Role authorization'],['EXPORT-001','Excel export']]) add(name,'FAIL',e.message,id);
+    return null;
+  }
+
   let processes;
   try { processes = await getProcesses(apiUrl, manager.token); }
   catch (e) { add('Authenticated process fixture','FAIL',e.message,'AUTH-001'); return null; }
   if (!processes.length) { add('Authenticated process fixture','FAIL','Không có công đoạn active','AUTH-001'); return null; }
+
   let worker;
   try { worker = await createWorker(apiUrl, manager.token, processes.map(p=>p.id)); }
   catch (e) { add('Authenticated worker fixture','FAIL',e.message,'AUTH-002'); return null; }
@@ -112,27 +141,40 @@ export async function runAuthenticatedSuite({ apiUrl, add, managerUsername = '',
 
   const masters = await masterChecks(apiUrl, workerSession.token, processes);
   for (const x of masters.result) add(x.name,x.status,x.detail,x.id);
-  const productionProcess = masters.cut || processes[0];
+
+  // Use Lồng/manual for the fixture report. This keeps the fixture independent
+  // from real-time shared-machine occupancy while Selenium still exercises the
+  // real Gia công machine UI separately.
+  const productionProcess = masters.long || masters.cut || processes[0];
   let ctx;
   try { ctx = await chooseProductionContext(apiUrl, workerSession.token, productionProcess); }
   catch (e) { add('Create production report','FAIL',e.message,'WORKER-001'); return returnContext ? { managerToken: manager.token, workerToken: workerSession.token, reportId: 0 } : null; }
-  const created = await createReport(apiUrl, workerSession.token, ctx, { shift:'A' });
+
+  // Put the fixture report on yesterday so today's 12-hour rule starts at 0.
+  const created = await createReport(apiUrl, workerSession.token, ctx, { shift:'A', work_date:isoDate(-1) });
   add('Create production report', created.response.ok && created.body?.success ? 'PASS' : 'FAIL', `HTTP ${created.response.status} ${created.body?.message || ''}`, 'WORKER-001');
   const reportId = Number(created.body?.data?.id || created.body?.id || 0);
+
   const history = await api(apiUrl, '/api/production-temp/my', { headers:auth(workerSession.token) });
   add('View report history', history.response.ok && history.body?.success !== false ? 'PASS' : 'FAIL', `HTTP ${history.response.status}`, 'WORKER-002');
-  if (reportId) { const detail = await api(apiUrl, `/api/production-temp/${reportId}`, { headers:auth(workerSession.token) }); add('Edit report within 10 minutes', detail.response.ok ? 'PASS' : 'FAIL', `HTTP ${detail.response.status}`, 'WORKER-003'); }
-  else add('Edit report within 10 minutes','FAIL','Không có report ID','WORKER-003');
+  if (reportId) {
+    const detail = await api(apiUrl, `/api/production-temp/${reportId}`, { headers:auth(workerSession.token) });
+    add('Edit report within 10 minutes', detail.response.ok ? 'PASS' : 'FAIL', `HTTP ${detail.response.status}`, 'WORKER-003');
+  } else add('Edit report within 10 minutes','FAIL','Không có report ID','WORKER-003');
 
+  // Fresh worker + yesterday fixture means these assertions are isolated from
+  // the fixture report. Two 6h reports are allowed; the next 1h is rejected.
   const r1 = await createReport(apiUrl, workerSession.token, ctx, { actual_time:6,total_time:6,shift:'B' });
   const r2 = await createReport(apiUrl, workerSession.token, ctx, { actual_time:6,total_time:6,shift:'C' });
   const r3 = await createReport(apiUrl, workerSession.token, ctx, { actual_time:1,total_time:1,shift:'D' });
   const limitPass = r1.response.ok && r2.response.ok && (r3.response.status === 422 || r3.response.status === 409);
   add('Daily total <= 12 hours', limitPass ? 'PASS' : 'FAIL', `6h+6h: ${r1.response.status}/${r2.response.status}; thêm 1h: ${r3.response.status}`, 'RULE-001');
 
-  const before = await api(apiUrl, `/api/production-temp/daily-hours?date=${new Date().toISOString().slice(0,10)}`, { headers:auth(workerSession.token) });
+  const before = await api(apiUrl, `/api/production-temp/daily-hours?date=${isoDate(0)}`, { headers:auth(workerSession.token) });
+  // This report deliberately contains 1h actual + 1h deduction. The counted
+  // production total should increase by actual time only.
   const support = await createReport(apiUrl, workerSession.token, ctx, { actual_time:1,deduction_time:1,total_time:2,shift:'TC' });
-  const after = await api(apiUrl, `/api/production-temp/daily-hours?date=${new Date().toISOString().slice(0,10)}`, { headers:auth(workerSession.token) });
+  const after = await api(apiUrl, `/api/production-temp/daily-hours?date=${isoDate(0)}`, { headers:auth(workerSession.token) });
   const beforeHours = Number(before.body?.data?.counted_hours || 0), afterHours = Number(after.body?.data?.counted_hours || 0);
   const deductionExcluded = support.response.ok && Math.abs((afterHours-beforeHours)-1) < 0.01;
   add('Support/deduction excluded from daily production hours', deductionExcluded ? 'PASS' : 'FAIL', `delta=${(afterHours-beforeHours).toFixed(2)}h; support HTTP=${support.response.status}`, 'RULE-002');
@@ -143,6 +185,7 @@ export async function runAuthenticatedSuite({ apiUrl, add, managerUsername = '',
   let approve = null;
   if (pendingId) approve = await api(apiUrl, '/api/production-temp/approve-selected', { method:'POST', headers:{...auth(manager.token),'Content-Type':'application/json'}, body:JSON.stringify({ids:[pendingId]}) });
   add('Manager review/approve', approve?.response.ok && approve.body?.success !== false ? 'PASS' : 'FAIL', approve ? `HTTP ${approve.response.status}` : 'Không tìm thấy pending report', 'MANAGER-001');
+
   const workerForbidden = await api(apiUrl, '/api/production-temp/pending', { headers:auth(workerSession.token) });
   add('Role authorization', workerForbidden.response.status === 403 ? 'PASS' : 'FAIL', `Worker gọi manager API: HTTP ${workerForbidden.response.status}`, 'PERM-001');
   const exportResponse = await api(apiUrl, '/api/reports/export-excel/company-status', { headers:auth(manager.token) });
