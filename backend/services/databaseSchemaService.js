@@ -29,10 +29,8 @@ const RUNTIME_REQUIRED_COLUMNS = Object.freeze({
 });
 
 // Cloudflare/TiDB Serverless already uses the exact same HTTP query transport
-// through db.promise().query().  Do not run a second, independent connection
-// probe here: on Workers that probe can fail while normal queries are healthy,
-// leaving /api/health permanently stuck at DATABASE_STARTUP_FAILED. Reuse the
-// proven query path and keep the normal Node/MySQL testConnection unchanged.
+// through db.promise().query(). Do not run a second independent connection
+// probe here: on Workers that probe can fail while normal queries are healthy.
 if (process.env.KTC_CLOUDFLARE_WORKER === 'true' && typeof db?.promise === 'function') {
   const originalTestConnection = db.testConnection;
   db.testConnection = async () => {
@@ -62,8 +60,6 @@ if (process.env.KTC_CLOUDFLARE_WORKER === 'true' && typeof db?.promise === 'func
         latencyMs: Date.now() - startedAt,
       };
     } catch (error) {
-      // Preserve the original implementation as a fallback for environments
-      // where the Cloudflare marker is present but the query adapter is not.
       if (typeof originalTestConnection === 'function' && error?.code === 'ADAPTER_NOT_READY') {
         return originalTestConnection();
       }
@@ -74,7 +70,12 @@ if (process.env.KTC_CLOUDFLARE_WORKER === 'true' && typeof db?.promise === 'func
 
 async function verifyDatabaseSchema({ executor = db.promise() } = {}) {
   try {
-    const canonical = getCanonicalSchema();
+    // IMPORTANT: Cloudflare Workers must not depend on fs/path to load the
+    // canonical SQL file. That file is a Node-side audit artifact and may not
+    // exist in the Worker runtime. Runtime readiness therefore uses only the
+    // explicit minimum structural contract below.
+    const isWorker = process.env.KTC_CLOUDFLARE_WORKER === 'true' || Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
+    const canonical = isWorker ? null : getCanonicalSchema();
     const dbName = await currentDatabase(executor);
 
     const [tableRows] = await executor.query(
@@ -89,12 +90,12 @@ async function verifyDatabaseSchema({ executor = db.promise() } = {}) {
       tableRows.map((row) => String(row.TABLE_NAME).toLowerCase()),
     );
 
-    // Runtime readiness intentionally uses the long-standing minimum structural
-    // contract. The full canonical SQL remains an audit/source-of-truth artifact;
-    // it must not force production DB rewrites during a demo. This is especially
-    // important for existing TiDB databases that contain legacy migration-era
-    // objects or harmless type/index drift.
-    const expectedTables = new Set(Object.keys(canonical.tables));
+    // In Worker mode the runtime contract is deliberately independent of the
+    // canonical SQL parser. In Node mode retain the canonical table list for
+    // compatibility with the existing contract/audit behavior.
+    const expectedTables = new Set(
+      isWorker ? Object.keys(RUNTIME_REQUIRED_COLUMNS) : Object.keys(canonical.tables),
+    );
     const missingTables = [...expectedTables].filter((table) => !actualTables.has(table));
     const extraTables = [...actualTables].filter((table) => !expectedTables.has(table));
 
@@ -120,9 +121,6 @@ async function verifyDatabaseSchema({ executor = db.promise() } = {}) {
       }
     }
 
-    // Keep these arrays for diagnostics/API compatibility. They are intentionally
-    // non-blocking in runtime mode; strict canonical verification is available via
-    // the canonical contract tests and can be run separately after production.
     const ready = missingTables.length === 0 && missingColumns.length === 0;
 
     return {
@@ -136,7 +134,7 @@ async function verifyDatabaseSchema({ executor = db.promise() } = {}) {
       missingIndexes,
       invalidIndexes,
       extraIndexes,
-      contractVersion: canonical.version,
+      contractVersion: isWorker ? CONTRACT_VERSION : canonical.version,
       runtimeContract: 'MINIMUM_STRUCTURAL_V1',
     };
   } catch (error) {
@@ -201,6 +199,7 @@ function createSchemaNotReadyError(result) {
     extraIndexes: result.extraIndexes || [],
     contractVersion: result.contractVersion || CONTRACT_VERSION,
     runtimeContract: result.runtimeContract || 'MINIMUM_STRUCTURAL_V1',
+    reason: result.reason || null,
   };
   return error;
 }

@@ -1,25 +1,8 @@
 import worker from "./cloudflare-worker.js";
 
-// cloudflare-worker.js must evaluate first because it installs the Cloudflare
-// env/DB globals before server.js is loaded. Use a dynamic import so the
-// CommonJS server module is taken from the already-initialized module cache.
-const { initializeRuntime, runtimeReadiness } = await import("./server.js");
-
-// Cloudflare Workers can start before external bindings/database connectivity
-// is available. Initialize immediately, then retry without requiring a manual
-// redeploy/restart when TiDB becomes available later.
-async function initializeWithRetry() {
-  if (runtimeReadiness.ready || runtimeReadiness.initializing) return;
-  try {
-    await initializeRuntime();
-  } catch (error) {
-    console.error("[KTC] explicit Cloudflare runtime initialization failed", error);
-  }
-  if (!runtimeReadiness.ready) {
-    setTimeout(() => void initializeWithRetry(), 5000);
-  }
-}
-
-void initializeWithRetry();
-
+// cloudflare-worker.js owns Cloudflare bootstrap and runtime initialization.
+// Do not start a second initialization loop here: it can race the first DB
+// connection/schema check and leave /api/health stuck at STARTUP_FAILED even
+// after the Cloudflare master-data bootstrap has successfully connected to TiDB.
+// cloudflare-worker.js retries initializeRuntime after its bootstrap succeeds.
 export default worker;

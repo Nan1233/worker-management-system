@@ -1,4 +1,4 @@
-﻿const crypto = require("crypto");
+const crypto = require("crypto");
 const runtimeMetrics = require("./services/runtimeMetrics");
 const { logProductionIndexAudit } = require("./services/productionIndexAuditService");
 const { startProductionIndexAuditScheduler } = require("./services/indexAuditScheduler");
@@ -55,10 +55,10 @@ app.disable("x-powered-by");
 app.set("etag", "weak");
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" }, contentSecurityPolicy: isProduction ? undefined : false, referrerPolicy: { policy: "strict-origin-when-cross-origin" }, hsts: isProduction ? { maxAge: 15552000, includeSubDomains: true, preload: false } : false }));
 app.use((_req, res, next) => { res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()"); next(); });
-app.use(cors({ origin(origin, callback) { if (!origin || allowedOrigins.has(origin)) return callback(null, true); const error = new Error("Nguá»“n truy cáº­p khÃ´ng Ä‘Æ°á»£c phÃ©p bá»Ÿi CORS"); error.status = 403; error.code = "CORS_ORIGIN_DENIED"; error.isPublic = true; return callback(error); }, methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key", "X-Cron-Secret", "X-Request-Id", "X-Frontend-Version"], credentials: true, maxAge: 86400 }));
+app.use(cors({ origin(origin, callback) { if (!origin || allowedOrigins.has(origin)) return callback(null, true); const error = new Error("Nguồn truy cập không được phép bởi CORS"); error.status = 403; error.code = "CORS_ORIGIN_DENIED"; error.isPublic = true; return callback(error); }, methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key", "X-Cron-Secret", "X-Request-Id", "X-Frontend-Version"], credentials: true, maxAge: 86400 }));
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || "768kb", strict: true }));
 app.use(express.urlencoded({ extended: false, limit: process.env.URLENCODED_BODY_LIMIT || "128kb", parameterLimit: Number(process.env.URLENCODED_PARAMETER_LIMIT || 1000) }));
-app.use((req, res, next) => { const maxQueryLength = Number(process.env.MAX_QUERY_STRING_LENGTH || 4096); if (req.originalUrl.split("?")[1]?.length > maxQueryLength) return res.status(414).json({ success: false, code: "QUERY_STRING_TOO_LONG", message: "Query quÃ¡ dÃ i" }); next(); });
+app.use((req, res, next) => { const maxQueryLength = Number(process.env.MAX_QUERY_STRING_LENGTH || 4096); if (req.originalUrl.split("?")[1]?.length > maxQueryLength) return res.status(414).json({ success: false, code: "QUERY_STRING_TOO_LONG", message: "Query quá dài" }); next(); });
 app.use((req, res, next) => { const rawRequestId = String(req.get("X-Request-Id") || "").trim(); const requestId = /^[A-Za-z0-9._:-]{1,120}$/.test(rawRequestId) ? rawRequestId : crypto.randomUUID(); const startedAt = process.hrtime.bigint(); req.requestId = requestId; res.setHeader("X-Request-Id", requestId); const originalEnd = res.end; res.end = function patchedEnd(...args) { const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6; if (!res.headersSent) res.setHeader("Server-Timing", `app;dur=${durationMs.toFixed(1)}`); return originalEnd.apply(this, args); }; res.on("finish", () => { const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6; const requestPath = String(req.originalUrl || req.path || "").split("?")[0]; runtimeMetrics.recordHttp({ requestId, method: req.method, path: requestPath, status: res.statusCode, durationMs }); if (!isProduction || res.statusCode >= 400 || durationMs >= 1000) console.log(JSON.stringify({ type: "http", requestId, method: req.method, path: requestPath, status: res.statusCode, durationMs: Math.round(durationMs) })); }); next(); });
 app.use("/api", globalApiLimiter);
 app.use("/api", (req, res, next) => { res.setHeader("Cache-Control", "private, no-store"); next(); });
@@ -69,8 +69,9 @@ async function readinessHandler(_req, res) {
   res.setHeader("Cache-Control", "no-store");
   const version = require("./config/version");
 
-  // Cloudflare Workers can create a fresh isolate at any request.
-  // Do not rely on an in-memory STARTING flag from a previous isolate.
+  // Cloudflare Workers creates request-serving isolates independently.
+  // A readiness check must actively initialize this isolate instead of relying
+  // on a previous in-memory startup callback.
   if (!runtimeReadiness.ready && !runtimeReadiness.initializing) {
     void initializeRuntime();
   }
@@ -109,7 +110,7 @@ async function readinessHandler(_req, res) {
 }
 app.get("/api/health/ready", readinessHandler);
 app.get("/api/health", readinessHandler);
-app.use("/api", (req, res, next) => { if (String(process.env.KTC_MAINTENANCE_MODE || "").toUpperCase() !== "RESTORE") return next(); if (["GET", "HEAD", "OPTIONS"].includes(String(req.method || "").toUpperCase())) return next(); return res.status(503).json({ success: false, code: "MAINTENANCE_RESTORE", message: "Há»‡ thá»‘ng Ä‘ang á»Ÿ cháº¿ Ä‘á»™ khÃ´i phá»¥c dá»¯ liá»‡u" }); });
+app.use("/api", (req, res, next) => { if (String(process.env.KTC_MAINTENANCE_MODE || "").toUpperCase() !== "RESTORE") return next(); if (["GET", "HEAD", "OPTIONS"].includes(String(req.method || "").toUpperCase())) return next(); return res.status(503).json({ success: false, code: "MAINTENANCE_RESTORE", message: "Hệ thống đang ở chế độ khôi phục dữ liệu" }); });
 
 const mount = (path, route, name) => app.use(path, resolveRouteModule(route, name));
 mount("/api/mobile", mobileRoutes, "mobileRoutes");
@@ -136,8 +137,8 @@ mount("/api/excel-master-sync", excelMasterSyncRoutes, "excelMasterSyncRoutes");
 mount("/api", defectRoutes, "defectRoutes");
 mount("/api", deductionRoutes, "deductionRoutes");
 app.get("/", (_req, res) => res.json({ success: true, message: "Backend is running" }));
-app.use((req, res) => res.status(404).json({ success: false, message: "API khÃ´ng tá»“n táº¡i" }));
-app.use((error, req, res, next) => { if (res.headersSent) return next(error); console.error(JSON.stringify({ type: "api_error", requestId: req.requestId, method: req.method, path: req.originalUrl, code: error.code, message: error.message, stack: isProduction ? undefined : error.stack })); let status = Number(error?.status || error?.statusCode || 500); let code = error?.code || "INTERNAL_SERVER_ERROR"; let message; if (error?.type === "entity.too.large" || status === 413) { status = 413; code = "PAYLOAD_TOO_LARGE"; message = "Dá»¯ liá»‡u gá»­i lÃªn vÆ°á»£t quÃ¡ giá»›i háº¡n cho phÃ©p"; } else if (error?.type === "entity.parse.failed" || (error instanceof SyntaxError && status === 400)) { status = 400; code = "INVALID_JSON"; message = "Dá»¯ liá»‡u JSON khÃ´ng há»£p lá»‡"; } else message = error?.isPublic ? error.message : isProduction ? "Lá»—i mÃ¡y chá»§" : error.message || "Lá»—i mÃ¡y chá»§"; return res.status(status).json({ success: false, code, message, request_id: req.requestId }); });
+app.use((req, res) => res.status(404).json({ success: false, message: "API không tồn tại" }));
+app.use((error, req, res, next) => { if (res.headersSent) return next(error); console.error(JSON.stringify({ type: "api_error", requestId: req.requestId, method: req.method, path: req.originalUrl, code: error.code, message: error.message, stack: isProduction ? undefined : error.stack })); let status = Number(error?.status || error?.statusCode || 500); let code = error?.code || "INTERNAL_SERVER_ERROR"; let message; if (error?.type === "entity.too.large" || status === 413) { status = 413; code = "PAYLOAD_TOO_LARGE"; message = "Dữ liệu gửi lên vượt quá giới hạn cho phép"; } else if (error?.type === "entity.parse.failed" || (error instanceof SyntaxError && status === 400)) { status = 400; code = "INVALID_JSON"; message = "Dữ liệu JSON không hợp lệ"; } else message = error?.isPublic ? error.message : isProduction ? "Lỗi máy chủ" : error.message || "Lỗi máy chủ"; return res.status(status).json({ success: false, code, message, request_id: req.requestId }); });
 let databaseKeepAliveTimer = null;
 async function warmFrequentlyUsedMasterData() { try { const [processRows] = await db.promise().query("SELECT id FROM processes WHERE status = 'active' ORDER BY id LIMIT 20"); for (const row of processRows) { const processId = Number(row.id); await getOrLoadMasterData(`machines:${processId}`, TTL.machines, () => machineModel.findByProcess(processId)); await getOrLoadMasterData(`product-standards:${processId}`, TTL.productStandards, () => productStandardModel.findByProcess(processId)); await getOrLoadMasterData(`defects:${processId}`, TTL.defects, () => Defect.getByProcess(processId)); } console.log(`Master data warmed for ${processRows.length} processes`); } catch (error) { console.warn(`Master data warmup skipped: ${error.message}`); } }
 function startDatabaseKeepAlive() { const intervalMs = Math.max(60000, Number(process.env.DB_KEEPALIVE_INTERVAL_MS || 240000)); databaseKeepAliveTimer = setInterval(() => { void db.promise().query({ sql: "SELECT 1 AS ok", timeout: 5000 }).catch(error => console.warn(`Database keepalive failed: ${error.message}`)); }, intervalMs); databaseKeepAliveTimer.unref?.(); }

@@ -1,7 +1,6 @@
 import type { MachineOption, ProductStandardOption } from "../../services/masterDataService";
 
 export type ProductSuggestionMode = "MANUAL" | "MACHINE";
-export type ProductCodeFamily = "CUT_AUTO" | "CUT" | "LONG_MACHINE" | "LONG";
 
 const normalize = (value: unknown) => String(value ?? "").trim().toUpperCase();
 
@@ -20,42 +19,6 @@ export const normalizeWorkType = (value: unknown): string => {
     return code;
 };
 
-/**
- * Canonical KTC product-code classification.
- *
- * Rules for the GC Cắt/Lồng screen:
- *   - Cắt tự động: product code ends with -AUTO / -AUTOMATIC, or -5 / -6 / -7 / -11
- *     (the numeric suffixes are automatic-machine variants)
- *   - Cắt thường: product code starts with C + digit and is not automatic
- *   - Lồng máy: product code ends with -M
- *   - Lồng: product code ends with -L
- *   - Other non-Cắt codes remain Lồng for backward compatibility.
- *
- * This function is intentionally based on product_code, not work_type from a
- * stale master-data row, so the worker selector and persisted product_code use
- * the same canonical convention.
- */
-export const classifyProductCode = (productCode: unknown): ProductCodeFamily => {
-    const code = normalize(productCode).replace(/\s+/g, "");
-    if (!code) return "LONG";
-    if (/(?:-AUTO|-AUTOMATIC|-5|-6|-7|-11)$/i.test(code)) return "CUT_AUTO";
-    if (/^C\d/.test(code)) return "CUT";
-    if (/-M$/i.test(code)) return "LONG_MACHINE";
-    if (/-L$/i.test(code)) return "LONG";
-    return "LONG";
-};
-
-export const isCutProductCode = (productCode: unknown): boolean => {
-    const family = classifyProductCode(productCode);
-    return family === "CUT" || family === "CUT_AUTO";
-};
-
-export const isAutomaticCutProductCode = (productCode: unknown): boolean =>
-    classifyProductCode(productCode) === "CUT_AUTO";
-
-export const isMachineLongProductCode = (productCode: unknown): boolean =>
-    classifyProductCode(productCode) === "LONG_MACHINE";
-
 export const getProductMachineHint = (productCode: unknown): { kind: "AUTO" | "NUMBER"; value: string } | null => {
     const code = normalize(productCode);
     const match = code.match(/-(AUTO|AUTOMATIC|\d+)$/i);
@@ -65,12 +28,19 @@ export const getProductMachineHint = (productCode: unknown): { kind: "AUTO" | "N
     return { kind: "NUMBER", value: String(Number(suffix)) };
 };
 
-/** Canonical product family used only for matching machine-specific variants. */
+/**
+ * Canonical product family. C7630-11 and 7630 belong to the same family.
+ * This is used only for matching machine-specific variants.
+ */
 export const getProductFamilyCode = (productCode: unknown): string =>
     normalize(productCode)
         .replace(/-(AUTO|AUTOMATIC|\d+)$/i, "")
-        .replace(/-M$/i, "")
         .replace(/^C(?=\d)/, "");
+
+const machineNumber = (machineCode: string): string | null => {
+    const key = normalizeMachineKey(machineCode);
+    return /^\d+$/.test(key) ? key : null;
+};
 
 const eligibleMachineCodes = (product: ProductStandardOption): string[] =>
     String(product.eligible_machine_codes || "")
@@ -78,13 +48,23 @@ const eligibleMachineCodes = (product: ProductStandardOption): string[] =>
         .map(normalizeMachineKey)
         .filter(Boolean);
 
-// GC Cắt automatic machines.
+// GC Cắt automatic machines. C7 is automatic as a MACHINE even though the
+// product-code convention has no -7 suffix.
 const GC_AUTOMATIC_MACHINE_CODES = new Set(["C5", "C6", "C7", "C11"]);
 
 const isGcAutomaticMachine = (machineCode: unknown): boolean =>
     GC_AUTOMATIC_MACHINE_CODES.has(normalize(machineCode).replace(/\s+/g, ""));
 
-/** GC shared Cắt/Lồng screen: selected machine remains the machine source of truth. */
+// Product-code suffixes that explicitly represent automatic GC Cắt variants.
+// There is deliberately no -7 variant.
+const AUTO_MACHINE_SUFFIXES = new Set(["5", "6", "11"]);
+
+/**
+ * GC uses one shared worker screen for Cắt/Lồng. The worker no longer chooses
+ * "Cắt/Lồng" or "Tự động/Tay/Máy". The selected machine is the source of truth
+ * when a machine is entered. If the machine is blank, KTC treats the entry as
+ * Lồng tay, so the product list must remain selectable from LONG master data.
+ */
 const getGcWorkTypeForMachine = (machineCode: unknown): "CUT" | "LONG" | null => {
     const key = normalize(machineCode).replace(/\s+/g, "");
     if (!key) return null;
@@ -106,74 +86,83 @@ export const filterProductsForSelection = ({
     machineOptions?: MachineOption[];
     useEncodedMachineSuffix?: boolean;
 }): ProductStandardOption[] => {
+    const familyHasMachineVariant = new Set(
+        products
+            .filter((product) => normalizeWorkType(product.work_type) === "CUT")
+            .filter((product) => getProductMachineHint(product.product_code))
+            .map((product) => getProductFamilyCode(product.product_code))
+    );
+
+    if (mode === "MANUAL") {
+        if (!useEncodedMachineSuffix) return products;
+
+        return products.filter((product) => {
+            if (normalizeWorkType(product.work_type) !== "LONG") return false;
+            const mappedMachines = eligibleMachineCodes(product);
+            const hasExplicitMapping = Number(product.has_machine_specific_standard || 0) === 1 || mappedMachines.length > 0;
+            if (hasExplicitMapping) return false;
+            return !getProductMachineHint(product.product_code);
+        });
+    }
+
     const selectedMachine = normalizeMachineKey(machineCode);
     const selectedRawMachine = normalize(machineCode).replace(/\s+/g, "");
+
+    if (!selectedMachine && useEncodedMachineSuffix) {
+        return products.filter((product) => {
+            if (normalizeWorkType(product.work_type) !== "LONG") return false;
+            const mappedMachines = eligibleMachineCodes(product);
+            const hasExplicitMapping = Number(product.has_machine_specific_standard || 0) === 1 || mappedMachines.length > 0;
+            if (hasExplicitMapping) return false;
+            return !getProductMachineHint(product.product_code);
+        });
+    }
+
+    if (!selectedMachine) return [];
+
     const machine = (machineOptions || []).find(
         (item) => normalizeMachineKey(item.machine_code) === selectedMachine
     );
+
     const gcWorkType = useEncodedMachineSuffix ? getGcWorkTypeForMachine(selectedRawMachine) : null;
     const isAutomatic = useEncodedMachineSuffix
         ? isGcAutomaticMachine(selectedRawMachine)
         : Number(machine?.is_automatic || 0) === 1;
-
-    // Non-GC processes keep their master-data work_type/machine mapping rules.
-    if (!useEncodedMachineSuffix) {
-        if (mode === "MANUAL") return products;
-        // A machine-based operation must choose a machine before a product can be selected.
-        if (!selectedMachine) return [];
-        return products.filter((product) => {
-            const mappedMachines = eligibleMachineCodes(product);
-            const hasExplicitMapping = Number(product.has_machine_specific_standard || 0) === 1 || mappedMachines.length > 0;
-            if (hasExplicitMapping && mappedMachines.length > 0 && !mappedMachines.includes(selectedMachine)) return false;
-            return true;
-        });
-    }
-
-    // GC manual Lồng: no machine is valid, and only canonical LONG codes are shown.
-    // GC machine operations: no machine means no product selection is allowed.
-    if (!selectedMachine) {
-        if (mode === "MACHINE") return [];
-        return products.filter((product) => classifyProductCode(product.product_code) === "LONG");
-    }
+    const selectedNumber = machineNumber(selectedMachine);
 
     return products.filter((product) => {
-        const code = String(product.product_code || "").trim();
-        const family = classifyProductCode(code);
+        const hint = getProductMachineHint(product.product_code);
         const mappedMachines = eligibleMachineCodes(product);
         const hasExplicitMapping = Number(product.has_machine_specific_standard || 0) === 1 || mappedMachines.length > 0;
+        const productWorkType = normalizeWorkType(product.work_type);
 
-        // Explicit machine mappings always win over code inference.
+        if (useEncodedMachineSuffix && gcWorkType && productWorkType !== gcWorkType) return false;
+
         if (hasExplicitMapping && mappedMachines.length > 0 && !mappedMachines.includes(selectedMachine)) {
             return false;
         }
 
-        // Selected C machine = Cắt.
-        if (gcWorkType === "CUT") {
+        if (useEncodedMachineSuffix && gcWorkType === "CUT") {
             if (isAutomatic) {
-                if (family !== "CUT_AUTO") return false;
-
-                // -AUTO is a generic automatic variant. Numeric suffixes -5/-6/-7/-11
-                // are machine-specific automatic variants and must match the selected
-                // automatic machine. This prevents C2556-5 appearing on C6, etc.
-                const hint = getProductMachineHint(code);
+                if (hint?.kind === "AUTO") return true;
                 if (hint?.kind === "NUMBER") {
-                    return hint.value === selectedMachine.replace(/^C/, "");
+                    return AUTO_MACHINE_SUFFIXES.has(hint.value)
+                        && selectedNumber !== null
+                        && hint.value === selectedNumber;
                 }
                 return true;
             }
 
-            // Cắt không tự động: CHỈ mã C + số và KHÔNG có automatic suffix.
-            return family === "CUT";
+            if (hint?.kind === "AUTO") return false;
+            if (hint?.kind === "NUMBER") {
+                if (AUTO_MACHINE_SUFFIXES.has(hint.value)) return false;
+                return selectedNumber !== null && hint.value === selectedNumber;
+            }
+
+            if (familyHasMachineVariant.has(getProductFamilyCode(product.product_code))) return true;
         }
 
-        // Numeric machine = Lồng. -M means Lồng máy; -L means Lồng.
-        // Other non-Cut codes remain Lồng for backward compatibility.
-        if (gcWorkType === "LONG") {
-            if (family === "CUT" || family === "CUT_AUTO") return false;
-            return true;
-        }
-
-        return false;
+        return true;
     });
 };
 

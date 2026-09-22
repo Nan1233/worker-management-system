@@ -122,19 +122,17 @@ export const deductionOptions: Array<{ key: DeductionKey; label: string }> = [
     { key:"hocViec", label:"Học việc, đào tạo" },
 ];
 
+// Canonical GC defect codes shown to workers. The code is part of the label.
 export const allNgOptions: Array<{ key: NgKey; id?: number; code: string; label: string }> = [
-    { key:"kqdDapLai", code:"KQD_DL", label:"KQD dập lại" },
-    { key:"kqdTuot", code:"KQD_TUOT", label:"KQD tuột" },
-    { key:"voDoLong", code:"VO_LONG", label:"Vỡ do lồng" },
-    { key:"xuocDoLong", code:"XUOC_LONG", label:"Xước do lồng" },
-    { key:"congGay", code:"CONG_GAY", label:"Cong gãy" },
-    { key:"xoay", code:"XOAY", label:"Xoay" },
-    { key:"khongDut", code:"KHONG_DUT", label:"Không đứt" },
-    { key:"baviaHut", code:"BAVIA", label:"Bavia hụt" },
-    { key:"ppcm", code:"PPCM", label:"PPCM" },
-    { key:"loiCaoSu", code:"CAO_SU", label:"Lỗi cao su" },
-    { key:"ngKichThuoc", code:"KT", label:"NG kích thước" },
-    { key:"catLem", code:"CAT_LEM", label:"Cắt lẹm" },
+    { key:"cat01", code:"CAT01", label:"CAT01 — Cao su xoay" },
+    { key:"cat02", code:"CAT02", label:"CAT02 — Cắt không đứt" },
+    { key:"cat03", code:"CAT03", label:"CAT03 — Lỗi kích thước" },
+    { key:"cat04", code:"CAT04", label:"CAT04 — Cắt không đứt" },
+    { key:"long01", code:"LONG01", label:"LONG01 — KQD" },
+    { key:"long02", code:"LONG02", label:"LONG02 — Xước" },
+    { key:"long03", code:"LONG03", label:"LONG03 — Vỡ" },
+    { key:"long04", code:"LONG04", label:"LONG04 — Trục cong" },
+    { key:"long05", code:"LONG05", label:"LONG05 — Lỗi cao su" },
 ];
 
 // Canonical KQD exclusion registry used by ProcessPage.

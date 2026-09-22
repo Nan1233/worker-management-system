@@ -53,11 +53,22 @@ async function enqueueMonthlyDates(dates, requestedBy) {
 }
 
 async function initialize() {
-  const recovered = await store.recoverStaleRunning(10);
-  if (recovered > 0) {
-    console.warn(`[KTC] Re-queued ${recovered} stale Excel export job(s).`);
+  // Excel export recovery is an optional background subsystem. A missing or
+  // partially migrated Excel-job table must never make the whole API report
+  // DATABASE_STARTUP_FAILED when the core DB/schema is already healthy.
+  try {
+    const recovered = await store.recoverStaleRunning(10);
+    if (recovered > 0) {
+      console.warn(`[KTC] Re-queued ${recovered} stale Excel export job(s).`);
+    }
+    schedule(1000);
+    return { ok: true, recovered };
+  } catch (error) {
+    console.warn(`[KTC] Excel export queue bootstrap deferred: ${error?.message || error}`);
+    // Do not throw: initializeRuntime can mark the core API READY and the
+    // queue can recover lazily when an export is requested.
+    return { ok: false, deferred: true };
   }
-  schedule(1000);
 }
 
 module.exports = { enqueue, enqueueMonthlyDates, pump, schedule, initialize };
