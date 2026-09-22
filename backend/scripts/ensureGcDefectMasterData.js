@@ -7,9 +7,8 @@ const query = (sql, params = []) => new Promise((resolve, reject) => {
 });
 
 // Canonical source of truth for GC / Gia công NG master data.
-// GC defect codes are explicitly split by the worker's selected operation:
-//   Cắt  -> CAT01..CAT04
-//   Lồng -> LONG01..LONG02
+// Cắt  -> CAT01..CAT04
+// Lồng -> LONG01..LONG05
 // Historical rows are never deleted; only the active master is synchronized.
 const CANONICAL_GC_DEFECTS = [
   ['CAT01', 'Cao su xoay'],
@@ -17,7 +16,10 @@ const CANONICAL_GC_DEFECTS = [
   ['CAT03', 'Lỗi kích thước'],
   ['CAT04', 'Cắt không đứt'],
   ['LONG01', 'KQD'],
-  ['LONG02', 'Tuốt và lồng lại'],
+  ['LONG02', 'Xước'],
+  ['LONG03', 'Vỡ'],
+  ['LONG04', 'Trục cong'],
+  ['LONG05', 'Lỗi cao su'],
 ];
 
 function normalize(value) {
