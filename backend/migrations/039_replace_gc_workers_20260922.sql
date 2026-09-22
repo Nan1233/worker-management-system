@@ -20,7 +20,7 @@ INSERT INTO _gc_worker_seed (worker_code, full_name) VALUES
 ('4478', 'Hà Tiến Thành'),
 ('4412', 'Lầu Thị Na'),
 ('4310', 'Lò Văn Thành'),
-('GC-001', 'Vì Văn Long'),
+('LONG', 'Vì Văn Long'),
 ('761', 'Giàng Mí Vư'),
 ('846', 'Và Y Mái'),
 ('669', 'Vàng Thị Quỳnh Châu'),
@@ -38,7 +38,7 @@ INSERT INTO _gc_worker_seed (worker_code, full_name) VALUES
 ('4504', 'Giàng A Mạnh'),
 ('655', 'Giàng Thị Đông'),
 ('656', 'Vừ A Nánh'),
-('GC-002', 'Giàng A Vông'),
+('VONG', 'Giàng A Vông'),
 ('1246', 'Nguyễn Quang Tuấn'),
 ('3751', 'Nguyễn Đức Vinh'),
 ('1733', 'Nguyễn Thị Ngân'),
@@ -61,8 +61,8 @@ INSERT INTO _gc_worker_seed (worker_code, full_name) VALUES
 ('947', 'Sùng Mí Say'),
 ('849', 'Và Thị Hoa'),
 ('850', 'Giàng A Nọ'),
-('GC-003', 'Vừ A Trỉa'),
-('GC-004', 'Giàng Thị Lúa'),
+('TRIA', 'Vừ A Trỉa'),
+('LUA', 'Giàng Thị Lúa'),
 ('2516', 'Đinh Thị Cúc'),
 ('3352', 'Vì Văn Sĩ'),
 ('3353', 'Đinh Thị Thùy'),
@@ -72,8 +72,8 @@ INSERT INTO _gc_worker_seed (worker_code, full_name) VALUES
 ('698', 'Mua Mí Già'),
 ('834', 'Giàng Seo Diêu'),
 ('845', 'Giàng A Váng'),
-('GC-005', 'Vừ A Dếnh'),
-('GC-006', 'Vàng Thị Bông'),
+('DENH', 'Vừ A Dếnh'),
+('BONG', 'Vàng Thị Bông'),
 ('1777', 'Lê văn Khánh'),
 ('958', 'Lục Văn Ngân'),
 ('49CĐT-046', 'Đỗ Trung Anh'),
@@ -105,13 +105,11 @@ INSERT INTO _gc_worker_seed (worker_code, full_name) VALUES
 ('49DLLH1-015', 'Lê Minh Phúc'),
 ('49DLLH1-022', 'Trần Hoàng Trung');
 
--- Remove the previous canonical GC roster only. Historical reports remain intact.
 DELETE wp
 FROM worker_processes wp
 JOIN processes p ON p.id = wp.process_id
 WHERE UPPER(TRIM(p.process_code)) = 'GC';
 
--- Existing worker codes keep their worker identity; only the displayed name/status is synchronized.
 UPDATE users u
 JOIN workers w ON w.user_id = u.id
 JOIN _gc_worker_seed s ON s.worker_code = w.worker_code
@@ -123,8 +121,6 @@ UPDATE workers w
 JOIN _gc_worker_seed s ON s.worker_code = w.worker_code
 SET w.status = 'active';
 
--- Create worker accounts for supplied codes that do not exist yet.
--- Worker login uses the worker code; password is intentionally empty for worker accounts.
 INSERT INTO users (username, password, full_name, role, status)
 SELECT s.worker_code, '', s.full_name, 'worker', 'active'
 FROM _gc_worker_seed s
@@ -143,7 +139,6 @@ JOIN users u ON u.username = s.worker_code
 LEFT JOIN workers w ON w.worker_code = s.worker_code
 WHERE w.id IS NULL;
 
--- Assign exactly this 96-person roster to canonical GC.
 INSERT IGNORE INTO worker_processes (worker_id, process_id)
 SELECT w.id, p.id
 FROM workers w
