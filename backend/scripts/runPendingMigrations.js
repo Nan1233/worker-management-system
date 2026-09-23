@@ -8,8 +8,8 @@ const DEFAULT_REPOSITORY = 'Nan1233/worker-management-system';
 const isCloudflareWorker = process.env.KTC_CLOUDFLARE_WORKER === 'true' || Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
 const migrationRef = String(process.env.KTC_MIGRATION_REF || (isCloudflareWorker ? 'test' : 'main')).trim();
 const repository = String(process.env.KTC_MIGRATION_REPOSITORY || DEFAULT_REPOSITORY).trim();
-const apiBase = `https://api.github.com/repos/${repository}`; // retained for local diagnostics
-const rawBase = `https://raw.githubusercontent.com/${repository}/${migrationRef.replace(/[^A-Za-z0-9._-]/g, "")}`;
+const apiBase = `https://api.github.com/repos/${repository}`;
+const rawBase = `https://raw.githubusercontent.com/${repository}/${migrationRef.replace(/[^A-Za-z0-9._-]/g, '')}`;
 
 function getMigrationError(error) {
   return String(error?.message || error || 'Unknown migration error');
@@ -17,14 +17,22 @@ function getMigrationError(error) {
 
 async function fetchJson(url) {
   const response = await fetch(url, {
-    headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'ktc-migration-runner' },
+    headers: {
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'ktc-migration-runner',
+    },
   });
   if (!response.ok) throw new Error(`GitHub manifest request failed: HTTP ${response.status} ${response.statusText} ${url}`);
   return response.json();
 }
 
 async function fetchText(url) {
-  const response = await fetch(url, { headers: { Accept: 'text/plain', 'User-Agent': 'ktc-migration-runner' } });
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'text/plain',
+      'User-Agent': 'ktc-migration-runner',
+    },
+  });
   if (!response.ok) throw new Error(`Migration SQL request failed: HTTP ${response.status} ${response.statusText}: ${url}`);
   return response.text();
 }
@@ -58,10 +66,18 @@ function validateMigrationInventory(migrations) {
 }
 
 async function loadMigrationManifest() {
-  const manifestUrl = `${rawBase}/backend/migrations/manifest.json`;
+  // Cloudflare Workers can intermittently fail fetching raw.githubusercontent.com.
+  // Use the GitHub Contents API for the small static manifest instead; SQL files
+  // continue to come from raw.githubusercontent.com via their download_url.
+  const manifestUrl = `${apiBase}/contents/backend/migrations/manifest.json?ref=${encodeURIComponent(migrationRef)}`;
   console.log(`[KTC][MIGRATION] loading static manifest: ${manifestUrl}`);
   try {
-    const manifest = await fetchJson(manifestUrl);
+    const manifestFile = await fetchJson(manifestUrl);
+    if (!manifestFile || manifestFile.type !== 'file' || typeof manifestFile.content !== 'string') {
+      throw new Error('GitHub manifest API returned no file content.');
+    }
+    const decoded = atob(manifestFile.content.replace(/\s+/g, ''));
+    const manifest = JSON.parse(decoded);
     const names = Array.isArray(manifest?.migrations) ? manifest.migrations : manifest;
     if (!Array.isArray(names)) throw new Error('Static migration manifest has no migrations array.');
     const entries = names.map(name => ({
