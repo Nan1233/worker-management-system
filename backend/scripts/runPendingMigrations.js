@@ -9,7 +9,7 @@ const isCloudflareWorker = process.env.KTC_CLOUDFLARE_WORKER === 'true' || Boole
 const migrationRef = String(process.env.KTC_MIGRATION_REF || (isCloudflareWorker ? 'test' : 'main')).trim();
 const repository = String(process.env.KTC_MIGRATION_REPOSITORY || DEFAULT_REPOSITORY).trim();
 const apiBase = `https://api.github.com/repos/${repository}`;
-const rawBase = `https://raw.githubusercontent.com/${repository}/${encodeURIComponent(migrationRef)}`;
+const rawBase = `https://raw.githubusercontent.com/${repository}/${migrationRef.replace(/[^A-Za-z0-9._-]/g, "")}`;
 
 function getMigrationError(error) {
   return String(error?.message || error || 'Unknown migration error');
