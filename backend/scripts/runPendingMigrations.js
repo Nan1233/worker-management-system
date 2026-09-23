@@ -112,5 +112,4 @@ function getCloudflareBootMigrationPromise() {
 
 async function runPendingMigrationsForRuntime() { const bootPromise = getCloudflareBootMigrationPromise(); if (bootPromise) return bootPromise; return runPendingMigrations(); }
 module.exports = runPendingMigrationsForRuntime;
-if (isCloudflareWorker && String(process.env.KTC_RUN_BUILD_DB_MIGRATIONS || '').toLowerCase() === 'true') getCloudflareBootMigrationPromise()?.catch(() => undefined);
 if (require.main === module) runPendingMigrations().then(() => process.exit(0)).catch(error => { console.error(`[KTC][MIGRATION] fatal: ${getMigrationError(error)}`, error); process.exit(1); });
