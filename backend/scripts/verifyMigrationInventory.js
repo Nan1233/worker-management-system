@@ -3,24 +3,27 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const migrationDirs = [
-  path.join(__dirname, '..', 'migrations'),
-  path.join(__dirname, '..', 'database', 'migrations'),
-];
+// Canonical migration source: backend/migrations only.
+// backend/database contains a full-schema snapshot and is intentionally not
+// scanned as an executable migration directory.
+const migrationsDir = path.join(__dirname, '..', 'migrations');
 
 const files = [];
 const seen = new Set();
-for (const migrationsDir of migrationDirs) {
-  if (!fs.existsSync(migrationsDir)) continue;
-  for (const name of fs.readdirSync(migrationsDir).filter((item) => /^\d+_.+\.sql$/i.test(item))) {
-    if (seen.has(name)) {
-      console.error(`DUPLICATE_MIGRATION_FILENAME: ${name}`);
-      process.exitCode = 1;
-    }
-    seen.add(name);
-    const match = /^(\d+)_/.exec(name);
-    files.push({ filename: name, number: Number(match[1]), directory: migrationsDir });
+
+if (!fs.existsSync(migrationsDir)) {
+  console.error(`MIGRATION_DIRECTORY_NOT_FOUND: ${migrationsDir}`);
+  process.exit(1);
+}
+
+for (const name of fs.readdirSync(migrationsDir).filter((item) => /^\d+_.+\.sql$/i.test(item))) {
+  if (seen.has(name)) {
+    console.error(`DUPLICATE_MIGRATION_FILENAME: ${name}`);
+    process.exitCode = 1;
   }
+  seen.add(name);
+  const match = /^(\d+)_/.exec(name);
+  files.push({ filename: name, number: Number(match[1]), directory: migrationsDir });
 }
 
 files.sort((a, b) => a.number - b.number || a.filename.localeCompare(b.filename, 'en'));
@@ -31,12 +34,9 @@ const duplicateNumbers = [...new Set(files
   .sort((a, b) => a - b);
 
 const versions = [...new Set(files.map((item) => item.number))].sort((a, b) => a - b);
-const malformed = migrationDirs.flatMap((dir) => {
-  if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir)
-    .filter((name) => name.toLowerCase().endsWith('.sql'))
-    .filter((name) => !/^\d+_.+\.sql$/i.test(name));
-});
+const malformed = fs.readdirSync(migrationsDir)
+  .filter((name) => name.toLowerCase().endsWith('.sql'))
+  .filter((name) => !/^\d+_.+\.sql$/i.test(name));
 
 const latest = files.at(-1) || null;
 const expectedVersions = Array.from({ length: 45 }, (_, index) => index + 1);
