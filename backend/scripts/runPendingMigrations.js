@@ -131,5 +131,34 @@ async function runPendingMigrations() {
   }
 }
 
-module.exports = runPendingMigrations;
+let cloudflareBootMigrationPromise = null;
+function getCloudflareBootMigrationPromise() {
+  const enabled = String(process.env.KTC_RUN_BUILD_DB_MIGRATIONS || '').toLowerCase() === 'true';
+  if (!isCloudflareWorker || !enabled) return null;
+  if (!cloudflareBootMigrationPromise) {
+    cloudflareBootMigrationPromise = runPendingMigrations()
+      .then(() => {
+        console.log('[KTC][MIGRATION] Cloudflare test boot migration completed');
+        return true;
+      })
+      .catch(error => {
+        console.error('[KTC][MIGRATION] Cloudflare test boot migration failed', error);
+        throw error;
+      });
+  }
+  return cloudflareBootMigrationPromise;
+}
+
+async function runPendingMigrationsForRuntime() {
+  const bootPromise = getCloudflareBootMigrationPromise();
+  if (bootPromise) return bootPromise;
+  return runPendingMigrations();
+}
+
+module.exports = runPendingMigrationsForRuntime;
+
+if (isCloudflareWorker && String(process.env.KTC_RUN_BUILD_DB_MIGRATIONS || '').toLowerCase() === 'true') {
+  getCloudflareBootMigrationPromise()?.catch(() => undefined);
+}
+
 if (require.main === module) runPendingMigrations().then(() => process.exit(0)).catch(error => { console.error('[KTC][MIGRATION] fatal', error); process.exit(1); });
