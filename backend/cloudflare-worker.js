@@ -41,18 +41,20 @@ let cloudflareMigrationReady = false;
 let cloudflareMigrationPromise = null;
 async function ensureCloudflareTestMigrations() {
   const enabled = String(process.env.KTC_RUN_BUILD_DB_MIGRATIONS || "").toLowerCase() === "true";
-  if (!enabled) return true;
-  if (cloudflareMigrationReady) return true;
+  if (!enabled || cloudflareMigrationReady) return true;
   if (cloudflareMigrationPromise) return cloudflareMigrationPromise;
-  cloudflareMigrationPromise = runPendingMigrations().then(() => {
-    cloudflareMigrationReady = true;
-    console.log("[KTC][MIGRATION] Cloudflare test runtime migrations completed");
-    return true;
-  }).catch((error) => {
-    console.error("[KTC][MIGRATION] Cloudflare test runtime migration failed", error);
-    cloudflareMigrationPromise = null;
-    throw error;
-  });
+  cloudflareMigrationPromise = (async () => {
+    try {
+      const ok = await runPendingMigrations();
+      cloudflareMigrationReady = ok !== false;
+      console.log("[KTC][MIGRATION] Cloudflare test runtime migrations completed");
+      return true;
+    } catch (error) {
+      console.error("[KTC][MIGRATION] Cloudflare test runtime migration failed", error?.message || String(error), error);
+      cloudflareMigrationPromise = null;
+      throw error;
+    }
+  })();
   return cloudflareMigrationPromise;
 }
 
