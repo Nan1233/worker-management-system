@@ -1,14 +1,20 @@
 'use strict';
 
-const fs = require('node:fs');
 const path = require('node:path');
-const db = require('../config/db');
+const fs = require('node:fs');
 
-const isCloudflareWorker = process.env.KTC_CLOUDFLARE_WORKER === 'true' || Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
-const MIGRATION_DIRS = [
-  path.join(__dirname, '..', 'migrations'),
-  path.join(__dirname, '..', 'database', 'migrations'),
-];
+const isCloudflareWorker =
+  process.env.KTC_CLOUDFLARE_WORKER === 'true' ||
+  Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
+
+// In the Cloudflare bundle this module is loaded for compatibility, but must
+// not evaluate Node filesystem paths during module initialization.
+const MIGRATION_DIRS = isCloudflareWorker
+  ? []
+  : [
+      path.join(__dirname, '..', 'migrations'),
+      path.join(__dirname, '..', 'database', 'migrations'),
+    ];
 
 function loadMigrationManifest() {
   const entries = [];
@@ -27,10 +33,14 @@ function loadMigrationManifest() {
 
   entries.sort((a, b) => a.number - b.number || a.filename.localeCompare(b.filename, 'en'));
   const versions = [...new Set(entries.map(item => item.number))].sort((a, b) => a - b);
-  if (!entries.length) throw new Error('No SQL migration files found in backend/migrations or backend/database/migrations');
+
+  if (!entries.length) {
+    throw new Error('No SQL migration files found in backend/migrations or backend/database/migrations');
+  }
   if (versions[0] !== 1 || versions.at(-1) !== 45 || versions.length !== 45) {
     throw new Error(`Migration version inventory invalid: expected versions 001-045, got ${versions.join(', ')}`);
   }
+
   return { entries, versions };
 }
 
@@ -39,50 +49,81 @@ function splitSql(sql) {
   let start = 0;
   let quote = null;
   let lineComment = false;
+
   for (let i = 0; i < sql.length; i += 1) {
     const ch = sql[i];
     const next = sql[i + 1];
-    if (lineComment) { if (ch === '\n') lineComment = false; continue; }
+
+    if (lineComment) {
+      if (ch === '\n') lineComment = false;
+      continue;
+    }
+
     if (quote) {
-      if (ch === quote && next === quote) { i += 1; continue; }
+      if (ch === quote && next === quote) {
+        i += 1;
+        continue;
+      }
       if (ch === quote && sql[i - 1] !== '\\') quote = null;
       continue;
     }
-    if (ch === '-' && next === '-' && (i + 2 >= sql.length || /\s/.test(sql[i + 2]))) { lineComment = true; i += 1; continue; }
-    if (ch === "'" || ch === '"' || ch === '`') { quote = ch; continue; }
+
+    if (ch === '-' && next === '-' && (i + 2 >= sql.length || /\s/.test(sql[i + 2]))) {
+      lineComment = true;
+      i += 1;
+      continue;
+    }
+
+    if (ch === "'" || ch === '"' || ch === '`') {
+      quote = ch;
+      continue;
+    }
+
     if (ch === ';') {
       const statement = sql.slice(start, i + 1).trim();
       if (statement) out.push(statement);
       start = i + 1;
     }
   }
+
   const tail = sql.slice(start).trim();
   if (tail) out.push(tail);
+
   return out;
 }
 
 async function sha256(value) {
   const bytes = new TextEncoder().encode(value);
   const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+  return Array.from(
+    new Uint8Array(digest),
+    b => b.toString(16).padStart(2, '0'),
+  ).join('');
 }
 
 async function runPendingMigrations() {
-  // The Worker request path must NEVER execute the migration chain. Cloudflare
-  // counts every TiDB operation as a subrequest; 45 migration files would
-  // exceed the per-invocation limit before the application can start.
+  // Cloudflare Worker imports this module through server.js, but migration
+  // execution happens only in a build environment via runBuildMigrations.js.
   if (isCloudflareWorker) {
-    console.log('[KTC][MIGRATION] runtime skip: migrations are build-time only');
     return true;
   }
 
   const { entries, versions } = loadMigrationManifest();
-  const missing = typeof db.getMissingDatabaseVariables === 'function' ? db.getMissingDatabaseVariables() : [];
+  const db = require('../config/db');
+
+  const missing =
+    typeof db.getMissingDatabaseVariables === 'function'
+      ? db.getMissingDatabaseVariables()
+      : [];
+
   if (missing.length) {
-    throw new Error(`Migration database configuration missing: ${missing.join(', ')}. Configure TiDB variables in Cloudflare Workers Builds > Build variables and secrets.`);
+    throw new Error(
+      `Migration database configuration missing: ${missing.join(', ')}. Configure TiDB variables for the test build.`,
+    );
   }
 
   const connection = await db.promise().getConnection();
+
   try {
     await connection.query(`CREATE TABLE IF NOT EXISTS schema_migrations (
       migration_id VARCHAR(160) NOT NULL PRIMARY KEY,
@@ -90,13 +131,19 @@ async function runPendingMigrations() {
       applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    console.log(`[KTC][MIGRATION] manifest loaded: ${entries.length} SQL files / ${versions.length} migration versions (001-045)`);
+    console.log(
+      `[KTC][MIGRATION] manifest loaded: ${entries.length} SQL files / ${versions.length} migration versions (001-045)`,
+    );
 
     for (const migration of entries) {
       const { filename, fullPath } = migration;
       const sql = fs.readFileSync(fullPath, 'utf8');
       const checksum = await sha256(sql);
-      const [existing] = await connection.query('SELECT checksum FROM schema_migrations WHERE migration_id=? LIMIT 1', [filename]);
+
+      const [existing] = await connection.query(
+        'SELECT checksum FROM schema_migrations WHERE migration_id=? LIMIT 1',
+        [filename],
+      );
 
       if (existing.length) {
         if (String(existing[0].checksum).toLowerCase() !== checksum.toLowerCase()) {
@@ -113,14 +160,24 @@ async function runPendingMigrations() {
 
       console.log(`[KTC][MIGRATION] applying ${filename} (${statements.length} statements)`);
       await connection.beginTransaction();
+
       try {
-        for (const statement of statements) await connection.query(statement);
-        await connection.query('INSERT INTO schema_migrations (migration_id, checksum) VALUES (?, ?)', [filename, checksum]);
+        for (const statement of statements) {
+          await connection.query(statement);
+        }
+
+        await connection.query(
+          'INSERT INTO schema_migrations (migration_id, checksum) VALUES (?, ?)',
+          [filename, checksum],
+        );
+
         await connection.commit();
         console.log(`[KTC][MIGRATION] applied: ${filename}`);
       } catch (error) {
         await connection.rollback().catch(() => undefined);
-        throw new Error(`Migration failed: ${filename}: ${error?.message || error}`);
+        throw new Error(
+          `Migration failed: ${filename}: ${error?.message || error}`,
+        );
       }
     }
 
@@ -132,4 +189,12 @@ async function runPendingMigrations() {
 }
 
 module.exports = runPendingMigrations;
-if (require.main === module) runPendingMigrations().then(() => process.exit(0)).catch(error => { console.error('[KTC][MIGRATION] fatal', error); process.exit(1); });
+
+if (require.main === module) {
+  runPendingMigrations()
+    .then(() => process.exit(0))
+    .catch(error => {
+      console.error('[KTC][MIGRATION] fatal', error);
+      process.exit(1);
+    });
+}
