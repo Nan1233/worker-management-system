@@ -1,8 +1,5 @@
 'use strict';
 
-// Cloudflare Workers Builds inject WORKERS_CI and WORKERS_CI_BRANCH.
-// This script is a build-time gate only by default. Database migrations are
-// opt-in so a deploy cannot hang while waiting on a TiDB connection.
 if (String(process.env.WORKERS_CI || '') !== '1' || String(process.env.WORKERS_CI_BRANCH || '') !== 'test') {
   console.log('[KTC][MIGRATION] build gate skip: not a Cloudflare Workers test build');
   process.exit(0);
@@ -44,22 +41,28 @@ function validateMigrationInventory() {
     (version) => version >= HISTORICAL_GAP_START && version <= HISTORICAL_GAP_END,
   );
 
-  if (
-    !entries.length ||
-    versions[0] !== 1 ||
-    versions.at(-1) !== EXPECTED_LATEST_VERSION ||
-    (missingVersions.length && !allowedHistoricalGap)
-  ) {
-    throw new Error(
-      `Migration version inventory invalid: expected versions 001-045, got ${versions.join(', ')}`,
-    );
+  if (!entries.length || versions[0] !== 1 || versions.at(-1) !== EXPECTED_LATEST_VERSION || (missingVersions.length && !allowedHistoricalGap)) {
+    throw new Error(`Migration version inventory invalid: expected versions 001-045, got ${versions.join(', ')}`);
   }
 
   return { entries, versions, missingVersions };
 }
 
+function readWranglerMigrationFlag() {
+  try {
+    const configPath = path.join(process.cwd(), 'wrangler.jsonc');
+    if (!fs.existsSync(configPath)) return false;
+    const raw = fs.readFileSync(configPath, 'utf8').replace(/\/\/.*$/gm, '');
+    return /"KTC_RUN_BUILD_DB_MIGRATIONS"\s*:\s*"true"/i.test(raw);
+  } catch (error) {
+    console.warn('[KTC][MIGRATION] unable to read wrangler.jsonc flag:', error?.message || error);
+    return false;
+  }
+}
+
 async function main() {
   const { entries, versions, missingVersions } = validateMigrationInventory();
+
   console.log(
     `[KTC][MIGRATION] build inventory valid: ${entries.length} SQL files / versions ${versions[0]}-${versions.at(-1)}`,
   );
@@ -70,12 +73,16 @@ async function main() {
     );
   }
 
-  // Never mutate a database during a normal Cloudflare build. This avoids
-  // hanging deployments when TiDB is unavailable or a build has no DB vars.
-  // A dedicated test build may opt in explicitly after DB variables are set.
-  const runDatabaseMigration = String(process.env.KTC_RUN_BUILD_DB_MIGRATIONS || '').toLowerCase() === 'true';
+  const buildFlag = String(process.env.KTC_RUN_BUILD_DB_MIGRATIONS || '').toLowerCase() === 'true';
+  const wranglerFlag = readWranglerMigrationFlag();
+  const runDatabaseMigration = buildFlag || wranglerFlag;
+
+  console.log(
+    `[KTC][MIGRATION] migration flag: buildEnv=${buildFlag} wranglerConfig=${wranglerFlag} enabled=${runDatabaseMigration}`,
+  );
+
   if (!runDatabaseMigration) {
-    console.log('[KTC][MIGRATION] database migration deferred: KTC_RUN_BUILD_DB_MIGRATIONS is not true');
+    console.log('[KTC][MIGRATION] database migration deferred: explicit test migration flag is not enabled');
     return;
   }
 
