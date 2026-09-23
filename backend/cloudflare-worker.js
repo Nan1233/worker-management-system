@@ -35,7 +35,6 @@ process.env.KTC_CLOUDFLARE_WORKER = "true";
 
 const { app, initializeRuntime, runtimeReadiness } = require("./server.js");
 const db = require("./config/db");
-const runPendingMigrations = require("./scripts/runPendingMigrations");
 const ensureGcDefectMasterData = require("./scripts/ensureGcDefectMasterData");
 const ensureGcLong2801Lt = require("./scripts/ensureGcLong2801Lt");
 const { masterDataCache } = require("./utils/masterDataCache");
@@ -71,8 +70,8 @@ async function normalizeTempChildRows(defects, deductions, processId) {
   const deductionIds = [...new Set(normalizedDeductions.map((item) => Number(item?.deduction_type_id)).filter((id) => Number.isInteger(id) && id > 0))];
   const deductionNames = [...new Set(normalizedDeductions.map((item) => String(item?.deduction_name || "").trim()).filter(Boolean))];
   const [defectRows, deductionRows] = await Promise.all([
-    queryMasterRows(`SELECT id, defect_code, defect_name FROM defect_types WHERE process_id=? AND status='active' AND (${defectIds.length ? `id IN (${defectIds.map(() => "?").join(",")})` : "1=0"}${defectNames.length ? ` OR defect_name IN (${defectNames.map(() => "?").join(",")})` : ""})`, [pid, ...defectIds, ...defectNames]),
-    queryMasterRows(`SELECT id, deduction_name FROM deduction_types WHERE process_id=? AND status='active' AND (${deductionIds.length ? `id IN (${deductionIds.map(() => "?").join(",")})` : "1=0"}${deductionNames.length ? ` OR deduction_name IN (${deductionNames.map(() => "?").join(",")})` : ""})`, [pid, ...deductionIds, ...deductionNames])
+    queryMasterRows(`SELECT id, defect_code, defect_name FROM defect_types WHERE process_id=? AND status='active' AND (${defectIds.length ? `id IN (${defectIds.map(() => "?" ).join(",")})` : "1=0"}${defectNames.length ? ` OR defect_name IN (${defectNames.map(() => "?" ).join(",")})` : ""})`, [pid, ...defectIds, ...defectNames]),
+    queryMasterRows(`SELECT id, deduction_name FROM deduction_types WHERE process_id=? AND status='active' AND (${deductionIds.length ? `id IN (${deductionIds.map(() => "?" ).join(",")})` : "1=0"}${deductionNames.length ? ` OR deduction_name IN (${deductionNames.map(() => "?" ).join(",")})` : ""})`, [pid, ...deductionIds, ...deductionNames])
   ]);
   const defectById = new Map((defectRows || []).map((row) => [Number(row.id), row]));
   const defectByName = new Map((defectRows || []).map((row) => [String(row.defect_name).trim(), row]));
@@ -130,23 +129,6 @@ async function ensureCloudflareSeeded() {
   return cloudflareSeedPromise;
 }
 
-let cloudflareMigrationsReady = false;
-let cloudflareMigrationsPromise = null;
-async function ensureCloudflareMigrations() {
-  if (cloudflareMigrationsReady) return true;
-  if (cloudflareMigrationsPromise) return cloudflareMigrationsPromise;
-  cloudflareMigrationsPromise = runPendingMigrations().then(() => {
-    cloudflareMigrationsReady = true;
-    console.log("[KTC] Cloudflare pending migrations completed");
-    return true;
-  }).catch((error) => {
-    console.error("[KTC] Cloudflare pending migrations failed", error);
-    cloudflareMigrationsPromise = null;
-    return false;
-  });
-  return cloudflareMigrationsPromise;
-}
-
 app.listen(Number(process.env.PORT || 3000));
 const httpHandler = httpServerHandler({ port: Number(process.env.PORT || 3000) });
 
@@ -170,21 +152,13 @@ const EVENT_DEFECT_ALIASES = new Map([["KQD_DAP_LAI", "KQD"], ["KQD_TUOT", "KQD"
 function normalizeEventDefect(row) { const raw = String(row.defect_code || "").trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "").toUpperCase(); const code = EVENT_DEFECT_ALIASES.get(raw) || raw; const name = CANONICAL_EVENT_DEFECTS.get(code); if (!name) return null; const quantity = Math.trunc(Number(row.quantity || 0)); if (quantity <= 0) return null; return { id: Number(row.id) || undefined, defect_type_id: Number(row.defect_type_id) || undefined, defect_code: code, defect_name: name, quantity }; }
 async function enrichApprovedReportMachineDefects(request, response) {
   const url = new URL(request.url); if (request.method !== "GET" || !/^\/api\/production\/\d+$/.test(url.pathname) || !response.ok) return response;
-  try { const payload = await response.clone().json(); const data = payload?.data; if (!data || !Array.isArray(data.defects) || data.defects.length > 0) return response; const reportId = Number(url.pathname.split("/").pop()); const [rows] = await db.promise().query(`SELECT med.id,med.defect_type_id,med.defect_code,med.defect_name,med.quantity FROM production_report_machine_lines ml JOIN machine_production_event_defects med ON med.machine_event_id=ml.machine_event_id WHERE ml.report_id=? AND med.quantity>0 ORDER BY ml.sort_order,med.id`, [reportId]); const merged = new Map(); for (const row of rows || []) { const item = normalizeEventDefect(row); if (!item) continue; const key = item.defect_code; const existing = merged.get(key); if (existing) existing.quantity += item.quantity; else merged.set(key, item); } if (!merged.size) return response; data.defects = [...merged.values()]; const headers = new Headers(response.headers); headers.set("Cache-Control", "no-store"); return new Response(JSON.stringify(payload), { status: response.status, statusText: response.statusText, headers }); } catch (error) { console.error("[KTC] approved report machine NG enrichment failed", error); return response; }
+  try { const payload = await response.clone().json(); const data = payload?.data; if (!data || !Array.isArray(data.defects) || data.defects.length > 0) return response; const reportId = Number(url.pathname.split("/").pop()); const [rows] = await db.promise().query(`SELECT med.id,med.defect_type_id,med.defect_code,med.defect_name,med.quantity FROM production_report_machine_lines ml JOIN machine_production_event_defects med ON ml.machine_event_id=med.machine_event_id WHERE ml.report_id=? AND med.quantity>0 ORDER BY ml.sort_order,med.id`, [reportId]); const merged = new Map(); for (const row of rows || []) { const item = normalizeEventDefect(row); if (!item) continue; const key = item.defect_code; const existing = merged.get(key); if (existing) existing.quantity += item.quantity; else merged.set(key, item); } if (!merged.size) return response; data.defects = [...merged.values()]; const headers = new Headers(response.headers); headers.set("Cache-Control", "no-store"); return new Response(JSON.stringify(payload), { status: response.status, statusText: response.statusText, headers }); } catch (error) { console.error("[KTC] approved report machine NG enrichment failed", error); return response; }
 }
 
 const wrappedServer = {
   async fetch(request, envArg, ctx) {
     const preflight = handleCorsPreflight(request);
     if (preflight) return preflight;
-
-    // IMPORTANT: Cloudflare deployment only uploads the Worker bundle; it does
-    // not execute backend/scripts/*.js. Run the real pending DB migrations on
-    // the first request of this isolate and fail closed if TiDB rejects one.
-    const migrationReady = await ensureCloudflareMigrations();
-    if (!migrationReady) {
-      return new Response(JSON.stringify({ success: false, code: "DB_MIGRATION_FAILED", message: "Database migrations are not ready" }), { status: 503, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
-    }
 
     const pathname = new URL(request.url).pathname;
     if (pathname === "/api/health" || pathname === "/api/health/ready") {
