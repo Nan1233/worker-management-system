@@ -8,7 +8,7 @@ const DEFAULT_REPOSITORY = 'Nan1233/worker-management-system';
 const isCloudflareWorker = process.env.KTC_CLOUDFLARE_WORKER === 'true' || Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
 const migrationRef = String(process.env.KTC_MIGRATION_REF || (isCloudflareWorker ? 'test' : 'main')).trim();
 const repository = String(process.env.KTC_MIGRATION_REPOSITORY || DEFAULT_REPOSITORY).trim();
-const apiBase = `https://api.github.com/repos/${repository}`;
+const apiBase = `https://api.github.com/repos/${repository}`; // retained for local diagnostics
 const rawBase = `https://raw.githubusercontent.com/${repository}/${migrationRef.replace(/[^A-Za-z0-9._-]/g, "")}`;
 
 function getMigrationError(error) {
@@ -59,6 +59,7 @@ function validateMigrationInventory(migrations) {
 
 async function loadMigrationManifest() {
   const manifestUrl = `${rawBase}/backend/migrations/manifest.json`;
+  console.log(`[KTC][MIGRATION] loading static manifest: ${manifestUrl}`);
   try {
     const manifest = await fetchJson(manifestUrl);
     const names = Array.isArray(manifest?.migrations) ? manifest.migrations : manifest;
