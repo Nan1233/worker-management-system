@@ -5,9 +5,6 @@ const query = (sql, params = []) => new Promise((resolve, reject) => {
 });
 
 // Canonical GC / Gia công NG master data.
-// DB codes are unique per process (CAT01..CAT10, LONG01..LONG08).
-// The worker UI displays the factory numeric error numbers 1-10 / 1-8.
-// Historical defect rows are never deleted; only the active GC master is synchronized.
 const CANONICAL_GC_DEFECTS = [
   ['CAT01', 'Cao su không đứt', 1], ['CAT02', 'Cắt lẹm', 2], ['CAT03', 'Cắt phạm', 3],
   ['CAT04', 'Cao su ngắn', 4], ['CAT05', 'Cao su dài', 5], ['CAT06', 'Bavia cao su', 6],
@@ -33,62 +30,31 @@ async function queryWithRetry(sql, params = [], attempts = 3) {
 }
 
 async function ensureGcDefectMasterData() {
-  const processes = await queryWithRetry(`
-    SELECT id FROM processes
-    WHERE UPPER(TRIM(process_code)) = 'GC'
-      AND COALESCE(status, 'active') IN ('active', 'enabled', '1')
-    ORDER BY id LIMIT 1`);
+  const processes = await queryWithRetry(`SELECT id FROM processes WHERE UPPER(TRIM(process_code))='GC' AND COALESCE(status,'active') IN ('active','enabled','1') ORDER BY id LIMIT 1`);
   if (!processes.length) throw new Error('GC process master was not found.');
   const processId = Number(processes[0].id);
-
   const canonicalCodes = CANONICAL_GC_DEFECTS.map(([code]) => code);
   const placeholders = canonicalCodes.map(() => '?').join(', ');
-  await queryWithRetry(`
-    UPDATE defect_types SET status = 'inactive'
-    WHERE process_id = ? AND defect_code IS NOT NULL
-      AND UPPER(TRIM(defect_code)) NOT IN (${placeholders})`, [processId, ...canonicalCodes]);
-
-  for (const [defectCode, defectName, sortOrder] of CANONICAL_GC_DEFECTS) {
-    try {
-      await queryWithRetry(`
-        INSERT INTO defect_types (process_id, defect_code, defect_name, sort_order, status)
-        VALUES (?, ?, ?, ?, 'active')
-        ON DUPLICATE KEY UPDATE defect_name = VALUES(defect_name), sort_order = VALUES(sort_order), status = 'active'`,
-        [processId, defectCode, defectName, sortOrder]);
-    } catch (error) {
-      console.error('[KTC] GC defect upsert failed', { processId, defectCode, defectName, sortOrder, ...errorDetails(error) });
-      throw error;
-    }
+  await queryWithRetry(`UPDATE defect_types SET status='inactive' WHERE process_id=? AND defect_code IS NOT NULL AND UPPER(TRIM(defect_code)) NOT IN (${placeholders})`, [processId, ...canonicalCodes]);
+  for (const [code, name, sort] of CANONICAL_GC_DEFECTS) {
+    await queryWithRetry(`INSERT INTO defect_types (process_id,defect_code,defect_name,sort_order,status) VALUES (?,?,?,?, 'active') ON DUPLICATE KEY UPDATE defect_name=VALUES(defect_name),sort_order=VALUES(sort_order),status='active'`, [processId, code, name, sort]);
   }
-
-  const canonicalCodesSet = new Set(CANONICAL_GC_DEFECTS.map(([code]) => normalize(code)));
-  const rows = await queryWithRetry(`SELECT id, defect_code FROM defect_types WHERE process_id = ? ORDER BY id`, [processId]);
-  const seenCanonicalCodes = new Set();
+  const canonical = new Set(CANONICAL_GC_DEFECTS.map(([code]) => normalize(code)));
+  const rows = await queryWithRetry(`SELECT id,defect_code FROM defect_types WHERE process_id=? ORDER BY id`, [processId]);
+  const seen = new Set();
   for (const row of rows || []) {
     const code = normalize(row.defect_code);
-    if (!canonicalCodesSet.has(code)) continue;
-    if (seenCanonicalCodes.has(code)) await queryWithRetry('UPDATE defect_types SET status = \'inactive\' WHERE id = ?', [Number(row.id)]);
-    else seenCanonicalCodes.add(code);
+    if (!canonical.has(code)) continue;
+    if (seen.has(code)) await queryWithRetry("UPDATE defect_types SET status='inactive' WHERE id=?", [Number(row.id)]); else seen.add(code);
   }
-
-  const verifyRows = await queryWithRetry(`
-    SELECT defect_code, defect_name, sort_order FROM defect_types
-    WHERE process_id = ? AND COALESCE(status, 'active') IN ('active', 'enabled', '1')
-    ORDER BY sort_order, id`, [processId]);
+  const verifyRows = await queryWithRetry(`SELECT defect_code,defect_name,sort_order FROM defect_types WHERE process_id=? AND COALESCE(status,'active') IN ('active','enabled','1') ORDER BY sort_order,id`, [processId]);
   if (verifyRows.length !== CANONICAL_GC_DEFECTS.length) {
-    const actual = (verifyRows || []).map(row => ({ code: row.defect_code, name: row.defect_name, sortOrder: row.sort_order }));
     const error = new Error(`GC defect master verification failed: expected ${CANONICAL_GC_DEFECTS.length} active rows, got ${verifyRows.length}`);
-    error.details = { processId, actual };
+    error.details = { processId, actual: verifyRows };
     throw error;
   }
   console.log(`GC_DEFECT_MASTER_OK process_id=${processId} active=${verifyRows.length}`);
 }
 
 module.exports = ensureGcDefectMasterData;
-
-if (require.main === module) {
-  ensureGcDefectMasterData().then(() => process.exit(0)).catch(error => {
-    console.error('[KTC] Failed to ensure exact GC NG master data:', errorDetails(error));
-    process.exit(1);
-  });
-}
+if (require.main === module) ensureGcDefectMasterData().then(() => process.exit(0)).catch(error => { console.error('[KTC] Failed to ensure exact GC NG master data:', errorDetails(error)); process.exit(1); });
