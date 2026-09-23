@@ -7,20 +7,28 @@ const query = (sql, params = []) => new Promise((resolve, reject) => {
   db.query(sql, params, (error, rows) => error ? reject(error) : resolve(rows));
 });
 
-// Canonical source of truth for GC / Gia công NG master data.
-// Cắt  -> CAT01..CAT04
-// Lồng -> LONG01..LONG05
-// Historical rows are never deleted; only the active master is synchronized.
+// Canonical GC / Gia công NG master data.
+// CUT: 1-10. LONG: 1-8. Codes are numeric and scoped by process_id.
+// Historical defect rows are never deleted; only the active GC master is synchronized.
 const CANONICAL_GC_DEFECTS = [
-  ['CAT01', 'Cao su xoay'],
-  ['CAT02', 'Cắt không đứt'],
-  ['CAT03', 'Lỗi kích thước'],
-  ['CAT04', 'Cắt không đứt'],
-  ['LONG01', 'KQD'],
-  ['LONG02', 'Xước'],
-  ['LONG03', 'Vỡ'],
-  ['LONG04', 'Trục cong'],
-  ['LONG05', 'Lỗi cao su'],
+  ['1', 'Cao su không đứt', 1, 'CUT'],
+  ['2', 'Cắt lẹm', 2, 'CUT'],
+  ['3', 'Cắt phạm', 3, 'CUT'],
+  ['4', 'Cao su ngắn', 4, 'CUT'],
+  ['5', 'Cao su dài', 5, 'CUT'],
+  ['6', 'Bavia cao su', 6, 'CUT'],
+  ['7', 'Phế phẩm chỉnh máy', 7, 'CUT'],
+  ['8', 'Lỗi cao su ( NCC )', 8, 'CUT'],
+  ['9', 'Lẫn cao su', 9, 'CUT'],
+  ['10', 'Khác', 10, 'CUT'],
+  ['1', 'Không qua dưỡng', 1, 'LONG'],
+  ['2', 'Cao su vỡ', 2, 'LONG'],
+  ['3', 'Trục xước', 3, 'LONG'],
+  ['4', 'Trục gãy, cong', 4, 'LONG'],
+  ['5', 'Thiếu cao su', 5, 'LONG'],
+  ['6', 'Lẫn trục', 6, 'LONG'],
+  ['7', 'Lẫn cao su', 7, 'LONG'],
+  ['8', 'Khác', 8, 'LONG'],
 ];
 
 function normalize(value) {
@@ -54,9 +62,6 @@ async function queryWithRetry(sql, params = [], attempts = 3) {
 }
 
 async function ensureGcDefectMasterData() {
-  // The Cloudflare test Worker is the deployed runtime for the test branch.
-  // Run the repository migrations before touching GC master data so all DB
-  // consumers see the same schema/master state.
   if (isCloudflareWorker) {
     await runPendingMigrations();
   }
@@ -77,7 +82,7 @@ async function ensureGcDefectMasterData() {
   const processId = Number(processes[0].id);
 
   const sync = async () => {
-    const canonicalCodes = CANONICAL_GC_DEFECTS.map(([code]) => code);
+    const canonicalCodes = [...new Set(CANONICAL_GC_DEFECTS.map(([code]) => code))];
     const placeholders = canonicalCodes.map(() => '?').join(', ');
 
     await queryWithRetry(
@@ -89,10 +94,7 @@ async function ensureGcDefectMasterData() {
       [processId, ...canonicalCodes],
     );
 
-    for (let index = 0; index < CANONICAL_GC_DEFECTS.length; index += 1) {
-      const [defectCode, defectName] = CANONICAL_GC_DEFECTS[index];
-      const sortOrder = index + 1;
-
+    for (const [defectCode, defectName, sortOrder] of CANONICAL_GC_DEFECTS) {
       try {
         await queryWithRetry(
           `INSERT INTO defect_types
@@ -116,7 +118,9 @@ async function ensureGcDefectMasterData() {
       }
     }
 
-    const canonicalCodeSet = new Set(canonicalCodes.map(normalize));
+    const canonicalKeys = new Set(
+      CANONICAL_GC_DEFECTS.map(([code, name]) => `${normalize(code)}|${normalize(name)}`),
+    );
     const rows = await queryWithRetry(
       `SELECT id, defect_code, defect_name, status
          FROM defect_types
@@ -125,15 +129,14 @@ async function ensureGcDefectMasterData() {
       [processId],
     );
 
-    const seenCanonicalCodes = new Set();
+    const seenCanonicalKeys = new Set();
     for (const row of rows || []) {
-      const code = normalize(row.defect_code);
-      if (!canonicalCodeSet.has(code)) continue;
-
-      if (seenCanonicalCodes.has(code)) {
+      const key = `${normalize(row.defect_code)}|${normalize(row.defect_name)}`;
+      if (!canonicalKeys.has(key)) continue;
+      if (seenCanonicalKeys.has(key)) {
         await queryWithRetry(`UPDATE defect_types SET status = 'inactive' WHERE id = ?`, [Number(row.id)]);
       } else {
-        seenCanonicalCodes.add(code);
+        seenCanonicalKeys.add(key);
       }
     }
 
