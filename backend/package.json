@@ -13,6 +13,7 @@
     "db:sync-template-master": "node scripts/syncKtcTemplateMasterData.js",
     "db:ensure-gc-defects": "node scripts/ensureGcDefectMasterData.js",
     "db:ensure-gc-long-2801-lt": "node scripts/ensureGcLong2801Lt.js",
+    "db:migrate": "node scripts/runPendingMigrations.js",
     "db:migration-inventory": "node scripts/verifyMigrationInventory.js",
     "test": "node --test tests/*.test.js",
     "verify": "npm run check && npm run db:migration-inventory && npm test",
