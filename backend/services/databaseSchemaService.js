@@ -1,6 +1,7 @@
 'use strict';
 
 const db = require('../config/db');
+const runPendingMigrations = require('../scripts/runPendingMigrations');
 const {
   CONTRACT_VERSION,
   getCanonicalSchema,
@@ -70,11 +71,19 @@ if (process.env.KTC_CLOUDFLARE_WORKER === 'true' && typeof db?.promise === 'func
 
 async function verifyDatabaseSchema({ executor = db.promise() } = {}) {
   try {
+    const isWorker = process.env.KTC_CLOUDFLARE_WORKER === 'true' || Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
+
+    // The test Cloudflare Worker has no Node migration process. Run pending
+    // repository migrations before checking the runtime contract so schema
+    // readiness is a real DB migration gate, not just a read-only audit.
+    if (isWorker) {
+      await runPendingMigrations();
+    }
+
     // IMPORTANT: Cloudflare Workers must not depend on fs/path to load the
     // canonical SQL file. That file is a Node-side audit artifact and may not
     // exist in the Worker runtime. Runtime readiness therefore uses only the
     // explicit minimum structural contract below.
-    const isWorker = process.env.KTC_CLOUDFLARE_WORKER === 'true' || Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
     const canonical = isWorker ? null : getCanonicalSchema();
     const dbName = await currentDatabase(executor);
 
@@ -90,9 +99,6 @@ async function verifyDatabaseSchema({ executor = db.promise() } = {}) {
       tableRows.map((row) => String(row.TABLE_NAME).toLowerCase()),
     );
 
-    // In Worker mode the runtime contract is deliberately independent of the
-    // canonical SQL parser. In Node mode retain the canonical table list for
-    // compatibility with the existing contract/audit behavior.
     const expectedTables = new Set(
       isWorker ? Object.keys(RUNTIME_REQUIRED_COLUMNS) : Object.keys(canonical.tables),
     );
