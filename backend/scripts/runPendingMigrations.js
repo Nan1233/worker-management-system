@@ -7,35 +7,35 @@ const isCloudflareWorker =
   process.env.KTC_CLOUDFLARE_WORKER === 'true' ||
   Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
 
-// In the Cloudflare bundle this module is loaded for compatibility, but must
-// not evaluate Node filesystem paths during module initialization.
-const MIGRATION_DIRS = isCloudflareWorker
-  ? []
-  : [
-      path.join(__dirname, '..', 'migrations'),
-      path.join(__dirname, '..', 'database', 'migrations'),
-    ];
+// Canonical migration source: backend/migrations only.
+// backend/database contains the full-schema SQL snapshot, not executable
+// migration files. Keeping a single source prevents duplicate migration IDs
+// from being discovered during Cloudflare builds.
+const MIGRATION_DIR = path.join(__dirname, '..', 'migrations');
 
 function loadMigrationManifest() {
   const entries = [];
   const seen = new Set();
 
-  for (const dir of MIGRATION_DIRS) {
-    if (!fs.existsSync(dir)) continue;
-    for (const filename of fs.readdirSync(dir).filter(name => /^\d+_.+\.sql$/i.test(name))) {
-      if (seen.has(filename)) throw new Error(`Duplicate migration filename in repository: ${filename}`);
-      seen.add(filename);
-      const fullPath = path.join(dir, filename);
-      const match = /^(\d+)_/.exec(filename);
-      entries.push({ filename, number: Number(match[1]), fullPath });
+  if (!fs.existsSync(MIGRATION_DIR)) {
+    throw new Error(`Migration directory not found: ${MIGRATION_DIR}`);
+  }
+
+  for (const filename of fs.readdirSync(MIGRATION_DIR).filter(name => /^\d+_.+\.sql$/i.test(name))) {
+    if (seen.has(filename)) {
+      throw new Error(`Duplicate migration filename in repository: ${filename}`);
     }
+    seen.add(filename);
+    const fullPath = path.join(MIGRATION_DIR, filename);
+    const match = /^(\d+)_/.exec(filename);
+    entries.push({ filename, number: Number(match[1]), fullPath });
   }
 
   entries.sort((a, b) => a.number - b.number || a.filename.localeCompare(b.filename, 'en'));
   const versions = [...new Set(entries.map(item => item.number))].sort((a, b) => a - b);
 
   if (!entries.length) {
-    throw new Error('No SQL migration files found in backend/migrations or backend/database/migrations');
+    throw new Error('No SQL migration files found in backend/migrations');
   }
   if (versions[0] !== 1 || versions.at(-1) !== 45 || versions.length !== 45) {
     throw new Error(`Migration version inventory invalid: expected versions 001-045, got ${versions.join(', ')}`);
