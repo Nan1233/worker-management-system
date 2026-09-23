@@ -1,11 +1,6 @@
 'use strict';
 
-const fs = require('node:fs');
-const path = require('node:path');
-const crypto = require('node:crypto');
 const db = require('../config/db');
-
-const isCloudflareWorker = process.env.KTC_CLOUDFLARE_WORKER === 'true' || Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
 
 // This runner is intentionally filename-based. Numeric prefixes are only
 // ordering hints; duplicate prefixes already exist in this repository.
@@ -33,15 +28,17 @@ const MIGRATION_FILES = [
   '043_gc_standard_master_20260923.sql',
 ].sort((a, b) => a.localeCompare(b, 'en'));
 
-// Pin the source for the Cloudflare test Worker so a moving branch cannot
-// silently change a migration while it is being applied.
+// Pin the source for the test Worker so a moving branch cannot silently
+// change a migration while it is being applied.
 const PINNED_SOURCE_COMMIT = '31d12d61d4094938210f72ea3ad9a15bca0be9bb';
 const RAW_BASE = `https://raw.githubusercontent.com/Nan1233/worker-management-system/${PINNED_SOURCE_COMMIT}/backend/migrations/`;
 
 let runnerPromise = null;
 
-function sha256(value) {
-  return crypto.createHash('sha256').update(value, 'utf8').digest('hex');
+async function sha256(value) {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 function splitSqlStatements(sql) {
@@ -121,9 +118,6 @@ function isTransactionStatement(statement) {
 }
 
 async function readMigration(filename) {
-  if (!isCloudflareWorker) {
-    return fs.readFileSync(path.join(__dirname, '..', 'migrations', filename), 'utf8');
-  }
   const response = await fetch(`${RAW_BASE}${encodeURIComponent(filename)}`);
   if (!response.ok) {
     throw new Error(`Không tải được migration ${filename}: HTTP ${response.status}`);
@@ -147,7 +141,7 @@ async function ensureMigrationTable(connection) {
 }
 
 async function runOneMigration(connection, filename, sql) {
-  const checksum = sha256(sql);
+  const checksum = await sha256(sql);
   const existing = await query(
     connection,
     'SELECT migration_id, checksum FROM schema_migrations WHERE migration_id = ? LIMIT 1',
