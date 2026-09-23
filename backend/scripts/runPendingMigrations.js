@@ -26,11 +26,12 @@ const MIGRATION_FILES = [
   '041_sync_gc_cut_long_from_ma_hoa_xlsx_20260922.sql',
   '042_gc_worker_master_20260923.sql',
   '043_gc_standard_master_20260923.sql',
+  '044_gc_canonical_master_repair_20260923.sql',
 ].sort((a, b) => a.localeCompare(b, 'en'));
 
 // Pin the source for the test Worker so a moving branch cannot silently
-// change a migration while it is being applied.
-const PINNED_SOURCE_COMMIT = '31d12d61d4094938210f72ea3ad9a15bca0be9bb';
+// change a migration while it is being applied. This commit contains 044.
+const PINNED_SOURCE_COMMIT = '2fbe2901c0b23b09e75bc45345192e44d0555931';
 const RAW_BASE = `https://raw.githubusercontent.com/Nan1233/worker-management-system/${PINNED_SOURCE_COMMIT}/backend/migrations/`;
 
 let runnerPromise = null;
