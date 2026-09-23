@@ -2,9 +2,6 @@ import { httpServerHandler } from "cloudflare:node";
 import { env } from "cloudflare:workers";
 import { connect as connectTiDB } from "@tidbcloud/serverless";
 
-// Cloudflare Workers has no long-lived TCP socket. The serverless TiDB
-// connector is the single database transport used by this Worker.
-
 globalThis.__KTC_CLOUDFLARE_ENV = env;
 globalThis.__KTC_CLOUDFLARE_WORKER = true;
 globalThis.__KTC_TIDB_CONNECT = connectTiDB;
@@ -38,6 +35,7 @@ process.env.KTC_CLOUDFLARE_WORKER = "true";
 
 const { app, initializeRuntime, runtimeReadiness } = require("./server.js");
 const db = require("./config/db");
+const runPendingMigrations = require("./scripts/runPendingMigrations");
 const ensureGcDefectMasterData = require("./scripts/ensureGcDefectMasterData");
 const ensureGcLong2801Lt = require("./scripts/ensureGcLong2801Lt");
 const { masterDataCache } = require("./utils/masterDataCache");
@@ -120,10 +118,6 @@ async function ensureCloudflareSeeded() {
     masterDataCache.clear();
     cloudflareSeedReady = true;
     console.log("[KTC] Cloudflare GC master-data seed completed; master cache cleared");
-
-    // A previous cold start can fail before Cloudflare variables/DB become
-    // available. The seed can succeed later, so retry runtime readiness here
-    // instead of leaving /api/health permanently stuck at STARTUP_FAILED.
     if (!runtimeReadiness.ready && !runtimeReadiness.initializing) {
       await initializeRuntime();
     }
@@ -136,7 +130,23 @@ async function ensureCloudflareSeeded() {
   return cloudflareSeedPromise;
 }
 
-// Cloudflare's Express integration uses the listening port as the routing key.
+let cloudflareMigrationsReady = false;
+let cloudflareMigrationsPromise = null;
+async function ensureCloudflareMigrations() {
+  if (cloudflareMigrationsReady) return true;
+  if (cloudflareMigrationsPromise) return cloudflareMigrationsPromise;
+  cloudflareMigrationsPromise = runPendingMigrations().then(() => {
+    cloudflareMigrationsReady = true;
+    console.log("[KTC] Cloudflare pending migrations completed");
+    return true;
+  }).catch((error) => {
+    console.error("[KTC] Cloudflare pending migrations failed", error);
+    cloudflareMigrationsPromise = null;
+    return false;
+  });
+  return cloudflareMigrationsPromise;
+}
+
 app.listen(Number(process.env.PORT || 3000));
 const httpHandler = httpServerHandler({ port: Number(process.env.PORT || 3000) });
 
@@ -162,26 +172,26 @@ async function enrichApprovedReportMachineDefects(request, response) {
   const url = new URL(request.url); if (request.method !== "GET" || !/^\/api\/production\/\d+$/.test(url.pathname) || !response.ok) return response;
   try { const payload = await response.clone().json(); const data = payload?.data; if (!data || !Array.isArray(data.defects) || data.defects.length > 0) return response; const reportId = Number(url.pathname.split("/").pop()); const [rows] = await db.promise().query(`SELECT med.id,med.defect_type_id,med.defect_code,med.defect_name,med.quantity FROM production_report_machine_lines ml JOIN machine_production_event_defects med ON med.machine_event_id=ml.machine_event_id WHERE ml.report_id=? AND med.quantity>0 ORDER BY ml.sort_order,med.id`, [reportId]); const merged = new Map(); for (const row of rows || []) { const item = normalizeEventDefect(row); if (!item) continue; const key = item.defect_code; const existing = merged.get(key); if (existing) existing.quantity += item.quantity; else merged.set(key, item); } if (!merged.size) return response; data.defects = [...merged.values()]; const headers = new Headers(response.headers); headers.set("Cache-Control", "no-store"); return new Response(JSON.stringify(payload), { status: response.status, statusText: response.statusText, headers }); } catch (error) { console.error("[KTC] approved report machine NG enrichment failed", error); return response; }
 }
+
 const wrappedServer = {
   async fetch(request, envArg, ctx) {
     const preflight = handleCorsPreflight(request);
     if (preflight) return preflight;
 
-    const pathname = new URL(request.url).pathname;
+    // IMPORTANT: Cloudflare deployment only uploads the Worker bundle; it does
+    // not execute backend/scripts/*.js. Run the real pending DB migrations on
+    // the first request of this isolate and fail closed if TiDB rejects one.
+    const migrationReady = await ensureCloudflareMigrations();
+    if (!migrationReady) {
+      return new Response(JSON.stringify({ success: false, code: "DB_MIGRATION_FAILED", message: "Database migrations are not ready" }), { status: 503, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
+    }
 
+    const pathname = new URL(request.url).pathname;
     if (pathname === "/api/health" || pathname === "/api/health/ready") {
-      // IMPORTANT: Cloudflare may suspend the isolate when the response is
-      // returned. The readiness initialization must finish before Express
-      // handles the health request; fire-and-forget leaves health stuck at
-      // STARTING/STARTUP_FAILED.
-      if (!runtimeReadiness.ready) {
-        await initializeRuntime();
-      }
+      if (!runtimeReadiness.ready) await initializeRuntime();
     } else if (shouldBootstrapBeforeRequest(request)) {
       const seeded = await ensureCloudflareSeeded();
-      if (!seeded) {
-        console.warn("[KTC] Continuing request without master-data bootstrap; seed will retry on a later request.");
-      }
+      if (!seeded) console.warn("[KTC] Continuing request without master-data bootstrap; seed will retry on a later request.");
     }
 
     const response = await httpHandler.fetch(request, envArg, ctx);
