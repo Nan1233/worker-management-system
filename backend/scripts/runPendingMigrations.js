@@ -79,16 +79,29 @@ function splitSql(sql) {
   const tail=sql.slice(start).trim();if(tail)statements.push(tail);return statements;
 }
 
+// Remove SQL comments that precede a statement. This is important because the
+// migration files put descriptive comments immediately before START TRANSACTION;
+// and the TiDB HTTP executor must never receive that transaction-control statement.
+function stripLeadingSqlComments(statement) {
+  let value=String(statement || '').trim();
+  let previous='';
+  while(value && value !== previous){
+    previous=value;
+    value=value.replace(/^(?:\s*--[^\r\n]*(?:\r?\n|$))+/, '').trim();
+    value=value.replace(/^(?:\s*\/\*[\s\S]*?\*\/\s*)+/, '').trim();
+  }
+  return value;
+}
+
 const GC_PROCESS_ID_EXPR = "(SELECT id FROM processes WHERE UPPER(TRIM(process_code)) = 'GC' LIMIT 1)";
 function normalizeCloudflareMigrationStatements(sql) {
   return splitSql(sql)
-    .filter(statement => !['START TRANSACTION;','BEGIN;','COMMIT;','ROLLBACK;'].includes(statement.replace(/\s+/g,' ').trim().toUpperCase()))
+    .map(stripLeadingSqlComments)
+    .filter(Boolean)
+    .filter(statement => !/^(?:START\s+TRANSACTION|BEGIN|COMMIT|ROLLBACK)\s*;?$/i.test(statement.trim()))
     .filter(statement => !/^SET\s+@gc_process_id\s*:=/i.test(statement.trim()))
     .map(statement => statement
       .replace(/\b@gc_process_id\b/g, GC_PROCESS_ID_EXPR)
-      // TiDB Serverless HTTP does not support session-scoped TEMPORARY TABLE semantics
-      // reliably across its stateless execution boundary. These migration scratch tables
-      // are uniquely named per migration and are dropped by the migration itself.
       .replace(/\bCREATE\s+(?:GLOBAL\s+)?TEMPORARY\s+TABLE\b/gi, 'CREATE TABLE')
       .replace(/\bDROP\s+(?:GLOBAL\s+)?TEMPORARY\s+TABLE\b/gi, 'DROP TABLE')
     );
