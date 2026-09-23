@@ -2,7 +2,7 @@
 
 const db = require('../config/db');
 
-// Numeric prefixes are only ordering hints; duplicate prefixes already exist.
+// Numeric prefixes are ordering hints; duplicate prefixes already exist.
 const ALL_MIGRATION_FILES = [
   '031_mai_standard_data_20260903.sql',
   '032_add_2801_lt_long_machine_20260908.sql',
@@ -28,11 +28,10 @@ const ALL_MIGRATION_FILES = [
   '044_gc_canonical_master_repair_20260923.sql',
 ].sort((a, b) => a.localeCompare(b, 'en'));
 
-// The TEST database reports migration 026 as its last recorded migration,
-// but the live schema may already contain pieces of later migrations. The
-// generic backlog can therefore stop on an old duplicate/compatibility error
-// before it ever reaches the new GC master migrations. Cloudflare TEST must
-// not let that unrelated backlog block the requested GC data replacement.
+// Cloudflare TEST must update the GC master even when the shared test DB has
+// an older schema_migrations history. The old generic backlog can contain
+// unrelated migrations that are already reflected in the physical schema and
+// can therefore fail before the GC replacement is reached.
 const GC_MIGRATION_FILES = [
   '039_replace_gc_workers_20260922.sql',
   '040_gc_standard_data_20260922.sql',
@@ -45,9 +44,9 @@ const GC_MIGRATION_FILES = [
 const isCloudflareWorker = process.env.KTC_CLOUDFLARE_WORKER === 'true' || Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
 const MIGRATION_FILES = isCloudflareWorker ? GC_MIGRATION_FILES : ALL_MIGRATION_FILES;
 
-// Pin the source for the test Worker so a moving branch cannot silently
-// change a migration while it is being applied.
-const PINNED_SOURCE_COMMIT = '2fbe2901c0b23b09e75bc45345192e44d0555931';
+// IMPORTANT: do not pin to an old commit that predates the GC migrations.
+// This commit contains 039-044 exactly as the TEST Worker expects.
+const PINNED_SOURCE_COMMIT = '3292b721af11ebe51af1b744a56beedb678c8883';
 const RAW_BASE = `https://raw.githubusercontent.com/Nan1233/worker-management-system/${PINNED_SOURCE_COMMIT}/backend/migrations/`;
 
 let runnerPromise = null;
