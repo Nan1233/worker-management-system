@@ -131,7 +131,26 @@ async function runPendingMigrations() {
       const sql = await fetchText(migration.downloadUrl);
       const checksum = await sha256(sql);
       const statements = splitSql(sql).filter(statement => !['START TRANSACTION;', 'BEGIN;', 'COMMIT;', 'ROLLBACK;'].includes(statement.replace(/\s+/g, ' ').trim().toUpperCase()));
-      console.log(`[KTC][MIGRATION] applying ${migration.filename} (${statements.length} statements)`);
+      const usesTemporaryTables = /\b(?:CREATE|DROP)\s+(?:GLOBAL\s+)?TEMPORARY\s+TABLE\b/i.test(sql);
+      console.log(`[KTC][MIGRATION] applying ${migration.filename} (${statements.length} statements${usesTemporaryTables ? ', session-sensitive temporary table mode' : ''})`);
+
+      // TiDB Cloud Serverless interactive transactions do not allow session-scoped
+      // state changes such as CREATE/DROP TEMPORARY TABLE inside an active tx.
+      // Migration 031 uses a local temporary staging table, so execute that class
+      // of migration statement-by-statement on the same connection instead of
+      // wrapping it in conn.begin(). The migration is idempotent and can safely
+      // resume after a failed request.
+      if (usesTemporaryTables) {
+        try {
+          for (const statement of statements) await connection.query(statement);
+          await connection.query('INSERT INTO schema_migrations (migration_id, checksum) VALUES (?, ?)', [migration.filename, checksum]);
+          console.log(`[KTC][MIGRATION] applied (non-transactional temp-table migration): ${migration.filename}`);
+        } catch (error) {
+          throw new Error(`Migration failed: ${migration.filename}: ${getMigrationError(error)}`);
+        }
+        continue;
+      }
+
       await connection.beginTransaction();
       try {
         for (const statement of statements) await connection.query(statement);
