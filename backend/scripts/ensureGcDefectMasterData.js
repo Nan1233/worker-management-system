@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const runPendingMigrations = require('./runPendingMigrations');
 
 const isCloudflareWorker = process.env.KTC_CLOUDFLARE_WORKER === 'true' || Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
 
@@ -53,6 +54,13 @@ async function queryWithRetry(sql, params = [], attempts = 3) {
 }
 
 async function ensureGcDefectMasterData() {
+  // The Cloudflare test Worker is the deployed runtime for the test branch.
+  // Run the repository migrations before touching GC master data so all DB
+  // consumers see the same schema/master state.
+  if (isCloudflareWorker) {
+    await runPendingMigrations();
+  }
+
   const processes = await queryWithRetry(`
     SELECT id
       FROM processes
