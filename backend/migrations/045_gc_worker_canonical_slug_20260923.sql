@@ -1,7 +1,8 @@
 -- KTC 045: final GC worker roster for TEST.
--- Replaces only the active GC worker assignment; other process assignments and historical reports are preserved.
--- Missing source codes use lowercase, no-accent full-name slugs.
-START TRANSACTION;
+-- Replace the current GC assignment roster with the canonical worker list.
+-- IMPORTANT: this migration does not delete workers globally. It removes every
+-- existing GC assignment first, preserving workers/history used by other
+-- processes, then creates/rekeys the canonical GC workers and assignments.
 
 SET @gc_process_id := (
   SELECT id FROM processes
@@ -41,12 +42,13 @@ INSERT INTO tmp_gc_worker_canonical_20260923 (worker_code, worker_name) VALUES
 ('49dl1-040','Vũ Viết Thái'),('49dl1-042','Hoàng Tuấn Tú'),('49dl1-044','Hoàng Minh Tùng'),('49dllh1-001','Nguyễn Đức Anh'),
 ('49dllh1-002','Vũ Mạnh Hoàng Anh'),('49dllh1-014','Phùng Gia Phát'),('49dllh1-015','Lê Minh Phúc'),('49dllh1-022','Trần Hoàng Trung');
 
--- Remove every existing GC assignment first. No other process is touched.
+-- 1. Remove ALL current Gia công (GC) assignments.
+-- This is the actual replacement of the old GC worker data used by the UI.
 DELETE wp
 FROM worker_processes wp
 WHERE wp.process_id = @gc_process_id;
 
--- Re-key existing workers by canonical code when possible.
+-- 2. Re-key existing workers by canonical worker code when possible.
 UPDATE workers w
 JOIN tmp_gc_worker_canonical_20260923 c
   ON LOWER(TRIM(w.worker_code)) = LOWER(TRIM(c.worker_code))
@@ -56,7 +58,8 @@ SET w.worker_code = c.worker_code,
     u.full_name = c.worker_name,
     u.status = 'active';
 
--- Re-key legacy rows whose worker code was not canonical, using the exact full name.
+-- 3. Re-key legacy worker rows by the exact canonical full name when the
+-- canonical worker-code row does not already exist.
 UPDATE workers w
 JOIN users u ON u.id = w.user_id
 JOIN tmp_gc_worker_canonical_20260923 c
@@ -70,7 +73,7 @@ SET w.worker_code = c.worker_code,
     u.status = 'active'
 WHERE wc.id IS NULL;
 
--- Create users for canonical workers that do not exist yet.
+-- 4. Create canonical users that do not exist.
 INSERT INTO users (username, password, full_name, role, status)
 SELECT c.worker_code, '', c.worker_name, 'worker', 'active'
 FROM tmp_gc_worker_canonical_20260923 c
@@ -78,7 +81,7 @@ LEFT JOIN workers w ON LOWER(TRIM(w.worker_code)) = LOWER(TRIM(c.worker_code))
 LEFT JOIN users u ON LOWER(TRIM(u.username)) = LOWER(TRIM(c.worker_code))
 WHERE w.id IS NULL AND u.id IS NULL;
 
--- Create missing worker rows from the canonical users.
+-- 5. Create missing worker rows.
 INSERT INTO workers (user_id, worker_code, phone, department, position, training_percent, status)
 SELECT u.id, c.worker_code, NULL, 'San xuat', 'Cong nhan', 100, 'active'
 FROM tmp_gc_worker_canonical_20260923 c
@@ -86,7 +89,7 @@ JOIN users u ON LOWER(TRIM(u.username)) = LOWER(TRIM(c.worker_code))
 LEFT JOIN workers w ON w.user_id = u.id
 WHERE w.id IS NULL;
 
--- Rebuild GC assignments from the canonical roster only.
+-- 6. Rebuild ONLY the GC worker assignments from the canonical roster.
 INSERT IGNORE INTO worker_processes (worker_id, process_id)
 SELECT w.id, @gc_process_id
 FROM workers w
@@ -94,7 +97,7 @@ JOIN tmp_gc_worker_canonical_20260923 c
   ON LOWER(TRIM(w.worker_code)) = LOWER(TRIM(c.worker_code))
 WHERE @gc_process_id IS NOT NULL AND w.status = 'active';
 
--- Leave a direct verification result in the migration log.
+-- 7. Verification values are returned to the migration log.
 SELECT
   (SELECT COUNT(*) FROM tmp_gc_worker_canonical_20260923) AS expected_gc_workers,
   (SELECT COUNT(*)
@@ -103,4 +106,3 @@ SELECT
    WHERE wp.process_id = @gc_process_id AND w.status = 'active') AS actual_gc_workers;
 
 DROP TEMPORARY TABLE tmp_gc_worker_canonical_20260923;
-COMMIT;
