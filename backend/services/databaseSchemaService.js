@@ -1,7 +1,4 @@
-'use strict';
-
 const db = require('../config/db');
-const runPendingMigrations = require('../scripts/runPendingMigrations');
 const {
   CONTRACT_VERSION,
   getCanonicalSchema,
@@ -29,9 +26,6 @@ const RUNTIME_REQUIRED_COLUMNS = Object.freeze({
   notifications: ['id', 'user_id', 'type', 'title', 'message', 'link_url', 'entity_type', 'entity_id', 'is_read', 'read_at', 'created_at'],
 });
 
-// Cloudflare/TiDB Serverless already uses the exact same HTTP query transport
-// through db.promise().query(). Do not run a second independent connection
-// probe here: on Workers that probe can fail while normal queries are healthy.
 if (process.env.KTC_CLOUDFLARE_WORKER === 'true' && typeof db?.promise === 'function') {
   const originalTestConnection = db.testConnection;
   db.testConnection = async () => {
@@ -71,19 +65,13 @@ if (process.env.KTC_CLOUDFLARE_WORKER === 'true' && typeof db?.promise === 'func
 
 async function verifyDatabaseSchema({ executor = db.promise() } = {}) {
   try {
-    const isWorker = process.env.KTC_CLOUDFLARE_WORKER === 'true' || Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
+    const isWorker = process.env.KTC_CLOUDFLARE_WORKER === 'true' ||
+      Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
 
-    // The test Cloudflare Worker has no Node migration process. Run pending
-    // repository migrations before checking the runtime contract so schema
-    // readiness is a real DB migration gate, not just a read-only audit.
-    if (isWorker) {
-      await runPendingMigrations();
-    }
-
-    // IMPORTANT: Cloudflare Workers must not depend on fs/path to load the
-    // canonical SQL file. That file is a Node-side audit artifact and may not
-    // exist in the Worker runtime. Runtime readiness therefore uses only the
-    // explicit minimum structural contract below.
+    // Migration execution belongs to the explicit Node-side migration command.
+    // The Worker only validates the runtime structural contract. This prevents
+    // the Worker bundle from loading Node-only migration code (fs/path/__dirname)
+    // and prevents request-time migration subrequest explosions.
     const canonical = isWorker ? null : getCanonicalSchema();
     const dbName = await currentDatabase(executor);
 
@@ -224,7 +212,6 @@ function toSafeSchemaDiagnostics(result) {
     runtimeContract: result.runtimeContract || 'MINIMUM_STRUCTURAL_V1',
     missingTables: result.missingTables || [],
     invalidColumns: result.invalidColumns || [],
-    missingColumns: result.missingColumns || [],
     extraTables: result.extraTables || [],
     extraColumns: result.extraColumns || [],
     missingIndexes: result.missingIndexes || [],
