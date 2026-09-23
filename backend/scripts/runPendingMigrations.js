@@ -2,10 +2,11 @@
 
 const db = require('../config/db');
 
-// TEST uses a dedicated, immutable GC migration. Do not replay the old backlog.
+// TEST intentionally runs only the canonical GC worker replacement migration.
+// The SQL is fetched from the same branch that is deployed to Cloudflare so
+// the runner cannot silently execute an older/nonexistent pinned commit.
 const MIGRATION_FILES = ['045_gc_worker_canonical_slug_20260923.sql'];
-const PINNED_SOURCE_COMMIT = '4b95fe0567a92aa83517369dfc4846b1cbf1cf13';
-const RAW_BASE = `https://raw.githubusercontent.com/Nan1233/worker-management-system/${PINNED_SOURCE_COMMIT}/backend/migrations/`;
+const RAW_BASE = 'https://raw.githubusercontent.com/Nan1233/worker-management-system/test/backend/migrations/';
 let runnerPromise = null;
 
 async function sha256(value) {
@@ -64,7 +65,12 @@ async function runPendingMigrations() {
           continue;
         }
 
-        const statements = splitSql(sql);
+        // Migration files must contain SQL statements only. The runner owns the
+        // transaction so BEGIN/COMMIT inside a migration cannot break TiDB.
+        const statements = splitSql(sql).filter(statement => {
+          const normalized = statement.replace(/\s+/g, ' ').trim().toUpperCase();
+          return normalized !== 'START TRANSACTION;' && normalized !== 'BEGIN;' && normalized !== 'COMMIT;' && normalized !== 'ROLLBACK;';
+        });
         console.log(`[KTC][MIGRATION] applying ${filename} (${statements.length} statements)`);
         await connection.beginTransaction();
         try {
