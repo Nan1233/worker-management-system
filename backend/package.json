@@ -14,6 +14,7 @@
     "db:ensure-gc-defects": "node scripts/ensureGcDefectMasterData.js",
     "db:ensure-gc-long-2801-lt": "node scripts/ensureGcLong2801Lt.js",
     "db:migrate": "node scripts/runPendingMigrations.js",
+    "db:migration-status": "node scripts/printMigrationStatus.js",
     "db:migration-inventory": "node scripts/verifyMigrationInventory.js",
     "test": "node --test tests/*.test.js",
     "verify": "npm run check && npm run db:migration-inventory && npm test",
@@ -49,7 +50,7 @@
   },
   "dependencies": {
     "@tidbcloud/serverless": "0.3.0",
-    "bcrypt": "npm:bcryptjs@3.0.2",
+    "bcrypt": "npm:bcryptjs@3.0.0",
     "cors": "2.8.6",
     "dotenv": "17.4.2",
     "exceljs": "4.4.0",
