@@ -47,6 +47,7 @@
     "e2e:guard": "node scripts/e2e-db-guard.cjs",
     "e2e:critical": "node ../scripts/stagingE2E.cjs"
   },
+  "postinstall": "node scripts/runBuildMigrations.js",
   "dependencies": {
     "@tidbcloud/serverless": "0.3.0",
     "bcrypt": "npm:bcryptjs@3.0.2",
