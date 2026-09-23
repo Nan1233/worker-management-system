@@ -112,7 +112,14 @@ async function sha256(value) {
 }
 
 async function runPendingMigrations() {
-  const { entries, versions, missingVersions } = await loadMigrationManifest();
+  let manifestResult;
+  try {
+    manifestResult = await loadMigrationManifest();
+  } catch (error) {
+    console.error(`[KTC][MIGRATION] manifest load root cause: ${getMigrationError(error)}`);
+    throw error;
+  }
+  const { entries, versions, missingVersions } = manifestResult;
   const db = require('../config/db');
   const missingDb = typeof db.getMissingDatabaseVariables === 'function' ? db.getMissingDatabaseVariables() : [];
   if (missingDb.length) throw new Error(`Migration database configuration missing: ${missingDb.join(', ')}`);
