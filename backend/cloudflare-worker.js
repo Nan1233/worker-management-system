@@ -108,6 +108,24 @@ async function ensureCloudflareSeeded() {
   return cloudflareSeedPromise;
 }
 
+// Test-only migration status endpoint. It runs the configured test migrations first,
+// then reads schema_migrations so we can verify the real TiDB state instead of relying
+// on the Cloudflare deployment log.
+app.get("/api/health/migrations", async (_request, response) => {
+  try {
+    await ensureCloudflareTestMigrations();
+    const [rows] = await db.promise().query(`SELECT migration_id, applied_at FROM schema_migrations ORDER BY CAST(SUBSTRING_INDEX(migration_id, '_', 1) AS UNSIGNED) DESC, migration_id DESC`);
+    const applied = (rows || []).map((row) => ({ migration_id: String(row.migration_id), applied_at: row.applied_at }));
+    const latestAppliedVersion = applied.length ? Math.max(...applied.map((row) => Number(String(row.migration_id).split("_", 1)[0]) || 0)) : 0;
+    response.set("Cache-Control", "no-store");
+    return response.status(200).json({ success: true, migration_enabled: String(process.env.KTC_RUN_BUILD_DB_MIGRATIONS || "").toLowerCase() === "true", expected_latest_version: 45, applied_count: applied.length, latest_applied_version: latestAppliedVersion, latest_applied: applied.slice(0, 10) });
+  } catch (error) {
+    console.error("[KTC][MIGRATION][STATUS] failed", error);
+    response.set("Cache-Control", "no-store");
+    return response.status(503).json({ success: false, code: "MIGRATION_STATUS_FAILED", message: error?.message || String(error) });
+  }
+});
+
 app.listen(Number(process.env.PORT || 3000));
 const httpHandler = httpServerHandler({ port: Number(process.env.PORT || 3000) });
 
