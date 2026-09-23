@@ -2,9 +2,8 @@
 
 const db = require('../config/db');
 
-// This runner is intentionally filename-based. Numeric prefixes are only
-// ordering hints; duplicate prefixes already exist in this repository.
-const MIGRATION_FILES = [
+// Numeric prefixes are only ordering hints; duplicate prefixes already exist.
+const ALL_MIGRATION_FILES = [
   '031_mai_standard_data_20260903.sql',
   '032_add_2801_lt_long_machine_20260908.sql',
   '032_gc_xoay_defect_20260904.sql',
@@ -29,8 +28,25 @@ const MIGRATION_FILES = [
   '044_gc_canonical_master_repair_20260923.sql',
 ].sort((a, b) => a.localeCompare(b, 'en'));
 
+// The TEST database reports migration 026 as its last recorded migration,
+// but the live schema may already contain pieces of later migrations. The
+// generic backlog can therefore stop on an old duplicate/compatibility error
+// before it ever reaches the new GC master migrations. Cloudflare TEST must
+// not let that unrelated backlog block the requested GC data replacement.
+const GC_MIGRATION_FILES = [
+  '039_replace_gc_workers_20260922.sql',
+  '040_gc_standard_data_20260922.sql',
+  '041_sync_gc_cut_long_from_ma_hoa_xlsx_20260922.sql',
+  '042_gc_worker_master_20260923.sql',
+  '043_gc_standard_master_20260923.sql',
+  '044_gc_canonical_master_repair_20260923.sql',
+];
+
+const isCloudflareWorker = process.env.KTC_CLOUDFLARE_WORKER === 'true' || Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
+const MIGRATION_FILES = isCloudflareWorker ? GC_MIGRATION_FILES : ALL_MIGRATION_FILES;
+
 // Pin the source for the test Worker so a moving branch cannot silently
-// change a migration while it is being applied. This commit contains 044.
+// change a migration while it is being applied.
 const PINNED_SOURCE_COMMIT = '2fbe2901c0b23b09e75bc45345192e44d0555931';
 const RAW_BASE = `https://raw.githubusercontent.com/Nan1233/worker-management-system/${PINNED_SOURCE_COMMIT}/backend/migrations/`;
 
@@ -75,11 +91,8 @@ function splitSqlStatements(sql) {
         continue;
       }
       if (ch === quote) {
-        if (next === quote) {
-          i += 1;
-        } else {
-          quote = null;
-        }
+        if (next === quote) i += 1;
+        else quote = null;
       }
       continue;
     }
@@ -203,11 +216,15 @@ async function runPendingMigrations() {
         await runOneMigration(connection, filename, sql);
       }
 
+      const placeholders = MIGRATION_FILES.map(() => '?').join(',');
       const [latest] = await query(
         connection,
-        'SELECT migration_id, applied_at FROM schema_migrations ORDER BY applied_at DESC, migration_id DESC LIMIT 1',
+        `SELECT migration_id, applied_at FROM schema_migrations
+         WHERE migration_id IN (${placeholders})
+         ORDER BY applied_at DESC, migration_id DESC LIMIT 1`,
+        MIGRATION_FILES,
       );
-      console.log(`[KTC][MIGRATION] ready latest=${latest?.migration_id || 'none'}`);
+      console.log(`[KTC][MIGRATION] ready latest=${latest?.migration_id || 'none'} mode=${isCloudflareWorker ? 'GC_TEST' : 'FULL'}`);
       return true;
     } finally {
       await connection.release();
