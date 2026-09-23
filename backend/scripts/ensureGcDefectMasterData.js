@@ -8,27 +8,28 @@ const query = (sql, params = []) => new Promise((resolve, reject) => {
 });
 
 // Canonical GC / Gia công NG master data.
-// CUT: 1-10. LONG: 1-8. Codes are numeric and scoped by process_id.
+// DB codes are unique per process (CAT01..CAT10, LONG01..LONG08).
+// The worker UI displays the factory numeric error numbers 1-10 / 1-8.
 // Historical defect rows are never deleted; only the active GC master is synchronized.
 const CANONICAL_GC_DEFECTS = [
-  ['1', 'Cao su không đứt', 1, 'CUT'],
-  ['2', 'Cắt lẹm', 2, 'CUT'],
-  ['3', 'Cắt phạm', 3, 'CUT'],
-  ['4', 'Cao su ngắn', 4, 'CUT'],
-  ['5', 'Cao su dài', 5, 'CUT'],
-  ['6', 'Bavia cao su', 6, 'CUT'],
-  ['7', 'Phế phẩm chỉnh máy', 7, 'CUT'],
-  ['8', 'Lỗi cao su ( NCC )', 8, 'CUT'],
-  ['9', 'Lẫn cao su', 9, 'CUT'],
-  ['10', 'Khác', 10, 'CUT'],
-  ['1', 'Không qua dưỡng', 1, 'LONG'],
-  ['2', 'Cao su vỡ', 2, 'LONG'],
-  ['3', 'Trục xước', 3, 'LONG'],
-  ['4', 'Trục gãy, cong', 4, 'LONG'],
-  ['5', 'Thiếu cao su', 5, 'LONG'],
-  ['6', 'Lẫn trục', 6, 'LONG'],
-  ['7', 'Lẫn cao su', 7, 'LONG'],
-  ['8', 'Khác', 8, 'LONG'],
+  ['CAT01', 'Cao su không đứt', 1],
+  ['CAT02', 'Cắt lẹm', 2],
+  ['CAT03', 'Cắt phạm', 3],
+  ['CAT04', 'Cao su ngắn', 4],
+  ['CAT05', 'Cao su dài', 5],
+  ['CAT06', 'Bavia cao su', 6],
+  ['CAT07', 'Phế phẩm chỉnh máy', 7],
+  ['CAT08', 'Lỗi cao su ( NCC )', 8],
+  ['CAT09', 'Lẫn cao su', 9],
+  ['CAT10', 'Khác', 10],
+  ['LONG01', 'Không qua dưỡng', 1],
+  ['LONG02', 'Cao su vỡ', 2],
+  ['LONG03', 'Trục xước', 3],
+  ['LONG04', 'Trục gãy, cong', 4],
+  ['LONG05', 'Thiếu cao su', 5],
+  ['LONG06', 'Lẫn trục', 6],
+  ['LONG07', 'Lẫn cao su', 7],
+  ['LONG08', 'Khác', 8],
 ];
 
 function normalize(value) {
@@ -82,7 +83,7 @@ async function ensureGcDefectMasterData() {
   const processId = Number(processes[0].id);
 
   const sync = async () => {
-    const canonicalCodes = [...new Set(CANONICAL_GC_DEFECTS.map(([code]) => code))];
+    const canonicalCodes = CANONICAL_GC_DEFECTS.map(([code]) => code);
     const placeholders = canonicalCodes.map(() => '?').join(', ');
 
     await queryWithRetry(
@@ -118,9 +119,7 @@ async function ensureGcDefectMasterData() {
       }
     }
 
-    const canonicalKeys = new Set(
-      CANONICAL_GC_DEFECTS.map(([code, name]) => `${normalize(code)}|${normalize(name)}`),
-    );
+    const canonicalCodesSet = new Set(CANONICAL_GC_DEFECTS.map(([code]) => normalize(code)));
     const rows = await queryWithRetry(
       `SELECT id, defect_code, defect_name, status
          FROM defect_types
@@ -129,14 +128,14 @@ async function ensureGcDefectMasterData() {
       [processId],
     );
 
-    const seenCanonicalKeys = new Set();
+    const seenCanonicalCodes = new Set();
     for (const row of rows || []) {
-      const key = `${normalize(row.defect_code)}|${normalize(row.defect_name)}`;
-      if (!canonicalKeys.has(key)) continue;
-      if (seenCanonicalKeys.has(key)) {
+      const code = normalize(row.defect_code);
+      if (!canonicalCodesSet.has(code)) continue;
+      if (seenCanonicalCodes.has(code)) {
         await queryWithRetry(`UPDATE defect_types SET status = 'inactive' WHERE id = ?`, [Number(row.id)]);
       } else {
-        seenCanonicalKeys.add(key);
+        seenCanonicalCodes.add(code);
       }
     }
 
