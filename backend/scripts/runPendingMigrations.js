@@ -9,6 +9,7 @@ const isCloudflareWorker = process.env.KTC_CLOUDFLARE_WORKER === 'true' || Boole
 const migrationRef = String(process.env.KTC_MIGRATION_REF || (isCloudflareWorker ? 'test' : 'main')).trim();
 const repository = String(process.env.KTC_MIGRATION_REPOSITORY || DEFAULT_REPOSITORY).trim();
 const apiBase = `https://api.github.com/repos/${repository}`;
+const rawBase = `https://raw.githubusercontent.com/${repository}/${encodeURIComponent(migrationRef)}`;
 
 function getMigrationError(error) {
   return String(error?.message || error || 'Unknown migration error');
@@ -18,7 +19,7 @@ async function fetchJson(url) {
   const response = await fetch(url, {
     headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'ktc-migration-runner' },
   });
-  if (!response.ok) throw new Error(`GitHub manifest request failed: HTTP ${response.status} ${response.statusText}`);
+  if (!response.ok) throw new Error(`GitHub manifest request failed: HTTP ${response.status} ${response.statusText} ${url}`);
   return response.json();
 }
 
@@ -28,16 +29,18 @@ async function fetchText(url) {
   return response.text();
 }
 
-async function loadMigrationManifest() {
-  const entries = await fetchJson(`${apiBase}/contents/backend/migrations?ref=${encodeURIComponent(migrationRef)}`);
+function normalizeMigrationEntries(entries) {
   if (!Array.isArray(entries)) throw new Error('GitHub migration manifest is not an array.');
-  const migrations = entries
+  return entries
     .filter(entry => entry && entry.type === 'file' && /^\d+_.+\.sql$/i.test(String(entry.name || '')))
     .map(entry => ({
       filename: String(entry.name),
       number: Number(/^(\d+)_/.exec(String(entry.name))[1]),
-      downloadUrl: String(entry.download_url || `https://raw.githubusercontent.com/${repository}/${encodeURIComponent(migrationRef)}/backend/migrations/${encodeURIComponent(entry.name)}`),
+      downloadUrl: String(entry.download_url || `${rawBase}/backend/migrations/${encodeURIComponent(entry.name)}`),
     }));
+}
+
+function validateMigrationInventory(migrations) {
   const seen = new Set();
   for (const entry of migrations) {
     if (seen.has(entry.filename)) throw new Error(`Duplicate migration filename in repository: ${entry.filename}`);
@@ -52,6 +55,26 @@ async function loadMigrationManifest() {
     throw new Error(`Migration version inventory invalid: expected 001-045 executable range, got ${versions.join(', ')}; missing ${missing.join(', ')}`);
   }
   return { entries: migrations, versions, missingVersions: missing };
+}
+
+async function loadMigrationManifest() {
+  const manifestUrl = `${rawBase}/backend/migrations/manifest.json`;
+  try {
+    const manifest = await fetchJson(manifestUrl);
+    const names = Array.isArray(manifest?.migrations) ? manifest.migrations : manifest;
+    if (!Array.isArray(names)) throw new Error('Static migration manifest has no migrations array.');
+    const entries = names.map(name => ({
+      name: String(name),
+      type: 'file',
+      download_url: `${rawBase}/backend/migrations/${encodeURIComponent(String(name))}`,
+    }));
+    const result = validateMigrationInventory(normalizeMigrationEntries(entries));
+    console.log(`[KTC][MIGRATION] static manifest loaded: ${result.entries.length} SQL files / ${result.versions.length} migration versions (latest 045), ref=${migrationRef}`);
+    return result;
+  } catch (error) {
+    console.error(`[KTC][MIGRATION] static manifest request failed: ${getMigrationError(error)}`);
+    throw error;
+  }
 }
 
 function splitSql(sql) {
@@ -142,7 +165,7 @@ function getCloudflareBootMigrationPromise() {
         return true;
       })
       .catch(error => {
-        console.error('[KTC][MIGRATION] Cloudflare test boot migration failed', error);
+        console.error(`[KTC][MIGRATION] Cloudflare test boot migration failed: ${getMigrationError(error)}`, error);
         throw error;
       });
   }
@@ -161,4 +184,4 @@ if (isCloudflareWorker && String(process.env.KTC_RUN_BUILD_DB_MIGRATIONS || '').
   getCloudflareBootMigrationPromise()?.catch(() => undefined);
 }
 
-if (require.main === module) runPendingMigrations().then(() => process.exit(0)).catch(error => { console.error('[KTC][MIGRATION] fatal', error); process.exit(1); });
+if (require.main === module) runPendingMigrations().then(() => process.exit(0)).catch(error => { console.error(`[KTC][MIGRATION] fatal: ${getMigrationError(error)}`, error); process.exit(1); });
