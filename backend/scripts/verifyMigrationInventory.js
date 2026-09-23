@@ -3,39 +3,58 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const migrationsDir = path.join(__dirname, '..', 'migrations');
-const files = fs.readdirSync(migrationsDir)
-  .filter((name) => /^\d+_.+\.sql$/i.test(name))
-  .sort((a, b) => a.localeCompare(b, 'en'));
+const migrationDirs = [
+  path.join(__dirname, '..', 'migrations'),
+  path.join(__dirname, '..', 'database', 'migrations'),
+];
 
-const parsed = files.map((filename) => {
-  const match = /^(\d+)_/.exec(filename);
-  return { filename, number: Number(match[1]) };
-});
+const files = [];
+const seen = new Set();
+for (const migrationsDir of migrationDirs) {
+  if (!fs.existsSync(migrationsDir)) continue;
+  for (const name of fs.readdirSync(migrationsDir).filter((item) => /^\d+_.+\.sql$/i.test(item))) {
+    if (seen.has(name)) {
+      console.error(`DUPLICATE_MIGRATION_FILENAME: ${name}`);
+      process.exitCode = 1;
+    }
+    seen.add(name);
+    const match = /^(\d+)_/.exec(name);
+    files.push({ filename: name, number: Number(match[1]), directory: migrationsDir });
+  }
+}
 
-const duplicateNumbers = [...new Set(parsed
-  .filter((item, index) => parsed.findIndex((x) => x.number === item.number) !== index)
+files.sort((a, b) => a.number - b.number || a.filename.localeCompare(b.filename, 'en'));
+
+const duplicateNumbers = [...new Set(files
+  .filter((item, index) => files.findIndex((x) => x.number === item.number) !== index)
   .map((item) => item.number))]
   .sort((a, b) => a - b);
 
-const latest = parsed.at(-1) || null;
-const malformed = fs.readdirSync(migrationsDir)
-  .filter((name) => name.toLowerCase().endsWith('.sql'))
-  .filter((name) => !/^\d+_.+\.sql$/i.test(name));
+const versions = [...new Set(files.map((item) => item.number))].sort((a, b) => a - b);
+const malformed = migrationDirs.flatMap((dir) => {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir)
+    .filter((name) => name.toLowerCase().endsWith('.sql'))
+    .filter((name) => !/^\d+_.+\.sql$/i.test(name));
+});
+
+const latest = files.at(-1) || null;
+const expectedVersions = Array.from({ length: 45 }, (_, index) => index + 1);
+const complete = versions.length === 45 && versions.every((value, index) => value === expectedVersions[index]);
 
 console.log(JSON.stringify({
-  migration_count: parsed.length,
+  migration_file_count: files.length,
+  migration_version_count: versions.length,
   latest: latest?.filename || null,
   latest_number: latest?.number || null,
   duplicate_numbers: duplicateNumbers,
+  versions,
   malformed_files: malformed,
   deterministic_order: true,
+  complete_001_045: complete,
 }, null, 2));
 
-// Numeric prefixes are not the durable migration identity in this repository;
-// filenames are. Duplicate legacy prefixes are therefore diagnostic only.
-// Never rename an already-deployed migration merely to make the prefix unique.
-if (!latest || malformed.length) {
+if (!latest || malformed.length || !complete || process.exitCode) {
   console.error('MIGRATION_INVENTORY_INVALID');
   process.exitCode = 1;
 }
