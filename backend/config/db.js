@@ -185,7 +185,13 @@ function createCloudflareConnection() {
   async function executeRaw(sql, params = []) {
     if (closed) throw new Error("Database connection đã được đóng");
     try {
-      // TiDB Serverless HTTP execution accepts DQL/DML/DDL, not transaction-control SQL.\n      // Transactions are handled through beginTransaction/commit/rollback below.\n      const control = String(sql || "").trim().replace(/;\\s*$/, "").toUpperCase();\n      if (["START TRANSACTION", "BEGIN", "COMMIT", "ROLLBACK"].includes(control)) {\n        return { rowsAffected: 0, lastInsertId: 0 };\n      }\n      const notificationNormalized = normalizeNotificationBackfillQuery(sql, params);
+      // TiDB Serverless HTTP execution accepts DQL/DML/DDL, not transaction-control SQL.
+      // Transactions are handled through beginTransaction/commit/rollback below.
+      const control = String(sql || "").trim().replace(/;\s*$/, "").toUpperCase();
+      if (["START TRANSACTION", "BEGIN", "COMMIT", "ROLLBACK"].includes(control)) {
+        return { rowsAffected: 0, lastInsertId: 0 };
+      }
+      const notificationNormalized = normalizeNotificationBackfillQuery(sql, params);
       const normalized = normalizeApprovedMachineEventQuery(notificationNormalized.sql, notificationNormalized.params);
       const client = transaction || conn;
       return await client.execute(normalized.sql, normalized.params, { fullResult: true });
