@@ -10,6 +10,43 @@ const migrationRef = String(process.env.KTC_MIGRATION_REF || (isCloudflareWorker
 const repository = String(process.env.KTC_MIGRATION_REPOSITORY || DEFAULT_REPOSITORY).trim();
 const rawBase = `https://raw.githubusercontent.com/${repository}/${migrationRef.replace(/[^A-Za-z0-9._-]/g, '')}`;
 
+// Keep the migration inventory inside the Worker source as a final fallback.
+// Cloudflare Workers must not depend on GitHub's API to discover migrations.
+const EMBEDDED_MIGRATION_NAMES = [
+  '001_core_master_schema.sql',
+  '002_production_schema.sql',
+  '003_machine_and_session_schema.sql',
+  '004_sync_and_export_schema.sql',
+  '005_entry_date_compatibility.sql',
+  '006_extra_data_compatibility.sql',
+  '007_production_formula_settings.sql',
+  '027_notifications_runtime_columns.sql',
+  '028_report_edit_proposals.sql',
+  '029_temp_report_updated_by.sql',
+  '030_report_kpi_calculated_columns.sql',
+  '031_mai_standard_data_20260903.sql',
+  '032_add_2801_lt_long_machine_20260908.sql',
+  '033_gc_xoay_master_repair_20260904.sql',
+  '034_map_2801_lt_to_all_gc_long_machines_20260909.sql',
+  '034_non_product_work_process_20260907.sql',
+  '035_gc_late_early_deduction_20260907.sql',
+  '035_sync_canonical_gia_cong_worker_process_assignments_20260908.sql',
+  '036_notifications_runtime_columns_20260908.sql',
+  '037_production_reports_logical_duplicate_key_20260909.sql',
+  '038_gc_deduction_types_exact_20260910.sql',
+  '039_cvk_deduction_types_20260911.sql',
+  '039_machine_adjustment_fields_20260914.sql',
+  '039_replace_gc_workers_20260922.sql',
+  '040_cvk_deduction_types_repair_20260914.sql',
+  '040_gc_defect_types_exact_20260911.sql',
+  '040_gc_standard_data_20260922.sql',
+  '041_sync_gc_cut_long_from_ma_hoa_xlsx_20260922.sql',
+  '042_gc_worker_master_20260923.sql',
+  '043_gc_standard_master_20260923.sql',
+  '044_gc_canonical_master_repair_20260923.sql',
+  '045_gc_worker_canonical_slug_20260923.sql'
+];
+
 function getMigrationError(error) { return String(error?.message || error || 'Unknown migration error'); }
 
 async function fetchText(url) {
@@ -36,15 +73,19 @@ function validateMigrationInventory(migrations) {
 }
 
 function loadMigrationManifest() {
-  // Keep the manifest local to the Worker bundle. A GitHub manifest request
-  // must not be able to make the entire API return 503 during boot.
+  // The Worker bundle owns the migration inventory. Never call GitHub's API here.
   try {
-    const manifest = require('../migrations/manifest.json');
-    const names = Array.isArray(manifest?.migrations) ? manifest.migrations : manifest;
-    if (!Array.isArray(names)) throw new Error('Bundled migration manifest has no migrations array.');
+    let names = EMBEDDED_MIGRATION_NAMES;
+    try {
+      const manifest = require('../migrations/manifest.json');
+      const manifestNames = Array.isArray(manifest?.migrations) ? manifest.migrations : manifest;
+      if (Array.isArray(manifestNames) && manifestNames.length) names = manifestNames;
+    } catch (manifestError) {
+      console.warn(`[KTC][MIGRATION] bundled manifest.json unavailable; using embedded inventory: ${getMigrationError(manifestError)}`);
+    }
     const entries = names.map(name => ({ name: String(name), type: 'file', download_url: `${rawBase}/backend/migrations/${encodeURIComponent(String(name))}` }));
     const result = validateMigrationInventory(normalizeMigrationEntries(entries));
-    console.log(`[KTC][MIGRATION] bundled manifest loaded: ${result.entries.length} SQL files / ${result.versions.length} migration versions (latest 045), ref=${migrationRef}`);
+    console.log(`[KTC][MIGRATION] self-contained manifest loaded: ${result.entries.length} SQL files / ${result.versions.length} migration versions (latest 045), ref=${migrationRef}`);
     return result;
   } catch (error) {
     console.error(`[KTC][MIGRATION] bundled manifest load failed: ${getMigrationError(error)}`);
