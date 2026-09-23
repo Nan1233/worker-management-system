@@ -83,10 +83,15 @@ const GC_PROCESS_ID_EXPR = "(SELECT id FROM processes WHERE UPPER(TRIM(process_c
 function normalizeCloudflareMigrationStatements(sql) {
   return splitSql(sql)
     .filter(statement => !['START TRANSACTION;','BEGIN;','COMMIT;','ROLLBACK;'].includes(statement.replace(/\s+/g,' ').trim().toUpperCase()))
-    // TiDB Serverless HTTP supports DQL/DML/DDL, but not SET @session_variable.
-    // The recent GC migrations only use @gc_process_id, so resolve it inline.
     .filter(statement => !/^SET\s+@gc_process_id\s*:=/i.test(statement.trim()))
-    .map(statement => statement.replace(/@gc_process_id\b/g, GC_PROCESS_ID_EXPR));
+    .map(statement => statement
+      .replace(/\b@gc_process_id\b/g, GC_PROCESS_ID_EXPR)
+      // TiDB Serverless HTTP does not support session-scoped TEMPORARY TABLE semantics
+      // reliably across its stateless execution boundary. These migration scratch tables
+      // are uniquely named per migration and are dropped by the migration itself.
+      .replace(/\bCREATE\s+(?:GLOBAL\s+)?TEMPORARY\s+TABLE\b/gi, 'CREATE TABLE')
+      .replace(/\bDROP\s+(?:GLOBAL\s+)?TEMPORARY\s+TABLE\b/gi, 'DROP TABLE')
+    );
 }
 
 async function sha256(value) { const bytes=new TextEncoder().encode(value); const digest=await globalThis.crypto.subtle.digest('SHA-256',bytes); return Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join(''); }
@@ -113,7 +118,7 @@ async function runPendingMigrations() {
       const checksum=await sha256(sql);
       const statements=normalizeCloudflareMigrationStatements(sql);
       const usesTemporaryTables=/\b(?:CREATE|DROP)\s+(?:GLOBAL\s+)?TEMPORARY\s+TABLE\b/i.test(sql);
-      console.log(`[KTC][MIGRATION] applying ${migration.filename}: ${statements.length} statements${usesTemporaryTables?', temp-table mode':''}`);
+      console.log(`[KTC][MIGRATION] applying ${migration.filename}: ${statements.length} statements${usesTemporaryTables?', temp-table normalized':''}`);
       try {
         if(usesTemporaryTables){
           for(let index=0;index<statements.length;index++){
