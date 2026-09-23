@@ -1,11 +1,10 @@
 'use strict';
 
 const isCloudflareWorker = process.env.KTC_CLOUDFLARE_WORKER === 'true' || Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
-const allowCloudflareMigration = String(process.env.KTC_RUN_BUILD_DB_MIGRATIONS || '').toLowerCase() === 'true';
 
-if (isCloudflareWorker && !allowCloudflareMigration) {
+if (isCloudflareWorker) {
   module.exports = async function runPendingMigrations() {
-    return true;
+    throw new Error('DATABASE_MIGRATION_UNSUPPORTED_IN_CLOUDFLARE_RUNTIME');
   };
 } else {
   const fs = require('node:fs');
@@ -44,7 +43,7 @@ if (isCloudflareWorker && !allowCloudflareMigration) {
       if (lineComment) { if (ch === '\n') lineComment = false; continue; }
       if (quote) { if (ch === quote && next === quote) { i += 1; continue; } if (ch === quote && sql[i - 1] !== '\\') quote = null; continue; }
       if (ch === '-' && next === '-' && (i + 2 >= sql.length || /\s/.test(sql[i + 2]))) { lineComment = true; i += 1; continue; }
-      if (ch === "'" || ch === '"' || ch === '`') { quote = ch; continue; }
+      if (ch === "'" || ch === '"' || ch === '\`') { quote = ch; continue; }
       if (ch === ';') { const statement = sql.slice(start, i + 1).trim(); if (statement) statements.push(statement); start = i + 1; }
     }
     const tail = sql.slice(start).trim(); if (tail) statements.push(tail); return statements;
@@ -78,6 +77,7 @@ if (isCloudflareWorker && !allowCloudflareMigration) {
         const [existing] = await connection.query('SELECT checksum FROM schema_migrations WHERE migration_id=? LIMIT 1', [migration.filename]);
         if (existing.length) {
           if (String(existing[0].checksum).toLowerCase() !== checksum.toLowerCase()) throw new Error(`Migration checksum mismatch: ${migration.filename}`);
+          console.log(`[KTC][MIGRATION] already applied: ${migration.filename}`);
           continue;
         }
         const statements = splitSql(sql).filter(statement => !['START TRANSACTION;', 'BEGIN;', 'COMMIT;', 'ROLLBACK;'].includes(statement.replace(/\s+/g, ' ').trim().toUpperCase()));
@@ -97,6 +97,7 @@ if (isCloudflareWorker && !allowCloudflareMigration) {
       return true;
     } finally { await connection.release(); }
   }
+
   module.exports = runPendingMigrations;
   if (require.main === module) runPendingMigrations().then(() => process.exit(0)).catch(error => { console.error('[KTC][MIGRATION] fatal', error); process.exit(1); });
 }
