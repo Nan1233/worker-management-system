@@ -1,10 +1,12 @@
 const db = require('../config/db');
 
+const isCloudflareWorker = process.env.KTC_CLOUDFLARE_WORKER === 'true' || Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
+const isRuntimeBootstrapEnabled = String(process.env.KTC_RUN_MASTER_DATA_BOOTSTRAP || '').toLowerCase() === 'true';
+
 const query = (sql, params = []) => new Promise((resolve, reject) => {
   db.query(sql, params, (error, rows) => error ? reject(error) : resolve(rows));
 });
 
-// Canonical GC / Gia công NG master data.
 const CANONICAL_GC_DEFECTS = [
   ['CAT01', 'Cao su không đứt', 1], ['CAT02', 'Cắt lẹm', 2], ['CAT03', 'Cắt phạm', 3],
   ['CAT04', 'Cao su ngắn', 4], ['CAT05', 'Cao su dài', 5], ['CAT06', 'Bavia cao su', 6],
@@ -30,6 +32,11 @@ async function queryWithRetry(sql, params = [], attempts = 3) {
 }
 
 async function ensureGcDefectMasterData() {
+  // TEST DB is provisioned from the clean SQL snapshot. Runtime writes are
+  // opt-in only, preventing concurrent API requests from repeatedly seeding
+  // defect_types and producing transient TiDB 520 errors.
+  if (isCloudflareWorker && !isRuntimeBootstrapEnabled) return;
+
   const processes = await queryWithRetry(`SELECT id FROM processes WHERE UPPER(TRIM(process_code))='GC' AND COALESCE(status,'active') IN ('active','enabled','1') ORDER BY id LIMIT 1`);
   if (!processes.length) throw new Error('GC process master was not found.');
   const processId = Number(processes[0].id);
