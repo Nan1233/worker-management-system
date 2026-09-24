@@ -23,6 +23,16 @@ const PRODUCT_STANDARD_SELECT = `
         p.process_code,
         ps.work_type,
         ps.product_code,
+        /*
+         * GC workers must see the encoded alias only.  Most aliases map
+         * directly to the canonical product_code.  The five legacy automatic
+         * cutting rows still have internal codes ending in -AUTO, so also
+         * match those rows to the alias after removing that UI-only suffix.
+         */
+        COALESCE(
+            pa.alias_code,
+            pa_auto.alias_code
+        ) AS alias_code,
         ps.standard_output AS standard_output,
         COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
         EXISTS(
@@ -45,6 +55,22 @@ const PRODUCT_STANDARD_SELECT = `
         ), '') AS eligible_machine_codes
     FROM product_standards ps
     JOIN processes p ON p.id = ps.process_id
+    LEFT JOIN product_aliases pa
+      ON pa.process_id = ps.process_id
+     AND UPPER(TRIM(pa.product_code)) = UPPER(TRIM(ps.product_code))
+     AND pa.status = 'active'
+    LEFT JOIN product_aliases pa_auto
+      ON pa_auto.process_id = ps.process_id
+     AND UPPER(TRIM(pa_auto.alias_code)) = UPPER(
+            TRIM(
+                CASE
+                    WHEN RIGHT(TRIM(ps.product_code), 5) = '-AUTO'
+                    THEN LEFT(TRIM(ps.product_code), CHAR_LENGTH(TRIM(ps.product_code)) - 5)
+                    ELSE ''
+                END
+            )
+        )
+     AND pa_auto.status = 'active'
 `;
 
 exports.findByProcess = async (processId) => {
