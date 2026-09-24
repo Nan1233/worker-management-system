@@ -2,7 +2,6 @@
 -- Source: worker list supplied by the user on 2026-09-22/23.
 -- Scope: GC worker assignment only. Other process assignments are untouched.
 -- Historical production/report rows are untouched.
--- Alphabetic worker codes are lowercase and no-accent.
 START TRANSACTION;
 
 SET @gc_process_id := (
@@ -43,32 +42,35 @@ INSERT INTO tmp_gc_workers_20260923 (worker_code, worker_name) VALUES
 ('49dl1-040','Vũ Viết Thái'),('49dl1-042','Hoàng Tuấn Tú'),('49dl1-044','Hoàng Minh Tùng'),('49dllh1-001','Nguyễn Đức Anh'),
 ('49dllh1-002','Vũ Mạnh Hoàng Anh'),('49dllh1-014','Phùng Gia Phát'),('49dllh1-015','Lê Minh Phúc'),('49dllh1-022','Trần Hoàng Trung');
 
--- First reconcile rows already carrying the canonical code. This cannot collide because
--- the destination code is already the row's own unique code.
+-- A worker that already has the canonical code must NOT have worker_code rewritten.
+-- Rewriting it can still collide with a unique key when the DB collation/normalization
+-- differs from LOWER(TRIM()), so only status/name are updated here.
 UPDATE workers w
 JOIN users u ON u.id = w.user_id
 JOIN tmp_gc_workers_20260923 c
   ON LOWER(TRIM(w.worker_code)) = LOWER(TRIM(c.worker_code))
-SET w.worker_code = c.worker_code,
-    w.status = 'active',
+SET w.status = 'active',
     u.full_name = c.worker_name,
     u.status = 'active';
 
--- Then reconcile by worker name only when the canonical code is not owned by another
--- worker. This deliberately skips ambiguous collisions instead of violating uq_workers_code.
+-- Reconcile by name only when the canonical code is not already owned by another worker.
+-- The NOT EXISTS guard is deliberately based on the same normalized comparison used by
+-- the join, so no update can attempt to violate workers.uq_workers_code.
 UPDATE workers w
 JOIN users u ON u.id = w.user_id
 JOIN tmp_gc_workers_20260923 c
   ON LOWER(TRIM(u.full_name)) = LOWER(TRIM(c.worker_name))
-LEFT JOIN workers owner_w
-  ON owner_w.id <> w.id
- AND LOWER(TRIM(owner_w.worker_code)) = LOWER(TRIM(c.worker_code))
 SET w.worker_code = c.worker_code,
     w.status = 'active',
     u.full_name = c.worker_name,
     u.status = 'active'
-WHERE owner_w.id IS NULL
-  AND LOWER(TRIM(w.worker_code)) <> LOWER(TRIM(c.worker_code));
+WHERE LOWER(TRIM(w.worker_code)) <> LOWER(TRIM(c.worker_code))
+  AND NOT EXISTS (
+    SELECT 1
+    FROM workers owner_w
+    WHERE owner_w.id <> w.id
+      AND LOWER(TRIM(owner_w.worker_code)) = LOWER(TRIM(c.worker_code))
+  );
 
 -- Create any canonical worker that does not already exist.
 INSERT INTO users (username, password, full_name, role, status)
@@ -88,7 +90,7 @@ LEFT JOIN workers owner_w
 WHERE w.id IS NULL
   AND owner_w.id IS NULL;
 
--- GC assignment becomes exactly the canonical roster. Assignments in other processes are untouched.
+-- GC assignment becomes exactly the canonical roster. Other process assignments are untouched.
 DELETE wp
 FROM worker_processes wp
 JOIN workers w ON w.id = wp.worker_id
@@ -105,7 +107,6 @@ JOIN tmp_gc_workers_20260923 c
   ON LOWER(TRIM(w.worker_code)) = LOWER(TRIM(c.worker_code))
 WHERE @gc_process_id IS NOT NULL AND w.status = 'active';
 
--- Verification: should return zero rows.
 SELECT c.worker_code, c.worker_name
 FROM tmp_gc_workers_20260923 c
 LEFT JOIN workers w ON LOWER(TRIM(w.worker_code)) = LOWER(TRIM(c.worker_code))
