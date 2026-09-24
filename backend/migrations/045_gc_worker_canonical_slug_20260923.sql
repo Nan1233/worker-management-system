@@ -1,8 +1,11 @@
 -- KTC 045: final GC worker roster for TEST.
 -- Replace the current GC assignment roster with the canonical worker list.
--- IMPORTANT: this migration does not delete workers globally. It removes every
--- existing GC assignment first, preserving workers/history used by other
--- processes, then creates/rekeys the canonical GC workers and assignments.
+-- IMPORTANT:
+--   * This migration removes ONLY GC assignments; workers are never deleted globally.
+--   * Existing worker_code values are NEVER rewritten. This is required because
+--     legacy codes such as v2284 are valid DB identities and must be preserved.
+--   * Existing workers are matched first by worker_code, then by exact name.
+--   * Only genuinely missing workers are created with the canonical code.
 
 SET @gc_process_id := (
   SELECT id FROM processes
@@ -43,66 +46,91 @@ INSERT INTO tmp_gc_worker_canonical_20260923 (worker_code, worker_name) VALUES
 ('49dllh1-002','Vũ Mạnh Hoàng Anh'),('49dllh1-014','Phùng Gia Phát'),('49dllh1-015','Lê Minh Phúc'),('49dllh1-022','Trần Hoàng Trung');
 
 -- 1. Remove ALL current Gia công (GC) assignments.
--- This is the actual replacement of the old GC worker data used by the UI.
+-- This removes stale GC membership but preserves every worker globally.
 DELETE wp
 FROM worker_processes wp
 WHERE wp.process_id = @gc_process_id;
 
--- 2. Re-key existing workers by canonical worker code when possible.
-UPDATE workers w
-JOIN tmp_gc_worker_canonical_20260923 c
+-- 2. Build a deterministic mapping from canonical roster -> existing worker.
+-- Match by code first. NEVER rename that worker.
+DROP TEMPORARY TABLE IF EXISTS tmp_gc_worker_match_20260923;
+CREATE TEMPORARY TABLE tmp_gc_worker_match_20260923 (
+  worker_code VARCHAR(160) NOT NULL PRIMARY KEY,
+  worker_id BIGINT UNSIGNED NULL
+);
+
+INSERT INTO tmp_gc_worker_match_20260923 (worker_code, worker_id)
+SELECT c.worker_code, MIN(w.id)
+FROM tmp_gc_worker_canonical_20260923 c
+JOIN workers w
   ON LOWER(TRIM(w.worker_code)) = LOWER(TRIM(c.worker_code))
+GROUP BY c.worker_code;
+
+-- 3. For canonical codes not found above, match an existing worker by exact
+-- canonical full name. The existing worker_code is preserved (for example
+-- v2284 must remain v2284, not be rewritten to 2284).
+INSERT INTO tmp_gc_worker_match_20260923 (worker_code, worker_id)
+SELECT c.worker_code, MIN(w.id)
+FROM tmp_gc_worker_canonical_20260923 c
+JOIN users u ON LOWER(TRIM(u.full_name)) = LOWER(TRIM(c.worker_name))
+JOIN workers w ON w.user_id = u.id
+LEFT JOIN tmp_gc_worker_match_20260923 m ON m.worker_code = c.worker_code
+WHERE m.worker_code IS NULL
+GROUP BY c.worker_code;
+
+-- 4. Activate/update already matched workers, but DO NOT change worker_code.
+UPDATE workers w
+JOIN tmp_gc_worker_match_20260923 m ON m.worker_id = w.id
+JOIN tmp_gc_worker_canonical_20260923 c ON c.worker_code = m.worker_code
 JOIN users u ON u.id = w.user_id
-SET w.worker_code = c.worker_code,
-    w.status = 'active',
+SET w.status = 'active',
     u.full_name = c.worker_name,
     u.status = 'active';
 
--- 3. Re-key legacy worker rows by the exact canonical full name when the
--- canonical worker-code row does not already exist.
-UPDATE workers w
-JOIN users u ON u.id = w.user_id
-JOIN tmp_gc_worker_canonical_20260923 c
-  ON LOWER(TRIM(u.full_name)) = LOWER(TRIM(c.worker_name))
-LEFT JOIN workers wc
-  ON LOWER(TRIM(wc.worker_code)) = LOWER(TRIM(c.worker_code))
- AND wc.id <> w.id
-SET w.worker_code = c.worker_code,
-    w.status = 'active',
-    u.full_name = c.worker_name,
-    u.status = 'active'
-WHERE wc.id IS NULL;
-
--- 4. Create canonical users that do not exist.
+-- 5. Create users only for canonical workers that still have no existing
+-- worker match and no canonical username. Existing name-matched workers are
+-- intentionally not duplicated.
 INSERT INTO users (username, password, full_name, role, status)
 SELECT c.worker_code, '', c.worker_name, 'worker', 'active'
 FROM tmp_gc_worker_canonical_20260923 c
-LEFT JOIN workers w ON LOWER(TRIM(w.worker_code)) = LOWER(TRIM(c.worker_code))
+LEFT JOIN tmp_gc_worker_match_20260923 m ON m.worker_code = c.worker_code
 LEFT JOIN users u ON LOWER(TRIM(u.username)) = LOWER(TRIM(c.worker_code))
-WHERE w.id IS NULL AND u.id IS NULL;
+WHERE m.worker_id IS NULL AND u.id IS NULL;
 
--- 5. Create missing worker rows.
+-- 6. Create worker rows for canonical users that are still missing a worker.
 INSERT INTO workers (user_id, worker_code, phone, department, position, training_percent, status)
 SELECT u.id, c.worker_code, NULL, 'San xuat', 'Cong nhan', 100, 'active'
 FROM tmp_gc_worker_canonical_20260923 c
+LEFT JOIN tmp_gc_worker_match_20260923 m ON m.worker_code = c.worker_code
 JOIN users u ON LOWER(TRIM(u.username)) = LOWER(TRIM(c.worker_code))
 LEFT JOIN workers w ON w.user_id = u.id
-WHERE w.id IS NULL;
+WHERE m.worker_id IS NULL AND w.id IS NULL;
 
--- 6. Rebuild ONLY the GC worker assignments from the canonical roster.
-INSERT IGNORE INTO worker_processes (worker_id, process_id)
-SELECT w.id, @gc_process_id
-FROM workers w
-JOIN tmp_gc_worker_canonical_20260923 c
+-- 7. Refresh the mapping so newly created workers are included.
+INSERT INTO tmp_gc_worker_match_20260923 (worker_code, worker_id)
+SELECT c.worker_code, MIN(w.id)
+FROM tmp_gc_worker_canonical_20260923 c
+JOIN workers w
   ON LOWER(TRIM(w.worker_code)) = LOWER(TRIM(c.worker_code))
-WHERE @gc_process_id IS NOT NULL AND w.status = 'active';
+LEFT JOIN tmp_gc_worker_match_20260923 m ON m.worker_code = c.worker_code
+WHERE m.worker_code IS NULL
+GROUP BY c.worker_code;
 
--- 7. Verification values are returned to the migration log.
+-- 8. Rebuild ONLY the GC worker assignments from the canonical roster.
+INSERT IGNORE INTO worker_processes (worker_id, process_id)
+SELECT m.worker_id, @gc_process_id
+FROM tmp_gc_worker_match_20260923 m
+WHERE m.worker_id IS NOT NULL
+  AND @gc_process_id IS NOT NULL;
+
+-- 9. Verification values are returned to the migration log.
 SELECT
   (SELECT COUNT(*) FROM tmp_gc_worker_canonical_20260923) AS expected_gc_workers,
+  (SELECT COUNT(*) FROM tmp_gc_worker_match_20260923 WHERE worker_id IS NOT NULL) AS matched_gc_workers,
   (SELECT COUNT(*)
    FROM worker_processes wp
    JOIN workers w ON w.id = wp.worker_id
    WHERE wp.process_id = @gc_process_id AND w.status = 'active') AS actual_gc_workers;
 
+DROP TEMPORARY TABLE tmp_gc_worker_match_20260923;
 DROP TEMPORARY TABLE tmp_gc_worker_canonical_20260923;
