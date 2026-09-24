@@ -43,7 +43,16 @@ function AutocompleteInput({
         setTypedValue(value);
     }, [value]);
 
-    const displayValue = selectOnly ? typedValue : value;
+    // Product options keep the canonical product_code in `value` so submit/
+    // standard resolution is unchanged, while `label` is the encoded code
+    // that workers should see. Once an option is selected, show only label.
+    const selectedOption = useMemo(
+        () => options.find((option) => option.value.trim().toLowerCase() === typedValue.trim().toLowerCase()),
+        [options, typedValue]
+    );
+    const displayValue = selectOnly
+        ? (selectedOption?.label?.trim() || typedValue)
+        : value;
 
     const readMachineOperationType = () => id.startsWith("machineNo")
         ? Array.from(document.querySelectorAll(".worker-mode-panel .worker-mode-group:first-child .worker-choice-row button"))
@@ -117,6 +126,8 @@ function AutocompleteInput({
     useEffect(() => setActiveIndex(-1), [displayValue, machineOperationType]);
 
     const selectOption = (option: AutocompleteOption) => {
+        // Keep canonical value in state/submission; the selected label is only
+        // the worker-facing display text.
         setTypedValue(option.value);
         onSelect(option);
         setOpen(false);
@@ -171,23 +182,23 @@ function AutocompleteInput({
             </div>
             {open && !effectiveDisabled && (
                 <div className="autocomplete-menu" role="listbox">
-                    {filteredOptions.length > 0 ? filteredOptions.map((option, index) => (
-                        <button
-                            key={`${option.value}-${index}`}
-                            type="button"
-                            className={index === activeIndex ? "autocomplete-option active" : "autocomplete-option"}
-                            onMouseDown={(event) => event.preventDefault()}
-                            onClick={() => selectOption(option)}
-                        >
-                            <span className="autocomplete-option-main">{option.value}</span>
-                            {option.label && option.label.trim().toLowerCase() !== option.value.trim().toLowerCase() && (
-                                <span className="autocomplete-option-label">{option.label}</span>
-                            )}
-                            {option.description && (
-                                <span className="autocomplete-option-description">{option.description}</span>
-                            )}
-                        </button>
-                    )) : (
+                    {filteredOptions.length > 0 ? filteredOptions.map((option, index) => {
+                        const optionDisplay = option.label?.trim() || option.value;
+                        return (
+                            <button
+                                key={`${option.value}-${index}`}
+                                type="button"
+                                className={index === activeIndex ? "autocomplete-option active" : "autocomplete-option"}
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => selectOption(option)}
+                            >
+                                <span className="autocomplete-option-main">{optionDisplay}</span>
+                                {option.description && (
+                                    <span className="autocomplete-option-description">{option.description}</span>
+                                )}
+                            </button>
+                        );
+                    }) : (
                         <div className="autocomplete-empty">{emptyMessage}</div>
                     )}
                 </div>
