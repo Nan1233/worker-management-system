@@ -1,5 +1,5 @@
 {
-  "latestVersion": 25,
+  "latestVersion": 26,
   "latestMigration": "049_gc_machines_from_excel_20260924.sql",
   "migrations": [
     "001_core_master_schema.sql",
@@ -9,6 +9,7 @@
     "005_entry_date_compatibility.sql",
     "006_extra_data_compatibility.sql",
     "007_production_formula_settings.sql",
+    "026_product_standard_versions_prerequisite.sql",
     "027_notifications_runtime_columns.sql",
     "028_report_edit_proposals.sql",
     "029_temp_report_updated_by.sql",
