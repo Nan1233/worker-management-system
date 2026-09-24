@@ -61,25 +61,29 @@ const GC_AUTOMATIC_MACHINE_CODES = new Set(["C5", "C6", "C7", "C11"]);
 const isGcAutomaticMachine = (machineCode: unknown): boolean =>
     GC_AUTOMATIC_MACHINE_CODES.has(normalize(machineCode).replace(/\s+/g, ""));
 
-const AUTO_MACHINE_SUFFIXES = new Set(["5", "6", "11"]);
-
-/** These five legacy GC products must remain selectable on both automatic and non-automatic cutting machines. */
-const LEGACY_GC_AUTO_CODES = new Set([
-    "C2556-AUTO",
-    "C5770-AUTO",
-    "CGYX-AUTO",
-    "C3880-AUTO",
-    "C8052-AUTO",
+/** Exactly the five automatic cutting aliases required by the authoritative GC list. */
+const GC_AUTOMATIC_ALIAS_CODES = new Set([
+    "C2556",
+    "C5770",
+    "CGYX",
+    "C3880",
+    "C8052",
 ]);
 
-const getGcWorkTypeForMachine = (machineCode: unknown): "CUT" | "LONG" | null => {
-    const key = normalize(machineCode).replace(/\s+/g, "");
-    if (!key) return null;
-    if (key === "C" || /^C\d+$/.test(key)) return "CUT";
-    if (/^\d+$/.test(normalizeMachineKey(key))) return "LONG";
-    return null;
-};
+const getGcAlias = (product: ProductStandardOption): string =>
+    normalize(product.alias_code);
 
+const isGcCutAlias = (aliasCode: string): boolean => aliasCode.startsWith("C");
+
+/**
+ * GC uses one authoritative encoded-code list for the worker UI:
+ * - C-prefixed aliases = Cắt
+ * - non-C aliases = Lồng
+ *
+ * The underlying product_code is deliberately retained as the option value so
+ * standard resolution and report storage continue to use the backend product.
+ * The UI label is alias_code only; legacy `-AUTO` is never displayed.
+ */
 export const filterProductsForSelection = ({
     products,
     mode,
@@ -93,40 +97,40 @@ export const filterProductsForSelection = ({
     machineOptions?: MachineOption[];
     useEncodedMachineSuffix?: boolean;
 }): ProductStandardOption[] => {
-    const familyHasMachineVariant = new Set(
-        products
-            .filter((product) => normalizeWorkType(product.work_type) === "CUT")
-            .filter((product) => getProductMachineHint(product.product_code))
-            .map((product) => getProductFamilyCode(product.product_code))
-    );
-
     const selectedMachine = normalizeMachineKey(machineCode);
     const selectedRawMachine = normalize(machineCode).replace(/\s+/g, "");
 
+    // GC is now driven by product_aliases, not by legacy product_code suffixes.
+    // This prevents stale C502/127-T/etc. master rows from leaking into the UI.
     if (useEncodedMachineSuffix) {
-        const longProducts = products.filter((product) => normalizeWorkType(product.work_type) === "LONG");
-        if (longProducts.length > 0) {
-            if (mode === "MANUAL") {
-                return longProducts.filter((product) => {
-                    const handling = getLongHandling(product.product_code);
-                    return handling === "MANUAL" || handling === "BOTH";
-                });
-            }
-            if (!selectedMachine) {
-                return longProducts.filter((product) => {
-                    const handling = getLongHandling(product.product_code);
-                    return handling === "MACHINE" || handling === "BOTH";
-                });
-            }
-            return longProducts.filter((product) => {
-                const handling = getLongHandling(product.product_code);
-                if (handling !== "MACHINE" && handling !== "BOTH") return false;
-                const mappedMachines = eligibleMachineCodes(product);
-                const hasExplicitMapping = Number(product.has_machine_specific_standard || 0) === 1 || mappedMachines.length > 0;
-                if (hasExplicitMapping && mappedMachines.length > 0 && !mappedMachines.includes(selectedMachine)) return false;
-                return true;
-            });
+        const aliasedProducts = products.filter((product) => Boolean(getGcAlias(product)));
+        if (!aliasedProducts.length) return [];
+
+        const cutProducts = aliasedProducts.filter((product) => isGcCutAlias(getGcAlias(product)));
+        const longProducts = aliasedProducts.filter((product) => !isGcCutAlias(getGcAlias(product)));
+
+        if (mode === "MANUAL") {
+            return longProducts;
         }
+
+        if (!selectedMachine) return [];
+
+        const gcWorkType = normalize(selectedRawMachine).startsWith("C") ? "CUT" : "LONG";
+        if (gcWorkType === "LONG") {
+            // Lồng Tay and Lồng Máy intentionally use the same authoritative
+            // non-C alias list; machine-specific legacy filtering is not used.
+            return longProducts;
+        }
+
+        // Both automatic and non-automatic Cắt machines use encoded aliases.
+        // Automatic machines are restricted to exactly the five required codes.
+        if (isGcAutomaticMachine(selectedRawMachine)) {
+            return cutProducts.filter((product) => GC_AUTOMATIC_ALIAS_CODES.has(getGcAlias(product)));
+        }
+
+        // Non-automatic Cắt still keeps the same five automatic aliases, plus
+        // every other authoritative C-prefixed cutting alias.
+        return cutProducts;
     }
 
     if (mode === "MANUAL") return products;
@@ -135,10 +139,6 @@ export const filterProductsForSelection = ({
     const machine = (machineOptions || []).find(
         (item) => normalizeMachineKey(item.machine_code) === selectedMachine
     );
-    const gcWorkType = useEncodedMachineSuffix ? getGcWorkTypeForMachine(selectedRawMachine) : null;
-    const isAutomatic = useEncodedMachineSuffix
-        ? isGcAutomaticMachine(selectedRawMachine)
-        : Number(machine?.is_automatic || 0) === 1;
     const selectedNumber = machineNumber(selectedRawMachine);
 
     return products.filter((product) => {
@@ -146,51 +146,27 @@ export const filterProductsForSelection = ({
         const mappedMachines = eligibleMachineCodes(product);
         const hasExplicitMapping = Number(product.has_machine_specific_standard || 0) === 1 || mappedMachines.length > 0;
         const productWorkType = normalizeWorkType(product.work_type);
-        if (useEncodedMachineSuffix && gcWorkType && productWorkType !== gcWorkType) return false;
         if (hasExplicitMapping && mappedMachines.length > 0 && !mappedMachines.includes(selectedMachine)) return false;
 
-        if (useEncodedMachineSuffix && gcWorkType === "CUT") {
-            if (isAutomatic) {
-                if (hint?.kind === "AUTO") return true;
-                if (hint?.kind === "NUMBER") {
-                    return AUTO_MACHINE_SUFFIXES.has(hint.value) && selectedNumber !== null && hint.value === selectedNumber;
-                }
-                return hasExplicitMapping && mappedMachines.includes(selectedMachine);
-            }
-            // The five legacy AUTO products are also valid on non-automatic cutting machines.
-            // Keep their canonical `-AUTO` product_code internally; the autocomplete layer
-            // displays only the encoded alias (e.g. C2556), never the `-AUTO` suffix.
-            if (hint?.kind === "AUTO") return LEGACY_GC_AUTO_CODES.has(normalize(product.product_code));
+        if (Number(machine?.is_automatic || 0) === 1) {
+            if (hint?.kind === "AUTO") return true;
             if (hint?.kind === "NUMBER") {
-                if (AUTO_MACHINE_SUFFIXES.has(hint.value)) return false;
                 return selectedNumber !== null && hint.value === selectedNumber;
             }
-            if (familyHasMachineVariant.has(getProductFamilyCode(product.product_code))) return true;
+            return hasExplicitMapping && mappedMachines.includes(selectedMachine);
         }
-        return true;
-    });
-};
 
-/**
- * Only the five legacy GC automatic products use a UI-only `-auto` code.
- * Keep their canonical product_code as the option value, but display exactly
- * the encoded code requested by the production list.
- */
-const LEGACY_GC_AUTO_DISPLAY: Record<string, string> = {
-    "C2556-AUTO": "C2556",
-    "C5770-AUTO": "C5770",
-    "CGYX-AUTO": "CGYX",
-    "C3880-AUTO": "C3880",
-    "C8052-AUTO": "C8052",
+        if (hint?.kind === "NUMBER") {
+            return selectedNumber !== null && hint.value === selectedNumber;
+        }
+        return productWorkType !== "";
+    });
 };
 
 const displayAlias = (product: ProductStandardOption): string => {
     const explicitAlias = String(product.alias_code ?? "").trim();
     if (explicitAlias) return explicitAlias;
-
-    const productCode = String(product.product_code ?? "").trim();
-    const legacyAutoDisplay = LEGACY_GC_AUTO_DISPLAY[normalize(productCode)];
-    return legacyAutoDisplay ?? productCode;
+    return String(product.product_code ?? "").trim();
 };
 
 export const toProductAutocompleteOptions = (products: ProductStandardOption[]) => {
