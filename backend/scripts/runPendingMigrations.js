@@ -41,8 +41,6 @@ function normalizeMigrationEntries(entries){
     }));
 }
 
-// The filenames retain their historical names, but the manifest order is now the
-// canonical migration order. This removes the old 001-045 gap requirement.
 function validateMigrationInventory(migrations){
   const seen = new Set();
   for(const migration of migrations){
@@ -127,9 +125,8 @@ async function runPendingMigrations(){
       return true;
     }
 
-    // Cloudflare Workers have a per-invocation subrequest limit. Run only one
-    // migration per invocation there; the next request continues from
-    // schema_migrations. Local/server runtimes keep the old all-pending behavior.
+    // Cloudflare Workers have a per-invocation subrequest limit. Run one
+    // migration per invocation and persist progress in schema_migrations.
     const maxMigrationsPerInvocation = isCloudflareWorker
       ? Math.max(1, Number(process.env.KTC_MIGRATIONS_PER_INVOCATION || 1))
       : pending.length;
@@ -166,9 +163,20 @@ let cloudflareBootMigrationPromise=null;
 function getCloudflareBootMigrationPromise(){
   const enabled=String(process.env.KTC_RUN_BUILD_DB_MIGRATIONS||'').toLowerCase()==='true';
   if(!isCloudflareWorker||!enabled) return null;
-  if(!cloudflareBootMigrationPromise) cloudflareBootMigrationPromise=runPendingMigrations().then(ok=>ok).catch(error=>{
-    console.error(`[KTC][MIGRATION] Cloudflare boot migration failed: ${getMigrationError(error)}`,error); throw error;
-  });
+  // Do not cache an incomplete batch. A cached Promise that resolves `false`
+  // would otherwise prevent subsequent requests from running the next migration.
+  if(!cloudflareBootMigrationPromise){
+    cloudflareBootMigrationPromise=runPendingMigrations()
+      .then(ok=>{
+        cloudflareBootMigrationPromise=null;
+        return ok;
+      })
+      .catch(error=>{
+        cloudflareBootMigrationPromise=null;
+        console.error(`[KTC][MIGRATION] Cloudflare boot migration failed: ${getMigrationError(error)}`,error);
+        throw error;
+      });
+  }
   return cloudflareBootMigrationPromise;
 }
 
