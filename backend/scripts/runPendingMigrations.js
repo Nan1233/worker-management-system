@@ -108,6 +108,12 @@ async function sha256(value){
   return Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
 }
 
+// Cloudflare Free allows 50 external subrequests per invocation. A migration
+// statement uses one TiDB subrequest and each checkpoint uses one more. Keep
+// a conservative batch so a single request can advance several statements
+// without ever approaching the platform limit.
+const MIGRATION_STATEMENTS_PER_INVOCATION = Math.max(1, Math.min(8, Number.parseInt(process.env.KTC_MIGRATION_BATCH_SIZE || '8', 10) || 8));
+
 async function runPendingMigrations(){
   const {entries,versions}=loadMigrationManifest();
   const db=require('../config/db');
@@ -119,66 +125,70 @@ async function runPendingMigrations(){
     await connection.query('CREATE TABLE IF NOT EXISTS schema_migration_steps (id TINYINT NOT NULL PRIMARY KEY, migration_id VARCHAR(160) NOT NULL, checksum CHAR(64) NOT NULL, statement_index INT NOT NULL, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)');
     console.log(`[KTC][MIGRATION] manifest loaded: ${entries.length} SQL files / ${versions.length} ordered migrations, ref=${migrationRef}`);
 
-    const [appliedRows]=await connection.query('SELECT migration_id, checksum FROM schema_migrations');
-    const appliedById=new Map(appliedRows.map(r=>[String(r.migration_id),String(r.checksum||'')]));
-    const pending=entries.filter(m=>!appliedById.has(m.filename));
+    let processedStatements=0;
+    while(processedStatements < MIGRATION_STATEMENTS_PER_INVOCATION){
+      const [appliedRows]=await connection.query('SELECT migration_id, checksum FROM schema_migrations');
+      const appliedById=new Map(appliedRows.map(r=>[String(r.migration_id),String(r.checksum||'')]));
+      const pending=entries.filter(m=>!appliedById.has(m.filename));
 
-    const [stepRows]=await connection.query('SELECT id, migration_id, checksum, statement_index FROM schema_migration_steps WHERE id=1 LIMIT 1');
-    let activeStep=stepRows[0] || null;
-    let migration;
+      const [stepRows]=await connection.query('SELECT id, migration_id, checksum, statement_index FROM schema_migration_steps WHERE id=1 LIMIT 1');
+      let activeStep=stepRows[0] || null;
+      let migration;
 
-    if(activeStep){
-      migration=entries.find(item=>item.filename===String(activeStep.migration_id));
-      if(!migration) throw new Error(`Migration step state references unknown migration: ${activeStep.migration_id}`);
-      if(!pending.some(item=>item.filename===migration.filename)) throw new Error(`Migration step state references an already applied migration: ${migration.filename}`);
-    } else {
-      migration=pending[0];
+      if(activeStep){
+        migration=entries.find(item=>item.filename===String(activeStep.migration_id));
+        if(!migration) throw new Error(`Migration step state references unknown migration: ${activeStep.migration_id}`);
+        if(!pending.some(item=>item.filename===migration.filename)) throw new Error(`Migration step state references an already applied migration: ${migration.filename}`);
+      } else {
+        migration=pending[0];
+      }
+
+      if(!migration){
+        console.log(`[KTC][MIGRATION] complete: ${entries.length} ordered migrations processed`);
+        return true;
+      }
+
+      const sql=await fetchText(migration.downloadUrl);
+      const checksum=await sha256(sql);
+      const statements=normalizeCloudflareMigrationStatements(sql,migration.filename);
+      if(!statements.length) throw new Error(`Migration has no executable SQL statements: ${migration.filename}`);
+
+      let statementIndex=activeStep ? Number(activeStep.statement_index) : 0;
+      if(!Number.isInteger(statementIndex) || statementIndex < 0 || statementIndex >= statements.length){
+        throw new Error(`Invalid migration statement progress for ${migration.filename}: ${statementIndex}`);
+      }
+      if(activeStep && String(activeStep.checksum||'') !== checksum){
+        throw new Error(`Migration checksum changed while in progress: ${migration.filename}`);
+      }
+
+      console.log(`[KTC][MIGRATION] applying ${migration.filename}: statement ${statementIndex + 1}/${statements.length}`);
+      try{
+        await connection.query(statements[statementIndex]);
+      }catch(error){
+        throw new Error(`Migration failed: ${migration.filename}: statement ${statementIndex + 1}/${statements.length}: ${statements[statementIndex].slice(0,500)} | ${getMigrationError(error)}`);
+      }
+
+      processedStatements += 1;
+      const nextStatementIndex=statementIndex+1;
+      if(nextStatementIndex < statements.length){
+        await connection.query(
+          'INSERT INTO schema_migration_steps (id, migration_id, checksum, statement_index) VALUES (1, ?, ?, ?) ON DUPLICATE KEY UPDATE migration_id=VALUES(migration_id), checksum=VALUES(checksum), statement_index=VALUES(statement_index)',
+          [migration.filename, checksum, nextStatementIndex]
+        );
+        console.log(`[KTC][MIGRATION] progress saved: ${migration.filename} statement ${nextStatementIndex}/${statements.length}`);
+        continue;
+      }
+
+      await connection.query('INSERT INTO schema_migrations (migration_id, checksum) VALUES (?, ?)',[migration.filename,checksum]);
+      await connection.query('DELETE FROM schema_migration_steps WHERE id=1');
+      const [remainingRows]=await connection.query('SELECT COUNT(*) AS count FROM schema_migrations WHERE migration_id IN (' + entries.map(()=>'?').join(',') + ')',[...entries.map(m=>m.filename)]);
+      const appliedCount=Number(remainingRows?.[0]?.count || 0);
+      const remaining=Math.max(0,entries.length-appliedCount);
+      console.log(`[KTC][MIGRATION] applied: ${migration.filename}; remaining=${remaining}`);
     }
 
-    if(!migration){
-      console.log(`[KTC][MIGRATION] complete: ${entries.length} ordered migrations processed`);
-      return true;
-    }
-
-    const sql=await fetchText(migration.downloadUrl);
-    const checksum=await sha256(sql);
-    const statements=normalizeCloudflareMigrationStatements(sql,migration.filename);
-    if(!statements.length) throw new Error(`Migration has no executable SQL statements: ${migration.filename}`);
-
-    let statementIndex=activeStep ? Number(activeStep.statement_index) : 0;
-    if(!Number.isInteger(statementIndex) || statementIndex < 0 || statementIndex >= statements.length){
-      throw new Error(`Invalid migration statement progress for ${migration.filename}: ${statementIndex}`);
-    }
-    if(activeStep && String(activeStep.checksum||'') !== checksum){
-      throw new Error(`Migration checksum changed while in progress: ${migration.filename}`);
-    }
-
-    // Cloudflare Free allows only 50 subrequests per invocation. Execute
-    // exactly ONE migration SQL statement per request and persist the step
-    // before the next request continues. schema_migrations is written only
-    // after the entire migration file succeeds; no fake applied rows exist.
-    console.log(`[KTC][MIGRATION] applying ${migration.filename}: statement ${statementIndex + 1}/${statements.length}`);
-    try{
-      await connection.query(statements[statementIndex]);
-    }catch(error){
-      throw new Error(`Migration failed: ${migration.filename}: statement ${statementIndex + 1}/${statements.length}: ${statements[statementIndex].slice(0,500)} | ${getMigrationError(error)}`);
-    }
-
-    const nextStatementIndex=statementIndex+1;
-    if(nextStatementIndex < statements.length){
-      await connection.query(
-        'INSERT INTO schema_migration_steps (id, migration_id, checksum, statement_index) VALUES (1, ?, ?, ?) ON DUPLICATE KEY UPDATE migration_id=VALUES(migration_id), checksum=VALUES(checksum), statement_index=VALUES(statement_index)',
-        [migration.filename, checksum, nextStatementIndex]
-      );
-      console.log(`[KTC][MIGRATION] progress saved: ${migration.filename} statement ${nextStatementIndex}/${statements.length}`);
-      return false;
-    }
-
-    await connection.query('INSERT INTO schema_migrations (migration_id, checksum) VALUES (?, ?)',[migration.filename,checksum]);
-    await connection.query('DELETE FROM schema_migration_steps WHERE id=1');
-    const remaining=pending.length-1;
-    console.log(`[KTC][MIGRATION] applied: ${migration.filename}; remaining=${remaining}`);
-    return remaining===0;
+    console.log(`[KTC][MIGRATION] batch complete: processed=${processedStatements}; continue on next request`);
+    return false;
   }finally{await connection.release();}
 }
 
