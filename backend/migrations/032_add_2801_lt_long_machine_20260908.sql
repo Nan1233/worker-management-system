@@ -1,13 +1,7 @@
 -- KTC 032: canonical combined migration for the 2026-09-04/2026-09-08 GC/Lồng master updates.
---
 -- 1) Add Lồng-only machine product 2801-LT at 605 units/hour.
 -- 2) Add/activate the canonical GC XOAY defect (Cao su xoay).
 -- Both changes are idempotent.
---
--- IMPORTANT: product_standard_versions is a prerequisite for this migration.
--- Some older test databases were created without that table, so create the
--- canonical table here before inserting the 2801-LT version. This is safe for
--- databases where the table already exists.
 
 CREATE TABLE IF NOT EXISTS product_standard_versions (
     id BIGINT NOT NULL AUTO_INCREMENT,
