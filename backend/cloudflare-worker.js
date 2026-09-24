@@ -81,7 +81,7 @@ async function normalizeTempChildRows(defects, deductions, processId) {
   const defectIds = [...new Set(normalizedDefects.map((item) => Number(item?.defect_type_id)).filter((id) => Number.isInteger(id) && id > 0))];
   const defectNames = [...new Set(normalizedDefects.map((item) => String(item?.defect_name || "").trim()).filter(Boolean))];
   const deductionIds = [...new Set(normalizedDeductions.map((item) => Number(item?.deduction_type_id)).filter((id) => Number.isInteger(id) && id > 0))];
-  const deductionNames = [...new Set(normalizedDeductions.map((item) => String(item?.deduction_name || "").trim()).filter(Boolean)];
+  const deductionNames = [...new Set(normalizedDeductions.map((item) => String(item?.deduction_name || "").trim()).filter(Boolean))];
   const [defectRows, deductionRows] = await Promise.all([
     queryMasterRows(`SELECT id, defect_code, defect_name FROM defect_types WHERE process_id=? AND status='active' AND (${defectIds.length ? `id IN (${defectIds.map(() => "?").join(",")})` : "1=0"}${defectNames.length ? ` OR defect_name IN (${defectNames.map(() => "?").join(",")})` : ""})`, [pid, ...defectIds, ...defectNames]),
     queryMasterRows(`SELECT id, deduction_name FROM deduction_types WHERE process_id=? AND status='active' AND (${deductionIds.length ? `id IN (${deductionIds.map(() => "?").join(",")})` : "1=0"}${deductionNames.length ? ` OR deduction_name IN (${deductionNames.map(() => "?").join(",")})` : ""})`, [pid, ...deductionIds, ...deductionNames])
@@ -110,11 +110,6 @@ async function ensureCloudflareSeeded() {
     masterDataCache.clear();
     cloudflareSeedReady = true;
     console.log("[KTC] Cloudflare GC master-data seed completed; master cache cleared");
-    // Migrations already establish the schema before request handling. Do NOT
-    // call initializeRuntime() here: its information_schema contract scan runs
-    // one query per table and can exceed Cloudflare's subrequest budget in the
-    // same invocation as the migration/seed bootstrap. Runtime readiness is
-    // initialized explicitly by /api/health/ready when needed.
     return true;
   }).catch((error) => {
     console.error("[KTC] Cloudflare GC master-data seed failed", error);
@@ -124,9 +119,6 @@ async function ensureCloudflareSeeded() {
   return cloudflareSeedPromise;
 }
 
-// Test-only migration status endpoint. It runs the configured test migrations first,
-// then reads schema_migrations so we can verify the real TiDB state instead of relying
-// on the Cloudflare deployment log.
 app.get("/api/health/migrations", async (_request, response) => {
   try {
     await ensureCloudflareTestMigrations();
@@ -134,7 +126,7 @@ app.get("/api/health/migrations", async (_request, response) => {
     const applied = (rows || []).map((row) => ({ migration_id: String(row.migration_id), applied_at: row.applied_at }));
     const latestAppliedVersion = applied.length ? Math.max(...applied.map((row) => Number(String(row.migration_id).split("_", 1)[0]) || 0)) : 0;
     response.set("Cache-Control", "no-store");
-    return response.status(200).json({ success: true, migration_enabled: String(process.env.KTC_RUN_BUILD_DB_MIGRATIONS || "").toLowerCase() === "true", expected_latest_version: 45, applied_count: applied.length, latest_applied_version: latestAppliedVersion, latest_applied: applied.slice(0, 10) });
+    return response.status(200).json({ success: true, migration_enabled: String(process.env.KTC_RUN_BUILD_DB_MIGRATIONS || "").toLowerCase() === "true", expected_latest_version: 49, applied_count: applied.length, latest_applied_version: latestAppliedVersion, latest_applied: applied.slice(0, 10) });
   } catch (error) {
     console.error("[KTC][MIGRATION][STATUS] failed", error);
     response.set("Cache-Control", "no-store");
