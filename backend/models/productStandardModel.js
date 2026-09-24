@@ -1,17 +1,9 @@
-const db =
-    require("../config/db");
-
-
-
+const db = require("../config/db");
 
 const query = (sql, params = []) =>
     new Promise((resolve, reject) => {
         db.query(sql, params, (error, rows) => {
-            if (error) {
-                reject(error);
-                return;
-            }
-
+            if (error) return reject(error);
             resolve(rows);
         });
     });
@@ -23,21 +15,11 @@ const PRODUCT_STANDARD_SELECT = `
         p.process_code,
         ps.work_type,
         ps.product_code,
-        /*
-         * GC workers must see the encoded alias only.  Most aliases map
-         * directly to the canonical product_code.  The five legacy automatic
-         * cutting rows still have internal codes ending in -AUTO, so also
-         * match those rows to the alias after removing that UI-only suffix.
-         */
-        COALESCE(
-            pa.alias_code,
-            pa_auto.alias_code
-        ) AS alias_code,
-        ps.standard_output AS standard_output,
+        pa.alias_code,
+        ps.standard_output,
         COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
         EXISTS(
-            SELECT 1
-            FROM product_machine_standards pms
+            SELECT 1 FROM product_machine_standards pms
             WHERE pms.process_id = ps.process_id
               AND pms.product_code = ps.product_code
               AND pms.is_active = 1
@@ -59,49 +41,118 @@ const PRODUCT_STANDARD_SELECT = `
       ON pa.process_id = ps.process_id
      AND UPPER(TRIM(pa.product_code)) = UPPER(TRIM(ps.product_code))
      AND pa.status = 'active'
-    LEFT JOIN product_aliases pa_auto
-      ON pa_auto.process_id = ps.process_id
-     AND UPPER(TRIM(pa_auto.alias_code)) = UPPER(
-            TRIM(
-                CASE
-                    WHEN RIGHT(TRIM(ps.product_code), 5) = '-AUTO'
-                    THEN LEFT(TRIM(ps.product_code), CHAR_LENGTH(TRIM(ps.product_code)) - 5)
-                    ELSE ''
-                END
-            )
-        )
-     AND pa_auto.status = 'active'
+`;
+
+/*
+ * GC is alias-master driven. The Excel mapping is authoritative even when a
+ * legacy product_standards row is missing or uses an old encoded product code.
+ * Every active alias is therefore returned; a matching standard is attached
+ * when available for standard resolution.
+ */
+const GC_ALIAS_SELECT = `
+    SELECT
+        COALESCE(ps.id, -CAST(pa.id AS SIGNED)) AS id,
+        pa.process_id,
+        p.process_code,
+        CASE WHEN UPPER(TRIM(pa.alias_code)) LIKE 'C%' THEN 'CUT' ELSE 'LONG' END AS work_type,
+        COALESCE(ps.product_code, pa.product_code) AS product_code,
+        pa.alias_code,
+        COALESCE(ps.standard_output, 0) AS standard_output,
+        COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
+        CASE WHEN ps.id IS NULL THEN 0 ELSE EXISTS(
+            SELECT 1 FROM product_machine_standards pms
+            WHERE pms.process_id = pa.process_id
+              AND pms.product_code = ps.product_code
+              AND pms.is_active = 1
+        ) END AS has_machine_specific_standard,
+        CASE WHEN ps.id IS NULL THEN '' ELSE COALESCE((
+            SELECT GROUP_CONCAT(DISTINCT m.machine_code ORDER BY m.machine_code SEPARATOR ',')
+            FROM product_machine_standards pms2
+            JOIN machines m
+              ON m.id = pms2.machine_id
+             AND m.process_id = pms2.process_id
+             AND m.status = 'active'
+            WHERE pms2.process_id = pa.process_id
+              AND pms2.product_code = ps.product_code
+              AND pms2.is_active = 1
+        ), '') END AS eligible_machine_codes
+    FROM product_aliases pa
+    JOIN processes p ON p.id = pa.process_id
+    LEFT JOIN product_standards ps
+      ON ps.process_id = pa.process_id
+     AND UPPER(TRIM(ps.product_code)) = UPPER(TRIM(pa.product_code))
+     AND ps.status = 'active'
+    WHERE pa.status = 'active'
+      AND p.status = 'active'
+      AND UPPER(TRIM(p.process_code)) = 'GC'
 `;
 
 exports.findByProcess = async (processId) => {
-    const sql = `${PRODUCT_STANDARD_SELECT}
+    const processRows = await query(
+        "SELECT process_code FROM processes WHERE id = ? LIMIT 1",
+        [processId]
+    );
+    const processCode = String(processRows[0]?.process_code || '').trim().toUpperCase();
+
+    if (processCode === 'GC') {
+        return query(`${GC_ALIAS_SELECT} AND pa.process_id = ? ORDER BY pa.id ASC`, [processId]);
+    }
+
+    return query(`${PRODUCT_STANDARD_SELECT}
         WHERE ps.process_id = ?
           AND ps.status = 'active'
           AND p.status = 'active'
         ORDER BY ps.product_code ASC
-    `;
-    return query(sql, [processId]);
+    `, [processId]);
 };
 
 exports.findByProcessCode = async (processCode) => {
-    const sql = `${PRODUCT_STANDARD_SELECT}
+    const normalized = String(processCode || '').trim().toUpperCase();
+    if (normalized === 'GC') {
+        return query(`${GC_ALIAS_SELECT} ORDER BY pa.id ASC`);
+    }
+
+    return query(`${PRODUCT_STANDARD_SELECT}
         WHERE UPPER(TRIM(p.process_code)) = UPPER(TRIM(?))
           AND ps.status = 'active'
           AND p.status = 'active'
         ORDER BY ps.product_code ASC
-    `;
-    return query(sql, [processCode]);
+    `, [processCode]);
+};
+
+const resolveAliasToProductCode = async (processId, productCode) => {
+    const input = String(productCode || '').trim();
+    if (!input) return input;
+
+    const rows = await query(`
+        SELECT product_code
+        FROM product_aliases
+        WHERE process_id = ?
+          AND UPPER(TRIM(alias_code)) = UPPER(TRIM(?))
+          AND status = 'active'
+        ORDER BY id
+        LIMIT 1
+    `, [processId, input]);
+
+    return rows[0]?.product_code ? String(rows[0].product_code).trim() : input;
 };
 
 exports.resolveByMachineAndProduct = async (processId, machineCode, productCode, workDate) => {
     const { resolveStandard } = require('../services/standardResolutionService');
-    const resolved = await resolveStandard({ processId, machineCode, productCode, workDate });
+    const canonicalProductCode = await resolveAliasToProductCode(processId, productCode);
+    const resolved = await resolveStandard({
+        processId,
+        machineCode,
+        productCode: canonicalProductCode,
+        workDate
+    });
     return {
         product_standard_id: resolved.productStandardId,
         standard_version_id: resolved.standardVersionId,
         machine_standard_id: resolved.machineStandardId,
         process_id: resolved.processId,
         product_code: resolved.productCode,
+        alias_code: String(productCode || '').trim() !== canonicalProductCode ? String(productCode || '').trim() : null,
         machine_id: resolved.machineId || null,
         machine_code: resolved.machineCode || machineCode,
         standard_time_seconds: resolved.standardTimeSeconds,
