@@ -7,9 +7,6 @@
   "workers_dev": true,
   "keep_vars": true,
   "observability": { "enabled": true },
-  "limits": {
-    "subrequests": 10000
-  },
   "vars": {
     "KTC_RUN_BUILD_DB_MIGRATIONS": "true",
     "KTC_CLOUDFLARE_WORKER": "true",
