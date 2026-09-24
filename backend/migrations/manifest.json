@@ -1,5 +1,5 @@
 {
-  "latestVersion": 26,
+  "latestVersion": 27,
   "latestMigration": "049_gc_machines_from_excel_20260924.sql",
   "migrations": [
     "001_core_master_schema.sql",
@@ -24,6 +24,7 @@
     "039_cvk_deduction_types_20260911.sql",
     "040_cvk_deduction_types_repair_20260914.sql",
     "041_machine_adjustment_fields_20260914.sql",
+    "042_product_aliases_prerequisite.sql",
     "046_reset_gc_cut_long_master_20260924.sql",
     "047_gc_aliases_from_excel_20260924.sql",
     "048_gc_products_defects_from_excel_20260924.sql",
