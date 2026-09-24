@@ -1,5 +1,5 @@
 {
-  "latestVersion": 49,
+  "latestVersion": 25,
   "migrations": [
     "001_core_master_schema.sql",
     "002_production_schema.sql",
