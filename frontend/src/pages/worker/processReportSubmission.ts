@@ -61,7 +61,8 @@ export function buildProductionReportPayload(args: {
     const normalizedProduct = String(productCode || "").trim().toUpperCase();
     if (!normalizedProduct) return 0;
     const candidates = args.productOptions
-      .filter((row) => String(row?.product_code || "").trim().toUpperCase() === normalizedProduct)
+      .filter((row) => [row?.product_code, row?.alias_code]
+        .some((value) => String(value || "").trim().toUpperCase() === normalizedProduct))
       .map((row) => Number(row?.standard_output))
       .filter((value) => Number.isFinite(value) && value > 0)
       .sort((a, b) => b - a);
@@ -82,15 +83,10 @@ export function buildProductionReportPayload(args: {
   };
 
   const formDefects=args.activeNgOptions.map(o=>({
-    key:String(o.key||""),
-    id:Number(o.id||o.defect_type_id||0)||undefined,
-    code:String(o.code||o.defect_code||""),
-    label:String(o.label||o.defect_name||"")
+    key:String(o.key||""), id:Number(o.id||o.defect_type_id||0)||undefined,
+    code:String(o.code||o.defect_code||""), label:String(o.label||o.defect_name||"")
   })).filter(o=>o.key).map(o=>({
-    defect_type_id:o.id,
-    defect_code:o.code,
-    defect_name:o.label,
-    quantity:num(args.form[o.key])
+    defect_type_id:o.id, defect_code:o.code, defect_name:o.label, quantity:num(args.form[o.key])
   })).filter(x=>x.quantity>0);
 
   for (const [field, code, name] of LEGACY_DEFECT_BINDINGS) {
@@ -114,26 +110,15 @@ export function buildProductionReportPayload(args: {
       ...Object.keys(l.defects || {}).filter((key) => num(l.defects[key]) > 0),
     ]);
     const lineDefects = [...defectKeys].map((key) => {
-      const option = args.activeNgOptions.find(o =>
-        String(o.key) === key ||
-        String(o.code || o.defect_code || "").trim().toUpperCase() === key.trim().toUpperCase() ||
-        String(o.id || o.defect_type_id || "") === key
-      );
+      const option = args.activeNgOptions.find(o => String(o.key) === key || String(o.code || o.defect_code || "").trim().toUpperCase() === key.trim().toUpperCase() || String(o.id || o.defect_type_id || "") === key);
       return defectForOption(option, num(l.defects[key]));
     }).filter(x=>x.quantity>0);
-
     return {
-      machine_code:l.machineCode.trim(),
-      product_code:l.productCode.trim(),
-      machine_time_hours:num(l.hours)+num(l.minutes)/60,
-      adjustment_minutes:num(l.adjustmentMinutes),
-      adjustment_count:num(l.adjustmentCount),
-      ok_quantity:num(l.okQuantity),
-      ng_quantity:num(l.ngQuantity),
+      machine_code:l.machineCode.trim(), product_code:l.productCode.trim(),
+      machine_time_hours:num(l.hours)+num(l.minutes)/60, adjustment_minutes:num(l.adjustmentMinutes), adjustment_count:num(l.adjustmentCount),
+      ok_quantity:num(l.okQuantity), ng_quantity:num(l.ngQuantity),
       standard_output:resolvePositiveStandardOutput(l.productCode, l.standardOutputPerHour),
-      standard_time_seconds:l.standardTimeSeconds,
-      standard_source:l.standardSource,
-      defects:lineDefects
+      standard_time_seconds:l.standardTimeSeconds, standard_source:l.standardSource, defects:lineDefects
     };
   });
 
@@ -142,31 +127,17 @@ export function buildProductionReportPayload(args: {
     ? machineDefects.reduce<Array<{defect_type_id?:number;defect_code:string;defect_name:string;quantity:number}>>((acc, item) => {
         const key = item.defect_type_id ? `id:${item.defect_type_id}` : `code:${normalizeDefectIdentity(item.defect_code,item.defect_name)}`;
         const existing = acc.find((x) => (x.defect_type_id ? `id:${x.defect_type_id}` : `code:${normalizeDefectIdentity(x.defect_code,x.defect_name)}`) === key);
-        if (existing) existing.quantity += item.quantity;
-        else acc.push({ ...item });
+        if (existing) existing.quantity += item.quantity; else acc.push({ ...item });
         return acc;
       }, [])
     : formDefects;
 
   if (args.usesSingleMachine && !args.usesMultiMachineLines && args.form.machineNo.trim()) {
-    const singleLineDefects = defects.map((item) => ({
-      defect_type_id:item.defect_type_id,
-      defect_code:item.defect_code,
-      defect_name:item.defect_name,
-      quantity:item.quantity,
-    }));
+    const singleLineDefects = defects.map((item) => ({ defect_type_id:item.defect_type_id, defect_code:item.defect_code, defect_name:item.defect_name, quantity:item.quantity }));
     lines.splice(0, lines.length, {
-      machine_code:args.form.machineNo.trim(),
-      product_code:args.form.productName.trim(),
-      machine_time_hours:parseHours(args.form.actualTime),
-      adjustment_minutes:0,
-      adjustment_count:num(args.form.adjustmentCount),
-      ok_quantity:num(args.form.ttOk),
-      ng_quantity:num(args.form.ttNg),
-      standard_output:resolvePositiveStandardOutput(args.form.productName, args.form.standardOutput),
-      standard_time_seconds:null,
-      standard_source:"DEFAULT",
-      defects:singleLineDefects,
+      machine_code:args.form.machineNo.trim(), product_code:args.form.productName.trim(), machine_time_hours:parseHours(args.form.actualTime), adjustment_minutes:0,
+      adjustment_count:num(args.form.adjustmentCount), ok_quantity:num(args.form.ttOk), ng_quantity:num(args.form.ttNg),
+      standard_output:resolvePositiveStandardOutput(args.form.productName, args.form.standardOutput), standard_time_seconds:null, standard_source:"DEFAULT", defects:singleLineDefects,
     });
   }
 
@@ -175,37 +146,22 @@ export function buildProductionReportPayload(args: {
     deduction_code:String(o.code||""), deduction_name:String(o.label||o.deduction_name||o.key||""),
     hours:num(args.deductions[String(o.key||"")])/60
   })).filter(x=>x.hours>0);
-  const actualOutput=num(args.form.actualOutput);
-  const actualTime=parseHours(args.form.actualTime);
-  const deductionTime=parseHours(args.form.deductionTime);
-  const totalTime=parseHours(args.form.totalTime);
+  const actualOutput=num(args.form.actualOutput), actualTime=parseHours(args.form.actualTime), deductionTime=parseHours(args.form.deductionTime), totalTime=parseHours(args.form.totalTime);
   const hasActualMachineLine=(args.usesMultiMachineLines||args.usesSingleMachine)&&lines.some((line)=>!!line.machine_code);
   const useMachineLinesPayload=(args.usesMultiMachineLines||args.usesSingleMachine)&&hasActualMachineLine;
-
   const normalizedMachine = String(args.form.machineNo || lines[0]?.machine_code || "").trim().toUpperCase();
   const automaticCutMachines = new Set<string>(["C5", "C6", "C7", "C11"]);
-  const executionMethod = args.operationType === "CUT"
-    ? (automaticCutMachines.has(normalizedMachine) ? "AUTO" : "NON_AUTO")
-    : ((args.form.executionMethod === "MANUAL" || args.form.executionMethod === "MACHINE")
-      ? args.form.executionMethod
-      : (args.usesAnyMachine ? "MACHINE" : "MANUAL"));
+  const executionMethod = args.operationType === "CUT" ? (automaticCutMachines.has(normalizedMachine) ? "AUTO" : "NON_AUTO") : ((args.form.executionMethod === "MANUAL" || args.form.executionMethod === "MACHINE") ? args.form.executionMethod : (args.usesAnyMachine ? "MACHINE" : "MANUAL"));
 
   return {
     process_id:args.processId, work_date:args.form.workDate, shift:args.form.shift,
     machine_no:useMachineLinesPayload?lines.map(l=>l.machine_code).join(", "):args.form.machineNo,
     product_name:useMachineLinesPayload?[...new Set(lines.map(l=>l.product_code))].join(", "):args.form.productName,
-    operation_type:args.operationType,
-    operation_mode:useMachineLinesPayload?"MACHINE":(args.usesAnyMachine&&!args.isCutLongProcess?"MACHINE":"MANUAL"),
+    operation_type:args.operationType, operation_mode:useMachineLinesPayload?"MACHINE":(args.usesAnyMachine&&!args.isCutLongProcess?"MACHINE":"MANUAL"),
     total_time:totalTime, actual_time:actualTime, deduction_time:deductionTime,
     standard_output:useMachineLinesPayload?lines.reduce((sum,l)=>sum+num(l.standard_output),0):resolvePositiveStandardOutput(args.form.productName,args.form.standardOutput),
     actual_output:actualOutput, tt_ok:num(args.form.ttOk), tt_ng:num(args.form.ttNg),
-    kqd_dap_lai:num(args.form.kqdDapLai), kqd_tuot:num(args.form.kqdTuot), vo_do_long:num(args.form.voDoLong),
-    xuoc_do_long:num(args.form.xuocDoLong), cong_gay:num(args.form.congGay), xoay:num(args.form.xoay),
-    khong_dut:num(args.form.khongDut), bavia_hut:num(args.form.baviaHut), ppcm:num(args.form.ppcm),
-    loi_cao_su:num(args.form.loiCaoSu), ng_kich_thuoc:num(args.form.ngKichThuoc), cat_lem:num(args.form.catLem),
-    note:args.form.note||"",
-    extra_data:{...args.extraData, adjustment_count:num(args.form.adjustmentCount), execution_method:executionMethod},
-    defects, deductions, machine_lines:useMachineLinesPayload?lines:[], client_request_id:args.clientRequestId||undefined,
-    exclude_kqd_from_tt:args.excludeKqdFromTt?1:0
+    kqd_dap_lai:num(args.form.kqdDapLai), kqd_tuot:num(args.form.kqdTuot), vo_do_long:num(args.form.voDoLong), xuoc_do_long:num(args.form.xuocDoLong), cong_gay:num(args.form.congGay), xoay:num(args.form.xoay), khong_dut:num(args.form.khongDut), bavia_hut:num(args.form.baviaHut), ppcm:num(args.form.ppcm), loi_cao_su:num(args.form.loiCaoSu), ng_kich_thuoc:num(args.form.ngKichThuoc), cat_lem:num(args.form.catLem),
+    note:args.form.note||"", extra_data:{...args.extraData, adjustment_count:num(args.form.adjustmentCount), execution_method:executionMethod}, defects, deductions, machine_lines:useMachineLinesPayload?lines:[], client_request_id:args.clientRequestId||undefined, exclude_kqd_from_tt:args.excludeKqdFromTt?1:0
   } as ProductionReport;
 }
