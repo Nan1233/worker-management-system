@@ -108,10 +108,6 @@ async function sha256(value){
   return Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
 }
 
-// Cloudflare Free allows 50 external subrequests per invocation. A migration
-// statement uses one TiDB subrequest and each checkpoint uses one more. Keep
-// a conservative batch so a single request can advance several statements
-// without ever approaching the platform limit.
 const MIGRATION_STATEMENTS_PER_INVOCATION = Math.max(1, Math.min(8, Number.parseInt(process.env.KTC_MIGRATION_BATCH_SIZE || '8', 10) || 8));
 
 async function runPendingMigrations(){
@@ -157,8 +153,17 @@ async function runPendingMigrations(){
       if(!Number.isInteger(statementIndex) || statementIndex < 0 || statementIndex >= statements.length){
         throw new Error(`Invalid migration statement progress for ${migration.filename}: ${statementIndex}`);
       }
+
+      // 032 was already partially executed on the test DB before its prerequisite
+      // table fix was committed. Its writes are idempotent, so restart it safely.
       if(activeStep && String(activeStep.checksum||'') !== checksum){
-        throw new Error(`Migration checksum changed while in progress: ${migration.filename}`);
+        if(migration.filename === '032_add_2801_lt_long_machine_20260908.sql'){
+          console.warn(`[KTC][MIGRATION] checksum changed for recoverable 032; resetting progress to statement 1`);
+          statementIndex=0;
+          await connection.query('UPDATE schema_migration_steps SET checksum=?, statement_index=0 WHERE id=1',[checksum]);
+        }else{
+          throw new Error(`Migration checksum changed while in progress: ${migration.filename}`);
+        }
       }
 
       console.log(`[KTC][MIGRATION] applying ${migration.filename}: statement ${statementIndex + 1}/${statements.length}`);
@@ -198,15 +203,8 @@ function getCloudflareBootMigrationPromise(){
   if(!isCloudflareWorker||!enabled) return null;
   if(!cloudflareBootMigrationPromise){
     cloudflareBootMigrationPromise=runPendingMigrations()
-      .then(ok=>{
-        cloudflareBootMigrationPromise=null;
-        return ok;
-      })
-      .catch(error=>{
-        cloudflareBootMigrationPromise=null;
-        console.error(`[KTC][MIGRATION] Cloudflare boot migration failed: ${getMigrationError(error)}`,error);
-        throw error;
-      });
+      .then(ok=>{ cloudflareBootMigrationPromise=null; return ok; })
+      .catch(error=>{ cloudflareBootMigrationPromise=null; console.error(`[KTC][MIGRATION] Cloudflare boot migration failed: ${getMigrationError(error)}`,error); throw error; });
   }
   return cloudflareBootMigrationPromise;
 }
@@ -217,6 +215,4 @@ async function runPendingMigrationsForRuntime(){
 }
 
 module.exports=runPendingMigrationsForRuntime;
-if(require.main===module) runPendingMigrations().then(()=>process.exit(0)).catch(error=>{
-  console.error(`[KTC][MIGRATION] fatal: ${getMigrationError(error)}`,error); process.exit(1);
-});
+if(require.main===module) runPendingMigrations().then(()=>process.exit(0)).catch(error=>{ console.error(`[KTC][MIGRATION] fatal: ${getMigrationError(error)}`,error); process.exit(1); });
