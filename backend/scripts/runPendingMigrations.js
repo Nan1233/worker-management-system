@@ -5,16 +5,162 @@ const isCloudflareWorker = process.env.KTC_CLOUDFLARE_WORKER === 'true' || Boole
 const migrationRef = String(process.env.KTC_MIGRATION_REF || (isCloudflareWorker ? 'test' : 'main')).trim();
 const repository = String(process.env.KTC_MIGRATION_REPOSITORY || DEFAULT_REPOSITORY).trim();
 const rawBase = `https://raw.githubusercontent.com/${repository}/${migrationRef.replace(/[^A-Za-z0-9._-]/g, '')}`;
-const EMBEDDED_MIGRATION_NAMES = ['001_core_master_schema.sql','002_production_schema.sql','003_machine_and_session_schema.sql','004_sync_and_export_schema.sql','005_entry_date_compatibility.sql','006_extra_data_compatibility.sql','007_production_formula_settings.sql','027_notifications_runtime_columns.sql','028_report_edit_proposals.sql','029_temp_report_updated_by.sql','030_report_kpi_calculated_columns.sql','031_mai_standard_data_20260903.sql','032_add_2801_lt_long_machine_20260908.sql','034_non_product_work_process_20260907.sql','035_gc_late_early_deduction_20260907.sql','036_notifications_runtime_columns_20260908.sql','037_production_reports_logical_duplicate_key_20260909.sql','038_gc_deduction_types_exact_20260910.sql','039_cvk_deduction_types_20260911.sql','039_machine_adjustment_fields_20260914.sql','040_cvk_deduction_types_repair_20260914.sql','046_reset_gc_cut_long_master_20260924.sql','047_gc_aliases_from_excel_20260924.sql','048_gc_products_defects_from_excel_20260924.sql','049_gc_machines_from_excel_20260924.sql'];
-function getMigrationError(error){const message=String(error?.message||error||'Unknown migration error');const cause=error?.cause?`; cause=${String(error.cause?.message||error.cause)}`:'';return `${message}${cause}`;}
-async function fetchText(url){const response=await fetch(url,{headers:{Accept:'text/plain','User-Agent':'ktc-migration-runner'}});if(!response.ok)throw new Error(`Migration SQL request failed: HTTP ${response.status} ${response.statusText}: ${url}`);return response.text();}
-function normalizeMigrationEntries(entries){if(!Array.isArray(entries))throw new Error('Bundled migration manifest is not an array.');return entries.filter(e=>e&&e.type==='file'&&/^\d+_.+\.sql$/i.test(String(e.name||''))).map(e=>({filename:String(e.name),number:Number(/^(\d+)_/.exec(String(e.name))[1]),downloadUrl:String(e.download_url||`${rawBase}/backend/migrations/${encodeURIComponent(e.name)}`)}));}
-function validateMigrationInventory(migrations){const seen=new Set();for(const m of migrations){if(seen.has(m.filename))throw new Error(`Duplicate migration filename: ${m.filename}`);seen.add(m.filename);}migrations.sort((a,b)=>a.number-b.number||a.filename.localeCompare(b.filename,'en'));const versions=[...new Set(migrations.map(m=>m.number))].sort((a,b)=>a-b);if(!migrations.length||versions[0]!==1)throw new Error(`Migration version inventory invalid: first version must be 001; got ${versions.join(',')}`);return{entries:migrations,versions};}
-function loadMigrationManifest(){let names=EMBEDDED_MIGRATION_NAMES;try{const manifest=require('../migrations/manifest.json');const manifestNames=Array.isArray(manifest?.migrations)?manifest.migrations:manifest;if(Array.isArray(manifestNames)&&manifestNames.length)names=manifestNames;}catch(error){console.warn(`[KTC][MIGRATION] using embedded inventory: ${getMigrationError(error)}`);}return validateMigrationInventory(normalizeMigrationEntries(names.map(name=>({name:String(name),type:'file',download_url:`${rawBase}/backend/migrations/${encodeURIComponent(String(name))}`}))));}
-function splitSql(sql){const statements=[];let start=0,quote=null,lineComment=false;for(let i=0;i<sql.length;i++){const ch=sql[i],next=sql[i+1];if(lineComment){if(ch==='\n')lineComment=false;continue;}if(quote){if(ch===quote&&next===quote){i++;continue;}if(ch===quote&&sql[i-1]!=='\\')quote=null;continue;}if(ch==='-'&&next==='-'&&(i+2>=sql.length||/\s/.test(sql[i+2]))){lineComment=true;i++;continue;}if(ch==='/'&&next==='*'){const end=sql.indexOf('*/',i+2);if(end<0)break;i=end+1;continue;}if(ch==="'"||ch==='"'||ch==='`'){quote=ch;continue;}if(ch===';'){const statement=sql.slice(start,i+1).trim();if(statement)statements.push(statement);start=i+1;}}const tail=sql.slice(start).trim();if(tail)statements.push(tail);return statements;}
-function stripLeadingSqlComments(statement){let value=String(statement||'').trim();let previous='';while(value&&value!==previous){previous=value;value=value.replace(/^(?:\s*--[^\r\n]*(?:\r?\n|$))+/, '').trim();value=value.replace(/^(?:\s*\/\*[\s\S]*?\*\/\s*)+/, '').trim();}return value;}
+
+const EMBEDDED_MIGRATION_NAMES = [
+  '001_core_master_schema.sql','002_production_schema.sql','003_machine_and_session_schema.sql','004_sync_and_export_schema.sql',
+  '005_entry_date_compatibility.sql','006_extra_data_compatibility.sql','007_production_formula_settings.sql',
+  '027_notifications_runtime_columns.sql','028_report_edit_proposals.sql','029_temp_report_updated_by.sql',
+  '030_report_kpi_calculated_columns.sql','031_mai_standard_data_20260903.sql','032_add_2801_lt_long_machine_20260908.sql',
+  '034_non_product_work_process_20260907.sql','035_gc_late_early_deduction_20260907.sql','036_notifications_runtime_columns_20260908.sql',
+  '037_production_reports_logical_duplicate_key_20260909.sql','038_gc_deduction_types_exact_20260910.sql',
+  '039_cvk_deduction_types_20260911.sql','039_machine_adjustment_fields_20260914.sql','040_cvk_deduction_types_repair_20260914.sql',
+  '046_reset_gc_cut_long_master_20260924.sql','047_gc_aliases_from_excel_20260924.sql',
+  '048_gc_products_defects_from_excel_20260924.sql','049_gc_machines_from_excel_20260924.sql'
+];
+
+function getMigrationError(error){
+  const message = String(error?.message || error || 'Unknown migration error');
+  const cause = error?.cause ? `; cause=${String(error.cause?.message || error.cause)}` : '';
+  return `${message}${cause}`;
+}
+
+async function fetchText(url){
+  const response = await fetch(url,{headers:{Accept:'text/plain','User-Agent':'ktc-migration-runner'}});
+  if(!response.ok) throw new Error(`Migration SQL request failed: HTTP ${response.status} ${response.statusText}: ${url}`);
+  return response.text();
+}
+
+function normalizeMigrationEntries(entries){
+  if(!Array.isArray(entries)) throw new Error('Bundled migration manifest is not an array.');
+  return entries
+    .filter(e => e && e.type === 'file' && /^\d+_.+\.sql$/i.test(String(e.name || '')))
+    .map((e,index) => ({
+      filename: String(e.name),
+      number: index + 1,
+      downloadUrl: String(e.download_url || `${rawBase}/backend/migrations/${encodeURIComponent(e.name)}`)
+    }));
+}
+
+// The filenames retain their historical names, but the manifest order is now the
+// canonical migration order. This removes the old 001-045 gap requirement.
+function validateMigrationInventory(migrations){
+  const seen = new Set();
+  for(const migration of migrations){
+    if(seen.has(migration.filename)) throw new Error(`Duplicate migration filename: ${migration.filename}`);
+    seen.add(migration.filename);
+  }
+  if(!migrations.length) throw new Error('Migration inventory is empty.');
+  return { entries: migrations, versions: migrations.map((_, index) => index + 1) };
+}
+
+function loadMigrationManifest(){
+  let names = EMBEDDED_MIGRATION_NAMES;
+  try {
+    const manifest = require('../migrations/manifest.json');
+    const manifestNames = Array.isArray(manifest?.migrations) ? manifest.migrations : manifest;
+    if(Array.isArray(manifestNames) && manifestNames.length) names = manifestNames;
+  } catch(error) {
+    console.warn(`[KTC][MIGRATION] using embedded inventory: ${getMigrationError(error)}`);
+  }
+  return validateMigrationInventory(normalizeMigrationEntries(
+    names.map(name => ({name:String(name),type:'file',download_url:`${rawBase}/backend/migrations/${encodeURIComponent(String(name))}`}))
+  ));
+}
+
+function splitSql(sql){
+  const statements=[]; let start=0,quote=null,lineComment=false;
+  for(let i=0;i<sql.length;i++){
+    const ch=sql[i],next=sql[i+1];
+    if(lineComment){if(ch==='\n') lineComment=false; continue;}
+    if(quote){if(ch===quote&&next===quote){i++;continue;} if(ch===quote&&sql[i-1]!=='\\') quote=null; continue;}
+    if(ch==='-'&&next==='-'&&(i+2>=sql.length||/\s/.test(sql[i+2]))){lineComment=true;i++;continue;}
+    if(ch==='/'&&next==='*'){const end=sql.indexOf('*/',i+2);if(end<0)break;i=end+1;continue;}
+    if(ch==="'"||ch==='"'||ch==='`'){quote=ch;continue;}
+    if(ch===';'){const statement=sql.slice(start,i+1).trim();if(statement)statements.push(statement);start=i+1;}
+  }
+  const tail=sql.slice(start).trim(); if(tail) statements.push(tail); return statements;
+}
+
+function stripLeadingSqlComments(statement){
+  let value=String(statement||'').trim(),previous='';
+  while(value&&value!==previous){
+    previous=value;
+    value=value.replace(/^(?:\s*--[^\r\n]*(?:\r?\n|$))+/, '').trim();
+    value=value.replace(/^(?:\s*\/\*[\s\S]*?\*\/\s*)+/, '').trim();
+  }
+  return value;
+}
+
 const GC_PROCESS_ID_EXPR="(SELECT id FROM processes WHERE UPPER(TRIM(process_code)) = 'GC' LIMIT 1)";
-function normalizeCloudflareMigrationStatements(sql,migrationFilename=''){return splitSql(sql).map(stripLeadingSqlComments).filter(Boolean).filter(statement=>!/^(?:START\s+TRANSACTION|BEGIN|COMMIT|ROLLBACK)\s*;?$/i.test(statement.trim())).filter(statement=>!/^SET\s+@gc_process_id\s*:=/i.test(statement.trim())).map(statement=>statement.replace(/@gc_process_id\b/g,GC_PROCESS_ID_EXPR).replace(/\bCREATE\s+(?:GLOBAL\s+)?TEMPORARY\s+TABLE\b/gi,'CREATE TABLE').replace(/\bDROP\s+(?:GLOBAL\s+)?TEMPORARY\s+TABLE\b/gi,'DROP TABLE').replace(/^INSERT\s+INTO\s+product_aliases\b/i,migrationFilename==='041_sync_gc_cut_long_from_ma_hoa_xlsx_20260922.sql'?'INSERT IGNORE INTO product_aliases':'INSERT INTO product_aliases'));}
-async function sha256(value){const bytes=new TextEncoder().encode(value);const digest=await globalThis.crypto.subtle.digest('SHA-256',bytes);return Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');}
-async function runPendingMigrations(){const{entries,versions}=loadMigrationManifest();const db=require('../config/db');const missingDb=typeof db.getMissingDatabaseVariables==='function'?db.getMissingDatabaseVariables():[];if(missingDb.length)throw new Error(`Migration database configuration missing: ${missingDb.join(', ')}`);const connection=await db.promise().getConnection();try{await connection.query('CREATE TABLE IF NOT EXISTS schema_migrations (migration_id VARCHAR(160) NOT NULL PRIMARY KEY, checksum CHAR(64) NOT NULL, applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)');console.log(`[KTC][MIGRATION] manifest loaded: ${entries.length} SQL files / ${versions.length} versions, ref=${migrationRef}`);const[appliedRows]=await connection.query('SELECT migration_id, checksum FROM schema_migrations');const appliedById=new Map(appliedRows.map(r=>[String(r.migration_id),String(r.checksum||'')]));const pending=entries.filter(m=>!appliedById.has(m.filename));if(!pending.length){console.log(`[KTC][MIGRATION] complete: executable migrations through ${String(versions.at(-1)).padStart(3,'0')} processed`);return true;}for(const migration of pending){const sql=await fetchText(migration.downloadUrl);const checksum=await sha256(sql);const statements=normalizeCloudflareMigrationStatements(sql,migration.filename);console.log(`[KTC][MIGRATION] applying ${migration.filename}: ${statements.length} statements`);try{for(let index=0;index<statements.length;index++){const statement=statements[index];try{await connection.query(statement);}catch(error){throw new Error(`statement ${index+1}/${statements.length} failed: ${statement.slice(0,500)} | ${getMigrationError(error)}`);}}await connection.query('INSERT INTO schema_migrations (migration_id, checksum) VALUES (?, ?)',[migration.filename,checksum]);console.log(`[KTC][MIGRATION] applied: ${migration.filename}`);}catch(error){throw new Error(`Migration failed: ${migration.filename}: ${getMigrationError(error)}`);}}console.log(`[KTC][MIGRATION] complete: executable migrations through ${String(versions.at(-1)).padStart(3,'0')} processed`);return true;}finally{await connection.release();}}
-let cloudflareBootMigrationPromise=null;function getCloudflareBootMigrationPromise(){const enabled=String(process.env.KTC_RUN_BUILD_DB_MIGRATIONS||'').toLowerCase()==='true';if(!isCloudflareWorker||!enabled)return null;if(!cloudflareBootMigrationPromise)cloudflareBootMigrationPromise=runPendingMigrations().then(()=>true).catch(error=>{console.error(`[KTC][MIGRATION] Cloudflare boot migration failed: ${getMigrationError(error)}`,error);throw error;});return cloudflareBootMigrationPromise;}async function runPendingMigrationsForRuntime(){const boot=getCloudflareBootMigrationPromise();return boot?boot:runPendingMigrations();}module.exports=runPendingMigrationsForRuntime;if(require.main===module)runPendingMigrations().then(()=>process.exit(0)).catch(error=>{console.error(`[KTC][MIGRATION] fatal: ${getMigrationError(error)}`,error);process.exit(1);});
+function normalizeCloudflareMigrationStatements(sql,migrationFilename=''){
+  return splitSql(sql).map(stripLeadingSqlComments).filter(Boolean)
+    .filter(statement=>!/^(?:START\s+TRANSACTION|BEGIN|COMMIT|ROLLBACK)\s*;?$/i.test(statement.trim()))
+    .filter(statement=>!/^SET\s+@gc_process_id\s*:=/i.test(statement.trim()))
+    .map(statement=>statement
+      .replace(/@gc_process_id\b/g,GC_PROCESS_ID_EXPR)
+      .replace(/\bCREATE\s+(?:GLOBAL\s+)?TEMPORARY\s+TABLE\b/gi,'CREATE TABLE')
+      .replace(/\bDROP\s+(?:GLOBAL\s+)?TEMPORARY\s+TABLE\b/gi,'DROP TABLE')
+      .replace(/^INSERT\s+INTO\s+product_aliases\b/i,migrationFilename==='041_sync_gc_cut_long_from_ma_hoa_xlsx_20260922.sql'?'INSERT IGNORE INTO product_aliases':'INSERT INTO product_aliases')
+    );
+}
+
+async function sha256(value){
+  const bytes=new TextEncoder().encode(value);
+  const digest=await globalThis.crypto.subtle.digest('SHA-256',bytes);
+  return Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+async function runPendingMigrations(){
+  const {entries,versions}=loadMigrationManifest();
+  const db=require('../config/db');
+  const missingDb=typeof db.getMissingDatabaseVariables==='function'?db.getMissingDatabaseVariables():[];
+  if(missingDb.length) throw new Error(`Migration database configuration missing: ${missingDb.join(', ')}`);
+  const connection=await db.promise().getConnection();
+  try{
+    await connection.query('CREATE TABLE IF NOT EXISTS schema_migrations (migration_id VARCHAR(160) NOT NULL PRIMARY KEY, checksum CHAR(64) NOT NULL, applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)');
+    console.log(`[KTC][MIGRATION] manifest loaded: ${entries.length} SQL files / ${versions.length} ordered migrations, ref=${migrationRef}`);
+    const [appliedRows]=await connection.query('SELECT migration_id, checksum FROM schema_migrations');
+    const appliedById=new Map(appliedRows.map(r=>[String(r.migration_id),String(r.checksum||'')]));
+    const pending=entries.filter(m=>!appliedById.has(m.filename));
+    if(!pending.length){
+      console.log(`[KTC][MIGRATION] complete: ${entries.length} ordered migrations processed`);
+      return true;
+    }
+    for(const migration of pending){
+      const sql=await fetchText(migration.downloadUrl);
+      const checksum=await sha256(sql);
+      const statements=normalizeCloudflareMigrationStatements(sql,migration.filename);
+      console.log(`[KTC][MIGRATION] applying ${migration.filename}: ${statements.length} statements`);
+      try{
+        for(let index=0;index<statements.length;index++){
+          try{await connection.query(statements[index]);}
+          catch(error){throw new Error(`statement ${index+1}/${statements.length} failed: ${statements[index].slice(0,500)} | ${getMigrationError(error)}`);}
+        }
+        await connection.query('INSERT INTO schema_migrations (migration_id, checksum) VALUES (?, ?)',[migration.filename,checksum]);
+        console.log(`[KTC][MIGRATION] applied: ${migration.filename}`);
+      }catch(error){throw new Error(`Migration failed: ${migration.filename}: ${getMigrationError(error)}`);}
+    }
+    console.log(`[KTC][MIGRATION] complete: ${entries.length} ordered migrations processed`);
+    return true;
+  }finally{await connection.release();}
+}
+
+let cloudflareBootMigrationPromise=null;
+function getCloudflareBootMigrationPromise(){
+  const enabled=String(process.env.KTC_RUN_BUILD_DB_MIGRATIONS||'').toLowerCase()==='true';
+  if(!isCloudflareWorker||!enabled) return null;
+  if(!cloudflareBootMigrationPromise) cloudflareBootMigrationPromise=runPendingMigrations().then(()=>true).catch(error=>{
+    console.error(`[KTC][MIGRATION] Cloudflare boot migration failed: ${getMigrationError(error)}`,error); throw error;
+  });
+  return cloudflareBootMigrationPromise;
+}
+
+async function runPendingMigrationsForRuntime(){
+  const boot=getCloudflareBootMigrationPromise();
+  return boot?boot:runPendingMigrations();
+}
+
+module.exports=runPendingMigrationsForRuntime;
+if(require.main===module) runPendingMigrations().then(()=>process.exit(0)).catch(error=>{
+  console.error(`[KTC][MIGRATION] fatal: ${getMigrationError(error)}`,error); process.exit(1);
+});
