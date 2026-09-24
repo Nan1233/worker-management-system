@@ -25,7 +25,7 @@ function getMigrationError(error){
 }
 
 async function fetchText(url){
-  const response = await fetch(url,{headers:{Accept:'text/plain','User-Agent':'ktc-migration-runner'}});
+  const response=await fetch(url,{headers:{Accept:'text/plain','User-Agent':'ktc-migration-runner'}});
   if(!response.ok) throw new Error(`Migration SQL request failed: HTTP ${response.status} ${response.statusText}: ${url}`);
   return response.text();
 }
@@ -126,7 +126,18 @@ async function runPendingMigrations(){
       console.log(`[KTC][MIGRATION] complete: ${entries.length} ordered migrations processed`);
       return true;
     }
-    for(const migration of pending){
+
+    // Cloudflare Workers have a per-invocation subrequest limit. Run only one
+    // migration per invocation there; the next request continues from
+    // schema_migrations. Local/server runtimes keep the old all-pending behavior.
+    const maxMigrationsPerInvocation = isCloudflareWorker
+      ? Math.max(1, Number(process.env.KTC_MIGRATIONS_PER_INVOCATION || 1))
+      : pending.length;
+    const batch = pending.slice(0, maxMigrationsPerInvocation);
+
+    console.log(`[KTC][MIGRATION] pending=${pending.length}, batch=${batch.length}, cloudflare=${isCloudflareWorker}`);
+
+    for(const migration of batch){
       const sql=await fetchText(migration.downloadUrl);
       const checksum=await sha256(sql);
       const statements=normalizeCloudflareMigrationStatements(sql,migration.filename);
@@ -140,6 +151,12 @@ async function runPendingMigrations(){
         console.log(`[KTC][MIGRATION] applied: ${migration.filename}`);
       }catch(error){throw new Error(`Migration failed: ${migration.filename}: ${getMigrationError(error)}`);}
     }
+
+    const remaining = pending.length - batch.length;
+    if(remaining > 0){
+      console.log(`[KTC][MIGRATION] batch complete; ${remaining} migration(s) remain for the next invocation`);
+      return false;
+    }
     console.log(`[KTC][MIGRATION] complete: ${entries.length} ordered migrations processed`);
     return true;
   }finally{await connection.release();}
@@ -149,7 +166,7 @@ let cloudflareBootMigrationPromise=null;
 function getCloudflareBootMigrationPromise(){
   const enabled=String(process.env.KTC_RUN_BUILD_DB_MIGRATIONS||'').toLowerCase()==='true';
   if(!isCloudflareWorker||!enabled) return null;
-  if(!cloudflareBootMigrationPromise) cloudflareBootMigrationPromise=runPendingMigrations().then(()=>true).catch(error=>{
+  if(!cloudflareBootMigrationPromise) cloudflareBootMigrationPromise=runPendingMigrations().then(ok=>ok).catch(error=>{
     console.error(`[KTC][MIGRATION] Cloudflare boot migration failed: ${getMigrationError(error)}`,error); throw error;
   });
   return cloudflareBootMigrationPromise;
