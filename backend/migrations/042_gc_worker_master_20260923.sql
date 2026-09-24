@@ -43,27 +43,32 @@ INSERT INTO tmp_gc_workers_20260923 (worker_code, worker_name) VALUES
 ('49dl1-040','Vũ Viết Thái'),('49dl1-042','Hoàng Tuấn Tú'),('49dl1-044','Hoàng Minh Tùng'),('49dllh1-001','Nguyễn Đức Anh'),
 ('49dllh1-002','Vũ Mạnh Hoàng Anh'),('49dllh1-014','Phùng Gia Phát'),('49dllh1-015','Lê Minh Phúc'),('49dllh1-022','Trần Hoàng Trung');
 
--- Reconcile existing workers without ever assigning a duplicate worker_code.
--- A name match may collide with an already-existing canonical code. In that case keep
--- the existing unique code and only refresh the person's name/status; the migration
--- must not fail with workers.uq_workers_code.
+-- First reconcile rows already carrying the canonical code. This cannot collide because
+-- the destination code is already the row's own unique code.
 UPDATE workers w
 JOIN users u ON u.id = w.user_id
 JOIN tmp_gc_workers_20260923 c
   ON LOWER(TRIM(w.worker_code)) = LOWER(TRIM(c.worker_code))
-  OR LOWER(TRIM(u.full_name)) = LOWER(TRIM(c.worker_name))
-SET w.worker_code = CASE
-      WHEN LOWER(TRIM(w.worker_code)) = LOWER(TRIM(c.worker_code)) THEN c.worker_code
-      WHEN NOT EXISTS (
-        SELECT 1 FROM workers wx
-        WHERE wx.id <> w.id
-          AND LOWER(TRIM(wx.worker_code)) = LOWER(TRIM(c.worker_code))
-      ) THEN c.worker_code
-      ELSE w.worker_code
-    END,
+SET w.worker_code = c.worker_code,
     w.status = 'active',
     u.full_name = c.worker_name,
     u.status = 'active';
+
+-- Then reconcile by worker name only when the canonical code is not owned by another
+-- worker. This deliberately skips ambiguous collisions instead of violating uq_workers_code.
+UPDATE workers w
+JOIN users u ON u.id = w.user_id
+JOIN tmp_gc_workers_20260923 c
+  ON LOWER(TRIM(u.full_name)) = LOWER(TRIM(c.worker_name))
+LEFT JOIN workers owner_w
+  ON owner_w.id <> w.id
+ AND LOWER(TRIM(owner_w.worker_code)) = LOWER(TRIM(c.worker_code))
+SET w.worker_code = c.worker_code,
+    w.status = 'active',
+    u.full_name = c.worker_name,
+    u.status = 'active'
+WHERE owner_w.id IS NULL
+  AND LOWER(TRIM(w.worker_code)) <> LOWER(TRIM(c.worker_code));
 
 -- Create any canonical worker that does not already exist.
 INSERT INTO users (username, password, full_name, role, status)
@@ -78,11 +83,10 @@ SELECT u.id, c.worker_code, NULL, 'San xuat', 'Cong nhan', 100, 'active'
 FROM tmp_gc_workers_20260923 c
 JOIN users u ON LOWER(TRIM(u.username)) = LOWER(TRIM(c.worker_code))
 LEFT JOIN workers w ON w.user_id = u.id
+LEFT JOIN workers owner_w
+  ON LOWER(TRIM(owner_w.worker_code)) = LOWER(TRIM(c.worker_code))
 WHERE w.id IS NULL
-  AND NOT EXISTS (
-    SELECT 1 FROM workers wx
-    WHERE LOWER(TRIM(wx.worker_code)) = LOWER(TRIM(c.worker_code))
-  );
+  AND owner_w.id IS NULL;
 
 -- GC assignment becomes exactly the canonical roster. Assignments in other processes are untouched.
 DELETE wp
