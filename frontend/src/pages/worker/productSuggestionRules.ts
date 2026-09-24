@@ -160,20 +160,25 @@ export const filterProductsForSelection = ({
 };
 
 /**
- * Display only the encoded/alias code. The underlying value remains the
- * canonical product_code so standard resolution and existing submission
- * logic are not broken. When old GC automatic rows have no alias_code yet,
- * remove only the UI-only `-auto` suffix (e.g. C2556-auto -> C2556).
+ * Only the five legacy GC automatic products use a UI-only `-auto` code.
+ * Keep their canonical product_code as the option value, but display exactly
+ * the encoded code requested by the production list.
  */
+const LEGACY_GC_AUTO_DISPLAY: Record<string, string> = {
+    "C2556-AUTO": "C2556",
+    "C5770-AUTO": "C5770",
+    "CGYX-AUTO": "CGYX",
+    "C3880-AUTO": "C3880",
+    "C8052-AUTO": "C8052",
+};
+
 const displayAlias = (product: ProductStandardOption): string => {
     const explicitAlias = String(product.alias_code ?? "").trim();
     if (explicitAlias) return explicitAlias;
 
     const productCode = String(product.product_code ?? "").trim();
-    if (normalizeWorkType(product.work_type) === "CUT") {
-        return productCode.replace(/-(?:AUTO|AUTOMATIC)$/i, "");
-    }
-    return productCode;
+    const legacyAutoDisplay = LEGACY_GC_AUTO_DISPLAY[normalize(productCode)];
+    return legacyAutoDisplay ?? productCode;
 };
 
 export const toProductAutocompleteOptions = (products: ProductStandardOption[]) => {
