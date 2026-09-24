@@ -32,6 +32,7 @@
     "042_gc_worker_master_20260923.sql",
     "043_gc_standard_master_20260923.sql",
     "044_gc_canonical_master_repair_20260923.sql",
-    "045_gc_worker_canonical_slug_20260923.sql"
+    "045_gc_worker_canonical_slug_20260923.sql",
+    "045_reset_gc_cut_long_master_20260924.sql"
   ]
 }
