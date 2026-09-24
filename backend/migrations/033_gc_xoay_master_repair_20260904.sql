@@ -25,15 +25,8 @@ SELECT p.id,
                OR LOWER(TRIM(d.defect_name)) = LOWER('Cao su xoay'))
    );
 
-UPDATE defect_types d
-JOIN processes p ON p.id = d.process_id
-   SET d.defect_code = 'XOAY',
-       d.defect_name = 'Cao su xoay',
-       d.status = 'active'
- WHERE UPPER(TRIM(p.process_code)) = 'GC'
-   AND (UPPER(TRIM(d.defect_code)) = 'XOAY'
-        OR LOWER(TRIM(d.defect_name)) = LOWER('Cao su xoay'));
-
+-- The unique key uq_defect_process_code does not allow two rows for the same
+-- process/code. First canonicalize only the deterministic keeper (MIN(id)).
 UPDATE defect_types d
 JOIN processes p ON p.id = d.process_id
 JOIN (
@@ -41,12 +34,34 @@ JOIN (
       FROM defect_types d2
       JOIN processes p2 ON p2.id = d2.process_id
      WHERE UPPER(TRIM(p2.process_code)) = 'GC'
-       AND UPPER(TRIM(d2.defect_code)) = 'XOAY'
+       AND (UPPER(TRIM(d2.defect_code)) = 'XOAY'
+            OR LOWER(TRIM(d2.defect_name)) = LOWER('Cao su xoay'))
      GROUP BY d2.process_id
-) k ON k.keep_id <> d.id
-   SET d.status = 'inactive'
+) k ON k.keep_id = d.id
+   SET d.defect_code = 'XOAY',
+       d.defect_name = 'Cao su xoay',
+       d.status = 'active'
+ WHERE UPPER(TRIM(p.process_code)) = 'GC';
+
+-- Existing historical duplicates cannot simply be renamed to XOAY because
+-- uq_defect_process_code is enforced regardless of status. Give each duplicate
+-- a stable unique archival code, then mark it inactive.
+UPDATE defect_types d
+JOIN processes p ON p.id = d.process_id
+JOIN (
+    SELECT MIN(d2.id) AS keep_id, d2.process_id
+      FROM defect_types d2
+      JOIN processes p2 ON p2.id = d2.process_id
+     WHERE UPPER(TRIM(p2.process_code)) = 'GC'
+       AND (UPPER(TRIM(d2.defect_code)) = 'XOAY'
+            OR LOWER(TRIM(d2.defect_name)) = LOWER('Cao su xoay'))
+     GROUP BY d2.process_id
+) k ON k.process_id = d.process_id AND k.keep_id <> d.id
+   SET d.defect_code = CONCAT('XOAY_DUP_', d.id),
+       d.status = 'inactive'
  WHERE UPPER(TRIM(p.process_code)) = 'GC'
-   AND UPPER(TRIM(d.defect_code)) = 'XOAY';
+   AND (UPPER(TRIM(d.defect_code)) = 'XOAY'
+        OR LOWER(TRIM(d.defect_name)) = LOWER('Cao su xoay'));
 
 INSERT INTO product_machine_standards
     (process_id, product_code, machine_id, standard_output, standard_time_seconds,
