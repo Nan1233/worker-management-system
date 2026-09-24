@@ -43,13 +43,24 @@ INSERT INTO tmp_gc_workers_20260923 (worker_code, worker_name) VALUES
 ('49dl1-040','Vũ Viết Thái'),('49dl1-042','Hoàng Tuấn Tú'),('49dl1-044','Hoàng Minh Tùng'),('49dllh1-001','Nguyễn Đức Anh'),
 ('49dllh1-002','Vũ Mạnh Hoàng Anh'),('49dllh1-014','Phùng Gia Phát'),('49dllh1-015','Lê Minh Phúc'),('49dllh1-022','Trần Hoàng Trung');
 
--- Reuse an existing worker when either its code or full name already identifies the canonical person.
+-- Reconcile existing workers without ever assigning a duplicate worker_code.
+-- A name match may collide with an already-existing canonical code. In that case keep
+-- the existing unique code and only refresh the person's name/status; the migration
+-- must not fail with workers.uq_workers_code.
 UPDATE workers w
 JOIN users u ON u.id = w.user_id
 JOIN tmp_gc_workers_20260923 c
   ON LOWER(TRIM(w.worker_code)) = LOWER(TRIM(c.worker_code))
   OR LOWER(TRIM(u.full_name)) = LOWER(TRIM(c.worker_name))
-SET w.worker_code = c.worker_code,
+SET w.worker_code = CASE
+      WHEN LOWER(TRIM(w.worker_code)) = LOWER(TRIM(c.worker_code)) THEN c.worker_code
+      WHEN NOT EXISTS (
+        SELECT 1 FROM workers wx
+        WHERE wx.id <> w.id
+          AND LOWER(TRIM(wx.worker_code)) = LOWER(TRIM(c.worker_code))
+      ) THEN c.worker_code
+      ELSE w.worker_code
+    END,
     w.status = 'active',
     u.full_name = c.worker_name,
     u.status = 'active';
@@ -67,7 +78,11 @@ SELECT u.id, c.worker_code, NULL, 'San xuat', 'Cong nhan', 100, 'active'
 FROM tmp_gc_workers_20260923 c
 JOIN users u ON LOWER(TRIM(u.username)) = LOWER(TRIM(c.worker_code))
 LEFT JOIN workers w ON w.user_id = u.id
-WHERE w.id IS NULL;
+WHERE w.id IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM workers wx
+    WHERE LOWER(TRIM(wx.worker_code)) = LOWER(TRIM(c.worker_code))
+  );
 
 -- GC assignment becomes exactly the canonical roster. Assignments in other processes are untouched.
 DELETE wp
