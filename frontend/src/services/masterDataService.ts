@@ -30,9 +30,6 @@ export const getMachinesByProcess = async (processId: number): Promise<MachineOp
     return Array.isArray(payload) ? payload : [];
 };
 
-// Short-lived process cache lets the worker reuse the master rows it already
-// loaded when resolving a standard. This avoids a second /product-standards
-// request immediately after the master-data preload.
 const PROCESS_PRODUCT_CACHE_TTL_MS = 30_000;
 const processProductRowsCache = new Map<number, { expiresAt: number; rows: ProductStandardOption[] }>();
 
@@ -65,11 +62,14 @@ export const getProductStandardsByProcess = async (
 
     for (const rows of results) {
         for (const row of rows) {
-            if (!row || !String(row.product_code || "").trim()) continue;
-            const productCodeValue = String(row.product_code).trim().toUpperCase();
+            if (!row || !String(row.product_code || row.alias_code || "").trim()) continue;
+            const productCodeValue = String(row.product_code || "").trim().toUpperCase();
+            const aliasValue = String(row.alias_code || "").trim().toUpperCase();
             const workTypeValue = String(row.work_type || "").trim().toUpperCase();
             const machineScope = String(row.eligible_machine_codes || "").trim().toUpperCase();
-            const key = `${productCodeValue}|${workTypeValue}|${machineScope}`;
+            // Alias must be part of the identity. Several Lồng aliases intentionally
+            // map to the same full product code (15U / 15U-L / 15U-T, etc.).
+            const key = `${productCodeValue}|${aliasValue}|${workTypeValue}|${machineScope}`;
             const previous = merged.get(key);
             merged.set(key, previous ? { ...previous, ...row } : row);
         }
@@ -87,6 +87,7 @@ export interface ResolvedProductStandard {
     product_standard_id: number;
     process_id: number;
     product_code: string;
+    alias_code?: string | null;
     machine_id: number | null;
     machine_code: string;
     standard_time_seconds: number | null;
@@ -123,7 +124,8 @@ const hasExactProcessProduct = async (processId: number, productCode: string): P
     const rows = await getCachedProcessProductRows(processId);
     const codes = new Set(
         rows
-            .map((row) => String(row?.product_code || "").trim().toUpperCase())
+            .flatMap((row) => [row?.product_code, row?.alias_code])
+            .map((value) => String(value || "").trim().toUpperCase())
             .filter(Boolean),
     );
     processProductCache.set(Number(processId), {
@@ -133,13 +135,6 @@ const hasExactProcessProduct = async (processId: number, productCode: string): P
     return codes.has(normalized);
 };
 
-/**
- * Resolve a machine-specific standard when a machine is selected.
- * Do not call the strict historical resolver while the worker is still typing
- * a partial product code (for example 8 -> 82 -> 823). The strict resolver
- * correctly returns 422 for those values, but those requests are only UI noise.
- * The product must first exist exactly in process master data.
- */
 export const resolveProductStandard = async (
     processId: number,
     machineCode: string,
@@ -159,8 +154,9 @@ export const resolveProductStandard = async (
 
     if (!normalizedMachine) {
         const rows = await getCachedProcessProductRows(processId);
-        const candidates = rows.filter(
-            (row) => String(row?.product_code || "").trim().toUpperCase() === normalizedProduct.toUpperCase(),
+        const candidates = rows.filter((row) =>
+            [row?.product_code, row?.alias_code]
+                .some((value) => String(value || "").trim().toUpperCase() === normalizedProduct.toUpperCase())
         );
 
         const product = candidates
@@ -177,6 +173,7 @@ export const resolveProductStandard = async (
             product_standard_id: Number(product.id),
             process_id: Number(product.process_id || processId),
             product_code: String(product.product_code),
+            alias_code: product.alias_code || null,
             machine_id: null,
             machine_code: "",
             standard_time_seconds: null,
