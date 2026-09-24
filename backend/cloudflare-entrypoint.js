@@ -1,8 +1,8 @@
 import worker from "./cloudflare-worker.js";
 
-// cloudflare-worker.js owns Cloudflare bootstrap and runtime initialization.
-// Do not start a second initialization loop here: it can race the first DB
-// connection/schema check and leave /api/health stuck at STARTUP_FAILED even
-// after the Cloudflare master-data bootstrap has successfully connected to TiDB.
-// cloudflare-worker.js retries initializeRuntime after its bootstrap succeeds.
+// TEST DB is provisioned from the clean SQL snapshot. Do not run runtime DB
+// migrations from the login/bootstrap path; login must not return 503 merely
+// because migration state is incomplete or still being processed.
+process.env.KTC_RUN_BUILD_DB_MIGRATIONS = "false";
+
 export default worker;
