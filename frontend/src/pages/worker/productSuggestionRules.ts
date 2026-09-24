@@ -63,6 +63,15 @@ const isGcAutomaticMachine = (machineCode: unknown): boolean =>
 
 const AUTO_MACHINE_SUFFIXES = new Set(["5", "6", "11"]);
 
+/** These five legacy GC products must remain selectable on both automatic and non-automatic cutting machines. */
+const LEGACY_GC_AUTO_CODES = new Set([
+    "C2556-AUTO",
+    "C5770-AUTO",
+    "CGYX-AUTO",
+    "C3880-AUTO",
+    "C8052-AUTO",
+]);
+
 const getGcWorkTypeForMachine = (machineCode: unknown): "CUT" | "LONG" | null => {
     const key = normalize(machineCode).replace(/\s+/g, "");
     if (!key) return null;
@@ -148,7 +157,10 @@ export const filterProductsForSelection = ({
                 }
                 return hasExplicitMapping && mappedMachines.includes(selectedMachine);
             }
-            if (hint?.kind === "AUTO") return false;
+            // The five legacy AUTO products are also valid on non-automatic cutting machines.
+            // Keep their canonical `-AUTO` product_code internally; the autocomplete layer
+            // displays only the encoded alias (e.g. C2556), never the `-AUTO` suffix.
+            if (hint?.kind === "AUTO") return LEGACY_GC_AUTO_CODES.has(normalize(product.product_code));
             if (hint?.kind === "NUMBER") {
                 if (AUTO_MACHINE_SUFFIXES.has(hint.value)) return false;
                 return selectedNumber !== null && hint.value === selectedNumber;
