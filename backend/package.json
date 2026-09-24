@@ -40,7 +40,7 @@
     "audit:production-indexes": "node scripts/auditProductionIndexes.js",
     "db:schema:verify": "node scripts/verifyDatabaseSchema.js",
     "p0:runtime:verify": "node scripts/verifyP0Runtime.js",
-    "quality:next": "node --test tests/next-priority-hardening.contract.test.cjs ../tests/next-priority-mobile-ux.contract.test.cjs",
+    "quality:next": "node --test tests/next-priority-hardening.contract.test.js ../tests/next-priority-mobile-ux.contract.test.cjs",
     "perf:readiness": "node scripts/loadReadiness.js",
     "audit:nonbreaking": "node scripts/auditNonBreaking.cjs",
     "perf:large-data": "node scripts/performanceLargeData.cjs",
