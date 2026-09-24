@@ -81,7 +81,7 @@ async function normalizeTempChildRows(defects, deductions, processId) {
   const defectIds = [...new Set(normalizedDefects.map((item) => Number(item?.defect_type_id)).filter((id) => Number.isInteger(id) && id > 0))];
   const defectNames = [...new Set(normalizedDefects.map((item) => String(item?.defect_name || "").trim()).filter(Boolean))];
   const deductionIds = [...new Set(normalizedDeductions.map((item) => Number(item?.deduction_type_id)).filter((id) => Number.isInteger(id) && id > 0))];
-  const deductionNames = [...new Set(normalizedDeductions.map((item) => String(item?.deduction_name || "").trim()).filter(Boolean))];
+  const deductionNames = [...new Set(normalizedDeductions.map((item) => String(item?.deduction_name || "").trim()).filter(Boolean)];
   const [defectRows, deductionRows] = await Promise.all([
     queryMasterRows(`SELECT id, defect_code, defect_name FROM defect_types WHERE process_id=? AND status='active' AND (${defectIds.length ? `id IN (${defectIds.map(() => "?").join(",")})` : "1=0"}${defectNames.length ? ` OR defect_name IN (${defectNames.map(() => "?").join(",")})` : ""})`, [pid, ...defectIds, ...defectNames]),
     queryMasterRows(`SELECT id, deduction_name FROM deduction_types WHERE process_id=? AND status='active' AND (${deductionIds.length ? `id IN (${deductionIds.map(() => "?").join(",")})` : "1=0"}${deductionNames.length ? ` OR deduction_name IN (${deductionNames.map(() => "?").join(",")})` : ""})`, [pid, ...deductionIds, ...deductionNames])
@@ -106,7 +106,21 @@ let cloudflareSeedReady = false; let cloudflareSeedPromise = null;
 async function ensureCloudflareSeeded() {
   if (cloudflareSeedReady) return true;
   if (cloudflareSeedPromise) return cloudflareSeedPromise;
-  cloudflareSeedPromise = Promise.all([ensureGcDefectMasterData(), ensureGcLong2801Lt()]).then(async () => { masterDataCache.clear(); cloudflareSeedReady = true; console.log("[KTC] Cloudflare GC master-data seed completed; master cache cleared"); if (!runtimeReadiness.ready && !runtimeReadiness.initializing) await initializeRuntime(); return true; }).catch((error) => { console.error("[KTC] Cloudflare GC master-data seed failed", error); cloudflareSeedPromise = null; return false; });
+  cloudflareSeedPromise = Promise.all([ensureGcDefectMasterData(), ensureGcLong2801Lt()]).then(async () => {
+    masterDataCache.clear();
+    cloudflareSeedReady = true;
+    console.log("[KTC] Cloudflare GC master-data seed completed; master cache cleared");
+    // Migrations already establish the schema before request handling. Do NOT
+    // call initializeRuntime() here: its information_schema contract scan runs
+    // one query per table and can exceed Cloudflare's subrequest budget in the
+    // same invocation as the migration/seed bootstrap. Runtime readiness is
+    // initialized explicitly by /api/health/ready when needed.
+    return true;
+  }).catch((error) => {
+    console.error("[KTC] Cloudflare GC master-data seed failed", error);
+    cloudflareSeedPromise = null;
+    return false;
+  });
   return cloudflareSeedPromise;
 }
 
