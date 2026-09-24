@@ -16,6 +16,8 @@ export interface ProductStandardOption {
     process_code?: string;
     work_type: string;
     product_code: string;
+    /** Encoded/short product code shown to workers in suggestions/reports. */
+    alias_code?: string;
     has_machine_specific_standard?: number;
     eligible_machine_codes?: string;
     standard_output: number;
@@ -161,9 +163,6 @@ export const resolveProductStandard = async (
             (row) => String(row?.product_code || "").trim().toUpperCase() === normalizedProduct.toUpperCase(),
         );
 
-        // Some GC products have both a legacy/default row and machine-scoped
-        // rows. A zero default row must never win the lookup when a positive
-        // master standard exists for the same product.
         const product = candidates
             .filter((row) => Number.isFinite(Number(row?.standard_output)) && Number(row.standard_output) > 0)
             .sort((a, b) => Number(b.standard_output) - Number(a.standard_output))[0]
