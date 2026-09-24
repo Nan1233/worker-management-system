@@ -115,10 +115,6 @@ export const filterProductsForSelection = ({
     const selectedMachine = normalizeMachineKey(machineCode);
     const selectedRawMachine = normalize(machineCode).replace(/\s+/g, "");
 
-    // GC Lồng uses product-code suffixes to distinguish Tay/Máy:
-    // -M = Máy, -LT/-L/-T = Tay, no suffix = both.
-    // Only enter this branch when the scoped products are actually Lồng;
-    // Cắt must continue to its separate -auto/-machine-suffix rules below.
     if (useEncodedMachineSuffix) {
         const longProducts = products.filter(
             (product) => normalizeWorkType(product.work_type) === "LONG"
@@ -177,17 +173,12 @@ export const filterProductsForSelection = ({
 
         if (useEncodedMachineSuffix && gcWorkType && productWorkType !== gcWorkType) return false;
 
-        // A product explicitly mapped to another machine is never suggested
-        // for the selected machine, regardless of its product-code suffix.
         if (hasExplicitMapping && mappedMachines.length > 0 && !mappedMachines.includes(selectedMachine)) {
             return false;
         }
 
         if (useEncodedMachineSuffix && gcWorkType === "CUT") {
             if (isAutomatic) {
-                // Automatic GC machine: do NOT leak ordinary CUT products into
-                // the list. Only generic `-auto`, the exact machine suffix
-                // (`-5`, `-6`, `-11`), or an explicit DB machine mapping is valid.
                 if (hint?.kind === "AUTO") return true;
                 if (hint?.kind === "NUMBER") {
                     return AUTO_MACHINE_SUFFIXES.has(hint.value)
@@ -197,7 +188,6 @@ export const filterProductsForSelection = ({
                 return hasExplicitMapping && mappedMachines.includes(selectedMachine);
             }
 
-            // Manual/non-automatic GC machine: automatic variants are hidden.
             if (hint?.kind === "AUTO") return false;
             if (hint?.kind === "NUMBER") {
                 if (AUTO_MACHINE_SUFFIXES.has(hint.value)) return false;
@@ -211,14 +201,28 @@ export const filterProductsForSelection = ({
     });
 };
 
+/**
+ * Autocomplete displays the encoded/alias code only. The underlying value
+ * remains the canonical full product_code so report submission and standard
+ * resolution continue to use the existing master-data key.
+ */
 export const toProductAutocompleteOptions = (products: ProductStandardOption[]) => {
     const seen = new Set<string>();
     return products
         .filter((product) => {
-            const key = normalize(product.product_code);
+            const alias = String(product.alias_code ?? "").trim();
+            const productCode = String(product.product_code ?? "").trim();
+            const key = normalize(alias || productCode);
             if (!key || seen.has(key)) return false;
             seen.add(key);
             return true;
         })
-        .map((product) => ({ value: product.product_code, label: product.product_code }));
+        .map((product) => {
+            const alias = String(product.alias_code ?? "").trim();
+            const productCode = String(product.product_code ?? "").trim();
+            return {
+                value: productCode,
+                label: alias || productCode,
+            };
+        });
 };
