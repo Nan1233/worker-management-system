@@ -1,6 +1,6 @@
 {
   "latestVersion": 27,
-  "latestMigration": "050_gc_2801_lt_standard_repair_20260925.sql",
+  "latestMigration": "049_gc_machines_from_excel_20260924.sql",
   "migrations": [
     "001_core_master_schema.sql",
     "002_production_schema.sql",
@@ -28,7 +28,6 @@
     "046_reset_gc_cut_long_master_20260924.sql",
     "047_gc_aliases_from_excel_20260924.sql",
     "048_gc_products_defects_from_excel_20260924.sql",
-    "049_gc_machines_from_excel_20260924.sql",
-    "050_gc_2801_lt_standard_repair_20260925.sql"
+    "049_gc_machines_from_excel_20260924.sql"
   ]
 }
