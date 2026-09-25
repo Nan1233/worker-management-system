@@ -4,7 +4,7 @@ const isCloudflareWorker = process.env.KTC_CLOUDFLARE_WORKER === 'true' || Boole
 const isRuntimeBootstrapEnabled = String(process.env.KTC_RUN_MASTER_DATA_BOOTSTRAP || '').toLowerCase() === 'true';
 
 const query = (sql, params = []) => new Promise((resolve, reject) => {
-  db.query(sql, params, (error, rows) => error ? reject(error) : resolve(rows));
+  db.query(sql, params, (error, rows) => error ? reject(error) : resolve(rows);
 });
 
 /**
@@ -13,13 +13,16 @@ const query = (sql, params = []) => new Promise((resolve, reject) => {
  * Cloudflare TEST uses a clean, pre-provisioned SQL database. Runtime
  * master-data writes are therefore OFF by default. They can be explicitly
  * enabled with KTC_RUN_MASTER_DATA_BOOTSTRAP=true when a controlled repair is
- * required. This prevents normal API requests from repeatedly writing the
- * same master data and turning transient TiDB 520s into request noise.
+ * required.
  */
 async function ensureGcLong2801Lt() {
   if (isCloudflareWorker && !isRuntimeBootstrapEnabled) {
     return;
   }
+
+  const machineFilter = `
+    AND UPPER(TRIM(m.machine_code)) REGEXP '^ML[0-9]+$'
+  `;
 
   if (isCloudflareWorker) {
     await query(`
@@ -45,6 +48,16 @@ async function ensureGcLong2801Lt() {
     `);
 
     await query(`
+      UPDATE product_machine_standards pms
+      JOIN machines m ON m.id = pms.machine_id
+      SET pms.is_active = 0
+      WHERE pms.process_id = 1
+        AND pms.product_code = '2801-LT'
+        AND UPPER(TRIM(m.machine_code)) NOT REGEXP '^ML[0-9]+$'
+        AND pms.is_active = 1
+    `);
+
+    await query(`
       INSERT INTO product_machine_standards
         (process_id, product_code, machine_id, standard_output, standard_time_seconds,
          calculated_output_per_hour, source_name, source_row_number,
@@ -55,7 +68,7 @@ async function ensureGcLong2801Lt() {
       FROM machines m
       WHERE m.process_id = 1
         AND m.status = 'active'
-        AND TRIM(m.machine_code) REGEXP '^[0-9]+$'
+        ${machineFilter}
         AND NOT EXISTS (
           SELECT 1 FROM product_machine_standards pms
           WHERE pms.process_id = 1 AND pms.product_code = '2801-LT'
@@ -88,6 +101,15 @@ async function ensureGcLong2801Lt() {
       )
     `);
     await query(`
+      UPDATE product_machine_standards pms
+      JOIN machines m ON m.id = pms.machine_id
+      SET pms.is_active = 0
+      WHERE pms.process_id = 1
+        AND pms.product_code = '2801-LT'
+        AND UPPER(TRIM(m.machine_code)) NOT REGEXP '^ML[0-9]+$'
+        AND pms.is_active = 1
+    `);
+    await query(`
       INSERT INTO product_machine_standards
         (process_id, product_code, machine_id, standard_output, standard_time_seconds,
          calculated_output_per_hour, source_name, source_row_number,
@@ -96,7 +118,7 @@ async function ensureGcLong2801Lt() {
         'KTC Lồng', NULL, '2026-09-08', NULL, 1
       FROM machines m
       WHERE m.process_id = 1 AND m.status = 'active'
-        AND TRIM(m.machine_code) REGEXP '^[0-9]+$'
+        ${machineFilter}
         AND NOT EXISTS (
           SELECT 1 FROM product_machine_standards pms
           WHERE pms.process_id = 1 AND pms.product_code = '2801-LT'
