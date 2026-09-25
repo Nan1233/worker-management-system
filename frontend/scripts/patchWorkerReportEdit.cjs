@@ -31,6 +31,21 @@ if (!source.includes(newLines) && source.includes(oldLines)) {
   changed = true;
 }
 
+const oldOperation = `setOperationType(data.operation_type === "LONG" ? "LONG" : "CUT");`;
+const newOperation = `const normalizedOperation = s(data.operation_type || data.operation || "").trim().toUpperCase();
+        setOperationType(normalizedOperation === "LONG" || normalizedOperation === "NEST" || normalizedOperation === "LÔNG" || normalizedOperation === "LỒNG" ? "LONG" : "CUT");`;
+if (!source.includes(newOperation) && source.includes(oldOperation)) {
+  source = source.replace(oldOperation, newOperation);
+  changed = true;
+}
+
+const oldTimeFields = `totalTime: \`${total.hours}:${total.minutes}\`, actualTime: \`${actual.hours}:${actual.minutes}\`, actualHours: actual.hours, actualMinutes: actual.minutes,\n          deductionTime: \`${deduction.hours}:${deduction.minutes}\`,`;
+const newTimeFields = `totalTime: String(data.total_time ?? 0), actualTime: String(data.actual_time ?? 0), actualHours: actual.hours, actualMinutes: actual.minutes,\n          deductionTime: String(data.deduction_time ?? 0),`;
+if (!source.includes(newTimeFields) && source.includes(oldTimeFields)) {
+  source = source.replace(oldTimeFields, newTimeFields);
+  changed = true;
+}
+
 const marker = `  const updateForm = (key: string, value: string) =>`;
 const standardResolver = `  const resolveEditLineStandards = async () => {
     const workDate = s(form.workDate).slice(0, 10);
@@ -71,4 +86,4 @@ if (!changed) {
 }
 
 fs.writeFileSync(file, source, "utf8");
-console.log("[KTC] WorkerReportEditV2 hydration/standard-resolution patch applied.");
+console.log("[KTC] WorkerReportEditV2 hydration/operation/time/standard patch applied.");
