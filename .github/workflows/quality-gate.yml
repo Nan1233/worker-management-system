@@ -40,5 +40,8 @@ jobs:
       - name: Critical E2E source syntax gate
         run: node --check scripts/zero-cost/critical-e2e.cjs
 
+      - name: Critical E2E fixture and source contract
+        run: node --test tests/critical-e2e-contract.test.cjs
+
       - name: Cloudflare smoke source syntax gate
         run: node --check scripts/cloudflareProductionSmoke.cjs
