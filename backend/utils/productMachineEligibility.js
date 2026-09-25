@@ -21,10 +21,25 @@ const GC_AUTOMATIC_MACHINE_CODES = new Set(['5', '6', '7', '11']);
 const isGcAutomaticMachine = (machineCode) =>
   GC_AUTOMATIC_MACHINE_CODES.has(normalizeMachineKey(machineCode));
 
+const isGcLongMachine = (machineCode) => /^ML\d+$/i.test(normalize(machineCode).replace(/\s+/g, ''));
+
 const validateEncodedGcMachineProduct = ({ processCode, productCode, machineCode, isAutomatic, operationMode }) => {
   if (normalize(processCode) !== 'GC') return null;
-  const hint = parseProductMachineHint(productCode);
+
+  const normalizedProduct = normalize(productCode);
+  const normalizedMachine = normalize(machineCode).replace(/\s+/g, '');
   const mode = normalize(operationMode);
+
+  // 2801-LT is the canonical Lồng-only product. It must never resolve on a
+  // Cắt machine even when the generic product standard exists as a fallback.
+  if (normalizedProduct === '2801-LT') {
+    if (mode === 'MANUAL') return 'Sản phẩm 2801-LT chỉ được dùng trên máy Lồng';
+    if (mode === 'MACHINE' && !isGcLongMachine(normalizedMachine)) {
+      return 'Sản phẩm 2801-LT chỉ được dùng trên máy Lồng (ML1-ML20)';
+    }
+  }
+
+  const hint = parseProductMachineHint(productCode);
 
   if (mode === 'MANUAL') {
     return hint ? 'Sản phẩm dành riêng cho máy không được dùng ở chế độ Tay' : null;
@@ -37,8 +52,7 @@ const validateEncodedGcMachineProduct = ({ processCode, productCode, machineCode
     return automatic ? null : 'Sản phẩm -auto chỉ được dùng với máy tự động';
   }
 
-  const normalizedMachine = normalizeMachineKey(machineCode);
-  const selectedNumber = /^\d+$/.test(normalizedMachine) ? String(Number(normalizedMachine)) : null;
+  const selectedNumber = /^\d+$/.test(normalizeMachineKey(machineCode)) ? String(Number(normalizeMachineKey(machineCode))) : null;
   if (automatic || selectedNumber !== hint.value) {
     return `Sản phẩm -${hint.value} chỉ được dùng với máy ${hint.value}`;
   }
