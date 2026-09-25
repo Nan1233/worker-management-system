@@ -4,6 +4,8 @@ const managementController = require("./productionTempManagementController");
 const ProductionTemp = require("../models/productionTempModel");
 const { resolveStandard } = require("../services/standardResolutionService");
 const { rejectSelectedTempReports } = require("../services/rejectSelectedTempReportsService");
+const { issueDuplicateConfirmation } = require("../services/duplicateConfirmationService");
+const { buildLogicalDuplicateKey } = require("../services/logicalDuplicateReportService");
 
 const normalizeMode = (value) => String(value || "").trim().toUpperCase();
 const finiteNumber = (value) => {
@@ -65,6 +67,55 @@ const validateManualOutputCeiling = async (req, res) => {
     return true;
 };
 
+const getDuplicateConfirmationContext = (req, existingReport) => {
+    const existingKey = String(existingReport?.logical_duplicate_key || "").trim();
+    if (/^[a-f0-9]{64}$/i.test(existingKey)) return existingKey;
+
+    const body = req.body || {};
+    const machineLines = Array.isArray(body.machine_lines)
+        ? body.machine_lines
+        : Array.isArray(body.machines)
+            ? body.machines.map((item) => ({
+                machine_code: item?.machine_code,
+                product_code: item?.product_code || item?.product_name,
+            }))
+            : [];
+
+    return buildLogicalDuplicateKey({
+        workerId: Number(req.user?.worker_id || body.worker_id),
+        processId: Number(body.process_id),
+        processCode: body.process_code || body.extra_data?.process_code,
+        workDate: body.work_date,
+        shift: body.shift,
+        operationMode: body.operation_mode || body.execution_method,
+        machineNo: body.machine_no,
+        productName: body.product_name,
+        machineLines,
+        workType: body.work_type || body.extra_data?.work_type,
+    });
+};
+
+const attachDuplicateConfirmation = (req, error) => {
+    const existing = error?.existing_report || error?.details;
+    if (!existing || !Number(existing.id)) return error;
+
+    const reportType = String(existing.report_type || error?.report_type || "temp").toLowerCase() === "approved"
+        ? "approved"
+        : "temp";
+    const logicalDuplicateKey = getDuplicateConfirmationContext(req, existing);
+    const token = issueDuplicateConfirmation({
+        workerId: Number(req.user?.worker_id || req.body?.worker_id),
+        logicalDuplicateKey,
+        existingReportId: Number(existing.id),
+        existingReportType: reportType,
+    });
+
+    error.duplicate_confirmation_token = token;
+    error.report_type = reportType;
+    error.existing_report = existing;
+    return error;
+};
+
 const createTempReport = async (req, res, next) => {
     try {
         const processId = finiteNumber(req.body?.process_id);
@@ -81,9 +132,32 @@ const createTempReport = async (req, res, next) => {
                 });
             }
         }
-        if (!(await validateManualOutputCeiling(req, res))) return;
-        return workerController.createTempReport(req, res, next);
+        if (!(await validateManualOutputCeiling(req, res))) return false;
+        return await workerController.createTempReport(req, res, next);
     } catch (error) {
+        if (String(error?.code || "") === "DUPLICATE_CONFIRMATION_REQUIRED") {
+            try {
+                const enriched = attachDuplicateConfirmation(req, error);
+                return res.status(409).json({
+                    success: false,
+                    code: "DUPLICATE_CONFIRMATION_REQUIRED",
+                    message: enriched.message || "Báo cáo trùng với báo cáo đã tồn tại trong cùng ngày/ca",
+                    duplicate_confirmation_token: enriched.duplicate_confirmation_token,
+                    report_type: enriched.report_type,
+                    existing_report: enriched.existing_report,
+                    data: {
+                        id: Number(enriched.existing_report?.id || 0),
+                        report_id: Number(enriched.existing_report?.id || 0),
+                        report_type: enriched.report_type,
+                        duplicate_confirmation_token: enriched.duplicate_confirmation_token,
+                        created_at: enriched.existing_report?.created_at || null,
+                        updated_at: enriched.existing_report?.updated_at || null,
+                    },
+                });
+            } catch (tokenError) {
+                console.error("DUPLICATE CONFIRMATION TOKEN ERROR:", tokenError);
+            }
+        }
         console.error("OUTPUT CEILING VALIDATION ERROR:", error);
         return res.status(error.status || 500).json({ success: false, code: error.code || "OUTPUT_CEILING_VALIDATION_FAILED", message: error.message || "Không thể kiểm tra giới hạn sản lượng" });
     }
