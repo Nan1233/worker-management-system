@@ -51,12 +51,16 @@ export const getFullProductCode = (alias: string, products: ProductStandardOptio
     const positive = (row: ProductStandardOption | undefined) =>
         row && Number(row.standard_output) > 0 ? String(row.product_code || "").trim() : "";
 
-    const exactDisplay = products.find((product) => getProductDisplayAlias(product) === normalizedAlias);
-    const exactDisplayStandard = positive(exactDisplay);
+    const exactDisplayStandardRow = products.find(
+        (product) => getProductDisplayAlias(product) === normalizedAlias && Number(product.standard_output) > 0
+    );
+    const exactDisplayStandard = positive(exactDisplayStandardRow);
     if (exactDisplayStandard) return exactDisplayStandard;
 
-    const exactCode = products.find((product) => normalize(product.product_code) === normalizedAlias);
-    const exactCodeStandard = positive(exactCode);
+    const exactCodeStandardRow = products.find(
+        (product) => normalize(product.product_code) === normalizedAlias && Number(product.standard_output) > 0
+    );
+    const exactCodeStandard = positive(exactCodeStandardRow);
     if (exactCodeStandard) return exactCodeStandard;
 
     // GC automatic worker aliases have legacy standard rows with -auto suffixes.
@@ -64,7 +68,7 @@ export const getFullProductCode = (alias: string, products: ProductStandardOptio
         const automaticCode = normalizedAlias === "CGYX"
             ? "CGYX-AUTO"
             : `${normalizedAlias}-AUTO`;
-        const automatic = products.find((product) => normalize(product.product_code) === automaticCode);
+        const automatic = products.find((product) => normalize(product.product_code) === automaticCode && Number(product.standard_output) > 0);
         const automaticStandard = positive(automatic);
         if (automaticStandard) return automaticStandard;
     }
@@ -72,7 +76,7 @@ export const getFullProductCode = (alias: string, products: ProductStandardOptio
     // Some C-prefixed aliases correspond to the ordinary standard code without C.
     if (normalizedAlias.startsWith("C")) {
         const stripped = normalizedAlias.slice(1);
-        const strippedRow = products.find((product) => normalize(product.product_code) === stripped);
+        const strippedRow = products.find((product) => normalize(product.product_code) === stripped && Number(product.standard_output) > 0);
         const strippedStandard = positive(strippedRow);
         if (strippedStandard) return strippedStandard;
     }
