@@ -15,11 +15,19 @@ const CODE_BY_ID = new Map(Object.entries(PROCESS_IDS).map(([code, id]) => [Numb
 
 /**
  * Quy tắc máy theo thực tế xưởng KTC.
- * CVK = Công việc khác/không theo mã sản phẩm: không dùng máy sản xuất.
+ * - Mài: có thể dùng nhiều máy, tối đa 4.
+ * - Đo/Ép: đúng 1 công nhân / 1 máy cho mỗi báo cáo.
+ * - CVK/XLBV/SX3: không dùng máy sản xuất.
  */
 const getProcessMachinePolicy = (processId) => {
   const code = CODE_BY_ID.get(Number(processId)) || "";
-  if (["MAI", "DO", "EP", "CAN"].includes(code)) {
+  if (code === "MAI") {
+    return { code, mode: "MULTI_MACHINE_REQUIRED", minMachines: 1, maxMachines: 4 };
+  }
+  if (["DO", "EP"].includes(code)) {
+    return { code, mode: "SINGLE_MACHINE_REQUIRED", minMachines: 1, maxMachines: 1 };
+  }
+  if (code === "CAN") {
     return { code, mode: "MULTI_MACHINE_REQUIRED", minMachines: 1, maxMachines: 4 };
   }
   if (code === "GC") {
