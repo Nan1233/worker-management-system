@@ -39,8 +39,11 @@ if (!source.includes(newOperation) && source.includes(oldOperation)) {
   changed = true;
 }
 
-const oldTimeFields = `totalTime: \`${total.hours}:${total.minutes}\`, actualTime: \`${actual.hours}:${actual.minutes}\`, actualHours: actual.hours, actualMinutes: actual.minutes,\n          deductionTime: \`${deduction.hours}:${deduction.minutes}\`,`;
-const newTimeFields = `totalTime: String(data.total_time ?? 0), actualTime: String(data.actual_time ?? 0), actualHours: actual.hours, actualMinutes: actual.minutes,\n          deductionTime: String(data.deduction_time ?? 0),`;
+// Keep this search pattern as a normal JS string. Using a template literal here would
+// interpolate the patch script's own `total`, `actual`, and `deduction` variables.
+const oldTimeFields = "totalTime: `" + "${total.hours}:${total.minutes}" + "`, actualTime: `" + "${actual.hours}:${actual.minutes}" + "`, actualHours: actual.hours, actualMinutes: actual.minutes,\n          deductionTime: `" + "${deduction.hours}:${deduction.minutes}" + "`,";
+const newTimeFields = `totalTime: String(data.total_time ?? 0), actualTime: String(data.actual_time ?? 0), actualHours: actual.hours, actualMinutes: actual.minutes,
+          deductionTime: String(data.deduction_time ?? 0),`;
 if (!source.includes(newTimeFields) && source.includes(oldTimeFields)) {
   source = source.replace(oldTimeFields, newTimeFields);
   changed = true;
