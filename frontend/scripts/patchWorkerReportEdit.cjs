@@ -84,19 +84,26 @@ if (!source.includes("const resolveEditLineStandards") && source.includes(marker
 }
 
 // The edit form must not show the two non-editable sections from the old detail-style UI.
+// Remove the entire JSX conditional, not only the child component, so no empty JSX
+// expression such as `{condition && }` is left behind.
 const extraImport = 'import ProcessExtraFieldsSection from "./components/ProcessExtraFieldsSection";\n';
 if (source.includes(extraImport)) {
   source = source.replace(extraImport, "");
   changed = true;
 }
-const extraSectionPattern = /<ProcessExtraFieldsSection\b[\s\S]*?\/>/g;
-if (extraSectionPattern.test(source)) {
-  source = source.replace(extraSectionPattern, "");
+const extraConditionalPattern = /\s*\{extraFields\.length\s*>\s*0\s*&&\s*<ProcessExtraFieldsSection\b[\s\S]*?\/\>\}\s*/g;
+if (extraConditionalPattern.test(source)) {
+  source = source.replace(extraConditionalPattern, "\n");
   changed = true;
 }
-const noteSectionPattern = /<section\b[^>]*>\s*<h2\b[^>]*>[\s\S]*?Ghi chú[\s\S]*?<\/h2>[\s\S]*?<\/section>/i;
+const extraFallbackPattern = /\s*\{Object\.keys\(extraData\)\.some\(\(key\)\s*=>\s*!extraFields\.some\(\(field\)\s*=>\s*field\.key\s*===\s*key\)\)\s*&&\s*<section[\s\S]*?<\/section>\}\s*/g;
+if (extraFallbackPattern.test(source)) {
+  source = source.replace(extraFallbackPattern, "\n");
+  changed = true;
+}
+const noteSectionPattern = /\s*<section\b[^>]*>\s*<h2\b[^>]*>\s*Ghi chú\s*<\/h2>[\s\S]*?<\/section>\s*/gi;
 if (noteSectionPattern.test(source)) {
-  source = source.replace(noteSectionPattern, "");
+  source = source.replace(noteSectionPattern, "\n");
   changed = true;
 }
 
