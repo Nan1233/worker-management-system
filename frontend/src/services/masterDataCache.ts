@@ -7,7 +7,9 @@ import { getSessionCached, clearSessionCache } from "./sessionCache";
 // Master data changes infrequently, so keep it in the authenticated tab session
 // for 30 minutes. getSessionCached also deduplicates concurrent requests.
 const TTL_MS = 30 * 60 * 1000;
-const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v8";
+// Bump this whenever the master-data response shape/contents are corrected so
+// existing tabs cannot keep an older empty/stale product list for 30 minutes.
+const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v9";
 const DEDUCTION_MASTER_VERSION = "v7";
 const DEFECT_MASTER_VERSION = "v8";
 
