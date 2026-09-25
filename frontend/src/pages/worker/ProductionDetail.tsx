@@ -116,7 +116,15 @@ export default function ProductionDetail() {
         <Field label="Trạng thái" value={<span className={`status ${report.status || "pending"}`}>{statusLabel}</span>} />
         <Field label="Ngày sản xuất" value={String(report.work_date || "").slice(0, 10)} /><Field label="Ca" value={report.shift || "-"} /><Field label="Công đoạn" value={processLabel} />
       </section>
-      {isPending && <section className="detail-section" style={{ marginBottom: 10 }}>{canEdit ? <div className="detail-action-row"><div><strong>Có thể sửa toàn bộ báo cáo · còn {remainingText}</strong><p>Mở lại biểu mẫu nhập để sửa thông tin.</p></div><button type="button" className="back-btn" onClick={() => navigate(`/worker/history/${report.id}/edit`)}>Sửa báo cáo</button></div> : <div><strong>Đã hết thời gian chỉnh sửa</strong><p>Những báo cáo quá 10 phút cần liên hệ quản lý.</p></div>}</section>}
+      {isPending && <section className="detail-section" style={{ marginBottom: 10 }}>
+        <div className="detail-action-row">
+          <div>
+            <strong>{canEdit ? `Có thể sửa báo cáo · còn ${remainingText}` : "Đã hết thời gian chỉnh sửa"}</strong>
+            <p>{canEdit ? "Báo cáo đang ở chế độ chỉ xem. Nhấn Sửa báo cáo để mở biểu mẫu." : "Những báo cáo quá 10 phút cần liên hệ quản lý."}</p>
+          </div>
+          <button type="button" className="back-btn" onClick={() => navigate(`/worker/history/${report.id}/edit`)} disabled={!canEdit}>Sửa báo cáo</button>
+        </div>
+      </section>}
 
       <section className="detail-section"><h2>Thông tin người nhập</h2><div className="detail-grid">
         <Field label="Công nhân" value={report.full_name || report.worker_name || "-"} /><Field label="Mã công nhân" value={report.worker_code || "-"} /><Field label="Mã công đoạn" value={report.process_code || processCode || "-"} />
