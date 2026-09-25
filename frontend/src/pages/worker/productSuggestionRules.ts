@@ -38,9 +38,46 @@ export const normalizeGcAlias = (value: unknown): string => {
 export const getProductDisplayAlias = (product: ProductStandardOption): string =>
     normalizeGcAlias(product.alias_code || product.product_code);
 
-/** Full product code kept for persistence/standard lookup. */
+/**
+ * Resolve the worker-facing alias to the product-standard code that actually
+ * exists in the current master. Prefer a row with a positive standard. This
+ * prevents an alias-master display row (which may intentionally have no
+ * standard itself) from being persisted as an unresolvable product code.
+ */
 export const getFullProductCode = (alias: string, products: ProductStandardOption[]): string => {
     const normalizedAlias = normalizeGcAlias(alias);
+    if (!normalizedAlias) return "";
+
+    const positive = (row: ProductStandardOption | undefined) =>
+        row && Number(row.standard_output) > 0 ? String(row.product_code || "").trim() : "";
+
+    const exactDisplay = products.find((product) => getProductDisplayAlias(product) === normalizedAlias);
+    const exactDisplayStandard = positive(exactDisplay);
+    if (exactDisplayStandard) return exactDisplayStandard;
+
+    const exactCode = products.find((product) => normalize(product.product_code) === normalizedAlias);
+    const exactCodeStandard = positive(exactCode);
+    if (exactCodeStandard) return exactCodeStandard;
+
+    // GC automatic worker aliases have legacy standard rows with -auto suffixes.
+    if (GC_AUTOMATIC_ALIAS_CODES.has(normalizedAlias)) {
+        const automaticCode = normalizedAlias === "CGYX"
+            ? "CGYX-AUTO"
+            : `${normalizedAlias}-AUTO`;
+        const automatic = products.find((product) => normalize(product.product_code) === automaticCode);
+        const automaticStandard = positive(automatic);
+        if (automaticStandard) return automaticStandard;
+    }
+
+    // Some C-prefixed aliases correspond to the ordinary standard code without C.
+    if (normalizedAlias.startsWith("C")) {
+        const stripped = normalizedAlias.slice(1);
+        const strippedRow = products.find((product) => normalize(product.product_code) === stripped);
+        const strippedStandard = positive(strippedRow);
+        if (strippedStandard) return strippedStandard;
+    }
+
+    // Last resort: retain the canonical alias-master target for compatibility.
     const match = products.find((product) => getProductDisplayAlias(product) === normalizedAlias);
     return String(match?.product_code || alias || "").trim();
 };
@@ -69,20 +106,14 @@ export const filterProductsForSelection = ({
             .map((product) => ({ product, alias: getProductDisplayAlias(product) }))
             .filter(({ alias }) => Boolean(alias));
 
-        // IMPORTANT: ProcessPage already filters GC products by work_type.
-        // Never infer Cắt/Lồng from the alias prefix: Lồng aliases can also
-        // legitimately be C-prefixed in legacy/master data.
         const productWorkTypes = new Set(
             products.map((product) => normalizeWorkType(product.work_type)).filter(Boolean)
         );
 
-        // Lồng Tay and Lồng Máy MUST show exactly the same Lồng master list.
         if (productWorkTypes.size === 1 && productWorkTypes.has("LONG")) {
             return canonicalProducts.map(({ product }) => product);
         }
 
-        // Cắt: automatic machines only get the five automatic aliases.
-        // Cắt không tự động still gets the complete Cắt list, including those five.
         if (productWorkTypes.size === 1 && productWorkTypes.has("CUT")) {
             if (!selectedMachine) return [];
             if (isGcAutomaticMachine(selectedRawMachine)) {
@@ -93,9 +124,6 @@ export const filterProductsForSelection = ({
             return canonicalProducts.map(({ product }) => product);
         }
 
-        // Defensive fallback for old rows with missing work_type.
-        // If all aliases are C-prefixed, treat them as Cắt; otherwise expose
-        // the scoped list without re-classifying individual aliases.
         if (!selectedMachine && mode === "MACHINE") return [];
         return canonicalProducts.map(({ product }) => product);
     }
