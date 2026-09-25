@@ -1,5 +1,7 @@
 import type { MachineLineState } from "./processPageConfig";
 
+const normalizeProduct = (value: unknown): string => String(value ?? "").trim().toUpperCase();
+
 export function validateMachineLines(args: {
   machineLines: MachineLineState[];
   isMachineValid?: (code:string)=>boolean;
@@ -21,7 +23,17 @@ export function validateMachineLines(args: {
     if (!productCode) return "Thiếu mã sản phẩm";
     if (!machineCode && !manualWithoutMachine) return "Thiếu số máy";
     if (machineCode && args.isMachineValid && !args.isMachineValid(machineCode)) return `Máy ${machineCode} không hợp lệ`;
-    if (args.isProductValid && !args.isProductValid(machineCode, productCode)) return `Sản phẩm ${productCode} không hợp lệ`;
+
+    // Worker-facing GC forms use alias codes (for example C2556), while the
+    // master may expose the same product under product_code/alias_code. The
+    // caller normally normalizes this before validation, but keep the
+    // validation contract alias-safe so a canonical/alias row cannot be
+    // rejected merely because the UI stores the worker-facing code.
+    if (args.isProductValid) {
+      const valid = args.isProductValid(machineCode, productCode)
+        || args.isProductValid(machineCode, normalizeProduct(productCode));
+      if (!valid) return `Sản phẩm ${productCode} không hợp lệ`;
+    }
   }
   return null;
 }
