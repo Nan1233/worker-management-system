@@ -9,10 +9,10 @@ const root = path.resolve(__dirname, '..');
 const seed = fs.readFileSync(path.join(root, 'backend/scripts/ensureGcLong2801Lt.js'), 'utf8');
 const rules = fs.readFileSync(path.join(root, 'frontend/src/pages/worker/productSuggestionRules.ts'), 'utf8');
 
-test('2801-LT is seeded as LONG at 605/h and mapped to numeric GC machines', () => {
+test('2801-LT is seeded as LONG at 605/h and mapped to canonical Lồng machines', () => {
   assert.match(seed, /'LONG', '2801-LT', 605/);
   assert.match(seed, /m\.process_id = 1/);
-  assert.match(seed, /TRIM\(m\.machine_code\) REGEXP '\^\[0-9\]\+\$'/);
+  assert.match(seed, /TRIM\(m\.machine_code\) REGEXP '\^ML\[0-9\]\+\$'/);
   assert.match(seed, /product_machine_standards/);
   assert.match(seed, /SELECT\s+1, '2801-LT', m\.id, 605/);
   assert.match(seed, /calculated_output_per_hour, source_name/);
