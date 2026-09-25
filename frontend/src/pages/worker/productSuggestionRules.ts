@@ -89,6 +89,8 @@ export const getFullProductCode = (alias: string, products: ProductStandardOptio
 const isGcAutomaticMachine = (machineCode: unknown): boolean =>
     GC_AUTOMATIC_MACHINE_CODES.has(normalize(machineCode).replace(/\s+/g, ""));
 
+const isGcLongMachine = (machineCode: unknown): boolean => /^ML\d+$/i.test(normalize(machineCode).replace(/\s+/g, ""));
+
 export const filterProductsForSelection = ({
     products,
     mode,
@@ -115,6 +117,10 @@ export const filterProductsForSelection = ({
         );
 
         if (productWorkTypes.size === 1 && productWorkTypes.has("LONG")) {
+            // Lồng products are valid only on the Lồng machines ML1..ML20.
+            // The worker must select the machine first so the product scope is
+            // tied to the physical machine type rather than only to process GC.
+            if (mode === "MACHINE" && (!selectedMachine || !isGcLongMachine(selectedRawMachine))) return [];
             return canonicalProducts.map(({ product }) => product);
         }
 
