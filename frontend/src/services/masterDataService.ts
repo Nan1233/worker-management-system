@@ -135,6 +135,31 @@ const hasExactProcessProduct = async (processId: number, productCode: string): P
     return codes.has(normalized);
 };
 
+/**
+ * Worker UI may submit/display an alias (for example C2556), while the
+ * product-standard resolver endpoint expects the canonical product_code.
+ * Resolve aliases here so every caller of resolveProductStandard uses the
+ * same canonical code for the backend lookup.
+ */
+const resolveCanonicalProductCode = async (processId: number, productCode: string): Promise<string> => {
+    const normalized = String(productCode || "").trim().toUpperCase();
+    if (!normalized) return "";
+
+    const rows = await getCachedProcessProductRows(processId);
+    const exact = rows.find(
+        (row) => String(row?.product_code || "").trim().toUpperCase() === normalized,
+    );
+    if (exact?.product_code) return String(exact.product_code).trim();
+
+    const aliasCandidates = rows.filter(
+        (row) => String(row?.alias_code || "").trim().toUpperCase() === normalized,
+    );
+    const positiveAlias = aliasCandidates.find(
+        (row) => Number.isFinite(Number(row?.standard_output)) && Number(row.standard_output) > 0,
+    );
+    return String((positiveAlias ?? aliasCandidates[0])?.product_code || productCode).trim();
+};
+
 export const resolveProductStandard = async (
     processId: number,
     machineCode: string,
@@ -151,6 +176,8 @@ export const resolveProductStandard = async (
     if (!(await hasExactProcessProduct(processId, normalizedProduct))) {
         throw new Error(`Đang nhập mã sản phẩm: ${normalizedProduct}`);
     }
+
+    const canonicalProduct = await resolveCanonicalProductCode(processId, normalizedProduct);
 
     if (!normalizedMachine) {
         const rows = await getCachedProcessProductRows(processId);
@@ -189,7 +216,7 @@ export const resolveProductStandard = async (
         params: {
             process_id: processId,
             machine_code: normalizedMachine,
-            product_code: normalizedProduct,
+            product_code: canonicalProduct,
             work_date: workDate || undefined,
         },
     });
