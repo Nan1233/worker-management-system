@@ -9,10 +9,27 @@ function normalizeApiBaseUrl(value: string): string {
   return normalized;
 }
 
-if (import.meta.env.PROD && !configuredApiUrl) {
+/**
+ * Keep the Cloudflare test frontend isolated from production.
+ * A stale VITE_API_URL on the test deployment must not silently send worker
+ * reports to ktc-backend instead of the matching ktc-be-test worker.
+ */
+function resolveApiUrl(): string {
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname.toLowerCase();
+    if (hostname === "ktc-fe-test.nan978971.workers.dev") {
+      return "https://ktc-be-test.nan978971.workers.dev/api";
+    }
+  }
+  return configuredApiUrl || developmentApiUrl;
+}
+
+const resolvedApiUrl = resolveApiUrl();
+
+if (import.meta.env.PROD && !resolvedApiUrl) {
   throw new Error("VITE_API_URL is required for production builds");
 }
 
-export const API_BASE_URL = normalizeApiBaseUrl(configuredApiUrl || developmentApiUrl);
+export const API_BASE_URL = normalizeApiBaseUrl(resolvedApiUrl);
 
 export const REQUEST_TIMEOUT_MS = 30_000;
