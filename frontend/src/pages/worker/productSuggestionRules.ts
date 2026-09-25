@@ -20,7 +20,7 @@ export const normalizeWorkType = (value: unknown): string => {
 const eligibleMachineCodes = (product: ProductStandardOption): string[] =>
     String(product.eligible_machine_codes || "").split(",").map(normalizeMachineKey).filter(Boolean);
 
-// Cắt tự động: máy 5, 6, 7, 11. Accept both "5" and legacy "C5" forms.
+// Cắt tự động: máy 5, 6, 7, 11. Accept both numeric and legacy C-prefixed forms.
 const GC_AUTOMATIC_MACHINE_CODES = new Set(["5", "6", "7", "11", "C5", "C6", "C7", "C11"]);
 const GC_AUTOMATIC_ALIAS_CODES = new Set(["C2556", "C5770", "CGYX", "C3880", "C8052"]);
 
@@ -53,14 +53,12 @@ export const filterProductsForSelection = ({
     mode,
     machineCode,
     machineOptions,
-    operationType,
     useEncodedMachineSuffix = false,
 }: {
     products: ProductStandardOption[];
     mode: ProductSuggestionMode;
     machineCode?: string;
     machineOptions?: MachineOption[];
-    operationType?: string;
     useEncodedMachineSuffix?: boolean;
 }): ProductStandardOption[] => {
     const selectedMachine = normalizeMachineKey(machineCode);
@@ -71,15 +69,21 @@ export const filterProductsForSelection = ({
             .map((product) => ({ product, alias: getProductDisplayAlias(product) }))
             .filter(({ alias }) => Boolean(alias));
 
-        // ProcessPage already scopes productOptions by operationType/work_type.
-        // Lồng Tay and Lồng Máy MUST use exactly the same Lồng master list.
-        if (normalizeWorkType(operationType) === "LONG") {
+        // IMPORTANT: ProcessPage already filters GC products by work_type.
+        // Never infer Cắt/Lồng from the alias prefix: Lồng aliases can also
+        // legitimately be C-prefixed in legacy/master data.
+        const productWorkTypes = new Set(
+            products.map((product) => normalizeWorkType(product.work_type)).filter(Boolean)
+        );
+
+        // Lồng Tay and Lồng Máy MUST show exactly the same Lồng master list.
+        if (productWorkTypes.size === 1 && productWorkTypes.has("LONG")) {
             return canonicalProducts.map(({ product }) => product);
         }
 
         // Cắt: automatic machines only get the five automatic aliases.
-        // Non-automatic Cắt machines get the complete Cắt list, including those five.
-        if (normalizeWorkType(operationType) === "CUT") {
+        // Cắt không tự động still gets the complete Cắt list, including those five.
+        if (productWorkTypes.size === 1 && productWorkTypes.has("CUT")) {
             if (!selectedMachine) return [];
             if (isGcAutomaticMachine(selectedRawMachine)) {
                 return canonicalProducts
@@ -89,6 +93,10 @@ export const filterProductsForSelection = ({
             return canonicalProducts.map(({ product }) => product);
         }
 
+        // Defensive fallback for old rows with missing work_type.
+        // If all aliases are C-prefixed, treat them as Cắt; otherwise expose
+        // the scoped list without re-classifying individual aliases.
+        if (!selectedMachine && mode === "MACHINE") return [];
         return canonicalProducts.map(({ product }) => product);
     }
 
