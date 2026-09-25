@@ -83,10 +83,27 @@ if (!source.includes("const resolveEditLineStandards") && source.includes(marker
   changed = true;
 }
 
+// The edit form must not show the two non-editable sections from the old detail-style UI.
+const extraImport = 'import ProcessExtraFieldsSection from "./components/ProcessExtraFieldsSection";\n';
+if (source.includes(extraImport)) {
+  source = source.replace(extraImport, "");
+  changed = true;
+}
+const extraSectionPattern = /<ProcessExtraFieldsSection\b[\s\S]*?\/>/g;
+if (extraSectionPattern.test(source)) {
+  source = source.replace(extraSectionPattern, "");
+  changed = true;
+}
+const noteSectionPattern = /<section\b[^>]*>\s*<h2\b[^>]*>[\s\S]*?Ghi chú[\s\S]*?<\/h2>[\s\S]*?<\/section>/i;
+if (noteSectionPattern.test(source)) {
+  source = source.replace(noteSectionPattern, "");
+  changed = true;
+}
+
 if (!changed) {
   console.log("[KTC] WorkerReportEditV2 hydration patch already present or target changed; no source rewrite needed.");
   process.exit(0);
 }
 
 fs.writeFileSync(file, source, "utf8");
-console.log("[KTC] WorkerReportEditV2 hydration/operation/time/standard patch applied.");
+console.log("[KTC] WorkerReportEditV2 hydration/operation/time/standard/UI patch applied.");
