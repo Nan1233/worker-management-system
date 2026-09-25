@@ -35,8 +35,8 @@ process.env.PORT = process.env.PORT || "3000";
 process.env.KTC_CLOUDFLARE_WORKER = "true";
 
 const { start, app } = require("./server.js");
-const ensureGcDefectMasterData = require("./scripts/ensureGcDefectMasterData");
-const ensureGcLong2801Lt = require("./scripts/ensureGcLong2801Lt");
+const ensureGcDefectMasterData = require("./scripts/ensureGcDefectMasterData.js");
+const ensureGcLong2801Lt = require("./scripts/ensureGcLong2801Lt.js");
 const { masterDataCache } = require("./utils/masterDataCache");
 const productionTempCreateModel = require("./models/productionTempCreateModel");
 
