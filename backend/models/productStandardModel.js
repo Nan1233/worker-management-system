@@ -44,10 +44,9 @@ const PRODUCT_STANDARD_SELECT = `
 `;
 
 /*
- * GC is alias-master driven. The Excel mapping is authoritative even when a
- * legacy product_standards row is missing or uses an old encoded product code.
- * Every active alias is therefore returned; a matching standard is attached
- * when available for standard resolution.
+ * GC is alias-master driven, but a product standard must never become
+ * unreachable merely because its alias row is missing. Return all active
+ * aliases and also active GC product_standards that have no active alias.
  */
 const GC_ALIAS_SELECT = `
     SELECT
@@ -85,6 +84,47 @@ const GC_ALIAS_SELECT = `
     WHERE pa.status = 'active'
       AND p.status = 'active'
       AND UPPER(TRIM(p.process_code)) = 'GC'
+
+    UNION ALL
+
+    SELECT
+        ps.id,
+        ps.process_id,
+        p.process_code,
+        ps.work_type,
+        ps.product_code,
+        NULL AS alias_code,
+        ps.standard_output,
+        COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
+        EXISTS(
+            SELECT 1 FROM product_machine_standards pms
+            WHERE pms.process_id = ps.process_id
+              AND pms.product_code = ps.product_code
+              AND pms.is_active = 1
+        ) AS has_machine_specific_standard,
+        COALESCE((
+            SELECT GROUP_CONCAT(DISTINCT m.machine_code ORDER BY m.machine_code SEPARATOR ',')
+            FROM product_machine_standards pms2
+            JOIN machines m
+              ON m.id = pms2.machine_id
+             AND m.process_id = pms2.process_id
+             AND m.status = 'active'
+            WHERE pms2.process_id = ps.process_id
+              AND pms2.product_code = ps.product_code
+              AND pms2.is_active = 1
+        ), '') AS eligible_machine_codes
+    FROM product_standards ps
+    JOIN processes p ON p.id = ps.process_id
+    WHERE ps.status = 'active'
+      AND p.status = 'active'
+      AND UPPER(TRIM(p.process_code)) = 'GC'
+      AND NOT EXISTS (
+          SELECT 1
+          FROM product_aliases pa2
+          WHERE pa2.process_id = ps.process_id
+            AND UPPER(TRIM(pa2.product_code)) = UPPER(TRIM(ps.product_code))
+            AND pa2.status = 'active'
+      )
 `;
 
 exports.findByProcess = async (processId) => {
@@ -95,7 +135,7 @@ exports.findByProcess = async (processId) => {
     const processCode = String(processRows[0]?.process_code || '').trim().toUpperCase();
 
     if (processCode === 'GC') {
-        return query(`${GC_ALIAS_SELECT} AND pa.process_id = ? ORDER BY pa.id ASC`, [processId]);
+        return query(`${GC_ALIAS_SELECT} ORDER BY product_code ASC, alias_code ASC`, []);
     }
 
     return query(`${PRODUCT_STANDARD_SELECT}
@@ -109,7 +149,7 @@ exports.findByProcess = async (processId) => {
 exports.findByProcessCode = async (processCode) => {
     const normalized = String(processCode || '').trim().toUpperCase();
     if (normalized === 'GC') {
-        return query(`${GC_ALIAS_SELECT} ORDER BY pa.id ASC`);
+        return query(`${GC_ALIAS_SELECT} ORDER BY product_code ASC, alias_code ASC`, []);
     }
 
     return query(`${PRODUCT_STANDARD_SELECT}
