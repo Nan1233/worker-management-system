@@ -2,4 +2,18 @@
 SET @gc_process_id := (SELECT id FROM processes WHERE UPPER(TRIM(process_code))='GC' LIMIT 1);
 UPDATE machines SET status='inactive' WHERE process_id=@gc_process_id;
 INSERT INTO machines(process_id,machine_code,machine_name,is_automatic,max_workers_per_machine,status) VALUES (@gc_process_id,'C1','Máy cắt số 1',0,1,'active'),(@gc_process_id,'C2','Máy cắt số 2',0,1,'active'),(@gc_process_id,'C3','Máy cắt số 3',0,1,'active'),(@gc_process_id,'C4','Máy cắt số 4',0,1,'active'),(@gc_process_id,'C5','Máy cắt số 5- TĐ',1,4,'active'),(@gc_process_id,'C6','Máy cắt số 6- TĐ',1,4,'active'),(@gc_process_id,'C7','Máy cắt số 7- TĐ',1,4,'active'),(@gc_process_id,'C8','Máy cắt số 8',0,1,'active'),(@gc_process_id,'C9','Máy cắt số 9',0,1,'active'),(@gc_process_id,'C10','Máy cắt số 10',0,1,'active'),(@gc_process_id,'C11','Máy cắt số 11- TĐ',1,4,'active'),(@gc_process_id,'C12','Máy cắt số 12',0,1,'active'),(@gc_process_id,'ML1','Máy lồng số 1',0,1,'active'),(@gc_process_id,'ML2','Máy lồng số 2',0,1,'active'),(@gc_process_id,'ML3','Máy lồng số 3',0,1,'active'),(@gc_process_id,'ML4','Máy lồng số 4',0,1,'active'),(@gc_process_id,'ML5','Máy lồng số 5',0,1,'active'),(@gc_process_id,'ML6','Máy lồng số 6',0,1,'active'),(@gc_process_id,'ML7','Máy lồng số 7',0,1,'active'),(@gc_process_id,'ML8','Máy lồng số 8',0,1,'active'),(@gc_process_id,'ML9','Máy lồng số 9',0,1,'active'),(@gc_process_id,'ML10','Máy lồng số 10',0,1,'active'),(@gc_process_id,'ML11','Máy lồng số 11',0,1,'active'),(@gc_process_id,'ML12','Máy lồng số 12',0,1,'active'),(@gc_process_id,'ML13','Máy lồng số 13',0,1,'active'),(@gc_process_id,'ML14','Máy lồng số 14',0,1,'active'),(@gc_process_id,'ML15','Máy lồng số 15',0,1,'active'),(@gc_process_id,'ML16','Máy lồng số 16',0,1,'active'),(@gc_process_id,'ML17','Máy lồng số 17',0,1,'active'),(@gc_process_id,'ML18','Máy lồng số 18',0,1,'active'),(@gc_process_id,'ML19','Máy lồng số 19',0,1,'active'),(@gc_process_id,'ML20','Máy lồng số 20',0,1,'active') ON DUPLICATE KEY UPDATE machine_name=VALUES(machine_name),is_automatic=VALUES(is_automatic),max_workers_per_machine=VALUES(max_workers_per_machine),status='active';
-INSERT INTO product_machine_standards(process_id,product_code,machine_id,standard_output,standard_time_seconds,calculated_output_per_hour,source_name,effective_from,is_active) SELECT @gc_process_id,'2801-LT',m.id,605,3600/605,605,'KTC Lồng','2026-09-08',1 FROM machines m WHERE m.process_id=@gc_process_id AND m.status='active' AND TRIM(m.machine_code) REGEXP '^[0-9]+$' AND NOT EXISTS (SELECT 1 FROM product_machine_standards pms WHERE pms.process_id=@gc_process_id AND pms.product_code='2801-LT' AND pms.machine_id=m.id AND pms.is_active=1);
+-- 2801-LT is a Lồng product. Its machine-specific standard must follow the
+-- canonical Lồng machines (ML1..ML20), not legacy numeric machine codes.
+INSERT INTO product_machine_standards(process_id,product_code,machine_id,standard_output,standard_time_seconds,calculated_output_per_hour,source_name,effective_from,is_active)
+SELECT @gc_process_id,'2801-LT',m.id,605,3600/605,605,'KTC Lồng','2026-09-08',1
+FROM machines m
+WHERE m.process_id=@gc_process_id
+  AND m.status='active'
+  AND UPPER(TRIM(m.machine_code)) REGEXP '^ML[0-9]+$'
+  AND NOT EXISTS (
+      SELECT 1 FROM product_machine_standards pms
+      WHERE pms.process_id=@gc_process_id
+        AND pms.product_code='2801-LT'
+        AND pms.machine_id=m.id
+        AND pms.is_active=1
+  );
