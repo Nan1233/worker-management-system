@@ -2,9 +2,9 @@ name: KTC Quality Gate
 
 on:
   push:
-    branches: [main]
+    branches: [main, test]
   pull_request:
-    branches: [main]
+    branches: [main, test]
   workflow_dispatch:
 
 permissions:
@@ -37,8 +37,8 @@ jobs:
       - name: 2801-LT Excel export regression
         run: node --test tests/2801-lt-excel-export.contract.test.cjs
 
-      - name: Critical E2E source gate
+      - name: Critical E2E source syntax gate
         run: node --check scripts/zero-cost/critical-e2e.cjs
 
-      - name: Cloudflare smoke source gate
+      - name: Cloudflare smoke source syntax gate
         run: node --check scripts/cloudflareProductionSmoke.cjs
