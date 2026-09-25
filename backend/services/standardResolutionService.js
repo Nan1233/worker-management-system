@@ -268,17 +268,25 @@ function createStandardResolver({ query = defaultQuery } = {}) {
     }
     if (applicable.length === 1) {
       const row = applicable[0];
-      const resolvedMachine = {
-        ...product, machineId: Number(machine.id), machineCode: machine.machine_code,
-        machineStandardId: Number(row.id),
-        standardOutput: positiveDecimal(row.calculated_output_per_hour ?? row.standard_output),
-        standardTimeSeconds: Number(row.standard_time_seconds) > 0 ? Number(row.standard_time_seconds) : null,
-        source: Number(row.is_active) === 1 ? 'MACHINE' : 'MACHINE_HISTORICAL',
-        machineEffectiveFrom: row.effective_from ? String(row.effective_from).slice(0, 10) : null,
-        machineEffectiveTo: row.effective_to ? String(row.effective_to).slice(0, 10) : null
-      };
-      standardCache.set(standardKey, resolvedMachine);
-      return resolvedMachine;
+      const machineOutput = Number(row.calculated_output_per_hour ?? row.standard_output);
+
+      // A machine-specific row with a missing/zero standard is not a usable
+      // standard. Fall back to the canonical product standard for this
+      // process/work_type/product instead of turning a valid product standard
+      // into the user-facing "Định mức phải lớn hơn 0" error.
+      if (Number.isFinite(machineOutput) && machineOutput > 0) {
+        const resolvedMachine = {
+          ...product, machineId: Number(machine.id), machineCode: machine.machine_code,
+          machineStandardId: Number(row.id),
+          standardOutput: machineOutput,
+          standardTimeSeconds: Number(row.standard_time_seconds) > 0 ? Number(row.standard_time_seconds) : null,
+          source: Number(row.is_active) === 1 ? 'MACHINE' : 'MACHINE_HISTORICAL',
+          machineEffectiveFrom: row.effective_from ? String(row.effective_from).slice(0, 10) : null,
+          machineEffectiveTo: row.effective_to ? String(row.effective_to).slice(0, 10) : null
+        };
+        standardCache.set(standardKey, resolvedMachine);
+        return resolvedMachine;
+      }
     }
 
     const resolvedFallback = {
@@ -318,8 +326,6 @@ function assertStandardSnapshotConsistency({ resolved, standardOutput, standardV
   const hasMachineSnapshotId = Number(machineStandardId || 0) > 0;
   const hasProductSnapshotId = Number(standardVersionId || 0) > 0;
 
-  // New records: all persisted snapshot identifiers and the numeric standard
-  // must match the historical resolver exactly.
   if (hasMachineSnapshotId && (!outputMatches || !machineMatches || (hasProductSnapshotId && !versionMatches))) {
     throw businessError('STANDARD_SNAPSHOT_MISMATCH', 'Định mức đã lưu không khớp nguồn định mức lịch sử', {
       saved_standard_output: standardOutput ?? null,
@@ -332,10 +338,6 @@ function assertStandardSnapshotConsistency({ resolved, standardOutput, standardV
     });
   }
 
-  // Legacy machine reports may have a product-version snapshot but no machine
-  // standard id. Their saved standard_output is the value captured at entry
-  // time; do not reject the report merely because the machine master has since
-  // received a different historical row. The product version must still match.
   if (hasProductSnapshotId && !hasMachineSnapshotId) {
     if (!hasSavedOutput || !versionMatches) {
       throw businessError('STANDARD_SNAPSHOT_MISMATCH', 'Định mức đã lưu không khớp nguồn định mức lịch sử', {
@@ -351,10 +353,6 @@ function assertStandardSnapshotConsistency({ resolved, standardOutput, standardV
     return true;
   }
 
-  // Old records created before standard-version snapshots have neither id.
-  // They already contain the standard used when the report was entered, so a
-  // valid persisted positive value is sufficient for backward-compatible
-  // approval. New records are still protected by the strict branch above.
   if (!hasProductSnapshotId && !hasMachineSnapshotId) {
     if (!hasSavedOutput) {
       throw businessError('STANDARD_SNAPSHOT_MISMATCH', 'Định mức đã lưu không khớp nguồn định mức lịch sử', {
