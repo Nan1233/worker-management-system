@@ -27,23 +27,26 @@ const eligibleMachineCodes = (product: ProductStandardOption): string[] =>
 const GC_AUTOMATIC_MACHINE_CODES = new Set(["C5", "C6", "C7", "C11"]);
 const GC_AUTOMATIC_ALIAS_CODES = new Set(["C2556", "C5770", "CGYX", "C3880", "C8052"]);
 
-/**
- * Normalize legacy GC aliases at the UI boundary.
- * Old master rows used `2556-auto`, `5770-auto`, etc. These are NOT valid
- * worker-facing aliases. They are the five automatic Cắt aliases and must be
- * canonicalized before deciding whether an item belongs to Cắt or Lồng.
- */
+/** Canonical worker-facing alias for GC. Never expose legacy `-auto` labels. */
 const normalizeGcAlias = (value: unknown): string => {
     const alias = normalize(value);
-    const legacyAuto = alias.match(/^(2556|5770|GYX|3880|8052)-AUTO$/);
+    if (!alias) return "";
+    const legacyAuto = alias.match(/^(?:C)?(2556|5770|GYX|3880|8052)-AUTO$/i);
     if (legacyAuto) {
-        const suffix = legacyAuto[1];
+        const suffix = legacyAuto[1].toUpperCase();
         return suffix === "GYX" ? "CGYX" : `C${suffix}`;
     }
     return alias;
 };
 
-const getGcAlias = (product: ProductStandardOption): string => normalizeGcAlias(product.alias_code);
+/**
+ * Alias is the ONLY value shown to workers.
+ * Legacy rows may have the old value in product_code, so use it only as a
+ * compatibility fallback when alias_code is missing.
+ */
+const getGcAlias = (product: ProductStandardOption): string =>
+    normalizeGcAlias(product.alias_code || product.product_code);
+
 const isGcCutAlias = (aliasCode: string): boolean => aliasCode.startsWith("C");
 const isGcAutomaticMachine = (machineCode: unknown): boolean =>
     GC_AUTOMATIC_MACHINE_CODES.has(normalize(machineCode).replace(/\s+/g, ""));
@@ -65,26 +68,34 @@ export const filterProductsForSelection = ({
     const selectedRawMachine = normalize(machineCode).replace(/\s+/g, "");
 
     if (useEncodedMachineSuffix) {
-        // GC suggestion data is alias-master driven. Legacy product_standards
-        // values are never allowed to become worker-facing labels.
-        const aliasedProducts = products.filter((product) => Boolean(getGcAlias(product)));
-        const cutProducts = aliasedProducts.filter((product) => isGcCutAlias(getGcAlias(product)));
-        const longProducts = aliasedProducts.filter((product) => !isGcCutAlias(getGcAlias(product)));
+        // GC is controlled by the new alias mapping. Full product codes are
+        // never used as worker-facing labels.
+        const canonicalProducts = products
+            .map((product) => ({ product, alias: getGcAlias(product) }))
+            .filter(({ alias }) => Boolean(alias));
 
-        if (!selectedMachine) return mode === "MANUAL" ? longProducts : [];
+        const cutProducts = canonicalProducts.filter(({ alias }) => isGcCutAlias(alias));
+        const longProducts = canonicalProducts.filter(({ alias }) => !isGcCutAlias(alias));
 
-        const isCut = selectedRawMachine.startsWith("C");
-        if (!isCut) {
-            // Lồng Tay and Lồng Máy intentionally share the complete Lồng list.
-            return longProducts;
+        if (!selectedMachine) {
+            return mode === "MANUAL" ? longProducts.map(({ product }) => product) : [];
+        }
+
+        // In Cắt/Lồng, machine code does NOT determine the operation.
+        // operationType already separates Cắt and Lồng. Lồng Tay and Lồng Máy
+        // intentionally share the complete Lồng alias list.
+        if (mode === "MANUAL") {
+            return longProducts.map(({ product }) => product);
         }
 
         if (isGcAutomaticMachine(selectedRawMachine)) {
-            return cutProducts.filter((product) => GC_AUTOMATIC_ALIAS_CODES.has(getGcAlias(product)));
+            return cutProducts
+                .filter(({ alias }) => GC_AUTOMATIC_ALIAS_CODES.has(alias))
+                .map(({ product }) => product);
         }
 
-        // Cắt không tự động vẫn includes the five automatic aliases.
-        return cutProducts;
+        // Cắt không tự động still contains the five automatic Cắt aliases.
+        return cutProducts.map(({ product }) => product);
     }
 
     if (mode === "MANUAL") return products;
@@ -106,8 +117,10 @@ export const filterProductsForSelection = ({
     });
 };
 
-const displayAlias = (product: ProductStandardOption): string =>
-    normalizeGcAlias(product.alias_code) || String(product.product_code || "").trim();
+const displayAlias = (product: ProductStandardOption): string => {
+    if (product.alias_code) return normalizeGcAlias(product.alias_code);
+    return normalizeGcAlias(product.product_code);
+};
 
 export const toProductAutocompleteOptions = (products: ProductStandardOption[]) => {
     const seen = new Set<string>();
