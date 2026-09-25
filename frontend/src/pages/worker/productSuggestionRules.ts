@@ -28,7 +28,7 @@ const GC_AUTOMATIC_MACHINE_CODES = new Set(["C5", "C6", "C7", "C11"]);
 const GC_AUTOMATIC_ALIAS_CODES = new Set(["C2556", "C5770", "CGYX", "C3880", "C8052"]);
 
 /** Canonical worker-facing alias for GC. Never expose legacy `-auto` labels. */
-const normalizeGcAlias = (value: unknown): string => {
+export const normalizeGcAlias = (value: unknown): string => {
     const alias = normalize(value);
     if (!alias) return "";
     const legacyAuto = alias.match(/^(?:C)?(2556|5770|GYX|3880|8052)-AUTO$/i);
@@ -39,13 +39,21 @@ const normalizeGcAlias = (value: unknown): string => {
     return alias;
 };
 
-/**
- * Alias is the ONLY value shown to workers.
- * Legacy rows may have the old value in product_code, so use it only as a
- * compatibility fallback when alias_code is missing.
- */
-const getGcAlias = (product: ProductStandardOption): string =>
+/** Alias is the only worker-facing value. */
+export const getProductDisplayAlias = (product: ProductStandardOption): string =>
     normalizeGcAlias(product.alias_code || product.product_code);
+
+/** Full DB product code corresponding to a worker-facing alias. */
+export const getFullProductCode = (
+    productAlias: string,
+    products: ProductStandardOption[],
+): string => {
+    const normalizedAlias = normalizeGcAlias(productAlias);
+    const match = products.find((product) =>
+        getProductDisplayAlias(product) === normalizedAlias
+    );
+    return String(match?.product_code || productAlias || "").trim();
+};
 
 const isGcCutAlias = (aliasCode: string): boolean => aliasCode.startsWith("C");
 const isGcAutomaticMachine = (machineCode: unknown): boolean =>
@@ -68,10 +76,10 @@ export const filterProductsForSelection = ({
     const selectedRawMachine = normalize(machineCode).replace(/\s+/g, "");
 
     if (useEncodedMachineSuffix) {
-        // GC is controlled by the new alias mapping. Full product codes are
-        // never used as worker-facing labels.
+        // GC is controlled by the alias master. Full product codes and legacy
+        // `-auto` labels are never exposed in the worker dropdown.
         const canonicalProducts = products
-            .map((product) => ({ product, alias: getGcAlias(product) }))
+            .map((product) => ({ product, alias: getProductDisplayAlias(product) }))
             .filter(({ alias }) => Boolean(alias));
 
         const cutProducts = canonicalProducts.filter(({ alias }) => isGcCutAlias(alias));
@@ -81,11 +89,11 @@ export const filterProductsForSelection = ({
             return mode === "MANUAL" ? longProducts.map(({ product }) => product) : [];
         }
 
-        // In Cắt/Lồng, machine code does NOT determine the operation.
-        // operationType already separates Cắt and Lồng. Lồng Tay and Lồng Máy
-        // intentionally share the complete Lồng alias list.
-        if (mode === "MANUAL") {
-            return longProducts.map(({ product }) => product);
+        // Cắt/Lồng is already separated by operationType/work_type before this
+        // function. Lồng Tay and Lồng Máy intentionally share all Lồng aliases.
+        if (longProducts.length && cutProducts.length) {
+            // A machine code alone must never switch Cắt/Lồng. The scoped list
+            // supplied by ProcessPage is the authoritative operation scope.
         }
 
         if (isGcAutomaticMachine(selectedRawMachine)) {
@@ -94,7 +102,8 @@ export const filterProductsForSelection = ({
                 .map(({ product }) => product);
         }
 
-        // Cắt không tự động still contains the five automatic Cắt aliases.
+        // For non-automatic Cắt machines, all Cắt aliases are allowed, including
+        // the five automatic aliases as requested.
         return cutProducts.map(({ product }) => product);
     }
 
@@ -117,17 +126,12 @@ export const filterProductsForSelection = ({
     });
 };
 
-const displayAlias = (product: ProductStandardOption): string => {
-    if (product.alias_code) return normalizeGcAlias(product.alias_code);
-    return normalizeGcAlias(product.product_code);
-};
-
 export const toProductAutocompleteOptions = (products: ProductStandardOption[]) => {
     const seen = new Set<string>();
     return products
         .map((product) => ({
-            value: displayAlias(product),
-            label: displayAlias(product),
+            value: getProductDisplayAlias(product),
+            label: getProductDisplayAlias(product),
         }))
         .filter((option) => {
             const key = normalize(option.label);
