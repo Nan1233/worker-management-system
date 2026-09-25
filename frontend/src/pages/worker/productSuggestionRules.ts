@@ -123,24 +123,35 @@ export const filterProductsForSelection = ({
             products.map((product) => normalizeWorkType(product.work_type)).filter(Boolean)
         );
 
+        const workerSelectionProducts = (rows: Array<{ product: ProductStandardOption; alias: string }>): ProductStandardOption[] =>
+            rows.map(({ product, alias }) => ({
+                ...product,
+                // GC worker forms store/display the alias (for example C2556),
+                // while product_standards keeps the canonical standard code.
+                // Validation consumes these selection rows, so expose the same
+                // worker-facing value there. getFullProductCode() still receives
+                // the untouched scoped master list when building the payload.
+                product_code: alias,
+            }));
+
         if (productWorkTypes.size === 1 && productWorkTypes.has("LONG")) {
             // Lồng products are valid only on Lồng machines (legacy MLxx or current numeric codes).
             if (mode === "MACHINE" && (!selectedMachine || !isGcLongMachine(selectedRawMachine))) return [];
-            return canonicalProducts.map(({ product }) => product);
+            return workerSelectionProducts(canonicalProducts);
         }
 
         if (productWorkTypes.size === 1 && productWorkTypes.has("CUT")) {
             if (!selectedMachine) return [];
             if (isGcAutomaticMachine(selectedRawMachine)) {
-                return canonicalProducts
-                    .filter(({ alias }) => GC_AUTOMATIC_ALIAS_CODES.has(alias))
-                    .map(({ product }) => product);
+                return workerSelectionProducts(
+                    canonicalProducts.filter(({ alias }) => GC_AUTOMATIC_ALIAS_CODES.has(alias))
+                );
             }
-            return canonicalProducts.map(({ product }) => product);
+            return workerSelectionProducts(canonicalProducts);
         }
 
         if (!selectedMachine && mode === "MACHINE") return [];
-        return canonicalProducts.map(({ product }) => product);
+        return workerSelectionProducts(canonicalProducts);
     }
 
     if (mode === "MANUAL") return products;
