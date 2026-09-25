@@ -89,7 +89,14 @@ export const getFullProductCode = (alias: string, products: ProductStandardOptio
 const isGcAutomaticMachine = (machineCode: unknown): boolean =>
     GC_AUTOMATIC_MACHINE_CODES.has(normalize(machineCode).replace(/\s+/g, ""));
 
-const isGcLongMachine = (machineCode: unknown): boolean => /^ML\d+$/i.test(normalize(machineCode).replace(/\s+/g, ""));
+/**
+ * GC Lồng machines in the current DB use numeric machine codes (for example
+ * 10, 14, 15, 16). Older data used ML1..ML20. Both are valid Lồng machines.
+ */
+const isGcLongMachine = (machineCode: unknown): boolean => {
+    const raw = normalize(machineCode).replace(/\s+/g, "");
+    return /^ML\d+$/i.test(raw) || /^\d+$/.test(normalizeMachineKey(raw));
+};
 
 export const filterProductsForSelection = ({
     products,
@@ -117,9 +124,7 @@ export const filterProductsForSelection = ({
         );
 
         if (productWorkTypes.size === 1 && productWorkTypes.has("LONG")) {
-            // Lồng products are valid only on the Lồng machines ML1..ML20.
-            // The worker must select the machine first so the product scope is
-            // tied to the physical machine type rather than only to process GC.
+            // Lồng products are valid only on Lồng machines (legacy MLxx or current numeric codes).
             if (mode === "MACHINE" && (!selectedMachine || !isGcLongMachine(selectedRawMachine))) return [];
             return canonicalProducts.map(({ product }) => product);
         }
