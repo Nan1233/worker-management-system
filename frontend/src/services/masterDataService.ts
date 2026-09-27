@@ -158,10 +158,15 @@ export const resolveProductStandard = async (processId: number, machineCode: str
         const resolved = response.data?.data ?? response.data;
         const resolvedOutput = Number(resolved?.resolved_output_per_hour || 0);
         if (resolvedOutput > 0) return resolved;
-        if (localStandard) return toLocalResolvedStandard(localStandard, processId, normalizedMachine);
-        return resolved;
-    } catch (error) {
-        if (localStandard) return toLocalResolvedStandard(localStandard, processId, normalizedMachine);
+
+        // A successful API response with zero/missing output is authoritative:
+        // do not silently replace it with a different product standard.
+        throw new Error(resolved?.message || `Không có định mức hợp lệ cho ${normalizedProduct} / ${normalizedMachine}`);
+    } catch (error: any) {
+        // Local fallback is allowed only for a genuine network/offline failure.
+        // HTTP validation errors (4xx/5xx) must reach the user unchanged so the
+        // UI cannot show a selectable value that the backend will reject.
+        if (!error?.response && localStandard) return toLocalResolvedStandard(localStandard, processId, normalizedMachine);
         throw error;
     }
 };
