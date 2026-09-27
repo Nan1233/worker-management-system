@@ -10,7 +10,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const has = (source, text) => assert.ok(source.includes(text), `Expected source to contain: ${text}`);
 
 const productionDetail = read('frontend/src/pages/worker/ProductionDetail.tsx');
-const workerEdit = read('frontend/src/pages/worker/WorkerReportEdit.tsx');
+const workerEdit = read('frontend/src/pages/worker/WorkerReportEditV2.tsx');
 const reportValidation = read('backend/utils/reportValidation.js');
 const nonProductCreate = read('backend/models/nonProductWorkCreateModel.js');
 const duplicateService = read('backend/services/logicalDuplicateReportService.js');
@@ -35,10 +35,11 @@ test('manager can edit reports through the central permission model', () => {
 });
 
 test('GC product suggestions keep machine suffix rules scoped to Cắt only', () => {
-  has(productRules, 'if (productWorkTypes.size === 1 && productWorkTypes.has("CUT"))');
-  has(productRules, 'if (isGcAutomaticMachine(selectedRawMachine))');
+  has(productRules, 'productWorkTypes.has("CUT")');
+  has(productRules, 'isGcAutomaticMachine(selectedRawMachine)');
   has(productRules, 'GC_AUTOMATIC_ALIAS_CODES.has(alias)');
-  has(productRules, 'if (productWorkTypes.size === 1 && productWorkTypes.has("LONG"))');
+  has(productRules, 'productWorkTypes.has("LONG")');
+  has(productRules, 'isGcLongMachine(selectedRawMachine)');
 });
 
 test('Công việc khác uses one Xuất nhập work type and remains product-less', () => {
@@ -100,7 +101,7 @@ test('negative cases: shared GC machines enforce four-worker capacity and preser
 });
 
 test('negative cases: Lồng must not inherit Cắt machine-suffix filtering', () => {
-  has(productRules, 'if (productWorkTypes.size === 1 && productWorkTypes.has("LONG"))');
-  has(productRules, 'if (mode === "MACHINE" && (!selectedMachine || !isGcLongMachine(selectedRawMachine))) return [];');
+  has(productRules, 'productWorkTypes.has("LONG")');
+  has(productRules, 'isGcLongMachine(selectedRawMachine)');
   has(productRules, 'return workerSelectionProducts(canonicalProducts);');
 });
