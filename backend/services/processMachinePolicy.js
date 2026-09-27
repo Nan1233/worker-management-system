@@ -1,26 +1,44 @@
 const PROCESS_IDS = Object.freeze({
   GC: 1,
   MAI: 2,
-  K1: 3,
-  K2: 4,
-  DO: 60001,
-  CAN: 60002,
-  EP: 60003,
-  XLBV: 60004,
-  SX3: 60005,
+  DO: 3,
+  K1: 4,
+  K2: 5,
+  XLBV: 6,
+  EP: 7,
+  CAN: 8,
+  SX3: 9,
   CVK: 60006
 });
+
+// Accept legacy FE ids at the API boundary while all internal comparisons
+// use the canonical process ids stored in the current DB.
+const LEGACY_PROCESS_ID_MAP = Object.freeze({
+  60001: PROCESS_IDS.DO,
+  60002: PROCESS_IDS.CAN,
+  60003: PROCESS_IDS.EP,
+  60004: PROCESS_IDS.XLBV,
+  60005: PROCESS_IDS.SX3,
+});
+
+const normalizeProcessId = (processId) => {
+  const numeric = Number(processId);
+  return LEGACY_PROCESS_ID_MAP[numeric] ?? numeric;
+};
 
 const CODE_BY_ID = new Map(Object.entries(PROCESS_IDS).map(([code, id]) => [Number(id), code]));
 
 /**
  * Quy tắc máy theo thực tế xưởng KTC.
- * - Mài: có thể dùng nhiều máy, tối đa 4.
+ * - Mài/Cán: có thể dùng nhiều máy, tối đa 4.
  * - Đo/Ép: đúng 1 công nhân / 1 máy cho mỗi báo cáo.
- * - CVK/XLBV/SX3: không dùng máy sản xuất.
+ * - GC: manual hoặc smart-machine, tối đa 4 máy.
+ * - K1/K2: manual hoặc 1 máy.
+ * - XLBV/SX3/CVK: không dùng máy sản xuất.
  */
 const getProcessMachinePolicy = (processId) => {
-  const code = CODE_BY_ID.get(Number(processId)) || "";
+  const canonicalId = normalizeProcessId(processId);
+  const code = CODE_BY_ID.get(canonicalId) || "";
   if (code === "MAI") {
     return { code, mode: "MULTI_MACHINE_REQUIRED", minMachines: 1, maxMachines: 4 };
   }
@@ -42,4 +60,4 @@ const getProcessMachinePolicy = (processId) => {
   return { code, mode: "LEGACY", minMachines: 0, maxMachines: 1 };
 };
 
-module.exports = { PROCESS_IDS, getProcessMachinePolicy };
+module.exports = { PROCESS_IDS, normalizeProcessId, getProcessMachinePolicy };
