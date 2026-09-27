@@ -46,38 +46,39 @@ const PRODUCT_STANDARD_SELECT = `
 
 const GC_ALIAS_SELECT = `
     SELECT
-        COALESCE(ps.id, -CAST(pa.id AS SIGNED)) AS id,
+        ps.id,
         pa.process_id,
         p.process_code,
         CASE WHEN UPPER(TRIM(pa.alias_code)) LIKE 'C%' THEN 'CUT' ELSE 'LONG' END AS work_type,
-        COALESCE(ps.product_code, pa.product_code) AS product_code,
+        ps.product_code,
         pa.alias_code,
-        NULL AS encoding_code,
-        COALESCE(ps.standard_output, 0) AS standard_output,
+        ps.encoding_code,
+        ps.standard_output,
         COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
-        CASE WHEN ps.id IS NULL THEN 0 ELSE EXISTS(
+        EXISTS(
             SELECT 1 FROM product_machine_standards pms
-            WHERE pms.process_id = pa.process_id
+            WHERE pms.process_id = ps.process_id
               AND pms.product_code = ps.product_code
               AND pms.is_active = 1
-        ) END AS has_machine_specific_standard,
-        CASE WHEN ps.id IS NULL THEN '' ELSE COALESCE((
+        ) AS has_machine_specific_standard,
+        COALESCE((
             SELECT GROUP_CONCAT(DISTINCT m.machine_code ORDER BY m.machine_code SEPARATOR ',')
             FROM product_machine_standards pms2
             JOIN machines m
               ON m.id = pms2.machine_id
              AND m.process_id = pms2.process_id
              AND m.status = 'active'
-            WHERE pms2.process_id = pa.process_id
+            WHERE pms2.process_id = ps.process_id
               AND pms2.product_code = ps.product_code
               AND pms2.is_active = 1
-        ), '') END AS eligible_machine_codes
+        ), '') AS eligible_machine_codes
     FROM product_aliases pa
     JOIN processes p ON p.id = pa.process_id
-    LEFT JOIN product_standards ps
+    JOIN product_standards ps
       ON ps.process_id = pa.process_id
      AND UPPER(TRIM(ps.product_code)) = UPPER(TRIM(pa.product_code))
      AND ps.status = 'active'
+     AND ps.standard_output > 0
     WHERE pa.status = 'active'
       AND p.status = 'active'
       AND UPPER(TRIM(p.process_code)) = 'GC'
@@ -114,6 +115,7 @@ const GC_ALIAS_SELECT = `
     FROM product_standards ps
     JOIN processes p ON p.id = ps.process_id
     WHERE ps.status = 'active'
+      AND ps.standard_output > 0
       AND p.status = 'active'
       AND UPPER(TRIM(p.process_code)) = 'GC'
       AND NOT EXISTS (
@@ -139,6 +141,7 @@ exports.findByProcess = async (processId) => {
     return query(`${PRODUCT_STANDARD_SELECT}
         WHERE ps.process_id = ?
           AND ps.status = 'active'
+          AND ps.standard_output > 0
           AND p.status = 'active'
         ORDER BY ps.product_code ASC, ps.encoding_code ASC, ps.id ASC
     `, [processId]);
@@ -153,6 +156,7 @@ exports.findByProcessCode = async (processCode) => {
     return query(`${PRODUCT_STANDARD_SELECT}
         WHERE UPPER(TRIM(p.process_code)) = UPPER(TRIM(?))
           AND ps.status = 'active'
+          AND ps.standard_output > 0
           AND p.status = 'active'
         ORDER BY ps.product_code ASC, ps.encoding_code ASC, ps.id ASC
     `, [processCode]);
