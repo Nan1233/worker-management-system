@@ -15,7 +15,8 @@ const PRODUCT_STANDARD_SELECT = `
         p.process_code,
         ps.work_type,
         ps.product_code,
-        pa.alias_code,
+        COALESCE(pa.alias_code, ps.encoding_code) AS alias_code,
+        ps.encoding_code,
         ps.standard_output,
         COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
         EXISTS(
@@ -43,11 +44,6 @@ const PRODUCT_STANDARD_SELECT = `
      AND pa.status = 'active'
 `;
 
-/*
- * GC is alias-master driven, but a product standard must never become
- * unreachable merely because its alias row is missing. Return all active
- * aliases and also active GC product_standards that have no active alias.
- */
 const GC_ALIAS_SELECT = `
     SELECT
         COALESCE(ps.id, -CAST(pa.id AS SIGNED)) AS id,
@@ -56,6 +52,7 @@ const GC_ALIAS_SELECT = `
         CASE WHEN UPPER(TRIM(pa.alias_code)) LIKE 'C%' THEN 'CUT' ELSE 'LONG' END AS work_type,
         COALESCE(ps.product_code, pa.product_code) AS product_code,
         pa.alias_code,
+        NULL AS encoding_code,
         COALESCE(ps.standard_output, 0) AS standard_output,
         COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
         CASE WHEN ps.id IS NULL THEN 0 ELSE EXISTS(
@@ -94,6 +91,7 @@ const GC_ALIAS_SELECT = `
         ps.work_type,
         ps.product_code,
         NULL AS alias_code,
+        ps.encoding_code,
         ps.standard_output,
         COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
         EXISTS(
@@ -142,7 +140,7 @@ exports.findByProcess = async (processId) => {
         WHERE ps.process_id = ?
           AND ps.status = 'active'
           AND p.status = 'active'
-        ORDER BY ps.product_code ASC
+        ORDER BY ps.product_code ASC, ps.encoding_code ASC, ps.id ASC
     `, [processId]);
 };
 
@@ -156,7 +154,7 @@ exports.findByProcessCode = async (processCode) => {
         WHERE UPPER(TRIM(p.process_code)) = UPPER(TRIM(?))
           AND ps.status = 'active'
           AND p.status = 'active'
-        ORDER BY ps.product_code ASC
+        ORDER BY ps.product_code ASC, ps.encoding_code ASC, ps.id ASC
     `, [processCode]);
 };
 
@@ -180,10 +178,11 @@ const resolveAliasToProductCode = async (processId, productCode) => {
 exports.resolveByMachineAndProduct = async (processId, machineCode, productCode, workDate) => {
     const { resolveStandard } = require('../services/standardResolutionService');
     const canonicalProductCode = await resolveAliasToProductCode(processId, productCode);
+    const lookupProductCode = String(productCode || '').trim() || canonicalProductCode;
     const resolved = await resolveStandard({
         processId,
         machineCode,
-        productCode: canonicalProductCode,
+        productCode: lookupProductCode,
         workDate
     });
     return {
@@ -192,7 +191,7 @@ exports.resolveByMachineAndProduct = async (processId, machineCode, productCode,
         machine_standard_id: resolved.machineStandardId,
         process_id: resolved.processId,
         product_code: resolved.productCode,
-        alias_code: String(productCode || '').trim() !== canonicalProductCode ? String(productCode || '').trim() : null,
+        alias_code: String(productCode || '').trim() !== resolved.productCode ? String(productCode || '').trim() : null,
         machine_id: resolved.machineId || null,
         machine_code: resolved.machineCode || machineCode,
         standard_time_seconds: resolved.standardTimeSeconds,

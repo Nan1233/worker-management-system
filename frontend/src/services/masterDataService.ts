@@ -17,6 +17,7 @@ export interface ProductStandardOption {
     work_type: string;
     product_code: string;
     alias_code?: string;
+    encoding_code?: string;
     has_machine_specific_standard?: number;
     eligible_machine_codes?: string;
     standard_output: number;
@@ -32,26 +33,20 @@ export const getMachinesByProcess = async (processId: number): Promise<MachineOp
 const PROCESS_PRODUCT_CACHE_TTL_MS = 30_000;
 const processProductRowsCache = new Map<number, { expiresAt: number; rows: ProductStandardOption[] }>();
 
-export const getProductStandardsByProcess = async (
-    processId: number,
-    processCode?: string,
-): Promise<ProductStandardOption[]> => {
+export const getProductStandardsByProcess = async (processId: number, processCode?: string): Promise<ProductStandardOption[]> => {
     const requests: Promise<ProductStandardOption[]>[] = [
-        api.get("/product-standards", { params: { process_id: processId } })
-            .then((response) => {
-                const payload = response.data?.data ?? response.data;
-                return Array.isArray(payload) ? payload : [];
-            }),
+        api.get("/product-standards", { params: { process_id: processId } }).then((response) => {
+            const payload = response.data?.data ?? response.data;
+            return Array.isArray(payload) ? payload : [];
+        }),
     ];
     const normalizedCode = String(processCode || "").trim().toUpperCase();
     if (normalizedCode) {
         requests.push(
-            api.get("/product-standards", { params: { process_code: processCode } })
-                .then((response) => {
-                    const payload = response.data?.data ?? response.data;
-                    return Array.isArray(payload) ? payload : [];
-                })
-                .catch(() => []),
+            api.get("/product-standards", { params: { process_code: processCode } }).then((response) => {
+                const payload = response.data?.data ?? response.data;
+                return Array.isArray(payload) ? payload : [];
+            }).catch(() => []),
         );
     }
     const results = await Promise.all(requests);
@@ -123,31 +118,20 @@ const resolveCanonicalProductCode = async (processId: number, productCode: strin
 
 const findPositiveLocalStandard = (rows: ProductStandardOption[], normalizedProduct: string, canonicalProduct: string): ProductStandardOption | undefined => {
     const normalizedCanonical = String(canonicalProduct || "").trim().toUpperCase();
-    return rows
-        .filter((row) => {
-            const code = String(row?.product_code || "").trim().toUpperCase();
-            const alias = String(row?.alias_code || "").trim().toUpperCase();
-            return code === normalizedCanonical || code === normalizedProduct || alias === normalizedProduct;
-        })
-        .filter((row) => Number.isFinite(Number(row?.standard_output)) && Number(row.standard_output) > 0)
-        .sort((a, b) => Number(b.standard_output) - Number(a.standard_output))[0];
+    const exactAlias = rows.filter((row) => String(row?.alias_code || "").trim().toUpperCase() === normalizedProduct && Number(row?.standard_output) > 0);
+    if (exactAlias.length === 1) return exactAlias[0];
+    const exactCode = rows.filter((row) => String(row?.product_code || "").trim().toUpperCase() === normalizedProduct && Number(row?.standard_output) > 0);
+    if (exactCode.length === 1) return exactCode[0];
+    const canonicalRows = rows.filter((row) => String(row?.product_code || "").trim().toUpperCase() === normalizedCanonical && Number(row?.standard_output) > 0);
+    return canonicalRows.length === 1 ? canonicalRows[0] : undefined;
 };
 
 const toLocalResolvedStandard = (row: ProductStandardOption, processId: number, machineCode: string): ResolvedProductStandard => {
     const output = Number(row.standard_output);
     return {
-        product_standard_id: Number(row.id),
-        process_id: Number(row.process_id || processId),
-        product_code: String(row.product_code),
-        alias_code: row.alias_code || null,
-        machine_id: null,
-        machine_code: machineCode,
-        standard_time_seconds: null,
-        machine_standard_output: null,
-        default_standard_output: output,
-        resolved_output_per_hour: output,
-        standard_source: "DEFAULT",
-        exclude_kqd_from_tt: Number(row.exclude_kqd_from_tt || 0),
+        product_standard_id: Number(row.id), process_id: Number(row.process_id || processId), product_code: String(row.product_code), alias_code: row.alias_code || null,
+        machine_id: null, machine_code: machineCode, standard_time_seconds: null, machine_standard_output: null,
+        default_standard_output: output, resolved_output_per_hour: output, standard_source: "DEFAULT", exclude_kqd_from_tt: Number(row.exclude_kqd_from_tt || 0),
     };
 };
 
@@ -163,13 +147,14 @@ export const resolveProductStandard = async (processId: number, machineCode: str
 
     if (!normalizedMachine) {
         const candidates = rows.filter((row) => [row?.product_code, row?.alias_code].some((value) => String(value || "").trim().toUpperCase() === normalizedProduct.toUpperCase()));
-        const product = candidates.filter((row) => Number.isFinite(Number(row?.standard_output)) && Number(row.standard_output) > 0).sort((a, b) => Number(b.standard_output) - Number(a.standard_output))[0] ?? candidates[0];
-        if (!product) throw new Error(`Không tìm thấy mã sản phẩm ${normalizedProduct} trong công đoạn`);
+        const positiveCandidates = candidates.filter((row) => Number.isFinite(Number(row?.standard_output)) && Number(row.standard_output) > 0);
+        const product = positiveCandidates.length === 1 ? positiveCandidates[0] : candidates.length === 1 ? candidates[0] : undefined;
+        if (!product) throw new Error(`Không xác định duy nhất mã sản phẩm ${normalizedProduct} trong công đoạn`);
         return toLocalResolvedStandard(product, processId, "");
     }
 
     try {
-        const response = await api.get("/product-standards/resolve", { params: { process_id: processId, machine_code: normalizedMachine, product_code: canonicalProduct, work_date: workDate || undefined } });
+        const response = await api.get("/product-standards/resolve", { params: { process_id: processId, machine_code: normalizedMachine, product_code: normalizedProduct, work_date: workDate || undefined } });
         const resolved = response.data?.data ?? response.data;
         const resolvedOutput = Number(resolved?.resolved_output_per_hour || 0);
         if (resolvedOutput > 0) return resolved;
