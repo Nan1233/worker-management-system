@@ -32,61 +32,89 @@ function fixture(overrides = {}) {
   };
 }
 
-test('2801-LT Lồng exports canonical 605/h standard and achievement from snapshot', async () => {
-  const exportRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'ktc-2801-lt-excel-'));
-  try {
-    const result = await buildTemplateDrivenProcessWorkbook(
-      [fixture()],
-      '2026-09',
-      { exportRoot, processName: 'GC', fileName: 'regression-2801-LT.xlsx' }
-    );
+function normalized(value) {
+  return String(value ?? '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/gi, 'd')
+    .replace(/[^a-zA-Z0-9%\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
 
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.readFile(result.archivePath);
+function findHeaderRow(sheet, requiredLabels) {
+  const required = requiredLabels.map(normalized);
+  for (let rowNumber = 1; rowNumber <= Math.min(sheet.rowCount, 350); rowNumber += 1) {
+    const values = sheet.getRow(rowNumber).values.map(normalized);
+    if (required.every((label) => values.some((value) => value === label || value.includes(label)))) {
+      return rowNumber;
+    }
+  }
+  return null;
+}
+
+function findColumn(sheet, rowNumber, ...labels) {
+  const values = sheet.getRow(rowNumber).values.map(normalized);
+  for (const label of labels) {
+    const needle = normalized(label);
+    const index = values.findIndex((value) => value === needle || value.includes(needle));
+    if (index > 0) return index;
+  }
+  return null;
+}
+
+async function readExport(machine = '1') {
+  const exportRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'ktc-2801-lt-excel-'));
+  const result = await buildTemplateDrivenProcessWorkbook(
+    [fixture({ machine_no: machine, actual_output: machine === '1' ? 4840 : 605, total_time: machine === '1' ? 8 : 1, actual_time: machine === '1' ? 8 : 1 })],
+    '2026-09',
+    { exportRoot, processName: 'GC', fileName: `regression-2801-LT-${machine}.xlsx` }
+  );
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(result.archivePath);
+  return { exportRoot, workbook };
+}
+
+test('legacy Excel export preserves report snapshot values in the current Cắt lồng template', async () => {
+  const { exportRoot, workbook } = await readExport('1');
+  try {
     const sheet = workbook.getWorksheet('Cắt lồng');
     assert.ok(sheet, 'Workbook phải có sheet Cắt lồng');
 
-    const header = sheet.getRow(326).values;
-    const find = (label) => {
-      const index = header.findIndex((value) => String(value ?? '').trim() === label);
-      assert.ok(index > 0, `Không tìm thấy cột ${label}`);
-      return index;
-    };
+    const headerRow = findHeaderRow(sheet, ['Mã sản phẩm', 'Số máy', 'Định mức']);
+    assert.ok(headerRow, 'Không tìm thấy hàng tiêu đề hiện tại của sheet Cắt lồng');
 
-    const standardCol = find('Định mức');
-    const actualCol = find('Thực tích');
-    const achievementCol = find('% năng suất');
-    const productCol = find('Mã sản phẩm');
-    const machineCol = find('Số máy');
+    const productCol = findColumn(sheet, headerRow, 'Mã sản phẩm', 'Mã sp');
+    const machineCol = findColumn(sheet, headerRow, 'Số máy', 'Máy');
+    const standardCol = findColumn(sheet, headerRow, 'Định mức', 'KH', 'ĐM');
+    const actualCol = findColumn(sheet, headerRow, 'Thực tích', 'KQSX', 'Kết quả sản xuất');
+    const achievementCol = findColumn(sheet, headerRow, '% năng suất', '% thực tích', '% sản lượng theo kế hoạch');
 
-    assert.equal(sheet.getCell(327, productCol).value, '2801-LT');
-    assert.equal(String(sheet.getCell(327, machineCol).value), '1');
-    assert.equal(sheet.getCell(327, standardCol).value, 605, '2801-LT Lồng phải giữ định mức snapshot 605/h');
-    assert.equal(sheet.getCell(327, actualCol).value, 4840);
-    assert.equal(Number(sheet.getCell(327, achievementCol).value.toFixed(8)), 1, '4840/(605*8) phải bằng 100%');
+    assert.ok(productCol && machineCol && standardCol && actualCol && achievementCol, 'Thiếu cột dữ liệu Excel hiện tại');
+    const row = sheet.getRow(headerRow + 1);
+    assert.equal(row.getCell(productCol).value, '2801-LT');
+    assert.equal(String(row.getCell(machineCol).value), '1');
+    assert.equal(Number(row.getCell(standardCol).value), 605, 'Phải giữ định mức snapshot 605/h');
+    assert.equal(Number(row.getCell(actualCol).value), 4840);
+    assert.equal(Number(Number(row.getCell(achievementCol).value).toFixed(8)), 1, '4840/(605*8) phải bằng 100%');
   } finally {
     await fs.rm(exportRoot, { recursive: true, force: true });
   }
 });
 
-test('2801-LT export remains 605/h when machine changes', async () => {
-  const exportRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'ktc-2801-lt-excel-machines-'));
-  try {
-    for (const machine of ['1', '2', '3', '10']) {
-      const result = await buildTemplateDrivenProcessWorkbook(
-        [fixture({ id: Number(`2801${machine}`), machine_no: machine, actual_output: 605, total_time: 1, actual_time: 1 })],
-        '2026-09',
-        { exportRoot, processName: 'GC', fileName: `regression-2801-LT-${machine}.xlsx` }
-      );
-      const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.readFile(result.archivePath);
+test('legacy Excel export preserves snapshot standard when machine changes', async () => {
+  for (const machine of ['1', '2', '3', '10']) {
+    const { exportRoot, workbook } = await readExport(machine);
+    try {
       const sheet = workbook.getWorksheet('Cắt lồng');
-      const header = sheet.getRow(326).values;
-      const standardCol = header.findIndex((value) => String(value ?? '').trim() === 'Định mức');
-      assert.ok(standardCol > 0);
-      assert.equal(sheet.getCell(327, standardCol).value, 605, `Máy ${machine}: 2801-LT Lồng phải giữ 605/h`);
+      assert.ok(sheet, 'Workbook phải có sheet Cắt lồng');
+      const headerRow = findHeaderRow(sheet, ['Mã sản phẩm', 'Số máy', 'Định mức']);
+      assert.ok(headerRow, 'Không tìm thấy hàng tiêu đề hiện tại của sheet Cắt lồng');
+      const standardCol = findColumn(sheet, headerRow, 'Định mức', 'KH', 'ĐM');
+      assert.ok(standardCol, 'Không tìm thấy cột định mức');
+      assert.equal(Number(sheet.getRow(headerRow + 1).getCell(standardCol).value), 605, `Máy ${machine}: phải giữ định mức snapshot 605/h`);
+    } finally {
+      await fs.rm(exportRoot, { recursive: true, force: true });
     }
-  } finally {
-    await fs.rm(exportRoot, { recursive: true, force: true });
   }
 });
