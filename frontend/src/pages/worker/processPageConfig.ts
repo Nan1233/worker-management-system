@@ -1,6 +1,6 @@
 import kqdExclusionRegistry from "../../../../shared/kqdExclusionRegistry.json";
 import { PROCESS_FORM_SCHEMAS } from "./processFormSchemas";
-import { normalizeProcessId } from "../../utils/processAccess";
+import { getCanonicalProcessId } from "../../utils/processAccess";
 
 export type FormState = {
     [key: string]: string;
@@ -100,7 +100,7 @@ export type DeductionKey = Extract<keyof DeductionState, string>;
 export const processMap: Record<string, { id: number; title: string; machineLabel: string }> = Object.fromEntries(
     Object.entries(PROCESS_FORM_SCHEMAS).map(([slug, schema]) => [
         slug,
-        { id: normalizeProcessId(schema.processId), title: schema.title, machineLabel: schema.machineLabel },
+        { id: getCanonicalProcessId(schema.processId, schema.processCode), title: schema.title, machineLabel: schema.machineLabel },
     ]),
 );
 
