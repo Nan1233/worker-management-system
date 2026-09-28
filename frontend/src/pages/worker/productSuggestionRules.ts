@@ -3,6 +3,11 @@ import type { MachineOption, ProductStandardOption } from "../../services/master
 export type ProductSuggestionMode = "MANUAL" | "MACHINE";
 const normalize = (value: unknown) => String(value ?? "").trim().toUpperCase();
 
+/** Các công việc Lồng tay không có định mức/sản lượng OK-NG. */
+export const NO_STANDARD_LONG_WORK_CODES = ["XUATNHAP", "KTCD", "TAIPP"] as const;
+export const NO_STANDARD_LONG_WORK_SET = new Set<string>(NO_STANDARD_LONG_WORK_CODES);
+export const isNoStandardLongWork = (value: unknown): boolean => NO_STANDARD_LONG_WORK_SET.has(normalize(value));
+
 export const normalizeMachineKey = (value: unknown): string => {
     const code = normalize(value).replace(/\s+/g, "");
     if (!code) return "";
@@ -97,22 +102,11 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
             if (isGcAutomaticMachine(selectedRawMachine)) {
                 const automaticProducts = canonicalProducts.filter(({ alias }) => GC_AUTOMATIC_ALIAS_CODES.has(alias));
                 const presentAliases = new Set(automaticProducts.map(({ alias }) => alias));
-                // The EXE also exposes valid GC automatic aliases whose base
-                // product_standards row can have zero output while the
-                // machine-specific standard is valid. Keep the UI complete;
-                // the resolve API remains authoritative when the user selects one.
                 const template = automaticProducts[0]?.product || canonicalProducts[0]?.product;
                 if (template) {
                     for (const alias of GC_AUTOMATIC_ALIAS_CODES) {
                         if (presentAliases.has(alias)) continue;
-                        automaticProducts.push({
-                            product: {
-                                ...template,
-                                product_code: alias,
-                                alias_code: alias,
-                            },
-                            alias,
-                        });
+                        automaticProducts.push({ product: { ...template, product_code: alias, alias_code: alias }, alias });
                     }
                 }
                 return workerSelectionProducts(automaticProducts);
