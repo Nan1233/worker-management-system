@@ -10,9 +10,23 @@ function buildListFilters(managerId, filters, isAdmin, statusSql) {
         conditions.push("(pr.process_id = 60006 OR EXISTS (SELECT 1 FROM manager_processes mp_scope WHERE mp_scope.process_id = pr.process_id AND mp_scope.manager_id = ?))");
         params.push(managerId);
     }
+    const dateFrom = filters.date_from || filters.dateFrom;
+    const dateTo = filters.date_to || filters.dateTo;
+    if (dateFrom) { conditions.push("DATE(pr.work_date) >= ?"); params.push(dateFrom); }
+    if (dateTo) { conditions.push("DATE(pr.work_date) <= ?"); params.push(dateTo); }
     if (filters.work_date) { conditions.push("DATE(pr.work_date) = ?"); params.push(filters.work_date); }
     if (filters.process_id) { conditions.push("pr.process_id = ?"); params.push(Number(filters.process_id)); }
+    if (filters.process_name) { conditions.push("p.process_name = ?"); params.push(String(filters.process_name).trim()); }
+    if (filters.shift) { conditions.push("pr.shift = ?"); params.push(String(filters.shift).trim()); }
     if (filters.worker_id) { conditions.push("pr.worker_id = ?"); params.push(Number(filters.worker_id)); }
+    if (filters.search) {
+        const search = String(filters.search).trim();
+        if (search) {
+            const q = `%${search}%`;
+            conditions.push("(CAST(w.worker_code AS CHAR) COLLATE utf8mb4_general_ci LIKE ? OR u.full_name COLLATE utf8mb4_general_ci LIKE ? OR pr.machine_no COLLATE utf8mb4_general_ci LIKE ? OR pr.product_name COLLATE utf8mb4_general_ci LIKE ? OR p.process_name COLLATE utf8mb4_general_ci LIKE ?)");
+            params.push(q, q, q, q, q);
+        }
+    }
     return { conditions, params };
 }
 
@@ -66,22 +80,22 @@ module.exports = {
         const { page = 1, page_size: pageSize = 20, offset = 0 } = filters.pagination || {};
         const { conditions, params } = buildListFilters(managerId, filters, isAdmin, "pr.status IN ('pending', 'need_fix')");
         const where = conditions.join(" AND ");
-        const [countRows, items, processes, previousCount] = await Promise.all([
-            query(db, `SELECT COUNT(*) AS total FROM production_reports_temp pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where}`, params),
-            query(db, `SELECT pr.id,pr.work_date,pr.shift,pr.machine_no,pr.product_name,pr.updated_at,pr.worker_id,w.user_id,w.worker_code,u.full_name,p.process_name FROM production_reports_temp pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where} ORDER BY pr.work_date DESC,pr.created_at ASC,pr.id ASC LIMIT ? OFFSET ?`, [...params,pageSize,offset]),
-            getProcessOptions(managerId,isAdmin), getPreviousPendingCount(managerId,isAdmin)
-        ]);
+
+        // TiDB Serverless/Cloudflare: keep the queries sequential so one request
+        // does not open multiple concurrent serverless connections for the same list.
+        const countRows = await query(db, `SELECT COUNT(*) AS total FROM production_reports_temp pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where}`, params);
+        const items = await query(db, `SELECT pr.id,pr.work_date,pr.shift,pr.machine_no,pr.product_name,pr.updated_at,pr.worker_id,w.user_id,w.worker_code,u.full_name,p.process_name FROM production_reports_temp pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where} ORDER BY pr.work_date DESC,pr.created_at ASC,pr.id ASC LIMIT ? OFFSET ?`, [...params, pageSize, offset]);
+        const processes = await getProcessOptions(managerId, isAdmin);
+        const previousCount = await getPreviousPendingCount(managerId, isAdmin);
         return { items, pagination: paginationMeta({page,pageSize,total:Number(countRows?.[0]?.total||0)}), processes, previous_count: previousCount };
     },
     async getApproved(managerId, filters = {}, isAdmin = false) {
         const { page = 1, page_size: pageSize = 20, offset = 0 } = filters.pagination || {};
         const { conditions, params } = buildListFilters(managerId, filters, isAdmin, "pr.status = 'approved'");
         const where = conditions.join(" AND ");
-        const [countRows, items, processes] = await Promise.all([
-            query(db, `SELECT COUNT(*) AS total FROM production_reports pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where}`, params),
-            query(db, `SELECT pr.id,pr.work_date,pr.shift,pr.machine_no,pr.product_name,pr.training_percent_snapshot,pr.training_percent_snapshot AS training_percent,w.worker_code,u.full_name,p.process_name FROM production_reports pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where} ORDER BY pr.approved_at DESC,pr.id DESC LIMIT ? OFFSET ?`, [...params,pageSize,offset]),
-            getProcessOptions(managerId,isAdmin)
-        ]);
+        const countRows = await query(db, `SELECT COUNT(*) AS total FROM production_reports pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where}`, params);
+        const items = await query(db, `SELECT pr.id,pr.work_date,pr.shift,pr.machine_no,pr.product_name,pr.training_percent_snapshot,pr.training_percent_snapshot AS training_percent,w.worker_code,u.full_name,p.process_name FROM production_reports pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where} ORDER BY pr.approved_at DESC,pr.id DESC LIMIT ? OFFSET ?`, [...params, pageSize, offset]);
+        const processes = await getProcessOptions(managerId, isAdmin);
         return { items, pagination: paginationMeta({page,pageSize,total:Number(countRows?.[0]?.total||0)}), processes };
     },
     async getDates(managerId = null) {
