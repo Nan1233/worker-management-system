@@ -1,5 +1,5 @@
-import ProductionReadonlyDetail from "./ProductionReadonlyDetail";
+import WorkerReportFormDetail from "./WorkerReportFormDetail";
 
 export default function ProductionDetail() {
-  return <ProductionReadonlyDetail />;
+  return <WorkerReportFormDetail />;
 }
