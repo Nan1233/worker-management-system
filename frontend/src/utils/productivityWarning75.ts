@@ -48,6 +48,30 @@ function installStyle() {
         content: " ⚠";
         color: #8a5200;
       }
+
+      /* Detail panel: same warning language, but applied to the KPI field itself. */
+      .ktc-detail-productivity-warning,
+      .ktc-detail-productivity-warning strong {
+        background: #ff8a9a !important;
+        color: #000 !important;
+        font-weight: 900 !important;
+        border-radius: 7px !important;
+      }
+      .ktc-detail-productivity-warning {
+        padding: 5px 7px !important;
+        box-shadow: inset 0 0 0 2px #e05268 !important;
+      }
+      .ktc-detail-ng-warning,
+      .ktc-detail-ng-warning strong {
+        background: #ffd54f !important;
+        color: #000 !important;
+        font-weight: 900 !important;
+        border-radius: 7px !important;
+      }
+      .ktc-detail-ng-warning {
+        padding: 5px 7px !important;
+        box-shadow: inset 0 0 0 2px #d89b00 !important;
+      }
     `;
     document.head.appendChild(style);
 }
@@ -175,13 +199,51 @@ function scanProductivityTables() {
     });
 }
 
+function scanDetailKpi() {
+    installStyle();
+
+    document.querySelectorAll<HTMLElement>(".pending-detail-info-grid").forEach((grid) => {
+        const fields = Array.from(grid.querySelectorAll<HTMLElement>(".pending-detail-field"));
+        const productivityField = fields.find((field) =>
+            String(field.querySelector("span")?.textContent || "").trim().toLowerCase().includes("năng suất")
+        );
+        const ngField = fields.find((field) => {
+            const label = String(field.querySelector("span")?.textContent || "").trim().toLowerCase();
+            return label.includes("% pp") || label.includes("% ng") || label === "ng%";
+        });
+
+        if (productivityField) {
+            const value = parsePercent(productivityField.querySelector("strong")?.textContent || "");
+            const warning = Number.isFinite(value) && (value <= LOW_LIMIT || value > HIGH_LIMIT);
+            productivityField.classList.toggle("ktc-detail-productivity-warning", warning);
+        }
+
+        if (ngField) {
+            const value = parsePercent(ngField.querySelector("strong")?.textContent || "");
+            const ngSection = Array.from(document.querySelectorAll<HTMLElement>(".pending-detail-section")).find((section) =>
+                String(section.querySelector("h3")?.textContent || "").trim().toLowerCase().includes("chi tiết lỗi ng")
+            );
+            const defectTypes = ngSection ? ngSection.querySelectorAll(".pending-defect").length : 0;
+            const warning = Number.isFinite(value) && (value === 0 || defectTypes === 1);
+            ngField.classList.toggle("ktc-detail-ng-warning", warning);
+        }
+    });
+}
+
 export function initializeProductivityWarning75() {
     if (typeof document === "undefined") return;
     const start = () => {
         scanProductivityTables();
-        const observer = new MutationObserver(scanProductivityTables);
+        scanDetailKpi();
+        const observer = new MutationObserver(() => {
+            scanProductivityTables();
+            scanDetailKpi();
+        });
         observer.observe(document.body, { childList: true, subtree: true, characterData: true });
-        window.setInterval(scanProductivityTables, 1500);
+        window.setInterval(() => {
+            scanProductivityTables();
+            scanDetailKpi();
+        }, 1500);
     };
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });
     else start();
