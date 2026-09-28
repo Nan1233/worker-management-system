@@ -59,14 +59,62 @@ async function getTempMachineLines(id) {
     return query(db, `SELECT ml.* FROM production_temp_machine_lines ml WHERE ml.temp_report_id = ? ORDER BY ml.id`, [id]);
 }
 
-function normalizeMachineLines(lines) { return lines || []; }
+function parseDefectsJson(value) {
+    if (Array.isArray(value)) return value;
+    if (value === null || value === undefined || value === "") return [];
+    try {
+        const parsed = typeof value === "string" ? JSON.parse(value) : value;
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+        return [];
+    }
+}
+
+function normalizeMachineDefect(item) {
+    return {
+        id: item?.id ?? null,
+        defect_type_id: Number(item?.defect_type_id ?? item?.defect_id ?? 0) || null,
+        defect_code: String(item?.defect_code ?? "").trim(),
+        defect_name: String(item?.defect_name ?? "").trim(),
+        quantity: Math.max(0, Math.trunc(Number(item?.quantity ?? item?.qty ?? 0) || 0)),
+    };
+}
+
+function getJsonMachineDefects(line) {
+    return parseDefectsJson(line?.defects_json)
+        .map(normalizeMachineDefect)
+        .filter((item) => item.quantity > 0);
+}
 
 function mergeMachineDefects(lines, defects, eventDefects) {
     const byLine = new Map();
-    for (const defect of defects || []) { const key = Number(defect.machine_line_id); if (!byLine.has(key)) byLine.set(key, []); byLine.get(key).push(defect); }
+    for (const defect of defects || []) {
+        const key = Number(defect.machine_line_id);
+        if (!byLine.has(key)) byLine.set(key, []);
+        byLine.get(key).push(defect);
+    }
     const byEvent = new Map();
-    for (const defect of eventDefects || []) { const key = Number(defect.machine_event_id); if (!byEvent.has(key)) byEvent.set(key, []); byEvent.get(key).push(defect); }
-    return (lines || []).map(line => ({ ...line, defects: byLine.get(Number(line.id))?.length ? byLine.get(Number(line.id)) : (byEvent.get(Number(line.machine_event_id)) || []) }));
+    for (const defect of eventDefects || []) {
+        const key = Number(defect.machine_event_id);
+        if (!byEvent.has(key)) byEvent.set(key, []);
+        byEvent.get(key).push(defect);
+    }
+    return (lines || []).map((line) => {
+        const childDefects = byLine.get(Number(line.id)) || [];
+        const eventChildDefects = byEvent.get(Number(line.machine_event_id)) || [];
+        const defectsFromJson = getJsonMachineDefects(line);
+        return {
+            ...line,
+            defects: childDefects.length ? childDefects : (eventChildDefects.length ? eventChildDefects : defectsFromJson),
+        };
+    });
+}
+
+function enrichMachineLines(lines) {
+    return (lines || []).map((line) => ({
+        ...line,
+        defects: getJsonMachineDefects(line),
+    }));
 }
 
 async function attachPendingChildren(items) {
@@ -88,14 +136,14 @@ async function attachPendingChildren(items) {
     return items.map((item) => {
         const defectsForReport = byDefect.get(Number(item.id)) || [];
         const deductionsForReport = byDeduction.get(Number(item.id)) || [];
-        const machinesForReport = byMachine.get(Number(item.id)) || [];
+        const machinesForReport = enrichMachineLines(byMachine.get(Number(item.id)) || []);
         const detailNg = defectsForReport.reduce((sum, row) => sum + Math.max(0, Math.trunc(Number(row.quantity) || 0)), 0);
         const ttNg = Math.max(0, Math.trunc(Number(item.tt_ng) || 0));
         return normalizeReportTimestamps({
             ...item,
             defects: defectsForReport,
             deductions: normalizeDeductions(deductionsForReport),
-            machine_lines: normalizeMachineLines(machinesForReport),
+            machine_lines: machinesForReport,
             ng_detail_total: detailNg,
             ng_unclassified: Math.max(0, ttNg - detailNg),
             ng_detail_complete: detailNg === ttNg
@@ -106,11 +154,9 @@ async function attachPendingChildren(items) {
 module.exports = {
     async getPending(managerId, filters = {}, isAdmin = false) {
         const { page = 1, page_size: pageSize = 20, offset = 0 } = filters.pagination || {};
-        const { conditions, params } = buildListFilters(managerId, filters, isAdmin, "pr.status IN ('pending', 'need_fix')");
+        const { conditions, params } = buildListFilters(managerId, filters, isAdmin, "pr.status IN ('pending','need_fix')");
         const where = conditions.join(" AND ");
         const countRows = await query(db, `SELECT COUNT(*) AS total FROM production_reports_temp pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where}`, params);
-        // Return the full temp-report row, not a reduced summary. The pending
-        // screen, edit form and detail panel must consume the same source data.
         const items = await query(db, `SELECT pr.*,w.user_id,w.worker_code,u.full_name,p.process_name,p.process_code FROM production_reports_temp pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where} ORDER BY pr.work_date DESC,pr.created_at ASC,pr.id ASC LIMIT ? OFFSET ?`, [...params, pageSize, offset]);
         const enrichedItems = await attachPendingChildren(items);
         const processes = await getProcessOptions(managerId, isAdmin);
@@ -145,7 +191,7 @@ module.exports = {
             ]);
             const detailNg = (defects || []).reduce((sum, row) => sum + Math.max(0, Math.trunc(Number(row.quantity) || 0)), 0);
             const ttNg = Math.max(0, Math.trunc(Number(rows[0].tt_ng) || 0));
-            return normalizeReportTimestamps({...rows[0],defects:mergeDefects(rows[0],defects,machineLines),deductions:normalizeDeductions(deductions),machine_lines:normalizeMachineLines(machineLines),ng_detail_total:detailNg,ng_unclassified:Math.max(0,ttNg-detailNg),ng_detail_complete:detailNg===ttNg});
+            return normalizeReportTimestamps({...rows[0],defects:mergeDefects(rows[0],defects,machineLines),deductions:normalizeDeductions(deductions),machine_lines:mergeMachineDefects(machineLines,[],[]),ng_detail_total:detailNg,ng_unclassified:Math.max(0,ttNg-detailNg),ng_detail_complete:detailNg===ttNg});
         }
 
         const approvedRows=await query(db,`SELECT pr.*,w.worker_code,u.full_name,p.process_name,p.process_code,reviewer.full_name AS reviewer_name FROM production_reports pr LEFT JOIN workers w ON pr.worker_id=w.id LEFT JOIN users u ON w.user_id=u.id LEFT JOIN processes p ON pr.process_id=p.id LEFT JOIN users reviewer ON reviewer.id=pr.reviewed_by WHERE pr.id=? AND pr.status='approved' LIMIT 1`,[id]);
@@ -157,7 +203,7 @@ module.exports = {
         try { machineLines=await query(db,`SELECT ml.* FROM production_report_machine_lines ml WHERE ml.report_id=? ORDER BY ml.id`,[id]); } catch(e) { console.warn('APPROVED DETAIL MACHINE FALLBACK:',e?.message||e); }
         const detailNg = (defects || []).reduce((sum, row) => sum + Math.max(0, Math.trunc(Number(row.quantity) || 0)), 0);
         const ttNg = Math.max(0, Math.trunc(Number(approved.tt_ng) || 0));
-        return normalizeReportTimestamps({...approved,defects:mergeDefects(approved,defects,machineLines),deductions:normalizeDeductions(deductions),machine_lines:normalizeMachineLines(machineLines),ng_detail_total:detailNg,ng_unclassified:Math.max(0,ttNg-detailNg),ng_detail_complete:detailNg===ttNg,report_type:'approved'});
+        return normalizeReportTimestamps({...approved,defects:mergeDefects(approved,defects,machineLines),deductions:normalizeDeductions(deductions),machine_lines:mergeMachineDefects(machineLines,[],[]),ng_detail_total:detailNg,ng_unclassified:Math.max(0,ttNg-detailNg),ng_detail_complete:detailNg===ttNg,report_type:'approved'});
     },
     async canManageReport(reportId, managerId, isAdmin=false) {
         if(isAdmin) return true;
