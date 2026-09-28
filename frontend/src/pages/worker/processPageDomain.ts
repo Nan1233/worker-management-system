@@ -67,6 +67,13 @@ export function filterProductsForProcessScope(args: {
     const returnedProcessCode = codeOf(product.process_code);
     const processMatches = !expectedProcessCode || !returnedProcessCode || returnedProcessCode === expectedProcessCode;
     if (!processMatches) return false;
+
+    // GC / Lồng: the worker must be able to choose any GC product code
+    // regardless of whether the selected execution method is Máy or Tay.
+    // The actual machine/standard resolution is handled later when a machine
+    // is selected. Do not restrict the product list by work_type here.
+    if (expectedProcessCode === "GC" && expectedWorkType === "LONG") return true;
+
     if (expectedProcessCode === "GC" && expectedWorkType) {
       return normalizeWorkType(product.work_type) === expectedWorkType;
     }
