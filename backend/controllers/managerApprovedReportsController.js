@@ -14,25 +14,6 @@ const normalizeDate = (value, fallback) => {
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : fallback;
 };
 
-/**
- * Build a user-friendly multi-word, accent-insensitive search predicate.
- *
- * Every whitespace-separated token must match at least one searchable field,
- * while all tokens must match. The explicit utf8mb4_general_ci collation is
- * intentional: it makes Vietnamese diacritics searchable by their base
- * letters, so "phuo" matches "Phương" and "thanh ph" matches
- * "An Thị Thanh Phương", even when the DB column uses a binary collation.
- *
- * Examples:
- *   an        -> An Thị Thanh Phương
- *   an t      -> An Thị Thanh Phương
- *   phuo      -> An Thị Thanh Phương
- *   phuong    -> An Thị Thanh Phương
- *   thanh ph  -> An Thị Thanh Phương
- *
- * Report code / worker code / machine / product / process searches remain
- * partial substring searches as before.
- */
 const appendTokenizedSearch = (where, params, rawSearch, fields) => {
   const tokens = String(rawSearch || '').trim().split(/\s+/).filter(Boolean).slice(0, 12);
   for (const token of tokens) {
@@ -42,18 +23,6 @@ const appendTokenizedSearch = (where, params, rawSearch, fields) => {
   }
 };
 
-/**
- * Manager approved-report listing.
- * Filtering, counting and pagination stay in TiDB; the browser never downloads
- * the complete production_reports table just to display one page.
- *
- * Cloudflare/TiDB Serverless note: do not run the COUNT and page SELECT in
- * Promise.all(). Each Cloudflare query creates a separate Serverless driver
- * connection, so parallel queries add avoidable connection/rate contention.
- * Also keep LIMIT/OFFSET values as validated integers in the SQL text instead
- * of parameter markers; this is more portable across the TiDB Serverless
- * driver used by the Worker.
- */
 exports.getApprovedReports = async (req, res) => {
   try {
     const page = clampInt(req.query?.page, 1, 1, 100000);
@@ -121,7 +90,14 @@ exports.getApprovedReports = async (req, res) => {
 
     const [dataRows] = await db.promise().query(
       `SELECT pr.*, p.process_name, w.worker_code, u.full_name,
-              COALESCE(pr.training_percent_snapshot, w.training_percent, 100) AS training_percent
+              COALESCE(pr.training_percent_snapshot, w.training_percent, 100) AS training_percent,
+              (SELECT COUNT(DISTINCT COALESCE(prd.defect_type_id, prd.defect_code, prd.defect_name))
+                 FROM production_report_defects prd
+                WHERE prd.report_id=pr.id AND COALESCE(prd.quantity,0)>0) AS worker_ng_type_count,
+              (SELECT COUNT(DISTINCT COALESCE(md.defect_type_id, md.defect_code, md.defect_name))
+                 FROM production_report_machine_lines ml
+                 JOIN production_report_machine_defects md ON md.machine_line_id=ml.id
+                WHERE ml.report_id=pr.id AND COALESCE(md.quantity,0)>0) AS machine_ng_type_count
          FROM production_reports pr
          JOIN workers w ON pr.worker_id=w.id
          JOIN users u ON w.user_id=u.id
@@ -133,9 +109,14 @@ exports.getApprovedReports = async (req, res) => {
     );
 
     const total = Number(countRows[0]?.total || 0);
+    const data = (dataRows || []).map((row) => ({
+      ...row,
+      ng_defect_type_count: Math.max(Number(row.worker_ng_type_count || 0), Number(row.machine_ng_type_count || 0)),
+    }));
+
     return res.json({
       success: true,
-      data: dataRows || [],
+      data,
       pagination: {
         page,
         page_size: pageSize,
