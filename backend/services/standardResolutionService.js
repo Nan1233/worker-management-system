@@ -63,21 +63,8 @@ function createStandardResolver({ query = defaultQuery } = {}) {
   const productCache = new Map();
   const standardCache = new Map();
 
-  async function resolveProduct({ processId, productCode, workDate, standardVersionId = null }) {
-    const pid = Number(processId);
-    const product = String(productCode || '').trim();
-    const date = normalizeWorkDate(workDate);
-
-    if (pid === 60006 && !product) {
-      return { processId: pid, productCode: null, productStandardId: null, standardVersionId: null, machineStandardId: null, standardOutput: 0, standardTimeSeconds: null, excludeKqdFromTt: 0, effectiveFrom: null, effectiveTo: null, source: 'NON_PRODUCT_WORK', workDate: date, historicalVersionAvailable: false, nonProductWork: true };
-    }
-    if (!Number.isInteger(pid) || pid <= 0 || !product) throw businessError('INVALID_STANDARD_LOOKUP', 'Thiếu công đoạn hoặc sản phẩm để tra định mức');
-
-    const requestedVersionId = Number(standardVersionId) || null;
-    const cacheKey = `${pid}|${product}|${date}|${requestedVersionId || ''}`;
-    if (productCache.has(cacheKey)) return productCache.get(cacheKey);
-
-    const productRows = await query(
+  async function findProductRows(pid, product) {
+    return query(
       `SELECT id AS product_standard_id, product_code, encoding_code, standard_output, exclude_kqd_from_tt
          FROM product_standards
         WHERE process_id=?
@@ -97,15 +84,40 @@ function createStandardResolver({ query = defaultQuery } = {}) {
         LIMIT 2`,
       [pid, product, product, product, product, product]
     );
-    if (productRows.length !== 1) {
+  }
+
+  async function selectProductRow(pid, product, workDate, { allowAutoAlias = false } = {}) {
+    let rows = await findProductRows(pid, product);
+    if (rows.length === 1) return rows[0];
+    if (!allowAutoAlias) return null;
+
+    const autoProduct = /-AUTO$/i.test(product) ? product : `${product}-AUTO`;
+    const autoRows = await findProductRows(pid, autoProduct);
+    return autoRows.length === 1 ? autoRows[0] : null;
+  }
+
+  async function resolveProduct({ processId, productCode, workDate, standardVersionId = null, allowAutoAlias = false }) {
+    const pid = Number(processId);
+    const product = String(productCode || '').trim();
+    const date = normalizeWorkDate(workDate);
+
+    if (pid === 60006 && !product) {
+      return { processId: pid, productCode: null, productStandardId: null, standardVersionId: null, machineStandardId: null, standardOutput: 0, standardTimeSeconds: null, excludeKqdFromTt: 0, effectiveFrom: null, effectiveTo: null, source: 'NON_PRODUCT_WORK', workDate: date, historicalVersionAvailable: false, nonProductWork: true };
+    }
+    if (!Number.isInteger(pid) || pid <= 0 || !product) throw businessError('INVALID_STANDARD_LOOKUP', 'Thiếu công đoạn hoặc sản phẩm để tra định mức');
+
+    const requestedVersionId = Number(standardVersionId) || null;
+    const cacheKey = `${pid}|${product}|${date}|${requestedVersionId || ''}|auto=${allowAutoAlias ? 1 : 0}`;
+    if (productCache.has(cacheKey)) return productCache.get(cacheKey);
+
+    const selectedProduct = await selectProductRow(pid, product, date, { allowAutoAlias });
+    if (!selectedProduct) {
       throw businessError('HISTORICAL_STANDARD_NOT_FOUND', `Không xác định duy nhất định mức sản phẩm ${product} trong công đoạn`, {
         process_id: pid,
-        product_code: product,
-        candidate_ids: productRows.map((row) => Number(row.product_standard_id)).filter(Boolean)
+        product_code: product
       });
     }
 
-    const selectedProduct = productRows[0];
     const canonicalProduct = String(selectedProduct.product_code || '').trim();
 
     if (requestedVersionId) {
@@ -159,65 +171,122 @@ function createStandardResolver({ query = defaultQuery } = {}) {
     return resolvedProduct;
   }
 
-  async function resolveStandard({ processId, productCode, machineId = null, machineCode = null, workDate, standardVersionId = null, machineStandardId = null }) {
+  async function resolveStandard({
+    processId,
+    productCode,
+    machineId = null,
+    machineCode = null,
+    workDate,
+    standardVersionId = null,
+    machineStandardId = null,
+    operationMode = null,
+    executionMethod = null,
+    workType = null
+  }) {
     const requestedMachineId = Number(machineId) || null;
     const requestedMachineCode = String(machineCode || '').trim();
     const requestedVersionId = Number(standardVersionId) || null;
     const requestedMachineStandardId = Number(machineStandardId) || null;
-    const standardKey = `${Number(processId)}|${String(productCode || '').trim()}|${normalizeWorkDate(workDate)}|${requestedMachineId || ''}|${requestedMachineCode}|v${requestedVersionId || ''}|ms${requestedMachineStandardId || ''}`;
+    const modeText = String(operationMode || executionMethod || workType || '').trim().toUpperCase();
+    const isAuto = ['AUTO', 'AUTOMATIC', 'TỰ ĐỘNG', 'TU DONG'].includes(modeText) || /AUTO|TỰ\s*ĐỘNG|TU\s*DONG/.test(modeText);
+
+    const standardKey = `${Number(processId)}|${String(productCode || '').trim()}|${normalizeWorkDate(workDate)}|${requestedMachineId || ''}|${requestedMachineCode}|v${requestedVersionId || ''}|ms${requestedMachineStandardId || ''}|mode=${isAuto ? 'AUTO' : 'NORMAL'}`;
     if (standardCache.has(standardKey)) return standardCache.get(standardKey);
 
-    const product = await resolveProduct({ processId, productCode, workDate, standardVersionId: requestedVersionId });
-    if (!requestedMachineId && !requestedMachineCode && !requestedMachineStandardId) {
-      standardCache.set(standardKey, product);
-      return product;
-    }
+    const requestedProduct = String(productCode || '').trim();
 
-    let machineRows;
+    let directProduct = null;
+    let machineRows = [];
+
     if (requestedMachineStandardId && !requestedMachineId && !requestedMachineCode) {
-      machineRows = await query(`SELECT m.id, m.machine_code FROM machines m JOIN product_machine_standards pms ON pms.machine_id=m.id WHERE m.process_id=? AND pms.id=? LIMIT 2`, [product.processId, requestedMachineStandardId]);
-    } else {
-      machineRows = await query(`SELECT id, machine_code FROM machines WHERE process_id=? AND status='active' AND (? IS NULL OR id=?) AND (?='' OR machine_code=?) LIMIT 2`, [product.processId, requestedMachineId, requestedMachineId, requestedMachineCode, requestedMachineCode]);
+      machineRows = await query(`SELECT m.id, m.machine_code FROM machines m JOIN product_machine_standards pms ON pms.machine_id=m.id WHERE m.process_id=? AND pms.id=? LIMIT 2`, [Number(processId), requestedMachineStandardId]);
+    } else if (requestedMachineId || requestedMachineCode) {
+      machineRows = await query(`SELECT id, machine_code FROM machines WHERE process_id=? AND status='active' AND (? IS NULL OR id=?) AND (?='' OR UPPER(TRIM(machine_code))=UPPER(TRIM(?))) LIMIT 2`, [Number(processId), requestedMachineId, requestedMachineId, requestedMachineCode, requestedMachineCode]);
     }
-    if (machineRows.length !== 1) throw businessError('MACHINE_NOT_FOUND', 'Máy không tồn tại hoặc không thuộc công đoạn');
-    const machine = machineRows[0];
 
-    if (requestedMachineStandardId) {
-      const snapshotRows = await query(
+    if (machineRows.length > 1) throw businessError('MACHINE_NOT_FOUND', 'Máy xác định không duy nhất trong công đoạn');
+    if ((requestedMachineId || requestedMachineCode || requestedMachineStandardId) && machineRows.length !== 1) throw businessError('MACHINE_NOT_FOUND', 'Máy không tồn tại hoặc không thuộc công đoạn');
+    const machine = machineRows[0] || null;
+
+    if (machine) {
+      const exactMachineRows = await query(
         `SELECT id, process_id, product_code, machine_id, standard_output, calculated_output_per_hour, standard_time_seconds, effective_from, effective_to, is_active
-           FROM product_machine_standards WHERE id=? AND process_id=? AND product_code=? AND machine_id=? LIMIT 1`,
-        [requestedMachineStandardId, product.processId, product.productCode, Number(machine.id)]
+           FROM product_machine_standards
+          WHERE process_id=? AND machine_id=? AND UPPER(TRIM(product_code))=UPPER(TRIM(?))
+            AND (effective_from IS NULL OR effective_from <= ?)
+            AND (effective_to IS NULL OR effective_to >= ?)
+          ORDER BY COALESCE(effective_from,'1000-01-01') DESC, id DESC`,
+        [Number(processId), Number(machine.id), requestedProduct, normalizeWorkDate(workDate), normalizeWorkDate(workDate)]
       );
-      if (snapshotRows.length !== 1) throw businessError('HISTORICAL_STANDARD_NOT_FOUND', `Không tìm thấy định mức máy lịch sử #${requestedMachineStandardId}`, { process_id: product.processId, product_code: product.productCode, machine_id: Number(machine.id), machine_standard_id: requestedMachineStandardId, work_date: product.workDate });
-      const row = snapshotRows[0];
-      assertEffectiveOnDate(row, product.workDate, `Định mức máy lịch sử #${requestedMachineStandardId}`);
-      const resolvedMachineSnapshot = { ...product, machineId: Number(machine.id), machineCode: machine.machine_code, machineStandardId: Number(row.id), standardOutput: positiveDecimal(row.calculated_output_per_hour ?? row.standard_output), standardTimeSeconds: Number(row.standard_time_seconds) > 0 ? Number(row.standard_time_seconds) : null, source: 'MACHINE_SNAPSHOT', machineEffectiveFrom: row.effective_from ? String(row.effective_from).slice(0, 10) : null, machineEffectiveTo: row.effective_to ? String(row.effective_to).slice(0, 10) : null, snapshotMachineStandardId: Number(row.id), snapshotMachineActive: Number(row.is_active || 0) };
-      standardCache.set(standardKey, resolvedMachineSnapshot);
-      return resolvedMachineSnapshot;
-    }
-
-    const applicableRows = await query(
-      `SELECT id, standard_output, calculated_output_per_hour, standard_time_seconds, effective_from, effective_to, is_active
-         FROM product_machine_standards
-        WHERE process_id=? AND product_code=? AND machine_id=?
-          AND (effective_from IS NULL OR effective_from <= ?) AND (effective_to IS NULL OR effective_to >= ?)
-        ORDER BY COALESCE(effective_from,'1000-01-01'), id`,
-      [product.processId, product.productCode, Number(machine.id), product.workDate, product.workDate]
-    );
-    const applicableActive = applicableRows.filter((row) => Number(row.is_active) === 1);
-    const applicable = applicableActive.length ? applicableActive : applicableRows;
-    if (applicable.length > 1) throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT', `Có nhiều định mức máy cùng hiệu lực cho ${product.productCode} / ${machine.machine_code}`, { process_id: product.processId, product_code: product.productCode, machine_id: Number(machine.id), work_date: product.workDate, machine_standard_ids: applicable.map((row) => Number(row.id)) });
-    if (applicable.length === 1) {
-      const row = applicable[0];
-      const machineOutput = Number(row.calculated_output_per_hour ?? row.standard_output);
-      if (Number.isFinite(machineOutput) && machineOutput > 0) {
-        const resolvedMachine = { ...product, machineId: Number(machine.id), machineCode: machine.machine_code, machineStandardId: Number(row.id), standardOutput: machineOutput, standardTimeSeconds: Number(row.standard_time_seconds) > 0 ? Number(row.standard_time_seconds) : null, source: Number(row.is_active) === 1 ? 'MACHINE' : 'MACHINE_HISTORICAL', machineEffectiveFrom: row.effective_from ? String(row.effective_from).slice(0, 10) : null, machineEffectiveTo: row.effective_to ? String(row.effective_to).slice(0, 10) : null };
-        standardCache.set(standardKey, resolvedMachine);
-        return resolvedMachine;
+      const activeMachineRows = exactMachineRows.filter((row) => Number(row.is_active) === 1);
+      const usableMachineRows = activeMachineRows.length ? activeMachineRows : exactMachineRows;
+      if (usableMachineRows.length > 1) {
+        throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT', `Có nhiều định mức máy cùng hiệu lực cho ${requestedProduct} / ${machine.machine_code}`, {
+          process_id: Number(processId),
+          product_code: requestedProduct,
+          machine_id: Number(machine.id),
+          work_date: normalizeWorkDate(workDate),
+          machine_standard_ids: usableMachineRows.map((row) => Number(row.id))
+        });
+      }
+      if (usableMachineRows.length === 1) {
+        const row = usableMachineRows[0];
+        const machineOutput = Number(row.calculated_output_per_hour ?? row.standard_output);
+        if (Number.isFinite(machineOutput) && machineOutput > 0) {
+          const base = {
+            processId: Number(processId),
+            productCode: requestedProduct,
+            productStandardId: null,
+            standardVersionId: null,
+            machineStandardId: Number(row.id),
+            standardOutput: machineOutput,
+            standardTimeSeconds: Number(row.standard_time_seconds) > 0 ? Number(row.standard_time_seconds) : null,
+            excludeKqdFromTt: 0,
+            effectiveFrom: row.effective_from ? String(row.effective_from).slice(0, 10) : null,
+            effectiveTo: row.effective_to ? String(row.effective_to).slice(0, 10) : null,
+            source: Number(row.is_active) === 1 ? 'MACHINE' : 'MACHINE_HISTORICAL',
+            workDate: normalizeWorkDate(workDate),
+            historicalVersionAvailable: true,
+            machineId: Number(machine.id),
+            machineCode: machine.machine_code
+          };
+          standardCache.set(standardKey, base);
+          return base;
+        }
       }
     }
 
-    const resolvedFallback = { ...product, machineId: Number(machine.id), machineCode: machine.machine_code, machineStandardId: null, source: `${product.source}_MACHINE_FALLBACK` };
+    let product = await resolveProduct({
+      processId,
+      productCode: requestedProduct,
+      workDate,
+      standardVersionId: requestedVersionId,
+      allowAutoAlias: false
+    });
+
+    const processAutoEligible = (() => {
+      const pid = Number(processId);
+      const wt = String(workType || '').trim().toUpperCase();
+      return pid === 1 && (isAuto || wt === 'AUTO' || wt === 'AUTOMATIC');
+    })();
+
+    if (processAutoEligible) {
+      product = await resolveProduct({
+        processId,
+        productCode: requestedProduct,
+        workDate,
+        standardVersionId: requestedVersionId,
+        allowAutoAlias: true
+      });
+    }
+
+    const resolvedFallback = {
+      ...product,
+      machineId: machine ? Number(machine.id) : null,
+      machineCode: machine ? machine.machine_code : null,
+      machineStandardId: null,
+      source: `${product.source}_MACHINE_FALLBACK`
+    };
     standardCache.set(standardKey, resolvedFallback);
     return resolvedFallback;
   }
@@ -257,4 +326,4 @@ function assertStandardSnapshotConsistency({ resolved, standardOutput, standardV
 }
 
 const runtimeResolver = createStandardResolver();
-module.exports = { ...runtimeResolver, createStandardResolver, assertStandardSnapshotConsistency, normalizeWorkDate, businessError }; 
+module.exports = { ...runtimeResolver, createStandardResolver, assertStandardSnapshotConsistency, normalizeWorkDate, businessError };
