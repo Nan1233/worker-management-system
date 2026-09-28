@@ -64,7 +64,7 @@
         }
       ],
       "icon": "assets/icon.ico",
-      "signAndEditExecutable": true,
+      "signAndEditExecutable": false,
       "requestedExecutionLevel": "asInvoker"
     },
     "publish": [
