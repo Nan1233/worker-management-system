@@ -67,13 +67,43 @@ async function patchProcessWorkbook(buffer) {
   return Buffer.from(await workbook.xlsx.writeBuffer());
 }
 
+// company-data is already sourced from the approved TiDB report endpoint.
+// Older backend payloads may omit the provenance flags that the local Excel
+// builder validates. Fill only missing provenance fields; never overwrite an
+// explicit conflicting value.
+function normalizeApprovedPayload(args = {}) {
+  const payload = args?.payload;
+  if (!payload || typeof payload !== 'object') return args;
+
+  const processes = {};
+  for (const [code, data] of Object.entries(payload.processes || {})) {
+    processes[code] = {
+      ...data,
+      reports: (Array.isArray(data?.reports) ? data.reports : []).map((report) => ({
+        ...report,
+        dataSource: report?.dataSource || 'production_reports',
+        isApprovedDatabaseRecord: report?.isApprovedDatabaseRecord ?? true,
+      })),
+    };
+  }
+
+  return {
+    ...args,
+    payload: {
+      ...payload,
+      dataSource: payload.dataSource || 'tidb.production_reports.approved',
+      processes,
+    },
+  };
+}
+
 function patchMonthlyModule(mod) {
   if (!mod || mod.__ktcExcelExportPatched) return mod;
   const originalSplit = mod.buildSplitMonthlyWorkbooksLocal;
   const originalProcess = mod.buildProcessWorkbookLocal;
   if (typeof originalSplit === 'function') {
     mod.buildSplitMonthlyWorkbooksLocal = async (args) => {
-      const result = await originalSplit(args);
+      const result = await originalSplit(normalizeApprovedPayload(args));
       if (Array.isArray(result?.processes)) {
         for (const process of result.processes) {
           if (process?.buffer) process.buffer = await patchProcessWorkbook(process.buffer);
@@ -84,7 +114,7 @@ function patchMonthlyModule(mod) {
   }
   if (typeof originalProcess === 'function') {
     mod.buildProcessWorkbookLocal = async (args) => {
-      const result = await originalProcess(args);
+      const result = await originalProcess(normalizeApprovedPayload(args));
       if (result?.buffer) result.buffer = await patchProcessWorkbook(result.buffer);
       return result;
     };
