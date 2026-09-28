@@ -39,7 +39,6 @@ const loadGcNoStandardLongCodes = async () => {
 
 const ensureGcNoStandardLongCodes = async (data) => {
   const rows = Array.isArray(data) ? [...data] : [];
-  if (!rows.length && !rows.some?.((row) => String(row?.process_code || '').trim().toUpperCase() === 'GC')) return rows;
   const hasGc = rows.some((row) => String(row?.process_code || '').trim().toUpperCase() === 'GC');
   if (!hasGc) return rows;
 
@@ -67,12 +66,20 @@ exports.getProductStandards = async (req, res) => {
       return res.status(400).json({ success: false, message: "process_code không hợp lệ" });
     }
 
-    // v4: keep a dedicated cache namespace and explicitly re-read the three
-    // GC Long Tay zero-standard work codes from DB. These are valid master
-    // data but must not be hidden by the normal positive-standard filter.
-    const cacheKey = processCode
-      ? `product-standards:v4:code:${processCode}`
-      : `product-standards:v4:id:${processId}`;
+    const resolvedProcessCode = processCode || String((await query(
+      "SELECT process_code FROM processes WHERE id = ? LIMIT 1",
+      [processId]
+    ))[0]?.[0]?.process_code || '').trim().toUpperCase();
+
+    // v5: use a fresh cache namespace and explicitly include the three
+    // zero-standard GC Long Tay work codes from DB for BOTH process_code and
+    // process_id requests. No frontend hard-code is used.
+    const cacheKey = resolvedProcessCode === 'GC'
+      ? `product-standards:v5:gc:${processId > 0 ? processId : resolvedProcessCode}`
+      : processCode
+        ? `product-standards:v5:code:${processCode}`
+        : `product-standards:v5:id:${processId}`;
+
     const data = await getOrLoadMasterData(
       cacheKey,
       TTL.productStandards,
@@ -80,7 +87,7 @@ exports.getProductStandards = async (req, res) => {
         const baseRows = processCode
           ? await productStandardModel.findByProcessCode(processCode)
           : await productStandardModel.findByProcess(processId);
-        return String(processCode || '').trim().toUpperCase() === 'GC'
+        return resolvedProcessCode === 'GC'
           ? ensureGcNoStandardLongCodes(baseRows)
           : baseRows;
       }
