@@ -43,9 +43,6 @@ function AutocompleteInput({
         setTypedValue(value);
     }, [value]);
 
-    // Product options keep the canonical product_code in `value` so submit/
-    // standard resolution is unchanged, while `label` is the encoded code
-    // that workers should see. Once an option is selected, show only label.
     const selectedOption = useMemo(
         () => options.find((option) => option.value.trim().toLowerCase() === typedValue.trim().toLowerCase()),
         [options, typedValue]
@@ -78,7 +75,13 @@ function AutocompleteInput({
             if (machineOperationType === "CẮT") {
                 scopedOptions = options.filter((option) => /^C\d+$/i.test(String(option.value).trim()));
             } else if (machineOperationType === "LỒNG") {
-                scopedOptions = options.filter((option) => /^\d+$/.test(String(option.value).trim()));
+                // GC Lồng machines use the canonical DB codes ML1..ML20.
+                // Keep numeric-only codes as backward-compatible legacy input,
+                // but do not filter out the current ML-prefixed master data.
+                scopedOptions = options.filter((option) => {
+                    const code = String(option.value).trim();
+                    return /^ML\d+$/i.test(code) || /^\d+$/.test(code);
+                });
             }
         }
 
@@ -93,10 +96,6 @@ function AutocompleteInput({
         return result.slice(0, 50);
     }, [options, displayValue, machineOperationType, id]);
 
-    // GC uses the same machine/product workspace for both cases. When no
-    // machine is entered, productSuggestionRules returns the valid Lồng-tay
-    // products, so the product field must remain interactive even though the
-    // caller still passes its old "disabled until machine" guard.
     const effectiveDisabled = disabled && !(id.startsWith("machineProduct-") && options.length > 0);
 
     useEffect(() => {
@@ -126,8 +125,6 @@ function AutocompleteInput({
     useEffect(() => setActiveIndex(-1), [displayValue, machineOperationType]);
 
     const selectOption = (option: AutocompleteOption) => {
-        // Keep canonical value in state/submission; the selected label is only
-        // the worker-facing display text.
         setTypedValue(option.value);
         onSelect(option);
         setOpen(false);
