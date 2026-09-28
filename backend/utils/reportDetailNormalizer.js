@@ -111,8 +111,7 @@ function parseMachineDefects(machineLines = []) {
   return result;
 }
 
-function mergeDefects(report, rows = [], machineLines = []) {
-  const machineDefects = parseMachineDefects(machineLines);
+function mergeDefects(report, rows = []) {
   const merged = new Map();
   const add = (item) => {
     const canonical = canonicalDefect(item);
@@ -135,29 +134,24 @@ function mergeDefects(report, rows = [], machineLines = []) {
   };
 
   rows.forEach(add);
-  machineDefects.forEach(add);
 
-  if (!rows.length && !machineDefects.length) {
+  if (!rows.length) {
     LEGACY_DEFECT_FIELDS.forEach(([field, code, name]) => {
       const quantity = Math.trunc(Number(report?.[field] ?? 0) || 0);
       if (quantity > 0) add({ defect_code: code, defect_name: name, quantity });
     });
   }
 
-  // Legacy machine reports can contain a valid NG total in ng_quantity while
-  // the old UI never persisted the individual defect type. Never hide that
-  // quantity in History/Detail: expose it explicitly as unclassified rather
-  // than inventing a defect type.
+  // Worker NG and machine NG are different accounting domains.
+  // If the worker-level defect type was not persisted, expose the worker NG total
+  // explicitly instead of borrowing a machine defect quantity/type.
   if (merged.size === 0) {
-    const machineNgTotal = (Array.isArray(machineLines) ? machineLines : [])
-      .reduce((sum, line) => sum + Math.max(0, Math.trunc(Number(line?.ng_quantity || 0) || 0)), 0);
     const parentNg = Math.max(0, Math.trunc(Number(report?.tt_ng || 0) || 0));
-    const fallbackNg = machineNgTotal > 0 ? machineNgTotal : parentNg;
-    if (fallbackNg > 0) {
+    if (parentNg > 0) {
       add({
         defect_code: "NG_UNCLASSIFIED",
         defect_name: "NG chưa phân loại",
-        quantity: fallbackNg,
+        quantity: parentNg,
       });
     }
   }
@@ -177,8 +171,6 @@ function normalizeDeductions(rows = [], report = null) {
     else merged.set(key, { ...item, hours });
   });
 
-  // Older reports can retain only the parent deduction_time. Preserve the
-  // accounting total in Detail instead of rendering an empty deduction block.
   if (merged.size === 0) {
     const parentHours = Math.max(0, Number(report?.deduction_time || 0) || 0);
     if (parentHours > 0) {
