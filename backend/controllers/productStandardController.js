@@ -1,6 +1,9 @@
 const productStandardModel = require("../models/productStandardModel");
 const machineModel = require("../models/machineModel");
 const { TTL, getOrLoadMasterData } = require("../utils/masterDataCache");
+const db = require("../config/db");
+
+const query = (sql, params = []) => db.promise().query(sql, params);
 
 exports.getProductStandards = async (req, res) => {
   try {
@@ -14,9 +17,6 @@ exports.getProductStandards = async (req, res) => {
       return res.status(400).json({ success: false, message: "process_code không hợp lệ" });
     }
 
-    // v2 intentionally invalidates pre-fix worker master-data caches. The
-    // previous cache could preserve an empty/stale GC product list for 30 min
-    // after product-machine standards were corrected in the database.
     const cacheKey = processCode
       ? `product-standards:v2:code:${processCode}`
       : `product-standards:v2:id:${processId}`;
@@ -47,26 +47,96 @@ exports.resolveProductStandard = async (req, res) => {
     }
 
     await Promise.all([
-      getOrLoadMasterData(
-        `machines:${processId}`,
-        TTL.machines,
-        () => machineModel.findByProcess(processId)
-      ),
-      getOrLoadMasterData(
-        `product-standards:${processId}`,
-        TTL.productStandards,
-        () => productStandardModel.findByProcess(processId)
-      )
+      getOrLoadMasterData(`machines:${processId}`, TTL.machines, () => machineModel.findByProcess(processId)),
+      getOrLoadMasterData(`product-standards:${processId}`, TTL.productStandards, () => productStandardModel.findByProcess(processId))
     ]);
 
+    // IMPORTANT: machine-specific standards are authoritative. Resolve them
+    // before the legacy product standard so a valid machine standard is not
+    // rejected merely because the base product_standards row is zero/missing.
+    if (machineCode) {
+      const [machineRows] = await query(
+        `SELECT id, machine_code
+           FROM machines
+          WHERE process_id=? AND status='active' AND UPPER(TRIM(machine_code))=UPPER(TRIM(?))
+          LIMIT 2`,
+        [processId, machineCode]
+      );
+
+      if (machineRows.length === 1) {
+        const machine = machineRows[0];
+        const [aliasRows] = await query(
+          `SELECT product_code
+             FROM product_aliases
+            WHERE process_id=? AND status='active' AND UPPER(TRIM(alias_code))=UPPER(TRIM(?))
+            ORDER BY id
+            LIMIT 1`,
+          [processId, productCode]
+        );
+        const canonicalProduct = String(aliasRows[0]?.product_code || productCode).trim();
+
+        const [machineStandardRows] = await query(
+          `SELECT
+              pms.id AS machine_standard_id,
+              pms.product_code,
+              pms.standard_output,
+              pms.calculated_output_per_hour,
+              pms.standard_time_seconds,
+              pms.effective_from,
+              pms.effective_to,
+              pms.is_active,
+              ps.id AS product_standard_id,
+              COALESCE(ps.exclude_kqd_from_tt,0) AS exclude_kqd_from_tt
+             FROM product_machine_standards pms
+             LEFT JOIN product_standards ps
+               ON ps.process_id=pms.process_id
+              AND UPPER(TRIM(ps.product_code))=UPPER(TRIM(pms.product_code))
+            WHERE pms.process_id=?
+              AND UPPER(TRIM(pms.product_code))=UPPER(TRIM(?))
+              AND pms.machine_id=?
+              AND (pms.effective_from IS NULL OR pms.effective_from<=?)
+              AND (pms.effective_to IS NULL OR pms.effective_to>=?)
+            ORDER BY CASE WHEN pms.is_active=1 THEN 0 ELSE 1 END,
+                     COALESCE(pms.effective_from,'1000-01-01') DESC,
+                     pms.id DESC
+            LIMIT 2`,
+          [processId, canonicalProduct, Number(machine.id), workDate, workDate]
+        );
+
+        if (machineStandardRows.length === 1) {
+          const row = machineStandardRows[0];
+          const output = Number(row.calculated_output_per_hour ?? row.standard_output);
+          if (Number.isFinite(output) && output > 0) {
+            return res.status(200).json({
+              success: true,
+              data: {
+                product_standard_id: Number(row.product_standard_id || 0),
+                process_id: processId,
+                product_code: String(row.product_code || canonicalProduct),
+                alias_code: productCode.toUpperCase() !== String(row.product_code || canonicalProduct).toUpperCase() ? productCode : null,
+                machine_id: Number(machine.id),
+                machine_code: machine.machine_code,
+                standard_time_seconds: Number(row.standard_time_seconds) > 0 ? Number(row.standard_time_seconds) : null,
+                machine_standard_output: output,
+                default_standard_output: Number(row.standard_output) > 0 ? Number(row.standard_output) : null,
+                resolved_output_per_hour: output,
+                standard_source: Number(row.is_active) === 1 ? 'MACHINE' : 'MACHINE_HISTORICAL',
+                machine_standard_id: Number(row.machine_standard_id),
+                exclude_kqd_from_tt: Number(row.exclude_kqd_from_tt || 0)
+              }
+            });
+          }
+        }
+      }
+    }
+
+    // Fall back to the canonical resolver for normal product standards,
+    // historical versions, aliases and non-machine cases.
     const data = await productStandardModel.resolveByMachineAndProduct(processId, machineCode, productCode, workDate);
     if (!data) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy định mức cho máy và sản phẩm đã chọn' });
     }
 
-    // Machine-specific validation is performed by the canonical resolver itself.
-    // Do not re-derive it here from a cached product-list flag: a product with NO
-    // product_machine_standards must be allowed to fall back to product_standards.
     const resolved = Number(data.resolved_output_per_hour || 0);
     return res.status(200).json({
       success: true,
