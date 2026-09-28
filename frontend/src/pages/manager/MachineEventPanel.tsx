@@ -38,7 +38,7 @@ export default function MachineEventPanel({ report, line, source, onChanged }: P
       defect_type_id: item.defect_type_id,
       defect_code: item.defect_code,
       quantity: Number(item.quantity || 0),
-      responsible_worker_id: Number(report.worker_id || 0),
+      responsible_worker_id: Number(item.responsible_worker_id || report.worker_id || 0),
     }))
   );
   const [busy, setBusy] = useState(false);
