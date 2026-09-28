@@ -94,7 +94,7 @@ export default function MachineEventPanel({ report, line, source, onChanged }: P
     if (!line.id || !Number.isInteger(eventId) || eventId <= 0) { setError("ID event không hợp lệ."); return; }
     try {
       setBusy(true); setError("");
-      const response = await api.post(`/machine-production-events/${eventId}/participants`, { temp_machine_line_ids: [Number(line.id)] });
+      const response = await api.post(`/machine-production-events/${eventId}/link-participants`, { temp_machine_line_ids: [Number(line.id)] });
       hydrate(response.data?.data ?? response.data);
       await onChanged?.();
     } catch (err) { setError(message(err, "Không thể liên kết production event.")); }
