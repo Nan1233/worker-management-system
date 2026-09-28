@@ -94,7 +94,29 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
         }
         if (productWorkTypes.size === 1 && productWorkTypes.has("CUT")) {
             if (!selectedMachine) return [];
-            if (isGcAutomaticMachine(selectedRawMachine)) return workerSelectionProducts(canonicalProducts.filter(({ alias }) => GC_AUTOMATIC_ALIAS_CODES.has(alias)));
+            if (isGcAutomaticMachine(selectedRawMachine)) {
+                const automaticProducts = canonicalProducts.filter(({ alias }) => GC_AUTOMATIC_ALIAS_CODES.has(alias));
+                const presentAliases = new Set(automaticProducts.map(({ alias }) => alias));
+                // The EXE also exposes valid GC automatic aliases whose base
+                // product_standards row can have zero output while the
+                // machine-specific standard is valid. Keep the UI complete;
+                // the resolve API remains authoritative when the user selects one.
+                const template = automaticProducts[0]?.product || canonicalProducts[0]?.product;
+                if (template) {
+                    for (const alias of GC_AUTOMATIC_ALIAS_CODES) {
+                        if (presentAliases.has(alias)) continue;
+                        automaticProducts.push({
+                            product: {
+                                ...template,
+                                product_code: alias,
+                                alias_code: alias,
+                            },
+                            alias,
+                        });
+                    }
+                }
+                return workerSelectionProducts(automaticProducts);
+            }
             return workerSelectionProducts(canonicalProducts);
         }
         if (!selectedMachine && mode === "MACHINE") return [];
