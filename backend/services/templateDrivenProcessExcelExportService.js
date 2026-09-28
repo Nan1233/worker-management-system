@@ -33,12 +33,16 @@ function pickColumn(columnMap, predicates) {
 function processColumns(sheet, contract, processCode) {
   const map = findColumnMap(sheet, contract.headerRow);
   const find = (...patterns) => pickColumn(map, patterns.map((p) => (label) => label.includes(alias(p))));
+  const findExact = (...patterns) => pickColumn(map, patterns.map((p) => (label) => label === alias(p)));
   const cols = {
     workerCode: find('mã số cn') || find('mã nhân viên') || find('mã số'),
     workerName: find('họ tên') || find('họ & tên') || find('tên') || find('người'),
     shift: find('ca'),
     machine: find('số máy') || find('máy đo') || find('máy mài') || find('máy'),
-    product: find('mã sản phẩm') || find('mã số sản phẩm') || find('mã sp'),
+    // Keep product-code mapping independent from the "Sản phẩm OK" column.
+    // Some current KTC templates label this column as "Tên SP" or simply
+    // "Sản phẩm", so the old "mã sản phẩm"-only matcher could leave it null.
+    product: find('mã sản phẩm') || find('mã số sản phẩm') || find('mã sp') || find('tên sp') || findExact('sản phẩm'),
     workDate: find('ngày sản xuất') || find('ngày/tháng') || find('ngày tháng') || find('ngày'),
     training: find('% học việc'),
     standard: find('định mức') || find('kh'),
@@ -212,9 +216,6 @@ async function buildTemplateDrivenProcessWorkbook(reports, yearMonth, options = 
     writeReportRow(sheet, contract.dataStartRow + index, reports[index], processCode, mapping);
   }
 
-  // Các formula #REF!/external-workbook cũ trong file mẫu không được phép đi
-  // vào file xuất vì tạo lỗi hoặc popup liên kết ngoài. Layout/style/sheet vẫn
-  // giữ nguyên; chỉ công thức hỏng/ngoài workbook bị bỏ.
   const removedBrokenFormulas = clearBrokenAndExternalFormulas(workbook);
   workbook.calculation = { fullCalcOnLoad: true, forceFullCalc: true, calcMode: 'auto' };
 
