@@ -85,7 +85,7 @@ export default function ProductionDetail() {
           <button type="button" className="worker-form-back" onClick={() => navigate(-1)} aria-label="Quay lại">←</button>
           <div className="readonly-report-toolbar-copy">
             <strong>Chi tiết báo cáo</strong>
-            <span>{canEdit ? `Chỉ xem · còn ${remainingText} để sửa` : "Đã hết thời gian chỉnh sửa"}</span>
+            <span>{canEdit ? `Chỉ xem · còn ${remainingText} để sửa` : "Đã hết thời gian chỉnh sửa · vẫn được xem chi tiết"}</span>
           </div>
           <button
             type="button"
@@ -109,10 +109,13 @@ export default function ProductionDetail() {
         .readonly-report-toolbar-copy strong{font-size:15px}.readonly-report-toolbar-copy span{font-size:11px;color:#64748b}
         .readonly-edit-button{min-height:38px;padding:0 16px;white-space:nowrap}
         .readonly-report-form{position:relative}
-        /* WorkerReportEditV2 is the same form used for entering/editing a report. Keep every section and field visible. */
+        /* The detail page has its own single toolbar; hide the duplicated edit-form header. */
+        .readonly-report-form .worker-sticky-context{display:none!important}
+        /* Keep all report values non-editable, but allow collapse/expand controls so NG and deduction details remain viewable. */
+        .readonly-report-form input,.readonly-report-form select,.readonly-report-form textarea{pointer-events:none!important}
+        .readonly-report-form input,.readonly-report-form select,.readonly-report-form textarea{cursor:default!important}
         .readonly-report-form .worker-action-group{display:none!important}
-        .readonly-report-form .worker-form-container *{pointer-events:none!important}
-        .readonly-report-form input,.readonly-report-form select,.readonly-report-form textarea,.readonly-report-form button{cursor:default!important}
+        .readonly-report-form button{cursor:pointer!important}
         @media(max-width:680px){
           .readonly-report-toolbar{padding:8px 9px;gap:8px}.readonly-report-toolbar-copy strong{font-size:13px}.readonly-report-toolbar-copy span{font-size:10px}.readonly-edit-button{padding:0 11px;font-size:11px}
         }
