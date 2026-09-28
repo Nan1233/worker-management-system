@@ -5,6 +5,56 @@ const db = require("../config/db");
 
 const query = (sql, params = []) => db.promise().query(sql, params);
 
+const GC_NO_STANDARD_LONG_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
+
+const loadGcNoStandardLongCodes = async () => {
+  const [rows] = await query(`
+    SELECT
+        ps.id,
+        ps.process_id,
+        p.process_code,
+        ps.work_type,
+        ps.product_code,
+        COALESCE(pa.alias_code, ps.encoding_code) AS alias_code,
+        ps.encoding_code,
+        ps.standard_output,
+        COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
+        0 AS has_machine_specific_standard,
+        '' AS eligible_machine_codes
+    FROM product_standards ps
+    JOIN processes p ON p.id = ps.process_id
+    LEFT JOIN product_aliases pa
+      ON pa.process_id = ps.process_id
+     AND UPPER(TRIM(pa.product_code)) = UPPER(TRIM(ps.product_code))
+     AND pa.status = 'active'
+    WHERE p.status = 'active'
+      AND UPPER(TRIM(p.process_code)) = 'GC'
+      AND UPPER(TRIM(ps.work_type)) = 'LONG'
+      AND UPPER(TRIM(ps.product_code)) IN ('XUATNHAP', 'KTCD', 'TAIPP')
+      AND ps.status = 'active'
+    ORDER BY ps.product_code ASC, ps.id ASC
+  `);
+  return Array.isArray(rows) ? rows : [];
+};
+
+const ensureGcNoStandardLongCodes = async (data) => {
+  const rows = Array.isArray(data) ? [...data] : [];
+  if (!rows.length && !rows.some?.((row) => String(row?.process_code || '').trim().toUpperCase() === 'GC')) return rows;
+  const hasGc = rows.some((row) => String(row?.process_code || '').trim().toUpperCase() === 'GC');
+  if (!hasGc) return rows;
+
+  const required = await loadGcNoStandardLongCodes();
+  const existing = new Set(rows.map((row) => String(row?.product_code || '').trim().toUpperCase()).filter(Boolean));
+  for (const row of required) {
+    const code = String(row.product_code || '').trim().toUpperCase();
+    if (GC_NO_STANDARD_LONG_CODES.has(code) && !existing.has(code)) {
+      rows.push(row);
+      existing.add(code);
+    }
+  }
+  return rows;
+};
+
 exports.getProductStandards = async (req, res) => {
   try {
     const processCode = String(req.query.process_code || '').trim().toUpperCase();
@@ -17,17 +67,23 @@ exports.getProductStandards = async (req, res) => {
       return res.status(400).json({ success: false, message: "process_code không hợp lệ" });
     }
 
-    // v3: invalidate the previous Cloudflare master-data cache after adding
-    // zero-standard GC Long Tay work codes (XUATNHAP/KTCD/TAIPP).
+    // v4: keep a dedicated cache namespace and explicitly re-read the three
+    // GC Long Tay zero-standard work codes from DB. These are valid master
+    // data but must not be hidden by the normal positive-standard filter.
     const cacheKey = processCode
-      ? `product-standards:v3:code:${processCode}`
-      : `product-standards:v3:id:${processId}`;
+      ? `product-standards:v4:code:${processCode}`
+      : `product-standards:v4:id:${processId}`;
     const data = await getOrLoadMasterData(
       cacheKey,
       TTL.productStandards,
-      () => processCode
-        ? productStandardModel.findByProcessCode(processCode)
-        : productStandardModel.findByProcess(processId)
+      async () => {
+        const baseRows = processCode
+          ? await productStandardModel.findByProcessCode(processCode)
+          : await productStandardModel.findByProcess(processId);
+        return String(processCode || '').trim().toUpperCase() === 'GC'
+          ? ensureGcNoStandardLongCodes(baseRows)
+          : baseRows;
+      }
     );
 
     return res.status(200).json({ success: true, data });
@@ -90,15 +146,15 @@ exports.resolveProductStandard = async (req, res) => {
              LEFT JOIN product_standards ps
                ON ps.process_id=pms.process_id
               AND UPPER(TRIM(ps.product_code))=UPPER(TRIM(pms.product_code))
-            WHERE pms.process_id=?
+             WHERE pms.process_id=?
               AND UPPER(TRIM(pms.product_code))=UPPER(TRIM(?))
               AND pms.machine_id=?
               AND (pms.effective_from IS NULL OR pms.effective_from<=?)
               AND (pms.effective_to IS NULL OR pms.effective_to>=?)
-            ORDER BY CASE WHEN pms.is_active=1 THEN 0 ELSE 1 END,
-                     COALESCE(pms.effective_from,'1000-01-01') DESC,
-                     pms.id DESC
-            LIMIT 2`,
+             ORDER BY CASE WHEN pms.is_active=1 THEN 0 ELSE 1 END,
+                      COALESCE(pms.effective_from,'1000-01-01') DESC,
+                      pms.id DESC
+             LIMIT 2`,
           [processId, canonicalProduct, Number(machine.id), workDate, workDate]
         );
 
