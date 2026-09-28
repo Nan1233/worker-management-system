@@ -893,91 +893,40 @@ async function performSync({ date, source }) {
       error.code = 'EXCEL_UNSYNCED_CHANGES';
       throw error;
     }
-    const companyData = await fetchCompanyData(date);
-    const processCounts = Object.fromEntries(
-      Object.entries(companyData?.processes || {}).map(([code, data]) => [
-        code,
-        {
-          reports: Array.isArray(data?.reports) ? data.reports.length : 0,
-          deductionTypes: Array.isArray(data?.deductionTypes) ? data.deductionTypes.length : 0,
-          defectTypes: Array.isArray(data?.defectTypes) ? data.defectTypes.length : 0
-        }
-      ])
-    );
-    const totalReportCount = Object.values(processCounts).reduce(
-      (sum, item) => sum + Number(item?.reports || 0),
-      0
-    );
-    await writeLog('INFO', 'COMPANY_DATA_RECEIVED', { date, totalReportCount, processCounts });
-    if (totalReportCount === 0) {
-      const error = new Error(
-        `Backend không trả báo cáo đã duyệt cho tháng ${String(date).slice(0, 7)}. ` +
-        `Kiểm tra trạng thái duyệt, ngày báo cáo và bản backend đang chạy.`
-      );
-      error.code = 'MONTHLY_REPORT_DATA_EMPTY';
-      throw error;
-    }
+    // EXE dùng backend exporter làm nguồn Excel duy nhất, tránh lệch template/schema cục bộ.
+    const token = await waitForUsableRendererToken('', 8_000);
+    if (!token) throw new Error('Không tìm thấy phiên đăng nhập hợp lệ để xuất Excel.');
+    currentToken = token;
+
     const [year, month] = date.split('-');
     const folder = path.join(root, year, month);
     await fs.mkdir(folder, { recursive: true });
+    await writeLog('INFO', 'BACKEND_EXCEL_EXPORT_START', { date, mode: 'backend-authoritative', endpoints: ['/reports/export-excel', '/reports/export-excel/process'] });
 
-    await writeLog('INFO', 'MONTHLY_SPLIT_WORKBOOKS_START', {
-      date,
-      folder,
-      expectedFileCount: Object.keys(PROCESS_SHEETS).length + 1
-    });
+    const consolidated = await downloadConsolidatedExcel(token, date);
+    const consolidatedTarget = path.join(folder, safeFileName(consolidated.fileName, 'Bao-cao-san-xuat-' + month + '-' + year + '.xlsx'));
+    const consolidatedWrite = await atomicOverwrite(consolidatedTarget, consolidated.buffer, date);
+    files.push({ category: 'MONTHLY_SUMMARY', processId: -1, processCode: 'ALL', processName: 'Báo cáo Excel tổng hợp', fileName: path.basename(consolidatedTarget), filePath: consolidatedTarget, folder, size: consolidated.buffer.length, saved: consolidatedWrite.saved, pendingPath: consolidatedWrite.pendingPath, backupPath: consolidatedWrite.backupPath, success: true, source: 'backend' });
 
-    const built = await buildSplitMonthlyWorkbooksLocal({
-      appPath: app.getAppPath(),
-      date,
-      payload: companyData
-    });
+    const processRows = await fetchProcesses(date);
+    const activeRows = processRows.filter((row) => Number.isInteger(Number(row.id)) && Number(row.id) > 0);
+    await writeLog('INFO', 'BACKEND_EXCEL_PROCESS_LIST_RECEIVED', { date, count: activeRows.length, processes: activeRows.map((row) => ({ id: Number(row.id), processCode: row.processCode, processName: row.processName, reportCount: Number(row.reportCount || 0) })) });
 
-    // File 00: tổng hợp chung + đối chiếu dữ liệu DB.
-    const summaryFilePath = path.join(folder, built.summary.fileName);
-    const summaryWrite = await atomicOverwrite(summaryFilePath, built.summary.buffer, date);
-    files.push({
-      category: 'MONTHLY_SUMMARY', processId: -1, processCode: 'ALL',
-      processName: 'Tổng hợp sản xuất tháng', fileName: built.summary.fileName,
-      filePath: summaryFilePath, folder, size: built.summary.buffer.length,
-      saved: summaryWrite.saved, pendingPath: summaryWrite.pendingPath,
-      backupPath: summaryWrite.backupPath, success: true,
-      formulaReplacementCount: built.summary.formulaReplacementCount
-    });
-
-    // 9 công đoạn: mỗi công đoạn một file riêng, kể cả tháng chưa có dữ liệu.
-    for (const processBuilt of built.processes) {
-      const filePath = path.join(folder, processBuilt.fileName);
-      const writeResult = await atomicOverwrite(filePath, processBuilt.buffer, date);
-      files.push({
-        category: 'MONTHLY_PROCESS',
-        processId: -1,
-        processCode: processBuilt.processCode,
-        processName: processBuilt.processName,
-        fileName: processBuilt.fileName,
-        filePath,
-        folder,
-        size: processBuilt.buffer.length,
-        saved: writeResult.saved,
-        pendingPath: writeResult.pendingPath,
-        backupPath: writeResult.backupPath,
-        success: true,
-        sheetResult: processBuilt.result,
-        formulaReplacementCount: processBuilt.formulaReplacementCount
-      });
+    for (const processInfo of activeRows) {
+      try {
+        const downloaded = await downloadProcessExcel(token, date, processInfo);
+        const processFolder = path.join(folder, safeFolderName(processInfo.processName || processInfo.processCode || String(processInfo.id)));
+        await fs.mkdir(processFolder, { recursive: true });
+        const targetFile = path.join(processFolder, safeFileName(downloaded.fileName, 'Bao-cao-' + (processInfo.processCode || processInfo.id) + '-' + month + '-' + year + '.xlsx'));
+        const writeResult = await atomicOverwrite(targetFile, downloaded.buffer, date);
+        files.push({ category: 'MONTHLY_PROCESS', processId: Number(processInfo.id), processCode: processInfo.processCode, processName: processInfo.processName, fileName: path.basename(targetFile), filePath: targetFile, folder: processFolder, size: downloaded.buffer.length, saved: writeResult.saved, pendingPath: writeResult.pendingPath, backupPath: writeResult.backupPath, success: true, source: 'backend', reportCount: Number(processInfo.reportCount || 0) });
+      } catch (error) {
+        files.push({ category: 'MONTHLY_PROCESS', processId: Number(processInfo.id), processCode: processInfo.processCode, processName: processInfo.processName, success: false, source: 'backend', error: error.message });
+        await writeLog('ERROR', 'BACKEND_PROCESS_EXCEL_FAILED', { date, processId: Number(processInfo.id), processCode: processInfo.processCode, processName: processInfo.processName, ...normalizeError(error) });
+      }
     }
 
-    await writeLog('INFO', 'MONTHLY_SPLIT_WORKBOOKS_UPDATED', {
-      date,
-      folder,
-      fileCount: files.length,
-      files: files.map((file) => ({
-        processCode: file.processCode,
-        fileName: file.fileName,
-        saved: file.saved,
-        pendingPath: file.pendingPath || null
-      }))
-    });
+    await writeLog('INFO', 'BACKEND_EXCEL_EXPORT_FINISH', { date, fileCount: files.length, successCount: files.filter((item) => item.success).length, failedCount: files.filter((item) => item.success === false).length });
   } catch (error) {
     files.push({
       category: 'MONTHLY',
