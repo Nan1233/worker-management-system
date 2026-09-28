@@ -15,8 +15,6 @@ const ProductionTemp = require("../models/productionTempModel");
 
 router.get("/dates",verifyToken,checkRole("admin","manager","lead"),permission("REPORT_APPROVED_VIEW"),getReportDates);
 router.get("/by-date",verifyToken,checkRole("admin","manager","lead"),permission("REPORT_APPROVED_VIEW"),getReportsByDate);
-// Manager pages use server-side filtering/pagination. Keep the legacy controller
-// available for older internal callers, but do not download the whole table.
 router.get("/",verifyToken,checkRole("admin","manager","lead"),permission("REPORT_APPROVED_VIEW"),managerApprovedReportsController.getApprovedReports);
 
 router.post("/excel-sync",verifyToken,checkRole("admin","manager"),permission("EXCEL_DB_SYNC"),expensiveUserLimiter,(req,res,next)=>{try{const {syncExcelEdits}=require("../controllers/excelEditSyncController");if(typeof syncExcelEdits!=="function")return res.status(500).json({success:false,code:"EXCEL_SYNC_HANDLER_UNAVAILABLE",message:"Mô-đun đồng bộ Excel chưa sẵn sàng. Vui lòng triển khai lại backend mới nhất."});return syncExcelEdits(req,res,next);}catch(error){return next(error);}});
@@ -47,30 +45,45 @@ router.get("/:id",verifyToken,checkRole("admin","manager","lead","worker"),async
     const onlyUnclassified=currentDefects.length===1&&String(currentDefects[0]?.defect_code||"").trim().toUpperCase()==="NG_UNCLASSIFIED";
     const needsWorkerDefectFallback=Number(data.tt_ng||0)>0&&(currentDefects.length===0||onlyUnclassified);
     const approvedMachineLines=Array.isArray(data.machine_lines)?data.machine_lines:[];
-    const needsMachineDefectFallback=approvedMachineLines.some(line=>{
+
+    const hasDefectPayload=(line)=>{
       const direct=Array.isArray(line?.defects)?line.defects:[];
-      if(direct.length)return false;
-      const raw=line?.defects_json;
-      if(Array.isArray(raw))return false;
-      if(typeof raw==="string"){try{return JSON.parse(raw||"[]").length===0;}catch{return true;}}
-      return true;
-    });
-    if(sourceTempId>0&&(needsWorkerDefectFallback||needsMachineDefectFallback)){
+      if(direct.some(item=>Number(item?.quantity??item?.qty??item?.ng_quantity)>0))return true;
+      let raw=line?.defects_json;
+      if(typeof raw==="string"){
+        try{raw=JSON.parse(raw||"[]");}catch{return false;}
+      }
+      if(Array.isArray(raw))return raw.some(item=>Number(item?.quantity??item?.qty??item?.ng_quantity)>0);
+      if(raw&&typeof raw==="object"){
+        if(Array.isArray(raw.defects))return raw.defects.some(item=>Number(item?.quantity??item?.qty??item?.ng_quantity)>0);
+        return Object.entries(raw).some(([key,value])=>{
+          if(["selectedDefects","selectedNg","total","ngQuantity"].includes(key))return false;
+          return Number(typeof value==="object"&&value?(value.quantity??value.qty??value.ng_quantity):value)>0;
+        });
+      }
+      return false;
+    };
+
+    const needsMachineDefectFallback=approvedMachineLines.some(line=>!hasDefectPayload(line));
+    if(sourceTempId>0&&(needsWorkerDefectFallback||needsMachineDefectFallback||approvedMachineLines.length===0)){
       const temp=await ProductionTemp.getDetail(sourceTempId);
       if(temp){
         if(needsWorkerDefectFallback&&Array.isArray(temp.defects)&&temp.defects.length)data.defects=temp.defects;
         const tempLines=Array.isArray(temp.machine_lines)?temp.machine_lines:[];
-        if(approvedMachineLines.length&&tempLines.length){
-          data.machine_lines=approvedMachineLines.map((line,index)=>{
-            const direct=Array.isArray(line?.defects)?line.defects:[];
-            if(direct.length)return line;
-            const sameKey=tempLines.find(candidate=>String(candidate?.machine_code||"").trim().toUpperCase()===String(line?.machine_code||"").trim().toUpperCase()&&String(candidate?.product_code||"").trim().toUpperCase()===String(line?.product_code||"").trim().toUpperCase());
-            const sourceLine=sameKey||tempLines[index];
-            if(!sourceLine)return line;
-            const sourceDefects=Array.isArray(sourceLine.defects)?sourceLine.defects:[];
-            if(!sourceDefects.length)return line;
-            return {...line,defects:sourceDefects,defects_json:JSON.stringify(sourceDefects)};
-          });
+        if(tempLines.length){
+          if(approvedMachineLines.length){
+            data.machine_lines=approvedMachineLines.map((line,index)=>{
+              if(hasDefectPayload(line))return line;
+              const sameKey=tempLines.find(candidate=>String(candidate?.machine_code||"").trim().toUpperCase()===String(line?.machine_code||"").trim().toUpperCase()&&String(candidate?.product_code||"").trim().toUpperCase()===String(line?.product_code||"").trim().toUpperCase());
+              const sourceLine=sameKey||tempLines[index];
+              if(!sourceLine)return line;
+              const sourceDefects=Array.isArray(sourceLine.defects)?sourceLine.defects:[];
+              if(!sourceDefects.length)return line;
+              return {...line,defects:sourceDefects,defects_json:JSON.stringify(sourceDefects)};
+            });
+          }else{
+            data.machine_lines=tempLines.map(line=>({...line,defects_json:line.defects_json||JSON.stringify(line.defects||[])}));
+          }
         }
       }
     }
