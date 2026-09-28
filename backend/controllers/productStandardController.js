@@ -7,51 +7,61 @@ const query = (sql, params = []) => db.promise().query(sql, params);
 
 const GC_NO_STANDARD_LONG_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
 
-const loadGcNoStandardLongCodes = async () => {
+const loadGcProductStandardsDirect = async (processId, processCode) => {
+  const where = processCode
+    ? `UPPER(TRIM(p.process_code)) = UPPER(TRIM(?))`
+    : `p.id = ?`;
+  const param = processCode || processId;
+
   const [rows] = await query(`
     SELECT
         ps.id,
         ps.process_id,
         p.process_code,
-        ps.work_type,
+        CASE
+          WHEN UPPER(TRIM(ps.product_code)) IN ('XUATNHAP','KTCD','TAIPP') THEN 'LONG'
+          WHEN UPPER(TRIM(COALESCE(pa.alias_code, ''))) LIKE 'C%' THEN 'CUT'
+          ELSE COALESCE(ps.work_type, 'LONG')
+        END AS work_type,
         ps.product_code,
         COALESCE(pa.alias_code, ps.encoding_code) AS alias_code,
         ps.encoding_code,
         ps.standard_output,
         COALESCE(ps.exclude_kqd_from_tt, 0) AS exclude_kqd_from_tt,
-        0 AS has_machine_specific_standard,
-        '' AS eligible_machine_codes
+        EXISTS(
+          SELECT 1 FROM product_machine_standards pms
+          WHERE pms.process_id = ps.process_id
+            AND pms.product_code = ps.product_code
+            AND pms.is_active = 1
+        ) AS has_machine_specific_standard,
+        COALESCE((
+          SELECT GROUP_CONCAT(DISTINCT m.machine_code ORDER BY m.machine_code SEPARATOR ',')
+          FROM product_machine_standards pms2
+          JOIN machines m
+            ON m.id = pms2.machine_id
+           AND m.process_id = pms2.process_id
+           AND m.status = 'active'
+          WHERE pms2.process_id = ps.process_id
+            AND pms2.product_code = ps.product_code
+            AND pms2.is_active = 1
+        ), '') AS eligible_machine_codes
     FROM product_standards ps
     JOIN processes p ON p.id = ps.process_id
     LEFT JOIN product_aliases pa
       ON pa.process_id = ps.process_id
      AND UPPER(TRIM(pa.product_code)) = UPPER(TRIM(ps.product_code))
      AND pa.status = 'active'
-    WHERE p.status = 'active'
-      AND UPPER(TRIM(p.process_code)) = 'GC'
-      AND UPPER(TRIM(ps.work_type)) = 'LONG'
-      AND UPPER(TRIM(ps.product_code)) IN ('XUATNHAP', 'KTCD', 'TAIPP')
+    WHERE ${where}
+      AND p.status = 'active'
       AND ps.status = 'active'
-    ORDER BY ps.product_code ASC, ps.id ASC
-  `);
+      AND (
+        ps.standard_output > 0
+        OR UPPER(TRIM(ps.product_code)) IN ('XUATNHAP','KTCD','TAIPP')
+      )
+    ORDER BY ps.product_code ASC, alias_code ASC, ps.id ASC
+  `, [param]);
+
   return Array.isArray(rows) ? rows : [];
-};
-
-const ensureGcNoStandardLongCodes = async (data) => {
-  const rows = Array.isArray(data) ? [...data] : [];
-  const hasGc = rows.some((row) => String(row?.process_code || '').trim().toUpperCase() === 'GC');
-  if (!hasGc) return rows;
-
-  const required = await loadGcNoStandardLongCodes();
-  const existing = new Set(rows.map((row) => String(row?.product_code || '').trim().toUpperCase()).filter(Boolean));
-  for (const row of required) {
-    const code = String(row.product_code || '').trim().toUpperCase();
-    if (GC_NO_STANDARD_LONG_CODES.has(code) && !existing.has(code)) {
-      rows.push(row);
-      existing.add(code);
-    }
-  }
-  return rows;
 };
 
 exports.getProductStandards = async (req, res) => {
@@ -71,25 +81,25 @@ exports.getProductStandards = async (req, res) => {
       [processId]
     ))[0]?.[0]?.process_code || '').trim().toUpperCase();
 
-    // v5: use a fresh cache namespace and explicitly include the three
-    // zero-standard GC Long Tay work codes from DB for BOTH process_code and
-    // process_id requests. No frontend hard-code is used.
+    // GC is read directly from product_standards so zero-standard Long Tay
+    // work items cannot be lost by alias/standard filters in the generic model.
+    // Only the three explicitly configured no-standard jobs are allowed at 0.
     const cacheKey = resolvedProcessCode === 'GC'
-      ? `product-standards:v5:gc:${processId > 0 ? processId : resolvedProcessCode}`
+      ? `product-standards:v6:gc:${processId > 0 ? processId : resolvedProcessCode}`
       : processCode
-        ? `product-standards:v5:code:${processCode}`
-        : `product-standards:v5:id:${processId}`;
+        ? `product-standards:v6:code:${processCode}`
+        : `product-standards:v6:id:${processId}`;
 
     const data = await getOrLoadMasterData(
       cacheKey,
       TTL.productStandards,
       async () => {
-        const baseRows = processCode
-          ? await productStandardModel.findByProcessCode(processCode)
-          : await productStandardModel.findByProcess(processId);
-        return resolvedProcessCode === 'GC'
-          ? ensureGcNoStandardLongCodes(baseRows)
-          : baseRows;
+        if (resolvedProcessCode === 'GC') {
+          return loadGcProductStandardsDirect(processId, processCode || null);
+        }
+        return processCode
+          ? productStandardModel.findByProcessCode(processCode)
+          : productStandardModel.findByProcess(processId);
       }
     );
 
