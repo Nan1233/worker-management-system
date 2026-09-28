@@ -6,7 +6,9 @@ import { getSessionCached, clearSessionCache } from "./sessionCache";
 import { normalizeProcessId } from "../utils/processAccess";
 
 const TTL_MS = 30 * 60 * 1000;
-const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v10";
+// Bump this whenever the product master contract changes so old 30-minute
+// browser/session snapshots cannot hide newly added product aliases.
+const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v11";
 const DEDUCTION_MASTER_VERSION = "v7";
 const DEFECT_MASTER_VERSION = "v8";
 
