@@ -30,16 +30,8 @@ const aggregateMachineDefects = (lines = []) => {
       const key = defectTypeId ? `ID:${defectTypeId}` : code ? `CODE:${code}` : name ? `NAME:${name}` : null;
       if (!key) continue;
       const existing = merged.get(key);
-      if (existing) {
-        existing.quantity += quantity;
-      } else {
-        merged.set(key, {
-          defect_type_id: defectTypeId,
-          defect_code: code || null,
-          defect_name: name || null,
-          quantity
-        });
-      }
+      if (existing) existing.quantity += quantity;
+      else merged.set(key, { defect_type_id: defectTypeId, defect_code: code || null, defect_name: name || null, quantity });
     }
   }
   return [...merged.values()];
@@ -51,9 +43,7 @@ const calculateMachineLinePerformance = (line = {}) => {
   const detailedNg = defects.reduce((sum, defect) => sum + Math.max(0, safeNumber(defect?.quantity)), 0);
   const ng = detailedNg > 0 ? detailedNg : Math.max(0, safeNumber(line.ng_quantity));
   const excludeKqd = Number(line.exclude_kqd_from_tt || 0) === 1;
-  const excludedKqd = excludeKqd
-    ? defects.reduce((sum, defect) => sum + (isKqdDefect(defect) ? Math.max(0, safeNumber(defect?.quantity)) : 0), 0)
-    : 0;
+  const excludedKqd = excludeKqd ? defects.reduce((sum, defect) => sum + (isKqdDefect(defect) ? Math.max(0, safeNumber(defect?.quantity)) : 0), 0) : 0;
   const countedNg = Math.max(0, ng - excludedKqd);
   const physicalOutput = ok + ng;
   const countedOutput = ok + countedNg;
@@ -117,9 +107,7 @@ const calculateManualPerformance = (report = {}) => {
 const calculateReportPerformance = ({ report = {}, machineLines = [] } = {}) => {
   const rawLines = Array.isArray(machineLines) ? machineLines : [];
   const mode = String(report.operation_mode || "").trim().toUpperCase();
-  if (mode === "MANUAL" || rawLines.length === 0) {
-    return calculateManualPerformance(report);
-  }
+  if (mode === "MANUAL" || rawLines.length === 0) return calculateManualPerformance(report);
 
   const lines = rawLines.map(calculateMachineLinePerformance);
   const machineCount = lines.length;
@@ -136,11 +124,7 @@ const calculateReportPerformance = ({ report = {}, machineLines = [] } = {}) => 
   return {
     performanceMode: "MACHINE",
     machine_lines: lines,
-    // For legacy approved machine reports, the parent production_report_defects
-    // table can be empty while defects_json on machine lines still contains the
-    // real NG detail. Expose that authoritative machine detail as report.defects
-    // so the existing UI/Excel pipeline can render it without rewriting DB data.
-    defects: machineDefects,
+    machine_defects: machineDefects,
     manualPerformance: null,
     machinePerformance: {
       machine_count: machineCount,
@@ -162,10 +146,4 @@ const calculateReportPerformance = ({ report = {}, machineLines = [] } = {}) => 
   };
 };
 
-module.exports = {
-  parseDefects,
-  isKqdDefect,
-  calculateMachineLinePerformance,
-  calculateManualPerformance,
-  calculateReportPerformance,
-};
+module.exports = { parseDefects, isKqdDefect, calculateMachineLinePerformance, calculateManualPerformance, calculateReportPerformance };
