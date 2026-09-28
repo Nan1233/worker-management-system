@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import type { ProductionReport } from "../../types/production";
+import api from "../../services/api";
 import {
   approveMachineProductionEvent,
   createMachineProductionEvent,
   getMachineProductionEvent,
-  linkMachineEventParticipants,
   updateMachineProductionEvent,
   type MachineProductionEvent,
   type MachineProductionEventDefectInput,
@@ -28,10 +28,6 @@ interface Props {
 export default function MachineEventPanel({ report, line, source, onChanged }: Props) {
   const required = SHARED_MACHINE_NUMBERS.has(machineNumber(line.machine_code) || -1);
   const { can } = usePermissions();
-  // Machine physical truth is editable only while the report is pending and
-  // the current actor is explicitly allowed to edit pending reports.
-  // Approved report detail is always read-only here; report-level approved
-  // editing must not silently mutate the separate physical-machine ledger.
   const canManage = source === "pending" && can("REPORT_PENDING_EDIT");
   const [eventIdInput, setEventIdInput] = useState(String(line.machine_event_id || ""));
   const [event, setEvent] = useState<MachineProductionEvent | null>(null);
@@ -104,8 +100,10 @@ export default function MachineEventPanel({ report, line, source, onChanged }: P
     if (!line.id || !Number.isInteger(eventId) || eventId <= 0) { setError("ID event không hợp lệ."); return; }
     try {
       setBusy(true); setError("");
-      // Backend expects temporary machine-line IDs, not participant worker IDs.
-      hydrate(await linkMachineEventParticipants(eventId, [Number(line.id)]));
+      // productionEventController expects temp_machine_line_ids. The old
+      // productionService helper sent participant_ids, so use the API directly.
+      const response = await api.post(`/machine-production-events/${eventId}/participants`, { temp_machine_line_ids: [Number(line.id)] });
+      hydrate(response.data?.data ?? response.data);
       await onChanged?.();
     } catch (err) { setError(message(err, "Không thể liên kết production event.")); }
     finally { setBusy(false); }
