@@ -46,7 +46,9 @@ async function getPreviousPendingCount(managerId, isAdmin) {
 }
 
 async function getTempMachineLines(id) {
-    return query(db, `SELECT ml.*, me.id AS machine_event_id FROM production_temp_machine_lines ml LEFT JOIN machine_events me ON me.id = ml.machine_event_id WHERE ml.temp_report_id = ? ORDER BY ml.id`, [id]);
+    // Clean test schema: machine_event_id is already stored on the temp line.
+    // Do not depend on the legacy machine_events table, which is absent.
+    return query(db, `SELECT ml.* FROM production_temp_machine_lines ml WHERE ml.temp_report_id = ? ORDER BY ml.id`, [id]);
 }
 
 function normalizeMachineLines(lines) { return lines || []; }
