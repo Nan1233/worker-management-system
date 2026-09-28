@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import type { ProductionReport } from "../../types/production";
-import api from "../../services/api";
+import { api } from "../../services/api";
 import {
   approveMachineProductionEvent,
   createMachineProductionEvent,
@@ -78,15 +78,9 @@ export default function MachineEventPanel({ report, line, source, onChanged }: P
     try {
       setBusy(true); setError("");
       const created = await createMachineProductionEvent({
-        process_id: Number(report.process_id),
-        machine_id: line.machine_id,
-        machine_code: line.machine_code,
-        product_code: line.product_code,
-        work_date: report.work_date,
-        shift: report.shift,
-        physical_ok_quantity: physicalOk,
-        machine_time_hours: machineHours,
-        defects,
+        process_id: Number(report.process_id), machine_id: line.machine_id, machine_code: line.machine_code,
+        product_code: line.product_code, work_date: report.work_date, shift: report.shift,
+        physical_ok_quantity: physicalOk, machine_time_hours: machineHours, defects,
         temp_machine_line_ids: [Number(line.id)],
       });
       hydrate(created); await onChanged?.();
@@ -100,8 +94,6 @@ export default function MachineEventPanel({ report, line, source, onChanged }: P
     if (!line.id || !Number.isInteger(eventId) || eventId <= 0) { setError("ID event không hợp lệ."); return; }
     try {
       setBusy(true); setError("");
-      // productionEventController expects temp_machine_line_ids. The old
-      // productionService helper sent participant_ids, so use the API directly.
       const response = await api.post(`/machine-production-events/${eventId}/participants`, { temp_machine_line_ids: [Number(line.id)] });
       hydrate(response.data?.data ?? response.data);
       await onChanged?.();
@@ -113,11 +105,7 @@ export default function MachineEventPanel({ report, line, source, onChanged }: P
     if (!canManage || !event) return;
     try {
       setBusy(true); setError("");
-      hydrate(await updateMachineProductionEvent(event.id, {
-        physical_ok_quantity: physicalOk,
-        machine_time_hours: machineHours,
-        defects,
-      }));
+      hydrate(await updateMachineProductionEvent(event.id, { physical_ok_quantity: physicalOk, machine_time_hours: machineHours, defects }));
       await onChanged?.();
     } catch (err) { setError(message(err, "Không thể cập nhật production event.")); }
     finally { setBusy(false); }
@@ -159,10 +147,7 @@ export default function MachineEventPanel({ report, line, source, onChanged }: P
       <input aria-label="Existing event ID" placeholder="Event ID" value={eventIdInput} disabled={busy} onChange={(e)=>setEventIdInput(e.target.value)}/>
       <button type="button" disabled={busy} onClick={()=>void linkExisting()}>Liên kết event có sẵn</button>
     </div> : <div className="detail-warning">{source === "approved" ? "Chi tiết physical machine của báo cáo đã duyệt ở chế độ chỉ đọc." : "Bạn không có quyền sửa physical machine event của báo cáo này."}</div>) : <div className="machine-event-actions">
-      {canManage ? <>
-        <button type="button" disabled={busy} onClick={()=>void updateEvent()}>Lưu physical truth</button>
-        {event.status !== "approved" && <button type="button" disabled={busy} onClick={()=>void approveEvent()}>Duyệt event</button>}
-      </> : <div className="detail-warning">Physical machine event đang ở chế độ chỉ đọc.</div>}
+      {canManage ? <><button type="button" disabled={busy} onClick={()=>void updateEvent()}>Lưu physical truth</button>{event.status !== "approved" && <button type="button" disabled={busy} onClick={()=>void approveEvent()}>Duyệt event</button>}</> : <div className="detail-warning">Physical machine event đang ở chế độ chỉ đọc.</div>}
     </div>}
   </section>;
 }
