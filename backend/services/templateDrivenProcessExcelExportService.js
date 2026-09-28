@@ -39,10 +39,10 @@ function processColumns(sheet, contract, processCode) {
     workerName: find('họ tên') || find('họ & tên') || find('tên') || find('người'),
     shift: find('ca'),
     machine: find('số máy') || find('máy đo') || find('máy mài') || find('máy'),
-    // Keep product-code mapping independent from the "Sản phẩm OK" column.
-    // Some current KTC templates label this column as "Tên SP" or simply
-    // "Sản phẩm", so the old "mã sản phẩm"-only matcher could leave it null.
-    product: find('mã sản phẩm') || find('mã số sản phẩm') || find('mã sp') || find('tên sp') || findExact('sản phẩm'),
+    // Product code must target the exact code column. Do not fall back to
+    // broad "tên sp"/"sản phẩm" matches because those can select the OK-product
+    // column and make the exported report lose its product code.
+    product: findExact('mã sản phẩm') || findExact('mã số sản phẩm') || findExact('mã sp') || findExact('tên sp') || findExact('sản phẩm'),
     workDate: find('ngày sản xuất') || find('ngày/tháng') || find('ngày tháng') || find('ngày'),
     training: find('% học việc'),
     standard: find('định mức') || find('kh'),
