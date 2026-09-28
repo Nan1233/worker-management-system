@@ -94,7 +94,27 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
         const workerSelectionProducts = (rows: Array<{ product: ProductStandardOption; alias: string }>): ProductStandardOption[] => rows.map(({ product, alias }) => ({ ...product, product_code: alias }));
 
         if (productWorkTypes.size === 1 && productWorkTypes.has("LONG")) {
-            if (mode === "MACHINE" && (!selectedMachine || !isGcLongMachine(selectedRawMachine))) return [];
+            if (mode === "MANUAL") {
+                const specialProducts: Array<{ product: ProductStandardOption; alias: string }> = NO_STANDARD_LONG_WORK_CODES.map((code) => ({
+                    alias: code,
+                    product: {
+                        ...(canonicalProducts[0]?.product || {} as ProductStandardOption),
+                        product_code: code,
+                        alias_code: code,
+                        work_type: "LONG",
+                        // Positive UI placeholder only so the existing client-side
+                        // required-standard validation can accept this selectable
+                        // work. Submission converts these codes back to standard=0.
+                        standard_output: 1,
+                    } as ProductStandardOption,
+                }));
+                const existingAliases = new Set(canonicalProducts.map(({ alias }) => alias));
+                return workerSelectionProducts([
+                    ...canonicalProducts,
+                    ...specialProducts.filter(({ alias }) => !existingAliases.has(alias)),
+                ]);
+            }
+            if (!selectedMachine || !isGcLongMachine(selectedRawMachine)) return [];
             return workerSelectionProducts(canonicalProducts);
         }
         if (productWorkTypes.size === 1 && productWorkTypes.has("CUT")) {
