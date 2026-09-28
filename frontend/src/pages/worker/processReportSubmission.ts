@@ -1,7 +1,7 @@
 import type { MachineOption, ProductStandardOption } from "../../services/masterDataService";
 import type { ProductionReport } from "../../types/production";
 import type { DeductionState, FormState, MachineLineState, OperationType } from "./processPageConfig";
-import { getFullProductCode } from "./productSuggestionRules";
+import { getFullProductCode, isNoStandardLongWork } from "./productSuggestionRules";
 
 type Option = { key?: string; id?: number; code?: string; defect_code?: string; label?: string; defect_type_id?: number; deduction_type_id?: number; defect_name?: string; deduction_name?: string };
 
@@ -35,8 +35,10 @@ export function buildProductionReportPayload(args: {
   activeNgOptions: Option[]; deductions: DeductionState; activeDeductionOptions: Option[]; excludeKqdFromTt: boolean;
 }): ProductionReport {
   const num=(v:unknown)=>Number(v)||0;
+  const noStandardLongWork = args.isCutLongProcess && args.operationType === "LONG" && !args.usesAnyMachine && isNoStandardLongWork(args.form.productName);
 
   const resolvePositiveStandardOutput = (productCode: string, currentValue: unknown): number => {
+    if (noStandardLongWork && isNoStandardLongWork(productCode)) return 0;
     const current = Number(currentValue);
     if (Number.isFinite(current) && current > 0) return current;
     const normalizedProduct = String(productCode || "").trim().toUpperCase();
@@ -83,30 +85,18 @@ export function buildProductionReportPayload(args: {
     };
   });
 
-  // Parent defects are the worker's NG breakdown. Machine/physical defects
-  // stay on machine_lines and must never replace worker-level defects.
   let defects = formDefects;
   const workerNg = Math.max(0, Math.trunc(num(args.form.ttNg)));
   const formDefectTotal = formDefects.reduce((sum, item) => sum + Math.max(0, Math.trunc(num(item.quantity))), 0);
-  // Legacy single-type machine reports could have copied the machine defect
-  // detail (e.g. 200) into parent defects while worker TT NG is 100. When
-  // there is exactly one parent defect type, retain that type but normalize its
-  // worker quantity to TT NG. The machine detail remains unchanged.
   if ((args.usesMultiMachineLines || args.usesSingleMachine) && workerNg > 0 && formDefects.length === 1 && formDefectTotal !== workerNg) {
     defects = [{ ...formDefects[0], quantity: workerNg }];
   }
 
   if (args.usesSingleMachine && !args.usesMultiMachineLines && args.form.machineNo.trim()) {
     const singleLineDefects = lines[0]?.defects?.length ? lines[0].defects.map((item) => ({
-      defect_type_id:item.defect_type_id,
-      defect_code:item.defect_code,
-      defect_name:item.defect_name,
-      quantity:item.quantity
+      defect_type_id:item.defect_type_id, defect_code:item.defect_code, defect_name:item.defect_name, quantity:item.quantity
     })) : defects.map((item) => ({
-      defect_type_id:item.defect_type_id,
-      defect_code:item.defect_code,
-      defect_name:item.defect_name,
-      quantity:item.quantity
+      defect_type_id:item.defect_type_id, defect_code:item.defect_code, defect_name:item.defect_name, quantity:item.quantity
     }));
     const fullProductCode = getFullProductCode(args.form.productName, args.productOptions);
     lines.splice(0, lines.length, {
@@ -117,7 +107,8 @@ export function buildProductionReportPayload(args: {
   }
 
   const deductions=args.activeDeductionOptions.map(o=>({ deduction_type_id:Number(o.id||o.deduction_type_id||0)||undefined, deduction_code:String(o.code||""), deduction_name:String(o.label||o.deduction_name||o.key||""), hours:num(args.deductions[String(o.key||"")])/60 })).filter(x=>x.hours>0);
-  const actualOutput=num(args.form.actualOutput), actualTime=parseHours(args.form.actualTime), deductionTime=parseHours(args.form.deductionTime), totalTime=parseHours(args.form.totalTime);
+  const actualOutput=noStandardLongWork ? 0 : num(args.form.actualOutput);
+  const actualTime=parseHours(args.form.actualTime), deductionTime=parseHours(args.form.deductionTime), totalTime=parseHours(args.form.totalTime);
   const hasActualMachineLine=(args.usesMultiMachineLines||args.usesSingleMachine)&&lines.some((line)=>!!line.machine_code);
   const useMachineLinesPayload=(args.usesMultiMachineLines||args.usesSingleMachine)&&hasActualMachineLine;
   const normalizedMachine = String(args.form.machineNo || lines[0]?.machine_code || "").trim().toUpperCase();
@@ -130,9 +121,9 @@ export function buildProductionReportPayload(args: {
     product_name:useMachineLinesPayload?[...new Set(args.machineLines.map(l=>l.productCode).filter(Boolean))].join(", "):args.form.productName,
     operation_type:args.operationType, operation_mode:useMachineLinesPayload?"MACHINE":(args.usesAnyMachine&&!args.isCutLongProcess?"MACHINE":"MANUAL"),
     total_time:totalTime, actual_time:actualTime, deduction_time:deductionTime,
-    standard_output:useMachineLinesPayload?lines.reduce((sum,l)=>sum+num(l.standard_output),0):resolvePositiveStandardOutput(args.form.productName,args.form.standardOutput),
-    actual_output:actualOutput, tt_ok:num(args.form.ttOk), tt_ng:num(args.form.ttNg),
+    standard_output:noStandardLongWork ? 0 : (useMachineLinesPayload?lines.reduce((sum,l)=>sum+num(l.standard_output),0):resolvePositiveStandardOutput(args.form.productName,args.form.standardOutput)),
+    actual_output:actualOutput, tt_ok:noStandardLongWork ? 0 : num(args.form.ttOk), tt_ng:noStandardLongWork ? 0 : num(args.form.ttNg),
     kqd_dap_lai:num(args.form.kqdDapLai), kqd_tuot:num(args.form.kqdTuot), vo_do_long:num(args.form.voDoLong), xuoc_do_long:num(args.form.xuocDoLong), cong_gay:num(args.form.congGay), xoay:num(args.form.xoay), khong_dut:num(args.form.khongDut), bavia_hut:num(args.form.baviaHut), ppcm:num(args.form.ppcm), loi_cao_su:num(args.form.loiCaoSu), ng_kich_thuoc:num(args.form.ngKichThuoc), cat_lem:num(args.form.catLem),
-    note:args.form.note||"", extra_data:{...args.extraData, adjustment_count:num(args.form.adjustmentCount), execution_method:executionMethod}, defects, deductions, machine_lines:useMachineLinesPayload?lines:[], client_request_id:args.clientRequestId||undefined, exclude_kqd_from_tt:args.excludeKqdFromTt?1:0
+    note:args.form.note||"", extra_data:{...args.extraData, adjustment_count:num(args.form.adjustmentCount), execution_method:executionMethod}, defects:noStandardLongWork ? [] : defects, deductions, machine_lines:useMachineLinesPayload?lines:[], client_request_id:args.clientRequestId||undefined, exclude_kqd_from_tt:args.excludeKqdFromTt?1:0
   } as ProductionReport;
 }
