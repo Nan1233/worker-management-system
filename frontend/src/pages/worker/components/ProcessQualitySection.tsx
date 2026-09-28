@@ -15,6 +15,7 @@ interface Props {
     showNg: boolean;
     setShowNg: Dispatch<SetStateAction<boolean>>;
     usesMultiMachineLines: boolean;
+    qualityLocked?: boolean;
     formatIntegerDisplay: (value: string) => string;
     onTtOkChange: (event: ChangeEvent<HTMLInputElement>) => void;
     onNumberBlur: (event: FocusEvent<HTMLInputElement>) => void;
@@ -31,13 +32,14 @@ export default function ProcessQualitySection({
     showNg,
     setShowNg,
     usesMultiMachineLines,
+    qualityLocked: qualityLockedProp,
     formatIntegerDisplay,
     onTtOkChange,
     onNumberBlur,
     onToggleNg,
     onNgValue,
 }: Props) {
-    const qualityLocked = usesMultiMachineLines;
+    const qualityLocked = qualityLockedProp ?? usesMultiMachineLines;
     const hasCanonicalGcDefects = activeNgOptions.some((item) => /^(CAT|LONG)\d+$/.test(normalizeCode(item.code)));
     const [gcOperation, setGcOperation] = useState<"CUT" | "LONG">("CUT");
 
@@ -57,8 +59,6 @@ export default function ProcessQualitySection({
         })
         : activeNgOptions;
 
-    // Do not carry Cắt defect selections into Lồng (or vice versa). This also
-    // prevents hidden defect quantities from continuing to contribute to TT NG.
     useEffect(() => {
         if (qualityLocked || !hasCanonicalGcDefects) return;
         const visibleKeys = new Set(visibleNgOptions.map((item) => item.key));
@@ -79,23 +79,23 @@ export default function ProcessQualitySection({
             <h2 className="worker-card-title"><span><AppIcon name="sheet" size={20} /></span> Báo cáo Chất lượng</h2>
             <div className="worker-quality-summary">
                 <div className="worker-quality-card ok">
-                    <label htmlFor="ttOk">{usesMultiMachineLines ? "OK của người (tổng các máy)" : "TT OK"}</label>
+                    <label htmlFor="ttOk">{qualityLocked ? "OK của người (tổng các máy)" : "TT OK"}</label>
                     <input id="ttOk" name="ttOk" value={formatIntegerDisplay(form.ttOk)} onChange={qualityLocked ? undefined : onTtOkChange} onBlur={qualityLocked ? undefined : onNumberBlur} readOnly={qualityLocked} disabled={qualityLocked} inputMode="numeric" autoComplete="off" />
                 </div>
                 <div className="worker-quality-card ng">
-                    <label htmlFor="ttNg">{usesMultiMachineLines ? "NG của người (tổng các máy)" : "TT NG"}</label>
+                    <label htmlFor="ttNg">{qualityLocked ? "NG của người (tổng các máy)" : "TT NG"}</label>
                     <input id="ttNg" name="ttNg" value={formatIntegerDisplay(form.ttNg)} readOnly disabled={qualityLocked} />
                 </div>
                 <div className="worker-quality-card total-output">
-                    <label htmlFor="totalOutput">{usesMultiMachineLines ? "Sản lượng người" : "Tổng sản lượng"}</label>
+                    <label htmlFor="totalOutput">{qualityLocked ? "Sản lượng người" : "Tổng sản lượng"}</label>
                     <input id="totalOutput" value={formatIntegerDisplay(String((Number(form.ttOk) || 0) + (Number(form.ttNg) || 0)))} readOnly disabled={qualityLocked} aria-label="Tổng sản lượng bằng TT OK cộng TT NG" />
-                    <small>{usesMultiMachineLines ? "Tổng sản lượng thực tế của tất cả máy người này chạy" : "OK + NG"}</small>
+                    <small>{qualityLocked ? "Tổng sản lượng thực tế của tất cả máy người này chạy" : "OK + NG"}</small>
                 </div>
             </div>
             <div className="worker-dropdown-box">
                 <button type="button" className="worker-dropdown-title" onClick={() => setShowNg((prev) => !prev)} aria-expanded={showNg} aria-controls="worker-ng-options">
                     <span className="worker-dropdown-title-main">
-                        <span>{usesMultiMachineLines ? "Tổng lỗi NG từ các máy" : "Lỗi NG"}</span>
+                        <span>{qualityLocked ? "Tổng lỗi NG từ các máy" : "Lỗi NG"}</span>
                         <small>{Number(form.ttNg || 0) > 0 ? `${selectedNg.length} loại · ${formatIntegerDisplay(form.ttNg)} NG` : "Không có NG"}</small>
                     </span>
                     <span aria-hidden="true">{showNg ? "▲" : "▼"}</span>
