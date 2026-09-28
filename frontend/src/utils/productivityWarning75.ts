@@ -6,14 +6,18 @@ function installStyle() {
     const style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = `
+      .ktc-productivity-warning-75,
+      .ktc-productivity-warning-75 > * {
+        background: #ffe08a !important;
+        color: #5b3b00 !important;
+        font-weight: 800 !important;
+      }
       .ktc-productivity-warning-75 {
-        background: #fff2cc !important;
-        color: #000 !important;
-        font-weight: 700 !important;
+        box-shadow: inset 0 0 0 2px #f0b429 !important;
       }
       .ktc-productivity-warning-75::after {
         content: " ⚠";
-        color: #b45309;
+        color: #a15c00;
       }
     `;
     document.head.appendChild(style);
@@ -24,6 +28,15 @@ function parsePercent(value: string) {
     return match ? Number(match[0]) : NaN;
 }
 
+function isProductivityHeader(header: string) {
+    return header.includes("% năng suất") ||
+        header.includes("năng suất %") ||
+        header.includes("%ns") ||
+        header === "năng suất" ||
+        header === "% hv" ||
+        header.includes("% hv");
+}
+
 function scanProductivityTables() {
     installStyle();
 
@@ -31,45 +44,29 @@ function scanProductivityTables() {
         const headers = Array.from(table.querySelectorAll("thead th")).map((th) =>
             String(th.textContent || "").trim().toLowerCase()
         );
-
-        const productivityIndex = headers.findIndex((header) =>
-            header.includes("% năng suất") ||
-            header.includes("năng suất %") ||
-            header.includes("%ns") ||
-            header === "năng suất"
-        );
-
+        const productivityIndex = headers.findIndex(isProductivityHeader);
         if (productivityIndex < 0) return;
 
         table.querySelectorAll("tbody tr").forEach((row) => {
             const cell = row.children[productivityIndex] as HTMLElement | undefined;
             if (!cell) return;
-
             const value = parsePercent(cell.textContent || "");
-            if (Number.isFinite(value) && value <= LIMIT) {
-                cell.classList.add("ktc-productivity-warning-75");
-                cell.title = "Cảnh báo: năng suất ≤ 75%";
-            } else {
-                cell.classList.remove("ktc-productivity-warning-75");
-                if (cell.title === "Cảnh báo: năng suất ≤ 75%") cell.removeAttribute("title");
-            }
+            const warning = Number.isFinite(value) && value <= LIMIT;
+            cell.classList.toggle("ktc-productivity-warning-75", warning);
+            if (warning) cell.title = "Cảnh báo: năng suất ≤ 75%";
+            else if (cell.title === "Cảnh báo: năng suất ≤ 75%") cell.removeAttribute("title");
         });
     });
 }
 
 export function initializeProductivityWarning75() {
     if (typeof document === "undefined") return;
-
     const start = () => {
         scanProductivityTables();
         const observer = new MutationObserver(scanProductivityTables);
         observer.observe(document.body, { childList: true, subtree: true, characterData: true });
         window.setInterval(scanProductivityTables, 1500);
     };
-
-    if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", start, { once: true });
-    } else {
-        start();
-    }
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });
+    else start();
 }
