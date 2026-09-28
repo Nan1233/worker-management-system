@@ -149,11 +149,23 @@ exports.getReportById=async(req,res)=>{
     }
 
     const normalizedMachineLines=machineLines.map(line=>{
+      const persisted=machineDefectsByLine.get(Number(line.id))||[];
+      if(persisted.length)return {...line,defects:persisted,defects_json:JSON.stringify(persisted)};
+
+      const existingFromLine=(()=>{
+        let parsed=line?.defects;
+        if(!Array.isArray(parsed))parsed=line?.defects_json;
+        if(typeof parsed==='string'){
+          try{parsed=JSON.parse(parsed);}catch{parsed=null;}
+        }
+        if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed)&&Array.isArray(parsed.defects))parsed=parsed.defects;
+        return Array.isArray(parsed)?parsed.filter(item=>Number(item?.quantity||0)>0):[];
+      })();
+      if(existingFromLine.length)return {...line,defects:existingFromLine,defects_json:JSON.stringify(existingFromLine)};
+
       const eventDetails=eventDefectsByEvent.get(Number(line.machine_event_id))||[];
-      if(eventDetails.length)return {...line,defects_json:JSON.stringify(eventDetails)};
-      const details=machineDefectsByLine.get(Number(line.id))||[];
-      if(details.length)return {...line,defects_json:JSON.stringify(details)};
-      return line;
+      if(eventDetails.length)return {...line,defects:eventDetails,defects_json:JSON.stringify(eventDetails)};
+      return {...line,defects:[]};
     });
 
     let performance={};
