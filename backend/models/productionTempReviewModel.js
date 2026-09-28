@@ -47,6 +47,50 @@ async function ensureLegacyMachineLines(targets) {
   }
 }
 
+// Repair stale machine_id values on existing temporary machine lines before approval.
+// Older reports can contain a valid machine_code but an old/wrong machine_id; resolve the
+// canonical machine again from the process + machine code so approval can validate the snapshot.
+async function repairMachineLineReferences(targets) {
+  const ids = [...new Set((Array.isArray(targets) ? targets : [])
+    .map((item) => typeof item === "object" ? item?.id : item)
+    .map(Number)
+    .filter((id) => Number.isInteger(id) && id > 0))];
+  if (!ids.length) return;
+  const placeholders = ids.map(() => "?").join(",");
+  const [lines] = await db.promise().query(
+    `SELECT ml.id,ml.machine_id,ml.machine_code,r.process_id,r.machine_no
+       FROM production_temp_machine_lines ml
+       JOIN production_reports_temp r ON r.id=ml.temp_report_id
+      WHERE r.id IN (${placeholders})
+        AND r.status IN ('pending','need_fix')`,
+    ids,
+  );
+
+  for (const line of lines || []) {
+    const machineCode = String(line.machine_code || line.machine_no || "").split(",")[0].trim();
+    if (!machineCode) continue;
+    const [machines] = await db.promise().query(
+      `SELECT id,machine_code
+         FROM machines
+        WHERE process_id=?
+          AND status='active'
+          AND UPPER(TRIM(machine_code))=UPPER(TRIM(?))
+        LIMIT 2`,
+      [Number(line.process_id), machineCode],
+    );
+    if (machines?.length !== 1) continue;
+    const machine = machines[0];
+    if (Number(line.machine_id) !== Number(machine.id) || String(line.machine_code || "").trim() !== String(machine.machine_code || "").trim()) {
+      await db.promise().query(
+        `UPDATE production_temp_machine_lines
+            SET machine_id=?, machine_code=?
+          WHERE id=?`,
+        [Number(machine.id), machine.machine_code, Number(line.id)],
+      );
+    }
+  }
+}
+
 async function linkMatchingApprovedMachineEvents(targets) {
   const ids = (Array.isArray(targets) ? targets : [])
     .map((item) => typeof item === "object" ? item?.id : item).map(Number)
@@ -172,6 +216,7 @@ module.exports = {
   ...approvalModel,
   async approveSelected(targets, reviewerId, isAdmin = false) {
     await ensureLegacyMachineLines(targets);
+    await repairMachineLineReferences(targets);
     await linkMatchingApprovedMachineEvents(targets);
     return approveSelectedSerialized(targets, reviewerId, isAdmin);
   },
