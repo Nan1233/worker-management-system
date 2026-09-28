@@ -74,7 +74,6 @@ export function buildProductionReportPayload(args: {
       const option = args.activeNgOptions.find(o => String(o.key) === key || String(o.code || o.defect_code || "").trim().toUpperCase() === key.trim().toUpperCase() || String(o.id || o.defect_type_id || "") === key);
       return defectForOption(option, num(l.defects[key]));
     }).filter(x=>x.quantity>0);
-    // UI keeps alias in l.productCode; persistence keeps the corresponding full product code.
     const fullProductCode = getFullProductCode(l.productCode, args.productOptions);
     return {
       machine_code:l.machineCode.trim(), product_code:fullProductCode,
@@ -84,16 +83,28 @@ export function buildProductionReportPayload(args: {
     };
   });
 
-  const machineDefects = lines.flatMap((line) => line.defects || []);
-  const defects = machineDefects.length > 0
-    ? machineDefects.reduce<Array<{defect_type_id?:number;defect_code:string;defect_name:string;quantity:number}>>((acc, item) => {
-        const key = item.defect_type_id ? `id:${item.defect_type_id}` : `code:${normalizeDefectIdentity(item.defect_code,item.defect_name)}`;
-        const existing = acc.find((x) => (x.defect_type_id ? `id:${x.defect_type_id}` : `code:${normalizeDefectIdentity(x.defect_code,x.defect_name)}`) === key);
-        if (existing) existing.quantity += item.quantity; else acc.push({ ...item }); return acc;
-      }, []) : formDefects;
+  // IMPORTANT: parent `defects` are the worker's NG breakdown and MUST match
+  // `tt_ng`. Machine/physical defect details stay inside `machine_lines[].defects`.
+  // The previous implementation replaced worker defects with machine defects,
+  // which produced records such as TT NG=100 but defect detail=200 and later
+  // made edit/save data inconsistent.
+  const defects = formDefects;
 
   if (args.usesSingleMachine && !args.usesMultiMachineLines && args.form.machineNo.trim()) {
-    const singleLineDefects = defects.map((item) => ({ defect_type_id:item.defect_type_id, defect_code:item.defect_code, defect_name:item.defect_name, quantity:item.quantity }));
+    // Keep the machine-line defect breakdown separate from the worker-level
+    // defect breakdown. If the line has no machine detail, fall back to the
+    // worker detail so legacy single-machine reports remain complete.
+    const singleLineDefects = lines[0]?.defects?.length ? lines[0].defects.map((item) => ({
+      defect_type_id:item.defect_type_id,
+      defect_code:item.defect_code,
+      defect_name:item.defect_name,
+      quantity:item.quantity
+    })) : formDefects.map((item) => ({
+      defect_type_id:item.defect_type_id,
+      defect_code:item.defect_code,
+      defect_name:item.defect_name,
+      quantity:item.quantity
+    }));
     const fullProductCode = getFullProductCode(args.form.productName, args.productOptions);
     lines.splice(0, lines.length, {
       machine_code:args.form.machineNo.trim(), product_code:fullProductCode, machine_time_hours:parseHours(args.form.actualTime), adjustment_minutes:0,
@@ -113,7 +124,6 @@ export function buildProductionReportPayload(args: {
   return {
     process_id:args.processId, work_date:args.form.workDate, shift:args.form.shift,
     machine_no:useMachineLinesPayload?lines.map(l=>l.machine_code).join(", "):args.form.machineNo,
-    // product_name remains the encoded alias for worker-facing reports/UI.
     product_name:useMachineLinesPayload?[...new Set(args.machineLines.map(l=>l.productCode).filter(Boolean))].join(", "):args.form.productName,
     operation_type:args.operationType, operation_mode:useMachineLinesPayload?"MACHINE":(args.usesAnyMachine&&!args.isCutLongProcess?"MACHINE":"MANUAL"),
     total_time:totalTime, actual_time:actualTime, deduction_time:deductionTime,
