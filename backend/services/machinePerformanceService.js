@@ -39,9 +39,10 @@ const aggregateMachineDefects = (lines = []) => {
 
 const calculateMachineLinePerformance = (line = {}) => {
   const ok = Math.max(0, safeNumber(line.ok_quantity));
+  // Production quantity is authoritative from the saved report line.
+  // Defect detail is a breakdown and must never rewrite the saved NG total.
   const defects = parseDefects(line.defects ?? line.defects_json);
-  const detailedNg = defects.reduce((sum, defect) => sum + Math.max(0, safeNumber(defect?.quantity)), 0);
-  const ng = detailedNg > 0 ? detailedNg : Math.max(0, safeNumber(line.ng_quantity));
+  const ng = Math.max(0, safeNumber(line.ng_quantity));
   const excludeKqd = Number(line.exclude_kqd_from_tt || 0) === 1;
   const excludedKqd = excludeKqd ? defects.reduce((sum, defect) => sum + (isKqdDefect(defect) ? Math.max(0, safeNumber(defect?.quantity)) : 0), 0) : 0;
   const countedNg = Math.max(0, ng - excludedKqd);
