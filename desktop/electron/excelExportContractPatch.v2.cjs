@@ -2,6 +2,7 @@
 
 const Module = require('node:module');
 const ExcelJS = require('exceljs');
+const { dialog } = require('electron');
 
 const originalLoad = Module._load;
 let patchedModule = null;
@@ -97,26 +98,73 @@ function normalizeApprovedPayload(args = {}) {
   };
 }
 
+function errorText(error) {
+  if (!error) return 'Không xác định được lỗi.';
+  const message = error?.message ? String(error.message) : String(error);
+  const code = error?.code ? `\nMã lỗi: ${error.code}` : '';
+  const stack = error?.stack && error.stack !== message ? `\n\nSTACK:\n${String(error.stack).slice(0, 5000)}` : '';
+  return `${message}${code}${stack}`;
+}
+
+async function showExcelBuildError(error, context) {
+  const detail = [
+    `Công đoạn: ${context?.processCode || context?.processName || 'tổng hợp'}`,
+    `Kỳ: ${context?.date || 'không xác định'}`,
+    '',
+    'Excel KHÔNG được ghi/cập nhật.',
+    '',
+    errorText(error),
+  ].join('\n');
+
+  console.error('[KTC][EXCEL_BUILD_ERROR]', detail);
+  try {
+    await dialog.showMessageBox({
+      type: 'error',
+      title: 'Lỗi cập nhật Excel — dữ liệu không khớp',
+      message: 'Không thể cập nhật Excel tháng.',
+      detail,
+      buttons: ['OK'],
+      defaultId: 0,
+    });
+  } catch {
+    // UI logging must never hide the original build error.
+  }
+}
+
 function patchMonthlyModule(mod) {
   if (!mod || mod.__ktcExcelExportPatched) return mod;
   const originalSplit = mod.buildSplitMonthlyWorkbooksLocal;
   const originalProcess = mod.buildProcessWorkbookLocal;
   if (typeof originalSplit === 'function') {
     mod.buildSplitMonthlyWorkbooksLocal = async (args) => {
-      const result = await originalSplit(normalizeApprovedPayload(args));
-      if (Array.isArray(result?.processes)) {
-        for (const process of result.processes) {
-          if (process?.buffer) process.buffer = await patchProcessWorkbook(process.buffer);
+      try {
+        const result = await originalSplit(normalizeApprovedPayload(args));
+        if (Array.isArray(result?.processes)) {
+          for (const process of result.processes) {
+            if (process?.buffer) process.buffer = await patchProcessWorkbook(process.buffer);
+          }
         }
+        return result;
+      } catch (error) {
+        await showExcelBuildError(error, { date: args?.date });
+        throw error;
       }
-      return result;
     };
   }
   if (typeof originalProcess === 'function') {
     mod.buildProcessWorkbookLocal = async (args) => {
-      const result = await originalProcess(normalizeApprovedPayload(args));
-      if (result?.buffer) result.buffer = await patchProcessWorkbook(result.buffer);
-      return result;
+      try {
+        const result = await originalProcess(normalizeApprovedPayload(args));
+        if (result?.buffer) result.buffer = await patchProcessWorkbook(result.buffer);
+        return result;
+      } catch (error) {
+        await showExcelBuildError(error, {
+          date: args?.date,
+          processCode: args?.processCode,
+          processName: args?.processName,
+        });
+        throw error;
+      }
     };
   }
   Object.defineProperty(mod, '__ktcExcelExportPatched', { value: true });
