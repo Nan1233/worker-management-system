@@ -40,13 +40,16 @@ const normalizeDetails = (items, idField, valueField, label, errors) => {
         return [];
     }
 
-    const usedIds = new Set();
-    return items.map((item, index) => {
+    // Edit forms may rebuild details from both the stored row and the current UI
+    // state. If the same master type appears twice, canonicalize it by summing
+    // the quantities/hours instead of rejecting an otherwise valid edit.
+    const merged = new Map();
+    const anonymous = [];
+
+    for (const [index, item] of items.entries()) {
         const typeId = Number(item?.[idField] || 0);
         const typeName = String(item?.defect_name || item?.deduction_name || "").trim();
 
-        // Canonical API field for deductions is `hours`, but older/mobile clients
-        // may still send the UI value as `minutes`. Accept both at the boundary.
         let rawValue = item?.[valueField];
         let valueUnit = "hours";
         if (rawValue === undefined || rawValue === null || rawValue === "") {
@@ -64,18 +67,25 @@ const normalizeDetails = (items, idField, valueField, label, errors) => {
 
         if ((!Number.isInteger(typeId) || typeId <= 0) && !typeName) {
             errors[`${label}.${index}.${idField}`] = `Loại ${label} không hợp lệ`;
-        } else if (typeId > 0 && usedIds.has(typeId)) {
-            errors[`${label}.${index}.${idField}`] = `Loại ${label} bị trùng`;
-        } else if (typeId > 0) {
-            usedIds.add(typeId);
+            anonymous.push({ ...item, [idField]: typeId, [valueField]: Number.isFinite(value) ? value : 0 });
+            continue;
         }
 
         if (!Number.isFinite(value) || value < 0) {
             errors[`${label}.${index}.${valueField}`] = `${valueField} không được âm`;
+            continue;
         }
 
-        return { ...item, [idField]: typeId, [valueField]: Number.isFinite(value) ? value : 0 };
-    }).filter((item) => item[valueField] > 0);
+        const key = typeId > 0 ? `id:${typeId}` : `name:${typeName.toUpperCase()}`;
+        const existing = merged.get(key);
+        if (existing) {
+            existing[valueField] += value;
+        } else {
+            merged.set(key, { ...item, [idField]: typeId, [valueField]: value });
+        }
+    }
+
+    return [...merged.values(), ...anonymous].filter((item) => item[valueField] > 0);
 };
 
 const finiteMinutes = (hours) => Math.round((Number(hours) || 0) * 60);
@@ -86,6 +96,8 @@ const validateProductionReport = (payload = {}, options = {}) => {
     const parsedDate = DATE_PATTERN.test(workDate) ? new Date(`${workDate}T00:00:00`) : null;
     const isNonProductWork = Number(payload.process_id) === 60006 ||
         String(payload.process_code || payload.extra_data?.process_code || "").trim().toUpperCase() === "CVK";
+    const isMachineReport = String(payload.operation_mode || payload.execution_method || "").trim().toUpperCase() === "MACHINE" ||
+        (Array.isArray(payload.machine_lines) && payload.machine_lines.length > 0);
 
     if (!parsedDate || Number.isNaN(parsedDate.getTime())) {
         errors.work_date = "Ngày làm việc không hợp lệ";
@@ -124,7 +136,7 @@ const validateProductionReport = (payload = {}, options = {}) => {
         errors.total_time = "Tổng thời gian phải bằng thời gian làm thực tế cộng thời gian trừ";
     }
     const defects = normalizeDetails(payload.defects || [], "defect_type_id", "quantity", "defects", errors);
-    if (options.skipActualOutputFormula !== true) {
+    if (!isMachineReport && options.skipActualOutputFormula !== true) {
         const policyValue = Object.prototype.hasOwnProperty.call(payload, 'exclude_kqd_from_tt_snapshot')
             ? payload.exclude_kqd_from_tt_snapshot
             : payload.exclude_kqd_from_tt;
@@ -157,7 +169,7 @@ const validateProductionReport = (payload = {}, options = {}) => {
     const defectTotal = defects.reduce((sum, item) => sum + item.quantity, 0);
     const normalizedDeductionTotal = deductions.reduce((sum, item) => sum + item.hours, 0);
 
-    if (Math.abs(defectTotal - ttNg) > EPSILON) {
+    if (!isMachineReport && Math.abs(defectTotal - ttNg) > EPSILON) {
         errors.tt_ng = "TT NG phải bằng tổng số lượng trong chi tiết lỗi";
     }
 
