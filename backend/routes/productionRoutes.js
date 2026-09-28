@@ -43,7 +43,9 @@ router.get("/:id",verifyToken,checkRole("admin","manager","lead","worker"),async
     if(captured.statusCode>=400||!captured.body?.success)return res.status(captured.statusCode||500).json(captured.body||{success:false,message:"Không thể lấy chi tiết báo cáo"});
     const data=captured.body.data||{};
     const sourceTempId=Number(data.source_temp_id||0);
-    const needsWorkerDefectFallback=Number(data.tt_ng||0)>0&&(!Array.isArray(data.defects)||data.defects.length===0);
+    const currentDefects=Array.isArray(data.defects)?data.defects:[];
+    const onlyUnclassified=currentDefects.length===1&&String(currentDefects[0]?.defect_code||"").trim().toUpperCase()==="NG_UNCLASSIFIED";
+    const needsWorkerDefectFallback=Number(data.tt_ng||0)>0&&(currentDefects.length===0||onlyUnclassified);
     const approvedMachineLines=Array.isArray(data.machine_lines)?data.machine_lines:[];
     const needsMachineDefectFallback=approvedMachineLines.some(line=>{
       const direct=Array.isArray(line?.defects)?line.defects:[];
