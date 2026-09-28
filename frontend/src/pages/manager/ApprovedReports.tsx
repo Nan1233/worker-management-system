@@ -123,7 +123,7 @@ export default function ApprovedReports() {
                                             <td>{`PR${String(r.work_date || "REPORT").slice(0, 10).replace(/-/g, "")}-${r.worker_code || String(r.id || i + 1).padStart(4, "0")}`}</td>
                                             <td>{text(r.full_name || r.worker_name)} <span style={{ color: "#7185a4" }}>({text(r.worker_code)})</span></td>
                                             <td>{text(r.process_name)}</td><td><span className="shift-chip">{text(r.shift)}</span></td><td>{dateText(r.work_date)}</td>
-                                            <td>{fmt(r.actual_time || r.total_time)} giờ</td><td>{pct(x.hv)}</td><td>{fmt(x.ok)}</td><td>{fmt(x.ng)}</td><td>{pct(x.nangSuat)}</td><td>{pct(x.dat)}</td><td>{pct(x.pp)}</td>
+                                            <td>{fmt(r.actual_time || r.total_time)} giờ</td><td>{pct(x.hv)}</td><td>{fmt(x.ok)}</td><td>{fmt(x.ng)}</td><td style={{ backgroundColor: x.nangSuat > 100 ? "#ffd6e7" : undefined, color: "#000" }}>{pct(x.nangSuat)}</td><td>{pct(x.dat)}</td><td>{pct(x.pp)}</td>
                                             <td><span className="pending-detail-status">Đã duyệt</span></td>
                                         </tr>
                                     ); })}
