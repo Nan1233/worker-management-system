@@ -6,9 +6,9 @@ import { getSessionCached, clearSessionCache } from "./sessionCache";
 import { normalizeProcessId } from "../utils/processAccess";
 
 const TTL_MS = 30 * 60 * 1000;
-// Bump this whenever the product master contract changes so old 30-minute
-// browser/session snapshots cannot hide newly added product aliases.
-const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v11";
+// v12: invalidate all browser/session product-master snapshots after adding
+// GC Long Tay zero-standard work codes (XUATNHAP, KTCD, TAIPP).
+const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v12";
 const DEDUCTION_MASTER_VERSION = "v7";
 const DEFECT_MASTER_VERSION = "v8";
 
