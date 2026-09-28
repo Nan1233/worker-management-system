@@ -18,9 +18,9 @@ app.on('browser-window-created', (_event, window) => {
   } catch (_) {}
 });
 
-// Production desktop uses the Cloudflare Worker backend. Set this before
-// loading main.cjs so the packaged app cannot silently fall back to Render.
-process.env.KTC_API_URL = 'https://ktc-backend.nan978971.workers.dev/api';
+// Test desktop uses the Cloudflare TEST backend. Set this before loading
+// main.cjs so the packaged app does not silently call the production API.
+process.env.KTC_API_URL = 'https://ktc-be-test.nan978971.workers.dev/api';
 
 // Apply the Excel export contract before main.cjs loads monthlyWorkbookLocal.cjs.
 require('./excelExportContractPatch.v2.cjs');
