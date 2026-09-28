@@ -17,9 +17,11 @@ exports.getProductStandards = async (req, res) => {
       return res.status(400).json({ success: false, message: "process_code không hợp lệ" });
     }
 
+    // v3: invalidate the previous Cloudflare master-data cache after adding
+    // zero-standard GC Long Tay work codes (XUATNHAP/KTCD/TAIPP).
     const cacheKey = processCode
-      ? `product-standards:v2:code:${processCode}`
-      : `product-standards:v2:id:${processId}`;
+      ? `product-standards:v3:code:${processCode}`
+      : `product-standards:v3:id:${processId}`;
     const data = await getOrLoadMasterData(
       cacheKey,
       TTL.productStandards,
@@ -51,9 +53,6 @@ exports.resolveProductStandard = async (req, res) => {
       getOrLoadMasterData(`product-standards:${processId}`, TTL.productStandards, () => productStandardModel.findByProcess(processId))
     ]);
 
-    // IMPORTANT: machine-specific standards are authoritative. Resolve them
-    // before the legacy product standard so a valid machine standard is not
-    // rejected merely because the base product_standards row is zero/missing.
     if (machineCode) {
       const [machineRows] = await query(
         `SELECT id, machine_code
@@ -130,8 +129,6 @@ exports.resolveProductStandard = async (req, res) => {
       }
     }
 
-    // Fall back to the canonical resolver for normal product standards,
-    // historical versions, aliases and non-machine cases.
     const data = await productStandardModel.resolveByMachineAndProduct(processId, machineCode, productCode, workDate);
     if (!data) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy định mức cho máy và sản phẩm đã chọn' });
