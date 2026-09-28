@@ -83,23 +83,26 @@ export function buildProductionReportPayload(args: {
     };
   });
 
-  // IMPORTANT: parent `defects` are the worker's NG breakdown and MUST match
-  // `tt_ng`. Machine/physical defect details stay inside `machine_lines[].defects`.
-  // The previous implementation replaced worker defects with machine defects,
-  // which produced records such as TT NG=100 but defect detail=200 and later
-  // made edit/save data inconsistent.
-  const defects = formDefects;
+  // Parent defects are the worker's NG breakdown. Machine/physical defects
+  // stay on machine_lines and must never replace worker-level defects.
+  let defects = formDefects;
+  const workerNg = Math.max(0, Math.trunc(num(args.form.ttNg)));
+  const formDefectTotal = formDefects.reduce((sum, item) => sum + Math.max(0, Math.trunc(num(item.quantity))), 0);
+  // Legacy single-type machine reports could have copied the machine defect
+  // detail (e.g. 200) into parent defects while worker TT NG is 100. When
+  // there is exactly one parent defect type, retain that type but normalize its
+  // worker quantity to TT NG. The machine detail remains unchanged.
+  if ((args.usesMultiMachineLines || args.usesSingleMachine) && workerNg > 0 && formDefects.length === 1 && formDefectTotal !== workerNg) {
+    defects = [{ ...formDefects[0], quantity: workerNg }];
+  }
 
   if (args.usesSingleMachine && !args.usesMultiMachineLines && args.form.machineNo.trim()) {
-    // Keep the machine-line defect breakdown separate from the worker-level
-    // defect breakdown. If the line has no machine detail, fall back to the
-    // worker detail so legacy single-machine reports remain complete.
     const singleLineDefects = lines[0]?.defects?.length ? lines[0].defects.map((item) => ({
       defect_type_id:item.defect_type_id,
       defect_code:item.defect_code,
       defect_name:item.defect_name,
       quantity:item.quantity
-    })) : formDefects.map((item) => ({
+    })) : defects.map((item) => ({
       defect_type_id:item.defect_type_id,
       defect_code:item.defect_code,
       defect_name:item.defect_name,
