@@ -96,21 +96,37 @@ const getCachedProcessProductRows = async (processId: number): Promise<ProductSt
     return rows;
 };
 
-const hasExactProcessProduct = async (processId: number, productCode: string): Promise<boolean> => {
+const getAutomaticAliasProduct = async (processId: number, machineCode: string, productCode: string, rows: ProductStandardOption[]): Promise<ProductStandardOption | undefined> => {
+    if (Number(processId) !== 1) return undefined;
+    const normalizedMachine = String(machineCode || "").trim().toUpperCase();
+    if (!normalizedMachine) return undefined;
+    const machines = await getMachinesByProcess(processId);
+    const machine = machines.find((item) => String(item.machine_code || "").trim().toUpperCase() === normalizedMachine);
+    if (Number(machine?.is_automatic || 0) !== 1) return undefined;
+    const normalizedProduct = String(productCode || "").trim().toUpperCase();
+    if (!normalizedProduct || /-AUTO$/.test(normalizedProduct)) return undefined;
+    const autoCode = `${normalizedProduct}-AUTO`;
+    return rows.find((row) => String(row?.product_code || "").trim().toUpperCase() === autoCode && Number(row?.standard_output) > 0);
+};
+
+const hasExactProcessProduct = async (processId: number, productCode: string, machineCode = ""): Promise<boolean> => {
     const normalized = String(productCode || "").trim().toUpperCase();
     if (!normalized) return false;
     const rows = await getCachedProcessProductRows(processId);
     const codes = new Set(rows.flatMap((row) => [row?.product_code, row?.alias_code]).map((value) => String(value || "").trim().toUpperCase()).filter(Boolean));
     processProductCache.set(Number(processId), { expiresAt: Date.now() + PROCESS_PRODUCT_CACHE_TTL_MS, codes });
-    return codes.has(normalized);
+    if (codes.has(normalized)) return true;
+    return Boolean(await getAutomaticAliasProduct(processId, machineCode, normalized, rows));
 };
 
-const resolveCanonicalProductCode = async (processId: number, productCode: string): Promise<string> => {
+const resolveCanonicalProductCode = async (processId: number, productCode: string, machineCode = ""): Promise<string> => {
     const normalized = String(productCode || "").trim().toUpperCase();
     if (!normalized) return "";
     const rows = await getCachedProcessProductRows(processId);
     const exact = rows.find((row) => String(row?.product_code || "").trim().toUpperCase() === normalized);
     if (exact?.product_code) return String(exact.product_code).trim();
+    const automatic = await getAutomaticAliasProduct(processId, machineCode, normalized, rows);
+    if (automatic?.product_code) return String(automatic.product_code).trim();
     const aliasCandidates = rows.filter((row) => String(row?.alias_code || "").trim().toUpperCase() === normalized);
     const positiveAlias = aliasCandidates.filter((row) => Number.isFinite(Number(row?.standard_output)) && Number(row.standard_output) > 0).sort((a, b) => Number(b.standard_output) - Number(a.standard_output))[0];
     return String((positiveAlias ?? aliasCandidates[0])?.product_code || productCode).trim();
@@ -126,10 +142,10 @@ const findPositiveLocalStandard = (rows: ProductStandardOption[], normalizedProd
     return canonicalRows.length === 1 ? canonicalRows[0] : undefined;
 };
 
-const toLocalResolvedStandard = (row: ProductStandardOption, processId: number, machineCode: string): ResolvedProductStandard => {
+const toLocalResolvedStandard = (row: ProductStandardOption, processId: number, machineCode: string, requestedProductCode?: string): ResolvedProductStandard => {
     const output = Number(row.standard_output);
     return {
-        product_standard_id: Number(row.id), process_id: Number(row.process_id || processId), product_code: String(row.product_code), alias_code: row.alias_code || null,
+        product_standard_id: Number(row.id), process_id: Number(row.process_id || processId), product_code: requestedProductCode || String(row.product_code), alias_code: row.alias_code || requestedProductCode || null,
         machine_id: null, machine_code: machineCode, standard_time_seconds: null, machine_standard_output: null,
         default_standard_output: output, resolved_output_per_hour: output, standard_source: "DEFAULT", exclude_kqd_from_tt: Number(row.exclude_kqd_from_tt || 0),
     };
@@ -139,34 +155,31 @@ export const resolveProductStandard = async (processId: number, machineCode: str
     const normalizedMachine = String(machineCode || "").trim();
     const normalizedProduct = String(productCode || "").trim();
     if (!normalizedProduct) throw new Error("Thiếu mã sản phẩm để tra định mức");
-    if (!(await hasExactProcessProduct(processId, normalizedProduct))) throw new Error(`Sản phẩm ${normalizedProduct} không có trong danh mục công đoạn`);
 
     const rows = await getCachedProcessProductRows(processId);
-    const canonicalProduct = await resolveCanonicalProductCode(processId, normalizedProduct);
-    const localStandard = findPositiveLocalStandard(rows, normalizedProduct.toUpperCase(), canonicalProduct);
+    const automaticAlias = await getAutomaticAliasProduct(processId, normalizedMachine, normalizedProduct, rows);
+    const lookupProduct = automaticAlias?.product_code ? String(automaticAlias.product_code).trim() : normalizedProduct;
+    if (!(await hasExactProcessProduct(processId, normalizedProduct, normalizedMachine))) throw new Error(`Sản phẩm ${normalizedProduct} không có trong danh mục công đoạn`);
+
+    const canonicalProduct = await resolveCanonicalProductCode(processId, normalizedProduct, normalizedMachine);
+    const localStandard = findPositiveLocalStandard(rows, lookupProduct.toUpperCase(), canonicalProduct);
 
     if (!normalizedMachine) {
         const candidates = rows.filter((row) => [row?.product_code, row?.alias_code].some((value) => String(value || "").trim().toUpperCase() === normalizedProduct.toUpperCase()));
         const positiveCandidates = candidates.filter((row) => Number.isFinite(Number(row?.standard_output)) && Number(row.standard_output) > 0);
         const product = positiveCandidates.length === 1 ? positiveCandidates[0] : candidates.length === 1 ? candidates[0] : undefined;
         if (!product) throw new Error(`Không xác định duy nhất mã sản phẩm ${normalizedProduct} trong công đoạn`);
-        return toLocalResolvedStandard(product, processId, "");
+        return toLocalResolvedStandard(product, processId, "", normalizedProduct);
     }
 
     try {
-        const response = await api.get("/product-standards/resolve", { params: { process_id: processId, machine_code: normalizedMachine, product_code: normalizedProduct, work_date: workDate || undefined } });
+        const response = await api.get("/product-standards/resolve", { params: { process_id: processId, machine_code: normalizedMachine, product_code: lookupProduct, work_date: workDate || undefined } });
         const resolved = response.data?.data ?? response.data;
         const resolvedOutput = Number(resolved?.resolved_output_per_hour || 0);
-        if (resolvedOutput > 0) return resolved;
-
-        // A successful API response with zero/missing output is authoritative:
-        // do not silently replace it with a different product standard.
+        if (resolvedOutput > 0) return { ...resolved, product_code: normalizedProduct, alias_code: resolved?.alias_code || normalizedProduct };
         throw new Error(resolved?.message || `Không có định mức hợp lệ cho ${normalizedProduct} / ${normalizedMachine}`);
     } catch (error: any) {
-        // Local fallback is allowed only for a genuine network/offline failure.
-        // HTTP validation errors (4xx/5xx) must reach the user unchanged so the
-        // UI cannot show a selectable value that the backend will reject.
-        if (!error?.response && localStandard) return toLocalResolvedStandard(localStandard, processId, normalizedMachine);
+        if (!error?.response && localStandard) return toLocalResolvedStandard(localStandard, processId, normalizedMachine, normalizedProduct);
         throw error;
     }
 };
