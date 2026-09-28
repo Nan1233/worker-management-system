@@ -41,11 +41,7 @@ function normalizeUtcTimestamp(value) {
 
 function normalizeReportTimestamps(report) {
     if (!report) return report;
-    return {
-        ...report,
-        created_at: normalizeUtcTimestamp(report.created_at),
-        updated_at: normalizeUtcTimestamp(report.updated_at),
-    };
+    return { ...report, created_at: normalizeUtcTimestamp(report.created_at), updated_at: normalizeUtcTimestamp(report.updated_at) };
 }
 
 async function getProcessOptions(managerId, isAdmin) {
@@ -60,8 +56,6 @@ async function getPreviousPendingCount(managerId, isAdmin) {
 }
 
 async function getTempMachineLines(id) {
-    // Clean test schema: machine_event_id is already stored on the temp line.
-    // Do not depend on the legacy machine_events table, which is absent.
     return query(db, `SELECT ml.* FROM production_temp_machine_lines ml WHERE ml.temp_report_id = ? ORDER BY ml.id`, [id]);
 }
 
@@ -80,9 +74,6 @@ module.exports = {
         const { page = 1, page_size: pageSize = 20, offset = 0 } = filters.pagination || {};
         const { conditions, params } = buildListFilters(managerId, filters, isAdmin, "pr.status IN ('pending', 'need_fix')");
         const where = conditions.join(" AND ");
-
-        // TiDB Serverless/Cloudflare: keep the queries sequential so one request
-        // does not open multiple concurrent serverless connections for the same list.
         const countRows = await query(db, `SELECT COUNT(*) AS total FROM production_reports_temp pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where}`, params);
         const items = await query(db, `SELECT pr.id,pr.work_date,pr.shift,pr.machine_no,pr.product_name,pr.updated_at,pr.worker_id,w.user_id,w.worker_code,u.full_name,p.process_name FROM production_reports_temp pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where} ORDER BY pr.work_date DESC,pr.created_at ASC,pr.id ASC LIMIT ? OFFSET ?`, [...params, pageSize, offset]);
         const processes = await getProcessOptions(managerId, isAdmin);
@@ -109,13 +100,32 @@ module.exports = {
     },
     async getDetail(id) {
         const rows=await query(db,`SELECT pr.*,w.worker_code,u.full_name,p.process_name,p.process_code,reviewer.full_name AS reviewer_name FROM production_reports_temp pr LEFT JOIN workers w ON pr.worker_id=w.id LEFT JOIN users u ON w.user_id=u.id LEFT JOIN processes p ON pr.process_id=p.id LEFT JOIN users reviewer ON reviewer.id=pr.reviewed_by WHERE pr.id=? LIMIT 1`,[id]);
-        if(!rows[0]) return null;
-        const [defects,deductions,machineLines]=await Promise.all([query(db,`SELECT d.id,d.defect_type_id,dt.defect_code,dt.defect_name,d.quantity FROM production_temp_defects d LEFT JOIN defect_types dt ON dt.id=d.defect_type_id WHERE d.temp_report_id=? ORDER BY COALESCE(dt.sort_order,999999),d.id`,[id]),query(db,`SELECT d.id,d.deduction_type_id,dt.deduction_code,dt.deduction_name,d.hours FROM production_temp_deductions d LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id WHERE d.temp_report_id=? ORDER BY COALESCE(dt.sort_order,999999),d.id`,[id]),getTempMachineLines(id)]);
-        return normalizeReportTimestamps({...rows[0],defects:mergeDefects(rows[0],defects,machineLines),deductions:normalizeDeductions(deductions),machine_lines:normalizeMachineLines(machineLines)});
+        if(rows[0]){
+            const [defects,deductions,machineLines]=await Promise.all([
+                query(db,`SELECT d.id,d.defect_type_id,dt.defect_code,dt.defect_name,d.quantity FROM production_temp_defects d LEFT JOIN defect_types dt ON dt.id=d.defect_type_id WHERE d.temp_report_id=? ORDER BY COALESCE(dt.sort_order,999999),d.id`,[id]),
+                query(db,`SELECT d.id,d.deduction_type_id,dt.deduction_code,dt.deduction_name,d.hours FROM production_temp_deductions d LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id WHERE d.temp_report_id=? ORDER BY COALESCE(dt.sort_order,999999),d.id`,[id]),
+                getTempMachineLines(id)
+            ]);
+            return normalizeReportTimestamps({...rows[0],defects:mergeDefects(rows[0],defects,machineLines),deductions:normalizeDeductions(deductions),machine_lines:normalizeMachineLines(machineLines)});
+        }
+
+        // Approved reports are moved out of production_reports_temp. The manager
+        // detail screen can still call /api/production-temp/:id, so transparently
+        // resolve the same ID from the canonical approved table.
+        const approvedRows=await query(db,`SELECT pr.*,w.worker_code,u.full_name,p.process_name,p.process_code,reviewer.full_name AS reviewer_name FROM production_reports pr LEFT JOIN workers w ON pr.worker_id=w.id LEFT JOIN users u ON w.user_id=u.id LEFT JOIN processes p ON pr.process_id=p.id LEFT JOIN users reviewer ON reviewer.id=pr.reviewed_by WHERE pr.id=? AND pr.status='approved' LIMIT 1`,[id]);
+        if(!approvedRows[0]) return null;
+        const approved=approvedRows[0];
+        let defects=[]; let deductions=[]; let machineLines=[];
+        try { defects=await query(db,`SELECT d.id,d.defect_type_id,dt.defect_code,dt.defect_name,d.quantity FROM production_report_defects d LEFT JOIN defect_types dt ON dt.id=d.defect_type_id WHERE d.report_id=? ORDER BY COALESCE(dt.sort_order,999999),d.id`,[id]); } catch(e) { console.warn('APPROVED DETAIL DEFECT FALLBACK:',e?.message||e); }
+        try { deductions=await query(db,`SELECT d.id,d.deduction_type_id,dt.deduction_code,dt.deduction_name,d.hours FROM production_report_deductions d LEFT JOIN deduction_types dt ON dt.id=d.deduction_type_id WHERE d.report_id=? ORDER BY COALESCE(dt.sort_order,999999),d.id`,[id]); } catch(e) { console.warn('APPROVED DETAIL DEDUCTION FALLBACK:',e?.message||e); }
+        try { machineLines=await query(db,`SELECT ml.* FROM production_report_machine_lines ml WHERE ml.report_id=? ORDER BY ml.id`,[id]); } catch(e) { console.warn('APPROVED DETAIL MACHINE FALLBACK:',e?.message||e); }
+        return normalizeReportTimestamps({...approved,defects:mergeDefects(approved,defects,machineLines),deductions:normalizeDeductions(deductions),machine_lines:normalizeMachineLines(machineLines),report_type:'approved'});
     },
     async canManageReport(reportId, managerId, isAdmin=false) {
         if(isAdmin) return true;
         const rows=await query(db,`SELECT 1 FROM production_reports_temp pr WHERE pr.id=? AND (pr.process_id=60006 OR EXISTS (SELECT 1 FROM manager_processes mp WHERE mp.process_id=pr.process_id AND mp.manager_id=?)) LIMIT 1`,[reportId,managerId]);
-        return rows.length>0;
+        if(rows.length) return true;
+        const approvedRows=await query(db,`SELECT 1 FROM production_reports pr WHERE pr.id=? AND pr.status='approved' AND (pr.process_id=60006 OR EXISTS (SELECT 1 FROM manager_processes mp WHERE mp.process_id=pr.process_id AND mp.manager_id=?)) LIMIT 1`,[reportId,managerId]);
+        return approvedRows.length>0;
     }
 };
