@@ -19,7 +19,6 @@ const rangeFor = (value: string, type: "day" | "week" | "month" | "year") => {
     return { dateFrom: dateValue(start), dateTo: dateValue(end) };
 };
 
-/* Canonical KPI resolver: prefer DB-generated KPI columns, then use the same source fields/formulas as ManagerReportGrid. */
 const kpi = (r: ProductionReport) => {
     const x = r as ProductionReport & Record<string, unknown>;
     const ok = num(x.tt_ok); const ng = num(x.tt_ng);
@@ -31,7 +30,42 @@ const kpi = (r: ProductionReport) => {
     const dat = actual > 0 ? ok / actual * 100 : 0;
     const pp = num(x.pp_percent) || (actual > 0 ? ng / actual * 100 : 0);
     const hv = x.training_percent ?? x.hv_percent ?? x.learning_percent ?? x.hoc_viec_percent ?? 0;
-    return { ok, ng, actual, ttDinhMuc, nangSuat, dat, pp, hv };
+    const ngTypeCount = Math.max(num(x.ng_defect_type_count), num(x.worker_ng_type_count), num(x.machine_ng_type_count));
+    return { ok, ng, actual, ttDinhMuc, nangSuat, dat, pp, hv, ngTypeCount };
+};
+
+const metricStyle = (type: "productivity" | "pp", value: number, ngTypeCount = 0): React.CSSProperties => {
+    if (type === "productivity" && (value <= 75 || value > 100)) {
+        return { backgroundColor: "#ffd6e7", color: "#9b123f", fontWeight: 800, border: "1px solid #ff9fbe" };
+    }
+    if (type === "pp" && (value === 0 || ngTypeCount === 1)) {
+        return { backgroundColor: "#fff0b8", color: "#795600", fontWeight: 800, border: "1px solid #e3ad20" };
+    }
+    return {};
+};
+
+const parseMachineDefects = (detail: Record<string, unknown> | null) => {
+    const lines = Array.isArray(detail?.machine_lines) ? detail!.machine_lines as Record<string, unknown>[] : [];
+    const result: Array<{ name: string; quantity: number; machine: string }> = [];
+    for (const line of lines) {
+        let raw: unknown = line.defects;
+        if (!Array.isArray(raw)) raw = line.defects_json;
+        if (typeof raw === "string") { try { raw = JSON.parse(raw); } catch { raw = null; } }
+        if (raw && !Array.isArray(raw) && typeof raw === "object" && Array.isArray((raw as any).defects)) raw = (raw as any).defects;
+        if (Array.isArray(raw)) {
+            for (const item of raw as any[]) {
+                const quantity = num(item?.quantity ?? item?.qty ?? item?.ng_quantity);
+                if (quantity > 0) result.push({ name: text(item?.defect_name || item?.name || item?.defect_code, "NG chưa phân loại"), quantity, machine: text(line.machine_code) });
+            }
+        } else if (raw && typeof raw === "object") {
+            for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+                if (["selectedDefects", "selectedNg", "total", "ngQuantity"].includes(key)) continue;
+                const quantity = num(typeof value === "object" && value ? (value as any).quantity ?? (value as any).qty ?? (value as any).ng_quantity : value);
+                if (quantity > 0) result.push({ name: text(typeof value === "object" && value ? (value as any).defect_name || (value as any).name || key : key), quantity, machine: text(line.machine_code) });
+            }
+        }
+    }
+    return result;
 };
 
 export default function ApprovedReports() {
@@ -77,6 +111,7 @@ export default function ApprovedReports() {
     const detailAny = detail as (ProductionReport & Record<string, unknown>) | null;
     const detailDeductions = Array.isArray(detailAny?.deductions) ? (detailAny?.deductions as any[]).filter(x => num(x.hours) > 0) : [];
     const detailDefects = Array.isArray(detailAny?.defects) ? (detailAny?.defects as any[]).filter(x => num(x.quantity) > 0) : [];
+    const detailMachineDefects = parseMachineDefects(detailAny);
 
     return (
         <div className="pending-reference-page">
@@ -123,7 +158,9 @@ export default function ApprovedReports() {
                                             <td>{`PR${String(r.work_date || "REPORT").slice(0, 10).replace(/-/g, "")}-${r.worker_code || String(r.id || i + 1).padStart(4, "0")}`}</td>
                                             <td>{text(r.full_name || r.worker_name)} <span style={{ color: "#7185a4" }}>({text(r.worker_code)})</span></td>
                                             <td>{text(r.process_name)}</td><td><span className="shift-chip">{text(r.shift)}</span></td><td>{dateText(r.work_date)}</td>
-                                            <td>{fmt(r.actual_time || r.total_time)} giờ</td><td>{pct(x.hv)}</td><td>{fmt(x.ok)}</td><td>{fmt(x.ng)}</td><td style={{ backgroundColor: x.nangSuat > 100 ? "#ffd6e7" : undefined, color: "#000" }}>{pct(x.nangSuat)}</td><td>{pct(x.dat)}</td><td>{pct(x.pp)}</td>
+                                            <td>{fmt(r.actual_time || r.total_time)} giờ</td><td>{pct(x.hv)}</td><td>{fmt(x.ok)}</td><td>{fmt(x.ng)}</td>
+                                            <td style={metricStyle("productivity", x.nangSuat, x.ngTypeCount)}>{pct(x.nangSuat)}</td><td>{pct(x.dat)}</td>
+                                            <td style={metricStyle("pp", x.pp, x.ngTypeCount)}>{pct(x.pp)}{x.pp === 0 || x.ngTypeCount === 1 ? " ⚠" : ""}</td>
                                             <td><span className="pending-detail-status">Đã duyệt</span></td>
                                         </tr>
                                     ); })}
@@ -143,9 +180,15 @@ export default function ApprovedReports() {
                             {[["Công nhân", `${text(detail.full_name || detail.worker_name)} (${text(detail.worker_code)})`], ["Ngày báo cáo", dateText(detail.work_date)], ["Công đoạn", text(detail.process_name)], ["Ca làm việc", text(detail.shift)], ["Máy móc", text(detail.machine_no)], ["Sản phẩm", text(detail.product_name)], ["Thời gian", `${fmt(detail.actual_time || detail.total_time)} giờ`], ["Học việc", pct(detailKpi.hv)]].map(([label, value]) => <div className="pending-detail-field" key={String(label)}><span>{label}</span><strong>{String(value)}</strong></div>)}
                         </div></section>
                         <section className="pending-detail-section"><h3>Kết quả sản xuất</h3><div className="pending-result-grid"><div className="pending-result-item"><span>Sản lượng OK</span><strong>{fmt(detailKpi.ok)}</strong></div><div className="pending-result-item ng"><span>Sản lượng NG</span><strong>{fmt(detailKpi.ng)}</strong></div><div className="pending-result-item total"><span>Tổng sản lượng</span><strong>{fmt(detailKpi.actual)}</strong></div><div className="pending-result-item rate"><span>% đạt</span><strong>{pct(detailKpi.dat)}</strong></div></div></section>
-                        <section className="pending-detail-section"><h3>Chỉ số KPI</h3><div className="pending-detail-info-grid"><div className="pending-detail-field"><span>TT định mức</span><strong>{fmt(detailKpi.ttDinhMuc)}</strong></div><div className="pending-detail-field"><span>% năng suất</span><strong>{pct(detailKpi.nangSuat)}</strong></div><div className="pending-detail-field"><span>% đạt</span><strong>{pct(detailKpi.dat)}</strong></div><div className="pending-detail-field"><span>% PP</span><strong>{pct(detailKpi.pp)}</strong></div></div></section>
+                        <section className="pending-detail-section"><h3>Chỉ số KPI</h3><div className="pending-detail-info-grid">
+                            <div className="pending-detail-field"><span>TT định mức</span><strong>{fmt(detailKpi.ttDinhMuc)}</strong></div>
+                            <div className="pending-detail-field" style={metricStyle("productivity", detailKpi.nangSuat, detailKpi.ngTypeCount)}><span>% năng suất</span><strong>{pct(detailKpi.nangSuat)}</strong></div>
+                            <div className="pending-detail-field"><span>% đạt</span><strong>{pct(detailKpi.dat)}</strong></div>
+                            <div className="pending-detail-field" style={metricStyle("pp", detailKpi.pp, detailKpi.ngTypeCount)}><span>% PP (NG)</span><strong>{pct(detailKpi.pp)}{detailKpi.pp === 0 || detailKpi.ngTypeCount === 1 ? " ⚠" : ""}</strong></div>
+                        </div></section>
                         <section className="pending-detail-section"><h3>Chi tiết thời gian trừ</h3>{detailDeductions.length ? <div className="pending-defect-list">{detailDeductions.map((x: any, i: number) => <span className="pending-defect" key={i}>{text(x.deduction_name, x.deduction_code)}: {fmt(num(x.hours) * 60)} phút</span>)}</div> : <div className="pending-history-empty">Không có thời gian trừ.</div>}</section>
-                        <section className="pending-detail-section"><h3>Chi tiết lỗi NG</h3>{detailDefects.length ? <div className="pending-defect-list">{detailDefects.map((x: any, i: number) => <span className="pending-defect" key={i}>{text(x.defect_name, x.defect_code)}: {fmt(x.quantity)} sản phẩm</span>)}</div> : <div className="pending-history-empty">Không có lỗi NG.</div>}</section>
+                        <section className="pending-detail-section"><h3>Chi tiết lỗi NG của người</h3>{detailDefects.length ? <div className="pending-defect-list">{detailDefects.map((x: any, i: number) => <span className="pending-defect" key={i}>{text(x.defect_name, x.defect_code)}: {fmt(x.quantity)} sản phẩm</span>)}</div> : detailKpi.ng > 0 ? <div className="pending-history-empty" style={{ background: "#fff8e1", border: "1px solid #f0c36d", color: "#7a5b00", fontWeight: 700 }}>NG {fmt(detailKpi.ng)} sản phẩm — chưa phân loại lỗi.</div> : <div className="pending-history-empty">Không có lỗi NG.</div>}</section>
+                        <section className="pending-detail-section"><h3>Chi tiết lỗi NG theo máy</h3>{detailMachineDefects.length ? <div className="pending-defect-list">{detailMachineDefects.map((x, i) => <span className="pending-defect" key={`${x.machine}-${x.name}-${i}`}>{x.machine !== "—" ? `${x.machine} · ` : ""}{x.name}: {fmt(x.quantity)} sản phẩm</span>)}</div> : <div className="pending-history-empty">Không có chi tiết lỗi NG theo máy.</div>}</section>
                         <section className="pending-detail-section"><h3>Ghi chú</h3><div className="pending-detail-field"><span>Ghi chú</span><strong>{text(detail.note || (detail as any).notes, "Không có ghi chú")}</strong></div></section>
                     </div>}
                 </aside>}
