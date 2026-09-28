@@ -1,5 +1,6 @@
 import kqdExclusionRegistry from "../../../../shared/kqdExclusionRegistry.json";
 import { PROCESS_FORM_SCHEMAS } from "./processFormSchemas";
+import { getCanonicalProcessId } from "../../utils/processAccess";
 
 export type FormState = {
     [key: string]: string;
@@ -99,7 +100,7 @@ export type DeductionKey = Extract<keyof DeductionState, string>;
 export const processMap: Record<string, { id: number; title: string; machineLabel: string }> = Object.fromEntries(
     Object.entries(PROCESS_FORM_SCHEMAS).map(([slug, schema]) => [
         slug,
-        { id: schema.processId, title: schema.title, machineLabel: schema.machineLabel },
+        { id: getCanonicalProcessId(schema.processId, schema.processCode), title: schema.title, machineLabel: schema.machineLabel },
     ]),
 );
 
@@ -121,7 +122,6 @@ export const deductionOptions: Array<{ key: DeductionKey; label: string }> = [
     { key: "hocViec", label: "Học việc, đào tạo" },
 ];
 
-// Canonical GC defect codes: CUT 1-10, LONG 1-8.
 export const allNgOptions: Array<{ key: NgKey; id?: number; code: string; label: string }> = [
     { key: "cat01", code: "1", label: "1 — Cao su không đứt" },
     { key: "cat02", code: "2", label: "2 — Cắt lẹm" },

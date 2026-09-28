@@ -25,9 +25,7 @@ function normalizeWorkDate(value) {
 
 function positiveDecimal(value, code = 'INVALID_STANDARD_VALUE') {
   const number = Number(value);
-  if (!Number.isFinite(number) || number <= 0) {
-    throw businessError(code, 'Định mức phải là số dương hợp lệ');
-  }
+  if (!Number.isFinite(number) || number <= 0) throw businessError(code, 'Định mức phải là số dương hợp lệ');
   return number;
 }
 
@@ -38,12 +36,8 @@ function sameDecimal(a, b, tolerance = 0.000001) {
 function assertEffectiveOnDate(row, date, label) {
   const from = row?.effective_from ? String(row.effective_from).slice(0, 10) : null;
   const to = row?.effective_to ? String(row.effective_to).slice(0, 10) : null;
-  if (from && from > date) {
-    throw businessError('HISTORICAL_STANDARD_NOT_FOUND', `${label} chưa có hiệu lực tại ngày ${date}`, { effective_from: from, effective_to: to });
-  }
-  if (to && to < date) {
-    throw businessError('HISTORICAL_STANDARD_NOT_FOUND', `${label} đã hết hiệu lực tại ngày ${date}`, { effective_from: from, effective_to: to });
-  }
+  if (from && from > date) throw businessError('HISTORICAL_STANDARD_NOT_FOUND', `${label} chưa có hiệu lực tại ngày ${date}`, { effective_from: from, effective_to: to });
+  if (to && to < date) throw businessError('HISTORICAL_STANDARD_NOT_FOUND', `${label} đã hết hiệu lực tại ngày ${date}`, { effective_from: from, effective_to: to });
 }
 
 function chooseHistoricalVersion(rows, date, label) {
@@ -75,103 +69,91 @@ function createStandardResolver({ query = defaultQuery } = {}) {
     const date = normalizeWorkDate(workDate);
 
     if (pid === 60006 && !product) {
-      return {
-        processId: pid, productCode: null, productStandardId: null,
-        standardVersionId: null, machineStandardId: null, standardOutput: 0,
-        standardTimeSeconds: null, excludeKqdFromTt: 0, effectiveFrom: null,
-        effectiveTo: null, source: 'NON_PRODUCT_WORK', workDate: date,
-        historicalVersionAvailable: false, nonProductWork: true
-      };
+      return { processId: pid, productCode: null, productStandardId: null, standardVersionId: null, machineStandardId: null, standardOutput: 0, standardTimeSeconds: null, excludeKqdFromTt: 0, effectiveFrom: null, effectiveTo: null, source: 'NON_PRODUCT_WORK', workDate: date, historicalVersionAvailable: false, nonProductWork: true };
     }
-    if (!Number.isInteger(pid) || pid <= 0 || !product) {
-      throw businessError('INVALID_STANDARD_LOOKUP', 'Thiếu công đoạn hoặc sản phẩm để tra định mức');
-    }
+    if (!Number.isInteger(pid) || pid <= 0 || !product) throw businessError('INVALID_STANDARD_LOOKUP', 'Thiếu công đoạn hoặc sản phẩm để tra định mức');
 
     const requestedVersionId = Number(standardVersionId) || null;
     const cacheKey = `${pid}|${product}|${date}|${requestedVersionId || ''}`;
     if (productCache.has(cacheKey)) return productCache.get(cacheKey);
 
     const productRows = await query(
-      `SELECT id AS product_standard_id, product_code, standard_output, exclude_kqd_from_tt
-       FROM product_standards
-       WHERE process_id=? AND product_code=? AND status='active'
-       LIMIT 2`,
-      [pid, product]
+      `SELECT id AS product_standard_id, product_code, encoding_code, standard_output, exclude_kqd_from_tt
+         FROM product_standards
+        WHERE process_id=?
+          AND status='active'
+          AND (
+                product_code=?
+             OR encoding_code=?
+             OR EXISTS(
+                  SELECT 1 FROM product_aliases pa
+                   WHERE pa.process_id=product_standards.process_id
+                     AND UPPER(TRIM(pa.product_code))=UPPER(TRIM(product_standards.product_code))
+                     AND pa.status='active'
+                     AND UPPER(TRIM(pa.alias_code))=UPPER(TRIM(?))
+                )
+          )
+        ORDER BY CASE WHEN UPPER(TRIM(encoding_code))=UPPER(TRIM(?)) THEN 0 WHEN UPPER(TRIM(product_code))=UPPER(TRIM(?)) THEN 1 ELSE 2 END, id
+        LIMIT 2`,
+      [pid, product, product, product, product, product]
     );
     if (productRows.length !== 1) {
-      throw businessError('HISTORICAL_STANDARD_NOT_FOUND', `Không tìm thấy sản phẩm ${product} đang hoạt động trong công đoạn`);
+      throw businessError('HISTORICAL_STANDARD_NOT_FOUND', `Không xác định duy nhất định mức sản phẩm ${product} trong công đoạn`, {
+        process_id: pid,
+        product_code: product,
+        candidate_ids: productRows.map((row) => Number(row.product_standard_id)).filter(Boolean)
+      });
     }
+
+    const selectedProduct = productRows[0];
+    const canonicalProduct = String(selectedProduct.product_code || '').trim();
 
     if (requestedVersionId) {
       const versionRows = await query(
-        `SELECT id, process_id, product_code, standard_output, exclude_kqd_from_tt,
-                version_no, effective_from, effective_to, status
+        `SELECT id, process_id, product_code, standard_output, exclude_kqd_from_tt, version_no, effective_from, effective_to, status
            FROM product_standard_versions
           WHERE id=? AND process_id=? AND product_code=?
           LIMIT 1`,
-        [requestedVersionId, pid, product]
+        [requestedVersionId, pid, canonicalProduct]
       );
-      if (versionRows.length !== 1) {
-        throw businessError('HISTORICAL_STANDARD_NOT_FOUND', `Không tìm thấy định mức lịch sử #${requestedVersionId} cho ${product}`, {
-          process_id: pid, product_code: product, standard_version_id: requestedVersionId, work_date: date
-        });
-      }
+      if (versionRows.length !== 1) throw businessError('HISTORICAL_STANDARD_NOT_FOUND', `Không tìm thấy định mức lịch sử #${requestedVersionId} cho ${canonicalProduct}`, { process_id: pid, product_code: canonicalProduct, standard_version_id: requestedVersionId, work_date: date });
       const version = versionRows[0];
       assertEffectiveOnDate(version, date, `Định mức lịch sử #${requestedVersionId}`);
       const resolvedSnapshot = {
-        processId: pid, productCode: productRows[0].product_code,
-        productStandardId: Number(productRows[0].product_standard_id),
-        standardVersionId: Number(version.id), machineStandardId: null,
-        standardOutput: positiveDecimal(version.standard_output), standardTimeSeconds: null,
-        excludeKqdFromTt: Number(version.exclude_kqd_from_tt || 0) === 1 ? 1 : 0,
-        effectiveFrom: version.effective_from ? String(version.effective_from).slice(0, 10) : null,
-        effectiveTo: version.effective_to ? String(version.effective_to).slice(0, 10) : null,
-        source: 'PRODUCT_VERSION_SNAPSHOT', workDate: date, historicalVersionAvailable: true,
-        snapshotVersionId: Number(version.id), snapshotStatus: version.status || null
+        processId: pid, productCode: canonicalProduct, productStandardId: Number(selectedProduct.product_standard_id), standardVersionId: Number(version.id), machineStandardId: null,
+        standardOutput: positiveDecimal(version.standard_output), standardTimeSeconds: null, excludeKqdFromTt: Number(version.exclude_kqd_from_tt || 0) === 1 ? 1 : 0,
+        effectiveFrom: version.effective_from ? String(version.effective_from).slice(0, 10) : null, effectiveTo: version.effective_to ? String(version.effective_to).slice(0, 10) : null,
+        source: 'PRODUCT_VERSION_SNAPSHOT', workDate: date, historicalVersionAvailable: true, snapshotVersionId: Number(version.id), snapshotStatus: version.status || null
       };
       productCache.set(cacheKey, resolvedSnapshot);
       return resolvedSnapshot;
     }
 
     const versions = await query(
-      `SELECT id, process_id, product_code, standard_output, exclude_kqd_from_tt,
-              version_no, effective_from, effective_to, status
-       FROM product_standard_versions
-       WHERE process_id=? AND product_code=?
-         AND effective_from <= ?
-         AND (effective_to IS NULL OR effective_to >= ?)
-       ORDER BY effective_from, version_no, id`,
-      [pid, product, date, date]
+      `SELECT id, process_id, product_code, standard_output, exclude_kqd_from_tt, version_no, effective_from, effective_to, status
+         FROM product_standard_versions
+        WHERE process_id=? AND product_code=?
+          AND effective_from <= ? AND (effective_to IS NULL OR effective_to >= ?)
+        ORDER BY effective_from, version_no, id`,
+      [pid, canonicalProduct, date, date]
     );
-    const version = chooseHistoricalVersion(versions, date, product);
+    const version = chooseHistoricalVersion(versions, date, canonicalProduct);
     if (!version) {
-      const legacyStandardOutput = Number(productRows[0].standard_output);
-      if (!Number.isFinite(legacyStandardOutput) || legacyStandardOutput <= 0) {
-        throw businessError('HISTORICAL_STANDARD_NOT_FOUND', `Không có định mức lịch sử cho ${product} tại ngày ${date}`, {
-          process_id: pid, product_code: product, work_date: date
-        });
-      }
+      const legacyStandardOutput = Number(selectedProduct.standard_output);
+      if (!Number.isFinite(legacyStandardOutput) || legacyStandardOutput <= 0) throw businessError('HISTORICAL_STANDARD_NOT_FOUND', `Không có định mức lịch sử cho ${canonicalProduct} tại ngày ${date}`, { process_id: pid, product_code: canonicalProduct, work_date: date });
       const resolvedLegacy = {
-        processId: pid, productCode: productRows[0].product_code,
-        productStandardId: Number(productRows[0].product_standard_id),
-        standardVersionId: null, machineStandardId: null,
-        standardOutput: legacyStandardOutput, standardTimeSeconds: null,
-        excludeKqdFromTt: Number(productRows[0].exclude_kqd_from_tt || 0) === 1 ? 1 : 0,
-        effectiveFrom: null, effectiveTo: null, source: 'LEGACY_PRODUCT_STANDARD',
-        workDate: date, historicalVersionAvailable: false
+        processId: pid, productCode: canonicalProduct, productStandardId: Number(selectedProduct.product_standard_id), standardVersionId: null, machineStandardId: null,
+        standardOutput: legacyStandardOutput, standardTimeSeconds: null, excludeKqdFromTt: Number(selectedProduct.exclude_kqd_from_tt || 0) === 1 ? 1 : 0,
+        effectiveFrom: null, effectiveTo: null, source: 'LEGACY_PRODUCT_STANDARD', workDate: date, historicalVersionAvailable: false
       };
       productCache.set(cacheKey, resolvedLegacy);
       return resolvedLegacy;
     }
     const resolvedProduct = {
-      processId: pid, productCode: productRows[0].product_code,
-      productStandardId: Number(productRows[0].product_standard_id), standardVersionId: Number(version.id), machineStandardId: null,
-      standardOutput: positiveDecimal(version.standard_output), standardTimeSeconds: null,
-      excludeKqdFromTt: Number(version.exclude_kqd_from_tt || 0) === 1 ? 1 : 0,
-      effectiveFrom: String(version.effective_from).slice(0, 10),
-      effectiveTo: version.effective_to ? String(version.effective_to).slice(0, 10) : null,
-      source: String(version.status || '').toLowerCase() === 'active' ? 'PRODUCT_VERSION' : 'PRODUCT_VERSION_HISTORICAL',
-      workDate: date, historicalVersionAvailable: true
+      processId: pid, productCode: canonicalProduct, productStandardId: Number(selectedProduct.product_standard_id), standardVersionId: Number(version.id), machineStandardId: null,
+      standardOutput: positiveDecimal(version.standard_output), standardTimeSeconds: null, excludeKqdFromTt: Number(version.exclude_kqd_from_tt || 0) === 1 ? 1 : 0,
+      effectiveFrom: String(version.effective_from).slice(0, 10), effectiveTo: version.effective_to ? String(version.effective_to).slice(0, 10) : null,
+      source: String(version.status || '').toLowerCase() === 'active' ? 'PRODUCT_VERSION' : 'PRODUCT_VERSION_HISTORICAL', workDate: date, historicalVersionAvailable: true
     };
     productCache.set(cacheKey, resolvedProduct);
     return resolvedProduct;
@@ -193,98 +175,49 @@ function createStandardResolver({ query = defaultQuery } = {}) {
 
     let machineRows;
     if (requestedMachineStandardId && !requestedMachineId && !requestedMachineCode) {
-      machineRows = await query(
-        `SELECT m.id, m.machine_code
-           FROM machines m
-           JOIN product_machine_standards pms ON pms.machine_id=m.id
-          WHERE m.process_id=? AND pms.id=?
-          LIMIT 2`,
-        [product.processId, requestedMachineStandardId]
-      );
+      machineRows = await query(`SELECT m.id, m.machine_code FROM machines m JOIN product_machine_standards pms ON pms.machine_id=m.id WHERE m.process_id=? AND pms.id=? LIMIT 2`, [product.processId, requestedMachineStandardId]);
     } else {
-      machineRows = await query(
-        `SELECT id, machine_code FROM machines
-         WHERE process_id=? AND status='active'
-           AND (? IS NULL OR id=?) AND (?='' OR machine_code=?) LIMIT 2`,
-        [product.processId, requestedMachineId, requestedMachineId, requestedMachineCode, requestedMachineCode]
-      );
+      machineRows = await query(`SELECT id, machine_code FROM machines WHERE process_id=? AND status='active' AND (? IS NULL OR id=?) AND (?='' OR machine_code=?) LIMIT 2`, [product.processId, requestedMachineId, requestedMachineId, requestedMachineCode, requestedMachineCode]);
     }
     if (machineRows.length !== 1) throw businessError('MACHINE_NOT_FOUND', 'Máy không tồn tại hoặc không thuộc công đoạn');
     const machine = machineRows[0];
 
     if (requestedMachineStandardId) {
       const snapshotRows = await query(
-        `SELECT id, process_id, product_code, machine_id, standard_output,
-                calculated_output_per_hour, standard_time_seconds,
-                effective_from, effective_to, is_active
-           FROM product_machine_standards
-          WHERE id=? AND process_id=? AND product_code=? AND machine_id=?
-          LIMIT 1`,
+        `SELECT id, process_id, product_code, machine_id, standard_output, calculated_output_per_hour, standard_time_seconds, effective_from, effective_to, is_active
+           FROM product_machine_standards WHERE id=? AND process_id=? AND product_code=? AND machine_id=? LIMIT 1`,
         [requestedMachineStandardId, product.processId, product.productCode, Number(machine.id)]
       );
-      if (snapshotRows.length !== 1) {
-        throw businessError('HISTORICAL_STANDARD_NOT_FOUND', `Không tìm thấy định mức máy lịch sử #${requestedMachineStandardId}`, {
-          process_id: product.processId, product_code: product.productCode,
-          machine_id: Number(machine.id), machine_standard_id: requestedMachineStandardId,
-          work_date: product.workDate
-        });
-      }
+      if (snapshotRows.length !== 1) throw businessError('HISTORICAL_STANDARD_NOT_FOUND', `Không tìm thấy định mức máy lịch sử #${requestedMachineStandardId}`, { process_id: product.processId, product_code: product.productCode, machine_id: Number(machine.id), machine_standard_id: requestedMachineStandardId, work_date: product.workDate });
       const row = snapshotRows[0];
       assertEffectiveOnDate(row, product.workDate, `Định mức máy lịch sử #${requestedMachineStandardId}`);
-      const resolvedMachineSnapshot = {
-        ...product,
-        machineId: Number(machine.id), machineCode: machine.machine_code,
-        machineStandardId: Number(row.id),
-        standardOutput: positiveDecimal(row.calculated_output_per_hour ?? row.standard_output),
-        standardTimeSeconds: Number(row.standard_time_seconds) > 0 ? Number(row.standard_time_seconds) : null,
-        source: 'MACHINE_SNAPSHOT',
-        machineEffectiveFrom: row.effective_from ? String(row.effective_from).slice(0, 10) : null,
-        machineEffectiveTo: row.effective_to ? String(row.effective_to).slice(0, 10) : null,
-        snapshotMachineStandardId: Number(row.id),
-        snapshotMachineActive: Number(row.is_active || 0)
-      };
+      const resolvedMachineSnapshot = { ...product, machineId: Number(machine.id), machineCode: machine.machine_code, machineStandardId: Number(row.id), standardOutput: positiveDecimal(row.calculated_output_per_hour ?? row.standard_output), standardTimeSeconds: Number(row.standard_time_seconds) > 0 ? Number(row.standard_time_seconds) : null, source: 'MACHINE_SNAPSHOT', machineEffectiveFrom: row.effective_from ? String(row.effective_from).slice(0, 10) : null, machineEffectiveTo: row.effective_to ? String(row.effective_to).slice(0, 10) : null, snapshotMachineStandardId: Number(row.id), snapshotMachineActive: Number(row.is_active || 0) };
       standardCache.set(standardKey, resolvedMachineSnapshot);
       return resolvedMachineSnapshot;
     }
 
     const applicableRows = await query(
-      `SELECT id, standard_output, calculated_output_per_hour, standard_time_seconds,
-              effective_from, effective_to, is_active
-       FROM product_machine_standards
-       WHERE process_id=? AND product_code=? AND machine_id=?
-         AND (effective_from IS NULL OR effective_from <= ?)
-         AND (effective_to IS NULL OR effective_to >= ?)
-       ORDER BY COALESCE(effective_from,'1000-01-01'), id`,
+      `SELECT id, standard_output, calculated_output_per_hour, standard_time_seconds, effective_from, effective_to, is_active
+         FROM product_machine_standards
+        WHERE process_id=? AND product_code=? AND machine_id=?
+          AND (effective_from IS NULL OR effective_from <= ?) AND (effective_to IS NULL OR effective_to >= ?)
+        ORDER BY COALESCE(effective_from,'1000-01-01'), id`,
       [product.processId, product.productCode, Number(machine.id), product.workDate, product.workDate]
     );
     const applicableActive = applicableRows.filter((row) => Number(row.is_active) === 1);
     const applicable = applicableActive.length ? applicableActive : applicableRows;
-    if (applicable.length > 1) {
-      throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT', `Có nhiều định mức máy cùng hiệu lực cho ${product.productCode} / ${machine.machine_code}`, {
-        process_id: product.processId, product_code: product.productCode,
-        machine_id: Number(machine.id), work_date: product.workDate,
-        machine_standard_ids: applicable.map((row) => Number(row.id))
-      });
-    }
+    if (applicable.length > 1) throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT', `Có nhiều định mức máy cùng hiệu lực cho ${product.productCode} / ${machine.machine_code}`, { process_id: product.processId, product_code: product.productCode, machine_id: Number(machine.id), work_date: product.workDate, machine_standard_ids: applicable.map((row) => Number(row.id)) });
     if (applicable.length === 1) {
       const row = applicable[0];
-      const resolvedMachine = {
-        ...product, machineId: Number(machine.id), machineCode: machine.machine_code,
-        machineStandardId: Number(row.id),
-        standardOutput: positiveDecimal(row.calculated_output_per_hour ?? row.standard_output),
-        standardTimeSeconds: Number(row.standard_time_seconds) > 0 ? Number(row.standard_time_seconds) : null,
-        source: Number(row.is_active) === 1 ? 'MACHINE' : 'MACHINE_HISTORICAL',
-        machineEffectiveFrom: row.effective_from ? String(row.effective_from).slice(0, 10) : null,
-        machineEffectiveTo: row.effective_to ? String(row.effective_to).slice(0, 10) : null
-      };
-      standardCache.set(standardKey, resolvedMachine);
-      return resolvedMachine;
+      const machineOutput = Number(row.calculated_output_per_hour ?? row.standard_output);
+      if (Number.isFinite(machineOutput) && machineOutput > 0) {
+        const resolvedMachine = { ...product, machineId: Number(machine.id), machineCode: machine.machine_code, machineStandardId: Number(row.id), standardOutput: machineOutput, standardTimeSeconds: Number(row.standard_time_seconds) > 0 ? Number(row.standard_time_seconds) : null, source: Number(row.is_active) === 1 ? 'MACHINE' : 'MACHINE_HISTORICAL', machineEffectiveFrom: row.effective_from ? String(row.effective_from).slice(0, 10) : null, machineEffectiveTo: row.effective_to ? String(row.effective_to).slice(0, 10) : null };
+        standardCache.set(standardKey, resolvedMachine);
+        return resolvedMachine;
+      }
     }
 
-    const resolvedFallback = {
-      ...product, machineId: Number(machine.id), machineCode: machine.machine_code,
-      machineStandardId: null, source: `${product.source}_MACHINE_FALLBACK`
-    };
+    const resolvedFallback = { ...product, machineId: Number(machine.id), machineCode: machine.machine_code, machineStandardId: null, source: `${product.source}_MACHINE_FALLBACK` };
     standardCache.set(standardKey, resolvedFallback);
     return resolvedFallback;
   }
@@ -293,15 +226,7 @@ function createStandardResolver({ query = defaultQuery } = {}) {
     const from = normalizeWorkDate(effectiveFrom);
     const to = effectiveTo ? normalizeWorkDate(effectiveTo) : null;
     if (to && to < from) throw businessError('INVALID_STANDARD_EFFECTIVE_RANGE', 'Ngày kết thúc định mức phải từ ngày bắt đầu trở đi');
-    const rows = await query(
-      `SELECT id FROM product_standard_versions
-       WHERE process_id=? AND product_code=? AND status='active'
-         AND (? IS NULL OR id<>?)
-         AND effective_from <= COALESCE(?, '9999-12-31')
-         AND (effective_to IS NULL OR effective_to >= ?)
-       LIMIT 2`,
-      [Number(processId), String(productCode || '').trim(), excludeVersionId ? Number(excludeVersionId) : null, excludeVersionId ? Number(excludeVersionId) : null, to, from]
-    );
+    const rows = await query(`SELECT id FROM product_standard_versions WHERE process_id=? AND product_code=? AND status='active' AND (? IS NULL OR id<>?) AND effective_from <= COALESCE(?, '9999-12-31') AND (effective_to IS NULL OR effective_to >= ?) LIMIT 2`, [Number(processId), String(productCode || '').trim(), excludeVersionId ? Number(excludeVersionId) : null, excludeVersionId ? Number(excludeVersionId) : null, to, from]);
     if (rows.length) throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT', 'Khoảng hiệu lực định mức bị chồng lấn', { conflicting_version_ids: rows.map((row) => Number(row.id)) });
     return true;
   }
@@ -318,77 +243,18 @@ function assertStandardSnapshotConsistency({ resolved, standardOutput, standardV
   const hasMachineSnapshotId = Number(machineStandardId || 0) > 0;
   const hasProductSnapshotId = Number(standardVersionId || 0) > 0;
 
-  // New records: all persisted snapshot identifiers and the numeric standard
-  // must match the historical resolver exactly.
-  if (hasMachineSnapshotId && (!outputMatches || !machineMatches || (hasProductSnapshotId && !versionMatches))) {
-    throw businessError('STANDARD_SNAPSHOT_MISMATCH', 'Định mức đã lưu không khớp nguồn định mức lịch sử', {
-      saved_standard_output: standardOutput ?? null,
-      saved_standard_version_id: standardVersionId ?? null,
-      saved_machine_standard_id: machineStandardId ?? null,
-      expected_standard_output: resolved?.standardOutput ?? null,
-      expected_standard_version_id: resolved?.standardVersionId ?? null,
-      expected_machine_standard_id: resolved?.machineStandardId ?? null,
-      expected_source: resolved?.source ?? null
-    });
-  }
-
-  // Legacy machine reports may have a product-version snapshot but no machine
-  // standard id. Their saved standard_output is the value captured at entry
-  // time; do not reject the report merely because the machine master has since
-  // received a different historical row. The product version must still match.
+  if (hasMachineSnapshotId && (!outputMatches || !machineMatches || (hasProductSnapshotId && !versionMatches))) throw businessError('STANDARD_SNAPSHOT_MISMATCH', 'Định mức đã lưu không khớp nguồn định mức lịch sử', { saved_standard_output: standardOutput ?? null, saved_standard_version_id: standardVersionId ?? null, saved_machine_standard_id: machineStandardId ?? null, expected_standard_output: resolved?.standardOutput ?? null, expected_standard_version_id: resolved?.standardVersionId ?? null, expected_machine_standard_id: resolved?.machineStandardId ?? null, expected_source: resolved?.source ?? null });
   if (hasProductSnapshotId && !hasMachineSnapshotId) {
-    if (!hasSavedOutput || !versionMatches) {
-      throw businessError('STANDARD_SNAPSHOT_MISMATCH', 'Định mức đã lưu không khớp nguồn định mức lịch sử', {
-        saved_standard_output: standardOutput ?? null,
-        saved_standard_version_id: standardVersionId ?? null,
-        saved_machine_standard_id: machineStandardId ?? null,
-        expected_standard_output: resolved?.standardOutput ?? null,
-        expected_standard_version_id: resolved?.standardVersionId ?? null,
-        expected_machine_standard_id: resolved?.machineStandardId ?? null,
-        expected_source: resolved?.source ?? null
-      });
-    }
+    if (!hasSavedOutput || !versionMatches) throw businessError('STANDARD_SNAPSHOT_MISMATCH', 'Định mức đã lưu không khớp nguồn định mức lịch sử', { saved_standard_output: standardOutput ?? null, saved_standard_version_id: standardVersionId ?? null, saved_machine_standard_id: machineStandardId ?? null, expected_standard_output: resolved?.standardOutput ?? null, expected_standard_version_id: resolved?.standardVersionId ?? null, expected_machine_standard_id: resolved?.machineStandardId ?? null, expected_source: resolved?.source ?? null });
     return true;
   }
-
-  // Old records created before standard-version snapshots have neither id.
-  // They already contain the standard used when the report was entered, so a
-  // valid persisted positive value is sufficient for backward-compatible
-  // approval. New records are still protected by the strict branch above.
   if (!hasProductSnapshotId && !hasMachineSnapshotId) {
-    if (!hasSavedOutput) {
-      throw businessError('STANDARD_SNAPSHOT_MISMATCH', 'Định mức đã lưu không khớp nguồn định mức lịch sử', {
-        saved_standard_output: standardOutput ?? null,
-        saved_standard_version_id: standardVersionId ?? null,
-        saved_machine_standard_id: machineStandardId ?? null,
-        expected_standard_output: resolved?.standardOutput ?? null,
-        expected_standard_version_id: resolved?.standardVersionId ?? null,
-        expected_machine_standard_id: resolved?.machineStandardId ?? null,
-        expected_source: resolved?.source ?? null
-      });
-    }
+    if (!hasSavedOutput) throw businessError('STANDARD_SNAPSHOT_MISMATCH', 'Định mức đã lưu không khớp nguồn định mức lịch sử', { saved_standard_output: standardOutput ?? null, saved_standard_version_id: standardVersionId ?? null, saved_machine_standard_id: machineStandardId ?? null, expected_standard_output: resolved?.standardOutput ?? null, expected_standard_version_id: resolved?.standardVersionId ?? null, expected_machine_standard_id: resolved?.machineStandardId ?? null, expected_source: resolved?.source ?? null });
     return true;
   }
-
-  if (!resolved || !outputMatches || !versionMatches || !machineMatches) {
-    throw businessError('STANDARD_SNAPSHOT_MISMATCH', 'Định mức đã lưu không khớp nguồn định mức lịch sử', {
-      saved_standard_output: standardOutput ?? null,
-      saved_standard_version_id: standardVersionId ?? null,
-      saved_machine_standard_id: machineStandardId ?? null,
-      expected_standard_output: resolved?.standardOutput ?? null,
-      expected_standard_version_id: resolved?.standardVersionId ?? null,
-      expected_machine_standard_id: resolved?.machineStandardId ?? null,
-      expected_source: resolved?.source ?? null
-    });
-  }
+  if (!resolved || !outputMatches || !versionMatches || !machineMatches) throw businessError('STANDARD_SNAPSHOT_MISMATCH', 'Định mức đã lưu không khớp nguồn định mức lịch sử', { saved_standard_output: standardOutput ?? null, saved_standard_version_id: standardVersionId ?? null, saved_machine_standard_id: machineStandardId ?? null, expected_standard_output: resolved?.standardOutput ?? null, expected_standard_version_id: resolved?.standardVersionId ?? null, expected_machine_standard_id: resolved?.machineStandardId ?? null, expected_source: resolved?.source ?? null });
   return true;
 }
 
 const runtimeResolver = createStandardResolver();
-module.exports = {
-  ...runtimeResolver,
-  createStandardResolver,
-  assertStandardSnapshotConsistency,
-  normalizeWorkDate,
-  businessError
-};
+module.exports = { ...runtimeResolver, createStandardResolver, assertStandardSnapshotConsistency, normalizeWorkDate, businessError }; 

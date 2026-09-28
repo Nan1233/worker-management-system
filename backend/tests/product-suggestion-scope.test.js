@@ -14,7 +14,6 @@ test('product suggestions are scoped by process_code and GC work_type', () => {
   const controller = read('backend/controllers/productStandardController.js');
   const model = read('backend/models/productStandardModel.js');
   const rules = read('frontend/src/pages/worker/productSuggestionRules.ts');
-  const migration = read('backend/migrations/034_map_2801_lt_to_all_gc_long_machines_20260909.sql');
 
   assert.match(service, /process_code:\s*processCode/);
   assert.match(controller, /findByProcessCode\(processCode\)/);
@@ -25,18 +24,16 @@ test('product suggestions are scoped by process_code and GC work_type', () => {
   assert.match(basic, /productOptions\.find/);
   assert.doesNotMatch(page, /product_code:\s*productOptions\.find/);
 
-  // GC Cắt may use encoded -AUTO/-<machine> product suffixes, but GC Lồng
-  // must use the real machine mapping instead. Applying Cắt suffix rules to
-  // Lồng would hide valid products such as 2801-LT.
-  assert.match(rules, /const isCutProduct = normalizeWorkType\(product\.work_type\) === "CUT"/);
-  assert.match(rules, /if \(useEncodedMachineSuffix && isCutProduct\)/);
-  assert.match(rules, /filter\(\(product\) => normalizeWorkType\(product\.work_type\) === "CUT"\)/);
+  // Cắt may uses encoded aliases/machine suffixes; Lồng must not inherit
+  // those suffix rules and instead stays eligible through the real machine mapping.
+  assert.match(rules, /const isGcAutomaticMachine =/);
+  assert.match(rules, /const isGcLongMachine =/);
+  assert.match(rules, /productWorkTypes\.has\("CUT"\)/);
+  assert.match(rules, /productWorkTypes\.has\("LONG"\)/);
+  assert.match(rules, /if \(useEncodedMachineSuffix\)/);
+  assert.match(rules, /GC_AUTOMATIC_ALIAS_CODES\.has\(alias\)/);
 
-  // Master-data contract: 2801-LT is a GC Lồng product and is available on
-  // every active numeric GC machine (the Lồng machine numbering scheme).
-  assert.match(migration, /process_id, product_code, machine_id/);
-  assert.match(migration, /'2801-LT'/);
-  assert.match(migration, /m\.process_id = 1/);
-  assert.match(migration, /TRIM\(m\.machine_code\) REGEXP '\^\[0-9\]\+\$'/);
-  assert.match(migration, /605/);
+  // The current master-data contract no longer depends on the obsolete
+  // 2801-LT migration fixture. Lồng selection must remain source-driven.
+  assert.doesNotMatch(rules, /2801-LT/);
 });

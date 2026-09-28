@@ -22,15 +22,12 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
     const standardResolver = injectedStandardResolver || createStandardResolver({ query });
 
     return async ({ processId, machineLines, operationMode = null, maxMachines = 4, workDate }) => {
+        // An empty machine-line list is valid when there is no machine data to
+        // validate. The caller decides whether a process requires a machine.
+        // This is important for edit flows: the update model may pass an empty
+        // machine_lines array for a manual report, even when the parent report
+        // still has operation metadata.
         if (!Array.isArray(machineLines) || machineLines.length === 0) {
-            if (String(operationMode || "").trim().toUpperCase() === "MACHINE") {
-                return {
-                    valid: false,
-                    lines: [],
-                    totals: null,
-                    errors: { machine_lines: "Chế độ Máy phải có ít nhất một máy" }
-                };
-            }
             return { valid: true, lines: [], totals: null, errors: {} };
         }
 

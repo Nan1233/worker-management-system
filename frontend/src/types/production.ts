@@ -121,6 +121,8 @@ export interface ProductionReport {
     status?: ProductionReportStatus;
     created_at?: string;
     updated_at?: string;
+    /** Optimistic-concurrency timestamp expected by the temp-report update API. */
+    expected_updated_at?: string | null;
     reviewed_at?: string;
     reviewed_by?: number;
     review_note?: string | null;

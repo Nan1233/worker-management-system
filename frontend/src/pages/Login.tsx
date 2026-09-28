@@ -43,9 +43,24 @@ function Login() {
         }
     }, []);
 
-    const continueWithCode = (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const code = username.trim(); if (!code) { setError("Vui lòng nhập mã nhân viên."); return; } setError(""); setAccessType(null); setStep("role-choice"); };
-    const chooseRole = (type: AccessType) => { setAccessType(type); setPassword(""); setError(""); if (type === "worker") { void completeLogin("worker"); return; } setStep("management-password"); };
+    // iOS Safari/PWA can keep its floating form accessory bar visible while an
+    // input remains focused. Blur before changing login steps so the accessory
+    // bar does not stay suspended over the next screen/button.
+    const blurActiveLoginField = () => {
+        const active = document.activeElement;
+        if (active instanceof HTMLElement) active.blur();
+    };
+
+    const continueWithCode = (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        blurActiveLoginField();
+        const code = username.trim();
+        if (!code) { setError("Vui lòng nhập mã nhân viên."); return; }
+        setError(""); setAccessType(null); setStep("role-choice");
+    };
+    const chooseRole = (type: AccessType) => { blurActiveLoginField(); setAccessType(type); setPassword(""); setError(""); if (type === "worker") { void completeLogin("worker"); return; } setStep("management-password"); };
     const completeLogin = async (type: AccessType) => {
+        blurActiveLoginField();
         const rawUsername = username.trim();
         if (!rawUsername) { setError("Vui lòng nhập mã nhân viên."); setStep("employee-code"); return; }
         if (type === "management" && !password) { setError("Vui lòng nhập mật khẩu quản lý."); setStep("management-password"); return; }
@@ -59,15 +74,16 @@ function Login() {
             const redirectAfterLogin = sessionStorage.getItem("redirectAfterLogin"); sessionStorage.removeItem("redirectAfterLogin");
             navigate(redirectAfterLogin && redirectAfterLogin !== "/login" ? redirectAfterLogin : homeByRole[user.role] || "/", { replace: true });
         } catch (err: unknown) {
+            blurActiveLoginField();
             beginLoginTransition(); clearAuthSession({ bumpEpoch: false }); finishLoginTransition();
             if (axios.isAxiosError(err)) { const responseData = err.response?.data as { message?: string; error?: string } | undefined; setError(responseData?.message || responseData?.error || "Mã nhân viên hoặc thông tin đăng nhập không hợp lệ."); }
             else setError(err instanceof Error ? err.message : "Không thể đăng nhập. Vui lòng thử lại.");
             setStep(type === "management" ? "management-password" : "role-choice");
         } finally { setLoading(false); }
     };
-    const submitManagementLogin = (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); void completeLogin("management"); };
-    const backToCode = () => { setPassword(""); setError(""); setAccessType(null); setStep("employee-code"); };
-    const backToRoleChoice = () => { setPassword(""); setError(""); setAccessType(null); setStep("role-choice"); };
+    const submitManagementLogin = (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); blurActiveLoginField(); void completeLogin("management"); };
+    const backToCode = () => { blurActiveLoginField(); setPassword(""); setError(""); setAccessType(null); setStep("employee-code"); };
+    const backToRoleChoice = () => { blurActiveLoginField(); setPassword(""); setError(""); setAccessType(null); setStep("role-choice"); };
 
     return (
         <main className="login-page">
@@ -85,7 +101,7 @@ function Login() {
                     {error && <div className="login-error" role="alert">{error}</div>}<button type="button" className="login-back" onClick={backToCode} disabled={loading}>← Nhập lại mã nhân viên</button>
                 </div>}
                 {step === "management-password" && <form className="login-form" onSubmit={submitManagementLogin}>
-                    <div className="login-field"><label htmlFor="login-password">Mật khẩu quản lý</label><div className="login-input-wrap"><span className="login-input-icon" aria-hidden="true">●</span><input data-testid="login-password" id="login-password" type={showPassword ? "text" : "password"} autoComplete="current-password" placeholder="Nhập mật khẩu" value={password} onChange={(event) => setPassword(event.target.value)} disabled={loading} autoFocus /><button type="button" className="password-toggle" onClick={() => setShowPassword((current) => !current)} disabled={loading} aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}>{showPassword ? "Ẩn" : "Hiện"}</button></div></div>
+                    <div className="login-field"><label htmlFor="login-password">Mật khẩu quản lý</label><div className="login-input-wrap"><span className="login-input-icon" aria-hidden="true">●</span><input data-testid="login-password" id="login-password" type={showPassword ? "text" : "password"} autoComplete="current-password" placeholder="Nhập mật khẩu" value={password} onChange={(event) => setPassword(event.target.value)} disabled={loading} autoFocus /><button type="button" className="password-toggle" onClick={() => { blurActiveLoginField(); setShowPassword((current) => !current); }} disabled={loading} aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}>{showPassword ? "Ẩn" : "Hiện"}</button></div></div>
                     <label className="remember-checkbox"><input type="checkbox" checked={rememberAccount} onChange={(event) => setRememberAccount(event.target.checked)} disabled={loading} /><span>Ghi nhớ mã nhân viên trên thiết bị</span></label>
                     {error && <div className="login-error" role="alert">{error}</div>}<button type="submit" data-testid="login-submit" className="login-submit" disabled={loading}>{loading ? <><span className="login-spinner" /> Đang đăng nhập...</> : <>Đăng nhập <span aria-hidden="true">→</span></>}</button><button type="button" className="login-back" onClick={backToRoleChoice} disabled={loading}>← Chọn lại vai trò</button>
                 </form>}

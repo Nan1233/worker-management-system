@@ -14,9 +14,12 @@ exports.getProductStandards = async (req, res) => {
       return res.status(400).json({ success: false, message: "process_code không hợp lệ" });
     }
 
+    // v2 intentionally invalidates pre-fix worker master-data caches. The
+    // previous cache could preserve an empty/stale GC product list for 30 min
+    // after product-machine standards were corrected in the database.
     const cacheKey = processCode
-      ? `product-standards:code:${processCode}`
-      : `product-standards:id:${processId}`;
+      ? `product-standards:v2:code:${processCode}`
+      : `product-standards:v2:id:${processId}`;
     const data = await getOrLoadMasterData(
       cacheKey,
       TTL.productStandards,

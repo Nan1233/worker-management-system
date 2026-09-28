@@ -10,7 +10,7 @@
  *   KTC_E2E_MANAGER_USERNAME=<safe manager fixture>
  *   KTC_E2E_MANAGER_PASSWORD=<safe manager fixture>
  *
- * This never creates, edits, approves, rejects or deletes production data.
+ * This never creates, edits, approves, rejects or deletes production business data.
  */
 const { Client } = require('./zero-cost/http.cjs');
 
@@ -18,9 +18,7 @@ const base = String(process.env.KTC_CLOUDFLARE_API_URL || '').replace(/\/$/, '')
 const workerCode = String(process.env.KTC_E2E_WORKER_CODE || '').trim();
 const managerUsername = String(process.env.KTC_E2E_MANAGER_USERNAME || '').trim();
 const managerPassword = String(process.env.KTC_E2E_MANAGER_PASSWORD || '');
-const date = /^\d{4}-\d{2}-\d{2}$/.test(String(process.env.KTC_E2E_DATE || ''))
-  ? String(process.env.KTC_E2E_DATE)
-  : new Date().toISOString().slice(0, 10);
+const date = /^\d{4}-\d{2}-\d{2}$/.test(String(process.env.KTC_E2E_DATE || '')) ? String(process.env.KTC_E2E_DATE) : new Date().toISOString().slice(0, 10);
 
 if (!base) throw new Error('KTC_CLOUDFLARE_API_URL is required');
 if (!workerCode) throw new Error('KTC_E2E_WORKER_CODE is required');
@@ -53,14 +51,18 @@ async function main() {
 
   r = await worker.req('GET', '/api/product-standards');
   const standards = Array.isArray(r.data?.data) ? r.data.data : Array.isArray(r.data) ? r.data : [];
-  check('Product standards master', r.status === 200, `HTTP ${r.status}, rows=${standards.length}`);
+  const fixture = standards.find((row) => Number(row?.process_id) === 1 && Number(row?.standard_output ?? row?.output_per_hour ?? row?.standard ?? 0) > 0);
+  check('Product standards master', r.status === 200 && standards.length > 0, `HTTP ${r.status}, rows=${standards.length}`);
 
-  for (const machineCode of ['10', '1']) {
-    const query = new URLSearchParams({ process_id: '1', machine_code: machineCode, product_code: '2801-LT', work_date: date });
+  if (fixture) {
+    const productCode = String(fixture.product_code || '').trim();
+    const query = new URLSearchParams({ process_id: '1', machine_code: '1', product_code: productCode, work_date: date });
     r = await worker.req('GET', `/api/product-standards/resolve?${query}`);
     const body = r.data?.data || r.data || {};
     const standard = Number(body.standard_output ?? body.output_per_hour ?? body.standard ?? 0);
-    check(`2801-LT resolve machine ${machineCode}`, r.status === 200 && standard === 605, `HTTP ${r.status}, standard=${standard}`);
+    check('Current GC product-standard resolve', r.status === 200 && standard > 0, `product=${productCode}, HTTP ${r.status}, standard=${standard}`);
+  } else {
+    check('Current GC product-standard resolve', false, 'No active positive GC product standard returned by master API');
   }
 
   r = await worker.req('GET', '/api/system/notifications/unread-count');

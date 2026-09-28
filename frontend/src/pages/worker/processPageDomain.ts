@@ -43,12 +43,12 @@ export function getInitialOperationMode(c: ProcessCapabilities): OperationMode {
 }
 
 export function resolveUsesMultiMachineLines(c: ProcessCapabilities, mode: OperationMode): boolean {
-  return ["GC", "MAI", "DO", "EP", "CAN"].includes(c.processCode) && mode === "MACHINE";
+  return ["GC", "MAI", "CAN"].includes(c.processCode) && mode === "MACHINE";
 }
 
 export function resolveUsesSingleMachine(c: ProcessCapabilities, mode: OperationMode): boolean {
   if (mode !== "MACHINE") return false;
-  return !resolveUsesMultiMachineLines(c, mode);
+  return ["DO", "EP"].includes(c.processCode) || !resolveUsesMultiMachineLines(c, mode);
 }
 
 export const usesMultiMachineLines = resolveUsesMultiMachineLines;
@@ -67,6 +67,13 @@ export function filterProductsForProcessScope(args: {
     const returnedProcessCode = codeOf(product.process_code);
     const processMatches = !expectedProcessCode || !returnedProcessCode || returnedProcessCode === expectedProcessCode;
     if (!processMatches) return false;
+
+    // GC / Lồng: the worker must be able to choose any GC product code
+    // regardless of whether the selected execution method is Máy or Tay.
+    // The actual machine/standard resolution is handled later when a machine
+    // is selected. Do not restrict the product list by work_type here.
+    if (expectedProcessCode === "GC" && expectedWorkType === "LONG") return true;
+
     if (expectedProcessCode === "GC" && expectedWorkType) {
       return normalizeWorkType(product.work_type) === expectedWorkType;
     }

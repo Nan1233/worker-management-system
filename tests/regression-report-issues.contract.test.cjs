@@ -10,7 +10,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const has = (source, text) => assert.ok(source.includes(text), `Expected source to contain: ${text}`);
 
 const productionDetail = read('frontend/src/pages/worker/ProductionDetail.tsx');
-const workerEdit = read('frontend/src/pages/worker/WorkerReportEdit.tsx');
+const workerEdit = read('frontend/src/pages/worker/WorkerReportEditV2.tsx');
 const reportValidation = read('backend/utils/reportValidation.js');
 const nonProductCreate = read('backend/models/nonProductWorkCreateModel.js');
 const duplicateService = read('backend/services/logicalDuplicateReportService.js');
@@ -24,9 +24,8 @@ const machineRules = read('backend/services/factoryMachineRuleService.js');
 
 
 test('worker report edit is limited to 10 minutes and pending/need_fix states', () => {
-  has(productionDetail, 'const WORKER_EDIT_WINDOW_MS = 10 * 60 * 1000;');
-  has(productionDetail, 'const isPending = report.status === "pending" || report.status === "need_fix";');
-  has(productionDetail, 'const canEdit = isPending && remainingMs > 0;');
+  has(productionDetail, 'const EDIT_WINDOW_MS = 10 * 60 * 1000;');
+  has(productionDetail, 'const canEdit = (status === "pending" || status === "need_fix") && remainingMs > 0;');
   has(workerEdit, 'created + 600000 - Date.now()');
   has(workerEdit, 'if (!report || remaining <= 0) return;');
 });
@@ -36,9 +35,11 @@ test('manager can edit reports through the central permission model', () => {
 });
 
 test('GC product suggestions keep machine suffix rules scoped to Cắt only', () => {
-  has(productRules, 'const isCutProduct = normalizeWorkType(product.work_type) === "CUT";');
-  has(productRules, 'if (useEncodedMachineSuffix && isCutProduct)');
-  has(productRules, 'must remain selectable in all Lồng modes');
+  has(productRules, 'productWorkTypes.has("CUT")');
+  has(productRules, 'isGcAutomaticMachine(selectedRawMachine)');
+  has(productRules, 'GC_AUTOMATIC_ALIAS_CODES.has(alias)');
+  has(productRules, 'productWorkTypes.has("LONG")');
+  has(productRules, 'isGcLongMachine(selectedRawMachine)');
 });
 
 test('Công việc khác uses one Xuất nhập work type and remains product-less', () => {
@@ -86,8 +87,8 @@ test('negative cases: worker submission requires request id and duplicate confir
 });
 
 test('negative cases: approval is process-scoped and protected by row lock/concurrency checks', () => {
-  has(approvalModel, 'JOIN manager_processes mp ON mp.process_id = temp.process_id');
-  has(approvalModel, 'AND mp.manager_id = ?');
+  has(approvalModel, 'LEFT JOIN manager_processes mp ON mp.process_id = temp.process_id');
+  has(approvalModel, 'AND (mp.manager_id = ? OR temp.process_id = 60006)');
   has(approvalModel, 'FOR UPDATE');
   has(approvalModel, 'TEMP_REPORT_VERSION_CONFLICT');
 });
@@ -99,8 +100,8 @@ test('negative cases: shared GC machines enforce four-worker capacity and preser
   has(productionCreate, 'const normalizedRequestedEventId = Number(requestedEventId) || null;');
 });
 
-test('negative cases: Lồng must not inherit Cắt machine-suffix filtering; 2801-LT remains eligible', () => {
-  has(productRules, 'const isCutProduct = normalizeWorkType(product.work_type) === "CUT";');
-  has(productRules, 'if (useEncodedMachineSuffix && isCutProduct)');
-  has(productRules, 'must remain selectable in all Lồng modes');
+test('negative cases: Lồng must not inherit Cắt machine-suffix filtering', () => {
+  has(productRules, 'productWorkTypes.has("LONG")');
+  has(productRules, 'isGcLongMachine(selectedRawMachine)');
+  has(productRules, 'return workerSelectionProducts(canonicalProducts);');
 });

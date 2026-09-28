@@ -1,10 +1,8 @@
 import type { MachineOption, ProductStandardOption } from "../../services/masterDataService";
 
 export type ProductSuggestionMode = "MANUAL" | "MACHINE";
-
 const normalize = (value: unknown) => String(value ?? "").trim().toUpperCase();
 
-/** Canonical machine key used only for matching master-data relations. */
 export const normalizeMachineKey = (value: unknown): string => {
     const code = normalize(value).replace(/\s+/g, "");
     if (!code) return "";
@@ -19,206 +17,108 @@ export const normalizeWorkType = (value: unknown): string => {
     return code;
 };
 
-export const getProductMachineHint = (productCode: unknown): { kind: "AUTO" | "NUMBER"; value: string } | null => {
-    const code = normalize(productCode);
-    const match = code.match(/-(AUTO|AUTOMATIC|\d+)$/i);
-    if (!match) return null;
-    const suffix = normalize(match[1]);
-    if (suffix === "AUTO" || suffix === "AUTOMATIC") return { kind: "AUTO", value: "AUTO" };
-    return { kind: "NUMBER", value: String(Number(suffix)) };
+const eligibleMachineCodes = (product: ProductStandardOption): string[] => String(product.eligible_machine_codes || "").split(",").map(normalizeMachineKey).filter(Boolean);
+const GC_AUTOMATIC_MACHINE_CODES = new Set(["5", "6", "7", "11", "C5", "C6", "C7", "C11"]);
+const GC_AUTOMATIC_ALIAS_CODES = new Set(["C2556", "C5770", "CGYX", "C3880", "C8052"]);
+
+export const normalizeGcAlias = (value: unknown): string => {
+    const alias = normalize(value);
+    if (!alias) return "";
+    const legacyAuto = alias.match(/^(?:C)?(2556|5770|GYX|3880|8052)-AUTO$/i);
+    if (!legacyAuto) return alias;
+    const suffix = legacyAuto[1].toUpperCase();
+    return suffix === "GYX" ? "CGYX" : `C${suffix}`;
 };
 
-/**
- * Lồng-specific suffix convention:
- *   -M          = Lồng Máy
- *   -LT/-L/-T   = Lồng Tay
- *   no suffix   = usable for both Tay and Máy
- */
-type LongHandling = "MACHINE" | "MANUAL" | "BOTH";
+export const getProductDisplayAlias = (product: ProductStandardOption): string => normalizeGcAlias(product.alias_code || product.product_code);
 
-const getLongHandling = (productCode: unknown): LongHandling => {
-    const code = normalize(productCode);
-    if (/-M$/i.test(code)) return "MACHINE";
-    if (/(?:-LT|-L|-T)$/i.test(code)) return "MANUAL";
-    return "BOTH";
+export const getFullProductCode = (alias: string, products: ProductStandardOption[]): string => {
+    const normalizedAlias = normalizeGcAlias(alias);
+    if (!normalizedAlias) return "";
+
+    const positive = (row: ProductStandardOption | undefined) => {
+        if (!row || Number(row.standard_output) <= 0) return "";
+        return String(row.encoding_code || row.product_code || "").trim();
+    };
+
+    const exactDisplayRows = products.filter((product) => getProductDisplayAlias(product) === normalizedAlias && Number(product.standard_output) > 0);
+    if (exactDisplayRows.length === 1) {
+        const value = positive(exactDisplayRows[0]);
+        if (value) return value;
+    }
+
+    const exactCodeRows = products.filter((product) => normalize(product.product_code) === normalizedAlias && Number(product.standard_output) > 0);
+    if (exactCodeRows.length === 1) {
+        const value = positive(exactCodeRows[0]);
+        if (value) return value;
+    }
+
+    if (GC_AUTOMATIC_ALIAS_CODES.has(normalizedAlias)) {
+        const automaticCode = normalizedAlias === "CGYX" ? "CGYX-AUTO" : `${normalizedAlias}-AUTO`;
+        const automatic = products.find((product) => normalize(product.product_code) === automaticCode && Number(product.standard_output) > 0);
+        const automaticStandard = positive(automatic);
+        if (automaticStandard) return automaticStandard;
+    }
+
+    if (normalizedAlias.startsWith("C")) {
+        const stripped = normalizedAlias.slice(1);
+        const strippedRows = products.filter((product) => normalize(product.product_code) === stripped && Number(product.standard_output) > 0);
+        if (strippedRows.length === 1) {
+            const strippedStandard = positive(strippedRows[0]);
+            if (strippedStandard) return strippedStandard;
+        }
+    }
+
+    const match = products.find((product) => getProductDisplayAlias(product) === normalizedAlias);
+    return String(match?.product_code || alias || "").trim();
 };
 
-/**
- * Canonical product family. Machine/handling suffixes are stripped only for
- * family matching; the original product code remains unchanged for display.
- */
-export const getProductFamilyCode = (productCode: unknown): string =>
-    normalize(productCode)
-        .replace(/-(AUTO|AUTOMATIC|\d+)$/i, "")
-        .replace(/(?:-LT|-L|-T|-M)$/i, "")
-        .replace(/^C(?=\d)/, "");
-
-/** Extract the physical machine number from both `C5` and `5` forms. */
-const machineNumber = (machineCode: string): string | null => {
+const isGcAutomaticMachine = (machineCode: unknown): boolean => GC_AUTOMATIC_MACHINE_CODES.has(normalize(machineCode).replace(/\s+/g, ""));
+const isGcLongMachine = (machineCode: unknown): boolean => {
     const raw = normalize(machineCode).replace(/\s+/g, "");
-    const cNumber = raw.match(/^C(\d{1,2})$/);
-    if (cNumber) return String(Number(cNumber[1]));
-
-    const key = normalizeMachineKey(raw);
-    return /^\d+$/.test(key) ? key : null;
+    return /^ML\d+$/i.test(raw) || /^\d+$/.test(normalizeMachineKey(raw));
 };
 
-const eligibleMachineCodes = (product: ProductStandardOption): string[] =>
-    String(product.eligible_machine_codes || "")
-        .split(",")
-        .map(normalizeMachineKey)
-        .filter(Boolean);
-
-// GC Cắt automatic machines.
-// C7 is automatic even though there is no `-7` product-code variant.
-const GC_AUTOMATIC_MACHINE_CODES = new Set(["C5", "C6", "C7", "C11"]);
-
-const isGcAutomaticMachine = (machineCode: unknown): boolean =>
-    GC_AUTOMATIC_MACHINE_CODES.has(normalize(machineCode).replace(/\s+/g, ""));
-
-// Explicit numeric suffixes used by automatic GC Cắt variants.
-// There is deliberately no -7 variant: C7 uses the generic `-auto` variant.
-const AUTO_MACHINE_SUFFIXES = new Set(["5", "6", "11"]);
-
-/**
- * GC uses one shared worker screen for Cắt/Lồng. The selected machine is the
- * source of truth for filtering the product master data.
- */
-const getGcWorkTypeForMachine = (machineCode: unknown): "CUT" | "LONG" | null => {
-    const key = normalize(machineCode).replace(/\s+/g, "");
-    if (!key) return null;
-    if (key === "C" || /^C\d+$/.test(key)) return "CUT";
-    if (/^\d+$/.test(normalizeMachineKey(key))) return "LONG";
-    return null;
-};
-
-export const filterProductsForSelection = ({
-    products,
-    mode,
-    machineCode,
-    machineOptions,
-    useEncodedMachineSuffix = false,
-}: {
-    products: ProductStandardOption[];
-    mode: ProductSuggestionMode;
-    machineCode?: string;
-    machineOptions?: MachineOption[];
-    useEncodedMachineSuffix?: boolean;
-}): ProductStandardOption[] => {
-    const familyHasMachineVariant = new Set(
-        products
-            .filter((product) => normalizeWorkType(product.work_type) === "CUT")
-            .filter((product) => getProductMachineHint(product.product_code))
-            .map((product) => getProductFamilyCode(product.product_code))
-    );
-
+export const filterProductsForSelection = ({ products, mode, machineCode, machineOptions, useEncodedMachineSuffix = false }: { products: ProductStandardOption[]; mode: ProductSuggestionMode; machineCode?: string; machineOptions?: MachineOption[]; useEncodedMachineSuffix?: boolean; }): ProductStandardOption[] => {
     const selectedMachine = normalizeMachineKey(machineCode);
     const selectedRawMachine = normalize(machineCode).replace(/\s+/g, "");
 
-    // GC Lồng uses product-code suffixes to distinguish Tay/Máy:
-    // -M = Máy, -LT/-L/-T = Tay, no suffix = both.
-    // Only enter this branch when the scoped products are actually Lồng;
-    // Cắt must continue to its separate -auto/-machine-suffix rules below.
     if (useEncodedMachineSuffix) {
-        const longProducts = products.filter(
-            (product) => normalizeWorkType(product.work_type) === "LONG"
-        );
+        const canonicalProducts = products.map((product) => ({ product, alias: getProductDisplayAlias(product) })).filter(({ alias }) => Boolean(alias));
+        const productWorkTypes = new Set(products.map((product) => normalizeWorkType(product.work_type)).filter(Boolean));
+        const workerSelectionProducts = (rows: Array<{ product: ProductStandardOption; alias: string }>): ProductStandardOption[] => rows.map(({ product, alias }) => ({ ...product, product_code: alias }));
 
-        if (longProducts.length > 0) {
-            if (mode === "MANUAL") {
-                return longProducts.filter((product) => {
-                    const handling = getLongHandling(product.product_code);
-                    return handling === "MANUAL" || handling === "BOTH";
-                });
-            }
-
-            if (!selectedMachine) {
-                return longProducts.filter((product) => {
-                    const handling = getLongHandling(product.product_code);
-                    return handling === "MACHINE" || handling === "BOTH";
-                });
-            }
-
-            return longProducts.filter((product) => {
-                const handling = getLongHandling(product.product_code);
-                if (handling !== "MACHINE" && handling !== "BOTH") return false;
-
-                const mappedMachines = eligibleMachineCodes(product);
-                const hasExplicitMapping = Number(product.has_machine_specific_standard || 0) === 1 || mappedMachines.length > 0;
-                if (hasExplicitMapping && mappedMachines.length > 0 && !mappedMachines.includes(selectedMachine)) {
-                    return false;
-                }
-                return true;
-            });
+        if (productWorkTypes.size === 1 && productWorkTypes.has("LONG")) {
+            if (mode === "MACHINE" && (!selectedMachine || !isGcLongMachine(selectedRawMachine))) return [];
+            return workerSelectionProducts(canonicalProducts);
         }
+        if (productWorkTypes.size === 1 && productWorkTypes.has("CUT")) {
+            if (!selectedMachine) return [];
+            if (isGcAutomaticMachine(selectedRawMachine)) return workerSelectionProducts(canonicalProducts.filter(({ alias }) => GC_AUTOMATIC_ALIAS_CODES.has(alias)));
+            return workerSelectionProducts(canonicalProducts);
+        }
+        if (!selectedMachine && mode === "MACHINE") return [];
+        return workerSelectionProducts(canonicalProducts);
     }
 
-    if (mode === "MANUAL") {
-        return products;
-    }
-
+    if (mode === "MANUAL") return products;
     if (!selectedMachine) return [];
-
-    const machine = (machineOptions || []).find(
-        (item) => normalizeMachineKey(item.machine_code) === selectedMachine
-    );
-
-    const gcWorkType = useEncodedMachineSuffix ? getGcWorkTypeForMachine(selectedRawMachine) : null;
-    const isAutomatic = useEncodedMachineSuffix
-        ? isGcAutomaticMachine(selectedRawMachine)
-        : Number(machine?.is_automatic || 0) === 1;
-    const selectedNumber = machineNumber(selectedRawMachine);
-
+    const machine = (machineOptions || []).find((item) => normalizeMachineKey(item.machine_code) === selectedMachine);
     return products.filter((product) => {
-        const hint = getProductMachineHint(product.product_code);
         const mappedMachines = eligibleMachineCodes(product);
         const hasExplicitMapping = Number(product.has_machine_specific_standard || 0) === 1 || mappedMachines.length > 0;
-        const productWorkType = normalizeWorkType(product.work_type);
-
-        if (useEncodedMachineSuffix && gcWorkType && productWorkType !== gcWorkType) return false;
-
-        // A product explicitly mapped to another machine is never suggested
-        // for the selected machine, regardless of its product-code suffix.
-        if (hasExplicitMapping && mappedMachines.length > 0 && !mappedMachines.includes(selectedMachine)) {
-            return false;
-        }
-
-        if (useEncodedMachineSuffix && gcWorkType === "CUT") {
-            if (isAutomatic) {
-                // Automatic GC machine: do NOT leak ordinary CUT products into
-                // the list. Only generic `-auto`, the exact machine suffix
-                // (`-5`, `-6`, `-11`), or an explicit DB machine mapping is valid.
-                if (hint?.kind === "AUTO") return true;
-                if (hint?.kind === "NUMBER") {
-                    return AUTO_MACHINE_SUFFIXES.has(hint.value)
-                        && selectedNumber !== null
-                        && hint.value === selectedNumber;
-                }
-                return hasExplicitMapping && mappedMachines.includes(selectedMachine);
-            }
-
-            // Manual/non-automatic GC machine: automatic variants are hidden.
-            if (hint?.kind === "AUTO") return false;
-            if (hint?.kind === "NUMBER") {
-                if (AUTO_MACHINE_SUFFIXES.has(hint.value)) return false;
-                return selectedNumber !== null && hint.value === selectedNumber;
-            }
-
-            if (familyHasMachineVariant.has(getProductFamilyCode(product.product_code))) return true;
-        }
-
+        if (hasExplicitMapping && mappedMachines.length > 0 && !mappedMachines.includes(selectedMachine)) return false;
+        if (Number(machine?.is_automatic || 0) === 1) return hasExplicitMapping && mappedMachines.includes(selectedMachine);
         return true;
     });
 };
 
 export const toProductAutocompleteOptions = (products: ProductStandardOption[]) => {
     const seen = new Set<string>();
-    return products
-        .filter((product) => {
-            const key = normalize(product.product_code);
-            if (!key || seen.has(key)) return false;
-            seen.add(key);
-            return true;
-        })
-        .map((product) => ({ value: product.product_code, label: product.product_code }));
+    return products.map((product) => ({ value: getProductDisplayAlias(product), label: getProductDisplayAlias(product) })).filter((option) => {
+        const key = normalize(option.label);
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
 };

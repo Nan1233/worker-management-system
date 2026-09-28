@@ -3,11 +3,10 @@ import { getMachinesByProcess, getProductStandardsByProcess } from "./masterData
 import { getDeductionOptionsByProcess, getDefectOptionsByProcess } from "./productionService";
 import { isOfflineLikeError, readOfflineSnapshot, writeOfflineSnapshot } from "./offlinePersistentCache";
 import { getSessionCached, clearSessionCache } from "./sessionCache";
+import { normalizeProcessId } from "../utils/processAccess";
 
-// Master data changes infrequently, so keep it in the authenticated tab session
-// for 30 minutes. getSessionCached also deduplicates concurrent requests.
 const TTL_MS = 30 * 60 * 1000;
-const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v8";
+const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v10";
 const DEDUCTION_MASTER_VERSION = "v7";
 const DEFECT_MASTER_VERSION = "v8";
 
@@ -41,57 +40,53 @@ async function withOfflineSnapshot<T>(name: string, loader: () => Promise<T>): P
   }
 }
 
-export const getCachedMachines = (processId: number): Promise<MachineOption[]> =>
-  getSessionCached(
-    epochKey(`machines:${processId}`),
+export const getCachedMachines = (processId: number): Promise<MachineOption[]> => {
+  const canonicalId = normalizeProcessId(processId);
+  return getSessionCached(
+    epochKey(`machines:${canonicalId}`),
     TTL_MS,
-    () => withOfflineSnapshot(`machines:${processId}`, () => getMachinesByProcess(processId)),
+    () => withOfflineSnapshot(`machines:${canonicalId}`, () => getMachinesByProcess(canonicalId)),
   );
+};
 
 export const getCachedProductStandards = (processId: number, processCode?: string): Promise<ProductStandardOption[]> => {
+  const canonicalId = normalizeProcessId(processId);
   const code = processCode ? processCode.trim().toUpperCase() : "NONE";
-  const key = `products:${processId}:${code}`;
+  const key = `products:${canonicalId}:${code}`;
   return getSessionCached(
     epochKey(key),
     TTL_MS,
-    () => withOfflineSnapshot(key, () => getProductStandardsByProcess(processId, processCode)),
+    () => withOfflineSnapshot(key, () => getProductStandardsByProcess(canonicalId, processCode)),
   );
 };
 
-/**
- * Defect master data is session-cached per authenticated worker/process.
- * The API remains the source of truth; epoch/version invalidation clears the
- * session cache whenever master configuration changes.
- */
 export const getCachedDefects = (processId: number): Promise<DefectOptions> => {
-  const key = `defects:${processId}:${DEFECT_MASTER_VERSION}`;
+  const canonicalId = normalizeProcessId(processId);
+  const key = `defects:${canonicalId}:${DEFECT_MASTER_VERSION}`;
   return getSessionCached(
     epochKey(key),
     TTL_MS,
-    () => withOfflineSnapshot(key, () => getDefectOptionsByProcess(processId)),
+    () => withOfflineSnapshot(key, () => getDefectOptionsByProcess(canonicalId)),
   );
 };
 
-/**
- * Deduction master data follows the same session-cache policy as defects.
- * Online API data is cached for normal navigation; the persistent snapshot is
- * still available as a last-resort fallback when the device is offline.
- */
 export const getCachedDeductions = (processId: number): Promise<DeductionOptions> => {
-  const key = `deductions:${processId}:${DEDUCTION_MASTER_VERSION}`;
+  const canonicalId = normalizeProcessId(processId);
+  const key = `deductions:${canonicalId}:${DEDUCTION_MASTER_VERSION}`;
   return getSessionCached(
     epochKey(key),
     TTL_MS,
-    () => withOfflineSnapshot(key, () => getDeductionOptionsByProcess(processId)),
+    () => withOfflineSnapshot(key, () => getDeductionOptionsByProcess(canonicalId)),
   );
 };
 
 export function prefetchProcessMasterData(processId: number): void {
+  const canonicalId = normalizeProcessId(processId);
   void Promise.allSettled([
-    getCachedMachines(processId),
-    getCachedProductStandards(processId),
-    getCachedDefects(processId),
-    getCachedDeductions(processId),
+    getCachedMachines(canonicalId),
+    getCachedProductStandards(canonicalId),
+    getCachedDefects(canonicalId),
+    getCachedDeductions(canonicalId),
   ]);
 }
 

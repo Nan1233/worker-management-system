@@ -1,5 +1,3 @@
-'use strict';
-
 const db = require('../config/db');
 const {
   CONTRACT_VERSION,
@@ -28,9 +26,6 @@ const RUNTIME_REQUIRED_COLUMNS = Object.freeze({
   notifications: ['id', 'user_id', 'type', 'title', 'message', 'link_url', 'entity_type', 'entity_id', 'is_read', 'read_at', 'created_at'],
 });
 
-// Cloudflare/TiDB Serverless already uses the exact same HTTP query transport
-// through db.promise().query(). Do not run a second independent connection
-// probe here: on Workers that probe can fail while normal queries are healthy.
 if (process.env.KTC_CLOUDFLARE_WORKER === 'true' && typeof db?.promise === 'function') {
   const originalTestConnection = db.testConnection;
   db.testConnection = async () => {
@@ -70,11 +65,13 @@ if (process.env.KTC_CLOUDFLARE_WORKER === 'true' && typeof db?.promise === 'func
 
 async function verifyDatabaseSchema({ executor = db.promise() } = {}) {
   try {
-    // IMPORTANT: Cloudflare Workers must not depend on fs/path to load the
-    // canonical SQL file. That file is a Node-side audit artifact and may not
-    // exist in the Worker runtime. Runtime readiness therefore uses only the
-    // explicit minimum structural contract below.
-    const isWorker = process.env.KTC_CLOUDFLARE_WORKER === 'true' || Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
+    const isWorker = process.env.KTC_CLOUDFLARE_WORKER === 'true' ||
+      Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
+
+    // Migration execution belongs to the explicit Node-side migration command.
+    // The Worker only validates the runtime structural contract. This prevents
+    // the Worker bundle from loading Node-only migration code (fs/path/__dirname)
+    // and prevents request-time migration subrequest explosions.
     const canonical = isWorker ? null : getCanonicalSchema();
     const dbName = await currentDatabase(executor);
 
@@ -90,9 +87,6 @@ async function verifyDatabaseSchema({ executor = db.promise() } = {}) {
       tableRows.map((row) => String(row.TABLE_NAME).toLowerCase()),
     );
 
-    // In Worker mode the runtime contract is deliberately independent of the
-    // canonical SQL parser. In Node mode retain the canonical table list for
-    // compatibility with the existing contract/audit behavior.
     const expectedTables = new Set(
       isWorker ? Object.keys(RUNTIME_REQUIRED_COLUMNS) : Object.keys(canonical.tables),
     );
@@ -218,7 +212,6 @@ function toSafeSchemaDiagnostics(result) {
     runtimeContract: result.runtimeContract || 'MINIMUM_STRUCTURAL_V1',
     missingTables: result.missingTables || [],
     invalidColumns: result.invalidColumns || [],
-    missingColumns: result.missingColumns || [],
     extraTables: result.extraTables || [],
     extraColumns: result.extraColumns || [],
     missingIndexes: result.missingIndexes || [],

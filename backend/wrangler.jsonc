@@ -6,7 +6,11 @@
   "compatibility_flags": ["nodejs_compat", "nodejs_compat_populate_process_env"],
   "workers_dev": true,
   "keep_vars": true,
-  "observability": {
-    "enabled": true
+  "observability": { "enabled": true },
+  "vars": {
+    "KTC_RUN_BUILD_DB_MIGRATIONS": "true",
+    "KTC_CLOUDFLARE_WORKER": "true",
+    "KTC_MIGRATION_REF": "test",
+    "KTC_MIGRATION_REPOSITORY": "Nan1233/worker-management-system"
   }
 }

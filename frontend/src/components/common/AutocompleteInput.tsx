@@ -43,7 +43,13 @@ function AutocompleteInput({
         setTypedValue(value);
     }, [value]);
 
-    const displayValue = selectOnly ? typedValue : value;
+    const selectedOption = useMemo(
+        () => options.find((option) => option.value.trim().toLowerCase() === typedValue.trim().toLowerCase()),
+        [options, typedValue]
+    );
+    const displayValue = selectOnly
+        ? (selectedOption?.label?.trim() || typedValue)
+        : value;
 
     const readMachineOperationType = () => id.startsWith("machineNo")
         ? Array.from(document.querySelectorAll(".worker-mode-panel .worker-mode-group:first-child .worker-choice-row button"))
@@ -69,7 +75,13 @@ function AutocompleteInput({
             if (machineOperationType === "CẮT") {
                 scopedOptions = options.filter((option) => /^C\d+$/i.test(String(option.value).trim()));
             } else if (machineOperationType === "LỒNG") {
-                scopedOptions = options.filter((option) => /^\d+$/.test(String(option.value).trim()));
+                // GC Lồng machines use the canonical DB codes ML1..ML20.
+                // Keep numeric-only codes as backward-compatible legacy input,
+                // but do not filter out the current ML-prefixed master data.
+                scopedOptions = options.filter((option) => {
+                    const code = String(option.value).trim();
+                    return /^ML\d+$/i.test(code) || /^\d+$/.test(code);
+                });
             }
         }
 
@@ -84,10 +96,6 @@ function AutocompleteInput({
         return result.slice(0, 50);
     }, [options, displayValue, machineOperationType, id]);
 
-    // GC uses the same machine/product workspace for both cases. When no
-    // machine is entered, productSuggestionRules returns the valid Lồng-tay
-    // products, so the product field must remain interactive even though the
-    // caller still passes its old "disabled until machine" guard.
     const effectiveDisabled = disabled && !(id.startsWith("machineProduct-") && options.length > 0);
 
     useEffect(() => {
@@ -171,23 +179,23 @@ function AutocompleteInput({
             </div>
             {open && !effectiveDisabled && (
                 <div className="autocomplete-menu" role="listbox">
-                    {filteredOptions.length > 0 ? filteredOptions.map((option, index) => (
-                        <button
-                            key={`${option.value}-${index}`}
-                            type="button"
-                            className={index === activeIndex ? "autocomplete-option active" : "autocomplete-option"}
-                            onMouseDown={(event) => event.preventDefault()}
-                            onClick={() => selectOption(option)}
-                        >
-                            <span className="autocomplete-option-main">{option.value}</span>
-                            {option.label && option.label.trim().toLowerCase() !== option.value.trim().toLowerCase() && (
-                                <span className="autocomplete-option-label">{option.label}</span>
-                            )}
-                            {option.description && (
-                                <span className="autocomplete-option-description">{option.description}</span>
-                            )}
-                        </button>
-                    )) : (
+                    {filteredOptions.length > 0 ? filteredOptions.map((option, index) => {
+                        const optionDisplay = option.label?.trim() || option.value;
+                        return (
+                            <button
+                                key={`${option.value}-${index}`}
+                                type="button"
+                                className={index === activeIndex ? "autocomplete-option active" : "autocomplete-option"}
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => selectOption(option)}
+                            >
+                                <span className="autocomplete-option-main">{optionDisplay}</span>
+                                {option.description && (
+                                    <span className="autocomplete-option-description">{option.description}</span>
+                                )}
+                            </button>
+                        );
+                    }) : (
                         <div className="autocomplete-empty">{emptyMessage}</div>
                     )}
                 </div>

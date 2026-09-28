@@ -4,3 +4,7 @@
 .pending-reference-page .pending-reference-table tbody tr.pending-row-active .report-code{color:#1769d2}
 .pending-reference-page .pending-reference-table tbody tr.pending-row-active .shift-chip{background:#e7f0fc;color:#145fb9}
 .pending-reference-page .pending-reference-table tbody tr.pending-row-active .status-pill{box-shadow:0 0 0 1px rgba(23,105,210,.08)}
+
+/* Soft warning only: reports whose productivity exceeds the standard for their reported time. */
+.pending-reference-page .pending-reference-table tbody tr.report-over-standard > td{background:#fff0f3!important}
+.pending-reference-page .pending-reference-table tbody tr.report-over-standard:hover > td{background:#ffe8ed!important}

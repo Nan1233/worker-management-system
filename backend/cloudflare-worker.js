@@ -2,9 +2,6 @@ import { httpServerHandler } from "cloudflare:node";
 import { env } from "cloudflare:workers";
 import { connect as connectTiDB } from "@tidbcloud/serverless";
 
-// Cloudflare Workers has no long-lived TCP socket. The serverless TiDB
-// connector is the single database transport used by this Worker.
-
 globalThis.__KTC_CLOUDFLARE_ENV = env;
 globalThis.__KTC_CLOUDFLARE_WORKER = true;
 globalThis.__KTC_TIDB_CONNECT = connectTiDB;
@@ -21,17 +18,13 @@ if (explicitTiDbUrl) {
     const pathnameDb = decodeURIComponent(String(url.pathname || "").replace(/^\/+/, "")).trim();
     if (!pathnameDb && configuredDb) url.pathname = `/${encodeURIComponent(configuredDb)}`;
     process.env.TIDB_DATABASE_URL = url.toString();
-  } catch {
-    process.env.TIDB_DATABASE_URL = explicitTiDbUrl;
-  }
+  } catch { process.env.TIDB_DATABASE_URL = explicitTiDbUrl; }
 }
 
 const cloudflareFrontendOrigin = "https://ktc-frontend.nan978971.workers.dev";
 const cloudflareTestFrontendOrigin = "https://ktc-fe-test.nan978971.workers.dev";
 const configuredCorsOrigins = String(process.env.CORS_ORIGINS || "").split(",").map((value) => value.trim()).filter(Boolean);
-for (const origin of [cloudflareFrontendOrigin, cloudflareTestFrontendOrigin]) {
-  if (!configuredCorsOrigins.includes(origin)) configuredCorsOrigins.push(origin);
-}
+for (const origin of [cloudflareFrontendOrigin, cloudflareTestFrontendOrigin]) if (!configuredCorsOrigins.includes(origin)) configuredCorsOrigins.push(origin);
 process.env.CORS_ORIGINS = configuredCorsOrigins.join(",");
 process.env.PORT = process.env.PORT || "3000";
 process.env.KTC_CLOUDFLARE_WORKER = "true";
@@ -40,8 +33,30 @@ const { app, initializeRuntime, runtimeReadiness } = require("./server.js");
 const db = require("./config/db");
 const ensureGcDefectMasterData = require("./scripts/ensureGcDefectMasterData");
 const ensureGcLong2801Lt = require("./scripts/ensureGcLong2801Lt");
+const runPendingMigrations = require("./scripts/runPendingMigrations");
 const { masterDataCache } = require("./utils/masterDataCache");
 const productionTempCreateModel = require("./models/productionTempCreateModel");
+
+let cloudflareMigrationReady = false;
+let cloudflareMigrationPromise = null;
+async function ensureCloudflareTestMigrations() {
+  const enabled = String(process.env.KTC_RUN_BUILD_DB_MIGRATIONS || "").toLowerCase() === "true";
+  if (!enabled || cloudflareMigrationReady) return true;
+  if (cloudflareMigrationPromise) return cloudflareMigrationPromise;
+  cloudflareMigrationPromise = (async () => {
+    try {
+      const ok = await runPendingMigrations();
+      cloudflareMigrationReady = ok !== false;
+      console.log("[KTC][MIGRATION] Cloudflare test runtime migrations completed");
+      return true;
+    } catch (error) {
+      console.error("[KTC][MIGRATION] Cloudflare test runtime migration failed", error?.message || String(error), error);
+      cloudflareMigrationPromise = null;
+      throw error;
+    }
+  })();
+  return cloudflareMigrationPromise;
+}
 
 const originalDbPromise = db.promise.bind(db);
 db.promise = () => {
@@ -52,12 +67,7 @@ db.promise = () => {
       const connection = await originalGetConnection(...args);
       const originalRelease = connection.release.bind(connection);
       let released = false;
-      connection.release = async () => {
-        if (released) return;
-        released = true;
-        try { await connection.rollback(); } catch (_) {}
-        return originalRelease();
-      };
+      connection.release = async () => { if (released) return; released = true; try { await connection.rollback(); } catch (_) {} return originalRelease(); };
       return connection;
     };
   }
@@ -80,22 +90,9 @@ async function normalizeTempChildRows(defects, deductions, processId) {
   const defectByName = new Map((defectRows || []).map((row) => [String(row.defect_name).trim(), row]));
   const deductionById = new Map((deductionRows || []).map((row) => [Number(row.id), row]));
   const deductionByName = new Map((deductionRows || []).map((row) => [String(row.deduction_name).trim(), row]));
-  const unresolvedDefects = [];
-  const unresolvedDeductions = [];
-  for (const item of normalizedDefects) {
-    const quantity = Number(item?.quantity || 0);
-    if (!(quantity > 0)) continue;
-    const row = defectById.get(Number(item?.defect_type_id)) || defectByName.get(String(item?.defect_name || "").trim());
-    if (!row) { unresolvedDefects.push(item); continue; }
-    item.defect_type_id = Number(row.id); item.defect_name = String(row.defect_name || "").trim(); item.defect_code = String(row.defect_code || item.defect_code || "").trim();
-  }
-  for (const item of normalizedDeductions) {
-    const hours = Number(item?.hours || 0);
-    if (!(hours > 0)) continue;
-    const row = deductionById.get(Number(item?.deduction_type_id)) || deductionByName.get(String(item?.deduction_name || "").trim());
-    if (!row) { unresolvedDeductions.push(item); continue; }
-    item.deduction_type_id = Number(row.id); item.deduction_name = String(row.deduction_name || "").trim();
-  }
+  const unresolvedDefects = []; const unresolvedDeductions = [];
+  for (const item of normalizedDefects) { const quantity = Number(item?.quantity || 0); if (!(quantity > 0)) continue; const row = defectById.get(Number(item?.defect_type_id)) || defectByName.get(String(item?.defect_name || "").trim()); if (!row) { unresolvedDefects.push(item); continue; } item.defect_type_id = Number(row.id); item.defect_name = String(row.defect_name || "").trim(); item.defect_code = String(row.defect_code || item.defect_code || "").trim(); }
+  for (const item of normalizedDeductions) { const hours = Number(item?.hours || 0); if (!(hours > 0)) continue; const row = deductionById.get(Number(item?.deduction_type_id)) || deductionByName.get(String(item?.deduction_name || "").trim()); if (!row) { unresolvedDeductions.push(item); continue; } item.deduction_type_id = Number(row.id); item.deduction_name = String(row.deduction_name || "").trim(); }
   if (unresolvedDefects.length) { const error = new Error("Có loại lỗi NG không khớp danh mục công đoạn"); error.status = 422; error.code = "TEMP_DEFECT_MASTER_DATA_MISMATCH"; error.isPublic = true; error.details = unresolvedDefects; throw error; }
   if (unresolvedDeductions.length) { const error = new Error("Có loại thời gian trừ không khớp danh mục công đoạn"); error.status = 422; error.code = "TEMP_DEDUCTION_MASTER_DATA_MISMATCH"; error.isPublic = true; error.details = unresolvedDeductions; throw error; }
   return { defects: normalizedDefects, deductions: normalizedDeductions };
@@ -103,16 +100,9 @@ async function normalizeTempChildRows(defects, deductions, processId) {
 async function queryMasterRows(sql, params) { const [rows] = await db.promise().query(sql, params); return rows || []; }
 
 const originalCreateCompleteReport = productionTempCreateModel.createCompleteReport.bind(productionTempCreateModel);
-productionTempCreateModel.createCompleteReport = async (payload) => {
-  if (payload && typeof payload === "object" && payload.data) {
-    const normalized = await normalizeTempChildRows(payload.defects, payload.deductions, payload.data.process_id);
-    return originalCreateCompleteReport({ ...payload, ...normalized });
-  }
-  return originalCreateCompleteReport(payload);
-};
+productionTempCreateModel.createCompleteReport = async (payload) => { if (payload && typeof payload === "object" && payload.data) { const normalized = await normalizeTempChildRows(payload.defects, payload.deductions, payload.data.process_id); return originalCreateCompleteReport({ ...payload, ...normalized }); } return originalCreateCompleteReport(payload); };
 
-let cloudflareSeedReady = false;
-let cloudflareSeedPromise = null;
+let cloudflareSeedReady = false; let cloudflareSeedPromise = null;
 async function ensureCloudflareSeeded() {
   if (cloudflareSeedReady) return true;
   if (cloudflareSeedPromise) return cloudflareSeedPromise;
@@ -120,13 +110,6 @@ async function ensureCloudflareSeeded() {
     masterDataCache.clear();
     cloudflareSeedReady = true;
     console.log("[KTC] Cloudflare GC master-data seed completed; master cache cleared");
-
-    // A previous cold start can fail before Cloudflare variables/DB become
-    // available. The seed can succeed later, so retry runtime readiness here
-    // instead of leaving /api/health permanently stuck at STARTUP_FAILED.
-    if (!runtimeReadiness.ready && !runtimeReadiness.initializing) {
-      await initializeRuntime();
-    }
     return true;
   }).catch((error) => {
     console.error("[KTC] Cloudflare GC master-data seed failed", error);
@@ -136,57 +119,44 @@ async function ensureCloudflareSeeded() {
   return cloudflareSeedPromise;
 }
 
-// Cloudflare's Express integration uses the listening port as the routing key.
+app.get("/api/health/migrations", async (_request, response) => {
+  try {
+    await ensureCloudflareTestMigrations();
+    const [rows] = await db.promise().query(`SELECT migration_id, applied_at FROM schema_migrations ORDER BY CAST(SUBSTRING_INDEX(migration_id, '_', 1) AS UNSIGNED) DESC, migration_id DESC`);
+    const applied = (rows || []).map((row) => ({ migration_id: String(row.migration_id), applied_at: row.applied_at }));
+    const latestAppliedVersion = applied.length ? Math.max(...applied.map((row) => Number(String(row.migration_id).split("_", 1)[0]) || 0)) : 0;
+    response.set("Cache-Control", "no-store");
+    return response.status(200).json({ success: true, migration_enabled: String(process.env.KTC_RUN_BUILD_DB_MIGRATIONS || "").toLowerCase() === "true", expected_latest_version: 49, applied_count: applied.length, latest_applied_version: latestAppliedVersion, latest_applied: applied.slice(0, 10) });
+  } catch (error) {
+    console.error("[KTC][MIGRATION][STATUS] failed", error);
+    response.set("Cache-Control", "no-store");
+    return response.status(503).json({ success: false, code: "MIGRATION_STATUS_FAILED", message: error?.message || String(error) });
+  }
+});
+
 app.listen(Number(process.env.PORT || 3000));
 const httpHandler = httpServerHandler({ port: Number(process.env.PORT || 3000) });
 
-function getAllowedOrigin(request) {
-  const origin = request.headers.get("Origin"); if (!origin) return null;
-  const allowed = new Set([cloudflareFrontendOrigin, cloudflareTestFrontendOrigin, "https://worker-management-system-3-dzox.onrender.com", "http://localhost:5173", "https://localhost", "capacitor://localhost", ...configuredCorsOrigins]);
-  return allowed.has(origin) ? origin : null;
-}
-function handleCorsPreflight(request) {
-  if (request.method !== "OPTIONS") return null;
-  const origin = getAllowedOrigin(request);
-  if (!origin) return new Response(JSON.stringify({ success: false, code: "CORS_ORIGIN_DENIED", message: "Nguồn truy cập không được phép bởi CORS" }), { status: 403, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
-  const requestedHeaders = request.headers.get("Access-Control-Request-Headers");
-  const allowHeaders = requestedHeaders || ["Content-Type", "Authorization", "Idempotency-Key", "X-Cron-Secret", "X-Request-Id", "X-Frontend-Version"].join(", ");
-  return new Response(null, { status: 204, headers: { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true", "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS", "Access-Control-Allow-Headers": allowHeaders, "Access-Control-Max-Age": "86400", "Vary": "Origin, Access-Control-Request-Headers", "Cache-Control": "no-store" } });
-}
+function getAllowedOrigin(request) { const origin = request.headers.get("Origin"); if (!origin) return null; const allowed = new Set([cloudflareFrontendOrigin, cloudflareTestFrontendOrigin, "https://worker-management-system-3-dzox.onrender.com", "http://localhost:5173", "https://localhost", "capacitor://localhost", ...configuredCorsOrigins]); return allowed.has(origin) ? origin : null; }
+function handleCorsPreflight(request) { if (request.method !== "OPTIONS") return null; const origin = getAllowedOrigin(request); if (!origin) return new Response(JSON.stringify({ success: false, code: "CORS_ORIGIN_DENIED", message: "Nguồn truy cập không được phép bởi CORS" }), { status: 403, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } }); const requestedHeaders = request.headers.get("Access-Control-Request-Headers"); const allowHeaders = requestedHeaders || ["Content-Type", "Authorization", "Idempotency-Key", "X-Cron-Secret", "X-Request-Id", "X-Frontend-Version"].join(", "); return new Response(null, { status: 204, headers: { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true", "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS", "Access-Control-Allow-Headers": allowHeaders, "Access-Control-Max-Age": "86400", "Vary": "Origin, Access-Control-Request-Headers", "Cache-Control": "no-store" } }); }
 const BOOTSTRAP_EXEMPT_PATHS = new Set(["/api/auth/login", "/api/auth/refresh", "/api/auth/logout", "/api/health", "/api/health/live", "/api/health/ready"]);
 function shouldBootstrapBeforeRequest(request) { return !BOOTSTRAP_EXEMPT_PATHS.has(new URL(request.url).pathname); }
 const CANONICAL_EVENT_DEFECTS = new Map([["KQD", "KQD"], ["VO_CAO_SU", "Vỡ cao su"], ["K_XUOC_CONG_GAY", "K xước cong gãy"], ["CAO_SU_XOAY", "Cao su xoay"], ["CAT_KHONG_DUT", "Cắt không đứt"], ["BAVIA", "Bavia"], ["CSH", "CSH"], ["PPCM", "PPCM"], ["KT_LON", "KT lớn"], ["KT_NHO", "KT nhỏ"], ["LCS", "LCS"], ["CAT_LEM", "Cắt lẹm"], ["RACH_NVL", "Rách NVL"], ["CHAN_NGAN_DAI", "Chân ngắn dài"], ["SOT_VIA", "Sót via"], ["FURE_TRUC", "Fure trục"], ["LAN_CS", "Lẫn CS"], ["BAVIA_CAT_HUT", "Bavia cắt hụt"], ["THIEU_CAO_SU", "Thiếu cao su"]]);
 const EVENT_DEFECT_ALIASES = new Map([["KQD_DAP_LAI", "KQD"], ["KQD_TUOT", "KQD"], ["KQD_DL", "KQD"], ["VO_DO_LONG", "VO_CAO_SU"], ["VO_LONG", "VO_CAO_SU"], ["XUOC_DO_LONG", "K_XUOC_CONG_GAY"], ["XUOC_LONG", "K_XUOC_CONG_GAY"], ["CONG_GAY", "K_XUOC_CONG_GAY"], ["XOAY", "CAO_SU_XOAY"], ["KHONG_DUT", "CAT_KHONG_DUT"], ["BAVIA_HUT", "BAVIA"], ["CAO_SU", "LCS"], ["LOI_CAO_SU", "LCS"], ["CAT_LEM", "CAT_LEM"]]);
 function normalizeEventDefect(row) { const raw = String(row.defect_code || "").trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "").toUpperCase(); const code = EVENT_DEFECT_ALIASES.get(raw) || raw; const name = CANONICAL_EVENT_DEFECTS.get(code); if (!name) return null; const quantity = Math.trunc(Number(row.quantity || 0)); if (quantity <= 0) return null; return { id: Number(row.id) || undefined, defect_type_id: Number(row.defect_type_id) || undefined, defect_code: code, defect_name: name, quantity }; }
-async function enrichApprovedReportMachineDefects(request, response) {
-  const url = new URL(request.url); if (request.method !== "GET" || !/^\/api\/production\/\d+$/.test(url.pathname) || !response.ok) return response;
-  try { const payload = await response.clone().json(); const data = payload?.data; if (!data || !Array.isArray(data.defects) || data.defects.length > 0) return response; const reportId = Number(url.pathname.split("/").pop()); const [rows] = await db.promise().query(`SELECT med.id,med.defect_type_id,med.defect_code,med.defect_name,med.quantity FROM production_report_machine_lines ml JOIN machine_production_event_defects med ON med.machine_event_id=ml.machine_event_id WHERE ml.report_id=? AND med.quantity>0 ORDER BY ml.sort_order,med.id`, [reportId]); const merged = new Map(); for (const row of rows || []) { const item = normalizeEventDefect(row); if (!item) continue; const key = item.defect_code; const existing = merged.get(key); if (existing) existing.quantity += item.quantity; else merged.set(key, item); } if (!merged.size) return response; data.defects = [...merged.values()]; const headers = new Headers(response.headers); headers.set("Cache-Control", "no-store"); return new Response(JSON.stringify(payload), { status: response.status, statusText: response.statusText, headers }); } catch (error) { console.error("[KTC] approved report machine NG enrichment failed", error); return response; }
-}
-const wrappedServer = {
-  async fetch(request, envArg, ctx) {
-    const preflight = handleCorsPreflight(request);
-    if (preflight) return preflight;
+async function enrichApprovedReportMachineDefects(request, response) { const url = new URL(request.url); if (request.method !== "GET" || !/^\/api\/production\/\d+$/.test(url.pathname) || !response.ok) return response; try { const payload = await response.clone().json(); const data = payload?.data; if (!data || !Array.isArray(data.defects) || data.defects.length > 0) return response; const reportId = Number(url.pathname.split("/").pop()); const [rows] = await db.promise().query(`SELECT med.id,med.defect_type_id,med.defect_code,med.defect_name,med.quantity FROM production_report_machine_lines ml JOIN machine_production_event_defects med ON ml.machine_event_id=med.machine_event_id WHERE ml.report_id=? AND med.quantity>0 ORDER BY ml.sort_order,med.id`, [reportId]); const merged = new Map(); for (const row of rows || []) { const item = normalizeEventDefect(row); if (!item) continue; const key = item.defect_code; const existing = merged.get(key); if (existing) existing.quantity += item.quantity; else merged.set(key, item); } if (!merged.size) return response; data.defects = [...merged.values()]; const headers = new Headers(response.headers); headers.set("Cache-Control", "no-store"); return new Response(JSON.stringify(payload), { status: response.status, statusText: response.statusText, headers }); } catch (error) { console.error("[KTC] approved report machine NG enrichment failed", error); return response; } }
 
-    const pathname = new URL(request.url).pathname;
-
-    if (pathname === "/api/health" || pathname === "/api/health/ready") {
-      // IMPORTANT: Cloudflare may suspend the isolate when the response is
-      // returned. The readiness initialization must finish before Express
-      // handles the health request; fire-and-forget leaves health stuck at
-      // STARTING/STARTUP_FAILED.
-      if (!runtimeReadiness.ready) {
-        await initializeRuntime();
-      }
-    } else if (shouldBootstrapBeforeRequest(request)) {
-      const seeded = await ensureCloudflareSeeded();
-      if (!seeded) {
-        console.warn("[KTC] Continuing request without master-data bootstrap; seed will retry on a later request.");
-      }
-    }
-
-    const response = await httpHandler.fetch(request, envArg, ctx);
-    return enrichApprovedReportMachineDefects(request, response);
+const wrappedServer = { async fetch(request, envArg, ctx) {
+  const preflight = handleCorsPreflight(request); if (preflight) return preflight;
+  const pathname = new URL(request.url).pathname;
+  if (pathname === "/api/health" || pathname === "/api/health/ready") {
+    try { await ensureCloudflareTestMigrations(); } catch (error) { return new Response(JSON.stringify({ success: false, code: "TEST_DB_MIGRATION_FAILED", message: error?.message || String(error) }), { status: 503, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } }); }
+    if (!runtimeReadiness.ready) await initializeRuntime();
+  } else if (shouldBootstrapBeforeRequest(request)) {
+    try { await ensureCloudflareTestMigrations(); } catch (error) { console.error("[KTC][MIGRATION] request migration failed", error); return new Response(JSON.stringify({ success: false, code: "TEST_DB_MIGRATION_FAILED", message: "Test database migration failed" }), { status: 503, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } }); }
+    const seeded = await ensureCloudflareSeeded(); if (!seeded) console.warn("[KTC] Continuing request without master-data bootstrap; seed will retry on a later request.");
   }
-};
+  const response = await httpHandler.fetch(request, envArg, ctx); return enrichApprovedReportMachineDefects(request, response);
+} };
 
 export default wrappedServer;

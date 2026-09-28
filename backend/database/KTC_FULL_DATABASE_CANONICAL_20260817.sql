@@ -19672,6 +19672,13 @@ ON DUPLICATE KEY UPDATE
   role      = VALUES(role),
   status    = 'active';
 
+-- FIX: tài khoản manager1 được seed với bcrypt hash; không lưu plaintext.
+UPDATE users
+SET password = '$2b$10$QyhDl6txQD0MlrVfYt/8Ie.yk879utP08WB.4FbTZiW6yLIz96jN6',
+    role = 'manager',
+    status = 'active'
+WHERE username = 'manager1';
+
 INSERT IGNORE INTO manager_processes (manager_id, process_id)
 SELECT u.id, p.id
 FROM users u
