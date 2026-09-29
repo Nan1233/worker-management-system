@@ -1,75 +1,29 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
     getDeductionOptionsByProcess,
     getDefectOptionsByProcess,
     getReportById,
-    updateReport
+    updateReport,
 } from "../../services/productionService";
-import type {
-    ProductionDeduction,
-    ProductionDefect,
-    ProductionReport
-} from "../../types/production";
+import type { ProductionDeduction, ProductionDefect, ProductionReport } from "../../types/production";
 import { useToast } from "../../components/feedback/toastContext";
+import "./EditReport.css";
 
-const numberValue = (value: unknown) => Number(value ?? 0) || 0;
-
-const mergeDefects = (options: ProductionDefect[], saved: ProductionDefect[]): ProductionDefect[] => {
-    const savedById = new Map(
-        saved
-            .filter((item) => Number(item.defect_type_id || item.id) > 0)
-            .map((item) => [Number(item.defect_type_id || item.id), item])
-    );
-    const savedByName = new Map(
-        saved.map((item) => [String(item.defect_name || "").trim().toLowerCase(), item])
-    );
-
-    return saved
-        .filter((item) => numberValue(item.quantity) > 0)
-        .map((item) => {
-            const current = savedById.get(Number(item.defect_type_id || item.id))
-                || savedByName.get(String(item.defect_name || "").trim().toLowerCase());
-            const option = options.find((candidate) =>
-                Number(candidate.defect_type_id || candidate.id) === Number(item.defect_type_id || item.id)
-                || String(candidate.defect_name || "").trim().toLowerCase() === String(item.defect_name || "").trim().toLowerCase()
-            );
-            return {
-                ...(option || item),
-                ...current,
-                defect_type_id: Number(option?.defect_type_id || option?.id || item.defect_type_id || item.id),
-                quantity: numberValue(item.quantity)
-            };
-        });
+const n = (value: unknown) => {
+    const result = Number(value);
+    return Number.isFinite(result) ? result : 0;
 };
 
-const mergeDeductions = (options: ProductionDeduction[], saved: ProductionDeduction[]): ProductionDeduction[] => {
-    const savedById = new Map(
-        saved
-            .filter((item) => Number(item.deduction_type_id || item.id) > 0)
-            .map((item) => [Number(item.deduction_type_id || item.id), item])
-    );
-    const savedByName = new Map(
-        saved.map((item) => [String(item.deduction_name || "").trim().toLowerCase(), item])
-    );
+const fmt = (value: unknown) => n(value).toLocaleString("vi-VN", { maximumFractionDigits: 2 });
 
-    return saved
-        .filter((item) => numberValue(item.hours) > 0)
-        .map((item) => {
-            const current = savedById.get(Number(item.deduction_type_id || item.id))
-                || savedByName.get(String(item.deduction_name || "").trim().toLowerCase());
-            const option = options.find((candidate) =>
-                Number(candidate.deduction_type_id || candidate.id) === Number(item.deduction_type_id || item.id)
-                || String(candidate.deduction_name || "").trim().toLowerCase() === String(item.deduction_name || "").trim().toLowerCase()
-            );
-            return {
-                ...(option || item),
-                ...current,
-                deduction_type_id: Number(option?.deduction_type_id || option?.id || item.deduction_type_id || item.id),
-                hours: numberValue(item.hours)
-            };
-        });
-};
+const normalizeDefects = (items: ProductionDefect[] = []) => items
+    .filter((item) => n(item.quantity) > 0)
+    .map((item) => ({ ...item, defect_type_id: Number(item.defect_type_id || item.id || 0), quantity: n(item.quantity) }));
+
+const normalizeDeductions = (items: ProductionDeduction[] = []) => items
+    .filter((item) => n(item.hours) > 0)
+    .map((item) => ({ ...item, deduction_type_id: Number(item.deduction_type_id || item.id || 0), hours: n(item.hours) }));
 
 function EditReport() {
     const { id } = useParams();
@@ -82,79 +36,80 @@ function EditReport() {
     const [form, setForm] = useState<ProductionReport | null>(null);
     const [defectOptions, setDefectOptions] = useState<ProductionDefect[]>([]);
     const [deductionOptions, setDeductionOptions] = useState<ProductionDeduction[]>([]);
+    const [actualHours, setActualHours] = useState("0");
+    const [actualMinutes, setActualMinutes] = useState("0");
+    const [changeReason, setChangeReason] = useState("");
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
-    const [actualHours, setActualHours] = useState("");
-    const [actualMinutes, setActualMinutes] = useState("");
-    const [changeReason, setChangeReason] = useState("");
-    const originalUpdatedAtRef = useRef<string | null>(null);
+    const [loadedUpdatedAt, setLoadedUpdatedAt] = useState<string | null>(null);
 
     useEffect(() => {
+        let cancelled = false;
         const load = async () => {
             if (!Number.isInteger(reportId) || reportId <= 0) {
-                setError("Mã báo cáo không hợp lệ.");
+                setError("ID báo cáo không hợp lệ.");
                 setLoading(false);
                 return;
             }
-
             try {
                 setLoading(true);
                 setError("");
                 const data = await getReportById(reportId, source);
-                originalUpdatedAtRef.current = source === "approved" ? (data.updated_at || null) : null;
+                if (cancelled) return;
                 const processId = Number(data.process_id);
-                const [loadedDefectOptions, loadedDeductionOptions] = await Promise.all([
+                const [defects, deductions] = await Promise.all([
                     processId > 0 ? getDefectOptionsByProcess(processId) : Promise.resolve([]),
-                    processId > 0 ? getDeductionOptionsByProcess(processId) : Promise.resolve([])
+                    processId > 0 ? getDeductionOptionsByProcess(processId) : Promise.resolve([]),
                 ]);
+                if (cancelled) return;
 
-                setDefectOptions(loadedDefectOptions);
-                setDeductionOptions(loadedDeductionOptions);
-
-                const savedActualTime = numberValue(data.actual_time);
-                const savedHours = Math.floor(savedActualTime);
-                const savedMinutes = Math.round((savedActualTime - savedHours) * 60);
-                setActualHours(String(savedHours));
-                setActualMinutes(String(savedMinutes));
-
+                const actual = n(data.actual_time);
+                const totalMinutes = Math.max(0, Math.round(actual * 60));
+                setActualHours(String(Math.floor(totalMinutes / 60)));
+                setActualMinutes(String(totalMinutes % 60));
+                setDefectOptions(defects);
+                setDeductionOptions(deductions);
+                setLoadedUpdatedAt(data.updated_at || null);
                 setForm({
                     ...data,
                     work_date: String(data.work_date || "").slice(0, 10),
-                    defects: mergeDefects(loadedDefectOptions, data.defects || []),
-                    deductions: mergeDeductions(loadedDeductionOptions, data.deductions || [])
+                    defects: Array.isArray(data.defects) ? data.defects : [],
+                    deductions: Array.isArray(data.deductions) ? data.deductions : [],
                 });
-            } catch (err) {
-                console.error("LOAD REPORT ERROR:", err);
-                setError("Không thể tải báo cáo hoặc danh mục chi tiết để sửa.");
+            } catch (err: any) {
+                if (!cancelled) setError(err?.response?.data?.message || "Không thể tải báo cáo để sửa.");
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
         };
         void load();
+        return () => { cancelled = true; };
     }, [reportId, source]);
 
-    const defectTotal = useMemo(
-        () => (form?.defects || []).reduce((sum, item) => sum + numberValue(item.quantity), 0),
-        [form?.defects]
-    );
-    const deductionTotal = useMemo(
-        () => (form?.deductions || []).reduce((sum, item) => sum + numberValue(item.hours), 0),
-        [form?.deductions]
-    );
+    const defectTotal = useMemo(() => (form?.defects || []).reduce((sum, item) => sum + n(item.quantity), 0), [form?.defects]);
+    const deductionMinutes = useMemo(() => Math.round((form?.deductions || []).reduce((sum, item) => sum + n(item.hours), 0) * 60), [form?.deductions]);
+    const actualTime = useMemo(() => Math.max(0, Number(actualHours) || 0) + Math.min(59, Math.max(0, Number(actualMinutes) || 0)) / 60, [actualHours, actualMinutes]);
+    const totalTime = actualTime + deductionMinutes / 60;
+    const actualOutput = n(form?.tt_ok) + defectTotal;
+    const standardTarget = n(form?.standard_output) * actualTime;
+    const productivity = standardTarget > 0 ? actualOutput / standardTarget * 100 : 0;
+    const achieved = actualOutput > 0 ? n(form?.tt_ok) / actualOutput * 100 : 0;
 
-    const availableDefectOptions = useMemo(() => {
-        const used = new Set((form?.defects || []).map((item) => Number(item.defect_type_id || item.id)));
-        return defectOptions.filter((item) => !used.has(Number(item.defect_type_id || item.id)));
-    }, [defectOptions, form?.defects]);
+    const usedDefects = useMemo(() => new Set((form?.defects || []).map((item) => Number(item.defect_type_id || item.id))), [form?.defects]);
+    const usedDeductions = useMemo(() => new Set((form?.deductions || []).map((item) => Number(item.deduction_type_id || item.id))), [form?.deductions]);
+    const availableDefects = defectOptions.filter((item) => !usedDefects.has(Number(item.defect_type_id || item.id)));
+    const availableDeductions = deductionOptions.filter((item) => !usedDeductions.has(Number(item.deduction_type_id || item.id)));
 
-    const availableDeductionOptions = useMemo(() => {
-        const used = new Set((form?.deductions || []).map((item) => Number(item.deduction_type_id || item.id)));
-        return deductionOptions.filter((item) => !used.has(Number(item.deduction_type_id || item.id)));
-    }, [deductionOptions, form?.deductions]);
-
-    const setField = (field: keyof ProductionReport, value: string | number) => {
+    const setField = <K extends keyof ProductionReport>(field: K, value: ProductionReport[K]) => {
         setForm((current) => current ? { ...current, [field]: value } : current);
+    };
+
+    const setActualTime = (hours: string, minutes: string) => {
+        const safeHours = Math.max(0, Math.min(24, Number(hours.replace(/\D/g, "")) || 0));
+        const safeMinutes = Math.max(0, Math.min(59, Number(minutes.replace(/\D/g, "")) || 0));
+        setActualHours(String(safeHours));
+        setActualMinutes(String(safeMinutes));
     };
 
     const updateDefect = (index: number, quantity: number) => {
@@ -162,37 +117,22 @@ function EditReport() {
             if (!current) return current;
             const defects = [...(current.defects || [])];
             defects[index] = { ...defects[index], quantity: Math.max(0, quantity) };
-            const ttNg = defects.reduce((sum, item) => sum + numberValue(item.quantity), 0);
-            return {
-                ...current,
-                defects,
-                tt_ng: ttNg,
-                actual_output: numberValue(current.tt_ok) + ttNg
-            };
+            return { ...current, defects, tt_ng: defects.reduce((sum, item) => sum + n(item.quantity), 0) };
         });
     };
 
-    const removeDefect = (index: number) => {
-        setForm((current) => {
-            if (!current) return current;
-            const defects = (current.defects || []).filter((_, itemIndex) => itemIndex !== index);
-            const ttNg = defects.reduce((sum, item) => sum + numberValue(item.quantity), 0);
-            return { ...current, defects, tt_ng: ttNg, actual_output: numberValue(current.tt_ok) + ttNg };
-        });
-    };
-
-    const addDefect = (typeId: number) => {
-        if (!typeId) return;
-        const option = defectOptions.find((item) => Number(item.defect_type_id || item.id) === typeId);
+    const addDefect = (idValue: string) => {
+        const id = Number(idValue);
+        const option = defectOptions.find((item) => Number(item.defect_type_id || item.id) === id);
         if (!option) return;
         setForm((current) => current ? {
             ...current,
-            defects: [...(current.defects || []), {
-                ...option,
-                defect_type_id: Number(option.defect_type_id || option.id),
-                quantity: 0
-            }]
+            defects: [...(current.defects || []), { ...option, defect_type_id: id, quantity: 0 }],
         } : current);
+    };
+
+    const removeDefect = (index: number) => {
+        setForm((current) => current ? { ...current, defects: (current.defects || []).filter((_, i) => i !== index) } : current);
     };
 
     const updateDeduction = (index: number, minutes: number) => {
@@ -200,224 +140,164 @@ function EditReport() {
             if (!current) return current;
             const deductions = [...(current.deductions || [])];
             deductions[index] = { ...deductions[index], hours: Math.max(0, minutes) / 60 };
-            const deductionTime = deductions.reduce((sum, item) => sum + numberValue(item.hours), 0);
-            const actualTime = Math.max(0, Number(actualHours) || 0) + Math.min(59, Math.max(0, Number(actualMinutes) || 0)) / 60;
-            return {
-                ...current,
-                deductions,
-                deduction_time: deductionTime,
-                actual_time: actualTime,
-                total_time: actualTime + deductionTime
-            };
+            return { ...current, deductions };
         });
     };
 
-    const removeDeduction = (index: number) => {
-        setForm((current) => {
-            if (!current) return current;
-            const deductions = (current.deductions || []).filter((_, itemIndex) => itemIndex !== index);
-            const deductionTime = deductions.reduce((sum, item) => sum + numberValue(item.hours), 0);
-            const actualTime = Math.max(0, Number(actualHours) || 0) + Math.min(59, Math.max(0, Number(actualMinutes) || 0)) / 60;
-            return { ...current, deductions, deduction_time: deductionTime, total_time: actualTime + deductionTime };
-        });
-    };
-
-    const addDeduction = (typeId: number) => {
-        if (!typeId) return;
-        const option = deductionOptions.find((item) => Number(item.deduction_type_id || item.id) === typeId);
+    const addDeduction = (idValue: string) => {
+        const id = Number(idValue);
+        const option = deductionOptions.find((item) => Number(item.deduction_type_id || item.id) === id);
         if (!option) return;
         setForm((current) => current ? {
             ...current,
-            deductions: [...(current.deductions || []), {
-                ...option,
-                deduction_type_id: Number(option.deduction_type_id || option.id),
-                hours: 0
-            }]
+            deductions: [...(current.deductions || []), { ...option, deduction_type_id: id, hours: 0 }],
         } : current);
     };
 
-    const handleSave = async (event: React.FormEvent) => {
+    const removeDeduction = (index: number) => {
+        setForm((current) => current ? { ...current, deductions: (current.deductions || []).filter((_, i) => i !== index) } : current);
+    };
+
+    const save = async (event: FormEvent) => {
         event.preventDefault();
         if (!form || saving) return;
-
+        if (source === "approved" && !changeReason.trim()) {
+            setError("Báo cáo đã duyệt bắt buộc phải có lý do chỉnh sửa.");
+            return;
+        }
         try {
             setSaving(true);
             setError("");
-
-            if (source === "approved" && !originalUpdatedAtRef.current) {
-                setError("Báo cáo thiếu thông tin phiên bản cập nhật. Vui lòng tải lại dữ liệu trước khi lưu.");
-                return;
-            }
-
-            if (source === "approved" && !changeReason.trim()) {
-                setError("Vui lòng nhập lý do chỉnh sửa báo cáo đã duyệt.");
-                return;
-            }
-
             const payload: ProductionReport = {
                 ...form,
-                reason: source === "approved" ? changeReason.trim() : undefined,
-                work_date: String(form.work_date).slice(0, 10),
-                actual_time: Math.max(0, Number(actualHours) || 0) + Math.min(59, Math.max(0, Number(actualMinutes) || 0)) / 60,
-                total_time: (Math.max(0, Number(actualHours) || 0) + Math.min(59, Math.max(0, Number(actualMinutes) || 0)) / 60) + deductionTotal,
-                deduction_time: deductionTotal,
+                work_date: String(form.work_date || "").slice(0, 10),
+                actual_time: actualTime,
+                deduction_time: deductionMinutes / 60,
+                total_time: totalTime,
+                tt_ok: Math.max(0, n(form.tt_ok)),
                 tt_ng: defectTotal,
-                actual_output: numberValue(form.tt_ok) + defectTotal,
-                defects: (form.defects || [])
-                    .filter((item) => numberValue(item.quantity) > 0)
-                    .map((item) => ({
-                        defect_type_id: Number(item.defect_type_id || item.id),
-                        defect_code: item.defect_code,
-                        defect_name: item.defect_name,
-                        quantity: numberValue(item.quantity)
-                    })),
-                deductions: (form.deductions || [])
-                    .filter((item) => numberValue(item.hours) > 0)
-                    .map((item) => ({
-                        deduction_type_id: Number(item.deduction_type_id || item.id),
-                        deduction_code: item.deduction_code,
-                        deduction_name: item.deduction_name,
-                        hours: numberValue(item.hours)
-                    }))
+                actual_output: actualOutput,
+                defects: normalizeDefects(form.defects || []),
+                deductions: normalizeDeductions(form.deductions || []),
+                reason: source === "approved" ? changeReason.trim() : undefined,
+                expected_updated_at: loadedUpdatedAt,
             };
-
-            const result = await updateReport(reportId, payload, source, originalUpdatedAtRef.current);
-            originalUpdatedAtRef.current = result?.data?.updated_at || originalUpdatedAtRef.current;
-            showToast("Cập nhật đầy đủ chi tiết báo cáo thành công", "success");
-            navigate(-1);
+            const result = await updateReport(reportId, payload, source, loadedUpdatedAt);
+            const freshUpdatedAt = result?.data?.updated_at || result?.updated_at || loadedUpdatedAt;
+            setLoadedUpdatedAt(freshUpdatedAt);
+            showToast("Đã lưu đầy đủ lỗi NG và thời gian trừ.", "success");
+            navigate(`${source === "pending" ? "/manager/reports" : "/manager/approved"}`, { replace: true });
         } catch (err: any) {
-            console.error("UPDATE REPORT ERROR:", err);
             const code = err?.response?.data?.code;
             if (code === "REPORT_VERSION_CONFLICT") {
-                setError("Báo cáo đã được người khác cập nhật. Vui lòng tải lại dữ liệu trước khi lưu. Các thay đổi bạn đang nhập vẫn được giữ trên màn hình.");
-                return;
+                setError("Báo cáo đã thay đổi sau khi mở. Hãy tải lại báo cáo trước khi lưu.");
+            } else {
+                const apiErrors = err?.response?.data?.errors;
+                const detail = apiErrors && typeof apiErrors === "object" ? Object.values(apiErrors).flat().join("; ") : "";
+                setError(detail || err?.response?.data?.message || "Không thể lưu báo cáo.");
             }
-            const apiErrors = err?.response?.data?.errors;
-            const detail = apiErrors && typeof apiErrors === "object"
-                ? Object.values(apiErrors).flat().join("; ")
-                : "";
-            setError(detail || err?.response?.data?.message || "Không thể cập nhật báo cáo.");
         } finally {
             setSaving(false);
         }
     };
 
-    if (loading) {
-        return <main className="edit-report-page manager-page"><div className="edit-report-card">Đang tải báo cáo...</div></main>;
-    }
-    if (!form) {
-        return <main className="edit-report-page"><div className="edit-report-card edit-error">{error || "Không tìm thấy báo cáo."}</div></main>;
-    }
+    if (loading) return <main className="edit-report-page"><div className="edit-report-card">Đang tải báo cáo...</div></main>;
+    if (!form) return <main className="edit-report-page"><div className="edit-report-card edit-error">{error || "Không tìm thấy báo cáo."}</div></main>;
 
     return (
         <main className="edit-report-page">
-            <form className="edit-report-card" onSubmit={handleSave}>
+            <form className="edit-report-card edit-report-compact" onSubmit={save}>
                 <header className="edit-report-header">
                     <div>
                         <button type="button" className="edit-back" onClick={() => navigate(-1)}>← Quay lại</button>
-                        <h1>Sửa báo cáo {source === "pending" ? "chờ duyệt" : "đã duyệt"}</h1>
-                        <p>{form.worker_code} - {form.full_name} · {form.process_name || form.process_code}</p>
+                        <h1>Sửa báo cáo · {source === "pending" ? "Chờ duyệt" : "Đã duyệt"}</h1>
+                        <p><strong>{form.full_name || form.worker_name || form.worker_code || "—"}</strong> · {form.worker_code || "—"} · {form.process_name || form.process_code || "—"}</p>
                     </div>
-                    <button className="edit-save" type="submit" disabled={saving}>
-                        {saving ? "Đang lưu..." : "Lưu thay đổi"}
-                    </button>
+                    <div className="edit-header-actions">
+                        <span className={source === "approved" ? "edit-status approved" : "edit-status pending"}>{source === "approved" ? "Đã duyệt" : "Chờ duyệt"}</span>
+                        <button className="edit-save" type="submit" disabled={saving}>{saving ? "Đang lưu..." : "Lưu thay đổi"}</button>
+                    </div>
                 </header>
 
                 {error && <div className="edit-error">{error}</div>}
 
-                <section className="edit-grid">
-                    <label>Ngày làm việc<input type="date" value={form.work_date || ""} onChange={(e) => setField("work_date", e.target.value)} required /></label>
-                    <label>Ca<select value={form.shift || ""} onChange={(e) => setField("shift", e.target.value)} required><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select></label>
-                    <label>Mã máy<input value={form.machine_no || ""} onChange={(e) => setField("machine_no", e.target.value)} required /></label>
-                    <label>Mã sản phẩm<input value={form.product_name || ""} onChange={(e) => setField("product_name", e.target.value)} required /></label>
-                    <label>Giờ làm thực tế<input type="number" min="0" max="24" step="1" value={actualHours} onChange={(e) => { const value = e.target.value.replace(/\D/g, ""); if (value !== "" && Number(value) > 24) return; setActualHours(value); const actual = (Number(value) || 0) + (Number(actualMinutes) || 0) / 60; setForm({ ...form, actual_time: actual, total_time: actual + deductionTotal }); }} /></label>
-                    <label>Phút làm thực tế<input type="number" min="0" max="59" step="1" value={actualMinutes} onChange={(e) => { const value = e.target.value.replace(/\D/g, ""); if (value !== "" && Number(value) > 59) return; setActualMinutes(value); const actual = (Number(actualHours) || 0) + (Number(value) || 0) / 60; setForm({ ...form, actual_time: actual, total_time: actual + deductionTotal }); }} /></label>
-                    <label>Thời gian thực tế (giờ)<input type="number" value={numberValue(form.actual_time).toFixed(3)} readOnly /></label>
-                    <label>Tổng thời gian trừ (giờ)<input type="number" value={deductionTotal.toFixed(3)} readOnly /></label>
-                    <label>Tổng thời gian (giờ)<input type="number" value={(numberValue(form.actual_time) + deductionTotal).toFixed(3)} readOnly /></label>
-                    <label>Định mức<input type="number" min="0.000001" step="0.000001" inputMode="decimal" value={numberValue(form.standard_output)} readOnly /></label>
-                    <label>TT OK<input type="number" min="0" step="1" value={numberValue(form.tt_ok)} onChange={(e) => { const ok = numberValue(e.target.value); setForm({ ...form, tt_ok: ok, actual_output: ok + defectTotal }); }} /></label>
-                    <label>TT NG<input type="number" value={defectTotal} readOnly /></label>
-                    <label>Thực tế<input type="number" value={numberValue(form.tt_ok) + defectTotal} readOnly /></label>
-                </section>
-
-                <section className="edit-detail-section">
-                    <h2>Chi tiết thời gian trừ <span>{Math.round(deductionTotal * 60)} phút ({deductionTotal.toFixed(3)} giờ)</span></h2>
-                    <div className="edit-detail-grid">
-                        {(form.deductions || []).map((item, index) => (
-                            <div className="edit-detail-item" key={`${item.deduction_type_id || item.id || index}-${item.deduction_name}`}>
-                                <label>
-                                    {item.deduction_name || item.deduction_code || "Khoản trừ"}
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        max="1440"
-                                        step="1"
-                                        value={Math.round(numberValue(item.hours) * 60)}
-                                        onChange={(e) => updateDeduction(index, numberValue(e.target.value))}
-                                    />
-                                </label>
-                                <button type="button" className="edit-detail-remove" onClick={() => removeDeduction(index)} title="Xóa khoản trừ">Xóa</button>
-                            </div>
-                        ))}
+                <section className="edit-section">
+                    <div className="edit-section-title"><h2>Thông tin báo cáo</h2><span>Giữ nguyên logic như form công nhân</span></div>
+                    <div className="edit-form-grid">
+                        <label>Ngày báo cáo<input type="date" value={form.work_date || ""} onChange={(e) => setField("work_date", e.target.value)} required /></label>
+                        <label>Ca<select value={form.shift || "A"} onChange={(e) => setField("shift", e.target.value)}><option>A</option><option>B</option><option>C</option><option>D</option></select></label>
+                        <label>Máy<input value={form.machine_no || ""} onChange={(e) => setField("machine_no", e.target.value)} /></label>
+                        <label>Sản phẩm<input value={form.product_name || ""} onChange={(e) => setField("product_name", e.target.value)} /></label>
+                        <label>% học việc<input type="number" min="0" max="100" step="0.01" value={n(form.training_percent ?? form.hv_percent ?? 100)} onChange={(e) => setField("training_percent", Math.max(0, Math.min(100, n(e.target.value))))} /></label>
+                        <label>Định mức (SP/h)<input value={fmt(form.standard_output)} readOnly /></label>
                     </div>
-                    {availableDeductionOptions.length > 0 && (
-                        <div className="edit-detail-add">
-                            <select defaultValue="" onChange={(e) => { addDeduction(Number(e.target.value)); e.currentTarget.value = ""; }}>
-                                <option value="">+ Thêm khoản trừ</option>
-                                {availableDeductionOptions.map((item) => (
-                                    <option key={Number(item.deduction_type_id || item.id)} value={Number(item.deduction_type_id || item.id)}>
-                                        {item.deduction_name || item.deduction_code || "Khoản trừ"}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                    )}
-                    {(form.deductions || []).length === 0 && availableDeductionOptions.length === 0 && (
-                        <p className="edit-empty">Công đoạn này chưa có danh mục thời gian trừ.</p>
-                    )}
                 </section>
 
-                <section className="edit-detail-section">
-                    <h2>Chi tiết lỗi NG <span>{defectTotal}</span></h2>
-                    <div className="edit-detail-grid">
+                <section className="edit-section">
+                    <div className="edit-section-title"><h2>Thời gian làm việc</h2><strong>{fmt(totalTime)} giờ</strong></div>
+                    <div className="edit-form-grid edit-time-grid">
+                        <label>Giờ thực tế<input type="number" min="0" max="24" value={actualHours} onChange={(e) => setActualTime(e.target.value, actualMinutes)} /></label>
+                        <label>Phút thực tế<input type="number" min="0" max="59" value={actualMinutes} onChange={(e) => setActualTime(actualHours, e.target.value)} /></label>
+                        <div className="edit-readonly-metric"><span>Thời gian thực tế</span><strong>{fmt(actualTime)} giờ</strong></div>
+                        <div className="edit-readonly-metric"><span>Thời gian trừ</span><strong>{deductionMinutes} phút</strong></div>
+                    </div>
+                </section>
+
+                <section className="edit-section">
+                    <div className="edit-section-title"><h2>Sản lượng & kiểm soát</h2><div className="edit-mini-kpis"><span>OK <b>{fmt(form.tt_ok)}</b></span><span>NG <b>{fmt(defectTotal)}</b></span><span>Tổng <b>{fmt(actualOutput)}</b></span><span>Năng suất <b>{fmt(productivity)}%</b></span><span>Đạt <b>{fmt(achieved)}%</b></span></div></div>
+                    <div className="edit-form-grid">
+                        <label>TT OK<input type="number" min="0" step="1" value={n(form.tt_ok)} onChange={(e) => setField("tt_ok", Math.max(0, n(e.target.value)))} /></label>
+                        <div className={`edit-readonly-metric ${productivity <= 75 || productivity > 100 ? "metric-alert" : ""}`}><span>% năng suất</span><strong>{fmt(productivity)}%</strong></div>
+                        <div className="edit-readonly-metric"><span>% đạt</span><strong>{fmt(achieved)}%</strong></div>
+                    </div>
+                </section>
+
+                <section className="edit-section">
+                    <div className="edit-section-title"><h2>Chi tiết lỗi NG</h2><strong>{defectTotal} lỗi</strong></div>
+                    <div className="edit-item-list">
                         {(form.defects || []).map((item, index) => (
-                            <div className="edit-detail-item" key={`${item.defect_type_id || item.id || index}-${item.defect_name}`}>
-                                <label>
-                                    {item.defect_name || item.defect_code || "Lỗi NG"}
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        step="1"
-                                        value={numberValue(item.quantity)}
-                                        onChange={(e) => updateDefect(index, numberValue(e.target.value))}
-                                    />
-                                </label>
-                                <button type="button" className="edit-detail-remove" onClick={() => removeDefect(index)} title="Xóa lỗi NG">Xóa</button>
+                            <div className="edit-item-row" key={`${item.defect_type_id || item.id || index}-${item.defect_name}`}>
+                                <div><b>{item.defect_name || item.defect_code || `Lỗi ${index + 1}`}</b><small>{item.defect_code || ""}</small></div>
+                                <input aria-label={`Số lượng ${item.defect_name}`} type="number" min="0" step="1" value={n(item.quantity)} onChange={(e) => updateDefect(index, n(e.target.value))} />
+                                <button type="button" onClick={() => removeDefect(index)}>Bỏ</button>
                             </div>
                         ))}
                     </div>
-                    {availableDefectOptions.length > 0 && (
-                        <div className="edit-detail-add">
-                            <select defaultValue="" onChange={(e) => { addDefect(Number(e.target.value)); e.currentTarget.value = ""; }}>
-                                <option value="">+ Thêm lỗi NG</option>
-                                {availableDefectOptions.map((item) => (
-                                    <option key={Number(item.defect_type_id || item.id)} value={Number(item.defect_type_id || item.id)}>
-                                        {item.defect_name || item.defect_code || "Lỗi NG"}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                    )}
-                    {(form.defects || []).length === 0 && availableDefectOptions.length === 0 && (
-                        <p className="edit-empty">Công đoạn này chưa có danh mục lỗi NG.</p>
-                    )}
+                    <div className="edit-add-row">
+                        <select value="" onChange={(e) => { addDefect(e.target.value); }}>
+                            <option value="">+ Thêm lỗi NG</option>
+                            {availableDefects.map((item) => <option key={Number(item.defect_type_id || item.id)} value={Number(item.defect_type_id || item.id)}>{item.defect_name || item.defect_code}</option>)}
+                        </select>
+                    </div>
+                    {(form.defects || []).length === 0 && <div className="edit-empty">Chưa có lỗi NG. Có thể thêm trực tiếp tại đây.</div>}
                 </section>
 
-                <label className="edit-note">Ghi chú<textarea rows={4} value={form.note || ""} onChange={(e) => setField("note", e.target.value)} /></label>
-                {source === "approved" ? (
-                    <label className="edit-note">Lý do chỉnh sửa <textarea rows={3} value={changeReason} onChange={(e) => setChangeReason(e.target.value)} placeholder="Bắt buộc để phục vụ audit và truy vết" required /></label>
-                ) : null}
+                <section className="edit-section">
+                    <div className="edit-section-title"><h2>Thời gian trừ</h2><strong>{deductionMinutes} phút</strong></div>
+                    <div className="edit-item-list">
+                        {(form.deductions || []).map((item, index) => (
+                            <div className="edit-item-row" key={`${item.deduction_type_id || item.id || index}-${item.deduction_name}`}>
+                                <div><b>{item.deduction_name || item.deduction_code || `Khoản ${index + 1}`}</b><small>{item.deduction_code || ""}</small></div>
+                                <input aria-label={`Số phút ${item.deduction_name}`} type="number" min="0" max="1440" step="1" value={Math.round(n(item.hours) * 60)} onChange={(e) => updateDeduction(index, n(e.target.value))} />
+                                <button type="button" onClick={() => removeDeduction(index)}>Bỏ</button>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="edit-add-row">
+                        <select value="" onChange={(e) => { addDeduction(e.target.value); }}>
+                            <option value="">+ Thêm thời gian trừ</option>
+                            {availableDeductions.map((item) => <option key={Number(item.deduction_type_id || item.id)} value={Number(item.deduction_type_id || item.id)}>{item.deduction_name || item.deduction_code}</option>)}
+                        </select>
+                    </div>
+                    {(form.deductions || []).length === 0 && <div className="edit-empty">Chưa có thời gian trừ. Có thể thêm trực tiếp tại đây.</div>}
+                </section>
+
+                <section className="edit-section edit-note-section">
+                    <label>Ghi chú<textarea rows={2} value={form.note || ""} onChange={(e) => setField("note", e.target.value)} /></label>
+                    {source === "approved" && <label>Lý do chỉnh sửa <textarea rows={2} value={changeReason} onChange={(e) => setChangeReason(e.target.value)} placeholder="Bắt buộc để lưu lịch sử chỉnh sửa" required /></label>}
+                </section>
+
+                <footer className="edit-footer"><button type="button" className="edit-cancel" onClick={() => navigate(-1)} disabled={saving}>Hủy</button><button type="submit" className="edit-save" disabled={saving}>{saving ? "Đang lưu..." : "Lưu thay đổi"}</button></footer>
             </form>
         </main>
     );
