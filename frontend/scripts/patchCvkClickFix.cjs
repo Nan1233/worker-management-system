@@ -5,11 +5,13 @@ const pagePath = path.join(root, 'src/pages/worker/ProcessPage.tsx');
 const basicPath = path.join(root, 'src/pages/worker/components/ProcessBasicInfoSection.tsx');
 const configPath = path.join(root, 'src/pages/worker/processPageConfig.ts');
 const qualityPath = path.join(root, 'src/pages/worker/components/ProcessQualitySection.tsx');
+const submissionPath = path.join(root, 'src/pages/worker/processReportSubmission.ts');
 
 let page = fs.readFileSync(pagePath, 'utf8');
 let basic = fs.readFileSync(basicPath, 'utf8');
 let config = fs.readFileSync(configPath, 'utf8');
 let quality = fs.readFileSync(qualityPath, 'utf8');
+let submission = fs.readFileSync(submissionPath, 'utf8');
 
 // CVK is an inline UI mode. Never navigate to a separate route.
 page = page.replace(/\n\s*const location = useLocation\(\);[\s\S]*?const activeCvkMode = cvkModeLocal \|\| cvkMode;\n?/m, '\n');
@@ -30,17 +32,15 @@ page = page.replace(
   '            operationType: operationType === "CVK" ? "LONG" : operationType,'
 );
 
-// CVK must not trigger the normal product-required validation. It uses
-// workType instead of productName and therefore has no product to select.
+// CVK uses a work type instead of a product. Do not run product-required
+// validation for XUATNHAP / KTCD / TAIPP (including the CVK sentinel state).
 page = page.replace(
   '        if (!usesMultiMachineLines) {\n            if (!form.productName.trim()) {\n                return "Vui lòng chọn sản phẩm";\n            }',
-  '        if (operationType !== "CVK" && !usesMultiMachineLines) {\n            if (!form.productName.trim()) {\n                return "Vui lòng chọn sản phẩm";\n            }'
+  '        if (!["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(String(form.workType || "").trim().toUpperCase()) && !usesMultiMachineLines) {\n            if (!form.productName.trim()) {\n                return "Vui lòng chọn sản phẩm";\n            }'
 );
-// Also support builds where the validation block has already been normalized
-// by an earlier patch and uses the compact one-line condition.
 page = page.replace(
   'if (!usesMultiMachineLines) { if (!form.productName.trim()) { return "Vui lòng chọn sản phẩm"; }',
-  'if (operationType !== "CVK" && !usesMultiMachineLines) { if (!form.productName.trim()) { return "Vui lòng chọn sản phẩm"; }'
+  'if (!["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(String(form.workType || "").trim().toUpperCase()) && !usesMultiMachineLines) { if (!form.productName.trim()) { return "Vui lòng chọn sản phẩm"; }'
 );
 
 // BasicInfo has an independent CVK UI flag. Underlying operation remains LONG,
@@ -70,8 +70,17 @@ basic = basic.replace('{usesMultiMachineLines ? <div className="worker-machine-w
 // actual CVK work type as soon as XUATNHAP/KTCD/TAIPP is chosen.
 quality = quality.replace('new Set(["XUATNHAP", "KTCD", "TAIPP"])', 'new Set(["CVK", "XUATNHAP", "KTCD", "TAIPP"])');
 
+// CVK is represented by the real DB process id 30002. The screen remains
+// inside Cắt/Lồng, but the submitted report is stored under processes.CVK.
+submission = submission.replace(
+  'const isCvk = Number(args.processId) === 60006 || String(args.extraData?.process_code || "").trim().toUpperCase() === "CVK";',
+  'const isCvk = Number(args.processId) === 60006 || String(args.extraData?.process_code || "").trim().toUpperCase() === "CVK" || ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType.toUpperCase());\n  const effectiveProcessId = isCvk ? 30002 : args.processId;'
+);
+submission = submission.replace('    process_id:args.processId, work_date:', '    process_id:effectiveProcessId, work_date:');
+
 fs.writeFileSync(configPath, config);
 fs.writeFileSync(pagePath, page);
 fs.writeFileSync(basicPath, basic);
 fs.writeFileSync(qualityPath, quality);
-console.log('[KTC] CVK inline mode: selecting CVK immediately hides quality; Cắt/Lồng remain unchanged; product validation skipped.');
+fs.writeFileSync(submissionPath, submission);
+console.log('[KTC] CVK inline mode: skips product validation, stores CVK under process_id 30002, and preserves Cắt/Lồng.');
