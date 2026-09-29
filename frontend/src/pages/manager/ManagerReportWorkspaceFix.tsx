@@ -1,4 +1,6 @@
 import { useEffect } from "react";
+import Reports from "./Reports";
+import ApprovedReportsDesktopActions from "./ApprovedReportsDesktopActions";
 
 const NON_STANDARD = /\b(?:XUATNHAP|KTCD|TAIPP)\b/i;
 
@@ -90,6 +92,7 @@ function installReportWorkspaceFix() {
 
   let activeIndex = -1;
   let nav: HTMLDivElement | null = null;
+  let refreshQueued = false;
 
   const rows = () => Array.from(document.querySelectorAll<HTMLTableRowElement>(".pending-reference-table tbody tr")).filter((row) => {
     const cells = row.querySelectorAll("td");
@@ -103,13 +106,14 @@ function installReportWorkspaceFix() {
     activeIndex = next;
     list[next].scrollIntoView({ block: "nearest", inline: "nearest" });
     list[next].click();
-    refreshNav();
+    window.setTimeout(refresh, 80);
   };
 
   const refreshNav = () => {
     if (!nav) return;
     const list = rows();
-    const detailVisible = !!document.querySelector(".pending-workspace > *:nth-child(2)") && list.length > 0;
+    const workspace = document.querySelector<HTMLElement>(".pending-workspace");
+    const detailVisible = !!workspace && workspace.children.length > 1 && list.length > 0;
     nav.style.display = detailVisible ? "flex" : "none";
     const prev = nav.querySelector<HTMLButtonElement>("[data-dir='prev']");
     const next = nav.querySelector<HTMLButtonElement>("[data-dir='next']");
@@ -119,43 +123,50 @@ function installReportWorkspaceFix() {
     if (label) label.textContent = activeIndex >= 0 ? `${activeIndex + 1}/${list.length} · ↑↓ / ←→` : "↑↓ / ←→";
   };
 
-  const mountNav = () => {
-    if (nav && nav.isConnected) return;
+  const hideNonStandardSections = () => {
     const workspace = document.querySelector<HTMLElement>(".pending-workspace");
     if (!workspace) return;
+    const isNonStandard = NON_STANDARD.test(workspace.innerText || "");
+    workspace.querySelectorAll<HTMLElement>(".ktc-nonstandard-hide").forEach((el) => el.classList.remove("ktc-nonstandard-hide"));
+    if (!isNonStandard || workspace.children.length < 2) return;
+
+    const detail = workspace.children[1] as HTMLElement;
+    const headings = ["Kết quả sản xuất", "Chỉ số KPI", "Chi tiết lỗi NG của người", "Chi tiết lỗi NG theo máy"];
+    const elements = Array.from(detail.querySelectorAll<HTMLElement>("div,section,h2,h3,h4"));
+    for (const heading of headings) {
+      const target = elements.find((el) => el.children.length === 0 && el.textContent?.trim() === heading);
+      if (!target) continue;
+      const parent = target.parentElement?.parentElement as HTMLElement | null;
+      if (parent) parent.classList.add("ktc-nonstandard-hide");
+    }
+  };
+
+  const mountNav = () => {
+    const workspace = document.querySelector<HTMLElement>(".pending-workspace");
+    if (!workspace || workspace.children.length < 2) return;
+    const detail = workspace.children[1] as HTMLElement;
+    if (detail.querySelector(".ktc-report-sequence-nav")) {
+      nav = detail.querySelector(".ktc-report-sequence-nav");
+      return;
+    }
     nav = document.createElement("div");
     nav.className = "ktc-report-sequence-nav";
     nav.innerHTML = `<span>↑↓ / ←→</span><button type="button" data-dir="prev">← Trước</button><button type="button" data-dir="next">Sau →</button>`;
-    const detail = workspace.children[1];
-    if (detail) detail.insertBefore(nav, detail.firstChild);
-    else workspace.insertBefore(nav, workspace.firstChild);
+    detail.insertBefore(nav, detail.firstChild);
     nav.querySelector<HTMLButtonElement>("[data-dir='prev']")?.addEventListener("click", () => selectRow(activeIndex - 1));
     nav.querySelector<HTMLButtonElement>("[data-dir='next']")?.addEventListener("click", () => selectRow(activeIndex + 1));
   };
 
-  const hideNonStandardSections = () => {
-    const workspace = document.querySelector<HTMLElement>(".pending-workspace");
-    if (!workspace) return;
-    const text = workspace.innerText || "";
-    const isNonStandard = NON_STANDARD.test(text);
-    workspace.querySelectorAll<HTMLElement>(".ktc-nonstandard-hide").forEach((el) => el.classList.remove("ktc-nonstandard-hide"));
-    if (!isNonStandard) return;
-
-    const headings = ["Kết quả sản xuất", "Chỉ số KPI", "Chi tiết lỗi NG của người", "Chi tiết lỗi NG theo máy"];
-    const elements = Array.from(workspace.querySelectorAll<HTMLElement>("div,section,h2,h3,h4"));
-    for (const heading of headings) {
-      const target = elements.find((el) => el.children.length === 0 && el.textContent?.trim() === heading);
-      if (!target) continue;
-      let parent: HTMLElement | null = target.parentElement;
-      for (let i = 0; i < 3 && parent; i += 1) {
-        if (parent.children.length >= 1) {
-          parent.classList.add("ktc-nonstandard-hide");
-          break;
-        }
-        parent = parent.parentElement;
-      }
-    }
-  };
+  function refresh() {
+    if (refreshQueued) return;
+    refreshQueued = true;
+    window.setTimeout(() => {
+      refreshQueued = false;
+      mountNav();
+      refreshNav();
+      hideNonStandardSections();
+    }, 0);
+  }
 
   const onClick = (event: MouseEvent) => {
     const row = (event.target as Element | null)?.closest<HTMLTableRowElement>(".pending-reference-table tbody tr");
@@ -163,7 +174,7 @@ function installReportWorkspaceFix() {
     const list = rows();
     const index = list.indexOf(row);
     if (index >= 0) activeIndex = index;
-    window.setTimeout(() => { mountNav(); refreshNav(); hideNonStandardSections(); }, 50);
+    window.setTimeout(refresh, 60);
   };
 
   const onKeyDown = (event: KeyboardEvent) => {
@@ -178,10 +189,11 @@ function installReportWorkspaceFix() {
 
   document.addEventListener("click", onClick, true);
   document.addEventListener("keydown", onKeyDown, true);
-  const observer = new MutationObserver(() => { mountNav(); refreshNav(); hideNonStandardSections(); });
+  const observer = new MutationObserver(refresh);
   observer.observe(document.documentElement, { childList: true, subtree: true });
-  const timer = window.setInterval(() => { mountNav(); refreshNav(); hideNonStandardSections(); }, 500);
+  const timer = window.setInterval(refresh, 700);
 
+  refresh();
   return () => {
     document.removeEventListener("click", onClick, true);
     document.removeEventListener("keydown", onKeyDown, true);
@@ -195,18 +207,10 @@ function installReportWorkspaceFix() {
 
 export function ManagerReportsWorkspaceFix() {
   useEffect(() => installReportWorkspaceFix(), []);
-  return <div className="ktc-report-fix-host"><ReportsPlaceholder /></div>;
+  return <Reports />;
 }
 
 export function ManagerApprovedReportsWorkspaceFix() {
   useEffect(() => installReportWorkspaceFix(), []);
-  return <div className="ktc-report-fix-host"><ApprovedPlaceholder /></div>;
-}
-
-function ReportsPlaceholder() {
-  return null;
-}
-
-function ApprovedPlaceholder() {
-  return null;
+  return <ApprovedReportsDesktopActions />;
 }
