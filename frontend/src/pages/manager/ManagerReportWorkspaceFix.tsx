@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getPendingReports } from "../../services/productionService";
+import { getApprovedReports, getPendingReports } from "../../services/productionService";
 import Reports from "./Reports";
 import ApprovedReportsDesktopActions from "./ApprovedReportsDesktopActions";
 
@@ -50,7 +50,7 @@ function metrics(report: any) {
   const hv = Number.isFinite(snapshot) ? snapshot : null;
 
   if (noStandard) {
-    return { hv, ok: null, ng: null, productivity: null, achieved: null, pp: null, noStandard };
+    return { hv, ok: null, ng: null, productivity: null, achieved: null, pp: null };
   }
 
   return {
@@ -60,7 +60,6 @@ function metrics(report: any) {
     productivity: standardTarget > 0 ? (actual / standardTarget) * 100 : null,
     achieved: actual > 0 ? (ok / actual) * 100 : null,
     pp: actual > 0 ? (ng / actual) * 100 : null,
-    noStandard,
   };
 }
 
@@ -101,10 +100,7 @@ function installReportWorkspaceFix(navigate: (to: string) => void) {
           height: 48px !important;
           padding: 2px 4px !important;
         }
-        body.ktc-report-workspace-fix .management-brand-logo {
-          width: 112px !important;
-          max-height: 42px !important;
-        }
+        body.ktc-report-workspace-fix .management-brand-logo { width: 112px !important; max-height: 42px !important; }
         body.ktc-report-workspace-fix .management-menu {
           display: flex !important;
           flex: 1 1 auto !important;
@@ -126,10 +122,9 @@ function installReportWorkspaceFix(navigate: (to: string) => void) {
         }
         body.ktc-report-workspace-fix .management-sidebar-footer { display: none !important; }
         body.ktc-report-workspace-fix .management-main { margin-left: 0 !important; }
-        /* The report content was pushed down by an extra 84px. Keep it close to the nav. */
+        /* Remove the extra vertical spacer that pushed report content too far down. */
         body.ktc-report-workspace-fix .management-content { padding-top: 24px !important; }
         body.ktc-report-workspace-fix .pending-reference-page { max-width: none !important; margin-top: 0 !important; }
-
         body.ktc-report-workspace-fix .pending-reference-table { min-width: 1450px !important; }
         body.ktc-report-workspace-fix .pending-list-card .pending-reference-table th,
         body.ktc-report-workspace-fix .pending-list-card .pending-reference-table td {
@@ -171,8 +166,8 @@ function installReportWorkspaceFix(navigate: (to: string) => void) {
     return { date, search, processName, shift, ...r, page, pageSize: 8 };
   };
 
-  const syncPendingTable = async () => {
-    if (!isPending()) return;
+  const sync = async () => {
+    if (!isPending() && !isApproved()) return;
     const table = document.querySelector<HTMLTableElement>(".pending-reference-table");
     if (!table) return;
 
@@ -181,18 +176,12 @@ function installReportWorkspaceFix(navigate: (to: string) => void) {
     if (!rows.length) return;
 
     const q = readFilters();
-    const signature = JSON.stringify(q);
+    const signature = JSON.stringify({ route: isPending() ? "pending" : "approved", ...q });
     if (signature !== lastSignature || Date.now() - cachedAt > 1200) {
       try {
-        const result = await getPendingReports({
-          dateFrom: q.dateFrom,
-          dateTo: q.dateTo,
-          processName: q.processName || undefined,
-          shift: q.shift || undefined,
-          search: q.search || undefined,
-          page: q.page,
-          pageSize: q.pageSize,
-        });
+        const result = isPending()
+          ? await getPendingReports({ dateFrom: q.dateFrom, dateTo: q.dateTo, processName: q.processName || undefined, shift: q.shift || undefined, search: q.search || undefined, page: q.page, pageSize: q.pageSize })
+          : await getApprovedReports({ dateFrom: q.dateFrom, dateTo: q.dateTo, processName: q.processName || undefined, shift: q.shift || undefined, search: q.search || undefined, page: q.page, pageSize: q.pageSize });
         cache = result.data || [];
         lastSignature = signature;
         cachedAt = Date.now();
@@ -201,14 +190,13 @@ function installReportWorkspaceFix(navigate: (to: string) => void) {
       }
     }
 
+    if (!isPending()) return;
+
     const header = table.tHead?.rows[0];
     if (header && header.dataset.fullPending !== "1") {
       const checkboxCell = header.cells[0];
       while (header.cells.length > 1) header.deleteCell(1);
-      [
-        "Mã báo cáo", "Công nhân", "Công đoạn", "Ca", "Ngày báo cáo", "Thời gian",
-        "% HV", "TT OK", "NG", "% năng suất", "% đạt", "% PP", "Trạng thái"
-      ].forEach((label, index) => {
+      ["Mã báo cáo", "Công nhân", "Công đoạn", "Ca", "Ngày báo cáo", "Thời gian", "% HV", "TT OK", "NG", "% năng suất", "% đạt", "% PP", "Trạng thái"].forEach((label, index) => {
         const th = document.createElement("th");
         th.textContent = label;
         if (index >= 6 && index <= 11) th.className = "pending-full-metric";
@@ -225,7 +213,6 @@ function installReportWorkspaceFix(navigate: (to: string) => void) {
       const firstCell = row.cells[0];
       const checkbox = firstCell?.querySelector("input[type='checkbox']");
       while (row.cells.length > 1) row.deleteCell(1);
-
       const addCell = (value: string, className = "") => {
         const td = document.createElement("td");
         td.textContent = value;
@@ -243,8 +230,8 @@ function installReportWorkspaceFix(navigate: (to: string) => void) {
       addCell(dateText(report.work_date));
       addCell(`${f(report.actual_time || report.total_time)} giờ`);
       addCell(x.hv === null ? "—" : pct(x.hv), "pending-full-metric pending-full-hv");
-      addCell(x.ok === null ? "—" : f(x.ok), "pending-full-metric pending-full-na");
-      addCell(x.ng === null ? "—" : f(x.ng), "pending-full-metric pending-full-na");
+      addCell(x.ok === null ? "—" : f(x.ok), "pending-full-metric");
+      addCell(x.ng === null ? "—" : f(x.ng), "pending-full-metric");
       const prodCell = addCell(x.productivity === null ? "—" : pct(x.productivity), "pending-full-metric");
       if (x.productivity === null) prodCell.classList.add("pending-full-na");
       else if (x.productivity <= 75 || x.productivity > 100) prodCell.classList.add("pending-full-productivity");
@@ -255,7 +242,6 @@ function installReportWorkspaceFix(navigate: (to: string) => void) {
       else if (x.pp === 0) ppCell.classList.add("pending-full-pp");
       addCell("Chờ duyệt");
 
-      // Keep React's checkbox and its onChange handler alive.
       if (checkbox && firstCell) firstCell.replaceChildren(checkbox);
       row.dataset.fullPending = "1";
     });
@@ -275,15 +261,12 @@ function installReportWorkspaceFix(navigate: (to: string) => void) {
 
   const schedule = () => {
     window.clearTimeout(timer);
-    timer = window.setTimeout(() => void syncPendingTable(), 60);
+    timer = window.setTimeout(() => void sync(), 60);
   };
-
   const observer = new MutationObserver(schedule);
   observer.observe(document.body, { childList: true, subtree: true });
   schedule();
 
-  // Capture before the page's old row handler. This gives pending and old
-  // approved rows the same reliable one-page detail entry point.
   const click = (event: MouseEvent) => {
     const target = event.target as Element | null;
     if (!target || target.closest("input,select,textarea,button,a")) return;
