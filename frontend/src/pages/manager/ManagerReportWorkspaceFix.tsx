@@ -1,10 +1,11 @@
 import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import Reports from "./Reports";
 import ApprovedReportsDesktopActions from "./ApprovedReportsDesktopActions";
 
 const NON_STANDARD = /\b(?:XUATNHAP|KTCD|TAIPP)\b/i;
 
-function installReportWorkspaceFix() {
+function installReportWorkspaceFix(navigate: (to: string) => void) {
   const STYLE_ID = "ktc-manager-report-workspace-fix";
   if (!document.getElementById(STYLE_ID)) {
     const style = document.createElement("style");
@@ -24,138 +25,50 @@ function installReportWorkspaceFix() {
         body.ktc-report-workspace-fix .pending-list-card { min-width: 0 !important; }
         body.ktc-report-workspace-fix .pending-table-wrap { width: 100% !important; }
         body.ktc-report-workspace-fix .pending-reference-table { min-width: 1120px !important; }
-        body.ktc-report-workspace-fix .ktc-report-sequence-nav { display: flex; align-items: center; justify-content: flex-end; gap: 7px; margin: 0 0 8px; padding: 0 2px; }
-        body.ktc-report-workspace-fix .ktc-report-sequence-nav button { height: 34px; min-width: 76px; padding: 0 11px; border: 1px solid #c9d9ec; border-radius: 8px; background: #fff; color: #174ea6; font-weight: 700; cursor: pointer; }
-        body.ktc-report-workspace-fix .ktc-report-sequence-nav button:disabled { opacity: .4; cursor: not-allowed; }
-        body.ktc-report-workspace-fix .ktc-report-sequence-nav span { color: #7185a4; font-size: 12px; margin-right: 4px; }
-        body.ktc-report-workspace-fix .ktc-nonstandard-hide { display: none !important; }
       }
     `;
     document.head.appendChild(style);
   }
   document.body.classList.add("ktc-report-workspace-fix");
 
-  let activeIndex = -1;
-  let nav: HTMLDivElement | null = null;
-  let refreshQueued = false;
-
-  const rows = () => Array.from(document.querySelectorAll<HTMLTableRowElement>(".pending-reference-table tbody tr")).filter((row) => {
-    const cells = row.querySelectorAll("td");
-    return cells.length > 2 && !row.querySelector(".management-empty,.management-error");
-  });
-
-  const selectRow = (index: number) => {
-    const list = rows();
-    if (!list.length) return;
-    const next = Math.max(0, Math.min(index, list.length - 1));
-    activeIndex = next;
-    list[next].scrollIntoView({ block: "nearest", inline: "nearest" });
-    list[next].click();
-    window.setTimeout(refresh, 80);
+  const openStandalone = (row: HTMLTableRowElement) => {
+    const pathname = window.location.pathname;
+    const source = pathname.includes("/approved") ? "approved" : "pending";
+    const dateMatch = (row.innerText || "").match(/(\d{2}\/\d{2}\/\d{4})/);
+    const date = dateMatch ? dateMatch[1].split("/").reverse().join("-") : "";
+    const key = encodeURIComponent((row.innerText || "").replace(/\s+/g, " ").trim());
+    navigate(`/manager/report/review?source=${source}&date=${date}&key=${key}`);
   };
 
-  const refreshNav = () => {
-    if (!nav) return;
-    const list = rows();
-    const workspace = document.querySelector<HTMLElement>(".pending-workspace");
-    const detailVisible = !!workspace && workspace.children.length > 1 && list.length > 0;
-    nav.style.display = detailVisible ? "flex" : "none";
-    const prev = nav.querySelector<HTMLButtonElement>("[data-dir='prev']");
-    const next = nav.querySelector<HTMLButtonElement>("[data-dir='next']");
-    const label = nav.querySelector("span");
-    if (prev) prev.disabled = activeIndex <= 0;
-    if (next) next.disabled = activeIndex < 0 || activeIndex >= list.length - 1;
-    if (label) label.textContent = activeIndex >= 0 ? `${activeIndex + 1}/${list.length} · ↑↓ / ←→` : "↑↓ / ←→";
-  };
-
-  const hideNonStandardSections = () => {
-    const workspace = document.querySelector<HTMLElement>(".pending-workspace");
-    if (!workspace || workspace.children.length < 2) return;
-    const detail = workspace.children[1] as HTMLElement;
-    const isNonStandard = NON_STANDARD.test(detail.innerText || "");
-    detail.querySelectorAll<HTMLElement>(".ktc-nonstandard-hide").forEach((el) => el.classList.remove("ktc-nonstandard-hide"));
-    if (!isNonStandard) return;
-
-    const headings = ["Kết quả sản xuất", "Chỉ số KPI", "Chi tiết lỗi NG của người", "Chi tiết lỗi NG theo máy"];
-    const elements = Array.from(detail.querySelectorAll<HTMLElement>("div,section,h2,h3,h4"));
-    for (const heading of headings) {
-      const target = elements.find((el) => el.children.length === 0 && el.textContent?.trim() === heading);
-      if (!target) continue;
-      const parent = target.parentElement?.parentElement as HTMLElement | null;
-      if (parent) parent.classList.add("ktc-nonstandard-hide");
-    }
-  };
-
-  const mountNav = () => {
-    const workspace = document.querySelector<HTMLElement>(".pending-workspace");
-    if (!workspace || workspace.children.length < 2) return;
-    const detail = workspace.children[1] as HTMLElement;
-    if (detail.querySelector(".ktc-report-sequence-nav")) {
-      nav = detail.querySelector(".ktc-report-sequence-nav");
-      return;
-    }
-    nav = document.createElement("div");
-    nav.className = "ktc-report-sequence-nav";
-    nav.innerHTML = `<span>↑↓ / ←→</span><button type="button" data-dir="prev">← Trước</button><button type="button" data-dir="next">Sau →</button>`;
-    detail.insertBefore(nav, detail.firstChild);
-    nav.querySelector<HTMLButtonElement>("[data-dir='prev']")?.addEventListener("click", () => selectRow(activeIndex - 1));
-    nav.querySelector<HTMLButtonElement>("[data-dir='next']")?.addEventListener("click", () => selectRow(activeIndex + 1));
-  };
-
-  function refresh() {
-    if (refreshQueued) return;
-    refreshQueued = true;
-    window.setTimeout(() => {
-      refreshQueued = false;
-      mountNav();
-      refreshNav();
-      hideNonStandardSections();
-    }, 0);
-  }
-
-  const onClick = (event: MouseEvent) => {
-    const row = (event.target as Element | null)?.closest<HTMLTableRowElement>(".pending-reference-table tbody tr");
+  const onOpenDetail = (event: MouseEvent) => {
+    const target = event.target as Element | null;
+    if (!target || target.closest("input,select,textarea")) return;
+    const row = target.closest<HTMLTableRowElement>(".pending-reference-table tbody tr");
     if (!row) return;
-    const list = rows();
-    const index = list.indexOf(row);
-    if (index >= 0) activeIndex = index;
-    window.setTimeout(refresh, 60);
+    const cells = row.querySelectorAll("td");
+    if (cells.length < 3 || row.querySelector(".management-empty,.management-error")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openStandalone(row);
   };
 
-  const onKeyDown = (event: KeyboardEvent) => {
-    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-    const target = event.target as HTMLElement | null;
-    if (target && /INPUT|TEXTAREA|SELECT/.test(target.tagName)) return;
-    const list = rows();
-    if (!list.length || activeIndex < 0) return;
-    if (["ArrowRight", "ArrowDown"].includes(event.key)) { event.preventDefault(); selectRow(activeIndex + 1); }
-    if (["ArrowLeft", "ArrowUp"].includes(event.key)) { event.preventDefault(); selectRow(activeIndex - 1); }
-  };
-
-  document.addEventListener("click", onClick, true);
-  document.addEventListener("keydown", onKeyDown, true);
-  const observer = new MutationObserver(refresh);
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-  const timer = window.setInterval(refresh, 700);
-  refresh();
+  document.addEventListener("click", onOpenDetail, true);
 
   return () => {
-    document.removeEventListener("click", onClick, true);
-    document.removeEventListener("keydown", onKeyDown, true);
-    observer.disconnect();
-    window.clearInterval(timer);
-    nav?.remove();
+    document.removeEventListener("click", onOpenDetail, true);
     document.body.classList.remove("ktc-report-workspace-fix");
     document.getElementById(STYLE_ID)?.remove();
   };
 }
 
 export function ManagerReportsWorkspaceFix() {
-  useEffect(() => installReportWorkspaceFix(), []);
+  const navigate = useNavigate();
+  useEffect(() => installReportWorkspaceFix(navigate), [navigate]);
   return <Reports />;
 }
 
 export function ManagerApprovedReportsWorkspaceFix() {
-  useEffect(() => installReportWorkspaceFix(), []);
+  const navigate = useNavigate();
+  useEffect(() => installReportWorkspaceFix(navigate), [navigate]);
   return <ApprovedReportsDesktopActions />;
 }
