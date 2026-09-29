@@ -29,7 +29,9 @@ const kpi = (r: ProductionReport) => {
     const nangSuat = num(x.nang_suat_percent) || (ttDinhMuc > 0 ? actual / ttDinhMuc * 100 : 0);
     const dat = actual > 0 ? ok / actual * 100 : 0;
     const pp = num(x.pp_percent) || (actual > 0 ? ng / actual * 100 : 0);
-    const hv = x.training_percent ?? x.hv_percent ?? x.learning_percent ?? x.hoc_viec_percent ?? 0;
+    // Pending API returns the snapshot as training_percent_snapshot (the
+    // detail page already reads this field). Keep the list consistent with it.
+    const hv = x.training_percent ?? x.training_percent_snapshot ?? x.worker_training_percent ?? x.hv_percent ?? x.learning_percent ?? x.hoc_viec_percent ?? 100;
     const ngTypeCount = Math.max(num(x.ng_defect_type_count), num(x.worker_ng_type_count), num(x.machine_ng_type_count));
     return { ok, ng, actual, ttDinhMuc, nangSuat, dat, pp, hv, ngTypeCount };
 };
