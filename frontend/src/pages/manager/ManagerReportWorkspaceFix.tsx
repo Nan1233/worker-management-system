@@ -34,8 +34,8 @@ const rangeFor = (value: string, type: "day" | "week" | "month" | "year") => {
   return { dateFrom: dateValue(start), dateTo: dateValue(end) };
 };
 
-// Keep the pending list mathematically identical to ApprovedReports.kpi().
-// Do not derive %HV from OK/NG or output: use the persisted report snapshot/fallback fields.
+// Exactly the same KPI source/calculation as ApprovedReports.kpi().
+// %HV is read from the persisted report field; never derive it from OK/NG/output.
 function kpi(report: any) {
   const ok = n(report?.tt_ok);
   const ng = n(report?.tt_ng);
@@ -109,6 +109,7 @@ function installReportWorkspaceFix(navigate: (to: string) => void) {
   let cache: any[] = [];
   let cachedAt = 0;
   let renderedKey = "";
+  let renderedTable: HTMLTableElement | null = null;
   let rendering = false;
 
   const isPending = () => window.location.pathname === "/manager/reports";
@@ -140,16 +141,16 @@ function installReportWorkspaceFix(navigate: (to: string) => void) {
       if (index >= 7 && index <= 12) th.classList.add("pending-full-metric");
       header.appendChild(th);
     });
-    return header;
   };
 
-  const buildRow = (report: any, index: number, originalRow: HTMLTableRowElement | undefined) => {
+  const buildRow = (report: any, index: number, originalRow?: HTMLTableRowElement) => {
     const row = document.createElement("tr");
     row.className = originalRow?.className || "";
     row.dataset.reportId = String(report?.id || "");
-    const originalCheckbox = originalRow?.querySelector<HTMLInputElement>("input[type='checkbox']");
+
     const checkboxCell = document.createElement("td");
     checkboxCell.className = "select-col";
+    const originalCheckbox = originalRow?.querySelector<HTMLInputElement>("input[type='checkbox']");
     if (originalCheckbox) checkboxCell.appendChild(originalCheckbox);
     row.appendChild(checkboxCell);
 
@@ -185,6 +186,10 @@ function installReportWorkspaceFix(navigate: (to: string) => void) {
     if (!isPending() && !isApproved()) return;
     const table = document.querySelector<HTMLTableElement>(".pending-reference-table");
     if (!table) return;
+    if (table !== renderedTable) {
+      renderedTable = table;
+      renderedKey = "";
+    }
 
     const q = readFilters();
     const signature = JSON.stringify({ route: isPending() ? "pending" : "approved", ...q });
@@ -210,9 +215,8 @@ function installReportWorkspaceFix(navigate: (to: string) => void) {
     rendering = true;
     try {
       const tbody = table.tBodies[0] || table.createTBody();
-      const originalRows = rows;
       const fragment = document.createDocumentFragment();
-      cache.forEach((report, index) => fragment.appendChild(buildRow(report, index, originalRows[index])));
+      cache.forEach((report, index) => fragment.appendChild(buildRow(report, index, rows[index])));
       while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
       tbody.appendChild(fragment);
       buildHeader(table);
