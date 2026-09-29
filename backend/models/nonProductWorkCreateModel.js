@@ -9,6 +9,9 @@ const { verifyDuplicateConfirmation } = require("../services/duplicateConfirmati
 const PROCESS_CODE = "CVK";
 const PROCESS_ID = 60006;
 const ALLOWED_WORK_TYPES = new Set([
+  "XUATNHAP",
+  "KTCD",
+  "TAIPP",
   "XUẤT NHẬP",
   "HỖ TRỢ",
   "KHO",
@@ -17,12 +20,15 @@ const ALLOWED_WORK_TYPES = new Set([
 ]);
 
 function normalizeWorkType(value) {
-  const normalized = normalizeNonProductWorkType(value).toUpperCase();
+  const raw = String(value ?? "").trim();
+  const normalized = normalizeNonProductWorkType(raw).toUpperCase();
+  if (normalized === "XUATNHAP" || normalized === "XUẤT NHẬP" || normalized === "XUAT NHAP" || normalized === "XUẤT" || normalized === "NHẬP" || normalized === "NHAP" || normalized === "XUẤT/NHẬP" || normalized === "XUAT/NHAP") return "XUATNHAP";
+  if (normalized === "KTCD") return "KTCD";
+  if (normalized === "TAIPP") return "TAIPP";
   if (normalized === "HỖ TRỢ" || normalized === "HO TRO") return "HỖ TRỢ";
   if (normalized === "KHO") return "KHO";
   if (normalized === "VỆ SINH" || normalized === "VE SINH") return "VỆ SINH";
   if (normalized === "CÔNG VIỆC KHÁC" || normalized === "CONG VIEC KHAC") return "CÔNG VIỆC KHÁC";
-  if (normalized === "XUẤT NHẬP" || normalized === "XUAT NHAP") return "XUẤT NHẬP";
   return normalized;
 }
 
@@ -37,10 +43,6 @@ function getWorkType(data) {
 
 async function findExisting({ workerId, workDate, shift, workType }, executor) {
   const params = [workerId, PROCESS_ID, workDate, shift, workType];
-  // Do not read logical_duplicate_key here. CVK duplicate detection is based on
-  // worker/date/shift/work_type, and legacy approved databases may not have that
-  // optional column yet. Keeping the lookup schema-light lets CVK submissions work
-  // before a maintenance migration is applied.
   const tempRows = await query(
     executor,
     `SELECT id, status, work_date, shift, machine_no, product_name, created_at, updated_at,
@@ -92,7 +94,7 @@ async function createCompleteReport(payload = {}) {
     throw error;
   }
   if (!ALLOWED_WORK_TYPES.has(workType)) {
-    const error = new Error("Loại công việc khác không hợp lệ");
+    const error = new Error("Loại công việc CVK không hợp lệ");
     error.status = 422;
     error.code = "NON_PRODUCT_WORK_TYPE_INVALID";
     error.isPublic = true;
@@ -114,6 +116,7 @@ async function createCompleteReport(payload = {}) {
   data.tt_ok = 0;
   data.tt_ng = 0;
   data.deduction_time = Number(data.deduction_time) || 0;
+  data.work_type = workType;
   data.extra_data = {
     ...(data.extra_data && typeof data.extra_data === "object" ? data.extra_data : {}),
     work_type: workType,
@@ -148,10 +151,6 @@ async function createCompleteReport(payload = {}) {
       throw error;
     }
 
-    // CVK intentionally does not use production_report_duplicate_locks.
-    // This process is a high-frequency, no-product form and the old lock-row
-    // transaction was the source of TiDB 1205 contention. Idempotency is still
-    // checked by worker + client_request_id before inserting.
     const previousRequest = await createModel.findByClientRequest(workerId, clientRequestId, connection);
     if (previousRequest) {
       await commit(connection);
@@ -166,7 +165,7 @@ async function createCompleteReport(payload = {}) {
     }, connection);
 
     if (existing && !data.force_create) {
-      const error = new Error("Đã có báo cáo Công việc khác cùng nhân viên, ngày, ca và loại công việc");
+      const error = new Error("Đã có báo cáo CVK cùng nhân viên, ngày, ca và công việc");
       error.status = 409;
       error.code = "DUPLICATE_CONFIRMATION_REQUIRED";
       error.isPublic = true;
@@ -220,50 +219,38 @@ async function createCompleteReport(payload = {}) {
     await createModel.createDefects(tempId, PROCESS_ID, defects, connection);
     await createModel.createDeductions(tempId, PROCESS_ID, deductions, connection);
 
-    const createdSnapshot = await AuditService.loadTempReportSnapshot(tempId, connection);
-    if (createdSnapshot) {
-      await AuditService.createReportVersion({
-        reportType: "temp",
-        reportId: tempId,
-        snapshot: createdSnapshot,
-        reason: "Tạo báo cáo công việc khác chờ duyệt",
-        userId: auditUserId,
-      }, connection);
-    }
-
     await createModel.logAction({
       reportType: "temp",
       reportId: tempId,
       userId: auditUserId,
       action: "CREATE",
-      note: audit.note || `Công nhân tạo báo cáo ${workType}`,
-      ipAddress: audit.ipAddress || null,
-      userAgent: audit.userAgent || null,
+      note: audit?.note || "Công nhân tạo báo cáo CVK",
+      ipAddress: audit?.ipAddress || null,
+      userAgent: audit?.userAgent || null,
     }, connection);
 
-    await query(
-      connection,
-      `INSERT INTO activity_logs
-       (user_id, action, entity_type, entity_id, description, metadata_json, ip_address, user_agent)
+    await query(connection,
+      `INSERT INTO activity_logs (user_id, action, entity_type, entity_id, description, metadata_json, ip_address, user_agent)
        VALUES (?, 'CREATE_REPORT', 'temp_report', ?, ?, ?, ?, ?)`,
-      [
-        auditUserId,
-        String(tempId),
-        `Công nhân tạo báo cáo ${workType} chờ duyệt`,
-        JSON.stringify({ processId: PROCESS_ID, processCode: PROCESS_CODE, workDate: data.work_date, shift: data.shift, workType, clientRequestId, logicalDuplicateKey }),
-        audit.ipAddress || null,
-        audit.userAgent || null,
-      ]
-    );
+      [auditUserId, String(tempId), "Công nhân tạo báo cáo CVK",
+        JSON.stringify({ processId: PROCESS_ID, workDate: data.work_date, shift: data.shift, workType, clientRequestId, logicalDuplicateKey }), audit?.ipAddress || null, audit?.userAgent || null]);
 
     await commit(connection);
     return { id: Number(tempId), duplicate: false, duplicate_reason: null, existing_report: null, logical_duplicate_key: logicalDuplicateKey };
   } catch (error) {
-    await rollback(connection);
+    try { await rollback(connection); } catch {}
     throw error;
   } finally {
     connection.release();
   }
 }
 
-module.exports = { createCompleteReport, normalizeWorkType, ALLOWED_WORK_TYPES };
+module.exports = {
+  PROCESS_CODE,
+  PROCESS_ID,
+  ALLOWED_WORK_TYPES,
+  normalizeWorkType,
+  getWorkType,
+  findExisting,
+  createCompleteReport,
+};
