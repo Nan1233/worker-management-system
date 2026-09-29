@@ -30,6 +30,19 @@ page = page.replace(
   '            operationType: operationType === "CVK" ? "LONG" : operationType,'
 );
 
+// CVK must not trigger the normal product-required validation. It uses
+// workType instead of productName and therefore has no product to select.
+page = page.replace(
+  '        if (!usesMultiMachineLines) {\n            if (!form.productName.trim()) {\n                return "Vui lòng chọn sản phẩm";\n            }',
+  '        if (operationType !== "CVK" && !usesMultiMachineLines) {\n            if (!form.productName.trim()) {\n                return "Vui lòng chọn sản phẩm";\n            }'
+);
+// Also support builds where the validation block has already been normalized
+// by an earlier patch and uses the compact one-line condition.
+page = page.replace(
+  'if (!usesMultiMachineLines) { if (!form.productName.trim()) { return "Vui lòng chọn sản phẩm"; }',
+  'if (operationType !== "CVK" && !usesMultiMachineLines) { if (!form.productName.trim()) { return "Vui lòng chọn sản phẩm"; }'
+);
+
 // BasicInfo has an independent CVK UI flag. Underlying operation remains LONG,
 // so the existing Lồng/Tay form is reused exactly.
 if (!basic.includes('const [cvkMode, setCvkMode] = useState(false);')) {
@@ -61,4 +74,4 @@ fs.writeFileSync(configPath, config);
 fs.writeFileSync(pagePath, page);
 fs.writeFileSync(basicPath, basic);
 fs.writeFileSync(qualityPath, quality);
-console.log('[KTC] CVK inline mode: selecting CVK immediately hides quality; Cắt/Lồng remain unchanged.');
+console.log('[KTC] CVK inline mode: selecting CVK immediately hides quality; Cắt/Lồng remain unchanged; product validation skipped.');
