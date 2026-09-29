@@ -17,6 +17,18 @@ import {
 } from "../../services/authRuntimeEvents";
 
 const ZERO_STANDARD_LONG_WORK_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
+const PROCESS_ID_BY_CODE: Record<string, number> = {
+  GC: 1,
+  MAI: 2,
+  DO: 60001,
+  K1: 3,
+  K2: 4,
+  CAN: 60002,
+  EP: 60003,
+  XLBV: 60004,
+  SX3: 60005,
+  CVK: 60006,
+};
 
 /**
  * Worker master data is sourced ONLY from the DB master configuration.
@@ -34,7 +46,11 @@ export function useProcessMasterData(processId: number, processCode: string) {
   const requestGeneration = useRef(0);
 
   const load = useCallback(async () => {
-    if (!Number.isInteger(processId) || processId <= 0) {
+    const resolvedProcessId = Number.isInteger(processId) && processId > 0
+      ? processId
+      : PROCESS_ID_BY_CODE[String(processCode || "").trim().toUpperCase()] || 0;
+
+    if (!resolvedProcessId) {
       setMachineOptions([]);
       setProductOptions([]);
       setActiveNgOptions([]);
@@ -52,8 +68,8 @@ export function useProcessMasterData(processId: number, processCode: string) {
 
     try {
       const [machines, products] = await Promise.allSettled([
-        getCachedMachines(processId),
-        getCachedProductStandards(processId, processCode),
+        getCachedMachines(resolvedProcessId),
+        getCachedProductStandards(resolvedProcessId, processCode),
       ]);
 
       if (generation !== requestGeneration.current) return;
@@ -86,10 +102,10 @@ export function useProcessMasterData(processId: number, processCode: string) {
       setLoading(false);
 
       const optionalResults = await Promise.allSettled([
-        getCachedDefects(processId),
+        getCachedDefects(resolvedProcessId),
         isProcessSelectionRoute
           ? Promise.resolve([] as Awaited<ReturnType<typeof getCachedDeductions>>)
-          : getCachedDeductions(processId),
+          : getCachedDeductions(resolvedProcessId),
       ]);
 
       if (generation !== requestGeneration.current) return;
@@ -97,14 +113,14 @@ export function useProcessMasterData(processId: number, processCode: string) {
       const [defects, deductions] = optionalResults;
 
       if (defects.status === "fulfilled") {
-        setActiveNgOptions(normalizeDefectOptions(defects.value, processId));
+        setActiveNgOptions(normalizeDefectOptions(defects.value, resolvedProcessId));
       } else {
         setActiveNgOptions([]);
       }
 
       if (deductions.status === "fulfilled") {
         setActiveDeductionOptions(
-          normalizeDeductionOptions(deductions.value, processId),
+          normalizeDeductionOptions(deductions.value, resolvedProcessId),
         );
       } else {
         setActiveDeductionOptions([]);
