@@ -10,6 +10,7 @@ import "./pages/manager/DashboardTypography.css";
 import "./pages/manager/Reports.css";
 import "./pages/manager/ReportsReference.css";
 import "./pages/manager/ReportDetail.css";
+import "./pages/manager/ReportDetailCompact.css";
 import "./pages/manager/EditReport.css";
 import "./pages/manager/ReportDownload.css";
 import "./pages/manager/SelectedReportsReview.css";
