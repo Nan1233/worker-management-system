@@ -1,19 +1,15 @@
-/* KTC management desktop header: row 1 = date/notification/account, row 2 = navigation. */
+/* KTC management desktop header: utility information is a taller top row; navigation sits directly below. */
 @media (min-width: 801px) {
   .management-layout { min-height: 100dvh !important; }
 
-  /* Top utility row. */
   .management-header {
     position: fixed !important;
-    inset: 0 0 auto 0 !important;
+    top: 0 !important; left: 0 !important; right: 0 !important;
     width: 100vw !important;
-    height: 64px !important;
-    min-height: 64px !important;
+    height: 82px !important; min-height: 82px !important;
     box-sizing: border-box !important;
     padding: 0 24px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: flex-end !important;
+    display: flex !important; align-items: center !important; justify-content: flex-end !important;
     background: #fff !important;
     border-bottom: 1px solid #dce8f5 !important;
     box-shadow: 0 2px 8px rgba(36,86,137,.05) !important;
@@ -23,103 +19,66 @@
   }
   .management-header-actions {
     margin-left: auto !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: flex-end !important;
-    gap: 10px !important;
-    pointer-events: auto !important;
+    display: flex !important; align-items: center !important; justify-content: flex-end !important;
+    gap: 10px !important; pointer-events: auto !important;
   }
-  .management-date { height: 44px !important; }
-  .management-notification { width: 44px !important; height: 44px !important; }
-  .management-user { height: 52px !important; }
+  .management-date { height: 48px !important; }
+  .management-notification { width: 48px !important; height: 48px !important; }
+  .management-user { height: 58px !important; }
+  .management-user-avatar { width: 48px !important; height: 48px !important; flex-basis: 48px !important; }
 
-  /* Navigation row directly underneath utility row. */
+  /* Navigation is now BELOW the information row and intentionally shorter. */
   .management-sidebar {
     position: fixed !important;
-    inset: 64px 0 auto 0 !important;
+    top: 82px !important; left: 0 !important; right: 0 !important; bottom: auto !important;
     width: 100vw !important;
-    height: 62px !important;
-    min-height: 62px !important;
+    height: 58px !important; min-height: 58px !important;
     box-sizing: border-box !important;
-    display: flex !important;
-    flex-direction: row !important;
-    align-items: center !important;
-    padding: 3px 18px !important;
-    margin: 0 !important;
+    display: flex !important; flex-direction: row !important; align-items: center !important;
+    padding: 2px 18px !important; margin: 0 !important;
     background: #fff !important;
-    border: 0 !important;
-    border-bottom: 1px solid #dce8f5 !important;
+    border: 0 !important; border-bottom: 1px solid #dce8f5 !important;
     box-shadow: 0 2px 10px rgba(36,86,137,.06) !important;
-    z-index: 990 !important;
-    overflow: hidden !important;
+    z-index: 990 !important; overflow: hidden !important;
   }
   .management-brand {
-    width: 145px !important;
-    min-width: 145px !important;
-    height: 56px !important;
-    padding: 2px 7px !important;
-    display: flex !important;
-    align-items: center !important;
+    width: 145px !important; min-width: 145px !important; height: 54px !important;
+    padding: 2px 7px !important; display: flex !important; align-items: center !important;
   }
-  .management-brand-logo {
-    width: 125px !important;
-    max-width: 125px !important;
-    max-height: 48px !important;
-  }
+  .management-brand-logo { width: 125px !important; max-width: 125px !important; max-height: 46px !important; }
   .management-menu {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
-    gap: 4px !important;
-    flex: 1 1 auto !important;
-    min-width: 0 !important;
-    width: auto !important;
-    height: 58px !important;
-    margin: 0 !important;
-    padding: 0 !important;
+    display: flex !important; align-items: center !important; justify-content: flex-start !important;
+    gap: 4px !important; flex: 1 1 auto !important; min-width: 0 !important;
+    width: auto !important; height: 56px !important; margin: 0 !important; padding: 0 !important;
     overflow: hidden !important;
   }
   .management-menu button {
-    width: auto !important;
-    min-width: max-content !important;
-    height: 48px !important;
-    min-height: 48px !important;
-    flex: 0 1 auto !important;
-    padding: 0 9px !important;
-    gap: 6px !important;
-    border-radius: 10px !important;
-    text-align: center !important;
-    font-size: 12px !important;
-    font-weight: 650 !important;
-    white-space: nowrap !important;
+    width: auto !important; min-width: max-content !important;
+    height: 44px !important; min-height: 44px !important;
+    flex: 0 1 auto !important; padding: 0 9px !important; gap: 6px !important;
+    border-radius: 10px !important; text-align: center !important;
+    font-size: 12px !important; font-weight: 650 !important; white-space: nowrap !important;
   }
-  .management-menu button svg {
-    width: 19px !important;
-    height: 19px !important;
-    flex: 0 0 19px !important;
-  }
+  .management-menu button svg { width: 19px !important; height: 19px !important; flex: 0 0 19px !important; }
   .management-menu .management-logout { margin-left: auto !important; }
   .management-sidebar-footer { display: none !important; }
 
-  /* Reserve both fixed rows so page content can never sit underneath them. */
-  .management-main {
-    margin-left: 0 !important;
-    padding-top: 126px !important;
-    min-height: 100dvh !important;
-  }
+  /* Content starts below both fixed rows. */
+  .management-main { margin-left: 0 !important; padding-top: 140px !important; min-height: 100dvh !important; }
   .management-content { padding: 18px 24px 26px !important; }
 }
 
 @media (min-width: 801px) and (max-width: 1250px) {
-  .management-header { padding-inline: 10px !important; }
-  .management-sidebar { padding-inline: 10px !important; }
+  .management-header { height: 78px !important; min-height: 78px !important; padding-inline: 10px !important; }
+  .management-date { height: 42px !important; }
+  .management-notification { width: 42px !important; height: 42px !important; }
+  .management-user { height: 50px !important; }
+  .management-user-avatar { width: 40px !important; height: 40px !important; flex-basis: 40px !important; }
+  .management-sidebar { top: 78px !important; height: 58px !important; min-height: 58px !important; padding-inline: 10px !important; }
   .management-brand { width: 112px !important; min-width: 112px !important; }
   .management-brand-logo { width: 100px !important; max-width: 100px !important; }
   .management-menu { gap: 2px !important; }
   .management-menu button { padding-inline: 5px !important; gap: 4px !important; font-size: 10px !important; }
   .management-menu button svg { width: 17px !important; height: 17px !important; flex-basis: 17px !important; }
-  .management-date { width: auto !important; height: 40px !important; padding-inline: 11px !important; }
-  .management-notification { width: 40px !important; height: 40px !important; }
-  .management-user { max-width: 180px !important; height: 46px !important; }
-  .management-user-avatar { width: 38px !important; height: 38px !important; flex-basis: 38px !important; font-size: 13px !important; }
+  .management-main { padding-top: 136px !important; }
 }
