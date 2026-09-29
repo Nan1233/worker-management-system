@@ -44,6 +44,13 @@ if (!basic.includes('cvk-worker-inline-style')) {
   const style = '    const cvkWorkerInlineStyle = <style className="cvk-worker-inline-style">{`.worker-operation-type-row{grid-template-columns:repeat(3,minmax(0,1fr))}.worker-operation-type-row button{width:100%;min-width:0}.worker-cvk-entry{display:grid;gap:12px}.worker-cvk-note textarea{width:100%;min-height:84px;resize:vertical;box-sizing:border-box;border:1px solid #c9dbf2;border-radius:10px;padding:10px 12px;font:inherit;color:inherit;background:#fff;outline:none}.worker-cvk-note textarea:focus{border-color:#4f94e8;box-shadow:0 0 0 2px rgba(79,148,232,.12)}`}</style>;\n';
   basic = basic.replace(marker, style + marker + '\n        {cvkWorkerInlineStyle}');
 }
+
+// Final normalization: build-time patches are applied in sequence. If an older
+// CVK patch already left a legacy label beside the new label, collapse it here
+// so the rendered button is exactly "Công việc khác".
+basic = basic.replace(/CVKCông việc khác/g, 'Công việc khác');
+basic = basic.replace(/Công việc khácCông việc khác+/g, 'Công việc khác');
+
 fs.writeFileSync(basicPath, basic, 'utf8');
 
 const pagePath = path.resolve(__dirname, '../src/pages/worker/ProcessPage.tsx');
@@ -71,4 +78,4 @@ if (!page.includes('{!isCvkMode && (')) {
 }
 
 fs.writeFileSync(pagePath, page, 'utf8');
-console.log('[KTC] CVK V3: immediate quality hide + CVK note field.');
+console.log('[KTC] CVK V3: immediate quality hide + CVK note field + normalized button label.');
