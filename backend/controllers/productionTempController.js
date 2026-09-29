@@ -13,6 +13,8 @@ const finiteNumber = (value) => {
     return Number.isFinite(number) ? number : 0;
 };
 
+const ZERO_STANDARD_GC_LONG_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
+
 const findExistingCvkReport = async (req) => {
     const workerId = Number(req.user?.worker_id || req.body?.worker_id);
     const workDate = String(req.body?.work_date || "").slice(0, 10);
@@ -56,6 +58,22 @@ const validateManualOutputCeiling = async (req, res) => {
     const actualTime = finiteNumber(body.actual_time);
     const enteredOk = finiteNumber(body.tt_ok);
     if (!processId || !productCode || actualTime <= 0) return true;
+
+    // GC/Lồng Tay special jobs XUATNHAP, KTCD, TAIPP intentionally have
+    // standard_output = 0 and do not have historical standard versions.
+    // They must bypass the generic output-ceiling resolver completely.
+    let processCode = String(body.process_code || body.extra_data?.process_code || "").trim().toUpperCase();
+    if (!processCode) {
+        const [processRows] = await db.promise().query(
+            "SELECT process_code FROM processes WHERE id = ? LIMIT 1",
+            [processId]
+        );
+        processCode = String(processRows?.[0]?.process_code || "").trim().toUpperCase();
+    }
+    if (processCode === "GC" && ZERO_STANDARD_GC_LONG_CODES.has(productCode.toUpperCase())) {
+        return true;
+    }
+
     const resolved = await resolveStandard({ processId, productCode, machineId: null, machineCode: null, workDate, operationMode: "MANUAL" });
     const standardOutput = finiteNumber(resolved?.standardOutput);
     if (standardOutput <= 0) return true;
