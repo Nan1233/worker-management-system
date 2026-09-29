@@ -14,14 +14,14 @@ const isNoStandardProduct = (value: unknown): boolean => {
 };
 
 const fixNoStandardRows = (root: ParentNode = document): void => {
-    root.querySelectorAll?.(".history-page .history-table tbody tr")?.forEach((row) => {
+    root.querySelectorAll(".history-page .history-table tbody tr").forEach((row) => {
         const productCell = row.querySelector(".product-cell");
         if (!productCell || !isNoStandardProduct(productCell.textContent)) return;
 
         const okCell = row.querySelector(".ok-column");
         const ngCell = row.querySelector(".ng-column");
-        if (okCell) okCell.textContent = "-";
-        if (ngCell) ngCell.textContent = "-";
+        if (okCell && okCell.textContent?.trim() !== "-") okCell.textContent = "-";
+        if (ngCell && ngCell.textContent?.trim() !== "-") ngCell.textContent = "-";
     });
 };
 
