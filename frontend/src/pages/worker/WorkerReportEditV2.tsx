@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { getReportById, updateTempReport } from "../../services/productionService";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { getReportById, updateReport, updateTempReport } from "../../services/productionService";
 import { resolveProductStandard } from "../../services/masterDataService";
 import type { ProductionReport } from "../../types/production";
 import { getProcessCapabilities, usesMultiMachineLines as resolveMultiMachine, usesSingleMachine as resolveSingleMachine } from "./processPageDomain";
@@ -32,11 +32,15 @@ const parseDbDateMs = (value?: string | null) => {
   return Number.isFinite(parsed) ? parsed : NaN;
 };
 const slug = (code?: string | null) => ({ GC: "cat-long", MAI: "mai", DO: "do", K1: "kiem-1", K2: "kiem-2", CAN: "can", EP: "ep", XLBV: "bavia", SX3: "sx3", CVK: "cvk" } as Record<string, string>)[s(code).trim().toUpperCase()] || "cat-long";
-const machineCodes = new Set(["GC", "MAI", "DO", "EP", "CAN"]);
 
 function WorkerReportEditV2() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const pathname = window.location.pathname;
+  const managerRoute = pathname.startsWith("/manager/") || pathname.startsWith("/lead/") || pathname.startsWith("/admin/");
+  const readOnly = managerRoute && !pathname.endsWith("/edit");
+  const source = searchParams.get("source") === "approved" ? "approved" : "pending";
   const [report, setReport] = useState<any>(null);
   const [form, setForm] = useState<FormState>(initialForm);
   const [deductions, setDeductions] = useState<DeductionState>(initialDeduction);
@@ -126,7 +130,7 @@ function WorkerReportEditV2() {
       try {
         const reportId = Number(id);
         if (!Number.isInteger(reportId) || reportId <= 0) throw new Error("ID báo cáo không hợp lệ.");
-        const raw = await getReportById(reportId, "pending");
+        const raw = await getReportById(reportId, managerRoute ? source : "pending");
         const data: any = (raw as any)?.report || (raw as any)?.data || raw;
         if (!data) throw new Error("Không tìm thấy báo cáo.");
         if (!alive) return;
@@ -158,13 +162,14 @@ function WorkerReportEditV2() {
     };
     void load();
     return () => { alive = false; };
-  }, [id]);
+  }, [id, managerRoute, source]);
 
   useEffect(() => {
+    if (managerRoute) { setRemaining(Number.POSITIVE_INFINITY); return; }
     if (!report?.created_at) return;
     const tick = () => { const created = parseDbDateMs(report.created_at); setRemaining(Number.isFinite(created) ? Math.max(0, created + 600000 - Date.now()) : 0); };
     tick(); const timer = window.setInterval(tick, 1000); return () => window.clearInterval(timer);
-  }, [report?.created_at]);
+  }, [report?.created_at, managerRoute]);
 
   const findNgKey = (item: any) => editNgOptions.find((o: any) => Number(o.id) === Number(item.defect_type_id) || (s(o.code).trim() && s(o.code).toUpperCase() === s(item.defect_code).toUpperCase()) || s(o.label).trim() === s(item.defect_name).trim())?.key;
   const findDeductionKey = (item: any) => editDeductionOptions.find((o: any) => Number(o.id) === Number(item.deduction_type_id) || (s(o.code).trim() && s(o.code).toUpperCase() === s(item.deduction_code).toUpperCase()) || s(o.label).trim() === s(item.deduction_name).trim())?.key;
@@ -237,7 +242,7 @@ function WorkerReportEditV2() {
   const onNumberBlur = () => setForm((current) => recalcQuality(current));
 
   const save = async () => {
-    if (!report || remaining <= 0) return;
+    if (!report || (!managerRoute && remaining <= 0) || readOnly) return;
     setError("");
     const actualHours = n(form.actualHours) + n(form.actualMinutes) / 60;
     const deductionHours = parseFlexibleTime(form.deductionTime);
@@ -253,22 +258,30 @@ function WorkerReportEditV2() {
     });
     payload.updated_at = report.updated_at;
     payload.expected_updated_at = report.updated_at;
-    try { setSaving(true); await updateTempReport(Number(report.id), payload); navigate(`/worker/history/${report.id}`, { replace: true }); }
-    catch (e: any) { setError(e?.response?.data?.message || e?.response?.data?.errors?.machine_lines || "Không thể lưu thay đổi."); }
+    try {
+      setSaving(true);
+      if (managerRoute) {
+        await updateReport(Number(report.id), payload as ProductionReport, source, report.updated_at || null);
+        navigate(source === "pending" ? `/manager/report/${report.id}?source=pending` : `/manager/report/${report.id}?source=approved`, { replace: true });
+      } else {
+        await updateTempReport(Number(report.id), payload);
+        navigate(`/worker/history/${report.id}`, { replace: true });
+      }
+    } catch (e: any) { setError(e?.response?.data?.message || e?.response?.data?.errors?.machine_lines || "Không thể lưu thay đổi."); }
     finally { setSaving(false); }
   };
 
-  if (loading) return <div className="detail-container"><div className="detail-state">Đang tải biểu mẫu sửa...</div></div>;
+  if (loading) return <div className="detail-container"><div className="detail-state">Đang tải biểu mẫu...</div></div>;
   if (!report) return <div className="detail-container"><div className="detail-state error">{error || "Không tìm thấy báo cáo."}</div></div>;
-  const remainingSeconds = Math.ceil(remaining / 1000);
-  const timeText = `${Math.floor(remainingSeconds / 60)}:${String(remainingSeconds % 60).padStart(2, "0")}`;
-  const processTitle = `Sửa báo cáo · ${report.process_name || capabilities.processCode}`;
+  const remainingSeconds = Number.isFinite(remaining) ? Math.ceil(remaining / 1000) : 0;
+  const timeText = Number.isFinite(remaining) ? `${Math.floor(remainingSeconds / 60)}:${String(remainingSeconds % 60).padStart(2, "0")}` : "Không giới hạn";
+  const processTitle = readOnly ? `Chi tiết báo cáo · ${report.process_name || capabilities.processCode}` : `Sửa báo cáo · ${report.process_name || capabilities.processCode}`;
   const extraFields = getProcessExtraFields(process);
 
-  return <div className="ktc-page">
+  return <div className={`ktc-page ${managerRoute ? "manager-worker-report-form" : ""} ${readOnly ? "manager-worker-report-readonly" : ""}`}>
     <ProcessWorkerHeader processTitle={processTitle} workerName={form.workerName} workerCode={form.workerCode} trainingPercent={form.trainingPercent} workDate={form.workDate} dateOptions={getWorkerAllowedWorkDates()} onBack={() => navigate(-1)} onDateChange={(e) => updateForm("workDate", e.target.value)} />
     <main className="worker-form-container">
-      <div className="worker-form-card" style={{ marginBottom: 12 }}><strong>Chỉnh sửa trong 10 phút · còn {timeText}</strong><span style={{ marginLeft: 10 }}>{loadingMasterData ? "Đang tải danh mục..." : "Đã tải dữ liệu báo cáo"}</span></div>
+      {!readOnly && <div className="worker-form-card" style={{ marginBottom: 12 }}><strong>{managerRoute ? `Sửa báo cáo · ${source === "approved" ? "Đã duyệt" : "Chờ duyệt"}` : `Chỉnh sửa trong 10 phút · còn ${timeText}`}</strong><span style={{ marginLeft: 10 }}>{loadingMasterData ? "Đang tải danh mục..." : "Đã tải dữ liệu báo cáo"}</span></div>}
       {error && <div className="worker-form-card" style={{ color: "#b42318", marginBottom: 12 }}>{error}</div>}
 
       <ProcessBasicInfoSection
@@ -293,7 +306,7 @@ function WorkerReportEditV2() {
       {Object.keys(extraData).some((key) => !extraFields.some((field) => field.key === key)) && <section className="worker-form-card"><h2 className="worker-card-title">Thông tin bổ sung</h2><div className="worker-basic-grid">{Object.entries(extraData).filter(([key]) => !extraFields.some((field) => field.key === key)).map(([key, value]) => <div className="worker-field-block" key={key}><label className="worker-field-label">{key}</label><input className="worker-text-input" value={value} onChange={(e) => setExtraData((current) => ({ ...current, [key]: e.target.value }))} /></div>)}</div></section>}
 
       <section className="worker-form-card"><h2 className="worker-card-title">Ghi chú</h2><textarea className="worker-text-input" rows={3} value={form.note} onChange={(e) => updateForm("note", e.target.value)} /></section>
-      <div className="worker-action-group"><div className="worker-action-copy"><strong>{saving ? "Đang lưu thay đổi" : "Sẵn sàng lưu báo cáo"}</strong><span>{saving ? "Vui lòng chờ..." : `Còn ${timeText} để sửa báo cáo.`}</span></div><div className="worker-action-buttons"><button type="button" className="worker-reset-button" onClick={() => navigate(-1)} disabled={saving}>Hủy</button><button type="button" className="worker-floating-save" onClick={() => void save()} disabled={saving || remaining <= 0}>{saving ? "Đang lưu..." : remaining <= 0 ? "Hết thời gian sửa" : "Lưu thay đổi"}</button></div></div>
+      {!readOnly && <div className="worker-action-group"><div className="worker-action-copy"><strong>{saving ? "Đang lưu thay đổi" : "Sẵn sàng lưu báo cáo"}</strong><span>{saving ? "Vui lòng chờ..." : managerRoute ? "Kiểm tra dữ liệu rồi lưu thay đổi." : `Còn ${timeText} để sửa báo cáo.`}</span></div><div className="worker-action-buttons"><button type="button" className="worker-reset-button" onClick={() => navigate(-1)} disabled={saving}>Hủy</button><button type="button" className="worker-floating-save" onClick={() => void save()} disabled={saving || (!managerRoute && remaining <= 0)}>{saving ? "Đang lưu..." : !managerRoute && remaining <= 0 ? "Hết thời gian sửa" : "Lưu thay đổi"}</button></div></div>}
     </main>
   </div>;
 }
