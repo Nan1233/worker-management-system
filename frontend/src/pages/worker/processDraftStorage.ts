@@ -206,10 +206,20 @@ function normalizeDraftForResume(draft: ProcessDraft): ProcessDraft {
     form.standardOutput = String(restoredFirst.standardOutputPerHour);
   }
 
-  const hasMachineData = machineLines.some((line) =>
-    Boolean(line.machineCode || line.productCode || line.hours || line.minutes || line.okQuantity || line.ngQuantity)
-  );
-  const operationMode: OperationMode = hasMachineData ? "MACHINE" : draft.operationMode;
+  // IMPORTANT: do not infer MACHINE merely because machineLines contains data.
+  // Lồng/Tay also uses the first machine-line object as the common product/time
+  // storage model, so that old inference changed a saved MANUAL report into
+  // Lồng/Máy after browser reload. v3 drafts already persist the authoritative
+  // operationMode; preserve it exactly. Only fall back to MACHINE for malformed
+  // legacy drafts that have no valid mode at all.
+  const storedOperationMode = draft.operationMode;
+  const operationMode: OperationMode = storedOperationMode === "MANUAL" || storedOperationMode === "MACHINE"
+    ? storedOperationMode
+    : machineLines.some((line) =>
+        Boolean(line.machineCode || line.productCode || line.hours || line.minutes || line.okQuantity || line.ngQuantity)
+      )
+      ? "MACHINE"
+      : "MANUAL";
 
   return {
     ...draft,
@@ -254,15 +264,10 @@ export function loadProcessDraft(process: string): ProcessDraft | null {
 
     const value = normalizeDraftForResume(parsed);
 
-    // The default new-report context is today + shift A. If the saved draft
-    // is exactly that context, it is the continuation of the report the worker
-    // is reopening. Restore it silently instead of showing a confirmation.
     if (isDefaultSameDayShiftDraft(value)) {
       return value;
     }
 
-    // Older/different-day or different-shift drafts still require an explicit
-    // choice so a worker does not accidentally reopen another report.
     const shouldResume = window.confirm(buildDraftResumeMessage(value));
     if (!shouldResume) {
       localStorage.removeItem(keyFor(process, workerId, workerCode));
@@ -291,10 +296,6 @@ export function saveProcessDraft(draft: ProcessDraft): void {
       machineCount: Math.max(1, Number(draft.machineCount) || 1, sourceLines.length),
     };
 
-    // Multi-machine reports keep the real machine code in machineLines rather
-    // than form.machineNo. Mirror the first machine into the legacy form field
-    // as well so resume/normalization can recover the machine even when an
-    // older draft was saved before machineLines was fully persisted.
     const firstMachineLine = ownedDraft.machineLines[0];
     if (firstMachineLine) {
       ownedDraft.form = {
