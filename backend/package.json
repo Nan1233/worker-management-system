@@ -4,7 +4,7 @@
   "description": "KTC internal production reporting API optimized for Render and TiDB",
   "main": "server.js",
   "scripts": {
-    "postinstall": "node scripts/fixCloudflareWorkerSyntax.cjs",
+    "postinstall": "node scripts/fixCloudflareWorkerSyntax.cjs && node scripts/patchCvkProcessId.cjs",
     "start": "node scripts/ensureGcDefectMasterData.js && node scripts/ensureGcLong2801Lt.js && node --require ./scripts/approvedReportConcurrencyPatch.cjs --expose-gc server.js",
     "worker": "node worker.js",
     "dev": "nodemon server.js",
@@ -59,7 +59,6 @@
     "express-rate-limit": "8.6.1",
     "googleapis": "173.0.0",
     "helmet": "8.3.0",
-    "ipaddr.js": "1.9.1",
     "jsonwebtoken": "9.0.3",
     "mysql2": "3.23.2"
   },
