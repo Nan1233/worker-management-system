@@ -1,4 +1,4 @@
-/* Compact management sidebar — aligned with Worker UI typography. */
+/* Compact management navigation. Desktop: horizontal toolbar, mobile: bottom navigation. */
 .management-layout .management-sidebar {
   width: 228px;
   padding: 10px 10px 10px;
@@ -64,6 +64,12 @@
   font-weight: 600;
 }
 
+.management.layout .management-sidebar-footer span,
+.management.layout .management-sidebar-footer small {
+  margin-top: 3px;
+  font-size: 9.5px;
+}
+
 .management-layout .management-sidebar-footer span,
 .management-layout .management-sidebar-footer small {
   margin-top: 3px;
@@ -74,17 +80,162 @@
   margin-top: 4px;
 }
 
-@media (max-width: 1100px) and (min-width: 801px) {
+/* P0 FIX: desktop manager/lead/admin navigation must always be visible as a
+   single horizontal toolbar. These rules intentionally use !important so
+   recent responsive/compact overrides cannot hide the navigation. */
+@media (min-width: 801px) {
   .management-layout .management-sidebar {
-    width: 198px;
+    position: fixed !important;
+    inset: 0 0 auto 0 !important;
+    z-index: 100 !important;
+    width: 100% !important;
+    height: 58px !important;
+    min-height: 58px !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    padding: 4px 12px !important;
+    margin: 0 !important;
+    background: rgba(255,255,255,.98) !important;
+    border: 0 !important;
+    border-bottom: 1px solid #dce8f5 !important;
+    box-shadow: 0 2px 10px rgba(36,86,137,.06) !important;
+    overflow: hidden !important;
+    visibility: visible !important;
+    opacity: 1 !important;
   }
 
-  .management-layout .management-main {
-    margin-left: 198px;
+  .management-layout .management-brand {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    flex: 0 0 132px !important;
+    width: 132px !important;
+    min-width: 132px !important;
+    height: 48px !important;
+    margin: 0 !important;
+    padding: 2px 6px !important;
+    align-items: center !important;
+  }
+
+  .management-layout .management-brand-logo {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: 116px !important;
+    max-width: 116px !important;
+    max-height: 42px !important;
+  }
+
+  .management-layout .management-menu {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    width: auto !important;
+    height: 50px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    gap: 3px !important;
+    align-items: center !important;
+    overflow: hidden !important;
+    flex-direction: row !important;
   }
 
   .management-layout .management-menu button {
-    font-size: 11px;
-    gap: 9px;
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: relative !important;
+    flex: 0 1 auto !important;
+    width: auto !important;
+    min-width: max-content !important;
+    min-height: 42px !important;
+    height: 42px !important;
+    margin: 0 !important;
+    padding: 0 8px !important;
+    gap: 5px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border: 0 !important;
+    border-radius: 9px !important;
+    background: transparent !important;
+    color: #315b91 !important;
+    text-align: center !important;
+    font-size: 10px !important;
+    font-weight: 600 !important;
+    line-height: 1.1 !important;
+    white-space: nowrap !important;
+    cursor: pointer !important;
+  }
+
+  .management-layout .management-menu button:hover {
+    background: #eef6ff !important;
+    color: #1677e8 !important;
+  }
+
+  .management-layout .management-menu button.active {
+    background: linear-gradient(135deg,#2d8cf0,#3385e5) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 10px rgba(42,126,228,.14) !important;
+  }
+
+  .management-layout .management-menu button svg {
+    display: block !important;
+    visibility: visible !important;
+    flex: 0 0 17px !important;
+    width: 17px !important;
+    height: 17px !important;
+  }
+
+  .management-layout .management-sidebar-footer {
+    display: none !important;
+  }
+
+  .management-layout .management-main {
+    margin-left: 0 !important;
+    padding-top: 58px !important;
+    min-height: 100dvh !important;
+  }
+
+  .management-layout .management-header {
+    top: 58px !important;
+  }
+}
+
+@media (min-width: 801px) and (max-width: 1250px) {
+  .management-layout .management-brand {
+    flex-basis: 105px !important;
+    width: 105px !important;
+    min-width: 105px !important;
+  }
+
+  .management-layout .management-brand-logo {
+    width: 96px !important;
+    max-width: 96px !important;
+  }
+
+  .management-layout .management-menu {
+    gap: 1px !important;
+  }
+
+  .management-layout .management-menu button {
+    padding: 0 5px !important;
+    gap: 3px !important;
+    font-size: 9px !important;
+  }
+
+  .management-layout .management-menu button svg {
+    width: 15px !important;
+    height: 15px !important;
+    flex-basis: 15px !important;
+  }
+}
+
+@media (max-width: 800px) {
+  .management-layout .management-sidebar {
+    display: none !important;
   }
 }
