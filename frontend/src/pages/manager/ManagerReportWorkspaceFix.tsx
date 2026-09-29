@@ -3,8 +3,6 @@ import { useNavigate } from "react-router-dom";
 import Reports from "./Reports";
 import ApprovedReportsDesktopActions from "./ApprovedReportsDesktopActions";
 
-const NON_STANDARD = /\b(?:XUATNHAP|KTCD|TAIPP)\b/i;
-
 function installReportWorkspaceFix(navigate: (to: string) => void) {
   const STYLE_ID = "ktc-manager-report-workspace-fix";
   if (!document.getElementById(STYLE_ID)) {
@@ -34,9 +32,16 @@ function installReportWorkspaceFix(navigate: (to: string) => void) {
   const openStandalone = (row: HTMLTableRowElement) => {
     const pathname = window.location.pathname;
     const source = pathname.includes("/approved") ? "approved" : "pending";
-    const dateMatch = (row.innerText || "").match(/(\d{2}\/\d{2}\/\d{4})/);
-    const date = dateMatch ? dateMatch[1].split("/").reverse().join("-") : "";
-    const key = encodeURIComponent((row.innerText || "").replace(/\s+/g, " ").trim());
+    const cells = Array.from(row.querySelectorAll<HTMLTableCellElement>("td")).map(cell => (cell.innerText || "").replace(/\s+/g, " ").trim());
+    const dateText = cells.find(value => /\d{2}\/\d{2}\/\d{4}/.test(value)) || "";
+    const dateMatch = dateText.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    const date = dateMatch ? `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}` : "";
+    const workerMatch = (cells[2] || "").match(/\(([^)]+)\)/);
+    const workerCode = workerMatch?.[1] || "";
+    const processName = cells[3] || "";
+    const shift = cells[4] || "";
+    const reportCode = cells[1] || "";
+    const key = encodeURIComponent([date, workerCode, processName, shift, reportCode].join("|"));
     navigate(`/manager/report/review?source=${source}&date=${date}&key=${key}`);
   };
 
@@ -53,7 +58,6 @@ function installReportWorkspaceFix(navigate: (to: string) => void) {
   };
 
   document.addEventListener("click", onOpenDetail, true);
-
   return () => {
     document.removeEventListener("click", onOpenDetail, true);
     document.body.classList.remove("ktc-report-workspace-fix");
