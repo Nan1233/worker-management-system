@@ -13,8 +13,7 @@ let config = fs.readFileSync(configPath, 'utf8');
 let quality = fs.readFileSync(qualityPath, 'utf8');
 let submission = fs.readFileSync(submissionPath, 'utf8');
 
-// CVK is an inline UI mode. Keep the existing Cắt/Lồng page and reuse the
-// Lồng/Tay form; do not navigate to a separate CVK route.
+// CVK is inline on the existing Cắt/Lồng page and reuses the Lồng/Tay form.
 page = page.replace(/\n\s*const location = useLocation\(\);[\s\S]*?const activeCvkMode = cvkModeLocal \|\| cvkMode;\n?/m, '\n');
 page = page.replace(/\n\s*const cvkMode = new URLSearchParams\(location\.search\)\.get\("cvk"\) === "1";\n?/g, '\n');
 page = page.replace(/\n\s*const \[cvkModeLocal, setCvkModeLocal\] = useState\([^;]+;\n?/g, '\n');
@@ -24,28 +23,33 @@ page = page.replace(/\bsetCvkModeLocal\(true\)/g, 'setOperationType("LONG")');
 page = page.replace(/\bisCvkMode=\{activeCvkMode\}/g, 'isCvkMode={false}');
 page = page.replace(/\bisCvkMode=\{cvkMode\}/g, 'isCvkMode={false}');
 
-// Keep product filtering on LONG while CVK is selected.
-page = page.replace(
-  /operationType === "CVK" \? "LONG" : operationType,\s*/g,
-  'operationType === "CVK" ? "LONG" : operationType,\n'
-);
+// CVK keeps LONG underneath so product master filtering continues to work for
+// the reused Lồng/Tay form without exposing product validation to CVK.
+page = page.replace(/operationType === "CVK" \? "LONG" : operationType,\s*/g, 'operationType === "CVK" ? "LONG" : operationType,\n');
 
-// IMPORTANT: make validation depend on the actual selected CVK work type.
-// Do not rely on a fragile exact source-string replacement: earlier patches
-// can have already changed whitespace/formatting in ProcessPage.tsx.
-const cvkValidationGuard = 'const cvkWorkType = String(form.workType || "").trim().toUpperCase();\n        const isCvkEntry = ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType);';
+// CVK validation: use the selected non-product work type as the selection
+// instead of productName. This is deliberately structural, not whitespace-
+// sensitive, so preceding patches cannot make this silently fail.
+const guard = 'const cvkWorkType = String(form.workType || "").trim().toUpperCase();\n        const isCvkEntry = ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType);';
 if (!page.includes('const isCvkEntry = ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType);')) {
-  page = page.replace(/(const validateForm = \(\): string \| null => \{)/, `$1\n        ${cvkValidationGuard}`);
+  const inserted = page.replace(/(const validateForm = \(\): string => \{)/, `$1\n        ${guard}`);
+  if (inserted === page) throw new Error('[KTC] CVK patch failed: validateForm anchor not found');
+  page = inserted;
 }
-page = page.replace(/if \(!usesMultiMachineLines\) \{\s*if \(!form\.productName\.trim\(\)\) \{\s*return "Vui lòng chọn sản phẩm";\s*\}/m,
-  'if (!isCvkEntry && !usesMultiMachineLines) {\n            if (!form.productName.trim()) {\n                return "Vui lòng chọn sản phẩm";\n            }'
-);
-page = page.replace(/if \(!usesMultiMachineLines\) \{\s*if \(Number\(form\.standardOutput \|\| 0\) <= 0\) \{\s*return "Định mức phải lớn hơn 0";\s*\}/m,
-  'if (!isCvkEntry && !usesMultiMachineLines) {\n            if (Number(form.standardOutput || 0) <= 0) {\n                return "Định mức phải lớn hơn 0";\n            }'
-);
 
-// BasicInfo: CVK is an inline third operation button. Underlying operation
-// remains LONG so the existing Lồng/Tay form is reused exactly.
+// Replace every product/standard validation block in the submit validator.
+page = page.replace(/if \(!usesMultiMachineLines\) \{\s*if \(!form\.productName\.trim\(\)\) \{\s*return "Vui lòng chọn sản phẩm";\s*\}/g,
+  'if (!isCvkEntry && !usesMultiMachineLines) {\n            if (!form.productName.trim()) {\n                return "Vui lòng chọn sản phẩm";\n            }');
+page = page.replace(/if \(!usesMultiMachineLines\) \{\s*if \(Number\(form\.standardOutput \|\| 0\) <= 0\) \{\s*return "Định mức phải lớn hơn 0";\s*\}/g,
+  'if (!isCvkEntry && !usesMultiMachineLines) {\n            if (Number(form.standardOutput || 0) <= 0) {\n                return "Định mức phải lớn hơn 0";\n            }');
+
+// For CVK do not validate quality/output fields at all. Locate the common
+// quality validation section and guard it with !isCvkEntry where possible.
+page = page.replace(/if \(Number\(form\.actualOutput \|\| 0\) < 0\)/g, 'if (!isCvkEntry && Number(form.actualOutput || 0) < 0)');
+page = page.replace(/if \(Number\(form\.ttOk \|\| 0\) < 0\)/g, 'if (!isCvkEntry && Number(form.ttOk || 0) < 0)');
+page = page.replace(/if \(Number\(form\.ttNg \|\| 0\) < 0\)/g, 'if (!isCvkEntry && Number(form.ttNg || 0) < 0)');
+
+// BasicInfo: third operation button CVK; Cắt/Lồng behavior remains untouched.
 if (!basic.includes('const [cvkMode, setCvkMode] = useState(false);')) {
   basic = basic.replace(
     'const [cutExecutionMode, setCutExecutionMode] = useState<CutExecutionMode>("AUTO");',
@@ -53,10 +57,7 @@ if (!basic.includes('const [cvkMode, setCvkMode] = useState(false);')) {
   );
 }
 if (!basic.includes('isCvkMode?: boolean;')) {
-  basic = basic.replace(
-    'isCutLongProcess: boolean; isInspectionProcess: boolean;',
-    'isCutLongProcess: boolean; isInspectionProcess: boolean; isCvkMode?: boolean;'
-  );
+  basic = basic.replace('isCutLongProcess: boolean; isInspectionProcess: boolean;', 'isCutLongProcess: boolean; isInspectionProcess: boolean; isCvkMode?: boolean;');
 }
 
 const oldHandler = 'const handleOperationTypeChange = (nextType: OperationType) => { setOperationType(nextType); if (nextType === "CUT") { setOperationMode("MACHINE"); setCutExecutionMode("AUTO"); setLongExecutionMode("MACHINE"); return; } setOperationMode("MANUAL"); setCutExecutionMode("AUTO"); setLongExecutionMode("MANUAL"); };';
@@ -72,21 +73,23 @@ const newProduct = '{cvkMode ? <div className="worker-selection-card worker-fiel
 if (basic.includes(oldProduct)) basic = basic.replace(oldProduct, newProduct);
 
 basic = basic.replace('{usesMultiMachineLines ? <div className="worker-machine-workspace', '{!cvkMode && usesMultiMachineLines ? <div className="worker-machine-workspace');
-
-// Hide quality immediately for CVK sentinel and for selected CVK work types.
 quality = quality.replace(/new Set\(\["XUATNHAP", "KTCD", "TAIPP"\]\)/g, 'new Set(["CVK", "XUATNHAP", "KTCD", "TAIPP"])');
 
-// Use the real DB process id for CVK. The old 60006 value is accepted only
-// for backwards compatibility with historical data.
-submission = submission.replace(
-  /const isCvk = [^;]+;/,
-  'const isCvk = Number(args.processId) === 30002 || Number(args.processId) === 60006 || String(args.extraData?.process_code || args.extraData?.processCode || "").trim().toUpperCase() === "CVK" || ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType.toUpperCase());\n  const effectiveProcessId = isCvk ? 30002 : args.processId;'
-);
+submission = submission.replace(/const isCvk = [^;]+;/, 'const isCvk = Number(args.processId) === 30002 || Number(args.processId) === 60006 || String(args.extraData?.process_code || args.extraData?.processCode || "").trim().toUpperCase() === "CVK" || ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType.toUpperCase());\n  const effectiveProcessId = isCvk ? 30002 : args.processId;');
 submission = submission.replace(/process_id:\s*args\.processId/g, 'process_id: effectiveProcessId');
+
+// Never silently deploy an unchanged product validation. Fail the build so the
+// problem is caught immediately instead of reaching the worker UI again.
+if (!page.includes('const isCvkEntry = ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType);')) {
+  throw new Error('[KTC] CVK patch failed: isCvkEntry was not inserted');
+}
+if (/if \(!usesMultiMachineLines\) \{\s*if \(!form\.productName\.trim\(\)\) \{\s*return "Vui lòng chọn sản phẩm";/.test(page)) {
+  throw new Error('[KTC] CVK patch failed: old product-required validation is still present');
+}
 
 fs.writeFileSync(configPath, config);
 fs.writeFileSync(pagePath, page);
 fs.writeFileSync(basicPath, basic);
 fs.writeFileSync(qualityPath, quality);
 fs.writeFileSync(submissionPath, submission);
-console.log('[KTC] CVK fixed: validation skips product/standard, CVK uses process_id 30002, inline Lồng/Tay form preserved.');
+console.log('[KTC] CVK fixed: no product/standard validation, process_id 30002, inline Lồng/Tay form preserved.');
