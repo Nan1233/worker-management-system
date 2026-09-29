@@ -40,7 +40,7 @@ if (!page.includes('const cvkMode = new URLSearchParams(location.search).get("cv
   page = page.replace('    const navigate =\n        useNavigate();', '    const location = useLocation();\n    const navigate =\n        useNavigate();\n    const cvkMode = new URLSearchParams(location.search).get("cvk") === "1";');
   pageChanged = true;
 }
-page = page.replace('processMap[process]\n                ??\n                processMap["cat-long"],', 'cvkMode\n                    ? processMap["cvk"]\n                    : processMap[process]\n                        ?? processMap["cat-long"],');
+page = page.replace('processMap[process]\n                ??\n                processMap["cat-long"],', 'cvkMode\n                    ? { id: 60006, title: "Công việc khác", machineLabel: "" }\n                    : processMap[process]\n                        ?? processMap["cat-long"],');
 page = page.replace('[processInfo]', '[processInfo, cvkMode]');
 page = page.replace('const processCapabilities = useMemo(() => getProcessCapabilities(process), [process]);', 'const processCapabilities = useMemo(() => getProcessCapabilities(cvkMode ? "cvk" : process), [process, cvkMode]);');
 if (!page.includes('isCvkMode={cvkMode}')) {
