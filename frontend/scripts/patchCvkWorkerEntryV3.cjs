@@ -50,26 +50,29 @@ const pagePath = path.resolve(__dirname, '../src/pages/worker/ProcessPage.tsx');
 let page = fs.readFileSync(pagePath, 'utf8');
 
 if (!page.includes('const [isCvkMode, setIsCvkMode] = useState(false);')) {
-  page = page.replace(
-    '    const [operationType, setOperationType] = useState<OperationType>("CUT");',
-    '    const [operationType, setOperationType] = useState<OperationType>("CUT");\n    const [isCvkMode, setIsCvkMode] = useState(false);'
-  );
+  const stateMarker = '    const [operationType, setOperationType] = useState<OperationType>("CUT");';
+  if (page.includes(stateMarker)) {
+    page = page.replace(stateMarker, stateMarker + '\n    const [isCvkMode, setIsCvkMode] = useState(false);');
+  }
 }
 
 if (!page.includes('isCvkMode={isCvkMode}')) {
-  page = page.replace(
-    '                    isInspectionProcess={isInspectionProcess}\n                    operationType={operationType}',
-    '                    isInspectionProcess={isInspectionProcess}\n                    isCvkMode={isCvkMode}\n                    setIsCvkMode={setIsCvkMode}\n                    operationType={operationType}'
-  );
-}
-
-if (!page.includes('{!isCvkMode && <ProcessQualitySection')) {
-  const start = page.indexOf('                <ProcessQualitySection');
-  const end = page.indexOf('                <ProcessTimeDeductionSection', start);
-  if (start >= 0 && end > start) {
-    const block = page.slice(start, end);
-    page = page.slice(0, start) + '                {!isCvkMode && (\n' + block + '                )}\n\n' + page.slice(end);
+  const propMarker = '                    isInspectionProcess={isInspectionProcess}\n                    operationType={operationType}';
+  if (page.includes(propMarker)) {
+    page = page.replace(propMarker, '                    isInspectionProcess={isInspectionProcess}\n                    isCvkMode={isCvkMode}\n                    setIsCvkMode={setIsCvkMode}\n                    operationType={operationType}');
   }
 }
+
+if (!page.includes('{!isCvkMode && (')) {
+  const start = page.indexOf('                <ProcessQualitySection');
+  if (start >= 0) {
+    const end = page.indexOf('\n                />', start);
+    if (end >= 0) {
+      const qualityBlock = page.slice(start, end + '\n                />'.length);
+      page = page.slice(0, start) + '                {!isCvkMode && (\n' + qualityBlock + '\n                )}' + page.slice(end + '\n                />'.length);
+    }
+  }
+}
+
 fs.writeFileSync(pagePath, page, 'utf8');
-console.log('[KTC] CVK V3: parent-owned state, same-page form, quality hidden immediately.');
+console.log('[KTC] CVK V3 fixed: parent state hides quality immediately on CVK; Cắt/Lồng restore it.');
