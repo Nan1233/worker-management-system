@@ -1,0 +1,33 @@
+/* KTC Manager - compact report detail */
+.report-detail-page{width:100%;max-width:none;min-height:calc(100dvh - 118px);padding:10px 18px 16px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 10px;align-content:start}
+.report-detail-page>*{width:100%;max-width:none;margin:0}
+.report-detail-header{grid-column:1 / -1;min-height:42px;margin:0!important;padding:0 2px 5px;border-bottom:1px solid #e2eaf3;align-items:center}
+.report-detail-header h1{font-size:18px!important;margin:3px 0 3px!important;line-height:1.15}
+.detail-link-button{min-height:20px;font-size:10px}.detail-status{min-height:19px;padding:0 7px;font-size:8px}.detail-edit-button{min-height:32px;padding:0 12px;border-radius:7px;font-size:10px}
+.detail-inline-error,.detail-warning{grid-column:1 / -1;margin:0!important;padding:7px 10px;border-radius:7px;font-size:9px}
+.report-detail-page>section.detail-basic-card:nth-of-type(1){grid-column:1 / -1}
+.report-detail-page>section.detail-basic-card:nth-of-type(1),.report-detail-page>section.detail-basic-card:nth-of-type(2),.report-detail-page>section.detail-basic-card:nth-of-type(3){margin:0!important;padding:9px 10px;border-radius:9px}
+.report-detail-page>section.detail-basic-card:nth-of-type(1) h2,.report-detail-page>section.detail-basic-card:nth-of-type(2) h2,.report-detail-page>section.detail-basic-card:nth-of-type(3) h2{margin:0 0 6px;font-size:11px!important}
+.report-detail-page>section.detail-basic-card:nth-of-type(1) .detail-basic-grid{grid-template-columns:repeat(6,minmax(0,1fr));gap:5px}
+.report-detail-page>section.detail-basic-card:nth-of-type(1) .detail-basic-item{min-height:43px;padding:6px 7px;gap:2px;border-radius:6px}
+.report-detail-page>section.detail-basic-card:nth-of-type(1) .detail-basic-item span,.report-detail-page>section.detail-basic-card:nth-of-type(2) .detail-summary-row span,.report-detail-page>section.detail-basic-card:nth-of-type(3) .detail-summary-row span{font-size:8px}
+.report-detail-page>section.detail-basic-card:nth-of-type(1) .detail-basic-item strong{font-size:10px}
+.report-detail-page>section.detail-basic-card:nth-of-type(2),.report-detail-page>section.detail-basic-card:nth-of-type(3){align-self:start}
+.report-detail-page>section.detail-basic-card:nth-of-type(2) .detail-summary-row{grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}
+.report-detail-page>section.detail-basic-card:nth-of-type(3) .detail-summary-row{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.report-detail-page>section.detail-basic-card:nth-of-type(2) .detail-summary-row>div,.report-detail-page>section.detail-basic-card:nth-of-type(3) .detail-summary-row>div{min-height:47px;padding:6px 7px;gap:2px;border-radius:6px}
+.report-detail-page>section.detail-basic-card:nth-of-type(2) .detail-summary-row strong,.report-detail-page>section.detail-basic-card:nth-of-type(3) .detail-summary-row strong{font-size:11px}
+.report-detail-page>.detail-two-column{grid-column:1 / -1;grid-template-columns:1fr 1fr;gap:8px;margin:0!important}
+.report-detail-page>.detail-two-column .detail-basic-card{margin:0!important;padding:9px 10px;border-radius:9px}
+.report-detail-page>.detail-two-column .detail-basic-card h2{font-size:11px!important}
+.report-detail-page>.detail-two-column .detail-list-heading{min-height:20px}.report-detail-page>.detail-two-column .detail-list-heading>span{font-size:8px;padding:3px 6px}
+.report-detail-page>.detail-two-column .detail-list{margin-top:2px;max-height:92px;overflow:auto}.report-detail-page>.detail-two-column .detail-list-row{padding:5px 0}
+.report-detail-page>.detail-two-column .detail-list-row span{font-size:9px}.report-detail-page>.detail-two-column .detail-list-row strong{font-size:9px}.report-detail-page>.detail-two-column .detail-empty-list{padding:8px;font-size:9px}
+.report-detail-page>.machine-event-panels{grid-column:1 / -1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0!important}.report-detail-page>.machine-event-panels>*{min-width:0}
+.machine-event-card{margin:0!important;padding:9px!important;border-radius:9px!important}.machine-event-card h2,.machine-event-card h3{font-size:11px!important}.machine-event-defects{gap:4px;margin-top:7px}.machine-event-defect-row{grid-template-columns:minmax(100px,1fr) 70px minmax(100px,1fr);gap:5px}.machine-event-actions{gap:5px;margin-top:7px}.machine-event-actions button{min-height:30px;padding:0 9px;font-size:9px}
+.report-detail-page>section.detail-basic-card:has(.detail-timeline),.report-detail-page>section.detail-basic-card:has(.detail-version-layout),.report-detail-page>section.detail-note-card{grid-column:1 / -1;margin:0!important;padding:9px 10px}
+.report-detail-page .detail-timeline-item{padding-bottom:8px}.report-detail-page .detail-timeline-item p{font-size:9px;margin:2px 0}.report-detail-page .detail-timeline-item time{font-size:8px}
+.report-detail-page .detail-version-layout{margin-top:6px;grid-template-columns:220px minmax(0,1fr);gap:8px}.report-detail-page .detail-version-list{max-height:260px}
+.report-detail-page>.detail-sticky-actions{grid-column:1 / -1;position:sticky;bottom:5px;margin:0!important;padding:6px 8px;min-height:42px;border-radius:8px}.report-detail-page>.detail-sticky-actions button{min-height:31px;padding:0 12px;font-size:9px}
+@media(max-width:1280px){.report-detail-page{padding:8px 12px 12px;gap:7px 8px}.report-detail-page>section.detail-basic-card:nth-of-type(1) .detail-basic-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.report-detail-page>section.detail-basic-card:nth-of-type(2) .detail-summary-row{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:900px){.report-detail-page{display:block;padding:10px 12px 24px}.report-detail-page>*{margin:0 0 8px!important}.report-detail-page>section.detail-basic-card:nth-of-type(1) .detail-basic-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.report-detail-page>section.detail-basic-card:nth-of-type(2) .detail-summary-row,.report-detail-page>section.detail-basic-card:nth-of-type(3) .detail-summary-row{grid-template-columns:repeat(2,minmax(0,1fr))}.report-detail-page>.detail-two-column{grid-template-columns:1fr}.report-detail-page>.machine-event-panels{grid-template-columns:1fr}}
