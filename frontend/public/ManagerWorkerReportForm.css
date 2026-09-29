@@ -1,0 +1,315 @@
+/* KTC — manager/lead report detail + edit form
+   Visual-only layout layer. Business logic remains in WorkerReportEditV2. */
+
+/* Prevent the report form from being tucked underneath the app shell/header. */
+.manager-worker-report-form {
+  width: min(100%, 1320px) !important;
+  max-width: 1320px !important;
+  margin: 0 auto !important;
+  padding: 24px 20px 42px !important;
+  box-sizing: border-box !important;
+  min-height: auto !important;
+  height: auto !important;
+  overflow: visible !important;
+  position: relative !important;
+  top: auto !important;
+  transform: none !important;
+  scroll-margin-top: 24px;
+}
+
+/* Some shells use an overflow wrapper; let this page grow naturally. */
+.worker-content:has(.manager-worker-report-form),
+.worker-content:has(.manager-worker-report-form) > *,
+main:has(.manager-worker-report-form) {
+  overflow: visible !important;
+  height: auto !important;
+  min-height: 0 !important;
+}
+
+.manager-worker-report-form .worker-form-container {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  box-sizing: border-box !important;
+}
+
+/* Clean, compact identity/status bar. */
+.manager-worker-report-form .worker-form-container > .worker-form-card[style*="margin-bottom"] {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  min-height: 46px !important;
+  margin: 0 0 12px !important;
+  padding: 10px 14px !important;
+  border: 1px solid #cfe0f3 !important;
+  border-radius: 10px !important;
+  background: #f8fbff !important;
+  color: #31577f !important;
+  box-shadow: none !important;
+}
+
+.manager-worker-report-form .worker-form-container > .worker-form-card[style*="margin-bottom"] strong {
+  color: #123f72 !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+}
+
+.manager-worker-report-form .worker-form-container > .worker-form-card[style*="margin-bottom"] span {
+  margin-left: auto !important;
+  color: #72869d !important;
+  font-size: 11px !important;
+}
+
+/* Error banner. */
+.manager-worker-report-form .worker-form-container > .worker-form-card[style*="#b42318"] {
+  margin: 0 0 12px !important;
+  padding: 10px 14px !important;
+  border: 1px solid #f0b9bd !important;
+  border-radius: 10px !important;
+  background: #fff5f5 !important;
+  box-shadow: none !important;
+}
+
+/* Cards: one consistent visual hierarchy. */
+.manager-worker-report-form .worker-form-card {
+  margin: 0 0 12px !important;
+  padding: 14px !important;
+  border: 1px solid #d8e5f2 !important;
+  border-radius: 12px !important;
+  background: #fff !important;
+  box-shadow: 0 2px 8px rgba(31, 72, 116, .045) !important;
+  box-sizing: border-box !important;
+}
+
+.manager-worker-report-form .worker-card-heading {
+  margin: 0 0 11px !important;
+  padding-bottom: 9px !important;
+  border-bottom: 1px solid #e9eff6 !important;
+}
+
+.manager-worker-report-form .worker-card-title {
+  margin: 0 !important;
+  color: #123f72 !important;
+  font-size: 17px !important;
+  line-height: 1.25 !important;
+  font-weight: 800 !important;
+}
+
+.manager-worker-report-form .worker-card-subtitle {
+  margin: 3px 0 0 !important;
+  color: #7a8da3 !important;
+  font-size: 10px !important;
+}
+
+/* Basic information: balanced 2-column layout instead of stretched rows. */
+.manager-worker-report-form .worker-basic-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 10px 12px !important;
+}
+
+.manager-worker-report-form .worker-field-full {
+  grid-column: 1 / -1 !important;
+}
+
+.manager-worker-report-form .worker-field-label {
+  display: block !important;
+  margin: 0 0 5px !important;
+  color: #60758c !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+}
+
+.manager-worker-report-form .worker-text-input,
+.manager-worker-report-form select,
+.manager-worker-report-form input:not([type="radio"]):not([type="checkbox"]),
+.manager-worker-report-form textarea {
+  min-height: 38px !important;
+  box-sizing: border-box !important;
+  border: 1px solid #cbdbea !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+  color: #173b63 !important;
+  font-size: 12px !important;
+}
+
+.manager-worker-report-form textarea.worker-text-input {
+  min-height: 74px !important;
+  resize: vertical !important;
+}
+
+.manager-worker-report-form .worker-shift-list {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 7px !important;
+}
+
+.manager-worker-report-form .worker-shift-item {
+  min-height: 38px !important;
+  border-radius: 8px !important;
+  font-size: 12px !important;
+}
+
+/* Time section: three clear KPI boxes. */
+.manager-worker-report-form .worker-time-grid {
+  display: grid !important;
+  grid-template-columns: 1.35fr .9fr .9fr !important;
+  gap: 10px !important;
+}
+
+.manager-worker-report-form .worker-time-item {
+  min-width: 0 !important;
+  padding: 10px !important;
+  border: 1px solid #d9e6f2 !important;
+  border-radius: 9px !important;
+  background: #f9fbfd !important;
+  box-sizing: border-box !important;
+}
+
+.manager-worker-report-form .worker-time-item > label {
+  display: block !important;
+  margin-bottom: 6px !important;
+  color: #64788e !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+}
+
+.manager-worker-report-form .worker-time-part {
+  min-width: 0 !important;
+}
+
+.manager-worker-report-form .worker-time-part input,
+.manager-worker-report-form .worker-time-item > input {
+  min-height: 38px !important;
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  text-align: center !important;
+}
+
+/* Defect and deduction rows stay compact and aligned. */
+.manager-worker-report-form .worker-quality-grid,
+.manager-worker-report-form .worker-deduction-list,
+.manager-worker-report-form .worker-time-deduction,
+.manager-worker-report-form .worker-deduction-grid {
+  gap: 8px !important;
+}
+
+.manager-worker-report-form .worker-quality-card,
+.manager-worker-report-form .worker-time-deduction-item,
+.manager-worker-report-form .worker-deduction-item {
+  border-color: #d9e6f2 !important;
+  border-radius: 8px !important;
+}
+
+/* Action area: normal flow, never fixed/absolute, so it cannot cover content. */
+.manager-worker-report-form .worker-action-group {
+  position: static !important;
+  inset: auto !important;
+  width: 100% !important;
+  margin: 4px 0 0 !important;
+  padding: 11px 13px !important;
+  border: 1px solid #cdddec !important;
+  border-radius: 11px !important;
+  background: #fff !important;
+  box-shadow: 0 3px 12px rgba(31, 72, 116, .06) !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  z-index: auto !important;
+}
+
+.manager-worker-report-form .worker-action-copy {
+  min-width: 0 !important;
+}
+
+.manager-worker-report-form .worker-action-copy strong {
+  display: block !important;
+  color: #164777 !important;
+  font-size: 12px !important;
+}
+
+.manager-worker-report-form .worker-action-copy span {
+  display: block !important;
+  margin-top: 2px !important;
+  color: #77899d !important;
+  font-size: 10px !important;
+}
+
+.manager-worker-report-form .worker-action-buttons {
+  display: flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+  flex: 0 0 auto !important;
+}
+
+.manager-worker-report-form .worker-reset-button,
+.manager-worker-report-form .worker-floating-save {
+  min-height: 36px !important;
+  padding: 0 15px !important;
+  border-radius: 8px !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+}
+
+/* Read-only manager detail: preserve the same layout, remove edit affordances. */
+.manager-worker-report-readonly .worker-text-input,
+.manager-worker-report-readonly input,
+.manager-worker-report-readonly select,
+.manager-worker-report-readonly textarea {
+  background: #f8fafc !important;
+  color: #254b70 !important;
+}
+
+@media (max-width: 900px) {
+  .manager-worker-report-form {
+    padding: 16px 12px 30px !important;
+  }
+
+  .manager-worker-report-form .worker-basic-grid,
+  .manager-worker-report-form .worker-time-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .manager-worker-report-form .worker-field-full {
+    grid-column: auto !important;
+  }
+
+  .manager-worker-report-form .worker-action-group {
+    align-items: stretch !important;
+    flex-direction: column !important;
+  }
+
+  .manager-worker-report-form .worker-action-buttons {
+    width: 100% !important;
+  }
+
+  .manager-worker-report-form .worker-action-buttons button {
+    flex: 1 1 0 !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .manager-worker-report-form .worker-form-card {
+    padding: 11px !important;
+    border-radius: 10px !important;
+  }
+
+  .manager-worker-report-form .worker-shift-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .manager-worker-report-form .worker-form-container > .worker-form-card[style*="margin-bottom"] {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+    gap: 3px !important;
+  }
+
+  .manager-worker-report-form .worker-form-container > .worker-form-card[style*="margin-bottom"] span {
+    margin-left: 0 !important;
+  }
+}
