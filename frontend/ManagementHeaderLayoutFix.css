@@ -1,7 +1,8 @@
-/* KTC management desktop header: utility information is a taller top row; navigation sits directly below. */
+/* KTC manager desktop: top utility row + full-width navigation row. */
 @media (min-width: 801px) {
   .management-layout { min-height: 100dvh !important; }
 
+  /* Top information row. */
   .management-header {
     position: fixed !important;
     top: 0 !important; left: 0 !important; right: 0 !important;
@@ -9,76 +10,153 @@
     height: 82px !important; min-height: 82px !important;
     box-sizing: border-box !important;
     padding: 0 24px !important;
-    display: flex !important; align-items: center !important; justify-content: flex-end !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
     background: #fff !important;
     border-bottom: 1px solid #dce8f5 !important;
     box-shadow: 0 2px 8px rgba(36,86,137,.05) !important;
-    backdrop-filter: none !important;
     z-index: 1000 !important;
     pointer-events: none !important;
   }
   .management-header-actions {
     margin-left: auto !important;
-    display: flex !important; align-items: center !important; justify-content: flex-end !important;
-    gap: 10px !important; pointer-events: auto !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 12px !important;
+    pointer-events: auto !important;
   }
   .management-date { height: 48px !important; }
   .management-notification { width: 48px !important; height: 48px !important; }
   .management-user { height: 58px !important; }
   .management-user-avatar { width: 48px !important; height: 48px !important; flex-basis: 48px !important; }
 
-  /* Navigation is now BELOW the information row and intentionally shorter. */
+  /* Logo is visually moved into the top information row. */
+  .management-brand {
+    position: fixed !important;
+    top: 12px !important;
+    left: 20px !important;
+    z-index: 1100 !important;
+    width: 138px !important;
+    min-width: 0 !important;
+    height: 58px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    background: transparent !important;
+    pointer-events: none !important;
+  }
+  .management-brand-logo {
+    width: 120px !important;
+    max-width: 120px !important;
+    max-height: 48px !important;
+    object-fit: contain !important;
+  }
+
+  /* Navigation is directly underneath the top information row. */
   .management-sidebar {
     position: fixed !important;
-    top: 82px !important; left: 0 !important; right: 0 !important; bottom: auto !important;
+    top: 82px !important; left: 0 !important; right: 0 !important;
+    bottom: auto !important;
     width: 100vw !important;
-    height: 58px !important; min-height: 58px !important;
+    height: 64px !important; min-height: 64px !important;
     box-sizing: border-box !important;
-    display: flex !important; flex-direction: row !important; align-items: center !important;
-    padding: 2px 18px !important; margin: 0 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    padding: 4px 18px !important;
+    margin: 0 !important;
     background: #fff !important;
-    border: 0 !important; border-bottom: 1px solid #dce8f5 !important;
+    border: 0 !important;
+    border-bottom: 1px solid #dce8f5 !important;
     box-shadow: 0 2px 10px rgba(36,86,137,.06) !important;
-    z-index: 990 !important; overflow: hidden !important;
+    z-index: 990 !important;
+    overflow: hidden !important;
   }
-  .management-brand {
-    width: 145px !important; min-width: 145px !important; height: 54px !important;
-    padding: 2px 7px !important; display: flex !important; align-items: center !important;
-  }
-  .management-brand-logo { width: 125px !important; max-width: 125px !important; max-height: 46px !important; }
+
+  /* Brand is fixed above, so menu gets the entire navigation width. */
   .management-menu {
-    display: flex !important; align-items: center !important; justify-content: flex-start !important;
-    gap: 4px !important; flex: 1 1 auto !important; min-width: 0 !important;
-    width: auto !important; height: 56px !important; margin: 0 !important; padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 6px !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    height: 56px !important;
+    margin: 0 !important;
+    padding: 0 !important;
     overflow: hidden !important;
   }
   .management-menu button {
-    width: auto !important; min-width: max-content !important;
-    height: 44px !important; min-height: 44px !important;
-    flex: 0 1 auto !important; padding: 0 9px !important; gap: 6px !important;
-    border-radius: 10px !important; text-align: center !important;
-    font-size: 12px !important; font-weight: 650 !important; white-space: nowrap !important;
+    width: auto !important;
+    min-width: max-content !important;
+    height: 50px !important;
+    min-height: 50px !important;
+    flex: 0 1 auto !important;
+    padding: 0 13px !important;
+    gap: 7px !important;
+    border-radius: 11px !important;
+    text-align: center !important;
+    font-size: 13px !important;
+    font-weight: 650 !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
   }
-  .management-menu button svg { width: 19px !important; height: 19px !important; flex: 0 0 19px !important; }
+  .management-menu button svg {
+    width: 20px !important;
+    height: 20px !important;
+    flex: 0 0 20px !important;
+  }
   .management-menu .management-logout { margin-left: auto !important; }
   .management-sidebar-footer { display: none !important; }
 
   /* Content starts below both fixed rows. */
-  .management-main { margin-left: 0 !important; padding-top: 140px !important; min-height: 100dvh !important; }
+  .management-main {
+    margin-left: 0 !important;
+    padding-top: 146px !important;
+    min-height: 100dvh !important;
+  }
   .management-content { padding: 18px 24px 26px !important; }
 }
 
+/* Medium desktop/tablet: keep the same two-row structure but compact it slightly. */
 @media (min-width: 801px) and (max-width: 1250px) {
-  .management-header { height: 78px !important; min-height: 78px !important; padding-inline: 10px !important; }
+  .management-header {
+    height: 76px !important;
+    min-height: 76px !important;
+    padding-inline: 10px !important;
+  }
   .management-date { height: 42px !important; }
   .management-notification { width: 42px !important; height: 42px !important; }
   .management-user { height: 50px !important; }
   .management-user-avatar { width: 40px !important; height: 40px !important; flex-basis: 40px !important; }
-  .management-sidebar { top: 78px !important; height: 58px !important; min-height: 58px !important; padding-inline: 10px !important; }
-  .management-brand { width: 112px !important; min-width: 112px !important; }
+
+  .management-brand {
+    top: 9px !important;
+    left: 12px !important;
+    width: 112px !important;
+    height: 58px !important;
+  }
   .management-brand-logo { width: 100px !important; max-width: 100px !important; }
-  .management-menu { gap: 2px !important; }
-  .management-menu button { padding-inline: 5px !important; gap: 4px !important; font-size: 10px !important; }
-  .management-menu button svg { width: 17px !important; height: 17px !important; flex-basis: 17px !important; }
-  .management-main { padding-top: 136px !important; }
+
+  .management-sidebar {
+    top: 76px !important;
+    height: 62px !important;
+    min-height: 62px !important;
+    padding-inline: 8px !important;
+  }
+  .management-menu { gap: 3px !important; height: 54px !important; }
+  .management-menu button {
+    height: 48px !important;
+    min-height: 48px !important;
+    padding-inline: 8px !important;
+    gap: 5px !important;
+    font-size: 11px !important;
+  }
+  .management-menu button svg { width: 18px !important; height: 18px !important; flex-basis: 18px !important; }
+  .management-main { padding-top: 138px !important; }
 }
