@@ -1,6 +1,13 @@
 /* KTC — manager/lead report detail + edit form
    Visual-only layout layer. Business logic remains in WorkerReportEditV2. */
 
+/* The shared worker header uses top:58px. Manager desktop header is taller;
+   keep the sticky report context below it so the top row is never clipped. */
+.manager-worker-report-form .worker-sticky-context {
+  top: 70px !important;
+  z-index: 35 !important;
+}
+
 /* Prevent the report form from being tucked underneath the app shell/header. */
 .manager-worker-report-form {
   width: min(100%, 1320px) !important;
@@ -14,11 +21,13 @@
   position: relative !important;
   top: auto !important;
   transform: none !important;
-  scroll-margin-top: 24px;
+  scroll-margin-top: 76px;
 }
 
 /* Some shells use an overflow wrapper; let this page grow naturally. */
+.management-content:has(.manager-worker-report-form),
 .worker-content:has(.manager-worker-report-form),
+.management-content:has(.manager-worker-report-form) > *,
 .worker-content:has(.manager-worker-report-form) > *,
 main:has(.manager-worker-report-form) {
   overflow: visible !important;
@@ -268,6 +277,10 @@ main:has(.manager-worker-report-form) {
 @media (max-width: 900px) {
   .manager-worker-report-form {
     padding: 16px 12px 30px !important;
+  }
+
+  .manager-worker-report-form .worker-sticky-context {
+    top: 58px !important;
   }
 
   .manager-worker-report-form .worker-basic-grid,
