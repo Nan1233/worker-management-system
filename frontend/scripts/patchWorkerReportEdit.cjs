@@ -60,6 +60,15 @@ if (!source.includes("PROCESS_ID_BY_CODE") && source.includes(oldProcessId)) {
   changed = true;
 }
 
+// Manager/Lead/Admin should return to their own report route after saving.
+const oldManagerNavigate = `navigate(source === "pending" ? \`/manager/report/\${report.id}?source=pending\` : \`/manager/report/\${report.id}?source=approved\`, { replace: true });`;
+const newManagerNavigate = `const roleBasePath = storedRole === "lead" ? "/lead" : storedRole === "admin" ? "/admin" : "/manager";
+        navigate(source === "pending" ? \`\${roleBasePath}/report/\${report.id}?source=pending\` : \`\${roleBasePath}/report/\${report.id}?source=approved\`, { replace: true });`;
+if (!source.includes("const roleBasePath") && source.includes(oldManagerNavigate)) {
+  source = source.replace(oldManagerNavigate, newManagerNavigate);
+  changed = true;
+}
+
 const marker = `  const updateForm = (key: string, value: string) =>`;
 const standardResolver = `  const resolveEditLineStandards = async () => {
     const workDate = s(form.workDate).slice(0, 10);
