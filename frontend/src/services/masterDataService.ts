@@ -151,10 +151,34 @@ const toLocalResolvedStandard = (row: ProductStandardOption, processId: number, 
     };
 };
 
+const NO_STANDARD_LONG_WORK_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
+
 export const resolveProductStandard = async (processId: number, machineCode: string, productCode: string, workDate?: string): Promise<ResolvedProductStandard> => {
     const normalizedMachine = String(machineCode || "").trim();
     const normalizedProduct = String(productCode || "").trim();
     if (!normalizedProduct) throw new Error("Thiếu mã sản phẩm để tra định mức");
+
+    // GC / Lồng tay special jobs are intentionally stored with standard_output=0.
+    // They do not use historical standards and must never call the standard-history
+    // resolver. The form currently requires a positive value for legacy validation,
+    // so expose a UI-only positive placeholder; processReportSubmission converts
+    // these exact codes back to standard_output=0 in the persisted payload.
+    if (Number(processId) === 1 && NO_STANDARD_LONG_WORK_CODES.has(normalizedProduct.toUpperCase())) {
+        return {
+            product_standard_id: 0,
+            process_id: Number(processId),
+            product_code: normalizedProduct,
+            alias_code: normalizedProduct,
+            machine_id: null,
+            machine_code: normalizedMachine,
+            standard_time_seconds: null,
+            machine_standard_output: null,
+            default_standard_output: 0,
+            resolved_output_per_hour: 1,
+            standard_source: "DEFAULT",
+            exclude_kqd_from_tt: 1,
+        };
+    }
 
     const rows = await getCachedProcessProductRows(processId);
     const automaticAlias = await getAutomaticAliasProduct(processId, normalizedMachine, normalizedProduct, rows);
