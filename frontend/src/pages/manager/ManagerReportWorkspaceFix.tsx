@@ -35,8 +35,6 @@ function kpi(report: any) {
   const productivity = n(report?.nang_suat_percent) || (target > 0 ? actual / target * 100 : 0);
   const achieved = actual > 0 ? ok / actual * 100 : 0;
   const pp = n(report?.pp_percent) || (actual > 0 ? ng / actual * 100 : 0);
-  // Pending reports store an immutable training snapshot at creation time.
-  // Never derive %HV from OK/NG/output and never fall back to a live worker value.
   const hv = report?.training_percent_snapshot ?? report?.training_percent ?? report?.hv_percent ?? report?.learning_percent ?? report?.hoc_viec_percent ?? 0;
   const ngTypes = Math.max(n(report?.ng_defect_type_count), n(report?.worker_ng_type_count), n(report?.machine_ng_type_count));
   return { ok, ng, actual, productivity, achieved, pp, hv, ngTypes };
@@ -208,5 +206,60 @@ export function ManagerReportsWorkspaceFix() {
 }
 
 export function ManagerApprovedReportsWorkspaceFix() {
+  const navigate = useNavigate();
+  useEffect(() => installApprovedNavigationFix(navigate), [navigate]);
   return <ApprovedReportsDesktopActions />;
+}
+
+function installApprovedNavigationFix(navigate: (to: string) => void) {
+  let disposed = false;
+  let timer: number | undefined;
+  let busy = false;
+  const dateFromText = (v: string) => {
+    const m = v.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    return m ? `${m[3]}-${m[2]}-${m[1]}` : "";
+  };
+  const readPage = () => Number(document.querySelector<HTMLButtonElement>(".pending-pagination button.active")?.textContent || 1) || 1;
+  const handle = async (event: MouseEvent) => {
+    if (disposed || busy || window.location.pathname !== "/manager/approved") return;
+    const target = event.target as Element | null;
+    if (!target || target.closest("input,select,textarea,button,a")) return;
+    const row = target.closest<HTMLTableRowElement>(".pending-reference-table tbody tr");
+    if (!row) return;
+    const cells = Array.from(row.cells);
+    const dateCell = cells.find(cell => /\d{2}\/\d{2}\/\d{4}/.test(cell.textContent || ""));
+    const date = dateFromText(dateCell?.textContent || "");
+    if (!date) return;
+    const page = readPage();
+    const rows = Array.from(row.parentElement?.querySelectorAll<HTMLTableRowElement>("tr") || []);
+    const index = rows.indexOf(row);
+    if (index < 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    busy = true;
+    try {
+      const inputs = Array.from(document.querySelectorAll<HTMLInputElement>(".pending-filter-card input"));
+      const selects = Array.from(document.querySelectorAll<HTMLSelectElement>(".pending-filter-card select"));
+      const selectedDate = inputs.find(x => x.type === "date")?.value || date;
+      const search = inputs.find(x => x.type !== "date")?.value?.trim() || "";
+      const processName = selects.find(x => x.previousElementSibling?.textContent?.trim() === "Công đoạn")?.value || selects[1]?.value || "";
+      const shift = selects.find(x => x.previousElementSibling?.textContent?.trim() === "Ca làm việc")?.value || selects[0]?.value || "";
+      const active = document.querySelector<HTMLButtonElement>(".pending-quick-filters button.active")?.textContent?.trim() || "Hôm nay";
+      const type = active === "Tuần này" ? "week" : active === "Tháng này" ? "month" : active === "Năm này" ? "year" : "day";
+      const range = rangeFor(selectedDate, type);
+      const result = await getApprovedReports({ dateFrom: range.dateFrom, dateTo: range.dateTo, processName: processName || undefined, shift: shift || undefined, search: search || undefined, page, pageSize: 8 });
+      const item = result.data?.[index];
+      if (!item?.id) return;
+      navigate(`/manager/report/${Number(item.id)}`);
+    } finally {
+      busy = false;
+    }
+  };
+  document.addEventListener("click", handle, true);
+  const observer = new MutationObserver(() => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => {}, 40);
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+  return () => { disposed = true; observer.disconnect(); document.removeEventListener("click", handle, true); window.clearTimeout(timer); };
 }
