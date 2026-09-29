@@ -36,12 +36,12 @@ const newMode = '{isCutLongProcess && <div className="worker-mode-panel worker-f
 if (basic.includes(oldMode)) basic = basic.replace(oldMode, newMode);
 
 const oldProduct = '{!usesMultiMachineLines && !usesSingleMachine && <div className="worker-selection-card worker-field-full"><div className="worker-selection-heading"><div><strong>Mã sản phẩm</strong><span className="worker-required">*</span><small>Danh sách theo đúng công đoạn đang nhập</small></div><span className="worker-selection-count">{productAutocompleteOptions.length} mã</span></div><AutocompleteInput id="productName" label="Mã sản phẩm" value={form.productName} options={productAutocompleteOptions} placeholder={loadingMasterData ? "Đang tải danh mục sản phẩm…" : "Nhập hoặc chọn mã sản phẩm"} required disabled={loadingMasterData} emptyMessage="Danh mục sản phẩm đang trống. Hệ thống sẽ tự tải lại dữ liệu danh mục." onChange={setProduct} onSelect={(option) => setProduct(option.value)} /></div>}';
-const newProduct = '{isCvkMode ? <div className="worker-selection-card worker-field-full"><div className="worker-selection-heading"><div><strong>Công việc</strong><span className="worker-required">*</span><small>Danh sách công việc không có định mức</small></div><span className="worker-selection-count">{CVK_WORK_TYPES.length} công việc</span></div><AutocompleteInput id="cvkWorkType" label="Công việc" value={String(form.workType || "").toUpperCase() === "CVK" ? "" : String(form.workType || "")} options={CVK_WORK_TYPES.map((value) => ({ value, label: value }))} placeholder="Nhập hoặc chọn công việc" required disabled={loadingMasterData} emptyMessage="Chưa có danh sách công việc" onChange={(value) => setForm((prev) => ({ ...prev, workType: value, productName: "", standardOutput: "0", actualOutput: "0", ttOk: "0", ttNg: "0" }))} onSelect={(option) => setForm((prev) => ({ ...prev, workType: option.value, productName: "", standardOutput: "0", actualOutput: "0", ttOk: "0", ttNg: "0" }))} /></div> : !usesMultiMachineLines && !usesSingleMachine && <div className="worker-selection-card worker-field-full"><div className="worker-selection-heading"><div><strong>Mã sản phẩm</strong><span className="worker-required">*</span><small>Danh sách theo đúng công đoạn đang nhập</small></div><span className="worker-selection-count">{productAutocompleteOptions.length} mã</span></div><AutocompleteInput id="productName" label="Mã sản phẩm" value={form.productName} options={productAutocompleteOptions} placeholder={loadingMasterData ? "Đang tải danh mục sản phẩm…" : "Nhập hoặc chọn mã sản phẩm"} required disabled={loadingMasterData} emptyMessage="Danh mục sản phẩm đang trống. Hệ thống sẽ tự tải lại dữ liệu danh mục." onChange={setProduct} onSelect={(option) => setProduct(option.value)} /></div>}';
+const newProduct = '{isCvkMode ? <div className="worker-cvk-entry worker-field-full"><div className="worker-selection-card"><div className="worker-selection-heading"><div><strong>Công việc</strong><span className="worker-required">*</span><small>Danh sách công việc không có định mức</small></div><span className="worker-selection-count">{CVK_WORK_TYPES.length} công việc</span></div><AutocompleteInput id="cvkWorkType" label="Công việc" value={String(form.workType || "").toUpperCase() === "CVK" ? "" : String(form.workType || "")} options={CVK_WORK_TYPES.map((value) => ({ value, label: value }))} placeholder="Nhập hoặc chọn công việc" required disabled={loadingMasterData} emptyMessage="Chưa có danh sách công việc" onChange={(value) => setForm((prev) => ({ ...prev, workType: value, productName: "", standardOutput: "0", actualOutput: "0", ttOk: "0", ttNg: "0" }))} onSelect={(option) => setForm((prev) => ({ ...prev, workType: option.value, productName: "", standardOutput: "0", actualOutput: "0", ttOk: "0", ttNg: "0" }))} /></div><div className="worker-cvk-note"><label className="worker-field-label" htmlFor="cvkNote">Ghi chú</label><textarea id="cvkNote" name="note" rows={3} value={form.note || ""} onChange={onFormChange} placeholder="Nhập ghi chú cho công việc CVK (nếu có)" /></div></div> : !usesMultiMachineLines && !usesSingleMachine && <div className="worker-selection-card worker-field-full"><div className="worker-selection-heading"><div><strong>Mã sản phẩm</strong><span className="worker-required">*</span><small>Danh sách theo đúng công đoạn đang nhập</small></div><span className="worker-selection-count">{productAutocompleteOptions.length} mã</span></div><AutocompleteInput id="productName" label="Mã sản phẩm" value={form.productName} options={productAutocompleteOptions} placeholder={loadingMasterData ? "Đang tải danh mục sản phẩm…" : "Nhập hoặc chọn mã sản phẩm"} required disabled={loadingMasterData} emptyMessage="Danh mục sản phẩm đang trống. Hệ thống sẽ tự tải lại dữ liệu danh mục." onChange={setProduct} onSelect={(option) => setProduct(option.value)} /></div>}';
 if (basic.includes(oldProduct)) basic = basic.replace(oldProduct, newProduct);
 
 if (!basic.includes('cvk-worker-inline-style')) {
   const marker = '    return <section className="worker-form-card worker-form-card-basic">';
-  const style = '    const cvkWorkerInlineStyle = <style className="cvk-worker-inline-style">{`.worker-operation-type-row{grid-template-columns:repeat(3,minmax(0,1fr))}.worker-operation-type-row button{width:100%;min-width:0}`}</style>;\n';
+  const style = '    const cvkWorkerInlineStyle = <style className="cvk-worker-inline-style">{`.worker-operation-type-row{grid-template-columns:repeat(3,minmax(0,1fr))}.worker-operation-type-row button{width:100%;min-width:0}.worker-cvk-entry{display:grid;gap:12px}.worker-cvk-note textarea{width:100%;min-height:84px;resize:vertical;box-sizing:border-box;border:1px solid #c9dbf2;border-radius:10px;padding:10px 12px;font:inherit;color:inherit;background:#fff;outline:none}.worker-cvk-note textarea:focus{border-color:#4f94e8;box-shadow:0 0 0 2px rgba(79,148,232,.12)}`}</style>;\n';
   basic = basic.replace(marker, style + marker + '\n        {cvkWorkerInlineStyle}');
 }
 fs.writeFileSync(basicPath, basic, 'utf8');
@@ -51,16 +51,12 @@ let page = fs.readFileSync(pagePath, 'utf8');
 
 if (!page.includes('const [isCvkMode, setIsCvkMode] = useState(false);')) {
   const stateMarker = '    const [operationType, setOperationType] = useState<OperationType>("CUT");';
-  if (page.includes(stateMarker)) {
-    page = page.replace(stateMarker, stateMarker + '\n    const [isCvkMode, setIsCvkMode] = useState(false);');
-  }
+  if (page.includes(stateMarker)) page = page.replace(stateMarker, stateMarker + '\n    const [isCvkMode, setIsCvkMode] = useState(false);');
 }
 
 if (!page.includes('isCvkMode={isCvkMode}')) {
   const propMarker = '                    isInspectionProcess={isInspectionProcess}\n                    operationType={operationType}';
-  if (page.includes(propMarker)) {
-    page = page.replace(propMarker, '                    isInspectionProcess={isInspectionProcess}\n                    isCvkMode={isCvkMode}\n                    setIsCvkMode={setIsCvkMode}\n                    operationType={operationType}');
-  }
+  if (page.includes(propMarker)) page = page.replace(propMarker, '                    isInspectionProcess={isInspectionProcess}\n                    isCvkMode={isCvkMode}\n                    setIsCvkMode={setIsCvkMode}\n                    operationType={operationType}');
 }
 
 if (!page.includes('{!isCvkMode && (')) {
@@ -75,4 +71,4 @@ if (!page.includes('{!isCvkMode && (')) {
 }
 
 fs.writeFileSync(pagePath, page, 'utf8');
-console.log('[KTC] CVK V3 fixed: clicking CVK immediately hides quality; selecting Cắt/Lồng restores it.');
+console.log('[KTC] CVK V3: immediate quality hide + CVK note field.');
