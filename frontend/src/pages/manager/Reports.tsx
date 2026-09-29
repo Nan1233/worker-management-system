@@ -17,7 +17,6 @@ const dateText = (v: unknown) => {
     const [y, m, d] = s.split("-");
     return y && m && d ? `${d}/${m}/${y}` : s || "—";
 };
-
 const dateValue = (v: Date) =>
     `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, "0")}-${String(v.getDate()).padStart(2, "0")}`;
 
@@ -80,6 +79,8 @@ export default function Reports() {
     const [reports, setReports] = useState<ProductionReport[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [page, setPage] = useState(1);
+    const [pages, setPages] = useState(1);
     const [total, setTotal] = useState(0);
 
     const load = useCallback(async () => {
@@ -93,21 +94,24 @@ export default function Reports() {
                 search: search.trim() || undefined,
                 processName: process || undefined,
                 shift: shift || undefined,
-                page: 1,
-                pageSize: 50,
+                page,
+                pageSize: 8,
             });
             setReports(result.data || []);
-            setTotal(result.pagination?.total || (result.data || []).length);
+            setTotal(result.pagination?.total || 0);
+            setPages(Math.max(1, result.pagination?.total_pages || 1));
         } catch (err: any) {
             setReports([]);
             setTotal(0);
+            setPages(1);
             setError(err?.response?.data?.message || "Không thể tải báo cáo chờ duyệt.");
         } finally {
             setLoading(false);
         }
-    }, [date, range, search, process, shift]);
+    }, [date, range, search, process, shift, page]);
 
     useEffect(() => { void load(); }, [load]);
+    useEffect(() => { setPage(1); }, [date, range, search, process, shift]);
     useEffect(() => { setRange(null); }, [date]);
 
     const processes = useMemo(
@@ -129,10 +133,11 @@ export default function Reports() {
         <main className="manager-page" style={{ padding: 18 }}>
             <div className="pending-reference-page" style={{ maxWidth: 1400, margin: "0 auto" }}>
                 <div className="pending-page-title">
-                    <h1>Báo cáo chờ duyệt</h1>
+                    <h1 style={{ margin: 0, color: "#12385f", fontSize: 26, fontWeight: 800 }}>Báo cáo chờ duyệt</h1>
+                    <div style={{ marginTop: 5, color: "#6f89a8", fontSize: 13 }}>Xem các báo cáo sản xuất đang chờ duyệt.</div>
                 </div>
 
-                <div className="pending-filter-card">
+                <div className="pending-filter-card" style={{ display: "grid", gap: 10, alignItems: "end", padding: 14, border: "1px solid #dbe6f2", borderRadius: 12, background: "#fff", boxShadow: "0 4px 14px rgba(35,76,125,.045)" }}>
                     <label className="pending-search">
                         <span>Tìm kiếm</span>
                         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Tìm kiếm mã báo cáo, công nhân..." />
@@ -141,22 +146,6 @@ export default function Reports() {
                     <label>
                         <span>Ngày báo cáo</span>
                         <input type="date" value={date} onChange={e => { setDate(e.target.value); setRange(null); }} />
-                    </label>
-
-                    <label>
-                        <span>Công đoạn</span>
-                        <select value={process} onChange={e => setProcess(e.target.value)}>
-                            <option value="">Tất cả</option>
-                            {processes.map(p => <option key={p} value={p}>{p}</option>)}
-                        </select>
-                    </label>
-
-                    <label>
-                        <span>Ca làm việc</span>
-                        <select value={shift} onChange={e => setShift(e.target.value)}>
-                            <option value="">Tất cả</option>
-                            {shifts.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
                     </label>
 
                     <div className="pending-quick-filters">
@@ -173,20 +162,37 @@ export default function Reports() {
                             );
                         })}
                     </div>
+
+                    <label>
+                        <span>Công đoạn</span>
+                        <select value={process} onChange={e => setProcess(e.target.value)}>
+                            <option value="">Tất cả</option>
+                            {processes.map(p => <option key={p} value={p}>{p}</option>)}
+                        </select>
+                    </label>
+
+                    <label>
+                        <span>Ca làm việc</span>
+                        <select value={shift} onChange={e => setShift(e.target.value)}>
+                            <option value="">Tất cả</option>
+                            {shifts.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                    </label>
                 </div>
 
-                <section className="pending-workspace list-only">
-                    <div className="pending-list-card">
+                <div className="pending-workspace list-only" style={{ marginTop: 12 }}>
+                    <section className="pending-list-card">
                         <div className="pending-list-tabs">
                             <button type="button" className="pending-list-tab active">
                                 Danh sách chờ duyệt <span className="tab-badge" style={{ background: "#fff0d8", color: "#a56a00" }}>{total}</span>
                             </button>
                         </div>
 
-                        <div className="pending-table-wrap">
-                            <table className="pending-reference-table">
+                        <div className="pending-table-wrap" style={{ overflowX: "auto" }}>
+                            <table className="pending-reference-table" style={{ width: "100%", borderCollapse: "collapse" }}>
                                 <thead>
                                     <tr>
+                                        <th className="management-checkbox-column">Xem</th>
                                         <th>Mã báo cáo</th>
                                         <th>Công nhân</th>
                                         <th>Công đoạn</th>
@@ -204,16 +210,24 @@ export default function Reports() {
                                 </thead>
                                 <tbody>
                                     {loading ? (
-                                        <tr><td colSpan={13} className="management-empty">Đang tải báo cáo...</td></tr>
+                                        <tr><td colSpan={14} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Đang tải báo cáo...</td></tr>
                                     ) : error ? (
-                                        <tr><td colSpan={13} className="management-empty" style={{ color: "#c24141" }}>{error}</td></tr>
+                                        <tr><td colSpan={14} className="management-error" style={{ padding: 48, textAlign: "center", color: "#c24141" }}>{error}</td></tr>
                                     ) : reports.length === 0 ? (
-                                        <tr><td colSpan={13} className="management-empty">Không có báo cáo chờ duyệt.</td></tr>
+                                        <tr><td colSpan={14} className="management-empty" style={{ padding: 48, textAlign: "center" }}>Không có báo cáo chờ duyệt.</td></tr>
                                     ) : reports.map((r, i) => {
                                         const x = kpi(r);
                                         const code = `PR${String(r.work_date || "REPORT").slice(0, 10).replace(/-/g, "")}-${r.worker_code || String(r.id || i + 1).padStart(4, "0")}`;
                                         return (
-                                            <tr key={r.id ?? i} onClick={() => navigate(`/manager/report/${r.id}?source=pending`)}>
+                                            <tr key={r.id ?? i} onClick={() => navigate(`/manager/report/${r.id}?source=pending`)} style={{ cursor: "pointer" }}>
+                                                <td style={{ textAlign: "center" }}>
+                                                    <button
+                                                        type="button"
+                                                        className="pending-detail-edit"
+                                                        aria-label={`Xem báo cáo ${r.id}`}
+                                                        onClick={e => { e.stopPropagation(); navigate(`/manager/report/${r.id}?source=pending`); }}
+                                                    >⌕</button>
+                                                </td>
                                                 <td style={{ color: "#1769d2", fontWeight: 500 }}>{code}</td>
                                                 <td>{text(r.full_name || r.worker_name)} <span style={{ color: "#7185a4" }}>({text(r.worker_code)})</span></td>
                                                 <td>{text(r.process_name || r.process_code)}</td>
@@ -226,7 +240,7 @@ export default function Reports() {
                                                 <td style={metricStyle("productivity", x.nangSuat, x.ngTypeCount)}>{pct(x.nangSuat)}</td>
                                                 <td>{pct(x.dat)}</td>
                                                 <td style={metricStyle("pp", x.pp, x.ngTypeCount)}>{pct(x.pp)}{x.pp === 0 || x.ngTypeCount === 1 ? " ⚠" : ""}</td>
-                                                <td><span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 20, padding: "0 7px", borderRadius: 999, background: "#fff0d8", color: "#a56a00", fontSize: 10, fontWeight: 500 }}>Chờ duyệt</span></td>
+                                                <td><span className="pending-detail-status" style={{ background: "#fff0d8", color: "#a56a00" }}>Chờ duyệt</span></td>
                                             </tr>
                                         );
                                     })}
@@ -234,11 +248,15 @@ export default function Reports() {
                             </table>
                         </div>
 
-                        <div className="pending-table-footer">
-                            <span>Hiển thị {reports.length ? 1 : 0} đến {reports.length} của {total} báo cáo</span>
+                        <div className="pending-table-footer" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, fontSize: 13 }}>
+                            <span>Trang {page}/{pages} · {total} báo cáo</span>
+                            <div style={{ display: "flex", gap: 6 }}>
+                                <button type="button" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>Trước</button>
+                                <button type="button" disabled={page >= pages} onClick={() => setPage(p => Math.min(pages, p + 1))}>Sau</button>
+                            </div>
                         </div>
-                    </div>
-                </section>
+                    </section>
+                </div>
             </div>
         </main>
     );
