@@ -28,6 +28,27 @@ const LEGACY_DEFECT_BINDINGS: Array<[keyof FormState, string, string]> = [
   ["ppcm", "PPCM", "PPCM"], ["loiCaoSu", "LCS", "Lỗi cao su"], ["ngKichThuoc", "KT_LON", "KT kích thước"], ["catLem", "CAT_LEM", "Cắt lẹm"],
 ];
 
+const normalizeCode = (value: unknown) => String(value ?? "").trim().toUpperCase().replace(/\s+/g, "");
+const GC_AUTOMATIC_MACHINES = new Set(["C5", "C6", "C7", "C11", "5", "6", "7", "11"]);
+
+/**
+ * GC máy tự động: hậu tố AUTO thuộc về MÃ SẢN PHẨM, không thuộc MÃ MÁY.
+ * Ví dụ: máy C5 + SP C2556 => C2556-AUTO, machine_no vẫn là C5.
+ */
+const resolveSubmittedProductCode = (
+  alias: string,
+  machineCode: string,
+  operationType: OperationType,
+  products: ProductStandardOption[],
+): string => {
+  const resolved = String(getFullProductCode(alias, products) || alias || "").trim();
+  if (operationType !== "CUT" || !GC_AUTOMATIC_MACHINES.has(normalizeCode(machineCode))) return resolved;
+  if (!resolved) return resolved;
+  const normalized = normalizeCode(resolved);
+  if (normalized.endsWith("-AUTO")) return resolved;
+  return `${resolved}-AUTO`;
+};
+
 export function buildProductionReportPayload(args: {
   clientRequestId: string|null; processId: number; form: FormState; extraData: Record<string,string>; operationType: OperationType;
   isCutLongProcess: boolean; usesAnyMachine: boolean; usesMultiMachineLines: boolean; usesSingleMachine: boolean;
@@ -76,7 +97,7 @@ export function buildProductionReportPayload(args: {
       const option = args.activeNgOptions.find(o => String(o.key) === key || String(o.code || o.defect_code || "").trim().toUpperCase() === key.trim().toUpperCase() || String(o.id || o.defect_type_id || "") === key);
       return defectForOption(option, num(l.defects[key]));
     }).filter(x=>x.quantity>0);
-    const fullProductCode = getFullProductCode(l.productCode, args.productOptions);
+    const fullProductCode = resolveSubmittedProductCode(l.productCode, l.machineCode, args.operationType, args.productOptions);
     return {
       machine_code:l.machineCode.trim(), product_code:fullProductCode,
       machine_time_hours:num(l.hours)+num(l.minutes)/60, adjustment_minutes:num(l.adjustmentMinutes), adjustment_count:num(l.adjustmentCount),
@@ -98,7 +119,7 @@ export function buildProductionReportPayload(args: {
     })) : defects.map((item) => ({
       defect_type_id:item.defect_type_id, defect_code:item.defect_code, defect_name:item.defect_name, quantity:item.quantity
     }));
-    const fullProductCode = getFullProductCode(args.form.productName, args.productOptions);
+    const fullProductCode = resolveSubmittedProductCode(args.form.productName, args.form.machineNo, args.operationType, args.productOptions);
     lines.splice(0, lines.length, {
       machine_code:args.form.machineNo.trim(), product_code:fullProductCode, machine_time_hours:parseHours(args.form.actualTime), adjustment_minutes:0,
       adjustment_count:num(args.form.adjustmentCount), ok_quantity:num(args.form.ttOk), ng_quantity:num(args.form.ttNg),
@@ -118,7 +139,7 @@ export function buildProductionReportPayload(args: {
   return {
     process_id:args.processId, work_date:args.form.workDate, shift:args.form.shift,
     machine_no:useMachineLinesPayload?lines.map(l=>l.machine_code).join(", "):args.form.machineNo,
-    product_name:useMachineLinesPayload?[...new Set(args.machineLines.map(l=>l.productCode).filter(Boolean))].join(", "):args.form.productName,
+    product_name:useMachineLinesPayload?[...new Set(lines.map(l=>l.product_code).filter(Boolean))].join(", "):resolveSubmittedProductCode(args.form.productName, args.form.machineNo, args.operationType, args.productOptions),
     operation_type:args.operationType, operation_mode:useMachineLinesPayload?"MACHINE":(args.usesAnyMachine&&!args.isCutLongProcess?"MACHINE":"MANUAL"),
     total_time:totalTime, actual_time:actualTime, deduction_time:deductionTime,
     standard_output:noStandardLongWork ? 0 : (useMachineLinesPayload?lines.reduce((sum,l)=>sum+num(l.standard_output),0):resolvePositiveStandardOutput(args.form.productName,args.form.standardOutput)),
