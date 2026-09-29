@@ -31,10 +31,6 @@ const LEGACY_DEFECT_BINDINGS: Array<[keyof FormState, string, string]> = [
 const normalizeCode = (value: unknown) => String(value ?? "").trim().toUpperCase().replace(/\s+/g, "");
 const GC_AUTOMATIC_MACHINES = new Set(["C5", "C6", "C7", "C11", "5", "6", "7", "11"]);
 
-/**
- * GC máy tự động: hậu tố AUTO thuộc về MÃ SẢN PHẨM, không thuộc MÃ MÁY.
- * Ví dụ: máy C5 + SP C2556 => C2556-AUTO, machine_no vẫn là C5.
- */
 const resolveSubmittedProductCode = (
   alias: string,
   machineCode: string,
@@ -135,16 +131,19 @@ export function buildProductionReportPayload(args: {
   const normalizedMachine = String(args.form.machineNo || lines[0]?.machine_code || "").trim().toUpperCase();
   const automaticCutMachines = new Set<string>(["C5", "C6", "C7", "C11"]);
   const executionMethod = args.operationType === "CUT" ? (automaticCutMachines.has(normalizedMachine) ? "AUTO" : "NON_AUTO") : ((args.form.executionMethod === "MANUAL" || args.form.executionMethod === "MACHINE") ? args.form.executionMethod : (args.usesAnyMachine ? "MACHINE" : "MANUAL"));
+  const cvkWorkType = String(args.form.workType || args.extraData?.work_type || "").trim();
+  const isCvk = Number(args.processId) === 60006 || String(args.extraData?.process_code || "").trim().toUpperCase() === "CVK";
 
   return {
     process_id:args.processId, work_date:args.form.workDate, shift:args.form.shift,
     machine_no:useMachineLinesPayload?lines.map(l=>l.machine_code).join(", "):args.form.machineNo,
     product_name:useMachineLinesPayload?[...new Set(lines.map(l=>l.product_code).filter(Boolean))].join(", "):resolveSubmittedProductCode(args.form.productName, args.form.machineNo, args.operationType, args.productOptions),
+    work_type:isCvk ? cvkWorkType : undefined,
     operation_type:args.operationType, operation_mode:useMachineLinesPayload?"MACHINE":(args.usesAnyMachine&&!args.isCutLongProcess?"MACHINE":"MANUAL"),
     total_time:totalTime, actual_time:actualTime, deduction_time:deductionTime,
     standard_output:noStandardLongWork ? 0 : (useMachineLinesPayload?lines.reduce((sum,l)=>sum+num(l.standard_output),0):resolvePositiveStandardOutput(args.form.productName,args.form.standardOutput)),
     actual_output:actualOutput, tt_ok:noStandardLongWork ? 0 : num(args.form.ttOk), tt_ng:noStandardLongWork ? 0 : num(args.form.ttNg),
     kqd_dap_lai:num(args.form.kqdDapLai), kqd_tuot:num(args.form.kqdTuot), vo_do_long:num(args.form.voDoLong), xuoc_do_long:num(args.form.xuocDoLong), cong_gay:num(args.form.congGay), xoay:num(args.form.xoay), khong_dut:num(args.form.khongDut), bavia_hut:num(args.form.baviaHut), ppcm:num(args.form.ppcm), loi_cao_su:num(args.form.loiCaoSu), ng_kich_thuoc:num(args.form.ngKichThuoc), cat_lem:num(args.form.catLem),
-    note:args.form.note||"", extra_data:{...args.extraData, adjustment_count:num(args.form.adjustmentCount), execution_method:executionMethod}, defects:noStandardLongWork ? [] : defects, deductions, machine_lines:useMachineLinesPayload?lines:[], client_request_id:args.clientRequestId||undefined, exclude_kqd_from_tt:args.excludeKqdFromTt?1:0
+    note:args.form.note||"", extra_data:{...args.extraData, ...(isCvk && cvkWorkType ? { work_type: cvkWorkType } : {}), adjustment_count:num(args.form.adjustmentCount), execution_method:executionMethod}, defects:noStandardLongWork ? [] : defects, deductions, machine_lines:useMachineLinesPayload?lines:[], client_request_id:args.clientRequestId||undefined, exclude_kqd_from_tt:args.excludeKqdFromTt?1:0
   } as ProductionReport;
 }
