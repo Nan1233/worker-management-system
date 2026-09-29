@@ -94,44 +94,17 @@ function installReportWorkspaceFix(navigate: (to: string) => void) {
           border-bottom: 1px solid #dce8f5 !important;
           box-shadow: 0 3px 12px rgba(24,58,106,.05) !important;
         }
-        body.ktc-report-workspace-fix .management-brand {
-          width: 120px !important;
-          flex: 0 0 120px !important;
-          height: 48px !important;
-          padding: 2px 4px !important;
-        }
+        body.ktc-report-workspace-fix .management-brand { width: 120px !important; flex: 0 0 120px !important; height: 48px !important; padding: 2px 4px !important; }
         body.ktc-report-workspace-fix .management-brand-logo { width: 112px !important; max-height: 42px !important; }
-        body.ktc-report-workspace-fix .management-menu {
-          display: flex !important;
-          flex: 1 1 auto !important;
-          min-width: 0 !important;
-          margin-top: 0 !important;
-          overflow-x: auto !important;
-          overflow-y: hidden !important;
-          gap: 4px !important;
-          padding: 0 !important;
-        }
-        body.ktc-report-workspace-fix .management-menu button {
-          width: auto !important;
-          min-width: max-content !important;
-          min-height: 42px !important;
-          height: 42px !important;
-          padding: 0 13px !important;
-          gap: 7px !important;
-          white-space: nowrap !important;
-        }
+        body.ktc-report-workspace-fix .management-menu { display: flex !important; flex: 1 1 auto !important; min-width: 0 !important; margin-top: 0 !important; overflow-x: auto !important; overflow-y: hidden !important; gap: 4px !important; padding: 0 !important; }
+        body.ktc-report-workspace-fix .management-menu button { width: auto !important; min-width: max-content !important; min-height: 42px !important; height: 42px !important; padding: 0 13px !important; gap: 7px !important; white-space: nowrap !important; }
         body.ktc-report-workspace-fix .management-sidebar-footer { display: none !important; }
         body.ktc-report-workspace-fix .management-main { margin-left: 0 !important; }
-        /* Remove the extra vertical spacer that pushed report content too far down. */
         body.ktc-report-workspace-fix .management-content { padding-top: 24px !important; }
         body.ktc-report-workspace-fix .pending-reference-page { max-width: none !important; margin-top: 0 !important; }
         body.ktc-report-workspace-fix .pending-reference-table { min-width: 1450px !important; }
         body.ktc-report-workspace-fix .pending-list-card .pending-reference-table th,
-        body.ktc-report-workspace-fix .pending-list-card .pending-reference-table td {
-          height: 42px !important;
-          padding: 0 9px !important;
-          font-size: 11px !important;
-        }
+        body.ktc-report-workspace-fix .pending-list-card .pending-reference-table td { height: 42px !important; padding: 0 9px !important; font-size: 11px !important; }
         body.ktc-report-workspace-fix .pending-full-metric { text-align: center !important; font-weight: 600 !important; }
         body.ktc-report-workspace-fix .pending-full-hv { color: #315a91 !important; }
         body.ktc-report-workspace-fix .pending-full-productivity { background: #ffd6e7 !important; color: #9b123f !important; border: 1px solid #ff9fbe !important; }
@@ -170,9 +143,7 @@ function installReportWorkspaceFix(navigate: (to: string) => void) {
     if (!isPending() && !isApproved()) return;
     const table = document.querySelector<HTMLTableElement>(".pending-reference-table");
     if (!table) return;
-
-    const rows = Array.from(table.querySelectorAll<HTMLTableRowElement>("tbody tr"))
-      .filter(row => !row.querySelector(".management-empty,.management-error"));
+    const rows = Array.from(table.querySelectorAll<HTMLTableRowElement>("tbody tr")).filter(row => !row.querySelector(".management-empty,.management-error"));
     if (!rows.length) return;
 
     const q = readFilters();
@@ -190,6 +161,11 @@ function installReportWorkspaceFix(navigate: (to: string) => void) {
       }
     }
 
+    rows.forEach((row, index) => {
+      const report = cache[index];
+      if (report?.id) row.dataset.reportId = String(report.id);
+    });
+
     if (!isPending()) return;
 
     const header = table.tHead?.rows[0];
@@ -202,14 +178,13 @@ function installReportWorkspaceFix(navigate: (to: string) => void) {
         if (index >= 6 && index <= 11) th.className = "pending-full-metric";
         header.appendChild(th);
       });
-      if (checkboxCell) header.insertBefore(checkboxCell, header.firstChild);
       header.dataset.fullPending = "1";
+      void checkboxCell;
     }
 
     rows.forEach((row, index) => {
       const report = cache[index];
       if (!report || row.dataset.fullPending === "1") return;
-
       const firstCell = row.cells[0];
       const checkbox = firstCell?.querySelector("input[type='checkbox']");
       while (row.cells.length > 1) row.deleteCell(1);
@@ -220,7 +195,6 @@ function installReportWorkspaceFix(navigate: (to: string) => void) {
         row.appendChild(td);
         return td;
       };
-
       const x = metrics(report);
       const code = `PR${String(report.work_date || "REPORT").slice(0, 10).replace(/-/g, "")}-${report.worker_code || String(report.id || index + 1).padStart(4, "0")}`;
       addCell(code);
@@ -241,17 +215,14 @@ function installReportWorkspaceFix(navigate: (to: string) => void) {
       if (x.pp === null) ppCell.classList.add("pending-full-na");
       else if (x.pp === 0) ppCell.classList.add("pending-full-pp");
       addCell("Chờ duyệt");
-
       if (checkbox && firstCell) firstCell.replaceChildren(checkbox);
       row.dataset.fullPending = "1";
     });
   };
 
   const openDetail = (row: HTMLTableRowElement) => {
-    const rows = Array.from(row.parentElement?.querySelectorAll<HTMLTableRowElement>("tr") || [])
-      .filter(x => !x.querySelector(".management-empty,.management-error"));
-    const index = rows.indexOf(row);
-    const item = cache[index];
+    const id = Number(row.dataset.reportId || 0);
+    const item = id ? cache.find(report => Number(report.id) === id) : null;
     if (!item?.id) return;
     const source = isApproved() ? "approved" : "pending";
     const date = String(item.work_date || "").slice(0, 10);
