@@ -76,21 +76,31 @@
     overflow: hidden !important;
   }
 
+  /* ONLY move the logo into the same TOP row as date/notification/account. */
   .management-layout .management-brand {
-    flex: 0 0 132px !important;
+    position: fixed !important;
+    top: 8px !important;
+    left: 20px !important;
+    z-index: 1101 !important;
+    flex: 0 0 auto !important;
     width: 132px !important;
     min-width: 132px !important;
-    height: 54px !important;
+    height: 60px !important;
     margin: 0 !important;
-    padding: 2px 6px !important;
+    padding: 0 !important;
     display: flex !important;
     align-items: center !important;
+    justify-content: flex-start !important;
+    border: 0 !important;
+    background: transparent !important;
+    pointer-events: none !important;
   }
 
   .management-layout .management-brand-logo {
     width: 116px !important;
     max-width: 116px !important;
     max-height: 42px !important;
+    object-fit: contain !important;
   }
 
   .management-layout .management-menu {
@@ -126,7 +136,7 @@
     font-weight: 600 !important;
   }
 
-  .management-layout .management-menu button svg {
+  .management.layout .management-menu button svg {
     width: 18px !important;
     height: 18px !important;
     flex: 0 0 18px !important;
@@ -163,10 +173,17 @@
     padding-inline: 8px !important;
   }
 
+  /* Keep only the logo position changed; logo stays in the TOP information row. */
   .management-layout .management-brand {
-    flex-basis: 105px !important;
+    position: fixed !important;
+    top: 8px !important;
+    left: 12px !important;
+    z-index: 1101 !important;
+    flex-basis: auto !important;
     width: 105px !important;
     min-width: 105px !important;
+    height: 60px !important;
+    padding: 0 !important;
   }
 
   .management-layout .management-brand-logo {
