@@ -6,7 +6,7 @@ import { getToday } from "./managerReportDateLogic";
 
 const n = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
 const f = (value: unknown) => n(value).toLocaleString("vi-VN", { maximumFractionDigits: 2 });
-const dateText = (value: unknown) => { const s = String(value || "").slice(0, 10); const [y, m, d] = s.split("-"); return y && m && d ? `${d}/${m}/${y}` : s || "—`; };
+const dateText = (value: unknown) => { const s = String(value || "").slice(0, 10); const [y, m, d] = s.split("-"); return y && m && d ? `${d}/${m}/${y}` : s || "—"; };
 
 const metrics = (report: ProductionReport) => {
     const ok = n(report.tt_ok);
