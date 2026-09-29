@@ -34,33 +34,24 @@ const rangeFor = (value: string, type: "day" | "week" | "month" | "year") => {
   return { dateFrom: dateValue(start), dateTo: dateValue(end) };
 };
 
-const NON_STANDARD = /\b(?:XUATNHAP|KTCD|TAIPP)\b/i;
-
+/* Keep pending KPI mapping identical to ApprovedReports.tsx. */
 function metrics(report: any) {
   const ok = n(report?.tt_ok);
   const ng = n(report?.tt_ng);
   const actual = n(report?.actual_output) || ok + ng;
   const standard = n(report?.standard_output) || n(report?.target_output);
   const actualTime = n(report?.actual_time);
-  const standardTarget = standard > 0 && actualTime > 0 ? standard * actualTime : 0;
-  const noStandard = NON_STANDARD.test(`${report?.product_name || ""} ${report?.process_name || ""}`) || standard <= 0;
-
-  // % HV is immutable report history data. Never derive it from output/quality.
-  const snapshot = Number(report?.training_percent_snapshot);
-  const hv = Number.isFinite(snapshot) ? snapshot : null;
-
-  if (noStandard) {
-    return { hv, ok: null, ng: null, productivity: null, achieved: null, pp: null };
-  }
-
-  return {
-    hv,
-    ok,
-    ng,
-    productivity: standardTarget > 0 ? (actual / standardTarget) * 100 : null,
-    achieved: actual > 0 ? (ok / actual) * 100 : null,
-    pp: actual > 0 ? (ng / actual) * 100 : null,
-  };
+  const ttDinhMuc = n(report?.tt_dinh_muc) || (standard > 0 && actualTime > 0 ? standard * actualTime : 0);
+  const nangSuat = n(report?.nang_suat_percent) || (ttDinhMuc > 0 ? actual / ttDinhMuc * 100 : 0);
+  const dat = actual > 0 ? ok / actual * 100 : 0;
+  const pp = n(report?.pp_percent) || (actual > 0 ? ng / actual * 100 : 0);
+  const hv = report?.training_percent ?? report?.hv_percent ?? report?.learning_percent ?? report?.hoc_viec_percent ?? 0;
+  const ngTypeCount = Math.max(
+    n(report?.ng_defect_type_count),
+    n(report?.worker_ng_type_count),
+    n(report?.machine_ng_type_count),
+  );
+  return { ok, ng, actual, ttDinhMuc, nangSuat, dat, pp, hv, ngTypeCount };
 }
 
 const makeDetailKey = (report: any) => [
@@ -107,9 +98,10 @@ function installReportWorkspaceFix(navigate: (to: string) => void) {
         body.ktc-report-workspace-fix .pending-list-card .pending-reference-table td { height: 42px !important; padding: 0 9px !important; font-size: 11px !important; }
         body.ktc-report-workspace-fix .pending-full-metric { text-align: center !important; font-weight: 600 !important; }
         body.ktc-report-workspace-fix .pending-full-hv { color: #315a91 !important; }
-        body.ktc-report-workspace-fix .pending-full-productivity { background: #ffd6e7 !important; color: #9b123f !important; border: 1px solid #ff9fbe !important; }
-        body.ktc-report-workspace-fix .pending-full-pp { background: #fff0b8 !important; color: #795600 !important; border: 1px solid #e3ad20 !important; }
+        body.ktc-report-workspace-fix .pending-full-productivity { background: #ffd6e7 !important; color: #9b123f !important; border: 1px solid #ff9fbe !important; font-weight: 800 !important; }
+        body.ktc-report-workspace-fix .pending-full-pp { background: #fff0b8 !important; color: #795600 !important; border: 1px solid #e3ad20 !important; font-weight: 800 !important; }
         body.ktc-report-workspace-fix .pending-full-na { color: #8a9ab0 !important; background: #f8fafc !important; }
+        body.ktc-report-workspace-fix .pending-view-button { border: 0 !important; background: transparent !important; color: #0d5fc4 !important; cursor: pointer !important; font-size: 15px !important; }
       }
     `;
     document.head.appendChild(style);
@@ -139,85 +131,20 @@ function installReportWorkspaceFix(navigate: (to: string) => void) {
     return { date, search, processName, shift, ...r, page, pageSize: 8 };
   };
 
-  const sync = async () => {
-    if (!isPending() && !isApproved()) return;
-    const table = document.querySelector<HTMLTableElement>(".pending-reference-table");
-    if (!table) return;
-    const rows = Array.from(table.querySelectorAll<HTMLTableRowElement>("tbody tr")).filter(row => !row.querySelector(".management-empty,.management-error"));
-    if (!rows.length) return;
-
+  const loadCache = async () => {
     const q = readFilters();
     const signature = JSON.stringify({ route: isPending() ? "pending" : "approved", ...q });
-    if (signature !== lastSignature || Date.now() - cachedAt > 1200) {
-      try {
-        const result = isPending()
-          ? await getPendingReports({ dateFrom: q.dateFrom, dateTo: q.dateTo, processName: q.processName || undefined, shift: q.shift || undefined, search: q.search || undefined, page: q.page, pageSize: q.pageSize })
-          : await getApprovedReports({ dateFrom: q.dateFrom, dateTo: q.dateTo, processName: q.processName || undefined, shift: q.shift || undefined, search: q.search || undefined, page: q.page, pageSize: q.pageSize });
-        cache = result.data || [];
-        lastSignature = signature;
-        cachedAt = Date.now();
-      } catch {
-        return;
-      }
+    if (signature === lastSignature && Date.now() - cachedAt <= 1200) return;
+    try {
+      const result = isPending()
+        ? await getPendingReports({ dateFrom: q.dateFrom, dateTo: q.dateTo, processName: q.processName || undefined, shift: q.shift || undefined, search: q.search || undefined, page: q.page, pageSize: q.pageSize })
+        : await getApprovedReports({ dateFrom: q.dateFrom, dateTo: q.dateTo, processName: q.processName || undefined, shift: q.shift || undefined, search: q.search || undefined, page: q.page, pageSize: q.pageSize });
+      cache = result.data || [];
+      lastSignature = signature;
+      cachedAt = Date.now();
+    } catch {
+      return;
     }
-
-    rows.forEach((row, index) => {
-      const report = cache[index];
-      if (report?.id) row.dataset.reportId = String(report.id);
-    });
-
-    if (!isPending()) return;
-
-    const header = table.tHead?.rows[0];
-    if (header && header.dataset.fullPending !== "1") {
-      const checkboxCell = header.cells[0];
-      while (header.cells.length > 1) header.deleteCell(1);
-      ["Mã báo cáo", "Công nhân", "Công đoạn", "Ca", "Ngày báo cáo", "Thời gian", "% HV", "TT OK", "NG", "% năng suất", "% đạt", "% PP", "Trạng thái"].forEach((label, index) => {
-        const th = document.createElement("th");
-        th.textContent = label;
-        if (index >= 6 && index <= 11) th.className = "pending-full-metric";
-        header.appendChild(th);
-      });
-      header.dataset.fullPending = "1";
-      void checkboxCell;
-    }
-
-    rows.forEach((row, index) => {
-      const report = cache[index];
-      if (!report || row.dataset.fullPending === "1") return;
-      const firstCell = row.cells[0];
-      const checkbox = firstCell?.querySelector("input[type='checkbox']");
-      while (row.cells.length > 1) row.deleteCell(1);
-      const addCell = (value: string, className = "") => {
-        const td = document.createElement("td");
-        td.textContent = value;
-        if (className) td.className = className;
-        row.appendChild(td);
-        return td;
-      };
-      const x = metrics(report);
-      const code = `PR${String(report.work_date || "REPORT").slice(0, 10).replace(/-/g, "")}-${report.worker_code || String(report.id || index + 1).padStart(4, "0")}`;
-      addCell(code);
-      addCell(`${String(report.full_name || report.worker_name || "—")} (${String(report.worker_code || "—")})`);
-      addCell(String(report.process_name || report.process_code || "—"));
-      addCell(String(report.shift || "—"));
-      addCell(dateText(report.work_date));
-      addCell(`${f(report.actual_time || report.total_time)} giờ`);
-      addCell(x.hv === null ? "—" : pct(x.hv), "pending-full-metric pending-full-hv");
-      addCell(x.ok === null ? "—" : f(x.ok), "pending-full-metric");
-      addCell(x.ng === null ? "—" : f(x.ng), "pending-full-metric");
-      const prodCell = addCell(x.productivity === null ? "—" : pct(x.productivity), "pending-full-metric");
-      if (x.productivity === null) prodCell.classList.add("pending-full-na");
-      else if (x.productivity <= 75 || x.productivity > 100) prodCell.classList.add("pending-full-productivity");
-      const achievedCell = addCell(x.achieved === null ? "—" : pct(x.achieved), "pending-full-metric");
-      if (x.achieved === null) achievedCell.classList.add("pending-full-na");
-      const ppCell = addCell(x.pp === null ? "—" : pct(x.pp), "pending-full-metric");
-      if (x.pp === null) ppCell.classList.add("pending-full-na");
-      else if (x.pp === 0) ppCell.classList.add("pending-full-pp");
-      addCell("Chờ duyệt");
-      if (checkbox && firstCell) firstCell.replaceChildren(checkbox);
-      row.dataset.fullPending = "1";
-    });
   };
 
   const openDetail = (row: HTMLTableRowElement) => {
@@ -230,10 +157,79 @@ function installReportWorkspaceFix(navigate: (to: string) => void) {
     navigate(`/manager/report/review?source=${source}&date=${date}&key=${key}&id=${Number(item.id)}`);
   };
 
+  const renderPendingLikeApproved = async () => {
+    if (!isPending()) return;
+    const table = document.querySelector<HTMLTableElement>(".pending-reference-table");
+    if (!table) return;
+    const rows = Array.from(table.querySelectorAll<HTMLTableRowElement>("tbody tr")).filter(row => !row.querySelector(".management-empty,.management-error"));
+    if (!rows.length) return;
+
+    await loadCache();
+    rows.forEach((row, index) => {
+      const report = cache[index];
+      if (report?.id) row.dataset.reportId = String(report.id);
+    });
+
+    const header = table.tHead?.rows[0];
+    if (header && header.dataset.fullPending !== "2") {
+      /* Keep the first cell for bulk-select, then make every report column identical to ApprovedReports. */
+      while (header.cells.length > 1) header.deleteCell(1);
+      ["Mã báo cáo", "Công nhân", "Công đoạn", "Ca", "Ngày báo cáo", "Thời gian", "% HV", "TT OK", "NG", "% năng suất", "% đạt", "% PP", "Trạng thái"].forEach((label, index) => {
+        const th = document.createElement("th");
+        th.textContent = label;
+        if (index >= 6 && index <= 12) th.className = "pending-full-metric";
+        header.appendChild(th);
+      });
+      header.dataset.fullPending = "2";
+    }
+
+    rows.forEach((row, index) => {
+      const report = cache[index];
+      if (!report || row.dataset.fullPending === "2") return;
+      const firstCell = row.cells[0];
+      const checkbox = firstCell?.querySelector("input[type='checkbox']");
+      while (row.cells.length > 1) row.deleteCell(1);
+
+      const addCell = (value: string, className = "") => {
+        const td = document.createElement("td");
+        td.textContent = value;
+        if (className) td.className = className;
+        row.appendChild(td);
+        return td;
+      };
+
+      const x = metrics(report);
+      const code = `PR${String(report.work_date || "REPORT").slice(0, 10).replace(/-/g, "")}-${report.worker_code || String(report.id || index + 1).padStart(4, "0")}`;
+      addCell(code);
+      addCell(`${String(report.full_name || report.worker_name || "—")} (${String(report.worker_code || "—")})`);
+      addCell(String(report.process_name || report.process_code || "—"));
+      addCell(String(report.shift || "—"));
+      addCell(dateText(report.work_date));
+      addCell(`${f(report.actual_time || report.total_time)} giờ`);
+      addCell(pct(x.hv), "pending-full-metric pending-full-hv");
+      addCell(f(x.ok), "pending-full-metric");
+      addCell(f(x.ng), "pending-full-metric");
+
+      const productivity = addCell(pct(x.nangSuat), "pending-full-metric");
+      if (x.nangSuat <= 75 || x.nangSuat > 100) productivity.classList.add("pending-full-productivity");
+
+      addCell(pct(x.dat), "pending-full-metric");
+
+      const pp = addCell(`${pct(x.pp)}${x.pp === 0 || x.ngTypeCount === 1 ? " ⚠" : ""}`, "pending-full-metric");
+      if (x.pp === 0 || x.ngTypeCount === 1) pp.classList.add("pending-full-pp");
+
+      addCell("Chờ duyệt");
+      if (checkbox && firstCell) firstCell.replaceChildren(checkbox);
+
+      row.dataset.fullPending = "2";
+    });
+  };
+
   const schedule = () => {
     window.clearTimeout(timer);
-    timer = window.setTimeout(() => void sync(), 60);
+    timer = window.setTimeout(() => void renderPendingLikeApproved(), 80);
   };
+
   const observer = new MutationObserver(schedule);
   observer.observe(document.body, { childList: true, subtree: true });
   schedule();
