@@ -13,7 +13,8 @@ let config = fs.readFileSync(configPath, 'utf8');
 let quality = fs.readFileSync(qualityPath, 'utf8');
 let submission = fs.readFileSync(submissionPath, 'utf8');
 
-// CVK is an inline UI mode. Never navigate to a separate route.
+// CVK is an inline UI mode. Keep the existing Cắt/Lồng page and reuse the
+// Lồng/Tay form; do not navigate to a separate CVK route.
 page = page.replace(/\n\s*const location = useLocation\(\);[\s\S]*?const activeCvkMode = cvkModeLocal \|\| cvkMode;\n?/m, '\n');
 page = page.replace(/\n\s*const cvkMode = new URLSearchParams\(location\.search\)\.get\("cvk"\) === "1";\n?/g, '\n');
 page = page.replace(/\n\s*const \[cvkModeLocal, setCvkModeLocal\] = useState\([^;]+;\n?/g, '\n');
@@ -22,34 +23,40 @@ page = page.replace(/\buseLocation,\n/g, '');
 page = page.replace(/\bsetCvkModeLocal\(true\)/g, 'setOperationType("LONG")');
 page = page.replace(/\bisCvkMode=\{activeCvkMode\}/g, 'isCvkMode={false}');
 page = page.replace(/\bisCvkMode=\{cvkMode\}/g, 'isCvkMode={false}');
-if (!page.includes('isCvkMode={false}')) {
-  page = page.replace(/(<ProcessBasicInfoSection[\s\S]*?operationType=\{operationType\})/, '$1\n                    isCvkMode={false}');
+
+// Keep product filtering on LONG while CVK is selected.
+page = page.replace(
+  /operationType === "CVK" \? "LONG" : operationType,\s*/g,
+  'operationType === "CVK" ? "LONG" : operationType,\n'
+);
+
+// IMPORTANT: make validation depend on the actual selected CVK work type.
+// Do not rely on a fragile exact source-string replacement: earlier patches
+// can have already changed whitespace/formatting in ProcessPage.tsx.
+const cvkValidationGuard = 'const cvkWorkType = String(form.workType || "").trim().toUpperCase();\n        const isCvkEntry = ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType);';
+if (!page.includes('const isCvkEntry = ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType);')) {
+  page = page.replace(/(const validateForm = \(\): string \| null => \{)/, `$1\n        ${cvkValidationGuard}`);
 }
-
-// Keep domain product filtering on LONG while CVK is active.
-page = page.replace(
-  '            operationType === "CVK" ? "LONG" : operationType,',
-  '            operationType: operationType === "CVK" ? "LONG" : operationType,'
+page = page.replace(/if \(!usesMultiMachineLines\) \{\s*if \(!form\.productName\.trim\(\)\) \{\s*return "Vui lòng chọn sản phẩm";\s*\}/m,
+  'if (!isCvkEntry && !usesMultiMachineLines) {\n            if (!form.productName.trim()) {\n                return "Vui lòng chọn sản phẩm";\n            }'
+);
+page = page.replace(/if \(!usesMultiMachineLines\) \{\s*if \(Number\(form\.standardOutput \|\| 0\) <= 0\) \{\s*return "Định mức phải lớn hơn 0";\s*\}/m,
+  'if (!isCvkEntry && !usesMultiMachineLines) {\n            if (Number(form.standardOutput || 0) <= 0) {\n                return "Định mức phải lớn hơn 0";\n            }'
 );
 
-// CVK uses a work type instead of a product. Do not run product-required
-// validation for XUATNHAP / KTCD / TAIPP (including the CVK sentinel state).
-page = page.replace(
-  '        if (!usesMultiMachineLines) {\n            if (!form.productName.trim()) {\n                return "Vui lòng chọn sản phẩm";\n            }',
-  '        if (!["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(String(form.workType || "").trim().toUpperCase()) && !usesMultiMachineLines) {\n            if (!form.productName.trim()) {\n                return "Vui lòng chọn sản phẩm";\n            }'
-);
-page = page.replace(
-  'if (!usesMultiMachineLines) { if (!form.productName.trim()) { return "Vui lòng chọn sản phẩm"; }',
-  'if (!["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(String(form.workType || "").trim().toUpperCase()) && !usesMultiMachineLines) { if (!form.productName.trim()) { return "Vui lòng chọn sản phẩm"; }'
-);
-
-// BasicInfo has an independent CVK UI flag. Underlying operation remains LONG,
-// so the existing Lồng/Tay form is reused exactly.
+// BasicInfo: CVK is an inline third operation button. Underlying operation
+// remains LONG so the existing Lồng/Tay form is reused exactly.
 if (!basic.includes('const [cvkMode, setCvkMode] = useState(false);')) {
-  basic = basic.replace('const [cutExecutionMode, setCutExecutionMode] = useState<CutExecutionMode>("AUTO");', 'const [cutExecutionMode, setCutExecutionMode] = useState<CutExecutionMode>("AUTO");\n    const [cvkMode, setCvkMode] = useState(false);');
+  basic = basic.replace(
+    'const [cutExecutionMode, setCutExecutionMode] = useState<CutExecutionMode>("AUTO");',
+    'const [cutExecutionMode, setCutExecutionMode] = useState<CutExecutionMode>("AUTO");\n    const [cvkMode, setCvkMode] = useState(false);'
+  );
 }
-if (!basic.includes('isCvkMode: boolean;')) {
-  basic = basic.replace('isCutLongProcess: boolean; isInspectionProcess: boolean;', 'isCutLongProcess: boolean; isInspectionProcess: boolean; isCvkMode?: boolean;');
+if (!basic.includes('isCvkMode?: boolean;')) {
+  basic = basic.replace(
+    'isCutLongProcess: boolean; isInspectionProcess: boolean;',
+    'isCutLongProcess: boolean; isInspectionProcess: boolean; isCvkMode?: boolean;'
+  );
 }
 
 const oldHandler = 'const handleOperationTypeChange = (nextType: OperationType) => { setOperationType(nextType); if (nextType === "CUT") { setOperationMode("MACHINE"); setCutExecutionMode("AUTO"); setLongExecutionMode("MACHINE"); return; } setOperationMode("MANUAL"); setCutExecutionMode("AUTO"); setLongExecutionMode("MANUAL"); };';
@@ -66,21 +73,20 @@ if (basic.includes(oldProduct)) basic = basic.replace(oldProduct, newProduct);
 
 basic = basic.replace('{usesMultiMachineLines ? <div className="worker-machine-workspace', '{!cvkMode && usesMultiMachineLines ? <div className="worker-machine-workspace');
 
-// Hide quality as soon as CVK is selected. The sentinel is replaced by the
-// actual CVK work type as soon as XUATNHAP/KTCD/TAIPP is chosen.
-quality = quality.replace('new Set(["XUATNHAP", "KTCD", "TAIPP"])', 'new Set(["CVK", "XUATNHAP", "KTCD", "TAIPP"])');
+// Hide quality immediately for CVK sentinel and for selected CVK work types.
+quality = quality.replace(/new Set\(\["XUATNHAP", "KTCD", "TAIPP"\]\)/g, 'new Set(["CVK", "XUATNHAP", "KTCD", "TAIPP"])');
 
-// CVK is represented by the real DB process id 30002. The screen remains
-// inside Cắt/Lồng, but the submitted report is stored under processes.CVK.
+// Use the real DB process id for CVK. The old 60006 value is accepted only
+// for backwards compatibility with historical data.
 submission = submission.replace(
-  'const isCvk = Number(args.processId) === 60006 || String(args.extraData?.process_code || "").trim().toUpperCase() === "CVK";',
-  'const isCvk = Number(args.processId) === 60006 || String(args.extraData?.process_code || "").trim().toUpperCase() === "CVK" || ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType.toUpperCase());\n  const effectiveProcessId = isCvk ? 30002 : args.processId;'
+  /const isCvk = [^;]+;/,
+  'const isCvk = Number(args.processId) === 30002 || Number(args.processId) === 60006 || String(args.extraData?.process_code || args.extraData?.processCode || "").trim().toUpperCase() === "CVK" || ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType.toUpperCase());\n  const effectiveProcessId = isCvk ? 30002 : args.processId;'
 );
-submission = submission.replace('    process_id:args.processId, work_date:', '    process_id:effectiveProcessId, work_date:');
+submission = submission.replace(/process_id:\s*args\.processId/g, 'process_id: effectiveProcessId');
 
 fs.writeFileSync(configPath, config);
 fs.writeFileSync(pagePath, page);
 fs.writeFileSync(basicPath, basic);
 fs.writeFileSync(qualityPath, quality);
 fs.writeFileSync(submissionPath, submission);
-console.log('[KTC] CVK inline mode: skips product validation, stores CVK under process_id 30002, and preserves Cắt/Lồng.');
+console.log('[KTC] CVK fixed: validation skips product/standard, CVK uses process_id 30002, inline Lồng/Tay form preserved.');
