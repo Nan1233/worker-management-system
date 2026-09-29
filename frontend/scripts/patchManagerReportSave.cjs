@@ -32,3 +32,15 @@ if (!processConfigSource.includes("export const KQD_CODES")) {
 } else {
   console.log("[KTC] processPageConfig: KQD_CODES export already present.");
 }
+
+// Load the manager/lead report detail + edit visual layer before Vite builds.
+const indexFile = path.resolve(__dirname, "../index.html");
+let indexSource = fs.readFileSync(indexFile, "utf8");
+const managerFormCss = '<link rel="stylesheet" href="/ManagerWorkerReportForm.css" />';
+if (!indexSource.includes("ManagerWorkerReportForm.css")) {
+  indexSource = indexSource.replace('</head>', `    ${managerFormCss}\n  </head>`);
+  fs.writeFileSync(indexFile, indexSource, "utf8");
+  console.log("[KTC] Manager report form stylesheet linked.");
+} else {
+  console.log("[KTC] Manager report form stylesheet already linked.");
+}
