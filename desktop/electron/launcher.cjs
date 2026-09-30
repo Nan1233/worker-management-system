@@ -4,7 +4,8 @@ const fsp = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
 
-const DEFAULT_EXPORT_ROOT = path.join(os.homedir(), 'Documents', 'KTC', 'Bao cao san xuat');
+const DEFAULT_EXPORT_ROOT = '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\Linh tinh';
+const LEGACY_LOCAL_EXPORT_ROOT = path.join(os.homedir(), 'Documents', 'KTC', 'Bao cao san xuat');
 const CONFIG_FILE = path.join(app.getPath('userData'), 'excel-export-config.json');
 const DESKTOP_ICON = path.join(__dirname, '..', 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
 
@@ -18,16 +19,15 @@ app.on('browser-window-created', (_event, window) => {
   } catch (_) {}
 });
 
-// Test desktop uses the Cloudflare TEST backend and TEST frontend.
-// The frontend is intentionally loaded from the deployed web app so FE changes
-// do not require rebuilding or reinstalling the desktop application.
+// Test desktop always renders the deployed TEST FE and uses the TEST BE.
+// The desktop package does not contain a frontend build anymore.
 const TEST_FRONTEND_URL = 'https://ktc-fe-test.nan978971.workers.dev';
 process.env.KTC_API_URL = 'https://ktc-be-test.nan978971.workers.dev/api';
 process.env.KTC_WEB_ORIGIN = TEST_FRONTEND_URL;
 
 // main.cjs historically calls BrowserWindow.loadFile(FRONTEND_INDEX).
-// Redirect only the packaged frontend index to the remote TEST FE; keep all
-// other local loadFile calls (notably the offline page) unchanged.
+// Keep this compatibility shim so old renderer code cannot accidentally load a
+// packaged frontend. Every request for the old index is redirected to TEST FE.
 const originalLoadFile = BrowserWindow.prototype.loadFile;
 BrowserWindow.prototype.loadFile = async function loadFileWithRemoteTestFrontend(filePath, ...args) {
   const resolved = path.resolve(String(filePath || ''));
@@ -55,7 +55,16 @@ function readConfiguredExportRoot() {
   try {
     if (!fs.existsSync(CONFIG_FILE)) return DEFAULT_EXPORT_ROOT;
     const parsed = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-    return normalizeExportRoot(parsed?.exportRoot);
+    const configured = String(parsed?.exportRoot || '').trim();
+    if (!configured) return DEFAULT_EXPORT_ROOT;
+
+    // Migrate the old desktop-local default to the company NAS automatically.
+    const normalizedConfigured = path.resolve(configured);
+    const normalizedLegacy = path.resolve(LEGACY_LOCAL_EXPORT_ROOT);
+    if (normalizedConfigured.toLowerCase() === normalizedLegacy.toLowerCase()) {
+      return DEFAULT_EXPORT_ROOT;
+    }
+    return normalizeExportRoot(configured);
   } catch {
     return DEFAULT_EXPORT_ROOT;
   }
@@ -71,7 +80,7 @@ async function saveConfiguredExportRoot(exportRoot) {
 
 function safeExportFileName(value, fallback) {
   const candidate = String(value || fallback)
-    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-')
+    .replace(/[<>:\"/\\|?*\u0000-\u001F]/g, '-')
     .replace(/\s+/g, ' ')
     .trim();
   return candidate || fallback;
