@@ -4,7 +4,6 @@ const { assertReportVolume, chunkArray } = require('./excelExportGuards');
 const { hasColumn } = require('./schemaCompatibilityService');
 const { calculateReportPerformance } = require('./machinePerformanceService');
 const { assertTrainingSnapshotAvailable } = require('./trainingSnapshotService');
-const { mergeDefects } = require('../utils/reportDetailNormalizer');
 
 const PROCESS_CODES = ['CAN','EP','XLBV','GC','MAI','DO','K1','K2','SX3'];
 const query = (sql, params = []) => db.promise().query(sql, params).then(([rows]) => rows);
@@ -155,10 +154,10 @@ async function loadBulkCompanyReports(yearMonth, actor) {
   const deductions = mapDetails(deductionRows, reportIds, (row) => ({
     id: Number(row.id ?? row.deduction_type_id),
     deduction_type_id: Number(row.deduction_type_id),
-    code: row.code || row.deduction_code || '',
-    name: row.name || row.deduction_name || '',
-    deduction_code: row.code || row.deduction_code || '',
-    deduction_name: row.name || row.deduction_name || '',
+    code: row.deduction_code || '',
+    name: row.deduction_name || '',
+    deduction_code: row.deduction_code || '',
+    deduction_name: row.deduction_name || '',
     hours: Number(row.hours) || 0
   }));
   const defects = mapDetails(defectRows, reportIds, (row) => ({
@@ -173,24 +172,25 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     const id = Number(report.id);
     report.deductions = deductions.get(id) || [];
     report.machineLines = machineLines.get(id) || [];
-    report.defects = mergeDefects(report, defects.get(id) || [], report.machineLines);
-    Object.assign(report, calculateReportPerformance({ report, machineLines: report.machineLines }));
 
-    // Excel chi tiết NG phải phản ánh đúng nguồn đã lưu trong DB.
-    // MANUAL: production_report_defects/legacy fields.
-    // MACHINE: production_report_machine_lines.defects_json được engine tổng hợp
-    // thành machine_defects; không lấy lại tổng NG từ tt_ng để tránh bịa loại lỗi.
-    if (report.defects.length === 0 && Array.isArray(report.machine_defects) && report.machine_defects.length > 0) {
-      report.defects = report.machine_defects.map((item) => ({
-        defect_type_id: Number(item.defect_type_id) || null,
-        defect_code: item.defect_code || null,
-        defect_name: item.defect_name || null,
-        quantity: Number(item.quantity) || 0,
-        source: 'production_report_machine_lines.defects_json'
-      }));
-      report.excelDefectsSource = 'MACHINE_LINE_DEFECTS_JSON';
-    } else {
-      report.excelDefectsSource = 'PRODUCTION_REPORT_DEFECTS';
+    // DB is the source of truth for Excel. Do not merge, recalculate or replace
+    // saved defect rows with derived values. For machine reports, only use the
+    // already-persisted machine-line defect JSON when the dedicated DB detail
+    // table has no rows at all.
+    report.defects = defects.get(id) || [];
+    report.excelDefectsSource = report.defects.length > 0
+      ? 'production_report_defects'
+      : 'none';
+
+    // Keep the persisted production_reports values (total_time, actual_time,
+    // deduction_time, standard_output, actual_output, tt_ok, tt_ng, etc.) intact.
+    // Calculation is only allowed to add fields that are not already persisted;
+    // it must never overwrite a DB value exported to Excel.
+    const calculated = calculateReportPerformance({ report, machineLines: report.machineLines }) || {};
+    for (const [key, value] of Object.entries(calculated)) {
+      if (report[key] === undefined || report[key] === null || report[key] === '') {
+        report[key] = value;
+      }
     }
 
     report.dataSource = 'production_reports';
