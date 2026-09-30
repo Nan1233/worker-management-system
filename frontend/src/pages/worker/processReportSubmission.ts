@@ -83,7 +83,7 @@ export function buildProductionReportPayload(args: {
   for (const [field, code, name] of LEGACY_DEFECT_BINDINGS) {
     const quantity=num(args.form[String(field)]); if (quantity<=0) continue;
     const identity=normalizeDefectIdentity(code,name); const existing=formDefects.find(item=>normalizeDefectIdentity(item.defect_code,item.defect_name)===identity); if (existing) continue;
-    const master=args.activeNgOptions.find(o=>normalizeDefectIdentity(String(o.code||o.defect_code||""),String(o.label||o.defect_name||""))===identity);
+    const master=args.activeNgOptions.find(o=>normalizeDefectIdentity(String(o.code||o.defect_code||""),String(o.label||o.defect_name||"))===identity);
     formDefects.push({ defect_type_id:Number(master?.id||master?.defect_type_id||0)||undefined, defect_code:String(master?.code||master?.defect_code||code), defect_name:String(master?.label||master?.defect_name||name), quantity });
   }
 
@@ -132,7 +132,7 @@ export function buildProductionReportPayload(args: {
   const automaticCutMachines = new Set<string>(["C5", "C6", "C7", "C11"]);
   const executionMethod = args.operationType === "CUT" ? (automaticCutMachines.has(normalizedMachine) ? "AUTO" : "NON_AUTO") : ((args.form.executionMethod === "MANUAL" || args.form.executionMethod === "MACHINE") ? args.form.executionMethod : (args.usesAnyMachine ? "MACHINE" : "MANUAL"));
   const cvkWorkType = String(args.form.workType || args.extraData?.work_type || "").trim();
-  const isCvk = Number(args.processId) === 60006 || String(args.extraData?.process_code || "").trim().toUpperCase() === "CVK";
+  const isCvk = Number(args.processId) === 30002 || Number(args.processId) === 60006 || String(args.extraData?.process_code || "").trim().toUpperCase() === "CVK";
 
   return {
     process_id:args.processId, work_date:args.form.workDate, shift:args.form.shift,
