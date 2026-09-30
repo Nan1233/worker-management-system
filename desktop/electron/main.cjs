@@ -923,12 +923,11 @@ async function performSync({ date, source }) {
   try {
     // Không tự đẩy Excel -> DB khi đang xuất. Nếu workbook có chỉnh sửa chưa sync,
     // dừng lại để người quản lý xem trước và chủ động xác nhận cập nhật DB.
-    const pendingExcelEdits = await previewEditedExcelFilesToDb({ yearMonth: String(date).slice(0, 7) });
-    if (pendingExcelEdits.detected > 0 && source !== 'excel-db-rebuild') {
-      const error = new Error(`Có ${pendingExcelEdits.detected} báo cáo đã sửa trong Excel nhưng chưa cập nhật DB. Hãy bấm “Cập nhật DB từ Excel” và xác nhận trước khi cập nhật Excel từ DB.`);
-      error.code = 'EXCEL_UNSYNCED_CHANGES';
-      throw error;
-    }
+    await writeLog('INFO', 'EXCEL_DB_PRECHECK_SKIPPED_FOR_DB_EXPORT', {
+  date,
+  source,
+  reason: 'DB_IS_AUTHORITATIVE_FOR_EXCEL_EXPORT'
+});
     // EXE dùng backend exporter làm nguồn Excel duy nhất, tránh lệch template/schema cục bộ.
     const token = await waitForUsableRendererToken('', 8_000);
     if (!token) throw new Error('Không tìm thấy phiên đăng nhập hợp lệ để xuất Excel.');
