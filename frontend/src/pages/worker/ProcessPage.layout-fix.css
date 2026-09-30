@@ -23,7 +23,7 @@
   line-height: 1.25;
 }
 
-/* Three-option groups: Tay/Máy/Khí. */
+/* Three-option groups: Cắt/Lồng/Công việc khác. */
 .worker-mode-group:has(.worker-choice-row button:nth-child(3)) .worker-choice-row {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -64,6 +64,7 @@
 .worker-mode-panel:has(.worker-operation-type-row) .worker-operation-type-row button {
   width: 100%;
   min-width: 0;
+  font-size: 12px !important;
 }
 
 .worker-mode-panel:has(.worker-operation-type-row) .worker-execution-mode-group {
@@ -76,15 +77,12 @@
   gap: 12px;
 }
 
-/* Display the CVK option explicitly as "Công việc khác". */
-.worker-mode-panel:has(.worker-operation-type-row) .worker-operation-type-row button:nth-child(3) {
-  font-size: 0 !important;
-}
-
+/* IMPORTANT: CVK text is real button text from JSX.
+   Do not generate a second copy through ::after. */
+.worker-mode-panel:has(.worker-operation-type-row) .worker-operation-type-row button:nth-child(3)::before,
 .worker-mode-panel:has(.worker-operation-type-row) .worker-operation-type-row button:nth-child(3)::after {
-  content: "Công việc khác";
-  font-size: 12px;
-  line-height: 1.25;
+  content: none !important;
+  display: none !important;
 }
 
 @media (max-width: 500px) {
@@ -104,7 +102,9 @@
     gap: 8px;
   }
 
+  .worker-mode-panel:has(.worker-operation-type-row) .worker-operation-type-row button:nth-child(3)::before,
   .worker-mode-panel:has(.worker-operation-type-row) .worker-operation-type-row button:nth-child(3)::after {
-    font-size: 11px;
+    content: none !important;
+    display: none !important;
   }
 }
