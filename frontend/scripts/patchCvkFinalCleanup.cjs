@@ -25,5 +25,16 @@ if (rowMatch) {
 // rewrite unrelated labels elsewhere in the form.
 source = source.replace(/Công việc khác(?:Công việc khác)+/g, 'Công việc khác');
 
+// CVK work types are stored as stable codes but displayed with human-readable
+// Vietnamese labels in the autocomplete list.
+source = source.replace(
+  'const CVK_WORK_TYPES = ["XUATNHAP", "KTCD", "TAIPP"] as const;',
+  'const CVK_WORK_TYPES = [{ value: "XUATNHAP", label: "Xuất nhập" }, { value: "KTCD", label: "Kiểm tra công đoạn" }, { value: "TAIPP", label: "Tái phế phẩm" }] as const;'
+);
+source = source.replace(
+  'options={CVK_WORK_TYPES.map((value) => ({ value, label: value }))}',
+  'options={CVK_WORK_TYPES}'
+);
+
 fs.writeFileSync(file, source, 'utf8');
-console.log('[KTC] CVK final cleanup: exactly one canonical "Công việc khác" button.');
+console.log('[KTC] CVK final cleanup: canonical button + readable work labels.');
