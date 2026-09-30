@@ -100,7 +100,6 @@ export default function WorkerHome() {
           <div className="worker-home-welcome-copy">
             <span className="worker-home-date">{formatWeekday(today)}, {formatDate(todayKey)}</span>
             <h1>Chào bạn, <strong>{greetingName}!</strong></h1>
-            <p>Chúc bạn một ngày làm việc hiệu quả!</p>
             <div className="worker-home-identity">
               <span>KTC-{worker?.worker_code || "--"}</span>
               <span className="worker-home-training">HV: {formatPercent(trainingPercent)}</span>
