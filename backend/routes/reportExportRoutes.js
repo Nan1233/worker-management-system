@@ -9,6 +9,7 @@ const validate = require('../middleware/validateRequest');
 const companyExcelDataController = require('../controllers/companyExcelDataController');
 const desktopExcelExportController = require('../controllers/desktopExcelExportController');
 const legacyExcelExportCompatController = require('../controllers/legacyExcelExportCompatController');
+const cloudflareExcelExportController = require('../controllers/cloudflareExcelExportController');
 const { anyEnvEnabled } = require('../utils/featureFlags');
 
 const roles = checkRole('admin', 'manager', 'lead');
@@ -46,6 +47,22 @@ function lazyController(modulePath, method) {
   };
 }
 
+const isCloudflareWorker = () => String(process.env.KTC_CLOUDFLARE_WORKER || '').toLowerCase() === 'true';
+
+function exportExcelController(req, res, next) {
+  if (isCloudflareWorker()) {
+    return cloudflareExcelExportController.exportGiaCongExcel(req, res, next);
+  }
+  return legacyExcelExportCompatController.exportGiaCongExcel(req, res, next);
+}
+
+function exportProcessExcelController(req, res, next) {
+  if (isCloudflareWorker()) {
+    return cloudflareExcelExportController.exportProcess(req, res, next);
+  }
+  return lazyController('../controllers/desktopExcelExportController', 'exportProcess')(req, res, next);
+}
+
 router.get('/export-excel/company-status', authMiddleware, roles, canExport, (req, res) => res.json({
   success: true,
   version: 'desktop-monthly-excel',
@@ -56,11 +73,11 @@ router.get('/export-excel/company-status', authMiddleware, roles, canExport, (re
 router.get('/export-excel/company-data', authMiddleware, roles, canExport, companyExcelDataController.get);
 router.get('/export-excel/processes', authMiddleware, roles, canExport, desktopExcelExportController.listProcesses);
 
-// Desktop expects /export-excel to return a binary workbook. This compatibility
-// route is protected by the normal auth/role/permission/rate-limit/duplicate
-// guards and must not be blocked by the legacy feature flag.
-router.post('/export-excel', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'} }), legacyExcelExportCompatController.exportGiaCongExcel);
-router.post('/export-excel/process', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'}, processId:{required:true,type:'number'} }), lazyController('../controllers/desktopExcelExportController', 'exportProcess'));
+// Cloudflare Workers do not render XLSX locally. They proxy the authenticated
+// export request to the Node/Render backend, where ExcelJS and the template
+// filesystem are available. Desktop therefore keeps receiving a normal XLSX.
+router.post('/export-excel', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'} }), exportExcelController);
+router.post('/export-excel/process', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'}, processId:{required:true,type:'number'} }), exportProcessExcelController);
 router.get('/export-excel/company-files', authMiddleware, roles, canExport, lazyController('../controllers/desktopExcelExportController', 'listCompanyFiles'));
 router.post('/export-excel/company-build-all', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'} }), lazyController('../controllers/desktopExcelExportController', 'buildAllCompanyFiles'));
 router.post('/export-excel/company-file', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'}, groupCode:{required:true,type:'string'} }), lazyController('../controllers/desktopExcelExportController', 'exportCompanyFile'));
