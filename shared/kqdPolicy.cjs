@@ -1,23 +1,17 @@
 'use strict';
 
-const configuredCodes = require('./kqdExclusionRegistry.json');
-
-const KQD_EXCLUSION_CODES = Object.freeze(
-  [...new Set((configuredCodes || []).map((value) => String(value || '').trim().toUpperCase()).filter(Boolean))]
-);
-const KQD_EXCLUSION_CODE_SET = new Set(KQD_EXCLUSION_CODES);
+// KQD is a normal NG detail. There is no longer a KQD exclusion rule for
+// production-output / TT calculations. Keep the legacy exports temporarily
+// so older callers do not break while the remaining snapshot/config fields
+// are migrated away.
+const KQD_EXCLUSION_CODES = Object.freeze([]);
 
 function normalizeDefectCode(value) {
   return String(value || '').trim().toUpperCase();
 }
 
-function defectCode(defect) {
-  if (typeof defect === 'string') return normalizeDefectCode(defect);
-  return normalizeDefectCode(defect?.defect_type_code || defect?.defect_code || defect?.code);
-}
-
-function isKqdDefect(defect) {
-  return KQD_EXCLUSION_CODE_SET.has(defectCode(defect));
+function isKqdDefect() {
+  return false;
 }
 
 function safeQuantity(value) {
@@ -25,20 +19,20 @@ function safeQuantity(value) {
   return Number.isFinite(number) && number > 0 ? number : 0;
 }
 
-function calculateProductionOutput({ ok = 0, defects = [], excludeKqdFromTt = false } = {}) {
+function calculateProductionOutput({ ok = 0, defects = [] } = {}) {
   const ttOk = Math.max(0, safeQuantity(ok));
   let totalNg = 0;
-  let excludedKqd = 0;
+
   for (const item of Array.isArray(defects) ? defects : []) {
-    const quantity = safeQuantity(item?.quantity);
-    totalNg += quantity;
-    if (excludeKqdFromTt && isKqdDefect(item)) excludedKqd += quantity;
+    totalNg += safeQuantity(item?.quantity);
   }
-  const countedNg = Math.max(0, totalNg - excludedKqd);
+
+  // All NG, including KQD, is counted uniformly.
+  const countedNg = totalNg;
   return {
     totalNg,
     countedNg,
-    excludedKqd,
+    excludedKqd: 0,
     actualOutput: ttOk + countedNg,
     ttOk
   };
