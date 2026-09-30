@@ -25,14 +25,21 @@ if (rowMatch) {
 // rewrite unrelated labels elsewhere in the form.
 source = source.replace(/Công việc khác(?:Công việc khác)+/g, 'Công việc khác');
 
-// CVK work types are stored as stable codes but displayed with human-readable
-// Vietnamese labels in the autocomplete list.
+// CVK stores stable work-type codes, but the worker must see the Vietnamese
+// label both in the suggestion list AND after selecting an item. The shared
+// AutocompleteInput already supports this: for selectOnly inputs it renders
+// option.label while onSelect still receives option.value. Make this patch
+// resilient to spacing/formatting changes in the previous CVK patches.
+const readableCvkWorkTypes = 'const CVK_WORK_TYPES = [{ value: "XUATNHAP", label: "Xuất nhập" }, { value: "KTCD", label: "Kiểm tra công đoạn" }, { value: "TAIPP", label: "Tái phế phẩm" }] as const;';
 source = source.replace(
-  'const CVK_WORK_TYPES = ["XUATNHAP", "KTCD", "TAIPP"] as const;',
-  'const CVK_WORK_TYPES = [{ value: "XUATNHAP", label: "Xuất nhập" }, { value: "KTCD", label: "Kiểm tra công đoạn" }, { value: "TAIPP", label: "Tái phế phẩm" }] as const;'
+  /const\s+CVK_WORK_TYPES\s*=\s*\[[\s\S]*?\]\s+as\s+const\s*;/,
+  readableCvkWorkTypes
 );
+
+// Ensure the AutocompleteInput receives objects with value + label rather
+// than mapping the stable code back to itself as the visible text.
 source = source.replace(
-  'options={CVK_WORK_TYPES.map((value) => ({ value, label: value }))}',
+  /options\s*=\s*\{\s*CVK_WORK_TYPES\.map\(\(value\)\s*=>\s*\(\{\s*value,\s*label:\s*value\s*\}\)\)\s*\}/,
   'options={CVK_WORK_TYPES}'
 );
 
