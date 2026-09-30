@@ -5,7 +5,10 @@ const ExcelJS = require('exceljs');
 const { dialog } = require('electron');
 
 const originalLoad = Module._load;
+const originalFetch = globalThis.fetch;
 let patchedModule = null;
+const companyDataCache = new Map();
+const processListCache = new Map();
 
 function normalizeHeader(value) {
   return String(value ?? '')
@@ -68,10 +71,6 @@ async function patchProcessWorkbook(buffer) {
   return Buffer.from(await workbook.xlsx.writeBuffer());
 }
 
-// company-data is already sourced from the approved TiDB report endpoint.
-// Older backend payloads may omit the provenance flags that the local Excel
-// builder validates. Fill only missing provenance fields; never overwrite an
-// explicit conflicting value.
 function normalizeApprovedPayload(args = {}) {
   const payload = args?.payload;
   if (!payload || typeof payload !== 'object') return args;
@@ -131,6 +130,136 @@ async function showExcelBuildError(error, context) {
   }
 }
 
+function headerValue(headers, name) {
+  if (!headers) return '';
+  if (typeof headers.get === 'function') return headers.get(name) || '';
+  return headers[name] || headers[name.toLowerCase()] || '';
+}
+
+function makeExcelResponse(buffer, fileName) {
+  return new Response(buffer, {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+      'Cache-Control': 'private, no-store',
+      'X-KTC-Excel-Backend': 'desktop-local',
+    },
+  });
+}
+
+async function fetchCompanyDataLocal(apiUrl, auth, date) {
+  const key = `${apiUrl}|${date}`;
+  if (companyDataCache.has(key)) return companyDataCache.get(key);
+
+  const promise = (async () => {
+    const response = await originalFetch(`${apiUrl}/reports/export-excel/company-data?date=${encodeURIComponent(date)}`, {
+      method: 'GET',
+      headers: {
+        Authorization: auth,
+        Accept: 'application/json',
+      },
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`company-data HTTP ${response.status}${text ? `: ${text.slice(0, 500)}` : ''}`);
+    }
+    const json = await response.json();
+    if (!json?.success || !json?.data?.processes) {
+      throw new Error('Backend không trả payload company-data hợp lệ.');
+    }
+    return normalizeApprovedPayload({ date, payload: json.data }).payload;
+  })();
+
+  companyDataCache.set(key, promise);
+  try {
+    return await promise;
+  } catch (error) {
+    companyDataCache.delete(key);
+    throw error;
+  }
+}
+
+async function fetchProcessListLocal(apiUrl, auth, date) {
+  const key = `${apiUrl}|${date}`;
+  if (processListCache.has(key)) return processListCache.get(key);
+
+  const promise = (async () => {
+    const response = await originalFetch(`${apiUrl}/reports/export-excel/processes?date=${encodeURIComponent(date)}`, {
+      method: 'GET',
+      headers: {
+        Authorization: auth,
+        Accept: 'application/json',
+      },
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`processes HTTP ${response.status}${text ? `: ${text.slice(0, 500)}` : ''}`);
+    }
+    const json = await response.json();
+    return Array.isArray(json?.data) ? json.data : [];
+  })();
+
+  processListCache.set(key, promise);
+  try {
+    return await promise;
+  } catch (error) {
+    processListCache.delete(key);
+    throw error;
+  }
+}
+
+async function buildLocalExcelResponse(url, init = {}) {
+  const apiUrl = new URL(url).origin + new URL(url).pathname.replace(/\/reports\/export-excel(?:\/process)?$/, '');
+  const requestUrl = new URL(url);
+  const body = typeof init.body === 'string' ? JSON.parse(init.body || '{}') : (init.body || {});
+  const date = String(body.date || '').trim();
+  if (!date) throw new Error('Thiếu ngày xuất Excel.');
+
+  const auth = headerValue(init.headers, 'authorization');
+  if (!auth) throw new Error('Thiếu token đăng nhập khi xuất Excel.');
+
+  const payload = await fetchCompanyDataLocal(apiUrl, auth, date);
+  const monthly = require('./monthlyWorkbookLocal.cjs');
+
+  if (requestUrl.pathname.endsWith('/reports/export-excel')) {
+    const built = await monthly.buildMonthlySummaryWorkbookLocal({ date, payload });
+    return makeExcelResponse(built.buffer, built.fileName || `00_TONG_HOP_SAN_XUAT_${date.slice(5, 7)}-${date.slice(0, 4)}.xlsx`);
+  }
+
+  const processId = Number(body.processId);
+  if (!Number.isInteger(processId) || processId <= 0) throw new Error('Thiếu processId hợp lệ khi xuất Excel công đoạn.');
+  const processRows = await fetchProcessListLocal(apiUrl, auth, date);
+  const processInfo = processRows.find((row) => Number(row?.id ?? row?.processId ?? row?.process_id) === processId);
+  if (!processInfo) throw new Error(`Không tìm thấy công đoạn processId=${processId}.`);
+  const processCode = String(processInfo.processCode ?? processInfo.process_code ?? processInfo.code ?? '').trim();
+  if (!processCode) throw new Error(`Công đoạn processId=${processId} không có processCode.`);
+
+  const built = await monthly.buildProcessWorkbookLocal({ date, payload, processCode });
+  const fileName = built.fileName || `Bao-cao-${processCode}-${date.slice(5, 7)}-${date.slice(0, 4)}.xlsx`;
+  return makeExcelResponse(built.buffer, fileName);
+}
+
+function installLocalExcelFetch() {
+  if (globalThis.__KTC_LOCAL_EXCEL_FETCH_INSTALLED__) return;
+  const original = globalThis.fetch;
+  globalThis.fetch = async function ktcLocalExcelFetch(input, init = {}) {
+    const url = typeof input === 'string' ? input : input?.url || '';
+    const method = String(init?.method || (typeof input !== 'string' ? input?.method : 'GET') || 'GET').toUpperCase();
+    if (method === 'POST' && /\/reports\/export-excel(?:\/process)?(?:\?|$)/.test(String(url))) {
+      try {
+        console.log('[KTC] DESKTOP_LOCAL_EXCEL_EXPORT', { url: String(url) });
+        return await buildLocalExcelResponse(String(url), init);
+      } catch (error) {
+        console.error('[KTC] DESKTOP_LOCAL_EXCEL_EXPORT_FAILED', error);
+        throw error;
+      }
+    }
+    return original(input, init);
+  };
+  globalThis.__KTC_LOCAL_EXCEL_FETCH_INSTALLED__ = true;
+}
+
 function patchMonthlyModule(mod) {
   if (!mod || mod.__ktcExcelExportPatched) return mod;
   const originalSplit = mod.buildSplitMonthlyWorkbooksLocal;
@@ -170,6 +299,11 @@ function patchMonthlyModule(mod) {
   Object.defineProperty(mod, '__ktcExcelExportPatched', { value: true });
   return mod;
 }
+
+// The Desktop EXE is the Excel engine. Cloudflare is used only for the
+// authenticated approved-data API; Render is deliberately not involved in
+// workbook generation anymore.
+installLocalExcelFetch();
 
 Module._load = function patchedLoad(request, parent, isMain) {
   if (!patchedModule && String(request).endsWith('monthlyWorkbookLocal.cjs')) {
