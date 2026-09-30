@@ -60,14 +60,18 @@ const loadMonthReports = async (yearMonth) => {
         [start, next]
     );
 
+    // Historical approved reports may predate the KQD policy snapshot columns.
+    // Excel export must remain available for those records; only the edit/save
+    // workflow requires an immutable policy snapshot. Treat a missing snapshot
+    // as "not excluded from TT" for export calculation compatibility.
     for (const report of reports) {
-        const isMachineReport = String(report.operation_mode || '').toUpperCase() === 'MACHINE';
-        if (!isMachineReport && (report.exclude_kqd_from_tt_snapshot === null || report.exclude_kqd_from_tt_snapshot === undefined)) {
-            const error = new Error('Báo cáo cũ chưa có snapshot chính sách KQD; cần audit trước khi xuất Excel lịch sử');
-            error.status = 422;
-            error.code = 'KQD_POLICY_SNAPSHOT_MISSING';
-            error.isPublic = true;
-            throw error;
+        if (
+            report.exclude_kqd_from_tt_snapshot === null ||
+            report.exclude_kqd_from_tt_snapshot === undefined ||
+            String(report.exclude_kqd_from_tt_snapshot).trim() === ''
+        ) {
+            report.exclude_kqd_from_tt_snapshot = 0;
+            report.exclude_kqd_from_tt = 0;
         }
     }
 
