@@ -55,10 +55,9 @@ router.get('/export-excel/company-status', authMiddleware, roles, canExport, (re
 router.get('/export-excel/company-data', authMiddleware, roles, canExport, companyExcelDataController.get);
 router.get('/export-excel/processes', authMiddleware, roles, canExport, desktopExcelExportController.listProcesses);
 
-// Guard duplicate/concurrent Excel POST requests before the expensive rate limiter.
-// A retry storm for the same target becomes a controlled 409 instead of consuming
-// the user's 429 budget.
-router.post('/export-excel', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'} }), lazyController('../controllers/reportExportController', 'exportGiaCongExcel'));
+// The legacy desktop endpoint keeps its binary response contract, but the actual
+// workbook generation is delegated to the persistent Excel job worker.
+router.post('/export-excel', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'} }), lazyController('../controllers/legacyExcelExportCompatController', 'exportGiaCongExcel'));
 router.post('/export-excel/process', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'}, processId:{required:true,type:'number'} }), lazyController('../controllers/desktopExcelExportController', 'exportProcess'));
 router.get('/export-excel/company-files', authMiddleware, roles, canExport, lazyController('../controllers/desktopExcelExportController', 'listCompanyFiles'));
 router.post('/export-excel/company-build-all', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'} }), lazyController('../controllers/desktopExcelExportController', 'buildAllCompanyFiles'));
