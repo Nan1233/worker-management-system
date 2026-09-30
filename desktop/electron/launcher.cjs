@@ -13,34 +13,75 @@ if (process.platform === 'win32') {
   app.setAppUserModelId('vn.ktc.productioncontrol');
 }
 
-app.on('browser-window-created', (_event, window) => {
-  try {
-    if (process.platform === 'win32') window.setIcon(DESKTOP_ICON);
-  } catch (_) {}
-});
-
 // Test desktop always renders the deployed TEST FE and uses the TEST BE.
 // The desktop package does not contain a frontend build anymore.
 const TEST_FRONTEND_URL = 'https://ktc-fe-test.nan978971.workers.dev';
 process.env.KTC_API_URL = 'https://ktc-be-test.nan978971.workers.dev/api';
 process.env.KTC_WEB_ORIGIN = TEST_FRONTEND_URL;
 
-// main.cjs historically calls BrowserWindow.loadFile(FRONTEND_INDEX).
-// Keep this compatibility shim so old renderer code cannot accidentally load a
-// packaged frontend. Every request for the old index is redirected to TEST FE.
-const originalLoadFile = BrowserWindow.prototype.loadFile;
-BrowserWindow.prototype.loadFile = async function loadFileWithRemoteTestFrontend(filePath, ...args) {
-  const resolved = path.resolve(String(filePath || ''));
-  if (path.basename(resolved).toLowerCase() === 'index.html') {
-    try {
-      await this.webContents.session.clearCache();
-    } catch (_) {}
-    return this.loadURL(TEST_FRONTEND_URL, {
-      extraHeaders: 'Cache-Control: no-cache\nPragma: no-cache\n'
-    });
+let launcherLogWriter = null;
+function writeLauncherLog(level, event, payload = {}) {
+  try {
+    const userData = app.getPath('userData');
+    const logPath = path.join(userData, 'desktop-launcher.log');
+    const line = JSON.stringify({
+      timestamp: new Date().toISOString(),
+      level,
+      event,
+      ...payload,
+    }) + '\n';
+    launcherLogWriter = (launcherLogWriter || Promise.resolve())
+      .then(() => fsp.mkdir(userData, { recursive: true }))
+      .then(() => fsp.appendFile(logPath, line, 'utf8'))
+      .catch(() => {});
+    return launcherLogWriter;
+  } catch (_) {
+    return Promise.resolve();
   }
-  return originalLoadFile.call(this, filePath, ...args);
-};
+}
+
+app.on('browser-window-created', (_event, window) => {
+  try {
+    if (process.platform === 'win32') window.setIcon(DESKTOP_ICON);
+  } catch (_) {}
+
+  // main.cjs still contains legacy loadFile() calls for the old packaged FE.
+  // Override loadFile on the ACTUAL BrowserWindow instance before main.cjs
+  // calls it. This is deliberately instance-level instead of patching
+  // BrowserWindow.prototype, because Electron exposes native window methods
+  // that are not reliably replaceable through the prototype.
+  const originalWindowLoadFile = window.loadFile.bind(window);
+  window.loadFile = async function loadRemoteTestFrontend(filePath, ...args) {
+    const resolved = path.resolve(String(filePath || ''));
+    const fileName = path.basename(resolved).toLowerCase();
+    if (fileName === 'index.html') {
+      try {
+        await window.webContents.session.clearCache();
+      } catch (_) {}
+      await window.loadURL(TEST_FRONTEND_URL, {
+        extraHeaders: 'Cache-Control: no-cache\nPragma: no-cache\n'
+      });
+      return window;
+    }
+    return originalWindowLoadFile(filePath, ...args);
+  };
+
+  window.webContents.on('did-navigate', (_navigateEvent, url) => {
+    if (url === TEST_FRONTEND_URL || url.startsWith(`${TEST_FRONTEND_URL}/`)) {
+      void writeLauncherLog('INFO', 'REMOTE_FE_LOADED', { url });
+    }
+  });
+
+  window.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    if (validatedURL === TEST_FRONTEND_URL || validatedURL.startsWith(`${TEST_FRONTEND_URL}/`)) {
+      void writeLauncherLog('ERROR', 'REMOTE_FE_LOAD_FAILED', {
+        errorCode,
+        errorDescription,
+        validatedURL,
+      });
+    }
+  });
+});
 
 // Apply the Excel export contract before main.cjs loads monthlyWorkbookLocal.cjs.
 require('./excelExportContractPatch.v2.cjs');
