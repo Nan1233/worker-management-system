@@ -45,9 +45,6 @@ if (!basic.includes('cvk-worker-inline-style')) {
   basic = basic.replace(marker, style + marker + '\n        {cvkWorkerInlineStyle}');
 }
 
-// Final normalization: build-time patches are applied in sequence. If an older
-// CVK patch already left a legacy label beside the new label, collapse it here
-// so the rendered button is exactly "Công việc khác".
 basic = basic.replace(/CVKCông việc khác/g, 'Công việc khác');
 basic = basic.replace(/Công việc khácCông việc khác+/g, 'Công việc khác');
 
@@ -77,5 +74,28 @@ if (!page.includes('{!isCvkMode && (')) {
   }
 }
 
+// CVK is a product-less work type on the real DB process (id 30002, code CVK).
+// The old worker validation still required a product and a positive standard,
+// which blocked submission before the request reached BE. Skip those checks only
+// while the dedicated CVK mode is active; normal Cắt/Lồng validation is untouched.
+page = page.replace(
+  '        if (!usesMultiMachineLines) {\n            if (!form.productName.trim()) {',
+  '        if (!isCvkMode && !usesMultiMachineLines) {\n            if (!form.productName.trim()) {'
+);
+page = page.replaceAll(
+  '        if (\n            Number(\n                form.standardOutput\n                ||\n                0\n            ) <= 0\n        ) {',
+  '        if (!isCvkMode && (\n            Number(\n                form.standardOutput\n                ||\n                0\n            ) <= 0\n        )) {'
+);
+
 fs.writeFileSync(pagePath, page, 'utf8');
-console.log('[KTC] CVK V3: immediate quality hide + CVK note field + normalized button label.');
+
+// Ensure the payload builder recognizes the real DB CVK process id 30002.
+const submissionPath = path.resolve(__dirname, '../src/pages/worker/processReportSubmission.ts');
+let submission = fs.readFileSync(submissionPath, 'utf8');
+submission = submission.replace(
+  'const isCvk = Number(args.processId) === 60006 || String(args.extraData?.process_code || "").trim().toUpperCase() === "CVK";',
+  'const isCvk = Number(args.processId) === 30002 || Number(args.processId) === 60006 || String(args.extraData?.process_code || "").trim().toUpperCase() === "CVK";'
+);
+fs.writeFileSync(submissionPath, submission, 'utf8');
+
+console.log('[KTC] CVK V3: no product/standard validation + real process id 30002 + CVK note field.');
