@@ -4,7 +4,10 @@ const fsp = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
 
-const DEFAULT_EXPORT_ROOT = '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\Linh tinh';
+// Test desktop stores production Excel locally. Do not use the company NAS
+// "Linh tinh" folder because it can contain unrelated/corrupt .xlsx files.
+const DEFAULT_EXPORT_ROOT = path.join(os.homedir(), 'Documents', 'KTC', 'Bao cao san xuat');
+const LEGACY_NETWORK_EXPORT_ROOT = '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\Linh tinh';
 const LEGACY_LOCAL_EXPORT_ROOT = path.join(os.homedir(), 'Documents', 'KTC', 'Bao cao san xuat');
 const CONFIG_FILE = path.join(app.getPath('userData'), 'excel-export-config.json');
 const DESKTOP_ICON = path.join(__dirname, '..', 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
@@ -87,17 +90,30 @@ function normalizeExportRoot(value) {
   return path.resolve(raw);
 }
 
+function isLegacyNetworkExportRoot(value) {
+  const normalized = String(value || '').trim().replace(/[\\/]+$/g, '').toLowerCase();
+  const legacy = LEGACY_NETWORK_EXPORT_ROOT.replace(/[\\/]+$/g, '').toLowerCase();
+  return normalized === legacy || normalized.endsWith('\\linh tinh') || normalized.endsWith('/linh tinh');
+}
+
 function readConfiguredExportRoot() {
   try {
     if (!fs.existsSync(CONFIG_FILE)) return DEFAULT_EXPORT_ROOT;
     const parsed = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
     const configured = String(parsed?.exportRoot || '').trim();
     if (!configured) return DEFAULT_EXPORT_ROOT;
+
     const normalizedConfigured = path.resolve(configured);
     const normalizedLegacy = path.resolve(LEGACY_LOCAL_EXPORT_ROOT);
     if (normalizedConfigured.toLowerCase() === normalizedLegacy.toLowerCase()) {
       return DEFAULT_EXPORT_ROOT;
     }
+
+    // Migrate old test builds that saved the company NAS "Linh tinh" path.
+    if (isLegacyNetworkExportRoot(configured)) {
+      return DEFAULT_EXPORT_ROOT;
+    }
+
     return normalizeExportRoot(configured);
   } catch {
     return DEFAULT_EXPORT_ROOT;
