@@ -43,8 +43,6 @@ function defectQuantity(item) {
 }
 
 function defectCode(item) {
-  // F04: only an explicitly configured defect CODE can carry KQD semantics.
-  // Human-readable names are never business authority.
   return normalizeCode(item?.defect_type_code || item?.defect_code || item?.code);
 }
 
@@ -54,27 +52,34 @@ function calculateNg(report = {}) {
   const kqdPolicyValue = hasKqdSnapshot ? report.exclude_kqd_from_tt_snapshot : report.exclude_kqd_from_tt;
   const excludeKqd = Number(kqdPolicyValue || 0) === 1;
 
+  // production_reports.tt_ng is the database snapshot used by the approved
+  // report. When details are present, keep the detail totals available for
+  // diagnostics, but do not replace the DB value during Excel export.
+  const databaseNg = asInteger(report.tt_ng);
   if (!details.length) {
-    const total = asInteger(report.tt_ng);
     return {
-      allNg: total,
-      countedNg: total,
+      allNg: databaseNg,
+      countedNg: databaseNg,
       excludedKqd: 0,
       excludeKqd
     };
   }
 
-  let allNg = 0;
-  let countedNg = 0;
+  let detailNg = 0;
   let excludedKqd = 0;
   for (const item of details) {
     const quantity = defectQuantity(item);
-    allNg += quantity;
+    detailNg += quantity;
     if (excludeKqd && isKqdDefect({ defect_code: defectCode(item) })) excludedKqd += quantity;
-    else countedNg += quantity;
   }
 
-  return { allNg, countedNg, excludedKqd, excludeKqd };
+  return {
+    allNg: databaseNg,
+    countedNg: databaseNg,
+    excludedKqd,
+    detailNg,
+    excludeKqd
+  };
 }
 
 function machineLineHours(report = {}) {
@@ -89,6 +94,11 @@ function resolveSettings(settings = {}) {
 }
 
 function calculateActualTime(report = {}, settings = {}, workingTime = null, deductionTime = null) {
+  // For approved database reports, actual_time is an immutable DB snapshot.
+  // Never recompute it from working/deduction hours for Excel export.
+  const databaseActualTime = asNumber(report.actual_time);
+  if (databaseActualTime !== null) return databaseActualTime;
+
   const resolved = resolveSettings(settings);
   const working = workingTime === null ? asNumber(report.total_time) : asNumber(workingTime);
   const deduction = deductionTime === null ? asNumber(report.deduction_time) : asNumber(deductionTime);
@@ -100,10 +110,13 @@ function calculateActualTime(report = {}, settings = {}, workingTime = null, ded
     const sum = machineLineHours(report);
     return sum > 0 ? sum : asNumber(report.actual_time);
   }
-  return asNumber(report.actual_time);
+  return databaseActualTime;
 }
 
-function calculateAdjustedOutput({ enteredOutput, ok, countedNg, factor, settings = {} }) {
+function calculateAdjustedOutput({ enteredOutput, ok, countedNg, factor, settings = {}, databaseOutput = null }) {
+  // actual_output is stored by the report and must be preserved in Excel.
+  if (databaseOutput !== null && databaseOutput !== undefined) return asInteger(databaseOutput);
+
   const resolved = resolveSettings(settings);
   let output = null;
   if (resolved.output_formula === 'ENTERED_OUTPUT') output = enteredOutput;
@@ -119,50 +132,53 @@ function calculateAdjustedOutput({ enteredOutput, ok, countedNg, factor, setting
 
 function calculateProductionMetrics(report = {}, settings = {}) {
   const resolved = resolveSettings(settings);
+
+  // These values are database columns. They are deliberately read directly
+  // and are not recalculated for Excel. This keeps Desktop output identical to
+  // the approved production_reports record.
   const workingTime = asNumber(report.total_time);
   const deductionTime = asNumber(report.deduction_time);
-  const actualTime = calculateActualTime(report, resolved, workingTime, deductionTime);
+  const actualTime = asNumber(report.actual_time);
   const ok = asInteger(report.tt_ok);
   const ng = calculateNg(report);
-  const fallbackEnteredOutput = ok !== null && ng.countedNg !== null ? ok + ng.countedNg : null;
-  const enteredOutput = asInteger(report.actual_output ?? fallbackEnteredOutput);
-  const hasSnapshotField = Object.prototype.hasOwnProperty.call(report, 'training_percent_snapshot');
-  const snapshotMissing = hasSnapshotField && (report.training_percent_snapshot === null || report.training_percent_snapshot === undefined || String(report.training_percent_snapshot).trim() === '');
-  const trainingPercent = snapshotMissing
+  const enteredOutput = asInteger(report.actual_output);
+  const trainingPercent = Object.prototype.hasOwnProperty.call(report, 'training_percent_snapshot')
+    && (report.training_percent_snapshot === null || report.training_percent_snapshot === undefined || String(report.training_percent_snapshot).trim() === '')
     ? null
-    : normalizeTrainingPercent(hasSnapshotField ? report.training_percent_snapshot : report.training_percent);
+    : normalizeTrainingPercent(
+      Object.prototype.hasOwnProperty.call(report, 'training_percent_snapshot')
+        ? report.training_percent_snapshot
+        : report.training_percent
+    );
   const factor = trainingPercent === null ? null : trainingPercent / 100;
   const standard = asNumber(report.standard_output);
   const machinePerformance = report.machinePerformance || report.machine_performance || null;
   const hasMachinePerformance = Number(machinePerformance?.machine_count || 0) > 0;
 
-  let adjustedOutput = calculateAdjustedOutput({
+  const adjustedOutput = calculateAdjustedOutput({
     enteredOutput,
     ok,
     countedNg: ng.countedNg,
     factor,
-    settings: resolved
+    settings: resolved,
+    databaseOutput: enteredOutput
   });
+
   let outputPerHour = null;
   let achievement = null;
-  let plannedOutput = standard !== null && actualTime !== null && (!resolved.apply_training_percent || factor !== null)
-    ? standard * actualTime * (resolved.apply_training_percent ? factor : 1)
-    : null;
+  let plannedOutput = null;
 
-  // Multi-machine reports already carry a validated aggregate snapshot from the backend.
-  // Preserve that physical machine result while exposing it through the same metrics contract.
   if (hasMachinePerformance) {
-    adjustedOutput = asNumber(machinePerformance.counted_output);
-    plannedOutput = asNumber(machinePerformance.maximum_output);
+    // Machine performance is itself a backend snapshot. Preserve it when it
+    // exists, otherwise use the DB report fields above.
     outputPerHour = actualTime && adjustedOutput !== null ? adjustedOutput / actualTime : null;
+    plannedOutput = asNumber(machinePerformance.maximum_output);
     achievement = plannedOutput ? adjustedOutput / plannedOutput : null;
   } else {
-    const perHourNumerator = resolved.output_per_hour_formula === 'ENTERED_OUTPUT_DIV_ACTUAL_TIME'
-      ? enteredOutput
-      : adjustedOutput;
-    outputPerHour = actualTime && perHourNumerator !== null ? perHourNumerator / actualTime : null;
-    achievement = resolved.achievement_formula === 'OUTPUT_PER_HOUR_DIV_STANDARD' && outputPerHour !== null && standard
-      ? outputPerHour / standard
+    outputPerHour = actualTime && adjustedOutput !== null ? adjustedOutput / actualTime : null;
+    achievement = outputPerHour !== null && standard ? outputPerHour / standard : null;
+    plannedOutput = standard !== null && actualTime !== null && factor !== null
+      ? standard * actualTime * factor
       : null;
   }
 
@@ -177,7 +193,10 @@ function calculateProductionMetrics(report = {}, settings = {}) {
   return {
     trainingPercent,
     trainingFactor: factor,
-    trainingSnapshotAvailable: !snapshotMissing,
+    trainingSnapshotAvailable: !(
+      Object.prototype.hasOwnProperty.call(report, 'training_percent_snapshot')
+      && (report.training_percent_snapshot === null || report.training_percent_snapshot === undefined || String(report.training_percent_snapshot).trim() === '')
+    ),
     workingTime,
     deductionTime,
     actualTime,
@@ -185,6 +204,7 @@ function calculateProductionMetrics(report = {}, settings = {}) {
     allNg: ng.allNg,
     countedNg: ng.countedNg,
     excludedKqd: ng.excludedKqd,
+    detailNg: ng.detailNg,
     enteredOutput,
     adjustedOutput,
     standard,
