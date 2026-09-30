@@ -4,10 +4,9 @@ const fsp = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
 
-// Test desktop stores production Excel locally. Do not use the company NAS
-// "Linh tinh" folder because it can contain unrelated/corrupt .xlsx files.
-const DEFAULT_EXPORT_ROOT = path.join(os.homedir(), 'Documents', 'KTC', 'Bao cao san xuat');
-const LEGACY_NETWORK_EXPORT_ROOT = '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\Linh tinh';
+// Test desktop stores Excel on the company NAS.
+const DEFAULT_EXPORT_ROOT = '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\Linh tinh';
+const LEGACY_NETWORK_EXPORT_ROOT = DEFAULT_EXPORT_ROOT;
 const LEGACY_LOCAL_EXPORT_ROOT = path.join(os.homedir(), 'Documents', 'KTC', 'Bao cao san xuat');
 const CONFIG_FILE = path.join(app.getPath('userData'), 'excel-export-config.json');
 const DESKTOP_ICON = path.join(__dirname, '..', 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
@@ -87,6 +86,7 @@ require('./excelExportContractPatch.v2.cjs');
 function normalizeExportRoot(value) {
   const raw = String(value || '').trim();
   if (!raw) return DEFAULT_EXPORT_ROOT;
+  if (/^\\\\/.test(raw)) return raw.replace(/[\\/]+$/g, '');
   return path.resolve(raw);
 }
 
@@ -103,14 +103,13 @@ function readConfiguredExportRoot() {
     const configured = String(parsed?.exportRoot || '').trim();
     if (!configured) return DEFAULT_EXPORT_ROOT;
 
-    const normalizedConfigured = path.resolve(configured);
-    const normalizedLegacy = path.resolve(LEGACY_LOCAL_EXPORT_ROOT);
-    if (normalizedConfigured.toLowerCase() === normalizedLegacy.toLowerCase()) {
-      return DEFAULT_EXPORT_ROOT;
-    }
+    const normalizedConfigured = configured.replace(/[\\/]+$/g, '').toLowerCase();
+    const normalizedLegacy = LEGACY_LOCAL_EXPORT_ROOT.replace(/[\\/]+$/g, '').toLowerCase();
+    if (normalizedConfigured === normalizedLegacy) return DEFAULT_EXPORT_ROOT;
 
-    // Migrate old test builds that saved the company NAS "Linh tinh" path.
-    if (isLegacyNetworkExportRoot(configured)) {
+    // Older builds may have saved only the relative folder name "Linh tinh".
+    // It must mean the company NAS folder in the TEST desktop.
+    if (/^linh\s*tinh$/i.test(configured) || isLegacyNetworkExportRoot(configured)) {
       return DEFAULT_EXPORT_ROOT;
     }
 
@@ -136,14 +135,43 @@ function safeExportFileName(value, fallback) {
   return candidate || fallback;
 }
 
+function getBangkokDateParts(dateValue = new Date()) {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Bangkok',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  const [year, month, day] = formatter.format(dateValue).split('-');
+  return { year, month, day };
+}
+
+async function ensureCurrentMonthlyFolder() {
+  const root = normalizeExportRoot(process.env.KTC_EXPORT_ROOT || DEFAULT_EXPORT_ROOT);
+  const { year, month } = getBangkokDateParts();
+  const yearFolder = path.join(root, year);
+  const monthFolder = path.join(yearFolder, month);
+  await fsp.mkdir(monthFolder, { recursive: true });
+  await writeLauncherLog('INFO', 'EXCEL_MONTH_FOLDER_READY', { root, yearFolder, monthFolder });
+  return monthFolder;
+}
+
 process.env.KTC_EXPORT_ROOT = readConfiguredExportRoot();
+void ensureCurrentMonthlyFolder().catch((error) => {
+  void writeLauncherLog('WARN', 'EXCEL_MONTH_FOLDER_CREATE_FAILED', {
+    root: process.env.KTC_EXPORT_ROOT,
+    message: error?.message || String(error),
+  });
+});
 
 ipcMain.handle('ktc-get-export-root', async () => {
   return normalizeExportRoot(process.env.KTC_EXPORT_ROOT || readConfiguredExportRoot());
 });
 
 ipcMain.handle('ktc-reset-export-root', async () => {
-  return saveConfiguredExportRoot(DEFAULT_EXPORT_ROOT);
+  const root = await saveConfiguredExportRoot(DEFAULT_EXPORT_ROOT);
+  await ensureCurrentMonthlyFolder();
+  return root;
 });
 
 ipcMain.handle('ktc-choose-export-root', async () => {
