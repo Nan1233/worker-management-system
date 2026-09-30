@@ -45,11 +45,7 @@ app.on('browser-window-created', (_event, window) => {
     if (process.platform === 'win32') window.setIcon(DESKTOP_ICON);
   } catch (_) {}
 
-  // main.cjs still contains legacy loadFile() calls for the old packaged FE.
-  // Override loadFile on the ACTUAL BrowserWindow instance before main.cjs
-  // calls it. This is deliberately instance-level instead of patching
-  // BrowserWindow.prototype, because Electron exposes native window methods
-  // that are not reliably replaceable through the prototype.
+  // Test desktop always loads the deployed TEST FE.
   const originalWindowLoadFile = window.loadFile.bind(window);
   window.loadFile = async function loadRemoteTestFrontend(filePath, ...args) {
     const resolved = path.resolve(String(filePath || ''));
@@ -83,7 +79,6 @@ app.on('browser-window-created', (_event, window) => {
   });
 });
 
-// Apply the Excel export contract before main.cjs loads monthlyWorkbookLocal.cjs.
 require('./excelExportContractPatch.v2.cjs');
 
 function normalizeExportRoot(value) {
@@ -98,8 +93,6 @@ function readConfiguredExportRoot() {
     const parsed = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
     const configured = String(parsed?.exportRoot || '').trim();
     if (!configured) return DEFAULT_EXPORT_ROOT;
-
-    // Migrate the old desktop-local default to the company NAS automatically.
     const normalizedConfigured = path.resolve(configured);
     const normalizedLegacy = path.resolve(LEGACY_LOCAL_EXPORT_ROOT);
     if (normalizedConfigured.toLowerCase() === normalizedLegacy.toLowerCase()) {
