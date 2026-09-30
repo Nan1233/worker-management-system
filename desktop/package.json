@@ -1,7 +1,7 @@
 {
   "name": "ktc-production-control-desktop",
-  "version": "1.9.15",
-  "description": "KTC Production Control Desktop - A+B theo tháng, báo cáo theo công đoạn, pending chạy lại từ dữ liệu DB mới nhất",
+  "version": "1.9.16",
+  "description": "KTC Production Control Desktop - remote FE + shared BE, native Excel/desktop functions",
   "main": "electron/launcher.cjs",
   "author": "KTC",
   "license": "UNLICENSED",
@@ -11,21 +11,18 @@
     "url": "https://github.com/Nan1233/worker-management-system.git"
   },
   "scripts": {
-    "frontend:install": "node scripts/run-frontend-command.cjs install",
-    "build:frontend": "npm --prefix ../frontend run build:native && npm run copy:frontend",
-    "start": "npm run build:frontend && electron .",
-    "dist:win": "npm run preflight && npm run build:frontend && npm run smoke:excel && electron-builder --win portable nsis --x64 --publish never",
-    "dist:portable": "npm run preflight && npm run build:frontend && npm run smoke:excel && electron-builder --win portable --x64",
-    "dist:nsis": "npm run preflight && npm run build:frontend && npm run smoke:excel && electron-builder --win nsis --x64",
+    "start": "electron .",
+    "dist:win": "npm run preflight && npm run smoke:excel && electron-builder --win portable nsis --x64 --publish never",
+    "dist:portable": "npm run preflight && npm run smoke:excel && electron-builder --win portable --x64",
+    "dist:nsis": "npm run preflight && npm run smoke:excel && electron-builder --win nsis --x64",
     "check": "node --check electron/launcher.cjs && node --check electron/main.cjs && node --check electron/platformPaths.cjs && node --check scripts/preflight.cjs && node --check scripts/checkPlatformPaths.cjs && node --check electron/preload.cjs && node --check electron/desktopLog.cjs && node --check electron/excelPaths.cjs && node --check electron/authToken.cjs && node --check electron/companyExcelLocal.cjs && node --check electron/productionCalculationEngine.cjs && node --check electron/excelDualLayout.cjs && node --check electron/monthlyWorkbookLocal.cjs && node --check scripts/smokeExcel.cjs && npm run check:excel-db-sync && npm run check:platform-paths && node --check scripts/fieldReadiness.cjs && node scripts/fieldReadiness.cjs && node scripts/checkPackagedSharedContract.cjs && node --check electron/autoUpdate.cjs",
-    "copy:frontend": "node scripts/copyFrontend.cjs",
     "smoke:excel": "node scripts/smokeExcel.cjs",
-    "dist:dir": "npm run preflight && npm run build:frontend && npm run smoke:excel && electron-builder --win dir --x64",
+    "dist:dir": "npm run preflight && npm run smoke:excel && electron-builder --win dir --x64",
     "check:excel-db-sync": "node scripts/checkExcelDbSync.cjs",
     "validate:excel-folder": "node scripts/validateExcelFolder.cjs",
     "preflight": "node scripts/preflight.cjs",
     "check:platform-paths": "node scripts/checkPlatformPaths.cjs",
-    "dist:mac": "npm run preflight && npm run build:frontend && npm run smoke:excel && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --universal",
+    "dist:mac": "npm run preflight && npm run smoke:excel && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --universal",
     "field:readiness": "npm run preflight && node scripts/fieldReadiness.cjs",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
     "check:packaged-shared-contract": "node scripts/checkPackagedSharedContract.cjs",
@@ -45,7 +42,6 @@
     },
     "files": [
       "electron/**/*",
-      "frontend/dist/**/*",
       "package.json"
     ],
     "win": {
