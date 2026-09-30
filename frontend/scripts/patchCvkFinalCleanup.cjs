@@ -28,8 +28,7 @@ source = source.replace(/Công việc khác(?:Công việc khác)+/g, 'Công vi�
 // CVK stores stable work-type codes, but the worker must see the Vietnamese
 // label both in the suggestion list AND after selecting an item. The shared
 // AutocompleteInput already supports this: for selectOnly inputs it renders
-// option.label while onSelect still receives option.value. Make this patch
-// resilient to spacing/formatting changes in the previous CVK patches.
+// option.label while onSelect still receives option.value.
 const readableCvkWorkTypes = 'const CVK_WORK_TYPES = [{ value: "XUATNHAP", label: "Xuất nhập" }, { value: "KTCD", label: "Kiểm tra công đoạn" }, { value: "TAIPP", label: "Tái phế phẩm" }] as const;';
 source = source.replace(
   /const\s+CVK_WORK_TYPES\s*=\s*\[[\s\S]*?\]\s+as\s+const\s*;/,
@@ -43,5 +42,15 @@ source = source.replace(
   'options={CVK_WORK_TYPES}'
 );
 
+// IMPORTANT: cvkWorkType was previously left with AutocompleteInput's default
+// selectOnly=false. That made the dropdown show the Vietnamese label but the
+// input itself show the stored code (XUATNHAP/KTCD/TAIPP). Explicitly enable
+// selectOnly so the input displays option.label while the selected value sent
+// to the form remains option.value.
+source = source.replace(
+  'id="cvkWorkType" label="Công việc"',
+  'id="cvkWorkType" label="Công việc" selectOnly'
+);
+
 fs.writeFileSync(file, source, 'utf8');
-console.log('[KTC] CVK final cleanup: canonical button + readable work labels.');
+console.log('[KTC] CVK final cleanup: canonical button + readable work labels + label-only input display.');
