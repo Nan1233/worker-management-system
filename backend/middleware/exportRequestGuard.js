@@ -55,22 +55,21 @@ function exportRequestGuard(req, res, next) {
 
   const release = () => {
     const current = inFlight.get(key);
-
     if (current !== entry) return;
-
     inFlight.delete(key);
   };
 
+  // Chỉ giữ khóa khi request thật sự còn đang chạy.
+  // Khi response đã kết thúc, request cùng loại được phép chạy lại ngay.
   res.once('finish', release);
   res.once('close', release);
 
-  setTimeout(() => {
+  // Safety TTL: tránh khóa vô hạn nếu process/request chết bất thường.
+  const timer = setTimeout(() => {
     const current = inFlight.get(key);
-
-    if (current === entry) {
-      inFlight.delete(key);
-    }
-  }, RECENT_TTL_MS).unref?.();
+    if (current === entry) inFlight.delete(key);
+  }, RECENT_TTL_MS);
+  timer.unref?.();
 
   return next();
 }
