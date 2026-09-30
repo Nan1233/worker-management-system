@@ -175,6 +175,24 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     report.machineLines = machineLines.get(id) || [];
     report.defects = mergeDefects(report, defects.get(id) || [], report.machineLines);
     Object.assign(report, calculateReportPerformance({ report, machineLines: report.machineLines }));
+
+    // Excel chi tiết NG phải phản ánh đúng nguồn đã lưu trong DB.
+    // MANUAL: production_report_defects/legacy fields.
+    // MACHINE: production_report_machine_lines.defects_json được engine tổng hợp
+    // thành machine_defects; không lấy lại tổng NG từ tt_ng để tránh bịa loại lỗi.
+    if (report.defects.length === 0 && Array.isArray(report.machine_defects) && report.machine_defects.length > 0) {
+      report.defects = report.machine_defects.map((item) => ({
+        defect_type_id: Number(item.defect_type_id) || null,
+        defect_code: item.defect_code || null,
+        defect_name: item.defect_name || null,
+        quantity: Number(item.quantity) || 0,
+        source: 'production_report_machine_lines.defects_json'
+      }));
+      report.excelDefectsSource = 'MACHINE_LINE_DEFECTS_JSON';
+    } else {
+      report.excelDefectsSource = 'PRODUCTION_REPORT_DEFECTS';
+    }
+
     report.dataSource = 'production_reports';
     report.isApprovedDatabaseRecord = true;
   }
