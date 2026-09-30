@@ -24,7 +24,11 @@ async function proxyExcelRequest(req, res, path) {
   const headers = {
     Authorization: req.get('Authorization') || '',
     'Content-Type': req.get('Content-Type') || 'application/json',
-    Accept: req.get('Accept') || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/json'
+    Accept: req.get('Accept') || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/json',
+    // This header is trusted only on the private Worker -> Render hop. It
+    // makes the Render backend execute the Node/ExcelJS controller even if
+    // its generic Cloudflare compatibility flag is also enabled.
+    'X-KTC-Excel-Proxy': '1'
   };
 
   const response = await fetch(url, {
