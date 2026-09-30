@@ -224,3 +224,16 @@ const HEADER_ROW_NUMBER = 326;
 const DATA_START_ROW = HEADER_ROW_NUMBER + 1;
 const STYLE_SOURCE_ROW = DATA_START_ROW;
 
+
+
+// NOTE: This controller file currently contains the application bootstrap and does not
+// expose exportGiaCongExcel. The legacy /export-excel route therefore resolves to an
+// undefined handler when enabled. Keep the legacy route disabled and use the async
+// Desktop Excel job endpoints instead.
+exports.exportGiaCongExcel = async (req, res) => {
+  return res.status(503).json({
+    success: false,
+    code: 'DESKTOP_EXCEL_REQUIRED',
+    message: 'Xuất workbook được thực hiện trên ứng dụng Desktop để bảo vệ RAM máy chủ.'
+  });
+};
