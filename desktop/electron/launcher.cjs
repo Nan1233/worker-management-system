@@ -18,9 +18,29 @@ app.on('browser-window-created', (_event, window) => {
   } catch (_) {}
 });
 
-// Test desktop uses the Cloudflare TEST backend. Set this before loading
-// main.cjs so the packaged app does not silently call the production API.
+// Test desktop uses the Cloudflare TEST backend and TEST frontend.
+// The frontend is intentionally loaded from the deployed web app so FE changes
+// do not require rebuilding or reinstalling the desktop application.
+const TEST_FRONTEND_URL = 'https://ktc-fe-test.nan978971.workers.dev';
 process.env.KTC_API_URL = 'https://ktc-be-test.nan978971.workers.dev/api';
+process.env.KTC_WEB_ORIGIN = TEST_FRONTEND_URL;
+
+// main.cjs historically calls BrowserWindow.loadFile(FRONTEND_INDEX).
+// Redirect only the packaged frontend index to the remote TEST FE; keep all
+// other local loadFile calls (notably the offline page) unchanged.
+const originalLoadFile = BrowserWindow.prototype.loadFile;
+BrowserWindow.prototype.loadFile = async function loadFileWithRemoteTestFrontend(filePath, ...args) {
+  const resolved = path.resolve(String(filePath || ''));
+  if (path.basename(resolved).toLowerCase() === 'index.html') {
+    try {
+      await this.webContents.session.clearCache();
+    } catch (_) {}
+    return this.loadURL(TEST_FRONTEND_URL, {
+      extraHeaders: 'Cache-Control: no-cache\nPragma: no-cache\n'
+    });
+  }
+  return originalLoadFile.call(this, filePath, ...args);
+};
 
 // Apply the Excel export contract before main.cjs loads monthlyWorkbookLocal.cjs.
 require('./excelExportContractPatch.v2.cjs');
@@ -97,8 +117,6 @@ ipcMain.handle('ktc-save-statistics-excel', async (_event, payload = {}) => {
   return { success: true, filePath, exportRoot: root };
 });
 
-// Excel creates temporary lock files named ~$*.xlsx while a workbook is open.
-// They are not real workbooks and must never enter the DB preview/import scan.
 const originalReaddir = fsp.readdir.bind(fsp);
 fsp.readdir = async (...args) => {
   const entries = await originalReaddir(...args);
