@@ -55,17 +55,25 @@ function isCloudflareWorker() {
   return String(process.env.KTC_CLOUDFLARE_WORKER || '').toLowerCase() === 'true';
 }
 
+function isTrustedExcelProxyRequest(req) {
+  return String(req.get('X-KTC-Excel-Proxy') || '') === '1';
+}
+
 function exportExcelController(req, res, next) {
-  if (isCloudflareWorker()) {
+  // Public Cloudflare request -> proxy to Render.
+  // Private Worker -> Render request -> execute Node/ExcelJS locally on Render.
+  if (isCloudflareWorker() && !isTrustedExcelProxyRequest(req)) {
     return cloudflareExcelExportController.exportGiaCongExcel(req, res, next);
   }
+  res.setHeader('X-KTC-Excel-Backend', 'node-render');
   return legacyController().exportGiaCongExcel(req, res, next);
 }
 
 function exportProcessExcelController(req, res, next) {
-  if (isCloudflareWorker()) {
+  if (isCloudflareWorker() && !isTrustedExcelProxyRequest(req)) {
     return cloudflareExcelExportController.exportProcess(req, res, next);
   }
+  res.setHeader('X-KTC-Excel-Backend', 'node-render');
   return desktopController().exportProcess(req, res, next);
 }
 
@@ -82,19 +90,24 @@ router.get('/export-excel/processes', authMiddleware, roles, canExport, (req, re
 });
 
 // Cloudflare Workers do not render XLSX locally. They proxy the authenticated
-// export request to the dedicated Node/Render proxy endpoints below, where
-// ExcelJS and the template filesystem are available.
+// export request to the Node/Render backend, where ExcelJS and the template
+// filesystem are available.
 router.post('/export-excel', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'} }), exportExcelController);
 router.post('/export-excel/process', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'}, processId:{required:true,type:'number'} }), exportProcessExcelController);
 
-// Dedicated authenticated Node/Render targets for Cloudflare -> Render.
-// These routes intentionally bypass the Cloudflare compatibility branch so a
-// Render deployment cannot accidentally return DESKTOP_EXCEL_REQUIRED/503.
+// Kept as explicit Node/Render targets for compatibility with older clients.
+// The same proxy marker is accepted by the main endpoints above.
 router.post('/export-excel/render-proxy', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'} }), (req, res, next) => {
-  try { return legacyController().exportGiaCongExcel(req, res, next); } catch (error) { return next(error); }
+  try {
+    res.setHeader('X-KTC-Excel-Backend', 'node-render');
+    return legacyController().exportGiaCongExcel(req, res, next);
+  } catch (error) { return next(error); }
 });
 router.post('/export-excel/process/render-proxy', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'}, processId:{required:true,type:'number'} }), (req, res, next) => {
-  try { return desktopController().exportProcess(req, res, next); } catch (error) { return next(error); }
+  try {
+    res.setHeader('X-KTC-Excel-Backend', 'node-render');
+    return desktopController().exportProcess(req, res, next);
+  } catch (error) { return next(error); }
 });
 
 router.get('/export-excel/company-files', authMiddleware, roles, canExport, (req, res, next) => {
