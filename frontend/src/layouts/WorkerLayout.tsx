@@ -75,9 +75,6 @@ export default function WorkerLayout() {
 
       <section className="worker-main">
         <header className="worker-header">
-          <button className="worker-header-brand" type="button" onClick={() => navigate("/worker")} aria-label="Trang chủ KTC HANOI">
-            <img src="/ktc-hanoi-logo.png" alt="KTC HANOI" />
-          </button>
           <div className="worker-header-spacer" />
           <button type="button" className="worker-header-notification" onClick={() => navigate("/worker/notifications")} aria-label="Thông báo">
             <Bell size={20} />
