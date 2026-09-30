@@ -1,12 +1,15 @@
 'use strict';
 
 const Module = require('node:module');
+const fs = require('node:fs');
 const ExcelJS = require('exceljs');
 const { dialog } = require('electron');
 
 const originalLoad = Module._load;
+const originalExtensionCjs = Module._extensions['.cjs'];
 const originalFetch = globalThis.fetch;
 let patchedModule = null;
+let monthlySourcePatchInstalled = false;
 const companyDataCache = new Map();
 const processListCache = new Map();
 
@@ -260,6 +263,70 @@ function installLocalExcelFetch() {
   globalThis.__KTC_LOCAL_EXCEL_FETCH_INSTALLED__ = true;
 }
 
+function installMonthlyDbDetailSourcePatch() {
+  if (monthlySourcePatchInstalled) return;
+  monthlySourcePatchInstalled = true;
+
+  Module._extensions['.cjs'] = function patchedCjsExtension(module, filename) {
+    if (!String(filename).endsWith('monthlyWorkbookLocal.cjs')) {
+      return originalExtensionCjs(module, filename);
+    }
+
+    let source = fs.readFileSync(filename, 'utf8');
+    const marker = 'function processDetailTypes(processCode, processData, masterKey, reportKey, kind) {';
+    const start = source.indexOf(marker);
+    if (start < 0) {
+      console.warn('[KTC] MONTHLY_DETAIL_SOURCE_PATCH_SKIPPED marker-not-found');
+      return originalExtensionCjs(module, filename);
+    }
+
+    const nextFunction = source.indexOf('\nfunction detailValue(', start);
+    if (nextFunction < 0) {
+      console.warn('[KTC] MONTHLY_DETAIL_SOURCE_PATCH_SKIPPED boundary-not-found');
+      return originalExtensionCjs(module, filename);
+    }
+
+    const replacement = `function processDetailTypes(processCode, processData, masterKey, reportKey, kind) {
+  // Excel detail columns must follow the exact master types returned by DB.
+  // Do not prepend PROCESS_TEMPLATE_SCHEMAS labels: those legacy hardcoded
+  // labels can create columns that do not exist in the input form and prevent
+  // report detail values (which are keyed by DB ids/codes) from landing in the
+  // correct columns.
+  const result = [];
+  const byAlias = new Map();
+  const append = (item) => {
+    const aliases = detailAliases(item, kind);
+    if (!aliases.length) return;
+    const candidateLabel = detailLabel(item, kind) || (kind === 'deduction' ? 'Trừ giờ khác' : 'NG khác');
+    let current = aliases.map((alias) => byAlias.get(alias)).find(Boolean);
+    if (!current) {
+      current = { key: detailKey(item, kind), label: candidateLabel, aliases: new Set(aliases) };
+      result.push(current);
+    } else {
+      aliases.forEach((alias) => current.aliases.add(alias));
+      if (labelQuality(candidateLabel, kind) > labelQuality(current.label, kind)) current.label = candidateLabel;
+    }
+    current.aliases.forEach((alias) => byAlias.set(alias, current));
+  };
+
+  // 1. Master detail types from TiDB are the authoritative column source.
+  for (const item of processData?.[masterKey] || []) append(item);
+
+  // 2. Keep any detail type present on an approved report only when it is not
+  // already present in the master list (e.g. a newly created DB type).
+  for (const report of processData?.reports || []) {
+    for (const item of report?.[reportKey] || []) append(item);
+  }
+
+  return result.map((item) => ({ key: item.key, label: item.label, aliases: [...item.aliases] }));
+}
+`;
+
+    source = source.slice(0, start) + replacement + source.slice(nextFunction + 1);
+    module._compile(source, filename);
+  };
+}
+
 function patchMonthlyModule(mod) {
   if (!mod || mod.__ktcExcelExportPatched) return mod;
   const originalSplit = mod.buildSplitMonthlyWorkbooksLocal;
@@ -304,6 +371,7 @@ function patchMonthlyModule(mod) {
 // authenticated approved-data API; Render is deliberately not involved in
 // workbook generation anymore.
 installLocalExcelFetch();
+installMonthlyDbDetailSourcePatch();
 
 Module._load = function patchedLoad(request, parent, isMain) {
   if (!patchedModule && String(request).endsWith('monthlyWorkbookLocal.cjs')) {
