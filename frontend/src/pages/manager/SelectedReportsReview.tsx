@@ -81,8 +81,7 @@ function SelectedReportsReview() {
     const { can } = usePermissions();
 
     const basePath = role === "lead" ? "/lead" : role === "admin" ? "/admin" : "/manager";
-    // Tổ trưởng (lead) tuyệt đối không được sửa, kể cả khi permission DB bị cấp nhầm.
-    const canEdit = role !== "lead" && (source === "pending" ? can("REPORT_PENDING_EDIT") : can("REPORT_APPROVED_EDIT"));
+    const canEdit = source === "pending" ? can("REPORT_PENDING_EDIT") : can("REPORT_APPROVED_EDIT");
     const canReview = can("REPORT_APPROVE");
     const storageKey = source === "approved"
         ? "selectedApprovedReportIds"
@@ -198,176 +197,59 @@ function SelectedReportsReview() {
         } catch (err) {
             console.error("REJECT SELECTED REPORTS ERROR:", err);
             setError(axios.isAxiosError(err)
-                ? err.response?.data?.message || "Từ chối báo cáo thất bại. Vui lòng thử lại."
-                : "Từ chối báo cáo thất bại. Vui lòng thử lại.");
+                ? err.response?.data?.message || "Từ chối báo cáo thất bại. Vui lòng kiểm tra lại dữ liệu."
+                : "Từ chối báo cáo thất bại. Vui lòng kiểm tra lại dữ liệu.");
         } finally {
             setSubmitting(false);
         }
     };
 
     return (
-        <main className="selected-review-page manager-page">
-            <header className="selected-review-header">
+        <main className="selected-reports-review">
+            {error && <div className="detail-inline-error">{error}</div>}
+            <header className="selected-reports-review__header">
+                <button type="button" onClick={() => navigate(-1)}>← Quay lại</button>
                 <div>
-                    <button
-                        type="button"
-                        className="selected-review-back"
-                        onClick={() => navigate(-1)}
-                    >
-                        ← Quay lại danh sách
-                    </button>
-                    <h1>
-                        {source === "approved"
-                            ? "Chi tiết báo cáo đã duyệt"
-                            : "Chi tiết báo cáo chờ duyệt"}
-                    </h1>
-                    <p>{reports.length} báo cáo được hiển thị trong một bảng ngang.</p>
+                    <h1>Chi tiết báo cáo đã chọn</h1>
+                    <p>{reports.length} báo cáo</p>
                 </div>
-
-                {source === "pending" && canReview && (
-                    <div className="selected-review-actions">
-                        <button
-                            type="button"
-                            className="selected-review-reject"
-                            disabled={submitting || reportIds.length === 0}
-                            onClick={() => setRejectOpen(true)}
-                        >
-                            Từ chối {reportIds.length} báo cáo
+                <div className="selected-reports-review__actions">
+                    {canEdit && reports.length === 1 && (
+                        <button type="button" onClick={() => navigate(`${basePath}/report/${reportIds[0]}/edit?source=${source}`)}>
+                            ✎ Sửa báo cáo
                         </button>
-                        <button
-                            type="button"
-                            className="selected-review-approve"
-                            disabled={submitting || reportIds.length === 0}
-                            onClick={handleApprove}
-                        >
-                            {submitting ? "Đang xử lý..." : `Duyệt ${reportIds.length} báo cáo`}
-                        </button>
-                    </div>
-                )}
+                    )}
+                    {canReview && source === "pending" && <button type="button" disabled={submitting || reportIds.length === 0} onClick={() => setRejectOpen(true)}>Từ chối</button>}
+                    {canReview && source === "pending" && <button type="button" disabled={submitting || reportIds.length === 0} onClick={() => void handleApprove()}>✓ Duyệt</button>}
+                </div>
             </header>
-
-            {error && (
-                <div className="selected-review-error" role="alert" aria-live="assertive">
-                    <span>{error}</span>
-                    <button type="button" onClick={() => setLoadAttempt((value) => value + 1)} disabled={loading}>
-                        Tải lại
-                    </button>
-                </div>
-            )}
-
-            {loading ? (
-                <div className="selected-review-empty">Đang tải dữ liệu...</div>
-            ) : reports.length === 0 ? (
-                <div className="selected-review-empty">Không có báo cáo nào được chọn.</div>
-            ) : (
-                <section className="selected-table-card">
-                    <div className="selected-table-scroll">
-                        <table className="selected-review-table">
-                            <thead>
-                                <tr>
-                                    <th className="sticky-col sticky-col-1">STT</th>
-                                    <th className="sticky-col sticky-col-2">Mã NV</th>
-                                    <th className="sticky-col sticky-col-3">Họ tên</th>
-                                    <th className="sticky-col sticky-col-4">Ngày</th>
-                                    <th className="sticky-col sticky-col-5">Công đoạn</th>
-                                    <th className="sticky-col sticky-col-6">Ca</th>
-                                    <th className="sticky-col sticky-col-7">Mã máy</th>
-                                    <th className="sticky-col sticky-col-8">Mã sản phẩm</th>
-                                    <th>% học việc</th>
-                                    <th>Định mức</th>
-                                    <th>Thực tế</th>
-                                    <th>OK</th>
-                                    <th>NG</th>
-                                    <th>Tổng giờ</th>
-                                    <th>Giờ trừ</th>
-                                    <th>Giờ thực tế</th>
-                                    <th>Chi tiết thời gian trừ</th>
-                                    <th>Chi tiết lỗi NG</th>
-                                    <th>Ghi chú</th>
-                                    {canEdit && <th>Thao tác</th>}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {reports.map((report, index) => (
-                                    <tr key={report.id || index}>
-                                        <td className="sticky-col sticky-col-1">{index + 1}</td>
-                                        <td className="sticky-col sticky-col-2"><strong>{report.worker_code || "---"}</strong></td>
-                                        <td className="sticky-col sticky-col-3 selected-worker-name">{report.full_name || "Không có tên"}</td>
-                                        <td className="sticky-col sticky-col-4">{formatDate(report.work_date)}</td>
-                                        <td className="sticky-col sticky-col-5">{report.process_name || report.process_code || "---"}</td>
-                                        <td className="sticky-col sticky-col-6">{report.shift || "---"}</td>
-                                        <td className="sticky-col sticky-col-7">{report.machine_no || "---"}</td>
-                                        <td className="sticky-col sticky-col-8">{report.product_name || "---"}</td>
-                                        <td>{formatNumber(report.training_percent ?? 100)}%</td>
-                                        <td>{formatNumber(report.standard_output)}</td>
-                                        <td>{formatNumber(report.actual_output)}</td>
-                                        <td>{formatNumber(report.tt_ok)}</td>
-                                        <td>{formatNumber(report.tt_ng)}</td>
-                                        <td>{formatNumber(report.total_time)}</td>
-                                        <td>{decimalHoursToMinutes(report.deduction_time).toLocaleString("vi-VN")} phút</td>
-                                        <td>{formatNumber(report.actual_time)}</td>
-                                        <td className="selected-long-cell">
-                                            {detailText(report.deductions, "deduction")}
-                                        </td>
-                                        <td className="selected-long-cell">
-                                            {detailText(report.defects, "defect")}
-                                        </td>
-                                        <td className="selected-note-cell">{report.note || "---"}</td>
-                                        {canEdit && (
-                                            <td>
-                                                <button
-                                                    type="button"
-                                                    className="selected-edit-link"
-                                                    onClick={() => navigate(
-                                                        `${basePath}/report/${report.id}/edit?source=${source}`
-                                                    )}
-                                                >
-                                                    Sửa
-                                                </button>
-                                            </td>
-                                        )}
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-            )}
-            {rejectOpen && (
-                <div
-                    className="selected-reject-backdrop"
-                    role="presentation"
-                    onMouseDown={() => !submitting && setRejectOpen(false)}
-                >
-                    <div
-                        className="selected-reject-modal"
-                        role="dialog"
-                        aria-modal="true"
-                        onMouseDown={event => event.stopPropagation()}
-                    >
-                        <h2>Từ chối báo cáo</h2>
-                        <p>{reportIds.length} báo cáo sẽ được trả lại cho công nhân kèm lý do.</p>
-                        <label>
-                            Lý do
-                            <select value={rejectReason} onChange={event => setRejectReason(event.target.value)}>
-                                {REJECT_REASONS.map(reason => <option key={reason}>{reason}</option>)}
-                            </select>
-                        </label>
-                        <label>
-                            Chi tiết
-                            <textarea
-                                value={rejectDetail}
-                                onChange={event => setRejectDetail(event.target.value)}
-                                placeholder="Nội dung công nhân cần kiểm tra và sửa"
-                                rows={3}
-                            />
-                        </label>
-                        <div className="selected-reject-actions">
-                            <button type="button" disabled={submitting} onClick={() => setRejectOpen(false)}>Hủy</button>
-                            <button type="button" className="selected-review-reject" disabled={submitting} onClick={() => void handleReject()}>
-                                {submitting ? "Đang xử lý..." : "Xác nhận từ chối"}
-                            </button>
+            <section className="selected-reports-review__body">
+                {loading ? <div className="detail-state">Đang tải...</div> : reports.length === 0 ? <div className="detail-state">Không có báo cáo.</div> : reports.map((report) => (
+                    <article key={report.id} className="selected-report-card">
+                        <div className="selected-report-card__grid">
+                            <div><span>Ngày</span><strong>{formatDate(report.work_date)}</strong></div>
+                            <div><span>Mã CN</span><strong>{report.worker_code || "---"}</strong></div>
+                            <div><span>Họ tên</span><strong>{report.full_name || report.worker_name || "---"}</strong></div>
+                            <div><span>Máy</span><strong>{report.machine_no || "---"}</strong></div>
+                            <div><span>Sản phẩm</span><strong>{report.product_name || "---"}</strong></div>
+                            <div><span>TT giờ</span><strong>{formatNumber(report.actual_time)}</strong></div>
+                            <div><span>Trừ giờ</span><strong>{formatNumber(report.deduction_time)}</strong></div>
+                            <div><span>Tổng giờ</span><strong>{formatNumber(report.total_time)}</strong></div>
+                            <div><span>TT OK</span><strong>{formatNumber(report.tt_ok)}</strong></div>
+                            <div><span>TT NG</span><strong>{formatNumber(report.tt_ng)}</strong></div>
+                            <div><span>Chi tiết Trừ giờ</span><strong>{detailText(report.deductions, "deduction")}</strong></div>
+                            <div><span>Chi tiết NG</span><strong>{detailText(report.defects, "defect")}</strong></div>
                         </div>
+                    </article>
+                ))}
+            </section>
+            {rejectOpen && (
+                <div className="detail-reject-modal-backdrop" role="dialog" aria-modal="true">
+                    <div className="detail-reject-modal">
+                        <h3>Từ chối báo cáo</h3>
+                        <label>Lý do<select value={rejectReason} onChange={(e) => setRejectReason(e.target.value)}>{REJECT_REASONS.map((reason) => <option key={reason}>{reason}</option>)}</select></label>
+                        <label>Chi tiết<textarea value={rejectDetail} onChange={(e) => setRejectDetail(e.target.value)} rows={3} placeholder="Nhập thêm nếu cần..." /></label>
+                        <div className="detail-reject-modal-actions"><button type="button" onClick={() => setRejectOpen(false)} disabled={submitting}>Hủy</button><button type="button" className="detail-reject-button" onClick={() => void handleReject()} disabled={submitting}>{submitting ? "Đang xử lý..." : "Xác nhận từ chối"}</button></div>
                     </div>
                 </div>
             )}

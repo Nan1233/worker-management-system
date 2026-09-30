@@ -16,6 +16,20 @@ import {
   CONNECTION_RESTORED_EVENT,
 } from "../../services/authRuntimeEvents";
 
+const ZERO_STANDARD_LONG_WORK_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
+const PROCESS_ID_BY_CODE: Record<string, number> = {
+  GC: 1,
+  MAI: 2,
+  DO: 60001,
+  K1: 3,
+  K2: 4,
+  CAN: 60002,
+  EP: 60003,
+  XLBV: 60004,
+  SX3: 60005,
+  CVK: 60006,
+};
+
 /**
  * Worker master data is sourced ONLY from the DB master configuration.
  *
@@ -32,7 +46,11 @@ export function useProcessMasterData(processId: number, processCode: string) {
   const requestGeneration = useRef(0);
 
   const load = useCallback(async () => {
-    if (!Number.isInteger(processId) || processId <= 0) {
+    const resolvedProcessId = Number.isInteger(processId) && processId > 0
+      ? processId
+      : PROCESS_ID_BY_CODE[String(processCode || "").trim().toUpperCase()] || 0;
+
+    if (!resolvedProcessId) {
       setMachineOptions([]);
       setProductOptions([]);
       setActiveNgOptions([]);
@@ -44,16 +62,14 @@ export function useProcessMasterData(processId: number, processCode: string) {
     const generation = ++requestGeneration.current;
     setLoading(true);
 
-    // Machines + product standards are required to start entering a report.
-    // NG / deduction master data is secondary and must not block the whole form.
     const isProcessSelectionRoute =
       typeof window !== "undefined" &&
       window.location.pathname.replace(/\/+$/, "").endsWith("/worker/process/select");
 
     try {
       const [machines, products] = await Promise.allSettled([
-        getCachedMachines(processId),
-        getCachedProductStandards(processId, processCode),
+        getCachedMachines(resolvedProcessId),
+        getCachedProductStandards(resolvedProcessId, processCode),
       ]);
 
       if (generation !== requestGeneration.current) return;
@@ -65,20 +81,31 @@ export function useProcessMasterData(processId: number, processCode: string) {
       }
 
       if (products.status === "fulfilled") {
-        setProductOptions(products.value);
+        // XUATNHAP / KTCD / TAIPP are real DB master rows with
+        // standard_output=0. The form still requires a positive value for
+        // normal products, so expose a UI-only placeholder of 1 for these
+        // three codes. processReportSubmission converts them back to 0.
+        // This does NOT create or modify DB master data.
+        const workerProducts = processCode === "GC"
+          ? products.value.map((product) => {
+              const code = String(product.product_code || "").trim().toUpperCase();
+              return ZERO_STANDARD_LONG_WORK_CODES.has(code)
+                ? { ...product, standard_output: 1 }
+                : product;
+            })
+          : products.value;
+        setProductOptions(workerProducts);
       } else {
         setProductOptions([]);
       }
 
-      // The worker can now interact with machine/product/time/output fields.
-      // Do not wait for optional NG/deduction requests before removing disabled state.
       setLoading(false);
 
       const optionalResults = await Promise.allSettled([
-        getCachedDefects(processId),
+        getCachedDefects(resolvedProcessId),
         isProcessSelectionRoute
           ? Promise.resolve([] as Awaited<ReturnType<typeof getCachedDeductions>>)
-          : getCachedDeductions(processId),
+          : getCachedDeductions(resolvedProcessId),
       ]);
 
       if (generation !== requestGeneration.current) return;
@@ -86,24 +113,19 @@ export function useProcessMasterData(processId: number, processCode: string) {
       const [defects, deductions] = optionalResults;
 
       if (defects.status === "fulfilled") {
-        // Only defect_types/process relation returned by the master API.
-        setActiveNgOptions(normalizeDefectOptions(defects.value, processId));
+        setActiveNgOptions(normalizeDefectOptions(defects.value, resolvedProcessId));
       } else {
         setActiveNgOptions([]);
       }
 
       if (deductions.status === "fulfilled") {
-        // Only deduction_types/process relation returned by the master API.
-        // No frontend fallback/merge is allowed.
         setActiveDeductionOptions(
-          normalizeDeductionOptions(deductions.value, processId),
+          normalizeDeductionOptions(deductions.value, resolvedProcessId),
         );
       } else {
         setActiveDeductionOptions([]);
       }
     } catch {
-      // Promise.allSettled normally prevents this path. Keep the form usable
-      // even if an unexpected loader error occurs.
       if (generation === requestGeneration.current) {
         setLoading(false);
       }

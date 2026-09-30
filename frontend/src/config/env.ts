@@ -10,9 +10,9 @@ function normalizeApiBaseUrl(value: string): string {
 }
 
 /**
- * Keep the Cloudflare test frontend isolated from production.
- * A stale VITE_API_URL on the test deployment must not silently send worker
- * reports to ktc-backend instead of the matching ktc-be-test worker.
+ * Test frontend is permanently isolated from production.
+ * Never allow a stale VITE_API_URL in the deployed test build to send
+ * requests to the production backend.
  */
 function resolveApiUrl(): string {
   if (typeof window !== "undefined") {

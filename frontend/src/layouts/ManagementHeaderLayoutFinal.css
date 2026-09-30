@@ -1,0 +1,213 @@
+/* FINAL desktop management header layout.
+   Utility information stays in the TOP row; navigation is a separate row BELOW it. */
+@media (min-width: 801px) {
+  .management-layout .management-header {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100vw !important;
+    height: 76px !important;
+    min-height: 76px !important;
+    box-sizing: border-box !important;
+    padding: 0 18px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    background: #fff !important;
+    border-bottom: 1px solid #dce8f5 !important;
+    box-shadow: 0 2px 8px rgba(36,86,137,.05) !important;
+    backdrop-filter: none !important;
+    z-index: 1000 !important;
+    pointer-events: none !important;
+  }
+
+  .management-layout .management-header-actions {
+    margin-left: auto !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 9px !important;
+    pointer-events: auto !important;
+  }
+
+  .management-layout .management-date {
+    height: 44px !important;
+  }
+
+  .management-layout .management-notification {
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  .management-layout .management-user {
+    height: 54px !important;
+  }
+
+  .management-layout .management-user-avatar {
+    width: 44px !important;
+    height: 44px !important;
+    flex-basis: 44px !important;
+  }
+
+  /* NAVIGATION ROW: explicitly below the utility row. */
+  .management-layout .management-sidebar {
+    position: fixed !important;
+    top: 76px !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: auto !important;
+    inset-inline: 0 !important;
+    width: 100vw !important;
+    height: 58px !important;
+    min-height: 58px !important;
+    max-height: 58px !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    padding: 2px 12px !important;
+    margin: 0 !important;
+    background: #fff !important;
+    border: 0 !important;
+    border-bottom: 1px solid #dce8f5 !important;
+    box-shadow: 0 2px 10px rgba(36,86,137,.06) !important;
+    z-index: 990 !important;
+    overflow: hidden !important;
+  }
+
+  /* ONLY move the logo into the same TOP row as date/notification/account. */
+  .management-layout .management-brand {
+    position: fixed !important;
+    top: 8px !important;
+    left: 20px !important;
+    z-index: 1101 !important;
+    flex: 0 0 auto !important;
+    width: 132px !important;
+    min-width: 132px !important;
+    height: 60px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    border: 0 !important;
+    background: transparent !important;
+    pointer-events: none !important;
+  }
+
+  .management-layout .management-brand-logo {
+    width: 116px !important;
+    max-width: 116px !important;
+    max-height: 42px !important;
+    object-fit: contain !important;
+  }
+
+  .management-layout .management-menu {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    width: auto !important;
+    height: 54px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    gap: 3px !important;
+    overflow: hidden !important;
+    flex-direction: row !important;
+  }
+
+  .management-layout .management-menu button {
+    flex: 0 1 auto !important;
+    width: auto !important;
+    min-width: max-content !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    margin: 0 !important;
+    padding: 0 8px !important;
+    gap: 5px !important;
+    border-radius: 9px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+  }
+
+  .management.layout .management-menu button svg {
+    width: 18px !important;
+    height: 18px !important;
+    flex: 0 0 18px !important;
+  }
+
+  .management-layout .management-sidebar-footer {
+    display: none !important;
+  }
+
+  /* Reserve exactly 76 + 58 px above page content. */
+  .management-layout .management-main {
+    margin-left: 0 !important;
+    padding-top: 134px !important;
+    min-height: 100dvh !important;
+  }
+
+  .management-layout .management-content {
+    padding: 18px 24px 26px !important;
+  }
+}
+
+@media (min-width: 801px) and (max-width: 1250px) {
+  .management-layout .management-header {
+    height: 76px !important;
+    min-height: 76px !important;
+    padding-inline: 8px !important;
+  }
+
+  .management-layout .management-sidebar {
+    top: 76px !important;
+    height: 58px !important;
+    min-height: 58px !important;
+    max-height: 58px !important;
+    padding-inline: 8px !important;
+  }
+
+  /* Keep only the logo position changed; logo stays in the TOP information row. */
+  .management-layout .management-brand {
+    position: fixed !important;
+    top: 8px !important;
+    left: 12px !important;
+    z-index: 1101 !important;
+    flex-basis: auto !important;
+    width: 105px !important;
+    min-width: 105px !important;
+    height: 60px !important;
+    padding: 0 !important;
+  }
+
+  .management-layout .management-brand-logo {
+    width: 96px !important;
+    max-width: 96px !important;
+  }
+
+  .management-layout .management-menu {
+    gap: 1px !important;
+  }
+
+  .management-layout .management-menu button {
+    padding-inline: 5px !important;
+    gap: 3px !important;
+    font-size: 9px !important;
+  }
+
+  .management-layout .management-menu button svg {
+    width: 15px !important;
+    height: 15px !important;
+    flex-basis: 15px !important;
+  }
+
+  .management-layout .management-main {
+    padding-top: 134px !important;
+  }
+}

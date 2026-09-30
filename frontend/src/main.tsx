@@ -34,6 +34,7 @@ import "./config/workerAccountPolicy";
 import "./utils/reportNumberInputFix";
 import "./utils/personnelCapacityPolicy";
 import "./utils/reportOverStandardHighlight";
+import { initializeProductivityWarning75 } from "./utils/productivityWarning75";
 import { FRONTEND_VERSION, FRONTEND_COMMIT_SHA } from "./config/version";
 
 // KTC currently uses a single enterprise-light visual system.
@@ -57,6 +58,7 @@ if (/\/login\/?$/.test(window.location.pathname)) {
 // This guarantees that every POST /production-temp is recorded locally before
 // the request is allowed onto the network, including CVK and all normal processes.
 initializeReliableReportRecovery();
+initializeProductivityWarning75();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>

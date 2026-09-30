@@ -23,7 +23,7 @@
   line-height: 1.25;
 }
 
-/* Three-option groups: Tay/Máy/Khí. */
+/* Three-option groups: Cắt/Lồng/Công việc khác. */
 .worker-mode-group:has(.worker-choice-row button:nth-child(3)) .worker-choice-row {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -46,6 +46,45 @@
   font-weight: 600;
 }
 
+/* CVK: 3 gia công buttons stay on one full-width row; the 2 execution
+   buttons move to the next row underneath. */
+.worker-mode-panel:has(.worker-operation-type-row) {
+  display: grid;
+  grid-template-columns: 1fr;
+  width: 100%;
+  gap: 12px;
+}
+
+.worker-mode-panel:has(.worker-operation-type-row) .worker-operation-type-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+  gap: 12px;
+}
+
+.worker-mode-panel:has(.worker-operation-type-row) .worker-operation-type-row button {
+  width: 100%;
+  min-width: 0;
+  font-size: 12px !important;
+}
+
+.worker-mode-panel:has(.worker-operation-type-row) .worker-execution-mode-group {
+  width: 100%;
+}
+
+.worker-mode-panel:has(.worker-operation-type-row) .worker-execution-mode-group .worker-choice-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+  gap: 12px;
+}
+
+/* IMPORTANT: CVK text is real button text from JSX.
+   Do not generate a second copy through ::after. */
+.worker-mode-panel:has(.worker-operation-type-row) .worker-operation-type-row button:nth-child(3)::before,
+.worker-mode-panel:has(.worker-operation-type-row) .worker-operation-type-row button:nth-child(3)::after {
+  content: none !important;
+  display: none !important;
+}
+
 @media (max-width: 500px) {
   .worker-mode-group .worker-choice-row {
     gap: 6px;
@@ -56,5 +95,16 @@
     min-height: 36px;
     padding-inline: 5px;
     font-size: 12px !important;
+  }
+
+  .worker-mode-panel:has(.worker-operation-type-row) .worker-operation-type-row,
+  .worker-mode-panel:has(.worker-operation-type-row) .worker-execution-mode-group .worker-choice-row {
+    gap: 8px;
+  }
+
+  .worker-mode-panel:has(.worker-operation-type-row) .worker-operation-type-row button:nth-child(3)::before,
+  .worker-mode-panel:has(.worker-operation-type-row) .worker-operation-type-row button:nth-child(3)::after {
+    content: none !important;
+    display: none !important;
   }
 }

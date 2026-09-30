@@ -4,7 +4,8 @@ const fsp = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
 
-const DEFAULT_EXPORT_ROOT = path.join(os.homedir(), 'Documents', 'KTC', 'Bao cao san xuat');
+const DEFAULT_EXPORT_ROOT = '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\Linh tinh';
+const LEGACY_LOCAL_EXPORT_ROOT = path.join(os.homedir(), 'Documents', 'KTC', 'Bao cao san xuat');
 const CONFIG_FILE = path.join(app.getPath('userData'), 'excel-export-config.json');
 const DESKTOP_ICON = path.join(__dirname, '..', 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
 
@@ -12,17 +13,72 @@ if (process.platform === 'win32') {
   app.setAppUserModelId('vn.ktc.productioncontrol');
 }
 
+// Test desktop always renders the deployed TEST FE and uses the TEST BE.
+// The desktop package does not contain a frontend build anymore.
+const TEST_FRONTEND_URL = 'https://ktc-fe-test.nan978971.workers.dev';
+process.env.KTC_API_URL = 'https://ktc-be-test.nan978971.workers.dev/api';
+process.env.KTC_WEB_ORIGIN = TEST_FRONTEND_URL;
+
+let launcherLogWriter = null;
+function writeLauncherLog(level, event, payload = {}) {
+  try {
+    const userData = app.getPath('userData');
+    const logPath = path.join(userData, 'desktop-launcher.log');
+    const line = JSON.stringify({
+      timestamp: new Date().toISOString(),
+      level,
+      event,
+      ...payload,
+    }) + '\n';
+    launcherLogWriter = (launcherLogWriter || Promise.resolve())
+      .then(() => fsp.mkdir(userData, { recursive: true }))
+      .then(() => fsp.appendFile(logPath, line, 'utf8'))
+      .catch(() => {});
+    return launcherLogWriter;
+  } catch (_) {
+    return Promise.resolve();
+  }
+}
+
 app.on('browser-window-created', (_event, window) => {
   try {
     if (process.platform === 'win32') window.setIcon(DESKTOP_ICON);
   } catch (_) {}
+
+  // Test desktop always loads the deployed TEST FE.
+  const originalWindowLoadFile = window.loadFile.bind(window);
+  window.loadFile = async function loadRemoteTestFrontend(filePath, ...args) {
+    const resolved = path.resolve(String(filePath || ''));
+    const fileName = path.basename(resolved).toLowerCase();
+    if (fileName === 'index.html') {
+      try {
+        await window.webContents.session.clearCache();
+      } catch (_) {}
+      await window.loadURL(TEST_FRONTEND_URL, {
+        extraHeaders: 'Cache-Control: no-cache\nPragma: no-cache\n'
+      });
+      return window;
+    }
+    return originalWindowLoadFile(filePath, ...args);
+  };
+
+  window.webContents.on('did-navigate', (_navigateEvent, url) => {
+    if (url === TEST_FRONTEND_URL || url.startsWith(`${TEST_FRONTEND_URL}/`)) {
+      void writeLauncherLog('INFO', 'REMOTE_FE_LOADED', { url });
+    }
+  });
+
+  window.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    if (validatedURL === TEST_FRONTEND_URL || validatedURL.startsWith(`${TEST_FRONTEND_URL}/`)) {
+      void writeLauncherLog('ERROR', 'REMOTE_FE_LOAD_FAILED', {
+        errorCode,
+        errorDescription,
+        validatedURL,
+      });
+    }
+  });
 });
 
-// Test desktop uses the Cloudflare TEST backend. Set this before loading
-// main.cjs so the packaged app does not silently call the production API.
-process.env.KTC_API_URL = 'https://ktc-be-test.nan978971.workers.dev/api';
-
-// Apply the Excel export contract before main.cjs loads monthlyWorkbookLocal.cjs.
 require('./excelExportContractPatch.v2.cjs');
 
 function normalizeExportRoot(value) {
@@ -35,7 +91,14 @@ function readConfiguredExportRoot() {
   try {
     if (!fs.existsSync(CONFIG_FILE)) return DEFAULT_EXPORT_ROOT;
     const parsed = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-    return normalizeExportRoot(parsed?.exportRoot);
+    const configured = String(parsed?.exportRoot || '').trim();
+    if (!configured) return DEFAULT_EXPORT_ROOT;
+    const normalizedConfigured = path.resolve(configured);
+    const normalizedLegacy = path.resolve(LEGACY_LOCAL_EXPORT_ROOT);
+    if (normalizedConfigured.toLowerCase() === normalizedLegacy.toLowerCase()) {
+      return DEFAULT_EXPORT_ROOT;
+    }
+    return normalizeExportRoot(configured);
   } catch {
     return DEFAULT_EXPORT_ROOT;
   }
@@ -51,7 +114,7 @@ async function saveConfiguredExportRoot(exportRoot) {
 
 function safeExportFileName(value, fallback) {
   const candidate = String(value || fallback)
-    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-')
+    .replace(/[<>:\"/\\|?*\u0000-\u001F]/g, '-')
     .replace(/\s+/g, ' ')
     .trim();
   return candidate || fallback;
@@ -97,8 +160,6 @@ ipcMain.handle('ktc-save-statistics-excel', async (_event, payload = {}) => {
   return { success: true, filePath, exportRoot: root };
 });
 
-// Excel creates temporary lock files named ~$*.xlsx while a workbook is open.
-// They are not real workbooks and must never enter the DB preview/import scan.
 const originalReaddir = fsp.readdir.bind(fsp);
 fsp.readdir = async (...args) => {
   const entries = await originalReaddir(...args);

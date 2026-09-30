@@ -6,7 +6,9 @@ import { getSessionCached, clearSessionCache } from "./sessionCache";
 import { normalizeProcessId } from "../utils/processAccess";
 
 const TTL_MS = 30 * 60 * 1000;
-const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v10";
+// v12: invalidate all browser/session product-master snapshots after adding
+// GC Long Tay zero-standard work codes (XUATNHAP, KTCD, TAIPP).
+const MASTER_DATA_EPOCH_KEY = "ktcMasterDataEpoch.v12";
 const DEDUCTION_MASTER_VERSION = "v7";
 const DEFECT_MASTER_VERSION = "v8";
 

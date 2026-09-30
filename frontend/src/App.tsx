@@ -10,6 +10,7 @@ import "./pages/manager/DashboardTypography.css";
 import "./pages/manager/Reports.css";
 import "./pages/manager/ReportsReference.css";
 import "./pages/manager/ReportDetail.css";
+import "./pages/manager/ReportDetailCompact.css";
 import "./pages/manager/EditReport.css";
 import "./pages/manager/ReportDownload.css";
 import "./pages/manager/SelectedReportsReview.css";
@@ -36,6 +37,9 @@ import "./components/system/app-error-boundary.css";
 import DesktopExcelDbSyncNotifier from "./components/DesktopExcelDbSyncNotifier";
 import AppRouter from "./routes/AppRouter";
 import NetworkStatusBanner from "./components/system/NetworkStatusBanner";
+import { installProductionHistoryDisplayFix } from "./pages/worker/ProductionHistoryDisplayFix";
+
+installProductionHistoryDisplayFix();
 
 function App() {
     return <>

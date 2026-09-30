@@ -4,6 +4,7 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const ALLOWED_SHIFTS = new Set(["A", "B", "C", "D", "Ca 1", "Ca 2", "Ca 3"]);
 const EPSILON = 0.02;
 const MAX_TOTAL_TIME_HOURS = 12;
+const ZERO_STANDARD_LONG_WORK_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
 
 const parseHoursValue = (value) => {
     if (typeof value === 'number') return Number.isFinite(value) ? value : Number.NaN;
@@ -40,13 +41,13 @@ const normalizeDetails = (items, idField, valueField, label, errors) => {
         return [];
     }
 
-    const usedIds = new Set();
-    return items.map((item, index) => {
+    const merged = new Map();
+    const anonymous = [];
+
+    for (const [index, item] of items.entries()) {
         const typeId = Number(item?.[idField] || 0);
         const typeName = String(item?.defect_name || item?.deduction_name || "").trim();
 
-        // Canonical API field for deductions is `hours`, but older/mobile clients
-        // may still send the UI value as `minutes`. Accept both at the boundary.
         let rawValue = item?.[valueField];
         let valueUnit = "hours";
         if (rawValue === undefined || rawValue === null || rawValue === "") {
@@ -64,35 +65,48 @@ const normalizeDetails = (items, idField, valueField, label, errors) => {
 
         if ((!Number.isInteger(typeId) || typeId <= 0) && !typeName) {
             errors[`${label}.${index}.${idField}`] = `Loại ${label} không hợp lệ`;
-        } else if (typeId > 0 && usedIds.has(typeId)) {
-            errors[`${label}.${index}.${idField}`] = `Loại ${label} bị trùng`;
-        } else if (typeId > 0) {
-            usedIds.add(typeId);
+            anonymous.push({ ...item, [idField]: typeId, [valueField]: Number.isFinite(value) ? value : 0 });
+            continue;
         }
 
         if (!Number.isFinite(value) || value < 0) {
             errors[`${label}.${index}.${valueField}`] = `${valueField} không được âm`;
+            continue;
         }
 
-        return { ...item, [idField]: typeId, [valueField]: Number.isFinite(value) ? value : 0 };
-    }).filter((item) => item[valueField] > 0);
+        const key = typeId > 0 ? `id:${typeId}` : `name:${typeName.toUpperCase()}`;
+        const existing = merged.get(key);
+        if (existing) {
+            existing[valueField] += value;
+        } else {
+            merged.set(key, { ...item, [idField]: typeId, [valueField]: value });
+        }
+    }
+
+    return [...merged.values(), ...anonymous].filter((item) => item[valueField] > 0);
 };
 
 const finiteMinutes = (hours) => Math.round((Number(hours) || 0) * 60);
 
 const validateProductionReport = (payload = {}, options = {}) => {
     const errors = {};
-    const workDate = String(payload.work_date || "").slice(0, 10);
+    const workDate = String(payload.work_date || '').slice(0, 10);
     const parsedDate = DATE_PATTERN.test(workDate) ? new Date(`${workDate}T00:00:00`) : null;
     const isNonProductWork = Number(payload.process_id) === 60006 ||
-        String(payload.process_code || payload.extra_data?.process_code || "").trim().toUpperCase() === "CVK";
+        String(payload.process_code || payload.extra_data?.process_code || '').trim().toUpperCase() === 'CVK';
+    const productCodeForPolicy = String(payload.product_name || '').split(',')[0].trim().toUpperCase();
+    const isZeroStandardLongWork = ZERO_STANDARD_LONG_WORK_CODES.has(productCodeForPolicy) &&
+        String(payload.operation_type || '').trim().toUpperCase() === 'LONG' &&
+        Number(payload.process_id) !== 60006;
+    const isMachineReport = String(payload.operation_mode || payload.execution_method || '').trim().toUpperCase() === 'MACHINE' ||
+        (Array.isArray(payload.machine_lines) && payload.machine_lines.length > 0);
 
     if (!parsedDate || Number.isNaN(parsedDate.getTime())) {
-        errors.work_date = "Ngày làm việc không hợp lệ";
+        errors.work_date = 'Ngày làm việc không hợp lệ';
     } else {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        if (parsedDate > today) errors.work_date = "Không được nhập báo cáo cho ngày tương lai";
+        if (parsedDate > today) errors.work_date = 'Không được nhập báo cáo cho ngày tương lai';
 
         const maxBackDays = Number(options.maxBackDays ?? 14);
         if (Number.isFinite(maxBackDays) && maxBackDays >= 0 && options.enforceBackDate !== false) {
@@ -102,29 +116,27 @@ const validateProductionReport = (payload = {}, options = {}) => {
         }
     }
 
-    const shift = String(payload.shift || "").trim();
-    if (!shift) errors.shift = "Thiếu ca làm việc";
-    else if (!ALLOWED_SHIFTS.has(shift)) errors.shift = "Ca làm việc không hợp lệ";
+    const shift = String(payload.shift || '').trim();
+    if (!shift) errors.shift = 'Thiếu ca làm việc';
+    else if (!ALLOWED_SHIFTS.has(shift)) errors.shift = 'Ca làm việc không hợp lệ';
 
-    const totalTime = finiteNumber(payload.total_time, "total_time", errors, { max: MAX_TOTAL_TIME_HOURS });
-    const deductionTime = finiteNumber(payload.deduction_time, "deduction_time", errors, { max: MAX_TOTAL_TIME_HOURS });
-    const actualTime = finiteNumber(payload.actual_time, "actual_time", errors, { max: MAX_TOTAL_TIME_HOURS });
-    // Normal production reports must have a positive standard. CVK is intentionally
-    // product-less, so standard_output=0 is the canonical value for this process.
-    const standardOutput = isNonProductWork
-        ? finiteNumber(payload.standard_output, "standard_output", errors, { max: 100000000 })
-        : finiteNumber(payload.standard_output, "standard_output", errors, { min: Number.MIN_VALUE, max: 100000000 });
-    const actualOutput = finiteNumber(payload.actual_output, "actual_output", errors, { max: 100000000 });
-    const ttOk = finiteNumber(payload.tt_ok, "tt_ok", errors, { max: 100000000 });
-    const ttNg = finiteNumber(payload.tt_ng, "tt_ng", errors, { max: 100000000 });
+    const totalTime = finiteNumber(payload.total_time, 'total_time', errors, { max: MAX_TOTAL_TIME_HOURS });
+    const deductionTime = finiteNumber(payload.deduction_time, 'deduction_time', errors, { max: MAX_TOTAL_TIME_HOURS });
+    const actualTime = finiteNumber(payload.actual_time, 'actual_time', errors, { max: MAX_TOTAL_TIME_HOURS });
+    const standardOutput = isNonProductWork || isZeroStandardLongWork
+        ? finiteNumber(payload.standard_output, 'standard_output', errors, { max: 100000000 })
+        : finiteNumber(payload.standard_output, 'standard_output', errors, { min: Number.MIN_VALUE, max: 100000000 });
+    const actualOutput = finiteNumber(payload.actual_output, 'actual_output', errors, { max: 100000000 });
+    const ttOk = finiteNumber(payload.tt_ok, 'tt_ok', errors, { max: 100000000 });
+    const ttNg = finiteNumber(payload.tt_ng, 'tt_ng', errors, { max: 100000000 });
 
-    if (actualTime <= 0) errors.actual_time = "Thời gian làm thực tế phải lớn hơn 0";
-    if (totalTime > MAX_TOTAL_TIME_HOURS) errors.total_time = "Tổng thời gian không được vượt quá 12 giờ";
+    if (actualTime <= 0) errors.actual_time = 'Thời gian làm thực tế phải lớn hơn 0';
+    if (totalTime > MAX_TOTAL_TIME_HOURS) errors.total_time = 'Tổng thời gian không được vượt quá 12 giờ';
     if (Math.abs(totalTime - (actualTime + deductionTime)) > EPSILON) {
-        errors.total_time = "Tổng thời gian phải bằng thời gian làm thực tế cộng thời gian trừ";
+        errors.total_time = 'Tổng thời gian phải bằng thời gian làm thực tế cộng thời gian trừ';
     }
-    const defects = normalizeDetails(payload.defects || [], "defect_type_id", "quantity", "defects", errors);
-    if (options.skipActualOutputFormula !== true) {
+    const defects = normalizeDetails(payload.defects || [], 'defect_type_id', 'quantity', 'defects', errors);
+    if (!isMachineReport && options.skipActualOutputFormula !== true) {
         const policyValue = Object.prototype.hasOwnProperty.call(payload, 'exclude_kqd_from_tt_snapshot')
             ? payload.exclude_kqd_from_tt_snapshot
             : payload.exclude_kqd_from_tt;
@@ -134,13 +146,12 @@ const validateProductionReport = (payload = {}, options = {}) => {
             excludeKqdFromTt: Boolean(Number(policyValue || 0))
         });
         if (Math.abs(actualOutput - expectedActualOutput) > EPSILON) {
-            errors.actual_output = "Sản lượng thực tế không đúng theo quy tắc tính của mã sản phẩm";
+            errors.actual_output = 'Sản lượng thực tế không đúng theo quy tắc tính của mã sản phẩm';
         }
     }
 
-    let deductions = normalizeDetails(payload.deductions || [], "deduction_type_id", "hours", "deductions", errors);
+    let deductions = normalizeDetails(payload.deductions || [], 'deduction_type_id', 'hours', 'deductions', errors);
 
-    // Canonical unit is HOURS. Support legacy minute-based detail payloads.
     const deductionTotal = deductions.reduce((sum, item) => sum + item.hours, 0);
     const minuteBasedTotal = deductionTotal / 60;
     if (
@@ -157,14 +168,12 @@ const validateProductionReport = (payload = {}, options = {}) => {
     const defectTotal = defects.reduce((sum, item) => sum + item.quantity, 0);
     const normalizedDeductionTotal = deductions.reduce((sum, item) => sum + item.hours, 0);
 
-    if (Math.abs(defectTotal - ttNg) > EPSILON) {
-        errors.tt_ng = "TT NG phải bằng tổng số lượng trong chi tiết lỗi";
+    if (!isMachineReport && Math.abs(defectTotal - ttNg) > EPSILON) {
+        errors.tt_ng = 'TT NG phải bằng tổng số lượng trong chi tiết lỗi';
     }
 
-    // Compare in minutes as well as hours. This prevents harmless floating-point
-    // representations such as 20/60 = 0.3333333333333333 from being rejected.
     if (Math.abs(finiteMinutes(normalizedDeductionTotal) - finiteMinutes(deductionTime)) > 1) {
-        errors.deduction_time = "Thời gian trừ phải bằng tổng thời gian trong chi tiết khấu trừ";
+        errors.deduction_time = 'Thời gian trừ phải bằng tổng thời gian trong chi tiết khấu trừ';
     }
 
     return {
@@ -174,10 +183,10 @@ const validateProductionReport = (payload = {}, options = {}) => {
             ...payload,
             work_date: workDate,
             shift,
-            machine_no: String(payload.machine_no || "").trim() || null,
-            product_name: String(payload.product_name || "").trim() || null,
-            note: String(payload.note || "").trim().slice(0, 1000),
-            client_request_id: String(payload.client_request_id || "").trim().slice(0, 64) || null,
+            machine_no: String(payload.machine_no || '').trim() || null,
+            product_name: String(payload.product_name || '').trim() || null,
+            note: String(payload.note || '').trim().slice(0, 1000),
+            client_request_id: String(payload.client_request_id || '').trim().slice(0, 64) || null,
             training_percent: normalizeTrainingPercent(payload.training_percent, 100),
             total_time: totalTime,
             deduction_time: deductionTime,

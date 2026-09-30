@@ -63,3 +63,39 @@ html body .history-page .history-shell .history-table .column-index{width:28px!i
   html body .history-page .history-shell .history-table th{font-size:9px!important}
   html body .history-page .history-shell .history-table td{font-size:10.5px!important}
 }
+
+/* No-standard jobs have no OK/NG quantities: show a dash in report history. */
+.history-table .product-cell[title="XUATNHAP" i] ~ .ok-column,
+.history-table .product-cell[title="XUATNHAP" i] ~ .ng-column,
+.history-table .product-cell[title="KTCD" i] ~ .ok-column,
+.history-table .product-cell[title="KTCD" i] ~ .ng-column,
+.history-table .product-cell[title="KYCD" i] ~ .ok-column,
+.history-table .product-cell[title="KYCD" i] ~ .ng-column,
+.history-table .product-cell[title="TAIPP" i] ~ .ok-column,
+.history-table .product-cell[title="TAIPP" i] ~ .ng-column {
+  font-size:0 !important;
+}
+
+.history-table .product-cell[title="XUATNHAP" i] ~ .ok-column::after,
+.history-table .product-cell[title="XUATNHAP" i] ~ .ng-column::after,
+.history-table .product-cell[title="KTCD" i] ~ .ok-column::after,
+.history-table .product-cell[title="KTCD" i] ~ .ng-column::after,
+.history-table .product-cell[title="KYCD" i] ~ .ok-column::after,
+.history-table .product-cell[title="KYCD" i] ~ .ng-column::after,
+.history-table .product-cell[title="TAIPP" i] ~ .ok-column::after,
+.history-table .product-cell[title="TAIPP" i] ~ .ng-column::after {
+  content:"-";
+  font-size:12px;
+}
+
+/* Automatic cut machines are labelled with -AUTO in the history list. */
+.history-table .machine-cell[title="C5" i],
+.history-table .machine-cell[title="C6" i],
+.history-table .machine-cell[title="C7" i],
+.history-table .machine-cell[title="C11" i] {
+  font-size:0 !important;
+}
+.history-table .machine-cell[title="C5" i]::after { content:"C5-AUTO"; font-size:12px; }
+.history-table .machine-cell[title="C6" i]::after { content:"C6-AUTO"; font-size:12px; }
+.history-table .machine-cell[title="C7" i]::after { content:"C7-AUTO"; font-size:12px; }
+.history-table .machine-cell[title="C11" i]::after { content:"C11-AUTO"; font-size:12px; }

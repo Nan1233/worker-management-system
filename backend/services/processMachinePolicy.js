@@ -8,7 +8,7 @@ const PROCESS_IDS = Object.freeze({
   EP: 7,
   CAN: 8,
   SX3: 9,
-  CVK: 60006
+  CVK: 30002
 });
 
 // Accept legacy FE ids at the API boundary while all internal comparisons
@@ -19,6 +19,7 @@ const LEGACY_PROCESS_ID_MAP = Object.freeze({
   60003: PROCESS_IDS.EP,
   60004: PROCESS_IDS.XLBV,
   60005: PROCESS_IDS.SX3,
+  60006: PROCESS_IDS.CVK,
 });
 
 const normalizeProcessId = (processId) => {

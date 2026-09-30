@@ -8,6 +8,7 @@ const query = (sql, params = []) => new Promise((resolve, reject) => {
 
 const normalizeText = (value) => String(value ?? "").trim();
 const uniquePositiveIds = (items, key) => [...new Set((Array.isArray(items) ? items : []).map((item) => Number(item?.[key])).filter((id) => Number.isInteger(id) && id > 0))];
+const ZERO_STANDARD_GC_LONG_MANUAL_CODES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
 
 const validateMasterData = async ({ workerId, processId, machineNo, productName, defects = [], deductions = [], ttOk, actualOutput, allowEmptyMachine = false, operationMode = null, workDate }) => {
     const errors = {};
@@ -76,24 +77,34 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
     } else {
         productCode = products[0].product_code;
         const normalizedOperationMode = String(operationMode || (normalizedMachineNo ? "MACHINE" : "MANUAL")).toUpperCase();
-        const resolvedStandard = await resolveStandard({
-            processId,
-            productCode: normalizedProductName,
-            machineId: normalizedOperationMode === "MACHINE" ? (machines[0]?.id || null) : null,
-            machineCode: normalizedOperationMode === "MACHINE" ? (machines[0]?.machine_code || null) : null,
-            workDate,
-            operationMode: normalizedOperationMode
-        });
-        standardOutput = Number(resolvedStandard.standardOutput);
-        excludeKqdFromTt = Number(resolvedStandard.excludeKqdFromTt || 0) === 1 ? 1 : 0;
-        standardVersionId = resolvedStandard.standardVersionId;
-        machineStandardId = resolvedStandard.machineStandardId;
-        productStandardId = resolvedStandard.productStandardId;
+        const isGcLongManualZeroStandard = processCode === "GC" && normalizedOperationMode === "MANUAL" && !normalizedMachineNo && ZERO_STANDARD_GC_LONG_MANUAL_CODES.has(String(productCode || "").trim().toUpperCase());
+
+        if (isGcLongManualZeroStandard) {
+            standardOutput = 0;
+            excludeKqdFromTt = Number(products[0].exclude_kqd_from_tt || 0) === 1 ? 1 : 0;
+            standardVersionId = null;
+            machineStandardId = null;
+            productStandardId = Number(products[0].id) || null;
+        } else {
+            const resolvedStandard = await resolveStandard({
+                processId,
+                productCode: normalizedProductName,
+                machineId: normalizedOperationMode === "MACHINE" ? (machines[0]?.id || null) : null,
+                machineCode: normalizedOperationMode === "MACHINE" ? (machines[0]?.machine_code || null) : null,
+                workDate,
+                operationMode: normalizedOperationMode
+            });
+            standardOutput = Number(resolvedStandard.standardOutput);
+            excludeKqdFromTt = Number(resolvedStandard.excludeKqdFromTt || 0) === 1 ? 1 : 0;
+            standardVersionId = resolvedStandard.standardVersionId;
+            machineStandardId = resolvedStandard.machineStandardId;
+            productStandardId = resolvedStandard.productStandardId;
+        }
 
         const encodedScopeError = validateEncodedGcMachineProduct({ processCode: products[0].process_code, productCode, machineCode: machineCode || normalizedMachineNo, isAutomatic: machines[0]?.is_automatic || 0, operationMode: normalizedOperationMode });
         if (encodedScopeError && !legacyApprovedWithoutMachine) errors.product_name = encodedScopeError;
 
-        if (ttOk !== undefined && actualOutput !== undefined) {
+        if (ttOk !== undefined && actualOutput !== undefined && !isGcLongManualZeroStandard) {
             const { calculateActualOutput } = require("../utils/outputCalculation");
             const expected = calculateActualOutput({ ttOk, defects: authoritativeDefects, excludeKqdFromTt: Boolean(excludeKqdFromTt) });
             if (Math.abs(Number(actualOutput) - expected) > 0.02) errors.actual_output = "Sản lượng thực tế không đúng theo quy tắc tính của mã sản phẩm";

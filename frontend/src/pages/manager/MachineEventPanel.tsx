@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import type { ProductionReport } from "../../types/production";
+import { api } from "../../services/api";
 import {
   approveMachineProductionEvent,
   createMachineProductionEvent,
   getMachineProductionEvent,
-  linkMachineEventParticipants,
   updateMachineProductionEvent,
   type MachineProductionEvent,
   type MachineProductionEventDefectInput,
 } from "../../services/productionService";
+import { usePermissions } from "../../hooks/usePermissions";
 
 const SHARED_MACHINE_NUMBERS = new Set([5, 6, 7, 11]);
 const machineNumber = (value: unknown) => {
@@ -26,6 +27,8 @@ interface Props {
 
 export default function MachineEventPanel({ report, line, source, onChanged }: Props) {
   const required = SHARED_MACHINE_NUMBERS.has(machineNumber(line.machine_code) || -1);
+  const { can } = usePermissions();
+  const canManage = source === "pending" && can("REPORT_PENDING_EDIT");
   const [eventIdInput, setEventIdInput] = useState(String(line.machine_event_id || ""));
   const [event, setEvent] = useState<MachineProductionEvent | null>(null);
   const [physicalOk, setPhysicalOk] = useState(Number(line.ok_quantity || 0));
@@ -35,7 +38,7 @@ export default function MachineEventPanel({ report, line, source, onChanged }: P
       defect_type_id: item.defect_type_id,
       defect_code: item.defect_code,
       quantity: Number(item.quantity || 0),
-      responsible_worker_id: Number(report.worker_id || 0),
+      responsible_worker_id: Number(item.responsible_worker_id || report.worker_id || 0),
     }))
   );
   const [busy, setBusy] = useState(false);
@@ -45,7 +48,7 @@ export default function MachineEventPanel({ report, line, source, onChanged }: P
     const ids = new Set<number>();
     (event?.participants || []).forEach((item) => ids.add(Number(item.worker_id)));
     if (Number(report.worker_id) > 0) ids.add(Number(report.worker_id));
-    return [...ids];
+    return [...ids].filter((id) => Number.isInteger(id) && id > 0);
   }, [event, report.worker_id]);
 
   const hydrate = (value: MachineProductionEvent) => {
@@ -71,19 +74,13 @@ export default function MachineEventPanel({ report, line, source, onChanged }: P
   const message = (err: unknown, fallback: string) => axios.isAxiosError(err) ? err.response?.data?.message || fallback : fallback;
 
   const createEvent = async () => {
-    if (!line.id || !report.process_id || !report.work_date || !report.shift || !line.product_code) return;
+    if (!canManage || !line.id || !report.process_id || !report.work_date || !report.shift || !line.product_code) return;
     try {
       setBusy(true); setError("");
       const created = await createMachineProductionEvent({
-        process_id: Number(report.process_id),
-        machine_id: line.machine_id,
-        machine_code: line.machine_code,
-        product_code: line.product_code,
-        work_date: report.work_date,
-        shift: report.shift,
-        physical_ok_quantity: physicalOk,
-        machine_time_hours: machineHours,
-        defects,
+        process_id: Number(report.process_id), machine_id: line.machine_id, machine_code: line.machine_code,
+        product_code: line.product_code, work_date: report.work_date, shift: report.shift,
+        physical_ok_quantity: physicalOk, machine_time_hours: machineHours, defects,
         temp_machine_line_ids: [Number(line.id)],
       });
       hydrate(created); await onChanged?.();
@@ -92,32 +89,30 @@ export default function MachineEventPanel({ report, line, source, onChanged }: P
   };
 
   const linkExisting = async () => {
+    if (!canManage) return;
     const eventId = Number(eventIdInput);
     if (!line.id || !Number.isInteger(eventId) || eventId <= 0) { setError("ID event không hợp lệ."); return; }
     try {
       setBusy(true); setError("");
-      hydrate(await linkMachineEventParticipants(eventId, [Number(line.id)]));
+      const response = await api.post(`/machine-production-events/${eventId}/link-participants`, { temp_machine_line_ids: [Number(line.id)] });
+      hydrate(response.data?.data ?? response.data);
       await onChanged?.();
     } catch (err) { setError(message(err, "Không thể liên kết production event.")); }
     finally { setBusy(false); }
   };
 
   const updateEvent = async () => {
-    if (!event) return;
+    if (!canManage || !event) return;
     try {
       setBusy(true); setError("");
-      hydrate(await updateMachineProductionEvent(event.id, {
-        physical_ok_quantity: physicalOk,
-        machine_time_hours: machineHours,
-        defects,
-      }));
+      hydrate(await updateMachineProductionEvent(event.id, { physical_ok_quantity: physicalOk, machine_time_hours: machineHours, defects }));
       await onChanged?.();
     } catch (err) { setError(message(err, "Không thể cập nhật production event.")); }
     finally { setBusy(false); }
   };
 
   const approveEvent = async () => {
-    if (!event) return;
+    if (!canManage || !event) return;
     try {
       setBusy(true); setError("");
       hydrate(await approveMachineProductionEvent(event.id));
@@ -131,8 +126,8 @@ export default function MachineEventPanel({ report, line, source, onChanged }: P
     <p className="detail-help">Sản lượng công nhân ở dòng máy là <strong>credited output</strong>. Sản lượng vật lý máy được quản lý một lần tại event này.</p>
     {error && <div className="detail-inline-error">{error}</div>}
     <div className="detail-basic-grid">
-      <label className="detail-basic-item"><span>Physical OK</span><input type="number" min="0" step="1" value={physicalOk} onChange={(e)=>setPhysicalOk(Number(e.target.value))}/></label>
-      <label className="detail-basic-item"><span>Machine hours</span><input type="number" min="0.01" step="0.01" value={machineHours} onChange={(e)=>setMachineHours(Number(e.target.value))}/></label>
+      <label className="detail-basic-item"><span>Physical OK</span><input type="number" min="0" step="1" value={physicalOk} readOnly={!canManage} disabled={!canManage || busy} onChange={(e)=>setPhysicalOk(Number(e.target.value))}/></label>
+      <label className="detail-basic-item"><span>Machine hours</span><input type="number" min="0.01" step="0.01" value={machineHours} readOnly={!canManage} disabled={!canManage || busy} onChange={(e)=>setMachineHours(Number(e.target.value))}/></label>
       <div className="detail-basic-item"><span>Event</span><strong>{event ? `#${event.id} · ${event.status}` : "Chưa liên kết"}</strong></div>
       <div className="detail-basic-item"><span>Physical counted</span><strong>{event ? Number(event.physical_counted_output).toLocaleString("vi-VN") : "—"}</strong></div>
     </div>
@@ -141,19 +136,18 @@ export default function MachineEventPanel({ report, line, source, onChanged }: P
       {defects.length === 0 && <p>Không có NG vật lý.</p>}
       {defects.map((item, index) => <div className="machine-event-defect-row" key={`${item.defect_type_id || item.defect_code}-${index}`}>
         <span>{item.defect_code || `NG #${item.defect_type_id}`}</span>
-        <input type="number" min="0" step="1" value={item.quantity} onChange={(e)=>setDefects((prev)=>prev.map((row,i)=>i===index?{...row,quantity:Number(e.target.value)}:row))}/>
-        <select value={item.responsible_worker_id} onChange={(e)=>setDefects((prev)=>prev.map((row,i)=>i===index?{...row,responsible_worker_id:Number(e.target.value)}:row))}>
+        <input type="number" min="0" step="1" value={item.quantity} readOnly={!canManage} disabled={!canManage || busy} onChange={(e)=>setDefects((prev)=>prev.map((row,i)=>i===index?{...row,quantity:Number(e.target.value)}:row))}/>
+        <select value={item.responsible_worker_id} disabled={!canManage || busy} onChange={(e)=>setDefects((prev)=>prev.map((row,i)=>i===index?{...row,responsible_worker_id:Number(e.target.value)}:row))}>
           {participantWorkers.map((workerId)=><option key={workerId} value={workerId}>Worker #{workerId}</option>)}
         </select>
       </div>)}
     </div>
-    {!event ? (source === "pending" ? <div className="machine-event-actions">
+    {!event ? (source === "pending" && canManage ? <div className="machine-event-actions">
       <button type="button" disabled={busy} onClick={()=>void createEvent()}>Tạo event từ dòng này</button>
-      <input aria-label="Existing event ID" placeholder="Event ID" value={eventIdInput} onChange={(e)=>setEventIdInput(e.target.value)}/>
+      <input aria-label="Existing event ID" placeholder="Event ID" value={eventIdInput} disabled={busy} onChange={(e)=>setEventIdInput(e.target.value)}/>
       <button type="button" disabled={busy} onClick={()=>void linkExisting()}>Liên kết event có sẵn</button>
-    </div> : <div className="detail-warning">Legacy approved line chưa có physical event; cần audit/reconciliation, không tự tạo event lịch sử.</div>) : <div className="machine-event-actions">
-      <button type="button" disabled={busy} onClick={()=>void updateEvent()}>Lưu physical truth</button>
-      {event.status !== "approved" && <button type="button" disabled={busy} onClick={()=>void approveEvent()}>Duyệt event</button>}
+    </div> : <div className="detail-warning">{source === "approved" ? "Chi tiết physical machine của báo cáo đã duyệt ở chế độ chỉ đọc." : "Bạn không có quyền sửa physical machine event của báo cáo này."}</div>) : <div className="machine-event-actions">
+      {canManage ? <><button type="button" disabled={busy} onClick={()=>void updateEvent()}>Lưu physical truth</button>{event.status !== "approved" && <button type="button" disabled={busy} onClick={()=>void approveEvent()}>Duyệt event</button>}</> : <div className="detail-warning">Physical machine event đang ở chế độ chỉ đọc.</div>}
     </div>}
   </section>;
 }

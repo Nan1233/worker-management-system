@@ -1,11 +1,12 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const os = require('node:os');
 const {
   getProcessMonthTarget,
   normalizeProcessFolder,
   processReportFileName,
 } = require('./excelDualLayout.cjs');
+
+const DEFAULT_EXPORT_ROOT = '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\Linh tinh';
 
 function getDateParts(dateValue = new Date()) {
   const formatter = new Intl.DateTimeFormat('en-CA', {
@@ -39,7 +40,7 @@ function safeFileName(value, fallback) {
 function getExportRoot() {
   const configured = String(process.env.KTC_EXPORT_ROOT || '').trim();
   if (configured) return path.resolve(configured);
-  return path.join(os.homedir(), 'Documents', 'KTC', 'Bao cao san xuat');
+  return DEFAULT_EXPORT_ROOT;
 }
 
 async function findExistingProcessReportFile(folder, processInfo, month, year) {

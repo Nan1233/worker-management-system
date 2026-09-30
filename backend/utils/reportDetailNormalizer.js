@@ -36,36 +36,14 @@ function canonicalDefect(item = {}) {
   const canonicalCode = CANONICAL_GC_DEFECTS.has(aliasCode)
     ? aliasCode
     : [...CANONICAL_GC_DEFECTS.entries()].find(([, name]) => normalizeKey(name) === nameKey)?.[0] || null;
-
   if (!canonicalCode) {
     const defectTypeId = Number(item.defect_type_id ?? item.id) || undefined;
     const defectCode = String(item.defect_code || item.defect_type_code || item.code || "").trim();
     const defectName = String(item.defect_name || item.name || item.label || "").trim();
     if (!defectTypeId && !defectCode && !defectName) return null;
-    return {
-      ...item,
-      id: defectTypeId,
-      defect_type_id: defectTypeId,
-      defect_code: defectCode || undefined,
-      defect_name: defectName || defectCode || `Lỗi NG #${defectTypeId || "?"}`
-    };
+    return { ...item, id: defectTypeId, defect_type_id: defectTypeId, defect_code: defectCode || undefined, defect_name: defectName || defectCode || `Lỗi NG #${defectTypeId || "?"}` };
   }
-
   return { ...item, defect_code: canonicalCode, defect_name: CANONICAL_GC_DEFECTS.get(canonicalCode) };
-}
-
-function parseMachineDefectEntry(key, value) {
-  const raw = value && typeof value === "object" ? value : {};
-  const quantity = Number(raw.quantity ?? raw.qty ?? raw.ng_quantity ?? value);
-  if (!Number.isFinite(quantity) || quantity <= 0) return null;
-  const code = raw.defect_code || raw.defect_type_code || raw.code || key;
-  return canonicalDefect({
-    id: Number(raw.id) || undefined,
-    defect_type_id: Number(raw.defect_type_id ?? raw.type_id) || undefined,
-    defect_code: code,
-    defect_name: raw.defect_name || raw.defect_type_name || raw.name || raw.label,
-    quantity: Math.trunc(quantity)
-  });
 }
 
 function parseMachineDefects(machineLines = []) {
@@ -73,16 +51,10 @@ function parseMachineDefects(machineLines = []) {
   for (const line of Array.isArray(machineLines) ? machineLines : []) {
     let parsed = line?.defects;
     if (!Array.isArray(parsed)) {
-      const raw = line?.defects_json;
-      if (!raw) continue;
-      parsed = raw;
-      if (typeof raw === "string") {
-        try { parsed = JSON.parse(raw); } catch { parsed = null; }
-      }
-      if (!parsed) continue;
-      if (!Array.isArray(parsed) && Array.isArray(parsed.defects)) parsed = parsed.defects;
+      parsed = line?.defects_json;
+      if (typeof parsed === "string") { try { parsed = JSON.parse(parsed); } catch { parsed = null; } }
+      if (parsed && !Array.isArray(parsed) && Array.isArray(parsed.defects)) parsed = parsed.defects;
     }
-
     if (Array.isArray(parsed)) {
       for (const item of parsed) {
         if (!item || typeof item !== "object") continue;
@@ -97,13 +69,13 @@ function parseMachineDefects(machineLines = []) {
         });
         if (normalized) result.push(normalized);
       }
-      continue;
-    }
-
-    if (typeof parsed === "object") {
+    } else if (parsed && typeof parsed === "object") {
       for (const [key, value] of Object.entries(parsed)) {
         if (["selectedDefects", "selectedNg", "total", "ngQuantity"].includes(key)) continue;
-        const item = parseMachineDefectEntry(key, value);
+        const raw = value && typeof value === "object" ? value : {};
+        const quantity = Number(raw.quantity ?? raw.qty ?? raw.ng_quantity ?? value) || 0;
+        if (quantity <= 0) continue;
+        const item = canonicalDefect({ id: Number(raw.id) || undefined, defect_type_id: Number(raw.defect_type_id ?? raw.type_id) || undefined, defect_code: raw.defect_code || raw.defect_type_code || raw.code || key, defect_name: raw.defect_name || raw.defect_type_name || raw.name || raw.label, quantity: Math.trunc(quantity) });
         if (item) result.push(item);
       }
     }
@@ -111,8 +83,12 @@ function parseMachineDefects(machineLines = []) {
   return result;
 }
 
+// IMPORTANT: rows are worker-level defects. Machine defects are a separate
+// accounting domain and must never be copied into the worker defect list.
+// For machine reports with no persisted worker-level rows, return [] and let
+// the UI show the exact parent NG total as "chưa phân loại" rather than inventing
+// a defect type or borrowing machine quantities.
 function mergeDefects(report, rows = [], machineLines = []) {
-  const machineDefects = parseMachineDefects(machineLines);
   const merged = new Map();
   const add = (item) => {
     const canonical = canonicalDefect(item);
@@ -125,50 +101,27 @@ function mergeDefects(report, rows = [], machineLines = []) {
     const key = typeId ? `ID:${typeId}` : code ? `CODE:${code}` : `NAME:${name}`;
     const existing = merged.get(key);
     if (existing) existing.quantity += quantity;
-    else merged.set(key, {
-      id: typeId || undefined,
-      defect_type_id: typeId || undefined,
-      defect_code: code || undefined,
-      defect_name: name || code || `Lỗi NG #${typeId || "?"}`,
-      quantity
-    });
+    else merged.set(key, { id: typeId || undefined, defect_type_id: typeId || undefined, defect_code: code || undefined, defect_name: name || code || `Lỗi NG #${typeId || "?"}`, quantity });
   };
 
-  rows.forEach(add);
-  machineDefects.forEach(add);
+  (Array.isArray(rows) ? rows : []).forEach(add);
+  if (merged.size > 0) return [...merged.values()].sort((a, b) => String(a.defect_name).localeCompare(String(b.defect_name), "vi"));
 
-  if (!rows.length && !machineDefects.length) {
-    LEGACY_DEFECT_FIELDS.forEach(([field, code, name]) => {
-      const quantity = Math.trunc(Number(report?.[field] ?? 0) || 0);
-      if (quantity > 0) add({ defect_code: code, defect_name: name, quantity });
-    });
-  }
+  const mode = String(report?.operation_mode || "").trim().toUpperCase();
+  if (mode === "MACHINE" || (Array.isArray(machineLines) && machineLines.length > 0)) return [];
 
-  // Legacy machine reports can contain a valid NG total in ng_quantity while
-  // the old UI never persisted the individual defect type. Never hide that
-  // quantity in History/Detail: expose it explicitly as unclassified rather
-  // than inventing a defect type.
-  if (merged.size === 0) {
-    const machineNgTotal = (Array.isArray(machineLines) ? machineLines : [])
-      .reduce((sum, line) => sum + Math.max(0, Math.trunc(Number(line?.ng_quantity || 0) || 0)), 0);
-    const parentNg = Math.max(0, Math.trunc(Number(report?.tt_ng || 0) || 0));
-    const fallbackNg = machineNgTotal > 0 ? machineNgTotal : parentNg;
-    if (fallbackNg > 0) {
-      add({
-        defect_code: "NG_UNCLASSIFIED",
-        defect_name: "NG chưa phân loại",
-        quantity: fallbackNg,
-      });
-    }
-  }
-
+  // Manual reports may still have legacy defect columns. Use them only when
+  // there is no normalized child-row source.
+  LEGACY_DEFECT_FIELDS.forEach(([field, code, name]) => {
+    const quantity = Math.trunc(Number(report?.[field] ?? 0) || 0);
+    if (quantity > 0) add({ defect_code: code, defect_name: name, quantity });
+  });
   return [...merged.values()].sort((a, b) => String(a.defect_name).localeCompare(String(b.defect_name), "vi"));
 }
 
 function normalizeDeductions(rows = [], report = null) {
   const merged = new Map();
-  const source = Array.isArray(rows) ? rows : [];
-  source.forEach((item) => {
+  (Array.isArray(rows) ? rows : []).forEach((item) => {
     const hours = Number(item?.hours ?? item?.deduction_hours ?? 0) || 0;
     if (hours <= 0) return;
     const typeId = Number(item?.deduction_type_id) || null;
@@ -176,21 +129,10 @@ function normalizeDeductions(rows = [], report = null) {
     if (merged.has(key)) merged.get(key).hours += hours;
     else merged.set(key, { ...item, hours });
   });
-
-  // Older reports can retain only the parent deduction_time. Preserve the
-  // accounting total in Detail instead of rendering an empty deduction block.
   if (merged.size === 0) {
     const parentHours = Math.max(0, Number(report?.deduction_time || 0) || 0);
-    if (parentHours > 0) {
-      merged.set("UNCLASSIFIED", {
-        deduction_type_id: undefined,
-        deduction_code: "TRU_GIO_UNCLASSIFIED",
-        deduction_name: "Trừ giờ chưa phân loại",
-        hours: parentHours,
-      });
-    }
+    if (parentHours > 0) merged.set("UNCLASSIFIED", { deduction_type_id: undefined, deduction_code: "TRU_GIO_UNCLASSIFIED", deduction_name: "Trừ giờ chưa phân loại", hours: parentHours });
   }
-
   return [...merged.values()];
 }
 

@@ -78,7 +78,10 @@ const GC_ALIAS_SELECT = `
       ON ps.process_id = pa.process_id
      AND UPPER(TRIM(ps.product_code)) = UPPER(TRIM(pa.product_code))
      AND ps.status = 'active'
-     AND ps.standard_output > 0
+     AND (
+         ps.standard_output > 0
+         OR UPPER(TRIM(ps.product_code)) IN ('XUATNHAP', 'KTCD', 'TAIPP')
+     )
     WHERE pa.status = 'active'
       AND p.status = 'active'
       AND UPPER(TRIM(p.process_code)) = 'GC'
@@ -115,7 +118,10 @@ const GC_ALIAS_SELECT = `
     FROM product_standards ps
     JOIN processes p ON p.id = ps.process_id
     WHERE ps.status = 'active'
-      AND ps.standard_output > 0
+      AND (
+          ps.standard_output > 0
+          OR UPPER(TRIM(ps.product_code)) IN ('XUATNHAP', 'KTCD', 'TAIPP')
+      )
       AND p.status = 'active'
       AND UPPER(TRIM(p.process_code)) = 'GC'
       AND NOT EXISTS (

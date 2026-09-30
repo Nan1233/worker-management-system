@@ -43,7 +43,6 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
  const today=new Intl.DateTimeFormat("vi-VN",{weekday:"short",day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date()).replace(/^./,m=>m.toUpperCase());
  return <div className="management-layout" data-management-role={role}>
   <aside className="management-sidebar">
-   <button className="management-brand" type="button" onClick={()=>navigate(base)}><img src="/ktc-hanoi-logo.png" alt="KTC HANOI" className="management-brand-logo"/></button>
    <nav className="management-menu" aria-label="Management navigation">
     {visible.map(item=>{const Icon=item.icon;return <button key={item.path||"home"} type="button" className={active(item.path)?"active":""} onClick={()=>navigate(`${base}${item.path?`/${item.path}`:""}`)}><Icon size={21}/><span>{item.label}</span></button>;})}
     <button type="button" className={active("profile")?"active":""} onClick={()=>navigate(`${base}/profile`)}><UserRound size={21}/><span>Tài khoản</span></button>
@@ -53,6 +52,9 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
   </aside>
   <section className="management-main">
    <header className="management-header">
+    <button className="management-header-brand" type="button" onClick={()=>navigate(base)} aria-label="KTC HANOI">
+     <img src="/ktc-hanoi-logo.png" alt="KTC HANOI" className="management-header-brand-logo"/>
+    </button>
     <div className="management-header-actions">
      <button className="management-date" type="button"><CalendarDays size={19}/><span>{today}</span></button>
      <button className="management-notification" type="button" aria-label="Thông báo" onClick={()=>navigate(`${base}/notifications`)}><Bell size={22}/>{unreadCount>0&&<b>{unreadCount>9?"9+":unreadCount}</b>}</button>

@@ -3,6 +3,11 @@ import type { MachineOption, ProductStandardOption } from "../../services/master
 export type ProductSuggestionMode = "MANUAL" | "MACHINE";
 const normalize = (value: unknown) => String(value ?? "").trim().toUpperCase();
 
+/** Các công việc Lồng tay không có định mức/sản lượng OK-NG. */
+export const NO_STANDARD_LONG_WORK_CODES = ["XUATNHAP", "KTCD", "TAIPP"] as const;
+export const NO_STANDARD_LONG_WORK_SET = new Set<string>(NO_STANDARD_LONG_WORK_CODES);
+export const isNoStandardLongWork = (value: unknown): boolean => NO_STANDARD_LONG_WORK_SET.has(normalize(value));
+
 export const normalizeMachineKey = (value: unknown): string => {
     const code = normalize(value).replace(/\s+/g, "");
     if (!code) return "";
@@ -89,12 +94,43 @@ export const filterProductsForSelection = ({ products, mode, machineCode, machin
         const workerSelectionProducts = (rows: Array<{ product: ProductStandardOption; alias: string }>): ProductStandardOption[] => rows.map(({ product, alias }) => ({ ...product, product_code: alias }));
 
         if (productWorkTypes.size === 1 && productWorkTypes.has("LONG")) {
-            if (mode === "MACHINE" && (!selectedMachine || !isGcLongMachine(selectedRawMachine))) return [];
+            if (mode === "MANUAL") {
+                const specialProducts: Array<{ product: ProductStandardOption; alias: string }> = NO_STANDARD_LONG_WORK_CODES.map((code) => ({
+                    alias: code,
+                    product: {
+                        ...(canonicalProducts[0]?.product || {} as ProductStandardOption),
+                        product_code: code,
+                        alias_code: code,
+                        work_type: "LONG",
+                        // Positive UI placeholder only so the existing client-side
+                        // required-standard validation can accept this selectable
+                        // work. Submission converts these codes back to standard=0.
+                        standard_output: 1,
+                    } as ProductStandardOption,
+                }));
+                const existingAliases = new Set(canonicalProducts.map(({ alias }) => alias));
+                return workerSelectionProducts([
+                    ...canonicalProducts,
+                    ...specialProducts.filter(({ alias }) => !existingAliases.has(alias)),
+                ]);
+            }
+            if (!selectedMachine || !isGcLongMachine(selectedRawMachine)) return [];
             return workerSelectionProducts(canonicalProducts);
         }
         if (productWorkTypes.size === 1 && productWorkTypes.has("CUT")) {
             if (!selectedMachine) return [];
-            if (isGcAutomaticMachine(selectedRawMachine)) return workerSelectionProducts(canonicalProducts.filter(({ alias }) => GC_AUTOMATIC_ALIAS_CODES.has(alias)));
+            if (isGcAutomaticMachine(selectedRawMachine)) {
+                const automaticProducts = canonicalProducts.filter(({ alias }) => GC_AUTOMATIC_ALIAS_CODES.has(alias));
+                const presentAliases = new Set(automaticProducts.map(({ alias }) => alias));
+                const template = automaticProducts[0]?.product || canonicalProducts[0]?.product;
+                if (template) {
+                    for (const alias of GC_AUTOMATIC_ALIAS_CODES) {
+                        if (presentAliases.has(alias)) continue;
+                        automaticProducts.push({ product: { ...template, product_code: alias, alias_code: alias }, alias });
+                    }
+                }
+                return workerSelectionProducts(automaticProducts);
+            }
             return workerSelectionProducts(canonicalProducts);
         }
         if (!selectedMachine && mode === "MACHINE") return [];

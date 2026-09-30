@@ -7,7 +7,7 @@ services:
     pullRequestPreviewsEnabled: false
     envVars:
       - key: VITE_API_URL
-        value: https://worker-management-system-2-5jqv.onrender.com/api
+        value: https://ktc-be-test.nan978971.workers.dev/api
     headers:
       - path: /KTC-Production-Control.mobileconfig
         name: Content-Type

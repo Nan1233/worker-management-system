@@ -43,6 +43,8 @@ export interface ProductionReport {
     extra_data?: Record<string, string | number | boolean | null>;
     shift: string;
     machine_no: string;
+    /** CVK only: canonical work type such as XUATNHAP, KTCD or TAIPP. */
+    work_type?: string;
 
     operation_type?: "CUT" | "LONG";
     operation_mode?: "MANUAL" | "MACHINE";

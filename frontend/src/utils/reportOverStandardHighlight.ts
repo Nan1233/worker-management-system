@@ -1,17 +1,33 @@
 const TABLE_SELECTOR = ".pending-reference-table";
 const ROW_CLASS = "report-over-standard";
 
+function parsePercent(value: string) {
+    const match = String(value || "").replace(",", ".").match(/-?\d+(?:\.\d+)?/);
+    return match ? Number(match[0]) : NaN;
+}
+
 function refresh() {
     document.querySelectorAll<HTMLTableElement>(TABLE_SELECTOR).forEach((table) => {
-        table.querySelectorAll<HTMLTableRowElement>("tbody tr").forEach((row) => {
-            const cells = row.cells;
-            if (cells.length < 11) return;
+        const headers = Array.from(table.querySelectorAll("thead th")).map((th) =>
+            String(th.textContent || "").trim().toLowerCase()
+        );
+        const productivityIndex = headers.findIndex((header) =>
+            header.includes("% năng suất") ||
+            header.includes("năng suất %") ||
+            header.includes("%ns") ||
+            header === "năng suất" ||
+            header === "% hv" ||
+            header.includes("% hv")
+        );
+        if (productivityIndex < 0) return;
 
-            // The manager tables already render % năng suất in column 11.
-            // > 100% is exactly actual output > standard output for the reported time.
-            const raw = (cells[10].textContent || "").replace(/[%\s.,]/g, (ch) => ch === "," ? "." : "");
-            const productivity = Number.parseFloat(raw);
-            row.classList.toggle(ROW_CLASS, Number.isFinite(productivity) && productivity > 100);
+        table.querySelectorAll<HTMLTableRowElement>("tbody tr").forEach((row) => {
+            const cell = row.cells[productivityIndex];
+            if (!cell) return;
+            const productivity = parsePercent(cell.textContent || "");
+            const over = Number.isFinite(productivity) && productivity > 100;
+            row.classList.toggle(ROW_CLASS, over);
+            cell.classList.toggle("report-over-standard-cell", over);
         });
     });
 }
@@ -26,11 +42,11 @@ function scheduleRefresh() {
     });
 }
 
-const observer = new MutationObserver(scheduleRefresh);
-observer.observe(document.body, { childList: true, subtree: true, characterData: true });
-
-if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", refresh, { once: true });
-} else {
+const start = () => {
     refresh();
-}
+    const observer = new MutationObserver(scheduleRefresh);
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+};
+
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });
+else start();

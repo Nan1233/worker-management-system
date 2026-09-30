@@ -43,6 +43,7 @@
       });
     </script>
     <script src="/DisableMobileZoom.js"></script>
+    <script src="/PendingReportsColumnOrderFix.js"></script>
     <script type="module" src="/src/main.tsx"></script>
     <link rel="stylesheet" href="/ReportsPendingFix.css" />
     <link rel="stylesheet" href="/admin-process-ui-fix.css" />
@@ -50,5 +51,28 @@
     <link rel="stylesheet" href="/ApprovedReportsTitleFix.css" />
     <link rel="stylesheet" href="/ApprovedReportsEmptyStateFix.css" />
     <link rel="stylesheet" href="/WorkerMobileInputFix.css" />
+    <link rel="stylesheet" href="/ManagementHeaderLayoutFix.css?v=2026092901" />
+    <style>
+      @media (min-width: 801px) {
+        .management-header {
+          position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important;
+          width: 100vw !important; height: 64px !important; min-height: 64px !important;
+          padding: 0 24px !important; box-sizing: border-box !important;
+          display: flex !important; justify-content: flex-end !important; align-items: center !important;
+          background: #fff !important; border-bottom: 1px solid #dce8f5 !important;
+          z-index: 1000 !important; pointer-events: none !important;
+        }
+        .management-header-actions { margin-left: auto !important; pointer-events: auto !important; }
+        .management-sidebar {
+          position: fixed !important; top: 64px !important; left: 0 !important; right: 0 !important;
+          width: 100vw !important; height: 62px !important; min-height: 62px !important;
+          padding: 3px 18px !important; margin: 0 !important; box-sizing: border-box !important;
+          display: flex !important; flex-direction: row !important; align-items: center !important;
+          background: #fff !important; border: 0 !important; border-bottom: 1px solid #dce8f5 !important;
+          z-index: 990 !important; overflow: hidden !important;
+        }
+        .management-main { margin-left: 0 !important; padding-top: 126px !important; min-height: 100dvh !important; }
+      }
+    </style>
   </body>
 </html>
