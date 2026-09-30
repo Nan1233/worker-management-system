@@ -21,8 +21,8 @@ async function proxyExcelRequest(req, res, path) {
     Authorization: req.get('Authorization') || '',
     'Content-Type': req.get('Content-Type') || 'application/json',
     Accept: req.get('Accept') || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/json',
-    // Render receives this marker so its own Cloudflare-compatibility branch
-    // is bypassed and the request is handled by the real Node/ExcelJS path.
+    // Dedicated Render route: it bypasses the normal Cloudflare-compatibility
+    // branch even when the Render environment still exposes KTC_CLOUDFLARE_WORKER.
     'X-KTC-Excel-Proxy': '1'
   };
 
@@ -45,7 +45,11 @@ async function proxyExcelRequest(req, res, path) {
 
 exports.exportGiaCongExcel = async (req, res, next) => {
   try {
-    return await proxyExcelRequest(req, res, '/reports/export-excel');
+    // Always target the explicit Node/Render endpoint. Do not send the
+    // Cloudflare request back through the normal /export-excel route because
+    // that route can intentionally return DESKTOP_EXCEL_REQUIRED/503 in
+    // server-heavy-excel-disabled configurations.
+    return await proxyExcelRequest(req, res, '/reports/export-excel/render-proxy');
   } catch (error) {
     error.code = error.code || 'KTC_EXCEL_RENDER_PROXY_FAILED';
     return next(error);
@@ -54,7 +58,7 @@ exports.exportGiaCongExcel = async (req, res, next) => {
 
 exports.exportProcess = async (req, res, next) => {
   try {
-    return await proxyExcelRequest(req, res, '/reports/export-excel/process');
+    return await proxyExcelRequest(req, res, '/reports/export-excel/process/render-proxy');
   } catch (error) {
     error.code = error.code || 'KTC_PROCESS_EXCEL_RENDER_PROXY_FAILED';
     return next(error);
