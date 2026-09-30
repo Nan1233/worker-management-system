@@ -8,6 +8,7 @@ const { exportRequestGuard } = require('../middleware/exportRequestGuard');
 const validate = require('../middleware/validateRequest');
 const companyExcelDataController = require('../controllers/companyExcelDataController');
 const desktopExcelExportController = require('../controllers/desktopExcelExportController');
+const legacyExcelExportCompatController = require('../controllers/legacyExcelExportCompatController');
 const { anyEnvEnabled } = require('../utils/featureFlags');
 
 const roles = checkRole('admin', 'manager', 'lead');
@@ -55,9 +56,10 @@ router.get('/export-excel/company-status', authMiddleware, roles, canExport, (re
 router.get('/export-excel/company-data', authMiddleware, roles, canExport, companyExcelDataController.get);
 router.get('/export-excel/processes', authMiddleware, roles, canExport, desktopExcelExportController.listProcesses);
 
-// The legacy desktop endpoint keeps its binary response contract, but the actual
-// workbook generation is delegated to the persistent Excel job worker.
-router.post('/export-excel', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'} }), lazyController('../controllers/legacyExcelExportCompatController', 'exportGiaCongExcel'));
+// Desktop expects /export-excel to return a binary workbook. This compatibility
+// route is protected by the normal auth/role/permission/rate-limit/duplicate
+// guards and must not be blocked by the legacy feature flag.
+router.post('/export-excel', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'} }), legacyExcelExportCompatController.exportGiaCongExcel);
 router.post('/export-excel/process', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'}, processId:{required:true,type:'number'} }), lazyController('../controllers/desktopExcelExportController', 'exportProcess'));
 router.get('/export-excel/company-files', authMiddleware, roles, canExport, lazyController('../controllers/desktopExcelExportController', 'listCompanyFiles'));
 router.post('/export-excel/company-build-all', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'} }), lazyController('../controllers/desktopExcelExportController', 'buildAllCompanyFiles'));
