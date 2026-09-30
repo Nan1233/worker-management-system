@@ -7,8 +7,6 @@ const { expensiveUserLimiter } = require('../middleware/rateLimiters');
 const { exportRequestGuard } = require('../middleware/exportRequestGuard');
 const validate = require('../middleware/validateRequest');
 const companyExcelDataController = require('../controllers/companyExcelDataController');
-const desktopExcelExportController = require('../controllers/desktopExcelExportController');
-const legacyExcelExportCompatController = require('../controllers/legacyExcelExportCompatController');
 const cloudflareExcelExportController = require('../controllers/cloudflareExcelExportController');
 const { anyEnvEnabled } = require('../utils/featureFlags');
 
@@ -36,31 +34,45 @@ function disabled(req, res) {
   });
 }
 
-function lazyController(modulePath, method) {
-  return (req, res, next) => {
-    if (!legacyServerExcelEnabled()) return disabled(req, res);
-    try {
-      return require(modulePath)[method](req, res, next);
-    } catch (error) {
-      return next(error);
-    }
-  };
+// Node/Render-only controllers must not be statically imported into the
+// Cloudflare Worker bundle. Those modules eventually load worker_threads,
+// filesystem-backed workbook services and desktop Excel helpers (including
+// ExcelJS/template files). Resolve them only when a real Node request needs
+// them, using eval(require) so Wrangler does not follow the dependency graph.
+function runtimeRequire(modulePath) {
+  // eslint-disable-next-line no-eval
+  const nodeRequire = eval('require');
+  return nodeRequire(modulePath);
 }
 
-const isCloudflareWorker = () => String(process.env.KTC_CLOUDFLARE_WORKER || '').toLowerCase() === 'true';
+function desktopController() {
+  return runtimeRequire('../controllers/desktopExcelExportController');
+}
+
+function legacyController() {
+  return runtimeRequire('../controllers/legacyExcelExportCompatController');
+}
 
 function exportExcelController(req, res, next) {
-  if (isCloudflareWorker()) {
+  const proxyRequest = String(req.get('X-KTC-Excel-Proxy') || '') === '1';
+  if (proxyRequest) {
+    return legacyController().exportGiaCongExcel(req, res, next);
+  }
+  if (String(process.env.KTC_CLOUDFLARE_WORKER || '').toLowerCase() === 'true') {
     return cloudflareExcelExportController.exportGiaCongExcel(req, res, next);
   }
-  return legacyExcelExportCompatController.exportGiaCongExcel(req, res, next);
+  return legacyController().exportGiaCongExcel(req, res, next);
 }
 
 function exportProcessExcelController(req, res, next) {
-  if (isCloudflareWorker()) {
+  const proxyRequest = String(req.get('X-KTC-Excel-Proxy') || '') === '1';
+  if (proxyRequest) {
+    return legacyController().exportGiaCongExcel(req, res, next);
+  }
+  if (String(process.env.KTC_CLOUDFLARE_WORKER || '').toLowerCase() === 'true') {
     return cloudflareExcelExportController.exportProcess(req, res, next);
   }
-  return lazyController('../controllers/desktopExcelExportController', 'exportProcess')(req, res, next);
+  return desktopController().exportProcess(req, res, next);
 }
 
 router.get('/export-excel/company-status', authMiddleware, roles, canExport, (req, res) => res.json({
@@ -71,19 +83,38 @@ router.get('/export-excel/company-status', authMiddleware, roles, canExport, (re
 }));
 
 router.get('/export-excel/company-data', authMiddleware, roles, canExport, companyExcelDataController.get);
-router.get('/export-excel/processes', authMiddleware, roles, canExport, desktopExcelExportController.listProcesses);
+router.get('/export-excel/processes', authMiddleware, roles, canExport, (req, res, next) => {
+  try { return desktopController().listProcesses(req, res, next); } catch (error) { return next(error); }
+});
 
 // Cloudflare Workers do not render XLSX locally. They proxy the authenticated
 // export request to the Node/Render backend, where ExcelJS and the template
 // filesystem are available. Desktop therefore keeps receiving a normal XLSX.
 router.post('/export-excel', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'} }), exportExcelController);
 router.post('/export-excel/process', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'}, processId:{required:true,type:'number'} }), exportProcessExcelController);
-router.get('/export-excel/company-files', authMiddleware, roles, canExport, lazyController('../controllers/desktopExcelExportController', 'listCompanyFiles'));
-router.post('/export-excel/company-build-all', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'} }), lazyController('../controllers/desktopExcelExportController', 'buildAllCompanyFiles'));
-router.post('/export-excel/company-file', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'}, groupCode:{required:true,type:'string'} }), lazyController('../controllers/desktopExcelExportController', 'exportCompanyFile'));
-router.post('/export-excel/jobs', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, lazyController('../controllers/excelJobController', 'create'));
-router.get('/export-excel/jobs', authMiddleware, roles, canExport, lazyController('../controllers/excelJobController', 'list'));
-router.get('/export-excel/jobs/:jobId', authMiddleware, roles, canExport, lazyController('../controllers/excelJobController', 'get'));
-router.get('/export-excel/jobs/:jobId/download', authMiddleware, roles, canExport, lazyController('../controllers/excelJobController', 'download'));
+router.get('/export-excel/company-files', authMiddleware, roles, canExport, (req, res, next) => {
+  try { return desktopController().listCompanyFiles(req, res, next); } catch (error) { return next(error); }
+});
+router.post('/export-excel/company-build-all', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'} }), (req, res, next) => {
+  if (!legacyServerExcelEnabled()) return disabled(req, res);
+  try { return desktopController().buildAllCompanyFiles(req, res, next); } catch (error) { return next(error); }
+});
+router.post('/export-excel/company-file', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'}, groupCode:{required:true,type:'string'} }), (req, res, next) => {
+  if (!legacyServerExcelEnabled()) return disabled(req, res);
+  try { return desktopController().exportCompanyFile(req, res, next); } catch (error) { return next(error); }
+});
+router.post('/export-excel/jobs', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, (req, res, next) => {
+  if (!legacyServerExcelEnabled()) return disabled(req, res);
+  try { return runtimeRequire('../controllers/excelJobController').create(req, res, next); } catch (error) { return next(error); }
+});
+router.get('/export-excel/jobs', authMiddleware, roles, canExport, (req, res, next) => {
+  try { return runtimeRequire('../controllers/excelJobController').list(req, res, next); } catch (error) { return next(error); }
+});
+router.get('/export-excel/jobs/:jobId', authMiddleware, roles, canExport, (req, res, next) => {
+  try { return runtimeRequire('../controllers/excelJobController').get(req, res, next); } catch (error) { return next(error); }
+});
+router.get('/export-excel/jobs/:jobId/download', authMiddleware, roles, canExport, (req, res, next) => {
+  try { return runtimeRequire('../controllers/excelJobController').download(req, res, next); } catch (error) { return next(error); }
+});
 
 module.exports = router;
