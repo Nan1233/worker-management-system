@@ -35,9 +35,7 @@ function disabled(req, res) {
 }
 
 // Node/Render-only controllers must not be statically imported into the
-// Cloudflare Worker bundle. Those modules eventually load worker_threads,
-// filesystem-backed workbook services and desktop Excel helpers (including
-// ExcelJS/template files). Resolve them only when a real Node request needs
+// Cloudflare Worker bundle. Resolve them only when a real Node request needs
 // them, using eval(require) so Wrangler does not follow the dependency graph.
 function runtimeRequire(modulePath) {
   // eslint-disable-next-line no-eval
@@ -58,10 +56,6 @@ function isCloudflareWorker() {
 }
 
 function exportExcelController(req, res, next) {
-  const proxyRequest = String(req.get('X-KTC-Excel-Proxy') || '') === '1';
-  if (proxyRequest) {
-    return legacyController().exportGiaCongExcel(req, res, next);
-  }
   if (isCloudflareWorker()) {
     return cloudflareExcelExportController.exportGiaCongExcel(req, res, next);
   }
@@ -69,10 +63,6 @@ function exportExcelController(req, res, next) {
 }
 
 function exportProcessExcelController(req, res, next) {
-  const proxyRequest = String(req.get('X-KTC-Excel-Proxy') || '') === '1';
-  if (proxyRequest) {
-    return desktopController().exportProcess(req, res, next);
-  }
   if (isCloudflareWorker()) {
     return cloudflareExcelExportController.exportProcess(req, res, next);
   }
@@ -92,10 +82,21 @@ router.get('/export-excel/processes', authMiddleware, roles, canExport, (req, re
 });
 
 // Cloudflare Workers do not render XLSX locally. They proxy the authenticated
-// export request to the Node/Render backend, where ExcelJS and the template
-// filesystem are available. Desktop therefore keeps receiving a normal XLSX.
+// export request to the dedicated Node/Render proxy endpoints below, where
+// ExcelJS and the template filesystem are available.
 router.post('/export-excel', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'} }), exportExcelController);
 router.post('/export-excel/process', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'}, processId:{required:true,type:'number'} }), exportProcessExcelController);
+
+// Dedicated authenticated Node/Render targets for Cloudflare -> Render.
+// These routes intentionally bypass the Cloudflare compatibility branch so a
+// Render deployment cannot accidentally return DESKTOP_EXCEL_REQUIRED/503.
+router.post('/export-excel/render-proxy', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'} }), (req, res, next) => {
+  try { return legacyController().exportGiaCongExcel(req, res, next); } catch (error) { return next(error); }
+});
+router.post('/export-excel/process/render-proxy', authMiddleware, roles, canExport, exportRequestGuard, expensiveUserLimiter, validate({ date:{required:true,type:'date'}, processId:{required:true,type:'number'} }), (req, res, next) => {
+  try { return desktopController().exportProcess(req, res, next); } catch (error) { return next(error); }
+});
+
 router.get('/export-excel/company-files', authMiddleware, roles, canExport, (req, res, next) => {
   try { return desktopController().listCompanyFiles(req, res, next); } catch (error) { return next(error); }
 });
