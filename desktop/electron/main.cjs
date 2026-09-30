@@ -738,8 +738,44 @@ async function listExcelFiles(rootFolder) {
     for (const entry of entries) {
       const full = path.join(folder, entry.name);
       if (entry.isDirectory()) await walk(full);
-      else if (entry.isFile() && entry.name.toLowerCase().endsWith('.xlsx') && !entry.name.endsWith('.pending.xlsx')) result.push(full);
+else if (
+  entry.isFile() &&
+  entry.name.toLowerCase().endsWith('.xlsx') &&
+  !entry.name.endsWith('.pending.xlsx')
+) {
+  try {
+    const handle = await fs.open(full, 'r');
+
+    try {
+      const header = Buffer.alloc(4);
+      const { bytesRead } = await handle.read(header, 0, 4, 0);
+
+      // XLSX thực chất là ZIP, phải bắt đầu bằng PK 03 04.
+      const isValidXlsx =
+        bytesRead === 4 &&
+        header[0] === 0x50 &&
+        header[1] === 0x4b &&
+        header[2] === 0x03 &&
+        header[3] === 0x04;
+
+      if (!isValidXlsx) {
+        await writeLog('WARN', 'EXCEL_FILE_SKIPPED_INVALID_XLSX', {
+          filePath: full
+        });
+        continue;
+      }
+    } finally {
+      await handle.close();
     }
+
+    result.push(full);
+  } catch (error) {
+    await writeLog('WARN', 'EXCEL_FILE_SKIPPED_UNREADABLE', {
+      filePath: full,
+      ...normalizeError(error)
+    });
+  }
+}    }
   };
   await walk(rootFolder);
   return result;
