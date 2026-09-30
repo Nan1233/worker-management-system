@@ -1,12 +1,15 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const os = require('node:os');
 const {
   getProcessMonthTarget,
   normalizeProcessFolder,
   processReportFileName,
 } = require('./excelDualLayout.cjs');
 
-const DEFAULT_EXPORT_ROOT = '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\Linh tinh';
+// Test desktop stores production Excel locally. Do not scan the company NAS
+// "Linh tinh" folder because it can contain unrelated/corrupt .xlsx files.
+const DEFAULT_EXPORT_ROOT = path.join(os.homedir(), 'Documents', 'KTC', 'Bao cao san xuat');
 
 function getDateParts(dateValue = new Date()) {
   const formatter = new Intl.DateTimeFormat('en-CA', {
