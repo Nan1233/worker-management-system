@@ -12,7 +12,7 @@ if(!/REPORT_VERSION_CONFLICT|expected_updated_at/.test(sync)) throw new Error('T
 if(!/ktc-preview-excel-db-sync/.test(main) || !/ktc-apply-excel-db-sync/.test(main)) throw new Error('Thiếu IPC preview/apply Excel -> DB');
 if(!/previewExcelDbSync/.test(preload) || !/applyExcelDbSync/.test(preload)) throw new Error('Preload chưa expose manual Excel -> DB');
 if(/setInterval\(\(\) => void syncEditedExcelFilesToDb/.test(main)) throw new Error('Không được tự động Excel -> DB bằng watcher');
-if(!/EXCEL_UNSYNCED_CHANGES/.test(main)) throw new Error('Thiếu guard chống ghi đè Excel chưa sync');
+if(!/EXCEL_DB_PRECHECK_SKIPPED_FOR_DB_EXPORT/.test(main) || !/DB_IS_AUTHORITATIVE_FOR_EXCEL_EXPORT/.test(main)) throw new Error('Thiếu guard xác nhận DB là nguồn dữ liệu duy nhất khi xuất Excel');
 if(!/preview/.test(sync) || !/SL OK/.test(sync)) throw new Error('Thiếu diff preview trước -> sau');
 
 if(!/Missing Excel columns mean/.test(sync) || !/preserved/.test(sync)) throw new Error('Thiếu guard giữ nguyên detail DB không có cột trong Excel');
