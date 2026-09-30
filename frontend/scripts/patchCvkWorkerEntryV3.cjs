@@ -78,7 +78,7 @@ if (!page.includes('{!isCvkMode && (')) {
 // The old worker validation still required a product and a positive standard,
 // which blocked submission before the request reached BE. Skip those checks only
 // while the dedicated CVK mode is active; normal Cắt/Lồng validation is untouched.
-page = page.replace(
+page = page.replaceAll(
   '        if (!usesMultiMachineLines) {\n            if (!form.productName.trim()) {',
   '        if (!isCvkMode && !usesMultiMachineLines) {\n            if (!form.productName.trim()) {'
 );
