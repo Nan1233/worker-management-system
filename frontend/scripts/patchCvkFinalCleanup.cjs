@@ -5,7 +5,7 @@ const file = path.resolve(__dirname, '../src/pages/worker/components/ProcessBasi
 let source = fs.readFileSync(file, 'utf8');
 
 // All CVK patches touch the same JSX row. Normalize the final source AFTER
-// every previous CVK patch has run, so an older patch cannot leave a second
+every previous CVK patch has run, so an older patch cannot leave a second
 // "Công việc khác" label/button behind.
 const rowPattern = /<div className="worker-choice-row(?: worker-operation-type-row)?">[\s\S]*?(?:handleCvkSelect\(\)|handleOperationTypeChange\("CVK"\))[\s\S]*?<\/div>/;
 const rowMatch = source.match(rowPattern);
@@ -54,3 +54,19 @@ source = source.replace(
 
 fs.writeFileSync(file, source, 'utf8');
 console.log('[KTC] CVK final cleanup: canonical button + readable work labels + label-only input display.');
+
+// Repair a malformed legacy edit that currently breaks the TypeScript build.
+// The affected source is processReportSubmission.ts; the bad edit is a missing
+// closing quote in the normalizeDefectIdentity() call. Keep this repair here
+// because this script is guaranteed to run before vite build:cloudflare.
+const submissionFile = path.resolve(__dirname, '../src/pages/worker/processReportSubmission.ts');
+let submission = fs.readFileSync(submissionFile, 'utf8');
+const malformed = 'String(o.label||o.defect_name||"))===identity';
+const corrected = 'String(o.label||o.defect_name||""))===identity';
+if (submission.includes(malformed)) {
+  submission = submission.replaceAll(malformed, corrected);
+  fs.writeFileSync(submissionFile, submission, 'utf8');
+  console.log('[KTC] Build repair: fixed malformed normalizeDefectIdentity string in processReportSubmission.ts.');
+} else {
+  console.log('[KTC] Build repair: processReportSubmission.ts already valid.');
+}
