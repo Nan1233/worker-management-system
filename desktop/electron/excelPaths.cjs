@@ -7,9 +7,11 @@ const {
   processReportFileName,
 } = require('./excelDualLayout.cjs');
 
-// Test desktop stores production Excel locally. Do not scan the company NAS
-// "Linh tinh" folder because it can contain unrelated/corrupt .xlsx files.
-const DEFAULT_EXPORT_ROOT = path.join(os.homedir(), 'Documents', 'KTC', 'Bao cao san xuat');
+// Test desktop uses the company NAS as the single Excel root.
+// Do not fall back to a local "Linh tinh" folder: that can cause the desktop
+// app to scan unrelated/corrupt .xlsx files on the local machine.
+const DEFAULT_EXPORT_ROOT = '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\Linh tinh';
+const NAS_EXPORT_ROOT = DEFAULT_EXPORT_ROOT;
 
 function getDateParts(dateValue = new Date()) {
   const formatter = new Intl.DateTimeFormat('en-CA', {
@@ -42,8 +44,17 @@ function safeFileName(value, fallback) {
 
 function getExportRoot() {
   const configured = String(process.env.KTC_EXPORT_ROOT || '').trim();
-  if (configured) return path.resolve(configured);
-  return DEFAULT_EXPORT_ROOT;
+  if (!configured) return DEFAULT_EXPORT_ROOT;
+
+  // Older EXE/environment configurations used only "Linh tinh". Treat that
+  // value as the company NAS location, not as a relative local folder.
+  if (/^linh\s*tinh$/i.test(configured)) return NAS_EXPORT_ROOT;
+
+  // Preserve an explicitly supplied UNC/network path.
+  if (/^\\\\/.test(configured)) return configured;
+
+  // Keep support for an explicitly supplied absolute local path for debugging.
+  return path.resolve(configured);
 }
 
 async function findExistingProcessReportFile(folder, processInfo, month, year) {
