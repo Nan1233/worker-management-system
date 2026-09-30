@@ -53,12 +53,16 @@ function legacyController() {
   return runtimeRequire('../controllers/legacyExcelExportCompatController');
 }
 
+function isCloudflareWorker() {
+  return String(process.env.KTC_CLOUDFLARE_WORKER || '').toLowerCase() === 'true';
+}
+
 function exportExcelController(req, res, next) {
   const proxyRequest = String(req.get('X-KTC-Excel-Proxy') || '') === '1';
   if (proxyRequest) {
     return legacyController().exportGiaCongExcel(req, res, next);
   }
-  if (String(process.env.KTC_CLOUDFLARE_WORKER || '').toLowerCase() === 'true') {
+  if (isCloudflareWorker()) {
     return cloudflareExcelExportController.exportGiaCongExcel(req, res, next);
   }
   return legacyController().exportGiaCongExcel(req, res, next);
@@ -67,9 +71,9 @@ function exportExcelController(req, res, next) {
 function exportProcessExcelController(req, res, next) {
   const proxyRequest = String(req.get('X-KTC-Excel-Proxy') || '') === '1';
   if (proxyRequest) {
-    return legacyController().exportGiaCongExcel(req, res, next);
+    return desktopController().exportProcess(req, res, next);
   }
-  if (String(process.env.KTC_CLOUDFLARE_WORKER || '').toLowerCase() === 'true') {
+  if (isCloudflareWorker()) {
     return cloudflareExcelExportController.exportProcess(req, res, next);
   }
   return desktopController().exportProcess(req, res, next);
