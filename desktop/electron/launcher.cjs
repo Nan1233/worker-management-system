@@ -189,13 +189,12 @@ fsp.readdir = async (...args) => {
 
 require('./autoUpdate.cjs');
 
-// Hotfix for the optimized desktop Excel export. The export itself already
-// completes successfully; the remaining failure is only the final result
-// calculation in main.cjs referencing companyData outside its try scope.
+// Hotfix for the optimized desktop Excel export. main.cjs has the final
+// success calculation after the try/catch, so that block must never reference
+// companyData when the backend request itself failed. Patch the source before
+// main.cjs is compiled and log exactly whether the replacement happened.
 function requireMainWithExcelScopeHotfix() {
   const mainPath = require.resolve('./main.cjs');
-  // Node 24 does not expose a dedicated .cjs loader on Module._extensions.
-  // Use the standard JS loader as the fallback compiler for main.cjs.
   const originalCjsLoader = Module._extensions['.cjs'] || Module._extensions['.js'];
   if (typeof originalCjsLoader !== 'function') {
     throw new Error('Không tìm thấy CommonJS loader để nạp main.cjs.');
@@ -207,19 +206,17 @@ function requireMainWithExcelScopeHotfix() {
     }
 
     let source = fs.readFileSync(filename, 'utf8');
-    const buggyBlock = `  const expectedFileCount = Object.entries(companyData?.processes || {})
-    .filter(([, data]) => Array.isArray(data?.reports) && data.reports.length > 0).length;`;
-    const fixedBlock = `  const expectedFileCount = files.filter((file) => file.category === 'MONTHLY_PROCESS').length;`;
-
-    if (source.includes(buggyBlock)) {
-      source = source.replace(buggyBlock, fixedBlock);
-      void writeLauncherLog('INFO', 'MAIN_EXCEL_SCOPE_HOTFIX_APPLIED', {
-        file: filename,
-        replacement: 'companyData-scope -> generated-monthly-process-count'
-      });
-    } else {
-      void writeLauncherLog('INFO', 'MAIN_EXCEL_SCOPE_HOTFIX_NOT_NEEDED', { file: filename });
+    const expectedFileCountPattern = /const expectedFileCount = Object\.entries\(companyData\?\.processes \|\| \{\}\)\s*\.filter\(\(\[, data\]\) => Array\.isArray\(data\?\.reports\) && data\.reports\.length > 0\)\.length;/;
+    const fixedBlock = `const expectedFileCount = files.filter((file) => file.category === 'MONTHLY_PROCESS').length;`;
+    const matched = expectedFileCountPattern.test(source);
+    if (matched) {
+      source = source.replace(expectedFileCountPattern, fixedBlock);
     }
+
+    void writeLauncherLog('INFO', matched ? 'MAIN_EXCEL_SCOPE_HOTFIX_APPLIED' : 'MAIN_EXCEL_SCOPE_HOTFIX_NOT_NEEDED', {
+      file: filename,
+      replacement: matched ? 'companyData-scope -> generated-monthly-process-count' : null
+    });
 
     return module._compile(source, filename);
   };
