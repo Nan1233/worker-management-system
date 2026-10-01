@@ -1,5 +1,6 @@
 const { loadBulkCompanyReports, PROCESS_CODES } = require('../services/bulkCompanyExcelDataService');
 const { getSettingsMap } = require('../services/formulaSettingsService');
+const { calculateProductionMetrics } = require('../domain/productionCalculationEngine.cjs');
 
 const inFlightByScope = new Map();
 const cacheByScope = new Map();
@@ -36,10 +37,9 @@ async function buildCompanyData(yearMonth, actor) {
   )].sort();
 
   const mapsByDate = new Map();
-  // The desktop workbook calculates row metrics locally. The backend only
-  // supplies the date-specific formula settings needed for that calculation.
-  // This removes one full calculation pass over every approved report and
-  // avoids duplicating a large calculationSnapshot object in the JSON payload.
+  // Load formula settings once per date. The bulk report query above is the
+  // important subrequest reduction; sequential loading also prevents a burst
+  // of duplicate cache misses inside one Cloudflare Worker invocation.
   for (const date of reportDates) {
     mapsByDate.set(date, await getSettingsMap(date));
   }
@@ -52,6 +52,16 @@ async function buildCompanyData(yearMonth, actor) {
         return [date, map[code] || map.GLOBAL || null];
       }).filter(([, settings]) => Boolean(settings))
     );
+
+    data.reports = (data.reports || []).map((report) => {
+      const workDate = String(report.work_date || '').slice(0, 10);
+      const map = mapsByDate.get(workDate) || {};
+      const settings = map[code] || map.GLOBAL || undefined;
+      return {
+        ...report,
+        calculationSnapshot: calculateProductionMetrics(report, settings)
+      };
+    });
   }
 
   const formulaSettings = await getSettingsMap(`${yearMonth}-01`);
