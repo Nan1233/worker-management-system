@@ -60,41 +60,10 @@ workbook = replaceOnce(
   'duplicate render borders'
 );
 
-// 4) Không tạo Set editableCore cho từng cell. Tạo một lần cho từng report.
-workbook = replaceOnce(
-  workbook,
-  /\n      const machineMode = asText\(report\.operation_mode\)\.toUpperCase\(\) === 'MACHINE';\n      const editableCore = machineMode\n        \? new Set\(\['training','note'\]\)\n        : new Set\(\['shift','machine','product','training','actualTime','ok','note'\]\);\n      const editableCell = editableCore\.has\(column\.key\) \|\| \(!machineMode && \(column\.key\.startsWith\('deduction:'\) \|\| column\.key\.startsWith\('defect:'\)\)\);/,
-  `\n    const machineMode = asText(report.operation_mode).toUpperCase() === 'MACHINE';
-    const editableCore = machineMode
-      ? new Set(['training','note'])
-      : new Set(['shift','machine','product','training','actualTime','ok','note']);
-
-    columns.forEach((column, columnIndex) => {
-      const cell = sheet.getCell(rowNumber, columnIndex + 1);
-      const value = values[column.key];
-      cell.value = value === undefined ? null : value;
-      if (column.format) cell.numFmt = resolvedNumberFormat(value, column.format);
-      const numericValue = typeof value === 'number' && Number.isFinite(value) ? value : null;
-      // Rule tháng 07/2026: nền dữ liệu mặc định trắng, không zebra/rainbow.
-      // Chỉ các chỉ số tổng hợp chính mới có màu cố định; chi tiết trừ giờ/NG luôn nền trắng.
-      let fill = COLORS.white;
-      let bold = false;
-      let fontColor = COLORS.black;
-      const editableCell = editableCore.has(column.key) || (!machineMode && (column.key.startsWith('deduction:') || column.key.startsWith('defect:')));`,
-  'editable Set per cell'
-);
-
-// The replacement above intentionally restores the columns.forEach header/body,
-// so remove the now-duplicated old columns.forEach opening/body prelude if present.
-workbook = workbook.replace(
-  /\n    columns\.forEach\(\(column, columnIndex\) => \{\n      const cell = sheet\.getCell\(rowNumber, columnIndex \+ 1\);\n      const value = values\[column\.key\];\n      cell\.value = value === undefined \? null : value;\n      if \(column\.format\) cell\.numFmt = resolvedNumberFormat\(value, column\.format\);\n      const numericValue = typeof value === 'number' && Number\.isFinite\(value\) \? value : null;\n      \/\/ Rule tháng 07\/2026: nền dữ liệu mặc định trắng, không zebra\/rainbow\.\n      \/\/ Chỉ các chỉ số tổng hợp chính mới có màu cố định; chi tiết trừ giờ\/NG luôn nền trắng\.\n      let fill = COLORS\.white;\n      let bold = false;\n      let fontColor = COLORS\.black;\n      const machineMode = asText\(report\.operation_mode\)\.toUpperCase\(\) === 'MACHINE';\n      const editableCore = machineMode\n        \? new Set\(\['training','note'\]\)\n        : new Set\(\['shift','machine','product','training','actualTime','ok','note'\]\);\n      const editableCell = editableCore\.has\(column\.key\) \|\| \(!machineMode && \(column\.key\.startsWith\('deduction:'\) \|\| column\.key\.startsWith\('defect:'\)\)\);/,
-  ''
-);
-
 writeIfChanged(workbookPath, workbookBefore, workbook);
 
-// 5) main.cjs: không chờ token hai lần trong cùng một lần bấm xuất.
-// 6) main.cjs: nếu backend lỗi, trả đúng lỗi backend thay vì lỗi phụ
+// 4) main.cjs: không chờ token hai lần trong cùng một lần bấm xuất.
+// 5) main.cjs: nếu backend lỗi, trả đúng lỗi backend thay vì lỗi phụ
 // "companyData is not defined" sau catch.
 let main = fs.readFileSync(mainPath, 'utf8');
 const mainBefore = main;
@@ -154,4 +123,4 @@ main = replaceOnce(
 writeIfChanged(mainPath, mainBefore, main);
 
 console.log('[PASS] Excel export optimization patch applied.');
-console.log('Next: run the desktop smoke test/build on test-excel-db-fix-clean.');
+console.log('Changes: only non-empty process workbooks, no GC helper sheet, no duplicate border pass, no duplicate token wait, and no secondary companyData error.');
