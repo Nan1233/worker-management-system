@@ -1,20 +1,14 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const os = require('node:os');
 const {
   getProcessMonthTarget,
   normalizeProcessFolder,
   processReportFileName,
 } = require('./excelDualLayout.cjs');
 
-// Test desktop uses the company NAS as the single Excel root.
-// Do not fall back to a local "Linh tinh" folder: that can cause the desktop
-// app to scan unrelated/corrupt .xlsx files on the local machine.
 const DEFAULT_EXPORT_ROOT = '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\Linh tinh';
 const NAS_EXPORT_ROOT = DEFAULT_EXPORT_ROOT;
 
-// Gia công keeps the existing export untouched and is additionally mirrored to
-// the monthly production-report folder using the approved workbook template.
 const GIA_CONG_SAMPLE_ROOT = String(process.env.KTC_GIA_CONG_SAMPLE_ROOT || '').trim()
   || '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\3. SX2  製造2\\4. Báo cáo tháng, Báo cáo KPI, Báo cáo chi phí+ mục tiêu trọng điểm\\1. Báo cáo sản xuất';
 const GIA_CONG_SAMPLE_MONTH_PREFIX = String(process.env.KTC_GIA_CONG_SAMPLE_MONTH_PREFIX || '12.').trim() || '12.';
@@ -40,8 +34,15 @@ function assertDate(date) {
   }
 }
 
+const MONTH_PROCESS_FOLDER_NAMES = new Set([
+  'Gia công', 'Mài - Đo', 'Mài', 'Đo', 'Kiểm 1', 'Kiểm 2', 'Ép', 'Cán', 'Xử lý bavia',
+  'CÁN', 'ÉP', 'XỬ LÝ BAVIA', 'CẮT/LỒNG', 'MÀI', 'KIỂM 1', 'KIỂM 2', 'SẢN XUẤT 3'
+]);
+
 function safeFolderName(value, fallback = 'Cong doan') {
-  return String(value || fallback)
+  const raw = String(value || '').trim();
+  if (MONTH_PROCESS_FOLDER_NAMES.has(raw)) return '';
+  return raw
     .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-')
     .replace(/\s+/g, ' ')
     .replace(/[. ]+$/g, '')
@@ -49,7 +50,12 @@ function safeFolderName(value, fallback = 'Cong doan') {
 }
 
 function safeFileName(value, fallback) {
-  const candidate = safeFolderName(value, fallback);
+  const raw = String(value || '').trim();
+  const candidate = raw
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-')
+    .replace(/\s+/g, ' ')
+    .replace(/[. ]+$/g, '')
+    .trim() || String(fallback || 'file');
   return candidate.toLowerCase().endsWith('.xlsx') ? candidate : `${candidate}.xlsx`;
 }
 
@@ -62,9 +68,6 @@ function getExportRoot() {
       : /^\\\\/.test(configured)
         ? configured
         : path.resolve(configured);
-
-  // Keep the existing export untouched, then asynchronously mirror only the
-  // Gia công A+B workbook into its separate monthly-report destination.
   scheduleGiaCongSampleMirrorScan(root);
   return root;
 }
@@ -95,20 +98,16 @@ async function mirrorGiaCongWorkbooks(root) {
         const entries = await fs.readdir(folder, { withFileTypes: true }).catch(() => []);
         for (const entry of entries) {
           if (!entry.isFile()) continue;
-
           const sampleMatch = entry.name.match(GIA_CONG_SAMPLE_FILE_RE);
           const processMatch = entry.name.match(GIA_CONG_PROCESS_FILE_RE);
           if (!sampleMatch && !processMatch) continue;
-
           const month = sampleMatch?.[1] || processMatch?.[1];
           const sourceYear = sampleMatch?.[2] || processMatch?.[2];
           if (sourceYear !== year) continue;
-
           const targetName = `A+B GIA CÔNG THÁNG ${month}-${year}.xlsx`;
           const seenKey = `${month}-${year}`;
           if (seen.has(seenKey)) continue;
           seen.add(seenKey);
-
           const targetFolder = getGiaCongSampleFolder(year, month);
           const targetPath = path.join(targetFolder, targetName);
           const sourcePath = path.join(folder, entry.name);
@@ -118,9 +117,8 @@ async function mirrorGiaCongWorkbooks(root) {
             await fs.copyFile(sourcePath, temporaryPath);
             await fs.rm(targetPath, { force: true });
             await fs.rename(temporaryPath, targetPath);
-          } catch (error) {
+          } catch {
             await fs.rm(temporaryPath, { force: true }).catch(() => {});
-            // The main export must never fail because the separate mirror is unavailable.
           }
         }
       }
@@ -147,23 +145,15 @@ async function findExistingProcessReportFile(folder, processInfo, month, year) {
     if (error?.code === 'ENOENT') return null;
     throw error;
   }
-
-  const processFolder = normalizeProcessFolder({
-    processCode: processInfo.processCode,
-    processName: processInfo.processName
-  });
+  const processFolder = normalizeProcessFolder({ processCode: processInfo.processCode, processName: processInfo.processName });
   const compact = (value) => String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '');
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const processToken = compact(processFolder);
   const targetPeriodTokens = new Set([
     compact(`${month}${year}`), compact(`${year}${month}`),
     compact(`${month}-${year}`), compact(`${year}-${month}`)
   ]);
   const periodPattern = /(?:19|20)\d{2}|(?:^|[^0-9])(0?[1-9]|1[0-2])(?:[^0-9]|$)/;
-
   const candidates = entries
     .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.xlsx'))
     .filter((entry) => !entry.name.toLowerCase().endsWith('.pending.xlsx'))
@@ -180,9 +170,7 @@ async function findExistingProcessReportFile(folder, processInfo, month, year) {
     .map((item) => {
       const keyWithoutExtension = item.key.replace(/xlsx$/, '');
       const exactGenericNames = new Set([
-        `baocao${processToken}`,
-        `baocaosanxuat${processToken}`,
-        `baocao${processToken}thang`
+        `baocao${processToken}`, `baocaosanxuat${processToken}`, `baocao${processToken}thang`
       ]);
       let score = item.hasTargetPeriod ? 200 : 0;
       if (exactGenericNames.has(keyWithoutExtension)) score += 100;
@@ -190,7 +178,6 @@ async function findExistingProcessReportFile(folder, processInfo, month, year) {
       return { ...item, score };
     })
     .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name));
-
   return candidates.length > 0 ? candidates[0].entry.name : null;
 }
 
@@ -198,13 +185,8 @@ async function getProcessExportPath(date, processInfo, serverFileName) {
   assertDate(date);
   const [year, month] = date.split('-');
   const root = getExportRoot();
-  const processFolder = normalizeProcessFolder({
-    processCode: processInfo.processCode,
-    processName: processInfo.processName
-  });
-  const folder = path.join(root, year, processFolder);
+  const folder = path.join(root, year, month);
   await fs.mkdir(folder, { recursive: true });
-
   const existingFileName = await findExistingProcessReportFile(folder, processInfo, month, year);
   const canonicalName = processReportFileName({
     processCode: processInfo.processCode,
@@ -212,7 +194,6 @@ async function getProcessExportPath(date, processInfo, serverFileName) {
     month,
     year
   });
-
   return getProcessMonthTarget({
     root,
     date,
@@ -227,17 +208,11 @@ async function cleanupMisplacedCompanyFiles(root, date, writeLog = async () => {
   const [year, month] = date.split('-');
   const monthFolder = path.join(root, year, month);
   const processFolders = ['Gia công', 'Mài - Đo', 'Mài', 'Đo', 'Kiểm 1', 'Kiểm 2', 'Ép', 'Cán', 'Xử lý bavia'];
-
   for (const processFolder of processFolders) {
     const folder = path.join(root, year, processFolder);
     let entries = [];
-    try {
-      entries = await fs.readdir(folder, { withFileTypes: true });
-    } catch (error) {
-      if (error?.code === 'ENOENT') continue;
-      throw error;
-    }
-
+    try { entries = await fs.readdir(folder, { withFileTypes: true }); }
+    catch (error) { if (error?.code === 'ENOENT') continue; throw error; }
     for (const entry of entries) {
       if (!entry.isFile()) continue;
       const lower = entry.name.toLowerCase();
