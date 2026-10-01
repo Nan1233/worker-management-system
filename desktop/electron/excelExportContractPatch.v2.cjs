@@ -1,12 +1,13 @@
 'use strict';
 
 // Desktop Excel export optimization patch.
-// IMPORTANT: the DB payload is already authoritative. Do not load the generated
-// workbook again with ExcelJS and rewrite every cell: that turns a single
-// 1,942-row GC export into a multi-minute operation.
+// The approved DB payload is authoritative. Do not load a generated XLSX back
+// into ExcelJS and rewrite it: that was the main source of the multi-minute
+// export for the 1,942-row GC workbook.
 const Module = require('node:module');
 
 const originalLoad = Module._load;
+const originalFetch = globalThis.fetch;
 
 function activeProcessCodes(payload) {
   const processes = payload?.processes || {};
@@ -16,25 +17,44 @@ function activeProcessCodes(payload) {
     .filter(Boolean);
 }
 
+// main.cjs currently references `companyData` after its try/catch block.
+// In CommonJS, a global property is visible as a free identifier. Capture the
+// same authoritative payload when fetchCompanyData() receives it so the final
+// result calculation cannot throw ReferenceError after the XLSX was saved.
+if (typeof originalFetch === 'function' && !globalThis.__KTC_COMPANY_DATA_SCOPE_FIX__) {
+  globalThis.fetch = async function ktcCompanyDataScopeFetch(input, init) {
+    const response = await originalFetch(input, init);
+    const url = typeof input === 'string' ? input : String(input?.url || '');
+    if (response?.ok && /\/reports\/export-excel\/company-data(?:\?|$)/.test(url)) {
+      try {
+        const clone = response.clone();
+        const json = await clone.json();
+        if (json?.success && json?.data?.processes) {
+          globalThis.companyData = json.data;
+        }
+      } catch (_) {
+        // Leave the original response untouched; main.cjs will report its own
+        // fetch/JSON error if the payload is invalid.
+      }
+    }
+    return response;
+  };
+  globalThis.__KTC_COMPANY_DATA_SCOPE_FIX__ = true;
+}
+
 function patchMonthly(mod) {
   if (!mod || mod.__ktcExcelExportPatched) return mod;
 
-  const originalSplit = mod.buildSplitMonthlyWorkbooksLocal;
   const originalProcess = mod.buildProcessWorkbookLocal;
+  const originalSplit = mod.buildSplitMonthlyWorkbooksLocal;
+  if (typeof originalProcess !== 'function' || typeof originalSplit !== 'function') return mod;
 
-  if (typeof originalSplit !== 'function' || typeof originalProcess !== 'function') {
-    return mod;
-  }
-
-  // Build only processes that actually contain approved DB reports.
-  // Do NOT call buildMonthlySummaryWorkbookLocal here and do NOT patch/reload
-  // the produced XLSX buffer. buildProcessWorkbookLocal already renders from
-  // the authoritative DB payload and writes the workbook once.
+  // Only render process workbooks that actually contain approved reports.
+  // Do not build the unused monthly summary and do not call ExcelJS.load()
+  // + writeBuffer() a second time on the generated workbook.
   mod.buildSplitMonthlyWorkbooksLocal = async (args = {}) => {
-    const codes = activeProcessCodes(args.payload);
     const processes = [];
-
-    for (const code of codes) {
+    for (const code of activeProcessCodes(args.payload)) {
       const result = await originalProcess({ ...args, processCode: code });
       processes.push({
         ...result,
@@ -42,11 +62,7 @@ function patchMonthly(mod) {
         processName: result?.processName || code
       });
     }
-
-    return {
-      summary: null,
-      processes
-    };
+    return { summary: null, processes };
   };
 
   Object.defineProperty(mod, '__ktcExcelExportPatched', { value: true });
