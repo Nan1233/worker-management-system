@@ -5,6 +5,7 @@
 // into ExcelJS and rewrite it: that was the main source of the multi-minute
 // export for the 1,942-row GC workbook.
 const Module = require('node:module');
+const ExcelJS = require('exceljs');
 
 const originalLoad = Module._load;
 const originalFetch = globalThis.fetch;
@@ -42,6 +43,46 @@ if (typeof originalFetch === 'function' && !globalThis.__KTC_COMPANY_DATA_SCOPE_
   globalThis.__KTC_COMPANY_DATA_SCOPE_FIX__ = true;
 }
 
+function createNoopWorksheet() {
+  const noopObject = new Proxy({}, {
+    get(target, property) {
+      if (property === 'getCell' || property === 'getColumn' || property === 'getRow') {
+        return () => new Proxy({}, {
+          get() { return undefined; },
+          set() { return true; }
+        });
+      }
+      if (property === 'mergeCells' || property === 'unMergeCells' || property === 'addRow') {
+        return () => undefined;
+      }
+      return undefined;
+    },
+    set() { return true; }
+  });
+  return noopObject;
+}
+
+async function buildProcessWithoutGcHelper(originalProcess, args) {
+  // The legacy GC helper creates 2,000+ formula rows, styles every helper cell,
+  // and serializes them into the XLSX. It is not part of the requested output:
+  // the GC workbook should contain only the visible CẮT LỒNG sheet. The helper
+  // is therefore suppressed at worksheet creation time, avoiding any second
+  // ExcelJS load/write pass while preserving the main process sheet and the
+  // hidden DB sync metadata.
+  const originalAddWorksheet = ExcelJS.Workbook.prototype.addWorksheet;
+  ExcelJS.Workbook.prototype.addWorksheet = function optimizedAddWorksheet(name, options) {
+    if (String(name || '') === 'TAY MÁY CẮT LỒNG') {
+      return createNoopWorksheet();
+    }
+    return originalAddWorksheet.call(this, name, options);
+  };
+  try {
+    return await originalProcess(args);
+  } finally {
+    ExcelJS.Workbook.prototype.addWorksheet = originalAddWorksheet;
+  }
+}
+
 function patchMonthly(mod) {
   if (!mod || mod.__ktcExcelExportPatched) return mod;
 
@@ -55,7 +96,7 @@ function patchMonthly(mod) {
   mod.buildSplitMonthlyWorkbooksLocal = async (args = {}) => {
     const processes = [];
     for (const code of activeProcessCodes(args.payload)) {
-      const result = await originalProcess({ ...args, processCode: code });
+      const result = await originalProcessForCode({ ...args, processCode: code });
       processes.push({
         ...result,
         processCode: code,
@@ -63,6 +104,12 @@ function patchMonthly(mod) {
       });
     }
     return { summary: null, processes };
+  };
+
+  const originalProcessForCode = async (args) => {
+    const code = String(args?.processCode || '').trim().toUpperCase();
+    if (code === 'GC') return buildProcessWithoutGcHelper(originalProcess, args);
+    return originalProcess(args);
   };
 
   Object.defineProperty(mod, '__ktcExcelExportPatched', { value: true });
