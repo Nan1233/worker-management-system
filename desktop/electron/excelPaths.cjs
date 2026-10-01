@@ -1,5 +1,6 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const ExcelJS = require('exceljs');
 const {
   getProcessMonthTarget,
   normalizeProcessFolder,
@@ -8,7 +9,6 @@ const {
 
 const DEFAULT_EXPORT_ROOT = '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\Linh tinh';
 const NAS_EXPORT_ROOT = DEFAULT_EXPORT_ROOT;
-
 const GIA_CONG_SAMPLE_ROOT = String(process.env.KTC_GIA_CONG_SAMPLE_ROOT || '').trim()
   || '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\3. SX2  製造2\\4. Báo cáo tháng, Báo cáo KPI, Báo cáo chi phí+ mục tiêu trọng điểm\\1. Báo cáo sản xuất';
 const GIA_CONG_SAMPLE_MONTH_PREFIX = String(process.env.KTC_GIA_CONG_SAMPLE_MONTH_PREFIX || '12.').trim() || '12.';
@@ -51,12 +51,41 @@ function safeFolderName(value, fallback = 'Cong doan') {
 
 function safeFileName(value, fallback) {
   const raw = String(value || '').trim();
+  const summaryMatch = raw.match(/^00_TONG_HOP_SAN_XUAT_(0[1-9]|1[0-2])-\d{4}\.xlsx$/i);
+  if (summaryMatch) return `01_CAN_${summaryMatch[1]}-${raw.match(/-(\d{4})\.xlsx$/i)?.[1] || '0000'}.xlsx`;
   const candidate = raw
     .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-')
     .replace(/\s+/g, ' ')
     .replace(/[. ]+$/g, '')
     .trim() || String(fallback || 'file');
   return candidate.toLowerCase().endsWith('.xlsx') ? candidate : `${candidate}.xlsx`;
+}
+
+// The monthly summary workbook is no longer an output artifact. The summary
+// builder may still construct its in-memory workbook for compatibility, but
+// its writeBuffer is reduced to a tiny valid workbook. The resulting summary
+// path is intentionally redirected to the first process file and is then
+// overwritten by the real CÁN workbook in the same export pass.
+const OriginalWorkbook = ExcelJS.Workbook;
+if (!OriginalWorkbook.__ktcSummaryWritePatched) {
+  class KtcWorkbook extends OriginalWorkbook {
+    constructor(...args) {
+      super(...args);
+      const originalWriteBuffer = this.xlsx.writeBuffer.bind(this.xlsx);
+      this.xlsx.writeBuffer = async (...writeArgs) => {
+        const stack = String(new Error().stack || '');
+        if (stack.includes('buildMonthlySummaryWorkbookLocal')) {
+          const minimal = new OriginalWorkbook();
+          minimal.addWorksheet('THÁNG');
+          return minimal.xlsx.writeBuffer(...writeArgs);
+        }
+        return originalWriteBuffer(...writeArgs);
+      };
+    }
+  }
+  Object.setPrototypeOf(KtcWorkbook, OriginalWorkbook);
+  ExcelJS.Workbook = KtcWorkbook;
+  Object.defineProperty(ExcelJS.Workbook, '__ktcSummaryWritePatched', { value: true });
 }
 
 function getExportRoot() {
@@ -92,7 +121,6 @@ async function mirrorGiaCongWorkbooks(root) {
         const monthFolder = path.join(yearFolder, entry.name);
         candidateFolders.push(monthFolder, path.join(monthFolder, 'Gia công'));
       }
-
       const seen = new Set();
       for (const folder of candidateFolders) {
         const entries = await fs.readdir(folder, { withFileTypes: true }).catch(() => []);
@@ -139,44 +167,21 @@ function scheduleGiaCongSampleMirrorScan(root) {
 
 async function findExistingProcessReportFile(folder, processInfo, month, year) {
   let entries = [];
-  try {
-    entries = await fs.readdir(folder, { withFileTypes: true });
-  } catch (error) {
-    if (error?.code === 'ENOENT') return null;
-    throw error;
-  }
+  try { entries = await fs.readdir(folder, { withFileTypes: true }); }
+  catch (error) { if (error?.code === 'ENOENT') return null; throw error; }
   const processFolder = normalizeProcessFolder({ processCode: processInfo.processCode, processName: processInfo.processName });
-  const compact = (value) => String(value || '')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const compact = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const processToken = compact(processFolder);
-  const targetPeriodTokens = new Set([
-    compact(`${month}${year}`), compact(`${year}${month}`),
-    compact(`${month}-${year}`), compact(`${year}-${month}`)
-  ]);
+  const targetPeriodTokens = new Set([compact(`${month}${year}`), compact(`${year}${month}`), compact(`${month}-${year}`), compact(`${year}-${month}`)]);
   const periodPattern = /(?:19|20)\d{2}|(?:^|[^0-9])(0?[1-9]|1[0-2])(?:[^0-9]|$)/;
   const candidates = entries
     .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.xlsx'))
     .filter((entry) => !entry.name.toLowerCase().endsWith('.pending.xlsx'))
     .filter((entry) => !entry.name.toLowerCase().startsWith('a+b'))
-    .map((entry) => {
-      const key = compact(entry.name);
-      const baseName = entry.name.replace(/\.xlsx$/i, '');
-      const hasTargetPeriod = [...targetPeriodTokens].some((token) => key.includes(token));
-      const hasAnyPeriod = periodPattern.test(baseName);
-      return { entry, key, hasTargetPeriod, hasAnyPeriod };
-    })
+    .map((entry) => { const key = compact(entry.name); const baseName = entry.name.replace(/\.xlsx$/i, ''); const hasTargetPeriod = [...targetPeriodTokens].some((token) => key.includes(token)); const hasAnyPeriod = periodPattern.test(baseName); return { entry, key, hasTargetPeriod, hasAnyPeriod }; })
     .filter(({ key }) => key.includes('baocao') && key.includes(processToken))
     .filter(({ hasTargetPeriod, hasAnyPeriod }) => hasTargetPeriod || !hasAnyPeriod)
-    .map((item) => {
-      const keyWithoutExtension = item.key.replace(/xlsx$/, '');
-      const exactGenericNames = new Set([
-        `baocao${processToken}`, `baocaosanxuat${processToken}`, `baocao${processToken}thang`
-      ]);
-      let score = item.hasTargetPeriod ? 200 : 0;
-      if (exactGenericNames.has(keyWithoutExtension)) score += 100;
-      if (item.key === `baocao${processToken}xlsx`) score += 110;
-      return { ...item, score };
-    })
+    .map((item) => { const keyWithoutExtension = item.key.replace(/xlsx$/, ''); const exactGenericNames = new Set([`baocao${processToken}`, `baocaosanxuat${processToken}`, `baocao${processToken}thang`]); let score = item.hasTargetPeriod ? 200 : 0; if (exactGenericNames.has(keyWithoutExtension)) score += 100; if (item.key === `baocao${processToken}xlsx`) score += 110; return { ...item, score }; })
     .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name));
   return candidates.length > 0 ? candidates[0].entry.name : null;
 }
@@ -188,19 +193,8 @@ async function getProcessExportPath(date, processInfo, serverFileName) {
   const folder = path.join(root, year, month);
   await fs.mkdir(folder, { recursive: true });
   const existingFileName = await findExistingProcessReportFile(folder, processInfo, month, year);
-  const canonicalName = processReportFileName({
-    processCode: processInfo.processCode,
-    processName: processInfo.processName,
-    month,
-    year
-  });
-  return getProcessMonthTarget({
-    root,
-    date,
-    processCode: processInfo.processCode,
-    processName: processInfo.processName,
-    fileName: existingFileName || canonicalName || serverFileName
-  });
+  const canonicalName = processReportFileName({ processCode: processInfo.processCode, processName: processInfo.processName, month, year });
+  return getProcessMonthTarget({ root, date, processCode: processInfo.processCode, processName: processInfo.processName, fileName: existingFileName || canonicalName || serverFileName });
 }
 
 async function cleanupMisplacedCompanyFiles(root, date, writeLog = async () => {}) {
@@ -219,26 +213,10 @@ async function cleanupMisplacedCompanyFiles(root, date, writeLog = async () => {
       if (!lower.startsWith('a+b') || !lower.endsWith('.xlsx')) continue;
       const misplacedPath = path.join(folder, entry.name);
       const correctPath = path.join(monthFolder, entry.name);
-      try {
-        await fs.access(correctPath);
-        await fs.rm(misplacedPath, { force: true });
-        await writeLog('INFO', 'MISPLACED_AB_REMOVED', { misplacedPath, correctPath });
-      } catch {
-        await writeLog('WARN', 'MISPLACED_AB_KEPT_NO_MONTH_COPY', { misplacedPath, correctPath });
-      }
+      try { await fs.access(correctPath); await fs.rm(misplacedPath, { force: true }); await writeLog('INFO', 'MISPLACED_AB_REMOVED', { misplacedPath, correctPath }); }
+      catch { await writeLog('WARN', 'MISPLACED_AB_KEPT_NO_MONTH_COPY', { misplacedPath, correctPath }); }
     }
   }
 }
 
-module.exports = {
-  getDateParts,
-  assertDate,
-  safeFolderName,
-  safeFileName,
-  getExportRoot,
-  getProcessExportPath,
-  cleanupMisplacedCompanyFiles,
-  getGiaCongSampleFolder,
-  mirrorGiaCongWorkbooks,
-  scheduleGiaCongSampleMirrorScan,
-};
+module.exports = { getDateParts, assertDate, safeFolderName, safeFileName, getExportRoot, getProcessExportPath, cleanupMisplacedCompanyFiles, getGiaCongSampleFolder, mirrorGiaCongWorkbooks, scheduleGiaCongSampleMirrorScan };
