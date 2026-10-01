@@ -2,6 +2,7 @@
 
 const Module = require('node:module');
 const { buildCompanyExcelLocal } = require('./companyExcelLocal.cjs');
+const { splitAndReduceGcWorkbook } = require('./excelWorkbookSheetReducer.cjs');
 
 const originalLoad = Module._load;
 
@@ -57,6 +58,7 @@ async function buildGcFromCanonicalWriter(args) {
     existingFilePath: null
   });
 
+  const processedBuffer = await splitAndReduceGcWorkbook(built.buffer);
   const yearMonth = String(args.date || '').slice(0, 7);
   const [year, month] = yearMonth.split('-');
   const fileName = `04_CAT_LONG_${month}-${year}.xlsx`;
@@ -67,11 +69,12 @@ async function buildGcFromCanonicalWriter(args) {
     sourceFileName: built.fileName,
     fileName,
     requestedYearMonth: built.requestedYearMonth,
-    periodReplacementCount: built.periodReplacementCount
+    periodReplacementCount: built.periodReplacementCount,
+    sheetReducer: true
   });
 
   return {
-    buffer: built.buffer,
+    buffer: processedBuffer,
     result: {
       code: 'GC',
       sheet: 'Cắt lồng',
@@ -82,7 +85,7 @@ async function buildGcFromCanonicalWriter(args) {
     fileName,
     reportCount: reports.length,
     formulaReplacementCount: Number(built.periodReplacementCount || 0),
-    templateKind: 'CANONICAL_COMPANY_EXCEL_WRITER'
+    templateKind: 'CANONICAL_COMPANY_EXCEL_WRITER_SHEET_REDUCED'
   };
 }
 
@@ -120,7 +123,7 @@ function patchMonthly(mod) {
 
 Module._load = function(request, parent, isMain) {
   const loaded = originalLoad.call(this, request, parent, isMain);
-  if (typeof request === 'string' && /monthlyWorkbookLocal\.cjs$/.test(request)) {
+  if (typeof request === 'string' && /monthlyWorkbookLocal\\.cjs$/.test(request)) {
     return patchMonthly(loaded);
   }
   return loaded;
