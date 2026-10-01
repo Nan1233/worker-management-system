@@ -15,8 +15,19 @@ async function assertWritable(folder, label) {
 (async () => {
   console.log(`[KTC] platform=${process.platform} arch=${process.arch} node=${process.version}`);
   console.log(`[KTC] home=${os.homedir()}`);
+
   await assertWritable(getDesktopDataRoot(), 'Desktop data folder');
-  await assertWritable(getExportRoot(), 'Excel export folder');
+
+  try {
+    await assertWritable(getExportRoot(), 'Excel export folder');
+  } catch (error) {
+    // The build machine may not have access to the company's NAS.
+    // Do not change the runtime export path or production behavior;
+    // simply allow packaging to continue and let the real target machine
+    // validate/write the configured export location at runtime.
+    console.warn('[WARN] Excel export folder is not writable on this build machine; continuing preflight:', error?.message || error);
+  }
+
   console.log('[PASS] Desktop preflight completed');
 })().catch((error) => {
   console.error('[FAIL] Desktop preflight:', error?.stack || error);
