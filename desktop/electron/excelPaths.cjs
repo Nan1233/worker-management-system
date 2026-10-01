@@ -18,7 +18,7 @@ const NAS_EXPORT_ROOT = DEFAULT_EXPORT_ROOT;
 const GIA_CONG_SAMPLE_ROOT = String(process.env.KTC_GIA_CONG_SAMPLE_ROOT || '').trim()
   || '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\3. SX2  製造2\\4. Báo cáo tháng, Báo cáo KPI, Báo cáo chi phí+ mục tiêu trọng điểm\\1. Báo cáo sản xuất';
 const GIA_CONG_SAMPLE_MONTH_PREFIX = String(process.env.KTC_GIA_CONG_SAMPLE_MONTH_PREFIX || '12.').trim() || '12.';
-const GIA_CONG_SAMPLE_FILE = ({ month, year }) => `A+B GIA CÔNG THÁNG ${month}-${year}.xlsx`;
+const GIA_CONG_SAMPLE_FILE_RE = /^A\+B GIA CÔNG THÁNG (0[1-9]|1[0-2])-(\d{4})\.xlsx$/i;
 
 let giaCongMirrorRunning = false;
 let giaCongMirrorTimer = null;
@@ -54,73 +54,74 @@ function safeFileName(value, fallback) {
 
 function getExportRoot() {
   const configured = String(process.env.KTC_EXPORT_ROOT || '').trim();
-  if (!configured) return DEFAULT_EXPORT_ROOT;
+  const root = !configured
+    ? DEFAULT_EXPORT_ROOT
+    : /^linh\s*tinh$/i.test(configured)
+      ? NAS_EXPORT_ROOT
+      : /^\\\\/.test(configured)
+        ? configured
+        : path.resolve(configured);
 
-  // Older EXE/environment configurations used only "Linh tinh". Treat that
-  // value as the company NAS location, not as a relative local folder.
-  if (/^linh\s*tinh$/i.test(configured)) return NAS_EXPORT_ROOT;
-
-  // Preserve an explicitly supplied UNC/network path.
-  if (/^\\\\/.test(configured)) return configured;
-
-  // Keep support for an explicitly supplied absolute local path for debugging.
-  return path.resolve(configured);
+  // Keep the existing export untouched, then asynchronously mirror only the
+  // Gia công A+B workbook into its separate monthly-report destination.
+  scheduleGiaCongSampleMirrorScan(root);
+  return root;
 }
 
-function getGiaCongSampleFolder(date) {
-  assertDate(date);
-  const [year, month] = date.split('-');
+function getGiaCongSampleFolder(year, month) {
   return path.join(GIA_CONG_SAMPLE_ROOT, year, `${GIA_CONG_SAMPLE_MONTH_PREFIX} Tháng ${month}-${year}`);
 }
 
-async function mirrorGiaCongWorkbookFromCurrentRoot(date) {
+async function mirrorGiaCongWorkbooks(root) {
   if (giaCongMirrorRunning) return;
   giaCongMirrorRunning = true;
   try {
-    assertDate(date);
-    const [year, month] = date.split('-');
-    const currentRoot = getExportRoot();
-    const currentMonthFolder = path.join(currentRoot, year, month);
-    const fileName = GIA_CONG_SAMPLE_FILE({ month, year });
-    const sourceCandidates = [
-      path.join(currentMonthFolder, fileName),
-      path.join(currentRoot, year, 'Gia công', fileName)
-    ];
-    let sourcePath = null;
-    for (const candidate of sourceCandidates) {
-      try {
-        const stat = await fs.stat(candidate);
-        if (stat.isFile()) {
-          sourcePath = candidate;
-          break;
+    const years = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
+    for (const yearEntry of years) {
+      if (!yearEntry.isDirectory() || !/^\d{4}$/.test(yearEntry.name)) continue;
+      const year = yearEntry.name;
+      const yearFolder = path.join(root, year);
+      const candidateFolders = [path.join(yearFolder, 'Gia công')];
+      const yearEntries = await fs.readdir(yearFolder, { withFileTypes: true }).catch(() => []);
+      for (const entry of yearEntries) {
+        if (entry.isDirectory() && /^\d{2}$/.test(entry.name)) candidateFolders.push(path.join(yearFolder, entry.name));
+      }
+
+      const seen = new Set();
+      for (const folder of candidateFolders) {
+        const entries = await fs.readdir(folder, { withFileTypes: true }).catch(() => []);
+        for (const entry of entries) {
+          if (!entry.isFile()) continue;
+          const match = entry.name.match(GIA_CONG_SAMPLE_FILE_RE);
+          if (!match || seen.has(entry.name)) continue;
+          seen.add(entry.name);
+          const month = match[1];
+          const targetFolder = getGiaCongSampleFolder(year, month);
+          const targetPath = path.join(targetFolder, entry.name);
+          const sourcePath = path.join(folder, entry.name);
+          await fs.mkdir(targetFolder, { recursive: true });
+          const temporaryPath = `${targetPath}.${process.pid}.${Date.now()}.tmp`;
+          try {
+            await fs.copyFile(sourcePath, temporaryPath);
+            await fs.rm(targetPath, { force: true });
+            await fs.rename(temporaryPath, targetPath);
+          } catch (error) {
+            await fs.rm(temporaryPath, { force: true }).catch(() => {});
+            // The main export must never fail because the separate mirror is unavailable.
+          }
         }
-      } catch {
-        // Try the next known current-export location.
       }
     }
-    if (!sourcePath) return;
-
-    const targetFolder = getGiaCongSampleFolder(date);
-    const targetPath = path.join(targetFolder, fileName);
-    await fs.mkdir(targetFolder, { recursive: true });
-    const temporaryPath = `${targetPath}.${process.pid}.${Date.now()}.tmp`;
-    await fs.copyFile(sourcePath, temporaryPath);
-    await fs.rm(targetPath, { force: true });
-    await fs.rename(temporaryPath, targetPath);
   } finally {
     giaCongMirrorRunning = false;
   }
 }
 
-function scheduleGiaCongSampleMirror(date) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ''))) return;
-  if (giaCongMirrorTimer) clearTimeout(giaCongMirrorTimer);
-  // The current workbook is written after getExportRoot()/getCompanyMonthTarget().
-  // Delay the mirror until that write has completed, without changing the
-  // existing Linh tinh export path or workbook generation logic.
+function scheduleGiaCongSampleMirrorScan(root) {
+  if (giaCongMirrorTimer) return;
   giaCongMirrorTimer = setTimeout(() => {
     giaCongMirrorTimer = null;
-    void mirrorGiaCongWorkbookFromCurrentRoot(date).catch(() => {});
+    void mirrorGiaCongWorkbooks(root).catch(() => {});
   }, 5000);
   giaCongMirrorTimer.unref?.();
 }
@@ -250,6 +251,6 @@ module.exports = {
   getProcessExportPath,
   cleanupMisplacedCompanyFiles,
   getGiaCongSampleFolder,
-  mirrorGiaCongWorkbookFromCurrentRoot,
-  scheduleGiaCongSampleMirror,
+  mirrorGiaCongWorkbooks,
+  scheduleGiaCongSampleMirrorScan,
 };
