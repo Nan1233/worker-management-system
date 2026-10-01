@@ -50,7 +50,7 @@ function pruneProcessSheet(sheet) {
   }
 }
 
-function leanGcProcessWorkbook(mod, args) {
+async function leanGcProcessWorkbook(mod, args) {
   const code = 'GC';
   const config = mod.PROCESS_SHEETS[code];
   const payload = args?.payload || {};
