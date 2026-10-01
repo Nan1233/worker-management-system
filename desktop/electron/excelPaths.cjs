@@ -1,4 +1,5 @@
 const fs = require('node:fs/promises');
+const fsSync = require('node:fs');
 const path = require('node:path');
 const ExcelJS = require('exceljs');
 const {
@@ -123,7 +124,37 @@ async function resolveExportRoot() {
 
 function getExportRoot() {
   if (resolvedExportRoot) return resolvedExportRoot;
-  return getConfiguredExportRoot();
+
+  const configured = getConfiguredExportRoot();
+  const isNasPath = /^\\\\/.test(configured);
+
+  // Some runtime paths call getExportRoot() synchronously (for example main.cjs
+  // before the async resolver is entered). Resolve the no-NAS case here too,
+  // so those callers do not try to mkdir the unavailable UNC path.
+  if (isNasPath) {
+    try {
+      if (!fsSync.existsSync(configured)) {
+        fsSync.mkdirSync(LOCAL_EXPORT_ROOT, { recursive: true });
+        resolvedExportRoot = LOCAL_EXPORT_ROOT;
+        resolvedExportRootSource = 'LOCAL_FALLBACK';
+        console.warn(`[KTC] NAS export root unavailable; using local fallback: ${LOCAL_EXPORT_ROOT}`);
+        return resolvedExportRoot;
+      }
+    } catch {
+      try {
+        fsSync.mkdirSync(LOCAL_EXPORT_ROOT, { recursive: true });
+        resolvedExportRoot = LOCAL_EXPORT_ROOT;
+        resolvedExportRootSource = 'LOCAL_FALLBACK';
+        console.warn(`[KTC] NAS export root unavailable; using local fallback: ${LOCAL_EXPORT_ROOT}`);
+        return resolvedExportRoot;
+      } catch {
+        // Keep the configured path so the original error is surfaced if the
+        // local fallback itself is unavailable.
+      }
+    }
+  }
+
+  return configured;
 }
 
 async function findExistingProcessReportFile(folder, processInfo, month, year) {
