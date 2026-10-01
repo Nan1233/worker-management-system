@@ -212,18 +212,45 @@ function installFetch() {
   };
   globalThis.__KTC_LOCAL_EXCEL_FETCH_INSTALLED__ = true;
 }
+function activeProcessCodes(payload) {
+  const processes = payload?.processes || {};
+  return Object.entries(processes)
+    .filter(([, data]) => Array.isArray(data?.reports) && data.reports.length > 0)
+    .map(([code]) => code);
+}
+async function makeNoopSummary(date, payload, processes) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.addWorksheet('THÁNG');
+  const [year, month] = String(payload?.yearMonth || date).slice(0, 7).split('-');
+  return {
+    buffer: Buffer.from(await workbook.xlsx.writeBuffer()),
+    fileName: processes[0]?.fileName || `00_TONG_HOP_SAN_XUAT_${month}-${year}.xlsx`,
+    formulaReplacementCount: 0
+  };
+}
 function patchMonthly(mod) {
   if (!mod || mod.__ktcExcelExportPatched) return mod;
-  const split = mod.buildSplitMonthlyWorkbooksLocal;
+  const originalSplit = mod.buildSplitMonthlyWorkbooksLocal;
   const process = mod.buildProcessWorkbookLocal;
-  if (typeof split === 'function') mod.buildSplitMonthlyWorkbooksLocal = async (args={}) => {
-    try {
-      const result = await split(args);
-      const list = Array.isArray(result?.processes) ? result.processes : Object.entries(result?.processes || {}).map(([processCode,v]) => ({processCode,...v}));
-      for (const item of list) if (item?.buffer) item.buffer = await patchBuffer(item.buffer, args.payload, item.processCode);
-      return result;
-    } catch(e) { await showError(e); throw e; }
-  };
+  if (typeof originalSplit === 'function' && typeof process === 'function') {
+    mod.buildSplitMonthlyWorkbooksLocal = async (args={}) => {
+      try {
+        const codes = activeProcessCodes(args.payload);
+        const processes = [];
+        for (const code of codes) {
+          const result = await process({ ...args, processCode: code });
+          if (result?.buffer) result.buffer = await patchBuffer(result.buffer, args.payload, code);
+          processes.push({
+            ...result,
+            processCode: code,
+            processName: result?.processName || code
+          });
+        }
+        const summary = await makeNoopSummary(args.date, args.payload, processes);
+        return { summary, processes };
+      } catch(e) { await showError(e); throw e; }
+    };
+  }
   if (typeof process === 'function') mod.buildProcessWorkbookLocal = async (args={}) => {
     try {
       const result = await process(args);
