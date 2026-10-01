@@ -22,7 +22,6 @@
     "validate:excel-folder": "node scripts/validateExcelFolder.cjs",
     "preflight": "node scripts/preflight.cjs",
     "check:platform-paths": "node scripts/checkPlatformPaths.cjs",
-    "dist:mac": "npm run preflight && npm run smoke:excel && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --universal",
     "field:readiness": "npm run preflight && node scripts/fieldReadiness.cjs",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
     "check:packaged-shared-contract": "node scripts/checkPackagedSharedContract.cjs",
@@ -42,6 +41,7 @@
     },
     "files": [
       "electron/**/*",
+      "assets/templates/bao-cao-cat-long-export.xlsx",
       "package.json"
     ],
     "win": {
@@ -83,7 +83,7 @@
       "artifactName": "KTC-Production-Control.exe"
     },
     "compression": "maximum",
-    "mac": {
+  "mac": {
       "target": [
         "dmg",
         "zip"
