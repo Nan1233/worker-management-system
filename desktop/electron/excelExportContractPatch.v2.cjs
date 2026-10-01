@@ -19,7 +19,6 @@ function activeProcessCodes(payload) {
     .filter(Boolean);
 }
 
-// main.cjs currently references companyData after its try/catch block.
 if (typeof originalFetch === 'function' && !globalThis.__KTC_COMPANY_DATA_SCOPE_FIX__) {
   globalThis.fetch = async function ktcCompanyDataScopeFetch(input, init) {
     const response = await originalFetch(input, init);
@@ -29,9 +28,7 @@ if (typeof originalFetch === 'function' && !globalThis.__KTC_COMPANY_DATA_SCOPE_
         const clone = response.clone();
         const json = await clone.json();
         if (json?.success && json?.data?.processes) globalThis.companyData = json.data;
-      } catch (_) {
-        // Keep the original response untouched.
-      }
+      } catch (_) {}
     }
     return response;
   };
@@ -56,12 +53,7 @@ function normCode(value) {
     .replace(/[đĐ]/g, 'd').replace(/[^A-Za-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '').toUpperCase();
 }
-
-function number(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
-}
-
+function number(value) { const n = Number(value); return Number.isFinite(n) ? n : 0; }
 function text(value) {
   if (value && typeof value === 'object') {
     if (value.result !== undefined) return text(value.result);
@@ -69,7 +61,6 @@ function text(value) {
   }
   return String(value ?? '').trim();
 }
-
 function originalPatch(report) {
   return {
     shift: text(report.shift),
@@ -82,12 +73,10 @@ function originalPatch(report) {
     tt_ok: Math.round(number(report.tt_ok ?? report.ok_quantity)),
     note: text(report.note),
     deductions: (report.deductions || []).map((item) => ({
-      deduction_type_id: Number(item.deduction_type_id || item.id),
-      hours: number(item.hours ?? item.value)
+      deduction_type_id: Number(item.deduction_type_id || item.id), hours: number(item.hours ?? item.value)
     })).filter((item) => item.deduction_type_id > 0),
     defects: (report.defects || []).map((item) => ({
-      defect_type_id: Number(item.defect_type_id || item.id),
-      quantity: Math.round(number(item.quantity ?? item.value))
+      defect_type_id: Number(item.defect_type_id || item.id), quantity: Math.round(number(item.quantity ?? item.value))
     })).filter((item) => item.defect_type_id > 0)
   };
 }
@@ -97,7 +86,6 @@ function addFastGcSyncMetadata(workbook, processData, yearMonth) {
   if (old) workbook.removeWorksheet(old.id);
   const sheet = workbook.addWorksheet('_KTC_SYNC');
   sheet.state = 'veryHidden';
-
   const columns = [
     { index: 2, key: 'workerCode', header: 'Mã NV' },
     { index: 3, key: 'workerName', header: 'Tên NV' },
@@ -109,7 +97,6 @@ function addFastGcSyncMetadata(workbook, processData, yearMonth) {
     { index: 31, key: 'workDate', header: 'Ngày' },
     { index: 33, key: 'ok', header: 'OK' }
   ];
-
   for (const [code, index] of Object.entries(GC_DEDUCTION_COLUMNS)) {
     const item = (processData.deductionTypes || []).find((x) => normCode(x.code || x.deduction_code || x.name) === code);
     if (item?.id) columns.push({ index, key: `deduction:id:${Number(item.id)}`, header: code, typeId: Number(item.id) });
@@ -118,23 +105,15 @@ function addFastGcSyncMetadata(workbook, processData, yearMonth) {
     const item = (processData.defectTypes || []).find((x) => normCode(x.code || x.defect_code || x.name) === code);
     if (item?.id) columns.push({ index, key: `defect:id:${Number(item.id)}`, header: code, typeId: Number(item.id) });
   }
-
   sheet.getCell('A1').value = JSON.stringify({
-    version: EXCEL_SYNC_CONTRACT_VERSION,
-    processCode: 'GC',
-    sheetName: 'CẮT LỒNG',
-    generatedAt: new Date().toISOString(),
-    yearMonth,
-    gcHelperSheet: null,
-    columns
+    version: EXCEL_SYNC_CONTRACT_VERSION, processCode: 'GC', sheetName: 'CẮT LỒNG',
+    generatedAt: new Date().toISOString(), yearMonth, gcHelperSheet: null, columns
   });
   sheet.addRow(['report_id', 'expected_updated_at', 'operation_mode', 'original_json']);
   for (const report of processData.reports || []) {
     sheet.addRow([
-      Number(report.id),
-      report.updated_at || report.created_at || null,
-      text(report.operation_mode).toUpperCase(),
-      JSON.stringify(originalPatch(report))
+      Number(report.id), report.updated_at || report.created_at || null,
+      text(report.operation_mode).toUpperCase(), JSON.stringify(originalPatch(report))
     ]);
   }
 }
@@ -142,10 +121,6 @@ function addFastGcSyncMetadata(workbook, processData, yearMonth) {
 async function buildFastGcProcess(args) {
   const processData = args?.payload?.processes?.GC || {};
   const yearMonth = String(args?.payload?.yearMonth || args?.date || '').slice(0, 7);
-
-  // companyExcelLocal already uses the real bao-cao-cat-long-export.xlsx template
-  // and writes only report values/formulas into its prepared rows. This avoids
-  // renderProcessSheet() + per-cell styling + full-border pass for ~1,942 rows.
   const templatePayload = {
     groups: {
       GIA_CONG: {
@@ -158,20 +133,17 @@ async function buildFastGcProcess(args) {
       }
     }
   };
-
   const result = await buildProcessExcelLocal({
-    appPath: args.appPath,
-    date: args.date,
-    processCode: 'GC',
-    payload: templatePayload
+    appPath: args.appPath, date: args.date, processCode: 'GC', payload: templatePayload
   });
 
-  // Keep only the Cắt lồng sheet visible. Hidden lookup sheets from the template
-  // are retained because formulas in the template can depend on them.
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(result.buffer);
-  for (const sheet of [...workbook.worksheets]) {
-    if (sheet.name !== 'Cắt lồng' && sheet.state === 'visible') workbook.removeWorksheet(sheet.id);
+  // Chỉ Cắt lồng còn VISIBLE. Các sheet phụ được chuyển veryHidden thay vì xóa,
+  // vì template có công thức tham chiếu chúng; như vậy Excel vẫn tính đúng nhưng
+  // người dùng chỉ thấy đúng sheet Cắt lồng.
+  for (const sheet of workbook.worksheets) {
+    if (sheet.name !== 'Cắt lồng' && sheet.state === 'visible') sheet.state = 'veryHidden';
   }
   addFastGcSyncMetadata(workbook, processData, yearMonth);
   result.buffer = Buffer.from(await workbook.xlsx.writeBuffer());
@@ -187,13 +159,11 @@ function patchMonthly(mod) {
   if (!mod || mod.__ktcExcelExportPatched) return mod;
   const originalProcess = mod.buildProcessWorkbookLocal;
   if (typeof originalProcess !== 'function') return mod;
-
   const originalProcessForCode = async (args) => {
     const code = String(args?.processCode || '').trim().toUpperCase();
     if (code === 'GC') return buildFastGcProcess(args);
     return originalProcess(args);
   };
-
   mod.buildSplitMonthlyWorkbooksLocal = async (args = {}) => {
     const processes = [];
     for (const code of activeProcessCodes(args.payload)) {
@@ -202,7 +172,6 @@ function patchMonthly(mod) {
     }
     return { summary: null, processes };
   };
-
   mod.buildProcessWorkbookLocal = originalProcessForCode;
   Object.defineProperty(mod, '__ktcExcelExportPatched', { value: true });
   return mod;
