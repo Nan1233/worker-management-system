@@ -190,7 +190,7 @@ function patchMonthly(mod) {
 
 Module._load = function(request, parent, isMain) {
   const loaded = originalLoad.call(this, request, parent, isMain);
-  if (typeof request === 'string' && /monthlyWorkbookLocal\\.cjs$/.test(request)) {
+  if (typeof request === 'string' && /monthlyWorkbookLocal\.cjs$/.test(request)) {
     return patchMonthly(loaded);
   }
   return loaded;
