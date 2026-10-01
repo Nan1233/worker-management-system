@@ -68,6 +68,10 @@ app.on('browser-window-created', (_event, window) => {
   });
 });
 
+// IMPORTANT: install the template-based desktop Excel patch BEFORE main.cjs
+// loads monthlyWorkbookLocal.cjs. Without this require, the optimized GC path
+// is never installed and the old workbook-builder path remains active.
+require('./excelExportContractPatch.v2.cjs');
 require('./excelDbTruthPatch.v2.cjs');
 
 function normalizeExportRoot(value) {
