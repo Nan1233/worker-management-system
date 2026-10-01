@@ -35,7 +35,7 @@
   "build": {
     "appId": "vn.ktc.productioncontrol",
     "productName": "KTC Production Control",
-    "asar": false,
+    "asar": true,
     "directories": {
       "output": "release"
     },
