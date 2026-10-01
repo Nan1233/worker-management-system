@@ -16,72 +16,195 @@ function normalizeHeader(value) {
     .toUpperCase();
 }
 
-function columnByHeader(sheet, header) {
-  const wanted = normalizeHeader(header);
-  for (let col = 1; col <= sheet.columnCount; col += 1) {
-    if (normalizeHeader(sheet.getCell(5, col).value) === wanted) return col;
+function detailAliases(mod, item, kind) {
+  const aliases = [];
+  const normalize = mod._private.normalize;
+  const id = Number(kind === 'deduction'
+    ? item?.deduction_type_id ?? item?.type_id ?? item?.id
+    : item?.defect_type_id ?? item?.type_id ?? item?.id);
+  const code = kind === 'deduction'
+    ? item?.deduction_type_code ?? item?.deduction_code ?? item?.type_code ?? item?.code
+    : item?.defect_type_code ?? item?.defect_code ?? item?.type_code ?? item?.code;
+  const label = kind === 'deduction'
+    ? item?.deduction_type_name ?? item?.deduction_name ?? item?.type_name ?? item?.display_name ?? item?.label ?? item?.name ?? item?.deduction_type_code ?? item?.deduction_code ?? item?.code
+    : item?.defect_type_name ?? item?.defect_name ?? item?.type_name ?? item?.display_name ?? item?.label ?? item?.name ?? item?.defect_type_code ?? item?.defect_code ?? item?.code;
+  if (Number.isInteger(id) && id > 0) aliases.push(`id:${id}`);
+  if (code) aliases.push(`code:${normalize(code)}`);
+  if (label) aliases.push(`name:${normalize(label)}`);
+  return aliases;
+}
+
+function detailValue(item, kind) {
+  const raw = kind === 'deduction'
+    ? item?.deduction_hours ?? item?.duration_hours ?? item?.time_hours ?? item?.hours ?? item?.value
+    : item?.defect_quantity ?? item?.ng_quantity ?? item?.quantity ?? item?.qty ?? item?.value;
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return 0;
+  return kind === 'defect' ? Math.round(value) : value;
+}
+
+function makeDetailMap(mod, items, kind) {
+  const map = new Map();
+  for (const item of items || []) {
+    const value = detailValue(item, kind);
+    for (const alias of detailAliases(mod, item, kind)) {
+      map.set(alias, (map.get(alias) || 0) + value);
+    }
+  }
+  return map;
+}
+
+function valueForDetailType(map, type) {
+  for (const key of [type.key, ...(type.aliases || [])]) {
+    if (map.has(key)) return map.get(key) || 0;
   }
   return 0;
 }
 
-function pruneProcessSheet(sheet) {
-  if (!sheet || sheet.rowCount < 5) return;
+function snapshotRow(mod, code, report, deductionTypes, defectTypes, settings) {
+  const snapshot = mod._private.reportSnapshot(report, settings);
+  const deductions = makeDetailMap(mod, report.deductions, 'deduction');
+  const defects = makeDetailMap(mod, report.defects, 'defect');
+  const values = { ...snapshot };
 
-  const removeHeaders = new Set(['TONG SP QUY DOI', 'TRANG THAI', 'GHI CHU', 'ID']);
-  const removeColumns = [];
-  for (let col = 1; col <= sheet.columnCount; col += 1) {
-    if (removeHeaders.has(normalizeHeader(sheet.getCell(5, col).value))) removeColumns.push(col);
-  }
-  for (let i = removeColumns.length - 1; i >= 0; i -= 1) {
-    sheet.spliceColumns(removeColumns[i], 1);
+  for (const type of deductionTypes) values[`deduction:${type.key}`] = valueForDetailType(deductions, type);
+  for (const type of defectTypes) values[`defect:${type.key}`] = valueForDetailType(defects, type);
+  values.stt = null;
+  return values;
+}
+
+function leanStyleHeaders(sheet, columns, config) {
+  // Chỉ style phần cố định nhỏ của workbook. Không style 100k+ data cells.
+  sheet.properties.defaultRowHeight = 20;
+  for (let i = 0; i < columns.length; i += 1) {
+    const col = sheet.getColumn(i + 1);
+    col.width = Math.max(5, Number(columns[i].width) || 8);
   }
 
-  const trainingCol = columnByHeader(sheet, '% HOC VIEC');
-  const standardCol = columnByHeader(sheet, 'DINH MUC');
-  const actualTimeCol = columnByHeader(sheet, 'THOI GIAN THUC TE');
-  if (!trainingCol || !standardCol || !actualTimeCol) return;
+  const last = columns.length;
+  sheet.mergeCells(1, 1, 2, last);
+  sheet.getCell(1, 1).value = `BÁO CÁO SẢN XUẤT CÔNG ĐOẠN ${config.title}`;
+  sheet.getCell(1, 1).font = { name: 'Arial', size: 18, bold: true, color: { argb: 'FFFFFFFF' } };
+  sheet.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF17365D' } };
+  sheet.getCell(1, 1).alignment = { horizontal: 'center', vertical: 'middle' };
 
-  for (let row = 6; row <= sheet.rowCount; row += 1) {
-    const training = Number(sheet.getCell(row, trainingCol).value);
-    const standardPerHour = Number(sheet.getCell(row, standardCol).value);
-    const actualTime = Number(sheet.getCell(row, actualTimeCol).value);
-    if (!Number.isFinite(training) || !Number.isFinite(standardPerHour) || !Number.isFinite(actualTime)) continue;
-    sheet.getCell(row, standardCol).value = training * standardPerHour * actualTime;
+  sheet.mergeCells(3, 1, 3, last);
+  sheet.getCell(3, 1).font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FF17365D' } };
+  sheet.getCell(3, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9EAF7' } };
+  sheet.getCell(3, 1).alignment = { horizontal: 'left', vertical: 'middle' };
+
+  for (let i = 0; i < columns.length; i += 1) {
+    const cell = sheet.getCell(5, i + 1);
+    cell.value = columns[i].header;
+    cell.font = { name: 'Arial', size: 8, bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
   }
+  sheet.getRow(4).height = 8;
+  sheet.getRow(5).height = 38;
 }
 
 async function leanGcProcessWorkbook(mod, args) {
+  const started = Date.now();
   const code = 'GC';
   const config = mod.PROCESS_SHEETS[code];
   const payload = args?.payload || {};
   const date = args?.date;
   const yearMonth = String(payload.yearMonth || date || '').slice(0, 7);
   const processData = payload.processes?.[code] || {};
+  const settings = payload?.formulaSettings?.[code] || payload?.formulaSettings?.GLOBAL || {};
+
+  const deductionTypes = mod._private.processDetailTypes(code, processData, 'deductionTypes', 'deductions', 'deduction');
+  const defectTypes = mod._private.processDetailTypes(code, processData, 'defectTypes', 'defects', 'defect');
+  const columns = mod._private.makeColumns(code, deductionTypes, defectTypes);
+  const reports = mod._private.sortReports(processData.reports);
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'KTC Production Control';
   workbook.created = new Date();
   workbook.modified = new Date();
+  const sheet = workbook.addWorksheet(config.sheet, {
+    views: [{ state: 'frozen', xSplit: 4, ySplit: 5, topLeftCell: 'E6', activeCell: 'E6', showGridLines: false }]
+  });
 
-  const source = payload?.formulaSettings || {};
-  const settings = source[code] || source.GLOBAL || {};
-  const result = mod._private.renderProcessSheet(
-    workbook,
-    code,
-    config,
-    processData,
-    yearMonth,
-    settings
-  );
+  leanStyleHeaders(sheet, columns, config);
+  sheet.getCell(3, 1).value = `Tháng ${yearMonth.slice(5, 7)}/${yearMonth.slice(0, 4)} • Nguồn: TiDB - báo cáo đã duyệt`;
 
-  // File CẮT/LỒNG chỉ giữ đúng sheet nghiệp vụ. Không tạo helper,
-  // metadata sync hay machine-events sheet vì DB là nguồn dữ liệu export.
-  pruneProcessSheet(workbook.getWorksheet(config.sheet));
+  const rows = [];
+  const dateRowIndexes = [];
+  let previousDate = null;
+  let sequence = 0;
+  const numericTotals = new Array(columns.length).fill(0);
 
+  for (const report of reports) {
+    const currentDate = String(report.work_date || '').slice(0, 10);
+    if (currentDate !== previousDate) {
+      const row = new Array(columns.length).fill(null);
+      row[0] = currentDate;
+      rows.push(row);
+      dateRowIndexes.push(5 + rows.length);
+      sequence = 0;
+      previousDate = currentDate;
+    }
+
+    sequence += 1;
+    const reportSettings = (processData.formulaSettingsByDate || {})[currentDate] || settings;
+    const values = snapshotRow(mod, code, report, deductionTypes, defectTypes, reportSettings);
+    values.stt = sequence;
+    const row = columns.map((column, index) => {
+      const value = values[column.key];
+      if (typeof value === 'number' && Number.isFinite(value)) numericTotals[index] += value;
+      return value === undefined ? null : value;
+    });
+    rows.push(row);
+  }
+
+  // Một lần addRows thay cho getCell/style cho từng ô của từng report.
+  sheet.addRows(rows);
+
+  // Chỉ format date separator rows, không chạy border/style trên toàn bảng.
+  for (const rowNumber of dateRowIndexes) {
+    const row = sheet.getRow(rowNumber);
+    row.height = 22;
+    row.getCell(1).font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF17365D' } };
+    row.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9EAF7' } };
+    row.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' };
+    if (columns.length >= 4) sheet.mergeCells(rowNumber, 1, rowNumber, 4);
+  }
+
+  const totalRow = sheet.addRow(new Array(columns.length).fill(null));
+  const totalRowNumber = totalRow.number;
+  totalRow.getCell(1).value = 'TỔNG CỘNG';
+  totalRow.getCell(1).font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+  totalRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF17365D' } };
+  for (let i = 1; i <= columns.length; i += 1) {
+    const cell = totalRow.getCell(i);
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF17365D' } };
+    if (i > 10) cell.value = numericTotals[i - 1] || null;
+  }
+
+  sheet.autoFilter = { from: { row: 5, column: 1 }, to: { row: Math.max(5, totalRowNumber - 1), column: columns.length } };
+  sheet.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 };
+  sheet.headerFooter = { oddFooter: '&LKTC Production Control&CTrang &P / &N&R&D &T' };
+
+  const buildMs = Date.now() - started;
+  const writeStarted = Date.now();
   const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+  const writeMs = Date.now() - writeStarted;
+
+  console.log('[KTC-EXCEL-PERF] GC_LEAN_EXPORT_DONE', JSON.stringify({
+    reportCount: reports.length,
+    columnCount: columns.length,
+    rowCount: rows.length,
+    buildMs,
+    writeMs,
+    totalMs: Date.now() - started,
+    bytes: buffer.length
+  }));
+
   return {
     buffer,
-    result,
+    result: { code, sheet: config.sheet, reportCount: reports.length, deductionColumnCount: deductionTypes.length, defectColumnCount: defectTypes.length },
     processCode: code,
     processName: config.title,
     fileName: mod.processWorkbookFileName(code, date, payload),
@@ -92,20 +215,12 @@ async function leanGcProcessWorkbook(mod, args) {
 async function leanSplitMonthlyWorkbooks(mod, args) {
   const payload = args?.payload || {};
   const processes = [];
-
-  // Chỉ build công đoạn thực sự có approved reports.
-  // Trước đây vòng lặp build đủ 9 công đoạn, kể cả công đoạn có 0 report.
   for (const code of Object.keys(mod.PROCESS_SHEETS)) {
     const processData = payload.processes?.[code];
     if (!Array.isArray(processData?.reports) || processData.reports.length === 0) continue;
-
-    if (code === 'GC') {
-      processes.push(await leanGcProcessWorkbook(mod, args));
-    } else {
-      processes.push(await mod.__ktcOriginalBuildProcess({ ...args, processCode: code }));
-    }
+    if (code === 'GC') processes.push(await leanGcProcessWorkbook(mod, args));
+    else processes.push(await mod.__ktcOriginalBuildProcess({ ...args, processCode: code }));
   }
-
   return { summary: null, processes };
 }
 
@@ -127,9 +242,7 @@ function patchMonthlyModule(mod) {
 
   if (typeof mod.buildProcessWorkbookLocal === 'function') {
     mod.buildProcessWorkbookLocal = async (args) => {
-      if (String(args?.processCode || '').trim().toUpperCase() === 'GC') {
-        return leanGcProcessWorkbook(mod, args);
-      }
+      if (String(args?.processCode || '').trim().toUpperCase() === 'GC') return leanGcProcessWorkbook(mod, args);
       return mod.__ktcOriginalBuildProcess(args);
     };
   }
