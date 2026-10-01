@@ -9,14 +9,6 @@ const {
 
 const DEFAULT_EXPORT_ROOT = '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\Linh tinh';
 const NAS_EXPORT_ROOT = DEFAULT_EXPORT_ROOT;
-const GIA_CONG_SAMPLE_ROOT = String(process.env.KTC_GIA_CONG_SAMPLE_ROOT || '').trim()
-  || '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\3. SX2  製造2\\4. Báo cáo tháng, Báo cáo KPI, Báo cáo chi phí+ mục tiêu trọng điểm\\1. Báo cáo sản xuất';
-const GIA_CONG_SAMPLE_MONTH_PREFIX = String(process.env.KTC_GIA_CONG_SAMPLE_MONTH_PREFIX || '12.').trim() || '12.';
-const GIA_CONG_SAMPLE_FILE_RE = /^A\+B GIA CÔNG THÁNG (0[1-9]|1[0-2])-(\d{4})\.xlsx$/i;
-const GIA_CONG_PROCESS_FILE_RE = /^04_CAT_LONG_(0[1-9]|1[0-2])-(\d{4})\.xlsx$/i;
-
-let giaCongMirrorRunning = false;
-let giaCongMirrorTimer = null;
 
 function getDateParts(dateValue = new Date()) {
   const formatter = new Intl.DateTimeFormat('en-CA', {
@@ -63,9 +55,7 @@ function safeFileName(value, fallback) {
 
 // The monthly summary workbook is no longer an output artifact. The summary
 // builder may still construct its in-memory workbook for compatibility, but
-// its writeBuffer is reduced to a tiny valid workbook. The resulting summary
-// path is intentionally redirected to the first process file and is then
-// overwritten by the real CÁN workbook in the same export pass.
+// its writeBuffer is reduced to a tiny valid workbook.
 const OriginalWorkbook = ExcelJS.Workbook;
 if (!OriginalWorkbook.__ktcSummaryWritePatched) {
   class KtcWorkbook extends OriginalWorkbook {
@@ -90,79 +80,13 @@ if (!OriginalWorkbook.__ktcSummaryWritePatched) {
 
 function getExportRoot() {
   const configured = String(process.env.KTC_EXPORT_ROOT || '').trim();
-  const root = !configured
+  return !configured
     ? DEFAULT_EXPORT_ROOT
     : /^linh\s*tinh$/i.test(configured)
       ? NAS_EXPORT_ROOT
       : /^\\\\/.test(configured)
         ? configured
         : path.resolve(configured);
-  scheduleGiaCongSampleMirrorScan(root);
-  return root;
-}
-
-function getGiaCongSampleFolder(year, month) {
-  return path.join(GIA_CONG_SAMPLE_ROOT, year, `${GIA_CONG_SAMPLE_MONTH_PREFIX} Tháng ${month}-${year}`);
-}
-
-async function mirrorGiaCongWorkbooks(root) {
-  if (giaCongMirrorRunning) return;
-  giaCongMirrorRunning = true;
-  try {
-    const years = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
-    for (const yearEntry of years) {
-      if (!yearEntry.isDirectory() || !/^\d{4}$/.test(yearEntry.name)) continue;
-      const year = yearEntry.name;
-      const yearFolder = path.join(root, year);
-      const candidateFolders = [path.join(yearFolder, 'Gia công')];
-      const yearEntries = await fs.readdir(yearFolder, { withFileTypes: true }).catch(() => []);
-      for (const entry of yearEntries) {
-        if (!entry.isDirectory() || !/^\d{2}$/.test(entry.name)) continue;
-        const monthFolder = path.join(yearFolder, entry.name);
-        candidateFolders.push(monthFolder, path.join(monthFolder, 'Gia công'));
-      }
-      const seen = new Set();
-      for (const folder of candidateFolders) {
-        const entries = await fs.readdir(folder, { withFileTypes: true }).catch(() => []);
-        for (const entry of entries) {
-          if (!entry.isFile()) continue;
-          const sampleMatch = entry.name.match(GIA_CONG_SAMPLE_FILE_RE);
-          const processMatch = entry.name.match(GIA_CONG_PROCESS_FILE_RE);
-          if (!sampleMatch && !processMatch) continue;
-          const month = sampleMatch?.[1] || processMatch?.[1];
-          const sourceYear = sampleMatch?.[2] || processMatch?.[2];
-          if (sourceYear !== year) continue;
-          const targetName = `A+B GIA CÔNG THÁNG ${month}-${year}.xlsx`;
-          const seenKey = `${month}-${year}`;
-          if (seen.has(seenKey)) continue;
-          seen.add(seenKey);
-          const targetFolder = getGiaCongSampleFolder(year, month);
-          const targetPath = path.join(targetFolder, targetName);
-          const sourcePath = path.join(folder, entry.name);
-          await fs.mkdir(targetFolder, { recursive: true });
-          const temporaryPath = `${targetPath}.${process.pid}.${Date.now()}.tmp`;
-          try {
-            await fs.copyFile(sourcePath, temporaryPath);
-            await fs.rm(targetPath, { force: true });
-            await fs.rename(temporaryPath, targetPath);
-          } catch {
-            await fs.rm(temporaryPath, { force: true }).catch(() => {});
-          }
-        }
-      }
-    }
-  } finally {
-    giaCongMirrorRunning = false;
-  }
-}
-
-function scheduleGiaCongSampleMirrorScan(root) {
-  if (giaCongMirrorTimer) return;
-  giaCongMirrorTimer = setTimeout(() => {
-    giaCongMirrorTimer = null;
-    void mirrorGiaCongWorkbooks(root).catch(() => {});
-  }, 5000);
-  giaCongMirrorTimer.unref?.();
 }
 
 async function findExistingProcessReportFile(folder, processInfo, month, year) {
@@ -219,4 +143,4 @@ async function cleanupMisplacedCompanyFiles(root, date, writeLog = async () => {
   }
 }
 
-module.exports = { getDateParts, assertDate, safeFolderName, safeFileName, getExportRoot, getProcessExportPath, cleanupMisplacedCompanyFiles, getGiaCongSampleFolder, mirrorGiaCongWorkbooks, scheduleGiaCongSampleMirrorScan };
+module.exports = { getDateParts, assertDate, safeFolderName, safeFileName, getExportRoot, getProcessExportPath, cleanupMisplacedCompanyFiles };
