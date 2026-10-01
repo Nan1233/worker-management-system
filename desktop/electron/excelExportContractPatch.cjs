@@ -61,26 +61,14 @@ function valueForDetailType(map, type) {
   return 0;
 }
 
-function snapshotRow(mod, code, report, deductionTypes, defectTypes, settings) {
-  const snapshot = mod._private.reportSnapshot(report, settings);
-  const deductions = makeDetailMap(mod, report.deductions, 'deduction');
-  const defects = makeDetailMap(mod, report.defects, 'defect');
-  const values = { ...snapshot };
-
-  for (const type of deductionTypes) values[`deduction:${type.key}`] = valueForDetailType(deductions, type);
-  for (const type of defectTypes) values[`defect:${type.key}`] = valueForDetailType(defects, type);
-  values.stt = null;
-  return values;
-}
-
 function leanStyleHeaders(sheet, columns, config) {
-  // Chỉ style phần cố định nhỏ của workbook. Không style 100k+ data cells.
   sheet.properties.defaultRowHeight = 20;
   for (let i = 0; i < columns.length; i += 1) {
     const col = sheet.getColumn(i + 1);
     col.width = Math.max(5, Number(columns[i].width) || 8);
   }
 
+  const last = columns.length;
   sheet.mergeCells(1, 1, 2, last);
   sheet.getCell(1, 1).value = `BÁO CÁO SẢN XUẤT CÔNG ĐOẠN ${config.title}`;
   sheet.getCell(1, 1).font = { name: 'Arial', size: 18, bold: true, color: { argb: 'FFFFFFFF' } };
@@ -97,18 +85,17 @@ function leanStyleHeaders(sheet, columns, config) {
     cell.value = columns[i].header;
     cell.font = { name: 'Arial', size: 8, bold: true, color: { argb: 'FFFFFFFF' } };
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
-    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    cell.alignment = { horizontal: 'center', vertical: 'center', wrapText: true };
   }
   sheet.getRow(4).height = 8;
   sheet.getRow(5).height = 38;
 }
 
 async function leanGcProcessWorkbook(mod, args) {
-  const started = Date.now();
-  const profileStarted = process.hrtime.bigint();
+  const startedNs = process.hrtime.bigint();
+  const elapsedMs = () => Number(process.hrtime.bigint() - startedNs) / 1e6;
   const profile = (stage, extra = {}) => {
-    const elapsedMs = Number(process.hrtime.bigint() - profileStarted) / 1e6;
-    console.log('[KTC-EXCEL-PROFILE]', stage, JSON.stringify({ elapsedMs: Number(elapsedMs.toFixed(1)), ...extra }));
+    console.log('[KTC-EXCEL-PROFILE]', stage, JSON.stringify({ elapsedMs: Number(elapsedMs().toFixed(1)), ...extra }));
   };
 
   const code = 'GC';
@@ -118,19 +105,17 @@ async function leanGcProcessWorkbook(mod, args) {
   const yearMonth = String(payload.yearMonth || date || '').slice(0, 7);
   const processData = payload.processes?.[code] || {};
   const settings = payload?.formulaSettings?.[code] || payload?.formulaSettings?.GLOBAL || {};
+  const rawReports = Array.isArray(processData.reports) ? processData.reports : [];
 
-  profile('GC_BUILD_START', {
-    date,
-    yearMonth,
-    reportCount: Array.isArray(processData.reports) ? processData.reports.length : 0
-  });
+  profile('GC_BUILD_START', { date, yearMonth, reportCount: rawReports.length });
 
+  const typesStartedNs = process.hrtime.bigint();
   const deductionTypes = mod._private.processDetailTypes(code, processData, 'deductionTypes', 'deductions', 'deduction');
   const defectTypes = mod._private.processDetailTypes(code, processData, 'defectTypes', 'defects', 'defect');
   const columns = mod._private.makeColumns(code, deductionTypes, defectTypes);
-  const reports = mod._private.sortReports(processData.reports);
-
+  const reports = mod._private.sortReports(rawReports);
   profile('GC_COLUMNS_READY', {
+    stageMs: Number((Number(process.hrtime.bigint() - typesStartedNs) / 1e6).toFixed(1)),
     deductionTypeCount: deductionTypes.length,
     defectTypeCount: defectTypes.length,
     columnCount: columns.length,
@@ -145,12 +130,10 @@ async function leanGcProcessWorkbook(mod, args) {
     views: [{ state: 'frozen', xSplit: 4, ySplit: 5, topLeftCell: 'E6', activeCell: 'E6', showGridLines: false }]
   });
 
-  const headerStarted = process.hrtime.bigint();
+  const headerStartedNs = process.hrtime.bigint();
   leanStyleHeaders(sheet, columns, config);
   sheet.getCell(3, 1).value = `Tháng ${yearMonth.slice(5, 7)}/${yearMonth.slice(0, 4)} • Nguồn: TiDB - báo cáo đã duyệt`;
-  profile('GC_HEADERS_READY', {
-    stageMs: Number((Number(process.hrtime.bigint() - headerStarted) / 1e6).toFixed(1))
-  });
+  profile('GC_HEADERS_READY', { stageMs: Number((Number(process.hrtime.bigint() - headerStartedNs) / 1e6).toFixed(1)) });
 
   const rows = [];
   const dateRowIndexes = [];
@@ -158,22 +141,24 @@ async function leanGcProcessWorkbook(mod, args) {
   let sequence = 0;
   const numericTotals = new Array(columns.length).fill(0);
   let snapshotMs = 0;
-  let mapMs = 0;
+  let detailMapMs = 0;
+  let valueMapMs = 0;
   let rowMapMs = 0;
   let slowestReportMs = 0;
   let slowestReportIndex = 0;
   let slowestReportId = null;
 
-  profile('GC_REPORT_LOOP_START');
+  profile('GC_REPORT_LOOP_START', { reportCount: reports.length });
 
   for (let reportIndex = 0; reportIndex < reports.length; reportIndex += 1) {
     const report = reports[reportIndex];
-    const reportStarted = process.hrtime.bigint();
+    const reportStartedNs = process.hrtime.bigint();
     const currentDate = String(report.work_date || '').slice(0, 10);
+
     if (currentDate !== previousDate) {
-      const row = new Array(columns.length).fill(null);
-      row[0] = currentDate;
-      rows.push(row);
+      const dateRow = new Array(columns.length).fill(null);
+      dateRow[0] = currentDate;
+      rows.push(dateRow);
       dateRowIndexes.push(5 + rows.length);
       sequence = 0;
       previousDate = currentDate;
@@ -182,31 +167,33 @@ async function leanGcProcessWorkbook(mod, args) {
     sequence += 1;
     const reportSettings = (processData.formulaSettingsByDate || {})[currentDate] || settings;
 
-    const snapshotStarted = process.hrtime.bigint();
+    let partStartedNs = process.hrtime.bigint();
     const snapshot = mod._private.reportSnapshot(report, reportSettings);
-    snapshotMs += Number(process.hrtime.bigint() - snapshotStarted) / 1e6;
+    snapshotMs += Number(process.hrtime.bigint() - partStartedNs) / 1e6;
 
-    const mapStarted = process.hrtime.bigint();
+    partStartedNs = process.hrtime.bigint();
     const deductions = makeDetailMap(mod, report.deductions, 'deduction');
     const defects = makeDetailMap(mod, report.defects, 'defect');
-    mapMs += Number(process.hrtime.bigint() - mapStarted) / 1e6;
+    detailMapMs += Number(process.hrtime.bigint() - partStartedNs) / 1e6;
 
     const values = { ...snapshot };
+    partStartedNs = process.hrtime.bigint();
     for (const type of deductionTypes) values[`deduction:${type.key}`] = valueForDetailType(deductions, type);
     for (const type of defectTypes) values[`defect:${type.key}`] = valueForDetailType(defects, type);
+    valueMapMs += Number(process.hrtime.bigint() - partStartedNs) / 1e6;
     values.stt = sequence;
 
-    const rowMapStarted = process.hrtime.bigint();
-    const row = columns.map((column) => {
-      const value = values[column.key];
-      const index = columns.indexOf(column);
-      if (typeof value === 'number' && Number.isFinite(value)) numericTotals[index] += value;
-      return value === undefined ? null : value;
-    });
-    rowMapMs += Number(process.hrtime.bigint() - rowMapStarted) / 1e6;
+    partStartedNs = process.hrtime.bigint();
+    const row = new Array(columns.length);
+    for (let columnIndex = 0; columnIndex < columns.length; columnIndex += 1) {
+      const value = values[columns[columnIndex].key];
+      if (typeof value === 'number' && Number.isFinite(value)) numericTotals[columnIndex] += value;
+      row[columnIndex] = value === undefined ? null : value;
+    }
+    rowMapMs += Number(process.hrtime.bigint() - partStartedNs) / 1e6;
     rows.push(row);
 
-    const reportMs = Number(process.hrtime.bigint() - reportStarted) / 1e6;
+    const reportMs = Number(process.hrtime.bigint() - reportStartedNs) / 1e6;
     if (reportMs > slowestReportMs) {
       slowestReportMs = reportMs;
       slowestReportIndex = reportIndex + 1;
@@ -217,10 +204,10 @@ async function leanGcProcessWorkbook(mod, args) {
       profile('GC_REPORT_BATCH', {
         processed: reportIndex + 1,
         total: reports.length,
-        batch: `${Math.max(1, reportIndex - 99)}-${reportIndex + 1}`,
         lastReportMs: Number(reportMs.toFixed(1)),
         snapshotMs: Number(snapshotMs.toFixed(1)),
-        detailMapMs: Number(mapMs.toFixed(1)),
+        detailMapMs: Number(detailMapMs.toFixed(1)),
+        valueMapMs: Number(valueMapMs.toFixed(1)),
         rowMapMs: Number(rowMapMs.toFixed(1)),
         slowestReportMs: Number(slowestReportMs.toFixed(1)),
         slowestReportIndex,
@@ -234,24 +221,24 @@ async function leanGcProcessWorkbook(mod, args) {
     reportCount: reports.length,
     rows: rows.length,
     snapshotMs: Number(snapshotMs.toFixed(1)),
-    detailMapMs: Number(mapMs.toFixed(1)),
+    detailMapMs: Number(detailMapMs.toFixed(1)),
+    valueMapMs: Number(valueMapMs.toFixed(1)),
     rowMapMs: Number(rowMapMs.toFixed(1)),
     slowestReportMs: Number(slowestReportMs.toFixed(1)),
     slowestReportIndex,
     slowestReportId
   });
 
-  const addRowsStarted = process.hrtime.bigint();
+  const addRowsStartedNs = process.hrtime.bigint();
   profile('GC_ADD_ROWS_START', { rows: rows.length, columns: columns.length });
   sheet.addRows(rows);
   profile('GC_ADD_ROWS_END', {
     rows: rows.length,
-    stageMs: Number((Number(process.hrtime.bigint() - addRowsStarted) / 1e6).toFixed(1))
+    stageMs: Number((Number(process.hrtime.bigint() - addRowsStartedNs) / 1e6).toFixed(1))
   });
 
-  const formatStarted = process.hrtime.bigint();
+  const formatStartedNs = process.hrtime.bigint();
   profile('GC_DATE_ROW_FORMAT_START', { dateRowCount: dateRowIndexes.length });
-  // Chỉ format date separator rows, không chạy border/style trên toàn bảng.
   for (const rowNumber of dateRowIndexes) {
     const row = sheet.getRow(rowNumber);
     row.height = 22;
@@ -262,10 +249,10 @@ async function leanGcProcessWorkbook(mod, args) {
   }
   profile('GC_DATE_ROW_FORMAT_END', {
     dateRowCount: dateRowIndexes.length,
-    stageMs: Number((Number(process.hrtime.bigint() - formatStarted) / 1e6).toFixed(1))
+    stageMs: Number((Number(process.hrtime.bigint() - formatStartedNs) / 1e6).toFixed(1))
   });
 
-  const totalStarted = process.hrtime.bigint();
+  const totalStartedNs = process.hrtime.bigint();
   profile('GC_TOTAL_ROW_START');
   const totalRow = sheet.addRow(new Array(columns.length).fill(null));
   const totalRowNumber = totalRow.number;
@@ -278,41 +265,36 @@ async function leanGcProcessWorkbook(mod, args) {
     if (i > 10) cell.value = numericTotals[i - 1] || null;
   }
   profile('GC_TOTAL_ROW_END', {
-    stageMs: Number((Number(process.hrtime.bigint() - totalStarted) / 1e6).toFixed(1)),
+    stageMs: Number((Number(process.hrtime.bigint() - totalStartedNs) / 1e6).toFixed(1)),
     totalRowNumber
   });
 
-  const setupStarted = process.hrtime.bigint();
+  const setupStartedNs = process.hrtime.bigint();
   sheet.autoFilter = { from: { row: 5, column: 1 }, to: { row: Math.max(5, totalRowNumber - 1), column: columns.length } };
   sheet.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 };
   sheet.headerFooter = { oddFooter: '&LKTC Production Control&CTrang &P / &N&R&D &T' };
   profile('GC_SHEET_SETUP_END', {
-    stageMs: Number((Number(process.hrtime.bigint() - setupStarted) / 1e6).toFixed(1))
+    stageMs: Number((Number(process.hrtime.bigint() - setupStartedNs) / 1e6).toFixed(1))
   });
 
-  const buildMs = Date.now() - started;
   profile('GC_BUILD_END', {
     reportCount: reports.length,
-    rowCount: rows.length,
-    buildMs
+    rowCount: rows.length
   });
 
-  const writeStarted = process.hrtime.bigint();
+  const writeStartedNs = process.hrtime.bigint();
   profile('GC_WRITE_BUFFER_START');
   const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
   profile('GC_WRITE_BUFFER_END', {
-    stageMs: Number((Number(process.hrtime.bigint() - writeStarted) / 1e6).toFixed(1)),
+    stageMs: Number((Number(process.hrtime.bigint() - writeStartedNs) / 1e6).toFixed(1)),
     bytes: buffer.length
   });
 
-  const writeMs = Date.now() - (started + buildMs);
   console.log('[KTC-EXCEL-PERF] GC_LEAN_EXPORT_DONE', JSON.stringify({
     reportCount: reports.length,
     columnCount: columns.length,
     rowCount: rows.length,
-    buildMs,
-    writeMs,
-    totalMs: Date.now() - started,
+    totalMs: Number(elapsedMs().toFixed(1)),
     bytes: buffer.length
   }));
 
