@@ -44,33 +44,20 @@ function assertDate(date) {
 }
 
 // Tất cả Excel sản xuất dùng một cấu trúc thống nhất:
-// Bao cao san xuat -> Năm -> Tháng -> Bộ phận -> file Excel.
+// Bao cao san xuat -> Năm -> Tháng -> file Excel.
 // Không tạo file ở Năm -> Bộ phận hoặc các thư mục ngẫu nhiên khác.
 async function getCompanyMonthTarget({ root, date, fileName, groupCode, groupTitle }) {
   assertDate(date);
   const [year, month] = date.split('-');
   const normalizedFileName = safeFile(fileName, `A+B ${month}-${year}.xlsx`);
-
-  // main.cjs ở các bản hiện tại chỉ truyền fileName. Suy ra đúng bộ phận
-  // từ tên workbook để tuyệt đối không rơi về Năm\Bộ phận hoặc thư mục khác.
-  let processFolder = normalizeProcessFolder({ groupCode, groupTitle });
-  if (!groupCode && !groupTitle) {
-    const compact = normalizedFileName
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toUpperCase();
-    if (compact.includes('GIA CONG')) processFolder = 'Gia công';
-    else if (compact.includes('MAI - DO') || compact.includes('MAI - DO')) processFolder = 'Mài - Đo';
-  }
-
-  const folder = path.join(root, year, month, processFolder);
+  const folder = path.join(root, year, month);
   await fs.mkdir(folder, { recursive: true });
   return {
-    layout: 'YEAR_MONTH_DEPARTMENT_COMPANY_FILE',
+    layout: 'YEAR_MONTH_COMPANY_FILE',
     folder,
     filePath: path.join(folder, normalizedFileName),
     fileName: normalizedFileName,
-    processFolder
+    processFolder: ''
   };
 }
 
@@ -82,10 +69,10 @@ async function getProcessMonthTarget({ root, date, processCode, processName, fil
     fileName || processReportFileName({ processCode, processName, month, year }),
     `Bao-cao-${processFolder}-${month}-${year}.xlsx`
   );
-  const folder = path.join(root, year, month, processFolder);
+  const folder = path.join(root, year, month);
   await fs.mkdir(folder, { recursive: true });
   return {
-    layout: 'YEAR_MONTH_DEPARTMENT_PROCESS_FILE',
+    layout: 'YEAR_MONTH_PROCESS_FILE',
     folder,
     filePath: path.join(folder, normalizedFileName),
     fileName: normalizedFileName,
