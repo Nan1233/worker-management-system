@@ -27,19 +27,16 @@ function columnByHeader(sheet, header) {
 
 function pruneProcessSheet(sheet) {
   if (!sheet || sheet.rowCount < 5) return;
-
   const removeHeaders = new Set(['TONG SP QUY DOI', 'TRANG THAI', 'GHI CHU', 'ID']);
   const removeColumns = [];
   for (let col = 1; col <= sheet.columnCount; col += 1) {
     if (removeHeaders.has(normalizeHeader(sheet.getCell(5, col).value))) removeColumns.push(col);
   }
   for (let i = removeColumns.length - 1; i >= 0; i -= 1) sheet.spliceColumns(removeColumns[i], 1);
-
   const trainingCol = columnByHeader(sheet, '% HOC VIEC');
   const standardCol = columnByHeader(sheet, 'DINH MUC');
   const actualTimeCol = columnByHeader(sheet, 'THOI GIAN THUC TE');
   if (!trainingCol || !standardCol || !actualTimeCol) return;
-
   for (let row = 6; row <= sheet.rowCount; row += 1) {
     const training = Number(sheet.getCell(row, trainingCol).value);
     const standardPerHour = Number(sheet.getCell(row, standardCol).value);
@@ -99,10 +96,7 @@ function fastRenderGcSheet(mod, workbook, processData, yearMonth) {
     const excelColumn = sheet.getColumn(index + 1);
     excelColumn.width = Math.max(5, Number(column.width) || 8);
     if (column.format) excelColumn.numFmt = column.format;
-    excelColumn.alignment = {
-      horizontal: column.align || (['number','decimal'].includes(column.kind) ? 'right' : 'center'),
-      vertical: 'middle'
-    };
+    excelColumn.alignment = { horizontal: column.align || 'center', vertical: 'middle' };
   });
 
   const lastColumn = columns.length;
@@ -143,10 +137,11 @@ function fastRenderGcSheet(mod, workbook, processData, yearMonth) {
   sheet.getRow(4).height = 22;
   sheet.getRow(5).height = 38;
 
-  const baseSettings = mod._private.reportSnapshot;
+  const reportSnapshot = mod._private.reportSnapshot;
   const settingsByDate = processData?.formulaSettingsByDate || {};
   const deductionMaps = reports.map((report) => detailAliasMap(report?.deductions, 'deduction'));
   const defectMaps = reports.map((report) => detailAliasMap(report?.defects, 'defect'));
+  const numericTotals = new Array(lastColumn).fill(0);
 
   let rowNumber = 6;
   let previousDate = null;
@@ -167,7 +162,7 @@ function fastRenderGcSheet(mod, workbook, processData, yearMonth) {
 
     sequenceInDate += 1;
     const settings = (currentDate && settingsByDate[currentDate]) || {};
-    const snapshot = baseSettings(report, settings);
+    const snapshot = reportSnapshot(report, settings);
     const deductionMap = deductionMaps[reportIndex];
     const defectMap = defectMaps[reportIndex];
     const values = new Array(lastColumn).fill(null);
@@ -183,6 +178,7 @@ function fastRenderGcSheet(mod, workbook, processData, yearMonth) {
         value = type ? ((type.aliases || []).map((alias) => defectMap.get(alias)).find((item) => item !== undefined) || 0) : 0;
       }
       values[columnIndex] = value === undefined ? null : value;
+      if (typeof value === 'number' && Number.isFinite(value)) numericTotals[columnIndex] += value;
     }
     sheet.getRow(rowNumber).values = [null, ...values];
     rowNumber += 1;
@@ -195,6 +191,11 @@ function fastRenderGcSheet(mod, workbook, processData, yearMonth) {
   sheet.getCell(totalRowNumber, 1).value = 'TỔNG CỘNG';
   sheet.getCell(totalRowNumber, 1).font = { name: 'Arial', size: 11, bold: true, color: { argb: mod._private.COLORS.white } };
   sheet.getCell(totalRowNumber, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: mod._private.COLORS.navy } };
+  for (let columnIndex = totalLabelEnd; columnIndex < columns.length; columnIndex += 1) {
+    const column = columns[columnIndex];
+    if (['stt','entryDate','workerCode','workerName','shift','operationType','operationMode','machine','product','training','standard','outputPerHour','achievement','ngRate','status','note','id'].includes(column.key)) continue;
+    sheet.getCell(totalRowNumber, columnIndex + 1).value = numericTotals[columnIndex];
+  }
   sheet.getRow(totalRowNumber).height = 24;
 
   sheet.autoFilter = { from: { row: 5, column: 1 }, to: { row: Math.max(5, totalRowNumber - 1), column: lastColumn } };
@@ -211,7 +212,6 @@ async function leanGcProcessWorkbook(mod, args) {
   const date = args?.date;
   const yearMonth = String(payload.yearMonth || date || '').slice(0, 7);
   const processData = payload.processes?.[code] || {};
-
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'KTC Production Control';
   workbook.created = new Date();
@@ -219,32 +219,18 @@ async function leanGcProcessWorkbook(mod, args) {
 
   const renderStartedAt = Date.now();
   const result = fastRenderGcSheet(mod, workbook, processData, yearMonth);
-  console.info('[KTC-EXCEL-PERF] GC_RENDER_FAST_DONE', {
-    reportCount: processData?.reports?.length || 0,
-    sheetRows: workbook.getWorksheet(config.sheet)?.rowCount || 0,
-    sheetColumns: workbook.getWorksheet(config.sheet)?.columnCount || 0,
-    elapsedMs: Date.now() - renderStartedAt
-  });
+  console.info('[KTC-EXCEL-PERF] GC_RENDER_FAST_DONE', { reportCount: processData?.reports?.length || 0, sheetRows: workbook.getWorksheet(config.sheet)?.rowCount || 0, sheetColumns: workbook.getWorksheet(config.sheet)?.columnCount || 0, elapsedMs: Date.now() - renderStartedAt });
 
   const processSheet = workbook.getWorksheet(config.sheet);
   if (!processSheet) throw new Error(`Không tạo được sheet ${config.sheet}`);
-
   const pruneStartedAt = Date.now();
   pruneProcessSheet(processSheet);
   assertOnlyExpectedSheet(workbook, config.sheet);
-  console.info('[KTC-EXCEL-PERF] GC_PRUNE_DONE', {
-    sheetRows: processSheet.rowCount,
-    sheetColumns: processSheet.columnCount,
-    elapsedMs: Date.now() - pruneStartedAt
-  });
+  console.info('[KTC-EXCEL-PERF] GC_PRUNE_DONE', { sheetRows: processSheet.rowCount, sheetColumns: processSheet.columnCount, elapsedMs: Date.now() - pruneStartedAt });
 
   const writeStartedAt = Date.now();
   const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
-  console.info('[KTC-EXCEL-PERF] GC_WRITEBUFFER_DONE', {
-    bytes: buffer.length,
-    elapsedMs: Date.now() - writeStartedAt,
-    totalElapsedMs: Date.now() - startedAt
-  });
+  console.info('[KTC-EXCEL-PERF] GC_WRITEBUFFER_DONE', { bytes: buffer.length, elapsedMs: Date.now() - writeStartedAt, totalElapsedMs: Date.now() - startedAt });
   return { buffer, result, processCode: code, processName: config.title, fileName: mod.processWorkbookFileName(code, date, payload), formulaReplacementCount: 0 };
 }
 
@@ -262,14 +248,10 @@ async function leanSplitMonthlyWorkbooks(mod, args) {
 
 function patchMonthlyModule(mod) {
   if (!mod || mod.__ktcExcelExportPatched) return mod;
-  if (typeof mod.buildProcessWorkbookLocal === 'function') {
-    Object.defineProperty(mod, '__ktcOriginalBuildProcess', { value: mod.buildProcessWorkbookLocal, configurable: false, enumerable: false, writable: false });
-  }
+  if (typeof mod.buildProcessWorkbookLocal === 'function') Object.defineProperty(mod, '__ktcOriginalBuildProcess', { value: mod.buildProcessWorkbookLocal, configurable: false, enumerable: false, writable: false });
   if (typeof mod.buildSplitMonthlyWorkbooksLocal === 'function') mod.buildSplitMonthlyWorkbooksLocal = async (args) => leanSplitMonthlyWorkbooks(mod, args);
   if (typeof mod.buildProcessWorkbookLocal === 'function') {
-    mod.buildProcessWorkbookLocal = async (args) => String(args?.processCode || '').trim().toUpperCase() === 'GC'
-      ? leanGcProcessWorkbook(mod, args)
-      : mod.__ktcOriginalBuildProcess(args);
+    mod.buildProcessWorkbookLocal = async (args) => String(args?.processCode || '').trim().toUpperCase() === 'GC' ? leanGcProcessWorkbook(mod, args) : mod.__ktcOriginalBuildProcess(args);
   }
   Object.defineProperty(mod, '__ktcExcelExportPatched', { value: true });
   return mod;
