@@ -50,60 +50,11 @@ function pruneProcessSheet(sheet) {
   }
 }
 
-function keepOnlySheet(workbook, sheetName) {
-  const target = workbook.getWorksheet(sheetName);
-  if (!target) return;
-
-  // renderProcessSheet may create helper/metadata sheets. The GC workbook
-  // contract requires exactly one business sheet: CẮT/LỒNG.
-  for (const sheet of [...workbook.worksheets]) {
-    if (sheet.id !== target.id) workbook.removeWorksheet(sheet.id);
-  }
-}
-
-function borderSideKey(side) {
-  if (!side) return '';
-  return `${side.style || ''}:${side.color?.argb || side.color?.rgb || ''}`;
-}
-
-function sameBorder(a, b) {
-  if (!a || !b) return false;
-  return borderSideKey(a.top) === borderSideKey(b.top)
-    && borderSideKey(a.right) === borderSideKey(b.right)
-    && borderSideKey(a.bottom) === borderSideKey(b.bottom)
-    && borderSideKey(a.left) === borderSideKey(b.left)
-    && borderSideKey(a.diagonal) === borderSideKey(b.diagonal)
-    && Boolean(a.diagonalUp) === Boolean(b.diagonalUp)
-    && Boolean(a.diagonalDown) === Boolean(b.diagonalDown);
-}
-
-function withBorderDedup(workbook, fn) {
-  let probe;
-  try {
-    probe = workbook.addWorksheet('__KTC_BORDER_PROBE__');
-    const CellPrototype = probe.getCell(1, 1).constructor.prototype;
-    workbook.removeWorksheet(probe.id);
-
-    const descriptor = Object.getOwnPropertyDescriptor(CellPrototype, 'border');
-    if (!descriptor?.get || !descriptor?.set) return fn();
-
-    const originalSetter = descriptor.set;
-    const wrapped = function dedupBorderSetter(value) {
-      if (sameBorder(descriptor.get.call(this), value)) return;
-      return originalSetter.call(this, value);
-    };
-
-    Object.defineProperty(CellPrototype, 'border', { ...descriptor, set: wrapped });
-    try {
-      return fn();
-    } finally {
-      Object.defineProperty(CellPrototype, 'border', descriptor);
-    }
-  } catch (_) {
-    try {
-      if (probe) workbook.removeWorksheet(probe.id);
-    } catch (_) {}
-    return fn();
+function assertOnlyExpectedSheet(workbook, sheetName) {
+  const sheets = workbook.worksheets;
+  if (sheets.length !== 1 || sheets[0].name !== sheetName) {
+    const names = sheets.map((sheet) => sheet.name).join(', ');
+    throw new Error(`GC workbook phải chỉ có 1 sheet (${sheetName}), thực tế: ${names || '(none)'}`);
   }
 }
 
@@ -115,6 +66,8 @@ async function leanGcProcessWorkbook(mod, args) {
   const yearMonth = String(payload.yearMonth || date || '').slice(0, 7);
   const processData = payload.processes?.[code] || {};
 
+  // Workbook mới hoàn toàn: GC chỉ tạo đúng 1 sheet CẮT LỒNG.
+  // Không dùng workbook mẫu, không tạo BÌA/TỔNG HỢP rồi xóa sau.
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'KTC Production Control';
   workbook.created = new Date();
@@ -122,18 +75,23 @@ async function leanGcProcessWorkbook(mod, args) {
 
   const source = payload?.formulaSettings || {};
   const settings = source[code] || source.GLOBAL || {};
-  const result = withBorderDedup(workbook, () => mod._private.renderProcessSheet(
+
+  // Không dùng border-dedup interceptor. Việc đọc lại border của từng cell
+  // trước mỗi lần ghi làm chậm đáng kể workbook GC lớn (~2k dòng).
+  const result = mod._private.renderProcessSheet(
     workbook,
     code,
     config,
     processData,
     yearMonth,
     settings
-  ));
+  );
 
   const processSheet = workbook.getWorksheet(config.sheet);
+  if (!processSheet) throw new Error(`Không tạo được sheet ${config.sheet}`);
+
   pruneProcessSheet(processSheet);
-  keepOnlySheet(workbook, config.sheet);
+  assertOnlyExpectedSheet(workbook, config.sheet);
 
   const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
   return {
