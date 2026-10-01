@@ -1,12 +1,12 @@
 'use strict';
 
-// Diagnostic-only instrumentation for the desktop Excel export path.
-// Keep the current export behavior unchanged while measuring the actual
-// bottleneck before making another performance change.
+// Fast GC Excel export: the template is the source of truth. The GC template
+// should contain only the single "Cắt lồng" sheet. When it does, we skip the
+// old JSZip load -> mutate -> re-compress pass entirely.
 const Module = require('node:module');
-const JSZip = require('jszip');
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const JSZip = require('jszip');
 const { buildProcessExcelLocal } = require('./companyExcelLocal.cjs');
 
 const originalLoad = Module._load;
@@ -33,7 +33,6 @@ function activeProcessCodes(payload) {
     .filter(Boolean);
 }
 
-// Keep the company-data response available globally for legacy desktop code paths.
 if (typeof originalFetch === 'function' && !globalThis.__KTC_COMPANY_DATA_SCOPE_FIX__) {
   globalThis.fetch = async function ktcCompanyDataScopeFetch(input, init) {
     const response = await originalFetch(input, init);
@@ -55,12 +54,23 @@ async function keepOnlyGcSheet(buffer) {
   const workbookEntry = zip.file('xl/workbook.xml');
   if (!workbookEntry) return buffer;
   let xml = await workbookEntry.async('string');
-  let sheetCount = 0;
+  const sheets = [...xml.matchAll(/<sheet\b([^>]*)\/>/g)];
+  const sheetNames = sheets.map((m) => m[1].match(/\bname="([^"]*)"/i)?.[1] || '');
+
+  // The supplied GC template has exactly one worksheet. In that case the
+  // buffer is already in the required shape; do not unzip/re-compress it.
+  if (sheetNames.length === 1 && sheetNames[0] === 'Cắt lồng') {
+    diagLog('SHEET_FILTER_SKIPPED_SINGLE_SHEET', {
+      sheetCount: 1,
+      keptSheet: 'Cắt lồng',
+      ms: Math.round(now() - t0)
+    });
+    return buffer;
+  }
+
   let hiddenCount = 0;
   xml = xml.replace(/<sheet\b([^>]*)\/>/g, (full, attrs) => {
-    sheetCount += 1;
-    const nameMatch = attrs.match(/\bname="([^"]*)"/i);
-    const name = nameMatch ? nameMatch[1] : '';
+    const name = attrs.match(/\bname="([^"]*)"/i)?.[1] || '';
     if (name === 'Cắt lồng') return full.replace(/\sstate="[^"]*"/i, '');
     hiddenCount += 1;
     if (/\bstate="/i.test(attrs)) return `<sheet${attrs.replace(/\bstate="[^"]*"/i, ' state="veryHidden"')}/>`;
@@ -71,7 +81,7 @@ async function keepOnlyGcSheet(buffer) {
   diagLog('SHEET_FILTER', {
     inputBytes: buffer.length,
     outputBytes: output.length,
-    sheetCount,
+    sheetCount: sheets.length,
     hiddenCount,
     keptSheet: 'Cắt lồng',
     ms: Math.round(now() - t0)
@@ -88,6 +98,9 @@ async function buildFastGcProcess(args) {
     defectTypeCount: args?.payload?.processes?.GC?.defectTypes?.length || 0
   });
 
+  // companyExcelLocal loads the configured GC template and writes only the
+  // Cắt lồng sheet. The template itself must therefore be kept in
+  // desktop/assets/templates/bao-cao-cat-long-export.xlsx.
   const result = await buildProcessExcelLocal({
     appPath: args.appPath,
     date: args.date,
@@ -105,25 +118,19 @@ async function buildFastGcProcess(args) {
       }
     }
   });
+
   diagLog('GC_BUILD_DONE', {
     reportCount: reports.length,
-    inputBufferBytes: result?.buffer?.length || 0,
+    outputBufferBytes: result?.buffer?.length || 0,
     ms: Math.round(now() - t0)
   });
 
-  const filterStart = now();
   result.buffer = await keepOnlyGcSheet(result.buffer);
-  diagLog('GC_FILTER_DONE', {
-    outputBufferBytes: result?.buffer?.length || 0,
-    ms: Math.round(now() - filterStart),
-    totalBuildAndFilterMs: Math.round(now() - t0)
-  });
-
   result.fileName = `04_CAT_LONG_${String(args?.date || '').slice(5, 7)}-${String(args?.date || '').slice(0, 4)}.xlsx`;
   result.processCode = 'GC';
   result.processName = 'CẮT/LỒNG';
   result.reportCount = reports.length;
-  result.templateKind = 'FAST_GC_SINGLE_PASS_DIAGNOSTIC';
+  result.templateKind = 'FAST_GC_SINGLE_SHEET_TEMPLATE';
   return result;
 }
 
@@ -135,7 +142,9 @@ function patchMonthly(mod) {
   const process = async (args = {}) => {
     const code = String(args.processCode || '').trim().toUpperCase();
     const t0 = now();
-    const result = code === 'GC' ? await buildFastGcProcess(args) : await originalProcess(args);
+    const result = code === 'GC'
+      ? await buildFastGcProcess(args)
+      : await originalProcess(args);
     diagLog('PROCESS_BUILD_DONE', {
       processCode: code,
       reportCount: Number(result?.reportCount || 0),
