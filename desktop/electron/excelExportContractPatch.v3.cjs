@@ -31,7 +31,6 @@ async function sanitizeTemplate(buffer){
   const zip=await JSZip.loadAsync(buffer);
   const workbook=zip.file('xl/workbook.xml');
   if(!workbook||!(await workbook.async('string')).includes('Cắt lồng'))return buffer;
-
   let removedParts=0,rewrittenRels=0,rewrittenSheets=0;
   const names=Object.keys(zip.files);
   const partPatterns=[
@@ -40,11 +39,7 @@ async function sanitizeTemplate(buffer){
     /^xl\/persons(?:\/|\.xml$)/i,
     /^xl\/drawings\/vmlDrawing(?:\d+)?\.vml$/i
   ];
-
-  for(const name of names){
-    if(partPatterns.some(re=>re.test(name))){zip.remove(name);removedParts++;}
-  }
-
+  for(const name of names){if(partPatterns.some(re=>re.test(name))){zip.remove(name);removedParts++;}}
   const relFiles=Object.keys(zip.files).filter(n=>/\.rels$/i.test(n));
   for(const name of relFiles){
     const file=zip.file(name);if(!file)continue;
@@ -57,17 +52,13 @@ async function sanitizeTemplate(buffer){
     });
     if(out!==xml){zip.file(name,out);rewrittenRels++;}
   }
-
   const sheetFiles=Object.keys(zip.files).filter(n=>/^xl\/worksheets\/sheet\d+\.xml$/i.test(n));
   for(const name of sheetFiles){
     const file=zip.file(name);if(!file)continue;
     const xml=await file.async('string');
-    const out=xml
-      .replace(/<legacyDrawing\b[^>]*\/?>/gi,'')
-      .replace(/<legacyDrawingHF\b[^>]*\/?>/gi,'');
+    const out=xml.replace(/<legacyDrawing\b[^>]*\/?>/gi,'').replace(/<legacyDrawingHF\b[^>]*\/?>/gi,'');
     if(out!==xml){zip.file(name,out);rewrittenSheets++;}
   }
-
   if(!removedParts&&!rewrittenRels&&!rewrittenSheets){log('TEMPLATE_SANITIZE_NOT_NEEDED');return buffer;}
   const out=await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE',compressionOptions:{level:6}});
   log('TEMPLATE_SANITIZED',{removedParts,rewrittenRels,rewrittenSheets,bytesBefore:buffer.length,bytesAfter:out.length});
@@ -79,6 +70,33 @@ function headerKey(v){const h=norm(v);for(const[k,x]of Object.entries(aliases))i
 function headerMap(sheet){const m=new Map();for(let c=1;c<=sheet.columnCount;c++){const h=sheet.getRow(HEADER_ROW).getCell(c).value;if(text(h).trim())m.set(c,headerKey(h));}return m;}
 function detail(r,header,type){const target=norm(header);const items=type==='deduction'?(r.deductions||[]):(r.defects||[]);return items.reduce((a,x)=>{const code=norm(x.deduction_code||x.defect_code||x.code||x.deduction_name||x.defect_name),name=norm(x.deduction_name||x.defect_name||x.code||x.deduction_code||x.defect_code);return a+(code===target||name===target?num(type==='deduction'?x.hours:x.quantity):0);},0);}
 function writeReport(row,r,i,map){const m=metrics(r);for(const[c,key]of map){const cell=row.getCell(c);switch(key){case'STT':cell.value=i;break;case'TIME':cell.value=excelDate(r.entry_date||r.created_at||r.approved_at||r.work_date);cell.numFmt='dd/mm/yyyy hh:mm';break;case'WORKER':cell.value=text(r.worker_code);break;case'NAME':cell.value=text(r.full_name||r.worker_name||r.worker_full_name||r.user_full_name);break;case'SHIFT':cell.value=text(r.shift).toUpperCase();break;case'OP':cell.value=text(r.operation_type||r.work_type||r.operation||'CẮT');break;case'MODE':cell.value=text(r.mode||r.work_mode||r.production_mode||'TAY').toUpperCase();break;case'MACHINE':cell.value=machine(r);break;case'PRODUCT':cell.value=text(r.product_code||r.product_name);break;case'TRAINING':cell.value=m.training/100;cell.numFmt='0%';break;case'STANDARD':cell.value=m.standard;cell.numFmt='#,##0.00';break;case'TOTAL':cell.value=m.total;cell.numFmt='0.00';break;case'ACTUAL':cell.value=m.actual;cell.numFmt='0.00';break;case'DEDUCTION_TOTAL':cell.value=m.ded;cell.numFmt='0.00';break;case'OUTPUT':cell.value=m.output;break;case'OK':cell.value=m.ok;break;case'NG':cell.value=m.ng;break;case'NGRATE':cell.value=m.ngRate;cell.numFmt='0.00%';break;case'RATE':cell.value=m.perHour;break;case'ACH':cell.value=m.achievement;cell.numFmt='0.00%';break;default:cell.value=detail(r,key,'deduction')||detail(r,key,'defect');break;}}}
+
+function materializeSharedFormulas(workbook){
+  let converted=0,removed=0;
+  workbook.eachSheet((sheet)=>{
+    sheet.eachRow({includeEmpty:false},(row)=>{
+      row.eachCell({includeEmpty:false},(cell)=>{
+        const value=cell.value;
+        if(!value||typeof value!=='object'||!value.sharedFormula)return;
+        try{
+          const formula=cell.formula;
+          const result=value.result??cell.result??null;
+          if(formula){
+            cell.value={formula,result};
+            converted++;
+          }else{
+            cell.value=result;
+            removed++;
+          }
+        }catch{
+          cell.value=value.result??null;
+          removed++;
+        }
+      });
+    });
+  });
+  log('SHARED_FORMULA_MATERIALIZED',{converted,removed});
+}
 
 async function buildGcFromTemplate(args){
   const started=Number(process.hrtime.bigint())/1e6;
@@ -94,15 +112,12 @@ async function buildGcFromTemplate(args){
   log('TEMPLATE_LOAD_DONE',{ms:Math.round(Number(process.hrtime.bigint())/1e6-loadStart),totalMs:Math.round(Number(process.hrtime.bigint())/1e6-started),sheetCount:wb.worksheets.length,sheets:wb.worksheets.map(s=>({name:s.name,rows:s.rowCount,cols:s.columnCount}))});
   const target=wb.getWorksheet(SHEET_NAME)||wb.worksheets[0];
   if(!target)throw new Error('Template không có sheet Cắt lồng.');
+  materializeSharedFormulas(wb);
   for(const s of[...wb.worksheets])if(s.id!==target.id)wb.removeWorksheet(s.id);
   const map=headerMap(target);
   log('TEMPLATE_HEADER_MAP',{columns:[...map.entries()]});
   const byDay=new Map();
-  for(const r of reports){
-    const d=Number(dateKey(r.work_date).slice(8,10));
-    if(!byDay.has(d))byDay.set(d,[]);
-    byDay.get(d).push(r);
-  }
+  for(const r of reports){const d=Number(dateKey(r.work_date).slice(8,10));if(!byDay.has(d))byDay.set(d,[]);byDay.get(d).push(r);}
   const injectStart=Number(process.hrtime.bigint())/1e6;
   for(let day=1;day<=31;day++){
     const anchor=DAY_ANCHOR_FIRST+(day-1)*DAY_BLOCK_SIZE;
@@ -113,21 +128,14 @@ async function buildGcFromTemplate(args){
     const dateRow=target.getRow(anchor);
     dateRow.getCell(1).value=recs.length?excelDate(`${String(args.date).slice(0,7)}-${String(day).padStart(2,'0')}`):null;
     dateRow.getCell(1).numFmt='dd/mm/yyyy';
-
-    // Chỉ clear các dòng có khả năng chứa dữ liệu cũ; các dòng còn lại chỉ cần ẩn.
-    // Tránh tạo/ghi ~1.3 triệu cell cho 31 block khi tháng chỉ có một phần dữ liệu.
     const clearCount=Math.max(1,recs.length);
     const clearEnd=Math.min(end,start+clearCount-1);
     for(let rn=start;rn<=clearEnd;rn++){
       const row=target.getRow(rn);
-      row.eachCell({includeEmpty:false},cell=>{
-        if(cell.col>=2)cell.value=null;
-      });
+      row.eachCell({includeEmpty:false},cell=>{if(cell.col>=2)cell.value=null;});
       row.hidden=rn>=start+recs.length;
     }
-    for(let rn=start+clearCount;rn<=end;rn++){
-      target.getRow(rn).hidden=true;
-    }
+    for(let rn=start+clearCount;rn<=end;rn++)target.getRow(rn).hidden=true;
     recs.forEach((r,i)=>writeReport(target.getRow(start+i),r,i+1,map));
   }
   log('DATA_INJECT_DONE',{ms:Math.round(Number(process.hrtime.bigint())/1e6-injectStart),reportCount:reports.length});
@@ -135,9 +143,14 @@ async function buildGcFromTemplate(args){
   wb.calcProperties.forceFullCalc=false;
   wb.calcProperties.calcMode='auto';
   const writeStart=Number(process.hrtime.bigint())/1e6;
-  const buffer=Buffer.from(await wb.xlsx.writeBuffer());
-  log('WRITE_BUFFER_DONE',{ms:Math.round(Number(process.hrtime.bigint())/1e6-writeStart),totalMs:Math.round(Number(process.hrtime.bigint())/1e6-started),bytes:buffer.length});
-  return{buffer,result:{code:'GC',sheet:target.name,reportCount:reports.length},processCode:'GC',processName:'CẮT/LỒNG',fileName:`04_CAT_LONG_${String(args.date).slice(5,7)}-${String(args.date).slice(0,4)}.xlsx`,reportCount:reports.length,formulaReplacementCount:0,templateKind:'ONE_SHEET_TEMPLATE_INJECT'};
+  try{
+    const buffer=Buffer.from(await wb.xlsx.writeBuffer());
+    log('WRITE_BUFFER_DONE',{ms:Math.round(Number(process.hrtime.bigint())/1e6-writeStart),totalMs:Math.round(Number(process.hrtime.bigint())/1e6-started),bytes:buffer.length});
+    return{buffer,result:{code:'GC',sheet:target.name,reportCount:reports.length},processCode:'GC',processName:'CẮT/LỒNG',fileName:`04_CAT_LONG_${String(args.date).slice(5,7)}-${String(args.date).slice(0,4)}.xlsx`,reportCount:reports.length,formulaReplacementCount:0,templateKind:'ONE_SHEET_TEMPLATE_INJECT'};
+  }catch(error){
+    log('WRITE_BUFFER_FAILED',{error:String(error?.message||error),stack:String(error?.stack||'').split('\n').slice(0,8).join('\n')});
+    throw error;
+  }
 }
 
 function patchMonthly(mod){if(!mod||mod.__ktcV3MonthlyPatched)return mod;const original=mod.buildProcessWorkbookLocal;if(typeof original!=='function'){log('PATCH_FAILED',{reason:'buildProcessWorkbookLocal_missing'});return mod;}mod.buildProcessWorkbookLocal=async args=>String(args?.processCode||'').trim().toUpperCase()==='GC'?buildGcFromTemplate(args):original(args);mod.buildSplitMonthlyWorkbooksLocal=async args=>{const processes=[];for(const[code,data]of Object.entries(args?.payload?.processes||{}))if(Array.isArray(data?.reports)&&data.reports.length)processes.push(await mod.buildProcessWorkbookLocal({...args,processCode:code}));return{summary:null,processes};};Object.defineProperty(mod,'__ktcV3MonthlyPatched',{value:true});log('MONTHLY_PATCH_INSTALLED_V3');return mod;}
