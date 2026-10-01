@@ -1012,11 +1012,15 @@ async function performSync({ date, source }) {
     const folder = path.join(root, year, month);
     await fs.mkdir(folder, { recursive: true });
 
+    const nonEmptyProcesses = Object.entries(companyData?.processes || {})
+      .filter(([, data]) => Array.isArray(data?.reports) && data.reports.length > 0);
+
     await writeLog('INFO', 'MONTHLY_SPLIT_WORKBOOKS_START', {
       date,
       folder,
-      expectedFileCount: Object.keys(PROCESS_SHEETS).length + 1,
-      excelEngine: 'desktop-local'
+      expectedFileCount: nonEmptyProcesses.length,
+      excelEngine: 'desktop-local',
+      processCodes: nonEmptyProcesses.map(([code]) => code)
     });
 
     const built = await buildSplitMonthlyWorkbooksLocal({
@@ -1025,46 +1029,12 @@ async function performSync({ date, source }) {
       payload: companyData
     });
 
-    // File tổng hợp: 00_TONG_HOP_SAN_XUAT_MM-YYYY.xlsx
-    const summaryFilePath = path.join(
-      folder,
-      safeFileName(
-        built.summary.fileName,
-        `00_TONG_HOP_SAN_XUAT_${month}-${year}.xlsx`
-      )
-    );
-    const summaryWrite = await atomicOverwrite(
-      summaryFilePath,
-      built.summary.buffer,
-      date
-    );
-    files.push({
-      category: 'MONTHLY_SUMMARY',
-      processId: -1,
-      processCode: 'ALL',
-      processName: 'Tổng hợp sản xuất tháng',
-      fileName: path.basename(summaryFilePath),
-      filePath: summaryFilePath,
-      folder,
-      size: built.summary.buffer.length,
-      saved: summaryWrite.saved,
-      pendingPath: summaryWrite.pendingPath,
-      backupPath: summaryWrite.backupPath,
-      success: true,
-      source: 'desktop-local',
-      formulaReplacementCount: built.summary.formulaReplacementCount
-    });
-
-    // 9 công đoạn: giữ đúng cấu trúc file local đã được smoke-test.
     for (const processBuilt of built.processes || []) {
-      const processFolder = path.join(folder, safeFolderName(processBuilt.processName || processBuilt.processCode));
-      await fs.mkdir(processFolder, { recursive: true });
-
       const filePath = path.join(
-        processFolder,
+        folder,
         safeFileName(
           processBuilt.fileName,
-          `${processBuilt.processCode || 'PROCESS'}_${month}-${year}.xlsx`
+          String(processBuilt.processCode || 'PROCESS') + '_' + month + '-' + year + '.xlsx'
         )
       );
       const writeResult = await atomicOverwrite(filePath, processBuilt.buffer, date);
@@ -1076,7 +1046,7 @@ async function performSync({ date, source }) {
         processName: processBuilt.processName,
         fileName: path.basename(filePath),
         filePath,
-        folder: processFolder,
+        folder,
         size: processBuilt.buffer.length,
         saved: writeResult.saved,
         pendingPath: writeResult.pendingPath,
@@ -1129,7 +1099,8 @@ async function performSync({ date, source }) {
     });
   }
 
-  const expectedFileCount = Object.keys(PROCESS_SHEETS).length + 1;
+  const expectedFileCount = Object.entries(companyData?.processes || {})
+    .filter(([, data]) => Array.isArray(data?.reports) && data.reports.length > 0).length;
   const success = files.length === expectedFileCount && files.every((file) => file.success === true);
   const result = {
     success,
