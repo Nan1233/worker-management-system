@@ -194,7 +194,13 @@ require('./autoUpdate.cjs');
 // calculation in main.cjs referencing companyData outside its try scope.
 function requireMainWithExcelScopeHotfix() {
   const mainPath = require.resolve('./main.cjs');
-  const originalCjsLoader = Module._extensions['.cjs'];
+  // Node 24 does not expose a dedicated .cjs loader on Module._extensions.
+  // Use the standard JS loader as the fallback compiler for main.cjs.
+  const originalCjsLoader = Module._extensions['.cjs'] || Module._extensions['.js'];
+  if (typeof originalCjsLoader !== 'function') {
+    throw new Error('Không tìm thấy CommonJS loader để nạp main.cjs.');
+  }
+
   Module._extensions['.cjs'] = function loadCjsWithExcelScopeHotfix(module, filename) {
     if (path.resolve(filename) !== path.resolve(mainPath)) {
       return originalCjsLoader(module, filename);
@@ -221,7 +227,7 @@ function requireMainWithExcelScopeHotfix() {
   try {
     require(mainPath);
   } finally {
-    Module._extensions['.cjs'] = originalCjsLoader;
+    delete Module._extensions['.cjs'];
   }
 }
 
