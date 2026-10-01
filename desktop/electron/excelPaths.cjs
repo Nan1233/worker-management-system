@@ -9,6 +9,7 @@ const {
 
 const DEFAULT_EXPORT_ROOT = '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\Linh tinh';
 const NAS_EXPORT_ROOT = DEFAULT_EXPORT_ROOT;
+const LOCAL_EXPORT_ROOT = path.join(require('node:os').homedir(), 'AppData', 'Local', 'KTC-Worker-Management', 'Exports');
 
 function getDateParts(dateValue = new Date()) {
   const formatter = new Intl.DateTimeFormat('en-CA', {
@@ -53,9 +54,6 @@ function safeFileName(value, fallback) {
   return candidate.toLowerCase().endsWith('.xlsx') ? candidate : `${candidate}.xlsx`;
 }
 
-// The monthly summary workbook is no longer an output artifact. The summary
-// builder may still construct its in-memory workbook for compatibility, but
-// its writeBuffer is reduced to a tiny valid workbook.
 const OriginalWorkbook = ExcelJS.Workbook;
 if (!OriginalWorkbook.__ktcSummaryWritePatched) {
   class KtcWorkbook extends OriginalWorkbook {
@@ -78,7 +76,7 @@ if (!OriginalWorkbook.__ktcSummaryWritePatched) {
   Object.defineProperty(ExcelJS.Workbook, '__ktcSummaryWritePatched', { value: true });
 }
 
-function getExportRoot() {
+function getConfiguredExportRoot() {
   const configured = String(process.env.KTC_EXPORT_ROOT || '').trim();
   return !configured
     ? DEFAULT_EXPORT_ROOT
@@ -87,6 +85,45 @@ function getExportRoot() {
       : /^\\\\/.test(configured)
         ? configured
         : path.resolve(configured);
+}
+
+async function canWriteExportRoot(root) {
+  try {
+    await fs.mkdir(root, { recursive: true });
+    const probe = path.join(root, `.ktc-export-probe-${process.pid}-${Date.now()}`);
+    await fs.writeFile(probe, 'ok', 'utf8');
+    await fs.rm(probe, { force: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+let resolvedExportRoot = null;
+let resolvedExportRootSource = null;
+
+async function resolveExportRoot() {
+  if (resolvedExportRoot) return resolvedExportRoot;
+
+  const configured = getConfiguredExportRoot();
+  const isNasPath = /^\\\\/.test(configured);
+
+  if (!isNasPath || await canWriteExportRoot(configured)) {
+    resolvedExportRoot = configured;
+    resolvedExportRootSource = isNasPath ? 'NAS' : 'CONFIGURED';
+    return resolvedExportRoot;
+  }
+
+  await fs.mkdir(LOCAL_EXPORT_ROOT, { recursive: true });
+  resolvedExportRoot = LOCAL_EXPORT_ROOT;
+  resolvedExportRootSource = 'LOCAL_FALLBACK';
+  console.warn(`[KTC] NAS export root unavailable; using local fallback: ${LOCAL_EXPORT_ROOT}`);
+  return resolvedExportRoot;
+}
+
+function getExportRoot() {
+  if (resolvedExportRoot) return resolvedExportRoot;
+  return getConfiguredExportRoot();
 }
 
 async function findExistingProcessReportFile(folder, processInfo, month, year) {
@@ -113,7 +150,7 @@ async function findExistingProcessReportFile(folder, processInfo, month, year) {
 async function getProcessExportPath(date, processInfo, serverFileName) {
   assertDate(date);
   const [year, month] = date.split('-');
-  const root = getExportRoot();
+  const root = await resolveExportRoot();
   const folder = path.join(root, year, month);
   await fs.mkdir(folder, { recursive: true });
   const existingFileName = await findExistingProcessReportFile(folder, processInfo, month, year);
