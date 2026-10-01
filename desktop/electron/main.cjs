@@ -92,13 +92,13 @@ async function fetchWithTimeout(url, options = {}) {
     return await fetch(url, { ...options, signal: controller.signal });
   } catch (error) {
     if (error?.name === 'AbortError') {
-      const timeoutError = new Error(`Máy chủ phản hồi quá ${Math.round(REQUEST_TIMEOUT_MS / 1000)} giây.`);
+      const timeoutError = new Error(`MÃ¡y chá»§ pháº£n há»“i quÃ¡ ${Math.round(REQUEST_TIMEOUT_MS / 1000)} giÃ¢y.`);
       timeoutError.code = 'API_TIMEOUT';
       throw timeoutError;
     }
     const networkError = new Error(
-      `Không kết nối được backend KTC (${API_BASE_URL}). ` +
-      'Kiểm tra Internet hoặc chờ Render khởi động rồi thử lại.'
+      `KhÃ´ng káº¿t ná»‘i Ä‘Æ°á»£c backend KTC (${API_BASE_URL}). ` +
+      'Kiá»ƒm tra Internet hoáº·c chá» Render khá»Ÿi Ä‘á»™ng rá»“i thá»­ láº¡i.'
     );
     networkError.code = 'API_FETCH_FAILED';
     networkError.cause = error;
@@ -117,8 +117,8 @@ async function readApiError(response) {
     }
     const text = (await response.text()).trim();
     if (!text) return `HTTP ${response.status}`;
-    if (/<html|<!doctype/i.test(text)) return `HTTP ${response.status} - dịch vụ Render tạm thời không khả dụng.`;
-    return text.length > 500 ? `${text.slice(0, 500)}…` : text;
+    if (/<html|<!doctype/i.test(text)) return `HTTP ${response.status} - dá»‹ch vá»¥ Render táº¡m thá»i khÃ´ng kháº£ dá»¥ng.`;
+    return text.length > 500 ? `${text.slice(0, 500)}â€¦` : text;
   } catch {
     return `HTTP ${response.status}`;
   }
@@ -129,7 +129,7 @@ async function fetchProcesses(date) {
     `${API_BASE_URL}/reports/export-excel/processes?date=${encodeURIComponent(date)}`,
     { method: 'GET' }
   );
-  if (response.status === 401 || response.status === 403) throw new Error('Phiên đăng nhập đã hết hạn hoặc không có quyền xuất Excel.');
+  if (response.status === 401 || response.status === 403) throw new Error('PhiÃªn Ä‘Äƒng nháº­p Ä‘Ã£ háº¿t háº¡n hoáº·c khÃ´ng cÃ³ quyá»n xuáº¥t Excel.');
   if (!response.ok) throw new Error(await readApiError(response));
   const payload = await response.json();
   return Array.isArray(payload.data) ? payload.data : [];
@@ -140,23 +140,23 @@ async function fetchCompanyFiles(token, date) {
     `${API_BASE_URL}/reports/export-excel/company-files?date=${encodeURIComponent(date)}`,
     { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } }
   );
-  if (response.status === 401 || response.status === 403) throw new Error('Phiên đăng nhập đã hết hạn hoặc không có quyền xuất Excel.');
+  if (response.status === 401 || response.status === 403) throw new Error('PhiÃªn Ä‘Äƒng nháº­p Ä‘Ã£ háº¿t háº¡n hoáº·c khÃ´ng cÃ³ quyá»n xuáº¥t Excel.');
   if (response.status === 404) {
-    // Tương thích trong thời gian backend Render đang chuyển phiên bản.
-    // Vẫn thử xuất hai workbook chuẩn; endpoint POST sẽ cho biết backend đã
-    // được deploy đầy đủ hay chưa.
+    // TÆ°Æ¡ng thÃ­ch trong thá»i gian backend Render Ä‘ang chuyá»ƒn phiÃªn báº£n.
+    // Váº«n thá»­ xuáº¥t hai workbook chuáº©n; endpoint POST sáº½ cho biáº¿t backend Ä‘Ã£
+    // Ä‘Æ°á»£c deploy Ä‘áº§y Ä‘á»§ hay chÆ°a.
     await writeLog('WARN', 'COMPANY_FILE_LIST_404_USING_DEFAULT_GROUPS', { date });
     return [
-      { code: 'GIA_CONG', title: 'Gia công', reportCount: 0 },
-      { code: 'MAI_DO', title: 'Mài - Đo', reportCount: 0 }
+      { code: 'GIA_CONG', title: 'Gia cÃ´ng', reportCount: 0 },
+      { code: 'MAI_DO', title: 'MÃ i - Äo', reportCount: 0 }
     ];
   }
   if (!response.ok) throw new Error(await readApiError(response));
   const payload = await response.json();
   const rows = Array.isArray(payload.data) ? payload.data : [];
   return rows.length ? rows : [
-    { code: 'GIA_CONG', title: 'Gia công', reportCount: 0 },
-    { code: 'MAI_DO', title: 'Mài - Đo', reportCount: 0 }
+    { code: 'GIA_CONG', title: 'Gia cÃ´ng', reportCount: 0 },
+    { code: 'MAI_DO', title: 'MÃ i - Äo', reportCount: 0 }
   ];
 }
 
@@ -164,17 +164,17 @@ async function fetchCompanyData(date) {
   const url = `${API_BASE_URL}/reports/export-excel/company-data?date=${encodeURIComponent(date)}`;
   const response = await authenticatedFetch(url, { method: 'GET' });
   if (response.status === 401 || response.status === 403) {
-    throw new Error('Phiên đăng nhập đã hết hạn hoặc không có quyền xuất Excel.');
+    throw new Error('PhiÃªn Ä‘Äƒng nháº­p Ä‘Ã£ háº¿t háº¡n hoáº·c khÃ´ng cÃ³ quyá»n xuáº¥t Excel.');
   }
   if (!response.ok) {
     const message = await readApiError(response);
-    const error = new Error(`Backend xuất Excel lỗi: ${message}`);
+    const error = new Error(`Backend xuáº¥t Excel lá»—i: ${message}`);
     error.code = `COMPANY_DATA_HTTP_${response.status}`;
     throw error;
   }
   const payload = await response.json();
   if (!payload?.success || !payload?.data?.processes) {
-    const error = new Error('Backend không trả dữ liệu Excel tháng hợp lệ.');
+    const error = new Error('Backend khÃ´ng tráº£ dá»¯ liá»‡u Excel thÃ¡ng há»£p lá»‡.');
     error.code = 'COMPANY_DATA_INVALID_PAYLOAD';
     throw error;
   }
@@ -202,7 +202,7 @@ async function downloadConsolidatedExcelOnce(token, date) {
     body: JSON.stringify({ date })
   });
   if (response.status === 401 || response.status === 403) {
-    throw new Error('Phiên đăng nhập đã hết hạn hoặc không có quyền xuất Excel.');
+    throw new Error('PhiÃªn Ä‘Äƒng nháº­p Ä‘Ã£ háº¿t háº¡n hoáº·c khÃ´ng cÃ³ quyá»n xuáº¥t Excel.');
   }
   if (!response.ok) throw new Error(await readApiError(response));
 
@@ -210,7 +210,7 @@ async function downloadConsolidatedExcelOnce(token, date) {
   const buffer = Buffer.from(await response.arrayBuffer());
   const isZip = buffer.length >= 4 && buffer[0] === 0x50 && buffer[1] === 0x4b;
   if (!contentType.includes('spreadsheetml') || !isZip) {
-    throw new Error('Backend không trả file Excel tổng hợp hợp lệ.');
+    throw new Error('Backend khÃ´ng tráº£ file Excel tá»•ng há»£p há»£p lá»‡.');
   }
 
   const [year, month] = date.split('-');
@@ -244,9 +244,9 @@ async function buildCompanyExcelOnDesktop(date, fileInfo, companyData) {
   const [year, month] = date.split('-');
   const fallback = `${safeFolderName(fileInfo.title || fileInfo.code)}-${month}-${year}.xlsx`;
   const expectedName = fileInfo.code === 'GIA_CONG'
-    ? `A+B GIA CÔNG THÁNG ${month}-${year}.xlsx`
+    ? `A+B GIA CÃ”NG THÃNG ${month}-${year}.xlsx`
     : fileInfo.code === 'MAI_DO'
-      ? `A+B MÀI - ĐO THÁNG ${month}-${year}.xlsx`
+      ? `A+B MÃ€I - ÄO THÃNG ${month}-${year}.xlsx`
       : fallback;
   const target = await getCompanyMonthTarget({
     root: getExportRoot(),
@@ -265,7 +265,7 @@ async function buildCompanyExcelOnDesktop(date, fileInfo, companyData) {
   });
   const requestedYearMonth = date.slice(0, 7);
   if (built.requestedYearMonth !== requestedYearMonth) {
-    throw new Error(`Workbook ${fileInfo.title} sai kỳ: yêu cầu ${requestedYearMonth}, nhận ${built.requestedYearMonth || 'trống'}`);
+    throw new Error(`Workbook ${fileInfo.title} sai ká»³: yÃªu cáº§u ${requestedYearMonth}, nháº­n ${built.requestedYearMonth || 'trá»‘ng'}`);
   }
   const fileName = built.fileName || expectedName;
   return {
@@ -291,7 +291,7 @@ function normalizeProcessInfo(row) {
 async function downloadProcessExcel(token, date, rawProcessInfo, attempt = 1) {
   const processInfo = normalizeProcessInfo(rawProcessInfo);
   if (!Number.isFinite(processInfo.id) || processInfo.id <= 0) {
-    throw new Error(`Thiếu processId hợp lệ cho công đoạn ${processInfo.processName || processInfo.processCode || 'không xác định'}.`);
+    throw new Error(`Thiáº¿u processId há»£p lá»‡ cho cÃ´ng Ä‘oáº¡n ${processInfo.processName || processInfo.processCode || 'khÃ´ng xÃ¡c Ä‘á»‹nh'}.`);
   }
 
   const response = await fetchWithTimeout(`${API_BASE_URL}/reports/export-excel/process`, {
@@ -305,7 +305,7 @@ async function downloadProcessExcel(token, date, rawProcessInfo, attempt = 1) {
   });
 
   if (response.status === 401 || response.status === 403) {
-    throw new Error('Phiên đăng nhập đã hết hạn hoặc không có quyền xuất Excel.');
+    throw new Error('PhiÃªn Ä‘Äƒng nháº­p Ä‘Ã£ háº¿t háº¡n hoáº·c khÃ´ng cÃ³ quyá»n xuáº¥t Excel.');
   }
 
   if (!response.ok) {
@@ -334,7 +334,7 @@ async function downloadProcessExcel(token, date, rawProcessInfo, attempt = 1) {
   const buffer = Buffer.from(await response.arrayBuffer());
   const isZip = buffer.length >= 4 && buffer[0] === 0x50 && buffer[1] === 0x4b;
   if (!contentType.includes('spreadsheetml') || !isZip) {
-    throw new Error(`Backend không trả file Excel hợp lệ cho công đoạn ${processInfo.processName || processInfo.id}.`);
+    throw new Error(`Backend khÃ´ng tráº£ file Excel há»£p lá»‡ cho cÃ´ng Ä‘oáº¡n ${processInfo.processName || processInfo.id}.`);
   }
 
   const [year, month] = date.split('-');
@@ -497,7 +497,7 @@ async function backupExistingExcel(filePath, syncDate) {
   } catch (error) {
     if (error?.code === 'ENOENT') return null;
     await writeLog('ERROR', 'EXCEL_BACKUP_FAILED', { filePath, syncDate, ...normalizeError(error) });
-    throw new Error(`Không thể sao lưu file Excel trước khi cập nhật: ${error.message}`);
+    throw new Error(`KhÃ´ng thá»ƒ sao lÆ°u file Excel trÆ°á»›c khi cáº­p nháº­t: ${error.message}`);
   }
 }
 
@@ -572,8 +572,8 @@ async function atomicOverwrite(filePath, buffer, syncDate) {
     try {
       await fs.rm(filePath, { force: true });
       await fs.rename(temporaryPath, filePath);
-      // Pending chỉ là bản chờ khi file đang khóa. Khi lần đồng bộ mới đã ghi
-      // thành công từ dữ liệu DB mới nhất, xóa pending cũ để tránh áp dụng dữ liệu cũ.
+      // Pending chá»‰ lÃ  báº£n chá» khi file Ä‘ang khÃ³a. Khi láº§n Ä‘á»“ng bá»™ má»›i Ä‘Ã£ ghi
+      // thÃ nh cÃ´ng tá»« dá»¯ liá»‡u DB má»›i nháº¥t, xÃ³a pending cÅ© Ä‘á»ƒ trÃ¡nh Ã¡p dá»¥ng dá»¯ liá»‡u cÅ©.
       await fs.rm(`${filePath}.pending.xlsx`, { force: true }).catch(() => {});
       return { saved: true, pendingPath: null, backupPath };
     } catch (error) {
@@ -620,8 +620,8 @@ async function logPendingFiles(rootFolder) {
     if (entry.isDirectory()) {
       await logPendingFiles(fullPath);
     } else if (entry.isFile() && entry.name.endsWith('.pending.xlsx')) {
-      // Không tự đổi tên pending thành file chính. Lần đồng bộ kế tiếp phải lấy
-      // lại dữ liệu DB và chạy lại workbook; pending chỉ được xóa khi ghi mới thành công.
+      // KhÃ´ng tá»± Ä‘á»•i tÃªn pending thÃ nh file chÃ­nh. Láº§n Ä‘á»“ng bá»™ káº¿ tiáº¿p pháº£i láº¥y
+      // láº¡i dá»¯ liá»‡u DB vÃ  cháº¡y láº¡i workbook; pending chá»‰ Ä‘Æ°á»£c xÃ³a khi ghi má»›i thÃ nh cÃ´ng.
       await writeLog('INFO', 'PENDING_FILE_WAITING_FOR_FRESH_REBUILD', { pendingPath: fullPath });
     }
   }
@@ -657,7 +657,7 @@ async function syncProcessReportsFirst({ date, files, processes, companyData }) 
         files.push({
           category: 'PROCESS', processId: processInfo.id, processCode: code,
           processName: processInfo.processName, success: false, skipped: true,
-          error: `Chưa có template Desktop cho công đoạn ${processInfo.processName || code}.`
+          error: `ChÆ°a cÃ³ template Desktop cho cÃ´ng Ä‘oáº¡n ${processInfo.processName || code}.`
         });
       }
       continue;
@@ -670,14 +670,14 @@ async function syncProcessReportsFirst({ date, files, processes, companyData }) 
       continue;
     }
 
-    // Luôn dựng file báo cáo mẫu đúng tháng, kể cả chưa có dữ liệu đã duyệt.
-    // buildProcessExcelLocal sẽ làm sạch vùng dữ liệu và giữ nguyên template/công thức.
-    // Nhờ đó một lần cập nhật luôn tạo đủ Báo cáo công đoạn + hai file A+B.
+    // LuÃ´n dá»±ng file bÃ¡o cÃ¡o máº«u Ä‘Ãºng thÃ¡ng, ká»ƒ cáº£ chÆ°a cÃ³ dá»¯ liá»‡u Ä‘Ã£ duyá»‡t.
+    // buildProcessExcelLocal sáº½ lÃ m sáº¡ch vÃ¹ng dá»¯ liá»‡u vÃ  giá»¯ nguyÃªn template/cÃ´ng thá»©c.
+    // Nhá» Ä‘Ã³ má»™t láº§n cáº­p nháº­t luÃ´n táº¡o Ä‘á»§ BÃ¡o cÃ¡o cÃ´ng Ä‘oáº¡n + hai file A+B.
     if (reportCount <= 0) {
       await writeLog('INFO', 'PROCESS_EXCEL_BUILD_EMPTY_PERIOD', {
         date,
         processCode: code,
-        message: 'Kỳ chưa có báo cáo đã duyệt; vẫn tạo file mẫu đúng tháng.'
+        message: 'Ká»³ chÆ°a cÃ³ bÃ¡o cÃ¡o Ä‘Ã£ duyá»‡t; váº«n táº¡o file máº«u Ä‘Ãºng thÃ¡ng.'
       });
     }
 
@@ -750,7 +750,7 @@ else if (
       const header = Buffer.alloc(4);
       const { bytesRead } = await handle.read(header, 0, 4, 0);
 
-      // XLSX thực chất là ZIP, phải bắt đầu bằng PK 03 04.
+      // XLSX thá»±c cháº¥t lÃ  ZIP, pháº£i báº¯t Ä‘áº§u báº±ng PK 03 04.
       const isValidXlsx =
         bytesRead === 4 &&
         header[0] === 0x50 &&
@@ -788,12 +788,12 @@ async function postExcelChanges(changes) {
     body: JSON.stringify({ changes })
   });
   if (response.status === 401 || response.status === 403) {
-    const error = new Error('Tài khoản hiện tại không có quyền đồng bộ chỉnh sửa Excel về DB.');
+    const error = new Error('TÃ i khoáº£n hiá»‡n táº¡i khÃ´ng cÃ³ quyá»n Ä‘á»“ng bá»™ chá»‰nh sá»­a Excel vá» DB.');
     error.code = 'EXCEL_DB_SYNC_FORBIDDEN';
     throw error;
   }
   const payload = await response.json().catch(() => ({}));
-  if (![200, 207].includes(response.status)) throw new Error(payload.message || `Đồng bộ Excel về DB lỗi HTTP ${response.status}`);
+  if (![200, 207].includes(response.status)) throw new Error(payload.message || `Äá»“ng bá»™ Excel vá» DB lá»—i HTTP ${response.status}`);
   return payload;
 }
 
@@ -853,7 +853,7 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
       try {
         parsed = await readExcelChanges(filePath);
       } catch (error) {
-        // File đang mở/đang save có thể tạm thời không đọc được; vòng sau sẽ thử lại.
+        // File Ä‘ang má»Ÿ/Ä‘ang save cÃ³ thá»ƒ táº¡m thá»i khÃ´ng Ä‘á»c Ä‘Æ°á»£c; vÃ²ng sau sáº½ thá»­ láº¡i.
         await writeLog('WARN', 'EXCEL_DB_SYNC_READ_SKIPPED', { filePath, source, ...normalizeError(error) });
         continue;
       }
@@ -901,8 +901,8 @@ async function syncEditedExcelFilesToDb({ source = 'watcher', yearMonth = '' } =
 }
 
 function startExcelDbSyncWatcher() {
-  // Excel -> DB chỉ chạy khi người quản lý bấm nút và xác nhận.
-  // Không tự đẩy dữ liệu khi người dùng đang sửa dở workbook.
+  // Excel -> DB chá»‰ cháº¡y khi ngÆ°á»i quáº£n lÃ½ báº¥m nÃºt vÃ  xÃ¡c nháº­n.
+  // KhÃ´ng tá»± Ä‘áº©y dá»¯ liá»‡u khi ngÆ°á»i dÃ¹ng Ä‘ang sá»­a dá»Ÿ workbook.
   if (excelDbSyncTimer) clearInterval(excelDbSyncTimer);
   excelDbSyncTimer = null;
 }
@@ -922,19 +922,19 @@ async function performSync({ date, source }) {
   await logPendingFiles(root);
 
   const token = await waitForUsableRendererToken('', 8_000);
-  if (!token) throw new Error('Chưa đăng nhập hoặc phiên đăng nhập chưa được làm mới.');
+  if (!token) throw new Error('ChÆ°a Ä‘Äƒng nháº­p hoáº·c phiÃªn Ä‘Äƒng nháº­p chÆ°a Ä‘Æ°á»£c lÃ m má»›i.');
   currentToken = token;
 
   const files = [];
+  let companyData = null;
   try {
-    // Excel -> DB không tự chạy trong lúc export. DB đã duyệt là nguồn dữ liệu duy nhất.
+    // Excel -> DB khÃ´ng tá»± cháº¡y trong lÃºc export. DB Ä‘Ã£ duyá»‡t lÃ  nguá»“n dá»¯ liá»‡u duy nháº¥t.
     await writeLog('INFO', 'EXCEL_DB_PRECHECK_SKIPPED_FOR_DB_EXPORT', {
       date,
       source,
       reason: 'DB_IS_AUTHORITATIVE_FOR_EXCEL_EXPORT'
     });
-
-    const companyData = await fetchCompanyData(date);
+    companyData = await fetchCompanyData(date);
     const processCounts = Object.fromEntries(
       Object.entries(companyData?.processes || {}).map(([code, data]) => [
         code,
@@ -966,7 +966,7 @@ async function performSync({ date, source }) {
         yearMonth,
        source,
         reason: 'NO_APPROVED_DATA',
-        message: `Tháng ${yearMonth} chưa có báo cáo approved, không tạo/ghi đè Excel.`
+        message: `ThÃ¡ng ${yearMonth} chÆ°a cÃ³ bÃ¡o cÃ¡o approved, khÃ´ng táº¡o/ghi Ä‘Ã¨ Excel.`
       });
 
       const result = {
@@ -974,7 +974,7 @@ async function performSync({ date, source }) {
         partialSuccess: false,
         skipped: true,
         code: 'NO_APPROVED_DATA',
-        message: `Tháng ${yearMonth} chưa có dữ liệu approved. Không tạo file Excel.`,
+        message: `ThÃ¡ng ${yearMonth} chÆ°a cÃ³ dá»¯ liá»‡u approved. KhÃ´ng táº¡o file Excel.`,
        date,
       files: [],
        rootFolder: root,
@@ -1002,7 +1002,7 @@ async function performSync({ date, source }) {
     if (String(companyData?.yearMonth || requestedYearMonth).slice(0, 7) !== requestedYearMonth) {
       throw Object.assign(
         new Error(
-          `Sai kỳ dữ liệu Excel: yêu cầu ${requestedYearMonth}, nhận ${companyData?.yearMonth || 'trống'}.`
+          `Sai ká»³ dá»¯ liá»‡u Excel: yÃªu cáº§u ${requestedYearMonth}, nháº­n ${companyData?.yearMonth || 'trá»‘ng'}.`
         ),
         { code: 'COMPANY_DATA_YEAR_MONTH_MISMATCH' }
       );
@@ -1085,7 +1085,7 @@ async function performSync({ date, source }) {
       category: 'MONTHLY',
       processId: -1,
       processCode: 'ALL',
-      processName: 'Báo cáo sản xuất tháng',
+      processName: 'BÃ¡o cÃ¡o sáº£n xuáº¥t thÃ¡ng',
       success: false,
       source: 'desktop-local',
       error: error.message,
@@ -1106,8 +1106,8 @@ async function performSync({ date, source }) {
     success,
     partialSuccess: false,
     message: success
-      ? `Đã cập nhật ${expectedFileCount} file Excel tháng trực tiếp trên máy (không qua Render).`
-      : 'Không thể cập nhật file Excel tháng. Xem desktop.log để biết chi tiết.',
+      ? `ÄÃ£ cáº­p nháº­t ${expectedFileCount} file Excel thÃ¡ng trá»±c tiáº¿p trÃªn mÃ¡y (khÃ´ng qua Render).`
+      : 'KhÃ´ng thá»ƒ cáº­p nháº­t file Excel thÃ¡ng. Xem desktop.log Ä‘á»ƒ biáº¿t chi tiáº¿t.',
     date,
     files,
     rootFolder: root,
@@ -1130,11 +1130,11 @@ async function performSync({ date, source }) {
 async function syncAllProcessExcel({ date, source = 'manual', token: requestedToken = '' } = {}) {
   assertDate(date);
   const token = await waitForUsableRendererToken(requestedToken, 8_000);
-  if (!token) throw new Error('Chưa đăng nhập hoặc thiếu token.');
+  if (!token) throw new Error('ChÆ°a Ä‘Äƒng nháº­p hoáº·c thiáº¿u token.');
   currentToken = token;
 
   if (syncRunning) {
-    throw new Error(`Lỗi điều phối đồng bộ: ${source} được chạy khi một tác vụ khác chưa kết thúc.`);
+    throw new Error(`Lá»—i Ä‘iá»u phá»‘i Ä‘á»“ng bá»™: ${source} Ä‘Æ°á»£c cháº¡y khi má»™t tÃ¡c vá»¥ khÃ¡c chÆ°a káº¿t thÃºc.`);
   }
 
   syncRunning = true;
@@ -1160,7 +1160,7 @@ function enqueueManualExcelSync(request) {
       waitedMs: Date.now() - queuedAt,
       remaining: queuedManualSyncCount
     });
-    if (quitting) throw new Error('Ứng dụng đang đóng, không thể tiếp tục cập nhật Excel.');
+    if (quitting) throw new Error('á»¨ng dá»¥ng Ä‘ang Ä‘Ã³ng, khÃ´ng thá»ƒ tiáº¿p tá»¥c cáº­p nháº­t Excel.');
     return syncAllProcessExcel(request);
   });
 
@@ -1250,7 +1250,7 @@ async function readRendererAccessToken() {
 }
 
 async function resolveDesktopToken(candidateToken) {
-  // Renderer là nguồn ưu tiên vì frontend cập nhật localStorage ngay sau /auth/refresh.
+  // Renderer lÃ  nguá»“n Æ°u tiÃªn vÃ¬ frontend cáº­p nháº­t localStorage ngay sau /auth/refresh.
   const rendererToken = await readRendererAccessToken();
   if (isUsableAccessToken(rendererToken)) return normalizeAccessToken(rendererToken);
 
@@ -1288,7 +1288,7 @@ async function authenticatedFetch(url, options = {}) {
 
   let token = await waitForUsableRendererToken('', 8_000);
   if (!token) {
-    throw new Error('Không tìm thấy phiên đăng nhập hợp lệ. Hãy chờ đăng nhập được làm mới rồi thử lại.');
+    throw new Error('KhÃ´ng tÃ¬m tháº¥y phiÃªn Ä‘Äƒng nháº­p há»£p lá»‡. HÃ£y chá» Ä‘Äƒng nháº­p Ä‘Æ°á»£c lÃ m má»›i rá»“i thá»­ láº¡i.');
   }
   currentToken = token;
 
@@ -1324,7 +1324,7 @@ async function authenticatedFetch(url, options = {}) {
       await wait(RETRY_DELAY_MS * attempt);
     }
   }
-  throw lastError || new Error('Không thể kết nối backend KTC.');
+  throw lastError || new Error('KhÃ´ng thá»ƒ káº¿t ná»‘i backend KTC.');
 }
 
 async function discoverRendererToken() {
@@ -1407,7 +1407,7 @@ function createWindow() {
     if (!isMainFrame || errorCode === -3) return;
     await writeLog('ERROR', 'RENDERER_LOAD_FAILED', { errorCode, errorDescription, validatedURL });
     if (!mainWindow || mainWindow.isDestroyed()) return;
-    const safeDescription = String(errorDescription || 'Không thể kết nối tới hệ thống')
+    const safeDescription = String(errorDescription || 'KhÃ´ng thá»ƒ káº¿t ná»‘i tá»›i há»‡ thá»‘ng')
       .replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[c] || c));
     const safeUrl = String(validatedURL || FRONTEND_INDEX)
       .replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[c] || c));
@@ -1450,7 +1450,7 @@ async function handleManualExcelSync(payload) {
   try {
     const token = await waitForUsableRendererToken(request.token || '', 8_000);
     if (!token) {
-      throw new Error('Chưa tìm thấy phiên đăng nhập. Hãy đăng xuất, đăng nhập lại rồi thử cập nhật Excel.');
+      throw new Error('ChÆ°a tÃ¬m tháº¥y phiÃªn Ä‘Äƒng nháº­p. HÃ£y Ä‘Äƒng xuáº¥t, Ä‘Äƒng nháº­p láº¡i rá»“i thá»­ cáº­p nháº­t Excel.');
     }
     await writeLog('INFO', 'MANUAL_EXCEL_TOKEN_RESOLVED', { date });
     const result = await enqueueManualExcelSync({ date, source: 'manual', token });
@@ -1475,7 +1475,7 @@ async function handleManualExcelSync(payload) {
 
 async function handlePreviewExcelDbSync(payload = {}) {
   const token = await waitForUsableRendererToken(payload.token || '', 8_000);
-  if (!token) throw new Error('Chưa tìm thấy phiên đăng nhập. Hãy đăng nhập lại rồi thử.');
+  if (!token) throw new Error('ChÆ°a tÃ¬m tháº¥y phiÃªn Ä‘Äƒng nháº­p. HÃ£y Ä‘Äƒng nháº­p láº¡i rá»“i thá»­.');
   currentToken = token;
   const yearMonth = /^\d{4}-\d{2}$/.test(String(payload.yearMonth || '')) ? String(payload.yearMonth) : '';
   const result = await previewEditedExcelFilesToDb({ yearMonth });
@@ -1485,7 +1485,7 @@ async function handlePreviewExcelDbSync(payload = {}) {
 
 async function handleApplyExcelDbSync(payload = {}) {
   const token = await waitForUsableRendererToken(payload.token || '', 8_000);
-  if (!token) throw new Error('Chưa tìm thấy phiên đăng nhập. Hãy đăng nhập lại rồi thử.');
+  if (!token) throw new Error('ChÆ°a tÃ¬m tháº¥y phiÃªn Ä‘Äƒng nháº­p. HÃ£y Ä‘Äƒng nháº­p láº¡i rá»“i thá»­.');
   currentToken = token;
   const yearMonth = /^\d{4}-\d{2}$/.test(String(payload.yearMonth || '')) ? String(payload.yearMonth) : '';
   const result = await syncEditedExcelFilesToDb({ source: 'manual-db-sync', yearMonth });
@@ -1505,10 +1505,10 @@ async function handleApplyExcelDbSync(payload = {}) {
 
 async function handlePreviewReportImport(payload = {}) {
   const token = await waitForUsableRendererToken(payload.token || '', 8_000);
-  if (!token) throw new Error('Chưa tìm thấy phiên đăng nhập. Hãy đăng nhập lại rồi thử.');
+  if (!token) throw new Error('ChÆ°a tÃ¬m tháº¥y phiÃªn Ä‘Äƒng nháº­p. HÃ£y Ä‘Äƒng nháº­p láº¡i rá»“i thá»­.');
   currentToken = token;
   const picked = await dialog.showOpenDialog(mainWindow, {
-    title: 'Import báo cáo Excel vào KTC',
+    title: 'Import bÃ¡o cÃ¡o Excel vÃ o KTC',
     properties: ['openFile'],
     filters: [{ name: 'Excel', extensions: ['xlsx'] }]
   });
@@ -1518,7 +1518,7 @@ async function handlePreviewReportImport(payload = {}) {
   assertImportFileSize(stat);
   const parsed = await readExcelChanges(filePath);
   if (!parsed?.managed) {
-    const error = new Error('File này không phải workbook KTC có metadata đồng bộ. Hãy dùng file được xuất từ KTC hoặc template import KTC.');
+    const error = new Error('File nÃ y khÃ´ng pháº£i workbook KTC cÃ³ metadata Ä‘á»“ng bá»™. HÃ£y dÃ¹ng file Ä‘Æ°á»£c xuáº¥t tá»« KTC hoáº·c template import KTC.');
     error.code = 'KTC_IMPORT_UNMANAGED_WORKBOOK';
     throw error;
   }
@@ -1545,14 +1545,14 @@ async function handlePreviewReportImport(payload = {}) {
 
 async function handleApplyReportImport(payload = {}) {
   const token = await waitForUsableRendererToken(payload.token || '', 8_000);
-  if (!token) throw new Error('Chưa tìm thấy phiên đăng nhập. Hãy đăng nhập lại rồi thử.');
+  if (!token) throw new Error('ChÆ°a tÃ¬m tháº¥y phiÃªn Ä‘Äƒng nháº­p. HÃ£y Ä‘Äƒng nháº­p láº¡i rá»“i thá»­.');
   currentToken = token;
   const filePath = reportImportPreviewGuard.assertAllowed(payload.filePath);
-  if (!filePath.toLowerCase().endsWith('.xlsx') || !fsSync.existsSync(filePath)) throw new Error('File import không còn tồn tại.');
+  if (!filePath.toLowerCase().endsWith('.xlsx') || !fsSync.existsSync(filePath)) throw new Error('File import khÃ´ng cÃ²n tá»“n táº¡i.');
   const stat = await fs.stat(filePath);
   assertImportFileSize(stat);
   const parsed = await readExcelChanges(filePath);
-  if (!parsed?.managed) throw new Error('File import không còn đúng contract KTC. Hãy xuất lại file từ DB trước.');
+  if (!parsed?.managed) throw new Error('File import khÃ´ng cÃ²n Ä‘Ãºng contract KTC. HÃ£y xuáº¥t láº¡i file tá»« DB trÆ°á»›c.');
   const changes = Array.isArray(parsed.changes) ? parsed.changes : [];
   if (!changes.length) return { detected: 0, succeeded: 0, failed: 0, filePath, yearMonth: parsed.yearMonth || null };
   const payloadResult = await postExcelChanges(changes.map((change) => ({
