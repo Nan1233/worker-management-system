@@ -13,6 +13,16 @@ const {
 const DEFAULT_EXPORT_ROOT = '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\Linh tinh';
 const NAS_EXPORT_ROOT = DEFAULT_EXPORT_ROOT;
 
+// Gia công keeps the existing export untouched and is additionally mirrored to
+// the monthly production-report folder using the approved workbook template.
+const GIA_CONG_SAMPLE_ROOT = String(process.env.KTC_GIA_CONG_SAMPLE_ROOT || '').trim()
+  || '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\3. SX2  製造2\\4. Báo cáo tháng, Báo cáo KPI, Báo cáo chi phí+ mục tiêu trọng điểm\\1. Báo cáo sản xuất';
+const GIA_CONG_SAMPLE_MONTH_PREFIX = String(process.env.KTC_GIA_CONG_SAMPLE_MONTH_PREFIX || '12.').trim() || '12.';
+const GIA_CONG_SAMPLE_FILE = ({ month, year }) => `A+B GIA CÔNG THÁNG ${month}-${year}.xlsx`;
+
+let giaCongMirrorRunning = false;
+let giaCongMirrorTimer = null;
+
 function getDateParts(dateValue = new Date()) {
   const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit'
@@ -55,6 +65,64 @@ function getExportRoot() {
 
   // Keep support for an explicitly supplied absolute local path for debugging.
   return path.resolve(configured);
+}
+
+function getGiaCongSampleFolder(date) {
+  assertDate(date);
+  const [year, month] = date.split('-');
+  return path.join(GIA_CONG_SAMPLE_ROOT, year, `${GIA_CONG_SAMPLE_MONTH_PREFIX} Tháng ${month}-${year}`);
+}
+
+async function mirrorGiaCongWorkbookFromCurrentRoot(date) {
+  if (giaCongMirrorRunning) return;
+  giaCongMirrorRunning = true;
+  try {
+    assertDate(date);
+    const [year, month] = date.split('-');
+    const currentRoot = getExportRoot();
+    const currentMonthFolder = path.join(currentRoot, year, month);
+    const fileName = GIA_CONG_SAMPLE_FILE({ month, year });
+    const sourceCandidates = [
+      path.join(currentMonthFolder, fileName),
+      path.join(currentRoot, year, 'Gia công', fileName)
+    ];
+    let sourcePath = null;
+    for (const candidate of sourceCandidates) {
+      try {
+        const stat = await fs.stat(candidate);
+        if (stat.isFile()) {
+          sourcePath = candidate;
+          break;
+        }
+      } catch {
+        // Try the next known current-export location.
+      }
+    }
+    if (!sourcePath) return;
+
+    const targetFolder = getGiaCongSampleFolder(date);
+    const targetPath = path.join(targetFolder, fileName);
+    await fs.mkdir(targetFolder, { recursive: true });
+    const temporaryPath = `${targetPath}.${process.pid}.${Date.now()}.tmp`;
+    await fs.copyFile(sourcePath, temporaryPath);
+    await fs.rm(targetPath, { force: true });
+    await fs.rename(temporaryPath, targetPath);
+  } finally {
+    giaCongMirrorRunning = false;
+  }
+}
+
+function scheduleGiaCongSampleMirror(date) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ''))) return;
+  if (giaCongMirrorTimer) clearTimeout(giaCongMirrorTimer);
+  // The current workbook is written after getExportRoot()/getCompanyMonthTarget().
+  // Delay the mirror until that write has completed, without changing the
+  // existing Linh tinh export path or workbook generation logic.
+  giaCongMirrorTimer = setTimeout(() => {
+    giaCongMirrorTimer = null;
+    void mirrorGiaCongWorkbookFromCurrentRoot(date).catch(() => {});
+  }, 5000);
+  giaCongMirrorTimer.unref?.();
 }
 
 async function findExistingProcessReportFile(folder, processInfo, month, year) {
@@ -181,4 +249,7 @@ module.exports = {
   getExportRoot,
   getProcessExportPath,
   cleanupMisplacedCompanyFiles,
+  getGiaCongSampleFolder,
+  mirrorGiaCongWorkbookFromCurrentRoot,
+  scheduleGiaCongSampleMirror,
 };
