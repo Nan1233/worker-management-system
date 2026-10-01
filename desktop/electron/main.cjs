@@ -959,13 +959,43 @@ async function performSync({ date, source }) {
     });
 
     if (totalReportCount === 0) {
-      throw Object.assign(
-        new Error(
-          `Backend không trả báo cáo đã duyệt cho tháng ${String(date).slice(0, 7)}. ` +
-          'Không ghi đè Excel khi không có dữ liệu approved.'
-        ),
-        { code: 'MONTHLY_REPORT_DATA_EMPTY' }
-      );
+      const yearMonth = String(date).slice(0, 7);
+
+     await writeLog('INFO', 'MONTHLY_WORKBOOK_SKIPPED_NO_DATA', {
+       date,
+        yearMonth,
+       source,
+        reason: 'NO_APPROVED_DATA',
+        message: `Tháng ${yearMonth} chưa có báo cáo approved, không tạo/ghi đè Excel.`
+      });
+
+      const result = {
+        success: true,
+        partialSuccess: false,
+        skipped: true,
+        code: 'NO_APPROVED_DATA',
+        message: `Tháng ${yearMonth} chưa có dữ liệu approved. Không tạo file Excel.`,
+       date,
+      files: [],
+       rootFolder: root,
+       savedAt: new Date().toISOString(),
+       elapsedMs: Date.now() - startedAt,
+       excelEngine: 'desktop-local',
+       backendRole: 'approved-data-only'
+      };
+
+      await writeLog('INFO', 'SYNC_FINISH', {
+       source,
+       date,
+       fileCount: 0,
+       success: true,
+        skipped: true,
+        code: 'NO_APPROVED_DATA',
+        excelEngine: 'desktop-local',
+        elapsedMs: result.elapsedMs
+      });
+
+      return result;
     }
 
     const requestedYearMonth = String(date).slice(0, 7);
