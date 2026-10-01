@@ -50,6 +50,17 @@ function pruneProcessSheet(sheet) {
   }
 }
 
+function keepOnlySheet(workbook, sheetName) {
+  const target = workbook.getWorksheet(sheetName);
+  if (!target) return;
+
+  // renderProcessSheet may create helper/metadata sheets. The GC workbook
+  // contract requires exactly one business sheet: CẮT/LỒNG.
+  for (const sheet of [...workbook.worksheets]) {
+    if (sheet.id !== target.id) workbook.removeWorksheet(sheet.id);
+  }
+}
+
 function borderSideKey(side) {
   if (!side) return '';
   return `${side.style || ''}:${side.color?.argb || side.color?.rgb || ''}`;
@@ -66,10 +77,6 @@ function sameBorder(a, b) {
     && Boolean(a.diagonalDown) === Boolean(b.diagonalDown);
 }
 
-// renderProcessSheet already assigns the required border to every populated cell.
-// It then runs a second full-table applyAllBorders pass, which writes the same
-// border again for roughly 100k cells in a 1,942-row GC workbook. ExcelJS style
-// writes are expensive; skip only the redundant setter when the border is identical.
 function withBorderDedup(workbook, fn) {
   let probe;
   try {
@@ -124,9 +131,9 @@ async function leanGcProcessWorkbook(mod, args) {
     settings
   ));
 
-  // File CẮT/LỒNG chỉ giữ đúng sheet nghiệp vụ. Không tạo helper,
-  // metadata sync hay machine-events sheet vì DB là nguồn dữ liệu export.
-  pruneProcessSheet(workbook.getWorksheet(config.sheet));
+  const processSheet = workbook.getWorksheet(config.sheet);
+  pruneProcessSheet(processSheet);
+  keepOnlySheet(workbook, config.sheet);
 
   const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
   return {
@@ -143,8 +150,6 @@ async function leanSplitMonthlyWorkbooks(mod, args) {
   const payload = args?.payload || {};
   const processes = [];
 
-  // Chỉ build công đoạn thực sự có approved reports.
-  // Trước đây vòng lặp build đủ 9 công đoạn, kể cả công đoạn có 0 report.
   for (const code of Object.keys(mod.PROCESS_SHEETS)) {
     const processData = payload.processes?.[code];
     if (!Array.isArray(processData?.reports) || processData.reports.length === 0) continue;
