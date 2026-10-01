@@ -1,6 +1,7 @@
 'use strict';
 
 const Module = require('node:module');
+const ExcelJS = require('exceljs');
 const { buildCompanyExcelLocal } = require('./companyExcelLocal.cjs');
 const { splitAndReduceGcWorkbook } = require('./excelWorkbookSheetReducer.cjs');
 
@@ -41,6 +42,69 @@ function buildGcPayload(payload) {
   };
 }
 
+function columnLetters(columnNumber) {
+  let n = Number(columnNumber);
+  let result = '';
+  while (n > 0) {
+    const remainder = (n - 1) % 26;
+    result = String.fromCharCode(65 + remainder) + result;
+    n = Math.floor((n - 1) / 26);
+  }
+  return result;
+}
+
+function hasDirectSelfReference(formula, rowNumber, columnNumber) {
+  if (typeof formula !== 'string' || !formula.trim()) return false;
+  const address = columnLetters(columnNumber);
+  const pattern = new RegExp(`(^|[^A-Z0-9_])\\$?${address}\\$?${rowNumber}(?=$|[^0-9])`, 'i');
+  return pattern.test(formula.replace(/\s+/g, ''));
+}
+
+async function sanitizeCircularFormulas(buffer) {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+
+  let fixedCount = 0;
+  const fixedCells = [];
+
+  workbook.eachSheet((sheet) => {
+    sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+      row.eachCell({ includeEmpty: false }, (cell, columnNumber) => {
+        let formula = '';
+        try {
+          formula = typeof cell.formula === 'string' ? cell.formula : '';
+        } catch (_) {}
+
+        if (!formula && cell.value && typeof cell.value === 'object' && typeof cell.value.formula === 'string') {
+          formula = cell.value.formula;
+        }
+        if (!formula || !hasDirectSelfReference(formula, rowNumber, columnNumber)) return;
+
+        const value = cell.value;
+        const cachedResult = value && typeof value === 'object'
+          ? (value.result ?? cell.result ?? null)
+          : null;
+
+        // Export là báo cáo chốt dữ liệu từ DB. Với công thức tự tham chiếu,
+        // giữ giá trị cache thay vì để Excel/WPS báo Circular Reference.
+        cell.value = cachedResult;
+        fixedCount += 1;
+        if (fixedCells.length < 50) fixedCells.push(`${sheet.name}!${columnLetters(columnNumber)}${rowNumber}`);
+      });
+    });
+  });
+
+  workbook.calcProperties.fullCalcOnLoad = false;
+  workbook.calcProperties.forceFullCalc = false;
+  workbook.calcProperties.calcMode = 'auto';
+
+  if (fixedCount) {
+    log('CIRCULAR_FORMULAS_SANITIZED', { fixedCount, cells: fixedCells });
+  }
+
+  return Buffer.from(await workbook.xlsx.writeBuffer());
+}
+
 async function buildGcFromCanonicalWriter(args) {
   const source = args?.payload?.processes?.GC || {};
   const reports = Array.isArray(source.reports) ? source.reports : [];
@@ -58,7 +122,9 @@ async function buildGcFromCanonicalWriter(args) {
     existingFilePath: null
   });
 
-  const processedBuffer = await splitAndReduceGcWorkbook(built.buffer);
+  let processedBuffer = await splitAndReduceGcWorkbook(built.buffer);
+  processedBuffer = await sanitizeCircularFormulas(processedBuffer);
+
   const yearMonth = String(args.date || '').slice(0, 7);
   const [year, month] = yearMonth.split('-');
   const fileName = `04_CAT_LONG_${month}-${year}.xlsx`;
@@ -70,7 +136,8 @@ async function buildGcFromCanonicalWriter(args) {
     fileName,
     requestedYearMonth: built.requestedYearMonth,
     periodReplacementCount: built.periodReplacementCount,
-    sheetReducer: true
+    sheetReducer: true,
+    circularFormulaSanitizer: true
   });
 
   return {
