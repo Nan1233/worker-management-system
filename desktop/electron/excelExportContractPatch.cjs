@@ -50,6 +50,56 @@ function pruneProcessSheet(sheet) {
   }
 }
 
+function borderSideKey(side) {
+  if (!side) return '';
+  return `${side.style || ''}:${side.color?.argb || side.color?.rgb || ''}`;
+}
+
+function sameBorder(a, b) {
+  if (!a || !b) return false;
+  return borderSideKey(a.top) === borderSideKey(b.top)
+    && borderSideKey(a.right) === borderSideKey(b.right)
+    && borderSideKey(a.bottom) === borderSideKey(b.bottom)
+    && borderSideKey(a.left) === borderSideKey(b.left)
+    && borderSideKey(a.diagonal) === borderSideKey(b.diagonal)
+    && Boolean(a.diagonalUp) === Boolean(b.diagonalUp)
+    && Boolean(a.diagonalDown) === Boolean(b.diagonalDown);
+}
+
+// renderProcessSheet already assigns the required border to every populated cell.
+// It then runs a second full-table applyAllBorders pass, which writes the same
+// border again for roughly 100k cells in a 1,942-row GC workbook. ExcelJS style
+// writes are expensive; skip only the redundant setter when the border is identical.
+function withBorderDedup(workbook, fn) {
+  let probe;
+  try {
+    probe = workbook.addWorksheet('__KTC_BORDER_PROBE__');
+    const CellPrototype = probe.getCell(1, 1).constructor.prototype;
+    workbook.removeWorksheet(probe.id);
+
+    const descriptor = Object.getOwnPropertyDescriptor(CellPrototype, 'border');
+    if (!descriptor?.get || !descriptor?.set) return fn();
+
+    const originalSetter = descriptor.set;
+    const wrapped = function dedupBorderSetter(value) {
+      if (sameBorder(descriptor.get.call(this), value)) return;
+      return originalSetter.call(this, value);
+    };
+
+    Object.defineProperty(CellPrototype, 'border', { ...descriptor, set: wrapped });
+    try {
+      return fn();
+    } finally {
+      Object.defineProperty(CellPrototype, 'border', descriptor);
+    }
+  } catch (_) {
+    try {
+      if (probe) workbook.removeWorksheet(probe.id);
+    } catch (_) {}
+    return fn();
+  }
+}
+
 async function leanGcProcessWorkbook(mod, args) {
   const code = 'GC';
   const config = mod.PROCESS_SHEETS[code];
@@ -65,14 +115,14 @@ async function leanGcProcessWorkbook(mod, args) {
 
   const source = payload?.formulaSettings || {};
   const settings = source[code] || source.GLOBAL || {};
-  const result = mod._private.renderProcessSheet(
+  const result = withBorderDedup(workbook, () => mod._private.renderProcessSheet(
     workbook,
     code,
     config,
     processData,
     yearMonth,
     settings
-  );
+  ));
 
   // File CẮT/LỒNG chỉ giữ đúng sheet nghiệp vụ. Không tạo helper,
   // metadata sync hay machine-events sheet vì DB là nguồn dữ liệu export.
