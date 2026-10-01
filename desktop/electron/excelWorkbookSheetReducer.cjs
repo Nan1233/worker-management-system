@@ -23,10 +23,10 @@ function textOf(value) {
 function normalized(value) {
   return textOf(value)
     .normalize('NFD')
-    .replace(/[\\u0300-\\u036f]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/đ/g, 'd')
     .replace(/Đ/g, 'D')
-    .replace(/\\s+/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim()
     .toUpperCase();
 }
@@ -57,7 +57,7 @@ function cloneCell(sourceCell, targetCell) {
 }
 
 function rangeParts(range) {
-  const match = String(range).match(/^([A-Z]+)(\\d+):([A-Z]+)(\\d+)$/i);
+  const match = String(range).match(/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/i);
   if (!match) return null;
   const col = (letters) => {
     let n = 0;
@@ -75,6 +75,7 @@ function rangeParts(range) {
 function copyRegion(source, target, region) {
   const width = region.maxCol - region.minCol + 1;
   const height = region.maxRow - region.minRow + 1;
+  if (width <= 0 || height <= 0) throw new Error('Vùng tách sheet không hợp lệ.');
 
   for (let c = 0; c < width; c += 1) {
     const sourceColumn = source.getColumn(region.minCol + c);
@@ -95,6 +96,16 @@ function copyRegion(source, target, region) {
     }
   }
 
+  const colName = (n) => {
+    let s = '';
+    while (n > 0) {
+      const rem = (n - 1) % 26;
+      s = String.fromCharCode(65 + rem) + s;
+      n = Math.floor((n - 1) / 26);
+    }
+    return s;
+  };
+
   for (const merge of source.mergedCells || []) {
     const parsed = rangeParts(merge);
     if (!parsed) continue;
@@ -102,15 +113,6 @@ function copyRegion(source, target, region) {
       parsed.minCol >= region.minCol && parsed.maxCol <= region.maxCol
       && parsed.minRow >= region.minRow && parsed.maxRow <= region.maxRow
     ) {
-      const colName = (n) => {
-        let s = '';
-        while (n > 0) {
-          const rem = (n - 1) % 26;
-          s = String.fromCharCode(65 + rem) + s;
-          n = Math.floor((n - 1) / 26);
-        }
-        return s;
-      };
       const targetRange = `${colName(parsed.minCol - region.minCol + 1)}${parsed.minRow - region.minRow + 1}:${colName(parsed.maxCol - region.minCol + 1)}${parsed.maxRow - region.minRow + 1}`;
       try { target.mergeCells(targetRange); } catch (_) {}
     }
@@ -145,7 +147,7 @@ async function splitAndReduceGcWorkbook(buffer) {
 
   // Hai bảng cùng hàng => nằm cạnh nhau theo chiều ngang.
   if (Math.abs(productHeading.row - machineHeading.row) <= 3) {
-    const splitCol = Math.min(productHeading.col, machineHeading.col);
+    const splitCol = Math.max(productHeading.col, machineHeading.col);
     const productIsLeft = productHeading.col < machineHeading.col;
     const left = { minCol: 1, maxCol: splitCol - 1 };
     const right = { minCol: splitCol, maxCol };
@@ -158,7 +160,7 @@ async function splitAndReduceGcWorkbook(buffer) {
     }
   } else {
     // Hai bảng xếp theo chiều dọc.
-    const splitRow = Math.min(productHeading.row, machineHeading.row);
+    const splitRow = Math.max(productHeading.row, machineHeading.row);
     const productIsTop = productHeading.row < machineHeading.row;
     const top = { minRow: 1, maxRow: splitRow - 1 };
     const bottom = { minRow: splitRow, maxRow };
@@ -179,26 +181,14 @@ async function splitAndReduceGcWorkbook(buffer) {
   copyRegion(source, productSheet, productRegion);
   copyRegion(source, machineSheet, machineRegion);
 
-  // Giữ các sheet nguồn trong workbook để công thức của TỔNG ĐIỂM không bị #REF!,
-  // nhưng chỉ để chúng ở trạng thái veryHidden. Người dùng chỉ thấy các sheet cần dùng.
+  // Giữ sheet nguồn để công thức của TỔNG ĐIỂM không bị #REF!,
+  // nhưng ẩn toàn bộ các sheet trung gian/không cần dùng.
   workbook.eachSheet((sheet) => {
     if (sheet.name === '_KTC_META') {
       sheet.state = 'veryHidden';
       return;
     }
     sheet.state = KEEP_VISIBLE.has(sheet.name) ? 'visible' : 'veryHidden';
-  });
-
-  // Đưa các sheet người dùng cần lên đầu.
-  const visibleOrder = [
-    'TỔNG ĐIỂM',
-    'Cắt lồng',
-    'Tổng KH-TT theo mã sản phẩm',
-    'Tổng KH-TT theo máy'
-  ];
-  visibleOrder.forEach((name, index) => {
-    const sheet = workbook.getWorksheet(name);
-    if (sheet) sheet.orderNo = index;
   });
 
   return Buffer.from(await workbook.xlsx.writeBuffer());
