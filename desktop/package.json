@@ -22,8 +22,6 @@
     "validate:excel-folder": "node scripts/validateExcelFolder.cjs",
     "preflight": "node scripts/preflight.cjs",
     "check:platform-paths": "node scripts/checkPlatformPaths.cjs",
-    "field:readiness": "npm run preflight && node scripts/fieldReadiness.cjs",
-    "audit:prod": "npm audit --omit=dev --audit-level=high",
     "check:packaged-shared-contract": "node scripts/checkPackagedSharedContract.cjs",
     "device:smoke": "node scripts/deviceSmoke.cjs",
     "release:signing-check": "node scripts/checkWindowsSigning.cjs"
@@ -83,7 +81,7 @@
       "artifactName": "KTC-Production-Control.exe"
     },
     "compression": "maximum",
-  "mac": {
+    "mac": {
       "target": [
         "dmg",
         "zip"
