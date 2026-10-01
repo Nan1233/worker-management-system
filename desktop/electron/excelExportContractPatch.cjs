@@ -81,7 +81,6 @@ function leanStyleHeaders(sheet, columns, config) {
     col.width = Math.max(5, Number(columns[i].width) || 8);
   }
 
-  const last = columns.length;
   sheet.mergeCells(1, 1, 2, last);
   sheet.getCell(1, 1).value = `BÁO CÁO SẢN XUẤT CÔNG ĐOẠN ${config.title}`;
   sheet.getCell(1, 1).font = { name: 'Arial', size: 18, bold: true, color: { argb: 'FFFFFFFF' } };
@@ -106,6 +105,12 @@ function leanStyleHeaders(sheet, columns, config) {
 
 async function leanGcProcessWorkbook(mod, args) {
   const started = Date.now();
+  const profileStarted = process.hrtime.bigint();
+  const profile = (stage, extra = {}) => {
+    const elapsedMs = Number(process.hrtime.bigint() - profileStarted) / 1e6;
+    console.log('[KTC-EXCEL-PROFILE]', stage, JSON.stringify({ elapsedMs: Number(elapsedMs.toFixed(1)), ...extra }));
+  };
+
   const code = 'GC';
   const config = mod.PROCESS_SHEETS[code];
   const payload = args?.payload || {};
@@ -114,10 +119,23 @@ async function leanGcProcessWorkbook(mod, args) {
   const processData = payload.processes?.[code] || {};
   const settings = payload?.formulaSettings?.[code] || payload?.formulaSettings?.GLOBAL || {};
 
+  profile('GC_BUILD_START', {
+    date,
+    yearMonth,
+    reportCount: Array.isArray(processData.reports) ? processData.reports.length : 0
+  });
+
   const deductionTypes = mod._private.processDetailTypes(code, processData, 'deductionTypes', 'deductions', 'deduction');
   const defectTypes = mod._private.processDetailTypes(code, processData, 'defectTypes', 'defects', 'defect');
   const columns = mod._private.makeColumns(code, deductionTypes, defectTypes);
   const reports = mod._private.sortReports(processData.reports);
+
+  profile('GC_COLUMNS_READY', {
+    deductionTypeCount: deductionTypes.length,
+    defectTypeCount: defectTypes.length,
+    columnCount: columns.length,
+    sortedReportCount: reports.length
+  });
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'KTC Production Control';
@@ -127,16 +145,30 @@ async function leanGcProcessWorkbook(mod, args) {
     views: [{ state: 'frozen', xSplit: 4, ySplit: 5, topLeftCell: 'E6', activeCell: 'E6', showGridLines: false }]
   });
 
+  const headerStarted = process.hrtime.bigint();
   leanStyleHeaders(sheet, columns, config);
   sheet.getCell(3, 1).value = `Tháng ${yearMonth.slice(5, 7)}/${yearMonth.slice(0, 4)} • Nguồn: TiDB - báo cáo đã duyệt`;
+  profile('GC_HEADERS_READY', {
+    stageMs: Number((Number(process.hrtime.bigint() - headerStarted) / 1e6).toFixed(1))
+  });
 
   const rows = [];
   const dateRowIndexes = [];
   let previousDate = null;
   let sequence = 0;
   const numericTotals = new Array(columns.length).fill(0);
+  let snapshotMs = 0;
+  let mapMs = 0;
+  let rowMapMs = 0;
+  let slowestReportMs = 0;
+  let slowestReportIndex = 0;
+  let slowestReportId = null;
 
-  for (const report of reports) {
+  profile('GC_REPORT_LOOP_START');
+
+  for (let reportIndex = 0; reportIndex < reports.length; reportIndex += 1) {
+    const report = reports[reportIndex];
+    const reportStarted = process.hrtime.bigint();
     const currentDate = String(report.work_date || '').slice(0, 10);
     if (currentDate !== previousDate) {
       const row = new Array(columns.length).fill(null);
@@ -149,19 +181,76 @@ async function leanGcProcessWorkbook(mod, args) {
 
     sequence += 1;
     const reportSettings = (processData.formulaSettingsByDate || {})[currentDate] || settings;
-    const values = snapshotRow(mod, code, report, deductionTypes, defectTypes, reportSettings);
+
+    const snapshotStarted = process.hrtime.bigint();
+    const snapshot = mod._private.reportSnapshot(report, reportSettings);
+    snapshotMs += Number(process.hrtime.bigint() - snapshotStarted) / 1e6;
+
+    const mapStarted = process.hrtime.bigint();
+    const deductions = makeDetailMap(mod, report.deductions, 'deduction');
+    const defects = makeDetailMap(mod, report.defects, 'defect');
+    mapMs += Number(process.hrtime.bigint() - mapStarted) / 1e6;
+
+    const values = { ...snapshot };
+    for (const type of deductionTypes) values[`deduction:${type.key}`] = valueForDetailType(deductions, type);
+    for (const type of defectTypes) values[`defect:${type.key}`] = valueForDetailType(defects, type);
     values.stt = sequence;
-    const row = columns.map((column, index) => {
+
+    const rowMapStarted = process.hrtime.bigint();
+    const row = columns.map((column) => {
       const value = values[column.key];
+      const index = columns.indexOf(column);
       if (typeof value === 'number' && Number.isFinite(value)) numericTotals[index] += value;
       return value === undefined ? null : value;
     });
+    rowMapMs += Number(process.hrtime.bigint() - rowMapStarted) / 1e6;
     rows.push(row);
+
+    const reportMs = Number(process.hrtime.bigint() - reportStarted) / 1e6;
+    if (reportMs > slowestReportMs) {
+      slowestReportMs = reportMs;
+      slowestReportIndex = reportIndex + 1;
+      slowestReportId = report.id ?? report.report_id ?? report.uuid ?? null;
+    }
+
+    if ((reportIndex + 1) % 100 === 0 || reportMs >= 1000 || reportIndex === reports.length - 1) {
+      profile('GC_REPORT_BATCH', {
+        processed: reportIndex + 1,
+        total: reports.length,
+        batch: `${Math.max(1, reportIndex - 99)}-${reportIndex + 1}`,
+        lastReportMs: Number(reportMs.toFixed(1)),
+        snapshotMs: Number(snapshotMs.toFixed(1)),
+        detailMapMs: Number(mapMs.toFixed(1)),
+        rowMapMs: Number(rowMapMs.toFixed(1)),
+        slowestReportMs: Number(slowestReportMs.toFixed(1)),
+        slowestReportIndex,
+        slowestReportId,
+        rows: rows.length
+      });
+    }
   }
 
-  // Một lần addRows thay cho getCell/style cho từng ô của từng report.
-  sheet.addRows(rows);
+  profile('GC_REPORT_LOOP_END', {
+    reportCount: reports.length,
+    rows: rows.length,
+    snapshotMs: Number(snapshotMs.toFixed(1)),
+    detailMapMs: Number(mapMs.toFixed(1)),
+    rowMapMs: Number(rowMapMs.toFixed(1)),
+    slowestReportMs: Number(slowestReportMs.toFixed(1)),
+    slowestReportIndex,
+    slowestReportId
+  });
 
+  const addRowsStarted = process.hrtime.bigint();
+  profile('GC_ADD_ROWS_START', { rows: rows.length, columns: columns.length });
+  sheet.addRows(rows);
+  profile('GC_ADD_ROWS_END', {
+    rows: rows.length,
+    stageMs: Number((Number(process.hrtime.bigint() - addRowsStarted) / 1e6).toFixed(1))
+  });
+
+  const formatStarted = process.hrtime.bigint();
+  profile('GC_DATE_ROW_FORMAT_START', { dateRowCount: dateRowIndexes.length });
   // Chỉ format date separator rows, không chạy border/style trên toàn bảng.
   for (const rowNumber of dateRowIndexes) {
     const row = sheet.getRow(rowNumber);
@@ -171,7 +260,13 @@ async function leanGcProcessWorkbook(mod, args) {
     row.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' };
     if (columns.length >= 4) sheet.mergeCells(rowNumber, 1, rowNumber, 4);
   }
+  profile('GC_DATE_ROW_FORMAT_END', {
+    dateRowCount: dateRowIndexes.length,
+    stageMs: Number((Number(process.hrtime.bigint() - formatStarted) / 1e6).toFixed(1))
+  });
 
+  const totalStarted = process.hrtime.bigint();
+  profile('GC_TOTAL_ROW_START');
   const totalRow = sheet.addRow(new Array(columns.length).fill(null));
   const totalRowNumber = totalRow.number;
   totalRow.getCell(1).value = 'TỔNG CỘNG';
@@ -182,16 +277,35 @@ async function leanGcProcessWorkbook(mod, args) {
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF17365D' } };
     if (i > 10) cell.value = numericTotals[i - 1] || null;
   }
+  profile('GC_TOTAL_ROW_END', {
+    stageMs: Number((Number(process.hrtime.bigint() - totalStarted) / 1e6).toFixed(1)),
+    totalRowNumber
+  });
 
+  const setupStarted = process.hrtime.bigint();
   sheet.autoFilter = { from: { row: 5, column: 1 }, to: { row: Math.max(5, totalRowNumber - 1), column: columns.length } };
   sheet.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 };
   sheet.headerFooter = { oddFooter: '&LKTC Production Control&CTrang &P / &N&R&D &T' };
+  profile('GC_SHEET_SETUP_END', {
+    stageMs: Number((Number(process.hrtime.bigint() - setupStarted) / 1e6).toFixed(1))
+  });
 
   const buildMs = Date.now() - started;
-  const writeStarted = Date.now();
-  const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
-  const writeMs = Date.now() - writeStarted;
+  profile('GC_BUILD_END', {
+    reportCount: reports.length,
+    rowCount: rows.length,
+    buildMs
+  });
 
+  const writeStarted = process.hrtime.bigint();
+  profile('GC_WRITE_BUFFER_START');
+  const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+  profile('GC_WRITE_BUFFER_END', {
+    stageMs: Number((Number(process.hrtime.bigint() - writeStarted) / 1e6).toFixed(1)),
+    bytes: buffer.length
+  });
+
+  const writeMs = Date.now() - (started + buildMs);
   console.log('[KTC-EXCEL-PERF] GC_LEAN_EXPORT_DONE', JSON.stringify({
     reportCount: reports.length,
     columnCount: columns.length,
