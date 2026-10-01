@@ -4,10 +4,9 @@ const ExcelJS = require('exceljs');
 
 const SOURCE_SHEET = 'TG-KH-TT';
 const KEEP_VISIBLE = [
-  'TỔNG ĐIỂM',
   'Cắt lồng',
-  'Tổng KH-TT theo mã sản phẩm',
-  'Tổng KH-TT theo máy'
+  'Tổng KH-TT THEO MÃ SẢN PHẨM',
+  'Tổng KH-TT THEO MÁY'
 ];
 
 function textOf(value) {
@@ -177,18 +176,16 @@ async function splitAndReduceGcWorkbook(buffer) {
     }
   }
 
-  removeIfExists(workbook, 'Tổng KH-TT theo mã sản phẩm');
-  removeIfExists(workbook, 'Tổng KH-TT theo máy');
+  removeIfExists(workbook, 'Tổng KH-TT THEO MÃ SẢN PHẨM');
+  removeIfExists(workbook, 'Tổng KH-TT THEO MÁY');
 
-  const productSheet = workbook.addWorksheet('Tổng KH-TT theo mã sản phẩm');
-  const machineSheet = workbook.addWorksheet('Tổng KH-TT theo máy');
+  const productSheet = workbook.addWorksheet('Tổng KH-TT THEO MÃ SẢN PHẨM');
+  const machineSheet = workbook.addWorksheet('Tổng KH-TT THEO MÁY');
   copyRegion(source, productSheet, productRegion);
   copyRegion(source, machineSheet, machineRegion);
 
-  // Chỉ 4 sheet nghiệp vụ được nhìn thấy. TG-KH-TT vẫn phải tồn tại nhưng
-  // để veryHidden vì TỔNG ĐIỂM và một số công thức mẫu còn tham chiếu tới nó.
-  // Các sheet kỹ thuật còn lại cũng được giữ ở veryHidden để không làm hỏng
-  // công thức/defined-name của template, nhưng người dùng sẽ không thấy chúng.
+  // Chỉ 3 sheet nghiệp vụ được nhìn thấy. TG-KH-TT và các sheet nguồn/công thức
+  // vẫn được giữ veryHidden để không làm hỏng công thức/defined-name của template.
   const visibleNames = new Set(KEEP_VISIBLE.map(normalizeSheetName));
   workbook.eachSheet((sheet) => {
     if (sheet.name === '_KTC_META') {
@@ -198,8 +195,7 @@ async function splitAndReduceGcWorkbook(buffer) {
     sheet.state = visibleNames.has(normalizeSheetName(sheet.name)) ? 'visible' : 'veryHidden';
   });
 
-  // Mở file ở sheet Cắt lồng thay vì để Excel/WPS rơi vào TG-KH-TT hoặc
-  // một sheet trung gian của template.
+  // Mở file ở sheet Cắt lồng.
   const activeSheet = workbook.getWorksheet('Cắt lồng');
   const activeIndex = activeSheet ? workbook.worksheets.indexOf(activeSheet) : 0;
   workbook.views = [{ activeTab: Math.max(0, activeIndex), firstSheet: 0, visibility: 'visible' }];
@@ -208,8 +204,8 @@ async function splitAndReduceGcWorkbook(buffer) {
     visibleSheets: KEEP_VISIBLE,
     hiddenSheetCount: workbook.worksheets.filter((sheet) => sheet.state !== 'visible').length,
     sourceSheet: SOURCE_SHEET,
-    productSheet: 'Tổng KH-TT theo mã sản phẩm',
-    machineSheet: 'Tổng KH-TT theo máy'
+    productSheet: 'Tổng KH-TT THEO MÃ SẢN PHẨM',
+    machineSheet: 'Tổng KH-TT THEO MÁY'
   }));
 
   return Buffer.from(await workbook.xlsx.writeBuffer());
