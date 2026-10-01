@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('node:fs');
 const Module = require('node:module');
 const ExcelJS = require('exceljs');
 
@@ -59,6 +60,7 @@ function assertOnlyExpectedSheet(workbook, sheetName) {
 }
 
 async function leanGcProcessWorkbook(mod, args) {
+  const startedAt = Date.now();
   const code = 'GC';
   const config = mod.PROCESS_SHEETS[code];
   const payload = args?.payload || {};
@@ -76,8 +78,7 @@ async function leanGcProcessWorkbook(mod, args) {
   const source = payload?.formulaSettings || {};
   const settings = source[code] || source.GLOBAL || {};
 
-  // Không dùng border-dedup interceptor. Việc đọc lại border của từng cell
-  // trước mỗi lần ghi làm chậm đáng kể workbook GC lớn (~2k dòng).
+  const renderStartedAt = Date.now();
   const result = mod._private.renderProcessSheet(
     workbook,
     code,
@@ -86,14 +87,32 @@ async function leanGcProcessWorkbook(mod, args) {
     yearMonth,
     settings
   );
+  console.info('[KTC-EXCEL-PERF] GC_RENDER_DONE', {
+    reportCount: processData?.reports?.length || 0,
+    sheetRows: workbook.getWorksheet(config.sheet)?.rowCount || 0,
+    sheetColumns: workbook.getWorksheet(config.sheet)?.columnCount || 0,
+    elapsedMs: Date.now() - renderStartedAt
+  });
 
   const processSheet = workbook.getWorksheet(config.sheet);
   if (!processSheet) throw new Error(`Không tạo được sheet ${config.sheet}`);
 
+  const pruneStartedAt = Date.now();
   pruneProcessSheet(processSheet);
   assertOnlyExpectedSheet(workbook, config.sheet);
+  console.info('[KTC-EXCEL-PERF] GC_PRUNE_DONE', {
+    sheetRows: processSheet.rowCount,
+    sheetColumns: processSheet.columnCount,
+    elapsedMs: Date.now() - pruneStartedAt
+  });
 
+  const writeStartedAt = Date.now();
   const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+  console.info('[KTC-EXCEL-PERF] GC_WRITEBUFFER_DONE', {
+    bytes: buffer.length,
+    elapsedMs: Date.now() - writeStartedAt,
+    totalElapsedMs: Date.now() - startedAt
+  });
   return {
     buffer,
     result,
@@ -153,9 +172,26 @@ function patchMonthlyModule(mod) {
 
 Module._load = function patchedLoad(request, parent, isMain) {
   if (!patchedModule && String(request).endsWith('monthlyWorkbookLocal.cjs')) {
-    const loaded = originalLoad.call(this, request, parent, isMain);
-    patchedModule = patchMonthlyModule(loaded);
-    return patchedModule;
+    // The renderer already assigns a border to every data cell. The final
+    // applyAllBorders() pass therefore performs a second full-table traversal
+    // over ~100k cells for a 2k-row GC workbook. Remove only that redundant
+    // pass at module-load time; all per-cell borders and workbook content remain.
+    const originalCjsExtension = Module._extensions['.cjs'];
+    Module._extensions['.cjs'] = function patchedCjsExtension(module, filename) {
+      let source = fs.readFileSync(filename, 'utf8');
+      source = source.replace(
+        /\s*applyAllBorders\(sheet, \{ fromRow: 4, toRow: totalRowNumber, fromCol: 1, toCol: lastColumn \}\);/,
+        ''
+      );
+      module._compile(source, filename);
+    };
+    try {
+      const loaded = originalLoad.call(this, request, parent, isMain);
+      patchedModule = patchMonthlyModule(loaded);
+      return patchedModule;
+    } finally {
+      Module._extensions['.cjs'] = originalCjsExtension;
+    }
   }
   return originalLoad.call(this, request, parent, isMain);
 };
