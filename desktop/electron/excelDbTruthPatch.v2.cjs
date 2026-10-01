@@ -1,10 +1,8 @@
 'use strict';
 
-// Excel export path:
-// 1) lean builder for normal processes
-// 2) direct one-sheet template builder for GC
-// 3) precise ExcelJS stage diagnostics
-// No generated-workbook -> template workbook copy/JSZip roundtrip.
-require('./fastSingleSheetExport.cjs');
-require('./fastGcTemplateExport.cjs');
+// Active test Excel export contract.
+// v3 owns the GC one-sheet template injection and leaves other processes on
+// the normal monthly workbook implementation. Do not load the older wrappers
+// here because they override the active Module._load patch and reintroduce the
+// slow generated-workbook path.
 require('./excelExportContractPatch.v3.cjs');
