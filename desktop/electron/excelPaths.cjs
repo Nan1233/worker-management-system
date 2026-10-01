@@ -19,6 +19,7 @@ const GIA_CONG_SAMPLE_ROOT = String(process.env.KTC_GIA_CONG_SAMPLE_ROOT || '').
   || '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\3. SX2  製造2\\4. Báo cáo tháng, Báo cáo KPI, Báo cáo chi phí+ mục tiêu trọng điểm\\1. Báo cáo sản xuất';
 const GIA_CONG_SAMPLE_MONTH_PREFIX = String(process.env.KTC_GIA_CONG_SAMPLE_MONTH_PREFIX || '12.').trim() || '12.';
 const GIA_CONG_SAMPLE_FILE_RE = /^A\+B GIA CÔNG THÁNG (0[1-9]|1[0-2])-(\d{4})\.xlsx$/i;
+const GIA_CONG_PROCESS_FILE_RE = /^04_CAT_LONG_(0[1-9]|1[0-2])-(\d{4})\.xlsx$/i;
 
 let giaCongMirrorRunning = false;
 let giaCongMirrorTimer = null;
@@ -84,7 +85,9 @@ async function mirrorGiaCongWorkbooks(root) {
       const candidateFolders = [path.join(yearFolder, 'Gia công')];
       const yearEntries = await fs.readdir(yearFolder, { withFileTypes: true }).catch(() => []);
       for (const entry of yearEntries) {
-        if (entry.isDirectory() && /^\d{2}$/.test(entry.name)) candidateFolders.push(path.join(yearFolder, entry.name));
+        if (!entry.isDirectory() || !/^\d{2}$/.test(entry.name)) continue;
+        const monthFolder = path.join(yearFolder, entry.name);
+        candidateFolders.push(monthFolder, path.join(monthFolder, 'Gia công'));
       }
 
       const seen = new Set();
@@ -92,12 +95,22 @@ async function mirrorGiaCongWorkbooks(root) {
         const entries = await fs.readdir(folder, { withFileTypes: true }).catch(() => []);
         for (const entry of entries) {
           if (!entry.isFile()) continue;
-          const match = entry.name.match(GIA_CONG_SAMPLE_FILE_RE);
-          if (!match || seen.has(entry.name)) continue;
-          seen.add(entry.name);
-          const month = match[1];
+
+          const sampleMatch = entry.name.match(GIA_CONG_SAMPLE_FILE_RE);
+          const processMatch = entry.name.match(GIA_CONG_PROCESS_FILE_RE);
+          if (!sampleMatch && !processMatch) continue;
+
+          const month = sampleMatch?.[1] || processMatch?.[1];
+          const sourceYear = sampleMatch?.[2] || processMatch?.[2];
+          if (sourceYear !== year) continue;
+
+          const targetName = `A+B GIA CÔNG THÁNG ${month}-${year}.xlsx`;
+          const seenKey = `${month}-${year}`;
+          if (seen.has(seenKey)) continue;
+          seen.add(seenKey);
+
           const targetFolder = getGiaCongSampleFolder(year, month);
-          const targetPath = path.join(targetFolder, entry.name);
+          const targetPath = path.join(targetFolder, targetName);
           const sourcePath = path.join(folder, entry.name);
           await fs.mkdir(targetFolder, { recursive: true });
           const temporaryPath = `${targetPath}.${process.pid}.${Date.now()}.tmp`;
@@ -213,7 +226,7 @@ async function cleanupMisplacedCompanyFiles(root, date, writeLog = async () => {
   assertDate(date);
   const [year, month] = date.split('-');
   const monthFolder = path.join(root, year, month);
-  const processFolders = ['Gia công', 'Mài', 'Đo', 'Kiểm 1', 'Kiểm 2', 'Ép', 'Cán', 'Xử lý bavia'];
+  const processFolders = ['Gia công', 'Mài - Đo', 'Mài', 'Đo', 'Kiểm 1', 'Kiểm 2', 'Ép', 'Cán', 'Xử lý bavia'];
 
   for (const processFolder of processFolders) {
     const folder = path.join(root, year, processFolder);
