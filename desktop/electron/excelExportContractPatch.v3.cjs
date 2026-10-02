@@ -2,8 +2,7 @@
 
 const Module = require('node:module');
 const ExcelJS = require('exceljs');
-const { buildCompanyExcelLocal } = require('./companyExcelLocal.cjs');
-const { splitAndReduceGcWorkbook } = require('./excelWorkbookSheetReducer.cjs');
+const path = require('node:path');
 
 const originalLoad = Module._load;
 
@@ -18,6 +17,17 @@ const log = (event, data = {}) => {
     }));
   } catch (_) {}
 };
+
+function columnLetters(columnNumber) {
+  let n = Number(columnNumber);
+  let result = '';
+  while (n > 0) {
+    const remainder = (n - 1) % 26;
+    result = String.fromCharCode(65 + remainder) + result;
+    n = Math.floor((n - 1) / 26);
+  }
+  return result;
+}
 
 function buildGcPayload(payload) {
   const source = payload?.processes?.GC || {};
@@ -42,118 +52,152 @@ function buildGcPayload(payload) {
   };
 }
 
-function columnLetters(columnNumber) {
-  let n = Number(columnNumber);
-  let result = '';
-  while (n > 0) {
-    const remainder = (n - 1) % 26;
-    result = String.fromCharCode(65 + remainder) + result;
-    n = Math.floor((n - 1) / 26);
+/**
+ * GC must be exported from the requested one-sheet template directly.
+ * Do not pass through companyExcelLocal's legacy A+B workbook and do not
+ * reduce/split that workbook afterwards: the legacy template contains the
+ * old TỔNG ĐIỂM / TG-KH-TT / KẾ HOẠCH sheets which must never reach the GC file.
+ */
+async function buildGcFromOneSheetTemplate(args, monthlyModule) {
+  const source = args?.payload?.processes?.GC || {};
+  const reports = monthlyModule._private.sortReports(source.reports || []);
+  const processDetailTypes = monthlyModule._private.processDetailTypes;
+  const makeColumns = monthlyModule._private.makeColumns;
+  const rowValues = monthlyModule._private.rowValues;
+  const settingsForReport = monthlyModule._private.settingsForReport;
+
+  if (typeof processDetailTypes !== 'function' || typeof makeColumns !== 'function' ||
+      typeof rowValues !== 'function' || typeof settingsForReport !== 'function') {
+    throw new Error('Thiếu API nội bộ để xuất template Cắt lồng một sheet.');
   }
-  return result;
-}
 
-function hasDirectSelfReference(formula, rowNumber, columnNumber) {
-  if (typeof formula !== 'string' || !formula.trim()) return false;
-  const address = columnLetters(columnNumber);
-  const pattern = new RegExp(`(^|[^A-Z0-9_])\\$?${address}\\$?${rowNumber}(?=$|[^0-9])`, 'i');
-  return pattern.test(formula.replace(/\s+/g, ''));
-}
+  const deductionTypes = processDetailTypes('GC', source, 'deductionTypes', 'deductions', 'deduction');
+  const defectTypes = processDetailTypes('GC', source, 'defectTypes', 'defects', 'defect');
+  const columns = makeColumns('GC', deductionTypes, defectTypes);
+  const settings = args?.payload?.formulaSettings?.GC || args?.payload?.formulaSettings?.GLOBAL || {};
+  const templatePath = path.join(args.appPath, 'assets', 'templates', 'bao-cao-cat-long-export.xlsx');
+  const started = Date.now();
 
-async function sanitizeCircularFormulas(buffer) {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer);
-
-  let fixedCount = 0;
-  const fixedCells = [];
-
-  workbook.eachSheet((sheet) => {
-    sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-      row.eachCell({ includeEmpty: false }, (cell, columnNumber) => {
-        let formula = '';
-        try {
-          formula = typeof cell.formula === 'string' ? cell.formula : '';
-        } catch (_) {}
-
-        if (!formula && cell.value && typeof cell.value === 'object' && typeof cell.value.formula === 'string') {
-          formula = cell.value.formula;
-        }
-        if (!formula || !hasDirectSelfReference(formula, rowNumber, columnNumber)) return;
-
-        const value = cell.value;
-        const cachedResult = value && typeof value === 'object'
-          ? (value.result ?? cell.result ?? null)
-          : null;
-
-        // Export là báo cáo chốt dữ liệu từ DB. Với công thức tự tham chiếu,
-        // giữ giá trị cache thay vì để Excel/WPS báo Circular Reference.
-        cell.value = cachedResult;
-        fixedCount += 1;
-        if (fixedCells.length < 50) fixedCells.push(`${sheet.name}!${columnLetters(columnNumber)}${rowNumber}`);
-      });
-    });
+  log('BUILD_GC_ONE_SHEET_START', {
+    date: args?.date,
+    reportCount: reports.length,
+    templatePath,
+    writer: 'bao-cao-cat-long-export.xlsx'
   });
 
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(templatePath);
+  if (workbook.worksheets.length !== 1) {
+    throw new Error(`Template GC phải chỉ có 1 sheet, nhận ${workbook.worksheets.length}.`);
+  }
+
+  const sheet = workbook.worksheets[0];
+  sheet.name = 'CẮT LỒNG';
+  sheet.state = 'visible';
+
+  const matrix = [];
+  const dateRows = [];
+  const numericTotals = new Array(columns.length).fill(0);
+  let previousDate = '';
+  let sequenceInDate = 0;
+
+  for (const report of reports) {
+    const currentDate = String(report.work_date || '').slice(0, 10);
+    if (currentDate !== previousDate) {
+      const row = new Array(columns.length).fill(null);
+      row[0] = normalizeDate(report.work_date) || String(report.work_date || '');
+      matrix.push(row);
+      dateRows.push(6 + matrix.length - 1);
+      sequenceInDate = 0;
+    }
+
+    sequenceInDate += 1;
+    const reportSettings = settingsForReport(report, settings, source.formulaSettingsByDate || {});
+    const values = rowValues('GC', report, deductionTypes, defectTypes, reportSettings);
+    values.stt = sequenceInDate;
+    const row = columns.map((column, index) => {
+      const value = values[column.key] === undefined ? null : values[column.key];
+      if (typeof value === 'number' && Number.isFinite(value)) numericTotals[index] += value;
+      return value;
+    });
+    matrix.push(row);
+    previousDate = currentDate;
+  }
+
+  const dataEnd = 5 + matrix.length;
+  for (let i = 0; i < matrix.length; i += 1) {
+    const row = sheet.getRow(6 + i);
+    row.values = matrix[i];
+  }
+
+  // Clear stale sample rows below the generated range, while keeping the
+  // template's formatting for future manual edits.
+  const clearTo = Math.min(sheet.rowCount, dataEnd + 2);
+  for (let r = dataEnd + 1; r <= clearTo; r += 1) sheet.getRow(r).values = [];
+
+  for (const rowNumber of dateRows) {
+    try {
+      if (!sheet.getCell(rowNumber, 1).isMerged) {
+        sheet.mergeCells(rowNumber, 1, rowNumber, Math.min(4, columns.length));
+      }
+    } catch (_) {}
+    sheet.getCell(rowNumber, 1).numFmt = '@';
+  }
+
+  const totalRow = dataEnd + 1;
+  if (columns.length > 1) {
+    try {
+      if (!sheet.getCell(totalRow, 1).isMerged) {
+        sheet.mergeCells(totalRow, 1, totalRow, Math.min(10, columns.length));
+      }
+    } catch (_) {}
+  }
+  sheet.getCell(totalRow, 1).value = 'TỔNG CỘNG';
+  for (let c = Math.min(10, columns.length) + 1; c <= columns.length; c += 1) {
+    sheet.getCell(totalRow, c).value = numericTotals[c - 1] || 0;
+  }
+
+  if (sheet.autoFilter) {
+    sheet.autoFilter = {
+      from: { row: 5, column: 1 },
+      to: { row: Math.max(5, dataEnd), column: columns.length }
+    };
+  }
+
+  workbook.views = [{ activeTab: 0, firstSheet: 0, visibility: 'visible' }];
   workbook.calcProperties.fullCalcOnLoad = false;
   workbook.calcProperties.forceFullCalc = false;
   workbook.calcProperties.calcMode = 'auto';
 
-  if (fixedCount) {
-    log('CIRCULAR_FORMULAS_SANITIZED', { fixedCount, cells: fixedCells });
-  }
-
-  return Buffer.from(await workbook.xlsx.writeBuffer());
-}
-
-async function buildGcFromCanonicalWriter(args) {
-  const source = args?.payload?.processes?.GC || {};
-  const reports = Array.isArray(source.reports) ? source.reports : [];
-  log('BUILD_CANONICAL_GC_START', {
+  const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+  const elapsed = Date.now() - started;
+  log('BUILD_GC_ONE_SHEET_DONE', {
     date: args?.date,
     reportCount: reports.length,
-    writer: 'companyExcelLocal.GIA_CONG'
-  });
-
-  const built = await buildCompanyExcelLocal({
-    appPath: args.appPath,
-    date: args.date,
-    groupCode: 'GIA_CONG',
-    payload: buildGcPayload(args.payload),
-    existingFilePath: null
-  });
-
-  let processedBuffer = await splitAndReduceGcWorkbook(built.buffer);
-  processedBuffer = await sanitizeCircularFormulas(processedBuffer);
-
-  const yearMonth = String(args.date || '').slice(0, 7);
-  const [year, month] = yearMonth.split('-');
-  const fileName = `04_CAT_LONG_${month}-${year}.xlsx`;
-
-  log('BUILD_CANONICAL_GC_DONE', {
-    date: args?.date,
-    reportCount: reports.length,
-    sourceFileName: built.fileName,
-    fileName,
-    requestedYearMonth: built.requestedYearMonth,
-    periodReplacementCount: built.periodReplacementCount,
-    sheetReducer: true,
-    circularFormulaSanitizer: true
+    sheetCount: workbook.worksheets.length,
+    rows: sheet.rowCount,
+    columns: columns.length,
+    elapsedMs: elapsed
   });
 
   return {
-    buffer: processedBuffer,
-    result: {
-      code: 'GC',
-      sheet: 'Cắt lồng',
-      reportCount: reports.length
-    },
+    buffer,
+    result: { code: 'GC', sheet: 'CẮT LỒNG', reportCount: reports.length },
     processCode: 'GC',
     processName: 'CẮT/LỒNG',
-    fileName,
+    fileName: `04_CAT_LONG_${String(args.date || '').slice(5, 7)}-${String(args.date || '').slice(0, 4)}.xlsx`,
     reportCount: reports.length,
-    formulaReplacementCount: Number(built.periodReplacementCount || 0),
-    templateKind: 'CANONICAL_COMPANY_EXCEL_WRITER_SHEET_REDUCED'
+    formulaReplacementCount: 0,
+    templateKind: 'ONE_SHEET_GC_TEMPLATE'
   };
+}
+
+function normalizeDate(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  const s = String(value ?? '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
 }
 
 function patchMonthly(mod) {
@@ -167,7 +211,7 @@ function patchMonthly(mod) {
   mod.buildProcessWorkbookLocal = async (args) => {
     const processCode = String(args?.processCode || '').trim().toUpperCase();
     return processCode === 'GC'
-      ? buildGcFromCanonicalWriter(args)
+      ? buildGcFromOneSheetTemplate(args, mod)
       : original(args);
   };
 
@@ -184,7 +228,7 @@ function patchMonthly(mod) {
   };
 
   Object.defineProperty(mod, '__ktcV3MonthlyPatched', { value: true });
-  log('MONTHLY_PATCH_INSTALLED_V3_CANONICAL_GC');
+  log('MONTHLY_PATCH_INSTALLED_V3_ONE_SHEET_GC');
   return mod;
 }
 
@@ -196,4 +240,4 @@ Module._load = function(request, parent, isMain) {
   return loaded;
 };
 
-log('EXCEL_EXPORT_V3_READY_CANONICAL');
+log('EXCEL_EXPORT_V3_READY_ONE_SHEET');
