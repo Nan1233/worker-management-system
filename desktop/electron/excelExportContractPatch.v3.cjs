@@ -55,6 +55,42 @@ function reduceWorkbookToSheet(workbook, keepSheet) {
   }
 }
 
+// ExcelJS cannot safely write a worksheet after its shared-formula master
+// has disappeared (for example after reducing the 17-sheet template to the
+// single Cắt lồng sheet). The template is the visual/layout authority; the
+// actual production data is written by the canonical renderer below. Convert
+// shared-formula clones to their cached value (or blank) before writeBuffer().
+// Normal formulas are intentionally kept so the template can still provide
+// calculations where ExcelJS can represent them safely.
+function stripBrokenSharedFormulaClones(workbook) {
+  let converted = 0;
+  let cleared = 0;
+
+  for (const sheet of workbook.worksheets || []) {
+    for (const row of sheet._rows || []) {
+      for (const cell of row?._cells || []) {
+        const model = cell?.model;
+        if (!model || !model.sharedFormula) continue;
+
+        const cached = model.result;
+        cell.value = cached !== undefined && cached !== null ? cached : null;
+        if (cell.model) delete cell.model.sharedFormula;
+
+        converted += 1;
+        if (cached === undefined || cached === null) cleared += 1;
+      }
+    }
+  }
+
+  log('TEMPLATE_SHARED_FORMULA_SANITIZED', {
+    converted,
+    cleared,
+    remainingSheets: workbook.worksheets.length
+  });
+
+  return { converted, cleared };
+}
+
 function clearTemplateDataRows(sheet, firstDataRow, lastDataRow, maxColumns) {
   const first = Math.max(1, Number(firstDataRow) || 1);
   const last = Math.max(first, Number(lastDataRow) || first);
@@ -77,8 +113,6 @@ function writeValuePreserveTemplate(cell, value, sourceCell) {
 function copyRenderedDataIntoTemplate(target, source) {
   const sourceFirstRow = 6;
   const sourceLastRow = Math.max(sourceFirstRow, source.rowCount);
-  // Only the renderer's used columns need to be copied. The template's
-  // remaining columns contain its own layout/formulas and must not be wiped.
   const sourceColumns = Math.max(1, source.columnCount);
 
   log('COPY_TEMPLATE_DATA_START', {
@@ -89,8 +123,6 @@ function copyRenderedDataIntoTemplate(target, source) {
     maxColumns: sourceColumns
   });
 
-  // The committed template is the layout authority. Clear only the actual
-  // rendered data rectangle instead of all 6,464 template rows x 219 columns.
   clearTemplateDataRows(target, sourceFirstRow, sourceLastRow, sourceColumns);
   log('COPY_TEMPLATE_DATA_CLEARED', {
     firstRow: sourceFirstRow,
@@ -166,6 +198,9 @@ async function buildGcFromOneSheetTemplate(args, monthlyModule) {
   reduceWorkbookToSheet(templateWorkbook, sheet);
   log('TEMPLATE_REDUCE_DONE', { sheetCount: templateWorkbook.worksheets.length, sheet: sheet.name });
 
+  // Remove only unsafe shared-formula clones. Keep ordinary formulas and all
+  // template formatting/layout intact.
+  const formulaStats = stripBrokenSharedFormulaClones(templateWorkbook);
   sheet.state = 'visible';
 
   const renderedWorkbook = new ExcelJS.Workbook();
@@ -183,7 +218,12 @@ async function buildGcFromOneSheetTemplate(args, monthlyModule) {
   templateWorkbook.calcProperties.forceFullCalc = true;
   templateWorkbook.calcProperties.calcMode = 'auto';
 
-  log('TEMPLATE_WRITE_START', { sheetCount: templateWorkbook.worksheets.length, rows: sheet.rowCount, columns: sheet.columnCount });
+  log('TEMPLATE_WRITE_START', {
+    sheetCount: templateWorkbook.worksheets.length,
+    rows: sheet.rowCount,
+    columns: sheet.columnCount,
+    sharedFormulaConverted: formulaStats.converted
+  });
   const buffer = Buffer.from(await templateWorkbook.xlsx.writeBuffer());
   log('TEMPLATE_WRITE_DONE', { bytes: buffer.length });
 
@@ -195,6 +235,8 @@ async function buildGcFromOneSheetTemplate(args, monthlyModule) {
     rows: sheet.rowCount,
     columns: sheet.columnCount,
     sourceLastRow: copyStats.sourceLastRow,
+    sharedFormulaConverted: formulaStats.converted,
+    sharedFormulaCleared: formulaStats.cleared,
     elapsedMs: Date.now() - started
   });
 
@@ -205,7 +247,7 @@ async function buildGcFromOneSheetTemplate(args, monthlyModule) {
     processName: 'CẮT/LỒNG',
     fileName: `04_CAT_LONG_${String(args.date || '').slice(5, 7)}-${String(args.date || '').slice(0, 4)}.xlsx`,
     reportCount: Array.isArray(source.reports) ? source.reports.length : 0,
-    formulaReplacementCount: 0,
+    formulaReplacementCount: formulaStats.converted,
     templateKind: 'ONE_SHEET_GC_TEMPLATE'
   };
 }
