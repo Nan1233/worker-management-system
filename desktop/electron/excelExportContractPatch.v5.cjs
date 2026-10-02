@@ -6,27 +6,14 @@ const path = require('node:path');
 const ExcelJS = require('exceljs');
 const monthly = require('./monthlyWorkbookLocal.cjs');
 
-// GC workbook contract. Totals are fixed; detail columns are assigned from
-// the DB master lists (deductionTypes / defectTypes), not from template text
-// and not from the old hard-coded code list.
 const GC = Object.freeze({
-  DEDUCTION_TOTAL: 10, // J
-  DEDUCTION_FIRST: 11, // K
-  DEDUCTION_LAST: 26, // Z (16 legacy/template slots)
-  OK: 33,              // AG
-  NG: 34,              // AH
-  DEFECT_FIRST: 36,    // AJ
-  DEFECT_LAST: 54      // BB (19 legacy/template slots)
+  DEDUCTION_TOTAL: 10, DEDUCTION_FIRST: 11, DEDUCTION_LAST: 26,
+  OK: 33, NG: 34, DEFECT_FIRST: 36, DEFECT_LAST: 54
 });
 
 const norm = (value) => String(value ?? '')
-  .normalize('NFD')
-  .replace(/[\u0300-\u036f]/g, '')
-  .replace(/[đĐ]/g, 'd')
-  .replace(/[^A-Za-z0-9]+/g, '_')
-  .replace(/^_+|_+$/g, '')
-  .toUpperCase();
-
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd')
+  .replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').toUpperCase();
 const num = (value) => {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   const n = Number(String(value ?? '').replace(/,/g, '').trim());
@@ -53,8 +40,8 @@ function typeKeys(type, kind) {
   if (!type) return [];
   return (kind === 'deduction'
     ? [type.id, type.code, type.deduction_code, type.name, type.deduction_name]
-    : [type.id, type.code, type.defect_code, type.name, type.defect_name]
-  ).filter((v) => v !== null && v !== undefined && String(v) !== '').map(norm);
+    : [type.id, type.code, type.defect_code, type.name, type.defect_name])
+    .filter((v) => v !== null && v !== undefined && String(v) !== '').map(norm);
 }
 
 function itemKeys(item, kind) {
@@ -64,21 +51,21 @@ function itemKeys(item, kind) {
        item?.type_name, item?.code, item?.name]
     : [item?.defect_type_id, item?.defect_type_code, item?.defect_code,
        item?.defect_type_name, item?.defect_name, item?.type_code,
-       item?.type_name, item?.code, item?.name]
-  ).filter((v) => v !== null && v !== undefined && String(v) !== '').map(norm);
+       item?.type_name, item?.code, item?.name])
+    .filter((v) => v !== null && v !== undefined && String(v) !== '').map(norm);
 }
 
 function findType(processData, item, kind) {
   const list = sortedTypes(processData, kind);
   const id = kind === 'deduction' ? item?.deduction_type_id : item?.defect_type_id;
-  if (id != null) {
-    const byId = list.find((x) => Number(x?.id) === Number(id));
+  if (id != null && String(id) !== '') {
+    const byId = list.find((x) => String(x?.id) === String(id));
     if (byId) return byId;
   }
   const keys = itemKeys(item, kind);
   return list.find((type) => {
-    const keysForType = typeKeys(type, kind);
-    return keys.some((key) => keysForType.includes(key));
+    const typeKeysList = typeKeys(type, kind);
+    return keys.some((key) => typeKeysList.includes(key));
   }) || null;
 }
 
@@ -123,16 +110,13 @@ function copyColumnStyle(sheet, sourceColumn, targetColumn) {
   const source = sheet.getColumn(sourceColumn);
   const target = sheet.getColumn(targetColumn);
   if (source.width != null) target.width = source.width;
-  for (let r = 1; r <= sheet.rowCount; r += 1) {
-    copyCellStyle(sheet.getCell(r, sourceColumn), sheet.getCell(r, targetColumn));
-  }
+  for (let r = 1; r <= sheet.rowCount; r += 1) copyCellStyle(sheet.getCell(r, sourceColumn), sheet.getCell(r, targetColumn));
 }
 
 function ensureDetailColumns(sheet, requiredCount, firstColumn, legacyLastColumn) {
   const legacyCount = legacyLastColumn - firstColumn + 1;
   const extra = Math.max(0, requiredCount - legacyCount);
   if (!extra) return;
-
   const insertAt = legacyLastColumn + 1;
   const sourceColumn = legacyLastColumn;
   for (let i = 0; i < extra; i += 1) {
@@ -163,6 +147,24 @@ function reportsFromPayload(payload) {
     || Number(a?.id || 0) - Number(b?.id || 0));
 }
 
+function normalizeDetailArray(report, kind) {
+  const names = kind === 'deduction'
+    ? ['deductions', 'deductionDetails', 'deduction_details', 'deductionRows', 'deduction_rows']
+    : ['defects', 'defectDetails', 'defect_details', 'defectRows', 'defect_rows'];
+  for (const name of names) {
+    if (Array.isArray(report?.[name])) return report[name];
+  }
+  return [];
+}
+
+function collectRawDetailKeys(report, kind) {
+  return normalizeDetailArray(report, kind).map((item) => ({
+    id: kind === 'deduction' ? item?.deduction_type_id : item?.defect_type_id,
+    code: kind === 'deduction' ? (item?.deduction_code || item?.code) : (item?.defect_code || item?.code),
+    value: detailValue(item, kind)
+  }));
+}
+
 async function patch(buffer, payload) {
   const input = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
   const tmp = path.join(os.tmpdir(), `ktc-gc-${process.pid}-${Date.now()}.xlsx`);
@@ -177,10 +179,6 @@ async function patch(buffer, payload) {
     const reports = reportsFromPayload(payload);
     const deductionMap = buildDetailColumnMap(processData, 'deduction', GC.DEDUCTION_FIRST);
     const defectMap = buildDetailColumnMap(processData, 'defect', GC.DEFECT_FIRST);
-
-    // DB master controls the number/order of detail columns. If a future DB
-    // master has more types than the old template, add columns instead of
-    // dropping data. For the current GC master this is 10 + 19.
     ensureDetailColumns(sheet, deductionMap.types.length, GC.DEDUCTION_FIRST, GC.DEDUCTION_LAST);
     ensureDetailColumns(sheet, defectMap.types.length, GC.DEFECT_FIRST, GC.DEFECT_LAST);
 
@@ -188,46 +186,35 @@ async function patch(buffer, payload) {
     rows = expandReportRows(sheet, reports.length, rows);
 
     const totals = {
-      deduction: 0,
-      ng: 0,
-      detailDeduction: 0,
-      detailNg: 0,
-      unmatchedDeduction: 0,
-      unmatchedDefect: 0,
-      matchedDeductionItems: 0,
-      matchedDefectItems: 0
+      deduction: 0, ng: 0, detailDeduction: 0, detailNg: 0,
+      unmatchedDeduction: 0, unmatchedDefect: 0,
+      matchedDeductionItems: 0, matchedDefectItems: 0,
+      rawDeductionItems: 0, rawDefectItems: 0
     };
 
     for (let i = 0; i < reports.length; i += 1) {
       const report = reports[i];
       const row = rows[i];
-      const deductions = Array.isArray(report?.deductions) ? report.deductions : [];
-      const defects = Array.isArray(report?.defects) ? report.defects : [];
+      const deductions = normalizeDetailArray(report, 'deduction');
+      const defects = normalizeDetailArray(report, 'defect');
+      totals.rawDeductionItems += deductions.length;
+      totals.rawDefectItems += defects.length;
 
-      // Clear only the actual DB-detail slots. Do not rely on the template's
-      // header names or formulas to populate these cells.
       for (let c = GC.DEDUCTION_FIRST; c < GC.DEDUCTION_FIRST + deductionMap.types.length; c += 1) row.getCell(c).value = 0;
       for (let c = GC.DEFECT_FIRST; c < GC.DEFECT_FIRST + defectMap.types.length; c += 1) row.getCell(c).value = 0;
 
       for (const item of deductions) {
         const value = detailValue(item, 'deduction');
         const column = resolveColumn(processData, item, 'deduction', deductionMap);
-        if (!column) {
-          if (value) totals.unmatchedDeduction += value;
-          continue;
-        }
+        if (!column) { if (value) totals.unmatchedDeduction += value; continue; }
         row.getCell(column).value = num(row.getCell(column).value) + value;
         totals.detailDeduction += value;
         totals.matchedDeductionItems += 1;
       }
-
       for (const item of defects) {
         const value = detailValue(item, 'defect');
         const column = resolveColumn(processData, item, 'defect', defectMap);
-        if (!column) {
-          if (value) totals.unmatchedDefect += value;
-          continue;
-        }
+        if (!column) { if (value) totals.unmatchedDefect += value; continue; }
         row.getCell(column).value = num(row.getCell(column).value) + value;
         totals.detailNg += value;
         totals.matchedDefectItems += 1;
@@ -240,19 +227,17 @@ async function patch(buffer, payload) {
     }
 
     const totalRow = [...(sheet._rows || [])].find((row) => {
-      const text = String(row?.getCell(1)?.value ?? '')
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+      const text = String(row?.getCell(1)?.value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
       return text.includes('TONG') && text.includes('CONG');
     });
-
     if (totalRow) {
       totalRow.getCell(GC.DEDUCTION_TOTAL).value = totals.deduction;
       totalRow.getCell(GC.NG).value = totals.ng;
       for (let c = GC.DEDUCTION_FIRST; c < GC.DEDUCTION_FIRST + deductionMap.types.length; c += 1) {
-        totalRow.getCell(c).value = rows.slice(0, reports.length).reduce((sum, row) => sum + num(row.getCell(c).value), 0);
+        totalRow.getCell(c).value = rows.slice(0, reports.length).reduce((sum, r) => sum + num(r.getCell(c).value), 0);
       }
       for (let c = GC.DEFECT_FIRST; c < GC.DEFECT_FIRST + defectMap.types.length; c += 1) {
-        totalRow.getCell(c).value = rows.slice(0, reports.length).reduce((sum, row) => sum + num(row.getCell(c).value), 0);
+        totalRow.getCell(c).value = rows.slice(0, reports.length).reduce((sum, r) => sum + num(r.getCell(c).value), 0);
       }
     }
 
@@ -260,14 +245,20 @@ async function patch(buffer, payload) {
       reports: reports.length,
       deductionTypes: deductionMap.types.length,
       defectTypes: defectMap.types.length,
+      rawDeductionItems: totals.rawDeductionItems,
+      rawDefectItems: totals.rawDefectItems,
       matchedDeductionItems: totals.matchedDeductionItems,
       matchedDefectItems: totals.matchedDefectItems,
       unmatchedDeductionValue: totals.unmatchedDeduction,
       unmatchedDefectValue: totals.unmatchedDefect,
       deductionTotalFromDb: totals.deduction,
       detailDeductionFromDb: totals.detailDeduction,
+      deductionGap: totals.deduction - totals.detailDeduction,
       ngTotalFromDb: totals.ng,
       detailNgFromDb: totals.detailNg,
+      ngGap: totals.ng - totals.detailNg,
+      sampleRawDeduction: reports.flatMap((r) => collectRawDetailKeys(r, 'deduction')).filter((x) => x.value).slice(0, 10),
+      sampleRawDefect: reports.flatMap((r) => collectRawDetailKeys(r, 'defect')).filter((x) => x.value).slice(0, 10),
       totalRow: Boolean(totalRow)
     }));
 
@@ -279,27 +270,20 @@ async function patch(buffer, payload) {
 
 const originalBuildProcess = monthly.buildProcessWorkbookLocal;
 const originalBuildSplit = monthly.buildSplitMonthlyWorkbooksLocal;
-
 if (typeof originalBuildProcess === 'function') {
   monthly.buildProcessWorkbookLocal = async (args) => {
     const result = await originalBuildProcess(args);
-    if (String(args?.processCode || '').toUpperCase() === 'GC' && result?.buffer) {
-      result.buffer = await patch(result.buffer, args?.payload || {});
-    }
+    if (String(args?.processCode || '').toUpperCase() === 'GC' && result?.buffer) result.buffer = await patch(result.buffer, args?.payload || {});
     return result;
   };
 }
-
 if (typeof originalBuildSplit === 'function') {
   monthly.buildSplitMonthlyWorkbooksLocal = async (args) => {
     const result = await originalBuildSplit(args);
     for (const item of result?.processes || []) {
-      if (String(item?.processCode || '').toUpperCase() === 'GC' && item?.buffer) {
-        item.buffer = await patch(item.buffer, args?.payload || {});
-      }
+      if (String(item?.processCode || '').toUpperCase() === 'GC' && item?.buffer) item.buffer = await patch(item.buffer, args?.payload || {});
     }
     return result;
   };
 }
-
 module.exports = monthly;
