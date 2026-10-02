@@ -1,0 +1,1 @@
+GC Excel export fix v5 is implemented in excelExportContractPatch.v5.cjs. The desktop loader must require this patch after excelExportContractPatch.v4.cjs so the final GC workbook keeps template row colors and writes the report date in column A on the existing date separator row.
