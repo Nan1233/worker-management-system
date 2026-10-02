@@ -81,7 +81,9 @@ app.on('browser-window-created', (_event, window) => {
   });
 });
 
-require('./excelExportContractPatch.v2.cjs');
+// Single active Excel export patch entry. It owns the base DB-truth contract
+// and the GC template-specific mapping used by the TEST desktop.
+require('./excelExportContractPatch.v5.cjs');
 
 function normalizeExportRoot(value) {
   const raw = String(value || '').trim();
