@@ -27,7 +27,6 @@ SELECT
   COALESCE(md.machine_defect_ng,0) AS machine_defect_ng,
   COALESCE(ml.machine_line_count,0) AS machine_line_count,
   COALESCE(ml.json_line_count,0) AS machine_lines_with_json,
-  COALESCE(ml.json_defect_quantity,0) AS machine_json_ng,
   COALESCE(ls.legacy_ng,0) AS legacy_field_ng
 FROM production_reports pr
 LEFT JOIN (
@@ -44,8 +43,7 @@ LEFT JOIN (
 LEFT JOIN (
   SELECT report_id,
          COUNT(*) AS machine_line_count,
-         SUM(CASE WHEN defects_json IS NOT NULL AND TRIM(CAST(defects_json AS CHAR)) NOT IN ('','[]','{}','null') THEN 1 ELSE 0 END) AS json_line_count,
-         0 AS json_defect_quantity
+         SUM(CASE WHEN defects_json IS NOT NULL AND TRIM(CAST(defects_json AS CHAR)) NOT IN ('','[]','{}','null') THEN 1 ELSE 0 END) AS json_line_count
   FROM production_report_machine_lines
   GROUP BY report_id
 ) ml ON ml.report_id=pr.id
