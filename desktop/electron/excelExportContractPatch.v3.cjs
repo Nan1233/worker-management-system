@@ -5,7 +5,6 @@ const ExcelJS = require('exceljs');
 const path = require('node:path');
 
 const originalLoad = Module._load;
-
 const TEMPLATE_NAME = 'bao-cao-cat-long-export.xlsx';
 const SHEET_NAME = 'Cắt lồng';
 
@@ -63,8 +62,7 @@ function asNumber(value, fallback = 0) {
 }
 
 function asText(value) {
-  if (value === null || value === undefined) return '';
-  return String(value);
+  return value === null || value === undefined ? '' : String(value);
 }
 
 function asDate(value) {
@@ -102,6 +100,9 @@ function reduceWorkbookToSheet(workbook, keepSheet) {
   }
 }
 
+// ExcelJS có thể giữ shared-formula clone trong template. Khi chỉ dùng template
+// làm giao diện và tự ghi dữ liệu DB, các clone này không còn cần thiết và có thể
+// làm writeBuffer lỗi "Shared Formula master must exist...".
 function stripBrokenSharedFormulaClones(workbook) {
   let converted = 0;
   let cleared = 0;
@@ -109,14 +110,12 @@ function stripBrokenSharedFormulaClones(workbook) {
     for (const row of sheet._rows || []) {
       for (const cell of row?._cells || []) {
         const model = cell?.model;
-        if (!model) continue;
-        if (model.sharedFormula) {
-          const cached = model.result;
-          cell.value = cached !== undefined && cached !== null ? cached : null;
-          if (cell.model) delete cell.model.sharedFormula;
-          converted += 1;
-          if (cached === undefined || cached === null) cleared += 1;
-        }
+        if (!model?.sharedFormula) continue;
+        const cached = model.result;
+        cell.value = cached !== undefined && cached !== null ? cached : null;
+        if (cell.model) delete cell.model.sharedFormula;
+        converted += 1;
+        if (cached === undefined || cached === null) cleared += 1;
       }
     }
   }
@@ -170,20 +169,16 @@ function detailValue(item, kind) {
 }
 
 function typeAliases(types, id) {
-  const numericId = Number(id);
-  const type = (Array.isArray(types) ? types : []).find((x) => Number(x?.id) === numericId);
+  const type = (Array.isArray(types) ? types : []).find((x) => Number(x?.id) === Number(id));
   if (!type) return [];
-  return [type.code, type.name, type.label, type.display_name]
-    .filter(Boolean)
-    .map(normalize);
+  return [type.code, type.name, type.label, type.display_name].filter(Boolean).map(normalize);
 }
 
 function detailMatchesHeader(item, header, kind, types) {
   const wanted = normalize(header);
   if (!wanted) return false;
   const aliases = [detailCode(item, kind), detailName(item, kind), ...typeAliases(types, detailId(item, kind))]
-    .filter(Boolean)
-    .map(normalize);
+    .filter(Boolean).map(normalize);
   return aliases.some((alias) => alias === wanted || alias.includes(wanted) || wanted.includes(alias));
 }
 
@@ -211,36 +206,16 @@ function productDisplay(report) {
 
 function moldDisplay(report) {
   const extra = parseExtraData(report);
-  return asText(
-    report?.mold_no ?? report?.mold_code ?? report?.mold_number ?? report?.tool_no ??
-    extra.mold_no ?? extra.mold_code ?? extra.mold_number ?? extra.so_khuon
-  );
+  return asText(report?.mold_no ?? report?.mold_code ?? report?.mold_number ?? report?.tool_no ?? extra.mold_no ?? extra.mold_code ?? extra.mold_number ?? extra.so_khuon);
 }
 
 function changeoverCount(report) {
   const extra = parseExtraData(report);
-  return asNumber(
-    report?.changeover_count ?? report?.change_machine_count ?? report?.so_lan_cm ??
-    extra.changeover_count ?? extra.change_machine_count ?? extra.so_lan_cm,
-    0
-  );
+  return asNumber(report?.changeover_count ?? report?.change_machine_count ?? report?.so_lan_cm ?? extra.changeover_count ?? extra.change_machine_count ?? extra.so_lan_cm, 0);
 }
 
 function clearCell(cell) {
   try { cell.value = null; } catch (_) {}
-}
-
-function clearDataRows(sheet) {
-  const last = sheet.rowCount;
-  for (let r = 6; r <= last; r += 1) {
-    const row = sheet.getRow(r);
-    for (let c = 1; c <= Math.max(GC_COL.DEFECT_LAST, sheet.columnCount); c += 1) {
-      const cell = row.getCell(c);
-      if (cell.isMerged && !cell.master) continue;
-      clearCell(cell);
-    }
-    row.hidden = false;
-  }
 }
 
 function findHeader(sheet, column) {
@@ -251,28 +226,48 @@ function findHeader(sheet, column) {
   return '';
 }
 
-function clearUnreliableGcFields(sheet) {
+// Không dùng getCell() trên toàn bộ 6464 x 219 ô của template.
+// getCell() sẽ tạo cell object mới cho cả những ô chưa tồn tại và làm RAM tăng rất nhanh.
+function clearTemplateTail(sheet, firstRow) {
   let cleared = 0;
-  for (let c = 1; c <= sheet.columnCount; c += 1) {
-    const header = normalize(findHeader(sheet, c));
-    if (!header) continue;
-    if (header === 'LOAITHAOTAC' || header === 'CHEDO') {
-      for (let r = 6; r <= sheet.rowCount; r += 1) {
-        const cell = sheet.getCell(r, c);
-        if (cell.value !== null && cell.value !== undefined && cell.value !== '') {
-          clearCell(cell);
-          cleared += 1;
-        }
+  for (let r = firstRow; r <= sheet.rowCount; r += 1) {
+    const row = sheet._rows?.[r - 1];
+    if (!row) continue;
+    row.hidden = true;
+    for (const cell of row._cells || []) {
+      if (!cell?.model) continue;
+      if (cell.model.value !== undefined && cell.model.value !== null) {
+        cell.value = null;
+        cleared += 1;
       }
+      if (cell.model.sharedFormula) delete cell.model.sharedFormula;
     }
   }
+  log('GC_TEMPLATE_TAIL_CLEARED', { firstRow, lastRow: sheet.rowCount, cleared });
   return cleared;
 }
 
+function clearColumnsByHeader(sheet, firstRow, lastRow, headers) {
+  const wanted = new Set(headers.map(normalize));
+  const columns = [];
+  for (let c = 1; c <= Math.min(sheet.columnCount, GC_COL.DEFECT_LAST); c += 1) {
+    if (wanted.has(normalize(findHeader(sheet, c)))) columns.push(c);
+  }
+  let cleared = 0;
+  for (let r = firstRow; r <= lastRow; r += 1) {
+    for (const c of columns) {
+      const cell = sheet.getCell(r, c);
+      if (cell.value !== null && cell.value !== undefined && cell.value !== '') {
+        cell.value = null;
+        cleared += 1;
+      }
+    }
+  }
+  return { columns, cleared };
+}
+
 function writeGcReportRow(sheet, rowNumber, report, processData, sequence) {
-  const training = report?.training_percent === null || report?.training_percent === undefined
-    ? 0
-    : asNumber(report.training_percent, 0);
+  const training = report?.training_percent === null || report?.training_percent === undefined ? 0 : asNumber(report.training_percent, 0);
   const workingTime = asNumber(report?.total_time, 0);
   const actualTime = asNumber(report?.actual_time, workingTime);
   const deductionTime = asNumber(report?.deduction_time, 0);
@@ -306,25 +301,15 @@ function writeGcReportRow(sheet, rowNumber, report, processData, sequence) {
     if (column === GC_COL.DATE) cell.numFmt = 'd-mmm';
   }
 
-  // Chỉ dùng công thức cho các chỉ số tính toán. Dữ liệu nhập thực tế và dữ liệu DB
-  // (OK/NG, thời gian, định mức, sản lượng, chi tiết trừ giờ/NG) không bị tính lại.
-  sheet.getCell(rowNumber, GC_COL.ACHIEVEMENT).value = {
-    formula: `IFERROR(U${rowNumber}/T${rowNumber},0)`
-  };
-  sheet.getCell(rowNumber, GC_COL.OUTPUT_PER_HOUR).value = {
-    formula: `IFERROR(U${rowNumber}/H${rowNumber},0)`
-  };
-  sheet.getCell(rowNumber, GC_COL.NG_RATE).value = {
-    formula: `IFERROR(Z${rowNumber}/(Y${rowNumber}+Z${rowNumber}),0)`
-  };
+  sheet.getCell(rowNumber, GC_COL.ACHIEVEMENT).value = { formula: `IFERROR(U${rowNumber}/T${rowNumber},0)` };
+  sheet.getCell(rowNumber, GC_COL.OUTPUT_PER_HOUR).value = { formula: `IFERROR(U${rowNumber}/H${rowNumber},0)` };
+  sheet.getCell(rowNumber, GC_COL.NG_RATE).value = { formula: `IFERROR(Z${rowNumber}/(Y${rowNumber}+Z${rowNumber}),0)` };
 
   for (let c = GC_COL.DEDUCTION_FIRST; c <= GC_COL.DEDUCTION_LAST; c += 1) {
-    const header = findHeader(sheet, c);
-    sheet.getCell(rowNumber, c).value = detailForHeader(report, processData, header, 'deduction');
+    sheet.getCell(rowNumber, c).value = detailForHeader(report, processData, findHeader(sheet, c), 'deduction');
   }
   for (let c = GC_COL.DEFECT_FIRST; c <= GC_COL.DEFECT_LAST; c += 1) {
-    const header = findHeader(sheet, c);
-    sheet.getCell(rowNumber, c).value = detailForHeader(report, processData, header, 'defect');
+    sheet.getCell(rowNumber, c).value = detailForHeader(report, processData, findHeader(sheet, c), 'defect');
   }
 }
 
@@ -339,9 +324,7 @@ async function buildGcFromApprovedDb(args) {
     return String(a?.approved_at || a?.created_at || '').localeCompare(String(b?.approved_at || b?.created_at || ''));
   });
 
-  if (payload.dataSource !== 'tidb.production_reports.approved') {
-    throw new Error('GC Excel chỉ được xuất từ production_reports đã duyệt trong TiDB.');
-  }
+  if (payload.dataSource !== 'tidb.production_reports.approved') throw new Error('GC Excel chỉ được xuất từ production_reports đã duyệt trong TiDB.');
   for (const report of reports) {
     if (report?.dataSource !== 'production_reports' || report?.isApprovedDatabaseRecord !== true) {
       throw new Error(`Báo cáo ${report?.id || '?'} không phải dữ liệu đã duyệt từ TiDB.`);
@@ -358,49 +341,40 @@ async function buildGcFromApprovedDb(args) {
   const originalSheetCount = workbook.worksheets.length;
   reduceWorkbookToSheet(workbook, sheet);
   sheet.state = 'visible';
+  log('TEMPLATE_REDUCED_TO_GC_SHEET', { originalSheetCount, sheetCount: workbook.worksheets.length, rows: sheet.rowCount, columns: sheet.columnCount });
 
   const formulaStats = stripBrokenSharedFormulaClones(workbook);
-  clearDataRows(sheet);
+  log('GC_TEMPLATE_READY_FOR_DB_ROWS', { reportCount: reports.length, rssMB: Math.round(process.memoryUsage().rss / 1048576) });
 
-  // Template là giao diện. Không lấy giá trị nghiệp vụ từ các công thức/mẫu cũ.
-  // Chỉ giữ style/merge/header của template và ghi dữ liệu approved DB vào các dòng.
-  let dataRow = 7;
+  // Mọi cột nghiệp vụ 1..54 đều được ghi lại từ DB ở writeGcReportRow.
+  // Vì vậy không cần quét/xóa 1.4 triệu ô trước khi ghi.
+  const dataStartRow = 7;
+  const dataEndRow = dataStartRow + reports.length - 1;
+
+  let dataRow = dataStartRow;
   let sequence = 0;
   let currentDate = '';
-  let reportRows = 0;
-
   for (const report of reports) {
     const workDate = String(report?.work_date || '').slice(0, 10);
     if (workDate !== currentDate) {
-      const dateRow = sheet.getRow(dataRow - 1);
-      if (dataRow === 7 || dateRow.getCell(1).value !== null && dateRow.getCell(1).value !== undefined) {
-        // Do not create a new synthetic row. The date is already stored in the
-        // Ngày/Tháng column of each real report row.
-      }
       currentDate = workDate;
       sequence = 0;
     }
     sequence += 1;
     writeGcReportRow(sheet, dataRow, report, processData, sequence);
     dataRow += 1;
-    reportRows += 1;
   }
 
-  for (let r = dataRow; r <= sheet.rowCount; r += 1) {
-    const row = sheet.getRow(r);
-    row.hidden = true;
-    for (let c = 1; c <= Math.min(sheet.columnCount, GC_COL.DEFECT_LAST); c += 1) {
-      const cell = row.getCell(c);
-      if (cell.isMerged && !cell.master) continue;
-      clearCell(cell);
-    }
-  }
+  // Không xuất các cột CẮT/LỒNG và TAY/MÁY vì dữ liệu hiện tại chưa đáng tin cậy.
+  const unreliable = clearColumnsByHeader(sheet, dataStartRow, dataEndRow, ['Loại thao tác', 'Chế độ']);
 
-  const unreliableCleared = clearUnreliableGcFields(sheet);
+  // Xóa phần hàng mẫu còn lại mà không gọi getCell() trên từng ô.
+  clearTemplateTail(sheet, Math.max(dataStartRow, dataEndRow + 1));
+
   if (sheet.autoFilter) {
     sheet.autoFilter = {
       from: { row: 5, column: 1 },
-      to: { row: Math.max(5, dataRow - 1), column: Math.min(sheet.columnCount, GC_COL.DEFECT_LAST) }
+      to: { row: Math.max(5, dataEndRow), column: Math.min(sheet.columnCount, GC_COL.DEFECT_LAST) }
     };
   }
 
@@ -410,16 +384,18 @@ async function buildGcFromApprovedDb(args) {
   workbook.calcProperties.calcMode = 'auto';
 
   log('GC_DB_DIRECT_WRITE_START', {
-    reportRows,
-    lastDataRow: dataRow - 1,
+    reportRows: reports.length,
+    lastDataRow: dataEndRow,
     columns: sheet.columnCount,
     originalSheetCount,
-    unreliableCleared
+    unreliableColumns: unreliable.columns,
+    unreliableCleared: unreliable.cleared
   });
+
   const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
   log('GC_DB_DIRECT_DONE', {
     reportCount: reports.length,
-    reportRows,
+    reportRows: reports.length,
     bytes: buffer.length,
     sharedFormulaConverted: formulaStats.converted,
     sharedFormulaCleared: formulaStats.cleared,
