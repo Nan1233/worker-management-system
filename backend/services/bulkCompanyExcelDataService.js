@@ -90,33 +90,75 @@ async function loadBulkCompanyReports(yearMonth, actor) {
   }
 
   const reportIds = reports.map((report) => Number(report.id));
-  const [physicalMachineEvents, deductionTypes, defectTypes] = await Promise.all([
+  const [physicalMachineEvents, typeRows] = await Promise.all([
     query(`SELECT e.id,e.process_id,e.machine_id,e.machine_code,e.product_code,e.work_date,e.shift,e.physical_ok_quantity,e.physical_ng_quantity,
       e.physical_counted_output,e.physical_total_output,e.machine_time_hours,e.maximum_output,e.standard_output,e.standard_version_id,
       e.machine_standard_id,e.exclude_kqd_from_tt_snapshot,e.status FROM machine_production_events e WHERE e.status='approved'
       AND e.process_id IN (${processPlaceholders}) AND e.work_date>=? AND e.work_date<? ORDER BY e.work_date,e.shift,e.machine_code,e.id`,
       [...processIds, start, next]),
-    query(`SELECT id, process_id, deduction_code AS code, deduction_name AS name, deduction_code, deduction_name, sort_order FROM deduction_types WHERE process_id IN (${processPlaceholders}) AND status='active' ORDER BY process_id,sort_order,id`, processIds),
-    query(`SELECT id, process_id, defect_code AS code, defect_name AS name, defect_code, defect_name, sort_order FROM defect_types WHERE process_id IN (${processPlaceholders}) AND status='active' ORDER BY process_id,sort_order,id`, processIds)
+    query(`
+      SELECT 'deduction' AS detail_type, id, process_id,
+             deduction_code AS code, deduction_name AS name,
+             deduction_code, deduction_name, sort_order,
+             NULL AS defect_type_id, NULL AS quantity, id AS deduction_type_id
+        FROM deduction_types
+       WHERE process_id IN (${processPlaceholders}) AND status='active'
+      UNION ALL
+      SELECT 'defect' AS detail_type, id, process_id,
+             defect_code AS code, defect_name AS name,
+             defect_code, defect_name, sort_order,
+             id AS defect_type_id, NULL AS quantity, NULL AS deduction_type_id
+        FROM defect_types
+       WHERE process_id IN (${processPlaceholders}) AND status='active'
+      ORDER BY process_id, detail_type, sort_order, id`,
+      [...processIds, ...processIds])
   ]);
+
+  const deductionTypes = typeRows.filter((row) => row.detail_type === 'deduction');
+  const defectTypes = typeRows.filter((row) => row.detail_type === 'defect');
 
   let deductionRows = [], defectRows = [], machineLineRows = [];
   for (const ids of chunkArray(reportIds, Number(process.env.EXCEL_DETAIL_BATCH_SIZE || 1000))) {
     const p = ids.map(() => '?').join(',');
-    const [d, f, m] = await Promise.all([
-      query(`SELECT prd.report_id, prd.deduction_type_id, dt.deduction_code, dt.deduction_name, prd.hours FROM production_report_deductions prd LEFT JOIN deduction_types dt ON dt.id=prd.deduction_type_id WHERE prd.report_id IN (${p}) ORDER BY prd.report_id,COALESCE(dt.sort_order,999999),prd.deduction_type_id`, ids),
-      query(`SELECT prd.report_id, prd.defect_type_id, dt.defect_code, dt.defect_name, prd.quantity FROM production_report_defects prd LEFT JOIN defect_types dt ON dt.id=prd.defect_type_id WHERE prd.report_id IN (${p}) ORDER BY prd.report_id,COALESCE(dt.sort_order,999999),prd.defect_type_id`, ids),
+    // Keep the three detail sources independent so one table cannot multiply
+    // another table's rows. The UNION reduces the number of TiDB Serverless
+    // round trips while preserving the exact source semantics.
+    const [detailRows, m] = await Promise.all([
+      query(`
+        SELECT 'deduction' AS detail_type,
+               prd.report_id, prd.deduction_type_id AS type_id,
+               dt.deduction_code, dt.deduction_name,
+               prd.hours AS value_hours, NULL AS value_quantity,
+               COALESCE(dt.sort_order,999999) AS sort_order
+          FROM production_report_deductions prd
+          LEFT JOIN deduction_types dt ON dt.id=prd.deduction_type_id
+         WHERE prd.report_id IN (${p})
+        UNION ALL
+        SELECT 'defect' AS detail_type,
+               prd.report_id, prd.defect_type_id AS type_id,
+               dt.defect_code, dt.defect_name,
+               NULL AS value_hours, prd.quantity AS value_quantity,
+               COALESCE(dt.sort_order,999999) AS sort_order
+          FROM production_report_defects prd
+          LEFT JOIN defect_types dt ON dt.id=prd.defect_type_id
+         WHERE prd.report_id IN (${p})
+        ORDER BY report_id, detail_type, sort_order, type_id`,
+        [...ids, ...ids]),
       query(`SELECT * FROM production_report_machine_lines WHERE report_id IN (${p}) ORDER BY report_id,sort_order,id`, ids)
     ]);
-    deductionRows.push(...d); defectRows.push(...f); machineLineRows.push(...m);
+    for (const row of detailRows) {
+      if (row.detail_type === 'deduction') deductionRows.push(row);
+      else defectRows.push(row);
+    }
+    machineLineRows.push(...m);
   }
 
   const deductions = mapDetails(deductionRows, reportIds, (row) => ({
-    id: Number(row.id ?? row.deduction_type_id), deduction_type_id: Number(row.deduction_type_id), code: row.deduction_code || '',
-    name: row.deduction_name || '', deduction_code: row.deduction_code || '', deduction_name: row.deduction_name || '', hours: Number(row.hours) || 0
+    id: Number(row.type_id), deduction_type_id: Number(row.type_id), code: row.deduction_code || '',
+    name: row.deduction_name || '', deduction_code: row.deduction_code || '', deduction_name: row.deduction_name || '', hours: Number(row.value_hours) || 0
   }));
   const defects = mapDetails(defectRows, reportIds, (row) => ({
-    defect_type_id: Number(row.defect_type_id), defect_code: row.defect_code || '', defect_name: row.defect_name || '', quantity: Number(row.quantity) || 0
+    defect_type_id: Number(row.type_id), defect_code: row.defect_code || '', defect_name: row.defect_name || '', quantity: Number(row.value_quantity) || 0
   }));
   const machineLines = mapDetails(machineLineRows, reportIds, (row) => ({ ...row }));
 
