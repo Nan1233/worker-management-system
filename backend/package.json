@@ -13,6 +13,7 @@
     "db:analyze": "node scripts/analyzeTables.js",
     "db:sync-template-master": "node scripts/syncKtcTemplateMasterData.js",
     "db:ensure-gc-defects": "node scripts/ensureGcDefectMasterData.js",
+    "db:migrate-gc-defects": "node scripts/migrateGcLegacyDefectsToCanonical.js",
     "db:ensure-gc-long-2801-lt": "node scripts/ensureGcLong2801Lt.js",
     "db:migrate": "node scripts/runPendingMigrations.js",
     "db:migration-status": "node scripts/printMigrationStatus.js",
@@ -62,10 +63,6 @@
     "jsonwebtoken": "9.0.3",
     "mysql2": "3.23.2"
   },
-  "devDependencies": {
-    "nodemon": "3.1.14"
-  },
-  "overrides": {
-    "uuid": "11.1.1"
-  }
+  "devDependencies": { "nodemon": "3.1.14" },
+  "overrides": { "uuid": "11.1.1" }
 }
