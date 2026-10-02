@@ -19,6 +19,8 @@ const indexes = [
   ["workers", "idx_workers_user_status", ["user_id", "status"]],
   ["production_report_defects", "idx_prd_report", ["report_id"]],
   ["production_report_deductions", "idx_prdu_report", ["report_id"]],
+  ["production_report_machine_lines", "idx_prml_report", ["report_id"]],
+  ["machine_production_events", "idx_mpe_process_date_status", ["process_id", "work_date", "status"]],
   ["production_temp_defects", "idx_ptd_report", ["temp_report_id"]],
   ["production_temp_deductions", "idx_ptdu_report", ["temp_report_id"]],
 ];
