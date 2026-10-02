@@ -1,9 +1,4 @@
 'use strict';
-
-// v2 owns the single desktop Excel interception/fetch contract for all processes.
-// This file adds the GC template-specific column contract on top of that same path.
-require('./excelExportContractPatch.v2.cjs');
-
 const fs=require('fs'),os=require('os'),path=require('path'),ExcelJS=require('exceljs');
 const monthly=require('./monthlyWorkbookLocal.cjs');
 const num=v=>{const n=Number(String(v??'').replace(/,/g,'').trim());return Number.isFinite(n)?n:0};
@@ -29,6 +24,7 @@ const detailCode=(x,k)=>String(k==='d'?(x?.deduction_type_code??x?.deduction_cod
 const detailName=(x,k)=>String(k==='d'?(x?.deduction_type_name??x?.deduction_name??x?.type_name??x?.display_name??x?.name):(x?.defect_type_name??x?.defect_name??x?.type_name??x?.display_name??x?.name)??'').trim();
 const detailValue=(x,k)=>num(k==='d'?(x?.deduction_hours??x?.duration_hours??x?.time_hours??x?.hours??x?.value):(x?.defect_quantity??x?.ng_quantity??x?.quantity??x?.qty??x?.value));
 const aliases=(x,k)=>[detailId(x,k)!=null?`id:${detailId(x,k)}`:'',detailCode(x,k)?`code:${norm(detailCode(x,k))}`:'',detailName(x,k)?`name:${norm(detailName(x,k))}`:''].filter(Boolean);
+function mapDetails(items,k){const m=new Map();for(const x of Array.isArray(items)?items:[]){const v=detailValue(x,k);for(const a of aliases(x,k))m.set(a,(m.get(a)||0)+v)}return m}
 function matchName(item,label,k){const h=norm(label);return aliases(item,k).some(a=>{const v=a.slice(a.indexOf(':')+1);return a.startsWith('id:')?false:v===h||(v.length>=4&&h.includes(v))||(h.length>=4&&v.includes(h))})}
 function detailForLabel(items,label,k){let sum=0;for(const x of Array.isArray(items)?items:[])if(matchName(x,label,k))sum+=detailValue(x,k);return k==='f'?Math.round(sum):sum}
 function reports(p){return [...(p?.processes?.GC?.reports||[])].sort((a,b)=>String(a?.work_date||'').localeCompare(String(b?.work_date||''))||String(a?.created_at||a?.approved_at||'').localeCompare(String(b?.created_at||b?.approved_at||''))||Number(a?.id||0)-Number(b?.id||0))}
