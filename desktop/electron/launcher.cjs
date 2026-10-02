@@ -70,7 +70,42 @@ app.on('browser-window-created', (_event, window) => {
 
 // IMPORTANT: install the one-sheet template injector BEFORE main.cjs loads
 // monthlyWorkbookLocal.cjs. This is the active GC export path on test.
-require('./excelExportContractPatch.v3.cjs');
+// The supplied template has a visible "Thời gian Làm" column before
+// "Thời gian Làm việc". Patch v3 was written against the hidden-column map,
+// so we normalize its column constants here before it is compiled.
+const gcPatchPath = require.resolve('./excelExportContractPatch.v3.cjs');
+const originalCjsLoader = Module._extensions['.cjs'] || Module._extensions['.js'];
+Module._extensions['.cjs'] = function loadGcPatchWithTemplateColumns(module, filename) {
+  if (path.resolve(filename) !== path.resolve(gcPatchPath)) {
+    return originalCjsLoader(module, filename);
+  }
+
+  let source = fs.readFileSync(filename, 'utf8');
+  source = source.replace(
+    'WORKING_TIME: 7, CHANGEOVERS: 8, DEDUCTION_TOTAL: 9,',
+    'WORKING_TIME: 8, CHANGEOVERS: 9, DEDUCTION_TOTAL: 10,'
+  );
+  source = source.replace(
+    '  sheet.getCell(rowNumber, GC_COL.WORKING_TIME).value = workingTime;',
+    '  sheet.getCell(rowNumber, 7).value = asNumber(report?.actual_time ?? report?.working_time ?? report?.total_time, 0);\n  sheet.getCell(rowNumber, 7).numFmt = \'0.##\';\n  sheet.getCell(rowNumber, GC_COL.WORKING_TIME).value = workingTime;'
+  );
+  source = source.replace(
+    'sheet.getCell(rowNumber, GC_COL.OUTPUT_PER_HOUR).value = { formula: `IFERROR(AC${rowNumber}/G${rowNumber},0)` };',
+    'sheet.getCell(rowNumber, GC_COL.OUTPUT_PER_HOUR).value = { formula: `IFERROR(AC${rowNumber}/H${rowNumber},0)` };'
+  );
+  source = source.replace(
+    "  const s = String(value).slice(0, 10);\n  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(s)) return null;\n  const [y, m, d] = s.split('-').map(Number);\n  return new Date(y, m - 1, d);",
+    "  const s = String(value).trim().slice(0, 10);\n  if (/^\\d{4}-\\d{2}-\\d{2}$/.test(s)) {\n    const [y, m, d] = s.split('-').map(Number);\n    return new Date(y, m - 1, d);\n  }\n  const dmY = s.match(/^(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{4})$/);\n  if (dmY) return new Date(Number(dmY[3]), Number(dmY[2]) - 1, Number(dmY[1]));\n  return null;"
+  );
+
+  return module._compile(source, filename);
+};
+try {
+  require(gcPatchPath);
+} finally {
+  delete Module._extensions['.cjs'];
+}
+
 require('./excelDbTruthPatch.v2.cjs');
 
 function normalizeExportRoot(value) {
@@ -192,13 +227,8 @@ fsp.readdir = async (...args) => {
 
 require('./autoUpdate.cjs');
 
-// Hotfix for the optimized desktop Excel export. The export itself already
-// completes successfully; the remaining failure is only the final result
-// calculation in main.cjs referencing companyData outside its try scope.
 function requireMainWithExcelScopeHotfix() {
   const mainPath = require.resolve('./main.cjs');
-  // Node 24 does not expose a dedicated .cjs loader on Module._extensions.
-  // Use the standard JS loader as the fallback compiler for main.cjs.
   const originalCjsLoader = Module._extensions['.cjs'] || Module._extensions['.js'];
   if (typeof originalCjsLoader !== 'function') {
     throw new Error('Không tìm thấy CommonJS loader để nạp main.cjs.');
