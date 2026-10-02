@@ -5,7 +5,9 @@ const query = (conn, sql, params = []) => conn.query(sql, params);
 async function repairReport(conn, report) {
   const approvedId = Number(report.id);
   const tempId = Number(report.source_temp_id);
+
   await conn.beginTransaction();
+
   try {
     const [[counts]] = await query(conn, `
       SELECT
@@ -18,8 +20,6 @@ async function repairReport(conn, report) {
     let copiedDeductions = 0;
     let copiedDefects = 0;
 
-    // Only backfill an approved section when it is completely missing.
-    // Existing approved details are left untouched so later approved edits are preserved.
     if (Number(counts.approved_deductions) === 0 && Number(counts.temp_deductions) > 0) {
       const [result] = await query(conn, `
         INSERT INTO production_report_deductions (report_id, deduction_type_id, hours)
@@ -27,6 +27,7 @@ async function repairReport(conn, report) {
         FROM production_temp_deductions
         WHERE temp_report_id=?
       `, [approvedId, tempId]);
+
       copiedDeductions = Number(result.affectedRows || 0);
     }
 
@@ -37,10 +38,12 @@ async function repairReport(conn, report) {
         FROM production_temp_defects
         WHERE temp_report_id=?
       `, [approvedId, tempId]);
+
       copiedDefects = Number(result.affectedRows || 0);
     }
 
     await conn.commit();
+
     return {
       approvedId,
       tempId,
@@ -59,6 +62,7 @@ async function repairReport(conn, report) {
 
 async function main() {
   const conn = await db.promise().getConnection();
+
   try {
     const [reports] = await query(conn, `
       SELECT id, source_temp_id, work_date, worker_id
@@ -75,10 +79,12 @@ async function main() {
 
     for (const report of reports) {
       const result = await repairReport(conn, report);
+
       if (result.copiedDeductions || result.copiedDefects) {
         repaired += 1;
         copiedDeductions += result.copiedDeductions;
         copiedDefects += result.copiedDefects;
+
         console.log('[KTC] repaired approved report details', result);
       }
     }
