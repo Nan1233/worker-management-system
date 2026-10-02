@@ -41,10 +41,7 @@ function findGcTemplateSheet(workbook) {
   const exact = sheets.find((sheet) => normalizeSheetName(sheet.name) === 'CATLONG');
   if (exact) return exact;
 
-  const partial = sheets.find((sheet) => {
-    const name = normalizeSheetName(sheet.name);
-    return name.includes('CATLONG');
-  });
+  const partial = sheets.find((sheet) => normalizeSheetName(sheet.name).includes('CATLONG'));
   if (partial) return partial;
 
   throw new Error(
@@ -54,9 +51,7 @@ function findGcTemplateSheet(workbook) {
 
 function reduceWorkbookToSheet(workbook, keepSheet) {
   for (const sheet of [...workbook.worksheets]) {
-    if (sheet.id !== keepSheet.id) {
-      workbook.removeWorksheet(sheet.id);
-    }
+    if (sheet.id !== keepSheet.id) workbook.removeWorksheet(sheet.id);
   }
 }
 
@@ -65,24 +60,15 @@ function clearTemplateDataRows(sheet, firstDataRow = 6) {
   for (let rowNumber = firstDataRow; rowNumber <= lastRow; rowNumber += 1) {
     const row = sheet.getRow(rowNumber);
     for (let columnNumber = 1; columnNumber <= sheet.columnCount; columnNumber += 1) {
-      const cell = row.getCell(columnNumber);
-      // Clear values/formulas only. Keep all template formatting, merges,
-      // widths, row heights, validations, borders and print setup.
-      cell.value = null;
+      row.getCell(columnNumber).value = null;
     }
   }
 }
 
 function writeValuePreserveTemplate(cell, value, sourceCell) {
   cell.value = value === undefined ? null : value;
-
-  if (sourceCell?.numFmt) {
-    cell.numFmt = sourceCell.numFmt;
-  }
-
-  if (sourceCell?.alignment) {
-    cell.alignment = { ...sourceCell.alignment };
-  }
+  if (sourceCell?.numFmt) cell.numFmt = sourceCell.numFmt;
+  if (sourceCell?.alignment) cell.alignment = { ...sourceCell.alignment };
 }
 
 function copyRenderedDataIntoTemplate(target, source) {
@@ -91,10 +77,16 @@ function copyRenderedDataIntoTemplate(target, source) {
   const targetLastRow = Math.max(sourceLastRow, target.rowCount);
   const maxColumns = Math.max(source.columnCount, target.columnCount);
 
+  log('COPY_TEMPLATE_DATA_START', {
+    sourceLastRow,
+    targetLastRow,
+    sourceColumns: source.columnCount,
+    targetColumns: target.columnCount,
+    maxColumns
+  });
+
   clearTemplateDataRows(target, sourceFirstRow);
 
-  // The source renderer is authoritative for data/formulas, while the
-  // requested template remains authoritative for its visual layout.
   for (let rowNumber = sourceFirstRow; rowNumber <= sourceLastRow; rowNumber += 1) {
     const sourceRow = source.getRow(rowNumber);
     const targetRow = target.getRow(rowNumber);
@@ -103,13 +95,8 @@ function copyRenderedDataIntoTemplate(target, source) {
     for (let columnNumber = 1; columnNumber <= maxColumns; columnNumber += 1) {
       const sourceCell = source.getCell(rowNumber, columnNumber);
       const value = sourceCell?.value;
-
       if (value !== null && value !== undefined) {
-        writeValuePreserveTemplate(
-          target.getCell(rowNumber, columnNumber),
-          value,
-          sourceCell
-        );
+        writeValuePreserveTemplate(target.getCell(rowNumber, columnNumber), value, sourceCell);
       }
     }
   }
@@ -121,25 +108,15 @@ function copyRenderedDataIntoTemplate(target, source) {
     const startRow = Number(match[2]);
     const endRow = Number(match[4]);
     if (startRow < sourceFirstRow || endRow < sourceFirstRow) continue;
-    try {
-      target.mergeCells(range);
-    } catch (_) {}
+    try { target.mergeCells(range); } catch (_) {}
   }
 
-  if (source.autoFilter) {
-    target.autoFilter = source.autoFilter;
-  }
+  if (source.autoFilter) target.autoFilter = source.autoFilter;
 
+  log('COPY_TEMPLATE_DATA_DONE', { sourceLastRow, targetLastRow, maxColumns });
   return { sourceLastRow, targetLastRow, maxColumns };
 }
 
-/**
- * GC export:
- * - start from the committed company template
- * - keep only its Cắt lồng sheet
- * - render current approved DB data using the canonical renderer
- * - copy generated data into the template without changing the template layout
- */
 async function buildGcFromOneSheetTemplate(args, monthlyModule) {
   const source = args?.payload?.processes?.GC || {};
   const renderProcessSheet = monthlyModule?._private?.renderProcessSheet;
@@ -149,66 +126,51 @@ async function buildGcFromOneSheetTemplate(args, monthlyModule) {
     throw new Error('Thiếu renderer chuẩn để xuất template Cắt lồng một sheet.');
   }
 
-  const templatePath = path.join(
-    args.appPath,
-    'assets',
-    'templates',
-    'bao-cao-cat-long-export.xlsx'
-  );
+  const templatePath = path.join(args.appPath, 'assets', 'templates', 'bao-cao-cat-long-export.xlsx');
   const started = Date.now();
   const yearMonth = String(args?.payload?.yearMonth || args?.date || '').slice(0, 7);
-  const settings = args?.payload?.formulaSettings?.GC
-    || args?.payload?.formulaSettings?.GLOBAL
-    || {};
+  const settings = args?.payload?.formulaSettings?.GC || args?.payload?.formulaSettings?.GLOBAL || {};
 
   log('BUILD_GC_ONE_SHEET_START', {
     date: args?.date,
     reportCount: Array.isArray(source.reports) ? source.reports.length : 0,
     templatePath,
-    writer: 'bao-cao-cat-long-export.xlsx',
     renderer: 'monthlyWorkbookLocal.renderProcessSheet'
   });
 
   const templateWorkbook = new ExcelJS.Workbook();
+  log('TEMPLATE_READ_START', { templatePath });
   await templateWorkbook.xlsx.readFile(templatePath);
+  log('TEMPLATE_READ_DONE', { sheetCount: templateWorkbook.worksheets.length });
 
   const sheet = findGcTemplateSheet(templateWorkbook);
   const originalTemplateSheetCount = templateWorkbook.worksheets.length;
-  reduceWorkbookToSheet(templateWorkbook, sheet);
+  log('TEMPLATE_GC_SHEET_FOUND', { sheet: sheet.name, originalTemplateSheetCount });
 
-  // Keep the existing template sheet name. Do not rename it unnecessarily;
-  // ExcelJS rejects a duplicate name even when it is the current name.
+  log('TEMPLATE_REDUCE_START', { sheetCount: templateWorkbook.worksheets.length });
+  reduceWorkbookToSheet(templateWorkbook, sheet);
+  log('TEMPLATE_REDUCE_DONE', { sheetCount: templateWorkbook.worksheets.length, sheet: sheet.name });
+
   sheet.state = 'visible';
 
   const renderedWorkbook = new ExcelJS.Workbook();
-  renderProcessSheet(
-    renderedWorkbook,
-    'GC',
-    processConfig,
-    source,
-    yearMonth,
-    settings
-  );
+  log('CANONICAL_RENDER_START', { reportCount: Array.isArray(source.reports) ? source.reports.length : 0 });
+  renderProcessSheet(renderedWorkbook, 'GC', processConfig, source, yearMonth, settings);
+  log('CANONICAL_RENDER_DONE', { sheetCount: renderedWorkbook.worksheets.length });
 
   const renderedSheet = renderedWorkbook.getWorksheet(processConfig.sheet);
-  if (!renderedSheet) {
-    throw new Error('Renderer chuẩn không tạo được sheet Cắt lồng.');
-  }
+  if (!renderedSheet) throw new Error('Renderer chuẩn không tạo được sheet Cắt lồng.');
 
   const copyStats = copyRenderedDataIntoTemplate(sheet, renderedSheet);
 
-  templateWorkbook.views = [{
-    activeTab: 0,
-    firstSheet: 0,
-    visibility: 'visible'
-  }];
-
+  templateWorkbook.views = [{ activeTab: 0, firstSheet: 0, visibility: 'visible' }];
   templateWorkbook.calcProperties.fullCalcOnLoad = true;
   templateWorkbook.calcProperties.forceFullCalc = true;
   templateWorkbook.calcProperties.calcMode = 'auto';
 
+  log('TEMPLATE_WRITE_START', { sheetCount: templateWorkbook.worksheets.length, rows: sheet.rowCount, columns: sheet.columnCount });
   const buffer = Buffer.from(await templateWorkbook.xlsx.writeBuffer());
-  const elapsed = Date.now() - started;
+  log('TEMPLATE_WRITE_DONE', { bytes: buffer.length });
 
   log('BUILD_GC_ONE_SHEET_DONE', {
     date: args?.date,
@@ -218,16 +180,12 @@ async function buildGcFromOneSheetTemplate(args, monthlyModule) {
     rows: sheet.rowCount,
     columns: sheet.columnCount,
     sourceLastRow: copyStats.sourceLastRow,
-    elapsedMs: elapsed
+    elapsedMs: Date.now() - started
   });
 
   return {
     buffer,
-    result: {
-      code: 'GC',
-      sheet: sheet.name,
-      reportCount: Array.isArray(source.reports) ? source.reports.length : 0
-    },
+    result: { code: 'GC', sheet: sheet.name, reportCount: Array.isArray(source.reports) ? source.reports.length : 0 },
     processCode: 'GC',
     processName: 'CẮT/LỒNG',
     fileName: `04_CAT_LONG_${String(args.date || '').slice(5, 7)}-${String(args.date || '').slice(0, 4)}.xlsx`,
@@ -239,7 +197,6 @@ async function buildGcFromOneSheetTemplate(args, monthlyModule) {
 
 function patchMonthly(mod) {
   if (!mod || mod.__ktcV3MonthlyPatched) return mod;
-
   const original = mod.buildProcessWorkbookLocal;
   if (typeof original !== 'function') {
     log('PATCH_FAILED', { reason: 'buildProcessWorkbookLocal_missing' });
@@ -248,49 +205,26 @@ function patchMonthly(mod) {
 
   mod.buildProcessWorkbookLocal = async (args) => {
     const processCode = String(args?.processCode || '').trim().toUpperCase();
-    return processCode === 'GC'
-      ? buildGcFromOneSheetTemplate(args, mod)
-      : original(args);
+    return processCode === 'GC' ? buildGcFromOneSheetTemplate(args, mod) : original(args);
   };
 
   mod.buildSplitMonthlyWorkbooksLocal = async (args) => {
     const processes = [];
-
     for (const [code, data] of Object.entries(args?.payload?.processes || {})) {
       if (!Array.isArray(data?.reports) || !data.reports.length) continue;
-
-      processes.push(
-        await mod.buildProcessWorkbookLocal({
-          ...args,
-          processCode: code
-        })
-      );
+      processes.push(await mod.buildProcessWorkbookLocal({ ...args, processCode: code }));
     }
-
-    return {
-      summary: null,
-      processes
-    };
+    return { summary: null, processes };
   };
 
-  Object.defineProperty(mod, '__ktcV3MonthlyPatched', {
-    value: true
-  });
-
+  Object.defineProperty(mod, '__ktcV3MonthlyPatched', { value: true });
   log('MONTHLY_PATCH_INSTALLED_V3_ONE_SHEET_GC');
   return mod;
 }
 
 Module._load = function(request, parent, isMain) {
   const loaded = originalLoad.call(this, request, parent, isMain);
-
-  if (
-    typeof request === 'string'
-    && /monthlyWorkbookLocal\.cjs$/.test(request)
-  ) {
-    return patchMonthly(loaded);
-  }
-
+  if (typeof request === 'string' && /monthlyWorkbookLocal\.cjs$/.test(request)) return patchMonthly(loaded);
   return loaded;
 };
 
