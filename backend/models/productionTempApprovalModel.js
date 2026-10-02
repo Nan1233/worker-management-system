@@ -224,6 +224,57 @@ async function validateApprovalSnapshot(item, connection, standardResolver) {
   });
 }
 
+
+async function assertApprovalDetailsCopied(tempReportId, approvedReportId, connection) {
+  const pairs = await Promise.all([
+    qRows(connection, 'SELECT COUNT(*) AS c, COALESCE(SUM(hours),0) AS total FROM production_temp_deductions WHERE temp_report_id=?', [tempReportId]),
+    qRows(connection, 'SELECT COUNT(*) AS c, COALESCE(SUM(hours),0) AS total FROM production_report_deductions WHERE report_id=?', [approvedReportId]),
+    qRows(connection, 'SELECT COUNT(*) AS c, COALESCE(SUM(quantity),0) AS total FROM production_temp_defects WHERE temp_report_id=?', [tempReportId]),
+    qRows(connection, 'SELECT COUNT(*) AS c, COALESCE(SUM(quantity),0) AS total FROM production_report_defects WHERE report_id=?', [approvedReportId]),
+    qRows(connection, 'SELECT COUNT(*) AS c FROM production_temp_machine_lines WHERE temp_report_id=?', [tempReportId]),
+    qRows(connection, 'SELECT COUNT(*) AS c FROM production_report_machine_lines WHERE report_id=?', [approvedReportId]),
+    qRows(connection, 'SELECT COUNT(*) AS c, COALESCE(SUM(quantity),0) AS total FROM production_temp_machine_defects d JOIN production_temp_machine_lines l ON l.id=d.machine_line_id WHERE l.temp_report_id=?', [tempReportId]),
+    qRows(connection, 'SELECT COUNT(*) AS c, COALESCE(SUM(quantity),0) AS total FROM production_report_machine_defects d JOIN production_report_machine_lines l ON l.id=d.machine_line_id WHERE l.report_id=?', [approvedReportId]),
+  ]);
+
+  const checks = [
+    ['deductions', pairs[0][0], pairs[1][0], true],
+    ['defects', pairs[2][0], pairs[3][0], true],
+    ['machine_lines', pairs[4][0], pairs[5][0], false],
+    ['machine_defects', pairs[6][0], pairs[7][0], true],
+  ];
+
+  for (const [type, expectedRow, actualRow, checkTotal] of checks) {
+    const expectedCount = Number(expectedRow?.c || 0);
+    const actualCount = Number(actualRow?.c || 0);
+    const expectedTotal = Number(expectedRow?.total || 0);
+    const actualTotal = Number(actualRow?.total || 0);
+
+    if (
+      expectedCount !== actualCount
+      || (checkTotal && Math.abs(expectedTotal - actualTotal) > 0.000001)
+    ) {
+      const error = new Error(
+        'Chi tiết báo cáo #' + tempReportId
+        + ' không được copy đầy đủ sang báo cáo đã duyệt #' + approvedReportId
+        + ': ' + type,
+      );
+      error.status = 500;
+      error.code = 'APPROVED_REPORT_DETAIL_COPY_MISMATCH';
+      error.details = {
+        temp_report_id: Number(tempReportId),
+        approved_report_id: Number(approvedReportId),
+        type,
+        expected_count: expectedCount,
+        actual_count: actualCount,
+        expected_total: expectedTotal,
+        actual_total: actualTotal,
+      };
+      throw error;
+    }
+  }
+}
+
 async function createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, connection) {
   const [snapshotDefects, snapshotDeductions] = await Promise.all([
     qRows(
@@ -397,6 +448,7 @@ module.exports = {
           [approvedReportId,item.id],
         );
         await copyMachineLinesToApproved(item.id, approvedReportId, connection);
+        await assertApprovalDetailsCopied(item.id, approvedReportId, connection);
         await createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, connection);
         await createApprovedReportVersion(
           {
