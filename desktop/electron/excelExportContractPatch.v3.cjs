@@ -6,6 +6,35 @@ const path = require('node:path');
 
 const originalLoad = Module._load;
 
+const TEMPLATE_NAME = 'bao-cao-cat-long-export.xlsx';
+const SHEET_NAME = 'Cắt lồng';
+
+const GC_COL = Object.freeze({
+  STT: 1,
+  WORKER_CODE: 2,
+  NAME: 3,
+  MACHINE: 4,
+  MOLD: 5,
+  TRAINING: 6,
+  WORKING_TIME: 7,
+  ACTUAL_TIME: 8,
+  CHANGEOVERS: 9,
+  DEDUCTION_TOTAL: 10,
+  DEDUCTION_FIRST: 11,
+  DEDUCTION_LAST: 18,
+  PRODUCT: 19,
+  STANDARD: 20,
+  OUTPUT: 21,
+  ACHIEVEMENT: 22,
+  DATE: 23,
+  OUTPUT_PER_HOUR: 24,
+  OK: 25,
+  NG: 26,
+  NG_RATE: 27,
+  DEFECT_FIRST: 28,
+  DEFECT_LAST: 54
+});
+
 const log = (event, data = {}) => {
   try {
     const m = process.memoryUsage();
@@ -18,22 +47,53 @@ const log = (event, data = {}) => {
   } catch (_) {}
 };
 
-function normalizeSheetName(value) {
+function normalize(value) {
   return String(value ?? '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/Đ/g, 'D').replace(/đ/g, 'd')
-    .replace(/[^a-z0-9]+/gi, '')
+    .replace(/[^a-zA-Z0-9]+/g, '')
     .toUpperCase();
+}
+
+function asNumber(value, fallback = 0) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const n = Number(String(value ?? '').replace(/,/g, ''));
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function asText(value) {
+  if (value === null || value === undefined) return '';
+  return String(value);
+}
+
+function asDate(value) {
+  if (!value) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  const s = String(value).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function parseExtraData(report) {
+  if (!report?.extra_data) return {};
+  if (typeof report.extra_data === 'object' && !Array.isArray(report.extra_data)) return report.extra_data;
+  try {
+    const value = JSON.parse(String(report.extra_data));
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  } catch (_) {
+    return {};
+  }
 }
 
 function findGcTemplateSheet(workbook) {
   const sheets = workbook.worksheets || [];
-  const exact = sheets.find((sheet) => normalizeSheetName(sheet.name) === 'CATLONG');
+  const exact = sheets.find((s) => normalize(s.name) === normalize(SHEET_NAME));
   if (exact) return exact;
-  const partial = sheets.find((sheet) => normalizeSheetName(sheet.name).includes('CATLONG'));
+  const partial = sheets.find((s) => normalize(s.name).includes('CATLONG'));
   if (partial) return partial;
-  throw new Error(`Không tìm thấy sheet Cắt lồng trong template GC. Các sheet hiện có: ${sheets.map((s) => s.name).join(', ')}`);
+  throw new Error(`Không tìm thấy sheet ${SHEET_NAME} trong template GC.`);
 }
 
 function reduceWorkbookToSheet(workbook, keepSheet) {
@@ -45,7 +105,6 @@ function reduceWorkbookToSheet(workbook, keepSheet) {
 function stripBrokenSharedFormulaClones(workbook) {
   let converted = 0;
   let cleared = 0;
-  let formulaCleared = 0;
   for (const sheet of workbook.worksheets || []) {
     for (const row of sheet._rows || []) {
       for (const cell of row?._cells || []) {
@@ -57,201 +116,311 @@ function stripBrokenSharedFormulaClones(workbook) {
           if (cell.model) delete cell.model.sharedFormula;
           converted += 1;
           if (cached === undefined || cached === null) cleared += 1;
-          continue;
-        }
-        if (model.type === 6 || model.formula) {
-          const cached = model.result;
-          cell.value = cached !== undefined && cached !== null ? cached : null;
-          formulaCleared += 1;
         }
       }
     }
   }
-  log('TEMPLATE_FORMULA_SANITIZED', {
-    sharedFormulaConverted: converted,
-    sharedFormulaCleared: cleared,
-    ordinaryFormulaCleared: formulaCleared,
-    remainingSheets: workbook.worksheets.length
-  });
-  return { converted, cleared, formulaCleared };
+  log('TEMPLATE_SHARED_FORMULAS_STRIPPED', { converted, cleared });
+  return { converted, cleared };
 }
 
-// GC data for "Loại thao tác" (CẮT/LỒNG) and "Chế độ" (TAY/MÁY)
-// is currently not reliable enough for the exported monthly workbook.
-// Keep the form/header columns, but do not export the row values.
-function clearGcOperationTypeAndMode(sheet) {
-  const normalize = (value) => String(value ?? '')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/gi, '').toLowerCase();
+function detailItems(report, kind) {
+  const direct = kind === 'deduction' ? report?.deductions : report?.defects;
+  if (Array.isArray(direct)) return direct;
+  const extra = parseExtraData(report);
+  const candidates = kind === 'deduction'
+    ? [extra.deductions, extra.deductionDetails, extra.timeDeductions]
+    : [extra.defects, extra.defectDetails, extra.ngDetails];
+  for (const value of candidates) if (Array.isArray(value)) return value;
+  return [];
+}
 
-  let headerRowNumber = 0;
-  let operationTypeCol = 0;
-  let operationModeCol = 0;
+function detailId(item, kind) {
+  const raw = kind === 'deduction'
+    ? item?.deduction_type_id ?? item?.deductionTypeId ?? item?.type_id
+    : item?.defect_type_id ?? item?.defectTypeId ?? item?.type_id;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
 
-  for (let r = 1; r <= Math.min(sheet.rowCount, 12); r += 1) {
+function detailCode(item, kind) {
+  return asText(kind === 'deduction'
+    ? item?.deduction_type_code ?? item?.deduction_code ?? item?.type_code ?? item?.code
+    : item?.defect_type_code ?? item?.defect_code ?? item?.type_code ?? item?.code);
+}
+
+function detailName(item, kind) {
+  return asText(kind === 'deduction'
+    ? item?.deduction_type_name ?? item?.deduction_name ?? item?.type_name ?? item?.display_name ?? item?.label ?? item?.name
+    : item?.defect_type_name ?? item?.defect_name ?? item?.type_name ?? item?.display_name ?? item?.label ?? item?.name);
+}
+
+function detailValue(item, kind) {
+  const keys = kind === 'deduction'
+    ? ['hours', 'duration_hours', 'deduction_hours', 'time_hours', 'value', 'duration', 'amount', 'minutes']
+    : ['quantity', 'qty', 'count', 'value', 'amount'];
+  for (const key of keys) {
+    if (item?.[key] === undefined || item?.[key] === null || item?.[key] === '') continue;
+    const n = asNumber(item[key], NaN);
+    if (!Number.isFinite(n)) continue;
+    if (kind === 'deduction' && key === 'minutes') return n / 60;
+    return n;
+  }
+  return 0;
+}
+
+function typeAliases(types, id) {
+  const numericId = Number(id);
+  const type = (Array.isArray(types) ? types : []).find((x) => Number(x?.id) === numericId);
+  if (!type) return [];
+  return [type.code, type.name, type.label, type.display_name]
+    .filter(Boolean)
+    .map(normalize);
+}
+
+function detailMatchesHeader(item, header, kind, types) {
+  const wanted = normalize(header);
+  if (!wanted) return false;
+  const aliases = [detailCode(item, kind), detailName(item, kind), ...typeAliases(types, detailId(item, kind))]
+    .filter(Boolean)
+    .map(normalize);
+  return aliases.some((alias) => alias === wanted || alias.includes(wanted) || wanted.includes(alias));
+}
+
+function detailForHeader(report, processData, header, kind) {
+  let total = 0;
+  for (const item of detailItems(report, kind)) {
+    if (detailMatchesHeader(item, header, kind, kind === 'deduction' ? processData?.deductionTypes : processData?.defectTypes)) {
+      total += detailValue(item, kind);
+    }
+  }
+  return total;
+}
+
+function machineDisplay(report) {
+  const lines = Array.isArray(report?.machineLines) ? report.machineLines : [];
+  const values = lines.map((x) => asText(x?.machine_code || x?.machine_no || x?.machine_name)).filter(Boolean);
+  return values.length ? [...new Set(values)].join(', ') : asText(report?.machine_no);
+}
+
+function productDisplay(report) {
+  const lines = Array.isArray(report?.machineLines) ? report.machineLines : [];
+  const values = lines.map((x) => asText(x?.product_code)).filter(Boolean);
+  return values.length ? [...new Set(values)].join(', ') : asText(report?.product_name);
+}
+
+function moldDisplay(report) {
+  const extra = parseExtraData(report);
+  return asText(
+    report?.mold_no ?? report?.mold_code ?? report?.mold_number ?? report?.tool_no ??
+    extra.mold_no ?? extra.mold_code ?? extra.mold_number ?? extra.so_khuon
+  );
+}
+
+function changeoverCount(report) {
+  const extra = parseExtraData(report);
+  return asNumber(
+    report?.changeover_count ?? report?.change_machine_count ?? report?.so_lan_cm ??
+    extra.changeover_count ?? extra.change_machine_count ?? extra.so_lan_cm,
+    0
+  );
+}
+
+function clearCell(cell) {
+  try { cell.value = null; } catch (_) {}
+}
+
+function clearDataRows(sheet) {
+  const last = sheet.rowCount;
+  for (let r = 6; r <= last; r += 1) {
     const row = sheet.getRow(r);
-    for (let c = 1; c <= Math.max(1, sheet.columnCount); c += 1) {
-      const key = normalize(row.getCell(c).value);
-      if (key === 'loạithaotác') { headerRowNumber = r; operationTypeCol = c; }
-      if (key === 'chedo') { headerRowNumber = Math.max(headerRowNumber, r); operationModeCol = c; }
+    for (let c = 1; c <= Math.max(GC_COL.DEFECT_LAST, sheet.columnCount); c += 1) {
+      const cell = row.getCell(c);
+      if (cell.isMerged && !cell.master) continue;
+      clearCell(cell);
     }
-    if (operationTypeCol && operationModeCol) break;
+    row.hidden = false;
   }
+}
 
-  if (!operationTypeCol && !operationModeCol) {
-    log('GC_OPERATION_FIELDS_NOT_FOUND', { sheet: sheet.name });
-    return { headerRowNumber: 0, operationTypeCol: 0, operationModeCol: 0, clearedCells: 0 };
+function findHeader(sheet, column) {
+  for (let r = 1; r <= 8; r += 1) {
+    const value = sheet.getCell(r, column).value;
+    if (value !== null && value !== undefined && String(value).trim() !== '') return String(value);
   }
+  return '';
+}
 
-  const firstDataRow = Math.max(6, headerRowNumber + 1);
-  let clearedCells = 0;
-  for (let r = firstDataRow; r <= sheet.rowCount; r += 1) {
-    for (const c of [operationTypeCol, operationModeCol]) {
-      if (!c) continue;
-      const cell = sheet.getCell(r, c);
-      if (cell.value !== null && cell.value !== undefined && cell.value !== '') {
-        cell.value = null;
-        clearedCells += 1;
+function clearUnreliableGcFields(sheet) {
+  let cleared = 0;
+  for (let c = 1; c <= sheet.columnCount; c += 1) {
+    const header = normalize(findHeader(sheet, c));
+    if (!header) continue;
+    if (header === 'LOAITHAOTAC' || header === 'CHEDO') {
+      for (let r = 6; r <= sheet.rowCount; r += 1) {
+        const cell = sheet.getCell(r, c);
+        if (cell.value !== null && cell.value !== undefined && cell.value !== '') {
+          clearCell(cell);
+          cleared += 1;
+        }
       }
     }
   }
-
-  log('GC_OPERATION_FIELDS_CLEARED', {
-    headerRowNumber,
-    operationTypeCol,
-    operationModeCol,
-    firstDataRow,
-    lastDataRow: sheet.rowCount,
-    clearedCells
-  });
-  return { headerRowNumber, operationTypeCol, operationModeCol, clearedCells };
+  return cleared;
 }
 
-function clearTemplateDataRows(sheet, firstDataRow, lastDataRow, maxColumns) {
-  const first = Math.max(1, Number(firstDataRow) || 1);
-  const last = Math.max(first, Number(lastDataRow) || first);
-  const columns = Math.max(1, Number(maxColumns) || sheet.columnCount);
-  for (let rowNumber = first; rowNumber <= last; rowNumber += 1) {
-    const row = sheet.getRow(rowNumber);
-    for (let columnNumber = 1; columnNumber <= columns; columnNumber += 1) {
-      row.getCell(columnNumber).value = null;
+function writeGcReportRow(sheet, rowNumber, report, processData, sequence) {
+  const training = report?.training_percent === null || report?.training_percent === undefined
+    ? 0
+    : asNumber(report.training_percent, 0);
+  const workingTime = asNumber(report?.total_time, 0);
+  const actualTime = asNumber(report?.actual_time, workingTime);
+  const deductionTime = asNumber(report?.deduction_time, 0);
+  const standard = asNumber(report?.standard_output, 0);
+  const output = asNumber(report?.actual_output, 0);
+  const ok = asNumber(report?.tt_ok, 0);
+  const ng = asNumber(report?.tt_ng ?? report?.total_ng ?? report?.ng_quantity, 0);
+
+  const values = new Map([
+    [GC_COL.STT, sequence],
+    [GC_COL.WORKER_CODE, asText(report?.worker_code)],
+    [GC_COL.NAME, asText(report?.full_name ?? report?.worker_name)],
+    [GC_COL.MACHINE, machineDisplay(report)],
+    [GC_COL.MOLD, moldDisplay(report)],
+    [GC_COL.TRAINING, training],
+    [GC_COL.WORKING_TIME, workingTime],
+    [GC_COL.ACTUAL_TIME, actualTime],
+    [GC_COL.CHANGEOVERS, changeoverCount(report)],
+    [GC_COL.DEDUCTION_TOTAL, deductionTime],
+    [GC_COL.PRODUCT, productDisplay(report)],
+    [GC_COL.STANDARD, standard],
+    [GC_COL.OUTPUT, output],
+    [GC_COL.DATE, asDate(report?.work_date)],
+    [GC_COL.OK, ok],
+    [GC_COL.NG, ng]
+  ]);
+
+  for (const [column, value] of values) {
+    const cell = sheet.getCell(rowNumber, column);
+    cell.value = value;
+    if (column === GC_COL.DATE) cell.numFmt = 'd-mmm';
+  }
+
+  // Chỉ dùng công thức cho các chỉ số tính toán. Dữ liệu nhập thực tế và dữ liệu DB
+  // (OK/NG, thời gian, định mức, sản lượng, chi tiết trừ giờ/NG) không bị tính lại.
+  sheet.getCell(rowNumber, GC_COL.ACHIEVEMENT).value = {
+    formula: `IFERROR(U${rowNumber}/T${rowNumber},0)`
+  };
+  sheet.getCell(rowNumber, GC_COL.OUTPUT_PER_HOUR).value = {
+    formula: `IFERROR(U${rowNumber}/H${rowNumber},0)`
+  };
+  sheet.getCell(rowNumber, GC_COL.NG_RATE).value = {
+    formula: `IFERROR(Z${rowNumber}/(Y${rowNumber}+Z${rowNumber}),0)`
+  };
+
+  for (let c = GC_COL.DEDUCTION_FIRST; c <= GC_COL.DEDUCTION_LAST; c += 1) {
+    const header = findHeader(sheet, c);
+    sheet.getCell(rowNumber, c).value = detailForHeader(report, processData, header, 'deduction');
+  }
+  for (let c = GC_COL.DEFECT_FIRST; c <= GC_COL.DEFECT_LAST; c += 1) {
+    const header = findHeader(sheet, c);
+    sheet.getCell(rowNumber, c).value = detailForHeader(report, processData, header, 'defect');
+  }
+}
+
+async function buildGcFromApprovedDb(args) {
+  const payload = args?.payload || {};
+  const processData = payload?.processes?.GC || {};
+  const reports = Array.isArray(processData.reports) ? [...processData.reports] : [];
+  reports.sort((a, b) => {
+    const ad = String(a?.work_date || '');
+    const bd = String(b?.work_date || '');
+    if (ad !== bd) return ad.localeCompare(bd);
+    return String(a?.approved_at || a?.created_at || '').localeCompare(String(b?.approved_at || b?.created_at || ''));
+  });
+
+  if (payload.dataSource !== 'tidb.production_reports.approved') {
+    throw new Error('GC Excel chỉ được xuất từ production_reports đã duyệt trong TiDB.');
+  }
+  for (const report of reports) {
+    if (report?.dataSource !== 'production_reports' || report?.isApprovedDatabaseRecord !== true) {
+      throw new Error(`Báo cáo ${report?.id || '?'} không phải dữ liệu đã duyệt từ TiDB.`);
     }
   }
-}
 
-function writeValuePreserveTemplate(cell, value, sourceCell) {
-  cell.value = value === undefined ? null : value;
-  if (sourceCell?.numFmt) cell.numFmt = sourceCell.numFmt;
-  if (sourceCell?.alignment) cell.alignment = { ...sourceCell.alignment };
-}
-
-function copyRenderedDataIntoTemplate(target, source) {
-  const sourceFirstRow = 6;
-  const sourceLastRow = Math.max(sourceFirstRow, source.rowCount);
-  const sourceColumns = Math.max(1, source.columnCount);
-  log('COPY_TEMPLATE_DATA_START', {
-    sourceLastRow, targetLastRow: target.rowCount,
-    sourceColumns, targetColumns: target.columnCount, maxColumns: sourceColumns
-  });
-
-  clearTemplateDataRows(target, sourceFirstRow, sourceLastRow, sourceColumns);
-  log('COPY_TEMPLATE_DATA_CLEARED', { firstRow: sourceFirstRow, lastRow: sourceLastRow, columns: sourceColumns });
-
-  for (let rowNumber = sourceFirstRow; rowNumber <= sourceLastRow; rowNumber += 1) {
-    const sourceRow = source.getRow(rowNumber);
-    const targetRow = target.getRow(rowNumber);
-    if (sourceRow.height != null) targetRow.height = sourceRow.height;
-    for (let columnNumber = 1; columnNumber <= sourceColumns; columnNumber += 1) {
-      const sourceCell = source.getCell(rowNumber, columnNumber);
-      const value = sourceCell?.value;
-      if (value !== null && value !== undefined) {
-        writeValuePreserveTemplate(target.getCell(rowNumber, columnNumber), value, sourceCell);
-      }
-    }
-  }
-
-  const sourceMerges = Array.isArray(source.model?.merges) ? source.model.merges : [];
-  for (const range of sourceMerges) {
-    const match = String(range).match(/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/i);
-    if (!match) continue;
-    const startRow = Number(match[2]);
-    const endRow = Number(match[4]);
-    if (startRow < sourceFirstRow || endRow < sourceFirstRow) continue;
-    try { target.mergeCells(range); } catch (_) {}
-  }
-  if (source.autoFilter) target.autoFilter = source.autoFilter;
-  log('COPY_TEMPLATE_DATA_DONE', { sourceLastRow, targetLastRow: target.rowCount, maxColumns: sourceColumns });
-  return { sourceLastRow, targetLastRow: target.rowCount, maxColumns: sourceColumns };
-}
-
-async function buildGcFromOneSheetTemplate(args, monthlyModule) {
-  const source = args?.payload?.processes?.GC || {};
-  const renderProcessSheet = monthlyModule?._private?.renderProcessSheet;
-  const processConfig = monthlyModule?.PROCESS_SHEETS?.GC;
-  if (typeof renderProcessSheet !== 'function' || !processConfig) {
-    throw new Error('Thiếu renderer chuẩn để xuất template Cắt lồng một sheet.');
-  }
-
-  const templatePath = path.join(args.appPath, 'assets', 'templates', 'bao-cao-cat-long-export.xlsx');
+  const templatePath = path.join(args.appPath, 'assets', 'templates', TEMPLATE_NAME);
   const started = Date.now();
-  const yearMonth = String(args?.payload?.yearMonth || args?.date || '').slice(0, 7);
-  const settings = args?.payload?.formulaSettings?.GC || args?.payload?.formulaSettings?.GLOBAL || {};
+  log('BUILD_GC_DB_DIRECT_START', { date: args?.date, reportCount: reports.length, templatePath });
 
-  log('BUILD_GC_ONE_SHEET_START', {
-    date: args?.date,
-    reportCount: Array.isArray(source.reports) ? source.reports.length : 0,
-    templatePath,
-    writer: 'bao-cao-cat-long-export.xlsx',
-    renderer: 'monthlyWorkbookLocal.renderProcessSheet'
-  });
-
-  const templateWorkbook = new ExcelJS.Workbook();
-  log('TEMPLATE_READ_START', { templatePath });
-  await templateWorkbook.xlsx.readFile(templatePath);
-  log('TEMPLATE_READ_DONE', { sheetCount: templateWorkbook.worksheets.length });
-
-  const sheet = findGcTemplateSheet(templateWorkbook);
-  const originalTemplateSheetCount = templateWorkbook.worksheets.length;
-  log('TEMPLATE_GC_SHEET_FOUND', { sheet: sheet.name, originalTemplateSheetCount });
-  reduceWorkbookToSheet(templateWorkbook, sheet);
-  log('TEMPLATE_REDUCE_DONE', { sheetCount: templateWorkbook.worksheets.length, sheet: sheet.name });
-
-  const formulaStats = stripBrokenSharedFormulaClones(templateWorkbook);
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(templatePath);
+  const sheet = findGcTemplateSheet(workbook);
+  const originalSheetCount = workbook.worksheets.length;
+  reduceWorkbookToSheet(workbook, sheet);
   sheet.state = 'visible';
 
-  const renderedWorkbook = new ExcelJS.Workbook();
-  log('CANONICAL_RENDER_START', { reportCount: Array.isArray(source.reports) ? source.reports.length : 0 });
-  renderProcessSheet(renderedWorkbook, 'GC', processConfig, source, yearMonth, settings);
-  log('CANONICAL_RENDER_DONE', { sheetCount: renderedWorkbook.worksheets.length });
+  const formulaStats = stripBrokenSharedFormulaClones(workbook);
+  clearDataRows(sheet);
 
-  const renderedSheet = renderedWorkbook.getWorksheet(processConfig.sheet);
-  if (!renderedSheet) throw new Error('Renderer chuẩn không tạo được sheet Cắt lồng.');
+  // Template là giao diện. Không lấy giá trị nghiệp vụ từ các công thức/mẫu cũ.
+  // Chỉ giữ style/merge/header của template và ghi dữ liệu approved DB vào các dòng.
+  let dataRow = 7;
+  let sequence = 0;
+  let currentDate = '';
+  let reportRows = 0;
 
-  clearGcOperationTypeAndMode(renderedSheet);
+  for (const report of reports) {
+    const workDate = String(report?.work_date || '').slice(0, 10);
+    if (workDate !== currentDate) {
+      const dateRow = sheet.getRow(dataRow - 1);
+      if (dataRow === 7 || dateRow.getCell(1).value !== null && dateRow.getCell(1).value !== undefined) {
+        // Do not create a new synthetic row. The date is already stored in the
+        // Ngày/Tháng column of each real report row.
+      }
+      currentDate = workDate;
+      sequence = 0;
+    }
+    sequence += 1;
+    writeGcReportRow(sheet, dataRow, report, processData, sequence);
+    dataRow += 1;
+    reportRows += 1;
+  }
 
-  const copyStats = copyRenderedDataIntoTemplate(sheet, renderedSheet);
-  templateWorkbook.views = [{ activeTab: 0, firstSheet: 0, visibility: 'visible' }];
-  templateWorkbook.calcProperties.fullCalcOnLoad = true;
-  templateWorkbook.calcProperties.forceFullCalc = true;
-  templateWorkbook.calcProperties.calcMode = 'auto';
+  for (let r = dataRow; r <= sheet.rowCount; r += 1) {
+    const row = sheet.getRow(r);
+    row.hidden = true;
+    for (let c = 1; c <= Math.min(sheet.columnCount, GC_COL.DEFECT_LAST); c += 1) {
+      const cell = row.getCell(c);
+      if (cell.isMerged && !cell.master) continue;
+      clearCell(cell);
+    }
+  }
 
-  log('TEMPLATE_WRITE_START', {
-    sheetCount: templateWorkbook.worksheets.length,
-    rows: sheet.rowCount,
+  const unreliableCleared = clearUnreliableGcFields(sheet);
+  if (sheet.autoFilter) {
+    sheet.autoFilter = {
+      from: { row: 5, column: 1 },
+      to: { row: Math.max(5, dataRow - 1), column: Math.min(sheet.columnCount, GC_COL.DEFECT_LAST) }
+    };
+  }
+
+  workbook.views = [{ activeTab: 0, firstSheet: 0, visibility: 'visible' }];
+  workbook.calcProperties.fullCalcOnLoad = true;
+  workbook.calcProperties.forceFullCalc = true;
+  workbook.calcProperties.calcMode = 'auto';
+
+  log('GC_DB_DIRECT_WRITE_START', {
+    reportRows,
+    lastDataRow: dataRow - 1,
     columns: sheet.columnCount,
-    sharedFormulaConverted: formulaStats.converted
+    originalSheetCount,
+    unreliableCleared
   });
-  const buffer = Buffer.from(await templateWorkbook.xlsx.writeBuffer());
-  log('TEMPLATE_WRITE_DONE', { bytes: buffer.length });
-
-  log('BUILD_GC_ONE_SHEET_DONE', {
-    date: args?.date,
-    reportCount: Array.isArray(source.reports) ? source.reports.length : 0,
-    originalTemplateSheetCount,
-    sheetCount: templateWorkbook.worksheets.length,
-    rows: sheet.rowCount,
-    columns: sheet.columnCount,
-    sourceLastRow: copyStats.sourceLastRow,
+  const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+  log('GC_DB_DIRECT_DONE', {
+    reportCount: reports.length,
+    reportRows,
+    bytes: buffer.length,
     sharedFormulaConverted: formulaStats.converted,
     sharedFormulaCleared: formulaStats.cleared,
     elapsedMs: Date.now() - started
@@ -259,13 +428,13 @@ async function buildGcFromOneSheetTemplate(args, monthlyModule) {
 
   return {
     buffer,
-    result: { code: 'GC', sheet: sheet.name, reportCount: Array.isArray(source.reports) ? source.reports.length : 0 },
+    result: { code: 'GC', sheet: sheet.name, reportCount: reports.length },
     processCode: 'GC',
     processName: 'CẮT/LỒNG',
     fileName: `04_CAT_LONG_${String(args.date || '').slice(5, 7)}-${String(args.date || '').slice(0, 4)}.xlsx`,
-    reportCount: Array.isArray(source.reports) ? source.reports.length : 0,
+    reportCount: reports.length,
     formulaReplacementCount: formulaStats.converted,
-    templateKind: 'ONE_SHEET_GC_TEMPLATE'
+    templateKind: 'ONE_SHEET_GC_TEMPLATE_DB_DIRECT'
   };
 }
 
@@ -277,12 +446,12 @@ function patchMonthly(mod) {
     return mod;
   }
 
-  mod.buildProcessWorkbookLocal = async (args) => {
+  mod.buildProcessWorkbookLocal = async (args = {}) => {
     const processCode = String(args?.processCode || '').trim().toUpperCase();
-    return processCode === 'GC' ? buildGcFromOneSheetTemplate(args, mod) : original(args);
+    return processCode === 'GC' ? buildGcFromApprovedDb(args) : original(args);
   };
 
-  mod.buildSplitMonthlyWorkbooksLocal = async (args) => {
+  mod.buildSplitMonthlyWorkbooksLocal = async (args = {}) => {
     const processes = [];
     for (const [code, data] of Object.entries(args?.payload?.processes || {})) {
       if (!Array.isArray(data?.reports) || !data.reports.length) continue;
@@ -292,7 +461,7 @@ function patchMonthly(mod) {
   };
 
   Object.defineProperty(mod, '__ktcV3MonthlyPatched', { value: true });
-  log('MONTHLY_PATCH_INSTALLED_V3_ONE_SHEET_GC');
+  log('MONTHLY_PATCH_INSTALLED_V3_GC_DB_DIRECT');
   return mod;
 }
 
@@ -302,4 +471,4 @@ Module._load = function(request, parent, isMain) {
   return loaded;
 };
 
-log('EXCEL_EXPORT_V3_READY_ONE_SHEET_GC');
+log('EXCEL_EXPORT_V3_READY_GC_DB_DIRECT');
