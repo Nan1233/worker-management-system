@@ -135,7 +135,14 @@ async function buildGcFromOneSheetTemplate(args, monthlyModule) {
   const sheet = findGcTemplateSheet(templateWorkbook);
   const originalTemplateSheetCount = templateWorkbook.worksheets.length;
   reduceWorkbookToSheet(templateWorkbook, sheet);
-  sheet.name = 'CẮT LỒNG';
+
+  // ExcelJS throws "Worksheet name already exists" when assigning a sheet its
+  // current name because the workbook name setter also sees the current sheet.
+  // Only rename when the surviving template sheet actually has a different
+  // name. This also handles templates that already use the canonical name.
+  if (sheet.name !== 'CẮT LỒNG') {
+    sheet.name = 'CẮT LỒNG';
+  }
   sheet.state = 'visible';
 
   // Render through the same canonical logic used by the normal monthly
