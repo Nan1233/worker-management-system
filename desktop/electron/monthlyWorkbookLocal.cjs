@@ -386,8 +386,6 @@ function processDetailTypes(processCode, processData, masterKey, reportKey, kind
     }
     current.aliases.forEach((alias) => byAlias.set(alias, current));
   };
-  const templateLabels = PROCESS_TEMPLATE_SCHEMAS[processCode]?.[kind === 'deduction' ? 'deductions' : 'defects'] || [];
-  for (const label of templateLabels) append({ code: normalize(label), name: label });
   for (const item of processData?.[masterKey] || []) append(item);
   for (const report of processData?.reports || []) {
     for (const item of report?.[reportKey] || []) append(item);
