@@ -9,8 +9,6 @@ const CANONICAL_GC_DEFECTS = new Map([
   ['LONG06', 'Lẫn trục'], ['LONG07', 'Lẫn cao su'], ['LONG08', 'Khác'], ['XOAY', 'Cao su xoay']
 ]);
 
-// Legacy codes are already the FE canonical identity. Keep CAT/LONG spelling
-// exactly as used by the FE and the existing canonical-defect contract tests.
 const LEGACY_CODE_TO_GC = new Map([
   ['CAT01','CAT01'], ['CAT02','CAT02'], ['CAT03','CAT03'], ['CAT04','CAT04'], ['CAT05','CAT05'],
   ['CAT06','CAT06'], ['CAT07','CAT07'], ['CAT08','CAT08'], ['CAT09','CAT09'], ['CAT10','CAT10'],
@@ -18,8 +16,31 @@ const LEGACY_CODE_TO_GC = new Map([
   ['LONG05','LONG05'], ['LONG06','LONG06'], ['LONG07','LONG07'], ['LONG08','LONG08']
 ]);
 
-// Legacy/FE wording -> one canonical FE/DB defect identity.
-// Unmatched values intentionally fall back to CAT10 (Khác).
+// FE/DB canonical code -> legacy label used by the existing GC Excel template.
+// The canonical defect_code remains CAT/LONG/XOAY; defect_type_code is only an
+// additional compatibility alias so the desktop template can locate the value.
+const GC_EXCEL_ALIASES = new Map([
+  ['CAT01', 'KQD'],
+  ['CAT02', 'Cắt lẹm'],
+  ['CAT03', 'K xước cong gãy'],
+  ['CAT04', 'Cao su xoay'],
+  ['CAT05', 'Cắt không đứt'],
+  ['CAT06', 'Bavia'],
+  ['CAT07', 'PPCM'],
+  ['CAT08', 'LCS'],
+  ['CAT09', 'lẫn cs'],
+  ['CAT10', 'Khác'],
+  ['LONG01', 'Không qua dưỡng'],
+  ['LONG02', 'Vỡ cao su'],
+  ['LONG03', 'K xước cong gãy'],
+  ['LONG04', 'K xước cong gãy'],
+  ['LONG05', 'Thiếu cao su'],
+  ['LONG06', 'lẫn trục'],
+  ['LONG07', 'lẫn cs'],
+  ['LONG08', 'Khác'],
+  ['XOAY', 'Cao su xoay']
+]);
+
 const DEFECT_ALIASES = new Map([
   ['KQD','CAT01'], ['KQD_DAP_LAI','CAT01'], ['KQD_TUOT','CAT01'], ['KQD_DL','CAT01'],
   ['CAT_KHONG_DUT','CAT01'], ['KHONG_DUT','CAT01'], ['KHONG_DUT_CAO_SU','CAT01'],
@@ -81,6 +102,7 @@ function canonicalDefect(item = {}) {
   const rawName = String(item.defect_name || item.name || item.label || '').trim();
   const rawCode = String(item.defect_code || item.defect_type_code || item.code || '').trim();
   const canonicalCode = code || 'CAT10';
+  const excelAlias = GC_EXCEL_ALIASES.get(canonicalCode);
 
   return {
     ...item,
@@ -88,6 +110,10 @@ function canonicalDefect(item = {}) {
     defect_type_id: defectTypeId,
     defect_code: canonicalCode,
     defect_name: CANONICAL_GC_DEFECTS.get(canonicalCode) || 'Khác',
+    // Keep the FE/DB canonical defect_code while exposing the old template
+    // label as a secondary code. The desktop exporter already prefers
+    // defect_type_code when matching a template column.
+    defect_type_code: excelAlias || item.defect_type_code || undefined,
     source_defect_code: rawCode || undefined,
     source_defect_name: rawName || undefined
   };
