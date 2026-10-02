@@ -55,11 +55,14 @@ function reduceWorkbookToSheet(workbook, keepSheet) {
   }
 }
 
-function clearTemplateDataRows(sheet, firstDataRow = 6) {
-  const lastRow = Math.max(firstDataRow, sheet.rowCount);
-  for (let rowNumber = firstDataRow; rowNumber <= lastRow; rowNumber += 1) {
+function clearTemplateDataRows(sheet, firstDataRow, lastDataRow, maxColumns) {
+  const first = Math.max(1, Number(firstDataRow) || 1);
+  const last = Math.max(first, Number(lastDataRow) || first);
+  const columns = Math.max(1, Number(maxColumns) || sheet.columnCount);
+
+  for (let rowNumber = first; rowNumber <= last; rowNumber += 1) {
     const row = sheet.getRow(rowNumber);
-    for (let columnNumber = 1; columnNumber <= sheet.columnCount; columnNumber += 1) {
+    for (let columnNumber = 1; columnNumber <= columns; columnNumber += 1) {
       row.getCell(columnNumber).value = null;
     }
   }
@@ -74,25 +77,33 @@ function writeValuePreserveTemplate(cell, value, sourceCell) {
 function copyRenderedDataIntoTemplate(target, source) {
   const sourceFirstRow = 6;
   const sourceLastRow = Math.max(sourceFirstRow, source.rowCount);
-  const targetLastRow = Math.max(sourceLastRow, target.rowCount);
-  const maxColumns = Math.max(source.columnCount, target.columnCount);
+  // Only the renderer's used columns need to be copied. The template's
+  // remaining columns contain its own layout/formulas and must not be wiped.
+  const sourceColumns = Math.max(1, source.columnCount);
 
   log('COPY_TEMPLATE_DATA_START', {
     sourceLastRow,
-    targetLastRow,
-    sourceColumns: source.columnCount,
+    targetLastRow: target.rowCount,
+    sourceColumns,
     targetColumns: target.columnCount,
-    maxColumns
+    maxColumns: sourceColumns
   });
 
-  clearTemplateDataRows(target, sourceFirstRow);
+  // The committed template is the layout authority. Clear only the actual
+  // rendered data rectangle instead of all 6,464 template rows x 219 columns.
+  clearTemplateDataRows(target, sourceFirstRow, sourceLastRow, sourceColumns);
+  log('COPY_TEMPLATE_DATA_CLEARED', {
+    firstRow: sourceFirstRow,
+    lastRow: sourceLastRow,
+    columns: sourceColumns
+  });
 
   for (let rowNumber = sourceFirstRow; rowNumber <= sourceLastRow; rowNumber += 1) {
     const sourceRow = source.getRow(rowNumber);
     const targetRow = target.getRow(rowNumber);
     if (sourceRow.height != null) targetRow.height = sourceRow.height;
 
-    for (let columnNumber = 1; columnNumber <= maxColumns; columnNumber += 1) {
+    for (let columnNumber = 1; columnNumber <= sourceColumns; columnNumber += 1) {
       const sourceCell = source.getCell(rowNumber, columnNumber);
       const value = sourceCell?.value;
       if (value !== null && value !== undefined) {
@@ -113,8 +124,12 @@ function copyRenderedDataIntoTemplate(target, source) {
 
   if (source.autoFilter) target.autoFilter = source.autoFilter;
 
-  log('COPY_TEMPLATE_DATA_DONE', { sourceLastRow, targetLastRow, maxColumns });
-  return { sourceLastRow, targetLastRow, maxColumns };
+  log('COPY_TEMPLATE_DATA_DONE', {
+    sourceLastRow,
+    targetLastRow: target.rowCount,
+    maxColumns: sourceColumns
+  });
+  return { sourceLastRow, targetLastRow: target.rowCount, maxColumns: sourceColumns };
 }
 
 async function buildGcFromOneSheetTemplate(args, monthlyModule) {
