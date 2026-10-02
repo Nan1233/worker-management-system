@@ -100,6 +100,31 @@ async function createApprovedReportFromExcel({ data, userId, actor, req=null, so
         await conn.query(`INSERT INTO production_report_machine_defects(machine_line_id,defect_type_id,defect_code,defect_name,quantity) VALUES ${placeholders}`, values);
       }
     }
+
+    const [persistedDefects] = await conn.query(
+      `SELECT COUNT(*) AS c, COALESCE(SUM(quantity),0) AS total
+         FROM production_report_defects WHERE report_id=?`,
+      [id],
+    );
+    const [persistedDeductions] = await conn.query(
+      `SELECT COUNT(*) AS c, COALESCE(SUM(hours),0) AS total
+         FROM production_report_deductions WHERE report_id=?`,
+      [id],
+    );
+    const expectedDefectCount = validation.normalized.defects.length;
+    const expectedDefectTotal = validation.normalized.defects.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+    const expectedDeductionCount = validation.normalized.deductions.length;
+    const expectedDeductionTotal = validation.normalized.deductions.reduce((sum, item) => sum + Number(item.hours || 0), 0);
+
+    if (
+      Number(persistedDefects[0]?.c || 0) !== expectedDefectCount
+      || Number(persistedDefects[0]?.total || 0) !== expectedDefectTotal
+      || Number(persistedDeductions[0]?.c || 0) !== expectedDeductionCount
+      || Math.abs(Number(persistedDeductions[0]?.total || 0) - expectedDeductionTotal) > 0.000001
+    ) {
+      throw httpError(500, 'EXCEL_DETAIL_PERSIST_MISMATCH', 'Dữ liệu NG/trừ giờ từ Excel không được lưu đầy đủ');
+    }
+
     const version=await createApprovedReportVersion({reportId:id,reason:`Tạo mới từ Excel: ${sourceMeta?.file||'Desktop'}`,userId},conn);
     const snapshot=await loadApprovedAggregateSnapshot({reportId:id,executor:conn});
     await AuditService.logActivity({userId,action:'REPORT_CREATED_FROM_EXCEL',entityType:'approved_report',entityId:id,description:`Tạo báo cáo chính thức #${id} từ Excel`,metadata:{source_file:sourceMeta?.file||null,source_sheet:sourceMeta?.sheet||null,source_row:sourceMeta?.row||null,process_code:processCode,worker_code:workerCode,version},req},conn);
