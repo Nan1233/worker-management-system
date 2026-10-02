@@ -127,7 +127,7 @@ async function loadBulkCompanyReports(yearMonth, actor) {
   // batch after another. The result is flattened in original batch order.
   const batchResults = await Promise.all(detailBatches.map(async (ids) => {
     const p = ids.map(() => '?').join(',');
-    const [detailRows, machineLineRows] = await Promise.all([
+    const [detailRows, machineLineRows, machineDefectRows] = await Promise.all([
       query(`
         SELECT 'deduction' AS detail_type,
                prd.report_id, prd.deduction_type_id AS type_id,
@@ -148,20 +148,27 @@ async function loadBulkCompanyReports(yearMonth, actor) {
          WHERE prd.report_id IN (${p})
         ORDER BY report_id, detail_type, sort_order, type_id`,
         [...ids, ...ids]),
-      query(`SELECT * FROM production_report_machine_lines WHERE report_id IN (${p}) ORDER BY report_id,sort_order,id`, ids)
+      query(`SELECT * FROM production_report_machine_lines WHERE report_id IN (${p}) ORDER BY report_id,sort_order,id`, ids),
+      query(`SELECT d.machine_line_id, d.defect_type_id, d.defect_code, d.defect_name, d.quantity
+               FROM production_report_machine_defects d
+               INNER JOIN production_report_machine_lines ml ON ml.id=d.machine_line_id
+              WHERE ml.report_id IN (${p})
+              ORDER BY ml.report_id, ml.sort_order, d.id`, ids)
     ]);
-    return { detailRows, machineLineRows };
+    return { detailRows, machineLineRows, machineDefectRows };
   }));
 
   const deductionRows = [];
   const defectRows = [];
   const machineLineRows = [];
+  const machineDefectRows = [];
   for (const batch of batchResults) {
     for (const row of batch.detailRows) {
       if (row.detail_type === 'deduction') deductionRows.push(row);
       else defectRows.push(row);
     }
     machineLineRows.push(...batch.machineLineRows);
+    machineDefectRows.push(...batch.machineDefectRows);
   }
 
   const deductions = mapDetails(deductionRows, reportIds, (row) => ({
@@ -171,7 +178,24 @@ async function loadBulkCompanyReports(yearMonth, actor) {
   const defects = mapDetails(defectRows, reportIds, (row) => ({
     defect_type_id: Number(row.type_id), defect_code: row.defect_code || '', defect_name: row.defect_name || '', quantity: Number(row.value_quantity) || 0
   }));
-  const machineLines = mapDetails(machineLineRows, reportIds, (row) => ({ ...row }));
+  const machineDefectsByLine = new Map();
+  for (const row of machineDefectRows) {
+    const lineId = Number(row.machine_line_id);
+    if (!machineDefectsByLine.has(lineId)) machineDefectsByLine.set(lineId, []);
+    machineDefectsByLine.get(lineId).push({
+      defect_type_id: Number(row.defect_type_id) || undefined,
+      defect_code: row.defect_code || '',
+      defect_name: row.defect_name || '',
+      quantity: Number(row.quantity) || 0
+    });
+  }
+  const machineLines = mapDetails(machineLineRows, reportIds, (row) => ({
+    ...row,
+    // production_report_machine_defects is the normalized relational source
+    // for machine-line NG. Prefer it when present; otherwise retain the
+    // legacy defects_json payload already stored on the line.
+    defects: machineDefectsByLine.get(Number(row.id)) || undefined
+  }));
 
   for (const report of reports) {
     const id = Number(report.id);
