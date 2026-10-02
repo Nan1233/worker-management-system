@@ -1,82 +1,16 @@
 'use strict';
-const ExcelJS = require('exceljs');
-
-// Final GC presentation pass.
-// IMPORTANT: v3 already renders every data row from the real GC template.
-// Do NOT copy row 6/8 styles over generated rows here: that was causing the
-// exported workbook to lose the template's original colors/layout and could
-// interfere with the %TT conditional-formatting behavior.
-const base = require('./excelExportContractPatch.v4.cjs');
-const C = { STT: 1, DATE: 31, MAX: 54 };
-
-function toDate(v) {
-  if (v instanceof Date && !Number.isNaN(v.getTime())) return v;
-  const s = String(v ?? '').trim().slice(0, 10);
-  let m = s.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);
-  if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
-  m = s.match(/^(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{4})$/);
-  return m ? new Date(+m[3], +m[2] - 1, +m[1]) : null;
-}
-
-function moveDateToColumnA(sheet, rowNo) {
-  const dateCell = sheet.getCell(rowNo, C.DATE);
-  const d = toDate(dateCell.value);
-  if (!d) return;
-
-  // Keep the entire row exactly as produced by the original GC template.
-  // Only move the report date to column A as requested.
-  const target = sheet.getCell(rowNo, C.STT);
-  target.value = d;
-  target.numFmt = 'd/m/yyyy';
-  target.alignment = {
-    ...(target.alignment || {}),
-    horizontal: 'left',
-    vertical: 'center'
-  };
-  dateCell.value = null;
-}
-
-async function normalizeGcBuffer(buffer) {
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(buffer);
-  const sheet = wb.getWorksheet('Cắt lồng') || wb.worksheets[0];
-  if (!sheet) return buffer;
-
-  for (let r = 1; r <= sheet.rowCount; r += 1) {
-    const stt = sheet.getCell(r, C.STT).value;
-    if (toDate(stt)) continue;
-    const dateValue = sheet.getCell(r, C.DATE).value;
-    if (toDate(dateValue)) moveDateToColumnA(sheet, r);
-  }
-
-  return Buffer.from(await wb.xlsx.writeBuffer());
-}
-
-const originalProcess = base.buildProcessWorkbookLocal;
-const originalSplit = base.buildSplitMonthlyWorkbooksLocal;
-
-if (typeof originalProcess === 'function') {
-  base.buildProcessWorkbookLocal = async (args = {}) => {
-    const result = await originalProcess(args);
-    if (String(args.processCode || '').toUpperCase() === 'GC' && result?.buffer) {
-      result.buffer = await normalizeGcBuffer(result.buffer);
-    }
-    return result;
-  };
-}
-
-if (typeof originalSplit === 'function') {
-  base.buildSplitMonthlyWorkbooksLocal = async (args = {}) => {
-    const result = await originalSplit(args);
-    if (result?.processes) {
-      for (const item of result.processes) {
-        if (String(item?.processCode || '').toUpperCase() === 'GC' && item?.buffer) {
-          item.buffer = await normalizeGcBuffer(item.buffer);
-        }
-      }
-    }
-    return result;
-  };
-}
-
-module.exports = base;
+const fs=require('fs'),os=require('os'),path=require('path'),ExcelJS=require('exceljs');
+const monthly=require('./monthlyWorkbookLocal.cjs');
+const norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[đĐ]/g,'d').replace(/[^A-Za-z0-9]/g,'').toUpperCase();
+const num=v=>{const n=Number(String(v??'').replace(/,/g,'').trim());return Number.isFinite(n)?n:0};
+const D=['Thiếu sản lượng','Bật máy, xét máy','Chuyển mã','Chỉnh máy','Chờ chỉnh máy','Mất điện','Mất khí','Chờ hàng','Bảo dưỡng máy','Nghỉ giải lao','Giao ca','Dừng máy đi hỗ trợ','Giặt cs/cân cs, tuốt-tái pp, GL','5S','Học việc, đào tạo','Đi muộn về sớm'];
+const F=['KQD','Vỡ cao su','K xước cong gãy','Cao su xoay','Cắt không đứt','bavia','CSH','ppcm','KT lớn','KT nhỏ','LCS','cắt lẹm','rách nvl','Chân ngắn dài','sót via','fure trục','lẫn cs','bavia cắt hụt','thiếu cao su'];
+const fields=(x,k)=>k==='d'?[x?.deduction_code,x?.deduction_type_code,x?.code,x?.deduction_name,x?.deduction_type_name,x?.name]:[x?.defect_code,x?.defect_type_code,x?.code,x?.defect_name,x?.defect_type_name,x?.name];
+const match=(h,x,k)=>{h=norm(h);return fields(x,k).some(v=>{v=norm(v);return v&&(h===v||(v.length>3&&h.includes(v))||(v.length>3&&v.includes(h)))})};
+const val=(x,k)=>num(k==='d'?x?.hours:x?.quantity);
+const reports=p=>{const a=[...(p?.processes?.GC?.reports||[])];a.sort((x,y)=>String(x?.work_date||'').localeCompare(String(y?.work_date||''))||String(x?.approved_at||x?.created_at||'').localeCompare(String(y?.approved_at||y?.created_at||'')));return a};
+async function patch(buf,p){const input=Buffer.isBuffer(buf)?buf:Buffer.from(buf);const tmp=path.join(os.tmpdir(),`ktc-gc-${process.pid}-${Date.now()}.xlsx`);fs.writeFileSync(tmp,input);try{const wb=new ExcelJS.Workbook();await wb.xlsx.readFile(tmp);const s=wb.getWorksheet('Cắt lồng')||wb.getWorksheet('CẮT LỒNG')||wb.worksheets[0];if(!s)return input;const rr=[...(s._rows||[])].filter(r=>typeof r?.getCell(1)?.value==='number'&&r?.getCell(2)?.value!=null).sort((a,b)=>a.number-b.number),rs=reports(p),n=Math.min(rs.length,rr.length);let ds=0,ng=0,td=0,tn=0;for(let i=0;i<n;i++){const x=rs[i],r=rr[i],dd=Array.isArray(x.deductions)?x.deductions:[],ff=Array.isArray(x.defects)?x.defects:[];for(let j=0;j<D.length;j++){let v=0;for(const z of dd)if(match(D[j],z,'d'))v+=val(z,'d');r.getCell(11+j).value=v;ds+=v}for(let j=0;j<F.length;j++){let v=0;for(const z of ff)if(match(F[j],z,'f'))v+=val(z,'f');r.getCell(36+j).value=v;ng+=v}r.getCell(9).value=num(x.deduction_time);r.getCell(34).value=num(x.tt_ng);td+=num(x.deduction_time);tn+=num(x.tt_ng)}console.log('[KTC-EXCEL-TEMPLATE] DB_DETAIL_PATCHED_V5',JSON.stringify({reports:rs.length,rows:rr.length,patched:n,detailDeductionSum:ds,detailNgSum:ng,totalDeductionSum:td,totalNgSum:tn}));return Buffer.from(await wb.xlsx.writeBuffer())}finally{try{fs.unlinkSync(tmp)}catch{}}}
+const op=monthly.buildProcessWorkbookLocal,osplit=monthly.buildSplitMonthlyWorkbooksLocal;
+if(typeof op==='function')monthly.buildProcessWorkbookLocal=async a=>{const r=await op(a);if(String(a?.processCode||'').toUpperCase()==='GC'&&r?.buffer)r.buffer=await patch(r.buffer,a?.payload||{});return r};
+if(typeof osplit==='function')monthly.buildSplitMonthlyWorkbooksLocal=async a=>{const r=await osplit(a);for(const x of r?.processes||[])if(String(x?.processCode||'').toUpperCase()==='GC'&&x?.buffer)x.buffer=await patch(x.buffer,a?.payload||{});return r};
+module.exports=monthly;
