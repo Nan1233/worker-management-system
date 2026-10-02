@@ -24,12 +24,10 @@ const DEFAULT_SETTINGS = Object.freeze({
 let cache = null;
 let cacheAt = 0;
 const CACHE_TTL_MS = 15_000;
+const DATE_MAP_CACHE = new Map();
+const MAX_DATE_CACHE_ENTRIES = 12;
 
-async function ensureSchema() {
-  // Schema ownership belongs exclusively to the canonical database snapshot.
-  // Kept as a compatibility no-op for existing callers. Startup/readiness
-  // already fail closed if the canonical schema or any required schema is missing.
-}
+async function ensureSchema() {}
 
 function normalizePercent(value, fallback) {
   const number = Number(value);
@@ -136,6 +134,7 @@ async function loadAll({ force = false } = {}) {
   });
   cache = { global, scopes, processes: processRows, history };
   cacheAt = Date.now();
+  DATE_MAP_CACHE.clear();
   return cache;
 }
 
@@ -158,6 +157,10 @@ function historicalScopeFor(data, scopeCode, referenceDate, base) {
 }
 
 async function getSettingsMap(referenceDate = null) {
+  const cacheKey = String(referenceDate || '').slice(0, 10) || '__NONE__';
+  const cached = DATE_MAP_CACHE.get(cacheKey);
+  if (cached) return cached;
+
   const data = await loadAll();
   const global = isEffective(data.global, referenceDate)
     ? data.global
@@ -184,6 +187,12 @@ async function getSettingsMap(referenceDate = null) {
             process_name: scope.process_name,
             inherits_global: 1
           };
+  }
+  DATE_MAP_CACHE.set(cacheKey, map);
+  while (DATE_MAP_CACHE.size > MAX_DATE_CACHE_ENTRIES) {
+    const oldest = DATE_MAP_CACHE.keys().next().value;
+    if (oldest === undefined) break;
+    DATE_MAP_CACHE.delete(oldest);
   }
   return map;
 }
@@ -225,7 +234,6 @@ async function saveScope(scopeCode, payload, userId) {
     }
   }
   const normalized = normalizeSettings(payload, data.global);
-  await ensureSchema();
   await archiveCurrentScope(scopeCode, payload?.change_reason, userId);
   await db.promise().query(`
     INSERT INTO production_formula_settings (
@@ -282,6 +290,7 @@ async function saveScope(scopeCode, payload, userId) {
     }
   });
   cache = null;
+  DATE_MAP_CACHE.clear();
   return loadAll({ force: true });
 }
 
@@ -292,7 +301,7 @@ async function resetScope(scopeCode, userId = null) {
     await db.promise().query(`DELETE FROM production_formula_settings WHERE scope_code='GLOBAL'`);
     await db.promise().query(`INSERT INTO production_formula_settings (scope_code, process_id) VALUES ('GLOBAL', NULL)`);
   } else {
-    await db.promise().query(`DELETE FROM production_formula_settings WHERE scope_code=?`, [scopeCode]);
+    await db.promise().query('DELETE FROM production_formula_settings WHERE scope_code=?', [scopeCode]);
   }
   await AuditService.logActivity({
     userId,
@@ -302,6 +311,7 @@ async function resetScope(scopeCode, userId = null) {
     description: `Khôi phục công thức mặc định ${scopeCode}`
   });
   cache = null;
+  DATE_MAP_CACHE.clear();
   return loadAll({ force: true });
 }
 
