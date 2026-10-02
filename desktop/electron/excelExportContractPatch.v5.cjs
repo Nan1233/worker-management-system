@@ -1,47 +1,39 @@
 'use strict';
 const ExcelJS = require('exceljs');
 
-// Final GC Excel presentation fix: keep the existing template geometry/colors,
-// put the report date in column A on the separator row immediately before STT=1,
-// and reapply the template row styles to every generated row.
-// IMPORTANT: column %TT (AD / C30) keeps the original workbook coloring logic;
-// this pass must never replace its fill with the generic data-row fill.
+// Final GC presentation pass.
+// IMPORTANT: v3 already renders every data row from the real GC template.
+// Do NOT copy row 6/8 styles over generated rows here: that was causing the
+// exported workbook to lose the template's original colors/layout and could
+// interfere with the %TT conditional-formatting behavior.
 const base = require('./excelExportContractPatch.v4.cjs');
-const C = { STT: 1, TT: 30, DATE: 31, DEFL: 54 };
-
-function copyStyle(src, dst, preserveFill = false) {
-  if (!src || !dst) return;
-  dst.font = src.font ? { ...src.font, color: src.font.color ? { ...src.font.color } : undefined } : dst.font;
-  if (!preserveFill) dst.fill = src.fill ? JSON.parse(JSON.stringify(src.fill)) : dst.fill;
-  dst.border = src.border ? JSON.parse(JSON.stringify(src.border)) : dst.border;
-  dst.alignment = src.alignment ? { ...src.alignment } : dst.alignment;
-  dst.protection = src.protection ? { ...src.protection } : dst.protection;
-  if (src.numFmt) dst.numFmt = src.numFmt;
-}
-
-function copyRowStyle(sheet, sourceRowNo, targetRowNo, maxCol) {
-  const src = sheet.getRow(sourceRowNo);
-  const dst = sheet.getRow(targetRowNo);
-  dst.height = src.height;
-  dst.hidden = false;
-  for (let c = 1; c <= maxCol; c++) {
-    // %TT must retain the fill already produced by the original export/template logic.
-    copyStyle(src.getCell(c), dst.getCell(c), c === C.TT);
-  }
-}
-
-function clearRow(sheet, rowNo, maxCol) {
-  const row = sheet.getRow(rowNo);
-  for (let c = 1; c <= maxCol; c++) row.getCell(c).value = null;
-}
+const C = { STT: 1, DATE: 31, MAX: 54 };
 
 function toDate(v) {
   if (v instanceof Date && !Number.isNaN(v.getTime())) return v;
   const s = String(v ?? '').trim().slice(0, 10);
-  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  let m = s.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);
   if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
-  m = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+  m = s.match(/^(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{4})$/);
   return m ? new Date(+m[3], +m[2] - 1, +m[1]) : null;
+}
+
+function moveDateToColumnA(sheet, rowNo) {
+  const dateCell = sheet.getCell(rowNo, C.DATE);
+  const d = toDate(dateCell.value);
+  if (!d) return;
+
+  // Keep the entire row exactly as produced by the original GC template.
+  // Only move the report date to column A as requested.
+  const target = sheet.getCell(rowNo, C.STT);
+  target.value = d;
+  target.numFmt = 'd/m/yyyy';
+  target.alignment = {
+    ...(target.alignment || {}),
+    horizontal: 'left',
+    vertical: 'center'
+  };
+  dateCell.value = null;
 }
 
 async function normalizeGcBuffer(buffer) {
@@ -50,37 +42,11 @@ async function normalizeGcBuffer(buffer) {
   const sheet = wb.getWorksheet('Cắt lồng') || wb.worksheets[0];
   if (!sheet) return buffer;
 
-  const maxCol = C.DEFL;
-  const templateDateRow = 5;
-  const templateDataRow = 6;
-
-  let last = templateDataRow;
-  for (let r = 5; r <= sheet.rowCount; r++) {
-    let used = false;
-    for (let c = 1; c <= maxCol; c++) {
-      const v = sheet.getCell(r, c).value;
-      if (v !== null && v !== undefined && v !== '') { used = true; break; }
-    }
-    if (used) last = r;
-  }
-
-  for (let r = templateDateRow; r <= last; r++) {
+  for (let r = 1; r <= sheet.rowCount; r += 1) {
     const stt = sheet.getCell(r, C.STT).value;
-    const isDateRow = toDate(stt) !== null;
-    if (isDateRow) {
-      copyRowStyle(sheet, templateDateRow, r, maxCol);
-      const d = toDate(stt);
-      clearRow(sheet, r, maxCol);
-      sheet.getCell(r, 1).value = d;
-      sheet.getCell(r, 1).numFmt = 'd/m/yyyy';
-      sheet.getCell(r, 1).alignment = { ...sheet.getCell(r, 1).alignment, horizontal: 'left', vertical: 'center' };
-    } else if (typeof stt === 'number' && stt >= 1) {
-      // Preserve the existing %TT fill/coloring while normalizing the other cells.
-      const ttFill = sheet.getCell(r, C.TT).fill ? JSON.parse(JSON.stringify(sheet.getCell(r, C.TT).fill)) : null;
-      copyRowStyle(sheet, templateDataRow, r, maxCol);
-      if (ttFill) sheet.getCell(r, C.TT).fill = ttFill;
-      sheet.getCell(r, C.DATE).numFmt = 'd-mmm';
-    }
+    if (toDate(stt)) continue;
+    const dateValue = sheet.getCell(r, C.DATE).value;
+    if (toDate(dateValue)) moveDateToColumnA(sheet, r);
   }
 
   return Buffer.from(await wb.xlsx.writeBuffer());
