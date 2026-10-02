@@ -67,7 +67,7 @@ const enforceDailyWorkerHours = async (data, executor = db) => {
     const workerId = Number(data?.worker_id);
     const workDate = String(data?.work_date || "").slice(0, 10);
     const incoming = Number(data?.actual_time) || 0;
-    if (!Number.isInteger(workerId) || workerId <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return null;
+    if (!Number.isInteger(workerId) || workerId <= 0 || !/^\\d{4}-\\d{2}-\\d{2}$/.test(workDate)) return null;
     const rows = await query(executor, `
         SELECT COALESCE(SUM(actual_time),0) AS counted_hours FROM production_reports
         WHERE worker_id=? AND work_date=? AND status='approved'
@@ -183,29 +183,21 @@ const validateChildTotals = (data, defects, deductions) => {
     }
     const expectedMinutes = Math.round((Number(data?.deduction_time || 0) || 0) * 60);
     const actualMinutes = Math.round(deductions.reduce((sum, item) => sum + (Number(item.hours) || 0), 0) * 60);
-    // The form stores 70 minutes as 1.17 hours while the canonical detail is
-    // 70/60 = 1.166666... . Compare rounded minutes, not raw decimals.
     if (Math.abs(expectedMinutes - actualMinutes) > 1) {
         const error = new Error(`Chi tiết trừ giờ (${actualMinutes} phút) không khớp tổng trừ giờ (${expectedMinutes} phút)`);
         error.status = 422; error.code = "DEDUCTION_DETAIL_TOTAL_MISMATCH"; error.isPublic = true; error.details = { expectedMinutes, actualMinutes }; throw error;
     }
 };
 
-const createAuditAfterChildren = async ({ tempId, audit, data, requestId, logicalDuplicateKey }) => {
-    const connection = await getConnection();
-    try {
-        await beginTransaction(connection);
-        const snapshot = await AuditService.loadTempReportSnapshot(tempId, connection);
-        if (snapshot) await AuditService.createReportVersion({ reportType: "temp", reportId: tempId, snapshot, reason: "Tạo báo cáo chờ duyệt", userId: Number(audit?.userId || 0) }, connection);
-        await createModel.logAction({ reportType: "temp", reportId: tempId, userId: Number(audit?.userId || 0), action: "CREATE", note: audit?.note || "Công nhân tạo báo cáo", ipAddress: audit?.ipAddress || null, userAgent: audit?.userAgent || null }, connection);
-        await query(connection,
-            `INSERT INTO activity_logs (user_id, action, entity_type, entity_id, description, metadata_json, ip_address, user_agent)
-             VALUES (?, 'CREATE_REPORT', 'temp_report', ?, ?, ?, ?, ?)`,
-            [Number(audit?.userId || 0), String(tempId), "Công nhân tạo báo cáo chờ duyệt",
-                JSON.stringify({ processId: data.process_id, workDate: data.work_date, shift: data.shift, clientRequestId: requestId, logicalDuplicateKey }), audit?.ipAddress || null, audit?.userAgent || null]);
-        await commit(connection);
-    } catch (error) { await rollback(connection); throw error; }
-    finally { connection.release(); }
+const createAuditAfterChildren = async ({ tempId, audit, data, requestId, logicalDuplicateKey }, connection) => {
+    const snapshot = await AuditService.loadTempReportSnapshot(tempId, connection);
+    if (snapshot) await AuditService.createReportVersion({ reportType: "temp", reportId: tempId, snapshot, reason: "Tạo báo cáo chờ duyệt", userId: Number(audit?.userId || 0) }, connection);
+    await createModel.logAction({ reportType: "temp", reportId: tempId, userId: Number(audit?.userId || 0), action: "CREATE", note: audit?.note || "Công nhân tạo báo cáo", ipAddress: audit?.ipAddress || null, userAgent: audit?.userAgent || null }, connection);
+    await query(connection,
+        `INSERT INTO activity_logs (user_id, action, entity_type, entity_id, description, metadata_json, ip_address, user_agent)
+         VALUES (?, 'CREATE_REPORT', 'temp_report', ?, ?, ?, ?, ?)`,
+        [Number(audit?.userId || 0), String(tempId), "Công nhân tạo báo cáo chờ duyệt",
+            JSON.stringify({ processId: data.process_id, workDate: data.work_date, shift: data.shift, clientRequestId: requestId, logicalDuplicateKey }), audit?.ipAddress || null, audit?.ipAddress || null]);
 };
 
 const createCompleteReport = async (payload = {}, legacyDefects, legacyDeductions, legacyMachineLines, legacyAudit) => {
@@ -245,7 +237,9 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
             if (!data.force_create) { const e = new Error("Báo cáo trùng với báo cáo đã tồn tại trong cùng ngày/ca"); e.status = 409; e.code = "DUPLICATE_CONFIRMATION_REQUIRED"; e.isPublic = true; e.existing_report = existingDuplicate; e.details = existingDuplicate; throw e; }
             const confirmation = verifyDuplicateConfirmation(data.duplicate_confirmation_token, { workerId: data.worker_id, logicalDuplicateKey: data.logical_duplicate_key, existingReportId: existingDuplicate.id, existingReportType: existingDuplicate.report_type || "temp" });
             if (!confirmation.valid) { const e = new Error("Xác nhận tạo báo cáo trùng không hợp lệ hoặc đã hết hạn"); e.status = 409; e.code = "DUPLICATE_CONFIRMATION_REQUIRED"; e.isPublic = true; e.existing_report = existingDuplicate; throw e; }
-        } else if (data.force_create) { const e = new Error("Không có báo cáo trùng hợp lệ để xác nhận tạo lần thứ hai"); e.status = 409; e.code = "DUPLICATE_CONFIRMATION_REQUIRED"; e.isPublic = true; throw e; }
+        } else if (data.force_create) {
+            const e = new Error("Không có báo cáo trùng hợp lệ để xác nhận tạo lần thứ hai"); e.status = 409; e.code = "DUPLICATE_CONFIRMATION_REQUIRED"; e.isPublic = true; throw e;
+        }
 
         const processRows = await query(db, `SELECT process_code FROM processes WHERE id=? LIMIT 1`, [Number(data.process_id)]);
         const training = await resolveInitialTrainingSnapshot({ executor: db, workerId: data.worker_id, processId: data.process_id, workDate: data.work_date, trainingPercent: data.training_percent });
@@ -262,8 +256,7 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
         const auditUserId = Number(audit?.userId || 0);
         if (!Number.isInteger(auditUserId) || auditUserId <= 0) { const e = new Error("Không xác định được người tạo báo cáo để ghi audit"); e.status = 422; e.code = "REPORT_AUDIT_ACTOR_REQUIRED"; e.isPublic = true; throw e; }
 
-        // Preflight the exact master rows before the parent INSERT. This makes
-        // it impossible to create a report that only has tt_ng/deduction_time.
+        // Validate the exact master rows and child totals before opening the write transaction.
         const validationConnection = await getConnection();
         let defects;
         let deductions;
@@ -279,49 +272,67 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
             throw error;
         } finally { validationConnection.release(); }
 
-        let tempId;
-        const parentConnection = await getConnection();
+        // Parent and all child rows are persisted in ONE transaction.
+        // A partial parent without its detail can therefore never be committed.
+        const connection = await getConnection();
         try {
-            await beginTransaction(parentConnection);
-            const race = await findExistingClientRequest(data, parentConnection);
-            if (race) { await commit(parentConnection); return idempotent(race); }
-            try { tempId = await createModel.create(data, parentConnection); }
-            catch (error) {
-                await rollback(parentConnection);
-                if (error?.code === "ER_DUP_ENTRY") { const existing = await findExistingClientRequest(data); if (existing) return idempotent(existing); }
-                if (is1205(error)) return recoverAfter1205(data);
+            await beginTransaction(connection);
+            const race = await findExistingClientRequest(data, connection);
+            if (race) {
+                await rollback(connection);
+                return idempotent(race);
+            }
+
+            const tempId = await createModel.create(data, connection);
+            await createModel.createDefects(tempId, data.process_id, defects, connection);
+            await createModel.createDeductions(tempId, data.process_id, deductions, connection);
+            await createModel.replaceMachineLines(tempId, machineLines, connection);
+
+            // Verify the rows that were actually persisted before commit.
+            const persistedDefects = await query(connection,
+                `SELECT COUNT(*) AS c, COALESCE(SUM(quantity),0) AS total
+                   FROM production_temp_defects WHERE temp_report_id=?`, [tempId]);
+            const persistedDeductions = await query(connection,
+                `SELECT COUNT(*) AS c, COALESCE(SUM(hours),0) AS total
+                   FROM production_temp_deductions WHERE temp_report_id=?`, [tempId]);
+
+            const expectedDefectCount = defects.length;
+            const expectedDefectTotal = defects.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+            const expectedDeductionCount = deductions.length;
+            const expectedDeductionTotal = deductions.reduce((sum, item) => sum + Number(item.hours || 0), 0);
+
+            if (
+                Number(persistedDefects[0]?.c || 0) !== expectedDefectCount
+                || Number(persistedDefects[0]?.total || 0) !== expectedDefectTotal
+                || Number(persistedDeductions[0]?.c || 0) !== expectedDeductionCount
+                || Math.abs(Number(persistedDeductions[0]?.total || 0) - expectedDeductionTotal) > 0.000001
+            ) {
+                const error = new Error("Dữ liệu chi tiết báo cáo không được lưu đầy đủ");
+                error.status = 500;
+                error.code = "REPORT_DETAIL_PERSIST_MISMATCH";
+                error.isPublic = false;
                 throw error;
             }
-            await commit(parentConnection);
-        } finally { parentConnection.release(); }
 
-        // Persist child data in its own short transaction. Audit is deliberately
-        // separate so an audit/version failure cannot erase NG/trừ giờ details.
-        const childConnection = await getConnection();
-        try {
-            await beginTransaction(childConnection);
-            await createModel.createDefects(tempId, data.process_id, defects, childConnection);
-            await createModel.createDeductions(tempId, data.process_id, deductions, childConnection);
-            await createModel.replaceMachineLines(tempId, machineLines, childConnection);
-            await commit(childConnection);
+            await createAuditAfterChildren(
+                { tempId, audit, data, requestId, logicalDuplicateKey: data.logical_duplicate_key },
+                connection,
+            );
+
+            await commit(connection);
+            return { id: Number(tempId), duplicate: false, duplicate_reason: null, existing_report: null, logical_duplicate_key: data.logical_duplicate_key, audit_warning: null };
         } catch (error) {
-            await rollback(childConnection);
-            try { await query(db, `UPDATE production_reports_temp SET status='need_fix', review_note=? WHERE id=?`, [`Không thể lưu chi tiết báo cáo: ${String(error?.message || error).slice(0,450)}`, tempId]); } catch {}
+            await rollback(connection);
             if (is1205(error)) return recoverAfter1205(data);
-            const e = new Error(`Không thể lưu chi tiết báo cáo: ${String(error?.message || error)}`);
+            const e = new Error(`Không thể lưu báo cáo: ${String(error?.message || error)}`);
             e.status = Number(error?.status) >= 400 ? Number(error.status) : 422;
-            e.code = error?.code || "REPORT_DETAIL_PERSIST_FAILED";
-            e.isPublic = true; e.details = error?.details || { temp_report_id: tempId }; throw e;
-        } finally { childConnection.release(); }
-
-        let auditWarning = null;
-        try { await createAuditAfterChildren({ tempId, audit, data, requestId, logicalDuplicateKey: data.logical_duplicate_key }); }
-        catch (error) {
-            auditWarning = String(error?.message || error).slice(0,450);
-            try { await query(db, `UPDATE production_reports_temp SET review_note=? WHERE id=?`, [`Audit chưa hoàn tất: ${auditWarning}`, tempId]); } catch {}
+            e.code = error?.code || "REPORT_PERSIST_FAILED";
+            e.isPublic = true;
+            e.details = error?.details || {};
+            throw e;
+        } finally {
+            connection.release();
         }
-
-        return { id: Number(tempId), duplicate: false, duplicate_reason: null, existing_report: null, logical_duplicate_key: data.logical_duplicate_key, audit_warning: auditWarning };
     });
 };
 
