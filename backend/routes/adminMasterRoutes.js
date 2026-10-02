@@ -5,6 +5,7 @@ const transferController=require('../controllers/masterDataTransferController');
 const verifyToken=require('../middleware/authMiddleware');
 const checkRole=require('../middleware/roleMiddleware');
 const permission=require('../middleware/permissionMiddleware');
+const { repairApprovedReportDetails }=require('../services/repairApprovedReportDetailsService');
 
 // /api/admin/master is the master-data API used by the management workspace.
 // Manager and Lead have the same CRUD capability for machines, standards and
@@ -50,6 +51,32 @@ const managerResourceScope=(req,res,next)=>{
   }
   return next();
 };
+
+// One-off production repair. Admin only; dry-run is the default.
+router.post('/repair-approved-report-details',checkRole('admin'),permission('REPORT_APPROVE'),async(req,res)=>{
+  try{
+    const body=req.body||{};
+    const execute=body.execute===true||String(body.execute||'').toLowerCase()==='true';
+    const result=await repairApprovedReportDetails({
+      dateFrom:body.date_from,
+      dateTo:body.date_to,
+      limit:body.limit,
+      execute,
+    });
+    return res.json({
+      success:true,
+      message:execute?'Đã repair chi tiết báo cáo đã duyệt':'Dry-run: chưa thay đổi dữ liệu',
+      data:result,
+    });
+  }catch(error){
+    console.error('REPAIR APPROVED REPORT DETAILS ERROR:',error);
+    return res.status(error.status||500).json({
+      success:false,
+      code:error.code||'REPAIR_APPROVED_REPORT_DETAILS_FAILED',
+      message:error.isPublic?error.message:'Không thể repair chi tiết báo cáo đã duyệt',
+    });
+  }
+});
 
 // Keep the controller's process-scope and validation logic intact. Lead is
 // already authorized by the shared MASTER permissions for the three resources.
