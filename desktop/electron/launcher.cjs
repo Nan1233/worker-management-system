@@ -1,4 +1,4 @@
-const { app, ipcMain, dialog, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, session, powerMonitor, dialog } = require('electron');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
@@ -107,6 +107,10 @@ try {
 }
 
 require('./excelDbTruthPatch.v2.cjs');
+// v4 is the final visible-table pass. It keeps the supplied template styling,
+// restores the day separator rows, and writes deduction/defect details directly
+// from the approved DB payload instead of relying on generated placeholder rows.
+require('./excelExportContractPatch.v4.cjs');
 
 function normalizeExportRoot(value) {
   const raw = String(value || '').trim();
