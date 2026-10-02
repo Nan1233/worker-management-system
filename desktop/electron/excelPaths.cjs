@@ -112,6 +112,7 @@ async function resolveExportRoot() {
   if (!isNasPath || await canWriteExportRoot(configured)) {
     resolvedExportRoot = configured;
     resolvedExportRootSource = isNasPath ? 'NAS' : 'CONFIGURED';
+    console.log(`[KTC] Excel export root resolved: ${resolvedExportRoot} (${resolvedExportRootSource})`);
     return resolvedExportRoot;
   }
 
@@ -128,9 +129,6 @@ function getExportRoot() {
   const configured = getConfiguredExportRoot();
   const isNasPath = /^\\\\/.test(configured);
 
-  // Some runtime paths call getExportRoot() synchronously (for example main.cjs
-  // before the async resolver is entered). Resolve the no-NAS case here too,
-  // so those callers do not try to mkdir the unavailable UNC path.
   if (isNasPath) {
     try {
       if (!fsSync.existsSync(configured)) {
@@ -148,13 +146,15 @@ function getExportRoot() {
         console.warn(`[KTC] NAS export root unavailable; using local fallback: ${LOCAL_EXPORT_ROOT}`);
         return resolvedExportRoot;
       } catch {
-        // Keep the configured path so the original error is surfaced if the
-        // local fallback itself is unavailable.
+        // Keep the configured path so the original error is surfaced if the local fallback itself is unavailable.
       }
     }
   }
 
-  return configured;
+  resolvedExportRoot = configured;
+  resolvedExportRootSource = isNasPath ? 'NAS_UNVERIFIED' : 'CONFIGURED';
+  console.log(`[KTC] Excel export root selected: ${resolvedExportRoot} (${resolvedExportRootSource})`);
+  return resolvedExportRoot;
 }
 
 async function findExistingProcessReportFile(folder, processInfo, month, year) {
