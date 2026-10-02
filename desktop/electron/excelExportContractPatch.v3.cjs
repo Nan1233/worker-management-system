@@ -65,30 +65,43 @@ function reduceWorkbookToSheet(workbook, keepSheet) {
 function stripBrokenSharedFormulaClones(workbook) {
   let converted = 0;
   let cleared = 0;
+  let formulaCleared = 0;
 
   for (const sheet of workbook.worksheets || []) {
     for (const row of sheet._rows || []) {
       for (const cell of row?._cells || []) {
         const model = cell?.model;
-        if (!model || !model.sharedFormula) continue;
+        if (!model) continue;
 
-        const cached = model.result;
-        cell.value = cached !== undefined && cached !== null ? cached : null;
-        if (cell.model) delete cell.model.sharedFormula;
+        if (model.sharedFormula) {
+          const cached = model.result;
+          cell.value = cached !== undefined && cached !== null ? cached : null;
+          if (cell.model) delete cell.model.sharedFormula;
+          converted += 1;
+          if (cached === undefined || cached === null) cleared += 1;
+          continue;
+        }
 
-        converted += 1;
-        if (cached === undefined || cached === null) cleared += 1;
+        // The GC template is visual/form-oriented. Ordinary formulas are not
+        // required for exported DB data and may still reference removed legacy
+        // sheets. Preserve their cached result when available, otherwise blank.
+        if (model.type === 6 || model.formula) {
+          const cached = model.result;
+          cell.value = cached !== undefined && cached !== null ? cached : null;
+          formulaCleared += 1;
+        }
       }
     }
   }
 
-  log('TEMPLATE_SHARED_FORMULA_SANITIZED', {
-    converted,
-    cleared,
+  log('TEMPLATE_FORMULA_SANITIZED', {
+    sharedFormulaConverted: converted,
+    sharedFormulaCleared: cleared,
+    ordinaryFormulaCleared: formulaCleared,
     remainingSheets: workbook.worksheets.length
   });
 
-  return { converted, cleared };
+  return { converted, cleared, formulaCleared };
 }
 
 function clearTemplateDataRows(sheet, firstDataRow, lastDataRow, maxColumns) {
@@ -198,8 +211,9 @@ async function buildGcFromOneSheetTemplate(args, monthlyModule) {
   reduceWorkbookToSheet(templateWorkbook, sheet);
   log('TEMPLATE_REDUCE_DONE', { sheetCount: templateWorkbook.worksheets.length, sheet: sheet.name });
 
-  // Remove only unsafe shared-formula clones. Keep ordinary formulas and all
-  // template formatting/layout intact.
+  // The template supplies layout only. Remove shared and ordinary formula state
+  // because the actual exported values are computed by the DB/renderer and then
+  // written into the form. This prevents ExcelJS from resolving legacy formulas.
   const formulaStats = stripBrokenSharedFormulaClones(templateWorkbook);
   sheet.state = 'visible';
 
