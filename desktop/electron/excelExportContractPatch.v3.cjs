@@ -26,6 +26,38 @@ function normalizeDate(value) {
   return new Date(y, m - 1, d);
 }
 
+function normalizeSheetName(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/Đ/g, 'D')
+    .replace(/đ/g, 'd')
+    .replace(/[^a-z0-9]+/gi, '')
+    .toUpperCase();
+}
+
+function findGcTemplateSheet(workbook) {
+  const sheets = workbook.worksheets || [];
+  const exact = sheets.find((sheet) => normalizeSheetName(sheet.name) === 'CATLONG');
+  if (exact) return exact;
+
+  const partial = sheets.find((sheet) => {
+    const name = normalizeSheetName(sheet.name);
+    return name.includes('CATLONG');
+  });
+  if (partial) return partial;
+
+  throw new Error(`Không tìm thấy sheet Cắt lồng trong template GC. Các sheet hiện có: ${sheets.map((s) => s.name).join(', ')}`);
+}
+
+function reduceWorkbookToSheet(workbook, keepSheet) {
+  for (const sheet of [...workbook.worksheets]) {
+    if (sheet.id !== keepSheet.id) {
+      workbook.removeWorksheet(sheet.id);
+    }
+  }
+}
+
 function copyRenderedSheetIntoTemplate(target, source) {
   const sourceLastRow = Math.max(1, source.rowCount);
   const targetLastRow = Math.max(sourceLastRow, target.rowCount);
@@ -67,10 +99,11 @@ function copyRenderedSheetIntoTemplate(target, source) {
 }
 
 /**
- * GC must be exported from the requested one-sheet template directly.
- * The data itself is produced by the canonical monthly renderer, then its
- * values/formulas are copied into the one-sheet template so the template's
- * visual structure is preserved and the legacy A+B workbook never appears.
+ * GC must be exported from the Cắt lồng sheet of the requested template.
+ * The repository template is allowed to contain the complete legacy workbook
+ * (17 sheets). We keep only its Cắt lồng sheet, then inject canonical DB data
+ * into that sheet. This preserves the requested visual template while ensuring
+ * the legacy A+B / summary sheets never appear in the exported GC workbook.
  */
 async function buildGcFromOneSheetTemplate(args, monthlyModule) {
   const source = args?.payload?.processes?.GC || {};
@@ -96,9 +129,14 @@ async function buildGcFromOneSheetTemplate(args, monthlyModule) {
 
   const templateWorkbook = new ExcelJS.Workbook();
   await templateWorkbook.xlsx.readFile(templatePath);
-  if (templateWorkbook.worksheets.length !== 1) {
-    throw new Error(`Template GC phải chỉ có 1 sheet, nhận ${templateWorkbook.worksheets.length}.`);
-  }
+
+  // The committed template is a legacy 17-sheet workbook. Do not reject it:
+  // locate the actual Cắt lồng sheet and reduce the workbook to that sheet.
+  const sheet = findGcTemplateSheet(templateWorkbook);
+  const originalTemplateSheetCount = templateWorkbook.worksheets.length;
+  reduceWorkbookToSheet(templateWorkbook, sheet);
+  sheet.name = 'CẮT LỒNG';
+  sheet.state = 'visible';
 
   // Render through the same canonical logic used by the normal monthly
   // exporter. This avoids duplicating row/column calculation logic here.
@@ -109,9 +147,6 @@ async function buildGcFromOneSheetTemplate(args, monthlyModule) {
     throw new Error('Renderer chuẩn không tạo được sheet Cắt lồng.');
   }
 
-  const sheet = templateWorkbook.worksheets[0];
-  sheet.name = 'CẮT LỒNG';
-  sheet.state = 'visible';
   copyRenderedSheetIntoTemplate(sheet, renderedSheet);
 
   templateWorkbook.views = [{ activeTab: 0, firstSheet: 0, visibility: 'visible' }];
@@ -124,6 +159,7 @@ async function buildGcFromOneSheetTemplate(args, monthlyModule) {
   log('BUILD_GC_ONE_SHEET_DONE', {
     date: args?.date,
     reportCount: Array.isArray(source.reports) ? source.reports.length : 0,
+    originalTemplateSheetCount,
     sheetCount: templateWorkbook.worksheets.length,
     rows: sheet.rowCount,
     columns: sheet.columnCount,
