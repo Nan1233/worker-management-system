@@ -1,24 +1,11 @@
 'use strict';
 
-// v3 is the canonical GC exporter. It loads the real workbook template
-// `bao-cao-cat-long-export.xlsx` and renders data using that template's
-// existing row/column styles. Do not copy styles from generated rows here.
+// v3 is the canonical GC exporter. It patches/loads the real workbook template.
+// This v4 wrapper works on the actual monthlyWorkbookLocal exports so it remains
+// effective even though v3 itself does not expose build* functions.
 const ExcelJS = require('exceljs');
-const base = require('./excelExportContractPatch.v3.cjs');
-
-const GC_STT_COL = 1;
-const GC_DATE_COL = 31; // AE in the original template
-const GC_DEDUCTION_TOTAL_COL = 10; // J after the launcher column normalization
-const GC_NG_COL = 34; // AH
-
-function toDate(value) {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
-  const s = String(value ?? '').trim().slice(0, 10);
-  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  m = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
-  return m ? new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1])) : null;
-}
+require('./excelExportContractPatch.v3.cjs');
+const monthly = require('./monthlyWorkbookLocal.cjs');
 
 function asDbNumber(value) {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -26,30 +13,7 @@ function asDbNumber(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
-function sumDbField(items, keys) {
-  if (!Array.isArray(items)) return 0;
-  return items.reduce((sum, item) => {
-    for (const key of keys) {
-      if (item?.[key] == null || item[key] === '') continue;
-      return sum + asDbNumber(item[key]);
-    }
-    return sum;
-  }, 0);
-}
-
-function dbDeductionTotal(report) {
-  return sumDbField(report?.deductions, [
-    'hours', 'deduction_hours', 'duration_hours', 'time_hours', 'value'
-  ]);
-}
-
-function dbNgTotal(report) {
-  return sumDbField(report?.defects, [
-    'quantity', 'defect_quantity', 'ng_quantity', 'qty', 'count', 'value'
-  ]);
-}
-
-function sortedReports(payload) {
+function sortedGcReports(payload) {
   const reports = Array.isArray(payload?.processes?.GC?.reports)
     ? [...payload.processes.GC.reports]
     : [];
@@ -64,90 +28,83 @@ function sortedReports(payload) {
   return reports;
 }
 
-// Only move the already-rendered report date from AE to A on the date row.
-// All styles, fills, borders, widths, merges and conditional formatting remain
-// those supplied by the original template. In particular, %TT is untouched.
-async function moveReportDatesToColumnA(buffer) {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer);
-  const sheet = workbook.getWorksheet('Cắt lồng') || workbook.worksheets[0];
-  if (!sheet) return buffer;
+function writeDbAuthoritativeTotals(buffer, payload) {
+  if (!buffer) return buffer;
+  return (async () => {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    const reports = sortedGcReports(payload);
+    if (!reports.length) return buffer;
 
-  for (let row = 1; row <= sheet.rowCount; row += 1) {
-    const dateCell = sheet.getCell(row, GC_DATE_COL);
-    const reportDate = toDate(dateCell.value);
-    if (!reportDate) continue;
+    const sheet = workbook.getWorksheet('Cắt lồng') || workbook.worksheets[0];
+    if (!sheet) return buffer;
 
-    // The canonical v3 renderer already creates date separator rows. We only
-    // relocate the displayed date; no row/cell style is copied or normalized.
-    const target = sheet.getCell(row, GC_STT_COL);
-    target.value = reportDate;
-    target.numFmt = 'd/m/yyyy';
-    dateCell.value = null;
-  }
+    // v3 writes these two totals as formulas on every report row. Do not rely
+    // on Excel/ExcelJS recalculation. Find those exact formula cells and replace
+    // them, in row order, with the authoritative production_reports fields.
+    const deductionCells = [];
+    const ngCells = [];
 
-  return Buffer.from(await workbook.xlsx.writeBuffer());
-}
-
-// Trừ H and NG are DB-authoritative fields. The detail columns are display
-// columns only; these two totals must not depend on Excel/ExcelJS recalculation.
-async function writeDbAuthoritativeTotals(buffer, payload) {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer);
-  const sheet = workbook.getWorksheet('Cắt lồng') || workbook.worksheets[0];
-  if (!sheet) return buffer;
-
-  const reports = sortedReports(payload);
-  let rowNumber = 6;
-  let currentDate = '';
-
-  for (const report of reports) {
-    const workDate = String(report?.work_date || '').slice(0, 10);
-    if (workDate !== currentDate) {
-      currentDate = workDate;
-      rowNumber += 1; // skip the date separator row
+    for (const row of sheet._rows || []) {
+      for (const cell of row?._cells || []) {
+        const formula = cell?.model?.formula;
+        if (typeof formula !== 'string') continue;
+        const normalized = formula.replace(/\s+/g, '').toUpperCase();
+        if (/^SUM\(K\d+:Z\d+\)$/.test(normalized)) deductionCells.push(cell);
+        if (/^SUM\(AJ\d+:BB\d+\)$/.test(normalized)) ngCells.push(cell);
+      }
     }
 
-    const deductionTotal = dbDeductionTotal(report);
-    const ngTotal = dbNgTotal(report);
+    deductionCells.sort((a, b) => a.row - b.row);
+    ngCells.sort((a, b) => a.row - b.row);
 
-    // Write the actual DB totals, not formulas. This makes the exported value
-    // immediately correct even when Excel has not recalculated the workbook.
-    sheet.getCell(rowNumber, GC_DEDUCTION_TOTAL_COL).value = deductionTotal;
-    sheet.getCell(rowNumber, GC_NG_COL).value = ngTotal;
+    const count = Math.min(reports.length, deductionCells.length, ngCells.length);
+    for (let i = 0; i < count; i += 1) {
+      const report = reports[i];
+      deductionCells[i].value = asDbNumber(report?.deduction_time);
+      ngCells[i].value = asDbNumber(report?.tt_ng);
+    }
 
-    rowNumber += 1;
-  }
+    if (count !== reports.length || deductionCells.length !== ngCells.length) {
+      console.log('[KTC-EXCEL-TEMPLATE] DB_TOTAL_PATCH_COUNT', JSON.stringify({
+        reports: reports.length,
+        deductionCells: deductionCells.length,
+        ngCells: ngCells.length,
+        patched: count
+      }));
+    } else {
+      console.log('[KTC-EXCEL-TEMPLATE] DB_TOTAL_PATCHED', JSON.stringify({
+        reports: reports.length,
+        patched: count
+      }));
+    }
 
-  return Buffer.from(await workbook.xlsx.writeBuffer());
+    return Buffer.from(await workbook.xlsx.writeBuffer());
+  })();
 }
 
-const originalProcess = base.buildProcessWorkbookLocal;
-const originalSplit = base.buildSplitMonthlyWorkbooksLocal;
-
-async function finalizeGcResult(result, args) {
+async function wrapResult(result, args) {
   if (!result?.buffer) return result;
   if (String(args?.processCode || '').toUpperCase() !== 'GC') return result;
-
-  result.buffer = await moveReportDatesToColumnA(result.buffer);
   result.buffer = await writeDbAuthoritativeTotals(result.buffer, args?.payload || {});
   return result;
 }
 
-if (typeof originalProcess === 'function') {
-  base.buildProcessWorkbookLocal = async (args = {}) => {
-    const result = await originalProcess(args);
-    return finalizeGcResult(result, args);
+if (typeof monthly.buildProcessWorkbookLocal === 'function') {
+  const original = monthly.buildProcessWorkbookLocal;
+  monthly.buildProcessWorkbookLocal = async (args = {}) => {
+    const result = await original(args);
+    return wrapResult(result, args);
   };
 }
 
-if (typeof originalSplit === 'function') {
-  base.buildSplitMonthlyWorkbooksLocal = async (args = {}) => {
-    const result = await originalSplit(args);
+if (typeof monthly.buildSplitMonthlyWorkbooksLocal === 'function') {
+  const original = monthly.buildSplitMonthlyWorkbooksLocal;
+  monthly.buildSplitMonthlyWorkbooksLocal = async (args = {}) => {
+    const result = await original(args);
     if (result?.processes) {
       for (const item of result.processes) {
         if (String(item?.processCode || '').toUpperCase() !== 'GC' || !item?.buffer) continue;
-        item.buffer = await moveReportDatesToColumnA(item.buffer);
         item.buffer = await writeDbAuthoritativeTotals(item.buffer, args?.payload || {});
       }
     }
@@ -155,4 +112,4 @@ if (typeof originalSplit === 'function') {
   };
 }
 
-module.exports = base;
+module.exports = monthly;
