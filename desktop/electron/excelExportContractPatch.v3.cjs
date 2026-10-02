@@ -18,20 +18,11 @@ const log = (event, data = {}) => {
   } catch (_) {}
 };
 
-function normalizeDate(value) {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
-  const s = String(value ?? '').slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
-  const [y, m, d] = s.split('-').map(Number);
-  return new Date(y, m - 1, d);
-}
-
 function normalizeSheetName(value) {
   return String(value ?? '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/Đ/g, 'D')
-    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D').replace(/đ/g, 'd')
     .replace(/[^a-z0-9]+/gi, '')
     .toUpperCase();
 }
@@ -40,13 +31,9 @@ function findGcTemplateSheet(workbook) {
   const sheets = workbook.worksheets || [];
   const exact = sheets.find((sheet) => normalizeSheetName(sheet.name) === 'CATLONG');
   if (exact) return exact;
-
   const partial = sheets.find((sheet) => normalizeSheetName(sheet.name).includes('CATLONG'));
   if (partial) return partial;
-
-  throw new Error(
-    `Không tìm thấy sheet Cắt lồng trong template GC. Các sheet hiện có: ${sheets.map((s) => s.name).join(', ')}`
-  );
+  throw new Error(`Không tìm thấy sheet Cắt lồng trong template GC. Các sheet hiện có: ${sheets.map((s) => s.name).join(', ')}`);
 }
 
 function reduceWorkbookToSheet(workbook, keepSheet) {
@@ -55,24 +42,15 @@ function reduceWorkbookToSheet(workbook, keepSheet) {
   }
 }
 
-// ExcelJS cannot safely write a worksheet after its shared-formula master
-// has disappeared (for example after reducing the 17-sheet template to the
-// single Cắt lồng sheet). The template is the visual/layout authority; the
-// actual production data is written by the canonical renderer below. Convert
-// shared-formula clones to their cached value (or blank) before writeBuffer().
-// Normal formulas are intentionally kept so the template can still provide
-// calculations where ExcelJS can represent them safely.
 function stripBrokenSharedFormulaClones(workbook) {
   let converted = 0;
   let cleared = 0;
   let formulaCleared = 0;
-
   for (const sheet of workbook.worksheets || []) {
     for (const row of sheet._rows || []) {
       for (const cell of row?._cells || []) {
         const model = cell?.model;
         if (!model) continue;
-
         if (model.sharedFormula) {
           const cached = model.result;
           cell.value = cached !== undefined && cached !== null ? cached : null;
@@ -81,10 +59,6 @@ function stripBrokenSharedFormulaClones(workbook) {
           if (cached === undefined || cached === null) cleared += 1;
           continue;
         }
-
-        // The GC template is visual/form-oriented. Ordinary formulas are not
-        // required for exported DB data and may still reference removed legacy
-        // sheets. Preserve their cached result when available, otherwise blank.
         if (model.type === 6 || model.formula) {
           const cached = model.result;
           cell.value = cached !== undefined && cached !== null ? cached : null;
@@ -93,22 +67,70 @@ function stripBrokenSharedFormulaClones(workbook) {
       }
     }
   }
-
   log('TEMPLATE_FORMULA_SANITIZED', {
     sharedFormulaConverted: converted,
     sharedFormulaCleared: cleared,
     ordinaryFormulaCleared: formulaCleared,
     remainingSheets: workbook.worksheets.length
   });
-
   return { converted, cleared, formulaCleared };
+}
+
+// GC data for "Loại thao tác" (CẮT/LỒNG) and "Chế độ" (TAY/MÁY)
+// is currently not reliable enough for the exported monthly workbook.
+// Keep the form/header columns, but do not export the row values.
+function clearGcOperationTypeAndMode(sheet) {
+  const normalize = (value) => String(value ?? '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/gi, '').toLowerCase();
+
+  let headerRowNumber = 0;
+  let operationTypeCol = 0;
+  let operationModeCol = 0;
+
+  for (let r = 1; r <= Math.min(sheet.rowCount, 12); r += 1) {
+    const row = sheet.getRow(r);
+    for (let c = 1; c <= Math.max(1, sheet.columnCount); c += 1) {
+      const key = normalize(row.getCell(c).value);
+      if (key === 'loạithaotác') { headerRowNumber = r; operationTypeCol = c; }
+      if (key === 'chedo') { headerRowNumber = Math.max(headerRowNumber, r); operationModeCol = c; }
+    }
+    if (operationTypeCol && operationModeCol) break;
+  }
+
+  if (!operationTypeCol && !operationModeCol) {
+    log('GC_OPERATION_FIELDS_NOT_FOUND', { sheet: sheet.name });
+    return { headerRowNumber: 0, operationTypeCol: 0, operationModeCol: 0, clearedCells: 0 };
+  }
+
+  const firstDataRow = Math.max(6, headerRowNumber + 1);
+  let clearedCells = 0;
+  for (let r = firstDataRow; r <= sheet.rowCount; r += 1) {
+    for (const c of [operationTypeCol, operationModeCol]) {
+      if (!c) continue;
+      const cell = sheet.getCell(r, c);
+      if (cell.value !== null && cell.value !== undefined && cell.value !== '') {
+        cell.value = null;
+        clearedCells += 1;
+      }
+    }
+  }
+
+  log('GC_OPERATION_FIELDS_CLEARED', {
+    headerRowNumber,
+    operationTypeCol,
+    operationModeCol,
+    firstDataRow,
+    lastDataRow: sheet.rowCount,
+    clearedCells
+  });
+  return { headerRowNumber, operationTypeCol, operationModeCol, clearedCells };
 }
 
 function clearTemplateDataRows(sheet, firstDataRow, lastDataRow, maxColumns) {
   const first = Math.max(1, Number(firstDataRow) || 1);
   const last = Math.max(first, Number(lastDataRow) || first);
   const columns = Math.max(1, Number(maxColumns) || sheet.columnCount);
-
   for (let rowNumber = first; rowNumber <= last; rowNumber += 1) {
     const row = sheet.getRow(rowNumber);
     for (let columnNumber = 1; columnNumber <= columns; columnNumber += 1) {
@@ -127,27 +149,18 @@ function copyRenderedDataIntoTemplate(target, source) {
   const sourceFirstRow = 6;
   const sourceLastRow = Math.max(sourceFirstRow, source.rowCount);
   const sourceColumns = Math.max(1, source.columnCount);
-
   log('COPY_TEMPLATE_DATA_START', {
-    sourceLastRow,
-    targetLastRow: target.rowCount,
-    sourceColumns,
-    targetColumns: target.columnCount,
-    maxColumns: sourceColumns
+    sourceLastRow, targetLastRow: target.rowCount,
+    sourceColumns, targetColumns: target.columnCount, maxColumns: sourceColumns
   });
 
   clearTemplateDataRows(target, sourceFirstRow, sourceLastRow, sourceColumns);
-  log('COPY_TEMPLATE_DATA_CLEARED', {
-    firstRow: sourceFirstRow,
-    lastRow: sourceLastRow,
-    columns: sourceColumns
-  });
+  log('COPY_TEMPLATE_DATA_CLEARED', { firstRow: sourceFirstRow, lastRow: sourceLastRow, columns: sourceColumns });
 
   for (let rowNumber = sourceFirstRow; rowNumber <= sourceLastRow; rowNumber += 1) {
     const sourceRow = source.getRow(rowNumber);
     const targetRow = target.getRow(rowNumber);
     if (sourceRow.height != null) targetRow.height = sourceRow.height;
-
     for (let columnNumber = 1; columnNumber <= sourceColumns; columnNumber += 1) {
       const sourceCell = source.getCell(rowNumber, columnNumber);
       const value = sourceCell?.value;
@@ -166,14 +179,8 @@ function copyRenderedDataIntoTemplate(target, source) {
     if (startRow < sourceFirstRow || endRow < sourceFirstRow) continue;
     try { target.mergeCells(range); } catch (_) {}
   }
-
   if (source.autoFilter) target.autoFilter = source.autoFilter;
-
-  log('COPY_TEMPLATE_DATA_DONE', {
-    sourceLastRow,
-    targetLastRow: target.rowCount,
-    maxColumns: sourceColumns
-  });
+  log('COPY_TEMPLATE_DATA_DONE', { sourceLastRow, targetLastRow: target.rowCount, maxColumns: sourceColumns });
   return { sourceLastRow, targetLastRow: target.rowCount, maxColumns: sourceColumns };
 }
 
@@ -181,7 +188,6 @@ async function buildGcFromOneSheetTemplate(args, monthlyModule) {
   const source = args?.payload?.processes?.GC || {};
   const renderProcessSheet = monthlyModule?._private?.renderProcessSheet;
   const processConfig = monthlyModule?.PROCESS_SHEETS?.GC;
-
   if (typeof renderProcessSheet !== 'function' || !processConfig) {
     throw new Error('Thiếu renderer chuẩn để xuất template Cắt lồng một sheet.');
   }
@@ -195,6 +201,7 @@ async function buildGcFromOneSheetTemplate(args, monthlyModule) {
     date: args?.date,
     reportCount: Array.isArray(source.reports) ? source.reports.length : 0,
     templatePath,
+    writer: 'bao-cao-cat-long-export.xlsx',
     renderer: 'monthlyWorkbookLocal.renderProcessSheet'
   });
 
@@ -206,14 +213,9 @@ async function buildGcFromOneSheetTemplate(args, monthlyModule) {
   const sheet = findGcTemplateSheet(templateWorkbook);
   const originalTemplateSheetCount = templateWorkbook.worksheets.length;
   log('TEMPLATE_GC_SHEET_FOUND', { sheet: sheet.name, originalTemplateSheetCount });
-
-  log('TEMPLATE_REDUCE_START', { sheetCount: templateWorkbook.worksheets.length });
   reduceWorkbookToSheet(templateWorkbook, sheet);
   log('TEMPLATE_REDUCE_DONE', { sheetCount: templateWorkbook.worksheets.length, sheet: sheet.name });
 
-  // The template supplies layout only. Remove shared and ordinary formula state
-  // because the actual exported values are computed by the DB/renderer and then
-  // written into the form. This prevents ExcelJS from resolving legacy formulas.
   const formulaStats = stripBrokenSharedFormulaClones(templateWorkbook);
   sheet.state = 'visible';
 
@@ -225,8 +227,9 @@ async function buildGcFromOneSheetTemplate(args, monthlyModule) {
   const renderedSheet = renderedWorkbook.getWorksheet(processConfig.sheet);
   if (!renderedSheet) throw new Error('Renderer chuẩn không tạo được sheet Cắt lồng.');
 
-  const copyStats = copyRenderedDataIntoTemplate(sheet, renderedSheet);
+  clearGcOperationTypeAndMode(renderedSheet);
 
+  const copyStats = copyRenderedDataIntoTemplate(sheet, renderedSheet);
   templateWorkbook.views = [{ activeTab: 0, firstSheet: 0, visibility: 'visible' }];
   templateWorkbook.calcProperties.fullCalcOnLoad = true;
   templateWorkbook.calcProperties.forceFullCalc = true;
