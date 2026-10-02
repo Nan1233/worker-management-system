@@ -97,7 +97,7 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     query(`SELECT e.id,e.process_id,e.machine_id,e.machine_code,e.product_code,e.work_date,e.shift,e.physical_ok_quantity,e.physical_ng_quantity,
       e.physical_counted_output,e.physical_total_output,e.machine_time_hours,e.maximum_output,e.standard_output,e.standard_version_id,
       e.machine_standard_id,e.exclude_kqd_from_tt_snapshot,e.status FROM machine_production_events e WHERE e.status='approved'
-      AND e.process_id IN (${processPlaceholders}) AND e.work_date>=? AND e.work_date<? ORDER BY e.work_date,e.shift,e.machine_code,e.id`,
+      AND e.process_id IN (${processPlaceholders}) AND e.work_date>=? AND e.work_date<? ORDER BY e.work_date,e.shift,e.machine_code,e.id LIMIT 10000`,
       [...processIds, start, next]),
     query(`
       SELECT 'deduction' AS detail_type, id, process_id,
@@ -108,8 +108,7 @@ async function loadBulkCompanyReports(yearMonth, actor) {
        WHERE process_id IN (${processPlaceholders}) AND status='active'
       UNION ALL
       SELECT 'defect' AS detail_type, id, process_id,
-             defect_code AS code, defect_name AS name,
-             defect_code, defect_name, sort_order,
+             defect_code AS code, defect_name AS name, defect_code, defect_name, sort_order,
              id AS defect_type_id, NULL AS quantity, NULL AS deduction_type_id
         FROM defect_types
        WHERE process_id IN (${processPlaceholders}) AND status='active'
