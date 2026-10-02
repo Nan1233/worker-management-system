@@ -90,6 +90,9 @@ async function loadBulkCompanyReports(yearMonth, actor) {
   }
 
   const reportIds = reports.map((report) => Number(report.id));
+
+  // These reads are independent. Running them together avoids serial TiDB
+  // round trips in the Cloudflare Worker without changing their semantics.
   const [physicalMachineEvents, typeRows] = await Promise.all([
     query(`SELECT e.id,e.process_id,e.machine_id,e.machine_code,e.product_code,e.work_date,e.shift,e.physical_ok_quantity,e.physical_ng_quantity,
       e.physical_counted_output,e.physical_total_output,e.machine_time_hours,e.maximum_output,e.standard_output,e.standard_version_id,
@@ -117,13 +120,15 @@ async function loadBulkCompanyReports(yearMonth, actor) {
   const deductionTypes = typeRows.filter((row) => row.detail_type === 'deduction');
   const defectTypes = typeRows.filter((row) => row.detail_type === 'defect');
 
-  let deductionRows = [], defectRows = [], machineLineRows = [];
-  for (const ids of chunkArray(reportIds, Number(process.env.EXCEL_DETAIL_BATCH_SIZE || 1000))) {
+  const detailBatchSize = Number(process.env.EXCEL_DETAIL_BATCH_SIZE || 1000);
+  const detailBatches = chunkArray(reportIds, detailBatchSize);
+
+  // Each report-id batch is independent. Load all batches concurrently so a
+  // 1,942-report month does not spend the request lifetime waiting for one
+  // batch after another. The result is flattened in original batch order.
+  const batchResults = await Promise.all(detailBatches.map(async (ids) => {
     const p = ids.map(() => '?').join(',');
-    // Keep the three detail sources independent so one table cannot multiply
-    // another table's rows. The UNION reduces the number of TiDB Serverless
-    // round trips while preserving the exact source semantics.
-    const [detailRows, m] = await Promise.all([
+    const [detailRows, machineLineRows] = await Promise.all([
       query(`
         SELECT 'deduction' AS detail_type,
                prd.report_id, prd.deduction_type_id AS type_id,
@@ -146,11 +151,18 @@ async function loadBulkCompanyReports(yearMonth, actor) {
         [...ids, ...ids]),
       query(`SELECT * FROM production_report_machine_lines WHERE report_id IN (${p}) ORDER BY report_id,sort_order,id`, ids)
     ]);
-    for (const row of detailRows) {
+    return { detailRows, machineLineRows };
+  }));
+
+  const deductionRows = [];
+  const defectRows = [];
+  const machineLineRows = [];
+  for (const batch of batchResults) {
+    for (const row of batch.detailRows) {
       if (row.detail_type === 'deduction') deductionRows.push(row);
       else defectRows.push(row);
     }
-    machineLineRows.push(...m);
+    machineLineRows.push(...batch.machineLineRows);
   }
 
   const deductions = mapDetails(deductionRows, reportIds, (row) => ({
