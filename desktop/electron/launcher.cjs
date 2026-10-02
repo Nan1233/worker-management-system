@@ -4,7 +4,7 @@ const fsp = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
 
-// Test desktop stores Excel on the company NAS.
+// Test desktop stores Excel on the company NAS when it is reachable.
 const DEFAULT_EXPORT_ROOT = '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\Linh tinh';
 const LEGACY_NETWORK_EXPORT_ROOT = DEFAULT_EXPORT_ROOT;
 const LEGACY_LOCAL_EXPORT_ROOT = path.join(os.homedir(), 'Documents', 'KTC', 'Bao cao san xuat');
@@ -82,9 +82,6 @@ app.on('browser-window-created', (_event, window) => {
 });
 
 require('./excelExportContractPatch.v2.cjs');
-// Apply DB-truth detail values after the legacy contract patch so the final
-// workbook cells are sourced from approved report.deductions/report.defects.
-require('./excelExportDbTruthPatch.cjs');
 
 function normalizeExportRoot(value) {
   const raw = String(value || '').trim();
@@ -119,6 +116,35 @@ function readConfiguredExportRoot() {
     return normalizeExportRoot(configured);
   } catch {
     return DEFAULT_EXPORT_ROOT;
+  }
+}
+
+function resolveWritableExportRoot(configuredRoot) {
+  const configured = normalizeExportRoot(configuredRoot);
+  const isNas = /^\\\\/.test(configured);
+  if (!isNas) return { root: configured, fallback: false };
+
+  try {
+    fs.mkdirSync(configured, { recursive: true });
+    fs.accessSync(configured, fs.constants.R_OK | fs.constants.W_OK);
+    return { root: configured, fallback: false };
+  } catch (error) {
+    const localRoot = LEGACY_LOCAL_EXPORT_ROOT;
+    try {
+      fs.mkdirSync(localRoot, { recursive: true });
+      fs.accessSync(localRoot, fs.constants.R_OK | fs.constants.W_OK);
+      return {
+        root: localRoot,
+        fallback: true,
+        reason: error?.code || error?.message || 'NAS_UNAVAILABLE'
+      };
+    } catch (localError) {
+      return {
+        root: configured,
+        fallback: false,
+        reason: `NAS_UNAVAILABLE_LOCAL_FALLBACK_FAILED:${localError?.code || localError?.message || 'UNKNOWN'}`
+      };
+    }
   }
 }
 
@@ -159,7 +185,16 @@ async function ensureCurrentMonthlyFolder() {
   return monthFolder;
 }
 
-process.env.KTC_EXPORT_ROOT = readConfiguredExportRoot();
+const configuredExportRoot = readConfiguredExportRoot();
+const resolvedExportRoot = resolveWritableExportRoot(configuredExportRoot);
+process.env.KTC_EXPORT_ROOT = resolvedExportRoot.root;
+if (resolvedExportRoot.fallback) {
+  void writeLauncherLog('WARN', 'EXCEL_NAS_UNAVAILABLE_LOCAL_FALLBACK', {
+    configuredRoot: configuredExportRoot,
+    activeRoot: resolvedExportRoot.root,
+    reason: resolvedExportRoot.reason,
+  });
+}
 void ensureCurrentMonthlyFolder().catch((error) => {
   void writeLauncherLog('WARN', 'EXCEL_MONTH_FOLDER_CREATE_FAILED', {
     root: process.env.KTC_EXPORT_ROOT,
@@ -168,13 +203,24 @@ void ensureCurrentMonthlyFolder().catch((error) => {
 });
 
 ipcMain.handle('ktc-get-export-root', async () => {
-  return normalizeExportRoot(process.env.KTC_EXPORT_ROOT || readConfiguredExportRoot());
+  const resolved = resolveWritableExportRoot(readConfiguredExportRoot());
+  process.env.KTC_EXPORT_ROOT = resolved.root;
+  if (resolved.fallback) {
+    void writeLauncherLog('WARN', 'EXCEL_NAS_UNAVAILABLE_LOCAL_FALLBACK', {
+      configuredRoot: readConfiguredExportRoot(),
+      activeRoot: resolved.root,
+      reason: resolved.reason,
+    });
+  }
+  return resolved.root;
 });
 
 ipcMain.handle('ktc-reset-export-root', async () => {
   const root = await saveConfiguredExportRoot(DEFAULT_EXPORT_ROOT);
+  const resolved = resolveWritableExportRoot(root);
+  process.env.KTC_EXPORT_ROOT = resolved.root;
   await ensureCurrentMonthlyFolder();
-  return root;
+  return resolved.root;
 });
 
 ipcMain.handle('ktc-choose-export-root', async () => {
