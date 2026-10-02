@@ -56,3 +56,15 @@ test('legacy code/name aliases collapse to the same FE defect', () => {
   assert.equal(byCode.XOAY, 6);
   assert.equal(byCode.CAT10, 5);
 });
+
+test('canonical GC defects retain legacy Excel template aliases', () => {
+  const result = mergeDefects({}, [
+    { defect_type_id: 1, defect_code: 'CAT01', defect_name: 'Cao su không đứt', quantity: 7 },
+    { defect_type_id: 2, defect_code: 'CAT08', defect_name: 'Lỗi cao su ( NCC )', quantity: 4 },
+    { defect_type_id: 3, defect_code: 'XOAY', defect_name: 'Cao su xoay', quantity: 3 }
+  ]);
+  const byCode = Object.fromEntries(result.map(item => [item.defect_code, item]));
+  assert.equal(byCode.CAT01.defect_type_code, 'KQD');
+  assert.equal(byCode.CAT08.defect_type_code, 'LCS');
+  assert.equal(byCode.XOAY.defect_type_code, 'Cao su xoay');
+});
