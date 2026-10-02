@@ -82,6 +82,9 @@ app.on('browser-window-created', (_event, window) => {
 });
 
 require('./excelExportContractPatch.v2.cjs');
+// Apply DB-truth detail values after the legacy contract patch so the final
+// workbook cells are sourced from approved report.deductions/report.defects.
+require('./excelExportDbTruthPatch.cjs');
 
 function normalizeExportRoot(value) {
   const raw = String(value || '').trim();
