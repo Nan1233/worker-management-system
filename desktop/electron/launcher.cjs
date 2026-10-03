@@ -5,7 +5,7 @@ const path = require('node:path');
 const os = require('node:os');
 
 // TEST Excel export: use the company NAS when reachable; otherwise save locally
-// under the current Windows user's Documents\KTC\Bao cao san xuat folder.
+// under the current Windows user's Documents\\KTC\\Bao cao san xuat folder.
 const DEFAULT_EXPORT_ROOT = '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\Linh tinh';
 const LEGACY_NETWORK_EXPORT_ROOT = DEFAULT_EXPORT_ROOT;
 const LOCAL_FALLBACK_EXPORT_ROOT = path.join(os.homedir(), 'Documents', 'KTC', 'Bao cao san xuat');
@@ -85,6 +85,8 @@ app.on('browser-window-created', (_event, window) => {
 
 // v5 is the single active GC Excel contract. Older contract patches are no longer loaded.
 require('./excelExportContractPatch.v5.cjs');
+// Compact one-sheet GC template is layered after v5 and remains DB-first.
+require('./compactGcExcelPatch.cjs');
 
 function normalizeExportRoot(value) {
   const raw = String(value || '').trim();
