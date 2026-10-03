@@ -81,7 +81,8 @@ app.on('browser-window-created', (_event, window) => {
   });
 });
 
-require('./excelExportContractPatch.v2.cjs');
+// v5 is the single active GC Excel contract. Older contract patches are no longer loaded.
+require('./excelExportContractPatch.v5.cjs');
 
 function normalizeExportRoot(value) {
   const raw = String(value || '').trim();
