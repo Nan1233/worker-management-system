@@ -292,7 +292,11 @@ monthly.buildSplitMonthlyWorkbooksLocal = async (args) => {
   if (Array.isArray(result?.processes)) {
     for (const item of result.processes) {
       if (String(item?.processCode || '').toUpperCase() !== 'GC') continue;
-      const compact = await buildCompactGc({ appPath: args?.appPath, date: args?.date, payload: args?.payload });
+      const compact = await buildCompactGc({
+        appPath: args?.appPath || path.resolve(__dirname, '..'),
+        date: args?.date,
+        payload: args?.payload
+      });
       Object.assign(item, compact);
     }
   }
