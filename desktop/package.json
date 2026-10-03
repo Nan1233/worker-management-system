@@ -42,6 +42,7 @@
     },
     "files": [
       "electron/**/*",
+      "assets/**/*",
       "package.json"
     ],
     "win": {
