@@ -5,7 +5,7 @@ const fsSync = require('node:fs');
 const Module = require('node:module');
 const path = require('node:path');
 const monthly = require('./monthlyWorkbookLocal.cjs');
-const { buildWorkerProcessWorkbook, PROCESS_FILE_PREFIXES } = require('./workerReportTemplateLocal.cjs');
+const { buildWorkerProcessWorkbook, PROCESS_FILE_PREFIXES } = require('./workerReportTemplateLocal.v2.cjs');
 
 const PROCESS_CODES = Object.freeze(['CAN', 'EP', 'XLBV', 'GC', 'MAI', 'DO', 'K1', 'K2', 'SX3']);
 
@@ -57,14 +57,9 @@ async function __ktcCleanupLegacyMonthlyLayout(root, date) {
 
 function patchMainSource(source) {
   let next = String(source);
-
-  // The injected export logic below references PROCESS_CODES inside main.cjs.
-  // main.cjs does not own that constant, so define it in the patched source
-  // itself. Keep the list identical to the worker-template contract.
   if (!next.includes('const PROCESS_CODES = Object.freeze([')) {
     next = `const PROCESS_CODES = Object.freeze(['CAN', 'EP', 'XLBV', 'GC', 'MAI', 'DO', 'K1', 'K2', 'SX3']);\n${next}`;
   }
-
   next = next.replace(/\n\s*\/\/ File tổng hợp: 00_TONG_HOP_SAN_XUAT_MM-YYYY\.xlsx[\s\S]*?\n\s*\/\/ 9 công đoạn: giữ đúng cấu trúc file local đã được smoke-test\./, '\n\n    // 9 công đoạn: dùng cùng template báo cáo công nhân; không tạo file tổng hợp.');
   next = next.replace(/\n\s*const processFolder = path\.join\(folder, safeFolderName\(processBuilt\.processName \|\| processBuilt\.processCode\)\);\n\s*await fs\.mkdir\(processFolder, \{ recursive: true \}\);/g, '');
   next = next.replace(/path\.join\(\s*processFolder,\s*/g, 'path.join(\n        folder,\n        ');
@@ -72,30 +67,17 @@ function patchMainSource(source) {
   next = next.replace(/expectedFileCount: Object\.keys\(PROCESS_SHEETS\)\.length \+ 1/g, 'expectedFileCount: PROCESS_CODES.length');
   next = next.replace(/const expectedFileCount = Object\.keys\(PROCESS_SHEETS\)\.length \+ 1;/g, 'const expectedFileCount = PROCESS_CODES.length;');
   next = next.replace(/mode: 'desktop-local-monthly-workbooks'/g, "mode: 'desktop-local-worker-template'");
-
   const cleanupFn = cleanupLegacyMonthlyFilesSource();
   const marker = '\nasync function syncAllProcessExcel';
   if (!next.includes('__ktcCleanupLegacyMonthlyLayout')) next = next.replace(marker, `\n${cleanupFn}${marker}`);
-
-  next = next.replace(
-    /\n\s*await writeLog\('INFO', 'MONTHLY_SPLIT_WORKBOOKS_UPDATED', \{/,
-    '\n    await writeLog(\'INFO\', \'MONTHLY_WORKER_TEMPLATE_UPDATED\', {'
-  );
-
+  next = next.replace(/\n\s*await writeLog\('INFO', 'MONTHLY_SPLIT_WORKBOOKS_UPDATED', \{/, '\n    await writeLog(\'INFO\', \'MONTHLY_WORKER_TEMPLATE_UPDATED\', {');
   const successMarker = 'const success = files.length === expectedFileCount && files.every((file) => file.success === true);';
-  if (!next.includes('if (success) await __ktcCleanupLegacyMonthlyLayout')) {
-    next = next.replace(successMarker, `${successMarker}\n  if (success) await __ktcCleanupLegacyMonthlyLayout(root, date);`);
-  }
+  if (!next.includes('if (success) await __ktcCleanupLegacyMonthlyLayout')) next = next.replace(successMarker, `${successMarker}\n  if (success) await __ktcCleanupLegacyMonthlyLayout(root, date);`);
   return next;
 }
 
-// Electron/Node does not guarantee a dedicated .cjs entry in Module._extensions.
-// In Electron 37 this can be undefined, which caused the patch itself to crash
-// before main.cjs was loaded. Fall back to the standard CommonJS .js loader.
 const originalCjsLoader = Module._extensions['.cjs'] || Module._extensions['.js'];
-if (typeof originalCjsLoader !== 'function') {
-  throw new TypeError('CommonJS loader is unavailable');
-}
+if (typeof originalCjsLoader !== 'function') throw new TypeError('CommonJS loader is unavailable');
 
 if (!global.__KTC_WORKER_TEMPLATE_MAIN_PATCH__) {
   global.__KTC_WORKER_TEMPLATE_MAIN_PATCH__ = true;
