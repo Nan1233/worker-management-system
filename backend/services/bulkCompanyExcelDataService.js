@@ -155,6 +155,67 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     deductionRows.push(...d); defectRows.push(...f); machineLineRows.push(...m);
   }
 
+  // Some approved rows were created by the legacy import or an older approval
+  // path where the child rows were not copied into production_report_*.
+  // source_temp_id is the durable bridge back to the original worker form.
+  // Read the temp child tables as a fallback, but never duplicate an approved
+  // detail set that already exists.
+  const sourceTempIds = [...new Set(
+    reports.map((report) => Number(report.source_temp_id)).filter((id) => Number.isInteger(id) && id > 0)
+  )];
+  if (sourceTempIds.length) {
+    const p = sourceTempIds.map(() => '?').join(',');
+    const [tempDeductions, tempDefects] = await Promise.all([
+      query(
+        `SELECT ptd.temp_report_id, ptd.deduction_type_id, dt.deduction_code, dt.deduction_name, ptd.hours
+           FROM production_temp_deductions ptd
+           LEFT JOIN deduction_types dt ON dt.id=ptd.deduction_type_id
+          WHERE ptd.temp_report_id IN (${p})
+          ORDER BY ptd.temp_report_id,COALESCE(dt.sort_order,999999),ptd.deduction_type_id`,
+        sourceTempIds
+      ),
+      query(
+        `SELECT ptd.temp_report_id, ptd.defect_type_id, dt.defect_code, dt.defect_name, ptd.quantity
+           FROM production_temp_defects ptd
+           LEFT JOIN defect_types dt ON dt.id=ptd.defect_type_id
+          WHERE ptd.temp_report_id IN (${p})
+          ORDER BY ptd.temp_report_id,COALESCE(dt.sort_order,999999),ptd.defect_type_id`,
+        sourceTempIds
+      )
+    ]);
+
+    const reportByTemp = new Map(
+      reports
+        .filter((report) => Number(report.source_temp_id) > 0)
+        .map((report) => [Number(report.source_temp_id), Number(report.id)])
+    );
+    const approvedDeductionReports = new Set(deductionRows.map((row) => Number(row.report_id)));
+    const approvedDefectReports = new Set(defectRows.map((row) => Number(row.report_id)));
+
+    for (const row of tempDeductions) {
+      const reportId = reportByTemp.get(Number(row.temp_report_id));
+      if (!reportId || approvedDeductionReports.has(reportId)) continue;
+      deductionRows.push({
+        report_id: reportId,
+        deduction_type_id: row.deduction_type_id,
+        deduction_code: row.deduction_code,
+        deduction_name: row.deduction_name,
+        hours: row.hours
+      });
+    }
+    for (const row of tempDefects) {
+      const reportId = reportByTemp.get(Number(row.temp_report_id));
+      if (!reportId || approvedDefectReports.has(reportId)) continue;
+      defectRows.push({
+        report_id: reportId,
+        defect_type_id: row.defect_type_id,
+        defect_code: row.defect_code,
+        defect_name: row.defect_name,
+        quantity: row.quantity
+      });
+    }
+  }
+
   const deductions = mapDetails(deductionRows, reportIds, (row) => ({
     id: Number(row.id ?? row.deduction_type_id),
     deduction_type_id: Number(row.deduction_type_id),
