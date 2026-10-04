@@ -38,15 +38,11 @@ function sameNumber(a, b, tolerance = 0.01) {
   return Math.abs(Number(a || 0) - Number(b || 0)) <= tolerance;
 }
 
-function machineDetailKey(value) {
-  return Number(value) > 0 ? Number(value) : null;
-}
-
 function groupMachineDefects(rows, keyField) {
   const result = new Map();
   for (const row of Array.isArray(rows) ? rows : []) {
-    const key = machineDetailKey(row?.[keyField]);
-    if (!key) continue;
+    const key = Number(row?.[keyField]);
+    if (!Number.isInteger(key) || key <= 0) continue;
     if (!result.has(key)) result.set(key, []);
     result.get(key).push({
       id: Number(row.id) || undefined,
@@ -59,18 +55,14 @@ function groupMachineDefects(rows, keyField) {
   return result;
 }
 
-function hydrateMachineLineDefects(machineLines, machineDefects, eventDefects) {
-  const byLine = groupMachineDefects(machineDefects, 'machine_line_id');
-  const byEvent = groupMachineDefects(eventDefects, 'machine_event_id');
+function hydrateMachineLineDefects(machineLines, machineDefectsByLine, eventDefectsByEvent) {
   return (Array.isArray(machineLines) ? machineLines : []).map((line) => {
-    // Keep the same precedence as the Manager/Worker approved-detail API:
-    // 1) persisted production_report_machine_defects;
-    // 2) legacy defects_json on the approved machine line;
-    // 3) machine_production_event_defects.
-    const persisted = byLine.get(Number(line.id)) || [];
+    // Same precedence as Manager/Worker approved-detail API:
+    // persisted machine defects -> line defects_json -> event defects.
+    const persisted = machineDefectsByLine.get(Number(line.id)) || [];
     if (persisted.length) return { ...line, defects: persisted, defects_json: JSON.stringify(persisted) };
     if (line?.defects_json) return line;
-    const eventDetails = byEvent.get(Number(line.machine_event_id)) || [];
+    const eventDetails = eventDefectsByEvent.get(Number(line.machine_event_id)) || [];
     if (eventDetails.length) return { ...line, defects: eventDetails, defects_json: JSON.stringify(eventDetails) };
     return { ...line, defects: [] };
   });
@@ -216,10 +208,6 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     deductionRows.push(...d); defectRows.push(...f); machineLineRows.push(...m); machineDefectRows.push(...md); eventDefectRows.push(...ed);
   }
 
-  // source_temp_id is the durable bridge back to the worker form. For legacy
-  // approvals, the approved child tables can exist but be incomplete. Keep the
-  // temp rows as a separate candidate source so we can choose the complete set
-  // when its total matches the approved parent total.
   let tempDeductionRows = [];
   let tempDefectRows = [];
   const sourceTempIds = [...new Set(
@@ -299,8 +287,8 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     const id = Number(report.id);
     report.machineLines = hydrateMachineLineDefects(
       machineLines.get(id) || [],
-      machineDefectRows.filter((row) => Number(row.report_id) === id),
-      eventDefectRows.filter((row) => Number(row.report_id) === id),
+      machineDefectsByLine,
+      eventDefectsByEvent,
     );
 
     const reportDeductionRows = deductions.get(id) || [];
@@ -340,9 +328,6 @@ async function loadBulkCompanyReports(yearMonth, actor) {
       ? 'production_temp_deductions_fallback'
       : 'production_report_deductions';
 
-    // Keep persisted production_reports values authoritative. Calculations may
-    // only fill fields that are genuinely absent and must never overwrite a DB
-    // value exported to Excel.
     const calculated = calculateReportPerformance({ report, machineLines: report.machineLines }) || {};
     for (const [key, value] of Object.entries(calculated)) {
       if (report[key] === undefined || report[key] === null || report[key] === '') {
