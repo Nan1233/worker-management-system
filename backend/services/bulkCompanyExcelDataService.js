@@ -27,6 +27,17 @@ function mapDetails(rows, reportIds, mapper) {
   return result;
 }
 
+function sumPositive(rows, field) {
+  return (Array.isArray(rows) ? rows : []).reduce((sum, row) => {
+    const value = Number(row?.[field]);
+    return sum + (Number.isFinite(value) && value > 0 ? value : 0);
+  }, 0);
+}
+
+function sameNumber(a, b, tolerance = 0.01) {
+  return Math.abs(Number(a || 0) - Number(b || 0)) <= tolerance;
+}
+
 async function loadBulkCompanyReports(yearMonth, actor) {
   const { start, next } = monthRange(yearMonth);
   const placeholders = PROCESS_CODES.map(() => '?').join(',');
@@ -155,17 +166,18 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     deductionRows.push(...d); defectRows.push(...f); machineLineRows.push(...m);
   }
 
-  // Some approved rows were created by the legacy import or an older approval
-  // path where the child rows were not copied into production_report_*.
-  // source_temp_id is the durable bridge back to the original worker form.
-  // Read the temp child tables as a fallback, but never duplicate an approved
-  // detail set that already exists.
+  // source_temp_id is the durable bridge back to the worker form. For legacy
+  // approvals, the approved child tables can exist but be incomplete. Keep the
+  // temp rows as a separate candidate source so we can choose the complete set
+  // when its total matches the approved parent total.
+  let tempDeductionRows = [];
+  let tempDefectRows = [];
   const sourceTempIds = [...new Set(
     reports.map((report) => Number(report.source_temp_id)).filter((id) => Number.isInteger(id) && id > 0)
   )];
   if (sourceTempIds.length) {
     const p = sourceTempIds.map(() => '?').join(',');
-    const [tempDeductions, tempDefects] = await Promise.all([
+    [tempDeductionRows, tempDefectRows] = await Promise.all([
       query(
         `SELECT ptd.temp_report_id, ptd.deduction_type_id, dt.deduction_code, dt.deduction_name, ptd.hours
            FROM production_temp_deductions ptd
@@ -183,37 +195,23 @@ async function loadBulkCompanyReports(yearMonth, actor) {
         sourceTempIds
       )
     ]);
+  }
 
-    const reportByTemp = new Map(
-      reports
-        .filter((report) => Number(report.source_temp_id) > 0)
-        .map((report) => [Number(report.source_temp_id), Number(report.id)])
-    );
-    const approvedDeductionReports = new Set(deductionRows.map((row) => Number(row.report_id)));
-    const approvedDefectReports = new Set(defectRows.map((row) => Number(row.report_id)));
+  const reportByTemp = new Map(
+    reports
+      .filter((report) => Number(report.source_temp_id) > 0)
+      .map((report) => [Number(report.source_temp_id), Number(report.id)])
+  );
 
-    for (const row of tempDeductions) {
-      const reportId = reportByTemp.get(Number(row.temp_report_id));
-      if (!reportId || approvedDeductionReports.has(reportId)) continue;
-      deductionRows.push({
-        report_id: reportId,
-        deduction_type_id: row.deduction_type_id,
-        deduction_code: row.deduction_code,
-        deduction_name: row.deduction_name,
-        hours: row.hours
-      });
-    }
-    for (const row of tempDefects) {
-      const reportId = reportByTemp.get(Number(row.temp_report_id));
-      if (!reportId || approvedDefectReports.has(reportId)) continue;
-      defectRows.push({
-        report_id: reportId,
-        defect_type_id: row.defect_type_id,
-        defect_code: row.defect_code,
-        defect_name: row.defect_name,
-        quantity: row.quantity
-      });
-    }
+  const tempDeductionsByReport = new Map(reportIds.map((id) => [Number(id), []]));
+  const tempDefectsByReport = new Map(reportIds.map((id) => [Number(id), []]));
+  for (const row of tempDeductionRows) {
+    const reportId = reportByTemp.get(Number(row.temp_report_id));
+    if (reportId) tempDeductionsByReport.get(reportId)?.push(row);
+  }
+  for (const row of tempDefectRows) {
+    const reportId = reportByTemp.get(Number(row.temp_report_id));
+    if (reportId) tempDefectsByReport.get(reportId)?.push(row);
   }
 
   const deductions = mapDetails(deductionRows, reportIds, (row) => ({
@@ -231,21 +229,69 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     defect_name: row.defect_name || '',
     quantity: Number(row.quantity) || 0
   }));
+  const tempDeductions = mapDetails(tempDeductionRows.map((row) => {
+    const reportId = reportByTemp.get(Number(row.temp_report_id));
+    return { ...row, report_id: reportId };
+  }).filter((row) => row.report_id), reportIds, (row) => ({
+    id: Number(row.id ?? row.deduction_type_id),
+    deduction_type_id: Number(row.deduction_type_id),
+    code: row.deduction_code || '',
+    name: row.deduction_name || '',
+    deduction_code: row.deduction_code || '',
+    deduction_name: row.deduction_name || '',
+    hours: Number(row.hours) || 0
+  }));
+  const tempDefects = mapDetails(tempDefectRows.map((row) => {
+    const reportId = reportByTemp.get(Number(row.temp_report_id));
+    return { ...row, report_id: reportId };
+  }).filter((row) => row.report_id), reportIds, (row) => ({
+    defect_type_id: Number(row.defect_type_id),
+    defect_code: row.defect_code || '',
+    defect_name: row.defect_name || '',
+    quantity: Number(row.quantity) || 0
+  }));
   const machineLines = mapDetails(machineLineRows, reportIds, (row) => ({ ...row }));
 
   for (const report of reports) {
     const id = Number(report.id);
     report.machineLines = machineLines.get(id) || [];
+
+    const reportDeductionRows = deductions.get(id) || [];
+    const reportTempDeductionRows = tempDeductions.get(id) || [];
+    const expectedDeductionHours = Number(report.deduction_time) || 0;
+    const persistedDeductionHours = sumPositive(reportDeductionRows, 'hours');
+    const tempDeductionHours = sumPositive(reportTempDeductionRows, 'hours');
+    const selectedDeductionRows = expectedDeductionHours > 0
+      && !sameNumber(persistedDeductionHours, expectedDeductionHours)
+      && sameNumber(tempDeductionHours, expectedDeductionHours)
+      ? reportTempDeductionRows
+      : reportDeductionRows;
+
     report.deductions = normalizeDeductions(
-      deductions.get(id) || [],
+      selectedDeductionRows,
       report,
       report.machineLines,
       deductionTypes.filter((type) => Number(type.process_id) === Number(report.process_id)),
     );
-    report.defects = mergeDefects(report, defects.get(id) || [], report.machineLines);
-    report.excelDefectsSource = defects.get(id)?.length
-      ? 'production_report_defects'
+
+    const reportDefectRows = defects.get(id) || [];
+    const reportTempDefectRows = tempDefects.get(id) || [];
+    const expectedDefects = Math.trunc(Number(report.tt_ng) || 0);
+    const persistedDefects = sumPositive(reportDefectRows, 'quantity');
+    const tempDefectsTotal = sumPositive(reportTempDefectRows, 'quantity');
+    const selectedDefectRows = expectedDefects > 0
+      && Math.trunc(persistedDefects) !== expectedDefects
+      && Math.trunc(tempDefectsTotal) === expectedDefects
+      ? reportTempDefectRows
+      : reportDefectRows;
+
+    report.defects = mergeDefects(report, selectedDefectRows, report.machineLines);
+    report.excelDefectsSource = selectedDefectRows.length
+      ? (selectedDefectRows === reportTempDefectRows ? 'production_temp_defects_fallback' : 'production_report_defects')
       : (report.defects.length ? 'legacy_columns_normalized' : 'none');
+    report.excelDeductionsSource = selectedDeductionRows === reportTempDeductionRows
+      ? 'production_temp_deductions_fallback'
+      : 'production_report_deductions';
 
     // Keep persisted production_reports values authoritative. Calculations may
     // only fill fields that are genuinely absent and must never overwrite a DB
