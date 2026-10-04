@@ -38,6 +38,44 @@ function sameNumber(a, b, tolerance = 0.01) {
   return Math.abs(Number(a || 0) - Number(b || 0)) <= tolerance;
 }
 
+function machineDetailKey(value) {
+  return Number(value) > 0 ? Number(value) : null;
+}
+
+function groupMachineDefects(rows, keyField) {
+  const result = new Map();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const key = machineDetailKey(row?.[keyField]);
+    if (!key) continue;
+    if (!result.has(key)) result.set(key, []);
+    result.get(key).push({
+      id: Number(row.id) || undefined,
+      defect_type_id: Number(row.defect_type_id) || undefined,
+      defect_code: row.defect_code || '',
+      defect_name: row.defect_name || '',
+      quantity: Number(row.quantity) || 0
+    });
+  }
+  return result;
+}
+
+function hydrateMachineLineDefects(machineLines, machineDefects, eventDefects) {
+  const byLine = groupMachineDefects(machineDefects, 'machine_line_id');
+  const byEvent = groupMachineDefects(eventDefects, 'machine_event_id');
+  return (Array.isArray(machineLines) ? machineLines : []).map((line) => {
+    // Keep the same precedence as the Manager/Worker approved-detail API:
+    // 1) persisted production_report_machine_defects;
+    // 2) legacy defects_json on the approved machine line;
+    // 3) machine_production_event_defects.
+    const persisted = byLine.get(Number(line.id)) || [];
+    if (persisted.length) return { ...line, defects: persisted, defects_json: JSON.stringify(persisted) };
+    if (line?.defects_json) return line;
+    const eventDetails = byEvent.get(Number(line.machine_event_id)) || [];
+    if (eventDetails.length) return { ...line, defects: eventDetails, defects_json: JSON.stringify(eventDetails) };
+    return { ...line, defects: [] };
+  });
+}
+
 async function loadBulkCompanyReports(yearMonth, actor) {
   const { start, next } = monthRange(yearMonth);
   const placeholders = PROCESS_CODES.map(() => '?').join(',');
@@ -156,14 +194,26 @@ async function loadBulkCompanyReports(yearMonth, actor) {
   let deductionRows = [];
   let defectRows = [];
   let machineLineRows = [];
+  let machineDefectRows = [];
+  let eventDefectRows = [];
   for (const ids of chunkArray(reportIds, Number(process.env.EXCEL_DETAIL_BATCH_SIZE || 1000))) {
     const p = ids.map(() => '?').join(',');
-    const [d, f, m] = await Promise.all([
+    const [d, f, m, md, ed] = await Promise.all([
       query(`SELECT prd.report_id, prd.deduction_type_id, dt.deduction_code, dt.deduction_name, prd.hours FROM production_report_deductions prd LEFT JOIN deduction_types dt ON dt.id=prd.deduction_type_id WHERE prd.report_id IN (${p}) ORDER BY prd.report_id,COALESCE(dt.sort_order,999999),prd.deduction_type_id`, ids),
       query(`SELECT prd.report_id, prd.defect_type_id, dt.defect_code, dt.defect_name, prd.quantity FROM production_report_defects prd LEFT JOIN defect_types dt ON dt.id=prd.defect_type_id WHERE prd.report_id IN (${p}) ORDER BY prd.report_id,COALESCE(dt.sort_order,999999),prd.defect_type_id`, ids),
-      query(`SELECT * FROM production_report_machine_lines WHERE report_id IN (${p}) ORDER BY report_id,sort_order,id`, ids)
+      query(`SELECT * FROM production_report_machine_lines WHERE report_id IN (${p}) ORDER BY report_id,sort_order,id`, ids),
+      query(`SELECT ml.report_id, md.id, md.machine_line_id, md.defect_type_id, md.defect_code, md.defect_name, md.quantity
+               FROM production_report_machine_defects md
+               INNER JOIN production_report_machine_lines ml ON ml.id=md.machine_line_id
+              WHERE ml.report_id IN (${p}) AND md.quantity > 0
+              ORDER BY ml.report_id,md.machine_line_id,md.id`, ids),
+      query(`SELECT ml.report_id, ed.id, ed.machine_event_id, ed.defect_type_id, ed.defect_code, ed.defect_name, ed.quantity
+               FROM machine_production_event_defects ed
+               INNER JOIN production_report_machine_lines ml ON ml.machine_event_id=ed.machine_event_id
+              WHERE ml.report_id IN (${p}) AND ed.quantity > 0
+              ORDER BY ml.report_id,ed.machine_event_id,ed.id`, ids)
     ]);
-    deductionRows.push(...d); defectRows.push(...f); machineLineRows.push(...m);
+    deductionRows.push(...d); defectRows.push(...f); machineLineRows.push(...m); machineDefectRows.push(...md); eventDefectRows.push(...ed);
   }
 
   // source_temp_id is the durable bridge back to the worker form. For legacy
@@ -203,17 +253,6 @@ async function loadBulkCompanyReports(yearMonth, actor) {
       .map((report) => [Number(report.source_temp_id), Number(report.id)])
   );
 
-  const tempDeductionsByReport = new Map(reportIds.map((id) => [Number(id), []]));
-  const tempDefectsByReport = new Map(reportIds.map((id) => [Number(id), []]));
-  for (const row of tempDeductionRows) {
-    const reportId = reportByTemp.get(Number(row.temp_report_id));
-    if (reportId) tempDeductionsByReport.get(reportId)?.push(row);
-  }
-  for (const row of tempDefectRows) {
-    const reportId = reportByTemp.get(Number(row.temp_report_id));
-    if (reportId) tempDefectsByReport.get(reportId)?.push(row);
-  }
-
   const deductions = mapDetails(deductionRows, reportIds, (row) => ({
     id: Number(row.id ?? row.deduction_type_id),
     deduction_type_id: Number(row.deduction_type_id),
@@ -229,6 +268,8 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     defect_name: row.defect_name || '',
     quantity: Number(row.quantity) || 0
   }));
+  const machineLines = mapDetails(machineLineRows, reportIds, (row) => ({ ...row }));
+
   const tempDeductions = mapDetails(tempDeductionRows.map((row) => {
     const reportId = reportByTemp.get(Number(row.temp_report_id));
     return { ...row, report_id: reportId };
@@ -250,11 +291,17 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     defect_name: row.defect_name || '',
     quantity: Number(row.quantity) || 0
   }));
-  const machineLines = mapDetails(machineLineRows, reportIds, (row) => ({ ...row }));
+
+  const machineDefectsByLine = groupMachineDefects(machineDefectRows, 'machine_line_id');
+  const eventDefectsByEvent = groupMachineDefects(eventDefectRows, 'machine_event_id');
 
   for (const report of reports) {
     const id = Number(report.id);
-    report.machineLines = machineLines.get(id) || [];
+    report.machineLines = hydrateMachineLineDefects(
+      machineLines.get(id) || [],
+      machineDefectRows.filter((row) => Number(row.report_id) === id),
+      eventDefectRows.filter((row) => Number(row.report_id) === id),
+    );
 
     const reportDeductionRows = deductions.get(id) || [];
     const reportTempDeductionRows = tempDeductions.get(id) || [];
