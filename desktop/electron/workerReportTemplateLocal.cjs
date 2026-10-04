@@ -33,9 +33,7 @@ async function resolveTemplatePath(appPath) {
   for (const candidate of templateCandidates(appPath)) {
     try { await fs.access(candidate); return candidate; } catch (_) {}
   }
-  throw Object.assign(new Error(`Không tìm thấy template ${TEMPLATE_NAME}`), {
-    code: 'KTC_WORKER_TEMPLATE_MISSING'
-  });
+  throw Object.assign(new Error(`Không tìm thấy template ${TEMPLATE_NAME}`), { code: 'KTC_WORKER_TEMPLATE_MISSING' });
 }
 
 function cellText(cell) {
@@ -113,9 +111,7 @@ function copyStyle(source, target) {
 
 function cloneRowStyle(sheet, sourceRow, targetRow) {
   targetRow.height = sourceRow.height;
-  for (let c = 1; c <= Math.max(sheet.columnCount, sourceRow.cellCount); c += 1) {
-    copyStyle(sourceRow.getCell(c), targetRow.getCell(c));
-  }
+  for (let c = 1; c <= Math.max(sheet.columnCount, sourceRow.cellCount); c += 1) copyStyle(sourceRow.getCell(c), targetRow.getCell(c));
 }
 
 function findDataStartRow(sheet, headerRow) {
@@ -197,12 +193,14 @@ function writeValue(row, column, value) {
 function clearDataRows(sheet, startRow, count, columnCount) {
   for (let r = startRow; r < startRow + count; r += 1) {
     const row = sheet.getRow(r);
-    for (let c = 1; c <= columnCount; c += 1) row.getCell(c).value = null;
+    for (let c = 1; c <= columnCount; c += 1) {
+      const cell = row.getCell(c);
+      if (!(typeof cell.value === 'string' && cell.value.startsWith('='))) cell.value = null;
+    }
   }
 }
 
 function applyReportRow(row, report, contract, index) {
-  const extra = parseExtra(report);
   writeValue(row, contract.cols.stt, index + 1);
   writeValue(row, contract.cols.date, asDate(report.work_date || report.entry_date));
   writeValue(row, contract.cols.workerCode, report.worker_code);
@@ -217,22 +215,15 @@ function applyReportRow(row, report, contract, index) {
   writeValue(row, contract.cols.output, number(report.actual_output ?? report.tt_ok));
 
   for (const item of contract.deductions) {
-    const match = detailItems(report, 'deduction').filter((x) => normalize(detailLabel(x, 'deduction')) === normalize(item.type?.deduction_name || item.type?.name || item.type?.deduction_code || item.type?.code));
-    writeValue(row, item.column, match.reduce((sum, x) => sum + detailValue(x, 'deduction'), 0));
+    const wanted = normalize(item.type?.deduction_name || item.type?.name || item.type?.deduction_code || item.type?.code);
+    const value = detailItems(report, 'deduction').filter((x) => normalize(detailLabel(x, 'deduction')) === wanted).reduce((sum, x) => sum + detailValue(x, 'deduction'), 0);
+    writeValue(row, item.column, value);
   }
   for (const item of contract.defects) {
-    const match = detailItems(report, 'defect').filter((x) => normalize(detailLabel(x, 'defect')) === normalize(item.type?.defect_name || item.type?.name || item.type?.defect_code || item.type?.code));
-    writeValue(row, item.column, match.reduce((sum, x) => sum + detailValue(x, 'defect'), 0));
+    const wanted = normalize(item.type?.defect_name || item.type?.name || item.type?.defect_code || item.type?.code);
+    const value = detailItems(report, 'defect').filter((x) => normalize(detailLabel(x, 'defect')) === wanted).reduce((sum, x) => sum + detailValue(x, 'defect'), 0);
+    writeValue(row, item.column, value);
   }
-
-  for (const [key, value] of Object.entries(extra)) {
-    const column = findColumn(row.worksheet ? buildColumnMap(row.worksheet, row.worksheet._workerHeaderRow) : new Map(), [(label) => label === normalize(key) || label.includes(normalize(key))]);
-    if (column) writeValue(row, column, value);
-  }
-}
-
-function buildColumnMap(sheet, headerRow) {
-  return findColumnMap(sheet, headerRow);
 }
 
 async function buildWorkerProcessWorkbook({ appPath, processCode, processName, date, processData = {} }) {
@@ -244,7 +235,6 @@ async function buildWorkerProcessWorkbook({ appPath, processCode, processName, d
 
   const headerRow = findHeader(sheet);
   const columnMap = findColumnMap(sheet, headerRow);
-  sheet._workerHeaderRow = headerRow;
   const contract = buildColumnContract(columnMap, processData);
   const reports = Array.isArray(processData?.reports) ? [...processData.reports] : [];
   reports.sort((a, b) => String(a?.work_date || '').localeCompare(String(b?.work_date || '')) || number(a?.id) - number(b?.id));
@@ -260,16 +250,8 @@ async function buildWorkerProcessWorkbook({ appPath, processCode, processName, d
     }
   }
 
-  // Remove old sample/data values only in the template's data region. Header,
-  // merged title rows, colors, formulas and column layout are retained.
-  const clearTo = Math.max(sheet.rowCount, dataStartRow + 5000);
-  clearDataRows(sheet, dataStartRow + reports.length, Math.max(0, clearTo - (dataStartRow + reports.length)), sheet.columnCount);
-
-  for (const row of sheet._rows || []) {
-    for (const cell of row._cells || []) {
-      if (typeof cell.value === 'string' && cell.value.startsWith('=') && cell.value.includes('#REF!')) cell.value = null;
-    }
-  }
+  const clearCount = Math.max(0, sheet.rowCount - (dataStartRow + reports.length) + 1);
+  clearDataRows(sheet, dataStartRow + reports.length, clearCount, sheet.columnCount);
   workbook.calculation = { fullCalcOnLoad: true, forceFullCalc: true, calcMode: 'auto' };
 
   const [year, month] = String(date).slice(0, 7).split('-');
