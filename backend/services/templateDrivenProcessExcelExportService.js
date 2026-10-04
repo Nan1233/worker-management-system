@@ -5,10 +5,11 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const db = require('../config/db');
 const { resolveTemplatePath, getProcessTemplateContract, normalizeLabel } = require('./excelTemplateContractService');
+const { mergeDefects, normalizeDeductions } = require('../utils/reportDetailNormalizer');
 
 const alias = (value) => normalizeLabel(value);
 const query = (sql, params = []) => new Promise((resolve, reject) => {
-  db.query(sql, params, (error, rows) => error ? reject(error) : resolve(rows));
+  db.query(sql, params, (error, rows) => error ? reject(error) : resolve(rows);
 });
 
 function findColumnMap(sheet, headerRow) {
@@ -69,6 +70,45 @@ function writeReportRow(sheet, rowNumber, report, processCode, mapping) {
 function clearBrokenAndExternalFormulas(workbook) { let removed = 0; workbook.eachSheet((sheet) => sheet.eachRow((row) => row.eachCell((cell) => { if (typeof cell.value === 'string' && cell.value.startsWith('=') && (cell.value.includes('#REF!') || /\[[^\]]+\][^!]+!/.test(cell.value))) { cell.value = null; removed += 1; } }))); return removed; }
 function clearDetailConstants(sheet, startRow, endRow) { for (let r = startRow; r <= endRow; r += 1) { const row = sheet.getRow(r); for (let c = 1; c <= sheet.columnCount; c += 1) { const cell = row.getCell(c); if (typeof cell.value !== 'string' || !cell.value.startsWith('=')) cell.value = null; } } }
 
+async function hydrateExportDetailFallbacks(reports) {
+  if (!Array.isArray(reports) || !reports.length) return reports;
+  const reportIds = reports.map((report) => Number(report.id)).filter(Number.isFinite);
+  if (!reportIds.length) return reports;
+  const placeholders = reportIds.map(() => '?').join(',');
+
+  const [legacyRows, tempDeductionRows, tempDefectRows, machineDefectRows] = await Promise.all([
+    query(`SELECT id, kqd_dap_lai, kqd_tuot, vo_do_long, xuoc_do_long, cong_gay, xoay, khong_dut, bavia_hut, ppcm, loi_cao_su, ng_kich_thuoc, cat_lem FROM production_reports WHERE id IN (${placeholders})`, reportIds),
+    query(`SELECT pr.source_temp_id AS report_id, td.deduction_type_id, dt.deduction_code, dt.deduction_name, td.hours FROM production_reports pr INNER JOIN production_temp_deductions td ON td.temp_report_id=pr.source_temp_id LEFT JOIN deduction_types dt ON dt.id=td.deduction_type_id WHERE pr.id IN (${placeholders}) AND pr.source_temp_id IS NOT NULL`, reportIds),
+    query(`SELECT pr.source_temp_id AS report_id, td.defect_type_id, dt.defect_code, dt.defect_name, td.quantity FROM production_reports pr INNER JOIN production_temp_defects td ON td.temp_report_id=pr.source_temp_id LEFT JOIN defect_types dt ON dt.id=td.defect_type_id WHERE pr.id IN (${placeholders}) AND pr.source_temp_id IS NOT NULL`, reportIds),
+    query(`SELECT ml.report_id, md.machine_line_id, md.defect_type_id, md.defect_code, md.defect_name, md.quantity FROM production_report_machine_lines ml INNER JOIN production_report_machine_defects md ON md.machine_line_id=ml.id WHERE ml.report_id IN (${placeholders}) ORDER BY ml.report_id, md.id`, reportIds)
+  ]);
+
+  const legacyById = new Map(legacyRows.map((row) => [Number(row.id), row]));
+  const tempDeductionsById = new Map();
+  const tempDefectsById = new Map();
+  const machineDefectsByReportId = new Map();
+  for (const row of tempDeductionRows) { const id = Number(row.report_id); if (!tempDeductionsById.has(id)) tempDeductionsById.set(id, []); tempDeductionsById.get(id).push(row); }
+  for (const row of tempDefectRows) { const id = Number(row.report_id); if (!tempDefectsById.has(id)) tempDefectsById.set(id, []); tempDefectsById.get(id).push(row); }
+  for (const row of machineDefectRows) { const id = Number(row.report_id); if (!machineDefectsByReportId.has(id)) machineDefectsByReportId.set(id, []); machineDefectsByReportId.get(id).push(row); }
+
+  for (const report of reports) {
+    const id = Number(report.id);
+    const legacy = legacyById.get(id);
+    if (legacy) Object.assign(report, legacy);
+    const existingDeductions = Array.isArray(report.deductions) ? report.deductions : [];
+    const tempDeductions = tempDeductionsById.get(id) || [];
+    const deductionRows = existingDeductions.length ? existingDeductions : tempDeductions;
+    report.deductions = normalizeDeductions(deductionRows, report, Array.isArray(report.machineLines) ? report.machineLines : [], reports.deductionTypes || []);
+
+    const existingDefects = Array.isArray(report.defects) ? report.defects : [];
+    const tempDefects = tempDefectsById.get(id) || [];
+    const machineDefects = machineDefectsByReportId.get(id) || [];
+    const defectRows = existingDefects.length ? existingDefects : [...tempDefects, ...machineDefects];
+    report.defects = mergeDefects(report, defectRows, Array.isArray(report.machineLines) ? report.machineLines : []);
+  }
+  return reports;
+}
+
 async function applyCurrentDbMasterData(reports) {
   if (!Array.isArray(reports) || !reports.length) return reports;
   const processId = Number(reports[0]?.process_id); if (!Number.isInteger(processId) || processId <= 0) return reports;
@@ -102,6 +142,7 @@ async function buildTemplateDrivenProcessWorkbook(reports, yearMonth, options = 
   const contract = getProcessTemplateContract(processCode); const templatePath = await resolveTemplatePath(); const workbook = new ExcelJS.Workbook(); await workbook.xlsx.readFile(templatePath);
   const sheet = workbook.getWorksheet(contract.sheet); if (!sheet) throw Object.assign(new Error(`File mẫu thiếu sheet ${contract.sheet}`), { code: 'KTC_EXCEL_TEMPLATE_SHEET_MISSING', statusCode: 500 });
   if ((reports?.length || 0) > contract.dataEndRow - contract.dataStartRow + 1) throw Object.assign(new Error(`File mẫu ${contract.sheet} chỉ có ${contract.dataEndRow - contract.dataStartRow + 1} dòng chi tiết; tháng ${yearMonth} có ${reports.length} báo cáo`), { code: 'KTC_EXCEL_TEMPLATE_CAPACITY_EXCEEDED', statusCode: 422 });
+  await hydrateExportDetailFallbacks(reports);
   await applyCurrentDbMasterData(reports);
   const mapping = processColumns(sheet, contract, processCode); clearDetailConstants(sheet, contract.dataStartRow, contract.dataEndRow);
   for (let index = 0; index < (reports || []).length; index += 1) writeReportRow(sheet, contract.dataStartRow + index, reports[index], processCode, mapping);
