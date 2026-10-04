@@ -3,6 +3,7 @@ const os = require('node:os');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const ExcelJS = require('exceljs');
+require('../electron/excelExportContractPatch.v6.cjs');
 const { buildWorkerProcessWorkbook, PROCESS_FILE_PREFIXES, TEMPLATE_NAME } = require('../electron/workerReportTemplateLocal.v2.cjs');
 
 function report(overrides = {}) {
@@ -46,7 +47,6 @@ function report(overrides = {}) {
     const processData = {
       processCode: 'GC',
       processName: 'Gia công',
-      // Deliberately use DB/form labels that differ from the template labels.
       deductionTypes: [{ id: 1, code: 'DED_5S_DB', deduction_code: 'DED_5S_DB', name: '5S database name', deduction_name: '5S database name', sort_order: 1 }],
       defectTypes: [
         { id: 1, code: 'DEF_KQD_DB', defect_code: 'DEF_KQD_DB', name: 'KQD database name', defect_name: 'KQD database name', sort_order: 1 },
