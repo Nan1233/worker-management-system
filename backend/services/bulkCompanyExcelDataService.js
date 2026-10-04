@@ -202,7 +202,7 @@ async function loadBulkCompanyReports(yearMonth, actor) {
   for (const row of defectTypes) typeByProcess.get(Number(row.process_id))?.defects.push(row);
   const eventByProcess = new Map(processIds.map((id) => [Number(id), []]));
   for (const row of physicalMachineEvents) eventByProcess.get(Number(row.process_id))?.push(row);
-  const reportsByProcess = new Map(processIds.map((id) => [Number(id.process_id), []]));
+  const reportsByProcess = new Map(processIds.map((id) => [Number(id), []]));
   for (const report of reports) reportsByProcess.get(Number(report.process_id))?.push(report);
 
   for (const process of processes) {
