@@ -83,11 +83,6 @@ function parseMachineDefects(machineLines = []) {
   return result;
 }
 
-// IMPORTANT: rows are worker-level defects. Machine defects are a separate
-// accounting domain and must never be copied into the worker defect list.
-// For machine reports with no persisted worker-level rows, return [] and let
-// the UI show the exact parent NG total as "chưa phân loại" rather than inventing
-// a defect type or borrowing machine quantities.
 function mergeDefects(report, rows = [], machineLines = []) {
   const merged = new Map();
   const add = (item) => {
@@ -107,28 +102,98 @@ function mergeDefects(report, rows = [], machineLines = []) {
   (Array.isArray(rows) ? rows : []).forEach(add);
   if (merged.size > 0) return [...merged.values()].sort((a, b) => String(a.defect_name).localeCompare(String(b.defect_name), "vi"));
 
-  const mode = String(report?.operation_mode || "").trim().toUpperCase();
-  if (mode === "MACHINE" || (Array.isArray(machineLines) && machineLines.length > 0)) return [];
-
-  // Manual reports may still have legacy defect columns. Use them only when
-  // there is no normalized child-row source.
+  // Legacy approved imports kept NG in production_reports columns while the
+  // child table production_report_defects was empty. The Excel exporter must
+  // read those persisted columns too; this is the same source used by the
+  // one-off repair SQL in backend/sql/repair_legacy_approved_report_details_20260930.sql.
   LEGACY_DEFECT_FIELDS.forEach(([field, code, name]) => {
     const quantity = Math.trunc(Number(report?.[field] ?? 0) || 0);
     if (quantity > 0) add({ defect_code: code, defect_name: name, quantity });
   });
+  if (merged.size > 0) return [...merged.values()].sort((a, b) => String(a.defect_name).localeCompare(String(b.defect_name), "vi"));
+
+  const mode = String(report?.operation_mode || "").trim().toUpperCase();
+  if (mode === "MACHINE" || (Array.isArray(machineLines) && machineLines.length > 0)) return [];
   return [...merged.values()].sort((a, b) => String(a.defect_name).localeCompare(String(b.defect_name), "vi"));
 }
 
-function normalizeDeductions(rows = [], report = null) {
+function parseJson(value) {
+  if (!value) return null;
+  if (typeof value === 'object') return value;
+  if (typeof value !== 'string') return null;
+  try { return JSON.parse(value); } catch { return null; }
+}
+
+function deductionTypeMatches(type, value) {
+  const needle = normalizeKey(value);
+  if (!needle) return false;
+  const candidates = [type?.deduction_code, type?.code, type?.deduction_name, type?.name]
+    .map(normalizeKey).filter(Boolean);
+  return candidates.some((candidate) => candidate === needle || candidate.includes(needle) || needle.includes(candidate));
+}
+
+function findDeductionType(types, value) {
+  return (Array.isArray(types) ? types : []).find((type) => deductionTypeMatches(type, value)) || null;
+}
+
+function addDeduction(merged, item, deductionTypes = []) {
+  const hours = Number(item?.hours ?? item?.deduction_hours ?? item?.value ?? item?.time ?? 0) || 0;
+  if (hours <= 0) return;
+  const type = item?.deduction_type_id
+    ? (Array.isArray(deductionTypes) ? deductionTypes.find((candidate) => Number(candidate.id) === Number(item.deduction_type_id)) : null)
+    : findDeductionType(deductionTypes, item?.deduction_code || item?.deduction_name || item?.name || item?.label || item?.code);
+  const typeId = Number(item?.deduction_type_id || type?.id) || null;
+  const code = String(item?.deduction_code || item?.code || type?.deduction_code || type?.code || '').trim();
+  const name = String(item?.deduction_name || item?.name || item?.label || type?.deduction_name || type?.name || '').trim();
+  const key = typeId ? `ID:${typeId}` : code ? `CODE:${normalizeKey(code)}` : `NAME:${normalizeKey(name)}`;
+  const existing = merged.get(key);
+  if (existing) existing.hours += hours;
+  else merged.set(key, { ...item, deduction_type_id: typeId || undefined, deduction_code: code || undefined, deduction_name: name || code || 'Trừ giờ', hours });
+}
+
+function addDeductionsJson(merged, value, deductionTypes = []) {
+  const parsed = parseJson(value);
+  if (!parsed) return;
+  if (Array.isArray(parsed)) {
+    parsed.forEach((item) => addDeduction(merged, item, deductionTypes));
+    return;
+  }
+  const nested = parsed.deductions || parsed.items || parsed.columns;
+  if (Array.isArray(nested)) nested.forEach((item) => addDeduction(merged, item, deductionTypes));
+  else if (nested && typeof nested === 'object') {
+    for (const [name, value] of Object.entries(nested)) addDeduction(merged, { deduction_name: name, hours: value }, deductionTypes);
+  } else {
+    for (const [name, value] of Object.entries(parsed)) {
+      if (["total", "totalHours", "selectedDeductions"].includes(name)) continue;
+      const raw = value && typeof value === 'object' ? value : { hours: value };
+      addDeduction(merged, { ...raw, deduction_name: raw.deduction_name || raw.name || name }, deductionTypes);
+    }
+  }
+}
+
+function normalizeDeductions(rows = [], report = null, machineLines = [], deductionTypes = []) {
   const merged = new Map();
-  (Array.isArray(rows) ? rows : []).forEach((item) => {
-    const hours = Number(item?.hours ?? item?.deduction_hours ?? 0) || 0;
-    if (hours <= 0) return;
-    const typeId = Number(item?.deduction_type_id) || null;
-    const key = typeId ? `ID:${typeId}` : `CODE:${normalizeKey(item?.deduction_code || item?.deduction_name || '')}`;
-    if (merged.has(key)) merged.get(key).hours += hours;
-    else merged.set(key, { ...item, hours });
-  });
+  (Array.isArray(rows) ? rows : []).forEach((item) => addDeduction(merged, item, deductionTypes));
+
+  if (merged.size === 0) {
+    for (const line of Array.isArray(machineLines) ? machineLines : []) addDeductionsJson(merged, line?.deductions_json, deductionTypes);
+  }
+
+  // Legacy SQL imports stored the original form's detail columns in
+  // production_reports.extra_data.columns. Use only keys that resolve to a
+  // real deduction type for this process, so product/output fields are never
+  // accidentally exported as deduction hours.
+  if (merged.size === 0) {
+    const extra = parseJson(report?.extra_data);
+    const columns = extra?.columns;
+    if (columns && typeof columns === 'object') {
+      for (const [name, value] of Object.entries(columns)) {
+        const type = findDeductionType(deductionTypes, name);
+        if (type) addDeduction(merged, { deduction_type_id: type.id, deduction_code: type.deduction_code || type.code, deduction_name: type.deduction_name || type.name, hours: value }, deductionTypes);
+      }
+    }
+  }
+
   if (merged.size === 0) {
     const parentHours = Math.max(0, Number(report?.deduction_time || 0) || 0);
     if (parentHours > 0) merged.set("UNCLASSIFIED", { deduction_type_id: undefined, deduction_code: "TRU_GIO_UNCLASSIFIED", deduction_name: "Trừ giờ chưa phân loại", hours: parentHours });
