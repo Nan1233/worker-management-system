@@ -16,19 +16,42 @@ let cachedTemplateBuffer = null;
 const normalize = (value) => String(value ?? '')
   .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   .replace(/[đĐ]/g, 'd').replace(/\s+/g, ' ').trim().toLowerCase();
+const key = (value) => normalize(value).replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 const number = (value) => {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   const n = Number(String(value ?? '').replace(/,/g, '').trim());
   return Number.isFinite(n) ? n : 0;
 };
 
+const DETAIL_ALIASES = Object.freeze({
+  // Legacy/form labels -> canonical template labels.
+  'kqd dap lai': 'kqd', 'kqd tuột': 'kqd', 'kqd dl': 'kqd',
+  'vo do long': 'vo cao su', 'vo long': 'vo cao su',
+  'xuoc do long': 'k xuoc cong gay', 'xuoc long': 'k xuoc cong gay',
+  'cong gay': 'k xuoc cong gay', 'xoay': 'cao su xoay',
+  'khong dut': 'cat khong dut', 'bavia hut': 'bavia',
+  'cao su': 'lcs', 'loi cao su': 'lcs', 'ng kich thuoc': 'kt lon',
+  'cat lem': 'cat lem', '5s': '5s', 'hoc viec dao tao': 'hoc viec',
+  'di muon ve som': 'di muon ve som'
+});
+
+function canonicalDetailKey(value) {
+  const n = normalize(value);
+  if (!n) return '';
+  return normalize(DETAIL_ALIASES[n] || n);
+}
+
 function templateCandidates(appPath) {
-  return [
+  const candidates = [
     path.resolve(appPath || process.cwd(), '..', 'backend', 'templates', TEMPLATE_NAME),
     path.resolve(appPath || process.cwd(), 'backend', 'templates', TEMPLATE_NAME),
     path.resolve(__dirname, '..', '..', 'backend', 'templates', TEMPLATE_NAME),
     path.resolve(process.cwd(), 'backend', 'templates', TEMPLATE_NAME)
   ];
+  if (process.resourcesPath) {
+    candidates.unshift(path.join(process.resourcesPath, 'templates', TEMPLATE_NAME));
+  }
+  return [...new Set(candidates)];
 }
 async function resolveTemplatePath(appPath) {
   for (const candidate of templateCandidates(appPath)) {
@@ -46,7 +69,10 @@ async function getTemplateBuffer(appPath) {
 
 function cellText(cell) {
   const value = cell?.value;
-  if (value && typeof value === 'object' && value.result != null) return String(value.result);
+  if (value && typeof value === 'object') {
+    if (value.result != null) return String(value.result);
+    if (Array.isArray(value.richText)) return value.richText.map((x) => String(x?.text ?? '')).join('');
+  }
   return String(value ?? '');
 }
 function findHeader(sheet) {
@@ -55,17 +81,12 @@ function findHeader(sheet) {
     const labels = [];
     for (let c = 1; c <= sheet.columnCount; c += 1) {
       const text = normalize(cellText(sheet.getRow(r).getCell(c)));
-      if (text) labels.push({ c, text });
+      if (text) labels.push(text);
     }
-    const score = labels.reduce((sum, item) => {
-      const t = item.text;
-      return sum + (t === 'stt' ? 5 : 0)
-        + (/^ngay( san xuat| lam viec)?$/.test(t) || t.includes('ngay') ? 2 : 0)
-        + (t.includes('ma nv') || t.includes('ma nhan vien') || t.includes('ma so') ? 3 : 0)
-        + (t.includes('ho ten') || t === 'ten' ? 3 : 0)
-        + (t === 'ca' ? 2 : 0) + (t.includes('may') ? 2 : 0)
-        + (t.includes('thoi gian') ? 2 : 0);
-    }, 0);
+    const score = labels.reduce((sum, t) => sum + (t === 'stt' ? 5 : 0)
+      + (t.includes('ngay') ? 2 : 0) + (t.includes('ma nv') || t.includes('ma nhan vien') || t.includes('ma so') ? 3 : 0)
+      + (t.includes('ho ten') || t === 'ten' ? 3 : 0) + (t === 'ca' ? 2 : 0)
+      + (t.includes('may') ? 2 : 0) + (t.includes('thoi gian') ? 2 : 0), 0);
     if (!best || score > best.score) best = { row: r, score };
   }
   if (!best || best.score < 7) throw Object.assign(new Error('Không nhận diện được hàng tiêu đề của template công nhân'), { code: 'KTC_WORKER_TEMPLATE_HEADER_NOT_FOUND' });
@@ -86,41 +107,10 @@ function findColumn(map, predicates) {
 function pick(map, ...terms) {
   return findColumn(map, terms.map((term) => (label) => label.includes(normalize(term))));
 }
-function detailColumn(map, label) {
-  const target = normalize(label);
-  if (!target) return null;
-  let best = null;
-  for (const [column, header] of map.entries()) {
-    if (header === target || header.includes(target) || target.includes(header)) {
-      const score = header === target ? 100 : Math.min(header.length, target.length);
-      if (!best || score > best.score) best = { column, score };
-    }
-  }
-  return best?.column || null;
-}
-function copyStyle(source, target) {
-  if (!source || !target) return;
-  if (source.font) target.font = JSON.parse(JSON.stringify(source.font));
-  if (source.fill) target.fill = JSON.parse(JSON.stringify(source.fill));
-  if (source.border) target.border = JSON.parse(JSON.stringify(source.border));
-  if (source.alignment) target.alignment = JSON.parse(JSON.stringify(source.alignment));
-  if (source.protection) target.protection = JSON.parse(JSON.stringify(source.protection));
-  if (source.numFmt) target.numFmt = source.numFmt;
-}
-function cloneRowStyle(sheet, sourceRow, targetRow) {
-  targetRow.height = sourceRow.height;
-  for (let c = 1; c <= Math.max(sheet.columnCount, sourceRow.cellCount); c += 1) copyStyle(sourceRow.getCell(c), targetRow.getCell(c));
-}
-function findDataStartRow(sheet, headerRow) {
-  for (let r = headerRow + 1; r <= Math.min(sheet.rowCount, headerRow + 20); r += 1) {
-    const row = sheet.getRow(r);
-    let nonEmpty = false;
-    for (let c = 1; c <= sheet.columnCount; c += 1) if (cellText(row.getCell(c)).trim()) { nonEmpty = true; break; }
-    if (!nonEmpty) return r;
-    const first = normalize(cellText(row.getCell(1)));
-    if (first === '1' || first === 'stt') return r;
-  }
-  return headerRow + 1;
+function pickExact(map, ...terms) {
+  const targets = terms.map(normalize);
+  for (const [column, label] of map.entries()) if (targets.includes(label)) return column;
+  return null;
 }
 function asDate(value) {
   if (!value) return null;
@@ -133,7 +123,7 @@ function detailItems(report, kind) {
   const keys = kind === 'deduction'
     ? ['deductions', 'deductionDetails', 'deduction_details', 'deductionRows', 'deduction_rows']
     : ['defects', 'defectDetails', 'defect_details', 'defectRows', 'defect_rows'];
-  for (const key of keys) if (Array.isArray(report?.[key])) return report[key];
+  for (const k of keys) if (Array.isArray(report?.[k])) return report[k];
   return [];
 }
 function detailValue(item, kind) {
@@ -148,21 +138,21 @@ function typeLabel(type, kind) {
 }
 function typeKeys(type, kind) {
   if (!type) return [];
-  return (kind === 'deduction'
+  const values = kind === 'deduction'
     ? [type.id, type.code, type.deduction_code, type.name, type.deduction_name]
-    : [type.id, type.code, type.defect_code, type.name, type.defect_name])
-    .filter((v) => v !== null && v !== undefined && String(v) !== '').map(normalize);
+    : [type.id, type.code, type.defect_code, type.name, type.defect_name];
+  return values.filter((v) => v !== null && v !== undefined && String(v) !== '')
+    .map((v) => normalize(v));
 }
 function itemKeys(item, kind) {
-  return (kind === 'deduction'
+  const values = kind === 'deduction'
     ? [item?.deduction_type_id, item?.deduction_type_code, item?.deduction_code, item?.deduction_type_name, item?.deduction_name, item?.type_code, item?.type_name, item?.code, item?.name]
-    : [item?.defect_type_id, item?.defect_type_code, item?.defect_code, item?.defect_type_name, item?.defect_name, item?.type_code, item?.type_name, item?.code, item?.name])
-    .filter((v) => v !== null && v !== undefined && String(v) !== '').map(normalize);
+    : [item?.defect_type_id, item?.defect_type_code, item?.defect_code, item?.defect_type_name, item?.defect_name, item?.type_code, item?.type_name, item?.code, item?.name];
+  return values.filter((v) => v !== null && v !== undefined && String(v) !== '').map(normalize);
 }
 function processTypes(processData, kind) {
-  const key = kind === 'deduction' ? 'deductionTypes' : 'defectTypes';
-  const rows = Array.isArray(processData?.[key]) ? processData[key] : [];
-  return [...rows].sort((a, b) => number(a?.sort_order) - number(b?.sort_order) || number(a?.id) - number(b?.id));
+  const source = kind === 'deduction' ? processData?.deductionTypes : processData?.defectTypes;
+  return (Array.isArray(source) ? source : []).slice().sort((a, b) => number(a?.sort_order) - number(b?.sort_order) || number(a?.id) - number(b?.id));
 }
 function resolveType(item, processData, kind) {
   const types = processTypes(processData, kind);
@@ -172,27 +162,61 @@ function resolveType(item, processData, kind) {
     if (byId) return byId;
   }
   const keys = itemKeys(item, kind);
-  return types.find((type) => typeKeys(type, kind).some((key) => keys.includes(key))) || null;
+  return types.find((type) => typeKeys(type, kind).some((candidate) => keys.includes(candidate))) || null;
 }
+function typeCandidates(type, kind) {
+  const raw = typeKeys(type, kind).concat(typeLabel(type, kind));
+  return [...new Set(raw.map(canonicalDetailKey).filter(Boolean))];
+}
+function detailColumn(map, type, kind) {
+  const candidates = typeCandidates(type, kind);
+  if (!candidates.length) return null;
+  let best = null;
+  for (const [column, header] of map.entries()) {
+    const headerKey = canonicalDetailKey(header);
+    if (!headerKey) continue;
+    for (const candidate of candidates) {
+      let score = 0;
+      if (headerKey === candidate) score = 1000;
+      else if (headerKey.includes(candidate) || candidate.includes(headerKey)) score = 700 - Math.abs(headerKey.length - candidate.length);
+      if (score > (best?.score ?? -1)) best = { column, score };
+    }
+  }
+  return best?.column || null;
+}
+
 function buildColumnContract(map, processData) {
   const cols = {
-    stt: pick(map, 'stt'),
-    date: pick(map, 'ngay san xuat') || pick(map, 'ngay lam viec') || pick(map, 'ngay'),
-    workerCode: pick(map, 'ma nv') || pick(map, 'ma nhan vien') || pick(map, 'ma so'),
-    workerName: pick(map, 'ho ten') || pick(map, 'ten nv') || pick(map, 'ten'),
-    machine: pick(map, 'so may') || pick(map, 'may'),
+    stt: pickExact(map, 'stt') || pick(map, 'stt'),
+    entryDate: pickExact(map, 'thời gian nhập', 'thoi gian nhap') || pick(map, 'thoi gian nhap'),
+    date: pickExact(map, 'ngày sản xuất', 'ngay san xuat', 'ngày làm việc', 'ngay lam viec') || pick(map, 'ngay'),
+    workerCode: pickExact(map, 'mã nv', 'ma nv', 'mã nhân viên', 'ma nhan vien') || pick(map, 'ma nv') || pick(map, 'ma nhan vien') || pick(map, 'ma so'),
+    workerName: pickExact(map, 'họ tên', 'ho ten', 'tên nv', 'ten nv') || pick(map, 'ho ten') || pick(map, 'ten nv') || pick(map, 'ten'),
     shift: findColumn(map, [(label) => label === 'ca' || label.startsWith('ca ')]),
-    time: pick(map, 'thoi gian'),
-    actualTime: pick(map, 'thoi gian thuc te'),
+    operationType: pick(map, 'loai thao tac'),
+    operationMode: pick(map, 'che do'),
+    machine: pickExact(map, 'số máy', 'so may') || pick(map, 'so may') || pick(map, 'may'),
+    product: pickExact(map, 'mã sp', 'ma sp', 'mã sản phẩm', 'ma san pham') || pick(map, 'ma sp') || pick(map, 'ma san pham') || pick(map, 'san pham'),
+    training: pick(map, 'hoc viec'),
+    standard: pick(map, 'dinh muc'),
+    time: pickExact(map, 'tổng thời gian', 'tong thoi gian') || pick(map, 'tong thoi gian') || pick(map, 'thoi gian'),
+    actualTime: pickExact(map, 'thời gian thực tế', 'thoi gian thuc te') || pick(map, 'thoi gian thuc te'),
     deductionTotal: pick(map, 'tong thoi gian tru') || pick(map, 'tong tru') || pick(map, 'tru h'),
-    ok: pick(map, 'sl ok') || pick(map, 'san pham ok') || pick(map, 'ok'),
-    ng: pick(map, 'tong ng') || pick(map, 'tong loi') || pick(map, 'ng'),
-    output: pick(map, 'ket qua san xuat') || pick(map, 'thuc tich') || pick(map, 'san luong') || pick(map, 'tt')
+    ok: pick(map, 'sl ok') || pick(map, 'san pham ok') || pickExact(map, 'ok') || pick(map, 'ok'),
+    ng: pick(map, 'tong ng') || pick(map, 'tong loi') || pickExact(map, 'ng') || pick(map, 'ng'),
+    output: pick(map, 'ket qua san xuat') || pick(map, 'thuc tich') || pick(map, 'san luong') || pickExact(map, 'tt') || pick(map, 'tt'),
+    achievement: pick(map, 'ty le dat') || pick(map, 'ty le thuc tich') || pick(map, 'nang suat') || pick(map, 'achievement'),
+    outputPerHour: pick(map, 'sp gio') || pick(map, 'san pham gio'),
+    ngRate: pick(map, 'ty le ng'),
+    status: pick(map, 'trang thai'),
+    note: pick(map, 'ghi chu'),
+    id: pickExact(map, 'id')
   };
-  const deductions = processTypes(processData, 'deduction').map((type) => ({ type, column: detailColumn(map, typeLabel(type, 'deduction')) })).filter((x) => x.column);
-  const defects = processTypes(processData, 'defect').map((type) => ({ type, column: detailColumn(map, typeLabel(type, 'defect')) })).filter((x) => x.column);
+  const deductions = processTypes(processData, 'deduction').map((type) => ({ type, column: detailColumn(map, type, 'deduction') })).filter((x) => x.column);
+  const defects = processTypes(processData, 'defect').map((type) => ({ type, column: detailColumn(map, type, 'defect') })).filter((x) => x.column);
   return { cols, deductions, defects };
 }
+
 function buildDetailValueMap(report, processData, kind) {
   const values = new Map();
   for (const item of detailItems(report, kind)) {
@@ -200,42 +224,66 @@ function buildDetailValueMap(report, processData, kind) {
     if (!value) continue;
     const type = resolveType(item, processData, kind);
     const keys = new Set(type ? typeKeys(type, kind) : itemKeys(item, kind));
-    for (const key of keys) values.set(key, (values.get(key) || 0) + value);
+    for (const candidate of keys) {
+      values.set(candidate, (values.get(candidate) || 0) + value);
+      values.set(canonicalDetailKey(candidate), (values.get(canonicalDetailKey(candidate)) || 0) + value);
+    }
+    if (type) {
+      for (const candidate of typeCandidates(type, kind)) values.set(candidate, (values.get(candidate) || 0) + value);
+    }
   }
   return values;
 }
 function valueForType(values, type, kind) {
-  for (const key of typeKeys(type, kind)) if (values.has(key)) return values.get(key);
+  for (const candidate of [...typeKeys(type, kind), ...typeCandidates(type, kind)]) {
+    if (values.has(candidate)) return values.get(candidate);
+    const canonical = canonicalDetailKey(candidate);
+    if (values.has(canonical)) return values.get(canonical);
+  }
   return 0;
 }
 function writeValue(row, column, value) { if (column) row.getCell(column).value = value == null ? null : value; }
 function clearDataRows(sheet, startRow, count, columnCount) {
   for (let r = startRow; r < startRow + count; r += 1) {
     const row = sheet.getRow(r);
-    if (row.actualCellCount === 0) continue;
     for (let c = 1; c <= columnCount; c += 1) {
       const cell = row.getCell(c);
       if (!(typeof cell.value === 'string' && cell.value.startsWith('='))) cell.value = null;
     }
   }
 }
+
 function applyReportRow(row, report, contract, processData, index) {
-  writeValue(row, contract.cols.stt, index + 1);
-  writeValue(row, contract.cols.date, asDate(report.work_date || report.entry_date));
-  writeValue(row, contract.cols.workerCode, report.worker_code);
-  writeValue(row, contract.cols.workerName, report.full_name || report.worker_name || report.name);
-  writeValue(row, contract.cols.machine, report.machine_no ?? report.machine_code ?? report.machine);
-  writeValue(row, contract.cols.shift, report.shift);
-  writeValue(row, contract.cols.time, number(report.total_time ?? report.actual_time));
-  if (contract.cols.actualTime && contract.cols.actualTime !== contract.cols.time) writeValue(row, contract.cols.actualTime, number(report.actual_time ?? report.total_time));
-  writeValue(row, contract.cols.deductionTotal, number(report.deduction_time));
-  writeValue(row, contract.cols.ok, number(report.tt_ok ?? report.actual_output));
-  writeValue(row, contract.cols.ng, number(report.tt_ng));
-  writeValue(row, contract.cols.output, number(report.actual_output ?? report.tt_ok));
+  const set = (column, value) => writeValue(row, column, value);
+  set(contract.cols.stt, index + 1);
+  set(contract.cols.entryDate, asDate(report.entry_date || report.created_at));
+  set(contract.cols.date, asDate(report.work_date || report.entry_date));
+  set(contract.cols.workerCode, report.worker_code);
+  set(contract.cols.workerName, report.full_name || report.worker_name || report.name);
+  set(contract.cols.shift, report.shift);
+  set(contract.cols.operationType, report.operation_type);
+  set(contract.cols.operationMode, report.operation_mode);
+  set(contract.cols.machine, report.machine_no ?? report.machine_code ?? report.machine);
+  set(contract.cols.product, report.product_name || report.product_code);
+  set(contract.cols.training, number(report.training_percent));
+  set(contract.cols.standard, number(report.standard_output));
+  set(contract.cols.time, number(report.total_time ?? report.actual_time));
+  if (contract.cols.actualTime && contract.cols.actualTime !== contract.cols.time) set(contract.cols.actualTime, number(report.actual_time ?? report.total_time));
+  set(contract.cols.deductionTotal, number(report.deduction_time));
+  set(contract.cols.ok, number(report.tt_ok ?? report.actual_output));
+  set(contract.cols.ng, number(report.tt_ng));
+  set(contract.cols.output, number(report.actual_output ?? report.tt_ok));
+  set(contract.cols.achievement, number(report.calculationSnapshot?.achievement_rate ?? report.achievement_rate));
+  set(contract.cols.outputPerHour, number(report.calculationSnapshot?.actual_per_hour ?? report.actual_output_per_hour));
+  set(contract.cols.ngRate, number(report.calculationSnapshot?.ng_rate ?? report.ng_rate));
+  set(contract.cols.status, report.status);
+  set(contract.cols.note, report.note || report.review_note);
+  set(contract.cols.id, Number(report.id) || null);
+
   const deductionValues = buildDetailValueMap(report, processData, 'deduction');
-  for (const item of contract.deductions) writeValue(row, item.column, valueForType(deductionValues, item.type, 'deduction'));
+  for (const item of contract.deductions) set(item.column, valueForType(deductionValues, item.type, 'deduction'));
   const defectValues = buildDetailValueMap(report, processData, 'defect');
-  for (const item of contract.defects) writeValue(row, item.column, valueForType(defectValues, item.type, 'defect'));
+  for (const item of contract.defects) set(item.column, valueForType(defectValues, item.type, 'defect'));
 }
 
 async function buildWorkerProcessWorkbook({ appPath, processCode, processName, date, processData = {} }) {
@@ -245,10 +293,7 @@ async function buildWorkerProcessWorkbook({ appPath, processCode, processName, d
   const code = String(processCode || '').toUpperCase();
   const prefix = PROCESS_FILE_PREFIXES[code] || code || 'PROCESS';
   const fileName = `${prefix}_${month}-${year}.xlsx`;
-
-  if (reports.length === 0) {
-    return { buffer: templateBuffer, fileName, processCode: code, processName: processName || processCode, reportCount: 0, templateFile: TEMPLATE_NAME, templatePath, templateSheet: null, headerRow: null, dataStartRow: null };
-  }
+  if (reports.length === 0) return { buffer: templateBuffer, fileName, processCode: code, processName: processName || processCode, reportCount: 0, templateFile: TEMPLATE_NAME, templatePath, templateSheet: null, headerRow: null, dataStartRow: null };
 
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(templateBuffer);
