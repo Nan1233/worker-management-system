@@ -82,7 +82,14 @@ function patchMainSource(source) {
   return next;
 }
 
-const originalCjsLoader = Module._extensions['.cjs'];
+// Electron/Node does not guarantee a dedicated .cjs entry in Module._extensions.
+// In Electron 37 this can be undefined, which caused the patch itself to crash
+// before main.cjs was loaded. Fall back to the standard CommonJS .js loader.
+const originalCjsLoader = Module._extensions['.cjs'] || Module._extensions['.js'];
+if (typeof originalCjsLoader !== 'function') {
+  throw new TypeError('CommonJS loader is unavailable');
+}
+
 if (!global.__KTC_WORKER_TEMPLATE_MAIN_PATCH__) {
   global.__KTC_WORKER_TEMPLATE_MAIN_PATCH__ = true;
   Module._extensions['.cjs'] = function patchedCjsLoader(module, filename) {
