@@ -180,16 +180,43 @@ function normalizeDeductions(rows = [], report = null, machineLines = [], deduct
   }
 
   // Legacy SQL imports stored the original form's detail columns in
-  // production_reports.extra_data.columns. Use only keys that resolve to a
-  // real deduction type for this process, so product/output fields are never
-  // accidentally exported as deduction hours.
+  // production_reports.extra_data.columns. Resolve against the current
+  // deduction master first, but also preserve the original form labels when
+  // the master name/code was renamed after the report was imported.
   if (merged.size === 0) {
     const extra = parseJson(report?.extra_data);
     const columns = extra?.columns;
     if (columns && typeof columns === 'object') {
       for (const [name, value] of Object.entries(columns)) {
         const type = findDeductionType(deductionTypes, name);
-        if (type) addDeduction(merged, { deduction_type_id: type.id, deduction_code: type.deduction_code || type.code, deduction_name: type.deduction_name || type.name, hours: value }, deductionTypes);
+        if (type) {
+          addDeduction(merged, {
+            deduction_type_id: type.id,
+            deduction_code: type.deduction_code || type.code,
+            deduction_name: type.deduction_name || type.name,
+            hours: value
+          }, deductionTypes);
+        }
+      }
+
+      // If none of the legacy labels resolve to today's master data, do not
+      // throw away the actual form detail and replace it with one generic
+      // "Trừ giờ chưa phân loại" bucket. Only accept numeric positive columns
+      // whose rounded-minute total matches the persisted parent deduction_time.
+      if (merged.size === 0) {
+        const candidates = [];
+        for (const [name, value] of Object.entries(columns)) {
+          const raw = value && typeof value === 'object'
+            ? (value.hours ?? value.deduction_hours ?? value.value ?? value.time)
+            : value;
+          const hours = Number(raw);
+          if (Number.isFinite(hours) && hours > 0) candidates.push({ deduction_name: String(name).trim(), hours });
+        }
+        const expectedMinutes = Math.round((Number(report?.deduction_time || 0) || 0) * 60);
+        const candidateMinutes = Math.round(candidates.reduce((sum, item) => sum + item.hours, 0) * 60);
+        if (candidates.length > 0 && expectedMinutes > 0 && Math.abs(candidateMinutes - expectedMinutes) <= 1) {
+          candidates.forEach((item) => addDeduction(merged, item, deductionTypes));
+        }
       }
     }
   }
