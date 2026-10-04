@@ -35,17 +35,21 @@ if (typeof global.cloneRowStyle !== 'function') {
     targetRow.height = sourceRow.height;
     targetRow.hidden = sourceRow.hidden;
     targetRow.outlineLevel = sourceRow.outlineLevel;
-    // ExcelJS exposes Row.collapsed as readonly in the Electron/ExcelJS
-    // version used by the desktop app. It is not part of the cell formatting
-    // contract, so do not assign it while cloning template rows.
-    for (let c = 1; c <= Math.max(sheet.columnCount, sourceRow.cellCount); c += 1) {
+
+    // Do NOT JSON-clone every style object here. The export can contain
+    // thousands of worker rows; serializing each style cell-by-cell was
+    // needlessly expensive and made Electron look frozen during export.
+    // Template rows are immutable for this operation, so sharing the existing
+    // ExcelJS style objects is safe and dramatically reduces CPU work.
+    const maxColumns = Math.max(sheet.columnCount, sourceRow.cellCount);
+    for (let c = 1; c <= maxColumns; c += 1) {
       const source = sourceRow.getCell(c);
       const target = targetRow.getCell(c);
-      if (source.font) target.font = JSON.parse(JSON.stringify(source.font));
-      if (source.fill) target.fill = JSON.parse(JSON.stringify(source.fill));
-      if (source.border) target.border = JSON.parse(JSON.stringify(source.border));
-      if (source.alignment) target.alignment = JSON.parse(JSON.stringify(source.alignment));
-      if (source.protection) target.protection = JSON.parse(JSON.stringify(source.protection));
+      if (source.font) target.font = source.font;
+      if (source.fill) target.fill = source.fill;
+      if (source.border) target.border = source.border;
+      if (source.alignment) target.alignment = source.alignment;
+      if (source.protection) target.protection = source.protection;
       if (source.numFmt) target.numFmt = source.numFmt;
     }
   };
