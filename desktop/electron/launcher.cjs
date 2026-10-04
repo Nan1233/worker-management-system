@@ -5,7 +5,7 @@ const path = require('node:path');
 const os = require('node:os');
 
 // TEST Excel export: use the company NAS when reachable; otherwise save locally
-// under the current Windows user's Documents\\KTC\\Bao cao san xuat folder.
+// under the current Windows user's Documents\KTC\Bao cao san xuat folder.
 const DEFAULT_EXPORT_ROOT = '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\Linh tinh';
 const LEGACY_NETWORK_EXPORT_ROOT = DEFAULT_EXPORT_ROOT;
 const LOCAL_FALLBACK_EXPORT_ROOT = path.join(os.homedir(), 'Documents', 'KTC', 'Bao cao san xuat');
@@ -210,22 +210,10 @@ async function ensureCurrentMonthlyFolder() {
   return monthFolder;
 }
 
-const configuredExportRoot = readConfiguredExportRoot();
-const resolvedExportRoot = resolveWritableExportRoot(configuredExportRoot);
-process.env.KTC_EXPORT_ROOT = resolvedExportRoot.root;
-if (resolvedExportRoot.fallback) {
-  void writeLauncherLog('WARN', 'EXCEL_NAS_UNAVAILABLE_LOCAL_FALLBACK', {
-    configuredRoot: configuredExportRoot,
-    activeRoot: resolvedExportRoot.root,
-    reason: resolvedExportRoot.reason,
-  });
-}
-void ensureCurrentMonthlyFolder().catch((error) => {
-  void writeLauncherLog('WARN', 'EXCEL_MONTH_FOLDER_CREATE_FAILED', {
-    root: process.env.KTC_EXPORT_ROOT,
-    message: error?.message || String(error),
-  });
-});
+// Do not probe the NAS during Electron startup. A disconnected UNC path can
+// block Windows for many seconds. Keep the configured path only; the actual
+// writable-root resolution happens when Excel export/sync is requested.
+process.env.KTC_EXPORT_ROOT = readConfiguredExportRoot();
 
 ipcMain.handle('ktc-get-export-root', async () => {
   const configured = readConfiguredExportRoot();
