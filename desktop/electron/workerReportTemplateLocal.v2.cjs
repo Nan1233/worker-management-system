@@ -24,7 +24,7 @@ const number = (value) => {
 
 const DETAIL_ALIASES = Object.freeze({
   'kqd dap lai': 'kqd', 'kqd tuột': 'kqd', 'kqd dl': 'kqd',
-  'vo do long': 'vo cao su', 'vo long': 'vo cao su',
+  'vo do long': 'vo cao su', 'vo long': 'vo cao su', 'vcs': 'vo cao su',
   'xuoc do long': 'k xuoc cong gay', 'xuoc long': 'k xuoc cong gay',
   'cong gay': 'k xuoc cong gay', 'xoay': 'cao su xoay',
   'khong dut': 'cat khong dut', 'bavia hut': 'bavia',
@@ -32,7 +32,22 @@ const DETAIL_ALIASES = Object.freeze({
   'cat lem': 'cat lem', '5s': '5s', 'hoc viec dao tao': 'hoc viec',
   'di muon ve som': 'di muon ve som'
 });
-const canonicalDetailKey = (value) => normalize(DETAIL_ALIASES[normalize(value)] || normalize(value));
+
+function detailVariants(value) {
+  const raw = normalize(value);
+  if (!raw) return [];
+  const variants = new Set([raw]);
+  const compact = raw.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  if (compact) variants.add(compact);
+  const strippedPrefix = compact.replace(/^(ded|def|deduction|defect)[_-]+/, '').replace(/[_-]+db$/, '');
+  if (strippedPrefix) variants.add(strippedPrefix);
+  const alias = DETAIL_ALIASES[raw] || DETAIL_ALIASES[compact] || DETAIL_ALIASES[strippedPrefix];
+  if (alias) variants.add(normalize(alias));
+  return [...variants];
+}
+function canonicalDetailKey(value) {
+  return normalize(DETAIL_ALIASES[normalize(value)] || normalize(value));
+}
 
 function templateCandidates(appPath) {
   const candidates = [
@@ -155,20 +170,22 @@ function resolveType(item, processData, kind) {
   return types.find((type) => typeKeys(type, kind).some((candidate) => keys.includes(candidate))) || null;
 }
 function typeCandidates(type, kind) {
-  return [...new Set(typeKeys(type, kind).concat(typeLabel(type, kind)).map(canonicalDetailKey).filter(Boolean))];
+  const raw = typeKeys(type, kind).concat(typeLabel(type, kind));
+  return [...new Set(raw.flatMap(detailVariants).map(canonicalDetailKey).filter(Boolean))];
 }
 function detailColumn(map, type, kind) {
   const candidates = typeCandidates(type, kind);
   if (!candidates.length) return null;
   let best = null;
   for (const [column, header] of map.entries()) {
-    const headerKey = canonicalDetailKey(header);
-    if (!headerKey) continue;
-    for (const candidate of candidates) {
-      let score = 0;
-      if (headerKey === candidate) score = 1000;
-      else if (headerKey.includes(candidate) || candidate.includes(headerKey)) score = 700 - Math.abs(headerKey.length - candidate.length);
-      if (score > (best?.score ?? -1)) best = { column, score };
+    const headerCandidates = detailVariants(header).map(canonicalDetailKey);
+    for (const headerKey of headerCandidates) {
+      for (const candidate of candidates) {
+        let score = 0;
+        if (headerKey === candidate) score = 1000;
+        else if (headerKey.includes(candidate) || candidate.includes(headerKey)) score = 700 - Math.abs(headerKey.length - candidate.length);
+        if (score > (best?.score ?? -1)) best = { column, score };
+      }
     }
   }
   return best?.column || null;
@@ -191,9 +208,9 @@ function buildColumnContract(map, processData) {
     time: pickExact(map, 'tổng thời gian', 'tong thoi gian') || pick(map, 'tong thoi gian') || pick(map, 'thoi gian'),
     actualTime: pickExact(map, 'thời gian thực tế', 'thoi gian thuc te') || pick(map, 'thoi gian thuc te'),
     deductionTotal: pick(map, 'tong thoi gian tru') || pick(map, 'tong tru') || pick(map, 'tru h'),
-    ok: pick(map, 'sl ok') || pick(map, 'san pham ok') || pickExact(map, 'ok') || pick(map, 'ok'),
-    ng: pick(map, 'tong ng') || pick(map, 'tong loi') || pickExact(map, 'ng') || pick(map, 'ng'),
-    output: pick(map, 'ket qua san xuat') || pick(map, 'thuc tich') || pick(map, 'san luong') || pickExact(map, 'tt') || pick(map, 'tt'),
+    ok: pick(map, 'sl ok') || pick(map, 'san pham ok') || pickExact(map, 'ok'),
+    ng: pick(map, 'tong ng') || pick(map, 'tong loi') || pickExact(map, 'ng'),
+    output: pick(map, 'ket qua san xuat') || pick(map, 'thuc tich') || pick(map, 'san luong') || pickExact(map, 'tt'),
     achievement: pick(map, 'ty le dat') || pick(map, 'ty le thuc tich') || pick(map, 'nang suat') || pick(map, 'achievement'),
     outputPerHour: pick(map, 'sp gio') || pick(map, 'san pham gio'),
     ngRate: pick(map, 'ty le ng'),
@@ -213,7 +230,7 @@ function buildDetailValueMap(report, processData, kind) {
     if (!value) continue;
     const type = resolveType(item, processData, kind);
     const rawKeys = type ? typeKeys(type, kind) : itemKeys(item, kind);
-    const candidates = new Set(rawKeys.map(canonicalDetailKey).filter(Boolean));
+    const candidates = new Set(rawKeys.flatMap(detailVariants).map(canonicalDetailKey).filter(Boolean));
     if (type) for (const candidate of typeCandidates(type, kind)) candidates.add(candidate);
     for (const candidate of candidates) values.set(candidate, (values.get(candidate) || 0) + value);
   }
