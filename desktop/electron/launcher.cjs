@@ -4,10 +4,12 @@ const fsp = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
 
-// Test desktop stores Excel on the company NAS.
+// TEST Excel export: use the company NAS when reachable; otherwise save locally
+// under the current Windows user's Documents\\KTC\\Bao cao san xuat folder.
 const DEFAULT_EXPORT_ROOT = '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\Linh tinh';
 const LEGACY_NETWORK_EXPORT_ROOT = DEFAULT_EXPORT_ROOT;
-const LEGACY_LOCAL_EXPORT_ROOT = path.join(os.homedir(), 'Documents', 'KTC', 'Bao cao san xuat');
+const LOCAL_FALLBACK_EXPORT_ROOT = path.join(os.homedir(), 'Documents', 'KTC', 'Bao cao san xuat');
+const LEGACY_LOCAL_EXPORT_ROOT = LOCAL_FALLBACK_EXPORT_ROOT;
 const CONFIG_FILE = path.join(app.getPath('userData'), 'excel-export-config.json');
 const DESKTOP_ICON = path.join(__dirname, '..', 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
 
@@ -81,7 +83,12 @@ app.on('browser-window-created', (_event, window) => {
   });
 });
 
-require('./excelExportContractPatch.v2.cjs');
+// v5 is the single active GC Excel contract. Older contract patches are no longer loaded.
+require('./excelExportContractPatch.v5.cjs');
+// Compact one-sheet GC template is layered after v5 and remains DB-first.
+require('./compactGcExcelPatch.cjs');
+// v6 replaces the legacy split/monthly layout with the worker-report template.
+require('./excelExportContractPatch.v6.cjs');
 
 function normalizeExportRoot(value) {
   const raw = String(value || '').trim();
@@ -119,6 +126,37 @@ function readConfiguredExportRoot() {
   }
 }
 
+function resolveWritableExportRoot(configuredRoot) {
+  const configured = normalizeExportRoot(configuredRoot);
+  const isNas = /^\\\\/.test(configured);
+  if (!isNas) return { root: configured, fallback: false };
+
+  try {
+    // mkdir/access is the actual availability check. A stale mapped/configured
+    // NAS path must never block the Excel export when the machine is offline.
+    fs.mkdirSync(configured, { recursive: true });
+    fs.accessSync(configured, fs.constants.R_OK | fs.constants.W_OK);
+    return { root: configured, fallback: false };
+  } catch (error) {
+    const localRoot = LOCAL_FALLBACK_EXPORT_ROOT;
+    try {
+      fs.mkdirSync(localRoot, { recursive: true });
+      fs.accessSync(localRoot, fs.constants.R_OK | fs.constants.W_OK);
+      return {
+        root: localRoot,
+        fallback: true,
+        reason: error?.code || error?.message || 'NAS_UNAVAILABLE'
+      };
+    } catch (localError) {
+      return {
+        root: configured,
+        fallback: false,
+        reason: `NAS_UNAVAILABLE_LOCAL_FALLBACK_FAILED:${localError?.code || localError?.message || 'UNKNOWN'}`
+      };
+    }
+  }
+}
+
 async function saveConfiguredExportRoot(exportRoot) {
   const normalized = normalizeExportRoot(exportRoot);
   await fsp.mkdir(path.dirname(CONFIG_FILE), { recursive: true });
@@ -147,16 +185,41 @@ function getBangkokDateParts(dateValue = new Date()) {
 }
 
 async function ensureCurrentMonthlyFolder() {
-  const root = normalizeExportRoot(process.env.KTC_EXPORT_ROOT || DEFAULT_EXPORT_ROOT);
+  // Re-resolve every time the folder is prepared so a NAS disconnect/reconnect
+  // after app startup is handled without restarting the desktop app.
+  const resolved = resolveWritableExportRoot(process.env.KTC_EXPORT_ROOT || readConfiguredExportRoot());
+  process.env.KTC_EXPORT_ROOT = resolved.root;
   const { year, month } = getBangkokDateParts();
-  const yearFolder = path.join(root, year);
+  const yearFolder = path.join(resolved.root, year);
   const monthFolder = path.join(yearFolder, month);
   await fsp.mkdir(monthFolder, { recursive: true });
-  await writeLauncherLog('INFO', 'EXCEL_MONTH_FOLDER_READY', { root, yearFolder, monthFolder });
+  await writeLauncherLog('INFO', 'EXCEL_MONTH_FOLDER_READY', {
+    root: resolved.root,
+    configuredRoot: process.env.KTC_EXPORT_ROOT,
+    fallback: Boolean(resolved.fallback),
+    reason: resolved.reason,
+    yearFolder,
+    monthFolder
+  });
+  if (resolved.fallback) {
+    await writeLauncherLog('WARN', 'EXCEL_NAS_UNAVAILABLE_LOCAL_FALLBACK', {
+      activeRoot: resolved.root,
+      reason: resolved.reason,
+    });
+  }
   return monthFolder;
 }
 
-process.env.KTC_EXPORT_ROOT = readConfiguredExportRoot();
+const configuredExportRoot = readConfiguredExportRoot();
+const resolvedExportRoot = resolveWritableExportRoot(configuredExportRoot);
+process.env.KTC_EXPORT_ROOT = resolvedExportRoot.root;
+if (resolvedExportRoot.fallback) {
+  void writeLauncherLog('WARN', 'EXCEL_NAS_UNAVAILABLE_LOCAL_FALLBACK', {
+    configuredRoot: configuredExportRoot,
+    activeRoot: resolvedExportRoot.root,
+    reason: resolvedExportRoot.reason,
+  });
+}
 void ensureCurrentMonthlyFolder().catch((error) => {
   void writeLauncherLog('WARN', 'EXCEL_MONTH_FOLDER_CREATE_FAILED', {
     root: process.env.KTC_EXPORT_ROOT,
@@ -165,13 +228,25 @@ void ensureCurrentMonthlyFolder().catch((error) => {
 });
 
 ipcMain.handle('ktc-get-export-root', async () => {
-  return normalizeExportRoot(process.env.KTC_EXPORT_ROOT || readConfiguredExportRoot());
+  const configured = readConfiguredExportRoot();
+  const resolved = resolveWritableExportRoot(configured);
+  process.env.KTC_EXPORT_ROOT = resolved.root;
+  if (resolved.fallback) {
+    void writeLauncherLog('WARN', 'EXCEL_NAS_UNAVAILABLE_LOCAL_FALLBACK', {
+      configuredRoot: configured,
+      activeRoot: resolved.root,
+      reason: resolved.reason,
+    });
+  }
+  return resolved.root;
 });
 
 ipcMain.handle('ktc-reset-export-root', async () => {
   const root = await saveConfiguredExportRoot(DEFAULT_EXPORT_ROOT);
+  const resolved = resolveWritableExportRoot(root);
+  process.env.KTC_EXPORT_ROOT = resolved.root;
   await ensureCurrentMonthlyFolder();
-  return root;
+  return resolved.root;
 });
 
 ipcMain.handle('ktc-choose-export-root', async () => {
@@ -194,14 +269,16 @@ ipcMain.handle('ktc-save-statistics-excel', async (_event, payload = {}) => {
   const content = String(payload.content || '');
   if (!content) throw new Error('Không có dữ liệu thống kê để xuất Excel.');
   if (Buffer.byteLength(content, 'utf8') > 20 * 1024 * 1024) throw new Error('File thống kê vượt quá giới hạn 20 MB.');
-  const root = normalizeExportRoot(process.env.KTC_EXPORT_ROOT || readConfiguredExportRoot());
+  const resolved = resolveWritableExportRoot(process.env.KTC_EXPORT_ROOT || readConfiguredExportRoot());
+  const root = resolved.root;
+  process.env.KTC_EXPORT_ROOT = root;
   const year = String(payload.year || new Date().getFullYear()).replace(/[^0-9]/g, '') || String(new Date().getFullYear());
   const folder = path.join(root, year, 'Thống kê');
   await fsp.mkdir(folder, { recursive: true });
   const fileName = safeExportFileName(payload.fileName, `KTC_ThongKe_${year}.xls`);
   const filePath = path.join(folder, fileName.toLowerCase().endsWith('.xls') ? fileName : `${fileName}.xls`);
   await fsp.writeFile(filePath, content, 'utf8');
-  return { success: true, filePath, exportRoot: root };
+  return { success: true, filePath, exportRoot: root, fallback: Boolean(resolved.fallback) };
 });
 
 const originalReaddir = fsp.readdir.bind(fsp);

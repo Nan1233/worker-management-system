@@ -1,4 +1,5 @@
 const fs = require('node:fs/promises');
+const fsSync = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const {
@@ -7,11 +8,12 @@ const {
   processReportFileName,
 } = require('./excelDualLayout.cjs');
 
-// Test desktop uses the company NAS as the single Excel root.
-// Do not fall back to a local "Linh tinh" folder: that can cause the desktop
-// app to scan unrelated/corrupt .xlsx files on the local machine.
+// Test desktop uses the company NAS when it is reachable. If the NAS is
+// unavailable, Excel export must transparently fall back to the local KTC
+// production-report folder. The NAS remains the preferred destination.
 const DEFAULT_EXPORT_ROOT = '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\Linh tinh';
 const NAS_EXPORT_ROOT = DEFAULT_EXPORT_ROOT;
+const LOCAL_FALLBACK_EXPORT_ROOT = path.join(os.homedir(), 'Documents', 'KTC', 'Bao cao san xuat');
 
 // Gia công keeps the existing export untouched and is additionally mirrored to
 // the monthly production-report folder using the approved workbook template.
@@ -53,15 +55,61 @@ function safeFileName(value, fallback) {
   return candidate.toLowerCase().endsWith('.xlsx') ? candidate : `${candidate}.xlsx`;
 }
 
+function resolveExportRoot(configured) {
+  const raw = String(configured || '').trim();
+  const preferredRoot = !raw
+    ? DEFAULT_EXPORT_ROOT
+    : /^linh\s*tinh$/i.test(raw)
+      ? NAS_EXPORT_ROOT
+      : /^\\\\/.test(raw)
+        ? raw.replace(/[\\/]+$/g, '')
+        : path.resolve(raw);
+
+  if (!/^\\\\/.test(preferredRoot)) {
+    try {
+      fsSync.mkdirSync(preferredRoot, { recursive: true });
+      fsSync.accessSync(preferredRoot, fsSync.constants.R_OK | fsSync.constants.W_OK);
+    } catch (_) {
+      // A user-selected local folder may disappear. Fall back to the known
+      // local KTC folder rather than breaking Excel export.
+      try {
+        fsSync.mkdirSync(LOCAL_FALLBACK_EXPORT_ROOT, { recursive: true });
+        fsSync.accessSync(LOCAL_FALLBACK_EXPORT_ROOT, fsSync.constants.R_OK | fsSync.constants.W_OK);
+        return LOCAL_FALLBACK_EXPORT_ROOT;
+      } catch (_) {
+        return preferredRoot;
+      }
+    }
+    return preferredRoot;
+  }
+
+  // NAS is always preferred. Only when it cannot be created/accessed do we
+  // switch to the local fallback. This keeps existing NAS behaviour unchanged
+  // while preventing an offline NAS from aborting the whole export job.
+  try {
+    fsSync.mkdirSync(preferredRoot, { recursive: true });
+    fsSync.accessSync(preferredRoot, fsSync.constants.R_OK | fsSync.constants.W_OK);
+    return preferredRoot;
+  } catch (_) {
+    try {
+      fsSync.mkdirSync(LOCAL_FALLBACK_EXPORT_ROOT, { recursive: true });
+      fsSync.accessSync(LOCAL_FALLBACK_EXPORT_ROOT, fsSync.constants.R_OK | fsSync.constants.W_OK);
+      return LOCAL_FALLBACK_EXPORT_ROOT;
+    } catch (_) {
+      // Preserve the original root if even the local fallback is unavailable;
+      // the caller will surface the actual filesystem error.
+      return preferredRoot;
+    }
+  }
+}
+
 function getExportRoot() {
   const configured = String(process.env.KTC_EXPORT_ROOT || '').trim();
-  const root = !configured
-    ? DEFAULT_EXPORT_ROOT
-    : /^linh\s*tinh$/i.test(configured)
-      ? NAS_EXPORT_ROOT
-      : /^\\\\/.test(configured)
-        ? configured
-        : path.resolve(configured);
+  const root = resolveExportRoot(configured);
+
+  // Keep the active root in sync so every subsequent export helper uses the
+  // same NAS/local decision for this desktop session.
+  process.env.KTC_EXPORT_ROOT = root;
 
   // Keep the existing export untouched, then asynchronously mirror only the
   // Gia công A+B workbook into its separate monthly-report destination.

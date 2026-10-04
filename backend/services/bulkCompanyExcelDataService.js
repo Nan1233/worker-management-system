@@ -4,6 +4,7 @@ const { assertReportVolume, chunkArray } = require('./excelExportGuards');
 const { hasColumn } = require('./schemaCompatibilityService');
 const { calculateReportPerformance } = require('./machinePerformanceService');
 const { assertTrainingSnapshotAvailable } = require('./trainingSnapshotService');
+const { mergeDefects, normalizeDeductions } = require('../utils/reportDetailNormalizer');
 
 const PROCESS_CODES = ['CAN','EP','XLBV','GC','MAI','DO','K1','K2','SX3'];
 const query = (sql, params = []) => db.promise().query(sql, params).then(([rows]) => rows);
@@ -24,6 +25,47 @@ function mapDetails(rows, reportIds, mapper) {
     result.get(id).push(mapper(row));
   }
   return result;
+}
+
+function sumPositive(rows, field) {
+  return (Array.isArray(rows) ? rows : []).reduce((sum, row) => {
+    const value = Number(row?.[field]);
+    return sum + (Number.isFinite(value) && value > 0 ? value : 0);
+  }, 0);
+}
+
+function sameNumber(a, b, tolerance = 0.01) {
+  return Math.abs(Number(a || 0) - Number(b || 0)) <= tolerance;
+}
+
+function groupMachineDefects(rows, keyField) {
+  const result = new Map();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const key = Number(row?.[keyField]);
+    if (!Number.isInteger(key) || key <= 0) continue;
+    if (!result.has(key)) result.set(key, []);
+    result.get(key).push({
+      id: Number(row.id) || undefined,
+      defect_type_id: Number(row.defect_type_id) || undefined,
+      defect_code: row.defect_code || '',
+      defect_name: row.defect_name || '',
+      quantity: Number(row.quantity) || 0
+    });
+  }
+  return result;
+}
+
+function hydrateMachineLineDefects(machineLines, machineDefectsByLine, eventDefectsByEvent) {
+  return (Array.isArray(machineLines) ? machineLines : []).map((line) => {
+    // Same precedence as Manager/Worker approved-detail API:
+    // persisted machine defects -> line defects_json -> event defects.
+    const persisted = machineDefectsByLine.get(Number(line.id)) || [];
+    if (persisted.length) return { ...line, defects: persisted, defects_json: JSON.stringify(persisted) };
+    if (line?.defects_json) return line;
+    const eventDetails = eventDefectsByEvent.get(Number(line.machine_event_id)) || [];
+    if (eventDetails.length) return { ...line, defects: eventDetails, defects_json: JSON.stringify(eventDetails) };
+    return { ...line, defects: [] };
+  });
 }
 
 async function loadBulkCompanyReports(yearMonth, actor) {
@@ -76,6 +118,9 @@ async function loadBulkCompanyReports(yearMonth, actor) {
         pr.operation_mode, pr.machine_no, pr.product_name,
         pr.total_time, pr.actual_time, pr.deduction_time,
         pr.standard_output, pr.actual_output, pr.tt_ok, pr.tt_ng,
+        pr.kqd_dap_lai, pr.kqd_tuot, pr.vo_do_long, pr.xuoc_do_long,
+        pr.cong_gay, pr.xoay, pr.khong_dut, pr.bavia_hut, pr.ppcm,
+        pr.loi_cao_su, pr.ng_kich_thuoc, pr.cat_lem,
         pr.note, ${extraDataSelect}, pr.status, pr.review_note,
         pr.reviewed_by, pr.approved_at, pr.created_at, pr.updated_at,
         w.worker_code, w.training_percent AS worker_training_percent,
@@ -141,15 +186,60 @@ async function loadBulkCompanyReports(yearMonth, actor) {
   let deductionRows = [];
   let defectRows = [];
   let machineLineRows = [];
+  let machineDefectRows = [];
+  let eventDefectRows = [];
   for (const ids of chunkArray(reportIds, Number(process.env.EXCEL_DETAIL_BATCH_SIZE || 1000))) {
     const p = ids.map(() => '?').join(',');
-    const [d, f, m] = await Promise.all([
+    const [d, f, m, md, ed] = await Promise.all([
       query(`SELECT prd.report_id, prd.deduction_type_id, dt.deduction_code, dt.deduction_name, prd.hours FROM production_report_deductions prd LEFT JOIN deduction_types dt ON dt.id=prd.deduction_type_id WHERE prd.report_id IN (${p}) ORDER BY prd.report_id,COALESCE(dt.sort_order,999999),prd.deduction_type_id`, ids),
       query(`SELECT prd.report_id, prd.defect_type_id, dt.defect_code, dt.defect_name, prd.quantity FROM production_report_defects prd LEFT JOIN defect_types dt ON dt.id=prd.defect_type_id WHERE prd.report_id IN (${p}) ORDER BY prd.report_id,COALESCE(dt.sort_order,999999),prd.defect_type_id`, ids),
-      query(`SELECT * FROM production_report_machine_lines WHERE report_id IN (${p}) ORDER BY report_id,sort_order,id`, ids)
+      query(`SELECT * FROM production_report_machine_lines WHERE report_id IN (${p}) ORDER BY report_id,sort_order,id`, ids),
+      query(`SELECT ml.report_id, md.id, md.machine_line_id, md.defect_type_id, md.defect_code, md.defect_name, md.quantity
+               FROM production_report_machine_defects md
+               INNER JOIN production_report_machine_lines ml ON ml.id=md.machine_line_id
+              WHERE ml.report_id IN (${p}) AND md.quantity > 0
+              ORDER BY ml.report_id,md.machine_line_id,md.id`, ids),
+      query(`SELECT ml.report_id, ed.id, ed.machine_event_id, ed.defect_type_id, ed.defect_code, ed.defect_name, ed.quantity
+               FROM machine_production_event_defects ed
+               INNER JOIN production_report_machine_lines ml ON ml.machine_event_id=ed.machine_event_id
+              WHERE ml.report_id IN (${p}) AND ed.quantity > 0
+              ORDER BY ml.report_id,ed.machine_event_id,ed.id`, ids)
     ]);
-    deductionRows.push(...d); defectRows.push(...f); machineLineRows.push(...m);
+    deductionRows.push(...d); defectRows.push(...f); machineLineRows.push(...m); machineDefectRows.push(...md); eventDefectRows.push(...ed);
   }
+
+  let tempDeductionRows = [];
+  let tempDefectRows = [];
+  const sourceTempIds = [...new Set(
+    reports.map((report) => Number(report.source_temp_id)).filter((id) => Number.isInteger(id) && id > 0)
+  )];
+  if (sourceTempIds.length) {
+    const p = sourceTempIds.map(() => '?').join(',');
+    [tempDeductionRows, tempDefectRows] = await Promise.all([
+      query(
+        `SELECT ptd.temp_report_id, ptd.deduction_type_id, dt.deduction_code, dt.deduction_name, ptd.hours
+           FROM production_temp_deductions ptd
+           LEFT JOIN deduction_types dt ON dt.id=ptd.deduction_type_id
+          WHERE ptd.temp_report_id IN (${p})
+          ORDER BY ptd.temp_report_id,COALESCE(dt.sort_order,999999),ptd.deduction_type_id`,
+        sourceTempIds
+      ),
+      query(
+        `SELECT ptd.temp_report_id, ptd.defect_type_id, dt.defect_code, dt.defect_name, ptd.quantity
+           FROM production_temp_defects ptd
+           LEFT JOIN defect_types dt ON dt.id=ptd.defect_type_id
+          WHERE ptd.temp_report_id IN (${p})
+          ORDER BY ptd.temp_report_id,COALESCE(dt.sort_order,999999),ptd.defect_type_id`,
+        sourceTempIds
+      )
+    ]);
+  }
+
+  const reportByTemp = new Map(
+    reports
+      .filter((report) => Number(report.source_temp_id) > 0)
+      .map((report) => [Number(report.source_temp_id), Number(report.id)])
+  );
 
   const deductions = mapDetails(deductionRows, reportIds, (row) => ({
     id: Number(row.id ?? row.deduction_type_id),
@@ -168,24 +258,76 @@ async function loadBulkCompanyReports(yearMonth, actor) {
   }));
   const machineLines = mapDetails(machineLineRows, reportIds, (row) => ({ ...row }));
 
+  const tempDeductions = mapDetails(tempDeductionRows.map((row) => {
+    const reportId = reportByTemp.get(Number(row.temp_report_id));
+    return { ...row, report_id: reportId };
+  }).filter((row) => row.report_id), reportIds, (row) => ({
+    id: Number(row.id ?? row.deduction_type_id),
+    deduction_type_id: Number(row.deduction_type_id),
+    code: row.deduction_code || '',
+    name: row.deduction_name || '',
+    deduction_code: row.deduction_code || '',
+    deduction_name: row.deduction_name || '',
+    hours: Number(row.hours) || 0
+  }));
+  const tempDefects = mapDetails(tempDefectRows.map((row) => {
+    const reportId = reportByTemp.get(Number(row.temp_report_id));
+    return { ...row, report_id: reportId };
+  }).filter((row) => row.report_id), reportIds, (row) => ({
+    defect_type_id: Number(row.defect_type_id),
+    defect_code: row.defect_code || '',
+    defect_name: row.defect_name || '',
+    quantity: Number(row.quantity) || 0
+  }));
+
+  const machineDefectsByLine = groupMachineDefects(machineDefectRows, 'machine_line_id');
+  const eventDefectsByEvent = groupMachineDefects(eventDefectRows, 'machine_event_id');
+
   for (const report of reports) {
     const id = Number(report.id);
-    report.deductions = deductions.get(id) || [];
-    report.machineLines = machineLines.get(id) || [];
+    report.machineLines = hydrateMachineLineDefects(
+      machineLines.get(id) || [],
+      machineDefectsByLine,
+      eventDefectsByEvent,
+    );
 
-    // DB is the source of truth for Excel. Do not merge, recalculate or replace
-    // saved defect rows with derived values. For machine reports, only use the
-    // already-persisted machine-line defect JSON when the dedicated DB detail
-    // table has no rows at all.
-    report.defects = defects.get(id) || [];
-    report.excelDefectsSource = report.defects.length > 0
-      ? 'production_report_defects'
-      : 'none';
+    const reportDeductionRows = deductions.get(id) || [];
+    const reportTempDeductionRows = tempDeductions.get(id) || [];
+    const expectedDeductionHours = Number(report.deduction_time) || 0;
+    const persistedDeductionHours = sumPositive(reportDeductionRows, 'hours');
+    const tempDeductionHours = sumPositive(reportTempDeductionRows, 'hours');
+    const selectedDeductionRows = expectedDeductionHours > 0
+      && !sameNumber(persistedDeductionHours, expectedDeductionHours)
+      && sameNumber(tempDeductionHours, expectedDeductionHours)
+      ? reportTempDeductionRows
+      : reportDeductionRows;
 
-    // Keep the persisted production_reports values (total_time, actual_time,
-    // deduction_time, standard_output, actual_output, tt_ok, tt_ng, etc.) intact.
-    // Calculation is only allowed to add fields that are not already persisted;
-    // it must never overwrite a DB value exported to Excel.
+    report.deductions = normalizeDeductions(
+      selectedDeductionRows,
+      report,
+      report.machineLines,
+      deductionTypes.filter((type) => Number(type.process_id) === Number(report.process_id)),
+    );
+
+    const reportDefectRows = defects.get(id) || [];
+    const reportTempDefectRows = tempDefects.get(id) || [];
+    const expectedDefects = Math.trunc(Number(report.tt_ng) || 0);
+    const persistedDefects = sumPositive(reportDefectRows, 'quantity');
+    const tempDefectsTotal = sumPositive(reportTempDefectRows, 'quantity');
+    const selectedDefectRows = expectedDefects > 0
+      && Math.trunc(persistedDefects) !== expectedDefects
+      && Math.trunc(tempDefectsTotal) === expectedDefects
+      ? reportTempDefectRows
+      : reportDefectRows;
+
+    report.defects = mergeDefects(report, selectedDefectRows, report.machineLines);
+    report.excelDefectsSource = selectedDefectRows.length
+      ? (selectedDefectRows === reportTempDefectRows ? 'production_temp_defects_fallback' : 'production_report_defects')
+      : (report.defects.length ? 'legacy_columns_normalized' : 'none');
+    report.excelDeductionsSource = selectedDeductionRows === reportTempDeductionRows
+      ? 'production_temp_deductions_fallback'
+      : 'production_report_deductions';
+
     const calculated = calculateReportPerformance({ report, machineLines: report.machineLines }) || {};
     for (const [key, value] of Object.entries(calculated)) {
       if (report[key] === undefined || report[key] === null || report[key] === '') {
