@@ -35,7 +35,9 @@ if (typeof global.cloneRowStyle !== 'function') {
     targetRow.height = sourceRow.height;
     targetRow.hidden = sourceRow.hidden;
     targetRow.outlineLevel = sourceRow.outlineLevel;
-    targetRow.collapsed = sourceRow.collapsed;
+    // ExcelJS exposes Row.collapsed as readonly in the Electron/ExcelJS
+    // version used by the desktop app. It is not part of the cell formatting
+    // contract, so do not assign it while cloning template rows.
     for (let c = 1; c <= Math.max(sheet.columnCount, sourceRow.cellCount); c += 1) {
       const source = sourceRow.getCell(c);
       const target = targetRow.getCell(c);
@@ -114,7 +116,7 @@ function patchMainSource(source) {
   const cleanupFn = cleanupLegacyMonthlyFilesSource();
   const marker = '\nasync function syncAllProcessExcel';
   if (!next.includes('__ktcCleanupLegacyMonthlyLayout')) next = next.replace(marker, `\n${cleanupFn}${marker}`);
-  next = next.replace(/\n\s*await writeLog\('INFO', 'MONTHLY_SPLIT_WORKBOOKS_UPDATED', \{/, '\n    await writeLog(\'INFO\', \'MONTHLY_WORKER_TEMPLATE_UPDATED\', {');
+  next = next.replace(/\n\s*await writeLog\('INFO', 'MONTHLY_SPLIT_WORKBOOKS_UPDATED', \{/g, '\n    await writeLog(\'INFO\', \'MONTHLY_WORKER_TEMPLATE_UPDATED\', {');
   const successMarker = 'const success = files.length === expectedFileCount && files.every((file) => file.success === true);';
   if (!next.includes('if (success) await __ktcCleanupLegacyMonthlyLayout')) next = next.replace(successMarker, `${successMarker}\n  if (success) await __ktcCleanupLegacyMonthlyLayout(root, date);`);
   return next;
