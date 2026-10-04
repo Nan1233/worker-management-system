@@ -10,6 +10,9 @@ const PROCESS_FILE_PREFIXES = Object.freeze({
   MAI: '05_MAI', DO: '06_DO', K1: '07_KIEM_1', K2: '08_KIEM_2', SX3: '09_SAN_XUAT_3'
 });
 
+let cachedTemplatePath = '';
+let cachedTemplateBuffer = null;
+
 const normalize = (value) => String(value ?? '')
   .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   .replace(/[đĐ]/g, 'd').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -34,6 +37,16 @@ async function resolveTemplatePath(appPath) {
     try { await fs.access(candidate); return candidate; } catch (_) {}
   }
   throw Object.assign(new Error(`Không tìm thấy template ${TEMPLATE_NAME}`), { code: 'KTC_WORKER_TEMPLATE_MISSING' });
+}
+
+async function getTemplateBuffer(appPath) {
+  const templatePath = await resolveTemplatePath(appPath);
+  if (cachedTemplateBuffer && cachedTemplatePath === templatePath) {
+    return { templatePath, buffer: cachedTemplateBuffer };
+  }
+  cachedTemplatePath = templatePath;
+  cachedTemplateBuffer = await fs.readFile(templatePath);
+  return { templatePath, buffer: cachedTemplateBuffer };
 }
 
 function cellText(cell) {
@@ -133,12 +146,6 @@ function asDate(value) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function parseExtra(report) {
-  if (!report?.extra_data) return {};
-  if (typeof report.extra_data === 'object' && !Array.isArray(report.extra_data)) return report.extra_data;
-  try { const parsed = JSON.parse(String(report.extra_data)); return parsed && typeof parsed === 'object' ? parsed : {}; } catch (_) { return {}; }
-}
-
 function detailItems(report, kind) {
   const keys = kind === 'deduction'
     ? ['deductions', 'deductionDetails', 'deduction_details', 'deductionRows', 'deduction_rows']
@@ -180,9 +187,25 @@ function buildColumnContract(map, processData) {
     ng: pick(map, 'tong ng') || pick(map, 'tong loi') || pick(map, 'ng'),
     output: pick(map, 'ket qua san xuat') || pick(map, 'thuc tich') || pick(map, 'san luong') || pick(map, 'tt')
   };
-  const deductions = processTypes(processData, 'deduction').map((type) => ({ type, column: detailColumn(map, type?.deduction_name || type?.name || type?.deduction_code || type?.code) })).filter((x) => x.column);
-  const defects = processTypes(processData, 'defect').map((type) => ({ type, column: detailColumn(map, type?.defect_name || type?.name || type?.defect_code || type?.code) })).filter((x) => x.column);
+  const deductions = processTypes(processData, 'deduction').map((type) => {
+    const label = type?.deduction_name || type?.name || type?.deduction_code || type?.code;
+    return { type, wanted: normalize(label), column: detailColumn(map, label) };
+  }).filter((x) => x.column);
+  const defects = processTypes(processData, 'defect').map((type) => {
+    const label = type?.defect_name || type?.name || type?.defect_code || type?.code;
+    return { type, wanted: normalize(label), column: detailColumn(map, label) };
+  }).filter((x) => x.column);
   return { cols, deductions, defects };
+}
+
+function buildDetailValueMap(report, kind) {
+  const values = new Map();
+  for (const item of detailItems(report, kind)) {
+    const key = normalize(detailLabel(item, kind));
+    if (!key) continue;
+    values.set(key, (values.get(key) || 0) + detailValue(item, kind));
+  }
+  return values;
 }
 
 function writeValue(row, column, value) {
@@ -193,6 +216,7 @@ function writeValue(row, column, value) {
 function clearDataRows(sheet, startRow, count, columnCount) {
   for (let r = startRow; r < startRow + count; r += 1) {
     const row = sheet.getRow(r);
+    if (row.actualCellCount === 0) continue;
     for (let c = 1; c <= columnCount; c += 1) {
       const cell = row.getCell(c);
       if (!(typeof cell.value === 'string' && cell.value.startsWith('='))) cell.value = null;
@@ -214,57 +238,69 @@ function applyReportRow(row, report, contract, index) {
   writeValue(row, contract.cols.ng, number(report.tt_ng));
   writeValue(row, contract.cols.output, number(report.actual_output ?? report.tt_ok));
 
-  for (const item of contract.deductions) {
-    const wanted = normalize(item.type?.deduction_name || item.type?.name || item.type?.deduction_code || item.type?.code);
-    const value = detailItems(report, 'deduction').filter((x) => normalize(detailLabel(x, 'deduction')) === wanted).reduce((sum, x) => sum + detailValue(x, 'deduction'), 0);
-    writeValue(row, item.column, value);
-  }
-  for (const item of contract.defects) {
-    const wanted = normalize(item.type?.defect_name || item.type?.name || item.type?.defect_code || item.type?.code);
-    const value = detailItems(report, 'defect').filter((x) => normalize(detailLabel(x, 'defect')) === wanted).reduce((sum, x) => sum + detailValue(x, 'defect'), 0);
-    writeValue(row, item.column, value);
-  }
+  const deductionValues = buildDetailValueMap(report, 'deduction');
+  for (const item of contract.deductions) writeValue(row, item.column, deductionValues.get(item.wanted) || 0);
+
+  const defectValues = buildDetailValueMap(report, 'defect');
+  for (const item of contract.defects) writeValue(row, item.column, defectValues.get(item.wanted) || 0);
 }
 
 async function buildWorkerProcessWorkbook({ appPath, processCode, processName, date, processData = {} }) {
-  const templatePath = await resolveTemplatePath(appPath);
+  const { templatePath, buffer: templateBuffer } = await getTemplateBuffer(appPath);
+  const reports = Array.isArray(processData?.reports) ? [...processData.reports] : [];
+  const [year, month] = String(date).slice(0, 7).split('-');
+  const prefix = PROCESS_FILE_PREFIXES[String(processCode || '').toUpperCase()] || String(processCode || 'PROCESS').toUpperCase();
+  const fileName = `${prefix}_${month}-${year}.xlsx`;
+
+  // Với công đoạn không có dữ liệu, bản mẫu nguyên gốc đã chính xác 100% và
+  // không cần ExcelJS parse/serialize. Đây là phần giúp export tháng rỗng nhanh hơn rất nhiều.
+  if (reports.length === 0) {
+    return {
+      buffer: templateBuffer,
+      fileName,
+      processCode: String(processCode || '').toUpperCase(),
+      processName: processName || processCode,
+      reportCount: 0,
+      templateFile: TEMPLATE_NAME,
+      templatePath,
+      templateSheet: null,
+      headerRow: null,
+      dataStartRow: null
+    };
+  }
+
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.readFile(templatePath);
+  await workbook.xlsx.load(templateBuffer);
   const sheet = workbook.worksheets.find((item) => item.state !== 'hidden') || workbook.worksheets[0];
   if (!sheet) throw new Error('Template công nhân không có worksheet.');
 
   const headerRow = findHeader(sheet);
   const columnMap = findColumnMap(sheet, headerRow);
   const contract = buildColumnContract(columnMap, processData);
-  const reports = Array.isArray(processData?.reports) ? [...processData.reports] : [];
   reports.sort((a, b) => String(a?.work_date || '').localeCompare(String(b?.work_date || '')) || number(a?.id) - number(b?.id));
 
   const dataStartRow = findDataStartRow(sheet, headerRow);
   const sourceRow = sheet.getRow(dataStartRow);
   const requiredEndRow = dataStartRow + reports.length - 1;
-  if (reports.length > 0) {
-    for (let r = dataStartRow; r <= requiredEndRow; r += 1) {
-      const row = sheet.getRow(r);
-      if (r !== dataStartRow) cloneRowStyle(sheet, sourceRow, row);
-      applyReportRow(row, reports[r - dataStartRow], contract, r - dataStartRow);
-    }
+  for (let r = dataStartRow; r <= requiredEndRow; r += 1) {
+    const row = sheet.getRow(r);
+    if (r !== dataStartRow) cloneRowStyle(sheet, sourceRow, row);
+    applyReportRow(row, reports[r - dataStartRow], contract, r - dataStartRow);
   }
 
   const clearCount = Math.max(0, sheet.rowCount - (dataStartRow + reports.length) + 1);
   clearDataRows(sheet, dataStartRow + reports.length, clearCount, sheet.columnCount);
   workbook.calculation = { fullCalcOnLoad: true, forceFullCalc: true, calcMode: 'auto' };
 
-  const [year, month] = String(date).slice(0, 7).split('-');
-  const prefix = PROCESS_FILE_PREFIXES[String(processCode || '').toUpperCase()] || String(processCode || 'PROCESS').toUpperCase();
-  const fileName = `${prefix}_${month}-${year}.xlsx`;
-  const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+  const outputBuffer = Buffer.from(await workbook.xlsx.writeBuffer());
   return {
-    buffer,
+    buffer: outputBuffer,
     fileName,
     processCode: String(processCode || '').toUpperCase(),
     processName: processName || processCode,
     reportCount: reports.length,
     templateFile: TEMPLATE_NAME,
+    templatePath,
     templateSheet: sheet.name,
     headerRow,
     dataStartRow
