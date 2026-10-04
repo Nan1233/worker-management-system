@@ -96,6 +96,13 @@
     },
     "extraResources": [
       {
+        "from": "../backend/templates",
+        "to": "templates",
+        "filter": [
+          "Mau_Bao_Cao_Cong_Nhan_DB_day_du_chi_tiet_STT_FIX.xlsx"
+        ]
+      },
+      {
         "from": "../shared",
         "to": "shared",
         "filter": [
