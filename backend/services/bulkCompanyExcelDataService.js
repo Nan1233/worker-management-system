@@ -4,6 +4,7 @@ const { assertReportVolume, chunkArray } = require('./excelExportGuards');
 const { hasColumn } = require('./schemaCompatibilityService');
 const { calculateReportPerformance } = require('./machinePerformanceService');
 const { assertTrainingSnapshotAvailable } = require('./trainingSnapshotService');
+const { mergeDefects } = require('../utils/reportDetailNormalizer');
 
 const PROCESS_CODES = ['CAN','EP','XLBV','GC','MAI','DO','K1','K2','SX3'];
 const query = (sql, params = []) => db.promise().query(sql, params).then(([rows]) => rows);
@@ -173,19 +174,18 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     report.deductions = deductions.get(id) || [];
     report.machineLines = machineLines.get(id) || [];
 
-    // DB is the source of truth for Excel. Do not merge, recalculate or replace
-    // saved defect rows with derived values. For machine reports, only use the
-    // already-persisted machine-line defect JSON when the dedicated DB detail
-    // table has no rows at all.
-    report.defects = defects.get(id) || [];
-    report.excelDefectsSource = report.defects.length > 0
+    // Restore the proven input/DB compatibility layer used by the working
+    // company-data exporter. The database remains the source of truth, but
+    // legacy/form-entry defect names and machine-line JSON are normalized to
+    // the canonical defect codes expected by the workbook.
+    report.defects = mergeDefects(report, defects.get(id) || [], report.machineLines);
+    report.excelDefectsSource = defects.get(id)?.length
       ? 'production_report_defects'
-      : 'none';
+      : (report.defects.length ? 'legacy_or_machine_line_normalized' : 'none');
 
-    // Keep the persisted production_reports values (total_time, actual_time,
-    // deduction_time, standard_output, actual_output, tt_ok, tt_ng, etc.) intact.
-    // Calculation is only allowed to add fields that are not already persisted;
-    // it must never overwrite a DB value exported to Excel.
+    // Keep persisted production_reports values authoritative. Calculations may
+    // only fill fields that are genuinely absent and must never overwrite a DB
+    // value exported to Excel.
     const calculated = calculateReportPerformance({ report, machineLines: report.machineLines }) || {};
     for (const [key, value] of Object.entries(calculated)) {
       if (report[key] === undefined || report[key] === null || report[key] === '') {
@@ -202,7 +202,7 @@ async function loadBulkCompanyReports(yearMonth, actor) {
   for (const row of defectTypes) typeByProcess.get(Number(row.process_id))?.defects.push(row);
   const eventByProcess = new Map(processIds.map((id) => [Number(id), []]));
   for (const row of physicalMachineEvents) eventByProcess.get(Number(row.process_id))?.push(row);
-  const reportsByProcess = new Map(processIds.map((id) => [Number(id), []]));
+  const reportsByProcess = new Map(processIds.map((id) => [Number(id.process_id), []]));
   for (const report of reports) reportsByProcess.get(Number(report.process_id))?.push(report);
 
   for (const process of processes) {
