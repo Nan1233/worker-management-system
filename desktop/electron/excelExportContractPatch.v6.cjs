@@ -5,6 +5,50 @@ const fsSync = require('node:fs');
 const Module = require('node:module');
 const path = require('node:path');
 const monthly = require('./monthlyWorkbookLocal.cjs');
+
+// workerReportTemplateLocal.v2.cjs expects these helpers while cloning the
+// canonical template data-row style. Keep them here as a compatibility layer
+// so the template mapper stays focused on data mapping and the existing
+// split-export patch remains backward compatible.
+if (typeof global.findDataStartRow !== 'function') {
+  global.findDataStartRow = function findDataStartRow(sheet, headerRow) {
+    for (let r = headerRow + 1; r <= Math.min(sheet.rowCount, headerRow + 20); r += 1) {
+      const row = sheet.getRow(r);
+      let nonEmpty = false;
+      for (let c = 1; c <= sheet.columnCount; c += 1) {
+        if (String(row.getCell(c)?.value ?? '').trim()) {
+          nonEmpty = true;
+          break;
+        }
+      }
+      if (!nonEmpty) return r;
+      const first = String(row.getCell(1)?.value ?? '').trim().toLowerCase();
+      if (first === '1' || first === 'stt') return r;
+    }
+    return headerRow + 1;
+  };
+}
+
+if (typeof global.cloneRowStyle !== 'function') {
+  global.cloneRowStyle = function cloneRowStyle(sheet, sourceRow, targetRow) {
+    if (!sourceRow || !targetRow) return;
+    targetRow.height = sourceRow.height;
+    targetRow.hidden = sourceRow.hidden;
+    targetRow.outlineLevel = sourceRow.outlineLevel;
+    targetRow.collapsed = sourceRow.collapsed;
+    for (let c = 1; c <= Math.max(sheet.columnCount, sourceRow.cellCount); c += 1) {
+      const source = sourceRow.getCell(c);
+      const target = targetRow.getCell(c);
+      if (source.font) target.font = JSON.parse(JSON.stringify(source.font));
+      if (source.fill) target.fill = JSON.parse(JSON.stringify(source.fill));
+      if (source.border) target.border = JSON.parse(JSON.stringify(source.border));
+      if (source.alignment) target.alignment = JSON.parse(JSON.stringify(source.alignment));
+      if (source.protection) target.protection = JSON.parse(JSON.stringify(source.protection));
+      if (source.numFmt) target.numFmt = source.numFmt;
+    }
+  };
+}
+
 const { buildWorkerProcessWorkbook, PROCESS_FILE_PREFIXES } = require('./workerReportTemplateLocal.v2.cjs');
 
 const PROCESS_CODES = Object.freeze(['CAN', 'EP', 'XLBV', 'GC', 'MAI', 'DO', 'K1', 'K2', 'SX3']);
