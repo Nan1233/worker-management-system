@@ -13,7 +13,35 @@ const LEGACY_DEFECT_FIELDS = [
   ["cong_gay", "K_XUOC_CONG_GAY", "K xước cong gãy"], ["xoay", "CAO_SU_XOAY", "Cao su xoay"],
   ["khong_dut", "CAT_KHONG_DUT", "Cắt không đứt"], ["bavia_hut", "BAVIA", "Bavia"],
   ["ppcm", "PPCM", "PPCM"], ["loi_cao_su", "LCS", "Lỗi cao su"],
-  ["ng_kich_thuoc", "KT_LON", "KT kích thước"], ["cat_lem", "CAT_LEM", "Cắt lẹm"]
+  ["ng_kich_thuoc", "KT_LON", "KT kích thước"], ["cat_lem", "CAT_LEM", "Cắt lẹm"],
+  ["rach_nvl", "RACH_NVL", "Rách NVL"], ["chan_ngan_dai", "CHAN_NGAN_DAI", "Chân ngắn dài"],
+  ["sot_via", "SOT_VIA", "Sót via"], ["fure_truc", "FURE_TRUC", "Fure trục"],
+  ["lan_cs", "LAN_CS", "Lẫn CS"], ["bavia_cat_hut", "BAVIA_CAT_HUT", "Bavia cắt hụt"],
+  ["thieu_cao_su", "THIEU_CAO_SU", "Thiếu cao su"]
+];
+
+const LEGACY_DEDUCTION_FIELDS = [
+  ["Thiếu sản lượng", "THIEU_SAN_LUONG"],
+  ["Bật máy, xét máy", "BAT_MAY"],
+  ["Bật máy, xét máy, đầu giờ", "BAT_MAY"],
+  ["Chuyển mã", "CHUYEN_MA"],
+  ["Chỉnh máy", "CHINH_MAY"],
+  ["Chờ chỉnh máy", "CHO_CHINH_MAY"],
+  ["Mất điện", "MAT_DIEN"],
+  ["Mất khí", "MAT_KHI"],
+  ["Chờ hàng", "CHO_HANG"],
+  ["Bảo dưỡng máy", "BAO_DUONG_MAY"],
+  ["bảo dưỡng máy", "BAO_DUONG_MAY"],
+  ["Nghỉ giải lao", "NGHI_GIAI_LAO"],
+  ["Giao ca", "GIAO_CA"],
+  ["Dừng máy đi hỗ trợ", "DUNG_MAY_HO_TRO"],
+  ["Giặt cs/cân cs, tuốt-tái pp, GL", "GIAT_CS_CAN_CS_TUOT_TAI_PP_GL"],
+  ["Giặt CS/Cân CS, Tuốt-Tái PP, GL", "GIAT_CS_CAN_CS_TUOT_TAI_PP_GL"],
+  ["5s", "5S"], ["5S", "5S"],
+  ["Học việc, đào tạo", "HOC_VIEC_DAO_TAO"],
+  ["Học việc", "HOC_VIEC_DAO_TAO"],
+  ["Đi muộn về sớm", "DI_MUON_VE_SOM"],
+  ["Đi muộn/về sớm", "DI_MUON_VE_SOM"]
 ];
 
 const LEGACY_MACHINE_KEYS = new Map([
@@ -22,12 +50,21 @@ const LEGACY_MACHINE_KEYS = new Map([
   ["XUOC_DO_LONG", "K_XUOC_CONG_GAY"], ["XUOC_LONG", "K_XUOC_CONG_GAY"],
   ["CONG_GAY", "K_XUOC_CONG_GAY"], ["XOAY", "CAO_SU_XOAY"],
   ["KHONG_DUT", "CAT_KHONG_DUT"], ["BAVIA", "BAVIA"], ["BAVIA_HUT", "BAVIA"],
-  ["PPCM", "PPCM"], ["CAO_SU", "LCS"], ["LOI_CAO_SU", "LCS"], ["CAT_LEM", "CAT_LEM"]
+  ["PPCM", "PPCM"], ["CAO_SU", "LCS"], ["LOI_CAO_SU", "LCS"], ["CAT_LEM", "CAT_LEM"],
+  ["RACH_NVL", "RACH_NVL"], ["CHAN_NGAN_DAI", "CHAN_NGAN_DAI"], ["SOT_VIA", "SOT_VIA"],
+  ["FURE_TRUC", "FURE_TRUC"], ["LAN_CS", "LAN_CS"], ["BAVIA_CAT_HUT", "BAVIA_CAT_HUT"],
+  ["THIEU_CAO_SU", "THIEU_CAO_SU"]
 ]);
 
 const normalizeKey = (value) => String(value || "")
   .normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D")
   .replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "").toUpperCase();
+
+const deductionAliasCode = (value) => {
+  const key = normalizeKey(value);
+  const found = LEGACY_DEDUCTION_FIELDS.find(([label, code]) => normalizeKey(label) === key);
+  return found?.[1] || key;
+};
 
 function canonicalDefect(item = {}) {
   const rawCode = normalizeKey(item.defect_code || item.defect_type_code || item.code);
@@ -83,9 +120,26 @@ function parseMachineDefects(machineLines = []) {
   return result;
 }
 
+function sortDefects(values) {
+  return [...values].sort((a, b) => String(a.defect_name).localeCompare(String(b.defect_name), "vi"));
+}
+
+function defectTotal(values) {
+  return (Array.isArray(values) ? values : []).reduce((sum, item) => sum + Math.max(0, Math.trunc(Number(item?.quantity) || 0)), 0);
+}
+
+function legacyDefectValues(report) {
+  const values = [];
+  for (const [field, code, name] of LEGACY_DEFECT_FIELDS) {
+    const quantity = Math.trunc(Number(report?.[field] ?? 0) || 0);
+    if (quantity > 0) values.push({ defect_code: code, defect_name: name, quantity });
+  }
+  return values;
+}
+
 function mergeDefects(report, rows = [], machineLines = []) {
-  const merged = new Map();
-  const add = (item) => {
+  const child = [];
+  const addChild = (item) => {
     const canonical = canonicalDefect(item);
     if (!canonical) return;
     const quantity = Math.trunc(Number(canonical.quantity ?? 0) || 0);
@@ -94,27 +148,27 @@ function mergeDefects(report, rows = [], machineLines = []) {
     const code = String(canonical.defect_code || "").trim();
     const name = String(canonical.defect_name || "").trim();
     const key = typeId ? `ID:${typeId}` : code ? `CODE:${code}` : `NAME:${name}`;
-    const existing = merged.get(key);
-    if (existing) existing.quantity += quantity;
-    else merged.set(key, { id: typeId || undefined, defect_type_id: typeId || undefined, defect_code: code || undefined, defect_name: name || code || `Lỗi NG #${typeId || "?"}`, quantity });
+    const existing = child.find((x) => x.key === key);
+    if (existing) existing.value.quantity += quantity;
+    else child.push({ key, value: { id: typeId || undefined, defect_type_id: typeId || undefined, defect_code: code || undefined, defect_name: name || code || `Lỗi NG #${typeId || "?"}`, quantity } });
   };
+  (Array.isArray(rows) ? rows : []).forEach(addChild);
+  const childValues = child.map((x) => x.value);
 
-  (Array.isArray(rows) ? rows : []).forEach(add);
-  if (merged.size > 0) return [...merged.values()].sort((a, b) => String(a.defect_name).localeCompare(String(b.defect_name), "vi"));
+  const legacyValues = legacyDefectValues(report);
+  const machineValues = parseMachineDefects(machineLines);
+  const parentNg = Math.max(0, Math.trunc(Number(report?.tt_ng) || 0));
 
-  // Legacy approved imports kept NG in production_reports columns while the
-  // child table production_report_defects was empty. The Excel exporter must
-  // read those persisted columns too; this is the same source used by the
-  // one-off repair SQL in backend/sql/repair_legacy_approved_report_details_20260930.sql.
-  LEGACY_DEFECT_FIELDS.forEach(([field, code, name]) => {
-    const quantity = Math.trunc(Number(report?.[field] ?? 0) || 0);
-    if (quantity > 0) add({ defect_code: code, defect_name: name, quantity });
-  });
-  if (merged.size > 0) return [...merged.values()].sort((a, b) => String(a.defect_name).localeCompare(String(b.defect_name), "vi"));
-
-  const mode = String(report?.operation_mode || "").trim().toUpperCase();
-  if (mode === "MACHINE" || (Array.isArray(machineLines) && machineLines.length > 0)) return [];
-  return [...merged.values()].sort((a, b) => String(a.defect_name).localeCompare(String(b.defect_name), "vi"));
+  // Prefer the persisted child table when its total agrees with the parent.
+  // For legacy imports the aggregate columns are the authoritative detail
+  // source when the child table is empty or incomplete.
+  if (childValues.length && (!parentNg || defectTotal(childValues) === parentNg)) return sortDefects(childValues);
+  if (legacyValues.length && (!parentNg || defectTotal(legacyValues) === parentNg)) return sortDefects(legacyValues.map(canonicalDefect));
+  if (machineValues.length && (!parentNg || defectTotal(machineValues) === parentNg)) return sortDefects(machineValues);
+  if (childValues.length) return sortDefects(childValues);
+  if (legacyValues.length) return sortDefects(legacyValues.map(canonicalDefect));
+  if (machineValues.length) return sortDefects(machineValues);
+  return [];
 }
 
 function parseJson(value) {
@@ -129,16 +183,23 @@ function deductionTypeMatches(type, value) {
   if (!needle) return false;
   const candidates = [type?.deduction_code, type?.code, type?.deduction_name, type?.name]
     .map(normalizeKey).filter(Boolean);
-  return candidates.some((candidate) => candidate === needle || candidate.includes(needle) || needle.includes(candidate));
+  const needleAlias = deductionAliasCode(value);
+  return candidates.some((candidate) => {
+    const candidateAlias = deductionAliasCode(candidate);
+    return candidate === needle || candidate.includes(needle) || needle.includes(candidate)
+      || candidateAlias === needleAlias;
+  });
 }
 
 function findDeductionType(types, value) {
   return (Array.isArray(types) ? types : []).find((type) => deductionTypeMatches(type, value)) || null;
 }
 
-function addDeduction(merged, item, deductionTypes = []) {
-  const hours = Number(item?.hours ?? item?.deduction_hours ?? item?.value ?? item?.time ?? 0) || 0;
-  if (hours <= 0) return;
+function addDeduction(merged, item, deductionTypes = [], hoursOverride = null) {
+  const rawHours = hoursOverride == null
+    ? Number(item?.hours ?? item?.deduction_hours ?? item?.value ?? item?.time ?? 0) || 0
+    : Number(hoursOverride) || 0;
+  if (rawHours <= 0) return;
   const type = item?.deduction_type_id
     ? (Array.isArray(deductionTypes) ? deductionTypes.find((candidate) => Number(candidate.id) === Number(item.deduction_type_id)) : null)
     : findDeductionType(deductionTypes, item?.deduction_code || item?.deduction_name || item?.name || item?.label || item?.code);
@@ -147,28 +208,75 @@ function addDeduction(merged, item, deductionTypes = []) {
   const name = String(item?.deduction_name || item?.name || item?.label || type?.deduction_name || type?.name || '').trim();
   const key = typeId ? `ID:${typeId}` : code ? `CODE:${normalizeKey(code)}` : `NAME:${normalizeKey(name)}`;
   const existing = merged.get(key);
-  if (existing) existing.hours += hours;
-  else merged.set(key, { ...item, deduction_type_id: typeId || undefined, deduction_code: code || undefined, deduction_name: name || code || 'Trừ giờ', hours });
+  if (existing) existing.hours += rawHours;
+  else merged.set(key, { ...item, deduction_type_id: typeId || undefined, deduction_code: code || undefined, deduction_name: name || code || 'Trừ giờ', hours: rawHours });
 }
 
-function addDeductionsJson(merged, value, deductionTypes = []) {
+function addDeductionsJson(merged, value, deductionTypes = [], hoursScale = 1) {
   const parsed = parseJson(value);
   if (!parsed) return;
   if (Array.isArray(parsed)) {
-    parsed.forEach((item) => addDeduction(merged, item, deductionTypes));
+    parsed.forEach((item) => addDeduction(merged, item, deductionTypes, Number(item?.hours ?? item?.deduction_hours ?? item?.value ?? item?.time ?? 0) * hoursScale));
     return;
   }
-  const nested = parsed.deductions || parsed.items || parsed.columns;
-  if (Array.isArray(nested)) nested.forEach((item) => addDeduction(merged, item, deductionTypes));
+  const nested = parsed.deductions || parsed.deductionDetails || parsed.deduction_details || parsed.items || parsed.columns;
+  if (Array.isArray(nested)) nested.forEach((item) => addDeduction(merged, item, deductionTypes, Number(item?.hours ?? item?.deduction_hours ?? item?.value ?? item?.time ?? 0) * hoursScale));
   else if (nested && typeof nested === 'object') {
-    for (const [name, value] of Object.entries(nested)) addDeduction(merged, { deduction_name: name, hours: value }, deductionTypes);
+    for (const [name, value] of Object.entries(nested)) addDeduction(merged, { deduction_name: name, hours: Number(value) * hoursScale }, deductionTypes);
   } else {
     for (const [name, value] of Object.entries(parsed)) {
-      if (["total", "totalHours", "selectedDeductions"].includes(name)) continue;
+      if (["total", "totalHours", "selectedDeductions", "deductions", "deductionDetails", "deduction_details", "columns"].includes(name)) continue;
       const raw = value && typeof value === 'object' ? value : { hours: value };
-      addDeduction(merged, { ...raw, deduction_name: raw.deduction_name || raw.name || name }, deductionTypes);
+      addDeduction(merged, { ...raw, deduction_name: raw.deduction_name || raw.name || name }, deductionTypes, Number(raw.hours ?? raw.deduction_hours ?? raw.value ?? raw.time ?? value) * hoursScale);
     }
   }
+}
+
+function extractLegacyDeductionCandidates(extra) {
+  const result = [];
+  const seen = new Set();
+  const visit = (node, depth = 0) => {
+    if (node == null || depth > 5) return;
+    if (Array.isArray(node)) {
+      for (const item of node) visit(item, depth + 1);
+      return;
+    }
+    if (typeof node !== 'object') return;
+    for (const [key, value] of Object.entries(node)) {
+      const alias = deductionAliasCode(key);
+      const known = LEGACY_DEDUCTION_FIELDS.some(([label, code]) => code === alias);
+      if (known) {
+        const raw = value && typeof value === 'object'
+          ? (value.hours ?? value.deduction_hours ?? value.minutes ?? value.value ?? value.time)
+          : value;
+        const n = Number(raw);
+        if (Number.isFinite(n) && n > 0) {
+          const marker = `${alias}:${n}`;
+          if (!seen.has(marker)) {
+            seen.add(marker);
+            result.push({ label: key, code: alias, rawValue: n });
+          }
+        }
+      }
+      visit(value, depth + 1);
+    }
+  };
+  visit(extra);
+  return result;
+}
+
+function normalizeLegacyDeductionHours(candidates, report) {
+  const expectedHours = Math.max(0, Number(report?.deduction_time) || 0);
+  if (!candidates.length) return [];
+  const totalRaw = candidates.reduce((sum, item) => sum + item.rawValue, 0);
+  const totalAsHours = totalRaw;
+  const totalAsMinutes = totalRaw / 60;
+  const scale = expectedHours > 0 && Math.abs(totalAsHours - expectedHours) <= 0.01
+    ? 1
+    : expectedHours > 0 && Math.abs(totalAsMinutes - expectedHours) <= 0.01
+      ? (1 / 60)
+      : 1;
+  return candidates.map((item) => ({ ...item, hours: item.rawValue * scale }));
 }
 
 function normalizeDeductions(rows = [], report = null, machineLines = [], deductionTypes = []) {
@@ -179,45 +287,17 @@ function normalizeDeductions(rows = [], report = null, machineLines = [], deduct
     for (const line of Array.isArray(machineLines) ? machineLines : []) addDeductionsJson(merged, line?.deductions_json, deductionTypes);
   }
 
-  // Legacy SQL imports stored the original form's detail columns in
-  // production_reports.extra_data.columns. Resolve against the current
-  // deduction master first, but also preserve the original form labels when
-  // the master name/code was renamed after the report was imported.
   if (merged.size === 0) {
     const extra = parseJson(report?.extra_data);
-    const columns = extra?.columns;
-    if (columns && typeof columns === 'object') {
-      for (const [name, value] of Object.entries(columns)) {
-        const type = findDeductionType(deductionTypes, name);
-        if (type) {
-          addDeduction(merged, {
-            deduction_type_id: type.id,
-            deduction_code: type.deduction_code || type.code,
-            deduction_name: type.deduction_name || type.name,
-            hours: value
-          }, deductionTypes);
-        }
-      }
-
-      // If none of the legacy labels resolve to today's master data, do not
-      // throw away the actual form detail and replace it with one generic
-      // "Trừ giờ chưa phân loại" bucket. Only accept numeric positive columns
-      // whose rounded-minute total matches the persisted parent deduction_time.
-      if (merged.size === 0) {
-        const candidates = [];
-        for (const [name, value] of Object.entries(columns)) {
-          const raw = value && typeof value === 'object'
-            ? (value.hours ?? value.deduction_hours ?? value.value ?? value.time)
-            : value;
-          const hours = Number(raw);
-          if (Number.isFinite(hours) && hours > 0) candidates.push({ deduction_name: String(name).trim(), hours });
-        }
-        const expectedMinutes = Math.round((Number(report?.deduction_time || 0) || 0) * 60);
-        const candidateMinutes = Math.round(candidates.reduce((sum, item) => sum + item.hours, 0) * 60);
-        if (candidates.length > 0 && expectedMinutes > 0 && Math.abs(candidateMinutes - expectedMinutes) <= 1) {
-          candidates.forEach((item) => addDeduction(merged, item, deductionTypes));
-        }
-      }
+    const candidates = normalizeLegacyDeductionHours(extractLegacyDeductionCandidates(extra), report);
+    for (const item of candidates) {
+      const type = findDeductionType(deductionTypes, item.code) || findDeductionType(deductionTypes, item.label);
+      addDeduction(merged, {
+        deduction_type_id: type?.id,
+        deduction_code: type?.deduction_code || type?.code || item.code,
+        deduction_name: type?.deduction_name || type?.name || item.label,
+        hours: item.hours
+      }, deductionTypes);
     }
   }
 
