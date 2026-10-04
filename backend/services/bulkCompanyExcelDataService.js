@@ -4,7 +4,7 @@ const { assertReportVolume, chunkArray } = require('./excelExportGuards');
 const { hasColumn } = require('./schemaCompatibilityService');
 const { calculateReportPerformance } = require('./machinePerformanceService');
 const { assertTrainingSnapshotAvailable } = require('./trainingSnapshotService');
-const { mergeDefects } = require('../utils/reportDetailNormalizer');
+const { mergeDefects, normalizeDeductions } = require('../utils/reportDetailNormalizer');
 
 const PROCESS_CODES = ['CAN','EP','XLBV','GC','MAI','DO','K1','K2','SX3'];
 const query = (sql, params = []) => db.promise().query(sql, params).then(([rows]) => rows);
@@ -77,6 +77,9 @@ async function loadBulkCompanyReports(yearMonth, actor) {
         pr.operation_mode, pr.machine_no, pr.product_name,
         pr.total_time, pr.actual_time, pr.deduction_time,
         pr.standard_output, pr.actual_output, pr.tt_ok, pr.tt_ng,
+        pr.kqd_dap_lai, pr.kqd_tuot, pr.vo_do_long, pr.xuoc_do_long,
+        pr.cong_gay, pr.xoay, pr.khong_dut, pr.bavia_hut, pr.ppcm,
+        pr.loi_cao_su, pr.ng_kich_thuoc, pr.cat_lem,
         pr.note, ${extraDataSelect}, pr.status, pr.review_note,
         pr.reviewed_by, pr.approved_at, pr.created_at, pr.updated_at,
         w.worker_code, w.training_percent AS worker_training_percent,
@@ -171,17 +174,17 @@ async function loadBulkCompanyReports(yearMonth, actor) {
 
   for (const report of reports) {
     const id = Number(report.id);
-    report.deductions = deductions.get(id) || [];
     report.machineLines = machineLines.get(id) || [];
-
-    // Restore the proven input/DB compatibility layer used by the working
-    // company-data exporter. The database remains the source of truth, but
-    // legacy/form-entry defect names and machine-line JSON are normalized to
-    // the canonical defect codes expected by the workbook.
+    report.deductions = normalizeDeductions(
+      deductions.get(id) || [],
+      report,
+      report.machineLines,
+      deductionTypes.filter((type) => Number(type.process_id) === Number(report.process_id)),
+    );
     report.defects = mergeDefects(report, defects.get(id) || [], report.machineLines);
     report.excelDefectsSource = defects.get(id)?.length
       ? 'production_report_defects'
-      : (report.defects.length ? 'legacy_or_machine_line_normalized' : 'none');
+      : (report.defects.length ? 'legacy_columns_normalized' : 'none');
 
     // Keep persisted production_reports values authoritative. Calculations may
     // only fill fields that are genuinely absent and must never overwrite a DB
