@@ -17,6 +17,7 @@ function report(overrides = {}) {
     worker_code: '599',
     full_name: 'Nguyễn Văn Kiểm tra',
     shift: 'A',
+    operation_type: 'CUT',
     operation_mode: 'MANUAL',
     machine_no: 'M-01',
     product_name: 'QC5-1657',
@@ -45,10 +46,11 @@ function report(overrides = {}) {
     const processData = {
       processCode: 'GC',
       processName: 'Gia công',
-      deductionTypes: [{ id: 1, code: '5S', deduction_code: '5S', name: '5S', deduction_name: '5S', sort_order: 1 }],
+      // Deliberately use DB/form labels that differ from the template labels.
+      deductionTypes: [{ id: 1, code: 'DED_5S_DB', deduction_code: 'DED_5S_DB', name: '5S database name', deduction_name: '5S database name', sort_order: 1 }],
       defectTypes: [
-        { id: 1, code: 'KQD', defect_code: 'KQD', name: 'KQD', defect_name: 'KQD', sort_order: 1 },
-        { id: 2, code: 'VO_CAO_SU', defect_code: 'VO_CAO_SU', name: 'Vỡ cao su', defect_name: 'Vỡ cao su', sort_order: 2 }
+        { id: 1, code: 'DEF_KQD_DB', defect_code: 'DEF_KQD_DB', name: 'KQD database name', defect_name: 'KQD database name', sort_order: 1 },
+        { id: 2, code: 'DEF_VCS_DB', defect_code: 'DEF_VCS_DB', name: 'Vỡ cao su database name', defect_name: 'Vỡ cao su database name', sort_order: 2 }
       ],
       reports: [report({ id: 1, worker_code: '599' }), report({ id: 2, worker_code: '600', work_date: '2026-08-02', actual_output: 0, training_percent: 0 })]
     };
@@ -79,12 +81,13 @@ function report(overrides = {}) {
     assert.ok(workerRow, 'Không tìm thấy dữ liệu công nhân sau khi đổ template');
 
     const rowValues = Array.from({ length: sheet.columnCount }, (_, i) => String(sheet.getRow(workerRow).getCell(i + 1).value ?? ''));
-    assert.ok(rowValues.includes('599'), 'Mã NV không được đổ vào template');
-    assert.ok(rowValues.includes('Nguyễn Văn Kiểm tra'), 'Tên NV không được đổ vào template');
+    for (const expected of ['599', 'Nguyễn Văn Kiểm tra', 'M-01', 'QC5-1657', 'CUT', 'MANUAL', '0.5', '45', '2', '47']) {
+      assert.ok(rowValues.includes(expected), `Không đổ đủ trường worker report: ${expected}`);
+    }
     assert.ok(rowValues.some((value) => value === '0.5' || value === '0.50'), 'Chi tiết Trừ H không được đổ từ DB khi tên/code DB khác tên template');
     assert.ok(rowValues.some((value) => value === '1'), 'Chi tiết NG không được đổ từ DB khi tên/code DB khác tên template');
 
-    console.log('[PASS] Worker Excel smoke test: canonical template + STT + DB ID mapping + Trừ H + NG');
+    console.log('[PASS] Worker Excel smoke test: canonical template + STT + complete fields + DB detail alias mapping + Trừ H + NG');
   } finally {
     await fs.rm(temp, { recursive: true, force: true });
   }
