@@ -9,7 +9,7 @@ const { mergeDefects, normalizeDeductions } = require('../utils/reportDetailNorm
 
 const alias = (value) => normalizeLabel(value);
 const query = (sql, params = []) => new Promise((resolve, reject) => {
-  db.query(sql, params, (error, rows) => error ? reject(error) : resolve(rows);
+  db.query(sql, params, (error, rows) => error ? reject(error) : resolve(rows));
 });
 
 function findColumnMap(sheet, headerRow) {
@@ -78,8 +78,8 @@ async function hydrateExportDetailFallbacks(reports) {
 
   const [legacyRows, tempDeductionRows, tempDefectRows, machineDefectRows] = await Promise.all([
     query(`SELECT id, kqd_dap_lai, kqd_tuot, vo_do_long, xuoc_do_long, cong_gay, xoay, khong_dut, bavia_hut, ppcm, loi_cao_su, ng_kich_thuoc, cat_lem FROM production_reports WHERE id IN (${placeholders})`, reportIds),
-    query(`SELECT pr.source_temp_id AS report_id, td.deduction_type_id, dt.deduction_code, dt.deduction_name, td.hours FROM production_reports pr INNER JOIN production_temp_deductions td ON td.temp_report_id=pr.source_temp_id LEFT JOIN deduction_types dt ON dt.id=td.deduction_type_id WHERE pr.id IN (${placeholders}) AND pr.source_temp_id IS NOT NULL`, reportIds),
-    query(`SELECT pr.source_temp_id AS report_id, td.defect_type_id, dt.defect_code, dt.defect_name, td.quantity FROM production_reports pr INNER JOIN production_temp_defects td ON td.temp_report_id=pr.source_temp_id LEFT JOIN defect_types dt ON dt.id=td.defect_type_id WHERE pr.id IN (${placeholders}) AND pr.source_temp_id IS NOT NULL`, reportIds),
+    query(`SELECT pr.id AS report_id, td.deduction_type_id, dt.deduction_code, dt.deduction_name, td.hours FROM production_reports pr INNER JOIN production_temp_deductions td ON td.temp_report_id=pr.source_temp_id LEFT JOIN deduction_types dt ON dt.id=td.deduction_type_id WHERE pr.id IN (${placeholders}) AND pr.source_temp_id IS NOT NULL`, reportIds),
+    query(`SELECT pr.id AS report_id, td.defect_type_id, dt.defect_code, dt.defect_name, td.quantity FROM production_reports pr INNER JOIN production_temp_defects td ON td.temp_report_id=pr.source_temp_id LEFT JOIN defect_types dt ON dt.id=td.defect_type_id WHERE pr.id IN (${placeholders}) AND pr.source_temp_id IS NOT NULL`, reportIds),
     query(`SELECT ml.report_id, md.machine_line_id, md.defect_type_id, md.defect_code, md.defect_name, md.quantity FROM production_report_machine_lines ml INNER JOIN production_report_machine_defects md ON md.machine_line_id=ml.id WHERE ml.report_id IN (${placeholders}) ORDER BY ml.report_id, md.id`, reportIds)
   ]);
 
