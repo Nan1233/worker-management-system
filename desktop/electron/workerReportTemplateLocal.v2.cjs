@@ -16,7 +16,6 @@ let cachedTemplateBuffer = null;
 const normalize = (value) => String(value ?? '')
   .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   .replace(/[đĐ]/g, 'd').replace(/\s+/g, ' ').trim().toLowerCase();
-const key = (value) => normalize(value).replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 const number = (value) => {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   const n = Number(String(value ?? '').replace(/,/g, '').trim());
@@ -24,7 +23,6 @@ const number = (value) => {
 };
 
 const DETAIL_ALIASES = Object.freeze({
-  // Legacy/form labels -> canonical template labels.
   'kqd dap lai': 'kqd', 'kqd tuột': 'kqd', 'kqd dl': 'kqd',
   'vo do long': 'vo cao su', 'vo long': 'vo cao su',
   'xuoc do long': 'k xuoc cong gay', 'xuoc long': 'k xuoc cong gay',
@@ -34,12 +32,7 @@ const DETAIL_ALIASES = Object.freeze({
   'cat lem': 'cat lem', '5s': '5s', 'hoc viec dao tao': 'hoc viec',
   'di muon ve som': 'di muon ve som'
 });
-
-function canonicalDetailKey(value) {
-  const n = normalize(value);
-  if (!n) return '';
-  return normalize(DETAIL_ALIASES[n] || n);
-}
+const canonicalDetailKey = (value) => normalize(DETAIL_ALIASES[normalize(value)] || normalize(value));
 
 function templateCandidates(appPath) {
   const candidates = [
@@ -48,9 +41,7 @@ function templateCandidates(appPath) {
     path.resolve(__dirname, '..', '..', 'backend', 'templates', TEMPLATE_NAME),
     path.resolve(process.cwd(), 'backend', 'templates', TEMPLATE_NAME)
   ];
-  if (process.resourcesPath) {
-    candidates.unshift(path.join(process.resourcesPath, 'templates', TEMPLATE_NAME));
-  }
+  if (process.resourcesPath) candidates.unshift(path.join(process.resourcesPath, 'templates', TEMPLATE_NAME));
   return [...new Set(candidates)];
 }
 async function resolveTemplatePath(appPath) {
@@ -141,8 +132,7 @@ function typeKeys(type, kind) {
   const values = kind === 'deduction'
     ? [type.id, type.code, type.deduction_code, type.name, type.deduction_name]
     : [type.id, type.code, type.defect_code, type.name, type.defect_name];
-  return values.filter((v) => v !== null && v !== undefined && String(v) !== '')
-    .map((v) => normalize(v));
+  return values.filter((v) => v !== null && v !== undefined && String(v) !== '').map(normalize);
 }
 function itemKeys(item, kind) {
   const values = kind === 'deduction'
@@ -165,8 +155,7 @@ function resolveType(item, processData, kind) {
   return types.find((type) => typeKeys(type, kind).some((candidate) => keys.includes(candidate))) || null;
 }
 function typeCandidates(type, kind) {
-  const raw = typeKeys(type, kind).concat(typeLabel(type, kind));
-  return [...new Set(raw.map(canonicalDetailKey).filter(Boolean))];
+  return [...new Set(typeKeys(type, kind).concat(typeLabel(type, kind)).map(canonicalDetailKey).filter(Boolean))];
 }
 function detailColumn(map, type, kind) {
   const candidates = typeCandidates(type, kind);
@@ -223,23 +212,15 @@ function buildDetailValueMap(report, processData, kind) {
     const value = detailValue(item, kind);
     if (!value) continue;
     const type = resolveType(item, processData, kind);
-    const keys = new Set(type ? typeKeys(type, kind) : itemKeys(item, kind));
-    for (const candidate of keys) {
-      values.set(candidate, (values.get(candidate) || 0) + value);
-      values.set(canonicalDetailKey(candidate), (values.get(canonicalDetailKey(candidate)) || 0) + value);
-    }
-    if (type) {
-      for (const candidate of typeCandidates(type, kind)) values.set(candidate, (values.get(candidate) || 0) + value);
-    }
+    const rawKeys = type ? typeKeys(type, kind) : itemKeys(item, kind);
+    const candidates = new Set(rawKeys.map(canonicalDetailKey).filter(Boolean));
+    if (type) for (const candidate of typeCandidates(type, kind)) candidates.add(candidate);
+    for (const candidate of candidates) values.set(candidate, (values.get(candidate) || 0) + value);
   }
   return values;
 }
 function valueForType(values, type, kind) {
-  for (const candidate of [...typeKeys(type, kind), ...typeCandidates(type, kind)]) {
-    if (values.has(candidate)) return values.get(candidate);
-    const canonical = canonicalDetailKey(candidate);
-    if (values.has(canonical)) return values.get(canonical);
-  }
+  for (const candidate of typeCandidates(type, kind)) if (values.has(candidate)) return values.get(candidate);
   return 0;
 }
 function writeValue(row, column, value) { if (column) row.getCell(column).value = value == null ? null : value; }
