@@ -58,6 +58,13 @@ async function __ktcCleanupLegacyMonthlyLayout(root, date) {
 function patchMainSource(source) {
   let next = String(source);
 
+  // The injected export logic below references PROCESS_CODES inside main.cjs.
+  // main.cjs does not own that constant, so define it in the patched source
+  // itself. Keep the list identical to the worker-template contract.
+  if (!next.includes('const PROCESS_CODES = Object.freeze([')) {
+    next = `const PROCESS_CODES = Object.freeze(['CAN', 'EP', 'XLBV', 'GC', 'MAI', 'DO', 'K1', 'K2', 'SX3']);\n${next}`;
+  }
+
   next = next.replace(/\n\s*\/\/ File tổng hợp: 00_TONG_HOP_SAN_XUAT_MM-YYYY\.xlsx[\s\S]*?\n\s*\/\/ 9 công đoạn: giữ đúng cấu trúc file local đã được smoke-test\./, '\n\n    // 9 công đoạn: dùng cùng template báo cáo công nhân; không tạo file tổng hợp.');
   next = next.replace(/\n\s*const processFolder = path\.join\(folder, safeFolderName\(processBuilt\.processName \|\| processBuilt\.processCode\)\);\n\s*await fs\.mkdir\(processFolder, \{ recursive: true \}\);/g, '');
   next = next.replace(/path\.join\(\s*processFolder,\s*/g, 'path.join(\n        folder,\n        ');
