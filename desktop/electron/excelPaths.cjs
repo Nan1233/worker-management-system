@@ -18,7 +18,7 @@ const LOCAL_FALLBACK_EXPORT_ROOT = path.join(os.homedir(), 'Documents', 'KTC', '
 // Gia công keeps the existing export untouched and is additionally mirrored to
 // the monthly production-report folder using the approved workbook template.
 const GIA_CONG_SAMPLE_ROOT = String(process.env.KTC_GIA_CONG_SAMPLE_ROOT || '').trim()
-  || '\\\\KTCNAS\\Public\\3. SX2  製造2\\4. Báo cáo tháng, Báo cáo KPI, Báo cáo chi phí+ mục tiêu trọng điểm\\1. Báo cáo sản xuất';
+  || '\\\\KTCNAS\\Public\\3. SẢN XUẤT-製造\\3. SX2  製造2\\4. Báo cáo tháng, Báo cáo KPI, Báo cáo chi phí+ mục tiêu trọng điểm\\1. Báo cáo sản xuất';
 const GIA_CONG_SAMPLE_MONTH_PREFIX = String(process.env.KTC_GIA_CONG_SAMPLE_MONTH_PREFIX || '12.').trim() || '12.';
 const GIA_CONG_SAMPLE_FILE_RE = /^A\+B GIA CÔNG THÁNG (0[1-9]|1[0-2])-(\d{4})\.xlsx$/i;
 const GIA_CONG_PROCESS_FILE_RE = /^04_CAT_LONG_(0[1-9]|1[0-2])-(\d{4})\.xlsx$/i;
