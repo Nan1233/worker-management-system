@@ -37,7 +37,7 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
             [processId, normalizedProductName, normalizedProductName, normalizedProductName, normalizedProductName, normalizedProductName]
         ) : Promise.resolve([]),
         defectIds.length ? query(`SELECT DISTINCT id, defect_code, defect_name FROM defect_types WHERE process_id = ? AND status = 'active' AND id IN (${defectIds.map(() => "?").join(",")})`, [processId, ...defectIds]) : Promise.resolve([]),
-        deductionIds.length ? query(`SELECT DISTINCT d.id FROM deduction_types d LEFT JOIN processes dp ON dp.id = d.process_id WHERE d.status = 'active' AND d.id IN (${deductionIds.map(() => "?").join(",")}) AND (d.process_id = ? OR (? = 60006 AND UPPER(TRIM(COALESCE(dp.process_code, ''))) = 'CVK'))`, [...deductionIds, processId, processId]) : Promise.resolve([]),
+        deductionIds.length ? query(`SELECT DISTINCT d.id FROM deduction_types d LEFT JOIN processes dp ON dp.id = d.process_id WHERE d.status = 'active' AND d.id IN (${deductionIds.map(() => "?").join(",")}) AND (d.process_id = ? OR (? = 60006 AND UPPER(TRIM(COALESCE(dp.process_code, ''))) = 'CVK')`, [...deductionIds, processId, processId]) : Promise.resolve([]),
         query(`SELECT process_code FROM processes WHERE id = ? LIMIT 1`, [processId])
     ]);
 
@@ -86,13 +86,19 @@ const validateMasterData = async ({ workerId, processId, machineNo, productName,
             machineStandardId = null;
             productStandardId = Number(products[0].id) || null;
         } else {
+            const normalizedGcWorkType = processCode === "GC"
+                ? (normalizedMachineNo
+                    ? (/^ML\d+$/i.test(normalizedMachineNo) ? "Lồng" : (/^C\d+/i.test(normalizedMachineNo) ? "Cắt" : null))
+                    : "Lồng")
+                : null;
             const resolvedStandard = await resolveStandard({
                 processId,
                 productCode: normalizedProductName,
                 machineId: normalizedOperationMode === "MACHINE" ? (machines[0]?.id || null) : null,
                 machineCode: normalizedOperationMode === "MACHINE" ? (machines[0]?.machine_code || null) : null,
                 workDate,
-                operationMode: normalizedOperationMode
+                operationMode: normalizedOperationMode,
+                workType: normalizedGcWorkType
             });
             standardOutput = Number(resolvedStandard.standardOutput);
             excludeKqdFromTt = Number(resolvedStandard.excludeKqdFromTt || 0) === 1 ? 1 : 0;
