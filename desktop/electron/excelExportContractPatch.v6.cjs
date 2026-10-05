@@ -268,7 +268,8 @@ async function buildWorkerSplit({ appPath, date, payload }) {
     processData: merged
   });
   const [year, month] = String(date).slice(0, 7).split('-');
-  built.fileName = `BAO_CAO_CONG_NHAN_${month}-${year}.xlsx`;
+  // Same file name as the earlier export (and the Gia công mirror expects it).
+  built.fileName = `04_CAT_LONG_${month}-${year}.xlsx`;
   built.processCode = 'ALL';
   built.processName = merged.processName;
   if (built.layout !== 'grouped-by-date') {
