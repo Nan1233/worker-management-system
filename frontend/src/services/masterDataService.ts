@@ -132,14 +132,29 @@ const resolveCanonicalProductCode = async (processId: number, productCode: strin
     return String((positiveAlias ?? aliasCandidates[0])?.product_code || productCode).trim();
 };
 
-const findPositiveLocalStandard = (rows: ProductStandardOption[], normalizedProduct: string, canonicalProduct: string): ProductStandardOption | undefined => {
+const inferGcWorkType = (machineCode: string): "CUT" | "LONG" | null => {
+    const code = String(machineCode || "").trim().toUpperCase().replace(/\s+/g, "");
+    if (/^ML\d+$/.test(code)) return "LONG";
+    if (/^C\d+/.test(code)) return "CUT";
+    return null;
+};
+
+const findPositiveLocalStandard = (rows: ProductStandardOption[], normalizedProduct: string, canonicalProduct: string, machineCode = ""): ProductStandardOption | undefined => {
     const normalizedCanonical = String(canonicalProduct || "").trim().toUpperCase();
-    const exactAlias = rows.filter((row) => String(row?.alias_code || "").trim().toUpperCase() === normalizedProduct && Number(row?.standard_output) > 0);
-    if (exactAlias.length === 1) return exactAlias[0];
-    const exactCode = rows.filter((row) => String(row?.product_code || "").trim().toUpperCase() === normalizedProduct && Number(row?.standard_output) > 0);
-    if (exactCode.length === 1) return exactCode[0];
-    const canonicalRows = rows.filter((row) => String(row?.product_code || "").trim().toUpperCase() === normalizedCanonical && Number(row?.standard_output) > 0);
-    return canonicalRows.length === 1 ? canonicalRows[0] : undefined;
+    const normalizedInput = String(normalizedProduct || "").trim().toUpperCase();
+    const workType = inferGcWorkType(machineCode);
+    const matchesProduct = (row: ProductStandardOption) => [row?.product_code, row?.alias_code].some((value) => String(value || "").trim().toUpperCase() === normalizedInput)
+        || String(row?.product_code || "").trim().toUpperCase() === normalizedCanonical;
+    const positive = rows.filter((row) => matchesProduct(row) && Number.isFinite(Number(row?.standard_output)) && Number(row.standard_output) > 0);
+    if (workType) {
+        const typed = positive.filter((row) => {
+            const type = String(row?.work_type || "").trim().toUpperCase();
+            return workType === "LONG" ? type === "LỒNG" || type === "LONG" : type === "CẮT" || type === "CUT" || type === "CAT";
+        });
+        if (typed.length === 1) return typed[0];
+    }
+    if (positive.length === 1) return positive[0];
+    return undefined;
 };
 
 const toLocalResolvedStandard = (row: ProductStandardOption, processId: number, machineCode: string, requestedProductCode?: string): ResolvedProductStandard => {
@@ -186,7 +201,7 @@ export const resolveProductStandard = async (processId: number, machineCode: str
     if (!(await hasExactProcessProduct(processId, normalizedProduct, normalizedMachine))) throw new Error(`Sản phẩm ${normalizedProduct} không có trong danh mục công đoạn`);
 
     const canonicalProduct = await resolveCanonicalProductCode(processId, normalizedProduct, normalizedMachine);
-    const localStandard = findPositiveLocalStandard(rows, lookupProduct.toUpperCase(), canonicalProduct);
+    const localStandard = findPositiveLocalStandard(rows, lookupProduct.toUpperCase(), canonicalProduct, normalizedMachine);
 
     if (!normalizedMachine) {
         const candidates = rows.filter((row) => [row?.product_code, row?.alias_code].some((value) => String(value || "").trim().toUpperCase() === normalizedProduct.toUpperCase()));
@@ -203,7 +218,10 @@ export const resolveProductStandard = async (processId: number, machineCode: str
         if (resolvedOutput > 0) return { ...resolved, product_code: normalizedProduct, alias_code: resolved?.alias_code || normalizedProduct };
         throw new Error(resolved?.message || `Không có định mức hợp lệ cho ${normalizedProduct} / ${normalizedMachine}`);
     } catch (error: any) {
-        if (!error?.response && localStandard) return toLocalResolvedStandard(localStandard, processId, normalizedMachine, normalizedProduct);
+        // If machine-specific resolution fails (including HTTP 4xx), use the
+        // process product standard. GC C* -> Cắt, ML* -> Lồng, so the two
+        // product_standards rows are resolved deterministically.
+        if (localStandard) return toLocalResolvedStandard(localStandard, processId, normalizedMachine, normalizedProduct);
         throw error;
     }
 };
