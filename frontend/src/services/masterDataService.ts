@@ -173,11 +173,6 @@ export const resolveProductStandard = async (processId: number, machineCode: str
     const normalizedProduct = String(productCode || "").trim();
     if (!normalizedProduct) throw new Error("Thiếu mã sản phẩm để tra định mức");
 
-    // GC / Lồng tay special jobs are intentionally stored with standard_output=0.
-    // They do not use historical standards and must never call the standard-history
-    // resolver. The form currently requires a positive value for legacy validation,
-    // so expose a UI-only positive placeholder; processReportSubmission converts
-    // these exact codes back to standard_output=0 in the persisted payload.
     if (Number(processId) === 1 && NO_STANDARD_LONG_WORK_CODES.has(normalizedProduct.toUpperCase())) {
         return {
             product_standard_id: 0,
@@ -212,15 +207,19 @@ export const resolveProductStandard = async (processId: number, machineCode: str
     }
 
     try {
-        const response = await api.get("/product-standards/resolve", { params: { process_id: processId, machine_code: normalizedMachine, product_code: lookupProduct, work_date: workDate || undefined } });
-        const resolved = response.data?.data ?? response.data;
-        const resolvedOutput = Number(resolved?.resolved_output_per_hour || 0);
-        if (resolvedOutput > 0) return { ...resolved, product_code: normalizedProduct, alias_code: resolved?.alias_code || normalizedProduct };
-        throw new Error(resolved?.message || `Không có định mức hợp lệ cho ${normalizedProduct} / ${normalizedMachine}`);
+        const resolved = await api.get("/product-standards/resolve", {
+            params: {
+                process_id: processId,
+                machine_code: normalizedMachine,
+                product_code: lookupProduct,
+                work_date: workDate || undefined,
+            },
+        });
+        const resolvedData = resolved.data?.data ?? resolved.data;
+        const resolvedOutput = Number(resolvedData?.resolved_output_per_hour || 0);
+        if (resolvedOutput > 0) return { ...resolvedData, product_code: normalizedProduct, alias_code: resolvedData?.alias_code || normalizedProduct };
+        throw new Error(resolvedData?.message || `Không có định mức hợp lệ cho ${normalizedProduct} / ${normalizedMachine}`);
     } catch (error: any) {
-        // If machine-specific resolution fails (including HTTP 4xx), use the
-        // process product standard. GC C* -> Cắt, ML* -> Lồng, so the two
-        // product_standards rows are resolved deterministically.
         if (localStandard) return toLocalResolvedStandard(localStandard, processId, normalizedMachine, normalizedProduct);
         throw error;
     }
