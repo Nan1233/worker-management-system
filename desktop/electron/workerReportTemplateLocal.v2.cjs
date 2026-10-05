@@ -33,6 +33,36 @@ const DETAIL_ALIASES = Object.freeze({
   'di muon ve som': 'di muon ve som'
 });
 
+// DB detail name (as entered on the worker form) -> template column header.
+// Several DB types may share one template column; their values are summed.
+const TEMPLATE_COLUMN_ALIASES = Object.freeze({
+  // Trừ H (CAN/EP/XLBV/MAI/DO/K1/K2/SX3 catalogue -> worker template)
+  'bat may, xet may, dau gio': 'bat may, xet may',
+  'cho hang, het hang': 'cho hang',
+  'bao duong': 'bao duong may',
+  'ho tro': 'dung may di ho tro',
+  '5s, do bui, xi bui, lay bui': '5s',
+  'hoc viec': 'hoc viec, dao tao',
+  // NG Gia công (LONG/CAT catalogue -> worker template)
+  'khong qua duong': 'kqd',
+  'cao su vo': 'vo cao su',
+  'truc xuoc': 'k xuoc cong gay',
+  'truc gay, cong': 'k xuoc cong gay',
+  'thieu cao su': 'thieu cao su',
+  'lan cao su': 'lan cs',
+  'cao su khong dut': 'cat khong dut',
+  'cao su ngan': 'chan ngan dai',
+  'cao su dai': 'chan ngan dai',
+  'bavia cao su': 'bavia',
+  'phe pham chinh may': 'ppcm',
+  'loi cao su ( ncc )': 'lcs',
+  'loi cao su (ncc)': 'lcs',
+  // NG other processes
+  'rach nguyen vat lieu': 'rach nvl',
+  'kich thuoc lon': 'kt lon',
+  'kich thuoc nho': 'kt nho'
+});
+
 function detailVariants(value) {
   const raw = normalize(value);
   if (!raw) return [];
@@ -204,27 +234,40 @@ function detailColumn(map, type, kind) {
 // matches win before partial matches, so "Chỉnh máy" can never steal
 // "Chờ chỉnh máy" and an unmatched type is never written into STT/Máy/Ca.
 function assignDetailColumns(rangeMap, types, kind) {
+  const usedTypes = new Set();
+  const aliasColumns = new Set();
+  const assigned = [];
+  const headerToColumn = new Map([...rangeMap.entries()].map(([column, header]) => [normalize(header), column]));
+  for (const type of types) {
+    const target = TEMPLATE_COLUMN_ALIASES[normalize(typeLabel(type, kind))];
+    const column = target ? headerToColumn.get(normalize(target)) : null;
+    if (!column) continue;
+    usedTypes.add(type);
+    aliasColumns.add(column);
+    assigned.push({ type, column });
+  }
   const pairs = [];
   for (const type of types) {
+    if (usedTypes.has(type)) continue;
     const candidates = typeCandidates(type, kind);
     for (const [column, header] of rangeMap.entries()) {
+      if (aliasColumns.has(column)) continue;
       const score = detailScore(header, candidates);
       if (score > 0) pairs.push({ type, column, score });
     }
   }
   pairs.sort((a, b) => b.score - a.score || a.column - b.column);
-  const usedTypes = new Set();
   const usedColumns = new Set();
-  const assigned = [];
   for (const pair of pairs) {
     if (usedTypes.has(pair.type) || usedColumns.has(pair.column)) continue;
     usedTypes.add(pair.type);
     usedColumns.add(pair.column);
     assigned.push({ type: pair.type, column: pair.column });
   }
-  const unmatched = types.filter((type) => !usedTypes.has(type)).map((type) => typeLabel(type, kind));
+  const unmatchedTypes = types.filter((type) => !usedTypes.has(type));
+  const unmatched = unmatchedTypes.map((type) => typeLabel(type, kind));
   assigned.sort((a, b) => a.column - b.column);
-  return { assigned, unmatched };
+  return { assigned, unmatched, unmatchedTypes };
 }
 
 function subMap(map, predicate) {
@@ -297,6 +340,8 @@ function buildColumnContract(map, processData) {
     defects: defectResult.assigned,
     unmatchedDeductionTypes: deductionResult.unmatched,
     unmatchedDefectTypes: defectResult.unmatched,
+    unmatchedDeductionTypeObjects: deductionResult.unmatchedTypes,
+    unmatchedDefectTypeObjects: defectResult.unmatchedTypes,
     detailColumns: [...detailColumns].sort((a, b) => a - b),
     lastColumn
   };
@@ -330,6 +375,27 @@ function clearDataRows(sheet, startRow, count, columnCount) {
   }
 }
 
+function writeDetailBlock(row, report, processData, assigned, kind) {
+  const columnByType = new Map(assigned.map((item) => [item.type, item.column]));
+  const sums = new Map(assigned.map((item) => [item.column, 0]));
+  for (const item of detailItems(report, kind)) {
+    const value = detailValue(item, kind);
+    if (!value) continue;
+    let column = null;
+    const type = resolveType(item, processData, kind);
+    if (type) column = columnByType.get(type) || null;
+    if (!column) {
+      const keys = new Set(itemKeys(item, kind).flatMap(detailVariants).map(canonicalDetailKey));
+      const hit = assigned.find((entry) => typeCandidates(entry.type, kind).some((candidate) => keys.has(candidate)));
+      column = hit?.column || null;
+    }
+    if (column) sums.set(column, (sums.get(column) || 0) + value);
+  }
+  for (const [column, total] of sums.entries()) {
+    row.getCell(column).value = total ? Math.round(total * 10000) / 10000 : null;
+  }
+}
+
 function applyReportRow(row, report, contract, processData, index) {
   const set = (column, value) => writeValue(row, column, value);
   set(contract.cols.stt, index + 1);
@@ -357,10 +423,43 @@ function applyReportRow(row, report, contract, processData, index) {
   set(contract.cols.note, report.note || report.review_note);
   set(contract.cols.id, Number(report.id) || null);
 
-  const deductionValues = buildDetailValueMap(report, processData, 'deduction');
-  for (const item of contract.deductions) set(item.column, valueForType(deductionValues, item.type, 'deduction'));
-  const defectValues = buildDetailValueMap(report, processData, 'defect');
-  for (const item of contract.defects) set(item.column, valueForType(defectValues, item.type, 'defect'));
+  writeDetailBlock(row, report, processData, contract.deductions, 'deduction');
+  writeDetailBlock(row, report, processData, contract.defects, 'defect');
+}
+
+// A DB type that has no column in the template must not silently disappear.
+// When at least one report of this file has a value for it, append a column
+// after the template's last column, labelled "Trừ H: <tên>" / "NG: <tên>".
+function appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, processData) {
+  let next = Number(contract.lastColumn || sheet.columnCount) + 1;
+  const headerSource = sheet.getRow(headerRow).getCell(Number(contract.lastColumn || sheet.columnCount));
+  const blocks = [
+    ['deduction', contract.unmatchedDeductionTypeObjects || [], contract.deductions, 'Trừ H'],
+    ['defect', contract.unmatchedDefectTypeObjects || [], contract.defects, 'NG']
+  ];
+  for (const [kind, types, target, prefix] of blocks) {
+    const used = new Set();
+    for (const report of reports) {
+      for (const item of detailItems(report, kind)) {
+        if (!detailValue(item, kind)) continue;
+        const type = resolveType(item, processData, kind);
+        if (type && types.includes(type)) used.add(type);
+      }
+    }
+    const labels = types.map((type) => typeLabel(type, kind));
+    for (const type of types) {
+      if (!used.has(type)) continue;
+      const label = typeLabel(type, kind);
+      const duplicate = labels.filter((x) => x === label).length > 1;
+      const code = kind === 'deduction' ? (type.deduction_code || type.code) : (type.defect_code || type.code);
+      const cell = sheet.getRow(headerRow).getCell(next);
+      cell.value = `${prefix}: ${label}${duplicate && code ? ` (${code})` : ''}`;
+      if (headerSource.style) cell.style = JSON.parse(JSON.stringify(headerSource.style));
+      sheet.getColumn(next).width = Math.max(10, Math.min(24, String(cell.value).length + 2));
+      target.push({ type, column: next });
+      next += 1;
+    }
+  }
 }
 
 async function buildWorkerProcessWorkbook({ appPath, processCode, processName, date, processData = {} }) {
@@ -380,6 +479,7 @@ async function buildWorkerProcessWorkbook({ appPath, processCode, processName, d
   const columnMap = findColumnMap(sheet, headerRow);
   const contract = buildColumnContract(columnMap, processData);
   reports.sort((a, b) => String(a?.work_date || '').localeCompare(String(b?.work_date || '')) || number(a?.id) - number(b?.id));
+  appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, processData);
 
   const dataStartRow = findDataStartRow(sheet, headerRow);
   const sourceRow = sheet.getRow(dataStartRow);
