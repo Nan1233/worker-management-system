@@ -22,7 +22,7 @@ function createGcFixtureQuery() {
       return [{
         product_standard_id: isLong ? 31 : 60031,
         product_code: '15U-T',
-        encoding_code: isLong ? '60031' : '60031',
+        encoding_code: '60031',
         work_type: isLong ? 'Lồng' : 'Cắt',
         standard_output: 180,
         exclude_kqd_from_tt: 0
@@ -63,4 +63,19 @@ test('GC C5 resolves product standards through Cắt work type when no machine-s
   assert.equal(resolved.productStandardId, 60031);
   assert.equal(resolved.standardOutput, 180);
   assert.equal(resolved.machineCode, 'C5');
+});
+
+test('GC manual mode resolves to Lồng standard instead of treating Cắt/Lồng rows as ambiguous', async () => {
+  const resolver = createStandardResolver({ query: createGcFixtureQuery() });
+  const resolved = await resolver.resolveStandard({
+    processId: 1,
+    productCode: '15U-T',
+    operationMode: 'MANUAL',
+    workDate: '2026-10-04'
+  });
+
+  assert.equal(resolved.productStandardId, 31);
+  assert.equal(resolved.standardOutput, 180);
+  assert.equal(resolved.machineCode, null);
+  assert.match(resolved.source, /LEGACY_PRODUCT_STANDARD/);
 });
