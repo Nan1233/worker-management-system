@@ -111,9 +111,11 @@ function getExportRoot() {
   // same NAS/local decision for this desktop session.
   process.env.KTC_EXPORT_ROOT = root;
 
-  // Keep the existing export untouched, then asynchronously mirror only the
-  // Gia công A+B workbook into its separate monthly-report destination.
-  scheduleGiaCongSampleMirrorScan(root);
+  // The Gia công A+B mirror into the separate monthly-report folder is disabled:
+  // the monthly worker report is now a single workbook written to the export
+  // root, so the copy in "1. Báo cáo sản xuất\\<year>\\NN. Tháng MM-YYYY" was
+  // redundant. Set KTC_GIA_CONG_SAMPLE_MIRROR=1 to turn it back on.
+  if (String(process.env.KTC_GIA_CONG_SAMPLE_MIRROR || '') === '1') scheduleGiaCongSampleMirrorScan(root);
   return root;
 }
 
