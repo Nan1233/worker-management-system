@@ -27,7 +27,7 @@ async function attachSubmissionTimestamps(processData) {
 
   const placeholders = sourceTempIds.map(() => '?').join(',');
   const [rows] = await db.promise().query(
-    `SELECT id, created_at AS submitted_at
+    `SELECT id, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS submitted_at
        FROM production_reports_temp
       WHERE id IN (${placeholders})`,
     sourceTempIds,
