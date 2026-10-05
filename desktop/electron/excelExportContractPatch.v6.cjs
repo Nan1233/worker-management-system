@@ -183,9 +183,55 @@ function processRows(payload) {
   });
 }
 
+const { mergeDefects, normalizeDeductions } = require('./reportDetailNormalizer.cjs');
+
+function sumPositive(rows, field) {
+  return (Array.isArray(rows) ? rows : []).reduce((sum, row) => {
+    const value = Number(row?.[field]);
+    return sum + (Number.isFinite(value) && value > 0 ? value : 0);
+  }, 0);
+}
+function sameNumber(a, b, tolerance = 0.01) {
+  return Math.abs(Number(a || 0) - Number(b || 0)) <= tolerance;
+}
+
+// Same selection + normalisation the backend used to run (moved off the Worker).
+function hydrateReportDetails(processData) {
+  const types = Array.isArray(processData?.deductionTypes) ? processData.deductionTypes : [];
+  for (const report of Array.isArray(processData?.reports) ? processData.reports : []) {
+    const raw = report?.rawDetail;
+    if (!raw) continue;
+    const deductionRows = raw.deductionRows || [];
+    const tempDeductionRows = raw.tempDeductionRows || [];
+    const expectedDeductionHours = Number(report.deduction_time) || 0;
+    const selectedDeductionRows = expectedDeductionHours > 0
+      && !sameNumber(sumPositive(deductionRows, 'hours'), expectedDeductionHours)
+      && sameNumber(sumPositive(tempDeductionRows, 'hours'), expectedDeductionHours)
+      ? tempDeductionRows
+      : deductionRows;
+    report.deductions = normalizeDeductions(selectedDeductionRows, report, report.machineLines || [], types);
+
+    const defectRows = raw.defectRows || [];
+    const tempDefectRows = raw.tempDefectRows || [];
+    const expectedDefects = Math.trunc(Number(report.tt_ng) || 0);
+    const selectedDefectRows = expectedDefects > 0
+      && Math.trunc(sumPositive(defectRows, 'quantity')) !== expectedDefects
+      && Math.trunc(sumPositive(tempDefectRows, 'quantity')) === expectedDefects
+      ? tempDefectRows
+      : defectRows;
+    report.defects = mergeDefects(report, selectedDefectRows, report.machineLines || []);
+    report.excelDeductionsSource = selectedDeductionRows === tempDeductionRows
+      ? 'production_temp_deductions_fallback' : 'production_report_deductions';
+    report.excelDefectsSource = selectedDefectRows.length
+      ? (selectedDefectRows === tempDefectRows ? 'production_temp_defects_fallback' : 'production_report_defects')
+      : (report.defects.length ? 'legacy_columns_normalized' : 'none');
+  }
+}
+
 async function buildWorkerSplit({ appPath, date, payload }) {
   const processes = [];
   for (const item of processRows(payload)) {
+    hydrateReportDetails(item.data);
     let built = await buildWorkerProcessWorkbook({
       appPath,
       processCode: item.processCode,

@@ -3,7 +3,6 @@ const { getActorProcessScope } = require('./processAuthorizationService');
 const { assertReportVolume, chunkArray } = require('./excelExportGuards');
 const { hasColumn } = require('./schemaCompatibilityService');
 const { assertTrainingSnapshotAvailable } = require('./trainingSnapshotService');
-const { mergeDefects, normalizeDeductions } = require('../utils/reportDetailNormalizer');
 
 const PROCESS_CODES = ['CAN','EP','XLBV','GC','MAI','DO','K1','K2','SX3'];
 const query = (sql, params = []) => db.promise().query(sql, params).then(([rows]) => rows);
@@ -288,43 +287,17 @@ async function loadBulkCompanyReports(yearMonth, actor) {
       eventDefectsByEvent,
     );
 
-    const reportDeductionRows = deductions.get(id) || [];
-    const reportTempDeductionRows = tempDeductions.get(id) || [];
-    const expectedDeductionHours = Number(report.deduction_time) || 0;
-    const persistedDeductionHours = sumPositive(reportDeductionRows, 'hours');
-    const tempDeductionHours = sumPositive(reportTempDeductionRows, 'hours');
-    const selectedDeductionRows = expectedDeductionHours > 0
-      && !sameNumber(persistedDeductionHours, expectedDeductionHours)
-      && sameNumber(tempDeductionHours, expectedDeductionHours)
-      ? reportTempDeductionRows
-      : reportDeductionRows;
-
-    report.deductions = normalizeDeductions(
-      selectedDeductionRows,
-      report,
-      report.machineLines,
-      deductionTypes.filter((type) => Number(type.process_id) === Number(report.process_id)),
-    );
-
-    const reportDefectRows = defects.get(id) || [];
-    const reportTempDefectRows = tempDefects.get(id) || [];
-    const expectedDefects = Math.trunc(Number(report.tt_ng) || 0);
-    const persistedDefects = sumPositive(reportDefectRows, 'quantity');
-    const tempDefectsTotal = sumPositive(reportTempDefectRows, 'quantity');
-    const selectedDefectRows = expectedDefects > 0
-      && Math.trunc(persistedDefects) !== expectedDefects
-      && Math.trunc(tempDefectsTotal) === expectedDefects
-      ? reportTempDefectRows
-      : reportDefectRows;
-
-    report.defects = mergeDefects(report, selectedDefectRows, report.machineLines);
-    report.excelDefectsSource = selectedDefectRows.length
-      ? (selectedDefectRows === reportTempDefectRows ? 'production_temp_defects_fallback' : 'production_report_defects')
-      : (report.defects.length ? 'legacy_columns_normalized' : 'none');
-    report.excelDeductionsSource = selectedDeductionRows === reportTempDeductionRows
-      ? 'production_temp_deductions_fallback'
-      : 'production_report_deductions';
-
+    // Detail normalisation (legacy extra_data parsing, temp fallback and
+    // reconciliation) is CPU-heavy for a whole month and exceeded the Cloudflare
+    // Worker CPU limit. The Worker now only ships the raw DB rows; Desktop runs
+    // the same reportDetailNormalizer locally before writing Excel.
+    report.rawDetail = {
+      deductionRows: deductions.get(id) || [],
+      tempDeductionRows: tempDeductions.get(id) || [],
+      defectRows: defects.get(id) || [],
+      tempDefectRows: tempDefects.get(id) || []
+    };
+    report.detailNormalization = 'desktop';
     report.dataSource = 'production_reports';
     report.isApprovedDatabaseRecord = true;
   }
