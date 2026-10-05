@@ -14,8 +14,8 @@ function createGcFixtureQuery() {
     if (text.includes('from product_machine_standards')) return [];
 
     if (text.includes('from product_standards')) {
-      const isLong = text.includes("upper(trim(ps.work_type)) = 'lồng'");
-      const isCut = text.includes("upper(trim(ps.work_type)) = 'cắt'");
+      const isLong = /upper\(trim\(ps\.work_type\)\)\s*=\s*'lồng'/.test(text);
+      const isCut = /upper\(trim\(ps\.work_type\)\)\s*=\s*'cắt'/.test(text);
       if (!isLong && !isCut) {
         throw new Error(`GC product lookup must specify work_type: ${text}`);
       }
