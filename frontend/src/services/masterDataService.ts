@@ -193,28 +193,28 @@ export const resolveProductStandard = async (processId: number, machineCode: str
     const rows = await getCachedProcessProductRows(processId);
     const automaticAlias = await getAutomaticAliasProduct(processId, normalizedMachine, normalizedProduct, rows);
     const lookupProduct = automaticAlias?.product_code ? String(automaticAlias.product_code).trim() : normalizedProduct;
-    if (!(await hasExactProcessProduct(processId, normalizedProduct, normalizedMachine))) throw new Error(`Sản phẩm ${normalizedProduct} không có trong danh mục công đoạn`);
-
+    const productExistsInProcess = await hasExactProcessProduct(processId, normalizedProduct, normalizedMachine);
     const canonicalProduct = await resolveCanonicalProductCode(processId, normalizedProduct, normalizedMachine);
     const localStandard = findPositiveLocalStandard(rows, lookupProduct.toUpperCase(), canonicalProduct, normalizedMachine);
 
+    // Business rule:
+    // 1) TAY/MANUAL: resolve by product code only; machine is ignored.
+    // 2) MÁY/AUTO: resolve by machine + product first.
+    // 3) If machine standard is missing/0, fall back to the process/product standard.
+    // Never reject a machine/product pair merely because the product-list endpoint omitted it;
+    // the authoritative resolver is allowed to find a machine-specific standard directly.
     if (!normalizedMachine) {
-        const candidates = rows.filter((row) => [row?.product_code, row?.alias_code].some((value) => String(value || "").trim().toUpperCase() === normalizedProduct.toUpperCase()));
+        const candidates = rows.filter((row) => [row?.product_code, row?.alias_code].some((value) => String(value || "").trim().toUpperCase() === normalizedProduct.toUpperCase()) || String(row?.product_code || "").trim().toUpperCase() === canonicalProduct.toUpperCase());
         const positiveCandidates = candidates.filter((row) => Number.isFinite(Number(row?.standard_output)) && Number(row.standard_output) > 0);
-        const gcLongCandidates = Number(processId) === 1
-            ? positiveCandidates.filter((row) => {
-                const type = String(row?.work_type || "").trim().toUpperCase();
-                return type === "LỒNG" || type === "LONG";
-            })
-            : [];
-        const product = gcLongCandidates.length === 1
-            ? gcLongCandidates[0]
-            : positiveCandidates.length === 1
+        const distinctOutputs = new Set(positiveCandidates.map((row) => Number(row.standard_output)));
+        const product = positiveCandidates.length === 1
+            ? positiveCandidates[0]
+            : distinctOutputs.size === 1 && positiveCandidates.length > 1
                 ? positiveCandidates[0]
                 : candidates.length === 1
                     ? candidates[0]
                     : undefined;
-        if (!product) throw new Error(`Không xác định duy nhất mã sản phẩm ${normalizedProduct} trong công đoạn`);
+        if (!product) throw new Error(`Không xác định duy nhất định mức sản phẩm ${normalizedProduct} trong công đoạn`);
         return toLocalResolvedStandard(product, processId, "", normalizedProduct);
     }
 
@@ -232,7 +232,12 @@ export const resolveProductStandard = async (processId: number, machineCode: str
         if (resolvedOutput > 0) return { ...resolvedData, product_code: normalizedProduct, alias_code: resolvedData?.alias_code || normalizedProduct };
         throw new Error(resolvedData?.message || `Không có định mức hợp lệ cho ${normalizedProduct} / ${normalizedMachine}`);
     } catch (error: any) {
+        // Machine-specific standard is optional. If it is absent or zero, use the
+        // product/process standard for the machine's inferred Cắt/Lồng type.
         if (localStandard) return toLocalResolvedStandard(localStandard, processId, normalizedMachine, normalizedProduct);
+        if (!productExistsInProcess) {
+            throw new Error(`Sản phẩm ${normalizedProduct} không có trong danh mục công đoạn và không có định mức máy/phương án fallback`);
+        }
         throw error;
     }
 };
