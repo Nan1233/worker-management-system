@@ -2,7 +2,6 @@ const db = require('../config/db');
 const { getActorProcessScope } = require('./processAuthorizationService');
 const { assertReportVolume, chunkArray } = require('./excelExportGuards');
 const { hasColumn } = require('./schemaCompatibilityService');
-const { calculateReportPerformance } = require('./machinePerformanceService');
 const { assertTrainingSnapshotAvailable } = require('./trainingSnapshotService');
 
 const PROCESS_CODES = ['CAN','EP','XLBV','GC','MAI','DO','K1','K2','SX3'];
@@ -172,27 +171,10 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     const id = Number(report.id);
     report.deductions = deductions.get(id) || [];
     report.machineLines = machineLines.get(id) || [];
-
-    // DB is the source of truth for Excel. Do not merge, recalculate or replace
-    // saved defect rows with derived values. For machine reports, only use the
-    // already-persisted machine-line defect JSON when the dedicated DB detail
-    // table has no rows at all.
     report.defects = defects.get(id) || [];
     report.excelDefectsSource = report.defects.length > 0
       ? 'production_report_defects'
       : 'none';
-
-    // Keep the persisted production_reports values (total_time, actual_time,
-    // deduction_time, standard_output, actual_output, tt_ok, tt_ng, etc.) intact.
-    // Calculation is only allowed to add fields that are not already persisted;
-    // it must never overwrite a DB value exported to Excel.
-    const calculated = calculateReportPerformance({ report, machineLines: report.machineLines }) || {};
-    for (const [key, value] of Object.entries(calculated)) {
-      if (report[key] === undefined || report[key] === null || report[key] === '') {
-        report[key] = value;
-      }
-    }
-
     report.dataSource = 'production_reports';
     report.isApprovedDatabaseRecord = true;
   }
