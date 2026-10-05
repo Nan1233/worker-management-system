@@ -1,6 +1,5 @@
 const { loadBulkCompanyReports, PROCESS_CODES } = require('../services/bulkCompanyExcelDataService');
 const { getSettingsMap } = require('../services/formulaSettingsService');
-const { calculateProductionMetrics } = require('../domain/productionCalculationEngine.cjs');
 
 const inFlightByScope = new Map();
 const cacheByScope = new Map();
@@ -44,6 +43,10 @@ async function buildCompanyData(yearMonth, actor) {
     mapsByDate.set(date, await getSettingsMap(date));
   }
 
+  // Keep the formula settings in the response, but do NOT calculate a
+  // production snapshot for every report inside the Cloudflare Worker.
+  // Desktop export already owns the calculation step and can perform it
+  // locally without consuming the Worker CPU budget.
   for (const code of PROCESS_CODES) {
     const data = processData[code];
     data.formulaSettingsByDate = Object.fromEntries(
@@ -52,16 +55,6 @@ async function buildCompanyData(yearMonth, actor) {
         return [date, map[code] || map.GLOBAL || null];
       }).filter(([, settings]) => Boolean(settings))
     );
-
-    data.reports = (data.reports || []).map((report) => {
-      const workDate = String(report.work_date || '').slice(0, 10);
-      const map = mapsByDate.get(workDate) || {};
-      const settings = map[code] || map.GLOBAL || undefined;
-      return {
-        ...report,
-        calculationSnapshot: calculateProductionMetrics(report, settings)
-      };
-    });
   }
 
   const formulaSettings = await getSettingsMap(`${yearMonth}-01`);
