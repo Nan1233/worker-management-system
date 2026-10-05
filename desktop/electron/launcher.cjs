@@ -87,6 +87,8 @@ app.on('browser-window-created', (_event, window) => {
 require('./excelExportContractPatch.v5.cjs');
 // Compact one-sheet GC template is layered after v5 and remains DB-first.
 require('./compactGcExcelPatch.cjs');
+// Patch the existing white B column before v6 loads workerReportTemplateLocal.v2.
+require('./excelReportDateSubmissionPatch.cjs');
 // v6 replaces the legacy split/monthly layout with the worker-report template.
 require('./excelExportContractPatch.v6.cjs');
 
