@@ -252,6 +252,19 @@ function assignDetailColumns(rangeMap, types, kind) {
     aliasColumns.add(column);
     assigned.push({ type, column });
   }
+  // Exact header matches may share a column (same name in several processes).
+  for (const type of types) {
+    if (usedTypes.has(type)) continue;
+    const candidates = typeCandidates(type, kind);
+    for (const [column, header] of rangeMap.entries()) {
+      if (detailScore(header, candidates) >= 1000) {
+        usedTypes.add(type);
+        aliasColumns.add(column);
+        assigned.push({ type, column });
+        break;
+      }
+    }
+  }
   const pairs = [];
   for (const type of types) {
     if (usedTypes.has(type)) continue;
@@ -269,6 +282,17 @@ function assignDetailColumns(rangeMap, types, kind) {
     usedTypes.add(pair.type);
     usedColumns.add(pair.column);
     assigned.push({ type: pair.type, column: pair.column });
+  }
+  // Several processes share the same catalogue names (e.g. "Nghỉ giải lao" in
+  // CAN and GC). A type whose label equals an already-placed type reuses that
+  // column instead of getting an extra one.
+  const columnByLabel = new Map(assigned.map((item) => [normalize(typeLabel(item.type, kind)), item.column]));
+  for (const type of types) {
+    if (usedTypes.has(type)) continue;
+    const column = columnByLabel.get(normalize(typeLabel(type, kind)));
+    if (!column) continue;
+    usedTypes.add(type);
+    assigned.push({ type, column });
   }
   const unmatchedTypes = types.filter((type) => !usedTypes.has(type));
   const unmatched = unmatchedTypes.map((type) => typeLabel(type, kind));

@@ -228,27 +228,54 @@ function hydrateReportDetails(processData) {
   }
 }
 
-async function buildWorkerSplit({ appPath, date, payload }) {
-  const processes = [];
-  for (const item of processRows(payload)) {
-    hydrateReportDetails(item.data);
-    let built = await buildWorkerProcessWorkbook({
-      appPath,
-      processCode: item.processCode,
-      processName: item.processName,
-      date,
-      processData: item.data
-    });
-    // A process without approved reports gets no file: the raw template still
-    // contains sample rows and must never be written into the month folder.
-    if (!(built?.reportCount > 0)) continue;
-    // Grouped-by-date layout is written completely by v2 (date rows + STT per day).
-    if (built.layout === 'grouped-by-date') { processes.push(built); continue; }
-    built.buffer = await repairWorkerRows(built.buffer, built, item.data);
-    built.repairContract = 'multi-row-header-v1';
-    processes.push(built);
+// VERSION B: one export = ONE worker-report workbook for the month.
+// All processes' approved reports go into the same sheet (grouped by work
+// date, STT restarting per day); no per-process files, no 00_TONG_HOP.
+function mergeProcessData(rows) {
+  const merged = { processName: 'Báo cáo công nhân', reports: [], deductionTypes: [], defectTypes: [] };
+  const seenDeduction = new Set();
+  const seenDefect = new Set();
+  for (const item of rows) {
+    const data = item.data || {};
+    hydrateReportDetails(data);
+    for (const report of Array.isArray(data.reports) ? data.reports : []) {
+      merged.reports.push({ ...report, process_code: report.process_code || item.processCode });
+    }
+    for (const type of Array.isArray(data.deductionTypes) ? data.deductionTypes : []) {
+      if (seenDeduction.has(String(type?.id))) continue;
+      seenDeduction.add(String(type?.id));
+      merged.deductionTypes.push(type);
+    }
+    for (const type of Array.isArray(data.defectTypes) ? data.defectTypes : []) {
+      if (seenDefect.has(String(type?.id))) continue;
+      seenDefect.add(String(type?.id));
+      merged.defectTypes.push(type);
+    }
   }
-  return { mode: 'WORKER_REPORT_TEMPLATE', processes, summary: null, expectedFileCount: processes.length };
+  return merged;
+}
+
+async function buildWorkerSplit({ appPath, date, payload }) {
+  const merged = mergeProcessData(processRows(payload));
+  if (!merged.reports.length) {
+    return { mode: 'WORKER_REPORT_SINGLE_FILE', processes: [], summary: null, expectedFileCount: 0 };
+  }
+  const built = await buildWorkerProcessWorkbook({
+    appPath,
+    processCode: 'ALL',
+    processName: merged.processName,
+    date,
+    processData: merged
+  });
+  const [year, month] = String(date).slice(0, 7).split('-');
+  built.fileName = `BAO_CAO_CONG_NHAN_${month}-${year}.xlsx`;
+  built.processCode = 'ALL';
+  built.processName = merged.processName;
+  if (built.layout !== 'grouped-by-date') {
+    built.buffer = await repairWorkerRows(built.buffer, built, merged);
+    built.repairContract = 'multi-row-header-v1';
+  }
+  return { mode: 'WORKER_REPORT_SINGLE_FILE', processes: [built], summary: null, expectedFileCount: 1 };
 }
 
 monthly.buildSplitMonthlyWorkbooksLocal = buildWorkerSplit;
