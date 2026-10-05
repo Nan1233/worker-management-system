@@ -110,7 +110,9 @@ async function loadBulkCompanyReports(yearMonth, actor) {
   const reports = await query(
     `SELECT
         pr.id, pr.source_temp_id, pr.worker_id, pr.process_id,
-        pr.work_date, ${entryDateSelect}, pr.shift, pr.operation_type,
+        pr.work_date, ${entryDateSelect},
+        temp.created_at AS submitted_at,
+        pr.shift, pr.operation_type,
         pr.operation_mode, pr.machine_no, pr.product_name,
         pr.total_time, pr.actual_time, pr.deduction_time,
         pr.standard_output, pr.actual_output, pr.tt_ok, pr.tt_ng,
@@ -130,6 +132,7 @@ async function loadBulkCompanyReports(yearMonth, actor) {
        INNER JOIN workers w ON w.id = pr.worker_id
        INNER JOIN users u ON u.id = w.user_id
        INNER JOIN processes p ON p.id = pr.process_id
+       LEFT JOIN production_reports_temp temp ON temp.id = pr.source_temp_id
       WHERE LOWER(TRIM(COALESCE(pr.status, ''))) = 'approved'
         AND pr.work_date >= ? AND pr.work_date < ?
         AND pr.process_id IN (${processPlaceholders})
@@ -231,98 +234,99 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     ]);
   }
 
-  const reportByTemp = new Map(
-    reports
-      .filter((report) => Number(report.source_temp_id) > 0)
-      .map((report) => [Number(report.source_temp_id), Number(report.id)])
-  );
-
-  const deductions = mapDetails(deductionRows, reportIds, (row) => ({
-    id: Number(row.id ?? row.deduction_type_id),
+  const deductionByReport = mapDetails(deductionRows, reportIds, (row) => ({
     deduction_type_id: Number(row.deduction_type_id),
-    code: row.deduction_code || '',
-    name: row.deduction_name || '',
-    deduction_code: row.deduction_code || '',
-    deduction_name: row.deduction_name || '',
+    deduction_type_code: row.deduction_code,
+    deduction_name: row.deduction_name,
     hours: Number(row.hours) || 0
   }));
-  const defects = mapDetails(defectRows, reportIds, (row) => ({
+  const defectByReport = mapDetails(defectRows, reportIds, (row) => ({
     defect_type_id: Number(row.defect_type_id),
-    defect_code: row.defect_code || '',
-    defect_name: row.defect_name || '',
+    defect_type_code: row.defect_code,
+    defect_name: row.defect_name,
     quantity: Number(row.quantity) || 0
   }));
-  const machineLines = mapDetails(machineLineRows, reportIds, (row) => ({ ...row }));
-
-  const tempDeductions = mapDetails(tempDeductionRows.map((row) => {
-    const reportId = reportByTemp.get(Number(row.temp_report_id));
-    return { ...row, report_id: reportId };
-  }).filter((row) => row.report_id), reportIds, (row) => ({
-    id: Number(row.id ?? row.deduction_type_id),
-    deduction_type_id: Number(row.deduction_type_id),
-    code: row.deduction_code || '',
-    name: row.deduction_name || '',
-    deduction_code: row.deduction_code || '',
-    deduction_name: row.deduction_name || '',
-    hours: Number(row.hours) || 0
-  }));
-  const tempDefects = mapDetails(tempDefectRows.map((row) => {
-    const reportId = reportByTemp.get(Number(row.temp_report_id));
-    return { ...row, report_id: reportId };
-  }).filter((row) => row.report_id), reportIds, (row) => ({
-    defect_type_id: Number(row.defect_type_id),
-    defect_code: row.defect_code || '',
-    defect_name: row.defect_name || '',
-    quantity: Number(row.quantity) || 0
-  }));
+  const tempDeductionByReport = new Map();
+  for (const row of tempDeductionRows) {
+    const report = reports.find((item) => Number(item.source_temp_id) === Number(row.temp_report_id));
+    if (!report) continue;
+    const id = Number(report.id);
+    if (!tempDeductionByReport.has(id)) tempDeductionByReport.set(id, []);
+    tempDeductionByReport.get(id).push({
+      deduction_type_id: Number(row.deduction_type_id),
+      deduction_type_code: row.deduction_code,
+      deduction_name: row.deduction_name,
+      hours: Number(row.hours) || 0
+    });
+  }
+  const tempDefectByReport = new Map();
+  for (const row of tempDefectRows) {
+    const report = reports.find((item) => Number(item.source_temp_id) === Number(row.temp_report_id));
+    if (!report) continue;
+    const id = Number(report.id);
+    if (!tempDefectByReport.has(id)) tempDefectByReport.set(id, []);
+    tempDefectByReport.get(id).push({
+      defect_type_id: Number(row.defect_type_id),
+      defect_type_code: row.defect_code,
+      defect_name: row.defect_name,
+      quantity: Number(row.quantity) || 0
+    });
+  }
 
   const machineDefectsByLine = groupMachineDefects(machineDefectRows, 'machine_line_id');
   const eventDefectsByEvent = groupMachineDefects(eventDefectRows, 'machine_event_id');
-
-  for (const report of reports) {
-    const id = Number(report.id);
-    report.machineLines = hydrateMachineLineDefects(
-      machineLines.get(id) || [],
-      machineDefectsByLine,
-      eventDefectsByEvent,
-    );
-
-    // Detail normalisation (legacy extra_data parsing, temp fallback and
-    // reconciliation) is CPU-heavy for a whole month and exceeded the Cloudflare
-    // Worker CPU limit. The Worker now only ships the raw DB rows; Desktop runs
-    // the same reportDetailNormalizer locally before writing Excel.
-    report.rawDetail = {
-      deductionRows: deductions.get(id) || [],
-      tempDeductionRows: tempDeductions.get(id) || [],
-      defectRows: defects.get(id) || [],
-      tempDefectRows: tempDefects.get(id) || []
-    };
-    report.detailNormalization = 'desktop';
-    report.dataSource = 'production_reports';
-    report.isApprovedDatabaseRecord = true;
+  const machineLinesByReport = new Map();
+  for (const line of machineLineRows) {
+    const reportId = Number(line.report_id);
+    if (!machineLinesByReport.has(reportId)) machineLinesByReport.set(reportId, []);
+    machineLinesByReport.get(reportId).push(line);
   }
 
-  const typeByProcess = new Map(processIds.map((id) => [Number(id), { deductions: [], defects: [] }]));
-  for (const row of deductionTypes) typeByProcess.get(Number(row.process_id))?.deductions.push(row);
-  for (const row of defectTypes) typeByProcess.get(Number(row.process_id))?.defects.push(row);
-  const eventByProcess = new Map(processIds.map((id) => [Number(id), []]));
-  for (const row of physicalMachineEvents) eventByProcess.get(Number(row.process_id))?.push(row);
-  const reportsByProcess = new Map(processIds.map((id) => [Number(id), []]));
-  for (const report of reports) reportsByProcess.get(Number(report.process_id))?.push(report);
+  const eventByReport = new Map();
+  for (const line of machineLineRows) {
+    const reportId = Number(line.report_id);
+    const eventId = Number(line.machine_event_id);
+    if (!eventId) continue;
+    if (!eventByReport.has(reportId)) eventByReport.set(reportId, []);
+    eventByReport.get(reportId).push(eventId);
+  }
+  const eventIds = [...new Set([...eventByReport.values()].flat())].filter(Boolean);
+  let eventRows = [];
+  if (eventIds.length) {
+    const p = eventIds.map(() => '?').join(',');
+    eventRows = await query(
+      `SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status
+         FROM machine_production_events
+        WHERE id IN (${p})`,
+      eventIds
+    );
+  }
+  const eventMap = new Map(eventRows.map((row) => [Number(row.id), row]));
 
-  for (const process of processes) {
-    const code = String(process.process_code || '').toUpperCase();
-    const list = reportsByProcess.get(Number(process.id)) || [];
-    processData[code] = {
-      processId: Number(process.id),
-      processCode: code,
-      processName: process.process_name,
-      reports: list,
-      physicalMachineEvents: eventByProcess.get(Number(process.id)) || [],
-      deductionTypes: typeByProcess.get(Number(process.id))?.deductions || [],
-      defectTypes: typeByProcess.get(Number(process.id))?.defects || [],
-      formulaSettingsByDate: {}
-    };
+  for (const [code, data] of Object.entries(processData)) {
+    const process = processes.find((row) => String(row.process_code).toUpperCase() === code);
+    data.processId = process ? Number(process.id) : null;
+    data.processName = process?.process_name || code;
+    data.reports = reports
+      .filter((row) => String(row.process_code).toUpperCase() === code)
+      .map((report) => {
+        const reportId = Number(report.id);
+        const machineLines = hydrateMachineLineDefects(machineLinesByReport.get(reportId) || [], machineDefectsByLine, eventDefectsByEvent);
+        const tempDeductions = tempDeductionByReport.get(reportId) || [];
+        const tempDefects = tempDefectByReport.get(reportId) || [];
+        const persistedDeductions = deductionByReport.get(reportId) || [];
+        const persistedDefects = defectByReport.get(reportId) || [];
+        return {
+          ...report,
+          deductions: tempDeductions.length ? tempDeductions : persistedDeductions,
+          defects: tempDefects.length ? tempDefects : persistedDefects,
+          machineLines,
+          eventLines: (eventByReport.get(reportId) || []).map((id) => eventMap.get(id)).filter(Boolean)
+        };
+      });
+    data.physicalMachineEvents = physicalMachineEvents.filter((row) => String(row.process_id) === String(data.processId));
+    data.deductionTypes = deductionTypes.filter((row) => String(row.process_id) === String(data.processId));
+    data.defectTypes = defectTypes.filter((row) => String(row.process_id) === String(data.processId));
   }
 
   return { processData, processIds, scope };
