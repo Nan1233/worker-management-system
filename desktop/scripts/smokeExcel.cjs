@@ -3,6 +3,7 @@ const os = require('node:os');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const ExcelJS = require('exceljs');
+require('../electron/excelReportDateSubmissionPatch.cjs');
 require('../electron/excelExportContractPatch.v6.cjs');
 const { buildWorkerProcessWorkbook, PROCESS_FILE_PREFIXES, TEMPLATE_NAME } = require('../electron/workerReportTemplateLocal.v2.cjs');
 
@@ -13,6 +14,7 @@ function report(overrides = {}) {
     isApprovedDatabaseRecord: true,
     work_date: '2026-08-01',
     entry_date: '2026-08-02',
+    submitted_at: '2026-08-02 08:00:00',
     created_at: '2026-08-02T08:00:00.000Z',
     approved_at: '2026-08-02T09:00:00.000Z',
     worker_code: '599',
@@ -66,6 +68,8 @@ function report(overrides = {}) {
     await workbook.xlsx.readFile(filePath);
     const sheet = workbook.worksheets.find((item) => item.state !== 'hidden') || workbook.worksheets[0];
     assert.ok(sheet, 'Template phải có worksheet');
+    assert.equal(sheet.getColumn(2).hidden, true, 'Cột B phải hidden');
+    assert.equal(String(sheet.getRow(built.headerRow).getCell(2).value), 'Thời gian nộp báo cáo');
 
     const values = [];
     for (let r = 1; r <= Math.min(sheet.rowCount, 80); r += 1) {
@@ -73,12 +77,24 @@ function report(overrides = {}) {
     }
     assert.ok(values.includes('STT') || values.some((v) => /STT/i.test(v)), 'Template phải giữ cột STT');
 
+    let dateRow = null;
+    for (let r = 1; r <= sheet.rowCount; r += 1) {
+      const value = sheet.getRow(r).getCell(1).value;
+      if (value instanceof Date && value.getUTCDate() === 1 && value.getUTCMonth() === 7) { dateRow = r; break; }
+    }
+    assert.ok(dateRow, 'Date row phải lấy work_date');
+
     let workerRow = null;
     for (let r = built.dataStartRow; r < built.dataStartRow + 2; r += 1) {
       const rowText = Array.from({ length: sheet.columnCount }, (_, i) => String(sheet.getRow(r).getCell(i + 1).value ?? '')).join('|');
       if (rowText.includes('599')) { workerRow = r; break; }
     }
     assert.ok(workerRow, 'Không tìm thấy dữ liệu công nhân sau khi đổ template');
+    assert.equal(String(sheet.getRow(workerRow).getCell(3).value), '599', 'C phải là Mã NV');
+    const submission = sheet.getRow(workerRow).getCell(2).value;
+    assert.ok(submission instanceof Date, 'Cột B phải chứa submission timestamp');
+    assert.equal(submission.getUTCDate(), 2);
+    assert.equal(submission.getUTCHours(), 8);
 
     const rowValues = Array.from({ length: sheet.columnCount }, (_, i) => String(sheet.getRow(workerRow).getCell(i + 1).value ?? ''));
     // "Loại thao tác" / "Chế độ" are only asserted when the canonical template
@@ -93,7 +109,7 @@ function report(overrides = {}) {
     assert.ok(rowValues.some((value) => value === '0.5' || value === '0.50'), 'Chi tiết Trừ H không được đổ từ DB khi tên/code DB khác tên template');
     assert.ok(rowValues.some((value) => value === '1'), 'Chi tiết NG không được đổ từ DB khi tên/code DB khác tên template');
 
-    console.log('[PASS] Worker Excel smoke test: canonical template + STT + complete fields + DB detail alias mapping + Trừ H + NG');
+    console.log('[PASS] Worker Excel smoke test: DB work_date + hidden submission timestamp + canonical template + STT + complete fields + DB detail alias mapping + Trừ H + NG');
   } finally {
     await fs.rm(temp, { recursive: true, force: true });
   }
