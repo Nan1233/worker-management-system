@@ -1,3 +1,4 @@
+const db = require('../config/db');
 const { loadBulkCompanyReports, PROCESS_CODES } = require('../services/bulkCompanyExcelDataService');
 const { getSettingsMap } = require('../services/formulaSettingsService');
 
@@ -16,8 +17,34 @@ function scopeCacheKey(yearMonth, actor, scope) {
   return `${yearMonth}:LIMITED:${Number(actor?.id) || 'unknown'}:${ids}`;
 }
 
+async function attachSubmissionTimestamps(processData) {
+  const sourceTempIds = [...new Set(
+    PROCESS_CODES.flatMap((code) => (processData[code]?.reports || [])
+      .map((report) => Number(report.source_temp_id))
+      .filter((id) => Number.isInteger(id) && id > 0))
+  )];
+  if (!sourceTempIds.length) return;
+
+  const placeholders = sourceTempIds.map(() => '?').join(',');
+  const [rows] = await db.promise().query(
+    `SELECT id, created_at AS submitted_at
+       FROM production_reports_temp
+      WHERE id IN (${placeholders})`,
+    sourceTempIds,
+  );
+  const byId = new Map((rows || []).map((row) => [Number(row.id), row.submitted_at]));
+
+  for (const code of PROCESS_CODES) {
+    for (const report of processData[code]?.reports || []) {
+      const sourceTempId = Number(report.source_temp_id);
+      report.submitted_at = byId.has(sourceTempId) ? byId.get(sourceTempId) : null;
+    }
+  }
+}
+
 async function buildCompanyData(yearMonth, actor) {
   const { processData, processIds, scope } = await loadBulkCompanyReports(yearMonth, actor);
+  await attachSubmissionTimestamps(processData);
 
   const diagnostics = Object.fromEntries(PROCESS_CODES.map((code) => {
     const data = processData[code] || {};
