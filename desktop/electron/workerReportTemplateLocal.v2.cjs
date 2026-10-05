@@ -161,6 +161,21 @@ function asDate(value) {
   const vn = new Date(date.getTime() + 7 * 3600 * 1000);
   return new Date(Date.UTC(vn.getUTCFullYear(), vn.getUTCMonth(), vn.getUTCDate()));
 }
+// Submission timestamp: keep the time of day, shifted to Vietnam (UTC+7) and
+// emitted as a UTC wall-clock date so Excel shows the same clock time.
+function asDateTime(value) {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    const text = value.trim();
+    // "YYYY-MM-DD HH:mm:ss" with no zone is already a Vietnam wall clock.
+    const plain = text.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/);
+    if (plain) return new Date(Date.UTC(+plain[1], +plain[2] - 1, +plain[3], +plain[4], +plain[5], +(plain[6] || 0)));
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Date(date.getTime() + 7 * 3600 * 1000);
+}
+
 function detailItems(report, kind) {
   const keys = kind === 'deduction'
     ? ['deductions', 'deductionDetails', 'deduction_details', 'deductionRows', 'deduction_rows']
@@ -430,6 +445,11 @@ function applyReportRow(row, report, contract, processData, index) {
   const set = (column, value) => writeValue(row, column, value);
   set(contract.cols.stt, index + 1);
   set(contract.cols.entryDate, asDate(report.entry_date || report.created_at));
+  if (contract.cols.submittedAt) {
+    const cell = row.getCell(contract.cols.submittedAt);
+    cell.value = asDateTime(report.submitted_at || report.created_at || report.entry_date);
+    cell.numFmt = 'dd/mm/yyyy hh:mm';
+  }
   set(contract.cols.date, asDate(report.work_date || report.entry_date));
   set(contract.cols.workerCode, report.worker_code);
   set(contract.cols.workerName, report.full_name || report.worker_name || report.name);
@@ -532,6 +552,29 @@ function columnLetter(column) {
   return result;
 }
 
+// A hidden "Thời gian nộp báo cáo" column is inserted right after STT so the
+// visible layout is unchanged but the submission time is available in the file.
+const SUBMITTED_HEADER = 'Thời gian nộp báo cáo';
+function ensureSubmittedColumn(sheet, headerRow, contract) {
+  const stt = Number(contract.cols.stt || 0);
+  if (!stt) return null;
+  const column = stt + 1;
+  sheet.spliceColumns(column, 0, []);
+  const header = sheet.getRow(headerRow).getCell(column);
+  header.style = JSON.parse(JSON.stringify(sheet.getRow(headerRow).getCell(stt).style || {}));
+  header.value = SUBMITTED_HEADER;
+  sheet.getColumn(column).width = 18;
+  sheet.getColumn(column).hidden = true;
+  const shift = (value) => (Number(value) >= column ? Number(value) + 1 : value);
+  for (const key of Object.keys(contract.cols)) if (contract.cols[key]) contract.cols[key] = shift(contract.cols[key]);
+  for (const item of contract.deductions) item.column = shift(item.column);
+  for (const item of contract.defects) item.column = shift(item.column);
+  if (Array.isArray(contract.detailColumns)) contract.detailColumns = contract.detailColumns.map(shift);
+  if (contract.lastColumn) contract.lastColumn = shift(contract.lastColumn);
+  contract.cols.submittedAt = column;
+  return column;
+}
+
 function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber, dataStartRow, columnMap) {
   const columnCount = Math.max(sheet.columnCount, Number(contract.lastColumn || 0));
   const dateSnapshot = snapshotRow(sheet, dateRowNumber, columnCount);
@@ -616,6 +659,7 @@ async function buildWorkerProcessWorkbook({ appPath, processCode, processName, d
   reports.sort((a, b) => String(a?.work_date || '').localeCompare(String(b?.work_date || '')) || number(a?.id) - number(b?.id));
   appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, processData);
 
+  ensureSubmittedColumn(sheet, headerRow, contract);
   const dataStartRow = findDataStartRow(sheet, headerRow);
   const dateRowNumber = findDateSeparatorRow(sheet, headerRow, dataStartRow);
   let layout = 'flat';
