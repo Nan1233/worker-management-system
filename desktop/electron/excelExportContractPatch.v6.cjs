@@ -193,10 +193,11 @@ async function buildWorkerSplit({ appPath, date, payload }) {
       date,
       processData: item.data
     });
-    if (built?.reportCount > 0) {
-      built.buffer = await repairWorkerRows(built.buffer, built, item.data);
-      built.repairContract = 'multi-row-header-v1';
-    }
+    // A process without approved reports gets no file: the raw template still
+    // contains sample rows and must never be written into the month folder.
+    if (!(built?.reportCount > 0)) continue;
+    built.buffer = await repairWorkerRows(built.buffer, built, item.data);
+    built.repairContract = 'multi-row-header-v1';
     processes.push(built);
   }
   return { mode: 'WORKER_REPORT_TEMPLATE', processes, summary: null, expectedFileCount: processes.length };
@@ -206,19 +207,32 @@ monthly.buildSplitMonthlyWorkbooksLocal = buildWorkerSplit;
 
 function cleanupLegacyMonthlyFilesSource() {
   return `
-async function __ktcCleanupLegacyMonthlyLayout(root, date) {
+async function __ktcCleanupLegacyMonthlyLayout(root, date, keepFileNames = []) {
   try {
     const [year, month] = String(date).split('-');
     const monthFolder = path.join(root, year, month);
+    const keep = new Set((keepFileNames || []).map((name) => String(name).toLowerCase()));
+    const processFileRe = new RegExp('^\\\\d{2}_[A-Z0-9_]+_' + month + '-' + year + '\\\\.xlsx$', 'i');
     const entries = await fs.readdir(monthFolder, { withFileTypes: true }).catch(() => []);
+    const removed = [];
     for (const entry of entries) {
       const full = path.join(monthFolder, entry.name);
       if (entry.isDirectory()) {
         await fs.rm(full, { recursive: true, force: true });
+        removed.push(entry.name + '/');
         continue;
       }
-      if (/^00_TONG_HOP_SAN_XUAT_\\d{2}-\\d{4}\\.xlsx$/i.test(entry.name)) await fs.rm(full, { force: true });
+      const lower = entry.name.toLowerCase();
+      if (keep.has(lower)) continue;
+      const legacySummary = /^00_TONG_HOP_SAN_XUAT_\\d{2}-\\d{4}\\.xlsx$/i.test(entry.name);
+      const staleProcessFile = processFileRe.test(entry.name);
+      const leftover = /\\.pending\\.xlsx$/i.test(entry.name) || /\\.tmp$/i.test(entry.name);
+      if (legacySummary || staleProcessFile || leftover) {
+        await fs.rm(full, { force: true });
+        removed.push(entry.name);
+      }
     }
+    if (removed.length) await writeLog('INFO', 'EXCEL_MONTH_FOLDER_CLEANED', { monthFolder, removed });
   } catch (error) {
     await writeLog('WARN', 'EXCEL_LEGACY_LAYOUT_CLEANUP_FAILED', { root, date, message: error?.message || String(error) });
   }
@@ -236,14 +250,15 @@ function patchMainSource(source) {
   next = next.replace(/path\.join\(\s*processFolder,\s*/g, 'path.join(\n        folder,\n        ');
   next = next.replace(/folder: processFolder,/g, 'folder,');
   next = next.replace(/expectedFileCount: Object\.keys\(PROCESS_SHEETS\)\.length \+ 1/g, 'expectedFileCount: PROCESS_CODES.length');
-  next = next.replace(/const expectedFileCount = Object\.keys\(PROCESS_SHEETS\)\.length \+ 1;/g, 'const expectedFileCount = PROCESS_CODES.length;');
+  next = next.replace(/const expectedFileCount = Object\.keys\(PROCESS_SHEETS\)\.length \+ 1;/g,
+    "const expectedFileCount = files.filter((file) => file.category === 'MONTHLY_PROCESS').length || PROCESS_CODES.length;");
   next = next.replace(/mode: 'desktop-local-monthly-workbooks'/g, "mode: 'desktop-local-worker-template'");
   const cleanupFn = cleanupLegacyMonthlyFilesSource();
   const marker = '\nasync function syncAllProcessExcel';
-  if (!next.includes('__ktcCleanupLegacyMonthlyLayout')) next = next.replace(marker, `\n${cleanupFn}${marker}`);
+  if (!next.includes('__ktcCleanupLegacyMonthlyLayout')) next = next.replace(marker, () => `\n${cleanupFn}${marker}`);
   next = next.replace(/\n\s*await writeLog\('INFO', 'MONTHLY_SPLIT_WORKBOOKS_UPDATED', \{/g, '\n    await writeLog(\'INFO\', \'MONTHLY_WORKER_TEMPLATE_UPDATED\', {');
   const successMarker = 'const success = files.length === expectedFileCount && files.every((file) => file.success === true);';
-  if (!next.includes('if (success) await __ktcCleanupLegacyMonthlyLayout')) next = next.replace(successMarker, `${successMarker}\n  if (success) await __ktcCleanupLegacyMonthlyLayout(root, date);`);
+  if (!next.includes('if (success) await __ktcCleanupLegacyMonthlyLayout')) next = next.replace(successMarker, `${successMarker}\n  if (success) await __ktcCleanupLegacyMonthlyLayout(root, date, files.map((file) => file.fileName).filter(Boolean));`);
   return next;
 }
 
