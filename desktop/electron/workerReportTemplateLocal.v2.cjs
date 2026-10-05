@@ -148,13 +148,19 @@ function pickExact(map, ...terms) {
   for (const [column, label] of map.entries()) if (targets.includes(label)) return column;
   return null;
 }
+// Excel stores dates without a timezone. Always emit the calendar day as UTC
+// midnight so Windows (UTC+7) never shifts 05/09 to 04/09. A timestamp coming
+// from the API is read as a Vietnam (UTC+7) calendar day.
 function asDate(value) {
   if (!value) return null;
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
+  const text = typeof value === 'string' ? value.trim() : '';
+  const plain = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (plain) return new Date(Date.UTC(Number(plain[1]), Number(plain[2]) - 1, Number(plain[3])));
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const vn = new Date(date.getTime() + 7 * 3600 * 1000);
+  return new Date(Date.UTC(vn.getUTCFullYear(), vn.getUTCMonth(), vn.getUTCDate()));
 }
-
 function detailItems(report, kind) {
   const keys = kind === 'deduction'
     ? ['deductions', 'deductionDetails', 'deduction_details', 'deductionRows', 'deduction_rows']
