@@ -2,7 +2,6 @@ const db = require('../config/db');
 const { getActorProcessScope } = require('./processAuthorizationService');
 const { assertReportVolume, chunkArray } = require('./excelExportGuards');
 const { hasColumn } = require('./schemaCompatibilityService');
-const { calculateReportPerformance } = require('./machinePerformanceService');
 const { assertTrainingSnapshotAvailable } = require('./trainingSnapshotService');
 const { mergeDefects, normalizeDeductions } = require('../utils/reportDetailNormalizer');
 
@@ -57,8 +56,6 @@ function groupMachineDefects(rows, keyField) {
 
 function hydrateMachineLineDefects(machineLines, machineDefectsByLine, eventDefectsByEvent) {
   return (Array.isArray(machineLines) ? machineLines : []).map((line) => {
-    // Same precedence as Manager/Worker approved-detail API:
-    // persisted machine defects -> line defects_json -> event defects.
     const persisted = machineDefectsByLine.get(Number(line.id)) || [];
     if (persisted.length) return { ...line, defects: persisted, defects_json: JSON.stringify(persisted) };
     if (line?.defects_json) return line;
@@ -327,13 +324,6 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     report.excelDeductionsSource = selectedDeductionRows === reportTempDeductionRows
       ? 'production_temp_deductions_fallback'
       : 'production_report_deductions';
-
-    const calculated = calculateReportPerformance({ report, machineLines: report.machineLines }) || {};
-    for (const [key, value] of Object.entries(calculated)) {
-      if (report[key] === undefined || report[key] === null || report[key] === '') {
-        report[key] = value;
-      }
-    }
 
     report.dataSource = 'production_reports';
     report.isApprovedDatabaseRecord = true;
