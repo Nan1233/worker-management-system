@@ -82,15 +82,15 @@ function normalizeWorkType(value) {
     .toUpperCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
-  if (['CUT', 'CAT', 'CAT'].includes(code)) return 'CUT';
+  if (['CUT', 'CAT'].includes(code)) return 'CUT';
   if (['LONG', 'LNG'].includes(code)) return 'LONG';
   return code;
 }
 
 /**
  * GC has two product-standard work types but the machines table intentionally
- * does not have a work_type column. Keep this mapping in the resolver so the
- * same rule is used by every backend path that resolves a machine standard.
+ * does not have a work_type column. Keep this mapping in the resolver so every
+ * backend path uses the same rule.
  *
  * - ML2...ML20 and numeric legacy machine codes => Lồng
  * - C5/C6/C7/C11 and other C-prefixed GC machines => Cắt
@@ -158,9 +158,8 @@ function createStandardResolver({ query = defaultQuery } = {}) {
   }
 
   async function selectProductRow(pid, product, workDate, { allowAutoAlias = false, workType = null } = {}) {
-    let rows = await findProductRows(pid, product, workType);
+    const rows = await findProductRows(pid, product, workType);
     if (rows.length === 1) return rows[0];
-
     if (!allowAutoAlias) return null;
 
     const autoProduct = /-AUTO$/i.test(product) ? product : `${product}-AUTO`;
@@ -352,20 +351,22 @@ function createStandardResolver({ query = defaultQuery } = {}) {
     let machineRows = [];
     if (requestedMachineStandardId && !requestedMachineId && !requestedMachineCode) {
       machineRows = await query(`
-        SELECT m.id,m.machine_code
+        SELECT m.id,m.machine_code,p.process_code
         FROM machines m
+        JOIN processes p ON p.id=m.process_id
         JOIN product_machine_standards pms ON pms.machine_id=m.id
         WHERE m.process_id=? AND pms.id=?
         LIMIT 2
       `, [pid, requestedMachineStandardId]);
     } else if (requestedMachineId || requestedMachineCode) {
       machineRows = await query(`
-        SELECT id,machine_code
-        FROM machines
-        WHERE process_id=?
-          AND status='active'
-          AND (? IS NULL OR id=?)
-          AND (?='' OR UPPER(TRIM(machine_code))=UPPER(TRIM(?)))
+        SELECT m.id,m.machine_code,p.process_code
+        FROM machines m
+        JOIN processes p ON p.id=m.process_id
+        WHERE m.process_id=?
+          AND m.status='active'
+          AND (? IS NULL OR m.id=?)
+          AND (?='' OR UPPER(TRIM(m.machine_code))=UPPER(TRIM(?)))
         LIMIT 2
       `, [pid, requestedMachineId, requestedMachineId, requestedMachineCode, requestedMachineCode]);
     }
@@ -378,11 +379,7 @@ function createStandardResolver({ query = defaultQuery } = {}) {
     }
 
     const machine = machineRows[0] || null;
-    const processRows = await query(
-      `SELECT process_code FROM processes WHERE id=? LIMIT 1`,
-      [pid]
-    );
-    const processCode = String(processRows[0]?.process_code || '').trim().toUpperCase();
+    const processCode = String(machine?.process_code || '').trim().toUpperCase();
     const resolvedWorkType = normalizeRequestedWorkType({
       processCode,
       machineCode: machine?.machine_code || requestedMachineCode,
