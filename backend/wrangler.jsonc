@@ -6,9 +6,6 @@
   "compatibility_flags": ["nodejs_compat", "nodejs_compat_populate_process_env"],
   "workers_dev": true,
   "keep_vars": true,
-  "limits": {
-    "cpu_ms": 30000
-  },
   "observability": { "enabled": true },
   "vars": {
     "KTC_RUN_BUILD_DB_MIGRATIONS": "true",
