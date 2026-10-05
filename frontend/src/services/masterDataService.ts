@@ -201,7 +201,19 @@ export const resolveProductStandard = async (processId: number, machineCode: str
     if (!normalizedMachine) {
         const candidates = rows.filter((row) => [row?.product_code, row?.alias_code].some((value) => String(value || "").trim().toUpperCase() === normalizedProduct.toUpperCase()));
         const positiveCandidates = candidates.filter((row) => Number.isFinite(Number(row?.standard_output)) && Number(row.standard_output) > 0);
-        const product = positiveCandidates.length === 1 ? positiveCandidates[0] : candidates.length === 1 ? candidates[0] : undefined;
+        const gcLongCandidates = Number(processId) === 1
+            ? positiveCandidates.filter((row) => {
+                const type = String(row?.work_type || "").trim().toUpperCase();
+                return type === "LỒNG" || type === "LONG";
+            })
+            : [];
+        const product = gcLongCandidates.length === 1
+            ? gcLongCandidates[0]
+            : positiveCandidates.length === 1
+                ? positiveCandidates[0]
+                : candidates.length === 1
+                    ? candidates[0]
+                    : undefined;
         if (!product) throw new Error(`Không xác định duy nhất mã sản phẩm ${normalizedProduct} trong công đoạn`);
         return toLocalResolvedStandard(product, processId, "", normalizedProduct);
     }
