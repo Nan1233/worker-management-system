@@ -173,54 +173,133 @@ function typeCandidates(type, kind) {
   const raw = typeKeys(type, kind).concat(typeLabel(type, kind));
   return [...new Set(raw.flatMap(detailVariants).map(canonicalDetailKey).filter(Boolean))];
 }
+function detailScore(header, candidates) {
+  let best = 0;
+  for (const headerKey of detailVariants(header).map(canonicalDetailKey)) {
+    for (const candidate of candidates) {
+      let score = 0;
+      if (headerKey === candidate) score = 1000;
+      else if (candidate.length >= 2 && headerKey.length >= 2
+        && (headerKey.includes(candidate) || candidate.includes(headerKey))) {
+        score = 700 - Math.abs(headerKey.length - candidate.length);
+      }
+      if (score > best) best = score;
+    }
+  }
+  return best;
+}
 function detailColumn(map, type, kind) {
   const candidates = typeCandidates(type, kind);
   if (!candidates.length) return null;
   let best = null;
   for (const [column, header] of map.entries()) {
-    const headerCandidates = detailVariants(header).map(canonicalDetailKey);
-    for (const headerKey of headerCandidates) {
-      for (const candidate of candidates) {
-        let score = 0;
-        if (headerKey === candidate) score = 1000;
-        else if (headerKey.includes(candidate) || candidate.includes(headerKey)) score = 700 - Math.abs(headerKey.length - candidate.length);
-        if (score > (best?.score ?? -1)) best = { column, score };
-      }
-    }
+    const score = detailScore(header, candidates);
+    if (score > (best?.score ?? 0)) best = { column, score };
   }
   return best?.column || null;
 }
 
+// Assign each DB detail type to at most one template column inside its own
+// detail block, and each template column to at most one DB type. Exact header
+// matches win before partial matches, so "Chỉnh máy" can never steal
+// "Chờ chỉnh máy" and an unmatched type is never written into STT/Máy/Ca.
+function assignDetailColumns(rangeMap, types, kind) {
+  const pairs = [];
+  for (const type of types) {
+    const candidates = typeCandidates(type, kind);
+    for (const [column, header] of rangeMap.entries()) {
+      const score = detailScore(header, candidates);
+      if (score > 0) pairs.push({ type, column, score });
+    }
+  }
+  pairs.sort((a, b) => b.score - a.score || a.column - b.column);
+  const usedTypes = new Set();
+  const usedColumns = new Set();
+  const assigned = [];
+  for (const pair of pairs) {
+    if (usedTypes.has(pair.type) || usedColumns.has(pair.column)) continue;
+    usedTypes.add(pair.type);
+    usedColumns.add(pair.column);
+    assigned.push({ type: pair.type, column: pair.column });
+  }
+  const unmatched = types.filter((type) => !usedTypes.has(type)).map((type) => typeLabel(type, kind));
+  assigned.sort((a, b) => a.column - b.column);
+  return { assigned, unmatched };
+}
+
+function subMap(map, predicate) {
+  return new Map([...map.entries()].filter(([column]) => predicate(column)));
+}
+
 function buildColumnContract(map, processData) {
+  const columns = [...map.keys()].sort((a, b) => a - b);
+  const lastColumn = columns.length ? columns[columns.length - 1] : 0;
+  const deductionTotal = pickExact(map, 'tổng thời gian trừ giờ', 'tong thoi gian tru gio', 'tổng thời gian trừ', 'tong thoi gian tru')
+    || pick(map, 'tong thoi gian tru') || pick(map, 'tong tru') || pick(map, 'tru h');
+  const productAnchor = pickExact(map, 'sp', 'mã sp', 'ma sp', 'mã sản phẩm', 'ma san pham', 'sản phẩm', 'san pham');
+  const ngTotal = pickExact(map, 'tổng ng', 'tong ng') || pick(map, 'tong ng') || pick(map, 'tong loi');
+  const isNonDetailTail = (label) => /^(ty le|ghi chu|trang thai|id$|sp ?\/ ?gio|san pham ?\/ ?gio|nang suat)/.test(label);
+
+  // Detail blocks of the worker template:
+  //   Trừ H: columns strictly between "Tổng thời gian trừ giờ" and "SP".
+  //   NG:    columns after "Tổng NG" up to the first non-detail summary column.
+  const deductionRange = new Set();
+  if (deductionTotal && productAnchor && productAnchor > deductionTotal) {
+    for (const column of columns) if (column > deductionTotal && column < productAnchor) deductionRange.add(column);
+  }
+  const defectRange = new Set();
+  if (ngTotal) {
+    for (const column of columns) {
+      if (column <= ngTotal) continue;
+      if (isNonDetailTail(map.get(column))) break;
+      defectRange.add(column);
+    }
+  }
+  const detailColumns = new Set([...deductionRange, ...defectRange]);
+  const base = subMap(map, (column) => !detailColumns.has(column));
+  const timeMap = subMap(base, (column) => column !== deductionTotal);
+
   const cols = {
-    stt: pickExact(map, 'stt') || pick(map, 'stt'),
-    entryDate: pickExact(map, 'thời gian nhập', 'thoi gian nhap') || pick(map, 'thoi gian nhap'),
-    date: pickExact(map, 'ngày sản xuất', 'ngay san xuat', 'ngày làm việc', 'ngay lam viec') || pick(map, 'ngay'),
-    workerCode: pickExact(map, 'mã nv', 'ma nv', 'mã nhân viên', 'ma nhan vien') || pick(map, 'ma nv') || pick(map, 'ma nhan vien') || pick(map, 'ma so'),
-    workerName: pickExact(map, 'họ tên', 'ho ten', 'tên nv', 'ten nv') || pick(map, 'ho ten') || pick(map, 'ten nv') || pick(map, 'ten'),
-    shift: findColumn(map, [(label) => label === 'ca' || label.startsWith('ca ')]),
-    operationType: pick(map, 'loai thao tac'),
-    operationMode: pick(map, 'che do'),
-    machine: pickExact(map, 'số máy', 'so may') || pick(map, 'so may') || pick(map, 'may'),
-    product: pickExact(map, 'mã sp', 'ma sp', 'mã sản phẩm', 'ma san pham') || pick(map, 'ma sp') || pick(map, 'ma san pham') || pick(map, 'san pham'),
-    training: pick(map, 'hoc viec'),
-    standard: pick(map, 'dinh muc'),
-    time: pickExact(map, 'tổng thời gian', 'tong thoi gian') || pick(map, 'tong thoi gian') || pick(map, 'thoi gian'),
-    actualTime: pickExact(map, 'thời gian thực tế', 'thoi gian thuc te') || pick(map, 'thoi gian thuc te'),
-    deductionTotal: pick(map, 'tong thoi gian tru') || pick(map, 'tong tru') || pick(map, 'tru h'),
-    ok: pick(map, 'sl ok') || pick(map, 'san pham ok') || pickExact(map, 'ok'),
-    ng: pick(map, 'tong ng') || pick(map, 'tong loi') || pickExact(map, 'ng'),
-    output: pick(map, 'ket qua san xuat') || pick(map, 'thuc tich') || pick(map, 'san luong') || pickExact(map, 'tt'),
-    achievement: pick(map, 'ty le dat') || pick(map, 'ty le thuc tich') || pick(map, 'nang suat') || pick(map, 'achievement'),
-    outputPerHour: pick(map, 'sp gio') || pick(map, 'san pham gio'),
-    ngRate: pick(map, 'ty le ng'),
-    status: pick(map, 'trang thai'),
-    note: pick(map, 'ghi chu'),
-    id: pickExact(map, 'id')
+    stt: pickExact(base, 'stt') || pick(base, 'stt'),
+    entryDate: pickExact(base, 'thời gian nhập', 'thoi gian nhap') || pick(base, 'thoi gian nhap'),
+    date: pickExact(base, 'ngày sản xuất', 'ngay san xuat', 'ngày làm việc', 'ngay lam viec', 'ngày', 'ngay') || pick(base, 'ngay'),
+    workerCode: pickExact(base, 'mã nv', 'ma nv', 'mã nhân viên', 'ma nhan vien') || pick(base, 'ma nv') || pick(base, 'ma nhan vien') || pick(base, 'ma so'),
+    workerName: pickExact(base, 'họ tên', 'ho ten', 'tên nv', 'ten nv', 'tên', 'ten') || pick(base, 'ho ten') || pick(base, 'ten nv'),
+    shift: findColumn(base, [(label) => label === 'ca' || label.startsWith('ca ')]),
+    operationType: pick(base, 'loai thao tac'),
+    operationMode: pick(base, 'che do'),
+    machine: pickExact(base, 'số máy', 'so may', 'máy', 'may') || pick(base, 'so may'),
+    product: productAnchor || pick(base, 'ma sp') || pick(base, 'ma san pham'),
+    training: pickExact(base, 'học việc', 'hoc viec', '% học việc', '% hoc viec') || pick(base, 'hoc viec'),
+    standard: pick(base, 'dinh muc'),
+    time: pickExact(timeMap, 'thời gian làm việc', 'thoi gian lam viec', 'tổng thời gian', 'tong thoi gian')
+      || pick(timeMap, 'thoi gian lam viec') || pick(timeMap, 'tong thoi gian'),
+    actualTime: pickExact(timeMap, 'thời gian thực tế', 'thoi gian thuc te') || pick(timeMap, 'thoi gian thuc te'),
+    deductionTotal,
+    ok: pickExact(base, 'ok', 'sl ok') || pick(base, 'sl ok') || pick(base, 'san pham ok'),
+    ng: ngTotal || pickExact(base, 'ng'),
+    output: pickExact(base, 'tt', 'thực tích', 'thuc tich') || pick(base, 'ket qua san xuat') || pick(base, 'thuc tich') || pick(base, 'san luong'),
+    achievement: pick(base, 'ty le dat') || pick(base, 'ty le thuc tich') || pick(base, 'nang suat') || pick(base, 'achievement'),
+    outputPerHour: pick(base, 'sp gio') || pick(base, 'san pham gio'),
+    ngRate: pick(base, 'ty le ng'),
+    status: pick(base, 'trang thai'),
+    note: pick(base, 'ghi chu'),
+    id: pickExact(base, 'id')
   };
-  const deductions = processTypes(processData, 'deduction').map((type) => ({ type, column: detailColumn(map, type, 'deduction') })).filter((x) => x.column);
-  const defects = processTypes(processData, 'defect').map((type) => ({ type, column: detailColumn(map, type, 'defect') })).filter((x) => x.column);
-  return { cols, deductions, defects };
+
+  const deductionMap = deductionRange.size ? subMap(map, (column) => deductionRange.has(column)) : base;
+  const defectMap = defectRange.size ? subMap(map, (column) => defectRange.has(column)) : base;
+  const deductionResult = assignDetailColumns(deductionMap, processTypes(processData, 'deduction'), 'deduction');
+  const defectResult = assignDetailColumns(defectMap, processTypes(processData, 'defect'), 'defect');
+  return {
+    cols,
+    deductions: deductionResult.assigned,
+    defects: defectResult.assigned,
+    unmatchedDeductionTypes: deductionResult.unmatched,
+    unmatchedDefectTypes: defectResult.unmatched,
+    detailColumns: [...detailColumns].sort((a, b) => a - b),
+    lastColumn
+  };
 }
 
 function buildDetailValueMap(report, processData, kind) {
@@ -305,6 +384,9 @@ async function buildWorkerProcessWorkbook({ appPath, processCode, processName, d
   const dataStartRow = findDataStartRow(sheet, headerRow);
   const sourceRow = sheet.getRow(dataStartRow);
   const requiredEndRow = dataStartRow + reports.length - 1;
+  // The template ships with sample rows. Clear them before writing so a column
+  // the contract does not map can never keep a sample value from the template.
+  clearDataRows(sheet, dataStartRow, reports.length, sheet.columnCount);
   for (let r = dataStartRow; r <= requiredEndRow; r += 1) {
     const row = sheet.getRow(r);
     if (r !== dataStartRow) cloneRowStyle(sheet, sourceRow, row);
@@ -314,7 +396,15 @@ async function buildWorkerProcessWorkbook({ appPath, processCode, processName, d
   clearDataRows(sheet, dataStartRow + reports.length, clearCount, sheet.columnCount);
   workbook.calculation = { fullCalcOnLoad: true, forceFullCalc: true, calcMode: 'auto' };
   const outputBuffer = Buffer.from(await workbook.xlsx.writeBuffer());
-  return { buffer: outputBuffer, fileName, processCode: code, processName: processName || processCode, reportCount: reports.length, templateFile: TEMPLATE_NAME, templatePath, templateSheet: sheet.name, headerRow, dataStartRow };
+  return { buffer: outputBuffer, fileName, processCode: code, processName: processName || processCode, reportCount: reports.length, templateFile: TEMPLATE_NAME, templatePath, templateSheet: sheet.name, headerRow, dataStartRow,
+    columnContract: {
+      cols: contract.cols,
+      detailColumns: contract.detailColumns,
+      deductionColumns: contract.deductions.map((item) => ({ column: item.column, type: typeLabel(item.type, 'deduction') })),
+      defectColumns: contract.defects.map((item) => ({ column: item.column, type: typeLabel(item.type, 'defect') })),
+      unmatchedDeductionTypes: contract.unmatchedDeductionTypes,
+      unmatchedDefectTypes: contract.unmatchedDefectTypes
+    } };
 }
 
 module.exports = { TEMPLATE_NAME, PROCESS_FILE_PREFIXES, buildWorkerProcessWorkbook };

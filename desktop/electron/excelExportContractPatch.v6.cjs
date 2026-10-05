@@ -123,6 +123,19 @@ function repairWorkerRows(buffer, built, processData) {
       note: findHeaderColumn(map, [(label) => containsAny(label, ['ghi chu', 'note'])])
     };
 
+    // workerReportTemplateLocal.v2 already wrote every field it could map, and
+    // owns the Trừ H / NG detail blocks. This repair pass only fills base fields
+    // v2 could not map, and never writes into a detail column or a column v2
+    // already used for a different field.
+    const v2Contract = built?.columnContract || null;
+    const v2Cols = v2Contract?.cols || {};
+    const protectedColumns = new Set((v2Contract?.detailColumns || []).map(Number));
+    for (const value of Object.values(v2Cols)) if (value) protectedColumns.add(Number(value));
+    for (const field of Object.keys(cols)) {
+      if (!v2Contract) continue;
+      if (v2Cols[field] || protectedColumns.has(Number(cols[field]))) cols[field] = null;
+    }
+
     const setIfMapped = (row, column, value) => {
       if (column && value !== undefined && value !== null && value !== '') row.getCell(column).value = value;
     };
@@ -154,35 +167,8 @@ function repairWorkerRows(buffer, built, processData) {
       setIfMapped(row, cols.status, report.status);
       setIfMapped(row, cols.note, report.note || report.review_note);
 
-      const detailSets = [
-        ['deduction', processData.deductionTypes || [], report.deductions || []],
-        ['defect', processData.defectTypes || [], report.defects || []]
-      ];
-      for (const [kind, types, items] of detailSets) {
-        const values = new Map();
-        for (const item of items) {
-          const id = kind === 'deduction' ? item?.deduction_type_id : item?.defect_type_id;
-          const type = types.find((candidate) => String(candidate?.id) === String(id)) || null;
-          const labels = [
-            kind === 'deduction' ? item?.deduction_code : item?.defect_code,
-            kind === 'deduction' ? item?.deduction_name : item?.defect_name,
-            kind === 'deduction' ? type?.deduction_code : type?.defect_code,
-            kind === 'deduction' ? type?.deduction_name : type?.defect_name,
-            type?.code,
-            type?.name
-          ].filter(Boolean).map(norm);
-          const value = Number(kind === 'deduction' ? item?.hours : item?.quantity) || 0;
-          for (const label of labels) values.set(label, (values.get(label) || 0) + value);
-        }
-        for (const type of types) {
-          const labels = [type?.code, type?.name, type?.deduction_code, type?.deduction_name, type?.defect_code, type?.defect_name]
-            .filter(Boolean).map(norm);
-          const value = labels.reduce((sum, label) => sum || Number(values.get(label) || 0), 0);
-          if (!value) continue;
-          const column = findHeaderColumn(map, [(label) => labels.some((candidate) => label.includes(candidate) || candidate.includes(label))]);
-          if (column) row.getCell(column).value = value;
-        }
-      }
+      // Trừ H / NG detail columns are written by workerReportTemplateLocal.v2
+      // using a range-restricted one-to-one mapping. Do not rewrite them here.
     }
 
     return Buffer.from(await workbook.xlsx.writeBuffer());
