@@ -5,13 +5,7 @@ const defaultQuery = async (sql, params = []) => {
 };
 
 function businessError(code, message, details = null) { const error = new Error(message); error.status = 422; error.code = code; error.isPublic = true; if (details) error.details = details; return error; }
-
-function normalizeWorkDate(value) {
-  const text = value instanceof Date ? `${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,'0')}-${String(value.getDate()).padStart(2,'0')}` : String(value || '').slice(0,10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) throw businessError('INVALID_WORK_DATE','Ngày làm việc không hợp lệ');
-  return text;
-}
-
+function normalizeWorkDate(value) { const text = value instanceof Date ? `${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,'0')}-${String(value.getDate()).padStart(2,'0')}` : String(value || '').slice(0,10); if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) throw businessError('INVALID_WORK_DATE','Ngày làm việc không hợp lệ'); return text; }
 function positiveDecimal(value, code='INVALID_STANDARD_VALUE') { const number=Number(value); if(!Number.isFinite(number)||number<=0) throw businessError(code,'Định mức phải là số dương hợp lệ'); return number; }
 function sameDecimal(a,b,tolerance=0.000001){ return Math.abs(Number(a)-Number(b))<=tolerance; }
 function assertEffectiveOnDate(row,date,label){const from=row?.effective_from?String(row.effective_from).slice(0,10):null;const to=row?.effective_to?String(row.effective_to).slice(0,10):null;if(from&&from>date)throw businessError('HISTORICAL_STANDARD_NOT_FOUND',`${label} chưa có hiệu lực tại ngày ${date}`,{effective_from:from,effective_to:to});if(to&&to<date)throw businessError('HISTORICAL_STANDARD_NOT_FOUND',`${label} đã hết hiệu lực tại ngày ${date}`,{effective_from:from,effective_to:to});}
@@ -19,7 +13,7 @@ function chooseHistoricalVersion(rows,date,label){const applicable=(rows||[]).fi
 
 function normalizeWorkType(value){const code=String(value||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');if(['CUT','CAT'].includes(code))return 'CUT';if(['LONG','LNG'].includes(code))return 'LONG';return code;}
 function inferGcWorkType(machineCode){const code=String(machineCode||'').trim().toUpperCase().replace(/\s+/g,'');if(/^ML\d+$/.test(code)||/^\d+$/.test(code))return 'Lồng';if(/^C\d+/.test(code))return 'Cắt';return null;}
-function normalizeRequestedWorkType({processCode,machineCode,workType}){const explicit=normalizeWorkType(workType);if(explicit==='LONG')return 'Lồng';if(explicit==='CUT')return 'Cắt';if(String(processCode||'').trim().toUpperCase()==='GC')return inferGcWorkType(machineCode);return null;}
+function normalizeRequestedWorkType({processCode,machineCode,workType,operationMode}){const explicit=normalizeWorkType(workType);if(explicit==='LONG')return 'Lồng';if(explicit==='CUT')return 'Cắt';if(String(processCode||'').trim().toUpperCase()==='GC'){const inferred=inferGcWorkType(machineCode);if(inferred)return inferred;if(String(operationMode||'').trim().toUpperCase()==='MANUAL')return 'Lồng';}return null;}
 
 function createStandardResolver({query=defaultQuery}={}) {
   const productCache=new Map(), standardCache=new Map();
@@ -47,8 +41,9 @@ function createStandardResolver({query=defaultQuery}={}) {
     else if(requestedMachineId||requestedMachineCode)machineRows=await query(`SELECT m.id,m.machine_code,p.process_code FROM machines m JOIN processes p ON p.id=m.process_id WHERE m.process_id=? AND m.status='active' AND (? IS NULL OR m.id=?) AND (?='' OR UPPER(TRIM(m.machine_code))=UPPER(TRIM(?))) LIMIT 2`,[pid,requestedMachineId,requestedMachineId,requestedMachineCode,requestedMachineCode]);
     if(machineRows.length>1)throw businessError('MACHINE_NOT_FOUND','Máy xác định không duy nhất trong công đoạn');
     if((requestedMachineId||requestedMachineCode||requestedMachineStandardId)&&machineRows.length!==1)throw businessError('MACHINE_NOT_FOUND','Máy không tồn tại hoặc không thuộc công đoạn');
-    const machine=machineRows[0]||null, processCode=String(machine?.process_code||'').trim().toUpperCase(), resolvedWorkType=normalizeRequestedWorkType({processCode,machineCode:machine?.machine_code||requestedMachineCode,workType});
+    const machine=machineRows[0]||null, processCode=String(machine?.process_code||'').trim().toUpperCase();
     const modeText=String(operationMode||executionMethod||'').trim().toUpperCase(), isAuto=['AUTO','AUTOMATIC','TỰ ĐỘNG','TU DONG'].includes(modeText)||/AUTO|TỰ\s*ĐỘNG|TU\s*DONG/.test(modeText);
+    const resolvedWorkType=normalizeRequestedWorkType({processCode,machineCode:machine?.machine_code||requestedMachineCode,workType,operationMode:modeText});
     const standardKey=`${pid}|${requestedProduct}|${date}|${requestedMachineId||''}|${requestedMachineCode}|v${requestedVersionId||''}|ms${requestedMachineStandardId||''}|mode=${isAuto?'AUTO':'NORMAL'}|work=${resolvedWorkType||''}`;if(standardCache.has(standardKey))return standardCache.get(standardKey);
     if(machine){const rows=await query(`SELECT id,process_id,product_code,machine_id,standard_output,calculated_output_per_hour,standard_time_seconds,effective_from,effective_to,is_active FROM product_machine_standards WHERE process_id=? AND machine_id=? AND UPPER(TRIM(product_code))=UPPER(TRIM(?)) AND (effective_from IS NULL OR effective_from<=?) AND (effective_to IS NULL OR effective_to>=?) ORDER BY COALESCE(effective_from,'1000-01-01') DESC,id DESC`,[pid,Number(machine.id),requestedProduct,date,date]);const active=rows.filter(r=>Number(r.is_active)===1),usable=active.length?active:rows;if(usable.length>1)throw businessError('STANDARD_EFFECTIVE_RANGE_CONFLICT',`Có nhiều định mức máy cùng hiệu lực cho ${requestedProduct} / ${machine.machine_code}`);if(usable.length===1){const row=usable[0],out=Number(row.calculated_output_per_hour??row.standard_output);if(Number.isFinite(out)&&out>0){const r={processId:pid,productCode:requestedProduct,productStandardId:null,standardVersionId:null,machineStandardId:Number(row.id),standardOutput:out,standardTimeSeconds:Number(row.standard_time_seconds)>0?Number(row.standard_time_seconds):null,excludeKqdFromTt:0,effectiveFrom:row.effective_from?String(row.effective_from).slice(0,10):null,effectiveTo:row.effective_to?String(row.effective_to).slice(0,10):null,source:Number(row.is_active)===1?'MACHINE':'MACHINE_HISTORICAL',workDate:date,historicalVersionAvailable:true,machineId:Number(machine.id),machineCode:machine.machine_code};standardCache.set(standardKey,r);return r;}}}
     const processAutoEligible=pid===1&&(isAuto||['AUTO','AUTOMATIC'].includes(String(workType||'').trim().toUpperCase()));
