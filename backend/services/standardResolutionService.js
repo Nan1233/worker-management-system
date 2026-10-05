@@ -22,7 +22,13 @@ function createStandardResolver({query=defaultQuery}={}) {
 // duplicated import). Those rows are interchangeable when they carry the same
 // standard, so pick the best-ranked one instead of reporting a missing standard.
 function pickEquivalentRow(rows){if(!Array.isArray(rows)||rows.length<2)return null;const out=Number(rows[0]?.standard_output),kqd=Number(rows[0]?.exclude_kqd_from_tt||0);if(!Number.isFinite(out)||out<=0)return null;const allSame=rows.every(row=>sameDecimal(Number(row?.standard_output),out)&&Number(row?.exclude_kqd_from_tt||0)===kqd);return allSame?rows[0]:null;}
-  async function selectProductRow(pid,product,workDate,{allowAutoAlias=false,workType=null}={}){const rows=await findProductRows(pid,product,workType);if(rows.length===1)return rows[0];const equivalent=pickEquivalentRow(rows);if(equivalent)return equivalent;if(!allowAutoAlias)return null;const autoProduct=/-AUTO$/i.test(product)?product:`${product}-AUTO`;const autoRows=await findProductRows(pid,autoProduct,workType);return autoRows.length===1?autoRows[0]:(pickEquivalentRow(autoRows)||null);}
+// A row whose own product_code / encoding_code IS the requested code beats a row
+// that only matched through an alias. Without this, asking for "15U-T" also
+// matches "15U" (which carries an alias named 15U-T) and the lookup fails as
+// ambiguous even though one row is an exact hit.
+function pickExactRow(rows,product){if(!Array.isArray(rows)||rows.length<2)return null;const wanted=normalizeCode(product);const exact=rows.filter(row=>normalizeCode(row?.product_code)===wanted||normalizeCode(row?.encoding_code)===wanted);return exact.length===1?exact[0]:null;}
+  function normalizeCode(value){return String(value||'').trim().toUpperCase();}
+  async function selectProductRow(pid,product,workDate,{allowAutoAlias=false,workType=null}={}){const rows=await findProductRows(pid,product,workType);if(rows.length===1)return rows[0];const exact=pickExactRow(rows,product);if(exact)return exact;const equivalent=pickEquivalentRow(rows);if(equivalent)return equivalent;if(!allowAutoAlias)return null;const autoProduct=/-AUTO$/i.test(product)?product:`${product}-AUTO`;const autoRows=await findProductRows(pid,autoProduct,workType);return autoRows.length===1?autoRows[0]:(pickExactRow(autoRows,autoProduct)||pickEquivalentRow(autoRows)||null);}
   async function resolveProduct({processId,productCode,workDate,standardVersionId=null,allowAutoAlias=false,workType=null}) {
     const pid=Number(processId), product=String(productCode||'').trim(), date=normalizeWorkDate(workDate), normalizedWorkType=normalizeWorkType(workType);
     if(pid===60006&&!product)return{processId:pid,productCode:null,productStandardId:null,standardVersionId:null,machineStandardId:null,standardOutput:0,standardTimeSeconds:null,excludeKqdFromTt:0,effectiveFrom:null,effectiveTo:null,source:'NON_PRODUCT_WORK',workDate:date,historicalVersionAvailable:false,nonProductWork:true};
