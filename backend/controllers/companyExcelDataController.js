@@ -1,6 +1,5 @@
 const { loadBulkCompanyReports, PROCESS_CODES } = require('../services/bulkCompanyExcelDataService');
 const { getSettingsMap } = require('../services/formulaSettingsService');
-const { calculateProductionMetrics } = require('../domain/productionCalculationEngine.cjs');
 
 const inFlightByScope = new Map();
 const cacheByScope = new Map();
@@ -37,9 +36,9 @@ async function buildCompanyData(yearMonth, actor) {
   )].sort();
 
   const mapsByDate = new Map();
-  // Load formula settings once per date. The bulk report query above is the
-  // important subrequest reduction; sequential loading also prevents a burst
-  // of duplicate cache misses inside one Cloudflare Worker invocation.
+  // Desktop Excel calculates presentation metrics locally. The backend only
+  // supplies date-specific formula settings and persisted DB detail rows.
+  // Do not run a second calculation pass over every approved report here.
   for (const date of reportDates) {
     mapsByDate.set(date, await getSettingsMap(date));
   }
@@ -52,16 +51,6 @@ async function buildCompanyData(yearMonth, actor) {
         return [date, map[code] || map.GLOBAL || null];
       }).filter(([, settings]) => Boolean(settings))
     );
-
-    data.reports = (data.reports || []).map((report) => {
-      const workDate = String(report.work_date || '').slice(0, 10);
-      const map = mapsByDate.get(workDate) || {};
-      const settings = map[code] || map.GLOBAL || undefined;
-      return {
-        ...report,
-        calculationSnapshot: calculateProductionMetrics(report, settings)
-      };
-    });
   }
 
   const formulaSettings = await getSettingsMap(`${yearMonth}-01`);
