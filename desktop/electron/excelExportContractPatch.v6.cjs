@@ -196,6 +196,8 @@ async function buildWorkerSplit({ appPath, date, payload }) {
     // A process without approved reports gets no file: the raw template still
     // contains sample rows and must never be written into the month folder.
     if (!(built?.reportCount > 0)) continue;
+    // Grouped-by-date layout is written completely by v2 (date rows + STT per day).
+    if (built.layout === 'grouped-by-date') { processes.push(built); continue; }
     built.buffer = await repairWorkerRows(built.buffer, built, item.data);
     built.repairContract = 'multi-row-header-v1';
     processes.push(built);

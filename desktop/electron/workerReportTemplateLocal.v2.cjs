@@ -468,6 +468,111 @@ function appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, pro
   }
 }
 
+// Template row between the header and the first data row whose first cell is a
+// date (the pink "Sep-02" row). When present, the export writes one such row
+// per work date and restarts STT at 1 under each date.
+function findDateSeparatorRow(sheet, headerRow, dataStartRow) {
+  for (let r = headerRow + 1; r < dataStartRow; r += 1) {
+    const row = sheet.getRow(r);
+    const first = row.getCell(1).value;
+    const isDate = first instanceof Date || /[dmy]/i.test(String(row.getCell(1).numFmt || ''));
+    if (isDate && first != null && first !== '') return r;
+  }
+  return null;
+}
+
+function snapshotRow(sheet, rowNumber, columnCount) {
+  const row = sheet.getRow(rowNumber);
+  const styles = [];
+  for (let c = 1; c <= columnCount; c += 1) styles[c] = JSON.parse(JSON.stringify(row.getCell(c).style || {}));
+  return { height: row.height, styles };
+}
+
+function applySnapshot(row, snapshot, columnCount) {
+  if (snapshot.height) row.height = snapshot.height;
+  for (let c = 1; c <= columnCount; c += 1) {
+    const cell = row.getCell(c);
+    cell.value = null;
+    cell.style = JSON.parse(JSON.stringify(snapshot.styles[c] || {}));
+  }
+}
+
+function columnLetter(column) {
+  let value = Number(column);
+  let result = '';
+  while (value > 0) {
+    value -= 1;
+    result = String.fromCharCode(65 + (value % 26)) + result;
+    value = Math.floor(value / 26);
+  }
+  return result;
+}
+
+function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber, dataStartRow, columnMap) {
+  const columnCount = Math.max(sheet.columnCount, Number(contract.lastColumn || 0));
+  const dateSnapshot = snapshotRow(sheet, dateRowNumber, columnCount);
+  const dataSnapshot = snapshotRow(sheet, dataStartRow, columnCount);
+  const percentColumn = pickExact(columnMap, '%tt', '% tt');
+  const outputLetter = contract.cols.output ? columnLetter(contract.cols.output) : null;
+  const standardLetter = contract.cols.standard ? columnLetter(contract.cols.standard) : null;
+  const percentFormat = sheet.getRow(dataStartRow + 1).getCell(percentColumn || 1).numFmt || '0%';
+  const conditional = (sheet.conditionalFormattings || [])
+    .find((item) => percentColumn && String(item.ref || '').startsWith(columnLetter(percentColumn)));
+
+  // Remove every template sample row; rows are rebuilt from the DB below.
+  // ExcelJS spliceRows does not reliably drop thousands of rows, so truncate
+  // the internal row list directly (rows are 1-based; keep 1..dateRowNumber-1).
+  if (Array.isArray(sheet._rows)) sheet._rows.length = dateRowNumber - 1;
+  else sheet.spliceRows(dateRowNumber, sheet.rowCount - dateRowNumber + 1);
+
+  const dayKey = (report) => {
+    const day = asDate(report.work_date || report.entry_date);
+    return day ? day.toISOString().slice(0, 10) : '';
+  };
+  const ordered = [...reports].sort((a, b) => dayKey(a).localeCompare(dayKey(b)) || number(a?.id) - number(b?.id));
+  const groups = new Map();
+  for (const report of ordered) {
+    const day = asDate(report.work_date || report.entry_date);
+    const key = day ? day.toISOString().slice(0, 10) : '';
+    if (!groups.has(key)) groups.set(key, { day, reports: [] });
+    groups.get(key).reports.push(report);
+  }
+
+  let rowNumber = dateRowNumber;
+  const percentRanges = [];
+  for (const group of groups.values()) {
+    const dateRow = sheet.getRow(rowNumber);
+    applySnapshot(dateRow, dateSnapshot, columnCount);
+    dateRow.getCell(1).value = group.day;
+    dateRow.getCell(1).numFmt = 'mmm-dd';
+    rowNumber += 1;
+    const firstDataRow = rowNumber;
+    group.reports.forEach((report, index) => {
+      const row = sheet.getRow(rowNumber);
+      applySnapshot(row, dataSnapshot, columnCount);
+      applyReportRow(row, report, contract, processData, index);
+      if (percentColumn && outputLetter && standardLetter) {
+        const cell = row.getCell(percentColumn);
+        const standard = number(report.standard_output);
+        const output = number(report.actual_output ?? report.tt_ok);
+        cell.value = {
+          formula: `IFERROR(${outputLetter}${rowNumber}/${standardLetter}${rowNumber},0)`,
+          result: standard ? output / standard : 0
+        };
+        cell.numFmt = percentFormat;
+      }
+      rowNumber += 1;
+    });
+    if (percentColumn) percentRanges.push(`${columnLetter(percentColumn)}${firstDataRow}:${columnLetter(percentColumn)}${rowNumber - 1}`);
+  }
+
+  if (conditional && percentRanges.length) {
+    sheet.conditionalFormattings = [{ ref: percentRanges.join(' '), rules: conditional.rules }];
+  } else if (Array.isArray(sheet.conditionalFormattings)) {
+    sheet.conditionalFormattings = [];
+  }
+}
+
 async function buildWorkerProcessWorkbook({ appPath, processCode, processName, date, processData = {} }) {
   const { templatePath, buffer: templateBuffer } = await getTemplateBuffer(appPath);
   const reports = Array.isArray(processData?.reports) ? [...processData.reports] : [];
@@ -488,21 +593,28 @@ async function buildWorkerProcessWorkbook({ appPath, processCode, processName, d
   appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, processData);
 
   const dataStartRow = findDataStartRow(sheet, headerRow);
-  const sourceRow = sheet.getRow(dataStartRow);
-  const requiredEndRow = dataStartRow + reports.length - 1;
-  // The template ships with sample rows. Clear them before writing so a column
-  // the contract does not map can never keep a sample value from the template.
-  clearDataRows(sheet, dataStartRow, reports.length, sheet.columnCount);
-  for (let r = dataStartRow; r <= requiredEndRow; r += 1) {
-    const row = sheet.getRow(r);
-    if (r !== dataStartRow) cloneRowStyle(sheet, sourceRow, row);
-    applyReportRow(row, reports[r - dataStartRow], contract, processData, r - dataStartRow);
+  const dateRowNumber = findDateSeparatorRow(sheet, headerRow, dataStartRow);
+  let layout = 'flat';
+  if (dateRowNumber) {
+    layout = 'grouped-by-date';
+    writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber, dataStartRow, columnMap);
+  } else {
+    const sourceRow = sheet.getRow(dataStartRow);
+    const requiredEndRow = dataStartRow + reports.length - 1;
+    // The template ships with sample rows. Clear them before writing so a column
+    // the contract does not map can never keep a sample value from the template.
+    clearDataRows(sheet, dataStartRow, reports.length, sheet.columnCount);
+    for (let r = dataStartRow; r <= requiredEndRow; r += 1) {
+      const row = sheet.getRow(r);
+      if (r !== dataStartRow) cloneRowStyle(sheet, sourceRow, row);
+      applyReportRow(row, reports[r - dataStartRow], contract, processData, r - dataStartRow);
+    }
+    const clearCount = Math.max(0, sheet.rowCount - (dataStartRow + reports.length) + 1);
+    clearDataRows(sheet, dataStartRow + reports.length, clearCount, sheet.columnCount);
   }
-  const clearCount = Math.max(0, sheet.rowCount - (dataStartRow + reports.length) + 1);
-  clearDataRows(sheet, dataStartRow + reports.length, clearCount, sheet.columnCount);
   workbook.calculation = { fullCalcOnLoad: true, forceFullCalc: true, calcMode: 'auto' };
   const outputBuffer = Buffer.from(await workbook.xlsx.writeBuffer());
-  return { buffer: outputBuffer, fileName, processCode: code, processName: processName || processCode, reportCount: reports.length, templateFile: TEMPLATE_NAME, templatePath, templateSheet: sheet.name, headerRow, dataStartRow,
+  return { buffer: outputBuffer, fileName, processCode: code, processName: processName || processCode, reportCount: reports.length, templateFile: TEMPLATE_NAME, templatePath, templateSheet: sheet.name, headerRow, dataStartRow, layout,
     columnContract: {
       cols: contract.cols,
       detailColumns: contract.detailColumns,
