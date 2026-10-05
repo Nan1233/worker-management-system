@@ -81,7 +81,13 @@ function report(overrides = {}) {
     assert.ok(workerRow, 'Không tìm thấy dữ liệu công nhân sau khi đổ template');
 
     const rowValues = Array.from({ length: sheet.columnCount }, (_, i) => String(sheet.getRow(workerRow).getCell(i + 1).value ?? ''));
-    for (const expected of ['599', 'Nguyễn Văn Kiểm tra', 'M-01', 'QC5-1657', 'CUT', 'MANUAL', '0.5', '45', '2', '47']) {
+    // "Loại thao tác" / "Chế độ" are only asserted when the canonical template
+    // actually has those columns; the current worker template does not.
+    const headerText = values.map((v) => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd').toLowerCase()).join('|');
+    const expectedFields = ['599', 'Nguyễn Văn Kiểm tra', 'M-01', 'QC5-1657', '0.5', '45', '2', '47'];
+    if (headerText.includes('loai thao tac')) expectedFields.push('CUT');
+    if (headerText.includes('che do')) expectedFields.push('MANUAL');
+    for (const expected of expectedFields) {
       assert.ok(rowValues.includes(expected), `Không đổ đủ trường worker report: ${expected}`);
     }
     assert.ok(rowValues.some((value) => value === '0.5' || value === '0.50'), 'Chi tiết Trừ H không được đổ từ DB khi tên/code DB khác tên template');
