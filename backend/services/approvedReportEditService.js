@@ -2,7 +2,6 @@ const db = require('../config/db');
 const AuditService = require('./auditService');
 const { validateProductionReport } = require('../utils/reportValidation');
 const { validateMasterData } = require('./reportBusinessValidationService');
-const ReportGovernanceService = require('./reportGovernanceService');
 const { recalculateReportOutput } = require('./kqdReportCalculationService');
 const { assertProcessScope } = require('./processAuthorizationService');
 const {
@@ -70,11 +69,6 @@ async function updateApprovedReport({ reportId, patch, reason, userId, actor, re
         current_updated_at: before.updated_at || before.created_at || null
       });
     }
-
-    if (await ReportGovernanceService.isPeriodLocked(before.work_date, before.process_id, connection)) {
-      throw httpError(423, 'REPORTING_PERIOD_LOCKED', 'Kỳ báo cáo đã khóa, không thể chỉnh sửa dữ liệu');
-    }
-
     const inputPatch = patch && typeof patch === 'object' ? patch : {};
     if (Object.prototype.hasOwnProperty.call(inputPatch, 'process_id') && Number(inputPatch.process_id) !== Number(before.process_id)) {
       throw httpError(422, 'PROCESS_CHANGE_NOT_SUPPORTED', 'Không hỗ trợ chuyển báo cáo đã duyệt sang công đoạn khác');
@@ -111,11 +105,6 @@ async function updateApprovedReport({ reportId, patch, reason, userId, actor, re
     };
     const validation = validateProductionReport(payload, { enforceBackDate: false, skipActualOutputFormula: true });
     if (!validation.valid) throw httpError(422, 'REPORT_VALIDATION_FAILED', 'Dữ liệu báo cáo không hợp lệ', validation.errors);
-
-    if (await ReportGovernanceService.isPeriodLocked(validation.normalized.work_date, before.process_id, connection)) {
-      throw httpError(423, 'REPORTING_PERIOD_LOCKED', 'Ngày báo cáo mới thuộc kỳ đã khóa, không thể chuyển dữ liệu vào kỳ này');
-    }
-
     const master = await validateMasterData({
       workerId: before.worker_id,
       processId: before.process_id,
