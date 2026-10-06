@@ -18,7 +18,7 @@ test('F07 controller requires expected_updated_at for normal approved web edit a
   assert.match(block, /REPORT_VERSION_TOKEN_REQUIRED/);
   assert.match(block, /status\(428\)/);
   assert.match(block, /expectedUpdatedAt,/);
-  assert.match(block, /source: 'web'/);
+  assert.match(block, /source:\s*'web'/);
   assert.match(block, /const\s*\{\s*expected_updated_at:\s*_expectedUpdatedAt,\s*\.\.\.patch\s*\}=body/);
 });
 
