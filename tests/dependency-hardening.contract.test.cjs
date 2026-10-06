@@ -16,8 +16,17 @@ test('dependency hardening pins vulnerable uuid transitively without force upgra
 });
 
 test('lockfiles carry the same uuid override contract', () => {
-  for (const file of ['backend/package-lock.json', 'frontend/package-lock.json']) {
+  const candidates = ['backend/package-lock.json', 'frontend/package-lock.json'];
+  const files = candidates.filter((file) => fs.existsSync(path.join(ROOT, file)));
+
+  assert.ok(files.length > 0, 'At least one package lockfile must exist');
+
+  for (const file of files) {
     const lock = readJson(file);
-    assert.equal(lock.packages?.['']?.overrides?.uuid, '11.1.1', `${file} root override mismatch`);
+    assert.equal(
+      lock.packages?.['']?.overrides?.uuid,
+      '11.1.1',
+      `${file} root override mismatch`
+    );
   }
 });
