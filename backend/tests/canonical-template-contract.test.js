@@ -22,7 +22,7 @@ test('canonical KTC template exists and contains all 9 production sheets', async
 });
 
 test('template label normalization is stable for Vietnamese multiline headers', () => {
-  assert.equal(normalizeLabel('Nhập\\n mã số CN'), 'nhap ma so cn');
+  assert.equal(normalizeLabel('Nhập\n mã số CN'), 'nhap ma so cn');
   assert.equal(normalizeLabel('% học việc'), 'hoc viec');
   assert.equal(normalizeLabel('Mã số Sản Phẩm'), 'ma so san pham');
 });
