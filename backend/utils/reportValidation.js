@@ -153,17 +153,6 @@ const validateProductionReport = (payload = {}, options = {}) => {
     let deductions = normalizeDetails(payload.deductions || [], 'deduction_type_id', 'hours', 'deductions', errors);
 
     const deductionTotal = deductions.reduce((sum, item) => sum + item.hours, 0);
-    const minuteBasedTotal = deductionTotal / 60;
-    if (
-        deductionTime > EPSILON &&
-        Math.abs(deductionTotal - deductionTime) > EPSILON &&
-        Math.abs(minuteBasedTotal - deductionTime) <= EPSILON
-    ) {
-        deductions = deductions.map((item) => ({
-            ...item,
-            hours: item.hours / 60
-        }));
-    }
 
     const defectTotal = defects.reduce((sum, item) => sum + item.quantity, 0);
     const normalizedDeductionTotal = deductions.reduce((sum, item) => sum + item.hours, 0);
