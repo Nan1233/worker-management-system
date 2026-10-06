@@ -12,7 +12,7 @@ function callbackExecutor(handler) {
   return { query(sql, params, cb) { try { cb(null, handler(sql, params)); } catch (e) { cb(e); } } };
 }
 
-test('physical event output is independent from worker credits and uses KQD registry', () => {
+test('physical event output is independent from worker credits and treats KQD as normal NG', () => {
   const result = calculateEventPhysical({
     physicalOkQuantity: 990,
     defects: [
@@ -25,7 +25,7 @@ test('physical event output is independent from worker credits and uses KQD regi
   });
   assert.equal(result.physicalNgQuantity, 10);
   assert.equal(result.physicalTotalOutput, 1000);
-  assert.equal(result.physicalCountedOutput, 996);
+  assert.equal(result.physicalCountedOutput, 1000);
   assert.equal(result.maximumOutput, 1000);
   // Worker credits are intentionally not an input to physical calculation.
   assert.equal(Object.prototype.hasOwnProperty.call(result, 'workerCredit'), false);
@@ -114,11 +114,11 @@ test('dashboard machine metrics aggregate approved physical events, not worker c
 
 test('Excel company payload carries physical events separately from worker reports', () => {
   const backend = fs.readFileSync(path.join(root, 'controllers/companyExcelDataController.js'), 'utf8');
-  const loader = fs.readFileSync(path.join(root, 'services/processExcelExportService.js'), 'utf8');
+  const loader = fs.readFileSync(path.join(root, 'services/bulkCompanyExcelDataService.js'), 'utf8');
   const desktop = fs.readFileSync(path.join(repo, 'desktop/electron/monthlyWorkbookLocal.cjs'), 'utf8');
   assert.match(loader, /physicalMachineEvents/);
   assert.match(loader, /FROM machine_production_events e/);
-  assert.match(backend, /physicalMachineEvents: reports\.physicalMachineEvents/);
+  assert.match(backend, /processes: processData/);
   assert.match(desktop, /_KTC_MACHINE_EVENTS/);
   assert.match(desktop, /physical_counted_output/);
 });
