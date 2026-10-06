@@ -11,10 +11,10 @@ const source = fs.readFileSync(
 test('production temp create serializes submissions and retries TiDB lock wait timeouts', () => {
   assert.match(source, /submissionQueues\s*=\s*new Map/);
   assert.match(source, /runSerialized\(queueKey/);
-  assert.match(source, /LOCK_RETRY_ATTEMPTS\s*=\s*3/);
+  assert.match(source, /recoverAfter1205/);
   assert.match(source, /ER_LOCK_WAIT_TIMEOUT/);
   assert.match(source, /Number\(error\?\.errno\)\s*===\s*1205/);
   assert.match(source, /createModel\.createCompleteReport\(data, defects, deductions, machineLines, audit\)/);
   assert.match(source, /findExistingClientRequest\(data\)/);
-  assert.match(source, /sleep\(LOCK_RETRY_DELAYS_MS\[attempt - 1\]/);
+  assert.match(source, /for \(const delay of \[0, 150, 500, 1000\]\)/);
 });
