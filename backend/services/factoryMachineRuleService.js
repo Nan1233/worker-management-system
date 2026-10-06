@@ -328,7 +328,6 @@ const validateMachineWorkerCapacityLocked = async ({
   );
 
   const errors = {};
-  const db = getDb();
   const machinePlaceholders = uniqueCodes.map(() => "?").join(",");
   const tempExclude = excludeTempReportId ? " AND prt.id <> ?" : "";
   const tempParams = [
