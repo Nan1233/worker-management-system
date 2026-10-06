@@ -122,6 +122,21 @@ test('master functional permissions remain required before process-scoped master
   }
 });
 
+test('no shared default password remains; management account creation requires explicit password', () => {
+  const routes = read('routes/userRoutes.js');
+  const create = read('controllers/userController.js');
+  const promotion = read('controllers/workerPromotionController.js');
+  const adminUi = read('../frontend/src/pages/admin/Workers.tsx');
+  const managerUi = read('../frontend/src/pages/manager/Workers.tsx');
+  assert.doesNotMatch(routes, /KTC_DEFAULT_LEAD_PASSWORD|123456/);
+  assert.doesNotMatch(promotion, /DEFAULT_LEAD_PASSWORD|DEFAULT_MANAGER_PASSWORD|123456/);
+  assert.match(create, /password\.length < 6/);
+  assert.match(promotion, /crypto\.randomBytes\(18\)\.toString\('base64url'\)/);
+  assert.match(promotion, /initial_password:initialPassword/);
+  assert.doesNotMatch(adminUi, /123456/);
+  assert.doesNotMatch(managerUi, /123456/);
+});
+
 test('Excel export, DB sync and master sync enforce permission and scope contracts', () => {
   const exportRoutes = read('routes/reportExportRoutes.js');
   const desktop = read('controllers/desktopExcelExportController.js');
