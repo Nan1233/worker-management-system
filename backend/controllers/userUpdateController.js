@@ -58,6 +58,7 @@ exports.updateUser = async (req,res) => {
     if('username'in body)payload.username=String(body.username||'').trim();
     if('full_name'in body)payload.full_name=String(body.full_name||'').trim();
     if('status'in body)payload.status=normalizeStatus(body.status);
+    if('position'in body)payload.position=String(body.position || '').trim() || null;
     if(body.password){if(String(body.password).length<6)return res.status(400).json({success:false,message:'Mật khẩu tối thiểu 6 ký tự'});payload.password=await bcrypt.hash(String(body.password),10);}
     if('username'in payload&&!payload.username)return res.status(400).json({success:false,message:'Tên đăng nhập không được để trống'});
     if('full_name'in payload&&!payload.full_name)return res.status(400).json({success:false,message:'Họ tên không được để trống'});
