@@ -11,6 +11,7 @@ const has = (source, text) => assert.ok(source.includes(text), `Expected source 
 
 const productionDetail = read('frontend/src/pages/worker/ProductionDetail.tsx');
 const workerEdit = read('frontend/src/pages/worker/WorkerReportEditV2.tsx');
+const tempUpdateModel = read('backend/models/productionTempUpdateModel.js');
 const reportValidation = read('backend/utils/reportValidation.js');
 const nonProductCreate = read('backend/models/nonProductWorkCreateModel.js');
 const duplicateService = read('backend/services/logicalDuplicateReportService.js');
@@ -23,11 +24,15 @@ const productRules = read('frontend/src/pages/worker/productSuggestionRules.ts')
 const machineRules = read('backend/services/factoryMachineRuleService.js');
 
 
-test('worker report edit is limited to 10 minutes and pending/need_fix states', () => {
-  has(productionDetail, 'const EDIT_WINDOW_MS = 10 * 60 * 1000;');
-  has(productionDetail, 'const canEdit = (status === "pending" || status === "need_fix") && remainingMs > 0;');
+test('worker report edit is limited to 10 minutes and excludes approved reports', () => {
+  // ProductionDetail intentionally reuses the worker edit form as a read-only view;
+  // the actual worker edit-window implementation lives in WorkerReportEditV2.
+  has(productionDetail, '<WorkerReportEditV2 />');
   has(workerEdit, 'created + 600000 - Date.now()');
-  has(workerEdit, 'if (!report || remaining <= 0) return;');
+  has(workerEdit, 'if (!report || (!managerRoute && remaining <= 0) || readOnly) return;');
+  has(tempUpdateModel, 'const WORKER_EDIT_WINDOW_MS = 10 * 60 * 1000;');
+  has(tempUpdateModel, 'if (current.status === "approved") throw new Error("Báo cáo đã duyệt không thể sửa ở bảng tạm");');
+  has(tempUpdateModel, 'const resubmittingRejected = isWorkerEdit && current.status === "rejected";');
 });
 
 test('manager can edit reports through the central permission model', () => {
