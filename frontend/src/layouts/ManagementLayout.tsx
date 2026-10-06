@@ -4,7 +4,6 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { getStoredUser, clearAuthSession } from "../utils/authStorage";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
 import { usePermissions } from "../hooks/usePermissions";
-import { defaultPermissionsForRole } from "../security/permissions";
 import type { PermissionCode } from "../security/permissions";
 import MasterDataTransferActions from "../components/master/MasterDataTransferActions";
 import "./ManagementLayout.css";
