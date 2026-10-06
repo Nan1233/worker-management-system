@@ -122,6 +122,26 @@ test('master functional permissions remain required before process-scoped master
   }
 });
 
+test('pending approve/reject and edit require functional permission plus process scope', () => {
+  const routes = read('routes/productionTempRoutes.js');
+  const ctrl = read('controllers/productionTempManagementController.js');
+  assert.match(routes, /approve-selected[\s\S]*permission\("REPORT_APPROVE"\)/);
+  assert.match(routes, /reject-selected[\s\S]*permission\("REPORT_APPROVE"\)/);
+  assert.match(routes, /router\.put\("\/:id"[\s\S]*permission\("REPORT_PENDING_EDIT","REPORT_APPROVE","WORKER_ENTRY"\)/);
+  assert.match(ctrl, /hasPermission\(req\.user, "REPORT_APPROVE"\)/);
+  assert.match(ctrl, /assertProcessesScope\(req\.user, scopeRows\.map\(\(row\) => row\.process_id\)/);
+  assert.match(ctrl, /requiredPermission[\s\S]*REPORT_PENDING_EDIT/);
+  assert.match(ctrl, /assertProcessesScope\(req\.user, \[current\.process_id\], \{ action:"REPORT_PENDING_EDIT" \}\)/);
+  assert.match(ctrl, /WORKER_OWNERSHIP_FORBIDDEN/);
+});
+
+test('approval model still enforces manager_processes at transaction boundary', () => {
+  const approval = read('models/productionTempApprovalModel.js');
+  assert.match(approval, /manager_processes mp ON mp\.process_id=temp\.process_id/);
+  assert.match(approval, /mp\.manager_id = \?/);
+  assert.match(approval, /status IN \('pending','need_fix'\)/);
+});
+
 test('formula read filters products/processes/scopes by current process scope', () => {
   const src = read('controllers/formulaSettingsController.js');
   assert.match(src, /getActorProcessScope\(req\.user\)/);
