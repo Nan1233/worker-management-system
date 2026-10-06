@@ -221,6 +221,14 @@ exports.rejectSelectedReports = async (req, res) => {
         const ids = targets.map((item) => item.id);
         const reviewerId = toPositiveInteger(req.user?.id);
         const reason = String(req.body?.reason || "").trim();
+        if (!(await hasPermission(req.user, "REPORT_APPROVE"))) {
+            return res.status(403).json({ success:false, code:"PERMISSION_DENIED", message:"Bạn không có quyền duyệt hoặc từ chối báo cáo" });
+        }
+        const [scopeRows] = await db.promise().query(
+            `SELECT DISTINCT process_id FROM production_reports_temp WHERE id IN (${ids.map(() => "?").join(",")})`,
+            ids
+        );
+        await assertProcessesScope(req.user, scopeRows.map((row) => row.process_id), { action:"REPORT_REJECT" });
 
         if (ids.length === 0) return res.status(400).json({ success: false, message: "Vui lòng chọn ít nhất một báo cáo" });
         if (!reviewerId) return res.status(401).json({ success: false, message: "Thông tin người xử lý không hợp lệ" });
