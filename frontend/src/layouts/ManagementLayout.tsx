@@ -56,7 +56,7 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
     </button>
     <div className="management-header-actions">
      <button className="management-date" type="button"><CalendarDays size={19}/><span>{today}</span></button>
-     <button className="management-notification" type="button" aria-label="Thông báo" onClick={()=>navigate(`${base}/notifications`)}><Bell size={22}/>{unreadCount>0&&<b>{unreadCount>9?"9+":unreadCount}</b>}</button>
+     {can("NOTIFICATION_VIEW")&&<button className="management-notification" type="button" aria-label="Thông báo" onClick={()=>navigate(`${base}/notifications`)}><Bell size={22}/>{unreadCount>0&&<b>{unreadCount>9?"9+":unreadCount}</b>}</button>}
      <button className="management-user" type="button" aria-label="Mở trang cá nhân" onClick={()=>navigate(`${base}/profile`)}><span className="management-user-avatar">{avatarText}</span><span className="management-user-copy"><strong>{displayName}</strong><small>{roleLabel[role]} · Khu A</small></span><ChevronDown size={17}/></button>
     </div>
    </header>
@@ -65,7 +65,7 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
   <nav className="management-mobile-nav" aria-label="Mobile navigation">
    {mobileMoreOpen&&mobileOverflowItems.length>0&&<div id="management-mobile-overflow" className="management-mobile-overflow" aria-label="Các mục điều hướng khác">{mobileOverflowItems.map(item=>{const Icon=item.icon;return <button key={`overflow-${item.path}`} type="button" className={active(item.path)?"active":""} onClick={()=>{setMobileMoreOpen(false);navigate(`${base}${item.path?`/${item.path}`:""}`);}}><Icon size={18}/><span>{item.label}</span></button>;})}</div>}
    {mobilePrimaryItems.map(item=>{const Icon=item.icon;return <button key={`mobile-${item.path}`} type="button" className={active(item.path)?"active":""} onClick={()=>navigate(`${base}${item.path?`/${item.path}`:""}`)}><Icon size={18}/><span>{item.label}</span></button>;})}
-   <button type="button" className={location.pathname===`${base}/notifications`||location.pathname.startsWith(`${base}/notifications/`)?"active":""} onClick={()=>navigate(`${base}/notifications`)}><Bell size={18}/><span>Thông báo</span>{unreadCount>0&&<b className="management-badge">{unreadCount>99?"99+":unreadCount}</b>}</button>
+   {can("NOTIFICATION_VIEW")&&<button type="button" className={location.pathname===`${base}/notifications`||location.pathname.startsWith(`${base}/notifications/`)?"active":""} onClick={()=>navigate(`${base}/notifications`)}><Bell size={18}/><span>Thông báo</span>{unreadCount>0&&<b className="management-badge">{unreadCount>99?"99+":unreadCount}</b>}</button>}
    <button type="button" className={active("profile")?"active":""} onClick={()=>navigate(`${base}/profile`)}><UserRound size={18}/><span>Cá nhân</span></button>
    <button type="button" className="management-mobile-logout" onClick={logout}><LogOut size={18}/><span>Đăng xuất</span></button>
    {mobileOverflowItems.length>0&&<button type="button" className={mobileMoreOpen?"active":""} onClick={()=>setMobileMoreOpen(open=>!open)} aria-expanded={mobileMoreOpen} aria-controls="management-mobile-overflow"><MoreHorizontal size={18}/><span>Thêm</span></button>}
