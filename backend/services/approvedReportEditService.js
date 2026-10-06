@@ -376,13 +376,6 @@ async function restoreApprovedReportVersion({ reportId, versionNo, reason, userI
     const current = await loadApprovedAggregateSnapshot({ reportId: id, executor: connection });
     if (!current) throw httpError(404, 'REPORT_NOT_FOUND', 'Không tìm thấy aggregate báo cáo hiện tại');
 
-    if (await ReportGovernanceService.isPeriodLocked(currentRow.work_date, currentRow.process_id, connection)) {
-      throw httpError(423, 'REPORTING_PERIOD_LOCKED', 'Kỳ báo cáo hiện tại đã khóa, không thể khôi phục');
-    }
-    if (await ReportGovernanceService.isPeriodLocked(target.report.work_date, target.report.process_id, connection)) {
-      throw httpError(423, 'REPORTING_PERIOD_LOCKED', 'Phiên bản cần khôi phục thuộc kỳ đã khóa');
-    }
-
     // Validate every F05 reference before any destructive child replacement.
     await validateRestoreEventLinks({ snapshot: target, executor: connection });
 
