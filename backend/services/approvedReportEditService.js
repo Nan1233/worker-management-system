@@ -4,6 +4,7 @@ const { validateProductionReport } = require('../utils/reportValidation');
 const { validateMasterData } = require('./reportBusinessValidationService');
 const { recalculateReportOutput } = require('./kqdReportCalculationService');
 const { assertProcessScope } = require('./processAuthorizationService');
+const { hasPermission } = require('./permissionService');
 const {
   createApprovedReportVersion,
   parseSnapshotJson,
@@ -46,6 +47,9 @@ function httpError(status, code, message, details) {
 }
 
 async function updateApprovedReport({ reportId, patch, reason, userId, actor, req = null, expectedUpdatedAt = null, source = 'web', sourceMeta = null }) {
+  if (!(await hasPermission(actor, 'REPORT_APPROVED_EDIT'))) {
+    throw httpError(403, 'PERMISSION_DENIED', 'Bạn không có quyền sửa báo cáo đã duyệt');
+  }
   if (!Number.isInteger(Number(reportId)) || Number(reportId) <= 0) {
     throw httpError(422, 'INVALID_REPORT_ID', 'ID báo cáo không hợp lệ');
   }
@@ -329,6 +333,9 @@ async function replaceApprovedChildrenFromSnapshot({ reportId, snapshot, executo
 }
 
 async function restoreApprovedReportVersion({ reportId, versionNo, reason, userId, actor, req = null, expectedUpdatedAt = null }) {
+  if (!(await hasPermission(actor, 'REPORT_APPROVED_EDIT'))) {
+    throw httpError(403, 'PERMISSION_DENIED', 'Bạn không có quyền khôi phục báo cáo đã duyệt');
+  }
   const id = Number(reportId);
   const version = Number(versionNo);
   if (!Number.isInteger(id) || id <= 0 || !Number.isInteger(version) || version <= 0) {
