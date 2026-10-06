@@ -122,6 +122,24 @@ test('master functional permissions remain required before process-scoped master
   }
 });
 
+test('audit, system health and notification endpoints enforce role and scope contracts', () => {
+  const routes = read('routes/systemRoutes.js');
+  const controller = read('controllers/systemController.js');
+  const permissions = read('services/permissionService.js');
+
+  assert.match(routes, /\/observability[\\s\\S]*role\('admin','manager'\)[\\s\\S]*permission\('SYSTEM_HEALTH_VIEW'\)/);
+  assert.match(routes, /\/activities[\\s\\S]*role\('admin','manager','lead'\)[\\s\\S]*permission\('AUDIT_VIEW'\)/);
+  assert.match(routes, /\/deleted-reports[\\s\\S]*role\('admin','manager','lead'\)[\\s\\S]*permission\('AUDIT_VIEW'\)/);
+  assert.match(routes, /\/notifications(?:\/unread-count)?[\\s\\S]*permission\('NOTIFICATION_VIEW'\)/);
+  assert.match(controller, /a\.user_id=\?/);
+  assert.match(controller, /mp\.manager_id=\?/);
+  assert.match(controller, /mp2\.manager_id=\?/);
+  assert.match(controller, /FROM notifications[\\s\\S]*WHERE user_id=\?/);
+  assert.match(controller, /UPDATE notifications SET is_read=1, read_at=NOW\(\) WHERE id=\? AND user_id=\?/);
+  assert.match(controller, /UPDATE notifications SET is_read=1, read_at=NOW\(\) WHERE user_id=\?/);
+  assert.doesNotMatch(permissions, /lead: \[[^\\]]*SYSTEM_HEALTH_VIEW/);
+});
+
 test('no shared default password remains; management account creation requires explicit password', () => {
   const routes = read('routes/userRoutes.js');
   const create = read('controllers/userController.js');
