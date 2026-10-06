@@ -88,7 +88,7 @@ test('negative cases: worker submission requires request id and duplicate confir
 
 test('negative cases: approval is process-scoped and protected by row lock/concurrency checks', () => {
   has(approvalModel, 'LEFT JOIN manager_processes mp ON mp.process_id = temp.process_id');
-  has(approvalModel, 'AND (mp.manager_id = ? OR temp.process_id = 60006)');
+  has(approvalModel, 'AND mp.manager_id = ?');
   has(approvalModel, 'FOR UPDATE');
   has(approvalModel, 'TEMP_REPORT_VERSION_CONFLICT');
 });
