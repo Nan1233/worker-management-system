@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 
 const permissionService = require('../services/permissionService');
 
+function testMatrixForRole(role) { return permissionService.getEffectivePermissions({ id: 900000 + role.length, role }); }
+
 const matrix = {
   worker: {
     allow: ['NOTIFICATION_VIEW','WORKER_ENTRY','WORKER_HISTORY','STATISTICS_VIEW','PROFILE_VIEW'],
