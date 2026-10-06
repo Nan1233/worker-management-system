@@ -426,6 +426,55 @@ function writeDetailBlock(row, report, processData, assigned, kind) {
   }
 }
 
+// Submission timestamp kept at Vietnam wall-clock time.
+function asDateTime(value) {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    const plain = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/);
+    if (plain) return new Date(Date.UTC(+plain[1], +plain[2] - 1, +plain[3], +plain[4], +plain[5], +(plain[6] || 0)));
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Date(date.getTime() + 7 * 3600 * 1000);
+}
+
+// Insert one column after `afterColumn` and shift every column reference the
+// contract already holds. Lets the export add audit/derived columns without the
+// template having to carry them.
+function insertContractColumn(sheet, headerRow, contract, afterColumn, header, options = {}) {
+  const anchor = Number(afterColumn || 0);
+  if (!anchor) return null;
+  const column = anchor + 1;
+  sheet.spliceColumns(column, 0, []);
+  const cell = sheet.getRow(headerRow).getCell(column);
+  cell.style = JSON.parse(JSON.stringify(sheet.getRow(headerRow).getCell(anchor).style || {}));
+  cell.value = header;
+  sheet.getColumn(column).width = options.width || 14;
+  if (options.hidden) sheet.getColumn(column).hidden = true;
+  const shift = (value) => (Number(value) >= column ? Number(value) + 1 : value);
+  for (const key of Object.keys(contract.cols)) if (contract.cols[key]) contract.cols[key] = shift(contract.cols[key]);
+  for (const item of contract.deductions) item.column = shift(item.column);
+  for (const item of contract.defects) item.column = shift(item.column);
+  if (Array.isArray(contract.detailColumns)) contract.detailColumns = contract.detailColumns.map(shift);
+  if (contract.lastColumn) contract.lastColumn = shift(contract.lastColumn);
+  const previous = contract.shiftColumn;
+  contract.shiftColumn = previous ? ((value) => shift(previous(value))) : shift;
+  return column;
+}
+
+// Hidden submission timestamp right after STT, and a visible "% học việc"
+// column between Tên and Máy. Both are derived from the DB, not the template.
+function addDerivedColumns(sheet, headerRow, contract) {
+  const submitted = insertContractColumn(sheet, headerRow, contract, contract.cols.stt,
+    'Thời gian nộp báo cáo', { hidden: true, width: 18 });
+  if (submitted) contract.cols.submittedAt = submitted;
+  if (!contract.cols.training) {
+    const training = insertContractColumn(sheet, headerRow, contract, contract.cols.workerName,
+      '% học việc', { width: 10 });
+    if (training) contract.cols.training = training;
+  }
+}
+
 function applyReportRow(row, report, contract, processData, index) {
   const set = (column, value) => writeValue(row, column, value);
   set(contract.cols.stt, index + 1);
@@ -438,8 +487,34 @@ function applyReportRow(row, report, contract, processData, index) {
   set(contract.cols.operationMode, report.operation_mode);
   set(contract.cols.machine, report.machine_no ?? report.machine_code ?? report.machine);
   set(contract.cols.product, report.product_name || report.product_code);
-  set(contract.cols.training, number(report.training_percent));
-  set(contract.cols.standard, number(report.standard_output));
+  if (contract.cols.submittedAt) {
+    const cell = row.getCell(contract.cols.submittedAt);
+    cell.value = asDateTime(report.submitted_at || report.created_at || report.entry_date);
+    cell.numFmt = 'dd/mm/yyyy hh:mm';
+  }
+  // % học việc: DB snapshot first, then the live percent, default 100%.
+  const trainingPercent = (() => {
+    const has = (value) => value !== null && value !== undefined && String(value).trim() !== '';
+    if (has(report.training_percent_snapshot)) return number(report.training_percent_snapshot);
+    if (has(report.training_percent)) return number(report.training_percent);
+    return 100;
+  })();
+  if (contract.cols.training) {
+    const cell = row.getCell(contract.cols.training);
+    cell.value = trainingPercent / 100;
+    cell.numFmt = '0%';
+  }
+  // "Định mức" in this report is the planned output of the shift:
+  //   định mức 1h  x  thời gian thực tế  x  % học việc
+  const has = (value) => value !== null && value !== undefined && String(value).trim() !== '';
+  const effectiveTime = has(report.actual_time)
+    ? number(report.actual_time)
+    : (has(report.total_time) ? number(report.total_time) - number(report.deduction_time) : null);
+  const perHour = has(report.standard_output) ? number(report.standard_output) : null;
+  const planned = perHour === null || effectiveTime === null
+    ? null
+    : Math.round(perHour * effectiveTime * (trainingPercent / 100) * 100) / 100;
+  set(contract.cols.standard, planned);
   set(contract.cols.time, number(report.total_time ?? report.actual_time));
   if (contract.cols.actualTime && contract.cols.actualTime !== contract.cols.time) set(contract.cols.actualTime, number(report.actual_time ?? report.total_time));
   set(contract.cols.deductionTotal, number(report.deduction_time));
@@ -532,11 +607,14 @@ function columnLetter(column) {
   return result;
 }
 
-function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber, dataStartRow, columnMap) {
+function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber, dataStartRow, columnMap, headerRow) {
   const columnCount = Math.max(sheet.columnCount, Number(contract.lastColumn || 0));
   const dateSnapshot = snapshotRow(sheet, dateRowNumber, columnCount);
   const dataSnapshot = snapshotRow(sheet, dataStartRow, columnCount);
-  const percentColumn = pickExact(columnMap, '%tt', '% tt');
+  // Read the header row as it stands now: addDerivedColumns may have inserted
+  // columns after columnMap was built, so cached indexes would be stale.
+  const liveMap = findColumnMap(sheet, headerRow);
+  const percentColumn = pickExact(liveMap, '%tt', '% tt');
   const outputLetter = contract.cols.output ? columnLetter(contract.cols.output) : null;
   const standardLetter = contract.cols.standard ? columnLetter(contract.cols.standard) : null;
   const percentFormat = sheet.getRow(dataStartRow + 1).getCell(percentColumn || 1).numFmt || '0%';
@@ -616,12 +694,13 @@ async function buildWorkerProcessWorkbook({ appPath, processCode, processName, d
   reports.sort((a, b) => String(a?.work_date || '').localeCompare(String(b?.work_date || '')) || number(a?.id) - number(b?.id));
   appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, processData);
 
+  addDerivedColumns(sheet, headerRow, contract);
   const dataStartRow = findDataStartRow(sheet, headerRow);
   const dateRowNumber = findDateSeparatorRow(sheet, headerRow, dataStartRow);
   let layout = 'flat';
   if (dateRowNumber) {
     layout = 'grouped-by-date';
-    writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber, dataStartRow, columnMap);
+    writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber, dataStartRow, columnMap, headerRow);
   } else {
     const sourceRow = sheet.getRow(dataStartRow);
     const requiredEndRow = dataStartRow + reports.length - 1;
