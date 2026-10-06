@@ -80,6 +80,27 @@ async function getActorProcessScope(actor, executor = null) {
   return { type: 'LIMITED', processIds };
 }
 
+async function assertActorProcessAccess(actor, processId, options = {}) {
+  const id = normalizeProcessId(processId);
+  if (!id) throw scopeError('Không xác định được công đoạn của tài nguyên');
+  const role = normalizeRole(actor);
+  if (role === 'admin') return true;
+  const actorIdValue = role === 'worker' ? normalizeProcessId(actor?.worker_id) : actorId(actor);
+  if (!actorIdValue) throw scopeError('Không xác định được tài khoản');
+  if (!['worker','manager','lead'].includes(role)) {
+    throw scopeError('Tài khoản không có quyền truy cập công đoạn');
+  }
+  const table = role === 'worker' ? 'worker_processes' : 'manager_processes';
+  const field = role === 'worker' ? 'worker_id' : 'manager_id';
+  const result = await rows(
+    options.executor || null,
+    `SELECT 1 FROM ${table} WHERE ${field}=? AND process_id=? LIMIT 1`,
+    [actorIdValue, id]
+  );
+  if (result.length) return true;
+  throw scopeError(options.message || 'Công đoạn ngoài phạm vi phụ trách', { process_id:id, action:options.action || null });
+}
+
 async function isProcessAllowed(actor, processId, executor = null) {
   const id = normalizeProcessId(processId);
   if (!id) return false;
@@ -165,6 +186,7 @@ function scopeSql(scope, column, params = []) {
 module.exports = {
   getActorProcessScope,
   assertProcessScope,
+  assertActorProcessAccess,
   assertProcessesScope,
   assertUserManagementScope,
   isProcessAllowed,
