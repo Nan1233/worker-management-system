@@ -664,6 +664,8 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
       const row = sheet.getRow(rowNumber);
       applySnapshot(row, dataSnapshot, columnCount);
       applyReportRow(row, report, contract, processData, index);
+      const totalMinutes = report.total_minutes || (report.work_minutes + valueForType(detailValues, 'deduction_total', 'deduction'));
+writeValue(row, contract.cols.workTime, totalMinutes / 60);
       if (percentColumn && outputLetter && standardLetter) {
         const cell = row.getCell(percentColumn);
         const { planned } = plannedOutputFor(report);
@@ -722,6 +724,8 @@ async function buildWorkerProcessWorkbook({ appPath, processCode, processName, d
   appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, processData);
 
   addDerivedColumns(sheet, headerRow, contract);
+  const workTimeColumn = insertContractColumn(sheet, headerRow, contract, contract.cols.shift, 'Thời gian làm việc', { width: 14 });
+contract.cols.workTime = workTimeColumn;
   // "Tổng thời gian trừ giờ" is kept for formulas/reference but should not be
   // visible to readers of the report — only "Thời gian làm việc" (actual
   // worked time) is meant to show.
