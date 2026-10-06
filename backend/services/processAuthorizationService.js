@@ -98,6 +98,48 @@ async function assertProcessScope(actor, processId, options = {}) {
   });
 }
 
+async function assertUserManagementScope(actor, target, options = {}) {
+  const role = normalizeRole(actor);
+  if (!['admin','manager','lead'].includes(role)) throw scopeError('Tài khoản không có quyền quản lý người dùng');
+  const targetRole = normalizeRole(target);
+  const allowed = role === 'admin'
+    ? ['manager','lead','worker']
+    : role === 'manager'
+      ? ['lead','worker']
+      : ['worker'];
+  if (!allowed.includes(targetRole)) throw scopeError('Vai trò tài khoản nằm ngoài phạm vi quản lý');
+  if (role === 'admin') return true;
+
+  const targetId = targetRole === 'worker'
+    ? normalizeProcessId(target?.worker_id)
+    : normalizeProcessId(target?.id);
+  if (!targetId) throw scopeError('Không xác định được tài khoản cần quản lý');
+
+  const targetTable = targetRole === 'worker' ? 'worker_processes' : 'manager_processes';
+  const targetField = targetRole === 'worker' ? 'worker_id' : 'manager_id';
+  const actorIdValue = actorId(actor);
+  if (!actorIdValue) throw scopeError('Không xác định được tài khoản quản lý');
+
+  const executor = options.executor || null;
+  const result = await rows(
+    executor,
+    `SELECT 1 FROM ${targetTable} target_scope
+     WHERE target_scope.${targetField}=?
+       AND EXISTS (
+         SELECT 1 FROM manager_processes actor_scope
+         WHERE actor_scope.manager_id=? AND actor_scope.process_id=target_scope.process_id
+       )
+     LIMIT 1`,
+    [targetId, actorIdValue]
+  );
+  if (!result.length) throw scopeError(options.message || 'Tài khoản nằm ngoài phạm vi công đoạn phụ trách', {
+    target_user_id: Number(target?.id) || null,
+    target_role: targetRole,
+    action: options.action || null
+  });
+  return true;
+}
+
 async function assertProcessesScope(actor, processIds, options = {}) {
   const requested = [...new Set((Array.isArray(processIds) ? processIds : []).map(normalizeProcessId).filter(Boolean))];
   const scope = await getActorProcessScope(actor, options.executor || null);
@@ -124,6 +166,7 @@ module.exports = {
   getActorProcessScope,
   assertProcessScope,
   assertProcessesScope,
+  assertUserManagementScope,
   isProcessAllowed,
   scopeSql,
   scopeError,
