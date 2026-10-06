@@ -13,7 +13,7 @@ function getCanonicalSchemaPath() {
 
 function stripSqlComments(sql) {
   return sql
-    .replace(/\/*[\s\S]*?\*\//g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/^\s*--.*$/gm, '');
 }
 
