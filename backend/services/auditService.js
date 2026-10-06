@@ -34,9 +34,8 @@ const query = async (executor, sql, params = []) => {
     // Support both callback-style mysql connections and promise-returning
     // test/fake executors. A promise-returning executor may not invoke the
     // callback argument at all.
-    const callbackResult = executor.query(sql, params);
-    if (callbackResult && typeof callbackResult.then === 'function') {
-      const result = await callbackResult;
+    if (executor.query.length < 3) {
+      const result = await executor.query(sql, params);
       return Array.isArray(result) && result.length === 2 && Array.isArray(result[0])
         ? result[0]
         : result;
