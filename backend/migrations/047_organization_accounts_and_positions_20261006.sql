@@ -37,6 +37,16 @@ CREATE TABLE IF NOT EXISTS user_permission_overrides (
   INDEX idx_user_permission_user (user_id)
 );
 
+-- Correct the old draft username before inserting the canonical account.
+UPDATE users u
+LEFT JOIN users u2
+  ON LOWER(TRIM(u2.username))='nguyenthphuong'
+  AND u2.id<>u.id
+SET u.username='nguyenthphuong'
+WHERE LOWER(TRIM(u.username))='nguyenthihuong'
+  AND u.full_name='NGUYỄN THỊ PHƯƠNG'
+  AND u2.id IS NULL;
+
 SET @default_password_hash := '$2b$10$QyhDl6txQD0MlrVfYt/8Ie.yk879utP08WB.4FbTZiW6yLIz96jN6';
 
 INSERT INTO users (username,password,full_name,role,position,status) VALUES
@@ -61,17 +71,6 @@ ON DUPLICATE KEY UPDATE
   role=VALUES(role),
   position=VALUES(position),
   status=VALUES(status);
-
--- Correct the old draft username if it was already created.
-UPDATE users
-SET username='nguyenthphuong'
-WHERE LOWER(TRIM(username))='nguyenthihuong'
-  AND full_name='NGUYỄN THỊ PHƯƠNG'
-  AND NOT EXISTS (
-    SELECT 1 FROM users u2
-    WHERE LOWER(TRIM(u2.username))='nguyenthphuong'
-      AND u2.id<>users.id
-  );
 
 -- Resolve process IDs by code so this seed is safe across databases.
 DELETE mp FROM manager_processes mp
