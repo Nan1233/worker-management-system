@@ -465,14 +465,41 @@ function insertContractColumn(sheet, headerRow, contract, afterColumn, header, o
 // Hidden submission timestamp right after STT, and a visible "% học việc"
 // column between Tên and Máy. Both are derived from the DB, not the template.
 function addDerivedColumns(sheet, headerRow, contract) {
-  const submitted = insertContractColumn(sheet, headerRow, contract, contract.cols.stt,
-    'Thời gian nộp báo cáo', { hidden: true, width: 18 });
-  if (submitted) contract.cols.submittedAt = submitted;
+  // The current template already carries both columns; only add what is missing.
+  const headerKey = (column) => normalize(sheet.getRow(headerRow).getCell(column).value);
+  let existingSubmitted = null;
+  for (let column = 1; column <= sheet.columnCount; column += 1) {
+    if (headerKey(column).startsWith('thoi gian nop')) { existingSubmitted = column; break; }
+  }
+  if (existingSubmitted) {
+    contract.cols.submittedAt = existingSubmitted;
+    sheet.getColumn(existingSubmitted).hidden = true;
+  } else {
+    const submitted = insertContractColumn(sheet, headerRow, contract, contract.cols.stt,
+      'Thời gian nộp báo cáo', { hidden: true, width: 18 });
+    if (submitted) contract.cols.submittedAt = submitted;
+  }
   if (!contract.cols.training) {
     const training = insertContractColumn(sheet, headerRow, contract, contract.cols.workerName,
       '% học việc', { width: 10 });
     if (training) contract.cols.training = training;
   }
+}
+
+// Planned output of the shift = định mức 1h x thời gian thực tế x % học việc.
+function plannedOutputFor(report) {
+  const has = (value) => value !== null && value !== undefined && String(value).trim() !== '';
+  let trainingPercent = 100;
+  if (has(report.training_percent_snapshot)) trainingPercent = number(report.training_percent_snapshot);
+  else if (has(report.training_percent)) trainingPercent = number(report.training_percent);
+  const effectiveTime = has(report.actual_time)
+    ? number(report.actual_time)
+    : (has(report.total_time) ? number(report.total_time) - number(report.deduction_time) : null);
+  const perHour = has(report.standard_output) ? number(report.standard_output) : null;
+  const planned = perHour === null || effectiveTime === null
+    ? null
+    : Math.round(perHour * effectiveTime * (trainingPercent / 100) * 100) / 100;
+  return { planned, trainingPercent };
 }
 
 function applyReportRow(row, report, contract, processData, index) {
@@ -492,28 +519,12 @@ function applyReportRow(row, report, contract, processData, index) {
     cell.value = asDateTime(report.submitted_at || report.created_at || report.entry_date);
     cell.numFmt = 'dd/mm/yyyy hh:mm';
   }
-  // % học việc: DB snapshot first, then the live percent, default 100%.
-  const trainingPercent = (() => {
-    const has = (value) => value !== null && value !== undefined && String(value).trim() !== '';
-    if (has(report.training_percent_snapshot)) return number(report.training_percent_snapshot);
-    if (has(report.training_percent)) return number(report.training_percent);
-    return 100;
-  })();
+  const { planned, trainingPercent } = plannedOutputFor(report);
   if (contract.cols.training) {
     const cell = row.getCell(contract.cols.training);
     cell.value = trainingPercent / 100;
     cell.numFmt = '0%';
   }
-  // "Định mức" in this report is the planned output of the shift:
-  //   định mức 1h  x  thời gian thực tế  x  % học việc
-  const has = (value) => value !== null && value !== undefined && String(value).trim() !== '';
-  const effectiveTime = has(report.actual_time)
-    ? number(report.actual_time)
-    : (has(report.total_time) ? number(report.total_time) - number(report.deduction_time) : null);
-  const perHour = has(report.standard_output) ? number(report.standard_output) : null;
-  const planned = perHour === null || effectiveTime === null
-    ? null
-    : Math.round(perHour * effectiveTime * (trainingPercent / 100) * 100) / 100;
   set(contract.cols.standard, planned);
   set(contract.cols.time, number(report.total_time ?? report.actual_time));
   if (contract.cols.actualTime && contract.cols.actualTime !== contract.cols.time) set(contract.cols.actualTime, number(report.actual_time ?? report.total_time));
@@ -655,11 +666,11 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
       applyReportRow(row, report, contract, processData, index);
       if (percentColumn && outputLetter && standardLetter) {
         const cell = row.getCell(percentColumn);
-        const standard = number(report.standard_output);
+        const { planned } = plannedOutputFor(report);
         const output = number(report.actual_output ?? report.tt_ok);
         cell.value = {
           formula: `IFERROR(${outputLetter}${rowNumber}/${standardLetter}${rowNumber},0)`,
-          result: standard ? output / standard : 0
+          result: planned ? output / planned : 0
         };
         cell.numFmt = percentFormat;
       }
@@ -668,10 +679,26 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
     if (percentColumn) percentRanges.push(`${columnLetter(percentColumn)}${firstDataRow}:${columnLetter(percentColumn)}${rowNumber - 1}`);
   }
 
-  if (conditional && percentRanges.length) {
-    sheet.conditionalFormattings = [{ ref: percentRanges.join(' '), rules: conditional.rules }];
-  } else if (Array.isArray(sheet.conditionalFormattings)) {
-    sheet.conditionalFormattings = [];
+  // %TT colour bands (the template file no longer carries them):
+  //   < 80%          red
+  //   80% - < 90%    yellow
+  //   90% - 100%     green
+  //   > 100%         pink
+  sheet.conditionalFormattings = [];
+  if (percentColumn && percentRanges.length) {
+    const col = columnLetter(percentColumn);
+    const firstRow = Number(percentRanges[0].match(/\d+/)[0]);
+    const cell = `${col}${firstRow}`;
+    const fill = (argb) => ({ fill: { type: 'pattern', pattern: 'solid', bgColor: { argb } } });
+    sheet.addConditionalFormatting({
+      ref: percentRanges.join(' '),
+      rules: [
+        { type: 'expression', priority: 1, formulae: [`AND(ISNUMBER(${cell}),${cell}<0.8)`], style: fill('FFFF0000') },
+        { type: 'expression', priority: 2, formulae: [`AND(ISNUMBER(${cell}),${cell}>=0.8,${cell}<0.9)`], style: fill('FFFFFF00') },
+        { type: 'expression', priority: 3, formulae: [`AND(ISNUMBER(${cell}),${cell}>=0.9,${cell}<=1)`], style: fill('FF92D050') },
+        { type: 'expression', priority: 4, formulae: [`AND(ISNUMBER(${cell}),${cell}>1)`], style: fill('FFFF99CC') }
+      ]
+    });
   }
 }
 
