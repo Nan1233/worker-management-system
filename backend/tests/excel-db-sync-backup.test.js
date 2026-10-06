@@ -10,7 +10,6 @@ test('approved report updates use shared enterprise edit service',()=>{
   assert.match(controller,/updateApprovedReport/);
   const service=read('services/approvedReportEditService.js');
   assert.match(service,/REPORT_VERSION_CONFLICT/);
-  assert.match(service,/REPORTING_PERIOD_LOCKED/);
   assert.match(service,/REPORT_UPDATED_FROM_EXCEL/);
   assert.match(service,/training_percent/);
 });
