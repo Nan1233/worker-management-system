@@ -2,6 +2,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const permissionService = require('../services/permissionService');
+const db = require('../config/db');
+
+test.after(async () => {
+  if (typeof db.closePool === 'function') await db.closePool();
+});
 
 function testMatrixForRole(role) { return permissionService.getEffectivePermissions({ id: 900000 + role.length, role }); }
 
