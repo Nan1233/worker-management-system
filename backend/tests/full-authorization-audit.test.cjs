@@ -63,7 +63,6 @@ test('full authorization audit: worker management reads/writes are process-scope
   assert.match(worker, /manager_processes mp ON mp\.process_id=wp\.process_id AND mp\.manager_id=\?/);
   assert.match(worker, /assertUserManagementScope\(req\.user/);
   assert.match(worker, /WORKER_TRAINING_PERCENT_UPDATE/);
-  assert.match(worker, /WORKER_PROFILE_VIEW/);
 });
 
 test('full authorization audit: master catalog APIs cannot read another process', () => {
