@@ -178,7 +178,7 @@ test('multi-machine line rejects duplicate machine and mismatched NG', async () 
   assert.match(mismatchedNg.errors['machine_lines.0.defects'], /phải bằng tổng chi tiết lỗi NG/);
 });
 
-test('unconfigured KQD-like machine defect is counted normally', async () => {
+test('unconfigured KQD-like machine defect is rejected by master-data validation', async () => {
   const result = await validate({
     processId: 1,
     workDate: '2026-08-10',
@@ -196,6 +196,6 @@ test('unconfigured KQD-like machine defect is counted normally', async () => {
       ]
     }]
   });
-  assert.equal(result.valid, true);
-  assert.equal(result.lines[0].counted_output, 100);
+  assert.equal(result.valid, false);
+  assert.match(result.errors['machine_lines.0.defects'], /không tồn tại hoặc không duy nhất trong công đoạn/i);
 });
