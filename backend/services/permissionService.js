@@ -28,15 +28,45 @@ const PERMISSIONS = [
 ].map(([code,name,module]) => ({ code,name,module }));
 
 const ALL_CODES = PERMISSIONS.map((item) => item.code);
-const CAPABILITIES = {
-  admin: new Set(ALL_CODES),
-  manager: new Set(ALL_CODES.filter((code) => !['PERMISSION_MANAGE','WORKER_ENTRY','WORKER_HISTORY'].includes(code))),
-  // Tổ trưởng dùng luồng báo cáo giống Quản lý nhưng không có các quyền quản trị tài khoản/quyền.
-  lead: new Set(['DASHBOARD_VIEW','REPORT_PENDING_VIEW','REPORT_APPROVE','REPORT_PENDING_EDIT','REPORT_APPROVED_VIEW','REPORT_APPROVED_EDIT','REPORT_EXPORT','USER_VIEW','MASTER_VIEW','MASTER_EDIT','STATISTICS_VIEW','NOTIFICATION_VIEW','AUDIT_VIEW','SYSTEM_HEALTH_VIEW','PROFILE_VIEW']),
-  worker: new Set(['NOTIFICATION_VIEW','WORKER_ENTRY','WORKER_HISTORY','STATISTICS_VIEW','PROFILE_VIEW'])
+const WORKER_CONTEXT_PERMISSIONS = new Set(['WORKER_ENTRY','WORKER_HISTORY']);
+
+const ROLE_ADDITIONS = {
+  worker: ['NOTIFICATION_VIEW','WORKER_ENTRY','WORKER_HISTORY','STATISTICS_VIEW','PROFILE_VIEW'],
+  lead: ['DASHBOARD_VIEW','REPORT_PENDING_VIEW','REPORT_APPROVE','REPORT_PENDING_EDIT','REPORT_APPROVED_VIEW','REPORT_APPROVED_EDIT','REPORT_EXPORT','USER_VIEW','MASTER_VIEW','MASTER_EDIT','AUDIT_VIEW','SYSTEM_HEALTH_VIEW'],
+  manager: ['REPORT_DELETE','EXCEL_DB_SYNC','EXCEL_MASTER_SYNC','USER_CREATE','USER_EDIT','GOVERNANCE_VIEW'],
+  admin: ALL_CODES
 };
+
+const ROLE_PARENT = {
+  worker: null,
+  lead: 'worker',
+  manager: 'lead',
+  admin: 'manager'
+};
+
+function buildRoleCapabilities() {
+  const result = {};
+  for (const role of ['worker','lead','manager','admin']) {
+    const permissions = new Set();
+    const parent = ROLE_PARENT[role];
+
+    if (parent) {
+      for (const code of result[parent] || []) {
+        if (!WORKER_CONTEXT_PERMISSIONS.has(code)) permissions.add(code);
+      }
+    }
+
+    for (const code of ROLE_ADDITIONS[role] || []) permissions.add(code);
+    result[role] = permissions;
+  }
+
+  result.admin = new Set(ALL_CODES);
+  return result;
+}
+
+const CAPABILITIES = buildRoleCapabilities();
 const DEFAULTS = {
-  admin: new Set(ALL_CODES),
+  admin: new Set(CAPABILITIES.admin),
   manager: new Set(CAPABILITIES.manager),
   lead: new Set(CAPABILITIES.lead),
   worker: new Set(CAPABILITIES.worker)
@@ -102,8 +132,6 @@ async function hasPermission(user, code) {
   const role = normalizeRole(user?.role);
   const normalized = normalizeCode(code);
   if (role === 'admin') return true;
-  if (role === 'manager' && normalized === 'REPORT_APPROVED_EDIT') return true;
-  if (role === 'lead' && ['REPORT_APPROVE','MASTER_VIEW','MASTER_EDIT','REPORT_PENDING_EDIT','REPORT_APPROVED_EDIT'].includes(normalized)) return true;
   const set = await getEffectivePermissions(user);
   return set.has(normalized);
 }
