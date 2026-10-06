@@ -20,7 +20,12 @@ test('backend query() consumers do not destructure direct query results', () => 
   const offenders = [];
   for (const file of collectJs(backendRoot)) {
     const text = fs.readFileSync(file, 'utf8');
-    if (/const\s*\[[^\]]+\]\s*=\s*await\s+query\s*\(/.test(text)) {
+    // Only flag direct destructuring of a custom query() helper when that
+    // helper is known to return rows. Wrappers around mysql2/promise.query()
+    // legitimately return the [rows, fields] tuple and must destructure it.
+    const definesTupleQuery = /function\s+query\s*\([^)]*\)[^{]*\{[\s\S]*?return\s+[^;]*\.query\(/.test(text);
+    const generated = file.includes(path.sep + '.wrangler' + path.sep) || file.includes(path.sep + 'tmp' + path.sep);
+    if (!definesTupleQuery && !generated && /const\s*\[[^\]]+\]\s*=\s*await\s+query\s*\(/.test(text)) {
       offenders.push(path.relative(backendRoot, file));
     }
   }
