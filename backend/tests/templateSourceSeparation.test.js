@@ -14,7 +14,7 @@ test('runtime Excel exports only use backend/templates workbooks', () => {
 
   for (const relative of files) {
     const source = fs.readFileSync(path.join(root, relative), 'utf8');
-    assert.match(source, /path\.join\([^\n]+templates/i, relative);
+    assert.match(source, /TEMPLATE_RELATIVE_PATH|path\.resolve\([^\n]+templates/i, relative);
     assert.doesNotMatch(source, /KTC_dac_ta_form|file mẫu\(2\)\.xlsx|file mau\(2\)\.xlsx/i, relative);
   }
 });
