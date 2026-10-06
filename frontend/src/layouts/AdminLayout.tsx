@@ -48,7 +48,7 @@ export default function AdminLayout(){
   <section className="admin-main">
    <header className="admin-header">
     <div className="admin-header-left"><button className="admin-mobile-menu" type="button" aria-label="Mở menu" onClick={()=>setMobileSidebarOpen(true)}><Menu size={20}/></button><div className="admin-header-title"><strong>KTC Production Control</strong><span>ADMIN CONSOLE</span></div></div>
-    <div className="admin-header-actions"><button className="admin-notification" type="button" aria-label="Thông báo" onClick={()=>go("notifications")}><Bell size={19}/>{unreadCount>0&&<b>{unreadCount>9?"9+":unreadCount}</b>}</button>}<button className="admin-user" type="button" onClick={()=>go("profile")}><span className="admin-user-avatar">{avatarText}</span><span className="admin-user-copy"><strong>{displayName}</strong><small>{roleLabel}</small></span></button></div>
+    <div className="admin-header-actions">{can("NOTIFICATION_VIEW")&&<button className="admin-notification" type="button" aria-label="Thông báo" onClick={()=>go("notifications")}><Bell size={19}/>{unreadCount>0&&<b>{unreadCount>9?"9+":unreadCount}</b>}</button>}<button className="admin-user" type="button" onClick={()=>go("profile")}><span className="admin-user-avatar">{avatarText}</span><span className="admin-user-copy"><strong>{displayName}</strong><small>{roleLabel}</small></span></button></div>
    </header>
    <main className="admin-content"><Outlet/></main>
   </section>
