@@ -18,6 +18,38 @@ const workerProfileLoader = createWorkerProfileLoader({
 
 const loadCurrentWorkerProfile = workerProfileLoader.loadByUserId;
 
+exports.getCurrentWorker = async (req, res) => {
+    const loginUserId = Number(req.user?.id);
+    if (!Number.isInteger(loginUserId) || loginUserId <= 0) {
+        return res.status(401).json({
+            success: false,
+            message: "Phiên đăng nhập không hợp lệ"
+        });
+    }
+
+    try {
+        const worker = await loadCurrentWorkerProfile(loginUserId);
+
+        if (!worker) {
+            return res.status(404).json({
+                success: false,
+                message: "Không tìm thấy hồ sơ công nhân"
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: worker
+        });
+    } catch (error) {
+        console.error("GET CURRENT WORKER ERROR:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Không thể lấy hồ sơ công nhân"
+        });
+    }
+};
+
 
 // =====================================================
 // ROLE ĐƯỢC QUẢN LÝ NHÂN VIÊN
