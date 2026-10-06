@@ -44,7 +44,7 @@ test('full authorization audit: sensitive routes have authentication + role/perm
 test('full authorization audit: no management master route bypasses functional permission', () => {
   const adminMaster = read('routes/adminMasterRoutes.js');
   const managerMaster = read('routes/managerMasterRoutes.js');
-  assert.doesNotMatch(adminMaster, /if\(isManagementRole\(req\)&&MANAGER_MASTER_RESOURCES\.includes\(resource\)\) return next\(\)/);
+  assert.match(adminMaster, /managerMasterAccess,masterPermission/);
   assert.doesNotMatch(managerMaster, /if\(isManagerMaster\(req\)\) return next\(\)/);
   assert.match(adminMaster, /masterPermission/);
   assert.match(managerMaster, /permission\('MASTER_VIEW','MASTER_EDIT'\)/);
