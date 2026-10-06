@@ -27,7 +27,7 @@ test('deduction detail minutes matches deduction_time in hours', () => {
 
 test('canonical deduction hours still works', () => {
   const result = validateProductionReport({
-    work_date: '2026-08-17',
+    work_date: '2026-10-01',
     shift: 'A',
     total_time: 10 + 20 / 60,
     actual_time: 10,
