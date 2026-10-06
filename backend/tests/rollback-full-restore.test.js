@@ -359,7 +359,7 @@ test('restore API forwards expected_updated_at and frontend sends current report
   const controller = fs.readFileSync(path.join(ROOT, 'routes/productionRoutes.js'), 'utf8');
   const frontendService = fs.readFileSync(path.join(ROOT, '../frontend/src/services/systemService.ts'), 'utf8');
   const detail = fs.readFileSync(path.join(ROOT, '../frontend/src/pages/manager/ReportDetail.tsx'), 'utf8');
-  assert.match(controller, /(?:const\s+expectedUpdatedAt\s*=\s*body(?:\?\.)?expected_updated_at|expectedUpdatedAt:\s*req\.body(?:\?\.)?expected_updated_at)/);
+  assert.match(controller, /(?:const\s+expectedUpdatedAt\s*=\s*body(?:\?\.|\.)expected_updated_at|expectedUpdatedAt:\s*req\.body(?:\?\.|\.)expected_updated_at)/);
   assert.match(frontendService, /expected_updated_at:expectedUpdatedAt/);
   assert.match(detail, /report\.updated_at\s*\|\|\s*null/);
 });
