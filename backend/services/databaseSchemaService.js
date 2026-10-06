@@ -1,4 +1,8 @@
-const db = require('../config/db');
+let db;
+function getDb() {
+  if (!db) db = require('../config/db');
+  return db;
+}
 const {
   CONTRACT_VERSION,
   getCanonicalSchema,
@@ -26,12 +30,13 @@ const RUNTIME_REQUIRED_COLUMNS = Object.freeze({
   notifications: ['id', 'user_id', 'type', 'title', 'message', 'link_url', 'entity_type', 'entity_id', 'is_read', 'read_at', 'created_at'],
 });
 
-if (process.env.KTC_CLOUDFLARE_WORKER === 'true' && typeof db?.promise === 'function') {
-  const originalTestConnection = db.testConnection;
+if (process.env.KTC_CLOUDFLARE_WORKER === 'true' && typeof getDb().promise === 'function') {
+  const cloudflareDb = getDb();
+  const originalTestConnection = cloudflareDb.testConnection;
   db.testConnection = async () => {
     const startedAt = Date.now();
     try {
-      const [rows] = await db.promise().query('SELECT 1 AS ok');
+      const [rows] = await cloudflareDb.promise().query('SELECT 1 AS ok');
       if (!rows || Number(rows[0]?.ok) !== 1) {
         const error = new Error('TiDB health query did not return ok=1');
         error.code = 'DATABASE_UNAVAILABLE';
@@ -63,7 +68,8 @@ if (process.env.KTC_CLOUDFLARE_WORKER === 'true' && typeof db?.promise === 'func
   };
 }
 
-async function verifyDatabaseSchema({ executor = db.promise() } = {}) {
+async function verifyDatabaseSchema({ executor } = {}) {
+  executor = executor || getDb().promise();
   try {
     const isWorker = process.env.KTC_CLOUDFLARE_WORKER === 'true' ||
       Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
