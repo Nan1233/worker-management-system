@@ -76,10 +76,10 @@ export default function WorkerLayout() {
       <section className="worker-main">
         <header className="worker-header">
           <div className="worker-header-spacer" />
-          <button type="button" className="worker-header-notification" onClick={() => navigate("/worker/notifications")} aria-label="Thông báo">
+          {can("NOTIFICATION_VIEW")&&<button type="button" className="worker-header-notification" onClick={() => navigate("/worker/notifications")} aria-label="Thông báo">
             <Bell size={20} />
             {unreadCount > 0 && <b className="worker-badge">{unreadCount > 99 ? "99+" : unreadCount}</b>}
-          </button>
+          </button>}
           <button type="button" className="worker-header-user" onClick={() => navigate("/worker/profile")} aria-label={`Trang cá nhân của ${displayName}`}>
             <span className="worker-header-avatar">{initials}</span>
           </button>
