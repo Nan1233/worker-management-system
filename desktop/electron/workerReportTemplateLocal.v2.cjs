@@ -722,6 +722,10 @@ async function buildWorkerProcessWorkbook({ appPath, processCode, processName, d
   appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, processData);
 
   addDerivedColumns(sheet, headerRow, contract);
+  // "Tổng thời gian trừ giờ" is kept for formulas/reference but should not be
+  // visible to readers of the report — only "Thời gian làm việc" (actual
+  // worked time) is meant to show.
+  if (contract.cols.deductionTotal) sheet.getColumn(contract.cols.deductionTotal).hidden = true;
   const dataStartRow = findDataStartRow(sheet, headerRow);
   const dateRowNumber = findDateSeparatorRow(sheet, headerRow, dataStartRow);
   let layout = 'flat';
