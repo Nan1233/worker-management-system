@@ -70,10 +70,20 @@ test('worker master/process assignment cannot escape actor process scope', () =>
   assert.match(src, /assertProcessesScope\(req\.user, processIds, \{ executor:connection, action:'WORKER_PROCESS_ASSIGNMENT' \}\)/);
 });
 
-test('master functional permissions remain required in routes in addition to process scope', () => {
+test('master functional permissions remain required before process-scoped master operations', () => {
   const routes = read('routes/adminMasterRoutes.js');
-  assert.match(routes, /permission\('MASTER_VIEW'\)/);
-  assert.match(routes, /permission\('MASTER_EDIT'\)/);
+  assert.match(routes, /const masterPermission=\(req,res,next\)=>permission\(req\.method==='GET'\?'MASTER_VIEW':'MASTER_EDIT'\)\(req,res,next\)/);
+  for (const operation of [
+    "router.get('/:resource'",
+    "router.post('/:resource'",
+    "router.put('/:resource/:id'",
+    "router.delete('/:resource/:id'"
+  ]) {
+    const at = routes.indexOf(operation);
+    assert.ok(at >= 0, 'missing master operation');
+    const tail = routes.slice(at, routes.indexOf('\n', at));
+    assert.match(tail, /managerMasterAccess,masterPermission,managerResourceScope/);
+  }
 });
 
 test('formula read filters products/processes/scopes by current process scope', () => {
