@@ -356,7 +356,7 @@ test('restore path has no current standard/training/KQD master resolution and ne
 });
 
 test('restore API forwards expected_updated_at and frontend sends current report updated_at', () => {
-  const controller = fs.readFileSync(path.join(ROOT, 'controllers/productionController.js'), 'utf8');
+  const controller = fs.readFileSync(path.join(ROOT, 'routes/productionRoutes.js'), 'utf8');
   const frontendService = fs.readFileSync(path.join(ROOT, '../frontend/src/services/systemService.ts'), 'utf8');
   const detail = fs.readFileSync(path.join(ROOT, '../frontend/src/pages/manager/ReportDetail.tsx'), 'utf8');
   assert.match(controller, /(?:const\s+expectedUpdatedAt\s*=\s*body\?\.expected_updated_at|expectedUpdatedAt:\s*req\.body\?\.expected_updated_at)/);
