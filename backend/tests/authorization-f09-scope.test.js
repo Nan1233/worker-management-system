@@ -127,7 +127,7 @@ test('approved edit/delete/restore use permission, role, scope and audit contrac
   const controller = read('controllers/productionController.js');
   const service = read('services/approvedReportEditService.js');
   assert.match(routes, /router\.put\("\/:id"[\s\S]*checkRole\("admin","manager","lead"\)[\s\S]*permission\("REPORT_APPROVED_EDIT"\)/);
-  assert.match(routes, /versions\\/:versionNo\\/restore[\s\S]*checkRole\("admin","manager","lead"\)[\s\S]*permission\("REPORT_APPROVED_EDIT"\)/);
+  assert.match(routes, /versions\/:versionNo\/restore[\s\S]*checkRole\("admin","manager","lead"\)[\s\S]*permission\("REPORT_APPROVED_EDIT"\)/);
   assert.match(routes, /router\.delete\("\/:id"[\s\S]*checkRole\("admin","manager","lead"\)[\s\S]*permission\("REPORT_DELETE"\)/);
   assert.match(service, /hasPermission\(actor, 'REPORT_APPROVED_EDIT'\)/);
   assert.match(service, /assertProcessScope\(actor, lockedRows\[0\]\.process_id/);
