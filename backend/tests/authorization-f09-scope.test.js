@@ -122,6 +122,23 @@ test('master functional permissions remain required before process-scoped master
   }
 });
 
+test('Excel export, DB sync and master sync enforce permission and scope contracts', () => {
+  const exportRoutes = read('routes/reportExportRoutes.js');
+  const desktop = read('controllers/desktopExcelExportController.js');
+  const companyData = read('controllers/companyExcelDataController.js');
+  const dbSync = read('controllers/excelEditSyncController.js');
+  const master = read('services/excelMasterSyncService.js');
+  assert.match(exportRoutes, /authMiddleware, roles, canExport/);
+  assert.match(exportRoutes, /export-excel\\/process[\s\S]*canExport/);
+  assert.match(desktop, /assertProcessScope\(req\.user, processId, \{ action:'PROCESS_EXPORT' \}\)/);
+  assert.match(desktop, /assertCompanyScope/);
+  assert.match(companyData, /getActorProcessScope\(actor\)/);
+  assert.match(dbSync, /hasPermission\(req\.user, 'EXCEL_DB_SYNC'\)/);
+  assert.match(master, /hasPermission\(actor, 'EXCEL_MASTER_SYNC'\)/);
+  assert.match(master, /assertProcessesScope\(actor, processIds, \{ action: 'EXCEL_MASTER_SYNC_PREVIEW' \}\)/);
+  assert.match(master, /EXCEL_MASTER_SYNC_HISTORY/);
+});
+
 test('approved edit/delete/restore use permission, role, scope and audit contracts', () => {
   const routes = read('routes/productionRoutes.js');
   const controller = read('controllers/productionController.js');
