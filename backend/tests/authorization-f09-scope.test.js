@@ -122,6 +122,22 @@ test('master functional permissions remain required before process-scoped master
   }
 });
 
+test('approved edit/delete/restore use permission, role, scope and audit contracts', () => {
+  const routes = read('routes/productionRoutes.js');
+  const controller = read('controllers/productionController.js');
+  const service = read('services/approvedReportEditService.js');
+  assert.match(routes, /router\.put\("\/:id"[\s\S]*checkRole\("admin","manager","lead"\)[\s\S]*permission\("REPORT_APPROVED_EDIT"\)/);
+  assert.match(routes, /versions\\/:versionNo\\/restore[\s\S]*checkRole\("admin","manager","lead"\)[\s\S]*permission\("REPORT_APPROVED_EDIT"\)/);
+  assert.match(routes, /router\.delete\("\/:id"[\s\S]*checkRole\("admin","manager","lead"\)[\s\S]*permission\("REPORT_DELETE"\)/);
+  assert.match(service, /hasPermission\(actor, 'REPORT_APPROVED_EDIT'\)/);
+  assert.match(service, /assertProcessScope\(actor, lockedRows\[0\]\.process_id/);
+  assert.match(service, /assertProcessScope\(actor, currentRow\.process_id/);
+  assert.match(service, /REPORT_RESTORED/);
+  assert.match(controller, /hasPermission\(req\.user,'REPORT_DELETE'\)/);
+  assert.match(controller, /assertProcessScope\(req\.user,lockedRows\[0\]\.process_id/);
+  assert.match(controller, /REPORT_DELETED/);
+});
+
 test('pending approve/reject and edit require functional permission plus process scope', () => {
   const routes = read('routes/productionTempRoutes.js');
   const ctrl = read('controllers/productionTempManagementController.js');
