@@ -17,8 +17,6 @@ const PERMISSIONS = [
   ['MASTER_VIEW','Xem dữ liệu chuẩn','master'],
   ['MASTER_EDIT','Sửa dữ liệu chuẩn','master'],
   ['GOVERNANCE_VIEW','Xem quản trị dữ liệu','governance'],
-  ['PERIOD_LOCK','Khóa kỳ báo cáo','governance'],
-  ['PERIOD_UNLOCK','Mở khóa kỳ báo cáo','governance'],
   ['STATISTICS_VIEW','Xem thống kê','statistics'],
   ['NOTIFICATION_VIEW','Xem thông báo','system'],
   ['AUDIT_VIEW','Xem nhật ký hoạt động','system'],
@@ -32,8 +30,8 @@ const PERMISSIONS = [
 const ALL_CODES = PERMISSIONS.map((item) => item.code);
 const CAPABILITIES = {
   admin: new Set(ALL_CODES),
-  manager: new Set(ALL_CODES.filter((code) => !['PERIOD_UNLOCK','PERMISSION_MANAGE','WORKER_ENTRY','WORKER_HISTORY'].includes(code))),
-  // Tổ trưởng dùng luồng báo cáo giống Quản lý nhưng không có các quyền quản trị tài khoản/kỳ/quyền.
+  manager: new Set(ALL_CODES.filter((code) => !['PERMISSION_MANAGE','WORKER_ENTRY','WORKER_HISTORY'].includes(code))),
+  // Tổ trưởng dùng luồng báo cáo giống Quản lý nhưng không có các quyền quản trị tài khoản/quyền.
   lead: new Set(['DASHBOARD_VIEW','REPORT_PENDING_VIEW','REPORT_APPROVE','REPORT_PENDING_EDIT','REPORT_APPROVED_VIEW','REPORT_APPROVED_EDIT','REPORT_EXPORT','USER_VIEW','MASTER_VIEW','MASTER_EDIT','STATISTICS_VIEW','NOTIFICATION_VIEW','AUDIT_VIEW','SYSTEM_HEALTH_VIEW','PROFILE_VIEW']),
   worker: new Set(['NOTIFICATION_VIEW','WORKER_ENTRY','WORKER_HISTORY','STATISTICS_VIEW','PROFILE_VIEW'])
 };
