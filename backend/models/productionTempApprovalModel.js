@@ -267,7 +267,7 @@ module.exports = {
       await beginTransaction(connection);
       const placeholders = reportIds.map(() => "?").join(",");
       const scopeJoin = isAdmin ? "" : "LEFT JOIN manager_processes mp ON mp.process_id = temp.process_id";
-      const scopeWhere = isAdmin ? "" : "AND (mp.manager_id = ? OR temp.process_id = 60006)";
+      const scopeWhere = isAdmin ? "" : "AND mp.manager_id = ?";
       const params = isAdmin ? reportIds : [...reportIds, reviewerId];
       const rows = await query(
         connection,
