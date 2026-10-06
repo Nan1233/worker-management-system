@@ -134,7 +134,7 @@ test('audit, system health and notification endpoints enforce role and scope con
   assert.match(controller, /a\.user_id=\?/);
   assert.match(controller, /mp\.manager_id=\?/);
   assert.match(controller, /mp2\.manager_id=\?/);
-  assert.match(controller, /FROM notifications[\\s\\S]*WHERE user_id=\?/);
+  assert.match(controller, /FROM notifications[\s\S]*WHERE(?:\s+n)?\.user_id\s*=\s*\?/);
   assert.match(controller, /UPDATE notifications SET is_read=1, read_at=NOW\(\) WHERE id=\? AND user_id=\?/);
   assert.match(controller, /UPDATE notifications SET is_read=1, read_at=NOW\(\) WHERE user_id=\?/);
   assert.doesNotMatch(permissions, /lead: \[[^\\]]*SYSTEM_HEALTH_VIEW/);
