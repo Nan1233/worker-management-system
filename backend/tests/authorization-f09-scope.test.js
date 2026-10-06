@@ -130,7 +130,7 @@ test('audit, system health and notification endpoints enforce role and scope con
   assert.match(routes, /\/observability[\s\S]*role\('admin',\s*'manager'\)[\s\S]*permission\('SYSTEM_HEALTH_VIEW'\)/);
   assert.match(routes, /\/activities[\s\S]*role\(\s*'admin'\s*,\s*'manager'\s*,\s*'lead'\s*\)[\s\S]*permission\(\s*'AUDIT_VIEW'\s*\)/);
   assert.match(routes, /\/deleted-reports[\s\S]*role\(\s*'admin'\s*,\s*'manager'\s*,\s*'lead'\s*\)[\s\S]*permission\(\s*'AUDIT_VIEW'\s*\)/);
-  assert.match(routes, /\/notifications(?:\/unread-count)?[\\s\\S]*permission\('NOTIFICATION_VIEW'\)/);
+  assert.match(routes, /\/notifications(?:\/unread-count)?[\s\S]*permission\(\s*'NOTIFICATION_VIEW'\s*\)/);
   assert.match(controller, /a\.user_id=\?/);
   assert.match(controller, /mp\.manager_id=\?/);
   assert.match(controller, /mp2\.manager_id=\?/);
