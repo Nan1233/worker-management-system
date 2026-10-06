@@ -114,7 +114,7 @@ app.use("/api", (req, res, next) => { if (String(process.env.KTC_MAINTENANCE_MOD
 
 const mount = (path, route, name) => app.use(path, resolveRouteModule(route, name));
 mount("/api/mobile", mobileRoutes, "mobileRoutes");
-mount("/api/network", networkAccessRoutes, "networkAccessRoutes");
+app.use("/api/network", resolveRouteModule(networkAccessRoutes, "networkAccessRoutes"));
 mount("/api/dashboard", dashboardRoutes, "dashboardRoutes");
 mount("/api/machine-production-events", machineProductionEventRoutes, "machineProductionEventRoutes");
 mount("/api/machines", machineRoutes, "machineRoutes");
