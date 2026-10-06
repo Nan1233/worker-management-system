@@ -117,7 +117,7 @@ exports.getAllUsers = async (req, res) => {
       params.push(req.user.id);
     }
     const [rows] = await db.promise().query(
-      `SELECT u.id,u.username,u.full_name,u.role,u.status,u.created_at,w.id AS worker_id,w.worker_code,w.phone,w.department,w.position,w.training_percent,w.status AS worker_status,
+      `SELECT u.id,u.username,u.full_name,u.role,u.position,u.status,u.created_at,w.id AS worker_id,w.worker_code,w.phone,w.department,w.position,w.training_percent,w.status AS worker_status,
        CASE WHEN u.role='worker' THEN (SELECT GROUP_CONCAT(wp2.process_id ORDER BY wp2.process_id) FROM worker_processes wp2 WHERE wp2.worker_id=w.id) ELSE (SELECT GROUP_CONCAT(mp2.process_id ORDER BY mp2.process_id) FROM manager_processes mp2 WHERE mp2.manager_id=u.id) END AS process_ids,
        CASE WHEN u.role='worker' THEN (SELECT GROUP_CONCAT(p2.process_name ORDER BY wp2.process_id SEPARATOR ', ') FROM worker_processes wp2 JOIN processes p2 ON p2.id=wp2.process_id WHERE wp2.worker_id=w.id) ELSE (SELECT GROUP_CONCAT(p2.process_name ORDER BY mp2.process_id SEPARATOR ', ') FROM manager_processes mp2 JOIN processes p2 ON p2.id=mp2.process_id WHERE mp2.manager_id=u.id) END AS process_names
        FROM users u LEFT JOIN workers w ON w.user_id=u.id WHERE u.role IN (${placeholders}) ${scope} ORDER BY FIELD(u.role,'manager','lead','worker'),u.full_name,u.username`, params
@@ -133,7 +133,7 @@ exports.getUserById = async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ success:false, message:'ID người dùng không hợp lệ' });
     const [rows] = await connection.query(
-      `SELECT u.id,u.username,u.full_name,u.role,u.status,w.id worker_id,w.worker_code,w.phone,w.department,w.position,w.training_percent,
+      `SELECT u.id,u.username,u.full_name,u.role,u.position,u.status,w.id worker_id,w.worker_code,w.phone,w.department,w.position,w.training_percent,
        CASE WHEN u.role='worker' THEN (SELECT GROUP_CONCAT(wp2.process_id ORDER BY wp2.process_id) FROM worker_processes wp2 WHERE wp2.worker_id=w.id) ELSE (SELECT GROUP_CONCAT(mp2.process_id ORDER BY mp2.process_id) FROM manager_processes mp2 WHERE mp2.manager_id=u.id) END AS process_ids,
        CASE WHEN u.role='worker' THEN (SELECT GROUP_CONCAT(p2.process_name ORDER BY wp2.process_id SEPARATOR ', ') FROM worker_processes wp2 JOIN processes p2 ON p2.id=wp2.process_id WHERE wp2.worker_id=w.id) ELSE (SELECT GROUP_CONCAT(p2.process_name ORDER BY mp2.process_id SEPARATOR ', ') FROM manager_processes mp2 JOIN processes p2 ON p2.id=mp2.process_id WHERE mp2.manager_id=u.id) END AS process_names
        FROM users u LEFT JOIN workers w ON w.user_id=u.id WHERE u.id=? LIMIT 1`, [id]
