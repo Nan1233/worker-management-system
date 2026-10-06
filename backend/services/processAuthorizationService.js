@@ -1,3 +1,23 @@
+function ownershipError(message = 'Bạn không có quyền truy cập dữ liệu của công nhân khác') {
+  const error = new Error(message);
+  error.status = 403;
+  error.statusCode = 403;
+  error.code = 'WORKER_OWNERSHIP_FORBIDDEN';
+  error.isPublic = true;
+  return error;
+}
+
+function assertWorkerOwnership(actor, workerId, options = {}) {
+  const role = normalizeRole(actor);
+  if (role !== 'worker') return true;
+  const actorWorkerId = normalizeProcessId(actor?.worker_id);
+  const targetWorkerId = normalizeProcessId(workerId);
+  if (!actorWorkerId || !targetWorkerId || actorWorkerId !== targetWorkerId) {
+    throw ownershipError(options.message);
+  }
+  return true;
+}
+
 function scopeError(message = 'Công đoạn ngoài phạm vi phụ trách', details = null) {
   const error = new Error(message);
   error.status = 403;
@@ -106,5 +126,7 @@ module.exports = {
   assertProcessesScope,
   isProcessAllowed,
   scopeSql,
-  scopeError
+  scopeError,
+  assertWorkerOwnership,
+  ownershipError
 };
