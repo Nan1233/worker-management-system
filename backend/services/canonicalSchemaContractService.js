@@ -8,7 +8,7 @@ const CANONICAL_SCHEMA_PATH = path.resolve(__dirname, '..', 'database', 'KTC_FUL
 const CONTRACT_VERSION = 26;
 
 function getCanonicalSchemaPath() {
-  return path.resolve(process.cwd(), 'database', 'KTC_FULL_DATABASE_CANONICAL_20260817.sql');
+  return path.resolve(__dirname, '..', 'database', 'KTC_FULL_DATABASE_CANONICAL_20260817.sql');
 }
 
 function stripSqlComments(sql) {
