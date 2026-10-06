@@ -13,13 +13,13 @@ import "../styles/HideManagementPageDescriptions.css";
 type ManagementRole = "lead" | "manager" | "admin";
 type ManagementMenuItem = { label:string; path:string; icon:typeof LayoutDashboard; permission:PermissionCode; roles:ManagementRole[] };
 const allManagementRoles:ManagementRole[]=["lead","manager","admin"];
-const adminAndManagerRoles:ManagementRole[]=["manager","admin"];
+const adminAndManagerRoles:ManagementRole[]=["lead","manager","admin"];
 const managerMasterRoles:ManagementRole[]=["lead","manager","admin"];
 const items:ManagementMenuItem[]=[
  {label:"Tổng quan",path:"",icon:LayoutDashboard,permission:"DASHBOARD_VIEW",roles:allManagementRoles},
  {label:"Chờ duyệt",path:"reports",icon:ClipboardCheck,permission:"REPORT_PENDING_VIEW",roles:allManagementRoles},
  {label:"Đã duyệt",path:"approved",icon:ShieldCheck,permission:"REPORT_APPROVED_VIEW",roles:allManagementRoles},
- {label:"Thống kê",path:"statistics",icon:BarChart3,permission:"STATISTICS_VIEW",roles:["lead","admin"]},
+ {label:"Thống kê",path:"statistics",icon:BarChart3,permission:"STATISTICS_VIEW",roles:allManagementRoles},
  {label:"Nhân sự",path:"workers",icon:Users,permission:"USER_VIEW",roles:allManagementRoles},
  {label:"Máy móc",path:"master/machines",icon:Cog,permission:"MASTER_VIEW",roles:managerMasterRoles},
  {label:"Sản phẩm & định mức",path:"master/standards",icon:Boxes,permission:"MASTER_VIEW",roles:managerMasterRoles},
@@ -33,8 +33,7 @@ const roleLabel:Record<ManagementRole,string>={lead:"Tổ trưởng",manager:"Qu
 export default function ManagementLayout({role}:{role:ManagementRole}){
  const navigate=useNavigate(),location=useLocation(); const {can}=usePermissions();
  const {unreadCount}=useNotificationBadge(can("NOTIFICATION_VIEW")); const base=`/${role}`,user=getStoredUser();
- const [mobileMoreOpen,setMobileMoreOpen]=useState(false); const temporaryManagerView=role==="manager" && String(user?.role||"").toLowerCase()==="lead";
- const managerPermissions=defaultPermissionsForRole("manager"); const visible=items.filter(item=>item.roles.includes(role)&&(temporaryManagerView?managerPermissions.has(item.permission):can(item.permission)));
+ const [mobileMoreOpen,setMobileMoreOpen]=useState(false); const visible=items.filter(item=>item.roles.includes(role)&&can(item.permission));
  const mobilePrimaryItems=visible.slice(0,2),mobileOverflowItems=visible.slice(2); const active=(path:string)=>path===""?location.pathname===base:location.pathname===`${base}/${path}`||location.pathname.startsWith(`${base}/${path}/`);
  const displayName=user?.full_name||user?.username||roleLabel[role]; const avatarText=displayName.trim().charAt(0).toUpperCase()||"K";
  const logout=()=>{setMobileMoreOpen(false);clearAuthSession();navigate("/login",{replace:true});};
