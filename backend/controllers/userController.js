@@ -4,6 +4,7 @@ const db = require('../config/db');
 const { clearWorkerProfile } = require('../utils/workerProfileCache');
 const { deleteCachedAuthUser } = require('../utils/authUserCache');
 const { revokeAllUserFamilies } = require('../services/refreshSessionService');
+const { assertUserManagementScope } = require('../services/processAuthorizationService');
 
 const ROLE_CREATE_RULES = {
   admin: ['manager', 'lead', 'worker'],
@@ -59,6 +60,12 @@ async function validateProcessAssignment(connection, actor, processIds, required
 }
 
 async function canManageTarget(connection, actor, target) {
+  try {
+    await assertUserManagementScope(actor, target, { executor: connection, action:'USER_MANAGEMENT' });
+    return true;
+  } catch (_) {
+    return false;
+  }
   if (!manageableRoles(actor?.role).includes(target.role)) return false;
   if (actor.role === 'admin') return true;
   const actorProcessIds = await getActorProcessIds(connection, actor);
