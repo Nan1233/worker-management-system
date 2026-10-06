@@ -162,7 +162,7 @@ test('Excel export, DB sync and master sync enforce permission and scope contrac
   const dbSync = read('controllers/excelEditSyncController.js');
   const master = read('services/excelMasterSyncService.js');
   assert.match(exportRoutes, /authMiddleware, roles, canExport/);
-  assert.match(exportRoutes, /export-excel\\/process[\s\S]*canExport/);
+  assert.match(exportRoutes, /export-excel\/process[\s\S]*canExport/);
   assert.match(desktop, /assertProcessScope\(req\.user, processId, \{ action:'PROCESS_EXPORT' \}\)/);
   assert.match(desktop, /assertCompanyScope/);
   assert.match(companyData, /getActorProcessScope\(actor\)/);
