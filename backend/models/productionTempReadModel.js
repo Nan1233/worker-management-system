@@ -23,7 +23,7 @@ function buildListFilters(managerId, filters, isAdmin, statusSql) {
         const search = String(filters.search).trim();
         if (search) {
             const q = `%${search}%`;
-            conditions.push("(CAST(w.worker_code AS CHAR) COLLATE utf8mb4_general_ci LIKE ? OR u.full_name COLLATE utf8mb4_general_ci LIKE ? OR pr.machine_no COLLATE utf8mb4_general_ci LIKE ? OR pr.product_name COLLATE utf8mb4_general_ci LIKE ? OR p.process_name COLLATE utf8mb4_general_ci LIKE ?)");
+            conditions.push("(w.worker_code LIKE ? OR u.full_name LIKE ? OR pr.machine_no LIKE ? OR pr.product_name LIKE ? OR p.process_name LIKE ?)");
             params.push(q, q, q, q, q);
         }
     }
@@ -45,7 +45,7 @@ function normalizeReportTimestamps(report) {
 }
 
 async function getProcessOptions(managerId, isAdmin) {
-    if (isAdmin || !managerId) return query(db, `SELECT id, process_code, process_name FROM processes WHERE status = 'active' ORDER BY process_name`);
+    if (isAdmin || !managerId) return query(db, `SELECT p.id, p.process_code, p.process_name FROM processes p WHERE p.status = 'active' ORDER BY p.process_name`);
     return query(db, `SELECT DISTINCT p.id, p.process_code, p.process_name FROM processes p INNER JOIN manager_processes mp ON mp.process_id = p.id WHERE p.status = 'active' AND mp.manager_id = ? ORDER BY p.process_name`, [managerId]);
 }
 
@@ -157,7 +157,7 @@ module.exports = {
         const { conditions, params } = buildListFilters(managerId, filters, isAdmin, "pr.status IN ('pending','need_fix')");
         const where = conditions.join(" AND ");
         const countRows = await query(db, `SELECT COUNT(*) AS total FROM production_reports_temp pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where}`, params);
-        const items = await query(db, `SELECT pr.*,w.user_id,w.worker_code,u.full_name,p.process_name,p.process_code FROM production_reports_temp pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where} ORDER BY pr.work_date DESC,pr.created_at ASC,pr.id ASC LIMIT ? OFFSET ?`, [...params, pageSize, offset]);
+        const items = await query(db, `SELECT pr.*,w.user_id,w.worker_code,u.full_name,p.process_name,p.process_code FROM production_reports_temp pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where} ORDER BY pr.work_date DESC, pr.created_at ASC, pr.id ASC LIMIT ? OFFSET ?`, [...params, pageSize, offset]);
         const enrichedItems = await attachPendingChildren(items);
         const processes = await getProcessOptions(managerId, isAdmin);
         const previousCount = await getPreviousPendingCount(managerId, isAdmin);
@@ -168,7 +168,7 @@ module.exports = {
         const { conditions, params } = buildListFilters(managerId, filters, isAdmin, "pr.status = 'approved'");
         const where = conditions.join(" AND ");
         const countRows = await query(db, `SELECT COUNT(*) AS total FROM production_reports pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where}`, params);
-        const items = await query(db, `SELECT pr.id,pr.work_date,pr.shift,pr.machine_no,pr.product_name,pr.training_percent_snapshot,pr.training_percent_snapshot AS training_percent,w.worker_code,u.full_name,p.process_name FROM production_reports pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where} ORDER BY pr.approved_at DESC,pr.id DESC LIMIT ? OFFSET ?`, [...params, pageSize, offset]);
+        const items = await query(db, `SELECT pr.id,pr.work_date,pr.shift,pr.machine_no,pr.product_name,pr.training_percent_snapshot,pr.training_percent_snapshot AS training_percent,w.worker_code,u.full_name,p.process_name FROM production_reports pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where} ORDER BY pr.approved_at DESC, pr.id DESC LIMIT ? OFFSET ?`, [...params, pageSize, offset]);
         const processes = await getProcessOptions(managerId, isAdmin);
         return { items, pagination: paginationMeta({page,pageSize,total:Number(countRows?.[0]?.total||0)}), processes };
     },
