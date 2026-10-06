@@ -74,7 +74,7 @@ test('transactional worker-capacity check locks machine row before counting part
     if (/FROM machines/.test(sql) && /FOR UPDATE/.test(sql)) {
       return [{ id: 5, process_id: 1, machine_code: '5', is_automatic: 1, max_workers_per_machine: 4, output_basis: 'MACHINE' }];
     }
-    if (/SELECT DISTINCT worker_id/.test(sql)) return [{ worker_id: 1 }, { worker_id: 2 }, { worker_id: 3 }];
+    if (/SELECT DISTINCT worker_id/.test(sql)) return [{ worker_id: 1, machine_code: '5' }, { worker_id: 2, machine_code: '5' }, { worker_id: 3, machine_code: '5' }];
     return [];
   });
   const fourth = await validateMachineWorkerCapacityLocked({ executor, processCode: 'GC', processId: 1, machineLines: [{ machine_code: '5' }], workerId: 4, workDate: '2026-08-12', shift: 'A' });
@@ -83,7 +83,7 @@ test('transactional worker-capacity check locks machine row before counting part
 
   const fifthExecutor = callbackExecutor((sql) => {
     if (/FROM machines/.test(sql) && /FOR UPDATE/.test(sql)) return [{ id: 5, process_id: 1, machine_code: '5', is_automatic: 1, max_workers_per_machine: 4, output_basis: 'MACHINE' }];
-    if (/SELECT DISTINCT worker_id/.test(sql)) return [{ worker_id: 1 }, { worker_id: 2 }, { worker_id: 3 }, { worker_id: 4 }];
+    if (/SELECT DISTINCT worker_id/.test(sql)) return [{ worker_id: 1, machine_code: '5' }, { worker_id: 2, machine_code: '5' }, { worker_id: 3, machine_code: '5' }, { worker_id: 4, machine_code: '5' }];
     return [];
   });
   const fifth = await validateMachineWorkerCapacityLocked({ executor: fifthExecutor, processCode: 'GC', processId: 1, machineLines: [{ machine_code: '5' }], workerId: 5, workDate: '2026-08-12', shift: 'A' });
