@@ -70,6 +70,42 @@ test('worker master/process assignment cannot escape actor process scope', () =>
   assert.match(src, /assertProcessesScope\(req\.user, processIds, \{ executor:connection, action:'WORKER_PROCESS_ASSIGNMENT' \}\)/);
 });
 
+test('user management uses centralized role + process scope for view/update/promotion/delete', () => {
+  const auth = read('services/processAuthorizationService.js');
+  const user = read('controllers/userController.js');
+  const update = read('controllers/userUpdateController.js');
+  const promotion = read('controllers/workerPromotionController.js');
+  const deletion = read('controllers/permanentUserDeletionController.js');
+  assert.match(auth, /async function assertUserManagementScope\(actor, target/);
+  assert.match(auth, /manager_processes actor_scope/);
+  assert.match(user, /assertUserManagementScope\(actor, target/);
+  assert.match(update, /assertUserManagementScope\(actor, target/);
+  assert.match(promotion, /assertUserManagementScope\(req\.user, target/);
+  assert.match(deletion, /assertUserManagementScope\(req\.user, target/);
+});
+
+test('user management scope preserves role hierarchy', async () => {
+  const { assertUserManagementScope } = require('../services/processAuthorizationService');
+  const db = {
+    async query(sql, params) {
+      if (/manager_processes actor_scope/i.test(sql)) {
+        return [params[1] === 50 && params[0] === 10 ? [{ ok:1 }] : [], []];
+      }
+      throw new Error('Unexpected SQL');
+    }
+  };
+  assert.equal(await assertUserManagementScope({ id:1, role:'admin' }, { id:10, role:'manager' }, { executor:db }), true);
+  assert.equal(await assertUserManagementScope({ id:50, role:'manager' }, { id:10, role:'worker', worker_id:10 }, { executor:db }), true);
+  await assert.rejects(
+    assertUserManagementScope({ id:50, role:'manager' }, { id:10, role:'manager' }, { executor:db }),
+    (e) => e?.status === 403 && e?.code === 'PROCESS_SCOPE_FORBIDDEN'
+  );
+  await assert.rejects(
+    assertUserManagementScope({ id:50, role:'lead' }, { id:10, role:'lead' }, { executor:db }),
+    (e) => e?.status === 403 && e?.code === 'PROCESS_SCOPE_FORBIDDEN'
+  );
+});
+
 test('master functional permissions remain required before process-scoped master operations', () => {
   const routes = read('routes/adminMasterRoutes.js');
   assert.match(routes, /const masterPermission=\(req,res,next\)=>permission\(req\.method==='GET'\?'MASTER_VIEW':'MASTER_EDIT'\)\(req,res,next\)/);
