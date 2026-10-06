@@ -100,21 +100,77 @@ async function verifyDatabaseSchema({ executor = db.promise() } = {}) {
     const invalidIndexes = [];
     const extraIndexes = [];
 
-    for (const [table, requiredColumns] of Object.entries(RUNTIME_REQUIRED_COLUMNS)) {
+    const schemaTables = isWorker ? Object.keys(RUNTIME_REQUIRED_COLUMNS) : Object.keys(canonical.tables);
+
+    for (const table of schemaTables) {
       if (!actualTables.has(table)) continue;
-      const [rows] = await executor.query(
-        `SELECT COLUMN_NAME
+
+      const [columnRows] = await executor.query(
+        `SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA
            FROM information_schema.columns
           WHERE table_schema = ?
             AND table_name = ?`,
         [dbName, table],
       );
-      const actual = new Set(rows.map((row) => String(row.COLUMN_NAME).toLowerCase()));
-      for (const column of requiredColumns) {
-        if (!actual.has(column)) missingColumns.push(`${table}.${column}`);
+
+      const actualColumns = new Set(
+        columnRows.map((row) => String(row.COLUMN_NAME).toLowerCase()),
+      );
+
+      const expectedColumns = isWorker
+        ? Object.fromEntries((RUNTIME_REQUIRED_COLUMNS[table] || []).map((name) => [name, null]))
+        : canonical.tables[table].columns;
+
+      for (const column of Object.keys(expectedColumns)) {
+        if (!actualColumns.has(column)) {
+          missingColumns.push(`${table}.${column}`);
+        } else if (!isWorker) {
+          const actualRow = columnRows.find(
+            (row) => String(row.COLUMN_NAME).toLowerCase() === column,
+          );
+          const diffs = compareColumn(expectedColumns[column], actualRow || {});
+          if (diffs.length) invalidColumns.push(`${table}.${column}: ${diffs.join(', ')}`);
+        }
+      }
+
+      for (const actual of actualColumns) {
+        if (!Object.prototype.hasOwnProperty.call(expectedColumns, actual)) {
+          extraColumns.push(`${table}.${actual}`);
+        }
+      }
+
+      const [indexRows] = await executor.query(
+        `SELECT INDEX_NAME, NON_UNIQUE, SEQ_IN_INDEX, COLUMN_NAME
+           FROM information_schema.statistics
+          WHERE table_schema = ?
+            AND table_name = ?`,
+        [dbName, table],
+      );
+
+      const groupedIndexes = new Map();
+      for (const row of indexRows) {
+        const name = String(row.INDEX_NAME).toLowerCase();
+        if (!groupedIndexes.has(name)) groupedIndexes.set(name, []);
+        groupedIndexes.get(name).push(row);
+      }
+
+      const expectedIndexes = isWorker ? {} : canonical.tables[table].indexes;
+      for (const [indexName, expectedIndex] of Object.entries(expectedIndexes)) {
+        const rows = groupedIndexes.get(indexName) || [];
+        if (!rows.length) {
+          missingIndexes.push(`${table}.${indexName}`);
+          continue;
+        }
+        const diffs = compareIndex(expectedIndex, rows);
+        if (diffs.length) invalidIndexes.push(`${table}.${indexName}: ${diffs.join(', ')}`);
+      }
+
+      for (const [indexName] of groupedIndexes) {
+        if (!Object.prototype.hasOwnProperty.call(expectedIndexes, indexName)) {
+          extraIndexes.push(`${table}.${indexName}`);
+        }
       }
     }
-
     const ready = missingTables.length === 0 && missingColumns.length === 0;
 
     return {
