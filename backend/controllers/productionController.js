@@ -2,7 +2,7 @@ const db = require("../config/db");
 const { mergeDefects, normalizeDeductions } = require("../utils/reportDetailNormalizer");
 const { calculateReportPerformance } = require("../services/machinePerformanceService");
 const { envEnabled } = require("../utils/featureFlags");
-const { getActorProcessScope, assertProcessScope, scopeSql } = require('../services/processAuthorizationService');
+const { getActorProcessScope, assertProcessScope, scopeSql, assertWorkerOwnership } = require('../services/processAuthorizationService');
 const { hasPermission } = require('../services/permissionService');
 
 const safeDbError = (res, error, fallback) => { console.error(fallback, error); return res.status(500).json({ success:false, message:process.env.NODE_ENV==='production'?fallback:(error?.message||fallback) }); };
