@@ -32,7 +32,7 @@ test('temp edit audit uses current report_edit_logs JSON schema, not removed leg
   const schema = read('database/KTC_FULL_DATABASE_CANONICAL_20260817.sql');
 
   assert.match(schema, /report_edit_logs[\s\S]*user_id[\s\S]*old_data[\s\S]*new_data[\s\S]*changed_fields[\s\S]*note/);
-  assert.match(update, /\(report_type, report_id, user_id, old_data, new_data, changed_fields, note\)/);
+  assert.match(update, /INSERT INTO report_edit_logs \(report_type,report_id,user_id,old_data,new_data,changed_fields,note\)/);
   assert.doesNotMatch(update, /changed_by/);
   assert.doesNotMatch(update, /field_name/);
   assert.doesNotMatch(update, /old_value/);
