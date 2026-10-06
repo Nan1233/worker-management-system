@@ -135,3 +135,14 @@ test('no JWT/client process list is used as scope authority in central service',
   assert.doesNotMatch(src, /actor\?\.process_ids|actor\.process_ids|allowedProcesses|token\.process/i);
   assert.match(src, /SELECT process_id FROM manager_processes WHERE manager_id=\?/);
 });
+
+
+test('worker ownership is enforced centrally', () => {
+  const { assertWorkerOwnership } = require('../services/processAuthorizationService');
+  assert.equal(assertWorkerOwnership({ role: 'worker', worker_id: 10 }, 10), true);
+  assert.throws(
+    () => assertWorkerOwnership({ role: 'worker', worker_id: 10 }, 11),
+    (error) => error?.status === 403 && error?.code === 'WORKER_OWNERSHIP_FORBIDDEN'
+  );
+  assert.equal(assertWorkerOwnership({ role: 'manager', worker_id: 10 }, 11), true);
+});
