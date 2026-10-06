@@ -127,7 +127,7 @@ test('audit, system health and notification endpoints enforce role and scope con
   const controller = read('controllers/systemController.js');
   const permissions = read('services/permissionService.js');
 
-  assert.match(routes, /\/observability[\\s\\S]*role\('admin',\\s*'manager'\)[\\s\\S]*permission\('SYSTEM_HEALTH_VIEW'\)/);
+  assert.match(routes, /\/observability[\s\S]*role\('admin',\s*'manager'\)[\s\S]*permission\('SYSTEM_HEALTH_VIEW'\)/);
   assert.match(routes, /\/activities[\\s\\S]*role\('admin','manager','lead'\)[\\s\\S]*permission\('AUDIT_VIEW'\)/);
   assert.match(routes, /\/deleted-reports[\\s\\S]*role\('admin','manager','lead'\)[\\s\\S]*permission\('AUDIT_VIEW'\)/);
   assert.match(routes, /\/notifications(?:\/unread-count)?[\\s\\S]*permission\('NOTIFICATION_VIEW'\)/);
