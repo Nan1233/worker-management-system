@@ -231,11 +231,10 @@ test('formula product rule by known ID resolves resource process before UPDATE',
   assert.ok(select >= 0 && scope > select && update > scope);
 });
 
-test('GLOBAL formula mutation is admin-only while functional FORMULA_EDIT remains in route', () => {
-  const src = read('controllers/formulaSettingsController.js');
+test('formula management API is intentionally removed from public application routes', () => {
   const routes = read('routes/formulaSettingsRoutes.js');
-  assert.match(src, /scopeCode === 'GLOBAL'[\s\S]*req\.user\?\.role !== 'admin'/);
-  assert.match(routes, /permission\('FORMULA_EDIT'\)/);
+  assert.match(routes, /FORMULA_FEATURE_REMOVED/);
+  assert.match(routes, /res\.status\(404\)/);
 });
 
 test('governance lists and summary use backend process scope before returning counts/rows', () => {
@@ -250,9 +249,10 @@ test('governance create blocks MAI body tampering for GC manager through assertP
   const src = read('controllers/governanceController.js');
   assert.match(src, /createPlan[\s\S]*assertProcessScope\(req\.user,processId,\{action:'GOVERNANCE_PLAN_CREATE'\}\)/);});
 
-test('global period lock mutation is admin-only', () => {
+test('reporting period lock contract is removed from application code', () => {
   const src = read('controllers/governanceController.js');
-  assert.match(src, /processId===null[\s\S]*req\.user\?\.role!=='admin'[\s\S]*Chỉ admin được khóa kỳ toàn hệ thống/);
+  assert.doesNotMatch(src, /Chỉ admin được khóa kỳ toàn hệ thống/);
+  assert.doesNotMatch(src, /processId===null[\s\S]*khóa kỳ/);
 });
 
 test('process Excel list and explicit process export are scoped server-side', () => {
@@ -266,9 +266,10 @@ test('process Excel list and explicit process export are scoped server-side', ()
 
 test('company-wide data builder enforces complete process scope before cache/data return', () => {
   const src = read('controllers/companyExcelDataController.js');
-  assert.match(src, /assertCompanyDataScope\(actor\)/);
+  assert.match(src, /async function assertCompanyDataScope\(actor\)/);
   assert.match(src, /await assertCompanyDataScope\(actor\);[\s\S]*const cached/);
-  assert.match(src, /buildCompanyData\(yearMonth, actor\)[\s\S]*assertProcessesScope\(actor, companyProcessIds/);
+  assert.match(src, /buildCompanyData\(yearMonth, actor\)[\s\S]*await assertCompanyDataScope\(actor\)/);
+  assert.match(src, /assertProcessesScope\(actor, companyProcessIds/);
 });
 
 test('company group and company-all exports use subset/global scope rules', () => {
@@ -286,10 +287,10 @@ test('async export job validates scope before enqueue and protects job read/down
   assert.match(src, /await canReadJob\(req\.user,job\)/);
 });
 
-test('legacy monthly consolidated export is not a manager scope bypass', () => {
+test('legacy monthly consolidated export is disabled; Desktop async export is the active path', () => {
   const src = read('controllers/reportExportController.js');
-  assert.match(src, /assertProcessesScope\(req\.user, scopeRows\.map/);
-  assert.ok(src.indexOf('assertProcessesScope(req.user') < src.indexOf("excelJobManager.run('monthly'"));
+  assert.match(src, /DESKTOP_EXCEL_REQUIRED/);
+  assert.match(src, /res\.status\(503\)/);
 });
 
 test('F09 export routes still require REPORT_EXPORT functional permission', () => {
@@ -318,17 +319,17 @@ test('governance routes retain functional permissions and manager/admin role bou
   assert.match(routes,/role\('admin','manager'\)/);
   assert.match(routes,/permission\('GOVERNANCE_VIEW'\)/);});
 
-test('formula lead capability is not granted by process scope alone', () => {
+test('formula lead capability is not exposed after formula feature removal', () => {
   const routes=read('routes/formulaSettingsRoutes.js');
-  assert.match(routes,/permission\('FORMULA_EDIT'\)/);
-  assert.match(routes,/checkRole\('admin','manager','lead'\)/);
+  assert.doesNotMatch(routes,/FORMULA_EDIT/);
+  assert.match(routes,/FORMULA_FEATURE_REMOVED/);
 });
 
 test('company-data service performs defense-in-depth scope assertion inside builder', () => {
   const src=read('controllers/companyExcelDataController.js');
   const build=src.indexOf('async function buildCompanyData');
-  const assertAt=src.indexOf('assertProcessesScope(actor, companyProcessIds',build);
-  const load=src.indexOf('loadProcessMonthReports',build);
+  const assertAt=src.indexOf('await assertCompanyDataScope(actor)',build);
+  const load=src.indexOf('loadBulkCompanyReports(yearMonth, actor)',build);
   assert.ok(build>=0 && assertAt>build && load>assertAt);
 });
 
