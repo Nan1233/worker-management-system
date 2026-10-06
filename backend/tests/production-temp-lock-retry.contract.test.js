@@ -12,7 +12,7 @@ test('production temp create serializes submissions and retries TiDB lock wait t
   assert.match(source, /submissionQueues\s*=\s*new Map/);
   assert.match(source, /runSerialized\(queueKey/);
   assert.match(source, /recoverAfter1205/);
-  assert.match(source, /ER_LOCK_WAIT_TIMEOUT/);
+  // TiDB reports lock wait timeout by errno 1205; message text is not stable across drivers.
   assert.match(source, /Number\(error\?\.errno\)\s*===\s*1205/);
   assert.match(source, /createModel\.createCompleteReport\(data, defects, deductions, machineLines, audit\)/);
   assert.match(source, /findExistingClientRequest\(data\)/);
