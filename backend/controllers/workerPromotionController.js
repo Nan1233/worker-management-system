@@ -3,6 +3,7 @@ const db = require('../config/db');
 const { clearWorkerProfile } = require('../utils/workerProfileCache');
 const { deleteCachedAuthUser } = require('../utils/authUserCache');
 const { revokeAllUserFamilies } = require('../services/refreshSessionService');
+const { assertUserManagementScope } = require('../services/processAuthorizationService');
 
 const DEFAULT_LEAD_PASSWORD = process.env.KTC_DEFAULT_LEAD_PASSWORD || '123456';
 const DEFAULT_MANAGER_PASSWORD = process.env.KTC_DEFAULT_MANAGER_PASSWORD || '123456';
@@ -26,6 +27,12 @@ async function loadWorkerAssignments(connection, workerId) {
 }
 
 async function assertManagerScope(req, connection, workerId) {
+  const target = { id: null, role: 'worker', worker_id: workerId };
+  const [users] = await connection.query('SELECT u.id FROM users u JOIN workers w ON w.user_id=u.id WHERE w.id=? LIMIT 1', [workerId]);
+  target.id = users[0]?.id || null;
+  if (!target.id) return false;
+  try { await assertUserManagementScope(req.user, target, { executor: connection, action:'USER_PROMOTION' }); return true; }
+  catch (_) { return false; }
   if (String(req.user?.role || '').toLowerCase() === 'admin') return true;
   const [allowed] = await connection.query(
     `SELECT 1 FROM manager_processes actor_mp
