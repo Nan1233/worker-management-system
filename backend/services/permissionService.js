@@ -168,6 +168,18 @@ async function setUserPermission(userId, permissionCode, allowed) {
   if (!await ensureSchemaAvailable()) throw Object.assign(new Error('Bảng phân quyền chưa sẵn sàng'), { status: 503 });
   const code = normalizeCode(permissionCode);
   if (!ALL_CODES.includes(code)) throw Object.assign(new Error('Permission không hợp lệ'), { status: 400 });
+
+  const [userRows] = await db.promise().query(
+    'SELECT role FROM users WHERE id=? LIMIT 1',
+    [Number(userId)]
+  );
+  const targetRole = normalizeRole(userRows?.[0]?.role);
+  if (!targetRole) throw Object.assign(new Error('User không tồn tại'), { status: 404 });
+
+  if (isMandatoryPermission(targetRole, code) && !allowed) {
+    throw Object.assign(new Error('Không thể tắt quyền bắt buộc của role'), { status: 400 });
+  }
+
   await db.promise().query(`INSERT INTO user_permission_overrides(user_id,permission_code,allowed) VALUES(?,?,?) ON DUPLICATE KEY UPDATE allowed=VALUES(allowed)`,[Number(userId),code,allowed?1:0]);
   clearPermissionCache(Number(userId));
 }
