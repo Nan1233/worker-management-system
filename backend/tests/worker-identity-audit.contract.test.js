@@ -23,7 +23,7 @@ test('worker identity audit is read-only and covers the canonical identity chain
 });
 
 test('pending report read path joins user through workers.user_id', () => {
-  assert.match(readModelSource, /JOIN workers w ON pr\.worker_id = w\.id/);
+  assert.match(readModelSource, /JOIN workers w ON pr\.worker_id\s*=\s*w\.id/);
   assert.match(readModelSource, /JOIN users u ON w\.user_id = u\.id/);
   assert.doesNotMatch(readModelSource, /JOIN users u ON pr\.worker_id = w\.id/);
 });
