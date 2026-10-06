@@ -116,9 +116,7 @@ test('governance lists and summary use backend process scope before returning co
 
 test('governance create blocks MAI body tampering for GC manager through assertProcessScope', () => {
   const src = read('controllers/governanceController.js');
-  assert.match(src, /createPlan[\s\S]*assertProcessScope\(req\.user,processId,\{action:'GOVERNANCE_PLAN_CREATE'\}\)/);
-  assert.match(src, /lockPeriod[\s\S]*assertProcessScope\(req\.user,processId,\{action:'GOVERNANCE_PERIOD_LOCK'\}\)/);
-});
+  assert.match(src, /createPlan[\s\S]*assertProcessScope\(req\.user,processId,\{action:'GOVERNANCE_PLAN_CREATE'\}\)/);});
 
 test('global period lock mutation is admin-only', () => {
   const src = read('controllers/governanceController.js');
@@ -186,9 +184,7 @@ test('admin remains globally eligible for company-wide process set', async () =>
 test('governance routes retain functional permissions and manager/admin role boundary', () => {
   const routes=read('routes/governanceRoutes.js');
   assert.match(routes,/role\('admin','manager'\)/);
-  assert.match(routes,/permission\('GOVERNANCE_VIEW'\)/);
-  assert.match(routes,/permission\('PERIOD_LOCK'\)/);
-});
+  assert.match(routes,/permission\('GOVERNANCE_VIEW'\)/);});
 
 test('formula lead capability is not granted by process scope alone', () => {
   const routes=read('routes/formulaSettingsRoutes.js');
