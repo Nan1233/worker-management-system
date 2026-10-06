@@ -27,9 +27,9 @@ test('worker forms keep process-specific fields from file-mau.xlsx', () => {
 });
 
 test('worker deduction catalogue remains process scoped through cache and API contract', () => {
-  assert.match(masterHook, /getCachedDeductions\(processId\)/);
+  assert.match(masterHook, /getCachedDeductions\(resolvedProcessId\)/);
   assert.match(masterDataCache, /getCachedDeductions = \(processId: number\)/);
-  assert.match(masterDataCache, /getDeductionOptionsByProcess\(processId\)/);
+  assert.match(masterDataCache, /getDeductionOptionsByProcess\(canonicalId\)/);
   assert.match(productionService, /`\/processes\/\$\{processId\}\/deductions`/);
   assert.match(page, /activeDeductionOptions/);
   assert.match(payload, /deduction_type_id:/);
