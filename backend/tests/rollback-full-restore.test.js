@@ -146,7 +146,6 @@ function createFakeDb(initial, options = {}) {
         const version = state.versions.find((x) => Number(x.report_id) === Number(params[0]) && Number(x.version_no) === Number(params[1]));
         return [version ? [{ snapshot_json: version.snapshot_json }] : [], []];
       }
-      if (/SELECT id FROM reporting_period_locks/i.test(q)) return [[], []];
       if (/FROM machine_production_events/i.test(q)) {
         if (/(?:UPDATE|DELETE)/i.test(q)) throw new Error('PHYSICAL_EVENT_MUTATION_FORBIDDEN');
         const event = state.events[Number(params[0])];
