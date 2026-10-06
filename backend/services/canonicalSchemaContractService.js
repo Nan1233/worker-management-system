@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const CANONICAL_SCHEMA_RELATIVE_PATH = '../database/KTC_FULL_DATABASE_CANONICAL_20260817.sql';
-const CANONICAL_SCHEMA_PATH = path.resolve(process.cwd(), 'database', 'KTC_FULL_DATABASE_CANONICAL_20260817.sql');
+const CANONICAL_SCHEMA_PATH = path.resolve(__dirname, '..', 'database', 'KTC_FULL_DATABASE_CANONICAL_20260817.sql');
 const CONTRACT_VERSION = 26;
 
 function getCanonicalSchemaPath() {
