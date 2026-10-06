@@ -78,6 +78,24 @@ const MANDATORY_ROLE_PERMISSIONS = {
   lead: new Set(['MASTER_VIEW','MASTER_EDIT','REPORT_PENDING_EDIT','REPORT_APPROVED_EDIT'])
 };
 
+function isMandatoryPermission(role, code) {
+  return MANDATORY_ROLE_PERMISSIONS[normalizeRole(role)]?.has(normalizeCode(code)) || false;
+}
+
+function applyPermissionOverride(target, role, code, allowed) {
+  const normalizedRole = normalizeRole(role);
+  const normalizedCode = normalizeCode(code);
+
+  // Mandatory permissions are security/business invariants and cannot be revoked.
+  if (isMandatoryPermission(normalizedRole, normalizedCode)) {
+    target.add(normalizedCode);
+    return;
+  }
+
+  if (allowed) target.add(normalizedCode);
+  else target.delete(normalizedCode);
+}
+
 let schemaAvailable;
 let cache = new Map();
 const CACHE_TTL_MS = 60_000;
@@ -85,7 +103,9 @@ function normalizeRole(value) { return String(value || '').trim().toLowerCase();
 function normalizeCode(value) { return String(value || '').trim().toUpperCase(); }
 function defaultSet(role) { return new Set(DEFAULTS[normalizeRole(role)] || []); }
 function applyMandatoryRolePermissions(role, permissions) {
-  for (const code of MANDATORY_ROLE_PERMISSIONS[normalizeRole(role)] || []) permissions.add(code);
+  for (const code of MANDATORY_ROLE_PERMISSIONS[normalizeRole(role)] || []) {
+    permissions.add(code);
+  }
   return permissions;
 }
 async function ensureSchemaAvailable() {
@@ -109,22 +129,19 @@ async function getEffectivePermissions(user) {
       db.promise().query('SELECT permission_code,allowed FROM role_permission_overrides WHERE role=?',[role]),
       userId ? db.promise().query('SELECT permission_code,allowed FROM user_permission_overrides WHERE user_id=?',[userId]) : Promise.resolve([[]])
     ]);
+    // Precedence: Default Role → Role Override → User Override → Mandatory.
     for (const row of roleRows[0] || []) {
       const code = normalizeCode(row.permission_code);
       if (!ALL_CODES.includes(code)) continue;
-      Number(row.allowed) ? result.add(code) : result.delete(code);
+      applyPermissionOverride(result, role, code, Number(row.allowed) === 1);
     }
     for (const row of userRows[0] || []) {
       const code = normalizeCode(row.permission_code);
       if (!ALL_CODES.includes(code)) continue;
-      Number(row.allowed) ? result.add(code) : result.delete(code);
+      applyPermissionOverride(result, role, code, Number(row.allowed) === 1);
     }
   }
   applyMandatoryRolePermissions(role, result);
-  if (role === 'lead') {
-    result.add('REPORT_PENDING_VIEW');
-    result.add('REPORT_APPROVE');
-  }
   if (userId) cache.set(userId,{ role, permissions:[...result], expiresAt:Date.now()+CACHE_TTL_MS });
   return result;
 }
@@ -143,7 +160,9 @@ async function getAdminMatrix() {
     for (const row of r) (roleOverrides[row.role] ||= {})[row.permission_code] = Boolean(row.allowed);
     for (const row of u) (userOverrides[row.user_id] ||= {})[row.permission_code] = Boolean(row.allowed);
   }
-  return { permissions: PERMISSIONS, roles: roles.map((role) => ({ role, defaults:Object.fromEntries(ALL_CODES.map((code)=>[code,DEFAULTS[role]?.has(code)||false])), capabilities:Object.fromEntries(ALL_CODES.map((code)=>[code,CAPABILITIES[role]?.has(code)||false])), overrides: roleOverrides[role] || {} })), userOverrides };
+  return { permissions: PERMISSIONS, mandatoryRolePermissions: Object.fromEntries(
+    roles.map((role) => [role, [...(MANDATORY_ROLE_PERMISSIONS[role] || [])]])
+  ), roles: roles.map((role) => ({ role, defaults:Object.fromEntries(ALL_CODES.map((code)=>[code,DEFAULTS[role]?.has(code)||false])), capabilities:Object.fromEntries(ALL_CODES.map((code)=>[code,CAPABILITIES[role]?.has(code)||false])), overrides: roleOverrides[role] || {} })), userOverrides };
 }
 async function setUserPermission(userId, permissionCode, allowed) {
   if (!await ensureSchemaAvailable()) throw Object.assign(new Error('Bảng phân quyền chưa sẵn sàng'), { status: 503 });
@@ -158,6 +177,9 @@ async function setRolePermission(role, permissionCode, allowed) {
   const code = normalizeCode(permissionCode);
   if (!DEFAULTS[normalizedRole]) throw Object.assign(new Error('Role không hợp lệ'), { status: 400 });
   if (!ALL_CODES.includes(code)) throw Object.assign(new Error('Permission không hợp lệ'), { status: 400 });
+  if (isMandatoryPermission(normalizedRole, code) && !allowed) {
+    throw Object.assign(new Error('Không thể tắt quyền bắt buộc của role'), { status: 400 });
+  }
   await db.promise().query(`INSERT INTO role_permission_overrides(role,permission_code,allowed) VALUES(?,?,?) ON DUPLICATE KEY UPDATE allowed=VALUES(allowed)`,[normalizedRole,code,allowed?1:0]);
   cache.clear();
 }
