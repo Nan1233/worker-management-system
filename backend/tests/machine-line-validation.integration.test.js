@@ -39,7 +39,6 @@ const products = [
 const defectTypes = [
   { id: 501, process_id: 1, defect_code: 'KQD', defect_name: 'KQD', status: 'active' },
   { id: 502, process_id: 1, defect_code: 'BAVIA', defect_name: 'Bavia', status: 'active' },
-  { id: 503, process_id: 1, defect_code: 'KQD_TEST', defect_name: 'KQD test chưa cấu hình', status: 'active' }
 ];
 
 const createQueryMock = () => async (sql, params = []) => {
@@ -47,14 +46,8 @@ const createQueryMock = () => async (sql, params = []) => {
 
   if (normalizedSql.includes('from machines')) {
     const processId = Number(params[0]);
-    const machineCode = String(params[1] || '').trim().toUpperCase();
-
     return machines
-      .filter((machine) => (
-        Number(machine.process_id) === processId
-        && String(machine.machine_code).trim().toUpperCase() === machineCode
-        && String(machine.status).toLowerCase() === 'active'
-      ))
+      .filter((machine) => Number(machine.process_id) === processId && String(machine.status).toLowerCase() === 'active')
       .map(({ id, machine_code }) => ({ id, machine_code }));
   }
 
