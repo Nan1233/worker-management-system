@@ -46,6 +46,7 @@ const styleDataCell = (cell, column) => {
   cell.alignment = { horizontal: ['full_name', 'product_name'].includes(column.key) ? 'left' : 'center', vertical: 'middle', wrapText: true };
 };
 const toNumber = (value) => { const parsed = Number(String(value ?? 0).replace(/,/g, '').trim()); return Number.isFinite(parsed) ? parsed : 0; };
+const getKqdExclusionPolicy = (report = {}) => Number(report.exclude_kqd_from_tt_snapshot ?? report.exclude_kqd_from_tt ?? 0) === 1;
 const applyValueHighlight = (cell, column, value) => {
   const numericValue = toNumber(value);
   if (column.key === 'achievement_rate') { cell.fill = solidFill(numericValue >= 1 ? EXCEL_THEME.rateGood : numericValue >= 0.9 ? EXCEL_THEME.rateWarning : EXCEL_THEME.rateBad); cell.font = { ...(cell.font || {}), bold: true }; }
