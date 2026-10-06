@@ -86,14 +86,14 @@ test('scopeSql produces deny-all for zero-scope manager and IN filter otherwise'
 
 test('approved collection/date/by-date controllers apply backend process scope', () => {
   const src = fs.readFileSync(path.join(__dirname,'../controllers/productionController.js'),'utf8');
-  assert.match(src, /getAllReports[\s\S]*getActorProcessScope\(req\.user\)[\s\S]*scopeSql\(scope, 'pr\.process_id'/);
-  assert.match(src, /getReportDates[\s\S]*getActorProcessScope\(req\.user\)[\s\S]*scopeSql\(scope, 'pr\.process_id'/);
+  assert.match(src, /getAllReports[\s\S]*getActorProcessScope\(req\.user\)[\s\S]*scopeSql\(scope,\s*['"]pr\.process_id['"]/);
+  assert.match(src, /getReportDates[\s\S]*getActorProcessScope\(req\.user\)[\s\S]*scopeSql\(scope,\s*['"]pr\.process_id['"]/);
   assert.match(src, /getReportsByDate[\s\S]*assertProcessScope\(req\.user, req\.query\.process_id/);
 });
 
 test('approved detail manager/lead asserts report process scope; worker keeps ownership rule', () => {
   const src = fs.readFileSync(path.join(__dirname,'../controllers/productionController.js'),'utf8');
-  assert.match(src, /role === 'worker'[\s\S]*minimal\.worker_id[\s\S]*req\.user\?\.worker_id/);
+  assert.match(src, /role==='worker'[\s\S]*assertWorkerOwnership\(req\.user,minimal\.worker_id\)/);
   assert.match(src, /\['manager','lead'\][\s\S]*assertProcessScope\(req\.user, minimal\.process_id/);
 });
 
