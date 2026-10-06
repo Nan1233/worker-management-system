@@ -60,12 +60,7 @@ const createQueryMock = () => async (sql, params = []) => {
 
   if (normalizedSql.includes('from defect_types')) {
     const processId = Number(params[0]);
-    if (normalizedSql.includes('and id=?')) {
-      const id = Number(params[1]);
-      return defectTypes.filter((item) => item.process_id === processId && item.id === id && item.status === 'active');
-    }
-    const code = String(params[1] || '').trim().toUpperCase();
-    return defectTypes.filter((item) => item.process_id === processId && item.defect_code === code && item.status === 'active');
+    return defectTypes.filter((item) => item.process_id === processId && item.status === 'active');
   }
 
   if (normalizedSql.includes('from product_standards')) {
