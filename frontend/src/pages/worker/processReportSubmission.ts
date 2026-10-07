@@ -83,7 +83,7 @@ export function buildProductionReportPayload(args: {
   for (const [field, code, name] of LEGACY_DEFECT_BINDINGS) {
     const quantity=num(args.form[String(field)]); if (quantity<=0) continue;
     const identity=normalizeDefectIdentity(code,name); const existing=formDefects.find(item=>normalizeDefectIdentity(item.defect_code,item.defect_name)===identity); if (existing) continue;
-    const master=args.activeNgOptions.find(o=>normalizeDefectIdentity(String(o.code||o.defect_code||""),String(o.label||o.defect_name||"))===identity);
+    const master=args.activeNgOptions.find(o=>normalizeDefectIdentity(String(o.code||o.defect_code||""),String(o.label||o.defect_name||""))===identity);
     formDefects.push({ defect_type_id:Number(master?.id||master?.defect_type_id||0)||undefined, defect_code:String(master?.code||master?.defect_code||code), defect_name:String(master?.label||master?.defect_name||name), quantity });
   }
 
