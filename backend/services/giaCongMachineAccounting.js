@@ -11,6 +11,7 @@ const parseJsonArray = (value) => {
 
 const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
   const lines = Array.isArray(report.machineLines) ? report.machineLines : [];
+  const events = physicalEventsById instanceof Map ? physicalEventsById : new Map();
   const seenEvents = new Set();
   let grossHours = 0;
   let hasPhysicalEvent = false;
@@ -20,7 +21,7 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
 
   lines.forEach((line, lineIndex) => {
     const eventId = Number(line.machine_event_id) || 0;
-    const event = eventId ? physicalEventsById.get(eventId) : null;
+    const event = eventId ? events.get(eventId) : null;
     if (event) {
       hasPhysicalEvent = true;
       if (!seenEvents.has(eventId)) {
@@ -60,8 +61,23 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
     deductions.push(...report.deductions.map((item) => ({ ...item })));
   }
 
+  const legacyGrossHours = Math.max(0, Number(report.total_time) || 0);
+  const legacyDeductionHours = Math.max(0, Number(report.deduction_time) || 0);
+  const hasMachineLines = lines.length > 0;
+  if (!hasMachineLines && grossHours <= 0 && legacyGrossHours > 0) {
+    grossHours = legacyGrossHours;
+    if (deductionHours <= 0 && deductions.length === 0 && legacyDeductionHours > 0) {
+      deductionHours = legacyDeductionHours;
+    }
+  }
+
+  let source = hasPhysicalEvent ? 'MACHINE_EVENT' : (hasMachineLines ? 'MACHINE_LINE' : 'LEGACY_REPORT');
+  if (source === 'LEGACY_REPORT' && grossHours <= 0 && Number(report.actual_time) > 0) {
+    grossHours = Math.max(0, Number(report.actual_time) || 0) + legacyDeductionHours;
+  }
+
   return {
-    source: hasPhysicalEvent ? 'MACHINE_EVENT' : 'MACHINE_LINE',
+    source,
     grossHours,
     deductionHours,
     netHours: Math.max(0, grossHours - deductionHours),
