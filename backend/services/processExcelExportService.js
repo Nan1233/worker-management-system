@@ -337,5 +337,6 @@ module.exports = {
   listProcessesForMonth,
   loadProcessMonthReports,
   buildProcessWorkbook,
-  normalizeYearMonth
+  normalizeYearMonth,
+  buildGiaCongMachineAccounting
 };
