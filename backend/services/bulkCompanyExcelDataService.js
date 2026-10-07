@@ -295,7 +295,7 @@ async function loadBulkCompanyReports(yearMonth, actor) {
   if (eventIds.length) {
     const p = eventIds.map(() => '?').join(',');
     eventRows = await query(
-      `SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status
+      `SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status,machine_time_hours,maximum_output,standard_output
          FROM machine_production_events
         WHERE id IN (${p})`,
       eventIds
@@ -316,12 +316,69 @@ async function loadBulkCompanyReports(yearMonth, actor) {
         const tempDefects = tempDefectByReport.get(reportId) || [];
         const persistedDeductions = deductionByReport.get(reportId) || [];
         const persistedDefects = defectByReport.get(reportId) || [];
+        const eventLines = (eventByReport.get(reportId) || []).map((id) => eventMap.get(id)).filter(Boolean);
+        let deductions = tempDeductions.length ? tempDeductions : persistedDeductions;
+        let machineAccounting = null;
+        if (code === 'GC' && String(report.operation_mode || '').toUpperCase() === 'MACHINE') {
+          const seenEvents = new Set();
+          let grossHours = 0;
+          let deductionHours = 0;
+          const machineDeductions = [];
+          const seenDeductionKeys = new Set();
+          machineLines.forEach((line, lineIndex) => {
+            const eventId = Number(line.machine_event_id) || 0;
+            const event = eventId ? eventMap.get(eventId) : null;
+            if (event) {
+              if (!seenEvents.has(eventId)) {
+                seenEvents.add(eventId);
+                grossHours += Math.max(0, Number(event.machine_time_hours) || 0);
+              }
+            } else {
+              grossHours += Math.max(0, Number(line.machine_time_hours) || 0);
+            }
+            const lineDeductionHours = Math.max(0, Number(line.deduction_time_hours) || 0);
+            const lineDeductions = (() => {
+              try {
+                const parsed = typeof line.deductions_json === 'string' ? JSON.parse(line.deductions_json) : line.deductions_json;
+                return Array.isArray(parsed) ? parsed : [];
+              } catch (_error) {
+                return [];
+              }
+            })();
+            const deductionKey = eventId ? 'EVENT:' + eventId : 'LINE:' + (Number(line.id) || lineIndex);
+            if (!seenDeductionKeys.has(deductionKey)) {
+              seenDeductionKeys.add(deductionKey);
+              deductionHours += lineDeductionHours;
+              for (const item of lineDeductions) {
+                const hours = Math.max(0, Number(item?.hours) || 0);
+                if (!hours) continue;
+                const key = Number(item?.deduction_type_id) || String(item?.deduction_code || item?.deduction_name || '');
+                const existing = machineDeductions.find((entry) => String(entry.deduction_type_id || entry.deduction_type_code || entry.deduction_name) === String(key));
+                if (existing) existing.hours += hours;
+                else machineDeductions.push({
+                  deduction_type_id: Number(item?.deduction_type_id) || undefined,
+                  deduction_type_code: String(item?.deduction_code || '').trim(),
+                  deduction_name: String(item?.deduction_name || '').trim(),
+                  hours
+                });
+              }
+            }
+          });
+          machineAccounting = {
+            source: eventLines.length ? 'MACHINE_EVENT' : 'MACHINE_LINE',
+            grossHours,
+            deductionHours,
+            netHours: Math.max(0, grossHours - deductionHours)
+          };
+          deductions = machineDeductions;
+        }
         return {
           ...report,
-          deductions: tempDeductions.length ? tempDeductions : persistedDeductions,
+          deductions,
           defects: tempDefects.length ? tempDefects : persistedDefects,
           machineLines,
-          eventLines: (eventByReport.get(reportId) || []).map((id) => eventMap.get(id)).filter(Boolean)
+          eventLines,
+          machineAccounting
         };
       });
     data.physicalMachineEvents = physicalMachineEvents.filter((row) => String(row.process_id) === String(data.processId));
