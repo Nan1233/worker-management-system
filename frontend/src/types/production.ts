@@ -69,6 +69,8 @@ export interface ProductionReport {
         machine_efficiency_percent?: number;
         physical_output?: number;
         defects?: ProductionDefect[];
+        deduction_time_hours?: number;
+        deductions?: Array<{ deduction_type_id?: number; deduction_code?: string; deduction_name?: string; hours?: number }>;
     }>;
     machinePerformance?: {
         machine_count: number;
