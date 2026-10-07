@@ -114,7 +114,7 @@ export default function ProcessBasicInfoSection({ form, setForm, onFormChange, i
 <small>Thời gian máy − thời gian trừ</small>
 </div>
 </div>
-<div className="machine-detail-dropdown-row"><div className="machine-detail-dropdown-item"><div className="worker-dropdown-box machine-worker-deduction-box">
+<div className="machine-detail-dropdown-row" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: "7px", width: "100%" }}><div className="machine-detail-dropdown-item" style={{ minWidth: 0 }}><div className="worker-dropdown-box machine-worker-deduction-box">
 <button type="button" className="worker-dropdown-title" onClick={() => setOpenMachineDeductionIndex((current) => current === index ? null : index)} aria-expanded={openMachineDeductionIndex === index}>
 <span className="worker-dropdown-title-main"><span>⏱ Thời gian trừ</span><small>{line.selectedDeductions?.length ? `${line.selectedDeductions.length} loại · ${getMachineDeductionMinutes(line)} phút` : "Không có thời gian trừ"}</small></span>
 <span aria-hidden="true">▼</span>
@@ -128,7 +128,7 @@ export default function ProcessBasicInfoSection({ form, setForm, onFormChange, i
 ))}
 </div>}
 </div>
-</div><div className="machine-detail-dropdown-item"><div className="worker-dropdown-box machine-worker-ng-box">
+</div><div className="machine-detail-dropdown-item" style={{ minWidth: 0 }}><div className="worker-dropdown-box machine-worker-ng-box">
 <button type="button" className="worker-dropdown-title" onClick={() => setOpenMachineNgIndex((current) => current === index ? null : index)} aria-expanded={openMachineNgIndex === index}>
 <span className="worker-dropdown-title-main"><span>Chi tiết lỗi NG</span><small>{getMachineNgTotal(line) > 0 ? `${line.selectedDefects.length} loại · ${getMachineNgTotal(line)} NG` : "Không có NG"}</small></span>
 <span aria-hidden="true">{openMachineNgIndex === index ? "▲" : "▼"}</span>
