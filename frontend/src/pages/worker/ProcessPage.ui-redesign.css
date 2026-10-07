@@ -180,3 +180,208 @@
     grid-template-columns:1fr !important;
   }
 }
+
+/* =========================================================
+   KTC MES — Machine card final refinement
+   Visual only: keeps the existing form structure and data flow.
+   ========================================================= */
+
+@media (min-width: 1101px){
+  .worker-form-page{
+    padding:18px 24px 36px!important;
+  }
+
+  .worker-form-shell{
+    width:100%!important;
+    max-width:1280px!important;
+  }
+
+  .worker-form-card-basic{
+    padding:18px!important;
+  }
+
+  .worker-form-card-basic .worker-card-heading{
+    margin-bottom:14px!important;
+  }
+
+  .worker-form-card-basic .worker-basic-grid{
+    gap:12px!important;
+  }
+
+  .worker-form-card-basic .worker-mode-panel{
+    padding:10px 12px!important;
+    border:1px solid #dce7f1!important;
+    border-radius:10px!important;
+    background:#f8fbfe!important;
+  }
+
+  .worker-machine-workspace{
+    padding:16px!important;
+    border-radius:13px!important;
+    background:linear-gradient(180deg,#f8fbfe 0%,#f4f8fc 100%)!important;
+  }
+
+  .worker-machine-workspace > .worker-selection-heading{
+    padding:2px 2px 10px!important;
+    border-bottom:1px solid #e2ebf3!important;
+    margin-bottom:12px!important;
+  }
+
+  .machine-lines-list{
+    gap:14px!important;
+  }
+
+  .machine-line{
+    padding:15px!important;
+    border:1px solid #d5e2ed!important;
+    border-radius:13px!important;
+    box-shadow:0 3px 12px rgba(26,65,102,.045)!important;
+  }
+
+  .machine-card-header{
+    min-height:42px!important;
+    margin-bottom:11px!important;
+    padding:0 0 10px!important;
+  }
+
+  .machine-card-number{
+    width:30px!important;
+    height:30px!important;
+    min-width:30px!important;
+    border-radius:8px!important;
+    font-size:12px!important;
+  }
+
+  .machine-selection-grid{
+    gap:12px!important;
+    margin-bottom:12px!important;
+  }
+
+  .machine-selection-grid .worker-field-block > label{
+    margin-bottom:5px!important;
+  }
+
+  .machine-data-grid{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr)!important;
+    gap:10px!important;
+    margin-top:2px!important;
+  }
+
+  .machine-section-title{
+    margin:0 0 6px!important;
+    padding-left:2px!important;
+    font-size:11px!important;
+    font-weight:800!important;
+    color:#365a78!important;
+  }
+
+  .machine-worker-time-grid{
+    grid-template-columns:minmax(0,1.45fr) minmax(0,.8fr) minmax(0,.9fr)!important;
+    gap:8px!important;
+    margin-top:0!important;
+  }
+
+  .machine-worker-time-grid .worker-time-item{
+    min-height:96px!important;
+    padding:10px!important;
+    border-radius:10px!important;
+  }
+
+  .machine-worker-time-grid .worker-time-item > label{
+    font-size:10.5px!important;
+    margin-bottom:6px!important;
+  }
+
+  .machine-worker-time-grid .worker-time-part input,
+  .machine-worker-time-grid .worker-time-item > input{
+    min-height:40px!important;
+  }
+
+  .machine-worker-time-grid .worker-time-item[data-worker-time="machine-gross"]{
+    border-color:#cbddec!important;
+    background:#f7fbff!important;
+  }
+
+  .machine-worker-time-grid .worker-time-item[data-worker-time="machine-deduction"]{
+    border-color:#ead9ae!important;
+    background:#fffaf0!important;
+  }
+
+  .machine-worker-time-grid .worker-time-item[data-worker-time="machine-net"]{
+    border-color:#b9ddc9!important;
+    background:#f2fbf6!important;
+  }
+
+  .machine-detail-dropdown-row{
+    gap:8px!important;
+    margin-top:8px!important;
+  }
+
+  .machine-detail-dropdown-item .worker-dropdown-title{
+    min-height:40px!important;
+    height:40px!important;
+    padding:0 11px!important;
+    font-size:11px!important;
+  }
+
+  .machine-detail-dropdown-item .worker-dropdown-title-main{
+    gap:2px!important;
+  }
+
+  .machine-worker-deduction-box,
+  .machine-worker-ng-box{
+    border-radius:10px!important;
+    box-shadow:0 1px 4px rgba(26,65,102,.025)!important;
+  }
+
+  .machine-worker-deduction-detail-grid,
+  .machine-worker-ng-detail-grid{
+    margin-top:8px!important;
+  }
+
+  .machine-worker-deduction-detail-grid .worker-field-block,
+  .machine-worker-ng-detail-grid .worker-field-block{
+    padding:9px!important;
+    border-radius:9px!important;
+  }
+}
+
+@media (min-width:681px) and (max-width:1100px){
+  .worker-form-page{
+    padding-inline:14px!important;
+  }
+
+  .worker-form-shell{
+    width:100%!important;
+    max-width:1120px!important;
+  }
+
+  .worker-machine-workspace{
+    padding:12px!important;
+  }
+
+  .machine-line{
+    padding:12px!important;
+  }
+}
+
+/* Do not let the compact two-column controls collapse prematurely. */
+@media (min-width:431px){
+  .worker-form-page .machine-line .machine-detail-dropdown-row{
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+  }
+}
+
+/* Stronger hierarchy for the three machine-time values. */
+.worker-form-page .machine-worker-time-grid .worker-time-item[data-worker-time="machine-gross"] > label{
+  color:#365f87!important;
+  font-weight:800!important;
+}
+.worker-form-page .machine-worker-time-grid .worker-time-item[data-worker-time="machine-deduction"] > label{
+  color:#946b18!important;
+}
+.worker-form-page .machine-worker-time-grid .worker-time-item[data-worker-time="machine-net"] > label{
+  color:#17734d!important;
+}
+
