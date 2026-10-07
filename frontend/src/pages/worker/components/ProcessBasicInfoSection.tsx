@@ -125,8 +125,8 @@ export default function ProcessBasicInfoSection({ form, setForm, onFormChange, i
 <input type="checkbox" checked={line.selectedDeductions?.includes(item.key) || false} onChange={(event) => toggleMachineDeduction(index, item.key, event.target.checked)} />
 <span>{item.label}</span>
 </label>
-))}
-</div>)}
+)))}
+</div>
 </div>
 {line.selectedDeductions?.length > 0 && <div className="worker-dynamic-grid worker-deduction-detail-grid machine-worker-deduction-detail-grid">
 {activeDeductionOptions.filter((item) => line.selectedDeductions.includes(item.key)).map((item) => (
