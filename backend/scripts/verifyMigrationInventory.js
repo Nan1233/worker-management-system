@@ -36,7 +36,7 @@ const malformed = fs.readdirSync(migrationsDir)
   .filter((name) => !/^\d+_.+\.sql$/i.test(name));
 
 const latest = files.at(-1) || null;
-const expectedVersions = Array.from({ length: 52 }, (_, index) => index + 1);
+const expectedVersions = Array.from({ length: 53 }, (_, index) => index + 1);
 const missingVersions = expectedVersions.filter((value) => !versions.includes(value));
 const allowedHistoricalGaps = new Set([
   ...Array.from({ length: 18 }, (_, index) => index + 8),
@@ -46,7 +46,7 @@ const allowedHistoricalGaps = new Set([
   45,
 ]);
 const unexpectedMissingVersions = missingVersions.filter((value) => !allowedHistoricalGaps.has(value));
-const completeExecutableInventory = versions[0] === 1 && versions.at(-1) === 52 && duplicateNumbers.length === 0 && unexpectedMissingVersions.length === 0;
+const completeExecutableInventory = versions[0] === 1 && versions.at(-1) === 53 && duplicateNumbers.length === 0 && unexpectedMissingVersions.length === 0;
 
 console.log(JSON.stringify({
   migration_file_count: files.length,

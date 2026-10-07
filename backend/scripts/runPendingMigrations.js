@@ -42,7 +42,8 @@ const EMBEDDED_MIGRATION_NAMES = [
   '049_gc_machines_from_excel_20260924.sql',
   '050_remove_legacy_2801_lt_20260925.sql',
   '051_gc_long_no_standard_work_20260928.sql',
-  '052_organization_accounts_and_positions_20261006.sql'
+  '052_organization_accounts_and_positions_20261006.sql',
+  '053_restore_gc_deduction_types_16_20261007.sql'
 ];
 
 function getMigrationError(error){
