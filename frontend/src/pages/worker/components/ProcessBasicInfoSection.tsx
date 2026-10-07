@@ -114,7 +114,7 @@ export default function ProcessBasicInfoSection({ form, setForm, onFormChange, i
 <small>Thời gian máy − thời gian trừ</small>
 </div>
 </div>
-<div className="worker-dropdown-box machine-worker-deduction-box">
+<div className="machine-detail-dropdown-row"><div className="machine-detail-dropdown-item"><div className="worker-dropdown-box machine-worker-deduction-box">
 <button type="button" className="worker-dropdown-title" onClick={() => setOpenMachineDeductionIndex((current) => current === index ? null : index)} aria-expanded={openMachineDeductionIndex === index}>
 <span className="worker-dropdown-title-main"><span>⏱ Thời gian trừ</span><small>{line.selectedDeductions?.length ? `${line.selectedDeductions.length} loại · ${getMachineDeductionMinutes(line)} phút` : "Không có thời gian trừ"}</small></span>
 <span aria-hidden="true">▼</span>
@@ -128,6 +128,21 @@ export default function ProcessBasicInfoSection({ form, setForm, onFormChange, i
 ))}
 </div>}
 </div>
+</div><div className="machine-detail-dropdown-item"><div className="worker-dropdown-box machine-worker-ng-box">
+<button type="button" className="worker-dropdown-title" onClick={() => setOpenMachineNgIndex((current) => current === index ? null : index)} aria-expanded={openMachineNgIndex === index}>
+<span className="worker-dropdown-title-main"><span>Chi tiết lỗi NG</span><small>{getMachineNgTotal(line) > 0 ? `${line.selectedDefects.length} loại · ${getMachineNgTotal(line)} NG` : "Không có NG"}</small></span>
+<span aria-hidden="true">{openMachineNgIndex === index ? "▲" : "▼"}</span>
+</button>
+{openMachineNgIndex === index && <div className="worker-dropdown-options">
+{visibleNgOptions.length === 0 ? <div className="worker-dropdown-empty" role="status">Chưa có loại lỗi NG được cấu hình cho công đoạn này.</div> : visibleNgOptions.map((item) => (
+<label key={item.key} className="worker-dropdown-option">
+<input type="checkbox" className="worker-ng-checkbox" checked={line.selectedDefects.includes(item.key)} onChange={() => toggleMachineDefect(index, item.key)} />
+<span>{getDefectDisplayLabel(item)}</span>
+</label>
+))}
+</div>}
+</div>
+</div></div>
 {line.selectedDeductions?.length > 0 && <div className="worker-dynamic-grid worker-deduction-detail-grid machine-worker-deduction-detail-grid">
 {activeDeductionOptions.filter((item) => line.selectedDeductions.includes(item.key)).map((item) => (
 <div key={item.key} className="worker-field-block">
@@ -146,26 +161,14 @@ export default function ProcessBasicInfoSection({ form, setForm, onFormChange, i
 </div>
 ))}
 </div>}
-<div className="machine-detail-dropdown-row">
-<div className="machine-detail-dropdown-item">
-<div className="worker-dropdown-box machine-worker-ng-box">
-<button type="button" className="worker-dropdown-title" onClick={() => setOpenMachineNgIndex((current) => current === index ? null : index)} aria-expanded={openMachineNgIndex === index}>
-<span className="worker-dropdown-title-main"><span>Chi tiết lỗi NG</span><small>{getMachineNgTotal(line) > 0 ? `${line.selectedDefects.length} loại · ${getMachineNgTotal(line)} NG` : "Không có NG"}</small></span>
-<span aria-hidden="true">{openMachineNgIndex === index ? "▲" : "▼"}</span>
-</button>
-{openMachineNgIndex === index && <div className="worker-dropdown-options">
-{visibleNgOptions.length === 0 ? <div className="worker-dropdown-empty" role="status">Chưa có loại lỗi NG được cấu hình cho công đoạn này.</div> : visibleNgOptions.map((item) => (
-<label key={item.key} className="worker-dropdown-option">
-<input type="checkbox" className="worker-ng-checkbox" checked={line.selectedDefects.includes(item.key)} onChange={() => toggleMachineDefect(index, item.key)} />
-<span>{getDefectDisplayLabel(item)}</span>
-</label>
+{line.selectedDefects.length > 0 && <div className="worker-dynamic-grid worker-ng-grid machine-worker-ng-detail-grid">
+{visibleNgOptions.filter((item) => line.selectedDefects.includes(item.key)).map((item) => (
+<div key={item.key} className="worker-field-block">
+<label className="worker-field-label" htmlFor={`machine-ng-${index}-${item.key}`}>{getDefectDisplayLabel(item)}</label>
+<input id={`machine-ng-${index}-${item.key}`} className="worker-text-input" name={item.key} value={line.defects[item.key] || ""} onChange={(event) => updateMachineDefectValue(index, item.key, event.target.value.replace(/\D/g, ""))} inputMode="numeric" autoComplete="off" placeholder="Số lượng" />
+</div>
 ))}
-</div>}
-</div>
-
-</div>
-</div>
-</div><div><div className="machine-section-title">Sản lượng</div><div className="machine-quantity-row"><label><span>OK</span><input type="number" min="0" inputMode="numeric" value={line.okQuantity} onChange={(event) => updateMachineLine(index, { okQuantity: event.target.value.replace(/\D/g, "") })} /></label><label><span>NG</span><input type="number" min="0" inputMode="numeric" value={line.ngQuantity} readOnly aria-readonly="true" title="Tự động tính từ chi tiết lỗi NG" /></label></div></div></div>{line.standardError && <div className="worker-inline-error">{line.standardError}</div>}</article>)}</div></div> : usesSingleMachine ? <div className="worker-machine-single worker-field-full"><div className="worker-selection-heading"><div><strong>Máy &amp; sản phẩm</strong><small>Chọn máy trước → hệ thống chỉ hiển thị mã sản phẩm hợp lệ của máy</small></div></div><div className="worker-single-machine-grid"><AutocompleteInput id="machineNo" label="Mã máy" value={form.machineNo} options={visibleMachineOptions} placeholder="Chọn mã máy" required disabled={loadingMasterData} emptyMessage="Không tìm thấy máy trong công đoạn" onChange={(value) => setForm((prev) => ({ ...prev, machineNo: value, productName: "", standardOutput: "" }))} onSelect={(option) => setForm((prev) => ({ ...prev, machineNo: option.value, productName: "", standardOutput: "" }))} /><AutocompleteInput id="productName" label="Mã sản phẩm" value={form.productName} options={getMachineProductAutocompleteOptions(form.machineNo)} placeholder={form.machineNo.trim() ? "Nhập hoặc chọn mã sản phẩm" : "Chọn máy trước"} required disabled={loadingMasterData || !form.machineNo.trim()} emptyMessage={form.machineNo.trim() ? "Không có mã sản phẩm phù hợp với máy này" : "Chọn máy trước để xem mã sản phẩm"} onChange={setProduct} onSelect={(option) => setProduct(option.value)} /></div></div> : null}
+</div>}</article>)}</div></div> : usesSingleMachine ? <div className="worker-machine-single worker-field-full"><div className="worker-selection-heading"><div><strong>Máy &amp; sản phẩm</strong><small>Chọn máy trước → hệ thống chỉ hiển thị mã sản phẩm hợp lệ của máy</small></div></div><div className="worker-single-machine-grid"><AutocompleteInput id="machineNo" label="Mã máy" value={form.machineNo} options={visibleMachineOptions} placeholder="Chọn mã máy" required disabled={loadingMasterData} emptyMessage="Không tìm thấy máy trong công đoạn" onChange={(value) => setForm((prev) => ({ ...prev, machineNo: value, productName: "", standardOutput: "" }))} onSelect={(option) => setForm((prev) => ({ ...prev, machineNo: option.value, productName: "", standardOutput: "" }))} /><AutocompleteInput id="productName" label="Mã sản phẩm" value={form.productName} options={getMachineProductAutocompleteOptions(form.machineNo)} placeholder={form.machineNo.trim() ? "Nhập hoặc chọn mã sản phẩm" : "Chọn máy trước"} required disabled={loadingMasterData || !form.machineNo.trim()} emptyMessage={form.machineNo.trim() ? "Không có mã sản phẩm phù hợp với máy này" : "Chọn máy trước để xem mã sản phẩm"} onChange={setProduct} onSelect={(option) => setProduct(option.value)} /></div></div> : null}
         </div>
     </section>;
 }
