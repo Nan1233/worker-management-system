@@ -162,9 +162,32 @@ async function assertUserManagementScope(actor, target, options = {}) {
 }
 
 async function assertProcessesScope(actor, processIds, options = {}) {
-  const requested = [...new Set((Array.isArray(processIds) ? processIds : []).map(normalizeProcessId).filter(Boolean))];
+  if (!Array.isArray(processIds)) {
+    throw scopeError(options.message || 'Danh sách công đoạn không hợp lệ', {
+      invalid_process_ids: [processIds],
+      action: options.action || null
+    });
+  }
+
+  const invalidProcessIds = processIds.filter((value) => normalizeProcessId(value) === null);
+  if (invalidProcessIds.length) {
+    throw scopeError(options.message || 'Danh sách công đoạn không hợp lệ', {
+      invalid_process_ids: invalidProcessIds,
+      action: options.action || null
+    });
+  }
+
+  const requested = [...new Set(processIds.map(normalizeProcessId))];
+  if (!requested.length && options.allowEmpty !== true) {
+    throw scopeError(options.message || 'Phải chỉ định ít nhất một công đoạn', {
+      invalid_process_ids: [],
+      action: options.action || null
+    });
+  }
+
   const scope = await getActorProcessScope(actor, options.executor || null);
   if (scope.type === 'ALL') return true;
+
   const forbidden = requested.filter((id) => !scope.processIds.has(id));
   if (!forbidden.length) return true;
   throw scopeError(options.message || 'Một hoặc nhiều công đoạn nằm ngoài phạm vi phụ trách', {
