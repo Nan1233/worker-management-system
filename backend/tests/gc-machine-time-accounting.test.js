@@ -59,3 +59,40 @@ test('GC machine accounting falls back to machine-line time when no physical eve
   assert.equal(result.deductionHours, 0.5);
   assert.equal(result.netHours, 7);
 });
+
+
+test('GC machine accounting falls back to legacy report total time and deduction time when no machine lines exist', () => {
+  const result = buildGiaCongMachineAccounting({
+    total_time: 4.5,
+    actual_time: 3.5,
+    deduction_time: 1,
+    machineLines: []
+  }, new Map());
+
+  assert.equal(result.source, 'LEGACY_REPORT');
+  assert.equal(result.grossHours, 4.5);
+  assert.equal(result.deductionHours, 1);
+  assert.equal(result.netHours, 3.5);
+});
+
+test('GC machine accounting uses legacy report deduction when machine line has no deduction rows', () => {
+  const result = buildGiaCongMachineAccounting({
+    total_time: 4.5,
+    actual_time: 3.5,
+    deduction_time: 1,
+    machineLines: [
+      {
+        id: 301,
+        machine_event_id: null,
+        machine_time_hours: 4.5,
+        deduction_time_hours: 0,
+        deductions_json: '[]'
+      }
+    ]
+  }, new Map());
+
+  assert.equal(result.source, 'MACHINE_LINE');
+  assert.equal(result.grossHours, 4.5);
+  assert.equal(result.deductionHours, 0);
+  assert.equal(result.netHours, 4.5);
+});
