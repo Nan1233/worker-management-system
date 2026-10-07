@@ -1,3 +1,4 @@
+const db = require("../config/db");
 const { TtlCache } = require("../utils/cache");
 const managerListCache = new TtlCache({ maxEntries: 300 });
 const MANAGER_LIST_TTL_MS = 15000;
@@ -160,6 +161,7 @@ exports.approveSelectedReports = async (req, res) => {
         const targets = normalizeReviewTargets(req.body);
         assertReviewBatchSize(targets);
         const ids = targets.map((item) => item.id);
+        if (ids.length === 0) return res.status(400).json({ success: false, message: "Vui lòng chọn ít nhất một báo cáo" });
         const reviewerId = toPositiveInteger(req.user?.id);
         if (!(await hasPermission(req.user, "REPORT_APPROVE"))) {
             return res.status(403).json({ success:false, code:"PERMISSION_DENIED", message:"Bạn không có quyền duyệt hoặc từ chối báo cáo" });
@@ -169,7 +171,6 @@ exports.approveSelectedReports = async (req, res) => {
             ids
         );
         await assertProcessesScope(req.user, scopeRows.map((row) => row.process_id), { action:"REPORT_APPROVE" });
-        if (ids.length === 0) return res.status(400).json({ success: false, message: "Vui lòng chọn ít nhất một báo cáo" });
         if (!reviewerId) return res.status(401).json({ success: false, message: "Thông tin người duyệt không hợp lệ" });
 
         const result = await ProductionTemp.approveSelected(targets, reviewerId, req.user?.role === "admin");
