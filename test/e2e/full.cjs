@@ -13,6 +13,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const net = require('node:net');
+const { pathToFileURL } = require('node:url');
 const { spawn } = require('node:child_process');
 const config = require('./lib/config.cjs');
 const reporter = require('./lib/reporter.cjs');
@@ -20,7 +21,9 @@ const guard = require('./lib/guard.cjs');
 
 const ORDER = ['excel', 'desktop', 'api', 'db', 'web'];
 const FRONTEND = path.join(config.ROOT, 'frontend');
-const REPORTER = path.join(__dirname, 'lib', 'reporter.cjs');
+// node --test imports a custom reporter through the ESM loader, which rejects raw
+// Windows paths ("E:\\...", protocol 'e:'); it needs a file:// URL on every platform.
+const REPORTER = pathToFileURL(path.join(__dirname, 'lib', 'reporter.cjs')).href;
 
 const testFiles = (dir) => fs.readdirSync(dir).filter((f) => f.endsWith('.test.cjs')).sort().map((f) => path.join(dir, f));
 
