@@ -13,7 +13,7 @@ test('GC real-data integration: physical machine time and deductions match TiDB 
   skip: !hasDbEnv ? 'DB_HOST/DB_USER/DB_PASSWORD/DB_NAME are not configured' : false
 }, async () => {
   const db = require('../config/db');
-  const month = /^\\d{4}-\\d{2}$/.test(String(process.env.KTC_GC_TEST_MONTH || ''))
+  const month = /^\d{4}-\d{2}$/.test(String(process.env.KTC_GC_TEST_MONTH || ''))
     ? String(process.env.KTC_GC_TEST_MONTH)
     : '2026-09';
 
