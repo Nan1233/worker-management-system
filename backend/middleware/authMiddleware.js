@@ -16,7 +16,6 @@ async function loadCurrentUser(decoded) {
     const conditions = [], params = [];
     if (decodedUsername) { conditions.push("TRIM(u.username)=?"); params.push(decodedUsername); }
     if (Number.isInteger(decodedWorkerId) && decodedWorkerId > 0) { conditions.push("w.id=?"); params.push(decodedWorkerId); }
-    if (Number.isInteger(decodedUserId) && decodedUserId > 0) { conditions.push("w.id=?"); params.push(decodedUserId); }
     if (!conditions.length) return null;
     const [rows] = await db.promise().query(`SELECT u.id,u.username,u.role,u.status,w.id AS worker_id,w.status AS worker_status,DATABASE() AS database_name FROM users u LEFT JOIN workers w ON w.user_id=u.id WHERE ${conditions.join(" OR ")} ORDER BY CASE WHEN TRIM(u.username)=? THEN 0 ELSE 1 END,u.id LIMIT 1`, [...params, decodedUsername]);
     return rows[0] || null;
