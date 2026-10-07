@@ -97,6 +97,18 @@ function resolveMigrationCeiling(){
   return ceiling;
 }
 
+// KTC_MIGRATION_INCLUDE is an explicit, reviewed allowlist of migration numbers
+// (comma separated) that may run in addition to everything at or below the
+// ceiling. It lets one reviewed, idempotent migration through without raising the
+// ceiling past the unreviewed destructive ones in between.
+function resolveMigrationIncludes(){
+  const raw = String(process.env.KTC_MIGRATION_INCLUDE || '').trim();
+  if(!raw) return new Set();
+  const numbers = raw.split(',').map(part => part.trim()).filter(Boolean).map(part => Number.parseInt(part, 10));
+  if(numbers.some(value => !Number.isInteger(value) || value <= 0)) throw new Error(`Invalid KTC_MIGRATION_INCLUDE: ${raw}`);
+  return new Set(numbers);
+}
+
 function loadMigrationManifest(){
   let names = EMBEDDED_MIGRATION_NAMES;
   try {
@@ -108,14 +120,15 @@ function loadMigrationManifest(){
   }
 
   const ceiling = resolveMigrationCeiling();
+  const includes = resolveMigrationIncludes();
   const totalNames = names.length;
   if(ceiling !== null){
     names = names.filter(name => {
       const number = migrationNumber(name);
-      return Number.isInteger(number) && number <= ceiling;
+      return Number.isInteger(number) && (number <= ceiling || includes.has(number));
     });
     if(!names.length) throw new Error(`KTC_MIGRATION_MAX=${ceiling} excluded every migration in the inventory of ${totalNames}.`);
-    console.log(`[KTC][MIGRATION] ceiling KTC_MIGRATION_MAX=${ceiling}: ${names.length}/${totalNames} migrations eligible; the rest will not run`);
+    console.log(`[KTC][MIGRATION] ceiling KTC_MIGRATION_MAX=${ceiling}: ${names.length}/${totalNames} migrations eligible${includes.size ? ` (explicit include: ${[...includes].join(',')})` : ''}; the rest will not run`);
   }
 
   const inventory = validateMigrationInventory(normalizeMigrationEntries(

@@ -18,6 +18,10 @@
     // they are deliberately held back. Raise this only after reviewing the next
     // migrations and taking a backup.
     "KTC_MIGRATION_MAX": "30",
+    // Explicit allowlist beyond the ceiling: 053 only restores 6 GC deduction
+    // types (idempotent status flip + guarded insert, no DELETE/DROP). The
+    // ceiling stays at 30 so the destructive 031-052 migrations are NOT run.
+    "KTC_MIGRATION_INCLUDE": "53",
     // Test-only: lets /api/health/ready return missingTables/missingColumns so
     // DATABASE_CONTRACT_INVALID is diagnosable. Do not set on production.
     "KTC_EXPOSE_SCHEMA_DIAGNOSTICS": "true"
