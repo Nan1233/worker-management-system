@@ -2,6 +2,12 @@
 
 const DEFAULT_REPOSITORY = 'Nan1233/worker-management-system';
 const isCloudflareWorker = process.env.KTC_CLOUDFLARE_WORKER === 'true' || Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
+// Outside the Worker this defaults to 'main', so a local `npm run db:migrate`
+// with no KTC_MIGRATION_REF pulls migration SQL from the main branch and can
+// apply it to whatever database .env points at. Both facts are invisible in the
+// current output, so the resolved target is logged before anything is applied
+// and a defaulted ref is called out.
+const migrationRefExplicit = Boolean(String(process.env.KTC_MIGRATION_REF || '').trim());
 const migrationRef = String(process.env.KTC_MIGRATION_REF || (isCloudflareWorker ? 'test' : 'main')).trim();
 const repository = String(process.env.KTC_MIGRATION_REPOSITORY || DEFAULT_REPOSITORY).trim();
 const rawBase = `https://raw.githubusercontent.com/${repository}/${migrationRef.replace(/[^A-Za-z0-9._-]/g, '')}`;
@@ -141,6 +147,16 @@ async function runPendingMigrations(){
     await connection.query('CREATE TABLE IF NOT EXISTS schema_migrations (migration_id VARCHAR(160) NOT NULL PRIMARY KEY, checksum CHAR(64) NOT NULL, applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)');
     await connection.query('CREATE TABLE IF NOT EXISTS schema_migration_steps (id TINYINT NOT NULL PRIMARY KEY, migration_id VARCHAR(160) NOT NULL, checksum CHAR(64) NOT NULL, statement_index INT NOT NULL, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)');
     console.log(`[KTC][MIGRATION] manifest loaded: ${entries.length} SQL files / ${versions.length} ordered migrations, ref=${migrationRef}`);
+
+    let targetDatabase = 'unknown';
+    try {
+      const [databaseRows] = await connection.query('SELECT DATABASE() AS db_name');
+      targetDatabase = String(databaseRows?.[0]?.db_name || 'unknown');
+    } catch (_) {}
+    console.log(`[KTC][MIGRATION] target: database=${targetDatabase} repository=${repository} ref=${migrationRef} batchSize=${MIGRATION_STATEMENTS_PER_INVOCATION}`);
+    if (!migrationRefExplicit) {
+      console.warn(`[KTC][MIGRATION] WARNING: KTC_MIGRATION_REF was not set and defaulted to "${migrationRef}". Set it explicitly so another branch's migrations cannot be applied to this database.`);
+    }
 
     let processedStatements=0;
     while(processedStatements < MIGRATION_STATEMENTS_PER_INVOCATION){
