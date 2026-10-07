@@ -124,6 +124,8 @@ export function buildProductionReportPayload(args: {
   }
 
   const deductions=args.activeDeductionOptions.map(o=>({ deduction_type_id:Number(o.id||o.deduction_type_id||0)||undefined, deduction_code:String(o.code||""), deduction_name:String(o.label||o.deduction_name||o.key||""), hours:num(args.deductions[String(o.key||"")])/60 })).filter(x=>x.hours>0);
+  const hasActualMachineLine=(args.usesMultiMachineLines||args.usesSingleMachine)&&lines.some((line)=>!!line.machine_code);
+  const useMachineLinesPayload=(args.usesMultiMachineLines||args.usesSingleMachine)&&hasActualMachineLine;
   const isGiaCongMachine = args.isCutLongProcess && useMachineLinesPayload;
   if (isGiaCongMachine && lines.length && deductions.length) {
     const machineDeductionHours = deductions.reduce((sum, item) => sum + num(item.hours), 0);
@@ -135,8 +137,6 @@ export function buildProductionReportPayload(args: {
   }
   const actualOutput=noStandardLongWork ? 0 : num(args.form.actualOutput);
   const actualTime=parseHours(args.form.actualTime), deductionTime=parseHours(args.form.deductionTime), totalTime=parseHours(args.form.totalTime);
-  const hasActualMachineLine=(args.usesMultiMachineLines||args.usesSingleMachine)&&lines.some((line)=>!!line.machine_code);
-  const useMachineLinesPayload=(args.usesMultiMachineLines||args.usesSingleMachine)&&hasActualMachineLine;
   const normalizedMachine = String(args.form.machineNo || lines[0]?.machine_code || "").trim().toUpperCase();
   const automaticCutMachines = new Set<string>(["C5", "C6", "C7", "C11"]);
   const executionMethod = args.operationType === "CUT" ? (automaticCutMachines.has(normalizedMachine) ? "AUTO" : "NON_AUTO") : ((args.form.executionMethod === "MANUAL" || args.form.executionMethod === "MACHINE") ? args.form.executionMethod : (args.usesAnyMachine ? "MACHINE" : "MANUAL"));
