@@ -120,18 +120,23 @@ test('GC real-data integration: physical machine time and deductions match TiDB 
         expectedDeduction += Math.max(0, Number(line.deduction_time_hours) || 0);
       }
 
+      let legacyDeductions = [];
       if (expectedDeduction <= 0) {
         const [legacy] = await db.promise().query(
-          `SELECT COALESCE(SUM(hours), 0) AS hours
+          `SELECT deduction_type_id, hours
              FROM production_report_deductions
             WHERE report_id = ?`,
           [Number(report.id)]
         );
-        expectedDeduction = Math.max(0, Number(legacy[0]?.hours) || 0);
+        legacyDeductions = legacy.map((row) => ({
+          deduction_type_id: Number(row.deduction_type_id) || undefined,
+          hours: Math.max(0, Number(row.hours) || 0)
+        }));
+        expectedDeduction = legacyDeductions.reduce((sum, row) => sum + row.hours, 0);
       }
 
       const result = buildGiaCongMachineAccounting(
-        { machineLines: reportLines },
+        { machineLines: reportLines, deductions: legacyDeductions },
         eventsById
       );
 
