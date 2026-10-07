@@ -11,6 +11,9 @@
     "KTC_RUN_BUILD_DB_MIGRATIONS": "true",
     "KTC_CLOUDFLARE_WORKER": "true",
     "KTC_MIGRATION_REF": "test",
-    "KTC_MIGRATION_REPOSITORY": "Nan1233/worker-management-system"
+    "KTC_MIGRATION_REPOSITORY": "Nan1233/worker-management-system",
+    // Test-only: lets /api/health/ready return missingTables/missingColumns so
+    // DATABASE_CONTRACT_INVALID is diagnosable. Do not set on production.
+    "KTC_EXPOSE_SCHEMA_DIAGNOSTICS": "true"
   }
 }

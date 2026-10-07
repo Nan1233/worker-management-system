@@ -18,14 +18,21 @@ async function main() {
   console.error('DATABASE_CONTRACT_INVALID');
   console.error(`Status: ${diagnostics.status}`);
   if (diagnostics.reason) console.error(`Reason: ${diagnostics.reason}`);
-  if (diagnostics.missingTables.length) console.error(`Missing tables: ${diagnostics.missingTables.join(', ')}`);
-  if (diagnostics.extraTables.length) console.error(`Extra tables: ${diagnostics.extraTables.join(', ')}`);
-  if (diagnostics.missingColumns.length) console.error(`Missing columns: ${diagnostics.missingColumns.join(', ')}`);
-  if (diagnostics.invalidColumns.length) console.error(`Invalid columns: ${diagnostics.invalidColumns.join(' | ')}`);
-  if (diagnostics.extraColumns.length) console.error(`Extra columns: ${diagnostics.extraColumns.join(', ')}`);
-  if (diagnostics.missingIndexes.length) console.error(`Missing indexes: ${diagnostics.missingIndexes.join(', ')}`);
-  if (diagnostics.invalidIndexes.length) console.error(`Invalid indexes: ${diagnostics.invalidIndexes.join(' | ')}`);
-  if (diagnostics.extraIndexes.length) console.error(`Extra indexes: ${diagnostics.extraIndexes.join(', ')}`);
+  // Report every diff list defensively: a diagnostics field that the serializer
+  // does not emit must not abort the report before the remaining lines print.
+  const reportList = (label, values, separator = ', ') => {
+    const list = Array.isArray(values) ? values : [];
+    if (list.length) console.error(`${label}: ${list.join(separator)}`);
+  };
+
+  reportList('Missing tables', diagnostics.missingTables);
+  reportList('Extra tables', diagnostics.extraTables);
+  reportList('Missing columns', diagnostics.missingColumns);
+  reportList('Invalid columns', diagnostics.invalidColumns, ' | ');
+  reportList('Extra columns', diagnostics.extraColumns);
+  reportList('Missing indexes', diagnostics.missingIndexes);
+  reportList('Invalid indexes', diagnostics.invalidIndexes, ' | ');
+  reportList('Extra indexes', diagnostics.extraIndexes);
 
   process.exitCode = 1;
 }

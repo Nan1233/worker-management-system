@@ -273,6 +273,10 @@ function toSafeSchemaDiagnostics(result) {
     contractVersion: result.contractVersion || CONTRACT_VERSION,
     runtimeContract: result.runtimeContract || 'MINIMUM_STRUCTURAL_V1',
     missingTables: result.missingTables || [],
+    // Readiness fails on missingColumns as well as missingTables, so the safe
+    // diagnostics MUST carry it; omitting it left DATABASE_CONTRACT_INVALID
+    // undiagnosable and crashed scripts/verifyDatabaseSchema.js.
+    missingColumns: result.missingColumns || [],
     invalidColumns: result.invalidColumns || [],
     extraTables: result.extraTables || [],
     extraColumns: result.extraColumns || [],
