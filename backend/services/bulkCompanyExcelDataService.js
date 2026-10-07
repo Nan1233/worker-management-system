@@ -322,7 +322,7 @@ async function loadBulkCompanyReports(yearMonth, actor) {
         let machineAccounting = null;
         if (code === 'GC' && String(report.operation_mode || '').toUpperCase() === 'MACHINE') {
           const machineDeductions = [];
-          const machineAccounting = buildGiaCongMachineAccounting(
+          machineAccounting = buildGiaCongMachineAccounting(
             {
               machineLines,
               deductions: tempDeductions.length ? tempDeductions : persistedDeductions,
@@ -334,7 +334,6 @@ async function loadBulkCompanyReports(yearMonth, actor) {
           );
           machineAccounting.deductions.forEach((item) => machineDeductions.push(item));
           deductions = machineDeductions.length ? machineDeductions : deductions;
-          report.machineAccounting = machineAccounting;
         }
         return {
           ...report,
