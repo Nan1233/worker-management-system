@@ -77,3 +77,56 @@
   .machine-worker-deduction-detail-grid,.machine-worker-ng-detail-grid{padding:6px!important}
   .machine-worker-deduction-detail-grid .worker-field-block,.machine-worker-ng-detail-grid .worker-field-block{padding:7px!important}
 }
+
+
+/* Desktop UX refinement: use the available workspace without changing the form structure. */
+@media (min-width: 1101px){
+  .worker-form-page{padding-inline:20px!important;}
+  .worker-form-shell{width:min(100%,1180px)!important;max-width:1180px!important;}
+  .worker-sticky-context{max-width:1180px!important;margin-inline:auto!important;}
+  .worker-form-card{padding:16px!important;}
+  .worker-machine-workspace{padding:14px!important;}
+  .machine-lines-list{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:12px!important;}
+  .machine-line{padding:13px!important;}
+  .machine-selection-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:10px!important;}
+  .machine-data-grid{grid-template-columns:minmax(0,1.45fr) minmax(260px,.9fr)!important;gap:10px!important;}
+  .machine-worker-time-grid{grid-template-columns:minmax(0,1.2fr) minmax(0,.85fr) minmax(0,.95fr)!important;gap:7px!important;}
+}
+.machine-card-header{
+  min-height:40px!important;
+  border-radius:8px!important;
+}
+.machine-card-header .machine-card-title-wrap strong{font-size:13px!important;}
+.machine-card-header .machine-card-title-wrap>div>span{font-size:10px!important;color:#7890a6!important;}
+.machine-card-badge{font-weight:700!important;}
+.machine-worker-time-grid .worker-time-item[data-worker-time="machine-net"]{
+  border-color:#b9ddc9!important;
+  background:#f2fbf6!important;
+}
+.machine-worker-time-grid .worker-time-item[data-worker-time="machine-net"]>label{
+  color:#17734d!important;
+  font-weight:800!important;
+}
+.machine-worker-time-grid .worker-time-item[data-worker-time="machine-deduction"]{
+  border-color:#ead9ae!important;
+  background:#fffaf0!important;
+}
+.machine-worker-time-grid .worker-time-item[data-worker-time="machine-deduction"]>label{
+  color:#946b18!important;
+  font-weight:800!important;
+}
+.machine-quantity-row>label:first-child{border-color:#cfe0f2!important;background:#f5f9ff!important;}
+.machine-quantity-row>label:nth-child(2){border-color:#f1c7d0!important;background:#fff6f8!important;}
+.machine-quantity-row>label>input{font-size:15px!important;font-weight:800!important;}
+.worker-dropdown-title-main{min-width:0!important;}
+.worker-dropdown-title-main small{color:#71879b!important;font-weight:600!important;}
+.worker-form-card-basic .worker-mode-panel{margin-bottom:2px!important;}
+@media (min-width:681px) and (max-width:1100px){
+  .worker-form-shell{width:min(100%,1040px)!important;max-width:1040px!important;}
+}
+@media (max-width:680px){
+  .worker-form-page{padding-inline:8px!important;}
+  .worker-form-shell{width:100%!important;max-width:none!important;}
+  .worker-machine-workspace{padding:9px!important;}
+  .machine-line{padding:10px!important;}
+}
