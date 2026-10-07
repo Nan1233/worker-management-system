@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { buildGiaCongMachineAccounting } = require('../services/processExcelExportService');
+const { buildGiaCongMachineAccounting } = require('../services/giaCongMachineAccounting');
 
 test('GC machine accounting uses each physical machine event once and moves deductions to machine time', () => {
   const report = {
