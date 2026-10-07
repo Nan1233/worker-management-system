@@ -1712,6 +1712,7 @@ window.setTimeout(() => {
                     refreshMachineLineStandard={refreshMachineLineStandard}
                     getMachineNgTotal={getMachineNgTotal}
                     activeNgOptions={activeNgOptions}
+                    activeDeductionOptions={activeDeductionOptions}
                     toggleMachineDefect={toggleMachineDefect}
                     updateMachineDefectValue={updateMachineDefectValue}
                 />
