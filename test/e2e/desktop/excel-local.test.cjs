@@ -93,6 +93,53 @@ test('GIA_CONG: report with 2 machine lines -> 2 rows (04_CAT_LONG rule)', { ski
   assert.equal(rowsFor(sheet, '4312').length, 2, 'expected one row per machine line');
 });
 
+test('GIA_CONG: days 1, 3 and 15 all land in one workbook, STT resets per day', { skip }, async () => {
+  const reports = [
+    gcReport({ id: 7010, work_date: '2026-09-01', worker_code: '5001' }),
+    gcReport({ id: 7011, work_date: '2026-09-01', worker_code: '5002' }),
+    gcReport({ id: 7012, work_date: '2026-09-03', worker_code: '5003' }),
+    gcReport({ id: 7013, work_date: '2026-09-15', worker_code: '5004' }),
+    gcReport({ id: 7014, work_date: '2026-09-15', worker_code: '5005' })
+  ];
+  const { sheet } = await buildGc(reports, 'desktop-gia-cong-multi-day.xlsx');
+  const stt = (code) => { const [r] = rowsFor(sheet, code); assert.ok(r, `worker ${code} missing`); return sheet.getRow(r).getCell(1).value; };
+  assert.deepEqual(['5001', '5002', '5003', '5004', '5005'].map(stt), [1, 2, 1, 1, 2]);
+  // each date has its own date row (A = date, B blank) placed before its data rows
+  const dateRows = [];
+  sheet.eachRow((row, n) => { if (row.getCell(1).value instanceof Date && !row.getCell(2).value && !row.hidden) dateRows.push(n); });
+  assert.equal(dateRows.length, 3);
+  assert.ok(rowsFor(sheet, '5003')[0] > dateRows[1] && rowsFor(sheet, '5003')[0] < dateRows[2]);
+});
+
+test('GIA_CONG: 2 machine lines -> per-line machine, product, actual time, OK/NG (no summed total)', { skip }, async () => {
+  const report = gcReport({
+    id: 7020, worker_code: '4320', machine_no: '5, 6', product_name: 'E2E-5770, E2E-9116', total_time: 10.5, deduction_time: 1.5,
+    machineLines: [
+      { id: 1, sort_order: 1, machine_code: '5', product_code: 'E2E-5770', machine_time_hours: 4.5, deduction_time_hours: 0.5, ok_quantity: 100, ng_quantity: 5 },
+      { id: 2, sort_order: 2, machine_code: '6', product_code: 'E2E-9116', machine_time_hours: 6, deduction_time_hours: 1, ok_quantity: 240, ng_quantity: 12 }
+    ]
+  });
+  const { sheet } = await buildGc([report], 'desktop-gia-cong-line-values.xlsx');
+  const rows = rowsFor(sheet, '4320');
+  assert.equal(rows.length, 2);
+  const [a, b] = rows.map((n) => sheet.getRow(n));
+  assert.deepEqual([a.getCell(4).value, b.getCell(4).value], ['5', '6'], 'machine column is one code per row');
+  assert.deepEqual([a.getCell(27).value, b.getCell(27).value], ['E2E-5770', 'E2E-9116']);
+  assert.deepEqual([a.getCell(7).value, b.getCell(7).value], [4.5, 6], 'total time per line, not 9h/10.5h');
+  assert.deepEqual([a.getCell(8).value.result, b.getCell(8).value.result], [4, 5], 'actual time per machine');
+  assert.deepEqual([a.getCell(10).value, b.getCell(10).value], [0.5, 1], 'deduction per line');
+  assert.deepEqual([a.getCell(33).value, b.getCell(33).value], [100, 240], 'OK');
+  assert.deepEqual([a.getCell(29).value, b.getCell(29).value], [105, 252], 'OK + NG');
+  assert.deepEqual([a.getCell(1).value, b.getCell(1).value], [1, 2]);
+});
+
+test('GIA_CONG: manual report (no machine lines) -> 1 row, machine blank', { skip }, async () => {
+  const { sheet } = await buildGc([gcReport({ id: 7030, worker_code: '4330', machine_no: null })], 'desktop-gia-cong-manual.xlsx');
+  const rows = rowsFor(sheet, '4330');
+  assert.equal(rows.length, 1);
+  assert.ok(!sheet.getRow(rows[0]).getCell(4).value, 'machine blank');
+});
+
 test('GIA_CONG: written row keeps its formulas (deduction total, actual time)', { skip }, async () => {
   const { sheet } = await buildGc([gcReport()], 'desktop-gia-cong-formulas.xlsx');
   const [rowNumber] = rowsFor(sheet, '4310');
