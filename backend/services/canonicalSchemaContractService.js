@@ -4,8 +4,15 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const CANONICAL_SCHEMA_RELATIVE_PATH = '../database/KTC_FULL_DATABASE_CANONICAL_20260817.sql';
-const CANONICAL_SCHEMA_PATH = path.resolve(__dirname, '..', 'database', 'KTC_FULL_DATABASE_CANONICAL_20260817.sql');
 const CONTRACT_VERSION = 26;
+
+// The absolute path is resolved on demand, never at module scope. This module is
+// pulled into the Cloudflare Worker bundle through databaseSchemaService (which
+// needs CONTRACT_VERSION), and __dirname does not exist there, so computing it
+// eagerly threw "ReferenceError: __dirname is not defined" during module
+// evaluation and made every `wrangler deploy` fail validation with code 10021.
+// In Worker mode getCanonicalSchema() is never called, so the path is never
+// resolved; under Node the behaviour is unchanged.
 
 function getCanonicalSchemaPath() {
   return path.resolve(__dirname, '..', 'database', 'KTC_FULL_DATABASE_CANONICAL_20260817.sql');
@@ -166,7 +173,11 @@ function compareIndex(expected, rows) {
 }
 
 module.exports = {
-  CANONICAL_SCHEMA_PATH,
+  // Kept as a getter so the property still reads like a constant to callers
+  // while staying lazy; see the note next to CANONICAL_SCHEMA_RELATIVE_PATH.
+  get CANONICAL_SCHEMA_PATH() {
+    return getCanonicalSchemaPath();
+  },
   CANONICAL_SCHEMA_RELATIVE_PATH,
   CONTRACT_VERSION,
   getCanonicalSchemaPath,
