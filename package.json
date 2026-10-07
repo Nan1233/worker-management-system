@@ -16,6 +16,13 @@
     "test:cloudflare-contract": "node --test tests/cloudflare-production-contract.test.cjs tests/2801-lt-long-selection.contract.test.cjs",
     "test:regression": "node --test tests/regression-report-issues.contract.test.cjs backend/tests/product-suggestion-scope.test.js",
     "perf:benchmark": "node scripts/performanceBenchmark.cjs",
-    "test:quick": "node --test backend\\tests\\*.test.js backend\\tests\\*.test.cjs"
+    "test:quick": "node --test backend\\tests\\*.test.js backend\\tests\\*.test.cjs",
+    "test": "npm --prefix backend test && node --test desktop/tests/*.test.cjs && npm --prefix frontend test",
+    "test:e2e:web": "node test/e2e/full.cjs --layer web",
+    "test:e2e:api": "node test/e2e/full.cjs --layer api",
+    "test:e2e:db": "node test/e2e/full.cjs --layer db",
+    "test:e2e:excel": "node test/e2e/full.cjs --layer excel",
+    "test:e2e:desktop": "node test/e2e/full.cjs --layer desktop",
+    "test:full": "node test/e2e/full.cjs"
   }
 }
