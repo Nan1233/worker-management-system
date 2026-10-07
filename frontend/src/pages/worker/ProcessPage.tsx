@@ -262,6 +262,7 @@ const machineAutocompleteOptions =
     const usesMultiMachineLines = resolveUsesMultiMachineLines(processCapabilities, operationMode);
     const usesSingleMachine = resolveUsesSingleMachine(processCapabilities, operationMode);
     const usesAnyMachine = usesMultiMachineLines || usesSingleMachine;
+    const usesGiaCongMachineAccounting = isCutLongProcess && usesMultiMachineLines;
 
     const productAutocompleteOptions = useMemo<AutocompleteOption[]>(() => {
         const effectiveMode: OperationMode = usesAnyMachine ? "MACHINE" : "MANUAL";
@@ -1311,22 +1312,23 @@ const updateDeductionValue = (
         }
 
 
-        if (parseFlexibleTime(form.actualTime) <= 0) {
-            return "Thời gian làm việc thực tế phải lớn hơn 0";
-        }
+        if (!usesGiaCongMachineAccounting) {
+            if (parseFlexibleTime(form.actualTime) <= 0) {
+                return "Thời gian làm việc thực tế phải lớn hơn 0";
+            }
 
+            if (Number(form.actualMinutes || 0) > 59) {
+                return "Số phút làm thực tế phải từ 0 đến 59";
+            }
 
-        if (Number(form.actualMinutes || 0) > 59) {
-            return "Số phút làm thực tế phải từ 0 đến 59";
-        }
-
-        const actualMinutes = Math.round(parseFlexibleTime(form.actualTime) * 60);
-        const deductionMinutes = Math.round(parseFlexibleTime(form.deductionTime) * 60);
-        if (actualMinutes + deductionMinutes > MAX_TOTAL_WORK_MINUTES) {
-            return "Thời gian thực tế + thời gian trừ không được vượt quá 12 giờ";
-        }
-        if (parseFlexibleTime(form.totalTime) > 12) {
-            return "Tổng thời gian không được vượt quá 12 giờ";
+            const actualMinutes = Math.round(parseFlexibleTime(form.actualTime) * 60);
+            const deductionMinutes = Math.round(parseFlexibleTime(form.deductionTime) * 60);
+            if (actualMinutes + deductionMinutes > MAX_TOTAL_WORK_MINUTES) {
+                return "Thời gian thực tế + thời gian trừ không được vượt quá 12 giờ";
+            }
+            if (parseFlexibleTime(form.totalTime) > 12) {
+                return "Tổng thời gian không được vượt quá 12 giờ";
+            }
         }
 
 
@@ -1720,19 +1722,21 @@ window.setTimeout(() => {
                     setExtraData={setExtraData}
                 />
 
-                <ProcessTimeDeductionSection
-                    form={form}
-                    setForm={setForm}
-                    deductions={deductions}
-                    activeDeductionOptions={activeDeductionOptions}
-                    selectedDeduction={selectedDeduction}
-                    showDeduction={showDeduction}
-                    setShowDeduction={setShowDeduction}
-                    onToggleDeduction={handleToggleDeduction}
-                    onUpdateDeduction={updateDeductionValue}
-                    onNormalizeDeduction={normalizeDeductionValue}
-                    onWarning={(message) => showToast(message, "warning")}
-                />
+                {!usesGiaCongMachineAccounting && (
+                    <ProcessTimeDeductionSection
+                        form={form}
+                        setForm={setForm}
+                        deductions={deductions}
+                        activeDeductionOptions={activeDeductionOptions}
+                        selectedDeduction={selectedDeduction}
+                        showDeduction={showDeduction}
+                        setShowDeduction={setShowDeduction}
+                        onToggleDeduction={handleToggleDeduction}
+                        onUpdateDeduction={updateDeductionValue}
+                        onNormalizeDeduction={normalizeDeductionValue}
+                        onWarning={(message) => showToast(message, "warning")}
+                    />
+                )}
 
                                 {/* =================================================
                     SẢN XUẤT
