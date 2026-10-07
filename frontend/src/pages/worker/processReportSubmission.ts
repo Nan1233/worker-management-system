@@ -93,10 +93,13 @@ export function buildProductionReportPayload(args: {
       const option = args.activeNgOptions.find(o => String(o.key) === key || String(o.code || o.defect_code || "").trim().toUpperCase() === key.trim().toUpperCase() || String(o.id || o.defect_type_id || "") === key);
       return defectForOption(option, num(l.defects[key]));
     }).filter(x=>x.quantity>0);
+    const lineDeductions = args.activeDeductionOptions.map(o=>({ deduction_type_id:Number(o.id||o.deduction_type_id||0)||undefined, deduction_code:String(o.code||""), deduction_name:String(o.label||o.deduction_name||o.key||""), hours:num(l.deductions?.[String(o.key||"")])/60 })).filter(x=>x.hours>0);
+    const lineDeductionHours = lineDeductions.reduce((sum,item)=>sum+num(item.hours),0);
     const fullProductCode = resolveSubmittedProductCode(l.productCode, l.machineCode, args.operationType, args.productOptions);
     return {
       machine_code:l.machineCode.trim(), product_code:fullProductCode,
-      machine_time_hours:num(l.hours)+num(l.minutes)/60, adjustment_minutes:num(l.adjustmentMinutes), adjustment_count:num(l.adjustmentCount),
+      machine_time_hours:num(l.hours)+num(l.minutes)/60, adjustment_minutes:lineDeductionHours*60, adjustment_count:num(l.adjustmentCount),
+      deduction_time_hours:lineDeductionHours, deductions:lineDeductions,
       ok_quantity:num(l.okQuantity), ng_quantity:num(l.ngQuantity), standard_output:resolvePositiveStandardOutput(l.productCode, l.standardOutputPerHour),
       standard_time_seconds:l.standardTimeSeconds, standard_source:l.standardSource, defects:lineDefects
     };
@@ -128,12 +131,16 @@ export function buildProductionReportPayload(args: {
   const useMachineLinesPayload=(args.usesMultiMachineLines||args.usesSingleMachine)&&hasActualMachineLine;
   const isGiaCongMachine = args.isCutLongProcess && useMachineLinesPayload;
   if (isGiaCongMachine && lines.length && deductions.length) {
-    const machineDeductionHours = deductions.reduce((sum, item) => sum + num(item.hours), 0);
-    lines[0] = {
-      ...lines[0],
-      deduction_time_hours: machineDeductionHours,
-      deductions: deductions.map((item) => ({ ...item }))
-    };
+    const hasLineDeductions = lines.some((line) => Array.isArray(line.deductions) && line.deductions.length);
+    if (!hasLineDeductions) {
+      const machineDeductionHours = deductions.reduce((sum, item) => sum + num(item.hours), 0);
+      lines[0] = {
+        ...lines[0],
+        deduction_time_hours: machineDeductionHours,
+        deductions: deductions.map((item) => ({ ...item })),
+        adjustment_minutes: machineDeductionHours * 60
+      };
+    }
   }
   const actualOutput=noStandardLongWork ? 0 : num(args.form.actualOutput);
   const actualTime=parseHours(args.form.actualTime), deductionTime=parseHours(args.form.deductionTime), totalTime=parseHours(args.form.totalTime);
