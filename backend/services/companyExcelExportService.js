@@ -3,6 +3,7 @@ const fs = require('node:fs/promises');
 const ExcelJS = require('exceljs');
 const db = require('../config/db');
 const { loadProcessMonthReports, normalizeYearMonth } = require('./processExcelExportService');
+const { buildLayoutResolvers, writeDetailColumns } = require('./excelColumnMapping');
 const { calculateCountedNg } = require('../utils/outputCalculation');
 const { normalizeTrainingPercent, trainingFactor } = require('../utils/trainingPercent');
 
@@ -44,44 +45,7 @@ const CACHE_TTL_MS = Math.max(30_000, Number(process.env.EXCEL_COMPANY_CACHE_TTL
 
 const buildKey = (yearMonth, groupCode) => `${yearMonth}:${String(groupCode || '').toUpperCase()}`;
 
-const LAYOUTS = Object.freeze({
-  GIA_CONG: {
-    headerSearchColumn: 31, // AE - Ngày/Tháng
-    headerPattern: /ngày\s*\/?\s*tháng/i,
-    fixed: {
-      sequence: 1, workerCode: 2, workerName: 3, machine: 4, shift: 5,
-      training: 6, totalTime: 7, actualTime: 8, deductionTotal: 10,
-      product: 27, plannedOutput: 28, actualOutput: 29, achievement: 30,
-      workDate: 31, outputPerHour: 32, ok: 33, totalNg: 34, ngRate: 35
-    },
-    deductions: [11, 26],
-    defects: [36, 53]
-  },
-  MAI: {
-    headerSearchColumn: 36, // AJ - ngày
-    headerPattern: /ngày/i,
-    fixed: {
-      sequence: 1, workerCode: 2, workerName: 3, shift: 4, machine: 5,
-      training: 8, totalTime: 10, actualTime: 9, deductionTotal: 11,
-      product: 32, plannedOutput: 33, actualOutput: 34, achievement: 35,
-      workDate: 36, outputPerHour: 37, ok: 38, totalNg: 39
-    },
-    deductions: [12, 31],
-    defects: [40, 46]
-  },
-  DO: {
-    headerSearchColumn: 32, // AF - ngày
-    headerPattern: /ngày/i,
-    fixed: {
-      sequence: 1, workerCode: 2, workerName: 3, shift: 4, machine: 5,
-      training: 7, totalTime: 8, actualTime: 9, deductionTotal: 10,
-      product: 28, plannedOutput: 29, actualOutput: 30, achievement: 31,
-      workDate: 32, outputPerHour: 33, ok: 34, totalNg: 35, ngRate: 36
-    },
-    deductions: [11, 27],
-    defects: [37, 49]
-  }
-});
+const { LAYOUTS } = require('../config/excelLayouts');
 
 const toNumber = (value) => {
   const number = Number(String(value ?? 0).replace(/,/g, '').trim());
@@ -298,7 +262,7 @@ const getInputColumns = (layout) => {
   return [...new Set(columns.filter(Boolean))];
 };
 
-const writeReportRow = (sheet, rowNumber, report, layout, deductionTypes, defectTypes, workerLookup) => {
+const writeReportRow = (sheet, rowNumber, report, layout, mapping, workerLookup) => {
   const row = sheet.getRow(rowNumber);
   const fixed = layout.fixed;
   const metrics = getReportMetrics(report);
@@ -325,16 +289,7 @@ const writeReportRow = (sheet, rowNumber, report, layout, deductionTypes, defect
   setCell(row, fixed.ok, metrics.ok, '#,##0');
   if (fixed.workDate) setCell(row, fixed.workDate, report.work_date, 'dd/mm/yyyy');
 
-  const [deductionStart, deductionEnd] = layout.deductions;
-  deductionTypes.slice(0, deductionEnd - deductionStart + 1).forEach((type, index) => {
-    setCell(row, deductionStart + index,
-      detailValue(report.deductions, type.id, 'hours', 'deduction_type_id'), '0.00');
-  });
-  const [defectStart, defectEnd] = layout.defects;
-  defectTypes.slice(0, defectEnd - defectStart + 1).forEach((type, index) => {
-    setCell(row, defectStart + index,
-      detailValue(report.defects, type.id, 'quantity', 'defect_type_id'), '#,##0');
-  });
+  writeDetailColumns(row, report, mapping);
 };
 
 const reportTimeKey = (report) => String(report.approved_at || report.created_at || report.entry_date || report.work_date || '');
@@ -398,6 +353,7 @@ async function buildCompanyWorkbookInternal(value, groupCode) {
   workbook.calcProperties.calcId = 0;
   workbook.calcProperties.concurrentCalc = true;
   const workerLookup = buildWorkerLookup(workbook);
+  const unmappedDetails = [];
 
   for (const sheetConfig of group.sheets) {
     const processRows = loaded.filter(({ process }) => sheetConfig.processCodes.includes(String(process.process_code).toUpperCase()));
@@ -407,6 +363,16 @@ async function buildCompanyWorkbookInternal(value, groupCode) {
     const sheet = workbook.getWorksheet(sheetConfig.sheetName);
     if (!sheet) throw new Error(`Thiếu sheet ${sheetConfig.sheetName} trong file mẫu`);
     const layout = LAYOUTS[sheetConfig.layout];
+    const mapping = {
+      ...buildLayoutResolvers(sheet, layout, sheetConfig.layout),
+      deductionNameById: new Map(deductionTypes.map((type) => [Number(type.id), type.deduction_name || type.name])),
+      defectNameById: new Map(defectTypes.map((type) => [Number(type.id), type.defect_name || type.name])),
+      unmapped: []
+    };
+    // Header cells the bundled template lost are restored from the company sample.
+    [...mapping.deductionColumns, ...mapping.defectColumns]
+      .filter((entry) => entry.filledFromContract)
+      .forEach((entry) => { sheet.getRow(layout.labelRow).getCell(entry.column).value = entry.label; });
     const blocks = findDateBlocks(sheet, layout);
     const inputColumns = getInputColumns(layout);
     blocks.forEach((block) => clearInputColumns(sheet, block, inputColumns));
@@ -430,10 +396,18 @@ async function buildCompanyWorkbookInternal(value, groupCode) {
         block.startRow + index,
         report,
         layout,
-        deductionTypes,
-        defectTypes,
+        mapping,
         workerLookup
       ));
+    }
+    if (mapping.unmapped.length) {
+      const summary = new Map();
+      for (const item of mapping.unmapped) {
+        const key = `${item.kind}:${item.name}`;
+        summary.set(key, (summary.get(key) || 0) + 1);
+      }
+      console.warn(`[KTC][EXCEL] ${sheet.name}: ${mapping.unmapped.length} chi tiết không có cột tương ứng trong mẫu: ${[...summary.entries()].map(([k, n]) => `${k} x${n}`).join('; ')}`);
+      unmappedDetails.push(...mapping.unmapped.map((item) => ({ sheet: sheet.name, ...item })));
     }
   }
 
@@ -453,7 +427,7 @@ async function buildCompanyWorkbookInternal(value, groupCode) {
   }
   const stat = await fs.stat(filePath);
   cleanupOldExports(path.dirname(filePath)).catch(() => undefined);
-  return { path: filePath, fileName, groupCode: group.code, groupTitle: group.title, reportCount };
+  return { path: filePath, fileName, groupCode: group.code, groupTitle: group.title, reportCount, unmappedDetails };
 }
 
 
