@@ -67,7 +67,7 @@ test('master processes are not treated as global manager-mutatable configuration
 test('worker master/process assignment cannot escape actor process scope', () => {
   const src = read('controllers/adminMasterController.js');
   assert.match(src, /assertCanManageWorker\(req\.user, workerId, connection, \{ requireAllAssignments:true \}\)/);
-  assert.match(src, /assertProcessesScope\(req\.user, processIds, \{ executor:connection, action:'WORKER_PROCESS_ASSIGNMENT' \}\)/);
+  assert.match(src, /assertProcessesScope\(req\.user, processIds, \{ executor:connection, action:'WORKER_PROCESS_ASSIGNMENT', allowEmpty:true \}\)/);
 });
 
 test('user management uses centralized role + process scope for view/update/promotion/delete', () => {
