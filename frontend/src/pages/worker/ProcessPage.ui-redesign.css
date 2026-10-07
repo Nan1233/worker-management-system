@@ -130,3 +130,24 @@
   .worker-machine-workspace{padding:9px!important;}
   .machine-line{padding:10px!important;}
 }
+
+/* Keep machine detail controls compact: deduction and NG stay on one row. */
+.machine-detail-dropdown-row{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+  gap:7px!important;
+  margin-top:7px!important;
+}
+.machine-detail-dropdown-item{min-width:0!important;}
+.machine-detail-dropdown-item .machine-worker-ng-box{margin-top:0!important;}
+.machine-detail-dropdown-item .machine-worker-ng-box .worker-dropdown-title,
+.machine-detail-dropdown-item .machine-worker-deduction-box .worker-dropdown-title{
+  min-height:38px!important;height:38px!important;
+}
+@media(max-width:680px){
+  .machine-detail-dropdown-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:6px!important;}
+  .machine-detail-dropdown-item .worker-dropdown-title-main small{display:none!important;}
+}
+@media(max-width:430px){
+  .machine-detail-dropdown-row{grid-template-columns:1fr!important;}
+}
