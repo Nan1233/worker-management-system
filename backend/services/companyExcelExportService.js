@@ -4,12 +4,14 @@ const ExcelJS = require('exceljs');
 const db = require('../config/db');
 const { loadProcessMonthReports, normalizeYearMonth } = require('./processExcelExportService');
 const { buildLayoutResolvers, writeDetailColumns } = require('./excelColumnMapping');
+const { writeGcWorkerSheet } = require('./gcWorkerReportExcel');
 const { calculateCountedNg } = require('../utils/outputCalculation');
 const { normalizeTrainingPercent, trainingFactor } = require('../utils/trainingPercent');
 
-const query = (sql, params = []) => new Promise((resolve, reject) => {
 const { assertReportVolume } = require('./excelExportGuards');
 const { removeQuietly, cleanupOldExports } = require('./exportFileMaintenance');
+
+const query = (sql, params = []) => new Promise((resolve, reject) => {
   db.query(sql, params, (error, rows) => error ? reject(error) : resolve(rows));
 });
 
@@ -19,9 +21,11 @@ const GROUPS = Object.freeze({
     code: 'GIA_CONG',
     title: 'Gia công',
     processCodes: ['GC'],
-    template: path.join(TEMPLATE_DIR, 'bao-cao-cat-long-export.xlsx'),
+    // 04_CAT_LONG_09-2026 is the source of truth for the GC output: flat sheet,
+    // one row per machine line (see gcWorkerReportExcel.js).
+    template: path.join(TEMPLATE_DIR, '04_CAT_LONG_template.xlsx'),
     fileName: ({ month, year }) => `A+B GIA CÔNG THÁNG ${month}-${year}.xlsx`,
-    sheets: [{ processCodes: ['GC'], sheetName: 'Cắt lồng', layout: 'GIA_CONG' }]
+    sheets: [{ processCodes: ['GC'], sheetName: 'Báo cáo công nhân', layout: 'GIA_CONG_04', mode: 'WORKER_DAILY' }]
   },
   MAI_DO: {
     code: 'MAI_DO',
@@ -309,6 +313,34 @@ async function resolveProcesses(group) {
   );
 }
 
+// Per-machine NG detail lives in production_report_machine_defects (or the line's own
+// defects_json). Event-level defects are NOT used: they are shared by every worker on
+// the machine and would be repeated on each machine line.
+async function attachMachineLineDefects(reports) {
+  const lines = reports.flatMap((report) => (Array.isArray(report.machineLines) ? report.machineLines : []));
+  const lineIds = lines.map((line) => Number(line.id)).filter((id) => Number.isInteger(id) && id > 0);
+  const byLine = new Map();
+  for (let i = 0; i < lineIds.length; i += 400) {
+    const ids = lineIds.slice(i, i + 400);
+    const rows = await query(
+      `SELECT machine_line_id, defect_type_id, defect_code, defect_name, quantity
+         FROM production_report_machine_defects
+        WHERE machine_line_id IN (${ids.map(() => '?').join(',')}) AND quantity > 0
+        ORDER BY machine_line_id, id`,
+      ids
+    );
+    for (const row of rows) {
+      const key = Number(row.machine_line_id);
+      if (!byLine.has(key)) byLine.set(key, []);
+      byLine.get(key).push({ defect_type_id: row.defect_type_id, defect_code: row.defect_code, defect_name: row.defect_name, quantity: row.quantity });
+    }
+  }
+  for (const line of lines) {
+    const persisted = byLine.get(Number(line.id));
+    if (persisted?.length) line.defects = persisted;
+  }
+}
+
 async function loadGroupReports(yearMonth, group) {
   const processes = await resolveProcesses(group);
   const loaded = await Promise.all(processes.map(async (process) => ({
@@ -352,8 +384,10 @@ async function buildCompanyWorkbookInternal(value, groupCode) {
   workbook.calcProperties.calcMode = 'auto';
   workbook.calcProperties.calcId = 0;
   workbook.calcProperties.concurrentCalc = true;
-  const workerLookup = buildWorkerLookup(workbook);
+  const needsWorkerLookup = group.sheets.some((sheetConfig) => sheetConfig.mode !== 'WORKER_DAILY');
+  const workerLookup = needsWorkerLookup ? buildWorkerLookup(workbook) : null;
   const unmappedDetails = [];
+  const warningDetails = [];
 
   for (const sheetConfig of group.sheets) {
     const processRows = loaded.filter(({ process }) => sheetConfig.processCodes.includes(String(process.process_code).toUpperCase()));
@@ -362,6 +396,21 @@ async function buildCompanyWorkbookInternal(value, groupCode) {
     const defectTypes = processRows.flatMap((item) => item.reports.defectTypes || []);
     const sheet = workbook.getWorksheet(sheetConfig.sheetName);
     if (!sheet) throw new Error(`Thiếu sheet ${sheetConfig.sheetName} trong file mẫu`);
+    if (sheetConfig.mode === 'WORKER_DAILY') {
+      await attachMachineLineDefects(reports);
+      const written = writeGcWorkerSheet(sheet, reports, { deductionTypes, defectTypes });
+      if (written.unmapped.length) {
+        const summary = new Map();
+        for (const item of written.unmapped) summary.set(`${item.kind}:${item.name}`, (summary.get(`${item.kind}:${item.name}`) || 0) + 1);
+        console.warn(`[KTC][EXCEL] ${sheet.name}: ${written.unmapped.length} chi tiết không có cột tương ứng: ${[...summary.entries()].map(([k, n]) => `${k} x${n}`).join('; ')}`);
+        unmappedDetails.push(...written.unmapped.map((item) => ({ sheet: sheet.name, ...item })));
+      }
+      if (written.warnings.length) {
+        console.warn(`[KTC][EXCEL] ${sheet.name}: ${written.warnings.length} cảnh báo dữ liệu dòng máy: ${[...new Set(written.warnings.map((w) => w.code))].join(', ')}`);
+        warningDetails.push(...written.warnings.map((item) => ({ sheet: sheet.name, ...item })));
+      }
+      continue;
+    }
     const layout = LAYOUTS[sheetConfig.layout];
     const mapping = {
       ...buildLayoutResolvers(sheet, layout, sheetConfig.layout),
@@ -427,7 +476,7 @@ async function buildCompanyWorkbookInternal(value, groupCode) {
   }
   const stat = await fs.stat(filePath);
   cleanupOldExports(path.dirname(filePath)).catch(() => undefined);
-  return { path: filePath, fileName, groupCode: group.code, groupTitle: group.title, reportCount, unmappedDetails };
+  return { path: filePath, fileName, groupCode: group.code, groupTitle: group.title, reportCount, unmappedDetails, warningDetails };
 }
 
 

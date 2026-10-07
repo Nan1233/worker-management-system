@@ -123,14 +123,25 @@ const withTypeName = (items, nameById, idKey, nameKey) => (Array.isArray(items) 
     : { ...item, [nameKey]: nameById.get(Number(item[idKey])) }
 ));
 
-function writeDetailColumns(row, report, mapping) {
+// options.blankZero: leave columns without a value empty (the 04_CAT_LONG sample is
+// sparse) instead of writing 0 into every deduction/defect column.
+function writeDetailColumns(row, report, mapping, options = {}) {
   const { deductionColumns, defectColumns, resolveDeduction, resolveDefect, deductionNameById, defectNameById, unmapped } = mapping;
   const deductions = sumByColumn(withTypeName(report.deductions, deductionNameById, 'deduction_type_id', 'deduction_name'), resolveDeduction, 'hours');
   const defects = sumByColumn(withTypeName(report.defects, defectNameById, 'defect_type_id', 'defect_name'), resolveDefect, 'quantity');
-  for (const { column } of deductionColumns) setCell(row, column, deductions.totals.get(column) || 0, '0.00');
-  for (const { column } of defectColumns) setCell(row, column, defects.totals.get(column) || 0, '#,##0');
-  for (const item of deductions.unmapped) unmapped.push({ kind: 'deduction', reportId: report.id, name: item.deduction_name || item.name || '', value: item.hours });
-  for (const item of defects.unmapped) unmapped.push({ kind: 'defect', reportId: report.id, name: item.defect_name || item.name || '', value: item.quantity });
+  const keepZero = !options.blankZero;
+  const fmt = (format) => (options.blankZero ? undefined : format);
+  for (const { column } of deductionColumns) {
+    const value = deductions.totals.get(column);
+    if (value || keepZero) setCell(row, column, value || 0, fmt('0.00'));
+  }
+  for (const { column } of defectColumns) {
+    const value = defects.totals.get(column);
+    if (value || keepZero) setCell(row, column, value || 0, fmt('#,##0'));
+  }
+  const origin = report.machine ? { machine: report.machine } : {};
+  for (const item of deductions.unmapped) unmapped.push({ kind: 'deduction', reportId: report.id, ...origin, name: item.deduction_name || item.name || '', value: item.hours });
+  for (const item of defects.unmapped) unmapped.push({ kind: 'defect', reportId: report.id, ...origin, name: item.defect_name || item.name || '', value: item.quantity });
 }
 
 module.exports = {

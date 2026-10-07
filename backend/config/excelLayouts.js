@@ -15,6 +15,22 @@ const LAYOUTS = Object.freeze({
     deductions: [11, 26],
     defects: [36, 54] // AJ..BB: 19 defect columns (BB = thiếu cao su)
   },
+  // Flat "Báo cáo công nhân" sheet of 04_CAT_LONG_09-2026 (source of truth for the
+  // Gia công output): one row per machine line / manual report, date rows between
+  // days, 48 columns A:AV, header on row 3. Only AA is a formula (IFERROR(Z/Y,0)).
+  GIA_CONG_04: {
+    labelRow: 3,
+    dataStyleRow: 5,
+    dateStyleRow: 4,
+    lastColumn: 48,
+    fixed: {
+      sequence: 1, workerCode: 2, workerName: 3, machine: 4, shift: 5,
+      workedHours: 6, deductionTotal: 7,
+      product: 24, standard: 25, tt: 26, achievement: 27, ok: 28, totalNg: 29
+    },
+    deductions: [8, 23],  // H..W: Thiếu sản lượng + 15 loại trừ giờ
+    defects: [30, 48]     // AD..AV: 19 loại NG (KQD .. thiếu cao su)
+  },
   MAI: {
     headerSearchColumn: 36, // AJ - ngày
     headerPattern: /ngày/i,
