@@ -78,6 +78,24 @@ function validateMigrationInventory(migrations){
   return { entries: migrations, versions: migrations.map((_, index) => index + 1) };
 }
 
+function migrationNumber(filename){
+  return Number.parseInt(String(filename).split('_', 1)[0], 10);
+}
+
+// KTC_MIGRATION_MAX is a ceiling, not a target: migrations numbered above it are
+// dropped from the inventory entirely, so they are never pending and never run.
+// This is what makes unattended migration safe to switch on - the runner can be
+// allowed to advance on its own up to a reviewed point and stop there, instead
+// of running every remaining migration including the destructive master-data
+// ones. Raise the ceiling once the next batch has been reviewed and backed up.
+function resolveMigrationCeiling(){
+  const raw = String(process.env.KTC_MIGRATION_MAX || '').trim();
+  if(!raw) return null;
+  const ceiling = Number.parseInt(raw, 10);
+  if(!Number.isInteger(ceiling) || ceiling <= 0) throw new Error(`Invalid KTC_MIGRATION_MAX: ${raw}`);
+  return ceiling;
+}
+
 function loadMigrationManifest(){
   let names = EMBEDDED_MIGRATION_NAMES;
   try {
@@ -87,9 +105,22 @@ function loadMigrationManifest(){
   } catch(error) {
     console.warn(`[KTC][MIGRATION] using embedded inventory: ${getMigrationError(error)}`);
   }
-  return validateMigrationInventory(normalizeMigrationEntries(
+
+  const ceiling = resolveMigrationCeiling();
+  const totalNames = names.length;
+  if(ceiling !== null){
+    names = names.filter(name => {
+      const number = migrationNumber(name);
+      return Number.isInteger(number) && number <= ceiling;
+    });
+    if(!names.length) throw new Error(`KTC_MIGRATION_MAX=${ceiling} excluded every migration in the inventory of ${totalNames}.`);
+    console.log(`[KTC][MIGRATION] ceiling KTC_MIGRATION_MAX=${ceiling}: ${names.length}/${totalNames} migrations eligible; the rest will not run`);
+  }
+
+  const inventory = validateMigrationInventory(normalizeMigrationEntries(
     names.map(name => ({name:String(name),type:'file',download_url:`${rawBase}/backend/migrations/${encodeURIComponent(String(name))}`}))
   ));
+  return { ...inventory, ceiling };
 }
 
 function splitSql(sql){
@@ -138,7 +169,7 @@ async function sha256(value){
 const MIGRATION_STATEMENTS_PER_INVOCATION = Math.max(1, Math.min(8, Number.parseInt(process.env.KTC_MIGRATION_BATCH_SIZE || '8', 10) || 8));
 
 async function runPendingMigrations(){
-  const {entries,versions}=loadMigrationManifest();
+  const {entries,versions,ceiling}=loadMigrationManifest();
   const db=require('../config/db');
   const missingDb=typeof db.getMissingDatabaseVariables==='function'?db.getMissingDatabaseVariables():[];
   if(missingDb.length) throw new Error(`Migration database configuration missing: ${missingDb.join(', ')}`);
@@ -153,7 +184,7 @@ async function runPendingMigrations(){
       const [databaseRows] = await connection.query('SELECT DATABASE() AS db_name');
       targetDatabase = String(databaseRows?.[0]?.db_name || 'unknown');
     } catch (_) {}
-    console.log(`[KTC][MIGRATION] target: database=${targetDatabase} repository=${repository} ref=${migrationRef} batchSize=${MIGRATION_STATEMENTS_PER_INVOCATION}`);
+    console.log(`[KTC][MIGRATION] target: database=${targetDatabase} repository=${repository} ref=${migrationRef} batchSize=${MIGRATION_STATEMENTS_PER_INVOCATION} ceiling=${ceiling === null ? 'none' : ceiling}`);
     if (!migrationRefExplicit) {
       console.warn(`[KTC][MIGRATION] WARNING: KTC_MIGRATION_REF was not set and defaulted to "${migrationRef}". Set it explicitly so another branch's migrations cannot be applied to this database.`);
     }
@@ -170,14 +201,25 @@ async function runPendingMigrations(){
 
       if(activeStep){
         migration=entries.find(item=>item.filename===String(activeStep.migration_id));
-        if(!migration) throw new Error(`Migration step state references unknown migration: ${activeStep.migration_id}`);
+        if(!migration){
+          const stepNumber=migrationNumber(activeStep.migration_id);
+          // Distinguish a genuinely unknown migration from one the ceiling hid:
+          // resuming a half-applied migration that KTC_MIGRATION_MAX excludes
+          // needs the ceiling raised, not the step state repaired.
+          if(ceiling !== null && Number.isInteger(stepNumber) && stepNumber > ceiling){
+            throw new Error(`Migration ${activeStep.migration_id} is half-applied but sits above KTC_MIGRATION_MAX=${ceiling}; raise the ceiling to finish it.`);
+          }
+          throw new Error(`Migration step state references unknown migration: ${activeStep.migration_id}`);
+        }
         if(!pending.some(item=>item.filename===migration.filename)) throw new Error(`Migration step state references an already applied migration: ${migration.filename}`);
       } else {
         migration=pending[0];
       }
 
       if(!migration){
-        console.log(`[KTC][MIGRATION] complete: ${entries.length} ordered migrations processed`);
+        console.log(ceiling === null
+          ? `[KTC][MIGRATION] complete: ${entries.length} ordered migrations processed`
+          : `[KTC][MIGRATION] complete up to ceiling KTC_MIGRATION_MAX=${ceiling}: ${entries.length} migrations applied; later migrations are held back`);
         return true;
       }
 

@@ -12,6 +12,12 @@
     "KTC_CLOUDFLARE_WORKER": "true",
     "KTC_MIGRATION_REF": "test",
     "KTC_MIGRATION_REPOSITORY": "Nan1233/worker-management-system",
+    // Ceiling for unattended migration. The runner may advance by itself only up
+    // to this migration number and stops there; 031 onwards contain DELETE /
+    // TRUNCATE / DROP against master data (046 clears the GC worker roster), so
+    // they are deliberately held back. Raise this only after reviewing the next
+    // migrations and taking a backup.
+    "KTC_MIGRATION_MAX": "30",
     // Test-only: lets /api/health/ready return missingTables/missingColumns so
     // DATABASE_CONTRACT_INVALID is diagnosable. Do not set on production.
     "KTC_EXPOSE_SCHEMA_DIAGNOSTICS": "true"

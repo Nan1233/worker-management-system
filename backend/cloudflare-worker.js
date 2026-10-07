@@ -194,7 +194,12 @@ const wrappedServer = { async fetch(request, envArg, ctx) {
     try { await ensureCloudflareTestMigrations(); } catch (error) { return new Response(JSON.stringify({ success: false, code: "TEST_DB_MIGRATION_FAILED", message: error?.message || String(error) }), { status: 503, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } }); }
     if (!runtimeReadiness.ready) await initializeRuntime();
   } else if (shouldBootstrapBeforeRequest(request)) {
-    try { await ensureCloudflareTestMigrations(); } catch (error) { console.error("[KTC][MIGRATION] request migration failed", error); return new Response(JSON.stringify({ success: false, code: "TEST_DB_MIGRATION_FAILED", message: "Test database migration failed" }), { status: 503, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } }); }
+    // Fail open, exactly as the master-data seed below already does: a migration
+    // that cannot be applied must not take down login and normal API traffic.
+    // Whether the schema is actually usable is decided by the contract check on
+    // /api/health/ready, which reports the structural diff; turning every request
+    // into a 503 here is what made this bootstrap path get disabled outright.
+    try { await ensureCloudflareTestMigrations(); } catch (error) { console.error("[KTC][MIGRATION] request migration failed; continuing without it", error?.message || String(error), error); }
     const seeded = await ensureCloudflareSeeded(); if (!seeded) console.warn("[KTC] Continuing request without master-data bootstrap; seed will retry on a later request.");
   }
   const response = await httpHandler.fetch(request, envArg, ctx); return enrichApprovedReportMachineDefects(request, response);
