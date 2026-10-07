@@ -49,10 +49,12 @@ quality = quality.replace(
 
 // CVK reports are stored under process_id 30002. Keep this mapping in the
 // submission builder so the backend receives the canonical CVK process.
-submission = submission.replace(
-  /const isCvk = [^;]+;/,
-  'const isCvk = Number(args.processId) === 30002 || Number(args.processId) === 60006 || String(args.extraData?.process_code || args.extraData?.processCode || "").trim().toUpperCase() === "CVK" || ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType.toUpperCase());\n  const effectiveProcessId = isCvk ? 30002 : args.processId;'
-);
+if (!submission.includes('const effectiveProcessId = isCvk ? 30002 : args.processId;')) {
+  submission = submission.replace(
+    /const isCvk = [^;]+;/,
+    'const isCvk = Number(args.processId) === 30002 || Number(args.processId) === 60006 || String(args.extraData?.process_code || args.extraData?.processCode || "").trim().toUpperCase() === "CVK" || ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType.toUpperCase());\n  const effectiveProcessId = isCvk ? 30002 : args.processId;'
+  );
+}
 submission = submission.replace(/process_id:\s*args\.processId/g, 'process_id: effectiveProcessId');
 
 // Fail the build instead of deploying if the product-required guard was not
