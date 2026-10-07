@@ -61,6 +61,11 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
     deductions.push(...report.deductions.map((item) => ({ ...item })));
   }
 
+  const legacyDeductionHours = Math.max(0, Number(report.deduction_time) || 0);
+  if (deductionHours <= 0 && deductions.length === 0 && legacyDeductionHours > 0) {
+    deductionHours = legacyDeductionHours;
+  }
+
   const legacyGrossHours = Math.max(0, Number(report.total_time) || 0);
   const legacyDeductionHours = Math.max(0, Number(report.deduction_time) || 0);
   const hasMachineLines = lines.length > 0;
