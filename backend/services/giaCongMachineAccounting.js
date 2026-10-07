@@ -32,7 +32,7 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
       grossHours += Math.max(0, Number(line.machine_time_hours) || 0);
     }
 
-    const lineDeductionHours = Math.max(0, Number(line.deduction_time_hours) || 0);
+    const lineDeductionHours = Math.max(0, Number(line.deduction_time_hours) || 0, (Number(line.adjustment_minutes) || 0) / 60);
     const lineDeductions = parseJsonArray(line.deductions_json);
     if (lineDeductionHours > 0 || lineDeductions.length) {
       const deductionKey = eventId ? 'EVENT:' + eventId : 'LINE:' + (Number(line.id) || lineIndex);
