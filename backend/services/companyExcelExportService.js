@@ -150,13 +150,17 @@ const getReportMetrics = (report) => {
     ? toNumber(machineMetrics.counted_output)
     : Number(report.actual_output ?? (ok + calculateCountedNg(report.defects || [], Boolean(Number(report.exclude_kqd_from_tt_snapshot ?? report.exclude_kqd_from_tt ?? 0)))));
   const standard = machineMetrics?.machine_count > 0 ? 0 : toNumber(report.standard_output);
-  const actualTime = toNumber(report.actual_time);
+  const isGiaCongMachine = String(report.process_code || '').trim().toUpperCase() === 'GC'
+    && String(report.operation_mode || '').trim().toUpperCase() === 'MACHINE';
+  const machineAccounting = isGiaCongMachine ? report.machineAccounting : null;
+  const totalTime = machineAccounting ? toNumber(machineAccounting.grossHours) : toNumber(report.total_time);
+  const actualTime = machineAccounting ? toNumber(machineAccounting.netHours) : toNumber(report.actual_time);
   const plannedOutput = machineMetrics?.machine_count > 0
     ? toNumber(machineMetrics.maximum_output)
     : standard * actualTime * trainingFactor(report.training_percent);
   const outputPerHour = actualTime > 0 ? actualOutput / actualTime : 0;
   return {
-    ok, allNg, actualOutput, standard, actualTime, plannedOutput, outputPerHour,
+    ok, allNg, actualOutput, standard, totalTime, actualTime, plannedOutput, outputPerHour,
     achievement: plannedOutput > 0 ? actualOutput / plannedOutput : 0,
     ngRate: (ok + allNg) > 0 ? allNg / (ok + allNg) : 0
   };
@@ -316,7 +320,7 @@ const writeReportRow = (sheet, rowNumber, report, layout, deductionTypes, defect
   const trainingPercent = normalizeTrainingPercent(report.training_percent);
   const trainingFactorValue = trainingPercent / 100;
   setCell(row, fixed.training, trainingFactorValue, '0%');
-  setCell(row, fixed.totalTime, toNumber(report.total_time), '0.00');
+  setCell(row, fixed.totalTime, metrics.totalTime, '0.00');
   setCell(row, fixed.product, report.product_code || report.product_name || '');
   setCell(row, fixed.ok, metrics.ok, '#,##0');
   if (fixed.workDate) setCell(row, fixed.workDate, report.work_date, 'dd/mm/yyyy');
