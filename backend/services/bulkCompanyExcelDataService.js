@@ -364,13 +364,18 @@ async function loadBulkCompanyReports(yearMonth, actor) {
               }
             }
           });
+          if (deductionHours <= 0 && machineDeductions.length === 0 && (tempDeductions.length || persistedDeductions.length)) {
+            const legacyDeductions = tempDeductions.length ? tempDeductions : persistedDeductions;
+            deductionHours = legacyDeductions.reduce((sum, item) => sum + Math.max(0, Number(item?.hours) || 0), 0);
+            machineDeductions.push(...legacyDeductions.map((item) => ({ ...item })));
+          }
           machineAccounting = {
             source: eventLines.length ? 'MACHINE_EVENT' : 'MACHINE_LINE',
             grossHours,
             deductionHours,
             netHours: Math.max(0, grossHours - deductionHours)
           };
-          deductions = machineDeductions;
+          deductions = machineDeductions.length ? machineDeductions : deductions;
         }
         return {
           ...report,
