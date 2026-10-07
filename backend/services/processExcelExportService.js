@@ -99,6 +99,10 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
     }
   });
 
+  if (deductionHours <= 0 && deductions.length === 0 && Array.isArray(report.deductions) && report.deductions.length) {
+    deductionHours = report.deductions.reduce((sum, item) => sum + Math.max(0, Number(item?.hours) || 0), 0);
+    deductions.push(...report.deductions.map((item) => ({ ...item })));
+  }
   return {
     source: hasPhysicalEvent ? 'MACHINE_EVENT' : 'MACHINE_LINE',
     grossHours,
