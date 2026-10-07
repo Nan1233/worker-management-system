@@ -119,14 +119,14 @@ export default function ProcessBasicInfoSection({ form, setForm, onFormChange, i
 <span className="worker-dropdown-title-main"><span>⏱ Thời gian trừ</span><small>{line.selectedDeductions?.length ? `${line.selectedDeductions.length} loại · ${getMachineDeductionMinutes(line)} phút` : "Không có thời gian trừ"}</small></span>
 <span aria-hidden="true">▼</span>
 </button>
-<div className="worker-dropdown-options">
-{openMachineDeductionIndex === index && (activeDeductionOptions.length === 0 ? <div className="worker-dropdown-empty" role="status">Chưa có loại thời gian trừ được cấu hình cho công đoạn này.</div> : activeDeductionOptions.map((item) => (
+{openMachineDeductionIndex === index && <div className="worker-dropdown-options">
+{activeDeductionOptions.length === 0 ? <div className="worker-dropdown-empty" role="status">Chưa có loại thời gian trừ được cấu hình cho công đoạn này.</div> : activeDeductionOptions.map((item) => (
 <label key={item.key} className="worker-dropdown-option">
 <input type="checkbox" checked={line.selectedDeductions?.includes(item.key) || false} onChange={(event) => toggleMachineDeduction(index, item.key, event.target.checked)} />
 <span>{item.label}</span>
 </label>
-)))}
-</div>
+))}
+</div>}
 </div>
 {line.selectedDeductions?.length > 0 && <div className="worker-dynamic-grid worker-deduction-detail-grid machine-worker-deduction-detail-grid">
 {activeDeductionOptions.filter((item) => line.selectedDeductions.includes(item.key)).map((item) => (
