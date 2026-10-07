@@ -17,6 +17,8 @@ export default function ProcessQualitySection({ form, activeNgOptions, selectedN
     // CVK là công việc không có định mức: không có SL OK/NG/TT và không có chi tiết NG.
     if (CVK_WORK_TYPES.has(String(form.workType ?? "").trim().toUpperCase())) return null;
     if (isNoStandardLongWork(form.productName)) return null;
+    // Với form nhiều máy, OK/NG nhập và chi tiết lỗi phải nằm theo từng máy; không hiển thị tổng chung ở đây.
+    if (usesMultiMachineLines) return null;
     const qualityLocked = qualityLockedProp ?? usesMultiMachineLines;
     const hasCanonicalGcDefects = activeNgOptions.some((item) => /^(CAT|LONG)\d+$/.test(normalizeCode(item.code)));
     const [gcOperation, setGcOperation] = useState<"CUT" | "LONG">("CUT");
