@@ -30,6 +30,7 @@ const buildGiaCongMachineAccounting = (report, machineLines, eventMap) => {
     let grossHours = 0;
     let deductionHours = 0;
     const deductions = [];
+    const seenDeductions = new Set();
     for (const [index, line] of (Array.isArray(machineLines) ? machineLines : []).entries()) {
         const eventId = Number(line.machine_event_id) || 0;
         const event = eventId ? eventMap.get(eventId) : null;
@@ -48,9 +49,8 @@ const buildGiaCongMachineAccounting = (report, machineLines, eventMap) => {
             lineDeductions = Array.isArray(parsed) ? parsed : [];
         } catch (_error) {}
         const key = eventId ? 'EVENT:' + eventId : 'LINE:' + (Number(line.id) || index);
-        if (!line.__gcDeductionSeen) line.__gcDeductionSeen = new Set();
-        if (!line.__gcDeductionSeen.has(key)) {
-            line.__gcDeductionSeen.add(key);
+        if (!seenDeductions.has(key)) {
+            seenDeductions.add(key);
             deductionHours += lineDeductionHours;
             for (const item of lineDeductions) {
                 const hours = Math.max(0, Number(item?.hours) || 0);
@@ -95,6 +95,7 @@ const loadMonthReports = async (yearMonth) => {
             w.department,
             u.full_name,
             p.process_name,
+            p.process_code,
             pr.exclude_kqd_from_tt_snapshot,
             pr.exclude_kqd_from_tt_snapshot AS exclude_kqd_from_tt
          FROM production_reports AS pr
