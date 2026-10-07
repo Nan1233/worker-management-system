@@ -114,6 +114,13 @@ export default function ProcessBasicInfoSection({ form, setForm, onFormChange, i
 <small>Thời gian máy − thời gian trừ</small>
 </div>
 </div>
+<div className="machine-quantity-section">
+<div className="machine-section-title">Sản lượng máy</div>
+<div className="machine-quantity-row machine-worker-quantity-row">
+<label className="machine-quantity-item machine-quantity-ok"><span>OK</span><input type="number" min="0" inputMode="numeric" value={line.okQuantity} onChange={(event) => updateMachineLine(index, { okQuantity: event.target.value.replace(/\D/g, "") })} placeholder="0" /></label>
+<label className="machine-quantity-item machine-quantity-ng"><span>NG</span><input type="number" min="0" inputMode="numeric" value={line.ngQuantity} readOnly aria-readonly="true" title="Tự động tính từ chi tiết lỗi NG" placeholder="0" /></label>
+</div>
+</div>
 <div className="machine-detail-dropdown-row"><div className="machine-detail-dropdown-item"><div className="worker-dropdown-box machine-worker-deduction-box">
 <button type="button" className="worker-dropdown-title" onClick={() => setOpenMachineDeductionIndex((current) => current === index ? null : index)} aria-expanded={openMachineDeductionIndex === index}>
 <span className="worker-dropdown-title-main"><span>⏱ Thời gian trừ</span><small>{line.selectedDeductions?.length ? `${line.selectedDeductions.length} loại · ${getMachineDeductionMinutes(line)} phút` : "Không có thời gian trừ"}</small></span>
