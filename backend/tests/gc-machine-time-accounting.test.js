@@ -93,6 +93,6 @@ test('GC machine accounting uses legacy report deduction when machine line has n
 
   assert.equal(result.source, 'MACHINE_LINE');
   assert.equal(result.grossHours, 4.5);
-  assert.equal(result.deductionHours, 0);
-  assert.equal(result.netHours, 4.5);
+  assert.equal(result.deductionHours, 1);
+  assert.equal(result.netHours, 3.5);
 });
