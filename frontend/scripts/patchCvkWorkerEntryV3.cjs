@@ -4,14 +4,18 @@ const path = require('path');
 const basicPath = path.resolve(__dirname, '../src/pages/worker/components/ProcessBasicInfoSection.tsx');
 let basic = fs.readFileSync(basicPath, 'utf8');
 
-basic = basic.replace(
-  'isCutLongProcess: boolean; isInspectionProcess: boolean;',
-  'isCutLongProcess: boolean; isInspectionProcess: boolean; isCvkMode: boolean; setIsCvkMode: Dispatch<SetStateAction<boolean>>;'
-);
-basic = basic.replace(
-  'isCutLongProcess, isInspectionProcess, operationType, setOperationType,',
-  'isCutLongProcess, isInspectionProcess, isCvkMode, setIsCvkMode, operationType, setOperationType,'
-);
+if (!basic.includes('isCvkMode: boolean; setIsCvkMode')) {
+  basic = basic.replace(
+    'isCutLongProcess: boolean; isInspectionProcess: boolean;',
+    'isCutLongProcess: boolean; isInspectionProcess: boolean; isCvkMode: boolean; setIsCvkMode: Dispatch<SetStateAction<boolean>>;'
+  );
+}
+if (!basic.includes('isCvkMode, setIsCvkMode, operationType')) {
+  basic = basic.replace(
+    'isCutLongProcess, isInspectionProcess, operationType, setOperationType,',
+    'isCutLongProcess, isInspectionProcess, isCvkMode, setIsCvkMode, operationType, setOperationType,'
+  );
+}
 
 if (!basic.includes('const CVK_WORK_TYPES')) {
   basic = basic.replace(
