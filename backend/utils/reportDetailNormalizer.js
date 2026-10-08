@@ -357,11 +357,15 @@ function normalizeDeductions(rows = [], report = null, machineLines = [], deduct
   const machine = new Map();
   for (const line of Array.isArray(machineLines) ? machineLines : []) addDeductionsJson(machine, line?.deductions_json, deductionTypes);
   const extra = new Map();
-  addDeductionsJson(extra, report?.extra_data, deductionTypes);
+  const gcLegacyCandidates = extractLegacyGcColumnDeductionCandidates(report);
+  // Legacy GC imports store deduction columns under numeric Excel keys (13, 14, 17, ...)
+  // and also store the parent total under another numeric key (for example 9). Do not let
+  // the generic JSON parser treat those numeric keys as deduction names such as "9".
+  if (!gcLegacyCandidates.length) addDeductionsJson(extra, report?.extra_data, deductionTypes);
   const legacy = new Map();
   const legacyCandidates = [
     ...extractLegacyDeductionCandidates(parseJson(report?.extra_data)),
-    ...extractLegacyGcColumnDeductionCandidates(report)
+    ...gcLegacyCandidates
   ];
   for (const item of normalizeLegacyDeductionHours(legacyCandidates, report)) {
     const type = findDeductionType(deductionTypes, item.code) || findDeductionType(deductionTypes, item.label);
