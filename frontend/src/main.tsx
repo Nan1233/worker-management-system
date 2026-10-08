@@ -10,6 +10,7 @@ import "./pages/worker/ProcessPage.time-layout.css";
 import "./pages/worker/ProcessPage.actions-flow.css";
 import "./pages/worker/ProcessPage.layout-fix.css";
 import "./pages/worker/ProcessPage.radio-clean.css";
+import "./pages/worker/ProcessPage.ui-redesign.css";
 import "./pages/worker/NonProductWorkPage.consistency.css";
 import "./pages/manager/ApprovedReportsOrder.css";
 import "./pages/manager/ApprovedReportsReference.css";
