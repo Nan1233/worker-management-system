@@ -8,8 +8,8 @@ exports.getDeductionsByProcess = async (req, res) => {
       return res.status(400).json({ success: false, message: "process_id không hợp lệ" });
     }
 
-    const isCVK = processId === 60006;
-    const cacheKey = `deductions:v3:${processId}`;
+    const isCVK = processId === 60006 || processId === 30002;
+    const cacheKey = `deductions:v4:${processId}`;
     let data;
 
     // CVK master data is self-healed from TiDB on every request. Never serve a
@@ -31,6 +31,10 @@ exports.getDeductionsByProcess = async (req, res) => {
       returned: Array.isArray(data) ? data.length : 0,
     }));
 
+    // Diagnostic only: lets the live deployment be verified from the browser
+    // Network tab (Response Headers) without reading the payload.
+    res.set("X-KTC-Deduction-Count", String(Array.isArray(data) ? data.length : 0));
+    res.set("X-KTC-Deduction-Catalogue", "gc16-v1");
     return res.json({ success: true, data });
   } catch (error) {
     console.error("GET DEDUCTIONS ERROR:", error);

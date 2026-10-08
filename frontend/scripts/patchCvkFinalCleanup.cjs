@@ -32,10 +32,12 @@ source = source.replace(
   'options={CVK_WORK_TYPES}'
 );
 
-source = source.replace(
-  'id="cvkWorkType" label="Công việc"',
-  'id="cvkWorkType" label="Công việc" selectOnly'
-);
+if (!source.includes('id="cvkWorkType" label="Công việc" selectOnly')) {
+  source = source.replace(
+    'id="cvkWorkType" label="Công việc"',
+    'id="cvkWorkType" label="Công việc" selectOnly'
+  );
+}
 
 fs.writeFileSync(file, source, 'utf8');
 console.log('[KTC] CVK final cleanup: canonical button + readable work labels + label-only input display.');

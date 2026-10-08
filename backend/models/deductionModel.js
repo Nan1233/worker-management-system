@@ -1,7 +1,7 @@
 const db = require("../config/db");
 
-// GC and CVK use the same canonical deduction catalogue.
-const CANONICAL_DEDUCTION_TYPES = [
+// CVK keeps its 10-type catalogue (migrations 039/040).
+const CVK_DEDUCTION_TYPES = [
     { code: "THIEU_SAN_LUONG", name: "Thiếu sản lượng", sort: 1 },
     { code: "CHUYEN_MA", name: "Chuyển mã", sort: 2 },
     { code: "CHINH_MAY", name: "Chỉnh máy", sort: 3 },
@@ -14,7 +14,32 @@ const CANONICAL_DEDUCTION_TYPES = [
     { code: "DI_MUON_VE_SOM", name: "Đi muộn về sớm", sort: 10 },
 ];
 
-const CANONICAL_DEDUCTION_NAMES = CANONICAL_DEDUCTION_TYPES.map((item) => item.name);
+// GC uses the full canonical 16 types (backend/config/ktcTemplateMasterData.js,
+// GC.deductions, same order). This self-healing catalogue previously held only 10
+// and deactivated the other 6 on every request, undoing migration 053.
+// keepCode: the row already exists under its own code; only status/sort are set.
+const GC_DEDUCTION_TYPES = [
+    { code: "THIEU_SAN_LUONG", name: "Thiếu sản lượng", sort: 1 },
+    { code: "BAT_MAY_XET_MAY", name: "Bật máy, xét máy", sort: 2, keepCode: true },
+    { code: "CHUYEN_MA", name: "Chuyển mã", sort: 3 },
+    { code: "CHINH_MAY", name: "Chỉnh máy", sort: 4 },
+    { code: "CHO_CHINH_MAY", name: "Chờ chỉnh máy", sort: 5, keepCode: true },
+    { code: "MAT_DIEN", name: "Mất điện", sort: 6, keepCode: true },
+    { code: "MAT_KHI", name: "Mất khí", sort: 7, keepCode: true },
+    { code: "CHO_HANG", name: "Chờ hàng", sort: 8, keepCode: true },
+    { code: "BAO_DUONG_MAY", name: "bảo dưỡng máy", sort: 9, keepCode: true },
+    { code: "NGHI_GIAI_LAO", name: "Nghỉ giải lao", sort: 10 },
+    { code: "GIAO_CA", name: "Giao ca", sort: 11 },
+    { code: "DUNG_MAY_HO_TRO", name: "Dừng máy đi hỗ trợ", sort: 12 },
+    { code: "GIAT_CS_CAN_CS_TUOT_TAI_PP_GL", name: "Giặt cs/cân cs, tuốt-tái pp, GL", sort: 13 },
+    { code: "5S", name: "5s", sort: 14 },
+    { code: "HOC_VIEC_DAO_TAO", name: "Học việc, đào tạo", sort: 15 },
+    { code: "DI_MUON_VE_SOM", name: "Đi muộn về sớm", sort: 16 },
+];
+
+const CATALOGUE_BY_PROCESS_CODE = { GC: GC_DEDUCTION_TYPES, CVK: CVK_DEDUCTION_TYPES };
+const catalogueFor = (processCode) => CATALOGUE_BY_PROCESS_CODE[String(processCode || "").toUpperCase()] || CVK_DEDUCTION_TYPES;
+const namesOf = (catalogue) => catalogue.map((item) => item.name.toLowerCase());
 
 async function resolveProcess(processId) {
     const requestedId = Number(processId);
@@ -79,16 +104,17 @@ async function ensureCanonicalDeductionTypes(processId) {
         return null;
     }
 
-    const placeholders = CANONICAL_DEDUCTION_NAMES.map(() => "?").join(",");
+    const catalogue = catalogueFor(process.code);
+    const placeholders = catalogue.map(() => "?").join(",");
     await db.promise().query(
         `UPDATE deduction_types
             SET status = 'inactive'
           WHERE process_id = ?
             AND LOWER(TRIM(COALESCE(deduction_name, ''))) NOT IN (${placeholders})`,
-        [process.id, ...CANONICAL_DEDUCTION_NAMES.map((name) => name.toLowerCase())],
+        [process.id, ...namesOf(catalogue)],
     );
 
-    for (const item of CANONICAL_DEDUCTION_TYPES) {
+    for (const item of catalogue) {
         const [existingRows] = await db.promise().query(
             `SELECT id
                FROM deduction_types
@@ -100,12 +126,19 @@ async function ensureCanonicalDeductionTypes(processId) {
         );
 
         if (existingRows.length) {
-            await db.promise().query(
-                `UPDATE deduction_types
-                    SET deduction_code = ?, sort_order = ?, status = 'active'
-                  WHERE id = ?`,
-                [item.code, item.sort, existingRows[0].id],
-            );
+            if (item.keepCode) {
+                await db.promise().query(
+                    `UPDATE deduction_types SET sort_order = ?, status = 'active' WHERE id = ?`,
+                    [item.sort, existingRows[0].id],
+                );
+            } else {
+                await db.promise().query(
+                    `UPDATE deduction_types
+                        SET deduction_code = ?, sort_order = ?, status = 'active'
+                      WHERE id = ?`,
+                    [item.code, item.sort, existingRows[0].id],
+                );
+            }
         } else {
             await db.promise().query(
                 `INSERT INTO deduction_types
@@ -124,7 +157,8 @@ const Deduction = {
         const requestedId = Number(process_id);
         const process = await ensureCanonicalDeductionTypes(requestedId);
         const effectiveProcessId = process?.id ?? requestedId;
-        const placeholders = CANONICAL_DEDUCTION_NAMES.map(() => "?").join(",");
+        const catalogue = catalogueFor(process?.code);
+        const placeholders = catalogue.map(() => "?").join(",");
 
         return new Promise((resolve, reject) => {
             const sql = `
@@ -137,7 +171,7 @@ const Deduction = {
                   AND LOWER(TRIM(COALESCE(d.deduction_name, ''))) IN (${placeholders})
                 ORDER BY d.sort_order ASC, d.id ASC
             `;
-            const params = [effectiveProcessId, ...CANONICAL_DEDUCTION_NAMES.map((name) => name.toLowerCase())];
+            const params = [effectiveProcessId, ...namesOf(catalogue)];
 
             db.query(sql, params, (err, rows) => {
                 if (err) return reject(err);

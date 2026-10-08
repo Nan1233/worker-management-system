@@ -241,6 +241,7 @@ const machineAutocompleteOptions =
         [machineOptions]
     );
     const [operationType, setOperationType] = useState<OperationType>("CUT");
+    const [isCvkMode, setIsCvkMode] = useState(false);
     const [operationMode, setOperationMode] = useState<OperationMode>(
         () => getInitialOperationMode(processCapabilities)
     );
@@ -262,6 +263,7 @@ const machineAutocompleteOptions =
     const usesMultiMachineLines = resolveUsesMultiMachineLines(processCapabilities, operationMode);
     const usesSingleMachine = resolveUsesSingleMachine(processCapabilities, operationMode);
     const usesAnyMachine = usesMultiMachineLines || usesSingleMachine;
+    const usesGiaCongMachineAccounting = isCutLongProcess && usesMultiMachineLines;
 
     const productAutocompleteOptions = useMemo<AutocompleteOption[]>(() => {
         const effectiveMode: OperationMode = usesAnyMachine ? "MACHINE" : "MANUAL";
@@ -1231,6 +1233,8 @@ const updateDeductionValue = (
     // =====================================================
 
     const validateForm = (): string => {
+        const cvkWorkType = String(form.workType || "").trim().toUpperCase();
+        const isCvkEntry = ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType);
 
         if (
             loadingWorker
@@ -1271,7 +1275,7 @@ const updateDeductionValue = (
         }
 
 
-        if (!usesMultiMachineLines) {
+        if (!isCvkMode && !usesMultiMachineLines) {
             if (!form.productName.trim()) {
                 return "Vui lòng chọn sản phẩm";
             }
@@ -1311,33 +1315,34 @@ const updateDeductionValue = (
         }
 
 
-        if (parseFlexibleTime(form.actualTime) <= 0) {
-            return "Thời gian làm việc thực tế phải lớn hơn 0";
+        if (!usesGiaCongMachineAccounting) {
+            if (parseFlexibleTime(form.actualTime) <= 0) {
+                return "Thời gian làm việc thực tế phải lớn hơn 0";
+            }
+
+            if (Number(form.actualMinutes || 0) > 59) {
+                return "Số phút làm thực tế phải từ 0 đến 59";
+            }
+
+            const actualMinutes = Math.round(parseFlexibleTime(form.actualTime) * 60);
+            const deductionMinutes = Math.round(parseFlexibleTime(form.deductionTime) * 60);
+            if (actualMinutes + deductionMinutes > MAX_TOTAL_WORK_MINUTES) {
+                return "Thời gian thực tế + thời gian trừ không được vượt quá 12 giờ";
+            }
+            if (parseFlexibleTime(form.totalTime) > 12) {
+                return "Tổng thời gian không được vượt quá 12 giờ";
+            }
         }
 
 
-        if (Number(form.actualMinutes || 0) > 59) {
-            return "Số phút làm thực tế phải từ 0 đến 59";
-        }
 
-        const actualMinutes = Math.round(parseFlexibleTime(form.actualTime) * 60);
-        const deductionMinutes = Math.round(parseFlexibleTime(form.deductionTime) * 60);
-        if (actualMinutes + deductionMinutes > MAX_TOTAL_WORK_MINUTES) {
-            return "Thời gian thực tế + thời gian trừ không được vượt quá 12 giờ";
-        }
-        if (parseFlexibleTime(form.totalTime) > 12) {
-            return "Tổng thời gian không được vượt quá 12 giờ";
-        }
-
-
-
-        if (
+        if (!isCvkMode && (
             Number(
                 form.standardOutput
                 ||
                 0
             ) <= 0
-        ) {
+        )) {
 
             return "Định mức phải lớn hơn 0";
 
@@ -1690,6 +1695,8 @@ window.setTimeout(() => {
                     onFormChange={handleChange}
                     isCutLongProcess={isCutLongProcess}
                     isInspectionProcess={isInspectionProcess}
+                    isCvkMode={isCvkMode}
+                    setIsCvkMode={setIsCvkMode}
                     operationType={operationType}
                     setOperationType={setOperationType}
                     operationMode={operationMode}
@@ -1710,6 +1717,7 @@ window.setTimeout(() => {
                     refreshMachineLineStandard={refreshMachineLineStandard}
                     getMachineNgTotal={getMachineNgTotal}
                     activeNgOptions={activeNgOptions}
+                    activeDeductionOptions={activeDeductionOptions}
                     toggleMachineDefect={toggleMachineDefect}
                     updateMachineDefectValue={updateMachineDefectValue}
                 />
@@ -1720,19 +1728,21 @@ window.setTimeout(() => {
                     setExtraData={setExtraData}
                 />
 
-                <ProcessTimeDeductionSection
-                    form={form}
-                    setForm={setForm}
-                    deductions={deductions}
-                    activeDeductionOptions={activeDeductionOptions}
-                    selectedDeduction={selectedDeduction}
-                    showDeduction={showDeduction}
-                    setShowDeduction={setShowDeduction}
-                    onToggleDeduction={handleToggleDeduction}
-                    onUpdateDeduction={updateDeductionValue}
-                    onNormalizeDeduction={normalizeDeductionValue}
-                    onWarning={(message) => showToast(message, "warning")}
-                />
+                {!usesGiaCongMachineAccounting && (
+                    <ProcessTimeDeductionSection
+                        form={form}
+                        setForm={setForm}
+                        deductions={deductions}
+                        activeDeductionOptions={activeDeductionOptions}
+                        selectedDeduction={selectedDeduction}
+                        showDeduction={showDeduction}
+                        setShowDeduction={setShowDeduction}
+                        onToggleDeduction={handleToggleDeduction}
+                        onUpdateDeduction={updateDeductionValue}
+                        onNormalizeDeduction={normalizeDeductionValue}
+                        onWarning={(message) => showToast(message, "warning")}
+                    />
+                )}
 
                                 {/* =================================================
                     SẢN XUẤT
@@ -1756,6 +1766,7 @@ window.setTimeout(() => {
 </section> */}
 
 
+                {!isCvkMode && (
                 <ProcessQualitySection
                     form={form}
                     activeNgOptions={activeNgOptions}
@@ -1769,6 +1780,7 @@ window.setTimeout(() => {
                     onToggleNg={handleToggleNg}
                     onNgValue={handleNgValue}
                 />
+                )}
 
                 <ProcessSubmitActions
                 duplicatePrompt={duplicatePrompt}

@@ -1,3 +1,23 @@
+function ownershipError(message = 'Bạn không có quyền truy cập dữ liệu của công nhân khác') {
+  const error = new Error(message);
+  error.status = 403;
+  error.statusCode = 403;
+  error.code = 'WORKER_OWNERSHIP_FORBIDDEN';
+  error.isPublic = true;
+  return error;
+}
+
+function assertWorkerOwnership(actor, workerId, options = {}) {
+  const role = normalizeRole(actor);
+  if (role !== 'worker') return true;
+  const actorWorkerId = normalizeProcessId(actor?.worker_id);
+  const targetWorkerId = normalizeProcessId(workerId);
+  if (!actorWorkerId || !targetWorkerId || actorWorkerId !== targetWorkerId) {
+    throw ownershipError(options.message);
+  }
+  return true;
+}
+
 function scopeError(message = 'Công đoạn ngoài phạm vi phụ trách', details = null) {
   const error = new Error(message);
   error.status = 403;
@@ -60,6 +80,27 @@ async function getActorProcessScope(actor, executor = null) {
   return { type: 'LIMITED', processIds };
 }
 
+async function assertActorProcessAccess(actor, processId, options = {}) {
+  const id = normalizeProcessId(processId);
+  if (!id) throw scopeError('Không xác định được công đoạn của tài nguyên');
+  const role = normalizeRole(actor);
+  if (role === 'admin') return true;
+  const actorIdValue = role === 'worker' ? normalizeProcessId(actor?.worker_id) : actorId(actor);
+  if (!actorIdValue) throw scopeError('Không xác định được tài khoản');
+  if (!['worker','manager','lead'].includes(role)) {
+    throw scopeError('Tài khoản không có quyền truy cập công đoạn');
+  }
+  const table = role === 'worker' ? 'worker_processes' : 'manager_processes';
+  const field = role === 'worker' ? 'worker_id' : 'manager_id';
+  const result = await rows(
+    options.executor || null,
+    `SELECT 1 FROM ${table} WHERE ${field}=? AND process_id=? LIMIT 1`,
+    [actorIdValue, id]
+  );
+  if (result.length) return true;
+  throw scopeError(options.message || 'Công đoạn ngoài phạm vi phụ trách', { process_id:id, action:options.action || null });
+}
+
 async function isProcessAllowed(actor, processId, executor = null) {
   const id = normalizeProcessId(processId);
   if (!id) return false;
@@ -78,10 +119,75 @@ async function assertProcessScope(actor, processId, options = {}) {
   });
 }
 
+async function assertUserManagementScope(actor, target, options = {}) {
+  const role = normalizeRole(actor);
+  if (!['admin','manager','lead'].includes(role)) throw scopeError('Tài khoản không có quyền quản lý người dùng');
+  const targetRole = normalizeRole(target);
+  const allowed = role === 'admin'
+    ? ['manager','lead','worker']
+    : role === 'manager'
+      ? ['lead','worker']
+      : ['worker'];
+  if (!allowed.includes(targetRole)) throw scopeError('Vai trò tài khoản nằm ngoài phạm vi quản lý');
+  if (role === 'admin') return true;
+
+  const targetId = targetRole === 'worker'
+    ? normalizeProcessId(target?.worker_id)
+    : normalizeProcessId(target?.id);
+  if (!targetId) throw scopeError('Không xác định được tài khoản cần quản lý');
+
+  const targetTable = targetRole === 'worker' ? 'worker_processes' : 'manager_processes';
+  const targetField = targetRole === 'worker' ? 'worker_id' : 'manager_id';
+  const actorIdValue = actorId(actor);
+  if (!actorIdValue) throw scopeError('Không xác định được tài khoản quản lý');
+
+  const executor = options.executor || null;
+  const result = await rows(
+    executor,
+    `SELECT 1 FROM ${targetTable} target_scope
+     WHERE target_scope.${targetField}=?
+       AND EXISTS (
+         SELECT 1 FROM manager_processes actor_scope
+         WHERE actor_scope.manager_id=? AND actor_scope.process_id=target_scope.process_id
+       )
+     LIMIT 1`,
+    [targetId, actorIdValue]
+  );
+  if (!result.length) throw scopeError(options.message || 'Tài khoản nằm ngoài phạm vi công đoạn phụ trách', {
+    target_user_id: Number(target?.id) || null,
+    target_role: targetRole,
+    action: options.action || null
+  });
+  return true;
+}
+
 async function assertProcessesScope(actor, processIds, options = {}) {
-  const requested = [...new Set((Array.isArray(processIds) ? processIds : []).map(normalizeProcessId).filter(Boolean))];
+  if (!Array.isArray(processIds)) {
+    throw scopeError(options.message || 'Danh sách công đoạn không hợp lệ', {
+      invalid_process_ids: [processIds],
+      action: options.action || null
+    });
+  }
+
+  const invalidProcessIds = processIds.filter((value) => normalizeProcessId(value) === null);
+  if (invalidProcessIds.length) {
+    throw scopeError(options.message || 'Danh sách công đoạn không hợp lệ', {
+      invalid_process_ids: invalidProcessIds,
+      action: options.action || null
+    });
+  }
+
+  const requested = [...new Set(processIds.map(normalizeProcessId))];
+  if (!requested.length && options.allowEmpty !== true) {
+    throw scopeError(options.message || 'Phải chỉ định ít nhất một công đoạn', {
+      invalid_process_ids: [],
+      action: options.action || null
+    });
+  }
+
   const scope = await getActorProcessScope(actor, options.executor || null);
   if (scope.type === 'ALL') return true;
+
   const forbidden = requested.filter((id) => !scope.processIds.has(id));
   if (!forbidden.length) return true;
   throw scopeError(options.message || 'Một hoặc nhiều công đoạn nằm ngoài phạm vi phụ trách', {
@@ -103,8 +209,12 @@ function scopeSql(scope, column, params = []) {
 module.exports = {
   getActorProcessScope,
   assertProcessScope,
+  assertActorProcessAccess,
   assertProcessesScope,
+  assertUserManagementScope,
   isProcessAllowed,
   scopeSql,
-  scopeError
+  scopeError,
+  assertWorkerOwnership,
+  ownershipError
 };

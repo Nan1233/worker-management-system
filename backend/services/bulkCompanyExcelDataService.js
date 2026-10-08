@@ -3,6 +3,7 @@ const { getActorProcessScope } = require('./processAuthorizationService');
 const { assertReportVolume, chunkArray } = require('./excelExportGuards');
 const { hasColumn } = require('./schemaCompatibilityService');
 const { assertTrainingSnapshotAvailable } = require('./trainingSnapshotService');
+const { buildGiaCongMachineAccounting } = require('./giaCongMachineAccounting');
 
 const PROCESS_CODES = ['CAN','EP','XLBV','GC','MAI','DO','K1','K2','SX3'];
 const query = (sql, params = []) => db.promise().query(sql, params).then(([rows]) => rows);
@@ -129,9 +130,9 @@ async function loadBulkCompanyReports(yearMonth, actor) {
         pr.exclude_kqd_from_tt_snapshot,
         COALESCE(pr.exclude_kqd_from_tt_snapshot, 0) AS exclude_kqd_from_tt
        FROM production_reports pr
-       INNER JOIN workers w ON w.id = pr.worker_id
-       INNER JOIN users u ON u.id = w.user_id
-       INNER JOIN processes p ON p.id = pr.process_id
+       LEFT JOIN workers w ON w.id = pr.worker_id
+       LEFT JOIN users u ON u.id = w.user_id
+       LEFT JOIN processes p ON p.id = pr.process_id
        LEFT JOIN production_reports_temp temp ON temp.id = pr.source_temp_id
       WHERE LOWER(TRIM(COALESCE(pr.status, ''))) = 'approved'
         AND pr.work_date >= ? AND pr.work_date < ?
@@ -295,7 +296,7 @@ async function loadBulkCompanyReports(yearMonth, actor) {
   if (eventIds.length) {
     const p = eventIds.map(() => '?').join(',');
     eventRows = await query(
-      `SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status
+      `SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status,machine_time_hours,maximum_output,standard_output
          FROM machine_production_events
         WHERE id IN (${p})`,
       eventIds
@@ -316,12 +317,31 @@ async function loadBulkCompanyReports(yearMonth, actor) {
         const tempDefects = tempDefectByReport.get(reportId) || [];
         const persistedDeductions = deductionByReport.get(reportId) || [];
         const persistedDefects = defectByReport.get(reportId) || [];
+        const eventLines = (eventByReport.get(reportId) || []).map((id) => eventMap.get(id)).filter(Boolean);
+        let deductions = tempDeductions.length ? tempDeductions : persistedDeductions;
+        let machineAccounting = null;
+        if (code === 'GC' && String(report.operation_mode || '').toUpperCase() === 'MACHINE') {
+          const machineDeductions = [];
+          machineAccounting = buildGiaCongMachineAccounting(
+            {
+              machineLines,
+              deductions: tempDeductions.length ? tempDeductions : persistedDeductions,
+              total_time: report.total_time,
+              actual_time: report.actual_time,
+              deduction_time: report.deduction_time
+            },
+            eventMap
+          );
+          machineAccounting.deductions.forEach((item) => machineDeductions.push(item));
+          deductions = machineDeductions.length ? machineDeductions : deductions;
+        }
         return {
           ...report,
-          deductions: tempDeductions.length ? tempDeductions : persistedDeductions,
+          deductions,
           defects: tempDefects.length ? tempDefects : persistedDefects,
           machineLines,
-          eventLines: (eventByReport.get(reportId) || []).map((id) => eventMap.get(id)).filter(Boolean)
+          eventLines,
+          machineAccounting
         };
       });
     data.physicalMachineEvents = physicalMachineEvents.filter((row) => String(row.process_id) === String(data.processId));

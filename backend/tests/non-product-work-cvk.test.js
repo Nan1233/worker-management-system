@@ -1,12 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { buildCanonicalLogicalDuplicateIdentity, buildLogicalDuplicateKey } = require('../services/logicalDuplicateReportService');
-const { normalizeWorkType } = require('../models/nonProductWorkCreateModel');
+const { normalizeNonProductWorkType } = require('../services/logicalDuplicateReportService');
 
 test('CVK treats Xuất and Nhập as one Xuất nhập work type', () => {
-  assert.equal(normalizeWorkType('Xuất'), 'XUẤT NHẬP');
-  assert.equal(normalizeWorkType('Nhập'), 'XUẤT NHẬP');
-  assert.equal(normalizeWorkType('Xuất nhập'), 'XUẤT NHẬP');
+  assert.equal(normalizeNonProductWorkType('Xuất'), 'XUẤT NHẬP');
+  assert.equal(normalizeNonProductWorkType('Nhập'), 'XUẤT NHẬP');
+  assert.equal(normalizeNonProductWorkType('Xuất nhập'), 'XUẤT NHẬP');
 });
 
 test('CVK duplicate identity includes work type', () => {

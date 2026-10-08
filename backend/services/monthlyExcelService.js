@@ -25,6 +25,54 @@ const monthRange = (yearMonth) => {
     return { start, next };
 };
 
+const buildGiaCongMachineAccounting = (report, machineLines, eventMap) => {
+    const seenEvents = new Set();
+    let grossHours = 0;
+    let deductionHours = 0;
+    const deductions = [];
+    const seenDeductions = new Set();
+    for (const [index, line] of (Array.isArray(machineLines) ? machineLines : []).entries()) {
+        const eventId = Number(line.machine_event_id) || 0;
+        const event = eventId ? eventMap.get(eventId) : null;
+        if (event) {
+            if (!seenEvents.has(eventId)) {
+                seenEvents.add(eventId);
+                grossHours += Math.max(0, Number(event.machine_time_hours) || 0);
+            }
+        } else {
+            grossHours += Math.max(0, Number(line.machine_time_hours) || 0);
+        }
+        const lineDeductionHours = Math.max(0, Number(line.deduction_time_hours) || 0);
+        let lineDeductions = [];
+        try {
+            const parsed = typeof line.deductions_json === 'string' ? JSON.parse(line.deductions_json) : line.deductions_json;
+            lineDeductions = Array.isArray(parsed) ? parsed : [];
+        } catch (_error) {}
+        const key = eventId ? 'EVENT:' + eventId : 'LINE:' + (Number(line.id) || index);
+        if (!seenDeductions.has(key)) {
+            seenDeductions.add(key);
+            deductionHours += lineDeductionHours;
+            for (const item of lineDeductions) {
+                const hours = Math.max(0, Number(item?.hours) || 0);
+                if (!hours) continue;
+                const existing = deductions.find((entry) => String(entry.deduction_type_id || entry.deduction_type_code || entry.deduction_name) === String(Number(item?.deduction_type_id) || item?.deduction_code || item?.deduction_name || ''));
+                if (existing) existing.hours += hours;
+                else deductions.push({
+                    deduction_type_id: Number(item?.deduction_type_id) || undefined,
+                    deduction_type_code: String(item?.deduction_code || '').trim(),
+                    deduction_name: String(item?.deduction_name || '').trim(),
+                    hours
+                });
+            }
+        }
+    }
+    if (deductionHours <= 0 && deductions.length === 0 && Array.isArray(report.deductions) && report.deductions.length) {
+        deductionHours = report.deductions.reduce((sum, item) => sum + Math.max(0, Number(item?.hours) || 0), 0);
+        deductions.push(...report.deductions.map((item) => ({ ...item })));
+    }
+    return { source: seenEvents.size ? 'MACHINE_EVENT' : 'MACHINE_LINE', grossHours, deductionHours, netHours: Math.max(0, grossHours - deductionHours), deductions };
+};
+
 const mapDetails = (rows, reportIds, valueMapper) => {
     const result = new Map();
     reportIds.forEach((id) => result.set(Number(id), []));
@@ -47,6 +95,7 @@ const loadMonthReports = async (yearMonth) => {
             w.department,
             u.full_name,
             p.process_name,
+            p.process_code,
             pr.exclude_kqd_from_tt_snapshot,
             pr.exclude_kqd_from_tt_snapshot AS exclude_kqd_from_tt
          FROM production_reports AS pr
@@ -146,11 +195,26 @@ const loadMonthReports = async (yearMonth) => {
     }));
 
     const machineLines = mapDetails(machineLineRows, reportIds, (row) => row);
+    const machineEventIds = [...new Set(machineLineRows.map((row) => Number(row.machine_event_id)).filter(Boolean))];
+    let machineEventRows = [];
+    if (machineEventIds.length) {
+        const eventPlaceholders = machineEventIds.map(() => '?').join(',');
+        machineEventRows = await query(
+            `SELECT id,machine_time_hours FROM machine_production_events WHERE id IN (${eventPlaceholders})`,
+            machineEventIds
+        );
+    }
+    const machineEventMap = new Map(machineEventRows.map((row) => [Number(row.id), row]));
     reports.forEach((report) => {
         const id = Number(report.id);
         report.deductions = deductions.get(id) || [];
         report.defects = defects.get(id) || [];
-        Object.assign(report, calculateReportPerformance({ report, machineLines: machineLines.get(id) || [] }));
+        const lines = machineLines.get(id) || [];
+        Object.assign(report, calculateReportPerformance({ report, machineLines: lines }));
+        if (String(report.process_code || '').toUpperCase() === 'GC' && String(report.operation_mode || '').toUpperCase() === 'MACHINE') {
+            report.machineAccounting = buildGiaCongMachineAccounting(report, lines, machineEventMap);
+            report.deductions = report.machineAccounting.deductions;
+        }
     });
     reports.deductionTypes = deductionTypes;
     reports.defectTypes = defectTypes;
