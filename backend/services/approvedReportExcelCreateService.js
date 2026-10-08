@@ -57,7 +57,6 @@ async function createApprovedReportFromExcel({ data, userId, actor, req=null, so
   const candidate={...data,worker_id:workerId,process_id:processId,operation_type:operationType,operation_mode:operationMode,machine_no:operationMode==='MANUAL'?null:machineNo,product_name:master.productCode||productName,deduction_time:deductionTime,total_time:actualTime+deductionTime,standard_output:standardOutput,standard_version_id:operationMode==='MACHINE'?null:master.standardVersionId,machine_standard_id:operationMode==='MACHINE'?null:master.machineStandardId,actual_output:actualOutput,tt_ng:ttNg,defects,deductions,exclude_kqd_from_tt:parentKqdPolicySnapshot,exclude_kqd_from_tt_snapshot:parentKqdPolicySnapshot};
   const validation=validateProductionReport(candidate,{enforceBackDate:false});
   if(!validation.valid) throw httpError(422,'REPORT_VALIDATION_FAILED','Dữ liệu báo cáo không hợp lệ',validation.errors);
-  if(await ReportGovernanceService.isPeriodLocked(validation.normalized.work_date,processId)) throw httpError(423,'REPORTING_PERIOD_LOCKED','Kỳ báo cáo đã khóa');
 
   const conn=await db.promise().getConnection();
   try{

@@ -53,6 +53,7 @@ export type DeductionState = {
     giatCs: string;
     fiveS: string;
     hocViec: string;
+    diMuonVeSom: string;
 };
 
 export type NgKey = string;
@@ -66,6 +67,8 @@ export type MachineLineState = {
     minutes: string;
     adjustmentMinutes: string;
     adjustmentCount: string;
+    deductions: DeductionState;
+    selectedDeductions: DeductionKey[];
     okQuantity: string;
     ngQuantity: string;
     standardOutputPerHour: number;
@@ -84,6 +87,8 @@ export const createEmptyMachineLine = (): MachineLineState => ({
     minutes: "",
     adjustmentMinutes: "",
     adjustmentCount: "",
+    deductions: { ...initialDeduction },
+    selectedDeductions: [],
     okQuantity: "",
     ngQuantity: "",
     standardOutputPerHour: 0,
@@ -120,6 +125,7 @@ export const deductionOptions: Array<{ key: DeductionKey; label: string }> = [
     { key: "giatCs", label: "Giặt CS/Cân CS, Tuốt-Tái PP, GL" },
     { key: "fiveS", label: "5S" },
     { key: "hocViec", label: "Học việc, đào tạo" },
+    { key: "diMuonVeSom", label: "Đi muộn về sớm" },
 ];
 
 export const allNgOptions: Array<{ key: NgKey; id?: number; code: string; label: string }> = [
@@ -211,5 +217,5 @@ export const initialForm: FormState = {
 
 export const initialDeduction: DeductionState = {
     thieuSanLuong: "", batMay: "", chuyenMa: "", chinhMay: "", choChinhMay: "", matDien: "", matKhi: "",
-    choHang: "", baoDuongMay: "", nghiGiaiLao: "", giaoCa: "", dungMayHoTro: "", giatCs: "", fiveS: "", hocViec: "",
+    choHang: "", baoDuongMay: "", nghiGiaiLao: "", giaoCa: "", dungMayHoTro: "", giatCs: "", fiveS: "", hocViec: "", diMuonVeSom: "",
 };

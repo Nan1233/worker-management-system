@@ -18,6 +18,7 @@ export interface ProductionDefect {
     defect_code?: string;
     defect_name: string;
     quantity: number;
+    responsible_worker_id?: number | null;
 }
 
 export interface ProductionDeduction {
@@ -69,6 +70,8 @@ export interface ProductionReport {
         machine_efficiency_percent?: number;
         physical_output?: number;
         defects?: ProductionDefect[];
+        deduction_time_hours?: number;
+        deductions?: Array<{ deduction_type_id?: number; deduction_code?: string; deduction_name?: string; hours?: number }>;
     }>;
     machinePerformance?: {
         machine_count: number;

@@ -3,12 +3,15 @@ const fs = require('node:fs/promises');
 const ExcelJS = require('exceljs');
 const db = require('../config/db');
 const { loadProcessMonthReports, normalizeYearMonth } = require('./processExcelExportService');
+const { buildLayoutResolvers, writeDetailColumns } = require('./excelColumnMapping');
+const { writeGcWorkerSheet } = require('./gcWorkerReportExcel');
 const { calculateCountedNg } = require('../utils/outputCalculation');
 const { normalizeTrainingPercent, trainingFactor } = require('../utils/trainingPercent');
 
-const query = (sql, params = []) => new Promise((resolve, reject) => {
 const { assertReportVolume } = require('./excelExportGuards');
 const { removeQuietly, cleanupOldExports } = require('./exportFileMaintenance');
+
+const query = (sql, params = []) => new Promise((resolve, reject) => {
   db.query(sql, params, (error, rows) => error ? reject(error) : resolve(rows));
 });
 
@@ -18,9 +21,11 @@ const GROUPS = Object.freeze({
     code: 'GIA_CONG',
     title: 'Gia công',
     processCodes: ['GC'],
-    template: path.join(TEMPLATE_DIR, 'bao-cao-cat-long-export.xlsx'),
+    // 04_CAT_LONG_09-2026 is the source of truth for the GC output: flat sheet,
+    // one row per machine line (see gcWorkerReportExcel.js).
+    template: path.join(TEMPLATE_DIR, '04_CAT_LONG_template.xlsx'),
     fileName: ({ month, year }) => `A+B GIA CÔNG THÁNG ${month}-${year}.xlsx`,
-    sheets: [{ processCodes: ['GC'], sheetName: 'Cắt lồng', layout: 'GIA_CONG' }]
+    sheets: [{ processCodes: ['GC'], sheetName: 'Báo cáo công nhân', layout: 'GIA_CONG_04', mode: 'WORKER_DAILY' }]
   },
   MAI_DO: {
     code: 'MAI_DO',
@@ -44,44 +49,7 @@ const CACHE_TTL_MS = Math.max(30_000, Number(process.env.EXCEL_COMPANY_CACHE_TTL
 
 const buildKey = (yearMonth, groupCode) => `${yearMonth}:${String(groupCode || '').toUpperCase()}`;
 
-const LAYOUTS = Object.freeze({
-  GIA_CONG: {
-    headerSearchColumn: 31, // AE - Ngày/Tháng
-    headerPattern: /ngày\s*\/?\s*tháng/i,
-    fixed: {
-      sequence: 1, workerCode: 2, workerName: 3, machine: 4, shift: 5,
-      training: 6, totalTime: 7, actualTime: 8, deductionTotal: 10,
-      product: 27, plannedOutput: 28, actualOutput: 29, achievement: 30,
-      workDate: 31, outputPerHour: 32, ok: 33, totalNg: 34, ngRate: 35
-    },
-    deductions: [11, 26],
-    defects: [36, 53]
-  },
-  MAI: {
-    headerSearchColumn: 36, // AJ - ngày
-    headerPattern: /ngày/i,
-    fixed: {
-      sequence: 1, workerCode: 2, workerName: 3, shift: 4, machine: 5,
-      training: 8, totalTime: 10, actualTime: 9, deductionTotal: 11,
-      product: 32, plannedOutput: 33, actualOutput: 34, achievement: 35,
-      workDate: 36, outputPerHour: 37, ok: 38, totalNg: 39
-    },
-    deductions: [12, 31],
-    defects: [40, 46]
-  },
-  DO: {
-    headerSearchColumn: 32, // AF - ngày
-    headerPattern: /ngày/i,
-    fixed: {
-      sequence: 1, workerCode: 2, workerName: 3, shift: 4, machine: 5,
-      training: 7, totalTime: 8, actualTime: 9, deductionTotal: 10,
-      product: 28, plannedOutput: 29, actualOutput: 30, achievement: 31,
-      workDate: 32, outputPerHour: 33, ok: 34, totalNg: 35, ngRate: 36
-    },
-    deductions: [11, 27],
-    defects: [37, 49]
-  }
-});
+const { LAYOUTS } = require('../config/excelLayouts');
 
 const toNumber = (value) => {
   const number = Number(String(value ?? 0).replace(/,/g, '').trim());
@@ -150,13 +118,17 @@ const getReportMetrics = (report) => {
     ? toNumber(machineMetrics.counted_output)
     : Number(report.actual_output ?? (ok + calculateCountedNg(report.defects || [], Boolean(Number(report.exclude_kqd_from_tt_snapshot ?? report.exclude_kqd_from_tt ?? 0)))));
   const standard = machineMetrics?.machine_count > 0 ? 0 : toNumber(report.standard_output);
-  const actualTime = toNumber(report.actual_time);
+  const isGiaCongMachine = String(report.process_code || '').trim().toUpperCase() === 'GC'
+    && String(report.operation_mode || '').trim().toUpperCase() === 'MACHINE';
+  const machineAccounting = isGiaCongMachine ? report.machineAccounting : null;
+  const totalTime = machineAccounting ? toNumber(machineAccounting.grossHours) : toNumber(report.total_time);
+  const actualTime = machineAccounting ? toNumber(machineAccounting.netHours) : toNumber(report.actual_time);
   const plannedOutput = machineMetrics?.machine_count > 0
     ? toNumber(machineMetrics.maximum_output)
     : standard * actualTime * trainingFactor(report.training_percent);
   const outputPerHour = actualTime > 0 ? actualOutput / actualTime : 0;
   return {
-    ok, allNg, actualOutput, standard, actualTime, plannedOutput, outputPerHour,
+    ok, allNg, actualOutput, standard, totalTime, actualTime, plannedOutput, outputPerHour,
     achievement: plannedOutput > 0 ? actualOutput / plannedOutput : 0,
     ngRate: (ok + allNg) > 0 ? allNg / (ok + allNg) : 0
   };
@@ -294,7 +266,7 @@ const getInputColumns = (layout) => {
   return [...new Set(columns.filter(Boolean))];
 };
 
-const writeReportRow = (sheet, rowNumber, report, layout, deductionTypes, defectTypes, workerLookup) => {
+const writeReportRow = (sheet, rowNumber, report, layout, mapping, workerLookup) => {
   const row = sheet.getRow(rowNumber);
   const fixed = layout.fixed;
   const metrics = getReportMetrics(report);
@@ -316,21 +288,12 @@ const writeReportRow = (sheet, rowNumber, report, layout, deductionTypes, defect
   const trainingPercent = normalizeTrainingPercent(report.training_percent);
   const trainingFactorValue = trainingPercent / 100;
   setCell(row, fixed.training, trainingFactorValue, '0%');
-  setCell(row, fixed.totalTime, toNumber(report.total_time), '0.00');
+  setCell(row, fixed.totalTime, metrics.totalTime, '0.00');
   setCell(row, fixed.product, report.product_code || report.product_name || '');
   setCell(row, fixed.ok, metrics.ok, '#,##0');
   if (fixed.workDate) setCell(row, fixed.workDate, report.work_date, 'dd/mm/yyyy');
 
-  const [deductionStart, deductionEnd] = layout.deductions;
-  deductionTypes.slice(0, deductionEnd - deductionStart + 1).forEach((type, index) => {
-    setCell(row, deductionStart + index,
-      detailValue(report.deductions, type.id, 'hours', 'deduction_type_id'), '0.00');
-  });
-  const [defectStart, defectEnd] = layout.defects;
-  defectTypes.slice(0, defectEnd - defectStart + 1).forEach((type, index) => {
-    setCell(row, defectStart + index,
-      detailValue(report.defects, type.id, 'quantity', 'defect_type_id'), '#,##0');
-  });
+  writeDetailColumns(row, report, mapping);
 };
 
 const reportTimeKey = (report) => String(report.approved_at || report.created_at || report.entry_date || report.work_date || '');
@@ -348,6 +311,34 @@ async function resolveProcesses(group) {
     `SELECT id, process_code, process_name FROM processes WHERE UPPER(process_code) IN (${placeholders}) ORDER BY id`,
     group.processCodes.map((code) => code.toUpperCase())
   );
+}
+
+// Per-machine NG detail lives in production_report_machine_defects (or the line's own
+// defects_json). Event-level defects are NOT used: they are shared by every worker on
+// the machine and would be repeated on each machine line.
+async function attachMachineLineDefects(reports) {
+  const lines = reports.flatMap((report) => (Array.isArray(report.machineLines) ? report.machineLines : []));
+  const lineIds = lines.map((line) => Number(line.id)).filter((id) => Number.isInteger(id) && id > 0);
+  const byLine = new Map();
+  for (let i = 0; i < lineIds.length; i += 400) {
+    const ids = lineIds.slice(i, i + 400);
+    const rows = await query(
+      `SELECT machine_line_id, defect_type_id, defect_code, defect_name, quantity
+         FROM production_report_machine_defects
+        WHERE machine_line_id IN (${ids.map(() => '?').join(',')}) AND quantity > 0
+        ORDER BY machine_line_id, id`,
+      ids
+    );
+    for (const row of rows) {
+      const key = Number(row.machine_line_id);
+      if (!byLine.has(key)) byLine.set(key, []);
+      byLine.get(key).push({ defect_type_id: row.defect_type_id, defect_code: row.defect_code, defect_name: row.defect_name, quantity: row.quantity });
+    }
+  }
+  for (const line of lines) {
+    const persisted = byLine.get(Number(line.id));
+    if (persisted?.length) line.defects = persisted;
+  }
 }
 
 async function loadGroupReports(yearMonth, group) {
@@ -393,7 +384,10 @@ async function buildCompanyWorkbookInternal(value, groupCode) {
   workbook.calcProperties.calcMode = 'auto';
   workbook.calcProperties.calcId = 0;
   workbook.calcProperties.concurrentCalc = true;
-  const workerLookup = buildWorkerLookup(workbook);
+  const needsWorkerLookup = group.sheets.some((sheetConfig) => sheetConfig.mode !== 'WORKER_DAILY');
+  const workerLookup = needsWorkerLookup ? buildWorkerLookup(workbook) : null;
+  const unmappedDetails = [];
+  const warningDetails = [];
 
   for (const sheetConfig of group.sheets) {
     const processRows = loaded.filter(({ process }) => sheetConfig.processCodes.includes(String(process.process_code).toUpperCase()));
@@ -402,7 +396,32 @@ async function buildCompanyWorkbookInternal(value, groupCode) {
     const defectTypes = processRows.flatMap((item) => item.reports.defectTypes || []);
     const sheet = workbook.getWorksheet(sheetConfig.sheetName);
     if (!sheet) throw new Error(`Thiếu sheet ${sheetConfig.sheetName} trong file mẫu`);
+    if (sheetConfig.mode === 'WORKER_DAILY') {
+      await attachMachineLineDefects(reports);
+      const written = writeGcWorkerSheet(sheet, reports, { deductionTypes, defectTypes });
+      if (written.unmapped.length) {
+        const summary = new Map();
+        for (const item of written.unmapped) summary.set(`${item.kind}:${item.name}`, (summary.get(`${item.kind}:${item.name}`) || 0) + 1);
+        console.warn(`[KTC][EXCEL] ${sheet.name}: ${written.unmapped.length} chi tiết không có cột tương ứng: ${[...summary.entries()].map(([k, n]) => `${k} x${n}`).join('; ')}`);
+        unmappedDetails.push(...written.unmapped.map((item) => ({ sheet: sheet.name, ...item })));
+      }
+      if (written.warnings.length) {
+        console.warn(`[KTC][EXCEL] ${sheet.name}: ${written.warnings.length} cảnh báo dữ liệu dòng máy: ${[...new Set(written.warnings.map((w) => w.code))].join(', ')}`);
+        warningDetails.push(...written.warnings.map((item) => ({ sheet: sheet.name, ...item })));
+      }
+      continue;
+    }
     const layout = LAYOUTS[sheetConfig.layout];
+    const mapping = {
+      ...buildLayoutResolvers(sheet, layout, sheetConfig.layout),
+      deductionNameById: new Map(deductionTypes.map((type) => [Number(type.id), type.deduction_name || type.name])),
+      defectNameById: new Map(defectTypes.map((type) => [Number(type.id), type.defect_name || type.name])),
+      unmapped: []
+    };
+    // Header cells the bundled template lost are restored from the company sample.
+    [...mapping.deductionColumns, ...mapping.defectColumns]
+      .filter((entry) => entry.filledFromContract)
+      .forEach((entry) => { sheet.getRow(layout.labelRow).getCell(entry.column).value = entry.label; });
     const blocks = findDateBlocks(sheet, layout);
     const inputColumns = getInputColumns(layout);
     blocks.forEach((block) => clearInputColumns(sheet, block, inputColumns));
@@ -426,10 +445,18 @@ async function buildCompanyWorkbookInternal(value, groupCode) {
         block.startRow + index,
         report,
         layout,
-        deductionTypes,
-        defectTypes,
+        mapping,
         workerLookup
       ));
+    }
+    if (mapping.unmapped.length) {
+      const summary = new Map();
+      for (const item of mapping.unmapped) {
+        const key = `${item.kind}:${item.name}`;
+        summary.set(key, (summary.get(key) || 0) + 1);
+      }
+      console.warn(`[KTC][EXCEL] ${sheet.name}: ${mapping.unmapped.length} chi tiết không có cột tương ứng trong mẫu: ${[...summary.entries()].map(([k, n]) => `${k} x${n}`).join('; ')}`);
+      unmappedDetails.push(...mapping.unmapped.map((item) => ({ sheet: sheet.name, ...item })));
     }
   }
 
@@ -449,7 +476,7 @@ async function buildCompanyWorkbookInternal(value, groupCode) {
   }
   const stat = await fs.stat(filePath);
   cleanupOldExports(path.dirname(filePath)).catch(() => undefined);
-  return { path: filePath, fileName, groupCode: group.code, groupTitle: group.title, reportCount };
+  return { path: filePath, fileName, groupCode: group.code, groupTitle: group.title, reportCount, unmappedDetails, warningDetails };
 }
 
 
