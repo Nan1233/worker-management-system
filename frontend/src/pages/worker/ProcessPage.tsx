@@ -72,7 +72,6 @@ import {
     initialDeduction,
     initialForm,
     processMap,
-    shiftLocalDate,
 } from "./processPageConfig";
 import { processExtraFields } from "./processExtraFields";
 import ProcessExtraFieldsSection from "./components/ProcessExtraFieldsSection";
