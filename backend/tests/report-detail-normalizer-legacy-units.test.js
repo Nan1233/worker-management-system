@@ -65,3 +65,27 @@ test('legacy aggregate NG fields win when child detail total does not match pare
 });
 
 console.log('[PASS] report detail normalizer: legacy minutes/hours + NG aggregate recovery');
+
+test('GC legacy numeric Excel columns recover deduction detail from extra_data', () => {
+  const report = {
+    process_code: 'GC',
+    deduction_time: 2.66,
+    extra_data: {
+      '13': '0.33',
+      '14': '1.33',
+      '17': '1',
+      '9': '2.66'
+    }
+  };
+  const types = [
+    { id: 10, deduction_code: 'CHUYEN_MA', deduction_name: 'Chuyển mã' },
+    { id: 11, deduction_code: 'CHINH_MAY', deduction_name: 'Chỉnh máy' },
+    { id: 12, deduction_code: 'MAT_KHI', deduction_name: 'Mất khí' }
+  ];
+  const details = normalizeDeductions([], report, [], types);
+  assert.deepEqual(
+    details.map((item) => [item.deduction_name, Number(item.hours.toFixed(2))]),
+    [['Chuyển mã', 0.33], ['Chỉnh máy', 1.33], ['Mất khí', 1]]
+  );
+  assert.equal(Number(details.reduce((sum, item) => sum + item.hours, 0).toFixed(2)), 2.66);
+});
