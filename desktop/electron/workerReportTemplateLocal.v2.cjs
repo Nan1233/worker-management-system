@@ -591,22 +591,6 @@ function findDateSeparatorRow(sheet, headerRow, dataStartRow) {
   return null;
 }
 
-// "Thời gian làm việc" = actual worked time in hours (after deductions).
-// Uses the report's own figures: actual_time when present, otherwise
-// total_time minus the deduction hours (header total, else the detail rows).
-// SX3 reports carry the value in minutes as work_minutes.
-function workingHoursFor(report) {
-  const has = (value) => value !== null && value !== undefined && String(value).trim() !== '';
-  if (has(report.actual_time)) return number(report.actual_time);
-  if (has(report.total_time)) {
-    const detailHours = detailItems(report, 'deduction').reduce((sum, item) => sum + detailValue(item, 'deduction'), 0);
-    const deduction = has(report.deduction_time) ? number(report.deduction_time) : detailHours;
-    return Math.max(0, number(report.total_time) - deduction);
-  }
-  if (has(report.work_minutes)) return number(report.work_minutes) / 60;
-  return 0;
-}
-
 function snapshotRow(sheet, rowNumber, columnCount) {
   const row = sheet.getRow(rowNumber);
   const styles = [];
@@ -680,7 +664,8 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
       const row = sheet.getRow(rowNumber);
       applySnapshot(row, dataSnapshot, columnCount);
       applyReportRow(row, report, contract, processData, index);
-      writeValue(row, contract.cols.workTime, workingHoursFor(report));
+      const totalMinutes = report.total_minutes || (report.work_minutes + valueForType(detailValues, 'deduction_total', 'deduction'));
+writeValue(row, contract.cols.workTime, totalMinutes / 60);
       if (percentColumn && outputLetter && standardLetter) {
         const cell = row.getCell(percentColumn);
         const { planned } = plannedOutputFor(report);
