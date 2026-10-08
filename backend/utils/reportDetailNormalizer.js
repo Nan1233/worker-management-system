@@ -47,6 +47,13 @@ const LEGACY_MACHINE_KEYS = new Map([
   ["THIEU_CAO_SU", "THIEU_CAO_SU"]
 ]);
 
+const LEGACY_GC_DEDUCTION_COLUMN_LABELS = new Map([
+  [11, "Thiếu sản lượng"], [12, "Bật máy, xét máy"], [13, "Chuyển mã"], [14, "Chỉnh máy"],
+  [15, "Chờ chỉnh máy"], [16, "Mất điện"], [17, "Mất khí"], [18, "Chờ hàng"],
+  [19, "Bảo dưỡng máy"], [20, "Nghỉ giải lao"], [21, "Giao ca"], [22, "Dừng máy đi hỗ trợ"],
+  [23, "Giặt cs/cân cs, tuốt-tái pp, GL"], [24, "5s"], [25, "Học việc, đào tạo"], [26, "Đi muộn về sớm"]
+]);
+
 const normalizeKey = (value) => String(value ?? "")
   .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
   .replace(/đ/g, "d").replace(/Đ/g, "D")
@@ -285,6 +292,25 @@ function addDeductionsJson(merged, value, deductionTypes = [], hoursScale = 1) {
   }
 }
 
+function extractLegacyGcColumnDeductionCandidates(report) {
+  const processCode = normalizeKey(report?.process_code || report?.processCode || report?.process || "");
+  if (processCode !== "GC") return [];
+  const extra = parseJson(report?.extra_data);
+  if (!extra || Array.isArray(extra) || typeof extra !== "object") return [];
+  const result = [];
+  for (const [key, value] of Object.entries(extra)) {
+    if (!/^\\d+$/.test(key)) continue;
+    const columnIndex = Number(key);
+    const label = LEGACY_GC_DEDUCTION_COLUMN_LABELS.get(columnIndex);
+    if (!label) continue;
+    const n = positiveNumber(value && typeof value === "object"
+      ? (value.hours ?? value.deduction_hours ?? value.duration_hours ?? value.minutes ?? value.value ?? value.time)
+      : value);
+    if (n) result.push({ label, code: deductionAliasCode(label), rawValue: n });
+  }
+  return result;
+}
+
 function extractLegacyDeductionCandidates(extra) {
   const result = [];
   const seen = new Set();
@@ -333,7 +359,11 @@ function normalizeDeductions(rows = [], report = null, machineLines = [], deduct
   const extra = new Map();
   addDeductionsJson(extra, report?.extra_data, deductionTypes);
   const legacy = new Map();
-  for (const item of normalizeLegacyDeductionHours(extractLegacyDeductionCandidates(parseJson(report?.extra_data)), report)) {
+  const legacyCandidates = [
+    ...extractLegacyDeductionCandidates(parseJson(report?.extra_data)),
+    ...extractLegacyGcColumnDeductionCandidates(report)
+  ];
+  for (const item of normalizeLegacyDeductionHours(legacyCandidates, report)) {
     const type = findDeductionType(deductionTypes, item.code) || findDeductionType(deductionTypes, item.label);
     addDeduction(legacy, {
       deduction_type_id: type?.id,
@@ -362,4 +392,5 @@ module.exports = {
   LEGACY_DEFECT_FIELDS,
   CANONICAL_GC_DEFECTS,
   parseMachineDefects,
+  LEGACY_GC_DEDUCTION_COLUMN_LABELS,
 };
