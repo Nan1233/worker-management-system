@@ -90,6 +90,7 @@ function writeGcWorkerSheet(sheet, reports, { deductionTypes = [], defectTypes =
         row.getCell(fixed.workerName).value = item.workerName;
         if (item.machine) row.getCell(fixed.machine).value = item.machine;
         row.getCell(fixed.shift).value = item.shift;
+        row.getCell(fixed.totalHours).value = item.totalHours;
         row.getCell(fixed.workedHours).value = item.workedHours;
         row.getCell(fixed.deductionTotal).value = item.deductionHours;
         row.getCell(fixed.product).value = item.product;
