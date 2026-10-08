@@ -1,3 +1,4 @@
+const { hasPermission } = require('../services/permissionService');
 const { updateApprovedReport } = require('../services/approvedReportEditService');
 const { createApprovedReportFromExcel } = require('../services/approvedReportExcelCreateService');
 const { envEnabled } = require('../utils/featureFlags');
@@ -8,6 +9,7 @@ function cleanPatch(input = {}) {
 }
 
 exports.syncExcelEdits = async (req, res) => {
+  if (!(await hasPermission(req.user, 'EXCEL_DB_SYNC'))) return res.status(403).json({ success:false, code:'PERMISSION_DENIED', message:'Bạn không có quyền đồng bộ Excel về DB' });
   const changes = Array.isArray(req.body?.changes) ? req.body.changes.slice(0, 200) : [];
   if (!changes.length) return res.status(422).json({ success: false, message: 'Không có thay đổi Excel để đồng bộ' });
 

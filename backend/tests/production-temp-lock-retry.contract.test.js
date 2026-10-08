@@ -11,10 +11,16 @@ const source = fs.readFileSync(
 test('production temp create serializes submissions and retries TiDB lock wait timeouts', () => {
   assert.match(source, /submissionQueues\s*=\s*new Map/);
   assert.match(source, /runSerialized\(queueKey/);
-  assert.match(source, /LOCK_RETRY_ATTEMPTS\s*=\s*3/);
-  assert.match(source, /ER_LOCK_WAIT_TIMEOUT/);
+  assert.match(source, /recoverAfter1205/);
+  // TiDB reports lock wait timeout by errno 1205; message text is not stable across drivers.
   assert.match(source, /Number\(error\?\.errno\)\s*===\s*1205/);
-  assert.match(source, /createModel\.createCompleteReport\(data, defects, deductions, machineLines, audit\)/);
+  // The current transaction boundary creates the parent row first, then persists
+  // child details in a short independent transaction; createCompleteReport is the
+  // public facade, not the inner parent INSERT call.
+  assert.match(source, /createModel\.create\(data, parentConnection\)/);
+  assert.match(source, /createModel\.createDefects\(tempId, data\.process_id, defects, childConnection\)/);
+  assert.match(source, /createModel\.createDeductions\(tempId, data\.process_id, deductions, childConnection\)/);
+  assert.match(source, /createModel\.replaceMachineLines\(tempId, machineLines, childConnection\)/);
   assert.match(source, /findExistingClientRequest\(data\)/);
-  assert.match(source, /sleep\(LOCK_RETRY_DELAYS_MS\[attempt - 1\]/);
+  assert.match(source, /for \(const delay of \[0, 150, 500, 1000\]\)/);
 });

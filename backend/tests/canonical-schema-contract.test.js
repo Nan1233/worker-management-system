@@ -18,7 +18,6 @@ test('canonical schema contract parses the full production source', () => {
     'product_standards',
     'production_reports_temp',
     'production_reports',
-    'reporting_period_locks',
     'master_personnel_source',
     'worker_code_aliases',
     'master_product_source',

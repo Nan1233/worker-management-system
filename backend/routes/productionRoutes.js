@@ -92,8 +92,8 @@ router.get("/:id",verifyToken,checkRole("admin","manager","lead","worker"),async
 });
 
 const restoreVersion=async(req,res)=>{const reportId=Number(req.params.id);const versionNo=Number(req.params.versionNo);try{const body=req.body&&typeof req.body==="object"?req.body:{};const expectedUpdatedAt=body.expected_updated_at||null;const reason=String(body.reason||body.change_reason||"").trim()||"Khôi phục phiên bản báo cáo đã duyệt";const result=await restoreApprovedReportVersion({reportId,versionNo,reason,userId:req.user.id,actor:req.user,req,expectedUpdatedAt});return res.json({success:true,message:"Khôi phục phiên bản thành công",data:result});}catch(error){console.error("RESTORE APPROVED REPORT VERSION ERROR:",error);return res.status(error.status||500).json({success:false,code:error.code,message:publicMessage(error,"Không thể khôi phục phiên bản báo cáo"),errors:error.details});}};
-router.post("/:id/versions/:versionNo/restore",verifyToken,checkRole("admin","manager"),permission("REPORT_APPROVED_EDIT"),approvedReportEditLock,restoreVersion);
+router.post("/:id/versions/:versionNo/restore",verifyToken,checkRole("admin","manager","lead"),permission("REPORT_APPROVED_EDIT"),approvedReportEditLock,restoreVersion);
 const ensureApprovedEditReason=(req,_res,next)=>{if(!req.body||typeof req.body!=="object")req.body={};req.body.reason=String(req.body.reason||req.body.change_reason||"").trim()||"Cập nhật báo cáo đã duyệt";next();};
-router.put("/:id",verifyToken,checkRole("admin","manager","lead"),ensureApprovedEditReason,approvedReportEditLock,notifyWorkerOnApprovedEdit,updateReport);
+router.put("/:id",verifyToken,checkRole("admin","manager","lead"),permission("REPORT_APPROVED_EDIT"),ensureApprovedEditReason,approvedReportEditLock,notifyWorkerOnApprovedEdit,updateReport);
 router.delete("/:id",verifyToken,checkRole("admin","manager","lead"),permission("REPORT_DELETE"),deleteReport);
 module.exports=router;

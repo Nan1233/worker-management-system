@@ -1,3 +1,4 @@
+const db = require("../config/db");
 const { TtlCache } = require("../utils/cache");
 const managerListCache = new TtlCache({ maxEntries: 300 });
 const MANAGER_LIST_TTL_MS = 15000;
@@ -8,6 +9,8 @@ function invalidateManagerReportLists() {
 }
 const ProductionTemp = require("../models/productionTempModel");
 const { publicMessage } = require("../utils/httpError");
+const { hasPermission } = require("../services/permissionService");
+const { assertProcessesScope } = require("../services/processAuthorizationService");
 const { validateMachineLines } = require("../services/machineLineValidationService");
 const { validateFactoryMachineRules, validateMachineWorkerCapacity } = require("../services/factoryMachineRuleService");
 const { getProcessMachinePolicy } = require("../services/processMachinePolicy");
@@ -20,6 +23,7 @@ const {
     requestMeta,
 } = require("./productionTempControllerUtils");
 const { validateMasterData } = require("../services/reportBusinessValidationService");
+const { assertWorkerOwnership } = require("../services/processAuthorizationService");
 const { validateProductionReport } = require("../utils/reportValidation");
 const { calculateProductionOutput } = require("../../shared/kqdPolicy.cjs");
 const {
@@ -157,8 +161,16 @@ exports.approveSelectedReports = async (req, res) => {
         const targets = normalizeReviewTargets(req.body);
         assertReviewBatchSize(targets);
         const ids = targets.map((item) => item.id);
-        const reviewerId = toPositiveInteger(req.user?.id);
         if (ids.length === 0) return res.status(400).json({ success: false, message: "Vui lòng chọn ít nhất một báo cáo" });
+        const reviewerId = toPositiveInteger(req.user?.id);
+        if (!(await hasPermission(req.user, "REPORT_APPROVE"))) {
+            return res.status(403).json({ success:false, code:"PERMISSION_DENIED", message:"Bạn không có quyền duyệt hoặc từ chối báo cáo" });
+        }
+        const [scopeRows] = await db.promise().query(
+            `SELECT DISTINCT process_id FROM production_reports_temp WHERE id IN (${ids.map(() => "?").join(",")})`,
+            ids
+        );
+        await assertProcessesScope(req.user, scopeRows.map((row) => row.process_id), { action:"REPORT_APPROVE" });
         if (!reviewerId) return res.status(401).json({ success: false, message: "Thông tin người duyệt không hợp lệ" });
 
         const result = await ProductionTemp.approveSelected(targets, reviewerId, req.user?.role === "admin");
@@ -199,7 +211,7 @@ exports.approveSelectedReports = async (req, res) => {
         });
     } catch (error) {
         console.error("APPROVE SELECTED REPORTS ERROR:", error);
-        return res.status(error.status || 400).json({ success: false, message: publicMessage(error, "Không thể duyệt báo cáo") });
+        return res.status(error.status || 400).json({ success: false, code: error.code || undefined, message: publicMessage(error, "Không thể duyệt báo cáo") });
     }
 };
 
@@ -210,6 +222,14 @@ exports.rejectSelectedReports = async (req, res) => {
         const ids = targets.map((item) => item.id);
         const reviewerId = toPositiveInteger(req.user?.id);
         const reason = String(req.body?.reason || "").trim();
+        if (!(await hasPermission(req.user, "REPORT_APPROVE"))) {
+            return res.status(403).json({ success:false, code:"PERMISSION_DENIED", message:"Bạn không có quyền duyệt hoặc từ chối báo cáo" });
+        }
+        const [scopeRows] = await db.promise().query(
+            `SELECT DISTINCT process_id FROM production_reports_temp WHERE id IN (${ids.map(() => "?").join(",")})`,
+            ids
+        );
+        await assertProcessesScope(req.user, scopeRows.map((row) => row.process_id), { action:"REPORT_REJECT" });
 
         if (ids.length === 0) return res.status(400).json({ success: false, message: "Vui lòng chọn ít nhất một báo cáo" });
         if (!reviewerId) return res.status(401).json({ success: false, message: "Thông tin người xử lý không hợp lệ" });
@@ -232,6 +252,21 @@ exports.updateTempReport = async (req, res) => {
 
         const current = await ProductionTemp.getDetail(reportId);
         if (!current) return res.status(404).json({ success: false, message: "Không tìm thấy báo cáo" });
+
+        const requiredPermission = String(req.user?.role || "").toLowerCase() === "worker"
+            ? "WORKER_ENTRY"
+            : "REPORT_PENDING_EDIT";
+        if (!(await hasPermission(req.user, requiredPermission))) {
+            return res.status(403).json({ success:false, code:"PERMISSION_DENIED", message:"Bạn không có quyền sửa báo cáo chờ duyệt" });
+        }
+        if (String(req.user?.role || "").toLowerCase() === "worker") {
+            if (Number(current.worker_id) !== Number(req.user?.worker_id)) {
+                return res.status(403).json({ success:false, code:"WORKER_OWNERSHIP_FORBIDDEN", message:"Bạn không có quyền sửa báo cáo của công nhân khác" });
+            }
+        } else {
+            await assertProcessesScope(req.user, [current.process_id], { action:"REPORT_PENDING_EDIT" });
+        }
+
         const payload = { ...current, ...(req.body || {}), defects: req.body?.defects ?? current.defects, deductions: req.body?.deductions ?? current.deductions };
 
         if (req.user?.role === "worker") {

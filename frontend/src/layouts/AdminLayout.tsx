@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Boxes, Cog, FileWarning, History, LayoutDashboard, Menu, MoreHorizontal, ShieldCheck, Timer, UserRound, Users, Bell, X } from "lucide-react";
+import { BarChart3, Boxes, ClipboardCheck, Cog, Download, Factory, FileWarning, History, LayoutDashboard, Menu, MoreHorizontal, ShieldCheck, Timer, UserRound, Users, Bell, X } from "lucide-react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { getStoredUser } from "../utils/authStorage";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
@@ -10,11 +10,16 @@ import "./AdminLayout.css";
 type AdminMenuItem={label:string;path:string;icon:typeof LayoutDashboard;permission:PermissionCode};
 const items:AdminMenuItem[]=[
  {label:"Tổng quan hệ thống",path:"",icon:LayoutDashboard,permission:"DASHBOARD_VIEW"},
+ {label:"Chờ duyệt",path:"reports",icon:ClipboardCheck,permission:"REPORT_PENDING_VIEW"},
+ {label:"Đã duyệt",path:"approved",icon:ShieldCheck,permission:"REPORT_APPROVED_VIEW"},
+ {label:"Thống kê",path:"statistics",icon:BarChart3,permission:"STATISTICS_VIEW"},
+ {label:"Xuất Excel",path:"export",icon:Download,permission:"REPORT_EXPORT"},
  {label:"Tài khoản & nhân sự",path:"workers",icon:Users,permission:"USER_VIEW"},
  {label:"Máy móc",path:"master/machines",icon:Cog,permission:"MASTER_VIEW"},
  {label:"Sản phẩm & định mức",path:"master/standards",icon:Boxes,permission:"MASTER_VIEW"},
  {label:"Trừ giờ",path:"master/deductions",icon:Timer,permission:"MASTER_VIEW"},
  {label:"Loại lỗi",path:"master/defects",icon:FileWarning,permission:"MASTER_VIEW"},
+ {label:"Công đoạn",path:"master/processes",icon:Factory,permission:"MASTER_VIEW"},
  {label:"Vai trò & quyền",path:"permissions",icon:ShieldCheck,permission:"PERMISSION_MANAGE"},
  {label:"Nhật ký hoạt động",path:"system",icon:History,permission:"AUDIT_VIEW"},
 ];
@@ -48,14 +53,14 @@ export default function AdminLayout(){
   <section className="admin-main">
    <header className="admin-header">
     <div className="admin-header-left"><button className="admin-mobile-menu" type="button" aria-label="Mở menu" onClick={()=>setMobileSidebarOpen(true)}><Menu size={20}/></button><div className="admin-header-title"><strong>KTC Production Control</strong><span>ADMIN CONSOLE</span></div></div>
-    <div className="admin-header-actions"><button className="admin-notification" type="button" aria-label="Thông báo" onClick={()=>go("notifications")}><Bell size={19}/>{unreadCount>0&&<b>{unreadCount>9?"9+":unreadCount}</b>}</button><button className="admin-user" type="button" onClick={()=>go("profile")}><span className="admin-user-avatar">{avatarText}</span><span className="admin-user-copy"><strong>{displayName}</strong><small>{roleLabel}</small></span></button></div>
+    <div className="admin-header-actions">{can("NOTIFICATION_VIEW")&&<button className="admin-notification" type="button" aria-label="Thông báo" onClick={()=>go("notifications")}><Bell size={19}/>{unreadCount>0&&<b>{unreadCount>9?"9+":unreadCount}</b>}</button>}<button className="admin-user" type="button" onClick={()=>go("profile")}><span className="admin-user-avatar">{avatarText}</span><span className="admin-user-copy"><strong>{displayName}</strong><small>{roleLabel}</small></span></button></div>
    </header>
    <main className="admin-content"><Outlet/></main>
   </section>
   <nav className="admin-mobile-nav" aria-label="Điều hướng quản trị trên di động">
    {mobileMoreOpen&&<div className="admin-mobile-overflow">{visible.slice(2).map(item=>{const Icon=item.icon;return <button key={`more-${item.path}`} type="button" className={active(item.path)?"active":""} onClick={()=>go(item.path)}><Icon size={18}/><span>{item.label}</span></button>;})}<button type="button" className={active("profile")?"active":""} onClick={()=>go("profile")}><UserRound size={18}/><span>Cá nhân</span></button></div>}
    {visible.slice(0,2).map(item=>{const Icon=item.icon;return <button key={`primary-${item.path}`} type="button" className={active(item.path)?"active":""} onClick={()=>go(item.path)}><Icon size={18}/><span>{item.label.replace(" hệ thống","")}</span></button>;})}
-   <button type="button" className={location.pathname.startsWith("/admin/notifications")?"active":""} onClick={()=>go("notifications")}><Bell size={18}/><span>Thông báo</span>{unreadCount>0&&<b className="admin-badge">{unreadCount>99?"99+":unreadCount}</b>}</button>
+   {can("NOTIFICATION_VIEW")&&<button type="button" className={location.pathname.startsWith("/admin/notifications")?"active":""} onClick={()=>go("notifications")}><Bell size={18}/><span>Thông báo</span>{unreadCount>0&&<b className="admin-badge">{unreadCount>99?"99+":unreadCount}</b>}</button>}
    <button type="button" className={active("profile")?"active":""} onClick={()=>go("profile")}><UserRound size={18}/><span>Cá nhân</span></button>
    <button type="button" className={mobileMoreOpen?"active":""} onClick={()=>setMobileMoreOpen(open=>!open)}>{mobileMoreOpen?<X size={18}/>:<MoreHorizontal size={18}/>}<span>Thêm</span></button>
   </nav>

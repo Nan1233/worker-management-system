@@ -86,21 +86,21 @@ test('scopeSql produces deny-all for zero-scope manager and IN filter otherwise'
 
 test('approved collection/date/by-date controllers apply backend process scope', () => {
   const src = fs.readFileSync(path.join(__dirname,'../controllers/productionController.js'),'utf8');
-  assert.match(src, /getAllReports[\s\S]*getActorProcessScope\(req\.user\)[\s\S]*scopeSql\(scope, 'pr\.process_id'/);
-  assert.match(src, /getReportDates[\s\S]*getActorProcessScope\(req\.user\)[\s\S]*scopeSql\(scope, 'pr\.process_id'/);
-  assert.match(src, /getReportsByDate[\s\S]*assertProcessScope\(req\.user, req\.query\.process_id/);
+  assert.match(src, /getAllReports[\s\S]*getActorProcessScope\(req\.user\)[\s\S]*scopeSql\(scope,\s*['"]pr\.process_id['"]/);
+  assert.match(src, /getReportDates[\s\S]*getActorProcessScope\(req\.user\)[\s\S]*scopeSql\(scope,\s*['"]pr\.process_id['"]/);
+  assert.match(src, /getReportsByDate[\s\S]*assertProcessScope\(req\.user\s*,\s*req\.query\.process_id/);
 });
 
 test('approved detail manager/lead asserts report process scope; worker keeps ownership rule', () => {
   const src = fs.readFileSync(path.join(__dirname,'../controllers/productionController.js'),'utf8');
-  assert.match(src, /role === 'worker'[\s\S]*minimal\.worker_id[\s\S]*req\.user\?\.worker_id/);
-  assert.match(src, /\['manager','lead'\][\s\S]*assertProcessScope\(req\.user, minimal\.process_id/);
+  assert.match(src, /role==='worker'[\s\S]*assertWorkerOwnership\(req\.user,minimal\.worker_id\)/);
+  assert.match(src, /(?:\['manager','lead'\]|\[\s*'manager'\s*,\s*'lead'\s*\])[\s\S]*assertProcessScope\(req\.user\s*,\s*minimal\.process_id/);
 });
 
 test('web edit, delete and restore all guard process before approved mutation', () => {
   const controller = fs.readFileSync(path.join(__dirname,'../controllers/productionController.js'),'utf8');
   const service = fs.readFileSync(path.join(__dirname,'../services/approvedReportEditService.js'),'utf8');
-  assert.match(controller, /updateApprovedReport\([\s\S]*actor: req\.user/);
+  assert.match(controller, /updateApprovedReport\([\s\S]*actor\s*:\s*req\.user/);
   assert.ok(controller.indexOf("assertProcessScope(req.user, lockedRows[0].process_id") < controller.indexOf("UPDATE production_reports"));
   assert.match(service, /SELECT \* FROM production_reports WHERE id=\? FOR UPDATE[\s\S]*assertProcessScope\(actor, lockedRows\[0\]\.process_id/);
   assert.match(service, /restoreApprovedReportVersion[\s\S]*SELECT \* FROM production_reports WHERE id=\? FOR UPDATE[\s\S]*assertProcessScope\(actor, currentRow\.process_id/);
@@ -134,4 +134,15 @@ test('no JWT/client process list is used as scope authority in central service',
   const src = fs.readFileSync(path.join(__dirname,'../services/processAuthorizationService.js'),'utf8');
   assert.doesNotMatch(src, /actor\?\.process_ids|actor\.process_ids|allowedProcesses|token\.process/i);
   assert.match(src, /SELECT process_id FROM manager_processes WHERE manager_id=\?/);
+});
+
+
+test('worker ownership is enforced centrally', () => {
+  const { assertWorkerOwnership } = require('../services/processAuthorizationService');
+  assert.equal(assertWorkerOwnership({ role: 'worker', worker_id: 10 }, 10), true);
+  assert.throws(
+    () => assertWorkerOwnership({ role: 'worker', worker_id: 10 }, 11),
+    (error) => error?.status === 403 && error?.code === 'WORKER_OWNERSHIP_FORBIDDEN'
+  );
+  assert.equal(assertWorkerOwnership({ role: 'manager', worker_id: 10 }, 11), true);
 });

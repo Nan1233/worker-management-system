@@ -1,3 +1,4 @@
+const { toDateKey } = require("../utils/dateKey");
 const AuditService = require("./auditService");
 const { query, getConnection, beginTransaction, commit, rollback, normalizeIds } = require("../models/productionTempModelShared");
 
@@ -50,7 +51,7 @@ async function rejectSelectedTempReports(ids, reviewerId, reason, isAdmin = fals
                 description: `Từ chối báo cáo #${row.id}: ${cleanReason}`,
                 metadata: { worker_id: Number(row.worker_id), process_id: Number(row.process_id), work_date: row.work_date, shift: row.shift, reason: cleanReason }
             });
-            if (row.worker_user_id) notifications.push({ userIds: [Number(row.worker_user_id)], payload: { type: "report_rejected", title: "Báo cáo đã bị từ chối", message: `Báo cáo ngày ${String(row.work_date).slice(0,10)}, ca ${row.shift || "-"} bị từ chối: ${cleanReason}`, linkUrl: `/worker/history/${Number(row.id)}?source=temp`, entityType: "temp_report", entityId: Number(row.id) } });
+            if (row.worker_user_id) notifications.push({ userIds: [Number(row.worker_user_id)], payload: { type: "report_rejected", title: "Báo cáo đã bị từ chối", message: `Báo cáo ngày ${toDateKey(row.work_date)}, ca ${row.shift || "-"} bị từ chối: ${cleanReason}`, linkUrl: `/worker/history/${Number(row.id)}?source=temp`, entityType: "temp_report", entityId: Number(row.id) } });
         }
 
         if (activities.length) await AuditService.logActivities(activities, connection);

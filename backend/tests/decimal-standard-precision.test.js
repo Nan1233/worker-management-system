@@ -75,7 +75,10 @@ test('capacity uses decimal standard before comparison and does not round 617.1 
 test('multi-machine lines preserve distinct decimal standards independently', async () => {
   const standards = { M1: 617.1, M2: 900.77 };
   const validate = createMachineLineValidator({
-    query: async (sql, params) => String(sql).toLowerCase().includes('from machines') ? [{ id: String(params[1]).toUpperCase() === 'M1' ? 1 : 2, machine_code:String(params[1]).toUpperCase(), is_automatic:1, process_code:'MAI' }] : [],
+    query: async (sql) => String(sql).toLowerCase().includes('from machines') ? [
+      { id: 1, machine_code: 'M1', is_automatic: 1, process_code: 'MAI' },
+      { id: 2, machine_code: 'M2', is_automatic: 1, process_code: 'MAI' }
+    ] : [],
     standardResolver: { resolveStandard: async ({ machineCode }) => ({ productStandardId:1, standardVersionId:1, machineStandardId: machineCode === 'M1' ? 11 : 12, productCode:'P1', standardOutput: standards[machineCode], excludeKqdFromTt:0, source:'MACHINE' }) }
   });
   const result = await validate({ processId:1, workDate:'2026-08-10', operationMode:'MACHINE', machineLines:[

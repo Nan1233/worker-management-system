@@ -1,22 +1,32 @@
 import { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import MasterData from './MasterData';
+import { getStoredUser } from '../../utils/authStorage';
 
-/** Lead uses the Manager workspace. Keep the master navigation explicit and stable. */
-const MASTER_TABS = [
-  { key: 'machines', label: 'Máy' },
-  { key: 'standards', label: 'Sản phẩm & định mức' },
-  { key: 'defects', label: 'Lỗi NG' },
-  { key: 'deductions', label: 'Trừ giờ' },
-] as const;
+/**
+ * Master-data workspace shared by Admin, Manager and Lead. The tab bar and the
+ * base route follow the signed-in role; the tabs shown mirror what the backend
+ * allows (adminMasterRoutes.js): defects are manager/admin only, processes are
+ * admin-only (create/edit/disable).
+ */
+type MasterRole = 'admin' | 'manager' | 'lead';
+const MASTER_TABS: { key: string; label: string; roles: MasterRole[] }[] = [
+  { key: 'machines', label: 'Máy', roles: ['admin', 'manager', 'lead'] },
+  { key: 'standards', label: 'Sản phẩm & định mức', roles: ['admin', 'manager', 'lead'] },
+  { key: 'defects', label: 'Lỗi NG', roles: ['admin', 'manager'] },
+  { key: 'deductions', label: 'Trừ giờ', roles: ['admin', 'manager', 'lead'] },
+  { key: 'processes', label: 'Công đoạn', roles: ['admin'] },
+];
 
 export default function LeadManagerMasterData(){
   const [ready,setReady]=useState(false);
-  const location=useLocation();
+  const params=useParams<{resource?:string}>();
   const navigate=useNavigate();
+  const role=(getStoredUser()?.role||'manager') as MasterRole;
+  const tabs=MASTER_TABS.filter(tab=>tab.roles.includes(role));
   useEffect(()=>{ setReady(true); },[]);
   if(!ready) return <div className="route-loading">Đang mở dữ liệu quản lý...</div>;
-  const currentResource=location.pathname.match(/\/manager\/master\/([^/]+)/)?.[1] || 'machines';
+  const currentResource=params.resource || 'machines';
   return <>
     <style>{`
       /* Explicit Manager-workspace master navigation: NG is a first-class tab. */
@@ -27,7 +37,7 @@ export default function LeadManagerMasterData(){
       .ktc-manager-master-tabs + .master-page .master-tabs{display:none!important;}
     `}</style>
     <div className="ktc-manager-master-tabs" role="tablist" aria-label="Trung tâm quản lý">
-      {MASTER_TABS.map(tab=><button key={tab.key} type="button" role="tab" aria-selected={currentResource===tab.key} className={currentResource===tab.key?'active':''} onClick={()=>navigate(`/manager/master/${tab.key}`)}>{tab.label}</button>)}
+      {tabs.map(tab=><button key={tab.key} type="button" role="tab" aria-selected={currentResource===tab.key} className={currentResource===tab.key?'active':''} onClick={()=>navigate(`/${role}/master/${tab.key}`)}>{tab.label}</button>)}
     </div>
     <MasterData/>
   </>;

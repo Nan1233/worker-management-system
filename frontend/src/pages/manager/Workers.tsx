@@ -223,7 +223,9 @@ export default function Workers() {
     setPromotingId(person.id);
     try {
       const response = await api.post(`/users/${person.id}/promote-lead`);
+      const initialPassword = String(response.data?.data?.initial_password || "");
       showToast(response.data?.message || "Đã nâng lên Tổ trưởng", "success");
+      if (initialPassword) window.alert(`Mật khẩu khởi tạo (chỉ hiển thị lần này):\\n\\n${initialPassword}\\n\\nHãy gửi mật khẩu này cho người được nâng và yêu cầu đổi mật khẩu ngay sau khi đăng nhập.`);
       setModal(null);
       await load();
     } catch (error: any) {

@@ -35,10 +35,6 @@ const ensureWorkerTechnicalPassword = (req, _res, next) => {
   if (String(req.body?.role || '').trim() === 'worker' && !String(req.body?.password || '')) req.body.password = crypto.randomBytes(32).toString('hex');
   next();
 };
-const ensureLeadDefaultPassword = (req, _res, next) => {
-  if (String(req.body?.role || '').trim() === 'lead' && !String(req.body?.password || '')) req.body.password = process.env.KTC_DEFAULT_LEAD_PASSWORD || '123456';
-  next();
-};
 const permanentDeleteLeadFromLegacyRemove = async (req, res, next) => {
   if (String(req.body?.status || '').trim() !== 'inactive') return next();
   const id = Number(req.params.id);
@@ -49,7 +45,7 @@ const permanentDeleteLeadFromLegacyRemove = async (req, res, next) => {
   } catch (error) { return next(error); }
   return next();
 };
-router.post('/', permission('USER_CREATE'), ensureWorkerTechnicalPassword, ensureLeadDefaultPassword, processAssignmentCapacity, createUserController.createUser);
+router.post('/', permission('USER_CREATE'), ensureWorkerTechnicalPassword, processAssignmentCapacity, createUserController.createUser);
 router.post('/:id/promote-lead', permission('USER_EDIT'), promotionController.promoteWorkerToLead);
 router.post('/:id/promote-manager', permission('USER_EDIT'), promotionController.promoteWorkerToManager);
 router.delete('/:id/permanent', permission('USER_EDIT'), permanentDeletionController.deleteLeadPermanently);

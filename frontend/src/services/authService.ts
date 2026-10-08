@@ -152,3 +152,18 @@ export const logout = async (): Promise<void> => {
         clearAuthSession();
     }
 };
+
+export interface ChangePasswordInput {
+    currentPassword: string;
+    newPassword: string;
+    confirmPassword: string;
+}
+
+/** Admin / manager / lead only. The server revokes every session; the caller signs out. */
+export const changePassword = async (input: ChangePasswordInput): Promise<void> => {
+    await api.put("/auth/password", {
+        current_password: input.currentPassword,
+        new_password: input.newPassword,
+        confirm_password: input.confirmPassword,
+    });
+};

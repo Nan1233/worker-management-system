@@ -11,15 +11,15 @@ const readProject = (relative) => fs.readFileSync(path.join(projectRoot, relativ
 
 test('F07 controller requires expected_updated_at for normal approved web edit and passes it to canonical service', () => {
   const source = readBackend('controllers/productionController.js');
-  const start = source.indexOf('exports.updateReport = async');
-  const end = source.indexOf('exports.deleteReport = async', start);
+  const start = source.indexOf('exports.updateReport=async');
+  const end = source.indexOf('exports.deleteReport=async', start);
   const block = source.slice(start, end);
-  assert.match(block, /const expectedUpdatedAt = body\.expected_updated_at/);
+  assert.match(block, /const\s+expectedUpdatedAt\s*=\s*body\.expected_updated_at/);
   assert.match(block, /REPORT_VERSION_TOKEN_REQUIRED/);
   assert.match(block, /status\(428\)/);
   assert.match(block, /expectedUpdatedAt,/);
-  assert.match(block, /source: 'web'/);
-  assert.match(block, /const \{ expected_updated_at: _expectedUpdatedAt, \.\.\.patch \} = body/);
+  assert.match(block, /source:\s*'web'/);
+  assert.match(block, /const\s*\{\s*expected_updated_at:\s*_expectedUpdatedAt,\s*\.\.\.patch\s*\}=body/);
 });
 
 test('F07 canonical service checks stale token after row lock and before versions or mutation', () => {

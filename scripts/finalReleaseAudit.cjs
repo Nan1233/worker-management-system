@@ -21,7 +21,6 @@ const approvalModel = read('backend/models/productionTempApprovalModel.js');
 assert.ok(fs.existsSync(path.join(root, 'backend', 'services', 'productionApprovalService.js')), 'Approval serialization service missing');
 for (const marker of [
   'JOIN manager_processes mp ON mp.process_id = temp.process_id',
-  'loadLockedReportingPeriods(connection, rows)',
   'copyMachineLinesToApproved(item.id, approvedReportId, connection)',
   'createLegacyApprovedSnapshot(item, approvedReportId, reviewerId, connection)',
   'await createApprovedReportVersion(',

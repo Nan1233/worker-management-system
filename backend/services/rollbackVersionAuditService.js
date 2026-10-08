@@ -6,13 +6,14 @@ function query(executor, sql, params = []) {
 
 async function auditRollbackVersions({ executor = null } = {}) {
   const activeExecutor = executor || require('../config/db');
-  const rows = await query(activeExecutor,
+  const [rows] = await query(activeExecutor,
     `SELECT report_id, version_no, created_at, snapshot_json
      FROM report_versions
      WHERE report_type='approved'
      ORDER BY report_id ASC, version_no ASC`);
   return rows.map((row) => {
     const result = classifyApprovedVersionSnapshot(row.snapshot_json);
+    const restoreSafe = result.restore_safe === 'YES' ? 'YES' : result.restore_safe;
     return {
       report_id: Number(row.report_id),
       version_no: Number(row.version_no),
@@ -20,7 +21,7 @@ async function auditRollbackVersions({ executor = null } = {}) {
       schema_version: result.schema_version,
       missing_components: result.missing_components,
       classification: result.classification,
-      restore_safe: result.restore_safe,
+      restore_safe: restoreSafe,
       reasons: result.reasons
     };
   });

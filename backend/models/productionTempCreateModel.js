@@ -421,9 +421,9 @@ module.exports = {
             const result = await query(executor, `INSERT INTO production_temp_machine_lines
                 (temp_report_id, machine_event_id, machine_id, machine_code, product_standard_id, standard_version_id, machine_standard_id, product_code,
                  machine_time_hours, standard_output, standard_time_seconds, standard_source, exclude_kqd_from_tt,
-                 ok_quantity, ng_quantity, maximum_output, counted_output, earned_standard_hours,
+                 ok_quantity, ng_quantity, maximum_output, deduction_time_hours, deductions_json, counted_output, earned_standard_hours,
                  defects_json, sort_order)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
                 tempReportId,
                 preservedEventId,
                 Number(line.machine_id) || null,
@@ -440,6 +440,8 @@ module.exports = {
                 Math.max(0, Math.trunc(Number(line.ok_quantity) || 0)),
                 Math.max(0, Math.trunc(Number(line.ng_quantity) || 0)),
                 Number(line.maximum_output) || 0,
+                Number(line.deduction_time_hours) || 0,
+                JSON.stringify(Array.isArray(line.deductions) ? line.deductions : []),
                 Number(line.counted_output) || 0,
                 Number(line.earned_standard_hours) || 0,
                 JSON.stringify(Array.isArray(line.defects) ? line.defects : []),

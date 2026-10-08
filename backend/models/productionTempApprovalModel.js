@@ -1,4 +1,5 @@
 const AuditService = require("../services/auditService");
+const { toDateKey } = require("../utils/dateKey");
 const {
   query,
   getConnection,
@@ -27,50 +28,6 @@ const { createApprovedReportVersion } = require("../services/approvedVersionSnap
 const { assertReviewBatchSize } = require("../services/managerReportPaginationService");
 
 const qRows = async (executor, sql, params = []) => await query(executor, sql, params);
-
-function workPeriod(value) {
-  const text = value instanceof Date
-    ? `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}`
-    : String(value || "").slice(0, 7);
-  const match = /^(\d{4})-(\d{2})$/.exec(text);
-  if (!match) return null;
-  return { year: Number(match[1]), month: Number(match[2]) };
-}
-
-async function loadLockedReportingPeriods(connection, rows) {
-  const unique = new Map();
-  for (const row of rows) {
-    const period = workPeriod(row.work_date);
-    const processId = Number(row.process_id);
-    if (!period || !Number.isInteger(processId) || processId <= 0) continue;
-    unique.set(`${period.year}-${period.month}-${processId}`, { ...period, processId });
-  }
-  const periods = [...unique.values()];
-  if (!periods.length) return [];
-  const clauses = periods.map(() => "(report_year=? AND report_month=? AND (process_id IS NULL OR process_id=?))");
-  const params = periods.flatMap((item) => [item.year, item.month, item.processId]);
-  return qRows(
-    connection,
-    `SELECT report_year, report_month, process_id
-       FROM reporting_period_locks
-      WHERE status='locked' AND (${clauses.join(" OR ")})`,
-    params,
-  );
-}
-
-function assertReportingPeriodUnlocked(item, lockedRows) {
-  const period = workPeriod(item.work_date);
-  if (!period) return;
-  const processId = Number(item.process_id);
-  const locked = lockedRows.some((row) =>
-    Number(row.report_year) === period.year
-    && Number(row.report_month) === period.month
-    && (row.process_id === null || Number(row.process_id) === processId),
-  );
-  if (locked) {
-    throw new Error(`Kỳ báo cáo ${period.year}-${String(period.month).padStart(2, "0")} đã khóa`);
-  }
-}
 
 async function getTempMachineLines(tempReportId, connection) {
   const lines = await qRows(
@@ -311,7 +268,7 @@ module.exports = {
       await beginTransaction(connection);
       const placeholders = reportIds.map(() => "?").join(",");
       const scopeJoin = isAdmin ? "" : "LEFT JOIN manager_processes mp ON mp.process_id = temp.process_id";
-      const scopeWhere = isAdmin ? "" : "AND (mp.manager_id = ? OR temp.process_id = 60006)";
+      const scopeWhere = isAdmin ? "" : "AND mp.manager_id = ?";
       const params = isAdmin ? reportIds : [...reportIds, reviewerId];
       const rows = await query(
         connection,
@@ -334,6 +291,7 @@ module.exports = {
         );
         error.status = 409;
         error.code = "APPROVAL_SELECTION_STALE";
+        error.isPublic = true; // the "reload the list" guidance must reach the user in production too
         error.details = { requested_ids: reportIds, missing_ids: missingIds };
         throw error;
       }
@@ -344,17 +302,16 @@ module.exports = {
           const error = new Error(`Báo cáo #${row.id} đã thay đổi sau khi bạn mở danh sách. Hãy tải lại trước khi thử lại.`);
           error.status = 409;
           error.code = "TEMP_REPORT_VERSION_CONFLICT";
+          error.isPublic = true;
           throw error;
         }
       }
 
-      const lockedReportingPeriods = await loadLockedReportingPeriods(connection, rows);
       const standardResolver = createStandardResolver({
         query: (sql, params = []) => qRows(connection, sql, params),
       });
 
       for (const item of rows) {
-        assertReportingPeriodUnlocked(item, lockedReportingPeriods);
         await validateApprovalSnapshot(item, connection, standardResolver);
 
         const insertResult = await query(
@@ -584,7 +541,7 @@ module.exports = {
           userIds:[row.worker_user_id],
           payload:{
             type:"report_rejected",title:"Báo cáo đã bị từ chối",
-            message:`Báo cáo ngày ${String(row.work_date).slice(0,10)}, ca ${row.shift || "-"} bị từ chối: ${cleanReason}`,
+            message:`Báo cáo ngày ${toDateKey(row.work_date)}, ca ${row.shift || "-"} bị từ chối: ${cleanReason}`,
             linkUrl:`/worker/history/${row.id}?source=pending`,entityType:"temp_report",entityId:row.id,
           },
         });

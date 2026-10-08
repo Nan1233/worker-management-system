@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { getReportById, updateReport, updateTempReport } from "../../services/productionService";
 import { resolveProductStandard } from "../../services/masterDataService";
 import type { ProductionReport } from "../../types/production";
@@ -17,7 +17,6 @@ import ProcessWorkerHeader from "./components/ProcessWorkerHeader";
 import ProcessBasicInfoSection from "./components/ProcessBasicInfoSection";
 import ProcessQualitySection from "./components/ProcessQualitySection";
 import ProcessTimeDeductionSection from "./components/ProcessTimeDeductionSection";
-import ProcessExtraFieldsSection from "./components/ProcessExtraFieldsSection";
 
 const n = (v: unknown) => Number(v || 0);
 const s = (v: unknown) => String(v ?? "");
@@ -38,7 +37,8 @@ function WorkerReportEditV2() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const pathname = window.location.pathname;
+  // The app uses HashRouter: window.location.pathname is always "/", so the route must come from the router.
+  const { pathname } = useLocation();
   const storedRole = s(getStoredUser()?.role).trim().toLowerCase();
   // Manager/Lead/Admin edits are never subject to the worker's 10-minute edit window.
   // Detect by route AND by the authenticated role so nested/legacy manager routes cannot fall back to worker rules.
@@ -63,11 +63,13 @@ function WorkerReportEditV2() {
   const [showNg, setShowNg] = useState(false);
   const [showDeduction, setShowDeduction] = useState(false);
   const [workType, setWorkType] = useState("Công việc khác");
+  // ProcessBasicInfoSection toggles this from its operation-type / CVK buttons; without a real setter those handlers threw.
   const [isCvkMode, setIsCvkMode] = useState(false);
 
   const process = slug(report?.process_code);
   const capabilities = useMemo(() => getProcessCapabilities(process), [process]);
-  const processId = Number(report?.process_id) > 0 ? Number(report.process_id) : (capabilities.processCode === "CVK" ? 60006 : 0);
+  const PROCESS_ID_BY_CODE: Record<string, number> = { GC: 1, MAI: 2, DO: 60001, K1: 3, K2: 4, CAN: 60002, EP: 60003, XLBV: 60004, SX3: 60005, CVK: 60006 };
+  const processId = Number(report?.process_id) > 0 ? Number(report.process_id) : (PROCESS_ID_BY_CODE[capabilities.processCode] || 0);
   const { machineOptions, productOptions, activeNgOptions, activeDeductionOptions, loadingMasterData: masterLoading } = useProcessMasterData(processId, capabilities.processCode);
   useEffect(() => setLoadingMasterData(masterLoading), [masterLoading]);
 
@@ -144,17 +146,25 @@ function WorkerReportEditV2() {
         const actual = hm(data.actual_time);
         const total = hm(data.total_time);
         const deduction = hm(data.deduction_time);
-        const firstLine = (Array.isArray(data.machine_lines) ? data.machine_lines : Array.isArray(data.machineLines) ? data.machineLines : [])[0];
+        const rawMachineLines = Array.isArray(data.machine_lines) ? data.machine_lines : Array.isArray(data.machineLines) ? data.machineLines : [];
+        const legacyMachine = s(data.machine_no).split(",").map((v) => v.trim()).filter(Boolean)[0] || "";
+        const legacyProduct = s(data.product_name).split(",").map((v) => v.trim()).filter(Boolean)[0] || "";
+        const editMachineLines = rawMachineLines.length ? rawMachineLines : (legacyMachine || legacyProduct ? [{ machine_code: legacyMachine, product_code: legacyProduct, machine_time_hours: data.actual_time, ok_quantity: data.tt_ok, ng_quantity: data.tt_ng, standard_output: data.standard_output }] : []);
+        const firstLine = editMachineLines[0];
         const nextForm: FormState = {
           ...initialForm,
           workDate: s(data.work_date).slice(0, 10), shift: s(data.shift || "A"), workerCode: s(data.worker_code), workerName: s(data.full_name || data.worker_name),
           trainingPercent: s(data.training_percent_snapshot ?? data.training_percent ?? data.hv_percent ?? ""), machineNo: s(data.machine_no).split(",")[0].trim() || s(firstLine?.machine_code), productName: s(data.product_name).split(",")[0].trim() || s(firstLine?.product_code), standardOutput: s(data.standard_output), actualOutput: s(data.actual_output), ttOk: s(data.tt_ok), ttNg: s(data.tt_ng), totalTime: `${total.hours}:${total.minutes}`, actualTime: `${actual.hours}:${actual.minutes}`, actualHours: actual.hours, actualMinutes: actual.minutes, deductionTime: `${deduction.hours}:${deduction.minutes}`, adjustmentCount: s(data.extra_data?.adjustment_count ?? data.adjustment_count ?? ""), note: s(data.note || data.notes), kqdDapLai: s(data.kqd_dap_lai), kqdTuot: s(data.kqd_tuot), voDoLong: s(data.vo_do_long), xuocDoLong: s(data.xuoc_do_long), congGay: s(data.cong_gay), xoay: s(data.xoay), khongDut: s(data.khong_dut), baviaHut: s(data.bavia_hut), ppcm: s(data.ppcm), loiCaoSu: s(data.loi_cao_su), ngKichThuoc: s(data.ng_kich_thuoc), catLem: s(data.cat_lem), executionMethod: s(data.extra_data?.execution_method || data.execution_method || "AUTO")
         };
         setForm(nextForm);
-        setOperationType(data.operation_type === "LONG" ? "LONG" : "CUT");
+        const normalizedOperation = s(data.operation_type || data.operation || "").trim().toUpperCase();
+        setOperationType(normalizedOperation === "LONG" || normalizedOperation === "NEST" || normalizedOperation === "LÔNG" || normalizedOperation === "LỒNG" ? "LONG" : "CUT");
         setOperationMode(data.operation_mode === "MACHINE" || (Array.isArray(data.machine_lines) ? data.machine_lines.length : Array.isArray(data.machineLines) ? data.machineLines.length : 0) > 0 ? "MACHINE" : "MANUAL");
-        setWorkType(s(data.extra_data?.work_type || data.work_type || "Công việc khác"));
+        const loadedWorkType = s(data.extra_data?.work_type || data.work_type || "");
+        setWorkType(loadedWorkType || "XUATNHAP");
+        setForm((current) => ({ ...current, workType: loadedWorkType }));
         setExtraData(Object.fromEntries(Object.entries(data.extra_data || {}).filter(([key]) => key !== "adjustment_count" && key !== "work_type").map(([key, value]) => [key, value == null ? "" : String(value)])));
+        setReport({ ...data, __edit_machine_lines: editMachineLines });
       } catch (e: any) {
         if (alive) setError(e?.response?.data?.message || e?.message || "Không tải được báo cáo.");
       } finally { if (alive) setLoading(false); }
@@ -169,9 +179,11 @@ function WorkerReportEditV2() {
       return;
     }
     if (!report?.created_at) return;
-    const tick = () => { const created = parseDbDateMs(report.created_at); setRemaining(Number.isFinite(created) ? Math.max(0, created + 600000 - Date.now()) : 0); };
+    // Rejected reports get a fresh 10-minute window counted from the rejection (updated_at).
+    const windowStart = s(report.status).trim().toLowerCase() === "rejected" ? report.updated_at : report.created_at;
+    const tick = () => { const created = parseDbDateMs(windowStart); setRemaining(Number.isFinite(created) ? Math.max(0, created + 600000 - Date.now()) : 0); };
     tick(); const timer = window.setInterval(tick, 1000); return () => window.clearInterval(timer);
-  }, [report?.created_at, managerRoute]);
+  }, [report?.created_at, report?.updated_at, report?.status, managerRoute]);
 
   const findNgKey = (item: any) => editNgOptions.find((o: any) => Number(o.id) === Number(item.defect_type_id) || (s(o.code).trim() && s(o.code).toUpperCase() === s(item.defect_code).toUpperCase()) || s(o.label).trim() === s(item.defect_name).trim())?.key;
   const findDeductionKey = (item: any) => editDeductionOptions.find((o: any) => Number(o.id) === Number(item.deduction_type_id) || (s(o.code).trim() && s(o.code).toUpperCase() === s(item.deduction_code).toUpperCase()) || s(o.label).trim() === s(item.deduction_name).trim())?.key;
@@ -185,7 +197,7 @@ function WorkerReportEditV2() {
       setSelectedNg(selected);
       return next;
     });
-    setMachineLines(sourceLines.map((line: any) => {
+    setMachineLines((Array.isArray(report?.__edit_machine_lines) ? report.__edit_machine_lines : sourceLines).map((line: any) => {
       const lineDefects = Array.isArray(line.defects) ? line.defects : [];
       const defects: Record<string, string> = {};
       const selectedDefects: string[] = [];
@@ -202,7 +214,33 @@ function WorkerReportEditV2() {
     });
   }, [report, sourceDefects, sourceDeductions, sourceLines, editNgOptions, editDeductionOptions]);
 
+  const resolveEditLineStandards = async () => {
+    const workDate = s(form.workDate).slice(0, 10);
+    if (!workDate || !processId) return;
+    const resolvedLines = await Promise.all(machineLines.map(async (line) => {
+      if (!line.machineCode || !line.productCode) return line;
+      try {
+        const resolved: any = await resolveProductStandard(processId, line.machineCode, line.productCode, workDate);
+        if (!resolved) return line;
+        return {
+          ...line,
+          standardOutputPerHour: n(resolved.resolved_output_per_hour ?? resolved.default_standard_output ?? line.standardOutputPerHour),
+          standardTimeSeconds: resolved.standard_time_seconds ?? line.standardTimeSeconds,
+          standardSource: resolved.standard_source ?? line.standardSource,
+        };
+      } catch { return line; }
+    }));
+    setMachineLines(resolvedLines);
+  };
+
+  useEffect(() => {
+    if (!loading && !loadingMasterData && machineLines.some((line) => line.machineCode && line.productCode)) {
+      void resolveEditLineStandards();
+    }
+  }, [loading, loadingMasterData, form.workDate, processId]);
+
   const updateForm = (key: string, value: string) => setForm((current) => ({ ...current, [key]: value }));
+  const updateCvkWorkType = (value: string) => { setWorkType(value); setForm((current) => ({ ...current, workType: value })); };
   const onFormChange = (event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => updateForm(event.target.name || event.target.id, event.target.value);
   const updateLine = (index: number, patch: Partial<MachineLineState>) => setMachineLines((current) => current.map((line, i) => i === index ? { ...line, ...patch } : line));
   const toggleMachineDefect = (index: number, key: string) => setMachineLines((current) => current.map((line, i) => i === index ? toggleMachineDefectLine(line, key) : line));
@@ -264,7 +302,8 @@ function WorkerReportEditV2() {
       setSaving(true);
       if (managerRoute) {
         await updateReport(Number(report.id), payload as ProductionReport, source, report.updated_at || null);
-        navigate(source === "pending" ? `/manager/report/${report.id}?source=pending` : `/manager/report/${report.id}?source=approved`, { replace: true });
+        const roleBasePath = storedRole === "lead" ? "/lead" : storedRole === "admin" ? "/admin" : "/manager";
+        navigate(source === "pending" ? `${roleBasePath}/report/${report.id}?source=pending` : `${roleBasePath}/report/${report.id}?source=approved`, { replace: true });
       } else {
         await updateTempReport(Number(report.id), payload);
         navigate(`/worker/history/${report.id}`, { replace: true });
@@ -286,14 +325,11 @@ function WorkerReportEditV2() {
       {!readOnly && <div className="worker-form-card" style={{ marginBottom: 12 }}><strong>{managerRoute ? `Sửa báo cáo · ${source === "approved" ? "Đã duyệt" : "Chờ duyệt"}` : `Chỉnh sửa trong 10 phút · còn ${timeText}`}</strong><span style={{ marginLeft: 10 }}>{loadingMasterData ? "Đang tải danh mục..." : "Đã tải dữ liệu báo cáo"}</span></div>}
       {error && <div className="worker-form-card" style={{ color: "#b42318", marginBottom: 12 }}>{error}</div>}
 
-      <ProcessBasicInfoSection form={form} setForm={setForm} onFormChange={onFormChange} isCutLongProcess={capabilities.isCutLongProcess} isInspectionProcess={capabilities.isInspectionProcess} isCvkMode={isCvkMode} setIsCvkMode={setIsCvkMode} activeDeductionOptions={editDeductionOptions as any} operationType={operationType} setOperationType={setOperationType} operationMode={operationMode} setOperationMode={setOperationMode} usesMultiMachineLines={usesMultiMachineLines} usesSingleMachine={usesSingleMachine} productAutocompleteOptions={toProductAutocompleteOptions(editProductOptions)} getMachineProductAutocompleteOptions={getMachineProductAutocompleteOptions} productOptions={editProductOptions as any} machineAutocompleteOptions={machineAutocompleteOptions} machineOptions={editMachineOptions} loadingMasterData={loadingMasterData} machineCount={machineCount} maxMachineCount={maxMachineCount} machineLines={machineLines} resizeMachineLines={resizeMachineLines} updateMachineLine={updateLine} refreshMachineLineStandard={refreshMachineLineStandard} getMachineNgTotal={getMachineNgTotal} activeNgOptions={editNgOptions as any} toggleMachineDefect={toggleMachineDefect} updateMachineDefectValue={updateMachineDefectValue} />
+      <ProcessBasicInfoSection form={form} setForm={setForm} onFormChange={onFormChange} isCutLongProcess={capabilities.isCutLongProcess} isInspectionProcess={capabilities.isInspectionProcess} isCvkMode={isCvkMode} setIsCvkMode={setIsCvkMode} operationType={operationType} setOperationType={setOperationType} operationMode={operationMode} setOperationMode={setOperationMode} usesMultiMachineLines={usesMultiMachineLines} usesSingleMachine={usesSingleMachine} productAutocompleteOptions={toProductAutocompleteOptions(editProductOptions)} getMachineProductAutocompleteOptions={getMachineProductAutocompleteOptions} productOptions={editProductOptions as any} machineAutocompleteOptions={machineAutocompleteOptions} machineOptions={editMachineOptions} loadingMasterData={loadingMasterData} machineCount={machineCount} maxMachineCount={maxMachineCount} machineLines={machineLines} resizeMachineLines={resizeMachineLines} updateMachineLine={updateLine} refreshMachineLineStandard={refreshMachineLineStandard} getMachineNgTotal={getMachineNgTotal} activeNgOptions={editNgOptions as any} activeDeductionOptions={editDeductionOptions as any} toggleMachineDefect={toggleMachineDefect} updateMachineDefectValue={updateMachineDefectValue} />
       {report.process_code === "CVK" && <section className="worker-form-card"><h2 className="worker-card-title">Thông tin công việc</h2><div className="worker-basic-grid"><div className="worker-field-block"><label className="worker-field-label">Loại công việc</label><select className="worker-text-input" value={workType} onChange={(e) => setWorkType(e.target.value)}><option>Xuất nhập</option><option>Hỗ trợ</option><option>Kho</option><option>Vệ sinh</option><option>Công việc khác</option></select></div></div></section>}
       {!report.process_code || report.process_code !== "CVK" ? <ProcessQualitySection form={form} activeNgOptions={editNgOptions as any} selectedNg={selectedNg} showNg={showNg} setShowNg={setShowNg} usesMultiMachineLines={usesMultiMachineLines} formatIntegerDisplay={formatIntegerDisplay} onTtOkChange={onTtOkChange} onNumberBlur={onNumberBlur} onToggleNg={toggleNg} onNgValue={updateNg} /> : null}
       <ProcessTimeDeductionSection form={form} setForm={setForm} deductions={deductions} activeDeductionOptions={editDeductionOptions as any} selectedDeduction={selectedDeduction} showDeduction={showDeduction} setShowDeduction={setShowDeduction} onToggleDeduction={toggleDeduction} onUpdateDeduction={updateDeduction} onNormalizeDeduction={normalizeDeduction} onWarning={warning} />
-      {extraFields.length > 0 && <ProcessExtraFieldsSection fields={extraFields} extraData={extraData} setExtraData={setExtraData} />}
-      {Object.keys(extraData).some((key) => !extraFields.some((field) => field.key === key)) && <section className="worker-form-card"><h2 className="worker-card-title">Thông tin bổ sung</h2><div className="worker-basic-grid">{Object.entries(extraData).filter(([key]) => !extraFields.some((field) => field.key === key)).map(([key, value]) => <div className="worker-field-block" key={key}><label className="worker-field-label">{key}</label><input className="worker-text-input" value={value} onChange={(e) => setExtraData((current) => ({ ...current, [key]: e.target.value }))} /></div>)}</div></section>}
-      <section className="worker-form-card"><h2 className="worker-card-title">Ghi chú</h2><textarea className="worker-text-input" rows={3} value={form.note} onChange={(e) => updateForm("note", e.target.value)} /></section>
-      {!readOnly && <div className="worker-action-group"><div className="worker-action-copy"><strong>{saving ? "Đang lưu thay đổi" : "Sẵn sàng lưu báo cáo"}</strong><span>{saving ? "Vui lòng chờ..." : managerRoute ? "Quản lý/Tổ trưởng có thể sửa báo cáo bất cứ lúc nào." : `Còn ${timeText} để sửa báo cáo.`}</span></div><div className="worker-action-buttons"><button type="button" className="worker-reset-button" onClick={() => navigate(-1)} disabled={saving}>Hủy</button><button type="button" className="worker-floating-save" onClick={() => void save()} disabled={saving || (!managerRoute && remaining <= 0)}>{saving ? "Đang lưu..." : !managerRoute && remaining <= 0 ? "Hết thời gian sửa" : "Lưu thay đổi"}</button></div></div>}
+{!readOnly && <div className="worker-action-group"><div className="worker-action-copy"><strong>{saving ? "Đang lưu thay đổi" : "Sẵn sàng lưu báo cáo"}</strong><span>{saving ? "Vui lòng chờ..." : managerRoute ? "Quản lý/Tổ trưởng có thể sửa báo cáo bất cứ lúc nào." : `Còn ${timeText} để sửa báo cáo.`}</span></div><div className="worker-action-buttons"><button type="button" className="worker-reset-button" onClick={() => navigate(-1)} disabled={saving}>Hủy</button><button type="button" className="worker-floating-save" onClick={() => void save()} disabled={saving || (!managerRoute && remaining <= 0)}>{saving ? "Đang lưu..." : !managerRoute && remaining <= 0 ? "Hết thời gian sửa" : "Lưu thay đổi"}</button></div></div>}
     </main>
   </div>;
 }

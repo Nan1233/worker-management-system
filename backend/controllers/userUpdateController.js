@@ -3,6 +3,7 @@ const db = require('../config/db');
 const { clearWorkerProfile } = require('../utils/workerProfileCache');
 const { deleteCachedAuthUser } = require('../utils/authUserCache');
 const { revokeAllUserFamilies } = require('../services/refreshSessionService');
+const { assertUserManagementScope } = require('../services/processAuthorizationService');
 
 const ROLE_CREATE_RULES = { admin: ['manager','lead','worker'], manager: ['lead','worker'], lead: ['worker'] };
 const manageableRoles = (role) => ROLE_CREATE_RULES[role] || [];
@@ -16,6 +17,12 @@ async function getActorProcessIds(connection, actor) {
   return rows.map(r => Number(r.process_id));
 }
 async function canManageTarget(connection, actor, target) {
+  try {
+    await assertUserManagementScope(actor, target, { executor: connection, action:'USER_MANAGEMENT_UPDATE' });
+    return true;
+  } catch (_) {
+    return false;
+  }
   if (!manageableRoles(actor?.role).includes(target.role)) return false;
   if (actor.role === 'admin') return true;
   const actorProcessIds = await getActorProcessIds(connection, actor);
@@ -58,6 +65,7 @@ exports.updateUser = async (req,res) => {
     if('username'in body)payload.username=String(body.username||'').trim();
     if('full_name'in body)payload.full_name=String(body.full_name||'').trim();
     if('status'in body)payload.status=normalizeStatus(body.status);
+    if('position'in body)payload.position=String(body.position || '').trim() || null;
     if(body.password){if(String(body.password).length<6)return res.status(400).json({success:false,message:'Mật khẩu tối thiểu 6 ký tự'});payload.password=await bcrypt.hash(String(body.password),10);}
     if('username'in payload&&!payload.username)return res.status(400).json({success:false,message:'Tên đăng nhập không được để trống'});
     if('full_name'in payload&&!payload.full_name)return res.status(400).json({success:false,message:'Họ tên không được để trống'});

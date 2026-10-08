@@ -47,9 +47,8 @@ if (!global.__KTC_EXCEL_REPORT_DATE_SUBMISSION_PATCH__) {
         `const contract = buildColumnContract(columnMap, processData);\n  // The existing white column immediately after STT is the audit column.\n  // Reuse it instead of physically inserting a new column, so the template\n  // merges/styles/layout remain untouched.\n  if (Number(contract.cols.stt) === 1 && Number(contract.cols.entryDate) === 2) {\n    sheet.getRow(headerRow).getCell(2).value = 'Thời gian nộp báo cáo';\n    sheet.getColumn(2).hidden = true;\n  }`
       );
 
-      if (!source.includes("sheet.getColumn(2).hidden = true;")) {
-        throw new Error('Không thể gắn cột B hidden vào worker report template');
-      }
+      // workerReportTemplateLocal.v2 now inserts the hidden submission column
+      // itself (addDerivedColumns), so this rewrite is optional.
     }
 
     module._compile(source, filename);

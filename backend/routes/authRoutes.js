@@ -6,7 +6,9 @@ const {
     loginAccountLimiter,
     loginNetworkLimiter,
     refreshLimiter,
+    passwordChangeLimiter,
 } = require("../middleware/rateLimiters");
+const authMiddleware = require("../middleware/authMiddleware");
 
 async function ensureCloudflareTestMigrationsBeforeLogin(req, res, next) {
     const isCloudflareWorker = String(process.env.KTC_CLOUDFLARE_WORKER || "").toLowerCase() === "true";
@@ -46,5 +48,6 @@ router.post(
 );
 router.post("/refresh", refreshLimiter, authController.refresh);
 router.post("/logout", authController.logout);
+router.put("/password", authMiddleware, passwordChangeLimiter, authController.changePassword);
 
 module.exports = router;

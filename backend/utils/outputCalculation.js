@@ -6,13 +6,11 @@ const {
 
 const KQD_CODES = new Set(KQD_EXCLUSION_CODES);
 
-// Legacy parameter is intentionally ignored: KQD is no longer excluded from
-// NG/output calculations.
-const calculateCountedNg = (defects = []) =>
-  calculateProductionOutput({ ok: 0, defects }).countedNg;
+const calculateCountedNg = (defects = [], excludeKqdFromTt = false) =>
+  calculateProductionOutput({ ok: 0, defects, excludeKqdFromTt }).countedNg;
 
-const calculateActualOutput = ({ ttOk, defects }) =>
-  calculateProductionOutput({ ok: ttOk, defects }).actualOutput;
+const calculateActualOutput = ({ ttOk, defects, excludeKqdFromTt = false }) =>
+  calculateProductionOutput({ ok: ttOk, defects, excludeKqdFromTt }).actualOutput;
 
 module.exports = {
   KQD_CODES,

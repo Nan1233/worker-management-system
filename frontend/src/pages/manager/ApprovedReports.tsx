@@ -66,7 +66,7 @@ const parseMachineDefects = (detail: Record<string, unknown> | null) => {
 
 export default function ApprovedReports() {
     const [date, setDate] = useState(getToday());
-    const [range, setRange] = useState<{ dateFrom: string; dateTo: string } | null>(null);
+    const [range, setRange] = useState<{ dateFrom: string; dateTo: string } | null>(() => rangeFor(getToday(), "month"));
     const [search, setSearch] = useState(""); const [process, setProcess] = useState(""); const [shift, setShift] = useState("");
     const [reports, setReports] = useState<ProductionReport[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
     const [page, setPage] = useState(1); const [pages, setPages] = useState(1); const [total, setTotal] = useState(0);

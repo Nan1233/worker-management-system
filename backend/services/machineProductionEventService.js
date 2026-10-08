@@ -184,7 +184,9 @@ async function linkTempLines(executor, event, tempLineIds = []) {
 
 function calculateEventPhysical({ physicalOkQuantity, defects, excludeKqdFromTt, machineTimeHours, standardOutput }) {
   const ok = nonNegativeInteger(physicalOkQuantity || 0, 'physical_ok_quantity');
-  const output = calculateProductionOutput({ ok, defects, excludeKqdFromTt: Number(excludeKqdFromTt)===1 });
+  // Physical event truth always counts every physical NG, including KQD.
+  // excludeKqdFromTt belongs to worker/report credit calculation, not physical output.
+  const output = calculateProductionOutput({ ok, defects, excludeKqdFromTt: false });
   return {
     physicalOkQuantity: ok,
     physicalNgQuantity: output.totalNg,
