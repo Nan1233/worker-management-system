@@ -24,6 +24,8 @@ const GROUPS = Object.freeze({
   }
 });
 
+const { expandGcReportRows } = require('./gcWorkerRows.cjs');
+
 const LAYOUTS = Object.freeze({
   GIA_CONG: {
     headerSearchColumn: 31,
@@ -697,7 +699,14 @@ function writeGiaCongRow(sheet, rowNumber, report, layout, sequence) {
 
   writeDetailColumns(row, report, layout, [], []);
 
-  setFormula(row, fixed.deductionTotal, `SUM(K${rowNumber}:Z${rowNumber})`, metrics.deductionTotal, '0.00');
+  // A machine line may carry deduction hours without a per-type breakdown; SUM(K:Z)
+  // would drop them and inflate the actual time, so write the line's total as a value.
+  if (report.gc_row_deduction_hours !== undefined && Math.abs(report.gc_row_deduction_hours - metrics.deductionTotal) > 0.005) {
+    setCell(row, fixed.deductionTotal, report.gc_row_deduction_hours, '0.00');
+    metrics.deductionTotal = report.gc_row_deduction_hours;
+  } else {
+    setFormula(row, fixed.deductionTotal, `SUM(K${rowNumber}:Z${rowNumber})`, metrics.deductionTotal, '0.00');
+  }
   setFormula(row, fixed.actualTime, `MAX(0,G${rowNumber}-J${rowNumber})`, metrics.actualTime, '0.00');
   setCell(row, fixed.changeCount, metrics.changeCount, '0');
   setCell(row, fixed.product, safeText(report.product_code || report.product_name));
@@ -753,6 +762,52 @@ function isValidReport(report) {
   const hasWorker = Boolean(safeText(report.worker_code).trim());
   const hasProduct = Boolean(safeText(report.product_code || report.product_name).trim());
   return hasWorker && hasProduct && Boolean(dateKey(report.work_date));
+}
+
+function snapshotStyles(sheet, rowNumber, columnCount) {
+  const row = sheet.getRow(rowNumber);
+  const styles = [];
+  for (let c = 1; c <= columnCount; c += 1) styles[c] = JSON.parse(JSON.stringify(row.getCell(c).style || {}));
+  return { height: row.height, styles };
+}
+
+function applyStyles(row, snapshot, columnCount) {
+  if (snapshot.height) row.height = snapshot.height;
+  for (let c = 1; c <= columnCount; c += 1) row.getCell(c).style = JSON.parse(JSON.stringify(snapshot.styles[c] || {}));
+}
+
+// The GC template has one flat data region (date row, then data rows). Every
+// work date gets its own date row, STT restarts at 1 under it, and each machine
+// line is one row. Rows beyond the template's region are created with the
+// template's own styles, so no valid report is dropped.
+function writeGiaCongByDate(sheet, block, reportsByDay, layout, deductionTypes, defectTypes) {
+  const columnCount = layout.lastReportColumn;
+  const dateStyle = snapshotStyles(sheet, block.startRow, columnCount);
+  const dataStyle = snapshotStyles(sheet, Math.min(block.startRow + 2, block.endRow), columnCount);
+  let rowNumber = block.startRow;
+  for (const day of [...reportsByDay.keys()].sort((a, b) => a - b)) {
+    const dayReports = reportsByDay.get(day);
+    const dateRow = sheet.getRow(rowNumber);
+    applyStyles(dateRow, dateStyle, columnCount);
+    clearReportRow(dateRow, columnCount);
+    dateRow.hidden = false;
+    setCell(dateRow, 1, toExcelDate(dayReports[0].work_date), 'd-mmm');
+    rowNumber += 1;
+    let sequence = 0;
+    for (const report of dayReports) {
+      for (const lineReport of expandGcReportRows(report)) {
+        const row = sheet.getRow(rowNumber);
+        applyStyles(row, dataStyle, columnCount);
+        try {
+          writeRow(sheet, rowNumber, lineReport, layout, deductionTypes, defectTypes, sequence + 1);
+        } catch (error) {
+          throw new Error(`Không ghi được báo cáo ${report.id} (mã công nhân ${safeText(report.worker_code)}, ngày ${dateKey(report.work_date)}): ${error.message}`);
+        }
+        sequence += 1;
+        rowNumber += 1;
+      }
+    }
+  }
 }
 
 async function buildCompanyExcelLocal({ appPath, date, groupCode, payload, existingFilePath }) {
@@ -820,9 +875,17 @@ async function buildCompanyExcelLocal({ appPath, date, groupCode, payload, exist
       reportsByDay.get(day).push(report);
     }
 
+    if (layout === LAYOUTS.GIA_CONG) {
+      writeGiaCongByDate(sheet, blocks[0], reportsByDay, layout, deductionTypes, defectTypes);
+      continue;
+    }
+
     for (const [day, dayReports] of reportsByDay) {
       const block = blocks[day - 1];
-      if (!block) continue;
+      if (!block) {
+        const first = dayReports[0];
+        throw new Error(`Sheet ${sheet.name} không có vùng dữ liệu cho ngày ${dateKey(first.work_date)} (báo cáo ${first.id}, mã công nhân ${safeText(first.worker_code)}).`);
+      }
       const capacity = block.endRow - block.startRow + 1;
       if (dayReports.length > capacity) {
         throw new Error(`Ngày ${day} có ${dayReports.length} báo cáo, vượt sức chứa ${capacity} dòng của sheet ${sheet.name}`);

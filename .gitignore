@@ -72,3 +72,7 @@ frontend/android/.gradle/
 frontend/android/build/
 frontend/android/app/build/
 frontend/android/capacitor-cordova-android-plugins/build/
+
+# E2E artifacts (screenshots, logs, payloads, DB verification, Excel output)
+/test-results/
+/validation-artifacts/
