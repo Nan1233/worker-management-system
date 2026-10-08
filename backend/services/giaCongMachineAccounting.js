@@ -29,7 +29,10 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
         grossHours += Math.max(0, Number(event.machine_time_hours) || 0);
       }
     } else {
-      grossHours += Math.max(0, Number(line.machine_time_hours) || 0);
+      if (!eventId || !seenEvents.has(eventId)) {
+        if (eventId) seenEvents.add(eventId);
+        grossHours += Math.max(0, Number(line.machine_time_hours) || 0);
+      }
     }
 
     const lineDeductionHours = Math.max(0, Number(line.deduction_time_hours) || 0, (Number(line.adjustment_minutes) || 0) / 60);
