@@ -81,9 +81,9 @@ exports.getApprovedReports = async (req, res) => {
     const [countRows] = await db.promise().query(
       `SELECT COUNT(*) AS total
          FROM production_reports pr
-         JOIN workers w ON pr.worker_id=w.id
-         JOIN users u ON w.user_id=u.id
-         JOIN processes p ON pr.process_id=p.id
+         LEFT JOIN workers w ON pr.worker_id=w.id
+         LEFT JOIN users u ON w.user_id=u.id
+         LEFT JOIN processes p ON pr.process_id=p.id
         WHERE ${whereSql}`,
       params,
     );
@@ -106,9 +106,9 @@ exports.getApprovedReports = async (req, res) => {
                             JOIN production_report_machine_defects md ON md.machine_line_id=ml.id
                            WHERE ml.report_id=pr.id AND md.quantity>0), 0) AS ng_defect_type_count
          FROM production_reports pr
-         JOIN workers w ON pr.worker_id=w.id
-         JOIN users u ON w.user_id=u.id
-         JOIN processes p ON pr.process_id=p.id
+         LEFT JOIN workers w ON pr.worker_id=w.id
+         LEFT JOIN users u ON w.user_id=u.id
+         LEFT JOIN processes p ON pr.process_id=p.id
         WHERE ${whereSql}
         ORDER BY pr.work_date DESC, pr.id DESC
         LIMIT ${pageSize} OFFSET ${offset}`,

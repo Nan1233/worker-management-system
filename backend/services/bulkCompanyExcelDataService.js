@@ -130,9 +130,9 @@ async function loadBulkCompanyReports(yearMonth, actor) {
         pr.exclude_kqd_from_tt_snapshot,
         COALESCE(pr.exclude_kqd_from_tt_snapshot, 0) AS exclude_kqd_from_tt
        FROM production_reports pr
-       INNER JOIN workers w ON w.id = pr.worker_id
-       INNER JOIN users u ON u.id = w.user_id
-       INNER JOIN processes p ON p.id = pr.process_id
+       LEFT JOIN workers w ON w.id = pr.worker_id
+       LEFT JOIN users u ON u.id = w.user_id
+       LEFT JOIN processes p ON p.id = pr.process_id
        LEFT JOIN production_reports_temp temp ON temp.id = pr.source_temp_id
       WHERE LOWER(TRIM(COALESCE(pr.status, ''))) = 'approved'
         AND pr.work_date >= ? AND pr.work_date < ?
