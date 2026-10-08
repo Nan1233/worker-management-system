@@ -1,56 +1,135 @@
-import { test, expect, request } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+import { ACCOUNTS, API, apiToken, hashPath, loginManagement, loginWorker, phoneContext, route } from './helpers';
 
-const apiBase = process.env.KTC_E2E_API_URL || 'http://127.0.0.1:19080';
-const workerCode = process.env.KTC_E2E_WORKER_CODE || '';
-const managerUsername = process.env.KTC_E2E_MANAGER_USERNAME || '';
-const managerPassword = process.env.KTC_E2E_MANAGER_PASSWORD || '';
+// Real browser + real frontend + real backend + real database
+// (backend/tests/integration/e2e-server.js). Nothing is mocked and no step is
+// skipped for missing credentials: the accounts are seeded by the e2e server.
+//
+//   pending -> REJECTED -> worker edits the SAME report -> pending -> APPROVED
+//
+// Excel: workbooks are produced by the Desktop app only, so on the web the
+// export page must say so (and link to the Desktop download).
 
-function requireCredentials() {
-  if (!workerCode || !managerUsername || !managerPassword) test.skip(true, 'Set KTC_E2E_WORKER_CODE, KTC_E2E_MANAGER_USERNAME and KTC_E2E_MANAGER_PASSWORD for write-path E2E.');
+const state: { reportId: number; managerToken: string; workerToken: string } = { reportId: 0, managerToken: '', workerToken: '' };
+
+async function openFirstPendingReport(page: Page) {
+  await page.goto(route('/manager/reports'));
+  await page.getByRole('button', { name: 'Tháng này' }).click();
+  const row = page.locator('main table tbody tr').filter({ hasText: ACCOUNTS.worker.code }).first();
+  await expect(row).toBeVisible({ timeout: 15_000 });
+  await row.click();
+  await expect(page.getByRole('button', { name: 'Từ chối' })).toBeEnabled({ timeout: 20_000 });
 }
 
-test.describe('KTC Worker → Manager → Approval → Excel', () => {
-  test('real browser critical flow', async ({ browser }) => {
-    requireCredentials();
-    const api = await request.newContext({ baseURL: apiBase });
+test.describe.serial('KTC Worker → Manager → Approval → Excel', () => {
+  test.beforeAll(async ({ request }) => {
+    state.managerToken = await apiToken(request, { username: ACCOUNTS.manager.code, password: ACCOUNTS.manager.password, access_type: 'management' });
+    state.workerToken = await apiToken(request, { username: ACCOUNTS.worker.code, access_type: 'worker' });
+  });
 
-    const workerLogin = await api.post('/api/auth/login', { data: { username: workerCode, access_type: 'worker' } });
-    expect(workerLogin.ok()).toBeTruthy();
-    const workerState = await api.storageState();
-    const workerContext = await browser.newContext({ storageState: workerState });
-    const workerPage = await workerContext.newPage();
-    await workerPage.goto(`${process.env.KTC_FRONTEND_URL || 'http://127.0.0.1:5173'}/worker`);
-    await expect(workerPage).toHaveURL(/\/worker/);
-    await expect(workerPage.locator('body')).toContainText(/công đoạn|sản xuất|worker/i);
-    await workerContext.close();
+  test('worker submits a report through the real phone form', async ({ browser }) => {
+    const context = await phoneContext(browser);
+    const page = await context.newPage();
+    await loginWorker(page);
 
-    const managerLogin = await api.post('/api/auth/login', { data: { username: managerUsername, password: managerPassword, access_type: 'management' } });
-    expect(managerLogin.ok()).toBeTruthy();
-    const managerData = await managerLogin.json();
-    expect(managerData.user?.role || managerData.data?.user?.role).toMatch(/manager|admin|lead/);
-    const managerState = await api.storageState();
-    const managerContext = await browser.newContext({ storageState: managerState });
-    const managerPage = await managerContext.newPage();
-    await managerPage.goto(`${process.env.KTC_FRONTEND_URL || 'http://127.0.0.1:5173'}/manager`);
-    await expect(managerPage).toHaveURL(/\/manager/);
-    await expect(managerPage.locator('body')).toContainText(/dashboard|báo cáo|quản lý/i);
+    await page.goto(route('/worker/process/select'));
+    await page.getByText('Xử lý bavia').first().click();
+    await page.waitForSelector('#productName:not([disabled])', { timeout: 20_000 });
+    await page.selectOption('#workerWorkDate', { index: 1 }); // "Hôm qua"
+    await page.locator('input[name=shift]').first().check({ force: true });
+    await page.locator('#productName').fill('0603');
+    await page.locator('.autocomplete-menu .autocomplete-option-main').filter({ hasText: /^0603$/ }).click();
+    await page.locator('.worker-time-part input').nth(0).fill('7');
+    await page.locator('#ttOk').fill('100');
 
-    const pending = await api.get('/api/production-temp/pending');
-    expect([200, 403]).toContain(pending.status());
-    if (pending.status() === 200) {
-      const pendingData = await pending.json();
-      const reports = pendingData.data?.reports || pendingData.data || [];
-      const candidate = Array.isArray(reports) ? reports.find(Boolean) : null;
-      if (candidate?.id) {
-        const approval = await api.post('/api/production-temp/approve-selected', { data: { ids: [candidate.id] } });
-        expect([200, 409, 422]).toContain(approval.status());
-      }
-    }
+    await page.getByRole('button', { name: 'Nộp dữ liệu' }).click();
+    // The form asks for confirmation and shows the hours that will be counted.
+    await expect(page.getByText('Tổng thời gian hôm nay sau khi nộp')).toBeVisible();
+    const created = page.waitForResponse((r) => new URL(r.url()).pathname.replace(/\/$/, '') === '/api/production-temp' && r.request().method() === 'POST');
+    await page.getByRole('button', { name: 'Xác nhận nộp' }).click();
+    const response = await created;
+    expect(response.status()).toBe(201);
+    state.reportId = (await response.json()).id;
+    expect(state.reportId).toBeGreaterThan(0);
+    await expect(page.getByText('Báo cáo đã được gửi chờ duyệt')).toBeVisible();
+    await context.close();
+  });
 
-    const excel = await api.get('/api/reports/export-excel/company-data?month=' + new Date().toISOString().slice(0, 7));
-    expect([200, 403]).toContain(excel.status());
-    await expect(managerPage.locator('body')).toHaveScreenshot('manager-dashboard-authenticated.png', { fullPage: true, animations: 'disabled' });
-    await managerContext.close();
-    await api.dispose();
+  test('manager rejects it with a reason', async ({ browser, request }) => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const page = await context.newPage();
+    await loginManagement(page, ACCOUNTS.manager, /^\/manager/);
+    await openFirstPendingReport(page);
+
+    await page.getByRole('button', { name: 'Từ chối' }).click();
+    await page.locator('textarea').fill('Nhập sai số lượng OK');
+    const rejected = page.waitForResponse((r) => r.url().endsWith('/api/production-temp/reject-selected'));
+    await page.getByRole('button', { name: 'Xác nhận từ chối' }).click();
+    expect((await rejected).status()).toBe(200);
+
+    const detail = await request.get(`${API}/api/production-temp/${state.reportId}`, { headers: { Authorization: `Bearer ${state.managerToken}` } });
+    expect(detail.status()).toBe(200);
+    const report = (await detail.json()).data;
+    expect(report.status).toBe('rejected');
+    expect(report.review_note).toContain('Nhập sai số lượng OK');
+    await context.close();
+  });
+
+  test('worker sees the reason, edits the SAME report and resubmits it', async ({ browser, request }) => {
+    const context = await phoneContext(browser);
+    const page = await context.newPage();
+    await loginWorker(page);
+
+    // The notification explains what happened…
+    await page.goto(route('/worker/notifications'));
+    await expect(page.getByText('Báo cáo đã bị từ chối')).toBeVisible();
+    await expect(page.getByText(/Nhập sai số lượng OK/)).toBeVisible();
+    await expect(page.getByText(/Báo cáo ngày \d{4}-\d{2}-\d{2}/)).toBeVisible();
+
+    // …and the report detail offers the way back in.
+    await page.goto(route(`/worker/history/${state.reportId}?source=temp`));
+    const callout = page.getByTestId('worker-edit-callout');
+    await expect(callout).toContainText('Báo cáo đã bị từ chối');
+    await expect(callout).toContainText('Nhập sai số lượng OK');
+    await callout.getByRole('button', { name: 'Sửa và gửi lại' }).click();
+    await expect.poll(() => hashPath(page)).toBe(`/worker/history/${state.reportId}/edit`);
+
+    await page.locator('#ttOk').fill('90');
+    const saved = page.waitForResponse((r) => r.url().endsWith(`/api/production-temp/${state.reportId}`) && r.request().method() === 'PUT');
+    await page.getByRole('button', { name: 'Lưu thay đổi' }).click();
+    expect((await saved).status()).toBe(200);
+
+    const detail = await request.get(`${API}/api/production-temp/${state.reportId}`, { headers: { Authorization: `Bearer ${state.workerToken}` } });
+    const report = (await detail.json()).data;
+    expect(report.status).toBe('pending');
+    expect(Number(report.tt_ok)).toBe(90);
+    expect(report.review_note ?? null).toBeNull();
+    await context.close();
+  });
+
+  test('manager approves the corrected report; Excel page explains the Desktop requirement', async ({ browser, request }) => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const page = await context.newPage();
+    await loginManagement(page, ACCOUNTS.manager, /^\/manager/);
+    await openFirstPendingReport(page);
+
+    const approved = page.waitForResponse((r) => r.url().endsWith('/api/production-temp/approve-selected'));
+    await page.getByRole('button', { name: /Duyệt/ }).first().click();
+    const confirm = page.getByRole('button', { name: /Xác nhận|Đồng ý/ });
+    if (await confirm.count()) await confirm.first().click();
+    expect((await approved).status()).toBe(200);
+
+    const detail = await request.get(`${API}/api/production-temp/${state.reportId}`, { headers: { Authorization: `Bearer ${state.managerToken}` } });
+    expect((await detail.json()).data.status).toBe('approved');
+
+    await page.goto(route('/manager/approved'));
+    await page.getByRole('button', { name: 'Tháng này' }).click();
+    await expect(page.locator('main')).toContainText(ACCOUNTS.worker.code);
+    await expect(page.getByTestId('desktop-excel-notice')).toBeVisible();
+
+    await page.goto(route('/manager/export'));
+    await expect(page.getByTestId('desktop-excel-notice')).toContainText('KTC Desktop');
+    await expect(page.getByRole('link', { name: 'Tải KTC Desktop' })).toHaveAttribute('href', /github\.com\/.+\/releases/);
+    await context.close();
   });
 });

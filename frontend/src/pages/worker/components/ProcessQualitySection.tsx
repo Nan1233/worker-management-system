@@ -11,7 +11,7 @@ interface Props {
     onToggleNg: (key: NgKey, checked: boolean) => void; onNgValue: (key: NgKey, value: string) => void;
 }
 const normalizeCode = (value: unknown) => String(value ?? "").trim().toUpperCase();
-const CVK_WORK_TYPES = new Set(["XUATNHAP", "KTCD", "TAIPP"]);
+const CVK_WORK_TYPES = new Set(["CVK", "XUATNHAP", "KTCD", "TAIPP"]);
 
 export default function ProcessQualitySection({ form, activeNgOptions, selectedNg, showNg, setShowNg, usesMultiMachineLines, qualityLocked: qualityLockedProp, formatIntegerDisplay, onTtOkChange, onNumberBlur, onToggleNg, onNgValue }: Props) {
     // CVK là công việc không có định mức: không có SL OK/NG/TT và không có chi tiết NG.

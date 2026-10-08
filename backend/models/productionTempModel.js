@@ -4,6 +4,7 @@ const nonProductWorkModel = require("./nonProductWorkCreateModel");
 const readModel = require("./productionTempReadModel");
 const reviewModel = require("./productionTempReviewModel");
 const historyModel = require("./productionTempHistoryModel");
+const updateModel = require("./productionTempUpdateModel");
 const AuditService = require("../services/auditService");
 const { query, getConnection, beginTransaction, commit, rollback } = require("./productionTempModelShared");
 const { resolveInitialTrainingSnapshot } = require("../services/trainingSnapshotService");
@@ -325,4 +326,4 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
     });
 };
 
-module.exports = { ...createModel, createCompleteReport, ...readModel, ...reviewModel, ...historyModel, enforceDailyWorkerHours };
+module.exports = { ...createModel, createCompleteReport, ...readModel, ...reviewModel, ...historyModel, ...updateModel, enforceDailyWorkerHours };

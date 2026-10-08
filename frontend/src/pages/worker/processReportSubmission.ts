@@ -121,7 +121,7 @@ export function buildProductionReportPayload(args: {
     const fullProductCode = resolveSubmittedProductCode(args.form.productName, args.form.machineNo, args.operationType, args.productOptions);
     lines.splice(0, lines.length, {
       machine_code:args.form.machineNo.trim(), product_code:fullProductCode, machine_time_hours:parseHours(args.form.actualTime), adjustment_minutes:0,
-      adjustment_count:num(args.form.adjustmentCount), ok_quantity:num(args.form.ttOk), ng_quantity:num(args.form.ttNg),
+      adjustment_count:num(args.form.adjustmentCount), deduction_time_hours:0, deductions:[], ok_quantity:num(args.form.ttOk), ng_quantity:num(args.form.ttNg),
       standard_output:resolvePositiveStandardOutput(args.form.productName,args.form.standardOutput), standard_time_seconds:null, standard_source:"DEFAULT", defects:singleLineDefects,
     });
   }
@@ -148,10 +148,11 @@ export function buildProductionReportPayload(args: {
   const automaticCutMachines = new Set<string>(["C5", "C6", "C7", "C11"]);
   const executionMethod = args.operationType === "CUT" ? (automaticCutMachines.has(normalizedMachine) ? "AUTO" : "NON_AUTO") : ((args.form.executionMethod === "MANUAL" || args.form.executionMethod === "MACHINE") ? args.form.executionMethod : (args.usesAnyMachine ? "MACHINE" : "MANUAL"));
   const cvkWorkType = String(args.form.workType || args.extraData?.work_type || "").trim();
-  const isCvk = Number(args.processId) === 30002 || Number(args.processId) === 60006 || String(args.extraData?.process_code || "").trim().toUpperCase() === "CVK";
+  const isCvk = Number(args.processId) === 30002 || Number(args.processId) === 60006 || String(args.extraData?.process_code || args.extraData?.processCode || "").trim().toUpperCase() === "CVK" || ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType.toUpperCase());
+  const effectiveProcessId = isCvk ? 30002 : args.processId;
 
   return {
-    process_id:args.processId, work_date:args.form.workDate, shift:args.form.shift,
+    process_id: effectiveProcessId, work_date:args.form.workDate, shift:args.form.shift,
     machine_no:useMachineLinesPayload?lines.map(l=>l.machine_code).join(", "):args.form.machineNo,
     product_name:useMachineLinesPayload?[...new Set(lines.map(l=>l.product_code).filter(Boolean))].join(", "):resolveSubmittedProductCode(args.form.productName, args.form.machineNo, args.operationType, args.productOptions),
     work_type:isCvk ? cvkWorkType : undefined,

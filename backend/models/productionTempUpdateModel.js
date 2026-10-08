@@ -38,6 +38,15 @@ const parseDbTimestampMs = (value) => {
     return Number.isFinite(parsed) ? parsed : NaN;
 };
 
+// Pending reports: the worker's 10-minute window starts when the report is created.
+// Rejected reports (lifecycle pending -> rejected -> edit -> pending): the window
+// starts when the reviewer rejected it. Reject writes updated_at=NOW().
+const getWorkerEditWindowStart = (report) => {
+    const fromRejection = String(report?.status || "").toLowerCase() === "rejected";
+    const value = fromRejection ? report.updated_at : report.created_at;
+    return { startMs: parseDbTimestampMs(value), value, fromRejection };
+};
+
 module.exports = {
     async updateReport(id, data, changedBy, reason = null, options = {}) {
         const connection = await getConnection();
@@ -60,17 +69,19 @@ module.exports = {
             }
 
             if (isWorkerEdit) {
-                const createdAtMs = parseDbTimestampMs(current.created_at);
-                if (!Number.isFinite(createdAtMs)) {
+                const windowStart = getWorkerEditWindowStart(current);
+                if (!Number.isFinite(windowStart.startMs)) {
                     const error = new Error("Không xác định được thời điểm tạo báo cáo để kiểm tra thời gian sửa.");
                     error.status = 422; error.code = "TEMP_REPORT_EDIT_TIME_INVALID"; error.isPublic = true;
                     throw error;
                 }
-                const remainingMs = createdAtMs + WORKER_EDIT_WINDOW_MS - Date.now();
+                const remainingMs = windowStart.startMs + WORKER_EDIT_WINDOW_MS - Date.now();
                 if (remainingMs <= 0) {
-                    const error = new Error("Báo cáo chỉ được sửa trong vòng 10 phút kể từ lúc tạo.");
+                    const error = new Error(windowStart.fromRejection
+                        ? "Báo cáo bị từ chối chỉ được sửa trong vòng 10 phút kể từ lúc bị từ chối."
+                        : "Báo cáo chỉ được sửa trong vòng 10 phút kể từ lúc tạo.");
                     error.status = 422; error.code = "TEMP_REPORT_EDIT_WINDOW_EXPIRED"; error.isPublic = true;
-                    error.details = { created_at: current.created_at, edit_window_ms: WORKER_EDIT_WINDOW_MS };
+                    error.details = { created_at: current.created_at, window_started_at: windowStart.value, window_from: windowStart.fromRejection ? "rejection" : "creation", edit_window_ms: WORKER_EDIT_WINDOW_MS };
                     throw error;
                 }
             }
@@ -194,4 +205,6 @@ module.exports = {
         } catch (error) { await rollback(connection); throw error; }
         finally { connection.release(); }
     }
+    ,_getWorkerEditWindowStart: getWorkerEditWindowStart,
+    _WORKER_EDIT_WINDOW_MS: WORKER_EDIT_WINDOW_MS
 };

@@ -4,6 +4,7 @@ import { Building2, BriefcaseBusiness, CheckCircle2, LogOut, Phone, ShieldCheck,
 import { api } from "../../services/api";
 import { logout } from "../../services/authService";
 import { getStoredUser } from "../../utils/authStorage";
+import ChangePasswordCard from "../../components/system/ChangePasswordCard";
 
 type WorkerProcess = { id: number; code: string; name: string };
 type WorkerProfile = {
@@ -116,6 +117,8 @@ export default function Profile() {
           </dl>
         )}
       </div>
+
+      <ChangePasswordCard role={storedUser?.role} />
 
       <button
         type="button"

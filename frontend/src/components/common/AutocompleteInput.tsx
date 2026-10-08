@@ -11,7 +11,7 @@ interface AutocompleteInputProps {
     id: string;
     label: string;
     value: string;
-    options: AutocompleteOption[];
+    options: readonly AutocompleteOption[];
     placeholder?: string;
     required?: boolean;
     disabled?: boolean;

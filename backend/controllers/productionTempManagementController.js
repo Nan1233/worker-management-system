@@ -211,7 +211,7 @@ exports.approveSelectedReports = async (req, res) => {
         });
     } catch (error) {
         console.error("APPROVE SELECTED REPORTS ERROR:", error);
-        return res.status(error.status || 400).json({ success: false, message: publicMessage(error, "Không thể duyệt báo cáo") });
+        return res.status(error.status || 400).json({ success: false, code: error.code || undefined, message: publicMessage(error, "Không thể duyệt báo cáo") });
     }
 };
 

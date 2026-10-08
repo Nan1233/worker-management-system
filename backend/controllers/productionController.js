@@ -44,7 +44,7 @@ exports.getReportById=async(req,res)=>{
     }
 
     const [reportRows]=await db.promise().query(
-      `SELECT pr.*,p.process_name,w.worker_code,u.full_name,COALESCE(pr.training_percent_snapshot,w.training_percent,100) AS training_percent
+      `SELECT pr.*,p.process_name,p.process_code,w.worker_code,u.full_name,COALESCE(pr.training_percent_snapshot,w.training_percent,100) AS training_percent
          FROM production_reports pr
          JOIN workers w ON pr.worker_id=w.id
          JOIN users u ON w.user_id=u.id

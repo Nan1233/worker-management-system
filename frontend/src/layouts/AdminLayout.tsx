@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Boxes, Cog, FileWarning, History, LayoutDashboard, Menu, MoreHorizontal, ShieldCheck, Timer, UserRound, Users, Bell, X } from "lucide-react";
+import { BarChart3, Boxes, ClipboardCheck, Cog, Download, Factory, FileWarning, History, LayoutDashboard, Menu, MoreHorizontal, ShieldCheck, Timer, UserRound, Users, Bell, X } from "lucide-react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { getStoredUser } from "../utils/authStorage";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
@@ -10,11 +10,16 @@ import "./AdminLayout.css";
 type AdminMenuItem={label:string;path:string;icon:typeof LayoutDashboard;permission:PermissionCode};
 const items:AdminMenuItem[]=[
  {label:"Tổng quan hệ thống",path:"",icon:LayoutDashboard,permission:"DASHBOARD_VIEW"},
+ {label:"Chờ duyệt",path:"reports",icon:ClipboardCheck,permission:"REPORT_PENDING_VIEW"},
+ {label:"Đã duyệt",path:"approved",icon:ShieldCheck,permission:"REPORT_APPROVED_VIEW"},
+ {label:"Thống kê",path:"statistics",icon:BarChart3,permission:"STATISTICS_VIEW"},
+ {label:"Xuất Excel",path:"export",icon:Download,permission:"REPORT_EXPORT"},
  {label:"Tài khoản & nhân sự",path:"workers",icon:Users,permission:"USER_VIEW"},
  {label:"Máy móc",path:"master/machines",icon:Cog,permission:"MASTER_VIEW"},
  {label:"Sản phẩm & định mức",path:"master/standards",icon:Boxes,permission:"MASTER_VIEW"},
  {label:"Trừ giờ",path:"master/deductions",icon:Timer,permission:"MASTER_VIEW"},
  {label:"Loại lỗi",path:"master/defects",icon:FileWarning,permission:"MASTER_VIEW"},
+ {label:"Công đoạn",path:"master/processes",icon:Factory,permission:"MASTER_VIEW"},
  {label:"Vai trò & quyền",path:"permissions",icon:ShieldCheck,permission:"PERMISSION_MANAGE"},
  {label:"Nhật ký hoạt động",path:"system",icon:History,permission:"AUDIT_VIEW"},
 ];
