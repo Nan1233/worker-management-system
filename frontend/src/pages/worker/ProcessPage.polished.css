@@ -255,3 +255,66 @@
     font-size: 10.5px !important;
   }
 }
+
+
+/* Machine rows: reuse the exact worker time/deduction/NG interaction language. */
+.machine-worker-time-grid {
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, .8fr) minmax(0, .9fr) !important;
+  gap: 6px !important;
+  margin-top: 6px !important;
+}
+.machine-worker-time-grid .worker-time-item {
+  min-width: 0 !important;
+  padding: 8px !important;
+  border: 1px solid #dce6f0 !important;
+  background: #fff !important;
+}
+.machine-worker-time-grid .worker-time-item > label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.machine-worker-time-grid .worker-time-part input,
+.machine-worker-time-grid .worker-time-item > input {
+  min-height: 38px !important;
+}
+.machine-worker-deduction-box,
+.machine-worker-ng-box {
+  margin-top: 7px !important;
+}
+.machine-worker-deduction-box .worker-dropdown-title,
+.machine-worker-ng-box .worker-dropdown-title {
+  min-height: 38px !important;
+  height: 38px !important;
+}
+.machine-worker-deduction-detail-grid,
+.machine-worker-ng-detail-grid {
+  margin-top: 7px !important;
+}
+.machine-worker-deduction-detail-grid .worker-field-block,
+.machine-worker-ng-detail-grid .worker-field-block {
+  min-width: 0 !important;
+}
+.machine-worker-ng-detail-grid .worker-text-input,
+.machine-worker-deduction-detail-grid .worker-text-input {
+  min-height: 38px !important;
+}
+@media (max-width: 680px) {
+  .machine-worker-time-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+  .machine-worker-time-grid .worker-time-item {
+    padding: 7px !important;
+  }
+}
+@media (max-width: 500px) {
+  .machine-worker-time-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .machine-worker-time-grid .worker-time-item:first-child {
+    grid-column: 1 / -1 !important;
+  }
+  .machine-worker-time-grid .worker-time-item.worker-time-computed:last-child {
+    grid-column: auto !important;
+  }
+}
