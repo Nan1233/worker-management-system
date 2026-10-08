@@ -299,7 +299,7 @@ function extractLegacyGcColumnDeductionCandidates(report) {
   if (!extra || Array.isArray(extra) || typeof extra !== "object") return [];
   const result = [];
   for (const [key, value] of Object.entries(extra)) {
-    if (!/^\\d+$/.test(key)) continue;
+    if (!/^\d+$/.test(key)) continue;
     const columnIndex = Number(key);
     const label = LEGACY_GC_DEDUCTION_COLUMN_LABELS.get(columnIndex);
     if (!label) continue;
