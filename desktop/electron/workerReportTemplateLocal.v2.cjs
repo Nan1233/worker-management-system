@@ -664,7 +664,8 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
       const row = sheet.getRow(rowNumber);
       applySnapshot(row, dataSnapshot, columnCount);
       applyReportRow(row, report, contract, processData, index);
-      const totalMinutes = report.total_minutes || (report.work_minutes + valueForType(detailValues, 'deduction_total', 'deduction'));
+      const deductionSum = detailItems(report, 'deduction').reduce((sum, item) => sum + detailValue(item, 'deduction'), 0);
+      const totalMinutes = report.total_minutes || (report.work_minutes + (report.deduction_time ?? deductionSum * 60));
 writeValue(row, contract.cols.workTime, totalMinutes / 60);
       if (percentColumn && outputLetter && standardLetter) {
         const cell = row.getCell(percentColumn);
