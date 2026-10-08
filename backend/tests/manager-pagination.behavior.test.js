@@ -147,6 +147,19 @@ test('BEHAVIORAL: pending ordering has id tie-breaker', async () => {
   assert.match(call.sql, /ORDER BY pr\.work_date DESC, pr\.created_at ASC, pr\.id ASC/);
 });
 
+test('SOURCE_CONTRACT: approved listing normalizes status and preserves orphan worker rows', () => {
+  const fs = require('node:fs');
+  const controllerPath = require.resolve('../controllers/managerApprovedReportsController');
+  const source = fs.readFileSync(controllerPath, 'utf8');
+  assert.match(source, /LOWER\(TRIM\(COALESCE\(pr\.status,''\)\)\)='approved'/);
+  assert.match(source, /LEFT JOIN workers/);
+  assert.match(source, /LEFT JOIN users/);
+  assert.match(source, /LEFT JOIN processes/);
+  assert.doesNotMatch(source, /(?<!LEFT\s)JOIN workers/i);
+  assert.doesNotMatch(source, /(?<!LEFT\s)JOIN users/i);
+  assert.doesNotMatch(source, /(?<!LEFT\s)JOIN processes/i);
+});
+
 test('BEHAVIORAL: approved pagination returns bounded page and deterministic order', async () => {
   const db = createFakeDb();
   const model = loadReadModel(db);

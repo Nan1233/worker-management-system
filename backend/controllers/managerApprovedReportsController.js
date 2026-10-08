@@ -42,7 +42,7 @@ exports.getApprovedReports = async (req, res) => {
     const scope = await getActorProcessScope(req.user);
     const scoped = scopeSql(scope, 'pr.process_id');
     const where = [
-      "pr.status='approved'",
+      "LOWER(TRIM(COALESCE(pr.status,'')))='approved'",
       'pr.work_date >= ?',
       'pr.work_date <= ?',
     ];
