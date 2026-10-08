@@ -4,6 +4,7 @@ const { assertReportVolume, chunkArray } = require('./excelExportGuards');
 const { hasColumn } = require('./schemaCompatibilityService');
 const { assertTrainingSnapshotAvailable } = require('./trainingSnapshotService');
 const { buildGiaCongMachineAccounting } = require('./giaCongMachineAccounting');
+const { normalizeDeductions } = require('../utils/reportDetailNormalizer');
 
 const PROCESS_CODES = ['CAN','EP','XLBV','GC','MAI','DO','K1','K2','SX3'];
 const query = (sql, params = []) => db.promise().query(sql, params).then(([rows]) => rows);
@@ -319,6 +320,16 @@ async function loadBulkCompanyReports(yearMonth, actor) {
         const persistedDefects = defectByReport.get(reportId) || [];
         const eventLines = (eventByReport.get(reportId) || []).map((id) => eventMap.get(id)).filter(Boolean);
         let deductions = tempDeductions.length ? tempDeductions : persistedDeductions;
+        // Legacy GC approved reports can have deduction_time + numeric Excel-column
+        // breakdowns only in extra_data, with no rows in production_report_deductions.
+        // Recover that detail here because this bulk company-data path is the source
+        // used by /reports/export-excel/company-data and does not pass through
+        // processExcelExportService.normalizeDeductions(). Only use the legacy
+        // fallback when there are no persisted/temp deduction rows and no machine
+        // lines; machine-line accounting remains the source of truth when present.
+        if (code === 'GC' && !deductions.length && machineLines.length === 0) {
+          deductions = normalizeDeductions([], report, [], deductionTypes);
+        }
         let machineAccounting = null;
         if (code === 'GC' && String(report.operation_mode || '').toUpperCase() === 'MACHINE') {
           const machineDeductions = [];
