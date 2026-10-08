@@ -237,8 +237,8 @@
 .worker-form-page .worker-dropdown-title {
   width: 100% !important;
   min-height: 34px !important;
-  height: 34px !important;
-  padding: 0 9px !important;
+  height: auto !important;
+  padding: 6px 9px !important;
   border: 0 !important;
   border-radius: 0 !important;
   background: #fff !important;
@@ -251,7 +251,7 @@
   }
   .worker-form-page .worker-dropdown-title {
     min-height: 34px !important;
-    height: 34px !important;
+    height: auto !important;
     font-size: 10.5px !important;
   }
 }
@@ -270,9 +270,9 @@
   background: #fff !important;
 }
 .machine-worker-time-grid .worker-time-item > label {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: break-word;
+  line-height: 1.2;
 }
 .machine-worker-time-grid .worker-time-part input,
 .machine-worker-time-grid .worker-time-item > input {
