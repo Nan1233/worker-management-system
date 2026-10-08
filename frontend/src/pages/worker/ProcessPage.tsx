@@ -119,7 +119,6 @@ import {
 } from "./processQualityLogic";
 
 import {
-    resolveWorkDateForShiftChange,
     validateWorkerWorkDate,
 } from "./processWorkDateLogic";
 
@@ -896,14 +895,9 @@ useLayoutEffect(() => {
                 Khi rời ca C: trả ngày về 1 ngày để tránh bị lệch khi chọn lại ca.
             */
 
+            // Ngày làm việc do công nhân tự chọn; đổi ca không tự động thay đổi ngày.
             if (name === "shift") {
-                next.workDate = resolveWorkDateForShiftChange({
-                    currentWorkDate: prev.workDate,
-                    previousShift: prev.shift,
-                    nextShift: value,
-                    shiftDate: shiftLocalDate,
-                    clampDate: clampWorkerWorkDate,
-                });
+                next.workDate = clampWorkerWorkDate(prev.workDate);
             }
 
 
