@@ -226,8 +226,8 @@ const createCompleteReport = async (payload = {}, legacyDefects, legacyDeduction
     if (existingRequest) return idempotent(existingRequest);
 
     const processCode = String(data.process_code || data.extra_data?.process_code || "").trim().toUpperCase();
-    if (Number(data.process_id) === 60006 || processCode === "CVK") {
-        data.process_id = 60006; data.process_code = "CVK";
+    if (Number(data.process_id) === 60006 || Number(data.process_id) === 30002 || processCode === "CVK") {
+        data.process_id = 30002; data.process_code = "CVK";
         await enforceDailyWorkerHours(data);
         return nonProductWorkModel.createCompleteReport({ data, defects: defectsInput, deductions: deductionsInput, audit });
     }

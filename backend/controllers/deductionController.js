@@ -8,7 +8,7 @@ exports.getDeductionsByProcess = async (req, res) => {
       return res.status(400).json({ success: false, message: "process_id không hợp lệ" });
     }
 
-    const isCVK = processId === 60006;
+    const isCVK = processId === 60006 || processId === 30002;
     const cacheKey = `deductions:v4:${processId}`;
     let data;
 
