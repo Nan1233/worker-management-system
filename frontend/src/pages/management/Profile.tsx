@@ -3,6 +3,7 @@ import { BriefcaseBusiness, BadgeCheck, LogOut, ShieldCheck, UserRound } from "l
 import { useNavigate } from "react-router-dom";
 import { logout } from "../../services/authService";
 import { getStoredUser } from "../../utils/authStorage";
+import ChangePasswordCard from "../../components/system/ChangePasswordCard";
 
 const roleLabels: Record<string, string> = {
   admin: "Quản trị viên",
@@ -72,6 +73,8 @@ export default function ManagementProfile() {
           ))}
         </dl>
       </div>
+
+      <ChangePasswordCard role={role} />
 
       <button
         type="button"

@@ -1,11 +1,14 @@
 const db = require("../config/db");
 const AuditService = require("../services/auditService");
+const { toDateKey } = require("../utils/dateKey");
 
 const WORKER_SELF_EDIT_WINDOW_SECONDS = 10 * 60;
 
 /**
  * Manager/admin sửa báo cáo chờ duyệt phải thông báo cho công nhân sở hữu báo cáo.
  * Worker tự sửa báo cáo của mình chỉ được phép trong 10 phút kể từ lúc nộp.
+ * Báo cáo bị từ chối (pending -> rejected -> edit -> pending) được sửa lại trong
+ * 10 phút kể từ lúc bị từ chối; lúc từ chối ghi updated_at = NOW().
  *
  * IMPORTANT: production_reports_temp.created_at is a DB timestamp. Do not parse
  * the timestamp in the Cloudflare Worker runtime because a timezone-less DB
@@ -23,6 +26,7 @@ async function notifyWorkerOnTempEdit(req, res, next) {
             `SELECT prt.id, prt.worker_id, prt.work_date, prt.shift, prt.product_name,
                     prt.status, prt.created_at, prt.updated_at,
                     TIMESTAMPDIFF(SECOND, prt.created_at, CURRENT_TIMESTAMP) AS edit_elapsed_seconds,
+                    TIMESTAMPDIFF(SECOND, prt.updated_at, CURRENT_TIMESTAMP) AS rejection_elapsed_seconds,
                     w.user_id AS worker_user_id
                FROM production_reports_temp prt
                JOIN workers w ON w.id = prt.worker_id
@@ -59,12 +63,15 @@ async function notifyWorkerOnTempEdit(req, res, next) {
             return res.status(422).json({ success: false, message: "Báo cáo đã duyệt không thể sửa" });
         }
 
-        const elapsedSeconds = Number(report.edit_elapsed_seconds);
+        const rejected = String(report.status || "").toLowerCase() === "rejected";
+        const elapsedSeconds = Number(rejected ? report.rejection_elapsed_seconds : report.edit_elapsed_seconds);
         if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 0 || elapsedSeconds > WORKER_SELF_EDIT_WINDOW_SECONDS) {
             return res.status(422).json({
                 success: false,
                 code: "WORKER_EDIT_WINDOW_EXPIRED",
-                message: "Đã hết 10 phút chỉnh sửa báo cáo. Vui lòng liên hệ quản lý nếu cần sửa."
+                message: rejected
+                    ? "Đã hết 10 phút sửa báo cáo bị từ chối. Vui lòng liên hệ quản lý nếu cần sửa."
+                    : "Đã hết 10 phút chỉnh sửa báo cáo. Vui lòng liên hệ quản lý nếu cần sửa."
             });
         }
 
@@ -79,7 +86,7 @@ async function notifyWorkerOnTempEdit(req, res, next) {
         const changed = Boolean(body?.success && body?.data?.changed);
         const workerUserId = Number(report.worker_user_id || 0);
         if (changed && workerUserId > 0) {
-            const workDate = String(report.work_date || "").slice(0, 10);
+            const workDate = toDateKey(report.work_date);
             void AuditService.notifyUsers([workerUserId], {
                 type: "report_updated",
                 title: "Báo cáo đã được cập nhật",

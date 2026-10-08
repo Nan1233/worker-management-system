@@ -26,15 +26,16 @@ test('monthly workbook uses a clean ExcelJS renderer without runtime template mu
 test('desktop validates generated workbooks with smoke test before packaging', () => {
   const scripts = desktopPackage.scripts || {};
 
-  assert.match(String(scripts['build:frontend'] || ''), /copy:frontend/);
   assert.match(String(scripts['dist:portable'] || ''), /smoke:excel/);
   assert.match(String(scripts['dist:nsis'] || ''), /smoke:excel/);
   assert.match(String(scripts['dist:win'] || ''), /smoke:excel/);
   assert.match(String(scripts['smoke:excel'] || ''), /smokeExcel\.cjs/);
 
-  assert.match(smokeSource, /buildSplitMonthlyWorkbooksLocal/);
-  assert.match(smokeSource, /00_TONG_HOP_SAN_XUAT_08-2026\.xlsx/);
-  assert.match(smokeSource, /ĐỐI CHIẾU DỮ LIỆU/);
-  assert.match(smokeSource, /workbook\.xlsx\.readFile/);
-  assert.match(smokeSource, /tidb\.production_reports\.approved/);
+  assert.match(smokeSource, /buildWorkerProcessWorkbook/);
+  assert.match(smokeSource, /assert\.equal\(sheet\.getColumn\(2\)\.hidden, true/);
+  assert.match(smokeSource, /Thời gian nộp báo cáo/);
+  assert.match(smokeSource, /assert\.ok\(values\.includes\('STT'/);
+  assert.match(smokeSource, /Date row phải lấy work_date/);
+  assert.match(smokeSource, /Cột B phải chứa submission timestamp/);
+  assert.match(smokeSource, /DB detail alias mapping/);
 });

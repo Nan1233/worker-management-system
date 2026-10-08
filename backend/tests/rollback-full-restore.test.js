@@ -146,7 +146,6 @@ function createFakeDb(initial, options = {}) {
         const version = state.versions.find((x) => Number(x.report_id) === Number(params[0]) && Number(x.version_no) === Number(params[1]));
         return [version ? [{ snapshot_json: version.snapshot_json }] : [], []];
       }
-      if (/SELECT id FROM reporting_period_locks/i.test(q)) return [[], []];
       if (/FROM machine_production_events/i.test(q)) {
         if (/(?:UPDATE|DELETE)/i.test(q)) throw new Error('PHYSICAL_EVENT_MUTATION_FORBIDDEN');
         const event = state.events[Number(params[0])];
@@ -357,10 +356,10 @@ test('restore path has no current standard/training/KQD master resolution and ne
 });
 
 test('restore API forwards expected_updated_at and frontend sends current report updated_at', () => {
-  const controller = fs.readFileSync(path.join(ROOT, 'controllers/productionController.js'), 'utf8');
+  const controller = fs.readFileSync(path.join(ROOT, 'routes/productionRoutes.js'), 'utf8');
   const frontendService = fs.readFileSync(path.join(ROOT, '../frontend/src/services/systemService.ts'), 'utf8');
   const detail = fs.readFileSync(path.join(ROOT, '../frontend/src/pages/manager/ReportDetail.tsx'), 'utf8');
-  assert.match(controller, /expectedUpdatedAt:\s*req\.body\?\.expected_updated_at/);
+  assert.match(controller, /(?:const\s+expectedUpdatedAt\s*=\s*body(?:\?\.|\.)expected_updated_at|expectedUpdatedAt:\s*req\.body(?:\?\.|\.)expected_updated_at)/);
   assert.match(frontendService, /expected_updated_at:expectedUpdatedAt/);
   assert.match(detail, /report\.updated_at\s*\|\|\s*null/);
 });

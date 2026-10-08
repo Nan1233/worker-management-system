@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import ApprovedReports from "./ApprovedReports";
 import { getAccessToken } from "../../utils/authStorage";
+import { usePermissions } from "../../hooks/usePermissions";
+import DesktopExcelNotice from "../../components/system/DesktopExcelNotice";
 
 function useApprovedFooter(): HTMLElement | null {
     const [footer, setFooter] = useState<HTMLElement | null>(null);
@@ -30,6 +32,8 @@ function useApprovedFooter(): HTMLElement | null {
 
 export default function ApprovedReportsDesktopActions() {
     const footer = useApprovedFooter();
+    const { can } = usePermissions();
+    const canExport = can("REPORT_EXPORT");
     const [busy, setBusy] = useState(false);
 
     const updateExcel = async () => {
@@ -60,7 +64,10 @@ export default function ApprovedReportsDesktopActions() {
         }
     };
 
-    if (!window.ktcDesktop?.isDesktop || !footer) return <ApprovedReports />;
+    if (!canExport) return <ApprovedReports />;
+    // In a browser there is no Excel button at all: say why and where to get the Desktop app.
+    if (!window.ktcDesktop?.isDesktop) return <><DesktopExcelNotice compact /><ApprovedReports /></>;
+    if (!footer) return <ApprovedReports />;
 
     return (
         <>

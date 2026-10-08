@@ -8,7 +8,7 @@ const path = require('node:path');
 test('SOURCE_CONTRACT: approved manager reports are filtered and paginated on the server', () => {
   const controller = fs.readFileSync(path.join(__dirname, '..', 'controllers', 'managerApprovedReportsController.js'), 'utf8');
   assert.match(controller, /page_size/);
-  assert.match(controller, /LIMIT \? OFFSET \?/);
+  assert.match(controller, /LIMIT\s+(?:\?|\$\{pageSize\})\s+OFFSET\s+(?:\?|\$\{offset\})/);
   assert.match(controller, /COUNT\(\*\) AS total/);
   assert.match(controller, /date_from/);
   assert.match(controller, /process_id/);

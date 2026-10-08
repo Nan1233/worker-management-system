@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
-import { Bell, Boxes, ClipboardCheck, Cog, FileWarning, History, LayoutDashboard, MoreHorizontal, ShieldCheck, Timer, UserRound, Users, BarChart3, LogOut, CalendarDays, ChevronDown } from "lucide-react";
+import { Bell, Boxes, ClipboardCheck, Cog, Download, FileWarning, History, LayoutDashboard, MoreHorizontal, ShieldCheck, Timer, UserRound, Users, BarChart3, LogOut, CalendarDays, ChevronDown } from "lucide-react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { getStoredUser, clearAuthSession } from "../utils/authStorage";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
 import { usePermissions } from "../hooks/usePermissions";
-import { defaultPermissionsForRole } from "../security/permissions";
 import type { PermissionCode } from "../security/permissions";
 import MasterDataTransferActions from "../components/master/MasterDataTransferActions";
 import "./ManagementLayout.css";
@@ -14,17 +13,20 @@ import "../styles/HideManagementPageDescriptions.css";
 type ManagementRole = "lead" | "manager" | "admin";
 type ManagementMenuItem = { label:string; path:string; icon:typeof LayoutDashboard; permission:PermissionCode; roles:ManagementRole[] };
 const allManagementRoles:ManagementRole[]=["lead","manager","admin"];
-const adminAndManagerRoles:ManagementRole[]=["manager","admin"];
+const adminAndManagerRoles:ManagementRole[]=["lead","manager","admin"];
 const managerMasterRoles:ManagementRole[]=["lead","manager","admin"];
+// Backend (adminMasterRoutes.js): the defect catalogue is manager/admin only; leads get 403.
+const defectMasterRoles:ManagementRole[]=["manager","admin"];
 const items:ManagementMenuItem[]=[
  {label:"Tổng quan",path:"",icon:LayoutDashboard,permission:"DASHBOARD_VIEW",roles:allManagementRoles},
  {label:"Chờ duyệt",path:"reports",icon:ClipboardCheck,permission:"REPORT_PENDING_VIEW",roles:allManagementRoles},
  {label:"Đã duyệt",path:"approved",icon:ShieldCheck,permission:"REPORT_APPROVED_VIEW",roles:allManagementRoles},
- {label:"Thống kê",path:"statistics",icon:BarChart3,permission:"STATISTICS_VIEW",roles:["lead","admin"]},
+ {label:"Thống kê",path:"statistics",icon:BarChart3,permission:"STATISTICS_VIEW",roles:allManagementRoles},
+ {label:"Xuất Excel",path:"export",icon:Download,permission:"REPORT_EXPORT",roles:allManagementRoles},
  {label:"Nhân sự",path:"workers",icon:Users,permission:"USER_VIEW",roles:allManagementRoles},
  {label:"Máy móc",path:"master/machines",icon:Cog,permission:"MASTER_VIEW",roles:managerMasterRoles},
  {label:"Sản phẩm & định mức",path:"master/standards",icon:Boxes,permission:"MASTER_VIEW",roles:managerMasterRoles},
- {label:"Lỗi NG",path:"master/defects",icon:FileWarning,permission:"MASTER_VIEW",roles:managerMasterRoles},
+ {label:"Lỗi NG",path:"master/defects",icon:FileWarning,permission:"MASTER_VIEW",roles:defectMasterRoles},
  {label:"Trừ giờ",path:"master/deductions",icon:Timer,permission:"MASTER_VIEW",roles:managerMasterRoles},
  {label:"Nhật ký hoạt động",path:"system",icon:History,permission:"AUDIT_VIEW",roles:adminAndManagerRoles},
  {label:"Vai trò & quyền",path:"permissions",icon:ShieldCheck,permission:"PERMISSION_MANAGE",roles:["admin"]},
@@ -34,8 +36,7 @@ const roleLabel:Record<ManagementRole,string>={lead:"Tổ trưởng",manager:"Qu
 export default function ManagementLayout({role}:{role:ManagementRole}){
  const navigate=useNavigate(),location=useLocation(); const {can}=usePermissions();
  const {unreadCount}=useNotificationBadge(can("NOTIFICATION_VIEW")); const base=`/${role}`,user=getStoredUser();
- const [mobileMoreOpen,setMobileMoreOpen]=useState(false); const temporaryManagerView=role==="manager" && String(user?.role||"").toLowerCase()==="lead";
- const managerPermissions=defaultPermissionsForRole("manager"); const visible=items.filter(item=>item.roles.includes(role)&&(temporaryManagerView?managerPermissions.has(item.permission):can(item.permission)));
+ const [mobileMoreOpen,setMobileMoreOpen]=useState(false); const visible=items.filter(item=>item.roles.includes(role)&&can(item.permission));
  const mobilePrimaryItems=visible.slice(0,2),mobileOverflowItems=visible.slice(2); const active=(path:string)=>path===""?location.pathname===base:location.pathname===`${base}/${path}`||location.pathname.startsWith(`${base}/${path}/`);
  const displayName=user?.full_name||user?.username||roleLabel[role]; const avatarText=displayName.trim().charAt(0).toUpperCase()||"K";
  const logout=()=>{setMobileMoreOpen(false);clearAuthSession();navigate("/login",{replace:true});};
@@ -57,7 +58,7 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
     </button>
     <div className="management-header-actions">
      <button className="management-date" type="button"><CalendarDays size={19}/><span>{today}</span></button>
-     <button className="management-notification" type="button" aria-label="Thông báo" onClick={()=>navigate(`${base}/notifications`)}><Bell size={22}/>{unreadCount>0&&<b>{unreadCount>9?"9+":unreadCount}</b>}</button>
+     {can("NOTIFICATION_VIEW")&&<button className="management-notification" type="button" aria-label="Thông báo" onClick={()=>navigate(`${base}/notifications`)}><Bell size={22}/>{unreadCount>0&&<b>{unreadCount>9?"9+":unreadCount}</b>}</button>}
      <button className="management-user" type="button" aria-label="Mở trang cá nhân" onClick={()=>navigate(`${base}/profile`)}><span className="management-user-avatar">{avatarText}</span><span className="management-user-copy"><strong>{displayName}</strong><small>{roleLabel[role]} · Khu A</small></span><ChevronDown size={17}/></button>
     </div>
    </header>
@@ -66,7 +67,7 @@ export default function ManagementLayout({role}:{role:ManagementRole}){
   <nav className="management-mobile-nav" aria-label="Mobile navigation">
    {mobileMoreOpen&&mobileOverflowItems.length>0&&<div id="management-mobile-overflow" className="management-mobile-overflow" aria-label="Các mục điều hướng khác">{mobileOverflowItems.map(item=>{const Icon=item.icon;return <button key={`overflow-${item.path}`} type="button" className={active(item.path)?"active":""} onClick={()=>{setMobileMoreOpen(false);navigate(`${base}${item.path?`/${item.path}`:""}`);}}><Icon size={18}/><span>{item.label}</span></button>;})}</div>}
    {mobilePrimaryItems.map(item=>{const Icon=item.icon;return <button key={`mobile-${item.path}`} type="button" className={active(item.path)?"active":""} onClick={()=>navigate(`${base}${item.path?`/${item.path}`:""}`)}><Icon size={18}/><span>{item.label}</span></button>;})}
-   <button type="button" className={location.pathname===`${base}/notifications`||location.pathname.startsWith(`${base}/notifications/`)?"active":""} onClick={()=>navigate(`${base}/notifications`)}><Bell size={18}/><span>Thông báo</span>{unreadCount>0&&<b className="management-badge">{unreadCount>99?"99+":unreadCount}</b>}</button>
+   {can("NOTIFICATION_VIEW")&&<button type="button" className={location.pathname===`${base}/notifications`||location.pathname.startsWith(`${base}/notifications/`)?"active":""} onClick={()=>navigate(`${base}/notifications`)}><Bell size={18}/><span>Thông báo</span>{unreadCount>0&&<b className="management-badge">{unreadCount>99?"99+":unreadCount}</b>}</button>}
    <button type="button" className={active("profile")?"active":""} onClick={()=>navigate(`${base}/profile`)}><UserRound size={18}/><span>Cá nhân</span></button>
    <button type="button" className="management-mobile-logout" onClick={logout}><LogOut size={18}/><span>Đăng xuất</span></button>
    {mobileOverflowItems.length>0&&<button type="button" className={mobileMoreOpen?"active":""} onClick={()=>setMobileMoreOpen(open=>!open)} aria-expanded={mobileMoreOpen} aria-controls="management-mobile-overflow"><MoreHorizontal size={18}/><span>Thêm</span></button>}

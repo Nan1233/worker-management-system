@@ -11,6 +11,24 @@
     "KTC_RUN_BUILD_DB_MIGRATIONS": "true",
     "KTC_CLOUDFLARE_WORKER": "true",
     "KTC_MIGRATION_REF": "test",
-    "KTC_MIGRATION_REPOSITORY": "Nan1233/worker-management-system"
+    "KTC_MIGRATION_REPOSITORY": "Nan1233/worker-management-system",
+    // Ceiling for unattended migration. The runner may advance by itself only up
+    // to this migration number and stops there; 046 onwards contain DELETE /
+    // TRUNCATE / DROP against GC (gia công) master data (046 clears the GC
+    // worker roster), so they are deliberately held back. Raised to 42 on
+    // 2026-10-08: covers 031 (1 UPDATE closing old active standard versions,
+    // no DELETE/DROP) through 042, including the GC deduction-type config in
+    // 035/038 (INSERT/UPDATE only). TAKE A DB BACKUP BEFORE THIS DEPLOYS. Do
+    // not raise further without reviewing 046-050 and taking a fresh backup
+    // first — that cluster holds 14/17 destructive statements remaining.
+    "KTC_MIGRATION_MAX": "42",
+    // Explicit allowlist beyond the ceiling: 053 only restores 6 GC deduction
+    // types (idempotent status flip + guarded insert, no DELETE/DROP). The
+    // ceiling is 42, so the destructive 046-052 migrations are NOT run; 053
+    // is allowlisted ahead of them because it is independently safe.
+    "KTC_MIGRATION_INCLUDE": "53",
+    // Test-only: lets /api/health/ready return missingTables/missingColumns so
+    // DATABASE_CONTRACT_INVALID is diagnosable. Do not set on production.
+    "KTC_EXPOSE_SCHEMA_DIAGNOSTICS": "true"
   }
 }

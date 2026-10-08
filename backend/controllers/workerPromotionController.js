@@ -1,11 +1,14 @@
 const bcrypt = require('bcrypt');
+const crypto = require('node:crypto');
 const db = require('../config/db');
 const { clearWorkerProfile } = require('../utils/workerProfileCache');
 const { deleteCachedAuthUser } = require('../utils/authUserCache');
 const { revokeAllUserFamilies } = require('../services/refreshSessionService');
+const { assertUserManagementScope } = require('../services/processAuthorizationService');
 
-const DEFAULT_LEAD_PASSWORD = process.env.KTC_DEFAULT_LEAD_PASSWORD || '123456';
-const DEFAULT_MANAGER_PASSWORD = process.env.KTC_DEFAULT_MANAGER_PASSWORD || '123456';
+function generateInitialPassword() {
+  return crypto.randomBytes(18).toString('base64url');
+}
 
 async function loadWorkerTarget(connection, targetId) {
   const [targets] = await connection.query(
@@ -26,6 +29,12 @@ async function loadWorkerAssignments(connection, workerId) {
 }
 
 async function assertManagerScope(req, connection, workerId) {
+  const target = { id: null, role: 'worker', worker_id: workerId };
+  const [users] = await connection.query('SELECT u.id FROM users u JOIN workers w ON w.user_id=u.id WHERE w.id=? LIMIT 1', [workerId]);
+  target.id = users[0]?.id || null;
+  if (!target.id) return false;
+  try { await assertUserManagementScope(req.user, target, { executor: connection, action:'USER_PROMOTION' }); return true; }
+  catch (_) { return false; }
   if (String(req.user?.role || '').toLowerCase() === 'admin') return true;
   const [allowed] = await connection.query(
     `SELECT 1 FROM manager_processes actor_mp
@@ -52,7 +61,8 @@ exports.promoteWorkerToLead = async (req, res) => {
     if (!assignments.length) return res.status(400).json({ success:false, message:'Công nhân chưa được phân công công đoạn nên chưa thể nâng lên tổ trưởng' });
 
     await connection.beginTransaction();
-    const passwordHash = await bcrypt.hash(DEFAULT_LEAD_PASSWORD, 10);
+    const initialPassword = generateInitialPassword();
+    const passwordHash = await bcrypt.hash(initialPassword, 10);
     await connection.query('UPDATE users SET role=\'lead\', password=?, status=\'active\' WHERE id=?', [passwordHash, targetId]);
     await connection.query('UPDATE workers SET position=\'Tổ trưởng\' WHERE id=?', [target.worker_id]);
     await connection.query('DELETE FROM worker_processes WHERE worker_id=?', [target.worker_id]);
@@ -62,7 +72,7 @@ exports.promoteWorkerToLead = async (req, res) => {
     await revokeAllUserFamilies(targetId, { executor: connection });
     await connection.commit();
     clearWorkerProfile(targetId); deleteCachedAuthUser(targetId);
-    return res.json({ success:true, message:`Đã nâng ${target.full_name || target.username} lên tổ trưởng`, data:{ user_id:targetId, role:'lead', username:target.username, process_ids:assignments.map(x=>Number(x.process_id)) } });
+    return res.json({ success:true, message:`Đã nâng ${target.full_name || target.username} lên tổ trưởng`, data:{ user_id:targetId, role:'lead', username:target.username, process_ids:assignments.map(x=>Number(x.process_id)), initial_password:initialPassword } });
   } catch (error) {
     try { await connection.rollback(); } catch (_) {}
     if (error?.code === 'ER_DUP_ENTRY') return res.status(409).json({ success:false, message:'Tài khoản đã được phân công công đoạn này' });
@@ -86,7 +96,8 @@ exports.promoteWorkerToManager = async (req, res) => {
     if (!assignments.length) return res.status(400).json({ success:false, message:'Công nhân chưa được phân công công đoạn nên chưa thể nâng lên Quản lý' });
 
     await connection.beginTransaction();
-    const passwordHash = await bcrypt.hash(DEFAULT_MANAGER_PASSWORD, 10);
+    const initialPassword = generateInitialPassword();
+    const passwordHash = await bcrypt.hash(initialPassword, 10);
     await connection.query('UPDATE users SET role=\'manager\', password=?, status=\'active\' WHERE id=?', [passwordHash, targetId]);
     await connection.query('UPDATE workers SET position=\'Quản lý\' WHERE id=?', [target.worker_id]);
     await connection.query('DELETE FROM worker_processes WHERE worker_id=?', [target.worker_id]);
@@ -96,7 +107,7 @@ exports.promoteWorkerToManager = async (req, res) => {
     await revokeAllUserFamilies(targetId, { executor: connection });
     await connection.commit();
     clearWorkerProfile(targetId); deleteCachedAuthUser(targetId);
-    return res.json({ success:true, message:`Đã nâng ${target.full_name || target.username} lên Quản lý`, data:{ user_id:targetId, role:'manager', username:target.username, process_ids:assignments.map(x=>Number(x.process_id)), default_password:DEFAULT_MANAGER_PASSWORD } });
+    return res.json({ success:true, message:`Đã nâng ${target.full_name || target.username} lên Quản lý`, data:{ user_id:targetId, role:'manager', username:target.username, process_ids:assignments.map(x=>Number(x.process_id)), initial_password:initialPassword } });
   } catch (error) {
     try { await connection.rollback(); } catch (_) {}
     if (error?.code === 'ER_DUP_ENTRY') return res.status(409).json({ success:false, message:'Tài khoản đã được phân công công đoạn này' });

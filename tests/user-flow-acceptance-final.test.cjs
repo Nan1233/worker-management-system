@@ -74,10 +74,10 @@ test('approved conflict keeps draft state and reports an actionable 409 message'
   assert.doesNotMatch(window, /setForm\(/);
 });
 
-test('Excel import UI distinguishes no-change, partial success and full success', () => {
+test('approved reports page keeps the current review/detail flow contract', () => {
   const approved = read('frontend/src/pages/manager/ApprovedReports.tsx');
-  assert.match(approved, /File không có dòng mới hoặc thay đổi cần import/);
-  assert.match(approved, /result\.failed > 0[\s\S]{0,180}warning/);
-  assert.match(approved, /Import thành công \$\{result\.succeeded\} báo cáo/);
-  assert.match(approved, /applyReportImport\(token, reportImportPreview\.filePath\)/);
+  assert.match(approved, /getApprovedReports\(/);
+  assert.match(approved, /getReportById\(Number\(report\.id\), "approved"\)/);
+  assert.match(approved, /Báo cáo đã duyệt/);
+  assert.match(approved, /Chi tiết lỗi NG theo máy/);
 });

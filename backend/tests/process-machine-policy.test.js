@@ -8,9 +8,9 @@ test('machine policies match real KTC factory rules 2026-08-10', () => {
   assert.equal(getProcessMachinePolicy(60001).mode, 'SINGLE_MACHINE_REQUIRED');
   assert.equal(getProcessMachinePolicy(60003).mode, 'SINGLE_MACHINE_REQUIRED');
   assert.equal(getProcessMachinePolicy(1).mode, 'MANUAL_OR_SMART_MACHINE');
-  assert.equal(getProcessMachinePolicy(3).mode, 'MANUAL_OR_SINGLE_MACHINE');
+  assert.equal(getProcessMachinePolicy(3).mode, 'SINGLE_MACHINE_REQUIRED');
   assert.equal(getProcessMachinePolicy(4).maxMachines, 1);
-  assert.equal(getProcessMachinePolicy(60002).mode, 'SINGLE_MACHINE_REQUIRED');
+  assert.equal(getProcessMachinePolicy(60002).mode, 'MULTI_MACHINE_REQUIRED');
   assert.equal(getProcessMachinePolicy(60004).mode, 'MANUAL_ONLY');
   assert.equal(getProcessMachinePolicy(60005).mode, 'MANUAL_ONLY');
 });

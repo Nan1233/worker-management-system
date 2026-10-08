@@ -39,7 +39,6 @@ const products = [
 const defectTypes = [
   { id: 501, process_id: 1, defect_code: 'KQD', defect_name: 'KQD', status: 'active' },
   { id: 502, process_id: 1, defect_code: 'BAVIA', defect_name: 'Bavia', status: 'active' },
-  { id: 503, process_id: 1, defect_code: 'KQD_TEST', defect_name: 'KQD test chưa cấu hình', status: 'active' }
 ];
 
 const createQueryMock = () => async (sql, params = []) => {
@@ -47,25 +46,14 @@ const createQueryMock = () => async (sql, params = []) => {
 
   if (normalizedSql.includes('from machines')) {
     const processId = Number(params[0]);
-    const machineCode = String(params[1] || '').trim().toUpperCase();
-
     return machines
-      .filter((machine) => (
-        Number(machine.process_id) === processId
-        && String(machine.machine_code).trim().toUpperCase() === machineCode
-        && String(machine.status).toLowerCase() === 'active'
-      ))
+      .filter((machine) => Number(machine.process_id) === processId && String(machine.status).toLowerCase() === 'active')
       .map(({ id, machine_code }) => ({ id, machine_code }));
   }
 
   if (normalizedSql.includes('from defect_types')) {
     const processId = Number(params[0]);
-    if (normalizedSql.includes('and id=?')) {
-      const id = Number(params[1]);
-      return defectTypes.filter((item) => item.process_id === processId && item.id === id && item.status === 'active');
-    }
-    const code = String(params[1] || '').trim().toUpperCase();
-    return defectTypes.filter((item) => item.process_id === processId && item.defect_code === code && item.status === 'active');
+    return defectTypes.filter((item) => item.process_id === processId && item.status === 'active');
   }
 
   if (normalizedSql.includes('from product_standards')) {
@@ -190,7 +178,7 @@ test('multi-machine line rejects duplicate machine and mismatched NG', async () 
   assert.match(mismatchedNg.errors['machine_lines.0.defects'], /phải bằng tổng chi tiết lỗi NG/);
 });
 
-test('unconfigured KQD-like machine defect is counted normally', async () => {
+test('unconfigured KQD-like machine defect is rejected by master-data validation', async () => {
   const result = await validate({
     processId: 1,
     workDate: '2026-08-10',
@@ -208,6 +196,6 @@ test('unconfigured KQD-like machine defect is counted normally', async () => {
       ]
     }]
   });
-  assert.equal(result.valid, true);
-  assert.equal(result.lines[0].counted_output, 100);
+  assert.equal(result.valid, false);
+  assert.match(result.errors['machine_lines.0.defects'], /không tồn tại hoặc không duy nhất trong công đoạn/i);
 });

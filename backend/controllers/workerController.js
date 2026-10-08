@@ -4,6 +4,8 @@ const workerModel =
 const db =
     require("../config/db");
 
+const { assertUserManagementScope } = require("../services/processAuthorizationService");
+
 const { getOrLoadWorkerProfile } =
     require("../utils/workerProfileCache");
 
@@ -16,20 +18,42 @@ const workerProfileLoader = createWorkerProfileLoader({
 
 const loadCurrentWorkerProfile = workerProfileLoader.loadByUserId;
 
+exports.getCurrentWorker = async (req, res) => {
+    const loginUserId = Number(req.user?.id);
+    if (!Number.isInteger(loginUserId) || loginUserId <= 0) {
+        return res.status(401).json({
+            success: false,
+            message: "Phiên đăng nhập không hợp lệ"
+        });
+    }
 
-// =====================================================
-// ROLE ĐƯỢC QUẢN LÝ NHÂN VIÊN
-// =====================================================
+    try {
+        const worker = await loadCurrentWorkerProfile(loginUserId);
 
-const MANAGEMENT_ROLES = [
+        if (!worker) {
+            return res.status(404).json({
+                success: false,
+                message: "Không tìm thấy hồ sơ công nhân"
+            });
+        }
 
-    "admin",
+        return res.status(200).json({
+            success: true,
+            data: worker
+        });
+    } catch (error) {
+        console.error("GET CURRENT WORKER ERROR:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Không thể lấy hồ sơ công nhân"
+        });
+    }
+};
 
-    "manager",
 
-    "lead"
-
-];
+// Role gating for management endpoints is not kept as a local list any more:
+// authorization goes through assertUserManagementScope, which checks the role
+// AND the process the actor actually owns.
 
 
 // =====================================================
@@ -85,58 +109,108 @@ const parseTrainingPercent = (
 // ADMIN / MANAGER / LEAD
 // =====================================================
 
-exports.getAllWorkers = (
-    req,
-    res
-) => {
-
-    workerModel.findAll(
-        (
-            err,
-            result
-        ) => {
-
-            if (err) {
-
-                console.error(
-                    "GET ALL WORKERS ERROR:",
-                    err
-                );
-
-
-                return res.status(500).json({
-
-                    success:
-                        false,
-
-                    message:
-                        "Không thể lấy danh sách nhân viên"
-
-                });
-
-            }
-
-
-            return res.status(200).json({
-
-                success:
-                    true,
-
-                data:
-                    result
-
-            });
-
+exports.getAllWorkers = async (req, res) => {
+    try {
+        const role = String(req.user?.role || '').toLowerCase();
+        let rows;
+        if (role === 'admin') {
+            [rows] = await db.promise().query(`
+                SELECT w.id AS worker_id,w.user_id,w.worker_code,w.phone,w.department,w.position,
+                       w.training_percent,w.status,w.created_at,w.updated_at,u.username,u.full_name,u.role
+                FROM workers w INNER JOIN users u ON w.user_id=u.id
+                ORDER BY CASE WHEN w.status='active' THEN 0 ELSE 1 END,u.full_name ASC,w.worker_code ASC
+            `);
+        } else {
+            [rows] = await db.promise().query(`
+                SELECT DISTINCT w.id AS worker_id,w.user_id,w.worker_code,w.phone,w.department,w.position,
+                       w.training_percent,w.status,w.created_at,w.updated_at,u.username,u.full_name,u.role
+                FROM workers w
+                INNER JOIN users u ON w.user_id=u.id
+                INNER JOIN worker_processes wp ON wp.worker_id=w.id
+                INNER JOIN manager_processes mp ON mp.process_id=wp.process_id AND mp.manager_id=?
+                ORDER BY CASE WHEN w.status='active' THEN 0 ELSE 1 END,u.full_name ASC,w.worker_code ASC
+            `, [Number(req.user?.id)]);
         }
-    );
+        return res.status(200).json({ success:true, data:rows });
+    } catch (error) {
+        console.error("GET ALL WORKERS ERROR:",error);
+        return res.status(500).json({ success:false,message:"Không thể lấy danh sách nhân viên" });
+    }
+};
 
+
+exports.updateTrainingPercent = async (req, res) => {
+    const workerId=Number(req.params.workerId);
+    if(!Number.isInteger(workerId)||workerId<=0) return res.status(400).json({success:false,message:"ID nhân viên không hợp lệ"});
+    const trainingPercent=parseTrainingPercent(req.body.training_percent);
+    if(trainingPercent===null) return res.status(400).json({success:false,message:"% học việc phải nằm trong khoảng từ 0 đến 100"});
+    try {
+        await assertUserManagementScope(req.user,{id:workerId,role:'worker',worker_id:workerId},{action:'WORKER_TRAINING_PERCENT_UPDATE'});
+        await new Promise((resolve,reject)=>workerModel.updateTrainingPercent(workerId,trainingPercent,(err,result)=>err?reject(err):resolve(result)));
+        return res.status(200).json({success:true,message:"Cập nhật % học việc thành công",data:{worker_id:workerId,training_percent:trainingPercent}});
+    } catch(error) {
+        if(error?.status===403) return res.status(403).json({success:false,code:error.code||'PROCESS_SCOPE_FORBIDDEN',message:error.message});
+        console.error("UPDATE TRAINING PERCENT ERROR:",error);
+        return res.status(500).json({success:false,message:"Không thể cập nhật % học việc"});
+    }
+};
+
+
+// =====================================================
+// LẤY CHI TIẾT NHÂN VIÊN
+// GET /api/workers/:workerId
+// Chính chủ, hoặc role quản lý TRONG phạm vi công đoạn phụ trách
+// =====================================================
+
+exports.getWorkerById = async (req, res) => {
+    const workerId = Number(req.params.workerId);
+
+    if (!Number.isInteger(workerId) || workerId <= 0) {
+        return res.status(400).json({ success: false, message: "ID nhân viên không hợp lệ" });
+    }
+
+    try {
+        const profile = await workerProfileLoader.loadByWorkerId(workerId, { activeOnly: false });
+
+        if (!profile) {
+            return res.status(404).json({ success: false, message: "Không tìm thấy nhân viên" });
+        }
+
+        const loginUserId = Number(req.user?.id);
+        const isOwnProfile = Number.isInteger(loginUserId) && loginUserId === Number(profile.user_id);
+
+        // The route only applies verifyToken, so every authorization decision for
+        // this endpoint is made here. Self-access stays open; management roles are
+        // scoped to the processes they actually own, matching the contract that
+        // updateTrainingPercent and getAllWorkers enforce. A bare role check would
+        // let any manager or lead read workers outside their own processes.
+        if (!isOwnProfile) {
+            await assertUserManagementScope(
+                req.user,
+                { id: profile.user_id, role: "worker", worker_id: workerId },
+                { action: "WORKER_DETAIL_VIEW" }
+            );
+        }
+
+        return res.status(200).json({ success: true, data: profile });
+    } catch (error) {
+        if (error?.status === 403) {
+            return res.status(403).json({
+                success: false,
+                code: error.code || "PROCESS_SCOPE_FORBIDDEN",
+                message: error.message || "Bạn không có quyền xem nhân viên này"
+            });
+        }
+        console.error("GET WORKER BY ID ERROR:", error);
+        return res.status(500).json({ success: false, message: "Không thể lấy thông tin nhân viên" });
+    }
 };
 
 
 // =====================================================
 // TẠO NHÂN VIÊN
 // POST /api/workers
-// ADMIN
+// CHỈ ADMIN (chặn ở route: checkRole("admin") + permission("USER_CREATE"))
 // =====================================================
 
 exports.createWorker = (
@@ -333,215 +407,6 @@ exports.createWorker = (
 
                     id:
                         result.insertId
-
-                }
-
-            });
-
-        }
-    );
-
-};
-
-
-// =====================================================
-// LẤY THÔNG TIN WORKER THEO USER ID
-// GET /api/workers/:id
-//
-// :id ở endpoint này là user_id.
-// =====================================================
-
-exports.getCurrentWorker = async (req, res) => {
-
-    const loginUserId = Number(req.user?.id);
-
-    if (!Number.isInteger(loginUserId) || loginUserId <= 0) {
-        return res.status(401).json({
-            success: false,
-            message: "Thông tin đăng nhập không hợp lệ"
-        });
-    }
-
-    try {
-        const profile = await getOrLoadWorkerProfile(
-            loginUserId,
-            () => loadCurrentWorkerProfile(loginUserId)
-        );
-
-        if (!profile) {
-            return res.status(404).json({
-                success: false,
-                message: "Tài khoản chưa có hồ sơ công nhân đang hoạt động"
-            });
-        }
-
-        return res.status(200).json({
-            success: true,
-            data: profile
-        });
-    } catch (error) {
-        console.error("GET CURRENT WORKER ERROR:", error);
-        return res.status(500).json({
-            success: false,
-            message: "Không thể lấy thông tin nhân viên"
-        });
-    }
-};
-
-exports.getWorkerById = async (req, res) => {
-    const workerId = Number(req.params.workerId);
-
-    if (!Number.isInteger(workerId) || workerId <= 0) {
-        return res.status(400).json({ success: false, message: "ID nhân viên không hợp lệ" });
-    }
-
-    try {
-        const profile = await workerProfileLoader.loadByWorkerId(workerId, { activeOnly: false });
-
-        if (!profile) {
-            return res.status(404).json({ success: false, message: "Không tìm thấy nhân viên" });
-        }
-
-        const loginUserId = Number(req.user?.id);
-        const loginRole = req.user?.role;
-        const isOwnProfile = loginUserId === Number(profile.user_id);
-        const isManagement = MANAGEMENT_ROLES.includes(loginRole);
-
-        if (!isOwnProfile && !isManagement) {
-            return res.status(403).json({ success: false, message: "Bạn không có quyền xem nhân viên này" });
-        }
-
-        return res.status(200).json({ success: true, data: profile });
-    } catch (error) {
-        console.error("GET WORKER BY ID ERROR:", error);
-        return res.status(500).json({ success: false, message: "Không thể lấy thông tin nhân viên" });
-    }
-};
-
-// =====================================================
-// CẬP NHẬT RIÊNG % HỌC VIỆC
-// PATCH /api/workers/:id/training-percent
-//
-// :id là worker_id.
-// ADMIN / MANAGER / LEAD
-// =====================================================
-
-exports.updateTrainingPercent = (
-    req,
-    res
-) => {
-
-    const workerId =
-        Number(
-            req.params.workerId
-        );
-
-
-    if (
-        !Number.isInteger(
-            workerId
-        )
-        ||
-        workerId <= 0
-    ) {
-
-        return res.status(400).json({
-
-            success:
-                false,
-
-            message:
-                "ID nhân viên không hợp lệ"
-
-        });
-
-    }
-
-
-    const trainingPercent =
-        parseTrainingPercent(
-            req.body.training_percent
-        );
-
-
-    if (
-        trainingPercent === null
-    ) {
-
-        return res.status(400).json({
-
-            success:
-                false,
-
-            message:
-                "% học việc phải nằm trong khoảng từ 0 đến 100"
-
-        });
-
-    }
-
-
-    workerModel.updateTrainingPercent(
-        workerId,
-        trainingPercent,
-        (
-            err,
-            result
-        ) => {
-
-            if (err) {
-
-                console.error(
-                    "UPDATE TRAINING PERCENT ERROR:",
-                    err
-                );
-
-
-                return res.status(500).json({
-
-                    success:
-                        false,
-
-                    message:
-                        "Không thể cập nhật % học việc"
-
-                });
-
-            }
-
-
-            if (
-                result.affectedRows === 0
-            ) {
-
-                return res.status(404).json({
-
-                    success:
-                        false,
-
-                    message:
-                        "Không tìm thấy nhân viên"
-
-                });
-
-            }
-
-
-            return res.status(200).json({
-
-                success:
-                    true,
-
-                message:
-                    "Cập nhật % học việc thành công",
-
-                data: {
-
-                    worker_id:
-                        workerId,
-
-                    training_percent:
-                        trainingPercent
 
                 }
 

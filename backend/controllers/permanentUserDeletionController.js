@@ -2,6 +2,7 @@ const db = require('../config/db');
 const { clearWorkerProfile } = require('../utils/workerProfileCache');
 const { deleteCachedAuthUser } = require('../utils/authUserCache');
 const { revokeAllUserFamilies } = require('../services/refreshSessionService');
+const { assertUserManagementScope } = require('../services/processAuthorizationService');
 
 /**
  * Permanently remove a lead account while preserving the worker identity
@@ -43,18 +44,11 @@ exports.deleteLeadPermanently = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Chức năng này chỉ áp dụng cho tài khoản Tổ trưởng' });
     }
 
-    if (req.user.role === 'manager') {
-      const [scope] = await connection.query(
-        `SELECT 1
-         FROM manager_processes actor_mp
-         INNER JOIN manager_processes target_mp ON target_mp.process_id=actor_mp.process_id
-         WHERE actor_mp.manager_id=? AND target_mp.manager_id=? LIMIT 1`,
-        [req.user.id, targetId]
-      );
-      if (!scope.length) {
-        await connection.rollback();
-        return res.status(403).json({ success: false, message: 'Bạn không có quyền xóa Tổ trưởng ngoài phạm vi công đoạn phụ trách' });
-      }
+    try {
+      await assertUserManagementScope(req.user, target, { executor: connection, action:'USER_PERMANENT_DELETE' });
+    } catch (error) {
+      await connection.rollback();
+      return res.status(403).json({ success: false, code:error.code || 'PROCESS_SCOPE_FORBIDDEN', message:error.message });
     }
 
     // Remove role assignments first so no manager_processes row points at the account.

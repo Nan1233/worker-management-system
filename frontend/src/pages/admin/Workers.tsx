@@ -187,10 +187,10 @@ export default function AdminWorkers() {
   const promoteWorkerToLead = async (person:Person) => {
     if (!canEdit || person.role !== "worker" || promotingId !== null) return;
     const processText = person.process_names || "công đoạn đã được phân công";
-    const confirmed = window.confirm(`Nâng ${person.full_name || person.username} (${person.worker_code || person.username}) lên Tổ trưởng?\n\n• Giữ nguyên tài khoản và lịch sử dữ liệu\n• Chuyển công đoạn hiện tại sang phụ trách Tổ trưởng\n• Mật khẩu mới: 123456\n• Công đoạn: ${processText}\n\nTiếp tục?`);
+    const confirmed = window.confirm(`Nâng ${person.full_name || person.username} (${person.worker_code || person.username}) lên Tổ trưởng?\n\n• Giữ nguyên tài khoản và lịch sử dữ liệu\n• Chuyển công đoạn hiện tại sang phụ trách Tổ trưởng\n• Hệ thống tạo mật khẩu ngẫu nhiên, chỉ hiển thị một lần\n• Công đoạn: ${processText}\n\nTiếp tục?`);
     if (!confirmed) return;
     setPromotingId(person.id);
-    try { const response = await api.post(`/users/${person.id}/promote-lead`); showToast(response.data?.message || `Đã nâng ${person.full_name || person.username} lên Tổ trưởng`, "success"); await load(); }
+    try { const response = await api.post(`/users/${person.id}/promote-lead`); showToast(response.data?.message || `Đã nâng ${person.full_name || person.username} lên Tổ trưởng`, "success"); const initialPassword = String(response.data?.data?.initial_password || ""); if (initialPassword) window.alert(`Mật khẩu khởi tạo (chỉ hiển thị lần này):\\n\\n${initialPassword}\\n\\nHãy gửi mật khẩu cho người được nâng và yêu cầu đổi mật khẩu ngay sau khi đăng nhập.`); await load(); }
     catch (error:any) { showToast(error?.response?.data?.message || "Không thể nâng công nhân lên Tổ trưởng", "error"); }
     finally { setPromotingId(null); }
   };
@@ -198,10 +198,10 @@ export default function AdminWorkers() {
   const promoteWorkerToManager = async (person:Person) => {
     if (!isAdmin || !canEdit || person.role !== "worker" || promotingId !== null) return;
     const processText = person.process_names || "công đoạn đã được phân công";
-    const confirmed = window.confirm(`Nâng ${person.full_name || person.username} (${person.worker_code || person.username}) lên Quản lý?\n\n• Giữ nguyên tài khoản và lịch sử báo cáo\n• Chuyển toàn bộ công đoạn hiện tại sang Quản lý\n• Giữ nguyên mật khẩu hiện tại\n• Mỗi công đoạn chỉ có tối đa 1 Quản lý\n• Công đoạn: ${processText}\n\nChỉ Admin mới thực hiện được thao tác này. Tiếp tục?`);
+    const confirmed = window.confirm(`Nâng ${person.full_name || person.username} (${person.worker_code || person.username}) lên Quản lý?\n\n• Giữ nguyên tài khoản và lịch sử báo cáo\n• Chuyển toàn bộ công đoạn hiện tại sang Quản lý\n• Hệ thống tạo mật khẩu ngẫu nhiên, chỉ hiển thị một lần\n• Mỗi công đoạn chỉ có tối đa 1 Quản lý\n• Công đoạn: ${processText}\n\nChỉ Admin mới thực hiện được thao tác này. Tiếp tục?`);
     if (!confirmed) return;
     setPromotingId(person.id);
-    try { const response = await api.post(`/users/${person.id}/promote-manager`); showToast(response.data?.message || `Đã nâng ${person.full_name || person.username} lên Quản lý`, "success"); await load(); }
+    try { const response = await api.post(`/users/${person.id}/promote-manager`); showToast(response.data?.message || `Đã nâng ${person.full_name || person.username} lên Quản lý`, "success"); const initialPassword = String(response.data?.data?.initial_password || ""); if (initialPassword) window.alert(`Mật khẩu khởi tạo (chỉ hiển thị lần này):\\n\\n${initialPassword}\\n\\nHãy gửi mật khẩu cho người được nâng và yêu cầu đổi mật khẩu ngay sau khi đăng nhập.`); await load(); }
     catch (error:any) { showToast(error?.response?.data?.message || "Không thể nâng công nhân lên Quản lý", "error"); }
     finally { setPromotingId(null); }
   };

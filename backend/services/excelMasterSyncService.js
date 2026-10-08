@@ -1,3 +1,4 @@
+const { hasPermission } = require('./permissionService');
 const db = require('../config/db');
 const { assertProcessesScope } = require('./processAuthorizationService');
 const {
@@ -62,6 +63,7 @@ function summarize(changes, invalid) {
 }
 
 async function preview({ entityType, rows, allowDeactivate = false }, actor = null) {
+  if (actor && !(await hasPermission(actor, 'EXCEL_MASTER_SYNC'))) throw Object.assign(new Error('Bạn không có quyền đồng bộ dữ liệu chuẩn từ Excel'), { statusCode:403, code:'PERMISSION_DENIED', isPublic:true });
   const config = ENTITY_CONFIGS[entityType];
   if (!config) throw Object.assign(new Error('Loại dữ liệu đồng bộ không hợp lệ'), { statusCode: 400 });
   const processIds = collectWorkbookProcessIds(rows);
@@ -100,6 +102,7 @@ async function logChange(connection, batchId, entityType, change, sheetName) {
 }
 
 async function apply(payload, actor) {
+  if (actor && !(await hasPermission(actor, 'EXCEL_MASTER_SYNC'))) throw Object.assign(new Error('Bạn không có quyền đồng bộ dữ liệu chuẩn từ Excel'), { statusCode:403, code:'PERMISSION_DENIED', isPublic:true });
   const result = await preview(payload, actor);
   if (result.invalid.length && payload.rejectOnInvalid !== false) {
     throw Object.assign(new Error(`Có ${result.invalid.length} dòng không hợp lệ; chưa ghi dữ liệu`), {

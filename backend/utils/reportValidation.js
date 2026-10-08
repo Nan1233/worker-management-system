@@ -92,7 +92,7 @@ const validateProductionReport = (payload = {}, options = {}) => {
     const errors = {};
     const workDate = String(payload.work_date || '').slice(0, 10);
     const parsedDate = DATE_PATTERN.test(workDate) ? new Date(`${workDate}T00:00:00`) : null;
-    const isNonProductWork = Number(payload.process_id) === 60006 ||
+    const isNonProductWork = Number(payload.process_id) === 60006 || Number(payload.process_id) === 30002 ||
         String(payload.process_code || payload.extra_data?.process_code || '').trim().toUpperCase() === 'CVK';
     const productCodeForPolicy = String(payload.product_name || '').split(',')[0].trim().toUpperCase();
     const isZeroStandardLongWork = ZERO_STANDARD_LONG_WORK_CODES.has(productCodeForPolicy) &&
@@ -153,17 +153,6 @@ const validateProductionReport = (payload = {}, options = {}) => {
     let deductions = normalizeDetails(payload.deductions || [], 'deduction_type_id', 'hours', 'deductions', errors);
 
     const deductionTotal = deductions.reduce((sum, item) => sum + item.hours, 0);
-    const minuteBasedTotal = deductionTotal / 60;
-    if (
-        deductionTime > EPSILON &&
-        Math.abs(deductionTotal - deductionTime) > EPSILON &&
-        Math.abs(minuteBasedTotal - deductionTime) <= EPSILON
-    ) {
-        deductions = deductions.map((item) => ({
-            ...item,
-            hours: item.hours / 60
-        }));
-    }
 
     const defectTotal = defects.reduce((sum, item) => sum + item.quantity, 0);
     const normalizedDeductionTotal = deductions.reduce((sum, item) => sum + item.hours, 0);

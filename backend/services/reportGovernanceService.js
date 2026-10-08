@@ -10,20 +10,6 @@ function normalizeDate(value) {
   return String(value || '').slice(0, 10);
 }
 
-async function isPeriodLocked(workDate, processId, executor = db.promise()) {
-  const date = normalizeDate(workDate);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
-  const rows = await q(
-    `SELECT id FROM reporting_period_locks
-     WHERE report_year = YEAR(?) AND report_month = MONTH(?)
-       AND status = 'locked'
-       AND (process_id IS NULL OR process_id = ?)
-     LIMIT 1`,
-    [date, date, Number(processId)], executor
-  );
-  return rows.length > 0;
-}
-
 async function createApprovedSnapshot(reportId, createdBy, executor = db.promise()) {
   const reports = await q(
     `SELECT pr.*, w.worker_code, u.full_name, p.process_code, p.process_name,
@@ -86,4 +72,4 @@ async function createApprovedSnapshot(reportId, createdBy, executor = db.promise
   return snapshot;
 }
 
-module.exports = { isPeriodLocked, createApprovedSnapshot };
+module.exports = { createApprovedSnapshot };

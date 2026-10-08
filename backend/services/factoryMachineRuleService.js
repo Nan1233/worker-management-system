@@ -203,7 +203,6 @@ const validateMachineWorkerCapacity = async ({
     if (rule.maxWorkersPerMachine < 1) continue;
   }
 
-  const db = getDb();
   const machinePlaceholders = uniqueCodes.map(() => "?").join(",");
   const tempExclude = excludeTempReportId ? " AND prt.id <> ?" : "";
   const tempParams = [
@@ -215,7 +214,7 @@ const validateMachineWorkerCapacity = async ({
   if (excludeTempReportId) tempParams.push(Number(excludeTempReportId));
 
   const [usageRows] = await db.promise().query(
-    `SELECT machine_code, worker_id FROM (
+    `SELECT DISTINCT worker_id, machine_code FROM (
        SELECT UPPER(TRIM(ml.machine_code)) AS machine_code, prt.worker_id
          FROM production_reports_temp prt
          JOIN production_temp_machine_lines ml
@@ -329,7 +328,6 @@ const validateMachineWorkerCapacityLocked = async ({
   );
 
   const errors = {};
-  const db = getDb();
   const machinePlaceholders = uniqueCodes.map(() => "?").join(",");
   const tempExclude = excludeTempReportId ? " AND prt.id <> ?" : "";
   const tempParams = [
@@ -342,7 +340,7 @@ const validateMachineWorkerCapacityLocked = async ({
 
   const usage = await executorQuery(
     executor,
-    `SELECT machine_code, worker_id FROM (
+    `SELECT DISTINCT worker_id, machine_code FROM (
        SELECT UPPER(TRIM(ml.machine_code)) AS machine_code, prt.worker_id
          FROM production_reports_temp prt
          JOIN production_temp_machine_lines ml

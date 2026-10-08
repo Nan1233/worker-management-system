@@ -67,13 +67,145 @@ test('master processes are not treated as global manager-mutatable configuration
 test('worker master/process assignment cannot escape actor process scope', () => {
   const src = read('controllers/adminMasterController.js');
   assert.match(src, /assertCanManageWorker\(req\.user, workerId, connection, \{ requireAllAssignments:true \}\)/);
-  assert.match(src, /assertProcessesScope\(req\.user, processIds, \{ executor:connection, action:'WORKER_PROCESS_ASSIGNMENT' \}\)/);
+  assert.match(src, /assertProcessesScope\(req\.user, processIds, \{ executor:connection, action:'WORKER_PROCESS_ASSIGNMENT', allowEmpty:true \}\)/);
 });
 
-test('master functional permissions remain required in routes in addition to process scope', () => {
+test('user management uses centralized role + process scope for view/update/promotion/delete', () => {
+  const auth = read('services/processAuthorizationService.js');
+  const user = read('controllers/userController.js');
+  const update = read('controllers/userUpdateController.js');
+  const promotion = read('controllers/workerPromotionController.js');
+  const deletion = read('controllers/permanentUserDeletionController.js');
+  assert.match(auth, /async function assertUserManagementScope\(actor, target/);
+  assert.match(auth, /manager_processes actor_scope/);
+  assert.match(user, /assertUserManagementScope\(actor, target/);
+  assert.match(update, /assertUserManagementScope\(actor, target/);
+  assert.match(promotion, /assertUserManagementScope\(req\.user, target/);
+  assert.match(deletion, /assertUserManagementScope\(req\.user, target/);
+});
+
+test('user management scope preserves role hierarchy', async () => {
+  const { assertUserManagementScope } = require('../services/processAuthorizationService');
+  const db = {
+    async query(sql, params) {
+      if (/manager_processes actor_scope/i.test(sql)) {
+        return [params[1] === 50 && params[0] === 10 ? [{ ok:1 }] : [], []];
+      }
+      throw new Error('Unexpected SQL');
+    }
+  };
+  assert.equal(await assertUserManagementScope({ id:1, role:'admin' }, { id:10, role:'manager' }, { executor:db }), true);
+  assert.equal(await assertUserManagementScope({ id:50, role:'manager' }, { id:10, role:'worker', worker_id:10 }, { executor:db }), true);
+  await assert.rejects(
+    assertUserManagementScope({ id:50, role:'manager' }, { id:10, role:'manager' }, { executor:db }),
+    (e) => e?.status === 403 && e?.code === 'PROCESS_SCOPE_FORBIDDEN'
+  );
+  await assert.rejects(
+    assertUserManagementScope({ id:50, role:'lead' }, { id:10, role:'lead' }, { executor:db }),
+    (e) => e?.status === 403 && e?.code === 'PROCESS_SCOPE_FORBIDDEN'
+  );
+});
+
+test('master functional permissions remain required before process-scoped master operations', () => {
   const routes = read('routes/adminMasterRoutes.js');
-  assert.match(routes, /permission\('MASTER_VIEW'\)/);
-  assert.match(routes, /permission\('MASTER_EDIT'\)/);
+  assert.match(routes, /const masterPermission=\(req,res,next\)=>permission\(req\.method==='GET'\?'MASTER_VIEW':'MASTER_EDIT'\)\(req,res,next\)/);
+  for (const operation of [
+    "router.get('/:resource'",
+    "router.post('/:resource'",
+    "router.put('/:resource/:id'",
+    "router.delete('/:resource/:id'"
+  ]) {
+    const at = routes.indexOf(operation);
+    assert.ok(at >= 0, 'missing master operation');
+    const tail = routes.slice(at, routes.indexOf('\n', at));
+    assert.match(tail, /managerMasterAccess,masterPermission,managerResourceScope/);
+  }
+});
+
+test('audit, system health and notification endpoints enforce role and scope contracts', () => {
+  const routes = read('routes/systemRoutes.js');
+  const controller = read('controllers/systemController.js');
+  const permissions = read('services/permissionService.js');
+
+  assert.match(routes, /\/observability[\s\S]*role\('admin',\s*'manager'\)[\s\S]*permission\('SYSTEM_HEALTH_VIEW'\)/);
+  assert.match(routes, /\/activities[\s\S]*role\(\s*'admin'\s*,\s*'manager'\s*,\s*'lead'\s*\)[\s\S]*permission\(\s*'AUDIT_VIEW'\s*\)/);
+  assert.match(routes, /\/deleted-reports[\s\S]*role\(\s*'admin'\s*,\s*'manager'\s*,\s*'lead'\s*\)[\s\S]*permission\(\s*'AUDIT_VIEW'\s*\)/);
+  assert.match(routes, /\/notifications(?:\/unread-count)?[\s\S]*permission\(\s*'NOTIFICATION_VIEW'\s*\)/);
+  assert.match(controller, /a\.user_id=\?/);
+  assert.match(controller, /mp\.manager_id=\?/);
+  assert.match(controller, /mp2\.manager_id=\?/);
+  assert.match(controller, /FROM notifications[\s\S]*WHERE(?:\s+n)?\.user_id\s*=\s*\?/);
+  assert.match(controller, /UPDATE notifications SET is_read=1, read_at=NOW\(\) WHERE id=\? AND user_id=\?/);
+  assert.match(controller, /UPDATE notifications SET is_read=1, read_at=NOW\(\) WHERE user_id=\?/);
+  assert.doesNotMatch(permissions, /lead: \[[^\\]]*SYSTEM_HEALTH_VIEW/);
+});
+
+test('no shared default password remains; management account creation requires explicit password', () => {
+  const routes = read('routes/userRoutes.js');
+  const create = read('controllers/userController.js');
+  const promotion = read('controllers/workerPromotionController.js');
+  const adminUi = read('../frontend/src/pages/admin/Workers.tsx');
+  const managerUi = read('../frontend/src/pages/manager/Workers.tsx');
+  assert.doesNotMatch(routes, /KTC_DEFAULT_LEAD_PASSWORD|123456/);
+  assert.doesNotMatch(promotion, /DEFAULT_LEAD_PASSWORD|DEFAULT_MANAGER_PASSWORD|123456/);
+  assert.match(create, /password\.length < 6/);
+  assert.match(promotion, /crypto\.randomBytes\(18\)\.toString\('base64url'\)/);
+  assert.match(promotion, /initial_password:initialPassword/);
+  assert.doesNotMatch(adminUi, /123456/);
+  assert.doesNotMatch(managerUi, /123456/);
+});
+
+test('Excel export, DB sync and master sync enforce permission and scope contracts', () => {
+  const exportRoutes = read('routes/reportExportRoutes.js');
+  const desktop = read('controllers/desktopExcelExportController.js');
+  const companyData = read('controllers/companyExcelDataController.js');
+  const dbSync = read('controllers/excelEditSyncController.js');
+  const master = read('services/excelMasterSyncService.js');
+  assert.match(exportRoutes, /authMiddleware, roles, canExport/);
+  assert.match(exportRoutes, /export-excel\/process[\s\S]*canExport/);
+  assert.match(desktop, /assertProcessScope\(req\.user, processId, \{ action:'PROCESS_EXPORT' \}\)/);
+  assert.match(desktop, /assertCompanyScope/);
+  assert.match(companyData, /getActorProcessScope\(actor\)/);
+  assert.match(dbSync, /hasPermission\(req\.user, 'EXCEL_DB_SYNC'\)/);
+  assert.match(master, /hasPermission\(actor, 'EXCEL_MASTER_SYNC'\)/);
+  assert.match(master, /assertProcessesScope\(actor, processIds, \{ action: 'EXCEL_MASTER_SYNC_PREVIEW' \}\)/);
+  assert.match(master, /EXCEL_MASTER_SYNC_HISTORY/);
+});
+
+test('approved edit/delete/restore use permission, role, scope and audit contracts', () => {
+  const routes = read('routes/productionRoutes.js');
+  const controller = read('controllers/productionController.js');
+  const service = read('services/approvedReportEditService.js');
+  assert.match(routes, /router\.put\("\/:id"[\s\S]*checkRole\("admin","manager","lead"\)[\s\S]*permission\("REPORT_APPROVED_EDIT"\)/);
+  assert.match(routes, /versions\/:versionNo\/restore[\s\S]*checkRole\("admin","manager","lead"\)[\s\S]*permission\("REPORT_APPROVED_EDIT"\)/);
+  assert.match(routes, /router\.delete\("\/:id"[\s\S]*checkRole\("admin","manager","lead"\)[\s\S]*permission\("REPORT_DELETE"\)/);
+  assert.match(service, /hasPermission\(actor, 'REPORT_APPROVED_EDIT'\)/);
+  assert.match(service, /assertProcessScope\(actor, lockedRows\[0\]\.process_id/);
+  assert.match(service, /assertProcessScope\(actor, currentRow\.process_id/);
+  assert.match(service, /REPORT_RESTORED/);
+  assert.match(controller, /hasPermission\(req\.user,'REPORT_DELETE'\)/);
+  assert.match(controller, /assertProcessScope\(req\.user,lockedRows\[0\]\.process_id/);
+  assert.match(controller, /REPORT_DELETED/);
+});
+
+test('pending approve/reject and edit require functional permission plus process scope', () => {
+  const routes = read('routes/productionTempRoutes.js');
+  const ctrl = read('controllers/productionTempManagementController.js');
+  assert.match(routes, /approve-selected[\s\S]*permission\("REPORT_APPROVE"\)/);
+  assert.match(routes, /reject-selected[\s\S]*permission\("REPORT_APPROVE"\)/);
+  assert.match(routes, /router\.put\("\/:id"[\s\S]*permission\("REPORT_PENDING_EDIT","REPORT_APPROVE","WORKER_ENTRY"\)/);
+  assert.match(ctrl, /hasPermission\(req\.user, "REPORT_APPROVE"\)/);
+  assert.match(ctrl, /assertProcessesScope\(req\.user, scopeRows\.map\(\(row\) => row\.process_id\)/);
+  assert.match(ctrl, /requiredPermission[\s\S]*REPORT_PENDING_EDIT/);
+  assert.match(ctrl, /assertProcessesScope\(req\.user, \[current\.process_id\], \{ action:"REPORT_PENDING_EDIT" \}\)/);
+  assert.match(ctrl, /WORKER_OWNERSHIP_FORBIDDEN/);
+});
+
+test('approval model still enforces manager_processes at transaction boundary', () => {
+  const approval = read('models/productionTempApprovalModel.js');
+  assert.match(approval, /manager_processes mp ON mp\.process_id=temp\.process_id/);
+  assert.match(approval, /mp\.manager_id = \?/);
+  assert.match(approval, /status IN \('pending','need_fix'\)/);
 });
 
 test('formula read filters products/processes/scopes by current process scope', () => {
@@ -99,11 +231,10 @@ test('formula product rule by known ID resolves resource process before UPDATE',
   assert.ok(select >= 0 && scope > select && update > scope);
 });
 
-test('GLOBAL formula mutation is admin-only while functional FORMULA_EDIT remains in route', () => {
-  const src = read('controllers/formulaSettingsController.js');
+test('formula management API is intentionally removed from public application routes', () => {
   const routes = read('routes/formulaSettingsRoutes.js');
-  assert.match(src, /scopeCode === 'GLOBAL'[\s\S]*req\.user\?\.role !== 'admin'/);
-  assert.match(routes, /permission\('FORMULA_EDIT'\)/);
+  assert.match(routes, /FORMULA_FEATURE_REMOVED/);
+  assert.match(routes, /res\.status\(404\)/);
 });
 
 test('governance lists and summary use backend process scope before returning counts/rows', () => {
@@ -116,13 +247,12 @@ test('governance lists and summary use backend process scope before returning co
 
 test('governance create blocks MAI body tampering for GC manager through assertProcessScope', () => {
   const src = read('controllers/governanceController.js');
-  assert.match(src, /createPlan[\s\S]*assertProcessScope\(req\.user,processId,\{action:'GOVERNANCE_PLAN_CREATE'\}\)/);
-  assert.match(src, /lockPeriod[\s\S]*assertProcessScope\(req\.user,processId,\{action:'GOVERNANCE_PERIOD_LOCK'\}\)/);
-});
+  assert.match(src, /createPlan[\s\S]*assertProcessScope\(req\.user,processId,\{action:'GOVERNANCE_PLAN_CREATE'\}\)/);});
 
-test('global period lock mutation is admin-only', () => {
+test('reporting period lock contract is removed from application code', () => {
   const src = read('controllers/governanceController.js');
-  assert.match(src, /processId===null[\s\S]*req\.user\?\.role!=='admin'[\s\S]*Chỉ admin được khóa kỳ toàn hệ thống/);
+  assert.doesNotMatch(src, /Chỉ admin được khóa kỳ toàn hệ thống/);
+  assert.doesNotMatch(src, /processId===null[\s\S]*khóa kỳ/);
 });
 
 test('process Excel list and explicit process export are scoped server-side', () => {
@@ -136,9 +266,10 @@ test('process Excel list and explicit process export are scoped server-side', ()
 
 test('company-wide data builder enforces complete process scope before cache/data return', () => {
   const src = read('controllers/companyExcelDataController.js');
-  assert.match(src, /assertCompanyDataScope\(actor\)/);
+  assert.match(src, /async function assertCompanyDataScope\(actor\)/);
   assert.match(src, /await assertCompanyDataScope\(actor\);[\s\S]*const cached/);
-  assert.match(src, /buildCompanyData\(yearMonth, actor\)[\s\S]*assertProcessesScope\(actor, companyProcessIds/);
+  assert.match(src, /buildCompanyData\(yearMonth, actor\)[\s\S]*await assertCompanyDataScope\(actor\)/);
+  assert.match(src, /assertProcessesScope\(actor, companyProcessIds/);
 });
 
 test('company group and company-all exports use subset/global scope rules', () => {
@@ -156,10 +287,10 @@ test('async export job validates scope before enqueue and protects job read/down
   assert.match(src, /await canReadJob\(req\.user,job\)/);
 });
 
-test('legacy monthly consolidated export is not a manager scope bypass', () => {
+test('legacy monthly consolidated export is disabled; Desktop async export is the active path', () => {
   const src = read('controllers/reportExportController.js');
-  assert.match(src, /assertProcessesScope\(req\.user, scopeRows\.map/);
-  assert.ok(src.indexOf('assertProcessesScope(req.user') < src.indexOf("excelJobManager.run('monthly'"));
+  assert.match(src, /DESKTOP_EXCEL_REQUIRED/);
+  assert.match(src, /res\.status\(503\)/);
 });
 
 test('F09 export routes still require REPORT_EXPORT functional permission', () => {
@@ -186,21 +317,19 @@ test('admin remains globally eligible for company-wide process set', async () =>
 test('governance routes retain functional permissions and manager/admin role boundary', () => {
   const routes=read('routes/governanceRoutes.js');
   assert.match(routes,/role\('admin','manager'\)/);
-  assert.match(routes,/permission\('GOVERNANCE_VIEW'\)/);
-  assert.match(routes,/permission\('PERIOD_LOCK'\)/);
-});
+  assert.match(routes,/permission\('GOVERNANCE_VIEW'\)/);});
 
-test('formula lead capability is not granted by process scope alone', () => {
+test('formula lead capability is not exposed after formula feature removal', () => {
   const routes=read('routes/formulaSettingsRoutes.js');
-  assert.match(routes,/permission\('FORMULA_EDIT'\)/);
-  assert.match(routes,/checkRole\('admin','manager','lead'\)/);
+  assert.doesNotMatch(routes,/FORMULA_EDIT/);
+  assert.match(routes,/FORMULA_FEATURE_REMOVED/);
 });
 
 test('company-data service performs defense-in-depth scope assertion inside builder', () => {
   const src=read('controllers/companyExcelDataController.js');
   const build=src.indexOf('async function buildCompanyData');
-  const assertAt=src.indexOf('assertProcessesScope(actor, companyProcessIds',build);
-  const load=src.indexOf('loadProcessMonthReports',build);
+  const assertAt=src.indexOf('await assertCompanyDataScope(actor)',build);
+  const load=src.indexOf('loadBulkCompanyReports(yearMonth, actor)',build);
   assert.ok(build>=0 && assertAt>build && load>assertAt);
 });
 

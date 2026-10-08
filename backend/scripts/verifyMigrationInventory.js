@@ -36,10 +36,17 @@ const malformed = fs.readdirSync(migrationsDir)
   .filter((name) => !/^\d+_.+\.sql$/i.test(name));
 
 const latest = files.at(-1) || null;
-const expectedVersions = Array.from({ length: 45 }, (_, index) => index + 1);
+const expectedVersions = Array.from({ length: 53 }, (_, index) => index + 1);
 const missingVersions = expectedVersions.filter((value) => !versions.includes(value));
-const allowedHistoricalGap = missingVersions.length > 0 && missingVersions.every((value) => value >= 8 && value <= 26);
-const completeExecutableInventory = versions[0] === 1 && versions.at(-1) === 45 && (!missingVersions.length || allowedHistoricalGap);
+const allowedHistoricalGaps = new Set([
+  ...Array.from({ length: 18 }, (_, index) => index + 8),
+  33,
+  43,
+  44,
+  45,
+]);
+const unexpectedMissingVersions = missingVersions.filter((value) => !allowedHistoricalGaps.has(value));
+const completeExecutableInventory = versions[0] === 1 && versions.at(-1) === 53 && duplicateNumbers.length === 0 && unexpectedMissingVersions.length === 0;
 
 console.log(JSON.stringify({
   migration_file_count: files.length,
@@ -49,7 +56,8 @@ console.log(JSON.stringify({
   duplicate_numbers: duplicateNumbers,
   versions,
   missing_versions: missingVersions,
-  historical_gap_008_026: allowedHistoricalGap,
+  historical_gaps: missingVersions.filter((value) => allowedHistoricalGaps.has(value)),
+  unexpected_missing_versions: unexpectedMissingVersions,
   malformed_files: malformed,
   deterministic_order: true,
   complete_001_045: missingVersions.length === 0,

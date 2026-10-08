@@ -174,6 +174,7 @@ exports.createUser = async (req, res) => {
       password: await bcrypt.hash(password, 10),
       full_name: fullName,
       role,
+      position: String(body.position || '').trim() || null,
       status: body.status === 'inactive' ? 'inactive' : 'active'
     });
     await connection.query(userInsert.sql, userInsert.values);

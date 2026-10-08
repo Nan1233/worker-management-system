@@ -2,20 +2,48 @@
 
 const DEFAULT_REPOSITORY = 'Nan1233/worker-management-system';
 const isCloudflareWorker = process.env.KTC_CLOUDFLARE_WORKER === 'true' || Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
+// Outside the Worker this defaults to 'main', so a local `npm run db:migrate`
+// with no KTC_MIGRATION_REF pulls migration SQL from the main branch and can
+// apply it to whatever database .env points at. Both facts are invisible in the
+// current output, so the resolved target is logged before anything is applied
+// and a defaulted ref is called out.
+const migrationRefExplicit = Boolean(String(process.env.KTC_MIGRATION_REF || '').trim());
 const migrationRef = String(process.env.KTC_MIGRATION_REF || (isCloudflareWorker ? 'test' : 'main')).trim();
 const repository = String(process.env.KTC_MIGRATION_REPOSITORY || DEFAULT_REPOSITORY).trim();
 const rawBase = `https://raw.githubusercontent.com/${repository}/${migrationRef.replace(/[^A-Za-z0-9._-]/g, '')}`;
 
 const EMBEDDED_MIGRATION_NAMES = [
-  '001_core_master_schema.sql','002_production_schema.sql','003_machine_and_session_schema.sql','004_sync_and_export_schema.sql',
-  '005_entry_date_compatibility.sql','006_extra_data_compatibility.sql','007_production_formula_settings.sql',
-  '027_notifications_runtime_columns.sql','028_report_edit_proposals.sql','029_temp_report_updated_by.sql',
-  '030_report_kpi_calculated_columns.sql','031_mai_standard_data_20260903.sql','032_add_2801_lt_long_machine_20260908.sql',
-  '034_non_product_work_process_20260907.sql','035_gc_late_early_deduction_20260907.sql','036_notifications_runtime_columns_20260908.sql',
-  '037_production_reports_logical_duplicate_key_20260909.sql','038_gc_deduction_types_exact_20260910.sql',
-  '039_cvk_deduction_types_20260911.sql','039_machine_adjustment_fields_20260914.sql','040_cvk_deduction_types_repair_20260914.sql',
-  '046_reset_gc_cut_long_master_20260924.sql','047_gc_aliases_from_excel_20260924.sql',
-  '048_gc_products_defects_from_excel_20260924.sql','049_gc_machines_from_excel_20260924.sql'
+  '001_core_master_schema.sql',
+  '002_production_schema.sql',
+  '003_machine_and_session_schema.sql',
+  '004_sync_and_export_schema.sql',
+  '005_entry_date_compatibility.sql',
+  '006_extra_data_compatibility.sql',
+  '007_production_formula_settings.sql',
+  '026_product_standard_versions_prerequisite.sql',
+  '027_notifications_runtime_columns.sql',
+  '028_report_edit_proposals.sql',
+  '029_temp_report_updated_by.sql',
+  '030_report_kpi_calculated_columns.sql',
+  '031_mai_standard_data_20260903.sql',
+  '032_add_2801_lt_long_machine_20260908.sql',
+  '034_non_product_work_process_20260907.sql',
+  '035_gc_late_early_deduction_20260907.sql',
+  '036_notifications_runtime_columns_20260908.sql',
+  '037_production_reports_logical_duplicate_key_20260909.sql',
+  '038_gc_deduction_types_exact_20260910.sql',
+  '039_cvk_deduction_types_20260911.sql',
+  '040_cvk_deduction_types_repair_20260914.sql',
+  '041_machine_adjustment_fields_20260914.sql',
+  '042_product_aliases_prerequisite.sql',
+  '046_reset_gc_cut_long_master_20260924.sql',
+  '047_gc_aliases_from_excel_20260924.sql',
+  '048_gc_products_defects_from_excel_20260924.sql',
+  '049_gc_machines_from_excel_20260924.sql',
+  '050_remove_legacy_2801_lt_20260925.sql',
+  '051_gc_long_no_standard_work_20260928.sql',
+  '052_organization_accounts_and_positions_20261006.sql',
+  '053_restore_gc_deduction_types_16_20261007.sql'
 ];
 
 function getMigrationError(error){
@@ -51,6 +79,36 @@ function validateMigrationInventory(migrations){
   return { entries: migrations, versions: migrations.map((_, index) => index + 1) };
 }
 
+function migrationNumber(filename){
+  return Number.parseInt(String(filename).split('_', 1)[0], 10);
+}
+
+// KTC_MIGRATION_MAX is a ceiling, not a target: migrations numbered above it are
+// dropped from the inventory entirely, so they are never pending and never run.
+// This is what makes unattended migration safe to switch on - the runner can be
+// allowed to advance on its own up to a reviewed point and stop there, instead
+// of running every remaining migration including the destructive master-data
+// ones. Raise the ceiling once the next batch has been reviewed and backed up.
+function resolveMigrationCeiling(){
+  const raw = String(process.env.KTC_MIGRATION_MAX || '').trim();
+  if(!raw) return null;
+  const ceiling = Number.parseInt(raw, 10);
+  if(!Number.isInteger(ceiling) || ceiling <= 0) throw new Error(`Invalid KTC_MIGRATION_MAX: ${raw}`);
+  return ceiling;
+}
+
+// KTC_MIGRATION_INCLUDE is an explicit, reviewed allowlist of migration numbers
+// (comma separated) that may run in addition to everything at or below the
+// ceiling. It lets one reviewed, idempotent migration through without raising the
+// ceiling past the unreviewed destructive ones in between.
+function resolveMigrationIncludes(){
+  const raw = String(process.env.KTC_MIGRATION_INCLUDE || '').trim();
+  if(!raw) return new Set();
+  const numbers = raw.split(',').map(part => part.trim()).filter(Boolean).map(part => Number.parseInt(part, 10));
+  if(numbers.some(value => !Number.isInteger(value) || value <= 0)) throw new Error(`Invalid KTC_MIGRATION_INCLUDE: ${raw}`);
+  return new Set(numbers);
+}
+
 function loadMigrationManifest(){
   let names = EMBEDDED_MIGRATION_NAMES;
   try {
@@ -60,9 +118,23 @@ function loadMigrationManifest(){
   } catch(error) {
     console.warn(`[KTC][MIGRATION] using embedded inventory: ${getMigrationError(error)}`);
   }
-  return validateMigrationInventory(normalizeMigrationEntries(
+
+  const ceiling = resolveMigrationCeiling();
+  const includes = resolveMigrationIncludes();
+  const totalNames = names.length;
+  if(ceiling !== null){
+    names = names.filter(name => {
+      const number = migrationNumber(name);
+      return Number.isInteger(number) && (number <= ceiling || includes.has(number));
+    });
+    if(!names.length) throw new Error(`KTC_MIGRATION_MAX=${ceiling} excluded every migration in the inventory of ${totalNames}.`);
+    console.log(`[KTC][MIGRATION] ceiling KTC_MIGRATION_MAX=${ceiling}: ${names.length}/${totalNames} migrations eligible${includes.size ? ` (explicit include: ${[...includes].join(',')})` : ''}; the rest will not run`);
+  }
+
+  const inventory = validateMigrationInventory(normalizeMigrationEntries(
     names.map(name => ({name:String(name),type:'file',download_url:`${rawBase}/backend/migrations/${encodeURIComponent(String(name))}`}))
   ));
+  return { ...inventory, ceiling };
 }
 
 function splitSql(sql){
@@ -111,7 +183,7 @@ async function sha256(value){
 const MIGRATION_STATEMENTS_PER_INVOCATION = Math.max(1, Math.min(8, Number.parseInt(process.env.KTC_MIGRATION_BATCH_SIZE || '8', 10) || 8));
 
 async function runPendingMigrations(){
-  const {entries,versions}=loadMigrationManifest();
+  const {entries,versions,ceiling}=loadMigrationManifest();
   const db=require('../config/db');
   const missingDb=typeof db.getMissingDatabaseVariables==='function'?db.getMissingDatabaseVariables():[];
   if(missingDb.length) throw new Error(`Migration database configuration missing: ${missingDb.join(', ')}`);
@@ -120,6 +192,16 @@ async function runPendingMigrations(){
     await connection.query('CREATE TABLE IF NOT EXISTS schema_migrations (migration_id VARCHAR(160) NOT NULL PRIMARY KEY, checksum CHAR(64) NOT NULL, applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)');
     await connection.query('CREATE TABLE IF NOT EXISTS schema_migration_steps (id TINYINT NOT NULL PRIMARY KEY, migration_id VARCHAR(160) NOT NULL, checksum CHAR(64) NOT NULL, statement_index INT NOT NULL, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)');
     console.log(`[KTC][MIGRATION] manifest loaded: ${entries.length} SQL files / ${versions.length} ordered migrations, ref=${migrationRef}`);
+
+    let targetDatabase = 'unknown';
+    try {
+      const [databaseRows] = await connection.query('SELECT DATABASE() AS db_name');
+      targetDatabase = String(databaseRows?.[0]?.db_name || 'unknown');
+    } catch (_) {}
+    console.log(`[KTC][MIGRATION] target: database=${targetDatabase} repository=${repository} ref=${migrationRef} batchSize=${MIGRATION_STATEMENTS_PER_INVOCATION} ceiling=${ceiling === null ? 'none' : ceiling}`);
+    if (!migrationRefExplicit) {
+      console.warn(`[KTC][MIGRATION] WARNING: KTC_MIGRATION_REF was not set and defaulted to "${migrationRef}". Set it explicitly so another branch's migrations cannot be applied to this database.`);
+    }
 
     let processedStatements=0;
     while(processedStatements < MIGRATION_STATEMENTS_PER_INVOCATION){
@@ -133,14 +215,25 @@ async function runPendingMigrations(){
 
       if(activeStep){
         migration=entries.find(item=>item.filename===String(activeStep.migration_id));
-        if(!migration) throw new Error(`Migration step state references unknown migration: ${activeStep.migration_id}`);
+        if(!migration){
+          const stepNumber=migrationNumber(activeStep.migration_id);
+          // Distinguish a genuinely unknown migration from one the ceiling hid:
+          // resuming a half-applied migration that KTC_MIGRATION_MAX excludes
+          // needs the ceiling raised, not the step state repaired.
+          if(ceiling !== null && Number.isInteger(stepNumber) && stepNumber > ceiling){
+            throw new Error(`Migration ${activeStep.migration_id} is half-applied but sits above KTC_MIGRATION_MAX=${ceiling}; raise the ceiling to finish it.`);
+          }
+          throw new Error(`Migration step state references unknown migration: ${activeStep.migration_id}`);
+        }
         if(!pending.some(item=>item.filename===migration.filename)) throw new Error(`Migration step state references an already applied migration: ${migration.filename}`);
       } else {
         migration=pending[0];
       }
 
       if(!migration){
-        console.log(`[KTC][MIGRATION] complete: ${entries.length} ordered migrations processed`);
+        console.log(ceiling === null
+          ? `[KTC][MIGRATION] complete: ${entries.length} ordered migrations processed`
+          : `[KTC][MIGRATION] complete up to ceiling KTC_MIGRATION_MAX=${ceiling}: ${entries.length} migrations applied; later migrations are held back`);
         return true;
       }
 

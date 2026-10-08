@@ -1,4 +1,8 @@
-const db = require('../config/db');
+let db;
+function getDb() {
+  if (!db) db = require('../config/db');
+  return db;
+}
 const {
   CONTRACT_VERSION,
   getCanonicalSchema,
@@ -26,12 +30,13 @@ const RUNTIME_REQUIRED_COLUMNS = Object.freeze({
   notifications: ['id', 'user_id', 'type', 'title', 'message', 'link_url', 'entity_type', 'entity_id', 'is_read', 'read_at', 'created_at'],
 });
 
-if (process.env.KTC_CLOUDFLARE_WORKER === 'true' && typeof db?.promise === 'function') {
-  const originalTestConnection = db.testConnection;
+if (process.env.KTC_CLOUDFLARE_WORKER === 'true' && typeof getDb().promise === 'function') {
+  const cloudflareDb = getDb();
+  const originalTestConnection = cloudflareDb.testConnection;
   db.testConnection = async () => {
     const startedAt = Date.now();
     try {
-      const [rows] = await db.promise().query('SELECT 1 AS ok');
+      const [rows] = await cloudflareDb.promise().query('SELECT 1 AS ok');
       if (!rows || Number(rows[0]?.ok) !== 1) {
         const error = new Error('TiDB health query did not return ok=1');
         error.code = 'DATABASE_UNAVAILABLE';
@@ -63,7 +68,8 @@ if (process.env.KTC_CLOUDFLARE_WORKER === 'true' && typeof db?.promise === 'func
   };
 }
 
-async function verifyDatabaseSchema({ executor = db.promise() } = {}) {
+async function verifyDatabaseSchema({ executor } = {}) {
+  executor = executor || getDb().promise();
   try {
     const isWorker = process.env.KTC_CLOUDFLARE_WORKER === 'true' ||
       Boolean(globalThis.__KTC_CLOUDFLARE_WORKER);
@@ -100,21 +106,77 @@ async function verifyDatabaseSchema({ executor = db.promise() } = {}) {
     const invalidIndexes = [];
     const extraIndexes = [];
 
-    for (const [table, requiredColumns] of Object.entries(RUNTIME_REQUIRED_COLUMNS)) {
+    const schemaTables = isWorker ? Object.keys(RUNTIME_REQUIRED_COLUMNS) : Object.keys(canonical.tables);
+
+    for (const table of schemaTables) {
       if (!actualTables.has(table)) continue;
-      const [rows] = await executor.query(
-        `SELECT COLUMN_NAME
+
+      const [columnRows] = await executor.query(
+        `SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA
            FROM information_schema.columns
           WHERE table_schema = ?
             AND table_name = ?`,
         [dbName, table],
       );
-      const actual = new Set(rows.map((row) => String(row.COLUMN_NAME).toLowerCase()));
-      for (const column of requiredColumns) {
-        if (!actual.has(column)) missingColumns.push(`${table}.${column}`);
+
+      const actualColumns = new Set(
+        columnRows.map((row) => String(row.COLUMN_NAME).toLowerCase()),
+      );
+
+      const expectedColumns = isWorker
+        ? Object.fromEntries((RUNTIME_REQUIRED_COLUMNS[table] || []).map((name) => [name, null]))
+        : canonical.tables[table].columns;
+
+      for (const column of Object.keys(expectedColumns)) {
+        if (!actualColumns.has(column)) {
+          missingColumns.push(`${table}.${column}`);
+        } else if (!isWorker) {
+          const actualRow = columnRows.find(
+            (row) => String(row.COLUMN_NAME).toLowerCase() === column,
+          );
+          const diffs = compareColumn(expectedColumns[column], actualRow || {});
+          if (diffs.length) invalidColumns.push(`${table}.${column}: ${diffs.join(', ')}`);
+        }
+      }
+
+      for (const actual of actualColumns) {
+        if (!Object.prototype.hasOwnProperty.call(expectedColumns, actual)) {
+          extraColumns.push(`${table}.${actual}`);
+        }
+      }
+
+      const [indexRows] = await executor.query(
+        `SELECT INDEX_NAME, NON_UNIQUE, SEQ_IN_INDEX, COLUMN_NAME
+           FROM information_schema.statistics
+          WHERE table_schema = ?
+            AND table_name = ?`,
+        [dbName, table],
+      );
+
+      const groupedIndexes = new Map();
+      for (const row of indexRows) {
+        const name = String(row.INDEX_NAME).toLowerCase();
+        if (!groupedIndexes.has(name)) groupedIndexes.set(name, []);
+        groupedIndexes.get(name).push(row);
+      }
+
+      const expectedIndexes = isWorker ? {} : canonical.tables[table].indexes;
+      for (const [indexName, expectedIndex] of Object.entries(expectedIndexes)) {
+        const rows = groupedIndexes.get(indexName) || [];
+        if (!rows.length) {
+          missingIndexes.push(`${table}.${indexName}`);
+          continue;
+        }
+        const diffs = compareIndex(expectedIndex, rows);
+        if (diffs.length) invalidIndexes.push(`${table}.${indexName}: ${diffs.join(', ')}`);
+      }
+
+      for (const [indexName] of groupedIndexes) {
+        if (!Object.prototype.hasOwnProperty.call(expectedIndexes, indexName)) {
+          extraIndexes.push(`${table}.${indexName}`);
+        }
       }
     }
-
     const ready = missingTables.length === 0 && missingColumns.length === 0;
 
     return {
@@ -211,6 +273,10 @@ function toSafeSchemaDiagnostics(result) {
     contractVersion: result.contractVersion || CONTRACT_VERSION,
     runtimeContract: result.runtimeContract || 'MINIMUM_STRUCTURAL_V1',
     missingTables: result.missingTables || [],
+    // Readiness fails on missingColumns as well as missingTables, so the safe
+    // diagnostics MUST carry it; omitting it left DATABASE_CONTRACT_INVALID
+    // undiagnosable and crashed scripts/verifyDatabaseSchema.js.
+    missingColumns: result.missingColumns || [],
     invalidColumns: result.invalidColumns || [],
     extraTables: result.extraTables || [],
     extraColumns: result.extraColumns || [],

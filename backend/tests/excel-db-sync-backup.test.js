@@ -10,7 +10,6 @@ test('approved report updates use shared enterprise edit service',()=>{
   assert.match(controller,/updateApprovedReport/);
   const service=read('services/approvedReportEditService.js');
   assert.match(service,/REPORT_VERSION_CONFLICT/);
-  assert.match(service,/REPORTING_PERIOD_LOCKED/);
   assert.match(service,/REPORT_UPDATED_FROM_EXCEL/);
   assert.match(service,/training_percent/);
 });
@@ -18,7 +17,7 @@ test('approved report updates use shared enterprise edit service',()=>{
 test('Excel edit sync is manager-admin only and uses optimistic concurrency',()=>{
   const routes=read('routes/productionRoutes.js');
   assert.match(routes,/"\/excel-sync"/);
-  assert.match(routes,/checkRole\("admin", "manager"\)/);
+  assert.match(routes,/checkRole\(\s*"admin"\s*,\s*"manager"\s*\)/);
   const controller=read('controllers/excelEditSyncController.js');
   assert.match(controller,/expectedUpdatedAt/);
   assert.match(controller,/source: 'excel'/);

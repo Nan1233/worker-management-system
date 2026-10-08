@@ -94,6 +94,5 @@ npm run restore:db -- --file "C:\...\ktc-db-....jsonl.gz" --confirm KTC_RESTORE 
 - Cột công thức/tổng hợp là read-only về mặt logic, dù người dùng có thể sửa hiển thị trong Excel.
 - Mỗi dòng dùng `ID` + `updated_at` để optimistic concurrency.
 - Nếu DB đã thay đổi sau khi Excel được tạo: backend trả `409 REPORT_VERSION_CONFLICT`, không ghi đè.
-- Kỳ đã khóa: trả `423 REPORTING_PERIOD_LOCKED`.
 - Báo cáo máy: Excel chỉ cho sync `% học việc` và `Ghi chú`; dữ liệu dòng máy phải sửa trong ứng dụng để tránh làm hỏng aggregate.
 - Mọi thay đổi từ Excel tạo report version + activity log `REPORT_UPDATED_FROM_EXCEL`.

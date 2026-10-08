@@ -7,7 +7,7 @@ function buildListFilters(managerId, filters, isAdmin, statusSql) {
     const conditions = [statusSql];
     const params = [];
     if (!isAdmin && managerId) {
-        conditions.push("(pr.process_id = 60006 OR EXISTS (SELECT 1 FROM manager_processes mp_scope WHERE mp_scope.process_id = pr.process_id AND mp_scope.manager_id = ?))");
+        conditions.push("EXISTS (SELECT 1 FROM manager_processes mp_scope WHERE mp_scope.process_id = pr.process_id AND mp_scope.manager_id = ?)");
         params.push(managerId);
     }
     const dateFrom = filters.date_from || filters.dateFrom;
@@ -23,7 +23,7 @@ function buildListFilters(managerId, filters, isAdmin, statusSql) {
         const search = String(filters.search).trim();
         if (search) {
             const q = `%${search}%`;
-            conditions.push("(CAST(w.worker_code AS CHAR) COLLATE utf8mb4_general_ci LIKE ? OR u.full_name COLLATE utf8mb4_general_ci LIKE ? OR pr.machine_no COLLATE utf8mb4_general_ci LIKE ? OR pr.product_name COLLATE utf8mb4_general_ci LIKE ? OR p.process_name COLLATE utf8mb4_general_ci LIKE ?)");
+            conditions.push("(w.worker_code LIKE ? OR u.full_name LIKE ? OR pr.machine_no LIKE ? OR pr.product_name LIKE ? OR p.process_name LIKE ?)");
             params.push(q, q, q, q, q);
         }
     }
@@ -45,13 +45,13 @@ function normalizeReportTimestamps(report) {
 }
 
 async function getProcessOptions(managerId, isAdmin) {
-    if (isAdmin || !managerId) return query(db, `SELECT id, process_code, process_name FROM processes WHERE status = 'active' ORDER BY process_name`);
-    return query(db, `SELECT DISTINCT p.id, p.process_code, p.process_name FROM processes p LEFT JOIN manager_processes mp ON mp.process_id = p.id WHERE p.status = 'active' AND (p.id = 60006 OR mp.manager_id = ?) ORDER BY p.process_name`, [managerId]);
+    if (isAdmin || !managerId) return query(db, `SELECT p.id, p.process_code, p.process_name FROM processes p WHERE p.status = 'active' ORDER BY p.process_name`);
+    return query(db, `SELECT DISTINCT p.id, p.process_code, p.process_name FROM processes p INNER JOIN manager_processes mp ON mp.process_id = p.id WHERE p.status = 'active' AND mp.manager_id = ? ORDER BY p.process_name`, [managerId]);
 }
 
 async function getPreviousPendingCount(managerId, isAdmin) {
     if (isAdmin || !managerId) return 0;
-    const rows = await query(db, `SELECT COUNT(*) AS total FROM production_reports_temp pr WHERE pr.status IN ('pending','need_fix') AND (pr.process_id = 60006 OR EXISTS (SELECT 1 FROM manager_processes mp WHERE mp.process_id = pr.process_id AND mp.manager_id = ?))`, [managerId]);
+    const rows = await query(db, `SELECT COUNT(*) AS total FROM production_reports_temp pr WHERE pr.status IN ('pending','need_fix') AND EXISTS (SELECT 1 FROM manager_processes mp WHERE mp.process_id = pr.process_id AND mp.manager_id = ?)`, [managerId]);
     return Number(rows?.[0]?.total || 0);
 }
 
@@ -157,7 +157,7 @@ module.exports = {
         const { conditions, params } = buildListFilters(managerId, filters, isAdmin, "pr.status IN ('pending','need_fix')");
         const where = conditions.join(" AND ");
         const countRows = await query(db, `SELECT COUNT(*) AS total FROM production_reports_temp pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where}`, params);
-        const items = await query(db, `SELECT pr.*,w.user_id,w.worker_code,u.full_name,p.process_name,p.process_code FROM production_reports_temp pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where} ORDER BY pr.work_date DESC,pr.created_at ASC,pr.id ASC LIMIT ? OFFSET ?`, [...params, pageSize, offset]);
+        const items = await query(db, `SELECT pr.*,w.user_id,w.worker_code,u.full_name,p.process_name,p.process_code FROM production_reports_temp pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where} ORDER BY pr.work_date DESC, pr.created_at ASC, pr.id ASC LIMIT ? OFFSET ?`, [...params, pageSize, offset]);
         const enrichedItems = await attachPendingChildren(items);
         const processes = await getProcessOptions(managerId, isAdmin);
         const previousCount = await getPreviousPendingCount(managerId, isAdmin);
@@ -168,17 +168,17 @@ module.exports = {
         const { conditions, params } = buildListFilters(managerId, filters, isAdmin, "pr.status = 'approved'");
         const where = conditions.join(" AND ");
         const countRows = await query(db, `SELECT COUNT(*) AS total FROM production_reports pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where}`, params);
-        const items = await query(db, `SELECT pr.id,pr.work_date,pr.shift,pr.machine_no,pr.product_name,pr.training_percent_snapshot,pr.training_percent_snapshot AS training_percent,w.worker_code,u.full_name,p.process_name FROM production_reports pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where} ORDER BY pr.approved_at DESC,pr.id DESC LIMIT ? OFFSET ?`, [...params, pageSize, offset]);
+        const items = await query(db, `SELECT pr.id,pr.work_date,pr.shift,pr.machine_no,pr.product_name,pr.training_percent_snapshot,pr.training_percent_snapshot AS training_percent,w.worker_code,u.full_name,p.process_name FROM production_reports pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE ${where} ORDER BY pr.approved_at DESC, pr.id DESC LIMIT ? OFFSET ?`, [...params, pageSize, offset]);
         const processes = await getProcessOptions(managerId, isAdmin);
         return { items, pagination: paginationMeta({page,pageSize,total:Number(countRows?.[0]?.total||0)}), processes };
     },
     async getDates(managerId = null) {
-        if (managerId) return query(db, `SELECT DISTINCT DATE(pr.work_date) AS date FROM production_reports_temp pr WHERE pr.status IN ('pending','need_fix') AND (pr.process_id = 60006 OR EXISTS (SELECT 1 FROM manager_processes mp WHERE mp.process_id=pr.process_id AND mp.manager_id=?)) ORDER BY date DESC`, [managerId]);
+        if (managerId) return query(db, `SELECT DISTINCT DATE(pr.work_date) AS date FROM production_reports_temp pr WHERE pr.status IN ('pending','need_fix') AND EXISTS (SELECT 1 FROM manager_processes mp WHERE mp.process_id=pr.process_id AND mp.manager_id=?) ORDER BY date DESC`, [managerId]);
         return query(db, `SELECT DISTINCT DATE(work_date) AS date FROM production_reports_temp WHERE status IN ('pending','need_fix') ORDER BY date DESC`);
     },
     async getByDate(date, managerId = null) {
         const params=[date]; let scope="";
-        if (managerId) { scope=" AND (pr.process_id=60006 OR mp.manager_id=?)"; params.push(managerId); }
+        if (managerId) { scope=" AND mp.manager_id=?"; params.push(managerId); }
         return query(db, `SELECT pr.*,w.worker_code,u.full_name,p.process_name,CASE WHEN dup.duplicate_count>1 THEN 1 ELSE 0 END AS is_duplicate,COALESCE(dup.duplicate_count,1) AS duplicate_count FROM production_reports_temp pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id LEFT JOIN manager_processes mp ON mp.process_id=pr.process_id LEFT JOIN (SELECT worker_id,work_date,shift,machine_no,product_name,COUNT(*) AS duplicate_count FROM production_reports_temp WHERE status IN ('pending','need_fix') GROUP BY worker_id,work_date,shift,machine_no,product_name) dup ON dup.worker_id=pr.worker_id AND dup.work_date=pr.work_date AND dup.shift=pr.shift AND COALESCE(dup.machine_no,'')=COALESCE(pr.machine_no,'') AND COALESCE(dup.product_name,'')=COALESCE(pr.product_name,'') WHERE pr.work_date=? AND pr.status IN ('pending','need_fix') ${scope} ORDER BY pr.created_at ASC`, params);
     },
     async getDetail(id) {
@@ -207,9 +207,9 @@ module.exports = {
     },
     async canManageReport(reportId, managerId, isAdmin=false) {
         if(isAdmin) return true;
-        const rows=await query(db,`SELECT 1 FROM production_reports_temp pr WHERE pr.id=? AND (pr.process_id=60006 OR EXISTS (SELECT 1 FROM manager_processes mp WHERE mp.process_id=pr.process_id AND mp.manager_id=?)) LIMIT 1`,[reportId,managerId]);
+        const rows=await query(db,`SELECT 1 FROM production_reports_temp pr WHERE pr.id=? AND EXISTS (SELECT 1 FROM manager_processes mp WHERE mp.process_id=pr.process_id AND mp.manager_id=?) LIMIT 1`,[reportId,managerId]);
         if(rows.length) return true;
-        const approvedRows=await query(db,`SELECT 1 FROM production_reports pr WHERE pr.id=? AND pr.status='approved' AND (pr.process_id=60006 OR EXISTS (SELECT 1 FROM manager_processes mp WHERE mp.process_id=pr.process_id AND mp.manager_id=?)) LIMIT 1`,[reportId,managerId]);
+        const approvedRows=await query(db,`SELECT 1 FROM production_reports pr WHERE pr.id=? AND pr.status='approved' AND EXISTS (SELECT 1 FROM manager_processes mp WHERE mp.process_id=pr.process_id AND mp.manager_id=?) LIMIT 1`,[reportId,managerId]);
         return approvedRows.length>0;
     }
 };

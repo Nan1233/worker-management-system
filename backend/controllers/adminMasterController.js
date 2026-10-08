@@ -293,7 +293,7 @@ exports.setWorkerProcesses = async (req, res, next) => {
       return res.status(404).json({ success:false, message:'Không tìm thấy công nhân' });
     }
     await assertCanManageWorker(req.user, workerId, connection, { requireAllAssignments:true });
-    await assertProcessesScope(req.user, processIds, { executor:connection, action:'WORKER_PROCESS_ASSIGNMENT' });
+    await assertProcessesScope(req.user, processIds, { executor:connection, action:'WORKER_PROCESS_ASSIGNMENT', allowEmpty:true });
 
     if (processIds.length) {
       const [activeProcesses] = await connection.query(

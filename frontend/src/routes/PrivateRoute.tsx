@@ -32,13 +32,6 @@ const PrivateRoute = ({ children, allowedRoles }: PrivateRouteProps) => {
 
     const user = storedUser as User;
 
-    // Tạm thời Tổ trưởng dùng toàn bộ giao diện /manager.
-    // Giữ /lead/reports, /lead/approved... cho bộ giao diện Tổ trưởng riêng về sau;
-    // chỉ trang gốc /lead được chuyển sang giao diện dùng chung hiện tại.
-    if (user.role === "lead" && location.pathname === "/lead") {
-        return <Navigate to="/manager" replace />;
-    }
-
     if (!allowedRoles.includes(user.role)) {
         return (
             <Navigate

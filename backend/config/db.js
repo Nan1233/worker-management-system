@@ -306,6 +306,11 @@ if (isCloudflareWorker) {
     enableKeepAlive: true, keepAliveInitialDelay: parsePositiveInteger(process.env.DB_KEEP_ALIVE_DELAY, 10_000, { max: 120_000 }),
     connectTimeout: parsePositiveInteger(process.env.DB_CONNECT_TIMEOUT, 15_000, { max: 120_000 }),
     charset: "utf8mb4", decimalNumbers: true,
+    // DATE columns (work_date, effective_from...) must be plain "YYYY-MM-DD" strings, exactly
+    // what the TiDB serverless driver used on Cloudflare returns. As JS Date objects they
+    // break the string comparisons used for historical standards ("Sat Jan 01" < "2026-10-05"
+    // is false) and render as "Wed Oct 07" in messages. TIMESTAMP/DATETIME are unaffected.
+    dateStrings: ["DATE"],
   });
   let connectionCheckPromise = null;
   async function testConnection() {

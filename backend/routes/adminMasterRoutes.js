@@ -28,6 +28,10 @@ const managerMasterAccess=(req,res,next)=>{
   // Defect master remains Manager/Admin only.
   if((role==='admin'||role==='manager')&&MANAGER_ONLY_MASTER_RESOURCES.includes(resource)) return next();
 
+  // Processes: admin may create/edit/disable (adminMasterController enforces
+  // admin-only writes and re-checks it per action).
+  if(role==='admin'&&resource==='processes') return next();
+
   // Process data is supporting read-only data for the management workspace.
   if(isManagementRole(req)&&req.method==='GET'&&SUPPORTING_READ_RESOURCES.includes(resource)) return next();
 
@@ -37,6 +41,8 @@ const managerMasterAccess=(req,res,next)=>{
     message:'Bạn không có quyền truy cập danh mục này'
   });
 };
+
+const masterPermission=(req,res,next)=>permission(req.method==='GET'?'MASTER_VIEW':'MASTER_EDIT')(req,res,next);
 
 const managerResourceScope=(req,res,next)=>{
   const resource=String(req.params.resource||'');
@@ -53,12 +59,12 @@ const managerResourceScope=(req,res,next)=>{
 
 // Keep the controller's process-scope and validation logic intact. Lead is
 // already authorized by the shared MASTER permissions for the three resources.
-router.get('/transfer/export/:resource',managerMasterAccess,managerResourceScope,transferController.export);
-router.post('/transfer/import/:resource',managerMasterAccess,managerResourceScope,transferController.import);
-router.get('/:resource',managerMasterAccess,managerResourceScope,controller.list);
-router.post('/:resource',managerMasterAccess,managerResourceScope,controller.create);
-router.put('/:resource/:id',managerMasterAccess,managerResourceScope,controller.update);
-router.delete('/:resource/:id',managerMasterAccess,managerResourceScope,controller.remove);
+router.get('/transfer/export/:resource',managerMasterAccess,masterPermission,managerResourceScope,transferController.export);
+router.post('/transfer/import/:resource',managerMasterAccess,masterPermission,managerResourceScope,transferController.import);
+router.get('/:resource',managerMasterAccess,masterPermission,managerResourceScope,controller.list);
+router.post('/:resource',managerMasterAccess,masterPermission,managerResourceScope,controller.create);
+router.put('/:resource/:id',managerMasterAccess,masterPermission,managerResourceScope,controller.update);
+router.delete('/:resource/:id',managerMasterAccess,masterPermission,managerResourceScope,controller.remove);
 
 // Worker-specific master operations retain the normal permission guard.
 router.put('/workers/:id/profile',checkRole('admin','manager','lead'),permission('MASTER_EDIT'),controller.updateWorker);

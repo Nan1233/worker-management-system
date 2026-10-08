@@ -520,3 +520,59 @@ exports.logout = async (req, res) => {
         });
     }
 };
+
+const MIN_NEW_PASSWORD_LENGTH = 8;
+
+/**
+ * PUT /api/auth/password - a signed-in admin/manager/lead changes their own password.
+ * Workers sign in with their employee code only and have no password to change.
+ * Other refresh sessions are revoked, so every device must sign in again.
+ */
+exports.changePassword = async (req, res) => {
+    const fail = (status, code, message) => res.status(status).json({ success: false, code, message });
+    try {
+        const userId = Number(req.user?.id);
+        if (!Number.isInteger(userId) || userId <= 0) return fail(401, "AUTH_REQUIRED", "Chưa xác thực");
+        if (String(req.user?.role || "").toLowerCase() === "worker") {
+            return fail(403, "PASSWORD_NOT_APPLICABLE", "Công nhân đăng nhập bằng mã nhân viên, không có mật khẩu để đổi");
+        }
+
+        const text = (value) => (typeof value === "string" ? value : "");
+        const currentPassword = text(req.body?.current_password);
+        const newPassword = text(req.body?.new_password);
+        const confirmPassword = text(req.body?.confirm_password);
+
+        if (!currentPassword || !newPassword || !confirmPassword) return fail(422, "PASSWORD_FIELDS_REQUIRED", "Vui lòng nhập mật khẩu hiện tại, mật khẩu mới và xác nhận mật khẩu mới");
+        if (newPassword !== confirmPassword) return fail(422, "PASSWORD_CONFIRM_MISMATCH", "Mật khẩu mới và phần xác nhận không khớp");
+        if (newPassword.length < MIN_NEW_PASSWORD_LENGTH) return fail(422, "PASSWORD_TOO_SHORT", `Mật khẩu mới tối thiểu ${MIN_NEW_PASSWORD_LENGTH} ký tự`);
+        if (newPassword === currentPassword) return fail(422, "PASSWORD_UNCHANGED", "Mật khẩu mới phải khác mật khẩu hiện tại");
+
+        const db = require("../config/db");
+        const [rows] = await db.promise().query("SELECT id, password, status FROM users WHERE id = ? LIMIT 1", [userId]);
+        const user = rows[0];
+        if (!user || user.status !== "active") return fail(403, "USER_INACTIVE", "Tài khoản đã bị khóa. Vui lòng liên hệ quản lý");
+
+        // 400, not 401: a 401 makes the web app think the session expired and sign the user out.
+        if (!(await bcrypt.compare(currentPassword, user.password))) return fail(400, "CURRENT_PASSWORD_INVALID", "Mật khẩu hiện tại không đúng");
+
+        const passwordHash = await bcrypt.hash(newPassword, 10);
+        await db.promise().query("UPDATE users SET password = ? WHERE id = ?", [passwordHash, userId]);
+        await refreshSessionService.revokeAllUserFamilies(userId);
+        clearRefreshCookie(res);
+
+        void auditService.logActivity({
+            userId,
+            action: "PASSWORD_CHANGED",
+            entityType: "user",
+            entityId: userId,
+            description: "Người dùng tự đổi mật khẩu",
+            metadata: { sessions_revoked: true },
+            req
+        }).catch((auditError) => console.error("Không thể ghi nhật ký đổi mật khẩu:", auditError));
+
+        return res.status(200).json({ success: true, code: "PASSWORD_CHANGED", message: "Đổi mật khẩu thành công. Vui lòng đăng nhập lại." });
+    } catch (error) {
+        console.error("Lỗi đổi mật khẩu:", error);
+        return fail(500, "PASSWORD_CHANGE_FAILED", "Không thể đổi mật khẩu lúc này");
+    }
+};

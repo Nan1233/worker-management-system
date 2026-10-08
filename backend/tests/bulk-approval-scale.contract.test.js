@@ -10,11 +10,4 @@ test('SOURCE_CONTRACT: accepted bulk approval remains one transaction with rollb
   assert.match(source, /catch \(error\) \{[\s\S]*await rollback\(connection\)/);
 });
 
-test('SOURCE_CONTRACT: reporting-period lock lookup is batched once before report loop', () => {
-  assert.match(source, /const lockedReportingPeriods = await loadLockedReportingPeriods\(connection, rows\)/);
-  const loopIndex = source.indexOf('for (const item of rows)');
-  const batchIndex = source.indexOf('loadLockedReportingPeriods(connection, rows)');
-  assert.ok(batchIndex >= 0 && batchIndex < loopIndex);
-  const loopBody = source.slice(loopIndex);
-  assert.doesNotMatch(loopBody, /SELECT id FROM reporting_period_locks/);
-});
+

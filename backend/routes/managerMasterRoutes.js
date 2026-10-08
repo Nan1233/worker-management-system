@@ -6,17 +6,8 @@ const verifyToken=require('../middleware/authMiddleware');
 const checkRole=require('../middleware/roleMiddleware');
 const permission=require('../middleware/permissionMiddleware');
 
-const RESOURCES=['machines','standards','deductions'];
-const isManagerMaster=(req)=>RESOURCES.includes(String(req.params.resource||''));
-
 router.use(verifyToken,checkRole('manager','lead'));
-
-// Lead currently uses the Manager workspace. Keep these three Manager master
-// resources available to Lead without depending on per-user MASTER_* overrides.
-const masterAccess=(req,res,next)=>{
-  if(isManagerMaster(req)) return next();
-  return permission(req.method==='GET'?'MASTER_VIEW':'MASTER_EDIT')(req,res,next);
-};
+const masterAccess=permission('MASTER_VIEW','MASTER_EDIT');
 
 router.get('/transfer/export/:resource',masterAccess,transferController.export);
 router.post('/transfer/import/:resource',masterAccess,transferController.import);
