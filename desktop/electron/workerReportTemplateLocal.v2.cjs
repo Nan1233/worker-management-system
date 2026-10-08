@@ -526,9 +526,17 @@ function applyReportRow(row, report, contract, processData, index) {
     cell.numFmt = '0%';
   }
   set(contract.cols.standard, planned);
-  set(contract.cols.time, number(report.total_time ?? report.actual_time));
+  set(contract.cols.time, number(report.actual_time ?? report.total_time));
   if (contract.cols.actualTime && contract.cols.actualTime !== contract.cols.time) set(contract.cols.actualTime, number(report.actual_time ?? report.total_time));
   set(contract.cols.deductionTotal, number(report.deduction_time));
+  if (contract.cols.workTime && contract.cols.time && contract.cols.deductionTotal) {
+    const tL = columnLetter(contract.cols.time);
+    const dL = columnLetter(contract.cols.deductionTotal);
+    row.getCell(contract.cols.workTime).value = {
+      formula: `${tL}${row.number}+${dL}${row.number}`,
+      result: number(report.actual_time ?? report.total_time) + number(report.deduction_time)
+    };
+  }
   set(contract.cols.ok, number(report.tt_ok ?? report.actual_output));
   set(contract.cols.ng, number(report.tt_ng));
   set(contract.cols.output, number(report.actual_output ?? report.tt_ok));
@@ -664,9 +672,6 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
       const row = sheet.getRow(rowNumber);
       applySnapshot(row, dataSnapshot, columnCount);
       applyReportRow(row, report, contract, processData, index);
-      const deductionSum = detailItems(report, 'deduction').reduce((sum, item) => sum + detailValue(item, 'deduction'), 0);
-      const totalMinutes = report.total_minutes || (report.work_minutes + (report.deduction_time ?? deductionSum * 60));
-writeValue(row, contract.cols.workTime, totalMinutes / 60);
       if (percentColumn && outputLetter && standardLetter) {
         const cell = row.getCell(percentColumn);
         const { planned } = plannedOutputFor(report);
@@ -725,12 +730,8 @@ async function buildWorkerProcessWorkbook({ appPath, processCode, processName, d
   appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, processData);
 
   addDerivedColumns(sheet, headerRow, contract);
-  const workTimeColumn = insertContractColumn(sheet, headerRow, contract, contract.cols.shift, 'Thời gian làm việc', { width: 14 });
+  const workTimeColumn = insertContractColumn(sheet, headerRow, contract, contract.cols.shift, 'Thời gian làm việc', { width: 14, hidden: true });
 contract.cols.workTime = workTimeColumn;
-  // "Tổng thời gian trừ giờ" is kept for formulas/reference but should not be
-  // visible to readers of the report — only "Thời gian làm việc" (actual
-  // worked time) is meant to show.
-  if (contract.cols.deductionTotal) sheet.getColumn(contract.cols.deductionTotal).hidden = true;
   const dataStartRow = findDataStartRow(sheet, headerRow);
   const dateRowNumber = findDateSeparatorRow(sheet, headerRow, dataStartRow);
   let layout = 'flat';
