@@ -6,6 +6,7 @@ const { assertReportVolume, chunkArray } = require('./excelExportGuards');
 const { hasColumn } = require('./schemaCompatibilityService');
 const { calculateReportPerformance } = require('./machinePerformanceService');
 const { assertTrainingSnapshotAvailable } = require('./trainingSnapshotService');
+const { normalizeDeductions } = require('../utils/reportDetailNormalizer');
 const { buildTemplateDrivenProcessWorkbook } = require('./templateDrivenProcessExcelExportService');
 
 const query = (sql, params = []) => new Promise((resolve, reject) => {
@@ -204,9 +205,18 @@ async function loadProcessMonthReports(value, processId, options = {}) {
   const physicalEventsById = new Map((reports.physicalMachineEvents || []).map((event) => [Number(event.id), event]));
   reports.forEach((report) => {
     const id = Number(report.id);
-    report.deductions = deductions.get(id) || [];
     report.defects = defects.get(id) || [];
     report.machineLines = machineLines.get(id) || [];
+    // Normalize legacy deduction details before either machine accounting or
+    // Excel row generation. GC legacy imports may have the breakdown only in
+    // extra_data numeric Excel columns (13, 14, 17, ...), while deduction_time
+    // remains the parent total.
+    report.deductions = normalizeDeductions(
+      deductions.get(id) || [],
+      report,
+      report.machineLines,
+      deductionTypes
+    );
     Object.assign(report, calculateReportPerformance({
       report,
       machineLines: report.machineLines
