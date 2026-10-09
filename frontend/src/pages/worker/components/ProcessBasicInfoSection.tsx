@@ -178,6 +178,9 @@ export default function ProcessBasicInfoSection({ form, setForm, onFormChange, i
 </div>}
 </div>
 </div></div>
+<div className="machine-detail-values-row">
+<div className="machine-detail-values-column machine-detail-values-deduction">
+{line.selectedDeductions?.length > 0 && <div className="machine-detail-values-heading machine-detail-values-heading-deduction"><span aria-hidden="true">⏱</span><div><strong>Chi tiết trừ giờ</strong><small>Thời gian được trừ theo từng loại</small></div></div>}
 {line.selectedDeductions?.length > 0 && <div className="worker-dynamic-grid worker-deduction-detail-grid machine-worker-deduction-detail-grid">
 {activeDeductionOptions.filter((item) => line.selectedDeductions.includes(item.key)).map((item) => (
 <div key={item.key} className="worker-field-block">
@@ -196,6 +199,9 @@ export default function ProcessBasicInfoSection({ form, setForm, onFormChange, i
 </div>
 ))}
 </div>}
+</div>
+<div className="machine-detail-values-column machine-detail-values-ng">
+{line.selectedDefects.length > 0 && <div className="machine-detail-values-heading machine-detail-values-heading-ng"><span aria-hidden="true">⚠</span><div><strong>Chi tiết lỗi NG</strong><small>Số lượng theo từng loại lỗi</small></div></div>}
 {line.selectedDefects.length > 0 && <div className="worker-dynamic-grid worker-ng-grid machine-worker-ng-detail-grid">
 {visibleNgOptions.filter((item) => line.selectedDefects.includes(item.key)).map((item) => (
 <div key={item.key} className="worker-field-block">
@@ -203,7 +209,9 @@ export default function ProcessBasicInfoSection({ form, setForm, onFormChange, i
 <input id={`machine-ng-${index}-${item.key}`} className="worker-text-input" name={item.key} value={line.defects[item.key] || ""} onChange={(event) => updateMachineDefectValue(index, item.key, event.target.value.replace(/\D/g, ""))} inputMode="numeric" autoComplete="off" placeholder="Số lượng" />
 </div>
 ))}
-</div>}</div></div></article>)}</div></div> : usesSingleMachine ? <div className="worker-machine-single worker-field-full"><div className="worker-selection-heading"><div><strong>Máy &amp; sản phẩm</strong><small>Chọn máy trước → hệ thống chỉ hiển thị mã sản phẩm hợp lệ của máy</small></div></div><div className="worker-single-machine-grid"><AutocompleteInput id="machineNo" label="Mã máy" value={form.machineNo} options={visibleMachineOptions} placeholder="Chọn mã máy" required disabled={loadingMasterData} emptyMessage="Không tìm thấy máy trong công đoạn" onChange={(value) => setForm((prev) => ({ ...prev, machineNo: value, productName: "", standardOutput: "" }))} onSelect={(option) => setForm((prev) => ({ ...prev, machineNo: option.value, productName: "", standardOutput: "" }))} /><AutocompleteInput id="productName" label="Mã sản phẩm" value={form.productName} options={getMachineProductAutocompleteOptions(form.machineNo)} placeholder={form.machineNo.trim() ? "Nhập hoặc chọn mã sản phẩm" : "Chọn máy trước"} required disabled={loadingMasterData || !form.machineNo.trim()} emptyMessage={form.machineNo.trim() ? "Không có mã sản phẩm phù hợp với máy này" : "Chọn máy trước để xem mã sản phẩm"} onChange={setProduct} onSelect={(option) => setProduct(option.value)} /></div></div> : null}
+</div>}
+</div>
+</div></div></div></article>)}</div></div> : usesSingleMachine ? <div className="worker-machine-single worker-field-full"><div className="worker-selection-heading"><div><strong>Máy &amp; sản phẩm</strong><small>Chọn máy trước → hệ thống chỉ hiển thị mã sản phẩm hợp lệ của máy</small></div></div><div className="worker-single-machine-grid"><AutocompleteInput id="machineNo" label="Mã máy" value={form.machineNo} options={visibleMachineOptions} placeholder="Chọn mã máy" required disabled={loadingMasterData} emptyMessage="Không tìm thấy máy trong công đoạn" onChange={(value) => setForm((prev) => ({ ...prev, machineNo: value, productName: "", standardOutput: "" }))} onSelect={(option) => setForm((prev) => ({ ...prev, machineNo: option.value, productName: "", standardOutput: "" }))} /><AutocompleteInput id="productName" label="Mã sản phẩm" value={form.productName} options={getMachineProductAutocompleteOptions(form.machineNo)} placeholder={form.machineNo.trim() ? "Nhập hoặc chọn mã sản phẩm" : "Chọn máy trước"} required disabled={loadingMasterData || !form.machineNo.trim()} emptyMessage={form.machineNo.trim() ? "Không có mã sản phẩm phù hợp với máy này" : "Chọn máy trước để xem mã sản phẩm"} onChange={setProduct} onSelect={(option) => setProduct(option.value)} /></div></div> : null}
         </div>
     </section>;
 }
