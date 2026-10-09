@@ -49,6 +49,8 @@ function auditMachineDeductions(report) {
   let detailHours = 0;
   let totalOnlyLines = 0;
   let detailLines = 0;
+  let duplicateEventLinks = 0;
+  const seenEventIds = new Set();
 
   const lineAudit = lines.map((line) => {
     const details = parseArray(line.deductions_json);
@@ -59,10 +61,20 @@ function auditMachineDeductions(report) {
       num(line.adjustment_minutes) / 60,
       detail
     );
-    machineDeductionHours += total;
-    detailHours += detail;
-    if (total > 0 && detail <= 0) totalOnlyLines += 1;
-    if (detail > 0) detailLines += 1;
+    const eventId = Number(line.machine_event_id) || 0;
+    const duplicateEvent = eventId > 0 && seenEventIds.has(eventId);
+    if (eventId > 0) {
+      if (duplicateEvent) duplicateEventLinks += 1;
+      else seenEventIds.add(eventId);
+    }
+    // A shared physical event is counted once. Duplicate participant-line
+    // deduction values are not summed because the event may be shared.
+    if (!duplicateEvent) {
+      machineDeductionHours += total;
+      detailHours += detail;
+      if (total > 0 && detail <= 0) totalOnlyLines += 1;
+      if (detail > 0) detailLines += 1;
+    }
     return {
       machine_line_id: Number(line.id) || null,
       machine_code: String(line.machine_code || ''),
@@ -80,6 +92,9 @@ function auditMachineDeductions(report) {
   if (!lines.length) {
     status = 'REVIEW';
     reason = 'MACHINE_DEDUCTION_CANNOT_BE_AUDITED_WITHOUT_MACHINE_LINES';
+  } else if (duplicateEventLinks > 0) {
+    status = 'REVIEW';
+    reason = 'SHARED_EVENT_DEDUCTION_DUPLICATE_RISK';
   } else if (machineDeductionHours > 0 && detailHours > 0 && totalOnlyLines === 0) {
     status = 'RECORDED_WITH_DETAILS';
     reason = 'MACHINE_DEDUCTION_DETAILS_PRESENT';
@@ -102,6 +117,7 @@ function auditMachineDeductions(report) {
     machine_deduction_detail_hours: round(detailHours),
     machine_lines_with_deduction_detail: detailLines,
     machine_lines_total_only: totalOnlyLines,
+    duplicate_event_links: duplicateEventLinks,
     machine_lines_without_deduction: lines.filter((line) => {
       const details = parseArray(line.deductions_json);
       return Math.max(0, num(line.deduction_time_hours), num(line.adjustment_minutes) / 60,
