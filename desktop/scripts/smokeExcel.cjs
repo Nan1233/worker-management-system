@@ -54,20 +54,48 @@ function report(overrides = {}) {
         { id: 1, code: 'DEF_KQD_DB', defect_code: 'DEF_KQD_DB', name: 'KQD database name', defect_name: 'KQD database name', sort_order: 1 },
         { id: 2, code: 'DEF_VCS_DB', defect_code: 'DEF_VCS_DB', name: 'Vỡ cao su database name', defect_name: 'Vỡ cao su database name', sort_order: 2 },
         { id: 11, code: 'CAT01', defect_code: 'CAT01', name: 'Cao su không đứt', defect_name: 'Cao su không đứt', sort_order: 11 },
-        { id: 12, code: 'CAT03', defect_code: 'CAT03', name: 'Cắt phạm', defect_name: 'Cắt phạm', sort_order: 12 },
+        { id: 12, code: 'CAT02', defect_code: 'CAT02', name: 'Cắt lẹm', defect_name: 'Cắt lẹm', sort_order: 12 },
+        { id: 13, code: 'CAT03', defect_code: 'CAT03', name: 'Cắt phạm', defect_name: 'Cắt phạm', sort_order: 13 },
+        { id: 14, code: 'CAT04', defect_code: 'CAT04', name: 'Cao su ngắn', defect_name: 'Cao su ngắn', sort_order: 14 },
+        { id: 15, code: 'CAT05', defect_code: 'CAT05', name: 'Cao su dài', defect_name: 'Cao su dài', sort_order: 15 },
+        { id: 16, code: 'CAT06', defect_code: 'CAT06', name: 'Bavia cao su', defect_name: 'Bavia cao su', sort_order: 16 },
+        { id: 17, code: 'CAT07', defect_code: 'CAT07', name: 'Phế phẩm chỉnh máy', defect_name: 'Phế phẩm chỉnh máy', sort_order: 17 },
+        { id: 18, code: 'CAT08', defect_code: 'CAT08', name: 'Lỗi cao su ( NCC )', defect_name: 'Lỗi cao su ( NCC )', sort_order: 18 },
+        { id: 19, code: 'CAT09', defect_code: 'CAT09', name: 'Lẫn cao su', defect_name: 'Lẫn cao su', sort_order: 19 },
         { id: 20, code: 'CAT10', defect_code: 'CAT10', name: 'Khác', defect_name: 'Khác', sort_order: 20 },
+        { id: 21, code: 'LONG01', defect_code: 'LONG01', name: 'Không qua dưỡng', defect_name: 'Không qua dưỡng', sort_order: 21 },
+        { id: 22, code: 'LONG02', defect_code: 'LONG02', name: 'Cao su vỡ', defect_name: 'Cao su vỡ', sort_order: 22 },
+        { id: 23, code: 'LONG03', defect_code: 'LONG03', name: 'Trục xước', defect_name: 'Trục xước', sort_order: 23 },
+        { id: 24, code: 'LONG04', defect_code: 'LONG04', name: 'Trục gãy, cong', defect_name: 'Trục gãy, cong', sort_order: 24 },
+        { id: 25, code: 'LONG05', defect_code: 'LONG05', name: 'Thiếu cao su', defect_name: 'Thiếu cao su', sort_order: 25 },
+        { id: 26, code: 'LONG06', defect_code: 'LONG06', name: 'Lẫn trục', defect_name: 'Lẫn trục', sort_order: 26 },
+        { id: 27, code: 'LONG07', defect_code: 'LONG07', name: 'Lẫn cao su', defect_name: 'Lẫn cao su', sort_order: 27 },
         { id: 28, code: 'LONG08', defect_code: 'LONG08', name: 'Khác', defect_name: 'Khác', sort_order: 28 }
       ],
       reports: [
         report({ id: 1, worker_code: '599' }),
         report({ id: 2, worker_code: '600', work_date: '2026-08-02', actual_output: 0, training_percent: 0 }),
         report({
-          id: 3, worker_code: '601', work_date: '2026-08-03', tt_ng: 4, actual_output: 49,
+          id: 3, worker_code: '601', work_date: '2026-08-03', tt_ng: 18, actual_output: 63,
           machine_no: '', machineLines: [{ machine_code: 'CUT-10', product_code: 'GC-PROD' }],
           defects: [
             { defect_type_id: 11, defect_type_code: 'CAT01', defect_code: 'CAT01', defect_name: 'Cao su không đứt', quantity: 1 },
-            { defect_type_id: 12, defect_type_code: 'CAT03', defect_code: 'CAT03', defect_name: 'Cắt phạm', quantity: 1 },
+            { defect_type_id: 12, defect_type_code: 'CAT02', defect_code: 'CAT02', defect_name: 'Cắt lẹm', quantity: 1 },
+            { defect_type_id: 13, defect_type_code: 'CAT03', defect_code: 'CAT03', defect_name: 'Cắt phạm', quantity: 1 },
+            { defect_type_id: 14, defect_type_code: 'CAT04', defect_code: 'CAT04', defect_name: 'Cao su ngắn', quantity: 1 },
+            { defect_type_id: 15, defect_type_code: 'CAT05', defect_code: 'CAT05', defect_name: 'Cao su dài', quantity: 1 },
+            { defect_type_id: 16, defect_type_code: 'CAT06', defect_code: 'CAT06', defect_name: 'Bavia cao su', quantity: 1 },
+            { defect_type_id: 17, defect_type_code: 'CAT07', defect_code: 'CAT07', defect_name: 'Phế phẩm chỉnh máy', quantity: 1 },
+            { defect_type_id: 18, defect_type_code: 'CAT08', defect_code: 'CAT08', defect_name: 'Lỗi cao su ( NCC )', quantity: 1 },
+            { defect_type_id: 19, defect_type_code: 'CAT09', defect_code: 'CAT09', defect_name: 'Lẫn cao su', quantity: 1 },
             { defect_type_id: 20, defect_type_code: 'CAT10', defect_code: 'CAT10', defect_name: 'Khác', quantity: 1 },
+            { defect_type_id: 21, defect_type_code: 'LONG01', defect_code: 'LONG01', defect_name: 'Không qua dưỡng', quantity: 1 },
+            { defect_type_id: 22, defect_type_code: 'LONG02', defect_code: 'LONG02', defect_name: 'Cao su vỡ', quantity: 1 },
+            { defect_type_id: 23, defect_type_code: 'LONG03', defect_code: 'LONG03', defect_name: 'Trục xước', quantity: 1 },
+            { defect_type_id: 24, defect_type_code: 'LONG04', defect_code: 'LONG04', defect_name: 'Trục gãy, cong', quantity: 1 },
+            { defect_type_id: 25, defect_type_code: 'LONG05', defect_code: 'LONG05', defect_name: 'Thiếu cao su', quantity: 1 },
+            { defect_type_id: 26, defect_type_code: 'LONG06', defect_code: 'LONG06', defect_name: 'Lẫn trục', quantity: 1 },
+            { defect_type_id: 27, defect_type_code: 'LONG07', defect_code: 'LONG07', defect_name: 'Lẫn cao su', quantity: 1 },
             { defect_type_id: 28, defect_type_code: 'LONG08', defect_code: 'LONG08', defect_name: 'Khác', quantity: 1 }
           ]
         })
@@ -142,20 +170,18 @@ function report(overrides = {}) {
       }
       return null;
     };
-    const cat01Column = headerColumn('Cắt không đứt');
     const machineColumn = headerColumn('Máy');
-    const cat03Column = headerColumn('NG: Cắt phạm (CAT03)');
-    const cat10Column = headerColumn('NG: Khác (CAT10)');
-    const long08Column = headerColumn('NG: Khác (LONG08)');
-    assert.ok(cat01Column, 'CAT01 phải map đúng vào cột Cắt không đứt');
     assert.ok(machineColumn, 'Template phải có cột Máy');
     assert.equal(String(sheet.getRow(encodedRow).getCell(machineColumn).value), 'CUT-10', 'Máy phải fallback từ machineLines khi machine_no trống');
-    assert.ok(cat03Column, 'CAT03 không có cột tương đương phải được thêm riêng');
+    const encodedHeaders = [["CAT01","Cắt không đứt"],["CAT02","Cắt lẹm"],["CAT03","NG: Cắt phạm (CAT03)"],["CAT04","NG: Cao su ngắn (CAT04)"],["CAT05","NG: Cao su dài (CAT05)"],["CAT06","bavia"],["CAT07","ppcm"],["CAT08","LCS"],["CAT09","lẫn cs"],["CAT10","NG: Khác (CAT10)"],["LONG01","KQD"],["LONG02","Vỡ cao su"],["LONG03","NG: Trục xước (LONG03)"],["LONG04","NG: Trục gãy, cong (LONG04)"],["LONG05","thiếu cao su"],["LONG06","NG: Lẫn trục (LONG06)"],["LONG07","NG: Lẫn cao su (LONG07)"],["LONG08","NG: Khác (LONG08)"]];
+    for (const [code, label] of encodedHeaders) {
+      const column = headerColumn(label);
+      assert.ok(column, `Thiếu cột NG cho mã form ${code}: ${label}`);
+      assert.equal(Number(sheet.getRow(encodedRow).getCell(column).value), 1, `Sai số NG ở cột mã form ${code}`);
+    }
+    const cat10Column = headerColumn('NG: Khác (CAT10)');
+    const long08Column = headerColumn('NG: Khác (LONG08)');
     assert.ok(cat10Column && long08Column && cat10Column !== long08Column, 'CAT10 và LONG08 đều là Khác nhưng phải giữ riêng theo mã form');
-    assert.equal(Number(sheet.getRow(encodedRow).getCell(cat01Column).value), 1);
-    assert.equal(Number(sheet.getRow(encodedRow).getCell(cat03Column).value), 1);
-    assert.equal(Number(sheet.getRow(encodedRow).getCell(cat10Column).value), 1);
-    assert.equal(Number(sheet.getRow(encodedRow).getCell(long08Column).value), 1);
     assert.ok(String(sheet.pageSetup.printArea).endsWith(String(sheet.rowCount)), 'Vùng in phải kết thúc tại dòng dữ liệu cuối');
     assert.ok(!String(sheet.pageSetup.printArea).endsWith('2366'), 'Vùng in không được giữ dòng mẫu 2366');
 
