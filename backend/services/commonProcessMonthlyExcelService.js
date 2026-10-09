@@ -255,7 +255,7 @@ async function buildCommonProcessMonthlyWorkbook(reports, yearMonth, options = {
       writeDateRow(sheet, 1, `BÁO CÁO CÔNG ĐOẠN – ${name} – THÁNG ${String(yearMonth).slice(5, 7)}/${String(yearMonth).slice(0, 4)}`, styles.dateStyles);
       setHeader(sheet, 3, styles.headerStyles, [], []); continue;
     }
-    const processDeductions = [...new Map(items.flatMap((r) => r.deductions || []).map((x) => [Number(x.deduction_type_id || x.id), x])).values()].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || Number(a.id || a.deduction_type_id || 0) - Number(b.id || b.deduction_type_id || 0));
+    const processDeductions = [...new Map(items.flatMap((r) => r.excelExportTimes?.hasMachine ? r.excelExportTimes.deductions : (r.deductions || [])).map((x) => [Number(x.deduction_type_id || x.id), x])).values()].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || Number(a.id || a.deduction_type_id || 0) - Number(b.id || b.deduction_type_id || 0));
     const processDefects = [...new Map(items.flatMap((r) => r.defects || []).map((x) => [Number(x.defect_type_id || x.id), x])).values()].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || Number(a.id || a.defect_type_id || 0) - Number(b.id || b.defect_type_id || 0));
     let rowNumber = 1, currentDate = null;
     for (const report of items) {
