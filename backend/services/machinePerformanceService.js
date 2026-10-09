@@ -119,7 +119,13 @@ const calculateReportPerformance = ({ report = {}, machineLines = [] } = {}) => 
   const maximumOutput = lines.reduce((sum, line) => sum + line.maximum_output, 0);
   const earnedStandardHours = lines.reduce((sum, line) => sum + line.earned_standard_hours, 0);
   const totalMachineHours = lines.reduce((sum, line) => sum + Math.max(0, safeNumber(line.machine_time_hours)), 0);
-  const actualWorkerHours = Math.max(0, safeNumber(report.actual_time));
+  // GC nhiều máy không còn thu thập actual_time cấp báo cáo (xem reportValidation.js:
+  // isGiaCongMachineReport); report.actual_time khi đó hợp lệ bằng 0. Khi đó dùng tổng
+  // giờ máy làm giờ công nhân, cùng quy tắc với giaCongMachineAccounting.js và
+  // commonProcessMonthlyExcelService.js đã dùng cho Excel. Các công đoạn máy khác vẫn
+  // luôn có actual_time > 0 nên fallback này không ảnh hưởng tới chúng.
+  const reportedActualHours = Math.max(0, safeNumber(report.actual_time));
+  const actualWorkerHours = reportedActualHours > 0 ? reportedActualHours : totalMachineHours;
   const machineDefects = aggregateMachineDefects(lines);
 
   return {
