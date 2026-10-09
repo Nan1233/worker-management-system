@@ -24,10 +24,13 @@ const machineLinesOf = (report) => {
   return [];
 };
 
-const hasMachineOf = (report, lines) => lines.length > 0
-  || String(report?.operation_mode || '').trim().toUpperCase() === 'MACHINE'
-  || [report?.machine_no, report?.machine_code, report?.machine]
-    .some((value) => String(value ?? '').trim() !== '');
+const hasMachineOf = (report, lines) => {
+  const mode = String(report?.operation_mode || '').trim().toUpperCase();
+  return lines.length > 0
+    || mode === 'MACHINE'
+    || (!mode && [report?.machine_no, report?.machine_code, report?.machine]
+      .some((value) => String(value ?? '').trim() !== ''));
+};
 
 function addDeduction(target, item) {
   const hours = Math.max(0, number(item?.hours ?? item?.deduction_hours ?? item?.duration_hours ?? item?.time_hours));
