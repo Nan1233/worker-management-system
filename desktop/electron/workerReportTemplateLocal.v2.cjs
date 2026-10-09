@@ -269,6 +269,22 @@ function encodedGcDefectCode(type) {
   return /^(?:CAT(?:0[1-9]|10)|LONG(?:0[1-8]))$/.test(code) ? code : '';
 }
 
+function legacyGcDefectTarget(type, rangeMap, kind) {
+  if (kind !== 'defect') return '';
+  const hasCanonicalGcHeaders = Object.values(GC_FORM_DEFECT_COLUMN_BY_CODE)
+    .every((label) => [...rangeMap.values()].some((header) => normalize(header) === normalize(label)));
+  if (!hasCanonicalGcHeaders) return '';
+  const name = normalize(typeLabel(type, kind));
+  const code = String(type?.defect_code || type?.defect_type_code || type?.code || '').trim().toUpperCase();
+  if (/^(?:DEF_)?KQD(?:_DB)?$/.test(code) || /^(?:kqd|kqd database name|khong qua duong|khong qua duong database name)$/.test(name)) {
+    return GC_FORM_DEFECT_COLUMN_BY_CODE.LONG01;
+  }
+  if (/^(?:DEF_)?VCS(?:_DB)?$/.test(code) || /^(?:vo cao su|vo cao su database name|cao su vo)$/.test(name)) {
+    return GC_FORM_DEFECT_COLUMN_BY_CODE.LONG02;
+  }
+  return '';
+}
+
 function assignDetailColumns(rangeMap, types, kind) {
   const usedTypes = new Set();
   const aliasColumns = new Set();
@@ -276,9 +292,10 @@ function assignDetailColumns(rangeMap, types, kind) {
   const headerToColumn = new Map([...rangeMap.entries()].map(([column, header]) => [normalize(header), column]));
   for (const type of types) {
     const encodedCode = kind === 'defect' ? encodedGcDefectCode(type) : '';
+    const legacyGcTarget = legacyGcDefectTarget(type, rangeMap, kind);
     const target = encodedCode
       ? GC_FORM_DEFECT_COLUMN_BY_CODE[encodedCode]
-      : TEMPLATE_COLUMN_ALIASES[normalize(typeLabel(type, kind))];
+      : (legacyGcTarget || TEMPLATE_COLUMN_ALIASES[normalize(typeLabel(type, kind))]);
     const column = target ? headerToColumn.get(normalize(target)) : null;
     if (!column) continue;
     usedTypes.add(type);
