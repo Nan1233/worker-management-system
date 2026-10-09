@@ -298,7 +298,7 @@ async function loadBulkCompanyReports(yearMonth, actor) {
     eventRows = await query(
       `SELECT id,process_id,machine_id,machine_code,product_code,work_date,shift,status,machine_time_hours,maximum_output,standard_output
          FROM machine_production_events
-        WHERE id IN (${p})`,
+        WHERE status='approved' AND id IN (${p})`,
       eventIds
     );
   }
