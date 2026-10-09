@@ -34,7 +34,10 @@ function report(overrides = {}) {
     actual_output: 47,
     status: 'approved',
     note: 'Smoke test',
-    deductions: [{ deduction_type_id: 1, deduction_type_code: 'DED_5S_DB', deduction_code: 'DED_5S_DB', deduction_name: '5S database name', hours: 0.5 }],
+    deductions: [
+      { deduction_type_id: 1, deduction_type_code: 'DED_5S_DB', deduction_code: 'DED_5S_DB', deduction_name: '5S database name', hours: 0.5 },
+      { deduction_type_id: 2, deduction_type_code: '0', deduction_code: '0', deduction_name: '0', hours: 1 }
+    ],
     defects: [
       { defect_type_id: 1, defect_type_code: 'DEF_KQD_DB', defect_code: 'DEF_KQD_DB', defect_name: 'KQD database name', quantity: 1 },
       { defect_type_id: 2, defect_type_code: 'DEF_VCS_DB', defect_code: 'DEF_VCS_DB', defect_name: 'Vỡ cao su database name', quantity: 1 }
@@ -49,7 +52,10 @@ function report(overrides = {}) {
     const processData = {
       processCode: 'GC',
       processName: 'Gia công',
-      deductionTypes: [{ id: 1, code: 'DED_5S_DB', deduction_code: 'DED_5S_DB', name: '5S database name', deduction_name: '5S database name', sort_order: 1 }],
+      deductionTypes: [
+        { id: 1, code: 'DED_5S_DB', deduction_code: 'DED_5S_DB', name: '5S database name', deduction_name: '5S database name', sort_order: 1 },
+        { id: 2, code: '0', deduction_code: '0', name: '0', deduction_name: '0', sort_order: 2 }
+      ],
       defectTypes: [
         { id: 1, code: 'DEF_KQD_DB', defect_code: 'DEF_KQD_DB', name: 'KQD database name', defect_name: 'KQD database name', sort_order: 1 },
         { id: 2, code: 'DEF_VCS_DB', defect_code: 'DEF_VCS_DB', name: 'Vỡ cao su database name', defect_name: 'Vỡ cao su database name', sort_order: 2 },
@@ -186,6 +192,8 @@ function report(overrides = {}) {
     for (let c = 1; c <= sheet.columnCount; c += 1) {
       const label = String(headerRow.getCell(c).value ?? '');
       assert.ok(!/^NG:\s/.test(label), `Không được nối thêm cột NG cũ: ${label}`);
+      assert.ok(!/^Trừ H:\s*(?:0|1|6|7|26|27|3|22|23)(?:\s|$)/i.test(label), `Không được có cột Trừ H số không cần thiết: ${label}`);
+      assert.ok(!/^(?:KQD|Vỡ cao su|K xước cong gãy|Cao su xoay|Cắt không đứt|Chân ngắn dài)$/i.test(label), `Không được giữ tiêu đề NG cũ: ${label}`);
     }
     assert.ok(String(sheet.pageSetup.printArea).endsWith(String(sheet.rowCount)), 'Vùng in phải kết thúc tại dòng dữ liệu cuối');
     assert.ok(!String(sheet.pageSetup.printArea).endsWith('2366'), 'Vùng in không được giữ dòng mẫu 2366');
