@@ -1,5 +1,6 @@
 const { calculateActualOutput } = require('./outputCalculation');
 const { normalizeTrainingPercent } = require('./trainingPercent');
+const { getProcessMachinePolicy } = require('../services/processMachinePolicy');
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const ALLOWED_SHIFTS = new Set(["A", "B", "C", "D", "Ca 1", "Ca 2", "Ca 3"]);
 const EPSILON = 0.02;
@@ -100,6 +101,15 @@ const validateProductionReport = (payload = {}, options = {}) => {
         Number(payload.process_id) !== 60006;
     const isMachineReport = String(payload.operation_mode || payload.execution_method || '').trim().toUpperCase() === 'MACHINE' ||
         (Array.isArray(payload.machine_lines) && payload.machine_lines.length > 0);
+    // Gia công (GC) nhiều/một máy lấy thời gian làm việc từ machine_lines[].machine_time_hours
+    // (xem machineLineValidationService.js, giới hạn 0 < hours <= 12 mỗi máy) thay vì
+    // actual_time/total_time/deduction_time cấp báo cáo. Frontend cố ý gửi 3 trường này = 0
+    // cho luồng này (processReportSubmission.ts: isGiaCongMachine; ProcessPage.tsx:
+    // usesGiaCongMachineAccounting ẩn trường và bỏ kiểm tra actualTime > 0 phía client).
+    // Chỉ GC mới được miễn kiểm tra actual_time > 0; các công đoạn máy khác (Mài, Đo, Ép,
+    // Cán, Kiểm 1/2) vẫn luôn thu thập actual_time từ công nhân nên không bị ảnh hưởng.
+    const isGiaCongMachineReport = getProcessMachinePolicy(payload.process_id).code === 'GC' &&
+        Array.isArray(payload.machine_lines) && payload.machine_lines.length > 0;
 
     if (!parsedDate || Number.isNaN(parsedDate.getTime())) {
         errors.work_date = 'Ngày làm việc không hợp lệ';
@@ -130,7 +140,7 @@ const validateProductionReport = (payload = {}, options = {}) => {
     const ttOk = finiteNumber(payload.tt_ok, 'tt_ok', errors, { max: 100000000 });
     const ttNg = finiteNumber(payload.tt_ng, 'tt_ng', errors, { max: 100000000 });
 
-    if (actualTime <= 0) errors.actual_time = 'Thời gian làm thực tế phải lớn hơn 0';
+    if (!isGiaCongMachineReport && actualTime <= 0) errors.actual_time = 'Thời gian làm thực tế phải lớn hơn 0';
     if (totalTime > MAX_TOTAL_TIME_HOURS) errors.total_time = 'Tổng thời gian không được vượt quá 12 giờ';
     if (Math.abs(totalTime - (actualTime + deductionTime)) > EPSILON) {
         errors.total_time = 'Tổng thời gian phải bằng thời gian làm thực tế cộng thời gian trừ';
