@@ -206,7 +206,17 @@ async function loadProcessMonthReports(value, processId, options = {}) {
     const id = Number(report.id);
     report.deductions = deductions.get(id) || [];
     report.defects = defects.get(id) || [];
-    report.machineLines = machineLines.get(id) || [];
+    report.machineLines = (machineLines.get(id) || []).map((line) => {
+      const event = physicalEventsById.get(Number(line.machine_event_id));
+      return {
+        ...line,
+        // Export uses physical machine time when a machine event exists.
+        // Keep machine_time_hours intact because it remains worker participation time.
+        excel_machine_time_hours: event
+          ? Math.max(0, Number(event.machine_time_hours) || 0)
+          : Math.max(0, Number(line.machine_time_hours) || 0)
+      };
+    });
     Object.assign(report, calculateReportPerformance({
       report,
       machineLines: report.machineLines
