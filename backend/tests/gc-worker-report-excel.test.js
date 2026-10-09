@@ -170,3 +170,35 @@ test('row builder: machine rows ignore report totals; legacy reports without lin
   assert.equal(rows.reduce((s, r) => s + r.ng, 0), 120);
   assert.equal(buildGcWorkerRows(manual).length, 1);
 });
+
+test('GC Excel row prefers physical export machine time over worker participation time', () => {
+  const rows = buildGcWorkerRows({
+    ...report2Machines,
+    machineLines: [{
+      ...report2Machines.machineLines[0],
+      machine_time_hours: 3,
+      excel_machine_time_hours: 5,
+      deduction_time_hours: 0.5,
+      deductions_json: JSON.stringify([{ deduction_type_id: dedId('5s'), deduction_name: '5s', hours: 0.5 }])
+    }]
+  });
+  assert.equal(rows[0].totalHours, 5);
+  assert.equal(rows[0].deductionHours, 0.5);
+  assert.equal(rows[0].workedHours, 4.5);
+});
+
+test('GC machine report with no machine detail does not export worker hours as machine hours', () => {
+  const rows = buildGcWorkerRows({
+    ...report2Machines,
+    machine_no: 'GC01',
+    total_time: 8,
+    actual_time: 7,
+    deduction_time: 1,
+    machineLines: []
+  });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].source, 'MACHINE_DATA_MISSING');
+  assert.equal(rows[0].totalHours, 0);
+  assert.equal(rows[0].workedHours, 0);
+  assert.ok(rows[0].warnings.includes('MACHINE_TIME_UNAVAILABLE_NO_MACHINE_LINES'));
+});
