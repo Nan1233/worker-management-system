@@ -134,9 +134,10 @@ function missingMachineRow(report) {
 function buildGcWorkerRows(report) {
   const lines = (Array.isArray(report.machineLines) ? report.machineLines : []).slice().sort(lineOrder);
   if (lines.length) return lines.map((line) => machineLineRow(report, line));
-  const hasMachine = String(report.operation_mode || '').trim().toUpperCase() === 'MACHINE'
-    || [report.machine_no, report.machine_code, report.machine]
-      .some((value) => String(value ?? '').trim() !== '');
+  const mode = String(report.operation_mode || '').trim().toUpperCase();
+  const hasMachine = mode === 'MACHINE'
+    || (!mode && [report.machine_no, report.machine_code, report.machine]
+      .some((value) => String(value ?? '').trim() !== ''));
   return [hasMachine ? missingMachineRow(report) : manualRow(report)];
 }
 
