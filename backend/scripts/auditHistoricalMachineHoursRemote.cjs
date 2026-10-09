@@ -190,8 +190,11 @@ function classifyReport(report) {
     result.reason = 'MULTI_MACHINE_ALLOCATION_REQUIRES_CONFIRMATION';
     return result;
   }
-  result.action = 'ELIGIBLE_SINGLE_MACHINE';
-  result.reason = 'ONE_MACHINE_LINE_MISSING_TIME_WITH_VALID_WORKER_TIME';
+  // Worker total/actual time is not proof of physical machine time. Even a
+  // single-machine report must be reviewed unless an approved physical event
+  // or a trusted machine-time source can reconstruct the value.
+  result.action = 'REVIEW';
+  result.reason = 'MISSING_MACHINE_TIME_CANNOT_BE_INFERRED_FROM_WORKER_TIME';
   return result;
 }
 
