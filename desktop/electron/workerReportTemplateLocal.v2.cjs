@@ -629,12 +629,16 @@ function applyReportRow(row, report, contract, processData, index) {
   if (contract.cols.actualTime && contract.cols.actualTime !== contract.cols.time) set(contract.cols.actualTime, exportTimes.actualHours);
   set(contract.cols.deductionTotal, exportTimes.deductionHours);
   if (contract.cols.workTime && contract.cols.time && contract.cols.deductionTotal) {
-    const tL = columnLetter(contract.cols.time);
-    const dL = columnLetter(contract.cols.deductionTotal);
-    row.getCell(contract.cols.workTime).value = {
-      formula: `${tL}${row.number}+${dL}${row.number}`,
-      result: exportTimes.totalHours
-    };
+    if (contract.timeKind === 'TOTAL') {
+      row.getCell(contract.cols.workTime).value = exportTimes.totalHours;
+    } else {
+      const tL = columnLetter(contract.cols.time);
+      const dL = columnLetter(contract.cols.deductionTotal);
+      row.getCell(contract.cols.workTime).value = {
+        formula: tL + row.number + '+' + dL + row.number,
+        result: exportTimes.totalHours
+      };
+    }
   }
   set(contract.cols.ok, number(report.tt_ok ?? report.actual_output));
   set(contract.cols.ng, number(report.tt_ng));
@@ -782,7 +786,7 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
       const row = sheet.getRow(rowNumber);
       applySnapshot(row, dataSnapshot, columnCount);
       applyReportRow(row, report, contract, processData, index);
-            const exportTimes = resolveExportTimes(report);
+      const exportTimes = resolveExportTimes(report);
       const totalMinutes = exportTimes.hasMachine
         ? exportTimes.totalHours * 60
         : (
