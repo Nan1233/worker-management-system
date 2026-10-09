@@ -66,6 +66,21 @@ test('reports without a machine continue to use worker time', () => {
   assert.equal(result.deductionHours, 1);
 });
 
+test('explicit manual report keeps worker time even if a legacy machine label is present', () => {
+  const result = resolveExportTimes({
+    operation_mode: 'MANUAL',
+    machine_no: 'M-01',
+    total_time: 8,
+    actual_time: 7.5,
+    deduction_time: 0.5,
+    deductions: [{ deduction_type_id: 1, deduction_name: '5S', hours: 0.5 }]
+  });
+  assert.equal(result.hasMachine, false);
+  assert.equal(result.totalHours, 8);
+  assert.equal(result.actualHours, 7.5);
+  assert.equal(result.deductionHours, 0.5);
+});
+
 test('machine report with no machine detail does not fall back to worker time', () => {
   const result = resolveExportTimes({
     operation_mode: 'MACHINE',
