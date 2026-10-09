@@ -49,8 +49,14 @@ test('historical audit flags worker-level time above 12 hours for reconciliation
   assert.equal(result.reason, 'WORKER_TIME_OR_DEDUCTION_OVER_12_HOURS');
 });
 
-test('historical audit leaves reports without machine lines on worker-time flow', () => {
+test('historical audit flags machine reports with no machine lines for review', () => {
   const result = classifyReport(report, []);
+  assert.equal(result.action, 'REVIEW');
+  assert.equal(result.reason, 'MACHINE_REPORT_WITHOUT_MACHINE_LINES');
+});
+
+test('historical audit leaves manual reports without machine lines on worker-time flow', () => {
+  const result = classifyReport({ ...report, operation_mode: 'MANUAL', machine_no: '' }, []);
   assert.equal(result.action, 'NO_CHANGE');
-  assert.equal(result.reason, 'NO_MACHINE_LINES_USE_WORKER_TIME');
+  assert.equal(result.reason, 'NO_MACHINE_USE_WORKER_TIME');
 });
