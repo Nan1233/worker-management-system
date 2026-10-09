@@ -214,7 +214,16 @@ const loadMonthReports = async (yearMonth) => {
         const id = Number(report.id);
         report.deductions = deductions.get(id) || [];
         report.defects = defects.get(id) || [];
-        const lines = machineLines.get(id) || [];
+        const lines = (machineLines.get(id) || []).map((line) => {
+            const event = machineEventMap.get(Number(line.machine_event_id));
+            return {
+                ...line,
+                excel_machine_time_hours: event
+                    ? Math.max(0, Number(event.machine_time_hours) || 0)
+                    : Math.max(0, Number(line.machine_time_hours) || 0)
+            };
+        });
+        report.machineLines = lines;
         Object.assign(report, calculateReportPerformance({ report, machineLines: lines }));
         if (String(report.process_code || '').toUpperCase() === 'GC' && String(report.operation_mode || '').toUpperCase() === 'MACHINE') {
             report.machineAccounting = buildGiaCongMachineAccounting(report, lines, machineEventMap);
