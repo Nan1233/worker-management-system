@@ -577,82 +577,6 @@ function plannedOutputFor(report) {
   return { planned, trainingPercent };
 }
 
-// Submission timestamp kept at Vietnam wall-clock time.
-function asDateTime(value) {
-  if (!value) return null;
-  if (typeof value === 'string') {
-    const plain = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/);
-    if (plain) return new Date(Date.UTC(+plain[1], +plain[2] - 1, +plain[3], +plain[4], +plain[5], +(plain[6] || 0)));
-  }
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return new Date(date.getTime() + 7 * 3600 * 1000);
-}
-
-// Insert one column after `afterColumn` and shift every column reference the
-// contract already holds. Lets the export add audit/derived columns without the
-// template having to carry them.
-function insertContractColumn(sheet, headerRow, contract, afterColumn, header, options = {}) {
-  const anchor = Number(afterColumn || 0);
-  if (!anchor) return null;
-  const column = anchor + 1;
-  sheet.spliceColumns(column, 0, []);
-  const cell = sheet.getRow(headerRow).getCell(column);
-  cell.style = JSON.parse(JSON.stringify(sheet.getRow(headerRow).getCell(anchor).style || {}));
-  cell.value = header;
-  sheet.getColumn(column).width = options.width || 14;
-  if (options.hidden) sheet.getColumn(column).hidden = true;
-  const shift = (value) => (Number(value) >= column ? Number(value) + 1 : value);
-  for (const key of Object.keys(contract.cols)) if (contract.cols[key]) contract.cols[key] = shift(contract.cols[key]);
-  for (const item of contract.deductions) item.column = shift(item.column);
-  for (const item of contract.defects) item.column = shift(item.column);
-  if (Array.isArray(contract.detailColumns)) contract.detailColumns = contract.detailColumns.map(shift);
-  if (contract.lastColumn) contract.lastColumn = shift(contract.lastColumn);
-  const previous = contract.shiftColumn;
-  contract.shiftColumn = previous ? ((value) => shift(previous(value))) : shift;
-  return column;
-}
-
-// Hidden submission timestamp right after STT, and a visible "% học việc"
-// column between Tên and Máy. Both are derived from the DB, not the template.
-function addDerivedColumns(sheet, headerRow, contract) {
-  // The current template already carries both columns; only add what is missing.
-  const headerKey = (column) => normalize(sheet.getRow(headerRow).getCell(column).value);
-  let existingSubmitted = null;
-  for (let column = 1; column <= sheet.columnCount; column += 1) {
-    if (headerKey(column).startsWith('thoi gian nop')) { existingSubmitted = column; break; }
-  }
-  if (existingSubmitted) {
-    contract.cols.submittedAt = existingSubmitted;
-    sheet.getColumn(existingSubmitted).hidden = true;
-  } else {
-    const submitted = insertContractColumn(sheet, headerRow, contract, contract.cols.stt,
-      'Thời gian nộp báo cáo', { hidden: true, width: 18 });
-    if (submitted) contract.cols.submittedAt = submitted;
-  }
-  if (!contract.cols.training) {
-    const training = insertContractColumn(sheet, headerRow, contract, contract.cols.workerName,
-      '% học việc', { width: 10 });
-    if (training) contract.cols.training = training;
-  }
-}
-
-// Planned output of the shift = định mức 1h x thời gian thực tế x % học việc.
-function plannedOutputFor(report) {
-  const has = (value) => value !== null && value !== undefined && String(value).trim() !== '';
-  let trainingPercent = 100;
-  if (has(report.training_percent_snapshot)) trainingPercent = number(report.training_percent_snapshot);
-  else if (has(report.training_percent)) trainingPercent = number(report.training_percent);
-  const effectiveTime = has(report.actual_time)
-    ? number(report.actual_time)
-    : (has(report.total_time) ? number(report.total_time) - number(report.deduction_time) : null);
-  const perHour = has(report.standard_output) ? number(report.standard_output) : null;
-  const planned = perHour === null || effectiveTime === null
-    ? null
-    : Math.round(perHour * effectiveTime * (trainingPercent / 100) * 100) / 100;
-  return { planned, trainingPercent };
-}
-
 function applyReportRow(row, report, contract, processData, index) {
   const set = (column, value) => writeValue(row, column, value);
   set(contract.cols.stt, index + 1);
@@ -691,29 +615,8 @@ function applyReportRow(row, report, contract, processData, index) {
   }
   set(contract.cols.standard, planned);
   set(contract.cols.time, number(report.actual_time ?? report.total_time));
-  if (contract.cols.submittedAt) {
-    const cell = row.getCell(contract.cols.submittedAt);
-    cell.value = asDateTime(report.submitted_at || report.created_at || report.entry_date);
-    cell.numFmt = 'dd/mm/yyyy hh:mm';
-  }
-  const { planned, trainingPercent } = plannedOutputFor(report);
-  if (contract.cols.training) {
-    const cell = row.getCell(contract.cols.training);
-    cell.value = trainingPercent / 100;
-    cell.numFmt = '0%';
-  }
-  set(contract.cols.standard, planned);
-  set(contract.cols.time, number(report.actual_time ?? report.total_time));
   if (contract.cols.actualTime && contract.cols.actualTime !== contract.cols.time) set(contract.cols.actualTime, number(report.actual_time ?? report.total_time));
   set(contract.cols.deductionTotal, number(report.deduction_time));
-  if (contract.cols.workTime && contract.cols.time && contract.cols.deductionTotal) {
-    const tL = columnLetter(contract.cols.time);
-    const dL = columnLetter(contract.cols.deductionTotal);
-    row.getCell(contract.cols.workTime).value = {
-      formula: `${tL}${row.number}+${dL}${row.number}`,
-      result: number(report.actual_time ?? report.total_time) + number(report.deduction_time)
-    };
-  }
   if (contract.cols.workTime && contract.cols.time && contract.cols.deductionTotal) {
     const tL = columnLetter(contract.cols.time);
     const dL = columnLetter(contract.cols.deductionTotal);
@@ -823,14 +726,9 @@ function columnLetter(column) {
 }
 
 function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber, dataStartRow, columnMap, headerRow) {
-function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber, dataStartRow, columnMap, headerRow) {
   const columnCount = Math.max(sheet.columnCount, Number(contract.lastColumn || 0));
   const dateSnapshot = snapshotRow(sheet, dateRowNumber, columnCount);
   const dataSnapshot = snapshotRow(sheet, dataStartRow, columnCount);
-  // Read the header row as it stands now: addDerivedColumns may have inserted
-  // columns after columnMap was built, so cached indexes would be stale.
-  const liveMap = findColumnMap(sheet, headerRow);
-  const percentColumn = pickExact(liveMap, '%tt', '% tt');
   // Read the header row as it stands now: addDerivedColumns may have inserted
   // columns after columnMap was built, so cached indexes would be stale.
   const liveMap = findColumnMap(sheet, headerRow);
@@ -888,11 +786,9 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
       if (percentColumn && outputLetter && standardLetter) {
         const cell = row.getCell(percentColumn);
         const { planned } = plannedOutputFor(report);
-        const { planned } = plannedOutputFor(report);
         const output = number(report.actual_output ?? report.tt_ok);
         cell.value = {
           formula: `IFERROR(${outputLetter}${rowNumber}/${standardLetter}${rowNumber},0)`,
-          result: planned ? output / planned : 0
           result: planned ? output / planned : 0
         };
         cell.numFmt = percentFormat;
@@ -902,26 +798,6 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
     if (percentColumn) percentRanges.push(`${columnLetter(percentColumn)}${firstDataRow}:${columnLetter(percentColumn)}${rowNumber - 1}`);
   }
 
-  // %TT colour bands (the template file no longer carries them):
-  //   < 80%          red
-  //   80% - < 90%    yellow
-  //   90% - 100%     green
-  //   > 100%         pink
-  sheet.conditionalFormattings = [];
-  if (percentColumn && percentRanges.length) {
-    const col = columnLetter(percentColumn);
-    const firstRow = Number(percentRanges[0].match(/\d+/)[0]);
-    const cell = `${col}${firstRow}`;
-    const fill = (argb) => ({ fill: { type: 'pattern', pattern: 'solid', bgColor: { argb } } });
-    sheet.addConditionalFormatting({
-      ref: percentRanges.join(' '),
-      rules: [
-        { type: 'expression', priority: 1, formulae: [`AND(ISNUMBER(${cell}),${cell}<0.8)`], style: fill('FFFF0000') },
-        { type: 'expression', priority: 2, formulae: [`AND(ISNUMBER(${cell}),${cell}>=0.8,${cell}<0.9)`], style: fill('FFFFFF00') },
-        { type: 'expression', priority: 3, formulae: [`AND(ISNUMBER(${cell}),${cell}>=0.9,${cell}<=1)`], style: fill('FF92D050') },
-        { type: 'expression', priority: 4, formulae: [`AND(ISNUMBER(${cell}),${cell}>1)`], style: fill('FFFF99CC') }
-      ]
-    });
   // %TT colour bands (the template file no longer carries them):
   //   < 80%          red
   //   80% - < 90%    yellow
@@ -1013,15 +889,11 @@ async function buildWorkerProcessWorkbook({ appPath, processCode, processName, d
   addDerivedColumns(sheet, headerRow, contract);
   const workTimeColumn = insertContractColumn(sheet, headerRow, contract, contract.cols.shift, 'Thời gian làm việc', { width: 14, hidden: true });
 contract.cols.workTime = workTimeColumn;
-  addDerivedColumns(sheet, headerRow, contract);
-  const workTimeColumn = insertContractColumn(sheet, headerRow, contract, contract.cols.shift, 'Thời gian làm việc', { width: 14, hidden: true });
-contract.cols.workTime = workTimeColumn;
   const dataStartRow = findDataStartRow(sheet, headerRow);
   const dateRowNumber = findDateSeparatorRow(sheet, headerRow, dataStartRow);
   let layout = 'flat';
   if (dateRowNumber) {
     layout = 'grouped-by-date';
-    writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber, dataStartRow, columnMap, headerRow);
     writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber, dataStartRow, columnMap, headerRow);
   } else {
     const sourceRow = sheet.getRow(dataStartRow);
