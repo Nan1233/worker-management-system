@@ -63,7 +63,7 @@ test('GC real-data integration: physical machine time and deductions match TiDB 
       [events] = await db.promise().query(
         `SELECT id, machine_code, work_date, shift, status, machine_time_hours
            FROM machine_production_events
-          WHERE id IN (${eventPlaceholders})`,
+          WHERE status='approved' AND id IN (${eventPlaceholders})`,
         eventIds
       );
     }
@@ -105,7 +105,7 @@ test('GC real-data integration: physical machine time and deductions match TiDB 
             consumedEvents.add(eventId);
             expectedGross += Math.max(0, Number(event.machine_time_hours) || 0);
           }
-        } else {
+        } else if (!eventId) {
           expectedGross += Math.max(0, Number(line.machine_time_hours) || 0);
         }
       }
