@@ -362,7 +362,6 @@ function normalizeDeductions(rows = [], report = null, machineLines = [], deduct
   if (!expected) return toArray(persisted).length ? toArray(persisted) : (toArray(legacy).length ? toArray(legacy) : (toArray(extra).length ? toArray(extra) : toArray(machine)));
   const persistedValues = toArray(persisted);
   if (persistedValues.length) return persistedValues;
-  if (persistedValues.length) return persistedValues;
   const legacyValues = toArray(legacy);
   if (Math.abs(legacyValues.reduce((s, x) => s + positiveNumber(x.hours), 0) - expected) <= 0.01) return legacyValues;
   const extraValues = toArray(extra);
