@@ -65,7 +65,7 @@ function machineLineRow(report, line) {
   if (deductions.length && fallbackHours - itemHours > 0.01) warnings.push('DEDUCTION_TOTAL_EXCEEDS_BREAKDOWN');
   if (!deductions.length && fallbackHours > 0) warnings.push('DEDUCTION_WITHOUT_BREAKDOWN');
 
-  const machineHours = Math.max(0, toNumber(line.machine_time_hours));
+  const machineHours = Math.max(0, toNumber(line.excel_machine_time_hours ?? line.machine_time_hours));
   const workedHours = Math.max(0, machineHours - deductionHours);
   const ok = Math.max(0, Math.round(toNumber(line.ok_quantity)));
   const ng = Math.max(0, Math.round(toNumber(line.ng_quantity)));
@@ -116,11 +116,28 @@ function manualRow(report) {
 
 const lineOrder = (a, b) => toNumber(a.sort_order) - toNumber(b.sort_order) || toNumber(a.id) - toNumber(b.id);
 
+function missingMachineRow(report) {
+  const row = manualRow(report);
+  return {
+    ...row,
+    source: 'MACHINE_DATA_MISSING',
+    totalHours: 0,
+    workedHours: 0,
+    deductionHours: 0,
+    standard: 0,
+    deductions: [],
+    warnings: [...row.warnings, 'MACHINE_TIME_UNAVAILABLE_NO_MACHINE_LINES']
+  };
+}
+
 /** All Excel rows of one approved GC report, in line order. */
 function buildGcWorkerRows(report) {
   const lines = (Array.isArray(report.machineLines) ? report.machineLines : []).slice().sort(lineOrder);
   if (lines.length) return lines.map((line) => machineLineRow(report, line));
-  return [manualRow(report)];
+  const hasMachine = String(report.operation_mode || '').trim().toUpperCase() === 'MACHINE'
+    || [report.machine_no, report.machine_code, report.machine]
+      .some((value) => String(value ?? '').trim() !== '');
+  return [hasMachine ? missingMachineRow(report) : manualRow(report)];
 }
 
 module.exports = { buildGcWorkerRows, parseArray, round2 };
