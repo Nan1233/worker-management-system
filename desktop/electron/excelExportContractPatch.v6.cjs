@@ -252,14 +252,42 @@ function mergeProcessData(rows) {
       merged.reports.push({ ...report, process_code: report.process_code || item.processCode });
     }
     for (const type of Array.isArray(data.deductionTypes) ? data.deductionTypes : []) {
-      if (seenDeduction.has(String(type?.id))) continue;
-      seenDeduction.add(String(type?.id));
+      const key = type?.id != null ? `ID:${type.id}` : `CODE:${type?.deduction_code || type?.code || type?.deduction_name || type?.name || ''}`;
+      if (seenDeduction.has(key)) continue;
+      seenDeduction.add(key);
       merged.deductionTypes.push(type);
     }
     for (const type of Array.isArray(data.defectTypes) ? data.defectTypes : []) {
-      if (seenDefect.has(String(type?.id))) continue;
-      seenDefect.add(String(type?.id));
+      const key = type?.id != null ? `ID:${type.id}` : `CODE:${type?.defect_code || type?.code || type?.defect_name || type?.name || ''}`;
+      if (seenDefect.has(key)) continue;
+      seenDefect.add(key);
       merged.defectTypes.push(type);
+    }
+  }
+
+  // Some export payloads include detail rows but omit the process-level type
+  // catalogue. Derive only the missing type definitions from the persisted
+  // detail rows so writeDetailBlock can resolve them by ID/code/name.
+  for (const report of merged.reports) {
+    for (const detail of Array.isArray(report.deductions) ? report.deductions : []) {
+      const id = detail?.deduction_type_id ?? detail?.id;
+      const code = detail?.deduction_type_code || detail?.deduction_code || detail?.code || '';
+      const name = detail?.deduction_type_name || detail?.deduction_name || detail?.name || '';
+      if (id == null && !code && !name) continue;
+      const key = id != null ? `ID:${id}` : `CODE:${code || name}`;
+      if (seenDeduction.has(key)) continue;
+      seenDeduction.add(key);
+      merged.deductionTypes.push({ id: id ?? undefined, deduction_code: code, code, deduction_name: name, name });
+    }
+    for (const detail of Array.isArray(report.defects) ? report.defects : []) {
+      const id = detail?.defect_type_id ?? detail?.id;
+      const code = detail?.defect_type_code || detail?.defect_code || detail?.code || '';
+      const name = detail?.defect_type_name || detail?.defect_name || detail?.name || detail?.label || '';
+      if (id == null && !code && !name) continue;
+      const key = id != null ? `ID:${id}` : `CODE:${code || name}`;
+      if (seenDefect.has(key)) continue;
+      seenDefect.add(key);
+      merged.defectTypes.push({ id: id ?? undefined, defect_code: code, code, defect_name: name, name });
     }
   }
   return merged;
