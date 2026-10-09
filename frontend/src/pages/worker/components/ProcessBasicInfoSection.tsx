@@ -180,6 +180,7 @@ export default function ProcessBasicInfoSection({ form, setForm, onFormChange, i
 </div></div>
 <div className="machine-detail-values-row">
 <div className="machine-detail-values-column machine-detail-values-deduction">
+{line.selectedDeductions?.length > 0 && <div className="machine-detail-values-heading machine-detail-values-heading-deduction"><span aria-hidden="true">⏱</span><div><strong>Chi tiết trừ giờ</strong><small>Thời gian được trừ theo từng loại</small></div></div>}
 {line.selectedDeductions?.length > 0 && <div className="worker-dynamic-grid worker-deduction-detail-grid machine-worker-deduction-detail-grid">
 {activeDeductionOptions.filter((item) => line.selectedDeductions.includes(item.key)).map((item) => (
 <div key={item.key} className="worker-field-block">
@@ -200,6 +201,7 @@ export default function ProcessBasicInfoSection({ form, setForm, onFormChange, i
 </div>}
 </div>
 <div className="machine-detail-values-column machine-detail-values-ng">
+{line.selectedDefects.length > 0 && <div className="machine-detail-values-heading machine-detail-values-heading-ng"><span aria-hidden="true">⚠</span><div><strong>Chi tiết lỗi NG</strong><small>Số lượng theo từng loại lỗi</small></div></div>}
 {line.selectedDefects.length > 0 && <div className="worker-dynamic-grid worker-ng-grid machine-worker-ng-detail-grid">
 {visibleNgOptions.filter((item) => line.selectedDefects.includes(item.key)).map((item) => (
 <div key={item.key} className="worker-field-block">
