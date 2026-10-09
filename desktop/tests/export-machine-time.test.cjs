@@ -52,6 +52,22 @@ test('machine lines without event use the machine-line time', () => {
   assert.equal(result.actualHours, 3.5);
 });
 
+test('missing linked physical event does not fall back to worker participation hours', () => {
+  const result = resolveExportTimes({
+    operation_mode: 'MACHINE',
+    total_time: 8,
+    actual_time: 7,
+    deduction_time: 1,
+    machineLines: [{
+      id: 1, machine_event_id: 55, machine_time_hours: 7,
+      excel_machine_time_hours: 0, deduction_time_hours: 0
+    }],
+    eventLines: []
+  });
+  assert.equal(result.totalHours, 0);
+  assert.equal(result.actualHours, 0);
+});
+
 test('reports without a machine continue to use worker time', () => {
   const result = resolveExportTimes({
     operation_mode: 'MANUAL',
