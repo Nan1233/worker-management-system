@@ -35,6 +35,7 @@ function classifyReport(report, lines) {
     worker_code: String(report.worker_code || ''),
     shift: String(report.shift || ''),
     operation_mode: String(report.operation_mode || ''),
+    machine_no: String(report.machine_no || ''),
     worker_total_hours: round(totalHours),
     worker_deduction_hours: round(deductionHours),
     machine_count: machineLines.length,
@@ -50,7 +51,14 @@ function classifyReport(report, lines) {
   };
 
   if (!machineLines.length) {
-    result.reason = 'NO_MACHINE_LINES_USE_WORKER_TIME';
+    const indicatesMachine = String(report.operation_mode || '').trim().toUpperCase() === 'MACHINE'
+      || String(report.machine_no || '').trim() !== '';
+    if (indicatesMachine) {
+      result.action = 'REVIEW';
+      result.reason = 'MACHINE_REPORT_WITHOUT_MACHINE_LINES';
+    } else {
+      result.reason = 'NO_MACHINE_USE_WORKER_TIME';
+    }
     return result;
   }
   if (hasOverLimitMachine || machineLines.some((line) => num(line.machine_time_hours) > MAX_MACHINE_HOURS)) {
@@ -92,6 +100,7 @@ async function main() {
   const [reports] = await db.promise().query(
     `SELECT pr.id, pr.work_date, pr.shift, pr.operation_mode,
             pr.total_time, pr.actual_time, pr.deduction_time,
+            pr.machine_no,
             w.worker_code
        FROM production_reports pr
        INNER JOIN workers w ON w.id = pr.worker_id
