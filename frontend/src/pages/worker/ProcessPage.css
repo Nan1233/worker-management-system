@@ -146,3 +146,11 @@
 @media(max-width:420px){
   .worker-dropdown-options{grid-template-columns:1fr}
 }
+
+
+/* GC machine form: keep deduction inputs and NG inputs in separate aligned columns. */
+.machine-detail-values-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;align-items:start;margin-top:10px;}
+.machine-detail-values-column{min-width:0;}
+.machine-detail-values-column .worker-dynamic-grid{grid-template-columns:minmax(0,1fr);gap:8px;margin-top:0;}
+.machine-detail-values-column:empty{display:none;}
+@media (max-width:420px){.machine-detail-values-row{grid-template-columns:minmax(0,1fr);}}
