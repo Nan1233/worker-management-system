@@ -312,7 +312,17 @@ async function loadBulkCompanyReports(yearMonth, actor) {
       .filter((row) => String(row.process_code).toUpperCase() === code)
       .map((report) => {
         const reportId = Number(report.id);
-        const machineLines = hydrateMachineLineDefects(machineLinesByReport.get(reportId) || [], machineDefectsByLine, eventDefectsByEvent);
+        const machineLines = hydrateMachineLineDefects(machineLinesByReport.get(reportId) || [], machineDefectsByLine, eventDefectsByEvent)
+          .map((line) => {
+            const event = eventMap.get(Number(line.machine_event_id));
+            return {
+              ...line,
+              // Export-only physical time; do not overwrite the worker participation field.
+              excel_machine_time_hours: event
+                ? Math.max(0, Number(event.machine_time_hours) || 0)
+                : Math.max(0, Number(line.machine_time_hours) || 0)
+            };
+          });
         const tempDeductions = tempDeductionByReport.get(reportId) || [];
         const tempDefects = tempDefectByReport.get(reportId) || [];
         const persistedDeductions = deductionByReport.get(reportId) || [];
