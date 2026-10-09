@@ -173,15 +173,20 @@ function report(overrides = {}) {
     const machineColumn = headerColumn('Máy');
     assert.ok(machineColumn, 'Template phải có cột Máy');
     assert.equal(String(sheet.getRow(encodedRow).getCell(machineColumn).value), 'CUT-10', 'Máy phải fallback từ machineLines khi machine_no trống');
-    const encodedHeaders = [["CAT01","Cắt không đứt"],["CAT02","Cắt lẹm"],["CAT03","NG: Cắt phạm (CAT03)"],["CAT04","NG: Cao su ngắn (CAT04)"],["CAT05","NG: Cao su dài (CAT05)"],["CAT06","bavia"],["CAT07","ppcm"],["CAT08","LCS"],["CAT09","lẫn cs"],["CAT10","NG: Khác (CAT10)"],["LONG01","KQD"],["LONG02","Vỡ cao su"],["LONG03","NG: Trục xước (LONG03)"],["LONG04","NG: Trục gãy, cong (LONG04)"],["LONG05","thiếu cao su"],["LONG06","NG: Lẫn trục (LONG06)"],["LONG07","NG: Lẫn cao su (LONG07)"],["LONG08","NG: Khác (LONG08)"]];
+    const encodedHeaders = [["CAT01","CAT01 - Cao su không đứt"],["CAT02","CAT02 - Cắt lẹm"],["CAT03","CAT03 - Cắt phạm"],["CAT04","CAT04 - Cao su ngắn"],["CAT05","CAT05 - Cao su dài"],["CAT06","CAT06 - Bavia cao su"],["CAT07","CAT07 - Phế phẩm chỉnh máy"],["CAT08","CAT08 - Lỗi cao su (NCC)"],["CAT09","CAT09 - Lẫn cao su"],["CAT10","CAT10 - Khác"],["LONG01","LONG01 - Không qua dưỡng"],["LONG02","LONG02 - Cao su vỡ"],["LONG03","LONG03 - Trục xước"],["LONG04","LONG04 - Trục gãy, cong"],["LONG05","LONG05 - Thiếu cao su"],["LONG06","LONG06 - Lẫn trục"],["LONG07","LONG07 - Lẫn cao su"],["LONG08","LONG08 - Khác"]];
     for (const [code, label] of encodedHeaders) {
       const column = headerColumn(label);
       assert.ok(column, `Thiếu cột NG cho mã form ${code}: ${label}`);
       assert.equal(Number(sheet.getRow(encodedRow).getCell(column).value), 1, `Sai số NG ở cột mã form ${code}`);
     }
-    const cat10Column = headerColumn('NG: Khác (CAT10)');
-    const long08Column = headerColumn('NG: Khác (LONG08)');
+    const cat10Column = headerColumn('CAT10 - Khác');
+    const long08Column = headerColumn('LONG08 - Khác');
     assert.ok(cat10Column && long08Column && cat10Column !== long08Column, 'CAT10 và LONG08 đều là Khác nhưng phải giữ riêng theo mã form');
+    assert.equal(encodedHeaders.filter(([, label]) => headerColumn(label)).length, 18, 'Phải có đủ 18 cột NG theo file mẫu');
+    for (let c = 1; c <= sheet.columnCount; c += 1) {
+      const label = String(headerRow.getCell(c).value ?? '');
+      assert.ok(!/^NG:\\s/.test(label), `Không được nối thêm cột NG cũ: ${label}`);
+    }
     assert.ok(String(sheet.pageSetup.printArea).endsWith(String(sheet.rowCount)), 'Vùng in phải kết thúc tại dòng dữ liệu cuối');
     assert.ok(!String(sheet.pageSetup.printArea).endsWith('2366'), 'Vùng in không được giữ dòng mẫu 2366');
 
