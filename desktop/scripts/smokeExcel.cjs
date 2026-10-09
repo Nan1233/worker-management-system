@@ -185,12 +185,12 @@ function report(overrides = {}) {
     assert.equal(encodedHeaders.filter(([, label]) => headerColumn(label)).length, 18, 'Phải có đủ 18 cột NG theo file mẫu');
     for (let c = 1; c <= sheet.columnCount; c += 1) {
       const label = String(headerRow.getCell(c).value ?? '');
-      assert.ok(!/^NG:\\s/.test(label), `Không được nối thêm cột NG cũ: ${label}`);
+      assert.ok(!/^NG:\s/.test(label), `Không được nối thêm cột NG cũ: ${label}`);
     }
     assert.ok(String(sheet.pageSetup.printArea).endsWith(String(sheet.rowCount)), 'Vùng in phải kết thúc tại dòng dữ liệu cuối');
     assert.ok(!String(sheet.pageSetup.printArea).endsWith('2366'), 'Vùng in không được giữ dòng mẫu 2366');
 
-    console.log('[PASS] Worker Excel smoke test: submission timestamp + encoded CAT/LONG NG mapping + unmatched NG columns + print area + Trừ H');
+    console.log('[PASS] Worker Excel smoke test: submission timestamp + all 18 CAT/LONG NG headers + print area + Trừ H');
   } finally {
     await fs.rm(temp, { recursive: true, force: true });
   }
