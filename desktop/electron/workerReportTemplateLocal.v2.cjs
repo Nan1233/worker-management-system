@@ -39,15 +39,24 @@ const DETAIL_ALIASES = Object.freeze({
 // Only codes with a clear one-to-one legacy column are mapped into the old template.
 // Other encoded categories stay distinct and are appended as NG columns with their code.
 const GC_FORM_DEFECT_COLUMN_BY_CODE = Object.freeze({
-  CAT01: 'Cắt không đứt',
-  CAT02: 'Cắt lẹm',
-  CAT06: 'bavia',
-  CAT07: 'ppcm',
-  CAT08: 'LCS',
-  CAT09: 'lẫn cs',
-  LONG01: 'KQD',
-  LONG02: 'Vỡ cao su',
-  LONG05: 'thiếu cao su'
+  CAT01: 'CAT01 - Cao su không đứt',
+  CAT02: 'CAT02 - Cắt lẹm',
+  CAT03: 'CAT03 - Cắt phạm',
+  CAT04: 'CAT04 - Cao su ngắn',
+  CAT05: 'CAT05 - Cao su dài',
+  CAT06: 'CAT06 - Bavia cao su',
+  CAT07: 'CAT07 - Phế phẩm chỉnh máy',
+  CAT08: 'CAT08 - Lỗi cao su (NCC)',
+  CAT09: 'CAT09 - Lẫn cao su',
+  CAT10: 'CAT10 - Khác',
+  LONG01: 'LONG01 - Không qua dưỡng',
+  LONG02: 'LONG02 - Cao su vỡ',
+  LONG03: 'LONG03 - Trục xước',
+  LONG04: 'LONG04 - Trục gãy, cong',
+  LONG05: 'LONG05 - Thiếu cao su',
+  LONG06: 'LONG06 - Lẫn trục',
+  LONG07: 'LONG07 - Lẫn cao su',
+  LONG08: 'LONG08 - Khác'
 });
 
 const TEMPLATE_COLUMN_ALIASES = Object.freeze({
@@ -780,6 +789,34 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
   sheet.pageSetup.printArea = `A1:${columnLetter(lastColumn)}${lastRow}`;
 }
 
+
+function normalizeGcDefectHeaders(sheet, headerRow) {
+  const row = sheet.getRow(headerRow);
+  const headerText = (column) => normalize(cellText(row.getCell(column)));
+  let ngColumn = null;
+  for (let column = 1; column <= sheet.columnCount; column += 1) {
+    if (headerText(column) === 'tong ng') { ngColumn = column; break; }
+  }
+  if (!ngColumn) throw new Error('GC template không tìm thấy cột Tổng NG.');
+  const isNonDetailTail = (label) => /^(ty le|ghi chu|trang thai|id$|sp ?\/ ?gio|san pham ?\/ ?gio|nang suat)/.test(label);
+  const defectColumns = [];
+  for (let column = ngColumn + 1; column <= sheet.columnCount; column += 1) {
+    if (isNonDetailTail(headerText(column))) break;
+    defectColumns.push(column);
+  }
+  const expected = Object.values(GC_FORM_DEFECT_COLUMN_BY_CODE);
+  const existing = new Set(defectColumns.map((column) => headerText(column)));
+  if (expected.every((label) => existing.has(normalize(label)))) return false;
+  if (defectColumns.length !== 18 && defectColumns.length !== 19) {
+    throw new Error(`GC template cần 18 cột NG (hoặc 19 cột cũ để thay thế), nhưng tìm thấy ${defectColumns.length}. Dừng để tránh sửa nhầm template.`);
+  }
+  for (let index = 0; index < expected.length; index += 1) {
+    row.getCell(defectColumns[index]).value = expected[index];
+  }
+  if (defectColumns.length === 19) sheet.spliceColumns(defectColumns[18], 1);
+  return true;
+}
+
 async function buildWorkerProcessWorkbook({ appPath, processCode, processName, date, processData = {} }) {
   const { templatePath, buffer: templateBuffer } = await getTemplateBuffer(appPath);
   const reports = Array.isArray(processData?.reports) ? [...processData.reports] : [];
@@ -794,6 +831,7 @@ async function buildWorkerProcessWorkbook({ appPath, processCode, processName, d
   const sheet = workbook.worksheets.find((item) => item.state !== 'hidden') || workbook.worksheets[0];
   if (!sheet) throw new Error('Template công nhân không có worksheet.');
   const headerRow = findHeader(sheet);
+  if (code === 'GC') normalizeGcDefectHeaders(sheet, headerRow);
   const columnMap = findColumnMap(sheet, headerRow);
   const contract = buildColumnContract(columnMap, processData);
   reports.sort((a, b) => String(a?.work_date || '').localeCompare(String(b?.work_date || '')) || number(a?.id) - number(b?.id));
