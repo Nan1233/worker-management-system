@@ -36,6 +36,7 @@
     "audit:kqd": "node scripts/auditKqdSnapshots.js",
     "audit:shared-machines": "node scripts/auditSharedMachineAccounting.js",
     "audit:historical-machine-hours:remote": "node scripts/auditHistoricalMachineHoursRemote.cjs",
+    "audit:historical-machine-hours": "node scripts/auditHistoricalMachineHoursRemote.cjs",
     "audit:rollback-versions": "node scripts/auditRollbackVersions.js",
     "audit:logical-duplicates": "node scripts/auditLogicalDuplicates.js",
     "audit:worker-processes": "node scripts/auditWorkerProcesses.js",
