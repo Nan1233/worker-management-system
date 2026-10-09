@@ -198,7 +198,35 @@ function report(overrides = {}) {
     assert.ok(String(sheet.pageSetup.printArea).endsWith(String(sheet.rowCount)), 'Vùng in phải kết thúc tại dòng dữ liệu cuối');
     assert.ok(!String(sheet.pageSetup.printArea).endsWith('2366'), 'Vùng in không được giữ dòng mẫu 2366');
 
-    console.log('[PASS] Worker Excel smoke test: submission timestamp + all 18 CAT/LONG NG headers + print area + Trừ H');
+    // Exercise the real monthly export wrapper too: it previously passed
+    // processCode="ALL", which bypassed GC header normalization even though
+    // the direct builder smoke test above passed.
+    const { buildWorkerSplit } = require('../electron/excelExportContractPatch.v6.cjs');
+    const split = await buildWorkerSplit({
+      appPath: path.resolve(__dirname, '..'),
+      date: '2026-08-01',
+      payload: { processes: { GC: processData } }
+    });
+    assert.equal(split.processes.length, 1, 'Xuất GC thực tế phải tạo đúng một workbook');
+    const actualWorkbook = new ExcelJS.Workbook();
+    await actualWorkbook.xlsx.load(split.processes[0].buffer);
+    const actualSheet = actualWorkbook.worksheets.find((item) => item.state !== 'hidden') || actualWorkbook.worksheets[0];
+    assert.ok(actualSheet, 'Không mở được workbook từ luồng xuất thực tế');
+    const actualHeaders = [];
+    for (let c = 1; c <= actualSheet.columnCount; c += 1) {
+      actualHeaders.push(String(actualSheet.getRow(built.headerRow).getCell(c).value ?? '').trim());
+    }
+    for (const legacy of ['KQD', 'Vỡ cao su', 'K xước cong gãy', 'Cao su xoay', 'Cắt không đứt', 'Chân ngắn dài']) {
+      assert.ok(!actualHeaders.includes(legacy), `Luồng xuất thực tế vẫn còn cột NG cũ: ${legacy}`);
+    }
+    for (const header of actualHeaders) {
+      assert.ok(!/^NG:\\s/.test(header), `Luồng xuất thực tế không được nối thêm cột NG: ${header}`);
+      assert.ok(!/^Trừ H:\\s*(?:0|1|6|7|26|27|3|22|23)(?:\\s|$)/i.test(header), `Luồng xuất thực tế vẫn có cột Trừ H số: ${header}`);
+    }
+    assert.equal(encodedHeaders.filter(([, label]) => actualHeaders.includes(label)).length, 18,
+      'Luồng xuất thực tế phải có đúng đủ 18 cột NG mã hóa');
+
+    console.log('[PASS] Worker Excel smoke test: direct builder + actual GC export route + 18 CAT/LONG headers + no legacy NG/numeric Trừ H + print area');
   } finally {
     await fs.rm(temp, { recursive: true, force: true });
   }
