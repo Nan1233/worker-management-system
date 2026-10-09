@@ -96,3 +96,16 @@ test('GC machine accounting uses legacy report deduction when machine line has n
   assert.equal(result.deductionHours, 1);
   assert.equal(result.netHours, 3.5);
 });
+
+test('H2: two lines share machine_event_id but event not in map — grossHours counted once', () => {
+  const result = buildGiaCongMachineAccounting({
+    machineLines: [
+      { id: 401, machine_event_id: 5555, machine_time_hours: 8, deduction_time_hours: 0, deductions_json: '[]' },
+      { id: 402, machine_event_id: 5555, machine_time_hours: 8, deduction_time_hours: 0, deductions_json: '[]' }
+    ]
+  }, new Map());
+
+  assert.equal(result.grossHours, 8, 'should be 8 not 16 — same physical event must not double-count');
+  assert.equal(result.netHours, 8);
+  assert.equal(result.source, 'MACHINE_LINE');
+});

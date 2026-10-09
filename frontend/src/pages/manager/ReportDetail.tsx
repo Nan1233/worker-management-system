@@ -24,6 +24,9 @@ export default function ReportDetail() {
   const { can } = usePermissions();
   const basePath = role === "lead" ? "/lead" : role === "admin" ? "/admin" : "/manager";
   const canEdit = source === "pending" ? can("REPORT_PENDING_EDIT") : can("REPORT_APPROVED_EDIT");
+  // Backend contract: a lead edits approved reports, but may only edit pending reports that are
+  // their own edit proposals (PUT /production-temp/:id answers 403 otherwise) - so no button.
+  const canEditHere = canEdit && !(role === "lead" && source === "pending");
   const canReview = source === "pending" && can("REPORT_APPROVE");
   const [report, setReport] = useState<any>(null);
   const [logs, setLogs] = useState<ReportActionLog[]>([]);
@@ -96,7 +99,7 @@ export default function ReportDetail() {
       <div className="manager-worker-detail-toolbar">
         <button type="button" onClick={() => navigate(-1)}>← Danh sách</button>
         <div className="manager-worker-detail-actions">
-          {canEdit && <button type="button" className="detail-edit-button" onClick={() => navigate(`${basePath}/report/${reportId}/edit?source=${source}`)}>✎ Sửa báo cáo</button>}
+          {canEditHere && <button type="button" className="detail-edit-button" onClick={() => navigate(`${basePath}/report/${reportId}/edit?source=${source}`)}>✎ Sửa báo cáo</button>}
           {canReview && <button type="button" className="detail-reject-button" disabled={submitting || !report} onClick={() => setRejectOpen(true)}>Từ chối</button>}
           {canReview && <button type="button" className="detail-approve-button" disabled={submitting || !report} onClick={() => void approve()}>✓ Duyệt</button>}
         </div>

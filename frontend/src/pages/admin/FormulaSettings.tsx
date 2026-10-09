@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Calculator, CheckCircle2, Clock3, Gauge, Palette, RefreshCw, Save, Search, Target, TriangleAlert } from 'lucide-react';
 import api from '../../services/api';
 import { getApiError } from '../../utils/apiError';
-import { usePermissions } from '../../hooks/usePermissions';
 
 type ProductRule = { id:number; process_id:number; process_code:string; process_name:string; product_code:string; standard_output:number; exclude_kqd_from_tt:number };
 type FormulaScope = { scope_code:string; process_id:number|null; process_code:string|null; process_name:string; effective_from:string|null; effective_to:string|null; apply_training_percent:number; output_formula:string; output_per_hour_formula:string; achievement_formula:string; ng_rate_formula:string; actual_time_formula:string; threshold_red:number; threshold_orange:number; threshold_yellow:number; threshold_green:number; version_no:number; inherits_global?:number };
@@ -44,7 +43,8 @@ const codeFromExpression=(key:FormulaFieldKey,value:string)=>{
 };
 
 export default function FormulaSettings(){
- const {can}=usePermissions(); const canEdit=can('FORMULA_EDIT');
+ // The formula API was removed (backend answers 404 FORMULA_FEATURE_REMOVED) and FORMULA_EDIT no longer exists.
+ const canEdit=false;
  const [data,setData]=useState<FormulaResponse>({products:[],scopes:[]}); const [selectedScope,setSelectedScope]=useState('GLOBAL'); const [draft,setDraft]=useState<FormulaScope|null>(null);
  const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false); const [savingId,setSavingId]=useState<number|null>(null); const [error,setError]=useState(''); const [success,setSuccess]=useState(''); const [query,setQuery]=useState(''); const [productProcessId,setProductProcessId]=useState('');
  const load=useCallback(async()=>{setLoading(true);setError('');try{const response=await api.get('/formula-settings');const next=response.data.data as FormulaResponse;setData(next);const scope=next.scopes.find(item=>item.scope_code==='GLOBAL')||next.scopes[0];setSelectedScope(scope?.scope_code||'GLOBAL');setDraft(scope?{...scope}:null);}catch(e){setError(getApiError(e,'Không thể tải công thức').message);}finally{setLoading(false);}},[]);

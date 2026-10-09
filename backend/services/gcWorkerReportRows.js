@@ -77,6 +77,7 @@ function machineLineRow(report, line) {
     source: 'MACHINE_LINE',
     machine: String(line.machine_code ?? '').trim(),
     product: String(line.product_code ?? '').trim(),
+    totalHours: round2(machineHours),
     workedHours: round2(workedHours),
     deductionHours: round2(deductionHours),
     standard: Math.round(Math.max(0, toNumber(line.standard_output)) * workedHours * trainingFactor(report.training_percent)),
@@ -92,8 +93,9 @@ function manualRow(report) {
   const totalDeduction = toNumber(report.deduction_time);
   const deductionHours = deductions.length ? itemHours : totalDeduction;
   if (!deductions.length && totalDeduction > 0) warnings.push('DEDUCTION_WITHOUT_BREAKDOWN');
+  const totalHours = Math.max(0, toNumber(report.total_time));
   const hasActual = report.actual_time !== null && report.actual_time !== undefined && String(report.actual_time).trim() !== '';
-  const workedHours = Math.max(0, hasActual ? toNumber(report.actual_time) : toNumber(report.total_time) - deductionHours);
+  const workedHours = Math.max(0, hasActual ? toNumber(report.actual_time) : totalHours - deductionHours);
   const ok = Math.max(0, Math.round(toNumber(report.tt_ok)));
   const ng = Math.max(0, Math.round(toNumber(report.tt_ng)));
   const defects = normalizeDefects(report.defects);
@@ -103,6 +105,7 @@ function manualRow(report) {
     source: 'MANUAL',
     machine: String(report.machine_no ?? '').trim(),
     product: String(report.product_name ?? '').trim(),
+    totalHours: round2(totalHours),
     workedHours: round2(workedHours),
     deductionHours: round2(deductionHours),
     standard: Math.round(Math.max(0, toNumber(report.standard_output)) * workedHours * trainingFactor(report.training_percent)),

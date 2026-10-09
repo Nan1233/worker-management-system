@@ -1,4 +1,5 @@
 import WorkerReportEditV2 from "./WorkerReportEditV2";
+import WorkerReportEditCallout from "./WorkerReportEditCallout";
 
 /**
  * Detail view intentionally reuses the exact same worker report form as the
@@ -37,6 +38,7 @@ export default function ProductionDetail() {
           }
         }
       `}</style>
+      <WorkerReportEditCallout />
       <WorkerReportEditV2 />
     </div>
   );

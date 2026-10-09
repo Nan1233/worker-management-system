@@ -28,6 +28,10 @@ const managerMasterAccess=(req,res,next)=>{
   // Defect master remains Manager/Admin only.
   if((role==='admin'||role==='manager')&&MANAGER_ONLY_MASTER_RESOURCES.includes(resource)) return next();
 
+  // Processes: admin may create/edit/disable (adminMasterController enforces
+  // admin-only writes and re-checks it per action).
+  if(role==='admin'&&resource==='processes') return next();
+
   // Process data is supporting read-only data for the management workspace.
   if(isManagementRole(req)&&req.method==='GET'&&SUPPORTING_READ_RESOURCES.includes(resource)) return next();
 

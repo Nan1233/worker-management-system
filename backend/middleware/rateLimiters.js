@@ -67,6 +67,13 @@ const workerReportLimiter = common({
   message: limitMessage('WORKER_REPORT_RATE_LIMITED', 'Bạn gửi báo cáo quá nhanh. Vui lòng thử lại sau.'),
 });
 
+const passwordChangeLimiter = common({
+  windowMs: 15 * 60 * 1000,
+  limit: Number(process.env.PASSWORD_CHANGE_RATE_LIMIT || 10),
+  keyGenerator: requestUserKey,
+  message: limitMessage('PASSWORD_CHANGE_RATE_LIMITED', 'Bạn đổi mật khẩu quá nhiều lần. Vui lòng thử lại sau.'),
+});
+
 const expensiveUserLimiter = common({
   windowMs: 5 * 60 * 1000,
   limit: Number(process.env.EXPENSIVE_API_RATE_LIMIT || 30),
@@ -80,5 +87,6 @@ module.exports = {
   loginNetworkLimiter,
   refreshLimiter,
   workerReportLimiter,
+  passwordChangeLimiter,
   expensiveUserLimiter,
 };

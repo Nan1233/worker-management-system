@@ -18,6 +18,7 @@ export interface ProductionDefect {
     defect_code?: string;
     defect_name: string;
     quantity: number;
+    responsible_worker_id?: number | null;
 }
 
 export interface ProductionDeduction {

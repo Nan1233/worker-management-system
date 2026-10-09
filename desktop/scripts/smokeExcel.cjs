@@ -34,7 +34,10 @@ function report(overrides = {}) {
     actual_output: 47,
     status: 'approved',
     note: 'Smoke test',
-    deductions: [{ deduction_type_id: 1, deduction_type_code: 'DED_5S_DB', deduction_code: 'DED_5S_DB', deduction_name: '5S database name', hours: 0.5 }],
+    deductions: [
+      { deduction_type_id: 1, deduction_type_code: 'DED_5S_DB', deduction_code: 'DED_5S_DB', deduction_name: '5S database name', hours: 0.5 },
+      { deduction_type_id: 2, deduction_type_code: '0', deduction_code: '0', deduction_name: '0', hours: 1 }
+    ],
     defects: [
       { defect_type_id: 1, defect_type_code: 'DEF_KQD_DB', defect_code: 'DEF_KQD_DB', defect_name: 'KQD database name', quantity: 1 },
       { defect_type_id: 2, defect_type_code: 'DEF_VCS_DB', defect_code: 'DEF_VCS_DB', defect_name: 'Vỡ cao su database name', quantity: 1 }
@@ -49,7 +52,10 @@ function report(overrides = {}) {
     const processData = {
       processCode: 'GC',
       processName: 'Gia công',
-      deductionTypes: [{ id: 1, code: 'DED_5S_DB', deduction_code: 'DED_5S_DB', name: '5S database name', deduction_name: '5S database name', sort_order: 1 }],
+      deductionTypes: [
+        { id: 1, code: 'DED_5S_DB', deduction_code: 'DED_5S_DB', name: '5S database name', deduction_name: '5S database name', sort_order: 1 },
+        { id: 2, code: '0', deduction_code: '0', name: '0', deduction_name: '0', sort_order: 2 }
+      ],
       defectTypes: [
         { id: 1, code: 'DEF_KQD_DB', defect_code: 'DEF_KQD_DB', name: 'KQD database name', defect_name: 'KQD database name', sort_order: 1 },
         { id: 2, code: 'DEF_VCS_DB', defect_code: 'DEF_VCS_DB', name: 'Vỡ cao su database name', defect_name: 'Vỡ cao su database name', sort_order: 2 },
@@ -173,19 +179,54 @@ function report(overrides = {}) {
     const machineColumn = headerColumn('Máy');
     assert.ok(machineColumn, 'Template phải có cột Máy');
     assert.equal(String(sheet.getRow(encodedRow).getCell(machineColumn).value), 'CUT-10', 'Máy phải fallback từ machineLines khi machine_no trống');
-    const encodedHeaders = [["CAT01","Cắt không đứt"],["CAT02","Cắt lẹm"],["CAT03","NG: Cắt phạm (CAT03)"],["CAT04","NG: Cao su ngắn (CAT04)"],["CAT05","NG: Cao su dài (CAT05)"],["CAT06","bavia"],["CAT07","ppcm"],["CAT08","LCS"],["CAT09","lẫn cs"],["CAT10","NG: Khác (CAT10)"],["LONG01","KQD"],["LONG02","Vỡ cao su"],["LONG03","NG: Trục xước (LONG03)"],["LONG04","NG: Trục gãy, cong (LONG04)"],["LONG05","thiếu cao su"],["LONG06","NG: Lẫn trục (LONG06)"],["LONG07","NG: Lẫn cao su (LONG07)"],["LONG08","NG: Khác (LONG08)"]];
+    const encodedHeaders = [["CAT01","CAT01 - Cao su không đứt"],["CAT02","CAT02 - Cắt lẹm"],["CAT03","CAT03 - Cắt phạm"],["CAT04","CAT04 - Cao su ngắn"],["CAT05","CAT05 - Cao su dài"],["CAT06","CAT06 - Bavia cao su"],["CAT07","CAT07 - Phế phẩm chỉnh máy"],["CAT08","CAT08 - Lỗi cao su (NCC)"],["CAT09","CAT09 - Lẫn cao su"],["CAT10","CAT10 - Khác"],["LONG01","LONG01 - Không qua dưỡng"],["LONG02","LONG02 - Cao su vỡ"],["LONG03","LONG03 - Trục xước"],["LONG04","LONG04 - Trục gãy, cong"],["LONG05","LONG05 - Thiếu cao su"],["LONG06","LONG06 - Lẫn trục"],["LONG07","LONG07 - Lẫn cao su"],["LONG08","LONG08 - Khác"]];
     for (const [code, label] of encodedHeaders) {
       const column = headerColumn(label);
       assert.ok(column, `Thiếu cột NG cho mã form ${code}: ${label}`);
       assert.equal(Number(sheet.getRow(encodedRow).getCell(column).value), 1, `Sai số NG ở cột mã form ${code}`);
     }
-    const cat10Column = headerColumn('NG: Khác (CAT10)');
-    const long08Column = headerColumn('NG: Khác (LONG08)');
+    const cat10Column = headerColumn('CAT10 - Khác');
+    const long08Column = headerColumn('LONG08 - Khác');
     assert.ok(cat10Column && long08Column && cat10Column !== long08Column, 'CAT10 và LONG08 đều là Khác nhưng phải giữ riêng theo mã form');
+    assert.equal(encodedHeaders.filter(([, label]) => headerColumn(label)).length, 18, 'Phải có đủ 18 cột NG theo file mẫu');
+    for (let c = 1; c <= sheet.columnCount; c += 1) {
+      const label = String(headerRow.getCell(c).value ?? '');
+      assert.ok(!/^NG:\s/.test(label), `Không được nối thêm cột NG cũ: ${label}`);
+      assert.ok(!/^Trừ H:\s*(?:0|1|6|7|26|27|3|22|23)(?:\s|$)/i.test(label), `Không được có cột Trừ H số không cần thiết: ${label}`);
+      assert.ok(!/^(?:KQD|Vỡ cao su|K xước cong gãy|Cao su xoay|Cắt không đứt|Chân ngắn dài)$/i.test(label), `Không được giữ tiêu đề NG cũ: ${label}`);
+    }
     assert.ok(String(sheet.pageSetup.printArea).endsWith(String(sheet.rowCount)), 'Vùng in phải kết thúc tại dòng dữ liệu cuối');
     assert.ok(!String(sheet.pageSetup.printArea).endsWith('2366'), 'Vùng in không được giữ dòng mẫu 2366');
 
-    console.log('[PASS] Worker Excel smoke test: submission timestamp + encoded CAT/LONG NG mapping + unmatched NG columns + print area + Trừ H');
+    // Exercise the real monthly export wrapper too: it previously passed
+    // processCode="ALL", which bypassed GC header normalization even though
+    // the direct builder smoke test above passed.
+    const { buildWorkerSplit } = require('../electron/excelExportContractPatch.v6.cjs');
+    const split = await buildWorkerSplit({
+      appPath: path.resolve(__dirname, '..'),
+      date: '2026-08-01',
+      payload: { processes: { GC: processData } }
+    });
+    assert.equal(split.processes.length, 1, 'Xuất GC thực tế phải tạo đúng một workbook');
+    const actualWorkbook = new ExcelJS.Workbook();
+    await actualWorkbook.xlsx.load(split.processes[0].buffer);
+    const actualSheet = actualWorkbook.worksheets.find((item) => item.state !== 'hidden') || actualWorkbook.worksheets[0];
+    assert.ok(actualSheet, 'Không mở được workbook từ luồng xuất thực tế');
+    const actualHeaders = [];
+    for (let c = 1; c <= actualSheet.columnCount; c += 1) {
+      actualHeaders.push(String(actualSheet.getRow(built.headerRow).getCell(c).value ?? '').trim());
+    }
+    for (const legacy of ['KQD', 'Vỡ cao su', 'K xước cong gãy', 'Cao su xoay', 'Cắt không đứt', 'Chân ngắn dài']) {
+      assert.ok(!actualHeaders.includes(legacy), `Luồng xuất thực tế vẫn còn cột NG cũ: ${legacy}`);
+    }
+    for (const header of actualHeaders) {
+      assert.ok(!/^NG:\\s/.test(header), `Luồng xuất thực tế không được nối thêm cột NG: ${header}`);
+      assert.ok(!/^Trừ H:\\s*(?:0|1|6|7|26|27|3|22|23)(?:\\s|$)/i.test(header), `Luồng xuất thực tế vẫn có cột Trừ H số: ${header}`);
+    }
+    assert.equal(encodedHeaders.filter(([, label]) => actualHeaders.includes(label)).length, 18,
+      'Luồng xuất thực tế phải có đúng đủ 18 cột NG mã hóa');
+
+    console.log('[PASS] Worker Excel smoke test: direct builder + actual GC export route + 18 CAT/LONG headers + no legacy NG/numeric Trừ H + print area');
   } finally {
     await fs.rm(temp, { recursive: true, force: true });
   }

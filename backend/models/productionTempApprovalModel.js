@@ -1,4 +1,5 @@
 const AuditService = require("../services/auditService");
+const { toDateKey } = require("../utils/dateKey");
 const {
   query,
   getConnection,
@@ -290,6 +291,7 @@ module.exports = {
         );
         error.status = 409;
         error.code = "APPROVAL_SELECTION_STALE";
+        error.isPublic = true; // the "reload the list" guidance must reach the user in production too
         error.details = { requested_ids: reportIds, missing_ids: missingIds };
         throw error;
       }
@@ -300,6 +302,7 @@ module.exports = {
           const error = new Error(`Báo cáo #${row.id} đã thay đổi sau khi bạn mở danh sách. Hãy tải lại trước khi thử lại.`);
           error.status = 409;
           error.code = "TEMP_REPORT_VERSION_CONFLICT";
+          error.isPublic = true;
           throw error;
         }
       }
@@ -538,7 +541,7 @@ module.exports = {
           userIds:[row.worker_user_id],
           payload:{
             type:"report_rejected",title:"Báo cáo đã bị từ chối",
-            message:`Báo cáo ngày ${String(row.work_date).slice(0,10)}, ca ${row.shift || "-"} bị từ chối: ${cleanReason}`,
+            message:`Báo cáo ngày ${toDateKey(row.work_date)}, ca ${row.shift || "-"} bị từ chối: ${cleanReason}`,
             linkUrl:`/worker/history/${row.id}?source=pending`,entityType:"temp_report",entityId:row.id,
           },
         });

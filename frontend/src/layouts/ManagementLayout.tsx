@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bell, Boxes, ClipboardCheck, Cog, FileWarning, History, LayoutDashboard, MoreHorizontal, ShieldCheck, Timer, UserRound, Users, BarChart3, LogOut, CalendarDays, ChevronDown } from "lucide-react";
+import { Bell, Boxes, ClipboardCheck, Cog, Download, FileWarning, History, LayoutDashboard, MoreHorizontal, ShieldCheck, Timer, UserRound, Users, BarChart3, LogOut, CalendarDays, ChevronDown } from "lucide-react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { getStoredUser, clearAuthSession } from "../utils/authStorage";
 import { useNotificationBadge } from "../hooks/useNotificationBadge";
@@ -15,15 +15,18 @@ type ManagementMenuItem = { label:string; path:string; icon:typeof LayoutDashboa
 const allManagementRoles:ManagementRole[]=["lead","manager","admin"];
 const adminAndManagerRoles:ManagementRole[]=["lead","manager","admin"];
 const managerMasterRoles:ManagementRole[]=["lead","manager","admin"];
+// Backend (adminMasterRoutes.js): the defect catalogue is manager/admin only; leads get 403.
+const defectMasterRoles:ManagementRole[]=["manager","admin"];
 const items:ManagementMenuItem[]=[
  {label:"Tổng quan",path:"",icon:LayoutDashboard,permission:"DASHBOARD_VIEW",roles:allManagementRoles},
  {label:"Chờ duyệt",path:"reports",icon:ClipboardCheck,permission:"REPORT_PENDING_VIEW",roles:allManagementRoles},
  {label:"Đã duyệt",path:"approved",icon:ShieldCheck,permission:"REPORT_APPROVED_VIEW",roles:allManagementRoles},
  {label:"Thống kê",path:"statistics",icon:BarChart3,permission:"STATISTICS_VIEW",roles:allManagementRoles},
+ {label:"Xuất Excel",path:"export",icon:Download,permission:"REPORT_EXPORT",roles:allManagementRoles},
  {label:"Nhân sự",path:"workers",icon:Users,permission:"USER_VIEW",roles:allManagementRoles},
  {label:"Máy móc",path:"master/machines",icon:Cog,permission:"MASTER_VIEW",roles:managerMasterRoles},
  {label:"Sản phẩm & định mức",path:"master/standards",icon:Boxes,permission:"MASTER_VIEW",roles:managerMasterRoles},
- {label:"Lỗi NG",path:"master/defects",icon:FileWarning,permission:"MASTER_VIEW",roles:managerMasterRoles},
+ {label:"Lỗi NG",path:"master/defects",icon:FileWarning,permission:"MASTER_VIEW",roles:defectMasterRoles},
  {label:"Trừ giờ",path:"master/deductions",icon:Timer,permission:"MASTER_VIEW",roles:managerMasterRoles},
  {label:"Nhật ký hoạt động",path:"system",icon:History,permission:"AUDIT_VIEW",roles:adminAndManagerRoles},
  {label:"Vai trò & quyền",path:"permissions",icon:ShieldCheck,permission:"PERMISSION_MANAGE",roles:["admin"]},

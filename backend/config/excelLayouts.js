@@ -22,14 +22,14 @@ const LAYOUTS = Object.freeze({
     labelRow: 3,
     dataStyleRow: 5,
     dateStyleRow: 4,
-    lastColumn: 48,
+    lastColumn: 49,
     fixed: {
       sequence: 1, workerCode: 2, workerName: 3, machine: 4, shift: 5,
-      workedHours: 6, deductionTotal: 7,
-      product: 24, standard: 25, tt: 26, achievement: 27, ok: 28, totalNg: 29
+      totalHours: 6, workedHours: 7, deductionTotal: 8,
+      product: 25, standard: 26, tt: 27, achievement: 28, ok: 29, totalNg: 30
     },
-    deductions: [8, 23],  // H..W: Thiếu sản lượng + 15 loại trừ giờ
-    defects: [30, 48]     // AD..AV: 19 loại NG (KQD .. thiếu cao su)
+    deductions: [9, 24],  // I..X: Thiếu sản lượng + 15 loại trừ giờ
+    defects: [31, 49]     // AE..AW: 19 loại NG (KQD .. thiếu cao su)
   },
   MAI: {
     headerSearchColumn: 36, // AJ - ngày

@@ -36,18 +36,28 @@ const DETAIL_ALIASES = Object.freeze({
 // DB detail name (as entered on the worker form) -> template column header.
 // Several DB types may share one template column; their values are summed.
 // Encoded GC form catalogue: CAT01-CAT10 (Cắt) and LONG01-LONG08 (Lồng).
-// Only codes with a clear one-to-one legacy column are mapped into the old template.
-// Other encoded categories stay distinct and are appended as NG columns with their code.
+// The GC export uses the same complete 18-column CAT/LONG catalogue as the
+// data-entry form. normalizeGcDefectHeaders replaces the old 19-column block
+// before mapping values, so encoded categories do not create duplicate NG columns.
 const GC_FORM_DEFECT_COLUMN_BY_CODE = Object.freeze({
-  CAT01: 'Cắt không đứt',
-  CAT02: 'Cắt lẹm',
-  CAT06: 'bavia',
-  CAT07: 'ppcm',
-  CAT08: 'LCS',
-  CAT09: 'lẫn cs',
-  LONG01: 'KQD',
-  LONG02: 'Vỡ cao su',
-  LONG05: 'thiếu cao su'
+  CAT01: 'CAT01 - Cao su không đứt',
+  CAT02: 'CAT02 - Cắt lẹm',
+  CAT03: 'CAT03 - Cắt phạm',
+  CAT04: 'CAT04 - Cao su ngắn',
+  CAT05: 'CAT05 - Cao su dài',
+  CAT06: 'CAT06 - Bavia cao su',
+  CAT07: 'CAT07 - Phế phẩm chỉnh máy',
+  CAT08: 'CAT08 - Lỗi cao su (NCC)',
+  CAT09: 'CAT09 - Lẫn cao su',
+  CAT10: 'CAT10 - Khác',
+  LONG01: 'LONG01 - Không qua dưỡng',
+  LONG02: 'LONG02 - Cao su vỡ',
+  LONG03: 'LONG03 - Trục xước',
+  LONG04: 'LONG04 - Trục gãy, cong',
+  LONG05: 'LONG05 - Thiếu cao su',
+  LONG06: 'LONG06 - Lẫn trục',
+  LONG07: 'LONG07 - Lẫn cao su',
+  LONG08: 'LONG08 - Khác'
 });
 
 const TEMPLATE_COLUMN_ALIASES = Object.freeze({
@@ -259,6 +269,41 @@ function encodedGcDefectCode(type) {
   return /^(?:CAT(?:0[1-9]|10)|LONG(?:0[1-8]))$/.test(code) ? code : '';
 }
 
+function legacyGcDefectTarget(type, rangeMap, kind) {
+  if (kind !== 'defect') return '';
+  const hasCanonicalGcHeaders = Object.values(GC_FORM_DEFECT_COLUMN_BY_CODE)
+    .every((label) => [...rangeMap.values()].some((header) => normalize(header) === normalize(label)));
+  if (!hasCanonicalGcHeaders) return '';
+  const name = normalize(typeLabel(type, kind));
+  const code = String(type?.defect_code || type?.defect_type_code || type?.code || '').trim().toUpperCase();
+  const legacyCodeTargets = {
+    DEF_KQD_DB: 'LONG01', KQD: 'LONG01', DEF_VCS_DB: 'LONG02', VCS: 'LONG02'
+  };
+  if (legacyCodeTargets[code]) return GC_FORM_DEFECT_COLUMN_BY_CODE[legacyCodeTargets[code]];
+  const legacyNameTargets = {
+    'kqd': 'LONG01', 'kqd database name': 'LONG01',
+    'khong qua duong': 'LONG01', 'khong qua duong database name': 'LONG01',
+    'vo cao su': 'LONG02', 'vo cao su database name': 'LONG02', 'cao su vo': 'LONG02',
+    'cat khong dut': 'CAT01', 'cat khong dut database name': 'CAT01',
+    'cat lem': 'CAT02', 'cat pham': 'CAT03',
+    'cao su ngan': 'CAT04', 'cao su dai': 'CAT05',
+    'bavia': 'CAT06', 'bavia cao su': 'CAT06', 'sot via': 'CAT06',
+    'ppcm': 'CAT07', 'phe pham chinh may': 'CAT07',
+    'lcs': 'CAT08', 'loi cao su ncc': 'CAT08', 'loi cao su (ncc)': 'CAT08',
+    'lan cs': 'CAT09',
+    'truc xuoc': 'LONG03', 'truc gay cong': 'LONG04',
+    'thieu cao su': 'LONG05', 'lan truc': 'LONG06', 'fure truc': 'LONG06',
+    'lan cao su': 'LONG07',
+    // Old combined labels cannot be split reliably between the new subcategories;
+    // preserve their quantity in the appropriate "Khác" bucket rather than
+    // falsely assigning it to one of two distinct encoded defect types.
+    'k xuoc cong gay': 'LONG08', 'chan ngan dai': 'CAT10',
+    'cao su xoay': 'LONG08', 'bavia cat hut': 'CAT10', 'csh': 'CAT10'
+  };
+  const targetCode = legacyNameTargets[name];
+  return targetCode ? GC_FORM_DEFECT_COLUMN_BY_CODE[targetCode] : '';
+}
+
 function assignDetailColumns(rangeMap, types, kind) {
   const usedTypes = new Set();
   const aliasColumns = new Set();
@@ -266,9 +311,10 @@ function assignDetailColumns(rangeMap, types, kind) {
   const headerToColumn = new Map([...rangeMap.entries()].map(([column, header]) => [normalize(header), column]));
   for (const type of types) {
     const encodedCode = kind === 'defect' ? encodedGcDefectCode(type) : '';
+    const legacyGcTarget = legacyGcDefectTarget(type, rangeMap, kind);
     const target = encodedCode
       ? GC_FORM_DEFECT_COLUMN_BY_CODE[encodedCode]
-      : TEMPLATE_COLUMN_ALIASES[normalize(typeLabel(type, kind))];
+      : (legacyGcTarget || TEMPLATE_COLUMN_ALIASES[normalize(typeLabel(type, kind))]);
     const column = target ? headerToColumn.get(normalize(target)) : null;
     if (!column) continue;
     usedTypes.add(type);
@@ -568,9 +614,17 @@ function applyReportRow(row, report, contract, processData, index) {
     cell.numFmt = '0%';
   }
   set(contract.cols.standard, planned);
-  set(contract.cols.time, number(report.total_time ?? report.actual_time));
+  set(contract.cols.time, number(report.actual_time ?? report.total_time));
   if (contract.cols.actualTime && contract.cols.actualTime !== contract.cols.time) set(contract.cols.actualTime, number(report.actual_time ?? report.total_time));
   set(contract.cols.deductionTotal, number(report.deduction_time));
+  if (contract.cols.workTime && contract.cols.time && contract.cols.deductionTotal) {
+    const tL = columnLetter(contract.cols.time);
+    const dL = columnLetter(contract.cols.deductionTotal);
+    row.getCell(contract.cols.workTime).value = {
+      formula: `${tL}${row.number}+${dL}${row.number}`,
+      result: number(report.actual_time ?? report.total_time) + number(report.deduction_time)
+    };
+  }
   set(contract.cols.ok, number(report.tt_ok ?? report.actual_output));
   set(contract.cols.ng, number(report.tt_ng));
   set(contract.cols.output, number(report.actual_output ?? report.tt_ok));
@@ -588,7 +642,7 @@ function applyReportRow(row, report, contract, processData, index) {
 // A DB type that has no column in the template must not silently disappear.
 // Append unmatched CAT/LONG form categories even when their monthly total is zero,
 // so the exported sheet consistently reflects the 10 Cắt + 8 Lồng form catalogue.
-function appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, processData) {
+function appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, processData, processCode) {
   let next = Number(contract.lastColumn || sheet.columnCount) + 1;
   const headerSource = sheet.getRow(headerRow).getCell(Number(contract.lastColumn || sheet.columnCount));
   const blocks = [
@@ -607,9 +661,16 @@ function appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, pro
     const labels = types.map((type) => typeLabel(type, kind));
     for (const type of types) {
       const encodedGcType = kind === 'defect' && Boolean(encodedGcDefectCode(type));
+      const label = typeLabel(type, kind).trim();
+      // Numeric placeholder types in the GC deduction catalogue are not
+      // meaningful business categories (e.g. "Trừ H: 0", "Trừ H: 1").
+      if (String(processCode || '').toUpperCase() === 'GC'
+        && kind === 'deduction' && /^\d+(?:[.,]\d+)?$/.test(label)) continue;
+      // GC must keep the fixed encoded 18-column defect catalogue. Never append
+      // legacy/unmapped NG columns beside CAT01-CAT10 and LONG01-LONG08.
+      if (String(processCode || '').toUpperCase() === 'GC' && kind === 'defect' && !encodedGcType) continue;
       if (!used.has(type) && !encodedGcType) continue;
-      const label = typeLabel(type, kind);
-      const duplicate = labels.filter((x) => x === label).length > 1;
+      const duplicate = labels.filter((x) => String(x).trim() === label).length > 1;
       const code = kind === 'deduction'
         ? (type.deduction_code || type.code)
         : (type.defect_code || type.defect_type_code || type.code);
@@ -710,11 +771,17 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
       const row = sheet.getRow(rowNumber);
       applySnapshot(row, dataSnapshot, columnCount);
       applyReportRow(row, report, contract, processData, index);
-      const totalMinutes = number(report.total_minutes) || (
-        report.work_minutes !== null && report.work_minutes !== undefined && report.work_minutes !== ''
-          ? number(report.work_minutes) + number(report.deduction_time) * 60
-          : number(report.total_time ?? report.actual_time) * 60
-      );
+            const totalMinutes = report.total_minutes !== null
+        && report.total_minutes !== undefined
+        && report.total_minutes !== ''
+        ? number(report.total_minutes)
+        : (
+          report.work_minutes !== null
+            && report.work_minutes !== undefined
+            && report.work_minutes !== ''
+            ? number(report.work_minutes) + number(report.deduction_time) * 60
+            : number(report.total_time ?? report.actual_time) * 60
+        );
       writeValue(row, contract.cols.workTime, totalMinutes / 60);
       if (percentColumn && outputLetter && standardLetter) {
         const cell = row.getCell(percentColumn);
@@ -766,6 +833,39 @@ function writeGroupedByDate(sheet, reports, contract, processData, dateRowNumber
   sheet.pageSetup.printArea = `A1:${columnLetter(lastColumn)}${lastRow}`;
 }
 
+
+function normalizeGcDefectHeaders(sheet, headerRow) {
+  const row = sheet.getRow(headerRow);
+  const headerText = (column) => normalize(cellText(row.getCell(column)));
+  let ngColumn = null;
+  for (let column = 1; column <= sheet.columnCount; column += 1) {
+    if (headerText(column) === 'tong ng') { ngColumn = column; break; }
+  }
+  if (!ngColumn) throw new Error('GC template không tìm thấy cột Tổng NG.');
+  const isNonDetailTail = (label) => /^(ty le|ghi chu|trang thai|id$|sp ?\/ ?gio|san pham ?\/ ?gio|nang suat)/.test(label);
+  const defectColumns = [];
+  for (let column = ngColumn + 1; column <= sheet.columnCount; column += 1) {
+    if (isNonDetailTail(headerText(column))) break;
+    defectColumns.push(column);
+  }
+  const expected = Object.values(GC_FORM_DEFECT_COLUMN_BY_CODE);
+  const existing = new Set(defectColumns.map((column) => headerText(column)));
+  if (expected.every((label) => existing.has(normalize(label)))) return false;
+  if (defectColumns.length < 18) {
+    throw new Error(`GC template cần tối thiểu 18 cột NG để thay thế, nhưng tìm thấy ${defectColumns.length}. Dừng để tránh sửa nhầm template.`);
+  }
+  // The current company template may contain more than 18 legacy NG columns.
+  // Reuse the first 18 columns in place, then remove surplus columns from the
+  // end of the NG block so no old defect columns remain beside the new catalogue.
+  for (let index = 0; index < expected.length; index += 1) {
+    row.getCell(defectColumns[index]).value = expected[index];
+  }
+  for (let index = defectColumns.length - 1; index >= expected.length; index -= 1) {
+    sheet.spliceColumns(defectColumns[index], 1);
+  }
+  return true;
+}
+
 async function buildWorkerProcessWorkbook({ appPath, processCode, processName, date, processData = {} }) {
   const { templatePath, buffer: templateBuffer } = await getTemplateBuffer(appPath);
   const reports = Array.isArray(processData?.reports) ? [...processData.reports] : [];
@@ -780,18 +880,15 @@ async function buildWorkerProcessWorkbook({ appPath, processCode, processName, d
   const sheet = workbook.worksheets.find((item) => item.state !== 'hidden') || workbook.worksheets[0];
   if (!sheet) throw new Error('Template công nhân không có worksheet.');
   const headerRow = findHeader(sheet);
+  if (code === 'GC') normalizeGcDefectHeaders(sheet, headerRow);
   const columnMap = findColumnMap(sheet, headerRow);
   const contract = buildColumnContract(columnMap, processData);
   reports.sort((a, b) => String(a?.work_date || '').localeCompare(String(b?.work_date || '')) || number(a?.id) - number(b?.id));
-  appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, processData);
+  appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, processData, code);
 
   addDerivedColumns(sheet, headerRow, contract);
-  const workTimeColumn = insertContractColumn(sheet, headerRow, contract, contract.cols.shift, 'Thời gian làm việc', { width: 14 });
+  const workTimeColumn = insertContractColumn(sheet, headerRow, contract, contract.cols.shift, 'Thời gian làm việc', { width: 14, hidden: true });
 contract.cols.workTime = workTimeColumn;
-  // "Tổng thời gian trừ giờ" is kept for formulas/reference but should not be
-  // visible to readers of the report — only "Thời gian làm việc" (actual
-  // worked time) is meant to show.
-  if (contract.cols.deductionTotal) sheet.getColumn(contract.cols.deductionTotal).hidden = true;
   const dataStartRow = findDataStartRow(sheet, headerRow);
   const dateRowNumber = findDateSeparatorRow(sheet, headerRow, dataStartRow);
   let layout = 'flat';

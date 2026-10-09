@@ -7,11 +7,11 @@ const { hasPermission } = require('../services/permissionService');
 
 const safeDbError = (res, error, fallback) => { console.error(fallback, error); return res.status(500).json({ success:false, message:process.env.NODE_ENV==='production'?fallback:(error?.message||fallback) }); };
 
-exports.getAllReports=async(req,res)=>{try{const scope=await getActorProcessScope(req.user);const scoped=scopeSql(scope,'pr.process_id');const [rows]=await db.promise().query(`SELECT pr.*,p.process_name,w.worker_code,u.full_name,COALESCE(pr.training_percent_snapshot,w.training_percent,100) AS training_percent FROM production_reports pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE pr.status='approved'${scoped.clause} ORDER BY pr.created_at DESC`,scoped.params);return res.json(rows);}catch(error){if(error?.code==='PROCESS_SCOPE_FORBIDDEN')return res.status(403).json({success:false,code:error.code,message:error.message});return safeDbError(res,error,'Không thể tải dữ liệu báo cáo');}};
+exports.getAllReports=async(req,res)=>{try{const scope=await getActorProcessScope(req.user);const scoped=scopeSql(scope,'pr.process_id');const [rows]=await db.promise().query(`SELECT pr.*,p.process_name,w.worker_code,u.full_name,COALESCE(pr.training_percent_snapshot,w.training_percent,100) AS training_percent FROM production_reports pr LEFT JOIN workers w ON pr.worker_id=w.id LEFT JOIN users u ON w.user_id=u.id LEFT JOIN processes p ON pr.process_id=p.id WHERE pr.status='approved'${scoped.clause} ORDER BY pr.created_at DESC`,scoped.params);return res.json(rows);}catch(error){if(error?.code==='PROCESS_SCOPE_FORBIDDEN')return res.status(403).json({success:false,code:error.code,message:error.message});return safeDbError(res,error,'Không thể tải dữ liệu báo cáo');}};
 
 exports.getReportDates=async(req,res)=>{try{const scope=await getActorProcessScope(req.user);const scoped=scopeSql(scope,'pr.process_id');const [rows]=await db.promise().query(`SELECT DISTINCT pr.work_date FROM production_reports pr WHERE pr.status='approved'${scoped.clause} ORDER BY pr.work_date DESC`,scoped.params);return res.json(rows);}catch(error){if(error?.code==='PROCESS_SCOPE_FORBIDDEN')return res.status(403).json({success:false,code:error.code,message:error.message});return safeDbError(res,error,'Không thể tải ngày báo cáo');}};
 
-exports.getReportsByDate=async(req,res)=>{try{const scope=await getActorProcessScope(req.user);if(req.query.process_id)await assertProcessScope(req.user,req.query.process_id,{action:'REPORT_APPROVED_VIEW'});const params=[req.query.date];let extra='';if(req.query.process_id){extra+=' AND pr.process_id=?';params.push(Number(req.query.process_id));}const scoped=scopeSql(scope,'pr.process_id',params);const [rows]=await db.promise().query(`SELECT pr.*,p.process_name,w.worker_code,u.full_name,COALESCE(pr.training_percent_snapshot,w.training_percent,100) AS training_percent FROM production_reports pr JOIN workers w ON pr.worker_id=w.id JOIN users u ON w.user_id=u.id JOIN processes p ON pr.process_id=p.id WHERE pr.work_date=? AND pr.status='approved'${extra}${scoped.clause} ORDER BY pr.created_at DESC`,scoped.params);return res.json(rows);}catch(error){if(error?.code==='PROCESS_SCOPE_FORBIDDEN')return res.status(403).json({success:false,code:error.code,message:error.message});return safeDbError(res,error,'Không thể tải dữ liệu báo cáo');}};
+exports.getReportsByDate=async(req,res)=>{try{const scope=await getActorProcessScope(req.user);if(req.query.process_id)await assertProcessScope(req.user,req.query.process_id,{action:'REPORT_APPROVED_VIEW'});const params=[req.query.date];let extra='';if(req.query.process_id){extra+=' AND pr.process_id=?';params.push(Number(req.query.process_id));}const scoped=scopeSql(scope,'pr.process_id',params);const [rows]=await db.promise().query(`SELECT pr.*,p.process_name,w.worker_code,u.full_name,COALESCE(pr.training_percent_snapshot,w.training_percent,100) AS training_percent FROM production_reports pr LEFT JOIN workers w ON pr.worker_id=w.id LEFT JOIN users u ON w.user_id=u.id LEFT JOIN processes p ON pr.process_id=p.id WHERE pr.work_date=? AND pr.status='approved'${extra}${scoped.clause} ORDER BY pr.created_at DESC`,scoped.params);return res.json(rows);}catch(error){if(error?.code==='PROCESS_SCOPE_FORBIDDEN')return res.status(403).json({success:false,code:error.code,message:error.message});return safeDbError(res,error,'Không thể tải dữ liệu báo cáo');}};
 
 /**
  * Approved report detail.
@@ -44,10 +44,10 @@ exports.getReportById=async(req,res)=>{
     }
 
     const [reportRows]=await db.promise().query(
-      `SELECT pr.*,p.process_name,w.worker_code,u.full_name,COALESCE(pr.training_percent_snapshot,w.training_percent,100) AS training_percent
+      `SELECT pr.*,p.process_name,p.process_code,w.worker_code,u.full_name,COALESCE(pr.training_percent_snapshot,w.training_percent,100) AS training_percent
          FROM production_reports pr
-         JOIN workers w ON pr.worker_id=w.id
-         JOIN users u ON w.user_id=u.id
+         LEFT JOIN workers w ON pr.worker_id=w.id
+         LEFT JOIN users u ON w.user_id=u.id
          LEFT JOIN processes p ON pr.process_id=p.id
         WHERE pr.id=? LIMIT 1`,
       [reportId]
