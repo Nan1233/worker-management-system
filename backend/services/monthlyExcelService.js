@@ -39,8 +39,7 @@ const buildGiaCongMachineAccounting = (report, machineLines, eventMap) => {
                 seenEvents.add(eventId);
                 grossHours += Math.max(0, Number(event.machine_time_hours) || 0);
             }
-        } else if (!eventId || !seenEvents.has(eventId)) {
-            if (eventId) seenEvents.add(eventId);
+        } else if (!eventId) {
             grossHours += Math.max(0, Number(line.excel_machine_time_hours ?? line.machine_time_hours) || 0);
         }
         let lineDeductions = [];
@@ -218,8 +217,8 @@ const loadMonthReports = async (yearMonth) => {
             const event = machineEventMap.get(Number(line.machine_event_id));
             return {
                 ...line,
-                excel_machine_time_hours: event
-                    ? Math.max(0, Number(event.machine_time_hours) || 0)
+                excel_machine_time_hours: Number(line.machine_event_id)
+                    ? (event ? Math.max(0, Number(event.machine_time_hours) || 0) : 0)
                     : Math.max(0, Number(line.machine_time_hours) || 0)
             };
         });
