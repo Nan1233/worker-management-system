@@ -586,8 +586,8 @@ function applyReportRow(row, report, contract, processData, index) {
 }
 
 // A DB type that has no column in the template must not silently disappear.
-// When at least one report of this file has a value for it, append a column
-// after the template's last column, labelled "Trừ H: <tên>" / "NG: <tên>".
+// Append unmatched CAT/LONG form categories even when their monthly total is zero,
+// so the exported sheet consistently reflects the 10 Cắt + 8 Lồng form catalogue.
 function appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, processData) {
   let next = Number(contract.lastColumn || sheet.columnCount) + 1;
   const headerSource = sheet.getRow(headerRow).getCell(Number(contract.lastColumn || sheet.columnCount));
@@ -606,7 +606,8 @@ function appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, pro
     }
     const labels = types.map((type) => typeLabel(type, kind));
     for (const type of types) {
-      if (!used.has(type)) continue;
+      const encodedGcType = kind === 'defect' && Boolean(encodedGcDefectCode(type));
+      if (!used.has(type) && !encodedGcType) continue;
       const label = typeLabel(type, kind);
       const duplicate = labels.filter((x) => x === label).length > 1;
       const code = kind === 'deduction'
