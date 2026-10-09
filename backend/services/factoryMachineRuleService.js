@@ -213,6 +213,11 @@ const validateMachineWorkerCapacity = async ({
   ];
   if (excludeTempReportId) tempParams.push(Number(excludeTempReportId));
 
+  // `db` was referenced here without being declared in this function's scope
+  // (unlike loadMachineRows, which does `const db = getDb();`), so every call
+  // threw "ReferenceError: db is not defined" and crashed createTempReport
+  // with an unhandled 500 — surfaced to the worker as a generic network error.
+  const db = getDb();
   const [usageRows] = await db.promise().query(
     `SELECT DISTINCT worker_id, machine_code FROM (
        SELECT UPPER(TRIM(ml.machine_code)) AS machine_code, prt.worker_id
