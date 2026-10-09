@@ -140,11 +140,7 @@ export default function ProcessBasicInfoSection({ form, setForm, onFormChange, i
 <input data-worker-time-value="machine-deduction" value={String(getMachineDeductionMinutes(line))} readOnly aria-readonly="true" />
 <small>{Math.floor(getMachineDeductionMinutes(line) / 60)} giờ {getMachineDeductionMinutes(line) % 60} phút</small>
 </div>
-<div className="worker-time-item worker-time-computed" data-worker-time="machine-total">
-<label>Tổng thời gian</label>
-<input data-worker-time-value="machine-total" value={`${Math.floor(getMachineGrossMinutes(line) / 60)}h ${getMachineGrossMinutes(line) % 60}p`} readOnly aria-readonly="true" />
-<small>Thực tế + thời gian trừ · tối đa 12 giờ</small>
-</div>
+
 </div>
 <div className="machine-quantity-section">
 <div className="machine-section-title">Sản lượng máy</div>
