@@ -73,7 +73,13 @@ const buildGiaCongMachineAccounting = (report, machineLines, eventMap) => {
         }
     }
     const hasMachineLines = Array.isArray(machineLines) && machineLines.length > 0;
-    const source = seenEvents.size ? 'MACHINE_EVENT' : (hasMachineLines ? 'MACHINE_LINE' : 'MACHINE_DATA_MISSING');
+    const hasMissingLinkedEvent = (Array.isArray(machineLines) ? machineLines : []).some((line) => {
+        const eventId = Number(line.machine_event_id) || 0;
+        return eventId > 0 && !eventMap.has(eventId);
+    });
+    const source = seenEvents.size
+        ? (hasMissingLinkedEvent ? 'MACHINE_EVENT_PARTIAL' : 'MACHINE_EVENT')
+        : (hasMissingLinkedEvent ? 'MACHINE_EVENT_MISSING' : (hasMachineLines ? 'MACHINE_LINE' : 'MACHINE_DATA_MISSING'));
     return { source, grossHours, deductionHours, netHours: Math.max(0, grossHours - deductionHours), deductions };
 };
 
