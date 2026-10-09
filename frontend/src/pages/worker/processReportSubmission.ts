@@ -84,7 +84,6 @@ export function buildProductionReportPayload(args: {
     const quantity=num(args.form[String(field)]); if (quantity<=0) continue;
     const identity=normalizeDefectIdentity(code,name); const existing=formDefects.find(item=>normalizeDefectIdentity(item.defect_code,item.defect_name)===identity); if (existing) continue;
     const master=args.activeNgOptions.find(o=>normalizeDefectIdentity(String(o.code||o.defect_code||""),String(o.label||o.defect_name||""))===identity);
-    const master=args.activeNgOptions.find(o=>normalizeDefectIdentity(String(o.code||o.defect_code||""),String(o.label||o.defect_name||""))===identity);
     formDefects.push({ defect_type_id:Number(master?.id||master?.defect_type_id||0)||undefined, defect_code:String(master?.code||master?.defect_code||code), defect_name:String(master?.label||master?.defect_name||name), quantity });
   }
 
@@ -96,13 +95,9 @@ export function buildProductionReportPayload(args: {
     }).filter(x=>x.quantity>0);
     const lineDeductions = args.activeDeductionOptions.map(o=>({ deduction_type_id:Number(o.id||o.deduction_type_id||0)||undefined, deduction_code:String(o.code||""), deduction_name:String(o.label||o.deduction_name||o.key||""), hours:num(l.deductions?.[String(o.key||"")])/60 })).filter(x=>x.hours>0);
     const lineDeductionHours = lineDeductions.reduce((sum,item)=>sum+num(item.hours),0);
-    const lineDeductions = args.activeDeductionOptions.map(o=>({ deduction_type_id:Number(o.id||o.deduction_type_id||0)||undefined, deduction_code:String(o.code||""), deduction_name:String(o.label||o.deduction_name||o.key||""), hours:num(l.deductions?.[String(o.key||"")])/60 })).filter(x=>x.hours>0);
-    const lineDeductionHours = lineDeductions.reduce((sum,item)=>sum+num(item.hours),0);
     const fullProductCode = resolveSubmittedProductCode(l.productCode, l.machineCode, args.operationType, args.productOptions);
     return {
       machine_code:l.machineCode.trim(), product_code:fullProductCode,
-      machine_time_hours:num(l.hours)+num(l.minutes)/60, adjustment_minutes:lineDeductionHours*60, adjustment_count:num(l.adjustmentCount),
-      deduction_time_hours:lineDeductionHours, deductions:lineDeductions,
       machine_time_hours:num(l.hours)+num(l.minutes)/60, adjustment_minutes:lineDeductionHours*60, adjustment_count:num(l.adjustmentCount),
       deduction_time_hours:lineDeductionHours, deductions:lineDeductions,
       ok_quantity:num(l.okQuantity), ng_quantity:num(l.ngQuantity), standard_output:resolvePositiveStandardOutput(l.productCode, l.standardOutputPerHour),
@@ -127,27 +122,11 @@ export function buildProductionReportPayload(args: {
     lines.splice(0, lines.length, {
       machine_code:args.form.machineNo.trim(), product_code:fullProductCode, machine_time_hours:parseHours(args.form.actualTime), adjustment_minutes:0,
       adjustment_count:num(args.form.adjustmentCount), deduction_time_hours:0, deductions:[], ok_quantity:num(args.form.ttOk), ng_quantity:num(args.form.ttNg),
-      adjustment_count:num(args.form.adjustmentCount), deduction_time_hours:0, deductions:[], ok_quantity:num(args.form.ttOk), ng_quantity:num(args.form.ttNg),
       standard_output:resolvePositiveStandardOutput(args.form.productName,args.form.standardOutput), standard_time_seconds:null, standard_source:"DEFAULT", defects:singleLineDefects,
     });
   }
 
   const deductions=args.activeDeductionOptions.map(o=>({ deduction_type_id:Number(o.id||o.deduction_type_id||0)||undefined, deduction_code:String(o.code||""), deduction_name:String(o.label||o.deduction_name||o.key||""), hours:num(args.deductions[String(o.key||"")])/60 })).filter(x=>x.hours>0);
-  const hasActualMachineLine=(args.usesMultiMachineLines||args.usesSingleMachine)&&lines.some((line)=>!!line.machine_code);
-  const useMachineLinesPayload=(args.usesMultiMachineLines||args.usesSingleMachine)&&hasActualMachineLine;
-  const isGiaCongMachine = args.isCutLongProcess && useMachineLinesPayload;
-  if (isGiaCongMachine && lines.length && deductions.length) {
-    const hasLineDeductions = lines.some((line) => Array.isArray(line.deductions) && line.deductions.length);
-    if (!hasLineDeductions) {
-      const machineDeductionHours = deductions.reduce((sum, item) => sum + num(item.hours), 0);
-      lines[0] = {
-        ...lines[0],
-        deduction_time_hours: machineDeductionHours,
-        deductions: deductions.map((item) => ({ ...item })),
-        adjustment_minutes: machineDeductionHours * 60
-      };
-    }
-  }
   const hasActualMachineLine=(args.usesMultiMachineLines||args.usesSingleMachine)&&lines.some((line)=>!!line.machine_code);
   const useMachineLinesPayload=(args.usesMultiMachineLines||args.usesSingleMachine)&&hasActualMachineLine;
   const isGiaCongMachine = args.isCutLongProcess && useMachineLinesPayload;
@@ -171,11 +150,8 @@ export function buildProductionReportPayload(args: {
   const cvkWorkType = String(args.form.workType || args.extraData?.work_type || "").trim();
   const isCvk = Number(args.processId) === 30002 || Number(args.processId) === 60006 || String(args.extraData?.process_code || args.extraData?.processCode || "").trim().toUpperCase() === "CVK" || ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType.toUpperCase());
   const effectiveProcessId = isCvk ? 30002 : args.processId;
-  const isCvk = Number(args.processId) === 30002 || Number(args.processId) === 60006 || String(args.extraData?.process_code || args.extraData?.processCode || "").trim().toUpperCase() === "CVK" || ["CVK", "XUATNHAP", "KTCD", "TAIPP"].includes(cvkWorkType.toUpperCase());
-  const effectiveProcessId = isCvk ? 30002 : args.processId;
 
   return {
-    process_id: effectiveProcessId, work_date:args.form.workDate, shift:args.form.shift,
     process_id: effectiveProcessId, work_date:args.form.workDate, shift:args.form.shift,
     machine_no:useMachineLinesPayload?lines.map(l=>l.machine_code).join(", "):args.form.machineNo,
     product_name:useMachineLinesPayload?[...new Set(lines.map(l=>l.product_code).filter(Boolean))].join(", "):resolveSubmittedProductCode(args.form.productName, args.form.machineNo, args.operationType, args.productOptions),
@@ -184,13 +160,9 @@ export function buildProductionReportPayload(args: {
     total_time:isGiaCongMachine ? 0 : totalTime,
     actual_time:isGiaCongMachine ? 0 : actualTime,
     deduction_time:isGiaCongMachine ? 0 : deductionTime,
-    total_time:isGiaCongMachine ? 0 : totalTime,
-    actual_time:isGiaCongMachine ? 0 : actualTime,
-    deduction_time:isGiaCongMachine ? 0 : deductionTime,
     standard_output:noStandardLongWork ? 0 : (useMachineLinesPayload?lines.reduce((sum,l)=>sum+num(l.standard_output),0):resolvePositiveStandardOutput(args.form.productName,args.form.standardOutput)),
     actual_output:actualOutput, tt_ok:noStandardLongWork ? 0 : num(args.form.ttOk), tt_ng:noStandardLongWork ? 0 : num(args.form.ttNg),
     kqd_dap_lai:num(args.form.kqdDapLai), kqd_tuot:num(args.form.kqdTuot), vo_do_long:num(args.form.voDoLong), xuoc_do_long:num(args.form.xuocDoLong), cong_gay:num(args.form.congGay), xoay:num(args.form.xoay), khong_dut:num(args.form.khongDut), bavia_hut:num(args.form.baviaHut), ppcm:num(args.form.ppcm), loi_cao_su:num(args.form.loiCaoSu), ng_kich_thuoc:num(args.form.ngKichThuoc), cat_lem:num(args.form.catLem),
-    note:args.form.note||"", extra_data:{...args.extraData, ...(isCvk && cvkWorkType ? { work_type: cvkWorkType } : {}), adjustment_count:num(args.form.adjustmentCount), execution_method:executionMethod}, defects:noStandardLongWork ? [] : defects, deductions:isGiaCongMachine ? [] : deductions, machine_lines:useMachineLinesPayload?lines:[], client_request_id:args.clientRequestId||undefined, exclude_kqd_from_tt:args.excludeKqdFromTt?1:0
     note:args.form.note||"", extra_data:{...args.extraData, ...(isCvk && cvkWorkType ? { work_type: cvkWorkType } : {}), adjustment_count:num(args.form.adjustmentCount), execution_method:executionMethod}, defects:noStandardLongWork ? [] : defects, deductions:isGiaCongMachine ? [] : deductions, machine_lines:useMachineLinesPayload?lines:[], client_request_id:args.clientRequestId||undefined, exclude_kqd_from_tt:args.excludeKqdFromTt?1:0
   } as ProductionReport;
 }
