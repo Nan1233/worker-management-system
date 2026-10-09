@@ -204,9 +204,9 @@ function hydrateReportDetails(processData) {
   for (const report of Array.isArray(processData?.reports) ? processData.reports : []) {
     const raw = report?.rawDetail || {};
     const hasRawDetail = Boolean(report?.rawDetail);
-    const deductionRows = Array.isArray(raw.deductionRows)
+    const deductionRows = Array.isArray(raw.deductionRows) && raw.deductionRows.length
       ? raw.deductionRows
-      : (Array.isArray(report?.deductions) ? report.deductions : []);
+      : (Array.isArray(report?.deductions) ? report.deductions : (Array.isArray(raw.deductionRows) ? raw.deductionRows : []));
     const tempDeductionRows = Array.isArray(raw.tempDeductionRows) ? raw.tempDeductionRows : [];
     const expectedDeductionHours = Number(report.deduction_time) || 0;
     const selectedDeductionRows = hasRawDetail && expectedDeductionHours > 0
@@ -216,9 +216,9 @@ function hydrateReportDetails(processData) {
       : deductionRows;
     report.deductions = normalizeDeductions(selectedDeductionRows, report, report.machineLines || [], types);
 
-    const defectRows = Array.isArray(raw.defectRows)
+    const defectRows = Array.isArray(raw.defectRows) && raw.defectRows.length
       ? raw.defectRows
-      : (Array.isArray(report?.defects) ? report.defects : []);
+      : (Array.isArray(report?.defects) ? report.defects : (Array.isArray(raw.defectRows) ? raw.defectRows : []));
     const tempDefectRows = Array.isArray(raw.tempDefectRows) ? raw.tempDefectRows : [];
     const expectedDefects = Math.trunc(Number(report.tt_ng) || 0);
     const selectedDefectRows = hasRawDetail && expectedDefects > 0
