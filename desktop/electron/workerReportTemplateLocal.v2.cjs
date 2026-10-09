@@ -36,8 +36,9 @@ const DETAIL_ALIASES = Object.freeze({
 // DB detail name (as entered on the worker form) -> template column header.
 // Several DB types may share one template column; their values are summed.
 // Encoded GC form catalogue: CAT01-CAT10 (Cắt) and LONG01-LONG08 (Lồng).
-// Only codes with a clear one-to-one legacy column are mapped into the old template.
-// Other encoded categories stay distinct and are appended as NG columns with their code.
+// The GC export uses the same complete 18-column CAT/LONG catalogue as the
+// data-entry form. normalizeGcDefectHeaders replaces the old 19-column block
+// before mapping values, so encoded categories do not create duplicate NG columns.
 const GC_FORM_DEFECT_COLUMN_BY_CODE = Object.freeze({
   CAT01: 'CAT01 - Cao su không đứt',
   CAT02: 'CAT02 - Cắt lẹm',
