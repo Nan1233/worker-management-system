@@ -5,11 +5,15 @@ const db = require('../config/db');
 const { loadProcessMonthReports, normalizeYearMonth } = require('./processExcelExportService');
 const { buildLayoutResolvers, writeDetailColumns } = require('./excelColumnMapping');
 const { writeGcWorkerSheet } = require('./gcWorkerReportExcel');
+const { buildLayoutResolvers, writeDetailColumns } = require('./excelColumnMapping');
+const { writeGcWorkerSheet } = require('./gcWorkerReportExcel');
 const { calculateCountedNg } = require('../utils/outputCalculation');
 const { normalizeTrainingPercent, trainingFactor } = require('../utils/trainingPercent');
 
 const { assertReportVolume } = require('./excelExportGuards');
 const { removeQuietly, cleanupOldExports } = require('./exportFileMaintenance');
+
+const query = (sql, params = []) => new Promise((resolve, reject) => {
 
 const query = (sql, params = []) => new Promise((resolve, reject) => {
   db.query(sql, params, (error, rows) => error ? reject(error) : resolve(rows));
@@ -24,7 +28,11 @@ const GROUPS = Object.freeze({
     // 04_CAT_LONG_09-2026 is the source of truth for the GC output: flat sheet,
     // one row per machine line (see gcWorkerReportExcel.js).
     template: path.join(TEMPLATE_DIR, '04_CAT_LONG_template.xlsx'),
+    // 04_CAT_LONG_09-2026 is the source of truth for the GC output: flat sheet,
+    // one row per machine line (see gcWorkerReportExcel.js).
+    template: path.join(TEMPLATE_DIR, '04_CAT_LONG_template.xlsx'),
     fileName: ({ month, year }) => `A+B GIA CÔNG THÁNG ${month}-${year}.xlsx`,
+    sheets: [{ processCodes: ['GC'], sheetName: 'Báo cáo công nhân', layout: 'GIA_CONG_04', mode: 'WORKER_DAILY' }]
     sheets: [{ processCodes: ['GC'], sheetName: 'Báo cáo công nhân', layout: 'GIA_CONG_04', mode: 'WORKER_DAILY' }]
   },
   MAI_DO: {
@@ -49,6 +57,7 @@ const CACHE_TTL_MS = Math.max(30_000, Number(process.env.EXCEL_COMPANY_CACHE_TTL
 
 const buildKey = (yearMonth, groupCode) => `${yearMonth}:${String(groupCode || '').toUpperCase()}`;
 
+const { LAYOUTS } = require('../config/excelLayouts');
 const { LAYOUTS } = require('../config/excelLayouts');
 
 const toNumber = (value) => {
@@ -123,11 +132,17 @@ const getReportMetrics = (report) => {
   const machineAccounting = isGiaCongMachine ? report.machineAccounting : null;
   const totalTime = machineAccounting ? toNumber(machineAccounting.grossHours) : toNumber(report.total_time);
   const actualTime = machineAccounting ? toNumber(machineAccounting.netHours) : toNumber(report.actual_time);
+  const isGiaCongMachine = String(report.process_code || '').trim().toUpperCase() === 'GC'
+    && String(report.operation_mode || '').trim().toUpperCase() === 'MACHINE';
+  const machineAccounting = isGiaCongMachine ? report.machineAccounting : null;
+  const totalTime = machineAccounting ? toNumber(machineAccounting.grossHours) : toNumber(report.total_time);
+  const actualTime = machineAccounting ? toNumber(machineAccounting.netHours) : toNumber(report.actual_time);
   const plannedOutput = machineMetrics?.machine_count > 0
     ? toNumber(machineMetrics.maximum_output)
     : standard * actualTime * trainingFactor(report.training_percent);
   const outputPerHour = actualTime > 0 ? actualOutput / actualTime : 0;
   return {
+    ok, allNg, actualOutput, standard, totalTime, actualTime, plannedOutput, outputPerHour,
     ok, allNg, actualOutput, standard, totalTime, actualTime, plannedOutput, outputPerHour,
     achievement: plannedOutput > 0 ? actualOutput / plannedOutput : 0,
     ngRate: (ok + allNg) > 0 ? allNg / (ok + allNg) : 0
@@ -267,6 +282,7 @@ const getInputColumns = (layout) => {
 };
 
 const writeReportRow = (sheet, rowNumber, report, layout, mapping, workerLookup) => {
+const writeReportRow = (sheet, rowNumber, report, layout, mapping, workerLookup) => {
   const row = sheet.getRow(rowNumber);
   const fixed = layout.fixed;
   const metrics = getReportMetrics(report);
@@ -289,10 +305,12 @@ const writeReportRow = (sheet, rowNumber, report, layout, mapping, workerLookup)
   const trainingFactorValue = trainingPercent / 100;
   setCell(row, fixed.training, trainingFactorValue, '0%');
   setCell(row, fixed.totalTime, metrics.totalTime, '0.00');
+  setCell(row, fixed.totalTime, metrics.totalTime, '0.00');
   setCell(row, fixed.product, report.product_code || report.product_name || '');
   setCell(row, fixed.ok, metrics.ok, '#,##0');
   if (fixed.workDate) setCell(row, fixed.workDate, report.work_date, 'dd/mm/yyyy');
 
+  writeDetailColumns(row, report, mapping);
   writeDetailColumns(row, report, mapping);
 };
 
@@ -311,6 +329,34 @@ async function resolveProcesses(group) {
     `SELECT id, process_code, process_name FROM processes WHERE UPPER(process_code) IN (${placeholders}) ORDER BY id`,
     group.processCodes.map((code) => code.toUpperCase())
   );
+}
+
+// Per-machine NG detail lives in production_report_machine_defects (or the line's own
+// defects_json). Event-level defects are NOT used: they are shared by every worker on
+// the machine and would be repeated on each machine line.
+async function attachMachineLineDefects(reports) {
+  const lines = reports.flatMap((report) => (Array.isArray(report.machineLines) ? report.machineLines : []));
+  const lineIds = lines.map((line) => Number(line.id)).filter((id) => Number.isInteger(id) && id > 0);
+  const byLine = new Map();
+  for (let i = 0; i < lineIds.length; i += 400) {
+    const ids = lineIds.slice(i, i + 400);
+    const rows = await query(
+      `SELECT machine_line_id, defect_type_id, defect_code, defect_name, quantity
+         FROM production_report_machine_defects
+        WHERE machine_line_id IN (${ids.map(() => '?').join(',')}) AND quantity > 0
+        ORDER BY machine_line_id, id`,
+      ids
+    );
+    for (const row of rows) {
+      const key = Number(row.machine_line_id);
+      if (!byLine.has(key)) byLine.set(key, []);
+      byLine.get(key).push({ defect_type_id: row.defect_type_id, defect_code: row.defect_code, defect_name: row.defect_name, quantity: row.quantity });
+    }
+  }
+  for (const line of lines) {
+    const persisted = byLine.get(Number(line.id));
+    if (persisted?.length) line.defects = persisted;
+  }
 }
 
 // Per-machine NG detail lives in production_report_machine_defects (or the line's own
@@ -388,6 +434,10 @@ async function buildCompanyWorkbookInternal(value, groupCode) {
   const workerLookup = needsWorkerLookup ? buildWorkerLookup(workbook) : null;
   const unmappedDetails = [];
   const warningDetails = [];
+  const needsWorkerLookup = group.sheets.some((sheetConfig) => sheetConfig.mode !== 'WORKER_DAILY');
+  const workerLookup = needsWorkerLookup ? buildWorkerLookup(workbook) : null;
+  const unmappedDetails = [];
+  const warningDetails = [];
 
   for (const sheetConfig of group.sheets) {
     const processRows = loaded.filter(({ process }) => sheetConfig.processCodes.includes(String(process.process_code).toUpperCase()));
@@ -411,7 +461,32 @@ async function buildCompanyWorkbookInternal(value, groupCode) {
       }
       continue;
     }
+    if (sheetConfig.mode === 'WORKER_DAILY') {
+      await attachMachineLineDefects(reports);
+      const written = writeGcWorkerSheet(sheet, reports, { deductionTypes, defectTypes });
+      if (written.unmapped.length) {
+        const summary = new Map();
+        for (const item of written.unmapped) summary.set(`${item.kind}:${item.name}`, (summary.get(`${item.kind}:${item.name}`) || 0) + 1);
+        console.warn(`[KTC][EXCEL] ${sheet.name}: ${written.unmapped.length} chi tiết không có cột tương ứng: ${[...summary.entries()].map(([k, n]) => `${k} x${n}`).join('; ')}`);
+        unmappedDetails.push(...written.unmapped.map((item) => ({ sheet: sheet.name, ...item })));
+      }
+      if (written.warnings.length) {
+        console.warn(`[KTC][EXCEL] ${sheet.name}: ${written.warnings.length} cảnh báo dữ liệu dòng máy: ${[...new Set(written.warnings.map((w) => w.code))].join(', ')}`);
+        warningDetails.push(...written.warnings.map((item) => ({ sheet: sheet.name, ...item })));
+      }
+      continue;
+    }
     const layout = LAYOUTS[sheetConfig.layout];
+    const mapping = {
+      ...buildLayoutResolvers(sheet, layout, sheetConfig.layout),
+      deductionNameById: new Map(deductionTypes.map((type) => [Number(type.id), type.deduction_name || type.name])),
+      defectNameById: new Map(defectTypes.map((type) => [Number(type.id), type.defect_name || type.name])),
+      unmapped: []
+    };
+    // Header cells the bundled template lost are restored from the company sample.
+    [...mapping.deductionColumns, ...mapping.defectColumns]
+      .filter((entry) => entry.filledFromContract)
+      .forEach((entry) => { sheet.getRow(layout.labelRow).getCell(entry.column).value = entry.label; });
     const mapping = {
       ...buildLayoutResolvers(sheet, layout, sheetConfig.layout),
       deductionNameById: new Map(deductionTypes.map((type) => [Number(type.id), type.deduction_name || type.name])),
@@ -446,8 +521,18 @@ async function buildCompanyWorkbookInternal(value, groupCode) {
         report,
         layout,
         mapping,
+        mapping,
         workerLookup
       ));
+    }
+    if (mapping.unmapped.length) {
+      const summary = new Map();
+      for (const item of mapping.unmapped) {
+        const key = `${item.kind}:${item.name}`;
+        summary.set(key, (summary.get(key) || 0) + 1);
+      }
+      console.warn(`[KTC][EXCEL] ${sheet.name}: ${mapping.unmapped.length} chi tiết không có cột tương ứng trong mẫu: ${[...summary.entries()].map(([k, n]) => `${k} x${n}`).join('; ')}`);
+      unmappedDetails.push(...mapping.unmapped.map((item) => ({ sheet: sheet.name, ...item })));
     }
     if (mapping.unmapped.length) {
       const summary = new Map();
@@ -476,6 +561,7 @@ async function buildCompanyWorkbookInternal(value, groupCode) {
   }
   const stat = await fs.stat(filePath);
   cleanupOldExports(path.dirname(filePath)).catch(() => undefined);
+  return { path: filePath, fileName, groupCode: group.code, groupTitle: group.title, reportCount, unmappedDetails, warningDetails };
   return { path: filePath, fileName, groupCode: group.code, groupTitle: group.title, reportCount, unmappedDetails, warningDetails };
 }
 
