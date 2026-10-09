@@ -298,9 +298,12 @@ async function buildWorkerSplit({ appPath, date, payload }) {
   if (!merged.reports.length) {
     return { mode: 'WORKER_REPORT_SINGLE_FILE', processes: [], summary: null, expectedFileCount: 0 };
   }
+  // This split workbook is specifically the GC (Cắt/Lồng) export.
+  // Passing "ALL" bypasses GC header normalization and lets legacy NG plus
+  // numeric deduction placeholders be appended beside the encoded catalogue.
   const built = await buildWorkerProcessWorkbook({
     appPath,
-    processCode: 'ALL',
+    processCode: 'GC',
     processName: merged.processName,
     date,
     processData: merged
@@ -308,7 +311,7 @@ async function buildWorkerSplit({ appPath, date, payload }) {
   const [year, month] = String(date).slice(0, 7).split('-');
   // Same file name as the earlier export (and the Gia công mirror expects it).
   built.fileName = `04_CAT_LONG_${month}-${year}.xlsx`;
-  built.processCode = 'ALL';
+  built.processCode = 'GC';
   built.processName = merged.processName;
   if (built.layout !== 'grouped-by-date') {
     built.buffer = await repairWorkerRows(built.buffer, built, merged);
