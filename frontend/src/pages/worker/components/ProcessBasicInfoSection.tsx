@@ -4,6 +4,7 @@ import type { AutocompleteOption } from "../../../components/common/Autocomplete
 import type { ProductStandardOption } from "../../../services/masterDataService";
 import AppIcon from "../../../components/common/AppIcon";
 import type { DeductionKey, DeductionState, FormState, MachineLineState, NgKey, OperationMode, OperationType } from "../processPageConfig";
+import { MAX_TOTAL_WORK_MINUTES } from "../processFormUtils";
 
 interface NgOption { key: NgKey; code: string; label: string; }
 interface DeductionOption { key: DeductionKey; label: string; id?: number; code?: string; deduction_type_id?: number; deduction_name?: string; }
@@ -51,9 +52,36 @@ export default function ProcessBasicInfoSection({ form, setForm, onFormChange, i
     const visibleMachineOptions = isCutLongProcess ? visibleGcMachineOptions : machineAutocompleteOptions;
     const visibleNgOptions = isCutLongProcess ? activeNgOptions.filter((item) => { const code = normalizeDefectCode(item.code); return operationType === "CUT" ? code.startsWith("CAT") : code.startsWith("LONG"); }) : activeNgOptions;
     const getDefectDisplayLabel = (item: NgOption): string => { const code = normalizeDefectCode(item.code); const label = String(item.label ?? "").trim(); if (!code) return label; if (label.toUpperCase().startsWith(`${code} `) || label.toUpperCase().startsWith(`${code} —`)) return label; return `${code} — ${label}`; };
-    const getMachineGrossMinutes = (line: MachineLineState): number => (Number(line.hours) || 0) * 60 + (Number(line.minutes) || 0);
+    // Worker chỉ nhập "Thời gian chạy thực tế" (line.hours/line.minutes) và "Thời gian trừ"
+    // (line.deductions, qua danh sách loại trừ giờ). "Tổng thời gian" không còn là input
+    // trực tiếp: hệ thống luôn tự tính = thực tế + trừ, giống logic đã dùng ở
+    // ProcessTimeDeductionSection.tsx cho báo cáo không có máy.
+    const getMachineActualMinutes = (line: MachineLineState): number => (Number(line.hours) || 0) * 60 + (Number(line.minutes) || 0);
     const getMachineDeductionMinutes = (line: MachineLineState): number => Object.values(line.deductions || {}).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0);
-    const getMachineNetMinutes = (line: MachineLineState): number => Math.max(0, getMachineGrossMinutes(line) - getMachineDeductionMinutes(line));
+    const getMachineGrossMinutes = (line: MachineLineState): number => getMachineActualMinutes(line) + getMachineDeductionMinutes(line);
+    const updateMachineActualHours = (lineIndex: number, rawValue: string) => {
+        const line = machineLines[lineIndex];
+        if (!line) return;
+        const value = rawValue.replace(/\D/g, "");
+        if (value !== "" && Number(value) > 12) return;
+        const hours = Number(value) || 0;
+        const deductionMinutes = getMachineDeductionMinutes(line);
+        const currentMinutes = hours === 12 ? 0 : Math.min(59, Number(line.minutes) || 0);
+        if (hours * 60 + currentMinutes + deductionMinutes > MAX_TOTAL_WORK_MINUTES) return;
+        updateMachineLine(lineIndex, { hours: value, minutes: hours === 12 ? "0" : line.minutes });
+    };
+    const updateMachineActualMinutes = (lineIndex: number, rawValue: string) => {
+        const line = machineLines[lineIndex];
+        if (!line) return;
+        const value = rawValue.replace(/\D/g, "");
+        if (value !== "" && Number(value) > 59) return;
+        const hours = Number(line.hours) || 0;
+        const minutes = Number(value) || 0;
+        const deductionMinutes = getMachineDeductionMinutes(line);
+        if (hours === 12 && minutes > 0) return;
+        if (hours * 60 + minutes + deductionMinutes > MAX_TOTAL_WORK_MINUTES) return;
+        updateMachineLine(lineIndex, { minutes: value });
+    };
     const toggleMachineDeduction = (lineIndex: number, key: DeductionKey, checked: boolean) => {
         const line = machineLines[lineIndex];
         if (!line) return;
@@ -74,11 +102,11 @@ export default function ProcessBasicInfoSection({ form, setForm, onFormChange, i
         const line = machineLines[lineIndex];
         if (!line) return;
         const value = rawValue.replace(/\D/g, "");
-        const grossMinutes = getMachineGrossMinutes(line);
+        const actualMinutes = getMachineActualMinutes(line);
         const otherMinutes = Object.entries(line.deductions || {})
             .filter(([itemKey]) => itemKey !== key)
             .reduce((sum, [, raw]) => sum + Math.max(0, Number(raw) || 0), 0);
-        if (value !== "" && otherMinutes + Number(value) > grossMinutes) return;
+        if (value !== "" && actualMinutes + otherMinutes + Number(value) > MAX_TOTAL_WORK_MINUTES) return;
         const deductions = { ...(line.deductions || {}), [key]: value };
         const totalMinutes = Object.values(deductions).reduce((sum, item) => sum + Math.max(0, Number(item) || 0), 0);
         updateMachineLine(lineIndex, {
@@ -99,23 +127,23 @@ export default function ProcessBasicInfoSection({ form, setForm, onFormChange, i
             {usesMultiMachineLines ? <div className="worker-machine-workspace worker-field-full"><div className="worker-selection-heading"><div><strong>{isCutLongProcess ? "Danh sách máy & sản phẩm" : "Danh sách máy mài & sản phẩm"}</strong><small>Mỗi dòng = 1 máy + 1 mã sản phẩm + thời gian + sản lượng</small>{isCutLongProcess && <small>Shared machine: sản lượng được credit theo báo cáo; physical truth nằm ở production event riêng.</small>}</div><label className="worker-machine-count"><span>Số máy</span><select value={machineCount} onChange={(event) => resizeMachineLines(Number(event.target.value))}>{Array.from({ length: maxMachineCount }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count}</option>)}</select></label></div>{isCutLongProcess && <div className="worker-machine-policy-note">Máy tự động: C5, C6, C7, C11. Các máy C còn lại: cắt không tự động.</div>}<div className="machine-lines-list">{machineLines.map((line, index) => <article className="machine-line" key={index}><div className="machine-card-header"><div className="machine-card-title-wrap"><span className="machine-card-number">{index + 1}</span><div><strong>Máy {index + 1}</strong><span>{line.machineCode || "Chưa chọn máy"}</span></div></div><span className="machine-card-badge">{line.productCode || "Chưa chọn SP"}</span></div><div className="machine-selection-grid"><AutocompleteInput id={`machineNo-${index}`} label="Mã máy" value={line.machineCode} options={visibleMachineOptions} placeholder="Chọn mã máy" required disabled={loadingMasterData} emptyMessage="Không tìm thấy máy trong chế độ đang chọn" onChange={(value) => updateMachineLine(index, { machineCode: value, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" })} onSelect={(option) => updateMachineLine(index, { machineCode: option.value, productCode: "", standardOutputPerHour: 0, standardTimeSeconds: null, standardSource: null, standardError: "" })} /><AutocompleteInput id={`machineProduct-${index}`} label="Mã sản phẩm" value={line.productCode} options={getMachineProductAutocompleteOptions(line.machineCode)} placeholder={line.machineCode.trim() ? "Chọn mã sản phẩm theo máy" : "Chọn máy trước"} required disabled={loadingMasterData || !line.machineCode.trim()} emptyMessage={line.machineCode.trim() ? "Không có mã sản phẩm phù hợp với máy này" : "Chọn máy trước để xem mã sản phẩm"} onChange={(value) => { updateMachineLine(index, { productCode: value }); void refreshMachineLineStandard(index, line.machineCode, value); }} onSelect={(option) => { updateMachineLine(index, { productCode: option.value }); void refreshMachineLineStandard(index, line.machineCode, option.value); }} /></div><div className="machine-data-grid"><div>
 <div className="machine-section-title">Thời gian &amp; thời gian trừ</div>
 <div className="worker-time-grid machine-worker-time-grid">
-<div className="worker-time-item" data-worker-time="machine-gross">
-<label>Thời gian máy <span className="worker-time-required">*</span></label>
+<div className="worker-time-item" data-worker-time="machine-actual">
+<label>Thời gian chạy thực tế <span className="worker-time-required">*</span></label>
 <div className="worker-time-split worker-time-parts">
-<div className="worker-time-part"><span>Giờ</span><input data-machine-time-part="hours" type="number" min="0" max="12" step="1" inputMode="numeric" value={line.hours} onChange={(event) => { const value = event.target.value.replace(/\D/g, ""); if (value === "" || Number(value) <= 12) updateMachineLine(index, { hours: value }); }} placeholder="0" /></div>
-<div className="worker-time-part"><span>Phút</span><input data-machine-time-part="minutes" type="number" min="0" max="59" step="1" inputMode="numeric" value={line.minutes} onChange={(event) => { const value = event.target.value.replace(/\D/g, ""); if (value === "" || Number(value) <= 59) updateMachineLine(index, { minutes: value }); }} placeholder="0" /></div>
+<div className="worker-time-part"><span>Giờ</span><input data-machine-time-part="hours" type="number" min="0" max="12" step="1" inputMode="numeric" value={line.hours} onChange={(event) => updateMachineActualHours(index, event.target.value)} placeholder="0" /></div>
+<div className="worker-time-part"><span>Phút</span><input data-machine-time-part="minutes" type="number" min="0" max="59" step="1" inputMode="numeric" value={line.minutes} disabled={Number(line.hours) >= 12 || getMachineActualMinutes(line) + getMachineDeductionMinutes(line) >= MAX_TOTAL_WORK_MINUTES} onChange={(event) => updateMachineActualMinutes(index, event.target.value)} placeholder="0" /></div>
 </div>
-<small>{Math.floor(getMachineGrossMinutes(line) / 60)} giờ {getMachineGrossMinutes(line) % 60} phút</small>
+<small>Nhập thời gian thực tế. Thời gian trừ cộng thêm để tính tổng, tổng không quá 12 giờ.</small>
 </div>
 <div className="worker-time-item worker-time-computed" data-worker-time="machine-deduction">
 <label>Thời gian trừ</label>
 <input data-worker-time-value="machine-deduction" value={String(getMachineDeductionMinutes(line))} readOnly aria-readonly="true" />
 <small>{Math.floor(getMachineDeductionMinutes(line) / 60)} giờ {getMachineDeductionMinutes(line) % 60} phút</small>
 </div>
-<div className="worker-time-item worker-time-computed" data-worker-time="machine-net">
-<label>Thời gian thực tế</label>
-<input data-worker-time-value="machine-net" value={`${Math.floor(getMachineNetMinutes(line) / 60)}h ${getMachineNetMinutes(line) % 60}p`} readOnly aria-readonly="true" />
-<small>Thời gian máy − thời gian trừ</small>
+<div className="worker-time-item worker-time-computed" data-worker-time="machine-total">
+<label>Tổng thời gian</label>
+<input data-worker-time-value="machine-total" value={`${Math.floor(getMachineGrossMinutes(line) / 60)}h ${getMachineGrossMinutes(line) % 60}p`} readOnly aria-readonly="true" />
+<small>Thực tế + thời gian trừ · tối đa 12 giờ</small>
 </div>
 </div>
 <div className="machine-quantity-section">

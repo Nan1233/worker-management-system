@@ -56,6 +56,7 @@ export interface ProductionReport {
         machine_code: string;
         product_code: string;
         machine_time_hours: number;
+        actual_time_hours?: number;
         adjustment_minutes?: number;
         adjustment_count?: number;
         ok_quantity: number;
