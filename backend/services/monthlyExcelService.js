@@ -40,14 +40,20 @@ const buildGiaCongMachineAccounting = (report, machineLines, eventMap) => {
                 grossHours += Math.max(0, Number(event.machine_time_hours) || 0);
             }
         } else {
-            grossHours += Math.max(0, Number(line.machine_time_hours) || 0);
+            grossHours += Math.max(0, Number(line.excel_machine_time_hours ?? line.machine_time_hours) || 0);
         }
-        const lineDeductionHours = Math.max(0, Number(line.deduction_time_hours) || 0);
         let lineDeductions = [];
         try {
             const parsed = typeof line.deductions_json === 'string' ? JSON.parse(line.deductions_json) : line.deductions_json;
             lineDeductions = Array.isArray(parsed) ? parsed : [];
         } catch (_error) {}
+        const detailDeductionHours = lineDeductions.reduce((sum, item) => sum + Math.max(0, Number(item?.hours) || 0), 0);
+        const lineDeductionHours = Math.max(
+            0,
+            Number(line.deduction_time_hours) || 0,
+            (Number(line.adjustment_minutes) || 0) / 60,
+            detailDeductionHours
+        );
         const key = eventId ? 'EVENT:' + eventId : 'LINE:' + (Number(line.id) || index);
         if (!seenDeductions.has(key)) {
             seenDeductions.add(key);
@@ -66,11 +72,9 @@ const buildGiaCongMachineAccounting = (report, machineLines, eventMap) => {
             }
         }
     }
-    if (deductionHours <= 0 && deductions.length === 0 && Array.isArray(report.deductions) && report.deductions.length) {
-        deductionHours = report.deductions.reduce((sum, item) => sum + Math.max(0, Number(item?.hours) || 0), 0);
-        deductions.push(...report.deductions.map((item) => ({ ...item })));
-    }
-    return { source: seenEvents.size ? 'MACHINE_EVENT' : 'MACHINE_LINE', grossHours, deductionHours, netHours: Math.max(0, grossHours - deductionHours), deductions };
+    const hasMachineLines = Array.isArray(machineLines) && machineLines.length > 0;
+    const source = seenEvents.size ? 'MACHINE_EVENT' : (hasMachineLines ? 'MACHINE_LINE' : 'MACHINE_DATA_MISSING');
+    return { source, grossHours, deductionHours, netHours: Math.max(0, grossHours - deductionHours), deductions };
 };
 
 const mapDetails = (rows, reportIds, valueMapper) => {
