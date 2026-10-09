@@ -97,7 +97,7 @@ test('GC machine accounting does not substitute worker deduction when machine li
   assert.equal(result.netHours, 4.5);
 });
 
-test('H2: two lines share machine_event_id but event not in map — grossHours counted once', () => {
+test('linked machine event missing from map does not fall back to worker participation time', () => {
   const result = buildGiaCongMachineAccounting({
     machineLines: [
       { id: 401, machine_event_id: 5555, machine_time_hours: 8, deduction_time_hours: 0, deductions_json: '[]' },
@@ -105,7 +105,7 @@ test('H2: two lines share machine_event_id but event not in map — grossHours c
     ]
   }, new Map());
 
-  assert.equal(result.grossHours, 8, 'should be 8 not 16 — same physical event must not double-count');
-  assert.equal(result.netHours, 8);
-  assert.equal(result.source, 'MACHINE_LINE');
+  assert.equal(result.grossHours, 0, 'missing physical event must not fall back to worker participation time');
+  assert.equal(result.netHours, 0);
+  assert.equal(result.source, 'MACHINE_EVENT_MISSING');
 });
