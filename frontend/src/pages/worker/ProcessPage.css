@@ -146,3 +146,21 @@
 @media(max-width:420px){
   .worker-dropdown-options{grid-template-columns:1fr}
 }
+
+
+/* Polished GC machine detail layout: clear paired panels for deduction and NG. */
+.machine-detail-values-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:stretch;margin-top:12px;}
+.machine-detail-values-column{min-width:0;padding:12px;border:1px solid var(--ktc-border,#dce6f0);border-radius:14px;background:linear-gradient(180deg,#fff 0%,#f8fbff 100%);box-shadow:0 3px 10px rgba(23,53,83,.045);}
+.machine-detail-values-deduction{border-top:3px solid #e7a33e;background:linear-gradient(180deg,#fffaf0 0%,#fff 72%);}
+.machine-detail-values-ng{border-top:3px solid #e66b7a;background:linear-gradient(180deg,#fff5f6 0%,#fff 72%);}
+.machine-detail-values-heading{display:flex;align-items:flex-start;gap:9px;margin:0 0 10px;padding-bottom:9px;border-bottom:1px solid rgba(115,133,154,.18);}
+.machine-detail-values-heading>span{display:grid;place-items:center;flex:0 0 30px;width:30px;height:30px;border-radius:9px;font-size:16px;}
+.machine-detail-values-heading-deduction>span{background:#fff0cf;color:#9a5a00;}
+.machine-detail-values-heading-ng>span{background:#ffe0e4;color:#b42336;}
+.machine-detail-values-heading strong{display:block;color:var(--ktc-text,#173553);font-size:13px;font-weight:800;line-height:1.4;}
+.machine-detail-values-heading small{display:block;margin-top:2px;color:var(--ktc-muted,#73859a);font-size:11px;line-height:1.4;}
+.machine-detail-values-column .worker-dynamic-grid{grid-template-columns:minmax(0,1fr);gap:9px;margin-top:0;}
+.machine-detail-values-column .worker-field-block{min-width:0;padding:9px;border:1px solid rgba(203,217,231,.8);border-radius:10px;background:rgba(255,255,255,.88);}
+.machine-detail-values-column .worker-field-label{overflow-wrap:anywhere;}
+.machine-detail-values-column .worker-text-input{width:100%;min-width:0;}
+@media(max-width:560px){.machine-detail-values-row{grid-template-columns:minmax(0,1fr);gap:10px}.machine-detail-values-column{padding:11px}}
