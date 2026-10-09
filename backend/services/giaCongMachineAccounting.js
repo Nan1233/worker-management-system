@@ -28,11 +28,8 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
         seenEvents.add(eventId);
         grossHours += Math.max(0, Number(event.machine_time_hours) || 0);
       }
-    } else {
-      if (!eventId || !seenEvents.has(eventId)) {
-        if (eventId) seenEvents.add(eventId);
-        grossHours += Math.max(0, Number(line.machine_time_hours) || 0);
-      }
+    } else if (!eventId) {
+      grossHours += Math.max(0, Number(line.excel_machine_time_hours ?? line.machine_time_hours) || 0);
     }
 
     const lineDeductions = parseJsonArray(line.deductions_json);
@@ -66,9 +63,13 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
   });
 
   const hasMachineLines = lines.length > 0;
+  const hasMissingLinkedEvent = lines.some((line) => {
+    const eventId = Number(line.machine_event_id) || 0;
+    return eventId > 0 && !events.has(eventId);
+  });
   const source = hasPhysicalEvent
-    ? 'MACHINE_EVENT'
-    : (hasMachineLines ? 'MACHINE_LINE' : 'MACHINE_DATA_MISSING');
+    ? (hasMissingLinkedEvent ? 'MACHINE_EVENT_PARTIAL' : 'MACHINE_EVENT')
+    : (hasMissingLinkedEvent ? 'MACHINE_EVENT_MISSING' : (hasMachineLines ? 'MACHINE_LINE' : 'MACHINE_DATA_MISSING'));
 
   return {
     source,
