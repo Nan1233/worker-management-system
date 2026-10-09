@@ -564,7 +564,7 @@ function getMetrics(report) {
   const ngRate = (ok + totalNg) > 0 ? totalNg / (ok + totalNg) : 0;
   const deductionTotal = isGiaCongMachine ? machineDeductionTime : sumDetails(report.deductions, 'hours');
   const changeCount = (report.deductions || []).filter((item) =>
-    normalizeCode(item.deduction_code || item.code) === 'CHUYEN_MA' && num(item.hours) > 0
+    normalizeCode(item.deduction_type_code || item.deduction_code || item.code || item.deduction_name) === 'CHUYEN_MA' && num(item.hours) > 0
   ).length;
 
   return {
@@ -587,7 +587,7 @@ function writeDetailColumns(row, report, layout, deductionTypes, defectTypes) {
   if (layout.deductionCodeColumns) {
     const totalsByColumn = new Map();
     for (const item of report.deductions || []) {
-      const code = normalizeCode(item.deduction_code || item.code || item.deduction_name);
+      const code = normalizeCode(item.deduction_type_code || item.deduction_code || item.code || item.deduction_name);
       const column = layout.deductionCodeColumns[code];
       if (column) totalsByColumn.set(column, (totalsByColumn.get(column) || 0) + num(item.hours));
     }
@@ -606,7 +606,7 @@ function writeDetailColumns(row, report, layout, deductionTypes, defectTypes) {
   if (layout.defectCodeColumns) {
     const totalsByColumn = new Map();
     for (const item of report.defects || []) {
-      const code = normalizeCode(item.defect_code || item.code || item.defect_name);
+      const code = normalizeCode(item.defect_type_code || item.defect_code || item.code || item.defect_name);
       const column = layout.defectCodeColumns[code];
       if (column) totalsByColumn.set(column, (totalsByColumn.get(column) || 0) + num(item.quantity));
     }
