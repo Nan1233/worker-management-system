@@ -212,8 +212,8 @@ async function loadProcessMonthReports(value, processId, options = {}) {
         ...line,
         // Export uses physical machine time when a machine event exists.
         // Keep machine_time_hours intact because it remains worker participation time.
-        excel_machine_time_hours: event
-          ? Math.max(0, Number(event.machine_time_hours) || 0)
+        excel_machine_time_hours: Number(line.machine_event_id)
+          ? (event ? Math.max(0, Number(event.machine_time_hours) || 0) : 0)
           : Math.max(0, Number(line.machine_time_hours) || 0)
       };
     });
