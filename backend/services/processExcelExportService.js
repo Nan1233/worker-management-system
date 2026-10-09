@@ -44,9 +44,6 @@ const slugName = (value) => safeName(value)
 
 const { buildGiaCongMachineAccounting } = require('./giaCongMachineAccounting');
 
-
-const { buildGiaCongMachineAccounting } = require('./giaCongMachineAccounting');
-
 const mapDetails = (rows, reportIds, mapper) => {
   const result = new Map(reportIds.map((id) => [Number(id), []]));
   rows.forEach((row) => {
@@ -205,7 +202,6 @@ async function loadProcessMonthReports(value, processId, options = {}) {
 
   const machineLines = mapDetails(machineLineRows, reportIds, (row) => ({ ...row }));
   const physicalEventsById = new Map((reports.physicalMachineEvents || []).map((event) => [Number(event.id), event]));
-  const physicalEventsById = new Map((reports.physicalMachineEvents || []).map((event) => [Number(event.id), event]));
   reports.forEach((report) => {
     const id = Number(report.id);
     report.deductions = deductions.get(id) || [];
@@ -215,12 +211,6 @@ async function loadProcessMonthReports(value, processId, options = {}) {
       report,
       machineLines: report.machineLines
     }));
-    if (String(report.process_code || '').trim().toUpperCase() === 'GC' && String(report.operation_mode || '').trim().toUpperCase() === 'MACHINE') {
-      report.machineAccounting = buildGiaCongMachineAccounting(report, physicalEventsById);
-      report.machinePerformance = report.machinePerformance || null;
-      if (report.machinePerformance) report.machinePerformance.total_machine_hours = report.machineAccounting.grossHours;
-      report.deductions = report.machineAccounting.deductions;
-    }
     if (String(report.process_code || '').trim().toUpperCase() === 'GC' && String(report.operation_mode || '').trim().toUpperCase() === 'MACHINE') {
       report.machineAccounting = buildGiaCongMachineAccounting(report, physicalEventsById);
       report.machinePerformance = report.machinePerformance || null;
@@ -283,8 +273,6 @@ module.exports = {
   listProcessesForMonth,
   loadProcessMonthReports,
   buildProcessWorkbook,
-  normalizeYearMonth,
-  buildGiaCongMachineAccounting
   normalizeYearMonth,
   buildGiaCongMachineAccounting
 };
