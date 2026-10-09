@@ -31,6 +31,86 @@ const num = (value) => {
 };
 const round = (value) => Math.round((value + Number.EPSILON) * 10000) / 10000;
 
+function parseArray(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function auditMachineDeductions(report) {
+  const lines = Array.isArray(report.machineLines) ? report.machineLines : [];
+  const workerDeductionHours = Math.max(0, num(report.deduction_time));
+  let machineDeductionHours = 0;
+  let detailHours = 0;
+  let totalOnlyLines = 0;
+  let detailLines = 0;
+
+  const lineAudit = lines.map((line) => {
+    const details = parseArray(line.deductions_json);
+    const detail = details.reduce((sum, item) => sum + Math.max(0, num(item?.hours)), 0);
+    const total = Math.max(
+      0,
+      num(line.deduction_time_hours),
+      num(line.adjustment_minutes) / 60,
+      detail
+    );
+    machineDeductionHours += total;
+    detailHours += detail;
+    if (total > 0 && detail <= 0) totalOnlyLines += 1;
+    if (detail > 0) detailLines += 1;
+    return {
+      machine_line_id: Number(line.id) || null,
+      machine_code: String(line.machine_code || ''),
+      machine_time_hours: round(num(line.machine_time_hours)),
+      deduction_time_hours: round(Math.max(0, num(line.deduction_time_hours), num(line.adjustment_minutes) / 60)),
+      deduction_detail_hours: round(detail),
+      deduction_status: detail > 0
+        ? 'DETAIL_RECORDED'
+        : total > 0 ? 'TOTAL_ONLY_NO_BREAKDOWN' : 'NO_MACHINE_DEDUCTION_RECORDED'
+    };
+  });
+
+  let status;
+  let reason;
+  if (!lines.length) {
+    status = 'REVIEW';
+    reason = 'MACHINE_DEDUCTION_CANNOT_BE_AUDITED_WITHOUT_MACHINE_LINES';
+  } else if (machineDeductionHours > 0 && detailHours > 0 && totalOnlyLines === 0) {
+    status = 'RECORDED_WITH_DETAILS';
+    reason = 'MACHINE_DEDUCTION_DETAILS_PRESENT';
+  } else if (machineDeductionHours > 0) {
+    status = 'PARTIAL_OR_TOTAL_ONLY';
+    reason = 'MACHINE_DEDUCTION_BREAKDOWN_INCOMPLETE';
+  } else if (workerDeductionHours > 0) {
+    status = 'REVIEW';
+    reason = 'WORKER_HAS_DEDUCTION_BUT_MACHINE_HAS_NONE';
+  } else {
+    status = 'REVIEW';
+    reason = 'NO_MACHINE_DEDUCTION_RECORDED_CANNOT_ASSUME_ZERO';
+  }
+
+  return {
+    status,
+    reason,
+    worker_deduction_hours: round(workerDeductionHours),
+    machine_deduction_hours: round(machineDeductionHours),
+    machine_deduction_detail_hours: round(detailHours),
+    machine_lines_with_deduction_detail: detailLines,
+    machine_lines_total_only: totalOnlyLines,
+    machine_lines_without_deduction: lines.filter((line) => {
+      const details = parseArray(line.deductions_json);
+      return Math.max(0, num(line.deduction_time_hours), num(line.adjustment_minutes) / 60,
+        details.reduce((sum, item) => sum + Math.max(0, num(item?.hours)), 0)) <= 0;
+    }).length,
+    lines: lineAudit
+  };
+}
+
 function classifyReport(report) {
   const lines = Array.isArray(report.machineLines) ? report.machineLines : [];
   const totalHours = num(report.total_time);
@@ -45,6 +125,7 @@ function classifyReport(report) {
     machine_no: String(report.machine_no || ''),
     worker_total_hours: round(totalHours),
     worker_deduction_hours: round(deductionHours),
+    machine_deduction_audit: auditMachineDeductions(report),
     machine_count: lines.length,
     machine_lines: lines.map((line) => ({
       id: Number(line.id),
@@ -162,6 +243,14 @@ async function main() {
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
 
+  const deductionCounts = findings.reduce((acc, item) => {
+    const audit = item.machine_deduction_audit;
+    if (!audit) return acc;
+    acc[audit.status] = (acc[audit.status] || 0) + 1;
+    acc.reasons[audit.reason] = (acc.reasons[audit.reason] || 0) + 1;
+    return acc;
+  }, { reasons: {} });
+
   const counts = findings.reduce((acc, item) => {
     acc[item.action] = (acc[item.action] || 0) + 1;
     acc.reasons[item.reason] = (acc.reasons[item.reason] || 0) + 1;
@@ -181,6 +270,7 @@ async function main() {
     max_machine_hours: MAX_MACHINE_HOURS,
     report_count: findings.length,
     counts,
+    machine_deduction_counts: deductionCounts,
     findings
   }, null, 2) + '\n');
   if (failures.length) process.exitCode = 1;
@@ -197,4 +287,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { classifyReport, monthList };
+module.exports = { classifyReport, monthList, auditMachineDeductions };
