@@ -96,9 +96,15 @@ export function buildProductionReportPayload(args: {
     const lineDeductions = args.activeDeductionOptions.map(o=>({ deduction_type_id:Number(o.id||o.deduction_type_id||0)||undefined, deduction_code:String(o.code||""), deduction_name:String(o.label||o.deduction_name||o.key||""), hours:num(l.deductions?.[String(o.key||"")])/60 })).filter(x=>x.hours>0);
     const lineDeductionHours = lineDeductions.reduce((sum,item)=>sum+num(item.hours),0);
     const fullProductCode = resolveSubmittedProductCode(l.productCode, l.machineCode, args.operationType, args.productOptions);
+    // Worker chỉ nhập thời gian chạy thực tế (actual_time_hours); "Tổng thời gian"
+    // (machine_time_hours, giữ nguyên ý nghĩa "gross" cho kế toán giờ máy phía sau)
+    // luôn được tự tính = thực tế + trừ giờ, không nhận input tổng trực tiếp từ Worker.
+    // Backend tính lại machine_time_hours từ actual_time_hours + deduction_time_hours,
+    // không tin tưởng giá trị client gửi lên.
+    const lineActualTimeHours = num(l.hours)+num(l.minutes)/60;
     return {
       machine_code:l.machineCode.trim(), product_code:fullProductCode,
-      machine_time_hours:num(l.hours)+num(l.minutes)/60, adjustment_minutes:lineDeductionHours*60, adjustment_count:num(l.adjustmentCount),
+      actual_time_hours:lineActualTimeHours, machine_time_hours:lineActualTimeHours+lineDeductionHours, adjustment_minutes:lineDeductionHours*60, adjustment_count:num(l.adjustmentCount),
       deduction_time_hours:lineDeductionHours, deductions:lineDeductions,
       ok_quantity:num(l.okQuantity), ng_quantity:num(l.ngQuantity), standard_output:resolvePositiveStandardOutput(l.productCode, l.standardOutputPerHour),
       standard_time_seconds:l.standardTimeSeconds, standard_source:l.standardSource, defects:lineDefects
@@ -120,7 +126,7 @@ export function buildProductionReportPayload(args: {
     }));
     const fullProductCode = resolveSubmittedProductCode(args.form.productName, args.form.machineNo, args.operationType, args.productOptions);
     lines.splice(0, lines.length, {
-      machine_code:args.form.machineNo.trim(), product_code:fullProductCode, machine_time_hours:parseHours(args.form.actualTime), adjustment_minutes:0,
+      machine_code:args.form.machineNo.trim(), product_code:fullProductCode, actual_time_hours:parseHours(args.form.actualTime), machine_time_hours:parseHours(args.form.actualTime), adjustment_minutes:0,
       adjustment_count:num(args.form.adjustmentCount), deduction_time_hours:0, deductions:[], ok_quantity:num(args.form.ttOk), ng_quantity:num(args.form.ttNg),
       standard_output:resolvePositiveStandardOutput(args.form.productName,args.form.standardOutput), standard_time_seconds:null, standard_source:"DEFAULT", defects:singleLineDefects,
     });
@@ -134,8 +140,11 @@ export function buildProductionReportPayload(args: {
     const hasLineDeductions = lines.some((line) => Array.isArray(line.deductions) && line.deductions.length);
     if (!hasLineDeductions) {
       const machineDeductionHours = deductions.reduce((sum, item) => sum + num(item.hours), 0);
+      const lineActualHours = num((lines[0] as { actual_time_hours?: number }).actual_time_hours ?? lines[0].machine_time_hours);
       lines[0] = {
         ...lines[0],
+        actual_time_hours: lineActualHours,
+        machine_time_hours: lineActualHours + machineDeductionHours,
         deduction_time_hours: machineDeductionHours,
         deductions: deductions.map((item) => ({ ...item })),
         adjustment_minutes: machineDeductionHours * 60

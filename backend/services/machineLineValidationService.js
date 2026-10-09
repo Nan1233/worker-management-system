@@ -72,6 +72,74 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
             );
         }
 
+        // Thời gian trừ cho mỗi dòng máy (line.deductions). Trước đây bị bỏ qua hoàn
+        // toàn trong normalized output nên deduction_time_hours/deductions_json luôn
+        // lưu 0, dù Worker đã chọn loại trừ giờ. Áp dụng cùng chiến lược batch-query
+        // như defect_types ở trên: tải một lần theo processId, resolve trong bộ nhớ.
+        // Khi payload không gửi lại machine_lines (ví dụ chỉ sửa trường khác), caller có
+        // thể truyền lại dòng máy đã lưu trong DB để re-validate. Dòng đó mang
+        // deductions_json (string hoặc đã parse) thay vì mảng deductions như payload từ
+        // Worker, nên phải chấp nhận cả hai nguồn để không làm mất lại dữ liệu trừ giờ.
+        const parseStoredDeductions = (value) => {
+            if (Array.isArray(value)) return value;
+            if (!value) return [];
+            try {
+                const parsed = typeof value === "string" ? JSON.parse(value) : value;
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (_error) {
+                return [];
+            }
+        };
+        const rawDeductionsByLine = machineLines.map((line) => {
+            const deductions = Array.isArray(line?.deductions) ? line.deductions : parseStoredDeductions(line?.deductions_json);
+            return deductions
+                .map((item) => ({
+                    deduction_id: Number(item?.deduction_type_id || item?.deduction_id) || null,
+                    deduction_code: normalizeCode(item?.deduction_code),
+                    deduction_name: normalizeCode(item?.deduction_name),
+                    hours: Math.max(0, Number(item?.hours) || 0)
+                }))
+                .filter((item) => item.hours > 0);
+        });
+
+        const allRawDeductions = rawDeductionsByLine.flat();
+        let deductionMaster = [];
+        if (allRawDeductions.length > 0) {
+            deductionMaster = await query(
+                `SELECT id, deduction_code, deduction_name
+                   FROM deduction_types
+                  WHERE process_id=? AND status='active'`,
+                [processId]
+            );
+        }
+
+        const findUniqueDeduction = (items) => {
+            if (items.length !== 1) return null;
+            return items[0];
+        };
+
+        const resolveDeduction = (item) => {
+            let match = null;
+            if (item.deduction_id) {
+                match = findUniqueDeduction(
+                    deductionMaster.filter((row) => Number(row.id) === Number(item.deduction_id))
+                );
+            }
+            if (!match && item.deduction_code) {
+                const code = item.deduction_code.toUpperCase();
+                match = findUniqueDeduction(
+                    deductionMaster.filter((row) => normalizeCode(row.deduction_code).toUpperCase() === code)
+                );
+            }
+            if (!match && item.deduction_name) {
+                const normalizedName = normalizeDefectName(item.deduction_name);
+                match = findUniqueDeduction(
+                    deductionMaster.filter((row) => normalizeDefectName(row.deduction_name) === normalizedName)
+                );
+            }
+            return match;
+        };
+
         const findUniqueDefect = (items) => {
             if (items.length !== 1) return null;
             return items[0];
@@ -140,11 +208,39 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
             const line = machineLines[index] || {};
             const machineCode = normalizeCode(line.machine_code);
             const productCode = normalizeCode(line.product_code);
-            const machineTimeHours = Number(line.machine_time_hours);
             const okQuantity = Number(line.ok_quantity || 0);
             const ngQuantity = Number(line.ng_quantity || 0);
             const rawDefects = rawDefectsByLine[index];
             const normalizedDefects = [];
+            const rawDeductions = rawDeductionsByLine[index];
+            const normalizedDeductions = [];
+
+            for (const item of rawDeductions) {
+                const match = resolveDeduction(item);
+                if (!match) {
+                    errors[`machine_lines.${index}.deductions`] = `Loại trừ giờ ${item.deduction_code || item.deduction_name || item.deduction_id || ''} không tồn tại hoặc không duy nhất trong công đoạn`;
+                    continue;
+                }
+                normalizedDeductions.push({
+                    deduction_type_id: Number(match.id),
+                    deduction_code: normalizeCode(match.deduction_code),
+                    deduction_name: normalizeCode(match.deduction_name),
+                    hours: item.hours
+                });
+            }
+            if (normalizedDeductions.length !== rawDeductions.length) continue;
+
+            // Worker chỉ nhập "Thời gian chạy thực tế" (actual_time_hours); "Tổng thời
+            // gian" (machine_time_hours, ý nghĩa gross cho kế toán giờ máy không đổi)
+            // luôn được backend tự tính lại = thực tế + trừ giờ đã resolve ở trên.
+            // Không tin tưởng machine_time_hours thô do client gửi lên; fallback trừ
+            // ngược chỉ áp dụng khi client cũ không gửi actual_time_hours.
+            const deductionTimeHours = normalizedDeductions.reduce((sum, item) => sum + item.hours, 0);
+            const rawActualTimeHours = Number(line.actual_time_hours);
+            const actualTimeHours = Number.isFinite(rawActualTimeHours) && line.actual_time_hours !== undefined && line.actual_time_hours !== null
+                ? Math.max(0, rawActualTimeHours)
+                : Math.max(0, (Number(line.machine_time_hours) || 0) - deductionTimeHours);
+            const machineTimeHours = actualTimeHours + deductionTimeHours;
 
             for (const item of rawDefects) {
                 const match = resolveDefect(item);
@@ -168,8 +264,12 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
                 errors[`machine_lines.${index}`] = `Dòng máy ${index + 1} thiếu máy hoặc sản phẩm`;
                 continue;
             }
-            if (!Number.isFinite(machineTimeHours) || machineTimeHours <= 0 || machineTimeHours > 12) {
-                errors[`machine_lines.${index}.machine_time_hours`] = `Thời gian máy ${index + 1} phải lớn hơn 0 và không quá 12 giờ`;
+            if (!Number.isFinite(actualTimeHours) || actualTimeHours <= 0 || actualTimeHours > 12) {
+                errors[`machine_lines.${index}.actual_time_hours`] = `Thời gian chạy thực tế máy ${index + 1} phải lớn hơn 0 và không quá 12 giờ`;
+                continue;
+            }
+            if (!Number.isFinite(machineTimeHours) || machineTimeHours > 12) {
+                errors[`machine_lines.${index}.machine_time_hours`] = `Tổng thời gian máy ${index + 1} (thực tế + trừ) không được quá 12 giờ`;
                 continue;
             }
             if (!Number.isInteger(okQuantity) || okQuantity < 0 || !Number.isInteger(ngQuantity) || ngQuantity < 0) {
@@ -247,6 +347,9 @@ const createMachineLineValidator = ({ query = defaultQuery, standardResolver: in
                 machine_standard_id: resolvedStandard.machineStandardId,
                 product_code: resolvedStandard.productCode,
                 machine_time_hours: machineTimeHours,
+                actual_time_hours: actualTimeHours,
+                deduction_time_hours: deductionTimeHours,
+                deductions: normalizedDeductions,
                 standard_time_seconds: Number(resolvedStandard.standardTimeSeconds || 0) || null,
                 standard_output: standardOutput,
                 standard_source: resolvedStandard.source === "MACHINE" ? "MACHINE" : "PRODUCT_VERSION",

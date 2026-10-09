@@ -202,8 +202,19 @@ function WorkerReportEditV2() {
       const defects: Record<string, string> = {};
       const selectedDefects: string[] = [];
       lineDefects.forEach((d: any) => { const key = findNgKey(d); if (key) { defects[key] = s(d.quantity ?? 0); selectedDefects.push(key); } });
-      const time = hm(line.machine_time_hours);
-      return { ...createEmptyMachineLine(), machineCode: s(line.machine_code), productCode: s(line.product_code), hours: time.hours, minutes: time.minutes, adjustmentMinutes: s(line.adjustment_minutes ?? ""), adjustmentCount: s(line.adjustment_count ?? ""), okQuantity: s(line.ok_quantity ?? ""), ngQuantity: s(line.ng_quantity ?? ""), standardOutputPerHour: n(line.standard_output), standardTimeSeconds: line.standard_time_seconds ?? null, standardSource: line.standard_source || null, selectedDefects, defects, machineEventId: line.machine_event_id ?? null } as any;
+      // machine_time_hours lưu trong DB là "Tổng thời gian" (gross = thực tế + trừ).
+      // Form chỉnh sửa hiển thị lại "Thời gian chạy thực tế" cho Worker, nên phải trừ
+      // ngược deduction_time_hours ra trước khi đổ vào ô giờ/phút có thể chỉnh sửa.
+      const rawLineDeductions = Array.isArray(line.deductions_json) ? line.deductions_json
+        : Array.isArray(line.deductions) ? line.deductions
+        : (() => { try { return JSON.parse(line.deductions_json || "[]"); } catch { return []; } })();
+      const lineDeductions: DeductionState = { ...initialDeduction };
+      const selectedLineDeductions: string[] = [];
+      rawLineDeductions.forEach((d: any) => { const key = findDeductionKey(d); const minutes = d.minutes ?? d.deduction_minutes ?? n(d.hours) * 60; if (key) { (lineDeductions as any)[key] = String(Math.round(n(minutes))); selectedLineDeductions.push(key); } });
+      const deductionTimeHours = n(line.deduction_time_hours);
+      const actualTimeHours = Math.max(0, n(line.machine_time_hours) - deductionTimeHours);
+      const time = hm(actualTimeHours);
+      return { ...createEmptyMachineLine(), machineCode: s(line.machine_code), productCode: s(line.product_code), hours: time.hours, minutes: time.minutes, deductions: lineDeductions, selectedDeductions: selectedLineDeductions, adjustmentMinutes: s(line.adjustment_minutes ?? ""), adjustmentCount: s(line.adjustment_count ?? ""), okQuantity: s(line.ok_quantity ?? ""), ngQuantity: s(line.ng_quantity ?? ""), standardOutputPerHour: n(line.standard_output), standardTimeSeconds: line.standard_time_seconds ?? null, standardSource: line.standard_source || null, selectedDefects, defects, machineEventId: line.machine_event_id ?? null } as any;
     }));
     setDeductions((current) => {
       const next: DeductionState = { ...current };
