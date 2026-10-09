@@ -53,10 +53,11 @@ function parseArray(value) {
 
 function resolveReportExportTimes(report) {
   const lines = Array.isArray(report.machineLines) ? report.machineLines : [];
+  const mode = String(report.operation_mode || '').trim().toUpperCase();
   const hasMachine = lines.length > 0
-    || String(report.operation_mode || '').trim().toUpperCase() === 'MACHINE'
-    || [report.machine_no, report.machine_code, report.machine]
-      .some((value) => String(value ?? '').trim() !== '');
+    || mode === 'MACHINE'
+    || (!mode && [report.machine_no, report.machine_code, report.machine]
+      .some((value) => String(value ?? '').trim() !== ''));
   if (!hasMachine) {
     return {
       hasMachine: false,
