@@ -276,13 +276,32 @@ function legacyGcDefectTarget(type, rangeMap, kind) {
   if (!hasCanonicalGcHeaders) return '';
   const name = normalize(typeLabel(type, kind));
   const code = String(type?.defect_code || type?.defect_type_code || type?.code || '').trim().toUpperCase();
-  if (/^(?:DEF_)?KQD(?:_DB)?$/.test(code) || /^(?:kqd|kqd database name|khong qua duong|khong qua duong database name)$/.test(name)) {
-    return GC_FORM_DEFECT_COLUMN_BY_CODE.LONG01;
-  }
-  if (/^(?:DEF_)?VCS(?:_DB)?$/.test(code) || /^(?:vo cao su|vo cao su database name|cao su vo)$/.test(name)) {
-    return GC_FORM_DEFECT_COLUMN_BY_CODE.LONG02;
-  }
-  return '';
+  const legacyCodeTargets = {
+    DEF_KQD_DB: 'LONG01', KQD: 'LONG01', DEF_VCS_DB: 'LONG02', VCS: 'LONG02'
+  };
+  if (legacyCodeTargets[code]) return GC_FORM_DEFECT_COLUMN_BY_CODE[legacyCodeTargets[code]];
+  const legacyNameTargets = {
+    'kqd': 'LONG01', 'kqd database name': 'LONG01',
+    'khong qua duong': 'LONG01', 'khong qua duong database name': 'LONG01',
+    'vo cao su': 'LONG02', 'vo cao su database name': 'LONG02', 'cao su vo': 'LONG02',
+    'cat khong dut': 'CAT01', 'cat khong dut database name': 'CAT01',
+    'cat lem': 'CAT02', 'cat pham': 'CAT03',
+    'cao su ngan': 'CAT04', 'cao su dai': 'CAT05',
+    'bavia': 'CAT06', 'bavia cao su': 'CAT06', 'sot via': 'CAT06',
+    'ppcm': 'CAT07', 'phe pham chinh may': 'CAT07',
+    'lcs': 'CAT08', 'loi cao su ncc': 'CAT08', 'loi cao su (ncc)': 'CAT08',
+    'lan cs': 'CAT09',
+    'truc xuoc': 'LONG03', 'truc gay cong': 'LONG04',
+    'thieu cao su': 'LONG05', 'lan truc': 'LONG06', 'fure truc': 'LONG06',
+    'lan cao su': 'LONG07',
+    // Old combined labels cannot be split reliably between the new subcategories;
+    // preserve their quantity in the appropriate "Khác" bucket rather than
+    // falsely assigning it to one of two distinct encoded defect types.
+    'k xuoc cong gay': 'LONG08', 'chan ngan dai': 'CAT10',
+    'cao su xoay': 'LONG08', 'bavia cat hut': 'CAT10', 'csh': 'CAT10'
+  };
+  const targetCode = legacyNameTargets[name];
+  return targetCode ? GC_FORM_DEFECT_COLUMN_BY_CODE[targetCode] : '';
 }
 
 function assignDetailColumns(rangeMap, types, kind) {
@@ -623,7 +642,7 @@ function applyReportRow(row, report, contract, processData, index) {
 // A DB type that has no column in the template must not silently disappear.
 // Append unmatched CAT/LONG form categories even when their monthly total is zero,
 // so the exported sheet consistently reflects the 10 Cắt + 8 Lồng form catalogue.
-function appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, processData) {
+function appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, processData, processCode) {
   let next = Number(contract.lastColumn || sheet.columnCount) + 1;
   const headerSource = sheet.getRow(headerRow).getCell(Number(contract.lastColumn || sheet.columnCount));
   const blocks = [
@@ -642,6 +661,14 @@ function appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, pro
     const labels = types.map((type) => typeLabel(type, kind));
     for (const type of types) {
       const encodedGcType = kind === 'defect' && Boolean(encodedGcDefectCode(type));
+      const label = typeLabel(type, kind).trim();
+      // Numeric placeholder types in the GC deduction catalogue are not
+      // meaningful business categories (e.g. "Trừ H: 0", "Trừ H: 1").
+      if (String(processCode || '').toUpperCase() === 'GC'
+        && kind === 'deduction' && /^\d+(?:[.,]\d+)?$/.test(label)) continue;
+      // GC must keep the fixed encoded 18-column defect catalogue. Never append
+      // legacy/unmapped NG columns beside CAT01-CAT10 and LONG01-LONG08.
+      if (String(processCode || '').toUpperCase() === 'GC' && kind === 'defect' && !encodedGcType) continue;
       if (!used.has(type) && !encodedGcType) continue;
       const label = typeLabel(type, kind);
       const duplicate = labels.filter((x) => x === label).length > 1;
@@ -858,7 +885,7 @@ async function buildWorkerProcessWorkbook({ appPath, processCode, processName, d
   const columnMap = findColumnMap(sheet, headerRow);
   const contract = buildColumnContract(columnMap, processData);
   reports.sort((a, b) => String(a?.work_date || '').localeCompare(String(b?.work_date || '')) || number(a?.id) - number(b?.id));
-  appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, processData);
+  appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, processData, code);
 
   addDerivedColumns(sheet, headerRow, contract);
   const workTimeColumn = insertContractColumn(sheet, headerRow, contract, contract.cols.shift, 'Thời gian làm việc', { width: 14, hidden: true });
