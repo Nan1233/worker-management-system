@@ -670,8 +670,7 @@ function appendColumnsForUnmatchedTypes(sheet, headerRow, contract, reports, pro
       // legacy/unmapped NG columns beside CAT01-CAT10 and LONG01-LONG08.
       if (String(processCode || '').toUpperCase() === 'GC' && kind === 'defect' && !encodedGcType) continue;
       if (!used.has(type) && !encodedGcType) continue;
-      const label = typeLabel(type, kind);
-      const duplicate = labels.filter((x) => x === label).length > 1;
+      const duplicate = labels.filter((x) => String(x).trim() === label).length > 1;
       const code = kind === 'deduction'
         ? (type.deduction_code || type.code)
         : (type.defect_code || type.defect_type_code || type.code);
