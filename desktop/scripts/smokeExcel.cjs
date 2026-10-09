@@ -134,9 +134,9 @@ function report(overrides = {}) {
     assert.ok(encodedRow, 'Không tìm thấy báo cáo thử mã NG CAT/LONG');
     const headerRow = sheet.getRow(built.headerRow);
     const headerColumn = (expected) => {
-      const target = expected.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[đĐ]/g, 'd').toLowerCase();
+      const target = expected.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd').toLowerCase();
       for (let c = 1; c <= sheet.columnCount; c += 1) {
-        const value = String(headerRow.getCell(c).value ?? '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[đĐ]/g, 'd').toLowerCase();
+        const value = String(headerRow.getCell(c).value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd').toLowerCase();
         if (value === target) return c;
       }
       return null;
