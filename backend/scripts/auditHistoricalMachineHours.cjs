@@ -145,17 +145,19 @@ async function main() {
   }, null, 2) + '\n');
 }
 
-main()
-  .catch((error) => {
-    process.stderr.write(JSON.stringify({
-      success: false,
-      read_only: true,
-      message: error?.message || String(error)
-    }, null, 2) + '\n');
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    try { await db.end(); } catch {}
-  });
+if (require.main === module) {
+  main()
+    .catch((error) => {
+      process.stderr.write(JSON.stringify({
+        success: false,
+        read_only: true,
+        message: error?.message || String(error)
+      }, null, 2) + '\n');
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      try { await db.end(); } catch {}
+    });
+}
 
 module.exports = { classifyReport };
