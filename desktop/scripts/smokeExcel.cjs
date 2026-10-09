@@ -63,6 +63,7 @@ function report(overrides = {}) {
         report({ id: 2, worker_code: '600', work_date: '2026-08-02', actual_output: 0, training_percent: 0 }),
         report({
           id: 3, worker_code: '601', work_date: '2026-08-03', tt_ng: 4, actual_output: 49,
+          machine_no: '', machineLines: [{ machine_code: 'CUT-10', product_code: 'GC-PROD' }],
           defects: [
             { defect_type_id: 11, defect_type_code: 'CAT01', defect_code: 'CAT01', defect_name: 'Cao su không đứt', quantity: 1 },
             { defect_type_id: 12, defect_type_code: 'CAT03', defect_code: 'CAT03', defect_name: 'Cắt phạm', quantity: 1 },
@@ -142,10 +143,13 @@ function report(overrides = {}) {
       return null;
     };
     const cat01Column = headerColumn('Cắt không đứt');
+    const machineColumn = headerColumn('Máy');
     const cat03Column = headerColumn('NG: Cắt phạm (CAT03)');
     const cat10Column = headerColumn('NG: Khác (CAT10)');
     const long08Column = headerColumn('NG: Khác (LONG08)');
     assert.ok(cat01Column, 'CAT01 phải map đúng vào cột Cắt không đứt');
+    assert.ok(machineColumn, 'Template phải có cột Máy');
+    assert.equal(String(sheet.getRow(encodedRow).getCell(machineColumn).value), 'CUT-10', 'Máy phải fallback từ machineLines khi machine_no trống');
     assert.ok(cat03Column, 'CAT03 không có cột tương đương phải được thêm riêng');
     assert.ok(cat10Column && long08Column && cat10Column !== long08Column, 'CAT10 và LONG08 đều là Khác nhưng phải giữ riêng theo mã form');
     assert.equal(Number(sheet.getRow(encodedRow).getCell(cat01Column).value), 1);
