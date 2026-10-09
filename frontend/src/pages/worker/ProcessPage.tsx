@@ -72,6 +72,7 @@ import {
     initialDeduction,
     initialForm,
     processMap,
+    shiftLocalDate,
 } from "./processPageConfig";
 import { processExtraFields } from "./processExtraFields";
 import ProcessExtraFieldsSection from "./components/ProcessExtraFieldsSection";
@@ -118,6 +119,7 @@ import {
 } from "./processQualityLogic";
 
 import {
+    resolveWorkDateForShiftChange,
     validateWorkerWorkDate,
 } from "./processWorkDateLogic";
 
@@ -894,9 +896,14 @@ useLayoutEffect(() => {
                 Khi rời ca C: trả ngày về 1 ngày để tránh bị lệch khi chọn lại ca.
             */
 
-            // Ngày làm việc do công nhân tự chọn; đổi ca không tự động thay đổi ngày.
             if (name === "shift") {
-                next.workDate = clampWorkerWorkDate(prev.workDate);
+                next.workDate = resolveWorkDateForShiftChange({
+                    currentWorkDate: prev.workDate,
+                    previousShift: prev.shift,
+                    nextShift: value,
+                    shiftDate: shiftLocalDate,
+                    clampDate: clampWorkerWorkDate,
+                });
             }
 
 

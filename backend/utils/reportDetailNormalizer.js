@@ -7,6 +7,16 @@ const CANONICAL_GC_DEFECTS = new Map([
   ["BAVIA_CAT_HUT", "Bavia cắt hụt"], ["THIEU_CAO_SU", "Thiếu cao su"]
 ]);
 
+const GC_FORM_DEFECT_NAMES = Object.freeze({
+  CAT01: 'Cao su không đứt', CAT02: 'Cắt lẹm', CAT03: 'Cắt phạm',
+  CAT04: 'Cao su ngắn', CAT05: 'Cao su dài', CAT06: 'Bavia cao su',
+  CAT07: 'Phế phẩm chỉnh máy', CAT08: 'Lỗi cao su ( NCC )', CAT09: 'Lẫn cao su',
+  CAT10: 'Khác', LONG01: 'Không qua dưỡng', LONG02: 'Cao su vỡ',
+  LONG03: 'Trục xước', LONG04: 'Trục gãy, cong', LONG05: 'Thiếu cao su',
+  LONG06: 'Lẫn trục', LONG07: 'Lẫn cao su', LONG08: 'Khác'
+});
+const isEncodedGcDefectCode = (value) => /^(?:CAT(?:0[1-9]|10)|LONG(?:0[1-8]))$/.test(String(value || '').trim().toUpperCase());
+
 const LEGACY_DEFECT_FIELDS = [
   ["kqd_dap_lai", "KQD", "KQD"], ["kqd_tuot", "KQD", "KQD"],
   ["vo_do_long", "VO_CAO_SU", "Vỡ cao su"], ["xuoc_do_long", "K_XUOC_CONG_GAY", "K xước cong gãy"],
@@ -150,7 +160,9 @@ function extractLegacyDefects(extra) {
     if (typeof node !== "object") return;
     for (const [key, value] of Object.entries(node)) {
       const alias = LEGACY_MACHINE_KEYS.get(normalizeKey(key)) || normalizeKey(key);
-      const known = CANONICAL_GC_DEFECTS.has(alias) || LEGACY_DEFECT_FIELDS.some(([, code]) => code === alias);
+      const known = CANONICAL_GC_DEFECTS.has(alias)
+        || LEGACY_DEFECT_FIELDS.some(([, code]) => code === alias)
+        || isEncodedGcDefectCode(alias);
       if (known) {
         const raw = value && typeof value === "object"
           ? (value.quantity ?? value.qty ?? value.ng_quantity ?? value.value ?? value.count)
@@ -158,8 +170,11 @@ function extractLegacyDefects(extra) {
         const quantity = Math.trunc(positiveNumber(raw));
         if (quantity) {
           const existing = seen.get(alias);
+          const name = value && typeof value === "object"
+            ? String(value.defect_name || value.defect_type_name || value.name || value.label || '').trim()
+            : '';
           if (existing) existing.quantity += quantity;
-          else seen.set(alias, { defect_code: alias, quantity });
+          else seen.set(alias, { defect_code: alias, defect_name: name || GC_FORM_DEFECT_NAMES[alias] || '', quantity });
         }
       }
       visit(value, depth + 1);
@@ -167,7 +182,7 @@ function extractLegacyDefects(extra) {
   };
   visit(extra);
   for (const item of seen.values()) {
-    const name = CANONICAL_GC_DEFECTS.get(item.defect_code) || item.defect_code;
+    const name = item.defect_name || GC_FORM_DEFECT_NAMES[item.defect_code] || CANONICAL_GC_DEFECTS.get(item.defect_code) || item.defect_code;
     result.push(canonicalDefect({ ...item, defect_name: name }));
   }
   return result.filter(Boolean);
