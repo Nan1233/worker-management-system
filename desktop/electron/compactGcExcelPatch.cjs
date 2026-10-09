@@ -142,7 +142,7 @@ function metrics(report) {
   const planned = standardRate > 0 ? standardRate * actualTime * (training / 100) : 0;
   const achievement = planned > 0 ? actual / planned : (standardRate > 0 ? outputPerHour / standardRate : 0);
   const deductionTotal = num(report?.deduction_time ?? report?.total_deduction_hours ?? deductionDetailTotal);
-  const changeCount = deductionDetails.filter((item) => norm(item?.deduction_code || item?.code || item?.deduction_name) === 'CHUYEN_MA' && detailValue(item, 'deduction') > 0).length;
+  const changeCount = deductionDetails.filter((item) => norm(item?.deduction_type_code || item?.deduction_code || item?.code || item?.deduction_name) === 'CHUYEN_MA' && detailValue(item, 'deduction') > 0).length;
   return { ok, detailNg, actualTime, totalTime, training, standardRate, actual, outputPerHour, planned, achievement, deductionTotal, changeCount };
 }
 
