@@ -35,8 +35,14 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
       }
     }
 
-    const lineDeductionHours = Math.max(0, Number(line.deduction_time_hours) || 0, (Number(line.adjustment_minutes) || 0) / 60);
     const lineDeductions = parseJsonArray(line.deductions_json);
+    const detailDeductionHours = lineDeductions.reduce((sum, item) => sum + Math.max(0, Number(item?.hours) || 0), 0);
+    const lineDeductionHours = Math.max(
+      0,
+      Number(line.deduction_time_hours) || 0,
+      (Number(line.adjustment_minutes) || 0) / 60,
+      detailDeductionHours
+    );
     if (lineDeductionHours > 0 || lineDeductions.length) {
       const deductionKey = eventId ? 'EVENT:' + eventId : 'LINE:' + (Number(line.id) || lineIndex);
       if (!seenDeductionKeys.has(deductionKey)) {
@@ -59,29 +65,10 @@ const buildGiaCongMachineAccounting = (report, physicalEventsById) => {
     }
   });
 
-  if (deductionHours <= 0 && deductions.length === 0 && Array.isArray(report.deductions) && report.deductions.length) {
-    deductionHours = report.deductions.reduce((sum, item) => sum + Math.max(0, Number(item?.hours) || 0), 0);
-    deductions.push(...report.deductions.map((item) => ({ ...item })));
-  }
-
-  const legacyDeductionHours = Math.max(0, Number(report.deduction_time) || 0);
-  if (deductionHours <= 0 && deductions.length === 0 && legacyDeductionHours > 0) {
-    deductionHours = legacyDeductionHours;
-  }
-
-  const legacyGrossHours = Math.max(0, Number(report.total_time) || 0);
   const hasMachineLines = lines.length > 0;
-  if (!hasMachineLines && grossHours <= 0 && legacyGrossHours > 0) {
-    grossHours = legacyGrossHours;
-    if (deductionHours <= 0 && deductions.length === 0 && legacyDeductionHours > 0) {
-      deductionHours = legacyDeductionHours;
-    }
-  }
-
-  let source = hasPhysicalEvent ? 'MACHINE_EVENT' : (hasMachineLines ? 'MACHINE_LINE' : 'LEGACY_REPORT');
-  if (source === 'LEGACY_REPORT' && grossHours <= 0 && Number(report.actual_time) > 0) {
-    grossHours = Math.max(0, Number(report.actual_time) || 0) + legacyDeductionHours;
-  }
+  const source = hasPhysicalEvent
+    ? 'MACHINE_EVENT'
+    : (hasMachineLines ? 'MACHINE_LINE' : 'MACHINE_DATA_MISSING');
 
   return {
     source,
