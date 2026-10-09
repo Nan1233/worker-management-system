@@ -2,7 +2,6 @@ const db = require('../config/db');
 const { loadBulkCompanyReports, PROCESS_CODES } = require('../services/bulkCompanyExcelDataService');
 const { getSettingsMap } = require('../services/formulaSettingsService');
 const { assertProcessesScope, getActorProcessScope } = require('../services/processAuthorizationService');
-const { assertProcessesScope, getActorProcessScope } = require('../services/processAuthorizationService');
 
 const inFlightByScope = new Map();
 const cacheByScope = new Map();
@@ -11,29 +10,6 @@ const MAX_CACHE_ENTRIES = 8;
 
 function normalizeRole(actor) {
   return String(actor?.role || '').trim().toLowerCase();
-}
-
-async function getCompanyProcessIds() {
-  const placeholders = PROCESS_CODES.map(() => '?').join(',');
-  const [rows] = await db.promise().query(
-    `SELECT id
-       FROM processes
-      WHERE UPPER(process_code) IN (${placeholders})
-      ORDER BY id`,
-    PROCESS_CODES
-  );
-  return rows.map((row) => Number(row.id)).filter((id) => Number.isInteger(id) && id > 0);
-}
-
-async function assertCompanyDataScope(actor) {
-  if (!actor) return true;
-  const scope = await getActorProcessScope(actor);
-  if (scope.type === 'ALL') return true;
-  const companyProcessIds = await getCompanyProcessIds();
-  await assertProcessesScope(actor, companyProcessIds, {
-    action: 'COMPANY_DATA_READ'
-  });
-  return true;
 }
 
 async function getCompanyProcessIds() {
@@ -91,7 +67,6 @@ async function attachSubmissionTimestamps(processData) {
 }
 
 async function buildCompanyData(yearMonth, actor) {
-  await assertCompanyDataScope(actor);
   await assertCompanyDataScope(actor);
   const { processData, processIds, scope } = await loadBulkCompanyReports(yearMonth, actor);
   await attachSubmissionTimestamps(processData);
@@ -168,9 +143,7 @@ async function buildCompanyData(yearMonth, actor) {
 async function getCompanyData(yearMonth, actor) {
   const scope = actor
     ? await getActorProcessScope(actor)
-    ? await getActorProcessScope(actor)
     : { type: 'ALL', processIds: null };
-  await assertCompanyDataScope(actor);
   await assertCompanyDataScope(actor);
   const key = scopeCacheKey(yearMonth, actor, scope);
 
@@ -225,7 +198,6 @@ exports.get = async (req, res) => {
 };
 
 exports._buildCompanyData = buildCompanyData;
-exports._assertCompanyDataScope = assertCompanyDataScope;
 exports._assertCompanyDataScope = assertCompanyDataScope;
 exports._clearCompanyDataCache = () => {
   cacheByScope.clear();
