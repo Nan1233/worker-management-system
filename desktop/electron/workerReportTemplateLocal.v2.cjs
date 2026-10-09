@@ -541,8 +541,21 @@ function applyReportRow(row, report, contract, processData, index) {
   set(contract.cols.shift, report.shift);
   set(contract.cols.operationType, report.operation_type);
   set(contract.cols.operationMode, report.operation_mode);
-  set(contract.cols.machine, report.machine_no ?? report.machine_code ?? report.machine);
-  set(contract.cols.product, report.product_name || report.product_code);
+  const machineLines = [
+    ...(Array.isArray(report.machineLines) ? report.machineLines : []),
+    ...(Array.isArray(report.machine_lines) ? report.machine_lines : []),
+    ...(Array.isArray(report.machines) ? report.machines : [])
+  ];
+  const machineValues = [
+    report.machine_no, report.machine_code, report.machine,
+    ...machineLines.map((line) => line?.machine_code || line?.machine_no || line?.machineCode || line?.code)
+  ].map((value) => String(value ?? '').trim()).filter(Boolean);
+  set(contract.cols.machine, [...new Set(machineValues)].join(', '));
+  const directProduct = String(report.product_name || report.product_code || '').trim();
+  const lineProducts = machineLines
+    .map((line) => String(line?.product_code || line?.product_name || line?.productCode || '').trim())
+    .filter(Boolean);
+  set(contract.cols.product, directProduct || [...new Set(lineProducts)].join(', '));
   if (contract.cols.submittedAt) {
     const cell = row.getCell(contract.cols.submittedAt);
     cell.value = asDateTime(report.submitted_at || report.created_at || report.entry_date);
