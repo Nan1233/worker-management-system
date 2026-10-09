@@ -16,6 +16,9 @@ test("machine line shows actual-time input and deduction input without rendering
   assert.match(basic, /label>Thời gian trừ/);
   assert.doesNotMatch(basic, /data-worker-time="machine-total"/);
   assert.doesNotMatch(basic, /data-worker-time-value="machine-total"/);
+  assert.match(basic, /machine-detail-values-row/);
+  assert.match(basic, /Chi tiết trừ giờ/);
+  assert.match(basic, /Chi tiết lỗi NG/);
   assert.match(basic, /label>Tổng thời gian/);
   // The "total" field must be read-only; Worker can no longer type a gross total directly.
   assert.match(basic, /data-worker-time-value="machine-total"[^]*?readOnly/);
