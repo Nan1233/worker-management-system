@@ -11,3 +11,5 @@ export function resolveWorkDateForShiftChange(args:{currentWorkDate:string;previ
   else if (prev==="C" && next!=="C") date=args.shiftDate(date,1);
   return args.clampDate(date);
 }
+
+// Keep this shift-date resolver exported for ProcessPage and Cloudflare Pages builds.
